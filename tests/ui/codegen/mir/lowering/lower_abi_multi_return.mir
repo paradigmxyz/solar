@@ -1,4 +1,4 @@
-//@compile-flags: --pass lower-abi
+//@compile-flags: -Zmir-pipeline=lower-abi
 //@filecheck:
 // Static multi-return wrappers must encode every return word, not just the
 // first call result.

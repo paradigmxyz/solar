@@ -110,13 +110,15 @@ bb0:
   sgt
   push bb3
   jumpi
-  push 0
-  push 128
-  mstore
   push 36
   calldataload
   push bb8
   jumpi
+  push 0
+  jump bb11
+bb11:
+  push 128
+  mstore
   push 32
   push 128
   return
@@ -173,11 +175,7 @@ bb8:
   jumpi
   push 0
   mload
-  push 128
-  mstore
-  push 32
-  push 128
-  return
+  jump bb11
 bb10 [cold]:
   returndatasize
   dup1
@@ -216,9 +214,6 @@ bb0:
   sgt
   push bb3
   jumpi
-  push 0
-  push 128
-  mstore
   push 64
   mload
   dup1

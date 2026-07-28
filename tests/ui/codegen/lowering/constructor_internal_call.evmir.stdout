@@ -5,10 +5,10 @@ bb0:
   push 0x4000
   push 64
   mstore
-  push 380
+  push 369
   codesize
   sub
-  push 380
+  push 369
   push 128
   codecopy
   push 7
@@ -31,7 +31,7 @@ bb0:
   dup1
   push 160
   mstore
-  push 256
+  push 224
   add
   push 64
   mstore
@@ -39,13 +39,6 @@ bb0:
   push bb9
   jump bb1
 bb1:
-  push 160
-  mload
-  push 128
-  add
-  push 0
-  swap1
-  mstore
   push 160
   mload
   push 64
@@ -85,13 +78,13 @@ bb3:
   dup1
   push 160
   mload
-  push 160
+  push 128
   add
   mstore
   dup1
   push 160
   mload
-  push 160
+  push 128
   add
   mstore
   push 11
@@ -131,7 +124,7 @@ bb3:
   dup1
   push 160
   mstore
-  push 256
+  push 224
   add
   push 64
   mstore
@@ -147,7 +140,7 @@ bb5:
   dup1
   push 160
   mload
-  push 192
+  push 160
   add
   mstore
   push 160
@@ -164,42 +157,42 @@ bb5:
   dup1
   push 160
   mload
-  push 192
+  push 160
   add
   mstore
+  dup1
+  push 160
+  mload
+  push 160
+  add
+  mstore
+  push 160
+  mload
+  push 128
+  add
+  mload
+  add
   dup1
   push 160
   mload
   push 192
   add
   mstore
-  push 160
-  mload
-  push 160
-  add
-  mload
-  add
   dup1
   push 160
   mload
-  push 224
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 224
+  push 192
   add
   mstore
   push 160
   mload
-  push 160
+  push 128
   add
   mload
   dup1
   push 160
   mload
-  push 160
+  push 128
   add
   mstore
   gt
@@ -207,7 +200,7 @@ bb5:
   jumpi
   push 160
   mload
-  push 224
+  push 192
   add
   mload
   jump bb10
@@ -238,7 +231,7 @@ bb9:
   sstore
   push 38
   dup1
-  push 342
+  push 331
   push 0
   codecopy
   push 0

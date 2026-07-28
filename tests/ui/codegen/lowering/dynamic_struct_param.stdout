@@ -109,7 +109,6 @@ fn @init(arg0: u256, arg1: address) {
   bb17:
     revert 0, 0
   bb18:
-    mstore 128, 0
     v53 = memory_object_field_addr memorystruct<4>, v5, 1
     v54 = mload v53
     v55 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
@@ -146,7 +145,6 @@ fn @flat(arg0: u256, arg1: u256) {
   bb4:
     v8 = memory_object_field_addr memorystruct<2>, v3, 1
     mstore v8, arg1
-    mstore 128, 0
     v9 = memory_object_field_addr memorystruct<2>, v3, 0
     v10 = mload v9
     mstore 128, v10

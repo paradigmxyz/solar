@@ -5,9 +5,15 @@
 //@ run-call: increment => 41
 //@ run-call: increment => 41
 //@ run-call: testInline()
+//@ run-call: fullyInitializedNamedStruct => ([0], 0x00)
 //@ run-call: 0x1003e2d20000000000000000000000000000000000000000000000000000000000000002 => 0x000000000000000000000000000000000000000000000000000000000000002a
 
 contract RunCall {
+    struct DynamicHolder {
+        uint256[] values;
+        bytes data;
+    }
+
     uint256 private base;
 
     constructor() {
@@ -38,5 +44,14 @@ contract RunCall {
 
     function testInline() external view {
         assert(base == 40);
+    }
+
+    function fullyInitializedNamedStruct()
+        external
+        pure
+        returns (DynamicHolder memory holder)
+    {
+        holder.values = new uint256[](1);
+        holder.data = new bytes(1);
     }
 }

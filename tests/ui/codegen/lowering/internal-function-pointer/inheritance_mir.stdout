@@ -2,17 +2,13 @@
 @module PointerBase
 fn @target() -> u256 {
   bb0:
-    v0 = internal_frame_addr 96
-    mstore v0, 0 !metadata(memory=internal_frame)
     ret 1
 }
 
 fn @callThroughVirtualPointer() -> u256 {
   bb0:
-    v0 = internal_frame_addr 96
-    mstore v0, 0 !metadata(memory=internal_frame)
-    v1 = internal_call @__internal_dispatch_0, 1, 1
-    ret v1
+    v0 = internal_call @__internal_dispatch_0, 1, 1
+    ret v0
 }
 
 fn @__internal_dispatch_0(arg0: function) -> u256 {
@@ -32,14 +28,11 @@ fn @__internal_dispatch_0(arg0: function) -> u256 {
 @module PointerDerived
 fn @target() -> u256 {
   bb0:
-    v0 = internal_frame_addr 96
-    mstore v0, 0 !metadata(memory=internal_frame)
     ret 2
 }
 
 fn @callQualified() {
   bb0:
-    mstore 128, 0
     v0 = internal_call @__internal_dispatch_0, 1, 1
     mstore 128, v0
     returndata 128, 32
@@ -66,7 +59,6 @@ fn @__internal_dispatch_0(arg0: function) -> u256 {
 
 fn @callVirtual() {
   bb0:
-    mstore 128, 0
     v0 = internal_call @__internal_dispatch_0, 1, 3
     mstore 128, v0
     returndata 128, 32
@@ -74,16 +66,12 @@ fn @callVirtual() {
 
 fn @target() -> u256 {
   bb0:
-    v0 = internal_frame_addr 96
-    mstore v0, 0 !metadata(memory=internal_frame)
     ret 1
 }
 
 fn @callThroughVirtualPointer() -> u256 {
   bb0:
-    v0 = internal_frame_addr 96
-    mstore v0, 0 !metadata(memory=internal_frame)
-    v1 = internal_call @__internal_dispatch_0, 1, 3
-    ret v1
+    v0 = internal_call @__internal_dispatch_0, 1, 3
+    ret v0
 }
 

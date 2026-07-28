@@ -47,9 +47,6 @@ bb5:
   sgt
   push bb4
   jumpi
-  push 0
-  push 128
-  mstore
   push 4
   push 4
   calldataload
@@ -232,9 +229,6 @@ bb11:
   sub
   push bb4
   jumpi
-  push 0
-  push 128
-  mstore
   push 4
   push 4
   calldataload

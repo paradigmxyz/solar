@@ -1,4 +1,4 @@
-//@compile-flags: --pipeline-default
+//@compile-flags: -Zmir-pipeline=default
 //@filecheck:
 @module FreshArrayBoundsPipeline
 

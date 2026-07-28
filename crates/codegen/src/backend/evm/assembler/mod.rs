@@ -174,8 +174,7 @@ impl<'gcx> Assembler<'gcx> {
 
     /// Emits a push instruction that will be resolved to a label's offset.
     pub(crate) fn emit_push_label(&mut self, label: Label) {
-        let (block, instruction) =
-            self.push_ir_instruction(ir::Instruction::push_value(U256::ZERO));
+        let (block, instruction) = self.push_ir_instruction(ir::Instruction::push_relocation());
         self.label_relocations.push((block, instruction, label));
     }
 
@@ -188,8 +187,7 @@ impl<'gcx> Assembler<'gcx> {
 
     /// Emits a push instruction for a deferred constant.
     pub(crate) fn emit_push_deferred(&mut self, id: DeferredConst) {
-        let (block, instruction) =
-            self.push_ir_instruction(ir::Instruction::push_value(U256::ZERO));
+        let (block, instruction) = self.push_ir_instruction(ir::Instruction::push_relocation());
         self.deferred_relocations.push((block, instruction, id));
     }
 
@@ -202,8 +200,7 @@ impl<'gcx> Assembler<'gcx> {
     /// exact backend frame layout is known.
     pub(in crate::backend::evm) fn emit_deferred_alloc(&mut self) -> DeferredAlloc {
         let id = self.next_deferred_alloc.next();
-        let (block, instruction) =
-            self.push_ir_instruction(ir::Instruction::push_value(U256::ZERO));
+        let (block, instruction) = self.push_ir_instruction(ir::Instruction::push_relocation());
         self.alloc_relocations.push((block, instruction, id));
         id
     }
@@ -414,7 +411,7 @@ impl<'gcx> Assembler<'gcx> {
         Self::resolve_known_deferred_constants(&mut ir_program, &self.deferred_values);
 
         let input_is_valid = cfg!(debug_assertions) && is_valid_evm_ir(&ir_program);
-        let _changed = ir::run_passes(self.gcx, &mut ir_program, ir::DEFAULT_PIPELINE);
+        let _changed = ir::run_pipeline(self.gcx, &mut ir_program, None);
         debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
 
         let program = assembly::lower_evm_ir(

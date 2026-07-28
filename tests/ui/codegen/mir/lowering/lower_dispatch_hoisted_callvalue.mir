@@ -1,4 +1,4 @@
-//@compile-flags: --pass lower-dispatch
+//@compile-flags: -Zmir-pipeline=lower-dispatch
 //@filecheck:
 // When every external entry rejects value, the callvalue check is hoisted to
 // the top of `entry` once instead of being repeated per case. No

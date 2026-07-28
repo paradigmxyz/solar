@@ -1,4 +1,4 @@
-//@compile-flags: --pass dce
+//@compile-flags: -Zmir-pipeline=dce
 //~? ERROR: [fn0] [bb0, inst0] slice instruction `make_memory_slice` survives the `evm-shaped` phase boundary
 //~? ERROR: [fn0] [bb0, inst1] slice instruction `slice_len` survives the `evm-shaped` phase boundary
 //~? ERROR: [fn1] [bb0, inst0] ABI encoding instruction `abi_encode` survives the `evm-shaped` phase boundary

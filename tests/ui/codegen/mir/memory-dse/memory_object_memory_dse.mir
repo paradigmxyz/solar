@@ -1,4 +1,4 @@
-//@compile-flags: --passes memory-dse,dce
+//@compile-flags: -Zmir-pipeline=memory-dse,dce
 //@filecheck:
 @module MemoryObjectMemoryDse
 

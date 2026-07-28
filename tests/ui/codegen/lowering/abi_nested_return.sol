@@ -9,7 +9,7 @@ contract AbiNestedReturn {
     }
 
     // CHECK-LABEL: fn @structArray{{[( ]}}
-    // CHECK: [[OUT:v[0-9]+]] = alloc memoryarray<1>
+    // CHECK: [[OUT:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
     // CHECK: [[PAIR:v[0-9]+]] = alloc memorystruct<2>
     // CHECK: memory_object_field_addr memorystruct<2>, [[PAIR]], 0
     // CHECK: memory_object_field_addr memorystruct<2>, [[PAIR]], 1
@@ -21,8 +21,8 @@ contract AbiNestedReturn {
     }
 
     // CHECK-LABEL: fn @nestedArray{{[( ]}}
-    // CHECK: [[OUT:v[0-9]+]] = alloc memoryarray<1>
-    // CHECK: [[INNER:v[0-9]+]] = alloc memoryarray<1>
+    // CHECK: [[OUT:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
+    // CHECK: [[INNER:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
     // CHECK: set_memory_object_len memoryarray, [[INNER]], arg0
     // CHECK: memory_object_element_addr memoryarray<1>, [[OUT]], 0
     function nestedArray(uint256 n) public pure returns (uint256[][] memory) {

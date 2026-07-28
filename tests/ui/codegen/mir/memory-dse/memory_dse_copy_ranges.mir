@@ -1,4 +1,4 @@
-//@compile-flags: --pass memory-dse
+//@compile-flags: -Zmir-pipeline=memory-dse
 //@filecheck:
 @module MemoryDseCopyRanges
 

@@ -1,4 +1,4 @@
-//@ compile-flags: -Ztime-passes --pass block-layout
+//@ compile-flags: -Ztime-passes -Zevm-ir-pipeline=block-layout
 //@ normalize-stderr-test: "time: +[0-9]+\.[0-9]{3}" -> "time: <TIME>"
 //@ filecheck:
 @module module

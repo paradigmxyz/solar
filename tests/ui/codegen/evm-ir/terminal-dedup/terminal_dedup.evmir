@@ -1,4 +1,4 @@
-//@compile-flags: --pass terminal-dedup
+//@compile-flags: -Zevm-ir-pipeline=terminal-dedup
 //@filecheck:
 @module module
 

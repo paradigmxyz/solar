@@ -1,4 +1,4 @@
-//@compile-flags: --pass lower-dispatch
+//@compile-flags: -Zmir-pipeline=lower-dispatch
 //@filecheck:
 // The dispatch phase synthesizes an `entry` function that reads the selector
 // (calldataload(0) >> 224) and switches to one argument-free internal call per

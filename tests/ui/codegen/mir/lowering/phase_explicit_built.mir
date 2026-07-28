@@ -1,4 +1,4 @@
-//@compile-flags: --pass dce
+//@compile-flags: -Zmir-pipeline=dce
 //@filecheck: --implicit-check-not=[phase
 // CHECK: @module PhaseExplicitBuilt
 // `built` is the default phase: an explicit `@phase built` parses but is

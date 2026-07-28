@@ -208,7 +208,7 @@ impl<'gcx> ParsingContext<'gcx> {
         let _ = self.gcx.advance_stage(CompilerStage::Parsing);
 
         let mut sources = std::mem::take(self.sources);
-        if !sources.is_empty() {
+        if self.sess.opts.language.is_source() && !sources.is_empty() {
             let dbg = enabled!(tracing::Level::DEBUG);
             let len_before = sources.len();
             let sources_parsed_before = if dbg { sources.count_parsed() } else { 0 };

@@ -9,7 +9,6 @@ fn @eq(arg0: u256, arg1: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = eq arg0, arg1
     mstore 128, v3
     returndata 128, 32
@@ -24,7 +23,6 @@ fn @lt(arg0: u256, arg1: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = lt arg0, arg1
     mstore 128, v3
     returndata 128, 32
@@ -39,7 +37,6 @@ fn @is_zero(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = eq arg0, 0
     mstore 128, v3
     returndata 128, 32

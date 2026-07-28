@@ -1,4 +1,4 @@
-//@compile-flags: --pass dce
+//@compile-flags: -Zmir-pipeline=dce
 //@filecheck:
 // Side-effect instructions must survive DCE even if their results are unused.
 // sstore, log0, call all have side effects.
