@@ -30,6 +30,11 @@ fn @different_immutables_stay(arg0: u256) -> u256 {
 }
 
 // A constructor assignment invalidates an earlier read.
+// CHECK-LABEL: {{^[ +].*}}fn @store_prevents_merge{{[( ]}}
+// CHECK: {{^[ +].*}}[[BEFORE:v[0-9]+]] = loadimmutable first
+// CHECK: {{^[ +].*}}storeimmutable first, arg0
+// CHECK: {{^[ +].*}}[[AFTER:v[0-9]+]] = loadimmutable first
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = add [[BEFORE]], [[AFTER]]
 fn @store_prevents_merge(arg0: u256) -> u256 {
   bb0:
     v1 = loadimmutable first
