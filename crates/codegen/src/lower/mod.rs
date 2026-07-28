@@ -1514,12 +1514,11 @@ impl<'gcx> Lowerer<'gcx> {
         let mut constructor_args = FxHashMap::default();
         let mut resolving_constructor_args = FxHashSet::default();
 
-        // Solidity runs construction from base to derived. For each contract in that order,
-        // initialize its state variables, then run its constructor body. The current contract's
-        // own constructor body is lowered by the caller after this prelude.
         let construction_order = contract.linearized_bases.to_vec();
 
-        for base_id in construction_order.into_iter().rev() {
+        // State variables are initialized from the most base contract to the
+        // most derived contract before constructor argument expressions run.
+        for &base_id in construction_order.iter().rev() {
             let base_contract = self.gcx.hir.contract(base_id);
             for var_id in base_contract.variables() {
                 let var = self.gcx.hir.variable(var_id);
@@ -1535,11 +1534,13 @@ impl<'gcx> Lowerer<'gcx> {
                     }
                 }
             }
+        }
 
-            if base_id != contract_id
-                && let Some(ctor_id) = base_contract.ctor
-            {
-                if self
+        // Base constructor arguments are evaluated in the derived contract's
+        // linearized order, independently of constructor body execution.
+        for &base_id in construction_order.iter().skip(1) {
+            if self.gcx.hir.contract(base_id).ctor.is_some()
+                && self
                     .lower_base_constructor_arguments(
                         builder,
                         contract_id,
@@ -1548,9 +1549,28 @@ impl<'gcx> Lowerer<'gcx> {
                         &mut resolving_constructor_args,
                     )
                     .is_err()
-                {
-                    return;
+            {
+                return;
+            }
+        }
+
+        // Argument expressions for an indirect base may refer to the
+        // constructor parameters of the contract which supplied them. Those
+        // bindings are only needed while resolving the full argument chain.
+        for &base_id in constructor_args.keys() {
+            if let Some(ctor_id) = self.gcx.hir.contract(base_id).ctor {
+                for &param_id in self.gcx.hir.function(ctor_id).parameters {
+                    self.locals.remove(&param_id);
                 }
+            }
+        }
+
+        // Constructor bodies execute from the most base contract to the most
+        // derived. The current contract's body is lowered by the caller.
+        for &base_id in construction_order.iter().rev() {
+            if base_id != contract_id
+                && let Some(ctor_id) = self.gcx.hir.contract(base_id).ctor
+            {
                 self.lower_base_constructor_call(
                     builder,
                     ctor_id,
