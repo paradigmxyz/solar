@@ -1319,12 +1319,8 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_library_call(builder, func_id, args, None);
         }
 
-        // `Base.f(...)` and `super.f(...)` are exact internal calls. Sema has
-        // already resolved `super` to the next implemented function in the
-        // current contract's linearization.
-        if self.is_contract_or_super_type_expr(base)
-            && let Some(func_id) = self.resolved_function_callee(callee)
-        {
+        // `Base.f(...)` and `super.f(...)` are exact internal calls.
+        if let Some(func_id) = self.resolved_exact_function_callee(base, callee) {
             return self.lower_resolved_internal_call(builder, func_id, args);
         }
 
@@ -1626,17 +1622,67 @@ impl<'gcx> Lowerer<'gcx> {
         self.gcx.resolved_function(callee)
     }
 
+    pub(super) fn resolved_exact_function_callee(
+        &self,
+        base: &hir::Expr<'_>,
+        callee: &hir::Expr<'_>,
+    ) -> Option<hir::FunctionId> {
+        let function_id = self.resolved_function_callee(callee)?;
+        let TyKind::Type(ty) = self.get_expr_type(base)?.kind else { return None };
+        match ty.kind {
+            TyKind::Contract(_) => Some(function_id),
+            TyKind::Super(contract_id) => {
+                Some(self.resolve_super_function_target(contract_id, function_id))
+            }
+            _ => None,
+        }
+    }
+
+    fn resolve_super_function_target(
+        &self,
+        defining_contract_id: hir::ContractId,
+        function_id: hir::FunctionId,
+    ) -> hir::FunctionId {
+        let Some(contract_id) = self.contract_id else { return function_id };
+        let item = hir::ItemId::from(function_id);
+        let name = self.gcx.item_name(item).name;
+        let parameters = self.gcx.item_parameter_types(item);
+
+        let bases = self
+            .gcx
+            .hir
+            .contract(contract_id)
+            .linearized_bases
+            .iter()
+            .skip_while(|&&base_id| base_id != defining_contract_id)
+            .skip(1);
+        for &base_id in bases {
+            for candidate_id in self.gcx.hir.contract(base_id).functions() {
+                let candidate = self.gcx.hir.function(candidate_id);
+                if !candidate.is_ordinary()
+                    || candidate.visibility <= hir::Visibility::Private
+                    || candidate.visibility == hir::Visibility::External
+                    || candidate.body.is_none()
+                {
+                    continue;
+                }
+
+                let candidate_item = hir::ItemId::from(candidate_id);
+                if self.gcx.item_name(candidate_item).name == name
+                    && self.gcx.item_parameter_types(candidate_item) == parameters
+                {
+                    return candidate_id;
+                }
+            }
+        }
+        function_id
+    }
+
     fn is_library_type_expr(&self, expr: &hir::Expr<'_>) -> bool {
         let Some(ty) = self.get_expr_type(expr) else { return false };
         let TyKind::Type(ty) = ty.kind else { return false };
         let TyKind::Contract(contract_id) = ty.kind else { return false };
         self.gcx.hir.contract(contract_id).kind.is_library()
-    }
-
-    fn is_contract_or_super_type_expr(&self, expr: &hir::Expr<'_>) -> bool {
-        let Some(ty) = self.get_expr_type(expr) else { return false };
-        let TyKind::Type(ty) = ty.kind else { return false };
-        matches!(ty.kind, TyKind::Contract(_) | TyKind::Super(_))
     }
 
     fn array_builtin_method_name(builtin: Builtin) -> Option<Symbol> {
