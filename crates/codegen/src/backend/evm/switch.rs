@@ -30,7 +30,7 @@ const MAX_BUCKET_CANDIDATES: usize = 33;
 // Guarded bit-slice tables trade predictable hit depth for more code. Keep
 // their individual gas-mode growth at a round conservative plateau under unknown
 // case frequencies.
-pub(super) const MAX_BIT_SLICE_GAS_CODE_GROWTH: usize = 80;
+pub(super) const MAX_BIT_SLICE_GAS_CODE_GROWTH: usize = 96;
 /// Bounds cumulative bytecode growth per artifact under the runtime-gas objective.
 ///
 /// Keep this a round policy limit rather than fitting it to a corpus transition.
