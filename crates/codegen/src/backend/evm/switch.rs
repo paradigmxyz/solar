@@ -30,7 +30,7 @@ const MAX_BUCKET_CANDIDATES: usize = 33;
 // Guarded bit-slice tables trade predictable hit depth for more code. Keep
 // their individual gas-mode growth at a round conservative plateau under unknown
 // case frequencies.
-pub(super) const MAX_BIT_SLICE_GAS_CODE_GROWTH: usize = 96;
+pub(super) const MAX_BIT_SLICE_GAS_CODE_GROWTH: usize = 80;
 /// Bounds cumulative bytecode growth per artifact under the runtime-gas objective.
 ///
 /// Keep this a round policy limit rather than fitting it to a corpus transition.
@@ -335,9 +335,6 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
 
     let max_gas_code_size = linear_cost.code_size.saturating_add(max_gas_code_growth);
     let mut best = (linear_cost, SwitchPlan::Linear);
-    // A guarded perfect hash may reuse the size ceiling of any gas-improving
-    // non-bit plan that fits the total budget, without raising the bit policy.
-    let mut portfolio_gas_code_size = 0;
     let explicit_default = default.without_fallthrough();
     if matches!(optimization, OptimizationMode::Gas | OptimizationMode::Size) {
         for leaf_size in binary_leaf_sizes(values.len()) {
@@ -349,12 +346,6 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 table_target_width,
                 coalesce_case_targets,
             );
-            if optimization == OptimizationMode::Gas
-                && cost.max_code_size <= max_gas_code_size
-                && cost.gas_key() < linear_cost.gas_key()
-            {
-                portfolio_gas_code_size = portfolio_gas_code_size.max(cost.max_code_size);
-            }
             let better = match optimization {
                 OptimizationMode::Gas => cost.is_better_for_gas_than(best.0, max_gas_code_size),
                 OptimizationMode::Size => {
@@ -385,9 +376,6 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 table_target_width,
                 coalesce_case_targets,
             );
-            if cost.max_code_size <= max_gas_code_size && cost.gas_key() < linear_cost.gas_key() {
-                portfolio_gas_code_size = portfolio_gas_code_size.max(cost.max_code_size);
-            }
             if cost.is_better_for_gas_than(best.0, max_gas_code_size) {
                 best = (cost, SwitchPlan::Buckets { bucket_count });
             }
@@ -400,12 +388,6 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         table_target_width,
         layout.shared_case_continuation,
     ) {
-        if optimization == OptimizationMode::Gas
-            && cost.max_code_size <= max_gas_code_size
-            && cost.gas_key() < linear_cost.gas_key()
-        {
-            portfolio_gas_code_size = portfolio_gas_code_size.max(cost.max_code_size);
-        }
         let better = match optimization {
             OptimizationMode::Gas => cost.is_better_for_gas_than(best.0, max_gas_code_size),
             OptimizationMode::Size => {
@@ -430,13 +412,6 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         table_target_width,
         coalesce_case_targets,
     ) {
-        if optimization == OptimizationMode::Gas
-            && !matches!(plan, SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } })
-            && cost.max_code_size <= max_gas_code_size
-            && cost.gas_key() < linear_cost.gas_key()
-        {
-            portfolio_gas_code_size = portfolio_gas_code_size.max(cost.max_code_size);
-        }
         let better = match optimization {
             OptimizationMode::Gas => {
                 let max_code_size =
@@ -448,9 +423,6 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                         max_gas_code_size
                     };
                 cost.is_better_for_gas_than(best.0, max_code_size)
-                    || (coalesce_case_targets
-                        && cost.max_code_size <= portfolio_gas_code_size
-                        && cost.gas_key() < best.0.gas_key())
             }
             OptimizationMode::Size => {
                 size_key_for_plan(cost, plan, values.len(), table_target_width, layout)
@@ -1322,7 +1294,7 @@ mod tests {
     }
 
     #[test]
-    fn replaces_larger_plan_with_coalesced_bit_slice() {
+    fn keeps_coalesced_bit_slice_within_independent_cap() {
         let linear_values = (0..16)
             .map(|index| U256::from((index + 1) * (index + 1) * 65536 + index))
             .collect::<Vec<_>>();
@@ -1350,16 +1322,11 @@ mod tests {
             shared_case_continuation: true,
             ..SwitchLayout::default()
         });
-        assert!(matches!(
-            selection.plan,
-            SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } }
-        ));
-        assert!(selection.gas_code_growth > MAX_BIT_SLICE_GAS_CODE_GROWTH);
-        assert!(selection.gas_code_growth <= MAX_GAS_CODE_GROWTH);
+        assert!(matches!(selection.plan, SwitchPlan::Buckets { .. }));
     }
 
     #[test]
-    fn accounts_for_shared_case_continuation() {
+    fn does_not_bypass_bit_slice_cap_for_shared_continuation() {
         let values = (0..6).map(|index| U256::from(20_000 + index * 6)).collect::<Vec<_>>();
         let select = |shared_case_continuation| {
             select_switch_plan_with_linear_values_and_budget(
@@ -1383,7 +1350,10 @@ mod tests {
             .plan
         };
         assert!(matches!(select(false), SwitchPlan::Dense { .. }));
-        assert!(matches!(select(true), SwitchPlan::Perfect { .. }));
+        assert!(!matches!(
+            select(true),
+            SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } }
+        ));
     }
 
     #[test]
