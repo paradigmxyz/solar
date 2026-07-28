@@ -33,7 +33,6 @@ use solar_interface::{
     kw, sym,
 };
 use solar_sema::{
-    builtins::Builtin,
     hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId, Visit},
     ty::{Gcx, Ty, TyKind},
 };
@@ -152,8 +151,6 @@ pub(crate) struct Lowerer<'gcx> {
     inline_stack: Vec<HirFunctionId>,
     /// Expression error-checking states suspended at inline function boundaries.
     inline_expr_error_checks: Vec<bool>,
-    /// Cached argument counts for builtin calls.
-    builtin_arg_counts: [Option<call::BuiltinArgCount>; Builtin::COUNT],
     /// HIR functions already lowered into this MIR module.
     hir_to_mir_functions: FxHashMap<HirFunctionId, FunctionId>,
     /// Internal-convention copies of public functions, lowered on demand so that
@@ -244,7 +241,6 @@ impl<'gcx> Lowerer<'gcx> {
             storage_ref_locals: GrowableBitSet::new_empty(),
             inline_stack: Vec::new(),
             inline_expr_error_checks: Vec::new(),
-            builtin_arg_counts: [None; Builtin::COUNT],
             hir_to_mir_functions: FxHashMap::default(),
             hir_to_internal_mir_functions: FxHashMap::default(),
             recursive_functions: FxHashMap::default(),

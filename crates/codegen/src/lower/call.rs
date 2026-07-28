@@ -45,7 +45,7 @@ pub(super) enum ExternalCallKind {
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum BuiltinArgCount {
+enum BuiltinArgCount {
     Exact(usize),
     AtLeast(usize),
     Between(usize, usize),
@@ -161,60 +161,6 @@ impl<'gcx> Lowerer<'gcx> {
         returns_value.then(|| builder.error_value(guar))
     }
 
-    fn builtin_arg_count(&mut self, builtin: Builtin) -> Option<BuiltinArgCount> {
-        let index = builtin as usize;
-        if let Some(count) = self.builtin_arg_counts[index] {
-            return Some(count);
-        }
-        let count = match builtin {
-            Builtin::ArrayPush0 | Builtin::ArrayPop => BuiltinArgCount::Exact(0),
-            Builtin::ArrayPush
-            | Builtin::UdvtWrap
-            | Builtin::UdvtUnwrap
-            | Builtin::AddressBalance => BuiltinArgCount::Exact(1),
-            Builtin::Require => BuiltinArgCount::Between(1, 2),
-            _ => {
-                let TyKind::Fn(function) = builtin.ty(self.gcx).kind else {
-                    return None;
-                };
-                if function.parameters.last().is_some_and(|ty| matches!(ty.kind, TyKind::Variadic))
-                {
-                    BuiltinArgCount::AtLeast(function.parameters.len() - 1)
-                } else {
-                    BuiltinArgCount::Exact(function.parameters.len())
-                }
-            }
-        };
-        self.builtin_arg_counts[index] = Some(count);
-        Some(count)
-    }
-
-    pub(super) fn collect_builtin_args<'a, 'hir>(
-        &mut self,
-        builtin: Builtin,
-        args: &'a CallArgs<'hir>,
-    ) -> Result<SmallVec<[&'a hir::Expr<'hir>; 4]>, ErrorGuaranteed> {
-        let exprs = args.exprs().collect::<SmallVec<_>>();
-
-        let Some(expected) = self.builtin_arg_count(builtin) else {
-            return Err(self
-                .gcx
-                .dcx()
-                .err(format!("builtin `{}` is not callable", builtin.name()))
-                .span(args.span)
-                .emit());
-        };
-        let valid = match expected {
-            BuiltinArgCount::Exact(count) => exprs.len() == count,
-            BuiltinArgCount::AtLeast(count) => exprs.len() >= count,
-            BuiltinArgCount::Between(min, max) => (min..=max).contains(&exprs.len()),
-        };
-        if valid {
-            return Ok(exprs);
-        }
-        Err(self.emit_wrong_builtin_arg_count(builtin, args.span, expected, exprs.len()))
-    }
-
     fn emit_wrong_builtin_arg_count(
         &self,
         builtin: Builtin,
@@ -300,14 +246,14 @@ impl<'gcx> Lowerer<'gcx> {
         Ok((required, exprs.next()))
     }
 
-    fn lower_builtin_args(
+    fn lower_builtin_args<const N: usize>(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         builtin: Builtin,
         args: &CallArgs<'_>,
-    ) -> Result<SmallVec<[ValueId; 4]>, ErrorGuaranteed> {
-        let exprs = self.collect_builtin_args(builtin, args)?;
-        Ok(exprs.into_iter().map(|arg| self.lower_value_expr(builder, arg)).collect())
+    ) -> Result<[ValueId; N], ErrorGuaranteed> {
+        let exprs = self.builtin_args(builtin, args)?;
+        Ok(exprs.map(|arg| self.lower_value_expr(builder, arg)))
     }
 
     fn lower_internal_function_pointer_call(
@@ -1047,43 +993,41 @@ impl<'gcx> Lowerer<'gcx> {
         builtin: Builtin,
         call_args: &CallArgs<'_>,
     ) -> Result<(), ErrorGuaranteed> {
-        let args = self.lower_builtin_args(builder, builtin, call_args)?;
+        macro_rules! lower {
+            ($method:ident($($arg:ident),* $(,)?)) => {{
+                let [$($arg),*] = self.lower_builtin_args(builder, builtin, call_args)?;
+                builder.$method($($arg),*)
+            }};
+        }
         match builtin {
-            Builtin::YulMstore => builder.mstore(args[0], args[1]),
-            Builtin::YulMstore8 => builder.mstore8(args[0], args[1]),
+            Builtin::YulMstore => lower!(mstore(offset, value)),
+            Builtin::YulMstore8 => lower!(mstore8(offset, value)),
             Builtin::YulMcopy => {
-                self.mcopy(builder, args[0], args[1], args[2], Some(call_args.span));
+                let [dst, src, size] = self.lower_builtin_args(builder, builtin, call_args)?;
+                self.mcopy(builder, dst, src, size, Some(call_args.span));
             }
-            Builtin::YulSstore => builder.sstore(args[0], args[1]),
-            Builtin::YulTstore => builder.tstore(args[0], args[1]),
-            Builtin::YulCalldatacopy => {
-                builder.calldatacopy(args[0], args[1], args[2]);
-            }
-            Builtin::YulCodecopy => {
-                builder.codecopy(args[0], args[1], args[2]);
-            }
-            Builtin::YulExtcodecopy => {
-                builder.extcodecopy(args[0], args[1], args[2], args[3]);
-            }
-            Builtin::YulReturndatacopy => {
-                builder.returndatacopy(args[0], args[1], args[2]);
-            }
-            Builtin::YulLog0 => builder.log0(args[0], args[1]),
-            Builtin::YulLog1 => builder.log1(args[0], args[1], args[2]),
-            Builtin::YulLog2 => builder.log2(args[0], args[1], args[2], args[3]),
-            Builtin::YulLog3 => {
-                builder.log3(args[0], args[1], args[2], args[3], args[4]);
-            }
-            Builtin::YulLog4 => builder.log4(args[0], args[1], args[2], args[3], args[4], args[5]),
-            Builtin::YulRevert => builder.revert(args[0], args[1]),
+            Builtin::YulSstore => lower!(sstore(slot, value)),
+            Builtin::YulTstore => lower!(tstore(slot, value)),
+            Builtin::YulCalldatacopy => lower!(calldatacopy(dst, src, size)),
+            Builtin::YulCodecopy => lower!(codecopy(dst, src, size)),
+            Builtin::YulExtcodecopy => lower!(extcodecopy(address, dst, src, size)),
+            Builtin::YulReturndatacopy => lower!(returndatacopy(dst, src, size)),
+            Builtin::YulLog0 => lower!(log0(offset, size)),
+            Builtin::YulLog1 => lower!(log1(offset, size, topic1)),
+            Builtin::YulLog2 => lower!(log2(offset, size, topic1, topic2)),
+            Builtin::YulLog3 => lower!(log3(offset, size, topic1, topic2, topic3)),
+            Builtin::YulLog4 => lower!(log4(offset, size, topic1, topic2, topic3, topic4)),
+            Builtin::YulRevert => lower!(revert(offset, size)),
             Builtin::YulReturn => {
                 // `return(offset, size)` halts and returns `size` bytes of memory.
-                builder.ret_data(args[0], args[1]);
+                lower!(ret_data(offset, size));
             }
-            Builtin::YulStop => builder.stop(),
-            Builtin::YulInvalid => builder.invalid(),
-            Builtin::YulSelfdestruct => builder.selfdestruct(args[0]),
-            Builtin::YulPop => {}
+            Builtin::YulStop => lower!(stop()),
+            Builtin::YulInvalid => lower!(invalid()),
+            Builtin::YulSelfdestruct => lower!(selfdestruct(address)),
+            Builtin::YulPop => {
+                let [_value] = self.lower_builtin_args(builder, builtin, call_args)?;
+            }
             _ => unreachable!("value-returning Yul builtin passed to unit lowering"),
         }
         Ok(())
@@ -1095,36 +1039,42 @@ impl<'gcx> Lowerer<'gcx> {
         builtin: Builtin,
         call_args: &CallArgs<'_>,
     ) -> Result<ValueId, ErrorGuaranteed> {
-        let args = self.lower_builtin_args(builder, builtin, call_args)?;
+        macro_rules! lower {
+            ($method:ident($($arg:ident),* $(,)?)) => {{
+                let [$($arg),*] = self.lower_builtin_args(builder, builtin, call_args)?;
+                builder.$method($($arg),*)
+            }};
+        }
         let value = match builtin {
-            Builtin::YulAdd => builder.add(args[0], args[1]),
-            Builtin::YulSub => builder.sub(args[0], args[1]),
-            Builtin::YulMul => builder.mul(args[0], args[1]),
-            Builtin::YulDiv => builder.div(args[0], args[1]),
-            Builtin::YulSdiv => builder.sdiv(args[0], args[1]),
-            Builtin::YulMod => builder.mod_(args[0], args[1]),
-            Builtin::YulSmod => builder.smod(args[0], args[1]),
-            Builtin::YulAddmod => builder.addmod(args[0], args[1], args[2]),
-            Builtin::YulMulmod => builder.mulmod(args[0], args[1], args[2]),
-            Builtin::YulExp => builder.exp(args[0], args[1]),
-            Builtin::YulSignextend => builder.signextend(args[0], args[1]),
-            Builtin::YulAnd => builder.and(args[0], args[1]),
-            Builtin::YulOr => builder.or(args[0], args[1]),
-            Builtin::YulXor => builder.xor(args[0], args[1]),
-            Builtin::YulNot => builder.not(args[0]),
-            Builtin::YulByte => builder.byte(args[0], args[1]),
-            Builtin::YulShl => builder.shl(args[0], args[1]),
-            Builtin::YulShr => builder.shr(args[0], args[1]),
-            Builtin::YulSar => builder.sar(args[0], args[1]),
-            Builtin::YulLt => builder.lt(args[0], args[1]),
-            Builtin::YulGt => builder.gt(args[0], args[1]),
-            Builtin::YulSlt => builder.slt(args[0], args[1]),
-            Builtin::YulSgt => builder.sgt(args[0], args[1]),
-            Builtin::YulEq => builder.eq(args[0], args[1]),
-            Builtin::YulIszero => builder.iszero(args[0]),
+            Builtin::YulAdd => lower!(add(lhs, rhs)),
+            Builtin::YulSub => lower!(sub(lhs, rhs)),
+            Builtin::YulMul => lower!(mul(lhs, rhs)),
+            Builtin::YulDiv => lower!(div(lhs, rhs)),
+            Builtin::YulSdiv => lower!(sdiv(lhs, rhs)),
+            Builtin::YulMod => lower!(mod_(lhs, rhs)),
+            Builtin::YulSmod => lower!(smod(lhs, rhs)),
+            Builtin::YulAddmod => lower!(addmod(a, b, modulus)),
+            Builtin::YulMulmod => lower!(mulmod(a, b, modulus)),
+            Builtin::YulExp => lower!(exp(base, exponent)),
+            Builtin::YulSignextend => lower!(signextend(byte, value)),
+            Builtin::YulAnd => lower!(and(lhs, rhs)),
+            Builtin::YulOr => lower!(or(lhs, rhs)),
+            Builtin::YulXor => lower!(xor(lhs, rhs)),
+            Builtin::YulNot => lower!(not(value)),
+            Builtin::YulByte => lower!(byte(index, value)),
+            Builtin::YulShl => lower!(shl(shift, value)),
+            Builtin::YulShr => lower!(shr(shift, value)),
+            Builtin::YulSar => lower!(sar(shift, value)),
+            Builtin::YulLt => lower!(lt(lhs, rhs)),
+            Builtin::YulGt => lower!(gt(lhs, rhs)),
+            Builtin::YulSlt => lower!(slt(lhs, rhs)),
+            Builtin::YulSgt => lower!(sgt(lhs, rhs)),
+            Builtin::YulEq => lower!(eq(lhs, rhs)),
+            Builtin::YulIszero => lower!(iszero(value)),
             Builtin::YulClz => {
+                let [value] = self.lower_builtin_args(builder, builtin, call_args)?;
                 if self.gcx.sess.opts.evm_version.has_clz() {
-                    builder.clz(args[0])
+                    builder.clz(value)
                 } else {
                     return Err(self
                         .gcx
@@ -1135,50 +1085,57 @@ impl<'gcx> Lowerer<'gcx> {
                         .emit());
                 }
             }
-            Builtin::YulMload => builder.mload(args[0]),
-            Builtin::YulMsize => builder.msize(),
-            Builtin::YulSload => builder.sload(args[0]),
-            Builtin::YulTload => builder.tload(args[0]),
-            Builtin::YulCalldataload => builder.calldataload(args[0]),
-            Builtin::YulCalldatasize => builder.calldatasize(),
-            Builtin::YulCodesize => builder.codesize(),
-            Builtin::YulExtcodesize => builder.extcodesize(args[0]),
-            Builtin::YulExtcodehash => builder.extcodehash(args[0]),
-            Builtin::YulReturndatasize => builder.returndatasize(),
-            Builtin::YulAddress => builder.address(),
-            Builtin::YulBalance => builder.balance(args[0]),
-            Builtin::YulSelfbalance => builder.selfbalance(),
-            Builtin::YulCaller => builder.caller(),
-            Builtin::YulCallvalue => builder.callvalue(),
-            Builtin::YulOrigin => builder.origin(),
-            Builtin::YulGasprice => builder.gasprice(),
-            Builtin::YulBlockhash => builder.blockhash(args[0]),
-            Builtin::YulCoinbase => builder.coinbase(),
-            Builtin::YulTimestamp => builder.timestamp(),
-            Builtin::YulNumber => builder.number(),
-            Builtin::YulDifficulty | Builtin::YulPrevrandao => builder.prevrandao(),
-            Builtin::YulGaslimit => builder.gaslimit(),
-            Builtin::YulChainid => builder.chainid(),
-            Builtin::YulGas => builder.gas(),
-            Builtin::YulBasefee => builder.basefee(),
-            Builtin::YulBlobbasefee => builder.blobbasefee(),
-            Builtin::YulBlobhash => builder.blobhash(args[0]),
-            Builtin::YulKeccak256 => builder.keccak256(args[0], args[1]),
+            Builtin::YulMload => lower!(mload(offset)),
+            Builtin::YulMsize => lower!(msize()),
+            Builtin::YulSload => lower!(sload(slot)),
+            Builtin::YulTload => lower!(tload(slot)),
+            Builtin::YulCalldataload => lower!(calldataload(offset)),
+            Builtin::YulCalldatasize => lower!(calldatasize()),
+            Builtin::YulCodesize => lower!(codesize()),
+            Builtin::YulExtcodesize => lower!(extcodesize(address)),
+            Builtin::YulExtcodehash => lower!(extcodehash(address)),
+            Builtin::YulReturndatasize => lower!(returndatasize()),
+            Builtin::YulAddress => lower!(address()),
+            Builtin::YulBalance => lower!(balance(address)),
+            Builtin::YulSelfbalance => lower!(selfbalance()),
+            Builtin::YulCaller => lower!(caller()),
+            Builtin::YulCallvalue => lower!(callvalue()),
+            Builtin::YulOrigin => lower!(origin()),
+            Builtin::YulGasprice => lower!(gasprice()),
+            Builtin::YulBlockhash => lower!(blockhash(number)),
+            Builtin::YulCoinbase => lower!(coinbase()),
+            Builtin::YulTimestamp => lower!(timestamp()),
+            Builtin::YulNumber => lower!(number()),
+            Builtin::YulDifficulty | Builtin::YulPrevrandao => lower!(prevrandao()),
+            Builtin::YulGaslimit => lower!(gaslimit()),
+            Builtin::YulChainid => lower!(chainid()),
+            Builtin::YulGas => lower!(gas()),
+            Builtin::YulBasefee => lower!(basefee()),
+            Builtin::YulBlobbasefee => lower!(blobbasefee()),
+            Builtin::YulBlobhash => lower!(blobhash(index)),
+            Builtin::YulKeccak256 => lower!(keccak256(offset, size)),
             Builtin::YulCall => {
-                builder.call(args[0], args[1], args[2], args[3], args[4], args[5], args[6])
+                lower!(call(gas, address, value, in_offset, in_size, out_offset, out_size))
             }
             Builtin::YulCallcode => {
-                builder.callcode(args[0], args[1], args[2], args[3], args[4], args[5], args[6])
+                lower!(callcode(gas, address, value, in_offset, in_size, out_offset, out_size))
             }
             Builtin::YulStaticcall => {
-                builder.staticcall(args[0], args[1], args[2], args[3], args[4], args[5])
+                lower!(staticcall(gas, address, in_offset, in_size, out_offset, out_size))
             }
             Builtin::YulDelegatecall => {
-                builder.delegatecall(args[0], args[1], args[2], args[3], args[4], args[5])
+                lower!(delegatecall(gas, address, in_offset, in_size, out_offset, out_size))
             }
-            Builtin::YulCreate => builder.create(args[0], args[1], args[2]),
-            Builtin::YulCreate2 => builder.create2(args[0], args[1], args[2], args[3]),
-            Builtin::YulExtcall | Builtin::YulExtdelegatecall | Builtin::YulExtstaticcall => {
+            Builtin::YulCreate => lower!(create(value, offset, size)),
+            Builtin::YulCreate2 => lower!(create2(value, offset, size, salt)),
+            Builtin::YulExtcall => {
+                let [_address, _input, _value, _gas] =
+                    self.lower_builtin_args(builder, builtin, call_args)?;
+                return Err(self.unsupported_yul_builtin(builtin, call_args.span));
+            }
+            Builtin::YulExtdelegatecall | Builtin::YulExtstaticcall => {
+                let [_address, _input, _gas] =
+                    self.lower_builtin_args(builder, builtin, call_args)?;
                 return Err(self.unsupported_yul_builtin(builtin, call_args.span));
             }
             _ => unreachable!("unit Yul builtin passed to value lowering"),
