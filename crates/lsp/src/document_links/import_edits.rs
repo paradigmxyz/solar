@@ -9,7 +9,7 @@ use std::{
 
 use super::{
     DocumentLinkIndex, ImportEditPlan, ImportPathStyle, StoredDocumentLink,
-    components_to_import_path,
+    components_to_import_path, import_path_bytes,
 };
 use crate::file_operations::FileMoveBatch;
 
@@ -29,10 +29,10 @@ impl DocumentLinkIndex {
                     continue;
                 }
                 let Ok(uri) = Url::from_file_path(source) else { continue };
-                changes
-                    .entry(uri)
-                    .or_insert_with(Vec::new)
-                    .push(TextEdit::new(import.range, serde_json::to_string(&new_path).unwrap()));
+                changes.entry(uri).or_insert_with(Vec::new).push(TextEdit::new(
+                    import.range,
+                    solidity_string_literal(&import_path_bytes(&new_path)),
+                ));
             }
         }
         self.edit_plan(changes)
@@ -69,6 +69,26 @@ impl DocumentLinkIndex {
     }
 }
 
+fn solidity_string_literal(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+
+    let mut literal = String::with_capacity(bytes.len() + 2);
+    literal.push('"');
+    for &byte in bytes {
+        let is_safe = byte == b' ' || (byte.is_ascii_graphic() && !matches!(byte, b'"' | b'\\'));
+        if is_safe {
+            literal.push(char::from(byte));
+        } else {
+            literal.push('\\');
+            literal.push('x');
+            literal.push(char::from(HEX[(byte >> 4) as usize]));
+            literal.push(char::from(HEX[(byte & 0x0f) as usize]));
+        }
+    }
+    literal.push('"');
+    literal
+}
+
 impl StoredDocumentLink {
     fn rewritten_path(
         &self,
@@ -76,16 +96,16 @@ impl StoredDocumentLink {
         moved_source: &Path,
         moved_target: &Path,
         moves: &FileMoveBatch,
-    ) -> Option<String> {
+    ) -> Option<PathBuf> {
         if moved_target == self.target {
             match &self.import_style {
-                ImportPathStyle::Relative if moved_source == source => {
+                ImportPathStyle::Relative { .. } if moved_source == source => {
                     return Some(self.import_path.clone());
                 }
-                ImportPathStyle::Relative => {
-                    return relative_import_path(moved_source, moved_target);
+                ImportPathStyle::Relative { .. } => {
+                    return self.rewritten_import_path(moved_source, moved_target, moves);
                 }
-                ImportPathStyle::Opaque { resolver_root }
+                ImportPathStyle::Opaque { resolver_root, .. }
                     if moved_source == source
                         && resolver_root
                             .as_deref()
@@ -94,7 +114,7 @@ impl StoredDocumentLink {
                     return Some(self.import_path.clone());
                 }
                 ImportPathStyle::Opaque { .. } => {
-                    return relative_import_path(moved_source, moved_target);
+                    return self.rewritten_import_path(moved_source, moved_target, moves);
                 }
                 ImportPathStyle::Anchored { .. } => {}
             }
@@ -140,12 +160,41 @@ impl StoredDocumentLink {
                 }
             }
         }
-        relative_import_path(moved_source, moved_target)
+        self.rewritten_import_path(moved_source, moved_target, moves)
+    }
+
+    fn rewritten_import_path(
+        &self,
+        source: &Path,
+        target: &Path,
+        moves: &FileMoveBatch,
+    ) -> Option<PathBuf> {
+        if let Some(path) = relative_import_path(source, target) {
+            return Some(path);
+        }
+        if !target.is_absolute() {
+            return None;
+        }
+
+        let path = target.to_path_buf();
+        let (resolver_root, remappings) = self.import_style.resolution_context();
+        absolute_import_resolves_to_target(&path, source, target, resolver_root, remappings, moves)
+            .then_some(path)
+    }
+}
+
+impl ImportPathStyle {
+    fn resolution_context(&self) -> (Option<&Path>, &[ImportRemapping]) {
+        match self {
+            Self::Relative { resolver_root, remappings }
+            | Self::Anchored { resolver_root, remappings, .. }
+            | Self::Opaque { resolver_root, remappings } => (resolver_root.as_deref(), remappings),
+        }
     }
 }
 
 fn anchored_import_resolves_to_target(
-    import_path: &str,
+    import_path: &Path,
     source: &Path,
     target: &Path,
     configuration_root: Option<&Path>,
@@ -155,7 +204,7 @@ fn anchored_import_resolves_to_target(
     let Some(configuration_root) = configuration_root else { return false };
     let configuration_root = moved_path(configuration_root, moves);
     let parent = source.strip_prefix(&configuration_root).unwrap_or(source);
-    let remapped = apply_import_remappings(remappings, Path::new(import_path), Some(parent));
+    let remapped = apply_import_remappings(remappings, import_path, Some(parent));
     let resolved = if remapped.is_absolute() {
         remapped.as_ref().normalize()
     } else {
@@ -168,7 +217,22 @@ fn moved_path(path: &Path, moves: &FileMoveBatch) -> PathBuf {
     moves.map_path(path).map_or_else(|| path.to_path_buf(), |(_, path)| path)
 }
 
-fn relative_import_path(source: &Path, target: &Path) -> Option<String> {
+fn absolute_import_resolves_to_target(
+    import_path: &Path,
+    source: &Path,
+    target: &Path,
+    resolver_root: Option<&Path>,
+    remappings: &[ImportRemapping],
+    moves: &FileMoveBatch,
+) -> bool {
+    let resolver_root = resolver_root.map(|root| moved_path(root, moves));
+    let parent =
+        resolver_root.as_deref().and_then(|root| source.strip_prefix(root).ok()).unwrap_or(source);
+    let remapped = apply_import_remappings(remappings, import_path, Some(parent));
+    remapped.is_absolute() && remapped.as_ref().normalize() == target.normalize()
+}
+
+fn relative_import_path(source: &Path, target: &Path) -> Option<PathBuf> {
     let source_dir = source.parent()?;
     let source_components = source_dir.components().collect::<Vec<_>>();
     let target_components = target.components().collect::<Vec<_>>();
@@ -199,14 +263,14 @@ fn relative_import_path(source: &Path, target: &Path) -> Option<String> {
     }
 
     let path = components_to_import_path(&relative.components().collect::<Vec<_>>());
-    Some(if path.starts_with("../") { path } else { format!("./{path}") })
+    Some(if path.starts_with("..") { path } else { Path::new(".").join(path) })
 }
 
-fn join_import_path(prefix: &str, suffix: &Path) -> String {
+fn join_import_path(prefix: &Path, suffix: &Path) -> PathBuf {
     let suffix = components_to_import_path(&suffix.components().collect::<Vec<_>>());
-    match (prefix.is_empty(), suffix.is_empty()) {
+    match (prefix.as_os_str().is_empty(), suffix.as_os_str().is_empty()) {
         (true, _) => suffix,
-        (_, true) => prefix.to_owned(),
-        (false, false) => format!("{}/{suffix}", prefix.trim_end_matches('/')),
+        (_, true) => prefix.to_path_buf(),
+        (false, false) => prefix.join(suffix),
     }
 }

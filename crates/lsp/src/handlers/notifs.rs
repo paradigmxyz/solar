@@ -1,6 +1,6 @@
 use crate::{
     NotifyResult,
-    file_operations::{FileMoveBatch, parse_file_uri},
+    file_operations::{FileMoveBatch, WatchedRenameAction, parse_file_uri},
     global_state::GlobalState,
     proto,
     utils::apply_document_changes,
@@ -135,11 +135,31 @@ pub(crate) fn did_change_watched_files(
     state: &mut GlobalState,
     params: DidChangeWatchedFilesParams,
 ) -> NotifyResult {
+    let mut renames_to_apply = Vec::new();
+    let mut changes = Vec::with_capacity(params.changes.len());
+    for event in params.changes {
+        let action = proto::vfs_path(&event.uri)
+            .and_then(|path| path.as_path().map(ToOwned::to_owned))
+            .map_or(WatchedRenameAction::Process, |path| {
+                state.file_operations.observe_watcher_event(&path, event.typ)
+            });
+        match action {
+            WatchedRenameAction::Apply(moves) => {
+                renames_to_apply.extend(moves);
+            }
+            WatchedRenameAction::Ignore => {}
+            WatchedRenameAction::Process => changes.push(event),
+        }
+    }
+    for moves in renames_to_apply {
+        reconcile_workspace_file_operations(state, Vec::new(), moves, Vec::new());
+    }
+
     let mut should_rediscover = false;
     let mut disk_paths = Vec::new();
     let mut removed_paths = Vec::new();
 
-    for event in params.changes {
+    for event in changes {
         let Some(vfs_path) = proto::vfs_path(&event.uri) else {
             continue;
         };
@@ -191,6 +211,10 @@ pub(crate) fn did_rename_files(state: &mut GlobalState, params: RenameFilesParam
             return ControlFlow::Continue(());
         }
     };
+    let watched_paths = super::file_operations::rename_watched_paths(state, &moves);
+    if !state.file_operations.apply_rename(&moves, watched_paths) {
+        return ControlFlow::Continue(());
+    }
     reconcile_workspace_file_operations(state, Vec::new(), moves, Vec::new());
     ControlFlow::Continue(())
 }

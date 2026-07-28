@@ -1,10 +1,28 @@
 use super::analyze_project;
-use crate::{file_operations::FileMoveBatch, test_support::TestProject};
+use crate::{
+    document_links::DocumentLinkIndex, file_operations::FileMoveBatch, test_support::TestProject,
+};
 use lsp_types::{Position, Range, TextEdit, Url};
-use std::path::PathBuf;
+use solar_parse::lexer::unescape::{StrKind, try_parse_string_literal};
+use std::{fs, path::PathBuf};
+
+#[cfg(windows)]
+use solar_config::ImportRemapping;
+#[cfg(unix)]
+use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
 fn move_batch(moves: impl IntoIterator<Item = (PathBuf, PathBuf)>) -> FileMoveBatch {
     FileMoveBatch::new(moves).unwrap()
+}
+
+fn assert_import_literal_round_trips(literal: &str, expected: &[u8]) {
+    let contents = literal.strip_prefix('"').unwrap().strip_suffix('"').unwrap();
+    let mut errors = Vec::new();
+    let actual = try_parse_string_literal(contents, StrKind::Str, |range, error| {
+        errors.push((range, error));
+    });
+    assert!(errors.is_empty(), "invalid Solidity string literal: {errors:?}");
+    assert_eq!(actual.as_ref(), expected);
 }
 
 #[test]
@@ -34,6 +52,328 @@ fn rename_file_rewrites_relative_import_target() {
         )]
         .into_iter()
         .collect()
+    );
+}
+
+#[test]
+fn rename_file_escapes_unicode_import_bytes() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /src/Importer.sol
+        import "./Target.sol";
+
+        //- /src/Target.sol
+        contract Target {}
+        "#,
+    );
+    let tables = analyze_project(&project);
+    let importer = project.path("/src/Importer.sol");
+    let target = project.path("/src/Target.sol");
+    let renamed = project.path("/src/Renamed-中.sol");
+    let moves = move_batch([(target.clone(), renamed.clone())]);
+    let edits = tables.import_rename_edits(&moves);
+    let edit = edits.changes.values().flatten().next().unwrap();
+
+    assert_eq!(edit.new_text, r#""./Renamed-\xE4\xB8\xAD.sol""#);
+    assert_import_literal_round_trips(&edit.new_text, "./Renamed-中.sol".as_bytes());
+
+    fs::rename(target, &renamed).unwrap();
+    fs::write(&importer, format!("import {};\n", edit.new_text)).unwrap();
+    let tables = analyze_project(&project);
+    let links = tables.document_links(&importer);
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0].target.as_ref().unwrap().to_file_path().unwrap(), renamed);
+}
+
+#[test]
+fn rename_file_escapes_non_bmp_import_bytes() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /src/Importer.sol
+        import "./Target.sol";
+
+        //- /src/Target.sol
+        contract Target {}
+        "#,
+    );
+    let tables = analyze_project(&project);
+    let importer = project.path("/src/Importer.sol");
+    let target = project.path("/src/Target.sol");
+    let renamed = project.path("/src/Renamed-😀.sol");
+    let moves = move_batch([(target.clone(), renamed.clone())]);
+    let edits = tables.import_rename_edits(&moves);
+    let edit = edits.changes.values().flatten().next().unwrap();
+
+    assert_eq!(edit.new_text, r#""./Renamed-\xF0\x9F\x98\x80.sol""#);
+    assert_import_literal_round_trips(&edit.new_text, "./Renamed-😀.sol".as_bytes());
+
+    fs::rename(target, &renamed).unwrap();
+    fs::write(&importer, format!("import {};\n", edit.new_text)).unwrap();
+    let tables = analyze_project(&project);
+    let links = tables.document_links(&importer);
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0].target.as_ref().unwrap().to_file_path().unwrap(), renamed);
+}
+
+#[test]
+fn rename_file_escapes_quote_and_control_import_bytes() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /src/Importer.sol
+        import "./Target.sol";
+
+        //- /src/Target.sol
+        contract Target {}
+        "#,
+    );
+    let tables = analyze_project(&project);
+    let target = project.path("/src/Target.sol");
+    let renamed = project.path("/src").join("Renamed-\"\u{8}\u{c}.sol");
+    let moves = move_batch([(target.clone(), renamed.clone())]);
+    let edits = tables.import_rename_edits(&moves);
+    let edit = edits.changes.values().flatten().next().unwrap();
+
+    assert_eq!(edit.new_text, r#""./Renamed-\x22\x08\x0C.sol""#);
+    assert_import_literal_round_trips(&edit.new_text, b"./Renamed-\"\x08\x0c.sol");
+
+    #[cfg(unix)]
+    {
+        let importer = project.path("/src/Importer.sol");
+        fs::rename(target, &renamed).unwrap();
+        fs::write(&importer, format!("import {};\n", edit.new_text)).unwrap();
+        let tables = analyze_project(&project);
+        let links = tables.document_links(&importer);
+        assert_eq!(links.len(), 1);
+        assert_eq!(links[0].target.as_ref().unwrap().to_file_path().unwrap(), renamed);
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn rename_file_escapes_backslash_import_byte() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /src/Importer.sol
+        import "./Target.sol";
+
+        //- /src/Target.sol
+        contract Target {}
+        "#,
+    );
+    let tables = analyze_project(&project);
+    let importer = project.path("/src/Importer.sol");
+    let target = project.path("/src/Target.sol");
+    let renamed = project.path("/src").join("Renamed-\\.sol");
+    let moves = move_batch([(target.clone(), renamed.clone())]);
+    let edits = tables.import_rename_edits(&moves);
+    let edit = edits.changes.values().flatten().next().unwrap();
+
+    assert_eq!(edit.new_text, r#""./Renamed-\x5C.sol""#);
+    assert_import_literal_round_trips(&edit.new_text, b"./Renamed-\\.sol");
+
+    fs::rename(target, &renamed).unwrap();
+    fs::write(&importer, format!("import {};\n", edit.new_text)).unwrap();
+    let tables = analyze_project(&project);
+    let links = tables.document_links(&importer);
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0].target.as_ref().unwrap().to_file_path().unwrap(), renamed);
+}
+
+#[cfg(unix)]
+#[test]
+fn rename_file_preserves_non_utf8_import_bytes() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /src/Importer.sol
+        import "./Target-\xFF.sol";
+        "#,
+    );
+    let importer = project.path("/src/Importer.sol");
+    let import_path = PathBuf::from(OsString::from_vec(b"./Target-\xff.sol".to_vec()));
+    let target = project.path("/src").join(OsString::from_vec(b"Target-\xff.sol".to_vec()));
+    let renamed = project.path("/src").join(OsString::from_vec(b"Renamed-\xfe.sol".to_vec()));
+    let mut index = DocumentLinkIndex::default();
+    index.insert_import_path_for_test(
+        importer.clone(),
+        Range::new(Position::new(0, 7), Position::new(0, 26)),
+        import_path,
+        target.clone(),
+        None,
+        Vec::new(),
+    );
+    let links = index.links(&importer);
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0].target.as_ref().unwrap().to_file_path().unwrap(), target);
+
+    #[cfg(target_os = "linux")]
+    let moves = move_batch([(target.clone(), renamed.clone())]);
+    #[cfg(not(target_os = "linux"))]
+    let moves = move_batch([(target, renamed)]);
+    let edits = index.rename_edits(&moves);
+    let edit = edits.changes.values().flatten().next().unwrap();
+
+    assert_eq!(edit.new_text, r#""./Renamed-\xFE.sol""#);
+    assert_import_literal_round_trips(&edit.new_text, b"./Renamed-\xfe.sol");
+
+    #[cfg(target_os = "linux")]
+    {
+        fs::write(&target, "contract Target {}").unwrap();
+        let tables = analyze_project(&project);
+        let edits = tables.import_rename_edits(&moves);
+        let edit = edits.changes.values().flatten().next().unwrap();
+        assert_eq!(edit.new_text, r#""./Renamed-\xFE.sol""#);
+
+        fs::rename(target, &renamed).unwrap();
+        fs::write(project.path("/src/Importer.sol"), format!("import {};\n", edit.new_text))
+            .unwrap();
+        let tables = analyze_project(&project);
+        let links = tables.document_links(&project.path("/src/Importer.sol"));
+        assert_eq!(links.len(), 1);
+        assert_eq!(links[0].target.as_ref().unwrap().to_file_path().unwrap(), renamed);
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn rename_file_across_windows_drives_uses_absolute_import() {
+    let importer = PathBuf::from(r"C:\src\Importer.sol");
+    let target = PathBuf::from(r"C:\src\Target.sol");
+    let renamed = PathBuf::from(r"D:\contracts\Renamed.sol");
+    let mut index = DocumentLinkIndex::default();
+    index.insert_import_path_for_test(
+        importer,
+        Range::new(Position::new(0, 7), Position::new(0, 21)),
+        PathBuf::from("./Target.sol"),
+        target.clone(),
+        None,
+        Vec::new(),
+    );
+    let edits = index.rename_edits(&move_batch([(target, renamed)]));
+    let edit = edits.changes.values().flatten().next().unwrap();
+
+    assert_eq!(edit.new_text, r#""D:/contracts/Renamed.sol""#);
+    assert_import_literal_round_trips(&edit.new_text, b"D:/contracts/Renamed.sol");
+}
+
+#[cfg(windows)]
+#[test]
+fn rename_importer_across_windows_drives_uses_absolute_import() {
+    let importer = PathBuf::from(r"C:\src\Importer.sol");
+    let moved_importer = PathBuf::from(r"D:\contracts\Importer.sol");
+    let target = PathBuf::from(r"C:\src\Target.sol");
+    let mut index = DocumentLinkIndex::default();
+    index.insert_import_path_for_test(
+        importer.clone(),
+        Range::new(Position::new(0, 7), Position::new(0, 21)),
+        PathBuf::from("./Target.sol"),
+        target,
+        None,
+        Vec::new(),
+    );
+    let edits = index.rename_edits(&move_batch([(importer, moved_importer)]));
+    let edit = edits.changes.values().flatten().next().unwrap();
+
+    assert_eq!(edit.new_text, r#""C:/src/Target.sol""#);
+    assert_import_literal_round_trips(&edit.new_text, b"C:/src/Target.sol");
+}
+
+#[cfg(windows)]
+#[test]
+fn rename_file_across_unc_shares_uses_absolute_import() {
+    let importer = PathBuf::from(r"\\server\source\src\Importer.sol");
+    let target = PathBuf::from(r"\\server\source\src\Target.sol");
+    let renamed = PathBuf::from(r"\\server\destination\contracts\Renamed.sol");
+    let mut index = DocumentLinkIndex::default();
+    index.insert_import_path_for_test(
+        importer,
+        Range::new(Position::new(0, 7), Position::new(0, 21)),
+        PathBuf::from("./Target.sol"),
+        target.clone(),
+        None,
+        Vec::new(),
+    );
+    let edits = index.rename_edits(&move_batch([(target, renamed)]));
+    let edit = edits.changes.values().flatten().next().unwrap();
+
+    assert_eq!(edit.new_text, r#""//server/destination/contracts/Renamed.sol""#);
+    assert_import_literal_round_trips(
+        &edit.new_text,
+        b"//server/destination/contracts/Renamed.sol",
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn rename_file_omits_absolute_import_captured_by_remapping() {
+    let importer = PathBuf::from(r"C:\src\Importer.sol");
+    let target = PathBuf::from(r"C:\src\Target.sol");
+    let renamed = PathBuf::from(r"D:\contracts\Renamed.sol");
+    let mut index = DocumentLinkIndex::default();
+    index.insert_import_path_for_test(
+        importer,
+        Range::new(Position::new(0, 7), Position::new(0, 21)),
+        PathBuf::from("./Target.sol"),
+        target.clone(),
+        Some(PathBuf::from(r"C:\")),
+        vec![ImportRemapping {
+            context: String::new(),
+            prefix: "D:/contracts/".into(),
+            path: "D:/shadow/".into(),
+        }],
+    );
+
+    let edits = index.rename_edits(&move_batch([(target, renamed)]));
+
+    assert!(edits.changes.is_empty());
+}
+
+#[cfg(windows)]
+#[test]
+fn rename_file_to_verbatim_drive_preserves_absolute_import() {
+    let importer = PathBuf::from(r"C:\src\Importer.sol");
+    let target = PathBuf::from(r"C:\src\Target.sol");
+    let renamed = PathBuf::from(r"\\?\D:\contracts\Renamed.sol");
+    let mut index = DocumentLinkIndex::default();
+    index.insert_import_path_for_test(
+        importer,
+        Range::new(Position::new(0, 7), Position::new(0, 21)),
+        PathBuf::from("./Target.sol"),
+        target.clone(),
+        None,
+        Vec::new(),
+    );
+    let edits = index.rename_edits(&move_batch([(target, renamed)]));
+    let edit = edits.changes.values().flatten().next().unwrap();
+
+    assert_eq!(edit.new_text, r#""\x5C\x5C?\x5CD:\x5Ccontracts\x5CRenamed.sol""#);
+    assert_import_literal_round_trips(&edit.new_text, br"\\?\D:\contracts\Renamed.sol");
+}
+
+#[cfg(windows)]
+#[test]
+fn rename_file_to_verbatim_unc_preserves_absolute_import() {
+    let importer = PathBuf::from(r"C:\src\Importer.sol");
+    let target = PathBuf::from(r"C:\src\Target.sol");
+    let renamed = PathBuf::from(r"\\?\UNC\server\destination\contracts\Renamed.sol");
+    let mut index = DocumentLinkIndex::default();
+    index.insert_import_path_for_test(
+        importer,
+        Range::new(Position::new(0, 7), Position::new(0, 21)),
+        PathBuf::from("./Target.sol"),
+        target.clone(),
+        None,
+        Vec::new(),
+    );
+    let edits = index.rename_edits(&move_batch([(target, renamed)]));
+    let edit = edits.changes.values().flatten().next().unwrap();
+
+    assert_eq!(
+        edit.new_text,
+        r#""\x5C\x5C?\x5CUNC\x5Cserver\x5Cdestination\x5Ccontracts\x5CRenamed.sol""#
+    );
+    assert_import_literal_round_trips(
+        &edit.new_text,
+        br"\\?\UNC\server\destination\contracts\Renamed.sol",
     );
 }
 

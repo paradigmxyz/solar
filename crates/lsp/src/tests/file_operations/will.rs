@@ -6,7 +6,7 @@ use lsp_types::{
     CreateFilesParams, DeleteFilesParams, FileDelete, FileRename, Position, Range,
     RenameFilesParams, TextEdit, Url,
 };
-use std::future::Future;
+use std::{fs, future::Future, sync::Arc};
 
 fn block_on<F: Future>(future: F) -> F::Output {
     tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(future)
@@ -153,6 +153,94 @@ fn will_rename_returns_import_edits_without_mutating_state() {
         state.symbol_tables.read().document_links(&importer)[0].target,
         Some(old_target_uri)
     );
+}
+
+#[test]
+fn will_rename_validates_closed_importer_on_disk_across_workspace_roots() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /one/Importer.sol
+        import "../two/Target.sol";
+
+        //- /two/Target.sol
+        contract Target {}
+        "#,
+    );
+    let importer = project.path("/one/Importer.sol");
+    let params = RenameFilesParams {
+        files: vec![FileRename {
+            old_uri: Url::from_file_path(project.path("/two/Target.sol")).unwrap().to_string(),
+            new_uri: Url::from_file_path(project.path("/two/Renamed.sol")).unwrap().to_string(),
+        }],
+    };
+    let mut state = state(&project);
+    state.config = Arc::new(project.config_with_roots(&["/one", "/two"]));
+
+    let edit =
+        block_on(crate::handlers::will_rename_files(&mut state, params.clone())).unwrap().unwrap();
+
+    let changes = edit.changes.unwrap();
+    let edits = changes.get(&Url::from_file_path(&importer).unwrap()).unwrap();
+    assert_eq!(edits[0].new_text, "\"../two/Renamed.sol\"");
+
+    let old_target = project.path("/two/Target.sol");
+    let new_target = project.path("/two/Renamed.sol");
+    fs::write(&importer, format!("import {};\n", edits[0].new_text)).unwrap();
+    fs::rename(&old_target, &new_target).unwrap();
+    let tables = super::analyze_project(&project);
+    let links = tables.document_links(&importer);
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0].target.as_ref().unwrap().to_file_path().unwrap(), new_target);
+
+    fs::write(&importer, "import \"../two/Other.sol\";").unwrap();
+    let error = block_on(crate::handlers::will_rename_files(&mut state, params)).unwrap_err();
+    assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
+}
+
+#[test]
+fn will_rename_rewrites_independently_moved_importer_and_target() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /src/Importer.sol
+        import "../lib/Target.sol";
+
+        //- /lib/Target.sol
+        contract Target {}
+        "#,
+    );
+    let importer = project.path("/src/Importer.sol");
+    let moved_importer = project.path("/contracts/nested/Importer.sol");
+    let target = project.path("/lib/Target.sol");
+    let moved_target = project.path("/vendor/pkg/Target.sol");
+    let params = RenameFilesParams {
+        files: vec![
+            FileRename {
+                old_uri: Url::from_file_path(&importer).unwrap().to_string(),
+                new_uri: Url::from_file_path(&moved_importer).unwrap().to_string(),
+            },
+            FileRename {
+                old_uri: Url::from_file_path(&target).unwrap().to_string(),
+                new_uri: Url::from_file_path(&moved_target).unwrap().to_string(),
+            },
+        ],
+    };
+    let mut state = state(&project);
+
+    let edit = block_on(crate::handlers::will_rename_files(&mut state, params)).unwrap().unwrap();
+
+    let changes = edit.changes.unwrap();
+    let edits = changes.get(&Url::from_file_path(&importer).unwrap()).unwrap();
+    assert_eq!(edits[0].new_text, "\"../../vendor/pkg/Target.sol\"");
+
+    fs::write(&importer, format!("import {};\n", edits[0].new_text)).unwrap();
+    fs::create_dir_all(moved_importer.parent().unwrap()).unwrap();
+    fs::create_dir_all(moved_target.parent().unwrap()).unwrap();
+    fs::rename(importer, &moved_importer).unwrap();
+    fs::rename(target, &moved_target).unwrap();
+    let tables = super::analyze_project(&project);
+    let links = tables.document_links(&moved_importer);
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0].target.as_ref().unwrap().to_file_path().unwrap(), moved_target);
 }
 
 #[test]

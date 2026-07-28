@@ -8,7 +8,10 @@ use std::{
     sync::Arc,
 };
 
-use super::{DocumentLinkIndex, ImportPathStyle, StoredDocumentLink, components_to_import_path};
+use super::{
+    DocumentLinkIndex, ImportPathStyle, StoredDocumentLink, components_to_import_path,
+    import_path_from_bytes,
+};
 use crate::proto;
 
 impl DocumentLinkIndex {
@@ -46,7 +49,7 @@ impl DocumentLinkIndex {
                 if invalid_escape {
                     continue;
                 }
-                let Ok(import_path) = std::str::from_utf8(&import_path).map(str::to_owned) else {
+                let Some(import_path) = import_path_from_bytes(&import_path) else {
                     continue;
                 };
                 index.source_contents.insert(source_path.clone(), source.file.src.clone());
@@ -89,10 +92,36 @@ impl DocumentLinkIndex {
             StoredDocumentLink {
                 range,
                 directive_range: range,
-                import_path: String::new(),
-                import_style: ImportPathStyle::Opaque { resolver_root: None },
+                import_path: PathBuf::new(),
+                import_style: ImportPathStyle::Opaque {
+                    resolver_root: None,
+                    remappings: Arc::default(),
+                },
                 target: target.to_file_path().unwrap(),
             },
+        );
+    }
+
+    #[cfg(test)]
+    pub(crate) fn insert_import_path_for_test(
+        &mut self,
+        source: PathBuf,
+        range: lsp_types::Range,
+        import_path: PathBuf,
+        target: PathBuf,
+        resolver_root: Option<PathBuf>,
+        remappings: Vec<ImportRemapping>,
+    ) {
+        self.source_contents.insert(source.clone(), Arc::new(String::new()));
+        let remappings = Arc::from(remappings);
+        let import_style = if import_path.starts_with("./") || import_path.starts_with("../") {
+            ImportPathStyle::Relative { resolver_root, remappings }
+        } else {
+            ImportPathStyle::Opaque { resolver_root, remappings }
+        };
+        self.push(
+            source,
+            StoredDocumentLink { range, directive_range: range, import_path, import_style, target },
         );
     }
 
@@ -133,15 +162,15 @@ impl ImportPathStyle {
         file_resolver: &FileResolver<'_>,
         source: &Path,
         target: &Path,
-        import_path: &str,
+        import_path: &Path,
         remappings: Arc<[ImportRemapping]>,
     ) -> Self {
-        let original = Path::new(import_path);
+        let original = import_path;
+        let resolver_root = file_resolver.try_base_path().map(Path::to_path_buf);
         if original.starts_with("./") || original.starts_with("../") {
-            return Self::Relative;
+            return Self::Relative { resolver_root, remappings };
         }
 
-        let resolver_root = file_resolver.try_base_path().map(Path::to_path_buf);
         let parent = resolver_root
             .as_deref()
             .and_then(|base_path| source.strip_prefix(base_path).ok())
@@ -164,7 +193,7 @@ impl ImportPathStyle {
             .take_while(|(original, remapped)| original == remapped)
             .count();
         if common == 0 {
-            return Self::Opaque { resolver_root };
+            return Self::Opaque { resolver_root, remappings };
         }
 
         let target_components = target.components().collect::<Vec<_>>();
@@ -172,13 +201,13 @@ impl ImportPathStyle {
         if target_components.len() < common
             || target_components[target_components.len() - common..] != *remapped_suffix
         {
-            return Self::Opaque { resolver_root };
+            return Self::Opaque { resolver_root, remappings };
         }
 
         let prefix =
             components_to_import_path(&original_components[..original_components.len() - common]);
         let Some(target_root) = target.ancestors().nth(common).map(Path::to_path_buf) else {
-            return Self::Opaque { resolver_root };
+            return Self::Opaque { resolver_root, remappings };
         };
         Self::Anchored { prefix, target_root, resolver_root, configuration_root, remappings }
     }
