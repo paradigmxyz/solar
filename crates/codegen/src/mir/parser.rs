@@ -648,14 +648,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::word => AbiType::Word,
             sym::memory_bytes => AbiType::Bytes(SliceLocation::Memory),
             sym::calldata_bytes => AbiType::Bytes(SliceLocation::Calldata),
-            sym::memory_array | sym::calldata_array => {
+            sym::returndata_bytes => AbiType::Bytes(SliceLocation::Returndata),
+            sym::memory_array | sym::calldata_array | sym::returndata_array => {
                 self.parser.expect(TokenKind::Lt)?;
                 let element = Box::new(self.parse_abi_type()?);
                 self.expect_gt()?;
-                let location = if name == sym::memory_array {
-                    SliceLocation::Memory
-                } else {
-                    SliceLocation::Calldata
+                let location = match name {
+                    sym::memory_array => SliceLocation::Memory,
+                    sym::calldata_array => SliceLocation::Calldata,
+                    sym::returndata_array => SliceLocation::Returndata,
+                    _ => unreachable!(),
                 };
                 AbiType::DynamicArray { element, location }
             }
