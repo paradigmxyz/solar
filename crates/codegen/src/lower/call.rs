@@ -2102,24 +2102,8 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         ctor_id: hir::FunctionId,
-        modifier: Option<&hir::Modifier<'_>>,
+        arg_vals: Vec<ValueId>,
     ) -> ValueId {
-        let ctor = self.gcx.hir.function(ctor_id);
-        let arg_exprs: Vec<_> = modifier.map(|m| m.args.exprs().collect()).unwrap_or_default();
-        let arg_vals: Vec<ValueId> = ctor
-            .parameters
-            .iter()
-            .enumerate()
-            .map(|(i, &param_id)| {
-                let param = self.gcx.hir.variable(param_id);
-                if let Some(arg) = arg_exprs.get(i) {
-                    self.lower_constructor_arg(builder, arg, &param.ty)
-                } else {
-                    builder.imm_u64(0)
-                }
-            })
-            .collect();
-
         self.lower_inline_void_call(builder, ctor_id, arg_vals)
     }
 
@@ -2189,7 +2173,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// callee body. Memory `bytes`/`string` parameters receive Solidity's
     /// `[length][data...]` memory pointer, including literal base-constructor
     /// arguments such as `ERC20("Name", "SYM")`.
-    fn lower_constructor_arg(
+    pub(super) fn lower_constructor_arg(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         arg: &hir::Expr<'_>,
