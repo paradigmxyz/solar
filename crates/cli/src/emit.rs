@@ -142,37 +142,35 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
         ir::validate(&gcx.sess.dcx, &module);
         if gcx.dcx().has_errors().is_ok() {
             let name = source.name.display().to_string();
-            let options =
-                ir::PipelineOptions { name: Some(&name), emit_pass_output: !has_disasm_dump(gcx) };
-            let _changed = ir::run_pipeline(gcx, &mut module, options);
+            let _changed = ir::run_pipeline(gcx, &mut module, Some(&name));
             ir::validate(&gcx.sess.dcx, &module);
             gcx.dcx().has_errors()?;
 
-            if has_disasm_dump(gcx) {
-                dump_evm_ir_input_disassembly(gcx, &module)?;
-            } else {
-                let value = gcx
-                    .sess
-                    .opts
-                    .unstable
-                    .evm_ir_pipeline
-                    .as_deref()
-                    .expect("EVM IR pipeline should be configured");
-                if should_print_pipeline_output(gcx, value) {
-                    write_pipeline_output(
-                        gcx,
-                        source.name.display(),
-                        ir::pipeline_label(value),
-                        module.to_text(),
-                    )?;
-                }
+            let value = gcx
+                .sess
+                .opts
+                .unstable
+                .evm_ir_pipeline
+                .as_deref()
+                .expect("EVM IR pipeline should be configured");
+            if should_print_pipeline_output(gcx, value) {
+                write_pipeline_output(
+                    gcx,
+                    source.name.display(),
+                    ir::pipeline_label(value),
+                    module.to_text(),
+                )?;
             }
+            dump_evm_ir_input_disassembly(gcx, &module)?;
         }
     }
     Ok(())
 }
 
 fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: &ir::Module) -> Result {
+    if !has_disasm_dump(gcx) {
+        return Ok(());
+    }
     let dump = gcx.sess.opts.unstable.dump.as_ref().expect("dump options should be present");
     let bytecode = evm::assemble_evm_ir(gcx, module.clone())?;
     let mut writer = out_writer(None)
@@ -228,7 +226,8 @@ fn emit_mir_pipeline_output(
 }
 
 fn should_print_pipeline_output(gcx: Gcx<'_>, value: &str) -> bool {
-    !gcx.sess.opts.unstable.print_after_each
+    (!gcx.sess.opts.language.is_evm_ir() || !has_disasm_dump(gcx))
+        && !gcx.sess.opts.unstable.print_after_each
         && (!gcx.sess.opts.unstable.pass_diff || value == "default")
 }
 

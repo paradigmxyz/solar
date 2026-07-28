@@ -87,21 +87,6 @@ pub fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
     ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
 }
 
-/// Options for running the configured EVM IR pipeline.
-#[derive(Clone, Copy, Debug)]
-pub struct PipelineOptions<'a> {
-    /// Overrides the module name in pass output.
-    pub name: Option<&'a str>,
-    /// Whether to emit intermediate pass output.
-    pub emit_pass_output: bool,
-}
-
-impl Default for PipelineOptions<'_> {
-    fn default() -> Self {
-        Self { name: None, emit_pass_output: true }
-    }
-}
-
 /// Runs an EVM IR pass pipeline.
 #[must_use]
 pub fn run_passes(
@@ -110,7 +95,7 @@ pub fn run_passes(
     passes: &[&dyn EvmPass],
     name: Option<&str>,
 ) -> bool {
-    run_passes_inner(gcx, module, passes, name, true)
+    run_passes_inner(gcx, module, passes, name)
 }
 
 #[must_use]
@@ -119,7 +104,6 @@ fn run_passes_inner(
     module: &mut Module,
     passes: &[&dyn EvmPass],
     name: Option<&str>,
-    emit_output: bool,
 ) -> bool {
     let output_name =
         name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()));
@@ -127,8 +111,8 @@ fn run_passes_inner(
     let mut changed = false;
     for pass in passes {
         let pass_name = pass.name();
-        let before = (emit_output && explicit && gcx.sess.opts.unstable.pass_diff)
-            .then(|| module.to_text().to_string());
+        let before =
+            (explicit && gcx.sess.opts.unstable.pass_diff).then(|| module.to_text().to_string());
         let enabled = pass.is_enabled(gcx, module);
         if !enabled && !explicit {
             continue;
@@ -143,10 +127,7 @@ fn run_passes_inner(
 
         if let Some(before) = before {
             print_pass_diff(&output_name, pass_name, before, module.to_text());
-        } else if emit_output
-            && gcx.sess.opts.unstable.print_after_each
-            && !gcx.sess.opts.unstable.pass_diff
-        {
+        } else if gcx.sess.opts.unstable.print_after_each && !gcx.sess.opts.unstable.pass_diff {
             println!("// === {output_name} (after {pass_name}) ===");
             print!("{}", module.to_text());
         }
@@ -155,18 +136,19 @@ fn run_passes_inner(
 }
 
 /// Runs the configured EVM IR pipeline, or the canonical pipeline when none was provided.
+///
+/// `name` overrides the module name in pass output.
 #[must_use]
-pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, options: PipelineOptions<'_>) -> bool {
-    let PipelineOptions { name, emit_pass_output } = options;
+pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
     let Some(value) = gcx.sess.opts.unstable.evm_ir_pipeline.as_deref() else {
-        return run_passes_inner(gcx, module, DEFAULT_PIPELINE, None, emit_pass_output);
+        return run_passes(gcx, module, DEFAULT_PIPELINE, None);
     };
     let pipeline = match parse_pass_pipeline(gcx, value, "EVM IR", lookup_pass) {
         Ok(pipeline) => pipeline,
         Err(_) => return false,
     };
     let Some(passes) = pipeline else {
-        return run_passes_inner(gcx, module, DEFAULT_PIPELINE, None, emit_pass_output);
+        return run_passes(gcx, module, DEFAULT_PIPELINE, None);
     };
 
     let name =
@@ -174,12 +156,11 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, options: PipelineOptions<
     let mut changed = false;
     for pass in passes {
         if let Some(pass) = pass {
-            let output_name = emit_pass_output.then_some(name.as_str());
-            changed |= run_passes_inner(gcx, module, &[pass], output_name, emit_pass_output);
-        } else if emit_pass_output && gcx.sess.opts.unstable.pass_diff {
+            changed |= run_passes(gcx, module, &[pass], Some(&name));
+        } else if gcx.sess.opts.unstable.pass_diff {
             let text = module.to_text();
             print_pass_diff(&name, "none", &text, &text);
-        } else if emit_pass_output && gcx.sess.opts.unstable.print_after_each {
+        } else if gcx.sess.opts.unstable.print_after_each {
             println!("// === {name} (after none) ===");
             print!("{}", module.to_text());
         }
