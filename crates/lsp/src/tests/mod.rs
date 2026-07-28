@@ -381,10 +381,15 @@ fn document_indexes_reuse_unchanged_files_and_rebuild_reverse_dependencies() {
 
         //- /C.sol
         contract C {
+            struct Data {
+                uint256 value;
+            }
+
             function local(uint256 retained) internal {}
 
-            function call() external {
-                local(2);
+            function call(Data memory cachedData) external {
+                uint256 cached = 2;
+                local(cached);
             }
         }
         "#,
@@ -395,6 +400,35 @@ fn document_indexes_reuse_unchanged_files_and_rebuild_reverse_dependencies() {
     let a_uri = Url::from_file_path(&a_path).unwrap();
     let c_uri = Url::from_file_path(&c_path).unwrap();
     let full_range = Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX));
+    let c_contents = project.read_file("/C.sol");
+    let cached_end = c_contents.rfind("cached);").unwrap() + "cached".len();
+    let before_cached = &c_contents[..cached_end];
+    let cached_position = Position::new(
+        before_cached.bytes().filter(|&byte| byte == b'\n').count() as u32,
+        before_cached.rsplit('\n').next().unwrap().chars().count() as u32,
+    );
+    let cached_completions = |tables: &SymbolTables| {
+        tables
+            .completion_items(
+                &c_uri,
+                cached_position,
+                crate::symbols::CompletionContext::new("cached", None),
+            )
+            .into_iter()
+            .map(|item| item.label)
+            .collect::<Vec<_>>()
+    };
+    let receiver_completions = |tables: &SymbolTables| {
+        tables
+            .completion_items(
+                &c_uri,
+                cached_position,
+                crate::symbols::CompletionContext::new("", Some("cachedData")),
+            )
+            .into_iter()
+            .map(|item| item.label)
+            .collect::<Vec<_>>()
+    };
     let mut batches = snapshot(&project).analysis_batches(Vec::new());
     let initial = analyze(batches.pop().unwrap());
     assert!(batches.is_empty());
@@ -406,6 +440,8 @@ fn document_indexes_reuse_unchanged_files_and_rebuild_reverse_dependencies() {
     let retained_hints =
         serde_json::to_value(initial.symbol_tables.inlay_hints(&c_uri, full_range)).unwrap();
     assert_ne!(retained_hints, serde_json::json!([]));
+    assert_eq!(cached_completions(&initial.symbol_tables), ["cached", "cachedData"]);
+    assert_eq!(receiver_completions(&initial.symbol_tables), ["value"]);
 
     let previous = initial.symbol_tables.document_index_snapshot();
     let mut batches = snapshot(&project).analysis_batches(Vec::new());
@@ -423,6 +459,8 @@ fn document_indexes_reuse_unchanged_files_and_rebuild_reverse_dependencies() {
         serde_json::to_value(unchanged.symbol_tables.inlay_hints(&c_uri, full_range)).unwrap(),
         retained_hints
     );
+    assert_eq!(cached_completions(&unchanged.symbol_tables), ["cached", "cachedData"]);
+    assert_eq!(receiver_completions(&unchanged.symbol_tables), ["value"]);
 
     project.write_file(
         "/B.sol",
@@ -451,6 +489,8 @@ fn document_indexes_reuse_unchanged_files_and_rebuild_reverse_dependencies() {
         serde_json::to_value(changed.symbol_tables.inlay_hints(&c_uri, full_range)).unwrap(),
         retained_hints
     );
+    assert_eq!(cached_completions(&changed.symbol_tables), ["cached", "cachedData"]);
+    assert_eq!(receiver_completions(&changed.symbol_tables), ["value"]);
     assert!(changed.symbol_tables.inlay_hints(&a_uri, full_range).iter().any(|hint| {
         matches!(&hint.label, InlayHintLabel::String(label) if label == "renamed:")
     }));
@@ -468,6 +508,8 @@ fn document_indexes_reuse_unchanged_files_and_rebuild_reverse_dependencies() {
     );
     deleted.symbol_tables.reuse_unchanged_document_indexes(&changed.symbol_tables);
     assert!(deleted.symbol_tables.inlay_hints(&c_uri, full_range).is_empty());
+    assert!(cached_completions(&deleted.symbol_tables).is_empty());
+    assert!(receiver_completions(&deleted.symbol_tables).is_empty());
 }
 
 #[tokio::test(flavor = "current_thread")]

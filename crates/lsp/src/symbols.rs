@@ -270,18 +270,6 @@ impl SymbolTables {
         tables.build_builtin_completions();
         let item_ids = gcx.hir.item_ids();
         let yul_variables = YulVariableCollector::collect(gcx);
-        let indexed_sources = gcx
-            .hir
-            .source_ids()
-            .filter(|&source_id| {
-                gcx.hir
-                    .source(source_id)
-                    .file
-                    .name
-                    .as_real()
-                    .is_some_and(|path| indexed_source_paths.contains(path))
-            })
-            .collect::<FxHashSet<_>>();
         tables.document_index_state = DocumentIndexState::build(
             gcx,
             indexed_source_paths,
@@ -359,8 +347,8 @@ impl SymbolTables {
             }
         }
         tables.type_hierarchy = TypeHierarchyIndex::build(gcx, &item_symbols, &tables.declarations);
-        tables.build_scopes(gcx, &indexed_sources);
-        tables.build_receiver_member_completions(gcx);
+        tables.build_scopes(gcx, &rebuilt_sources);
+        tables.build_receiver_member_completions(gcx, &rebuilt_sources);
         tables.build_member_completions(gcx, &rebuilt_sources);
         tables.build_references(gcx, &item_symbols);
         // HIR IDs are scoped to this compiler run and cannot back published LSP queries.
@@ -407,8 +395,80 @@ impl SymbolTables {
                     indices.iter().map(|&index| previous.member_completions[index].clone()),
                 );
             }
+            if let Some(symbol_remap) = self.declaration_remap_for_uri(previous, &uri) {
+                self.copy_scopes_from(previous, &uri, &symbol_remap);
+                for (old_symbol_id, new_symbol_id) in symbol_remap {
+                    if let Some(items) = previous.receiver_member_completions.get(&old_symbol_id) {
+                        self.receiver_member_completions.insert(new_symbol_id, items.clone());
+                    }
+                }
+            }
         }
+        self.rebuild_scope_index();
         self.rebuild_member_completion_index();
+    }
+
+    fn declaration_remap_for_uri(
+        &self,
+        previous: &Self,
+        uri: &Url,
+    ) -> Option<FxHashMap<SymbolId, SymbolId>> {
+        let old_symbols = previous.files.get(uri)?;
+        let new_symbols = self.files.get(uri)?;
+        if old_symbols.len() != new_symbols.len() {
+            return None;
+        }
+
+        old_symbols
+            .iter()
+            .copied()
+            .zip(new_symbols.iter().copied())
+            .map(|(old_symbol_id, new_symbol_id)| {
+                let old = &previous.declarations[old_symbol_id];
+                let new = &self.declarations[new_symbol_id];
+                (old.name == new.name
+                    && old.kind == new.kind
+                    && old.location == new.location
+                    && old.name_range == new.name_range)
+                    .then_some((old_symbol_id, new_symbol_id))
+            })
+            .collect()
+    }
+
+    fn copy_scopes_from(
+        &mut self,
+        previous: &Self,
+        uri: &Url,
+        symbol_remap: &FxHashMap<SymbolId, SymbolId>,
+    ) {
+        let Some(old_scope_ids) = previous.file_scopes.get(uri) else {
+            return;
+        };
+        let scope_remap = old_scope_ids
+            .iter()
+            .enumerate()
+            .map(|(offset, &scope_id)| (scope_id, ScopeId::from_usize(self.scopes.len() + offset)))
+            .collect::<FxHashMap<_, _>>();
+
+        for &scope_id in old_scope_ids {
+            let old = &previous.scopes[scope_id];
+            let parent = old.parent.and_then(|parent| scope_remap.get(&parent).copied());
+            debug_assert_eq!(parent.is_some(), old.parent.is_some());
+            let declarations = old
+                .declarations
+                .iter()
+                .map(|declaration| ScopedDeclaration {
+                    symbol_id: symbol_remap[&declaration.symbol_id],
+                    available_from: declaration.available_from,
+                })
+                .collect::<Vec<_>>();
+            self.scopes.push(Scope {
+                parent,
+                uri: old.uri.clone(),
+                range: old.range,
+                declarations,
+            });
+        }
     }
 
     #[cfg(test)]
@@ -993,14 +1053,21 @@ impl SymbolTables {
             .collect();
     }
 
-    fn build_receiver_member_completions(&mut self, gcx: Gcx<'_>) {
+    fn build_receiver_member_completions(
+        &mut self,
+        gcx: Gcx<'_>,
+        indexed_sources: &FxHashSet<hir::SourceId>,
+    ) {
         for variable_id in gcx.hir.variable_ids() {
+            let variable = gcx.hir.variable(variable_id);
+            if !indexed_sources.contains(&variable.source) {
+                continue;
+            }
             let Some(&symbol_id) =
                 self.symbols_by_key.get(&SymbolKey::Item(ItemId::Variable(variable_id)))
             else {
                 continue;
             };
-            let variable = gcx.hir.variable(variable_id);
             let ty = gcx.type_of_item(ItemId::Variable(variable_id));
             let items =
                 self.member_completion_items_for_ty(gcx, ty, variable.source, variable.contract);
@@ -1536,17 +1603,7 @@ impl SymbolTables {
         self.workspace_symbol_ids.extend(self.declarations.indices());
         sort_symbol_ids(&self.declarations, &mut self.workspace_symbol_ids);
 
-        self.file_scopes.clear();
-        for scope_id in self.scopes.indices() {
-            let uri = self.scopes[scope_id].uri.clone();
-            self.file_scopes.entry(uri).or_default().push(scope_id);
-        }
-        for scopes in self.file_scopes.values_mut() {
-            scopes.sort_by_key(|&scope_id| {
-                let range = self.scopes[scope_id].range;
-                (range.start.line, range.start.character, range.end.line, range.end.character)
-            });
-        }
+        self.rebuild_scope_index();
 
         self.rebuild_member_completion_index();
 
@@ -1576,6 +1633,20 @@ impl SymbolTables {
         for completions in self.file_member_completions.values_mut() {
             completions.sort_by_key(|&index| {
                 let range = self.member_completions[index].range;
+                (range.start.line, range.start.character, range.end.line, range.end.character)
+            });
+        }
+    }
+
+    fn rebuild_scope_index(&mut self) {
+        self.file_scopes.clear();
+        for scope_id in self.scopes.indices() {
+            let uri = self.scopes[scope_id].uri.clone();
+            self.file_scopes.entry(uri).or_default().push(scope_id);
+        }
+        for scopes in self.file_scopes.values_mut() {
+            scopes.sort_by_key(|&scope_id| {
+                let range = self.scopes[scope_id].range;
                 (range.start.line, range.start.character, range.end.line, range.end.character)
             });
         }
