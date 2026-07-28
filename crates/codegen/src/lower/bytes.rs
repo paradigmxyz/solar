@@ -753,63 +753,6 @@ impl<'gcx> Lowerer<'gcx> {
         ptr
     }
 
-    pub(super) fn lower_bytes_concat_call(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        args: &CallArgs<'_>,
-    ) -> ValueId {
-        let mut pieces = Vec::new();
-        let mut len = builder.imm_u64(0);
-
-        for arg in args.exprs() {
-            let (data, piece_len) = if let Some(width) = self.fixed_bytes_width_of_expr(arg) {
-                let data = self.allocate_memory(builder, 32);
-                let value = self.lower_expr(builder, arg);
-                builder.mstore(data, value);
-                (data, builder.imm_u64(u64::from(width)))
-            } else {
-                let ptr = self.lower_expr_as_memory_bytes(builder, arg);
-                (
-                    builder.memory_object_data(ptr, MemoryObjectKind::Bytes),
-                    builder.memory_object_len(ptr, MemoryObjectKind::Bytes),
-                )
-            };
-            let new_len = builder.add(len, piece_len);
-            let overflow = builder.lt(new_len, len);
-            self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
-            len = new_len;
-            pieces.push((data, piece_len));
-        }
-
-        let word = builder.imm_u64(32);
-        let thirty_one = builder.imm_u64(31);
-        let rounded = builder.add(len, thirty_one);
-        let rounded_overflow = builder.lt(rounded, len);
-        self.emit_panic_if(builder, rounded_overflow, PanicCode::MemoryAllocationOverflow);
-        let mask = builder.not(thirty_one);
-        let padded = builder.and(rounded, mask);
-        let is_empty = builder.iszero(padded);
-        let data_size = builder.select(is_empty, word, padded);
-        let total = builder.add(word, data_size);
-        let total_overflow = builder.lt(total, data_size);
-        self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
-        let ptr = self.allocate_memory_object_dynamic(builder, total, MemoryObjectKind::Bytes);
-        builder.set_memory_object_len(ptr, len, MemoryObjectKind::Bytes);
-
-        let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        let last_word_offset = builder.sub(data_size, word);
-        let last_word = builder.add(data, last_word_offset);
-        let zero = builder.imm_u64(0);
-        builder.mstore(last_word, zero);
-
-        let mut dst = data;
-        for (src, piece_len) in pieces {
-            self.mcopy(builder, dst, src, piece_len, None);
-            dst = builder.add(dst, piece_len);
-        }
-        ptr
-    }
-
     /// Whether an expression is a memory `bytes`/`string` value with the packed
     /// `[length][data...]` layout. Storage bytes identifiers materialize to a
     /// packed memory copy too, but have dedicated index paths and are excluded,
