@@ -419,20 +419,24 @@ impl SymbolTables {
             return None;
         }
 
-        old_symbols
-            .iter()
-            .copied()
-            .zip(new_symbols.iter().copied())
-            .map(|(old_symbol_id, new_symbol_id)| {
-                let old = &previous.declarations[old_symbol_id];
-                let new = &self.declarations[new_symbol_id];
-                (old.name == new.name
-                    && old.kind == new.kind
-                    && old.location == new.location
-                    && old.name_range == new.name_range)
-                    .then_some((old_symbol_id, new_symbol_id))
-            })
-            .collect()
+        let mut new_by_position = FxHashMap::<_, Vec<_>>::default();
+        for &symbol_id in new_symbols {
+            let start = self.declarations[symbol_id].name_range.start;
+            new_by_position.entry(start).or_default().push(symbol_id);
+        }
+
+        let mut used = FxHashSet::default();
+        let mut remap = FxHashMap::default();
+        for &old_symbol_id in old_symbols {
+            let old = &previous.declarations[old_symbol_id];
+            let new_symbol_id =
+                new_by_position.get(&old.name_range.start)?.iter().find(|&&id| {
+                    !used.contains(&id) && declarations_match(old, &self.declarations[id])
+                })?;
+            used.insert(*new_symbol_id);
+            remap.insert(old_symbol_id, *new_symbol_id);
+        }
+        Some(remap)
     }
 
     fn copy_scopes_from(
@@ -1655,6 +1659,13 @@ impl SymbolTables {
 
 fn remap_scope_id(scope_id: ScopeId, offset: usize) -> ScopeId {
     ScopeId::from_usize(scope_id.index() + offset)
+}
+
+fn declarations_match(old: &DeclarationSymbol, new: &DeclarationSymbol) -> bool {
+    old.name == new.name
+        && old.kind == new.kind
+        && old.location == new.location
+        && old.name_range == new.name_range
 }
 
 struct YulVariableCollector<'gcx> {
