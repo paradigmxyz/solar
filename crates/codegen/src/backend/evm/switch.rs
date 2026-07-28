@@ -1615,9 +1615,7 @@ mod tests {
 
     #[test]
     fn keeps_packed_bit_slice_within_cap_for_shared_continuation() {
-        let values = (0..6)
-            .map(|index| U256::from((index + 1) * (index + 1) * 65536 + index))
-            .collect::<Vec<_>>();
+        let values = (0..6).map(|index| U256::from(20_000 + index * 6)).collect::<Vec<_>>();
         let select = |shared_case_continuation| {
             select_switch_plan_with_linear_values_and_budget(
                 &values,
