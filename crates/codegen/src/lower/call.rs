@@ -271,7 +271,7 @@ impl<'gcx> Lowerer<'gcx> {
         )
     }
 
-    pub(super) fn resolve_internal_function_pointer_target(
+    pub(super) fn resolve_virtual_function_target(
         &self,
         function_id: hir::FunctionId,
     ) -> hir::FunctionId {
@@ -633,6 +633,10 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::StringConcat | Builtin::BytesConcat => {
                 self.lower_abi_encode_packed(builder, args)
             }
+            Builtin::Sha256 | Builtin::Ripemd160 => {
+                self.lower_hash_precompile_call(builder, builtin, args)
+            }
+            Builtin::EcRecover => self.lower_ecrecover_call(builder, args),
             Builtin::Erc7201 => self.lower_erc7201_call(builder, args),
             Builtin::Require | Builtin::Assert => {
                 let mut exprs = args.exprs();
@@ -852,6 +856,81 @@ impl<'gcx> Lowerer<'gcx> {
             | Builtin::YulMcopy => self.lower_yul_builtin_call(builder, builtin, args),
             _ => builder.imm_u64(0),
         }
+    }
+
+    fn lower_hash_precompile_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        builtin: Builtin,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        let Some(input) = args.exprs().next() else {
+            let guar = self
+                .gcx
+                .dcx()
+                .err(format!("wrong number of arguments for builtin `{}`", builtin.name()))
+                .span(args.span)
+                .emit();
+            return builder.error_value(guar);
+        };
+        let input = self.peel_bytes_conversion(input);
+        let (input_ptr, input_len) = self.lower_bytes_arg_to_memory(builder, input);
+
+        let output_ptr = self.allocate_memory(builder, 32);
+
+        let address = builder.imm_u64(if builtin == Builtin::Sha256 { 2 } else { 3 });
+        let output_size = builder.imm_u64(32);
+        let gas = builder.gas();
+        let success =
+            builder.staticcall(gas, address, input_ptr, input_len, output_ptr, output_size);
+        Self::emit_revert_unless(builder, success);
+
+        let output = builder.mload(output_ptr);
+        if builtin == Builtin::Ripemd160 {
+            let shift = builder.imm_u64(96);
+            builder.shl(shift, output)
+        } else {
+            output
+        }
+    }
+
+    fn lower_ecrecover_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        let values = args.exprs().map(|arg| self.lower_expr(builder, arg)).collect::<Vec<_>>();
+        let [hash, v, r, s] = values.as_slice() else {
+            let guar = self
+                .gcx
+                .dcx()
+                .err("wrong number of arguments for builtin `ecrecover`")
+                .span(args.span)
+                .emit();
+            return builder.error_value(guar);
+        };
+
+        let input_ptr = self.allocate_memory(builder, 160);
+        builder.mstore(input_ptr, *hash);
+        for (offset, value) in [(32, *v), (64, *r), (96, *s)] {
+            let offset = builder.imm_u64(offset);
+            let ptr = builder.add(input_ptr, offset);
+            builder.mstore(ptr, value);
+        }
+
+        let output_offset = builder.imm_u64(128);
+        let output_ptr = builder.add(input_ptr, output_offset);
+        let zero = builder.imm_u64(0);
+        builder.mstore(output_ptr, zero);
+
+        let gas = builder.gas();
+        let address = builder.imm_u64(1);
+        let input_size = builder.imm_u64(128);
+        let output_size = builder.imm_u64(32);
+        let success =
+            builder.staticcall(gas, address, input_ptr, input_size, output_ptr, output_size);
+        Self::emit_revert_unless(builder, success);
+        builder.mload(output_ptr)
     }
 
     fn lower_erc7201_call(
@@ -1243,6 +1322,14 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_library_call(builder, func_id, args, None);
         }
 
+        // `Base.f(...)` is an internal call to that exact base implementation,
+        // not an external call to a value represented by the contract type.
+        if self.is_contract_type_name_expr(base)
+            && let Some(func_id) = self.resolved_function_callee(callee)
+        {
+            return self.lower_resolved_internal_call(builder, func_id, args);
+        }
+
         // Handle address payable transfer/send builtins
         if matches!(builtin, Some(Builtin::AddressPayableTransfer | Builtin::AddressPayableSend)) {
             // payable(addr).transfer(amount) or payable(addr).send(amount)
@@ -1548,6 +1635,12 @@ impl<'gcx> Lowerer<'gcx> {
         self.gcx.hir.contract(contract_id).kind.is_library()
     }
 
+    fn is_contract_type_name_expr(&self, expr: &hir::Expr<'_>) -> bool {
+        let Some(ty) = self.get_expr_type(expr) else { return false };
+        let TyKind::Type(ty) = ty.kind else { return false };
+        matches!(ty.kind, TyKind::Contract(_))
+    }
+
     fn array_builtin_method_name(builtin: Builtin) -> Option<Symbol> {
         match builtin {
             Builtin::ArrayPush0 | Builtin::ArrayPush => Some(sym::push),
@@ -1761,6 +1854,16 @@ impl<'gcx> Lowerer<'gcx> {
     /// Lowers an internal function call by inlining it.
     /// This handles calls like `add(a, b)` where `add` is a function in the same contract.
     fn lower_internal_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        let func_id = self.resolve_virtual_function_target(func_id);
+        self.lower_resolved_internal_call(builder, func_id, args)
+    }
+
+    fn lower_resolved_internal_call(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         func_id: hir::FunctionId,
