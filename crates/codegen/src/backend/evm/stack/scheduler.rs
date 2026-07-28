@@ -84,7 +84,7 @@ use crate::{
 };
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, StdEntry};
 use std::{cmp::Ordering, collections::BinaryHeap, mem::size_of};
 
 const MAX_OPERAND_SEARCH_EXPANSIONS: usize = 1024;
@@ -535,15 +535,33 @@ impl StackScheduler {
                 let _ = Self::apply_planned_stack_action(&mut next_stack, &action);
                 let next_cost = cost.with_op(&action.op, evm_version, cost_model);
                 let key = next_cost.key(optimization);
-                if visited.get(&next_stack).is_some_and(|&old| old <= key) {
-                    continue;
-                }
                 let state_bytes = Self::operand_search_state_bytes(next_stack.len());
-                if retained_bytes.saturating_add(state_bytes) > MAX_OPERAND_SEARCH_RETAINED_BYTES {
-                    break;
-                }
+                let next_stack = match visited.entry(next_stack) {
+                    StdEntry::Occupied(mut entry) => {
+                        if *entry.get() <= key {
+                            continue;
+                        }
+                        if retained_bytes.saturating_add(state_bytes)
+                            > MAX_OPERAND_SEARCH_RETAINED_BYTES
+                        {
+                            break;
+                        }
+                        let next_stack = entry.key().clone();
+                        entry.insert(key);
+                        next_stack
+                    }
+                    StdEntry::Vacant(entry) => {
+                        if retained_bytes.saturating_add(state_bytes)
+                            > MAX_OPERAND_SEARCH_RETAINED_BYTES
+                        {
+                            break;
+                        }
+                        let next_stack = entry.key().clone();
+                        entry.insert(key);
+                        next_stack
+                    }
+                };
                 retained_bytes += state_bytes;
-                visited.insert(next_stack.clone(), key);
                 serial += 1;
                 let actions = next_cost.actions;
                 let priority = self.operand_search_priority_parts(
@@ -1798,7 +1816,7 @@ mod tests {
             }
 
             for action in actions {
-                let next = StackScheduler::apply_planned_action(
+                let mut next = StackScheduler::apply_planned_action(
                     &node,
                     action,
                     evm_version,
@@ -1808,10 +1826,19 @@ mod tests {
                     continue;
                 }
                 let key = next.cost.key(optimization);
-                if visited.get(&next.stack).is_some_and(|&old| old <= key) {
-                    continue;
+                match visited.entry(std::mem::take(&mut next.stack)) {
+                    StdEntry::Occupied(mut entry) => {
+                        if *entry.get() <= key {
+                            continue;
+                        }
+                        next.stack.clone_from(entry.key());
+                        entry.insert(key);
+                    }
+                    StdEntry::Vacant(entry) => {
+                        next.stack.clone_from(entry.key());
+                        entry.insert(key);
+                    }
                 }
-                visited.insert(next.stack.clone(), key);
                 serial += 1;
                 queue.push(QueueEntry { priority: key, key, serial, node: next });
             }

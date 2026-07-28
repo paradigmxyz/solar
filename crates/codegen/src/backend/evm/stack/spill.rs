@@ -8,7 +8,10 @@
 //! offsets are reused.
 
 use crate::{memory::EvmMemoryLayout, mir::ValueId};
-use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::GrowableBitSet,
+    map::{FxHashMap, StdEntry},
+};
 
 /// A slot in memory where a spilled value is stored.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -69,19 +72,20 @@ impl SpillManager {
     ///
     /// If the value already has a slot, returns the existing one.
     pub(crate) fn allocate(&mut self, value: ValueId) -> SpillSlot {
-        if let Some(&slot) = self.slots.get(&value) {
-            return slot;
+        match self.slots.entry(value) {
+            StdEntry::Occupied(entry) => *entry.get(),
+            StdEntry::Vacant(entry) => {
+                let offset = self.free_offsets.pop().unwrap_or_else(|| {
+                    let offset = self.next_offset;
+                    self.next_offset += 1;
+                    offset
+                });
+                let slot = SpillSlot { offset };
+                entry.insert(slot);
+                self.max_offset = self.max_offset.max(self.next_offset);
+                slot
+            }
         }
-
-        let offset = self.free_offsets.pop().unwrap_or_else(|| {
-            let offset = self.next_offset;
-            self.next_offset += 1;
-            offset
-        });
-        let slot = SpillSlot { offset };
-        self.slots.insert(value, slot);
-        self.max_offset = self.max_offset.max(self.next_offset);
-        slot
     }
 
     /// Reserves a function-stable slot for a value that can cross block edges.

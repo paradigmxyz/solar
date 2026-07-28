@@ -23,7 +23,7 @@
 use super::model::{MAX_STACK_ACCESS, StackModel, StackOp};
 use crate::mir::ValueId;
 use smallvec::SmallVec;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, StdEntry};
 use std::collections::VecDeque;
 
 const MAX_LAYOUT_SEARCH_STATES: usize = 100_000;
@@ -196,11 +196,14 @@ impl<'a> StackShuffler<'a> {
         next: Layout,
         op: StackOp,
     ) {
-        if predecessors.len() >= MAX_LAYOUT_SEARCH_STATES || predecessors.contains_key(&next) {
+        if predecessors.len() >= MAX_LAYOUT_SEARCH_STATES {
             return;
         }
-        predecessors.insert(next.clone(), Some((previous.clone(), op)));
-        queue.push_back(next);
+        if let StdEntry::Vacant(entry) = predecessors.entry(next) {
+            let next = entry.key().clone();
+            entry.insert(Some((previous.clone(), op)));
+            queue.push_back(next);
+        }
     }
 
     fn matches_target(source: &[Option<ValueId>], target: &[TargetSlot]) -> bool {
