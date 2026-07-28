@@ -45,6 +45,8 @@ pub(crate) struct SpillManager {
     stored: GrowableBitSet<ValueId>,
     /// Cross-block values whose slots must remain stable for the function.
     stable: GrowableBitSet<ValueId>,
+    /// Values allocated since the last block boundary.
+    block_locals: Vec<ValueId>,
     /// Reusable offsets released by block-local values after their final use.
     free_offsets: Vec<u32>,
     /// Next available spill slot offset.
@@ -62,6 +64,7 @@ impl SpillManager {
             reloadable: GrowableBitSet::new_empty(),
             stored: GrowableBitSet::new_empty(),
             stable: GrowableBitSet::new_empty(),
+            block_locals: Vec::new(),
             free_offsets: Vec::new(),
             next_offset: 0,
             max_offset: 0,
@@ -82,6 +85,7 @@ impl SpillManager {
                 });
                 let slot = SpillSlot { offset };
                 entry.insert(slot);
+                self.block_locals.push(value);
                 self.max_offset = self.max_offset.max(self.next_offset);
                 slot
             }
@@ -111,10 +115,15 @@ impl SpillManager {
 
     /// Releases every block-local slot while retaining cross-block reservations.
     pub(crate) fn release_block_locals(&mut self) {
-        let mut values: Vec<_> = self
-            .slots
-            .iter()
-            .filter_map(|(&value, &slot)| (!self.stable.contains(value)).then_some((value, slot)))
+        let mut values: Vec<_> = std::mem::take(&mut self.block_locals)
+            .into_iter()
+            .filter_map(|value| {
+                if self.stable.contains(value) {
+                    None
+                } else {
+                    self.slots.get(&value).copied().map(|slot| (value, slot))
+                }
+            })
             .collect();
         values.sort_by_key(|(_, slot)| std::cmp::Reverse(slot.offset));
         for (value, _) in values {
@@ -271,5 +280,28 @@ mod tests {
 
         assert_eq!(manager.get(stable), Some(stable_slot));
         assert_eq!(manager.get(local), None);
+    }
+
+    #[test]
+    fn test_release_block_locals_reuses_offsets_in_order() {
+        let mut manager = SpillManager::new();
+        let stable = ValueId::from_usize(0);
+        let local0 = ValueId::from_usize(1);
+        let local1 = ValueId::from_usize(2);
+        let new0 = ValueId::from_usize(3);
+        let new1 = ValueId::from_usize(4);
+
+        let stable_slot = manager.allocate(stable);
+        assert_eq!(manager.reserve(stable), stable_slot);
+        let local0_slot = manager.allocate(local0);
+        let local1_slot = manager.allocate(local1);
+
+        manager.release_block_locals();
+
+        assert_eq!(manager.get(stable), Some(stable_slot));
+        assert_eq!(manager.get(local0), None);
+        assert_eq!(manager.get(local1), None);
+        assert_eq!(manager.allocate(new0), local0_slot);
+        assert_eq!(manager.allocate(new1), local1_slot);
     }
 }
