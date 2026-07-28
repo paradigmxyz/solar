@@ -1,8 +1,11 @@
 //@ run-call: pair(int256) -7 => 999999999999999993, -7
 //@ run-call: triple(uint256) 11 => 11, 12, 13
 //@ run-call: arrays(uint256,uint256) 17, 29 => 17, 29
+//@ run-call: discarded() => 13, 3
 
 contract TupleValueDeclaration {
+    uint256 private count;
+
     function pair(int256 x) external pure returns (int256, int256) {
         (int256 wad, int256 p) = (int256(1e18), x);
         return (wad + p, p);
@@ -21,5 +24,15 @@ contract TupleValueDeclaration {
 
         (uint256[] memory originalKeys, uint256[] memory originalValues) = (keys, values);
         return (originalKeys[0], originalValues[0]);
+    }
+
+    function discarded() external returns (uint256, uint256) {
+        (uint256 first,, uint256 third) = (bump(1), bump(2), bump(3));
+        return (first * 10 + third, count);
+    }
+
+    function bump(uint256 value) internal returns (uint256) {
+        count++;
+        return value;
     }
 }
