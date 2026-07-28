@@ -7,7 +7,10 @@ use super::{
     MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
 };
 use arrayvec::ArrayVec;
-use solar_data_structures::fmt::{self, FmtIteratorExt};
+use solar_data_structures::{
+    fmt::{self, FmtIteratorExt},
+    map::{FxHashMap, FxHashSet},
+};
 use solar_sema::hir;
 
 /// Displays a DOT format CFG for a function.
@@ -411,20 +414,42 @@ pub(super) fn display_immutable_ref(
     module: Option<&Module>,
 ) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
-        if let Some(module) = module
-            && let Some(immutable) = module.get_immutable(id)
-        {
-            if module.iter_immutables().filter(|(_, other)| other.name == immutable.name).count()
-                == 1
-            {
-                write!(f, "{}", immutable.name)
-            } else {
-                write!(f, "{}{}", immutable.name, id.index())
-            }
+        if let Some(name) = module.and_then(|module| immutable_display_name(module, id)) {
+            write!(f, "{name}")
         } else {
             write!(f, "{}", id.index())
         }
     })
+}
+
+fn immutable_display_name(module: &Module, id: super::ImmutableId) -> Option<String> {
+    let immutable = module.get_immutable(id)?;
+    let mut counts = FxHashMap::default();
+    let mut reserved = FxHashSet::default();
+    for (_, immutable) in module.iter_immutables() {
+        *counts.entry(immutable.name.name).or_insert(0usize) += 1;
+        reserved.insert(immutable.name.to_string());
+    }
+    if counts[&immutable.name.name] == 1 {
+        return Some(immutable.name.to_string());
+    }
+
+    let mut allocated = FxHashSet::default();
+    for (other_id, other) in module.iter_immutables() {
+        if counts[&other.name.name] == 1 {
+            continue;
+        }
+
+        let mut name = format!("{}{}", other.name, other_id.index());
+        while reserved.contains(&name) || allocated.contains(&name) {
+            name.push('_');
+        }
+        if other_id == id {
+            return Some(name);
+        }
+        allocated.insert(name);
+    }
+    None
 }
 
 /// Formats a function reference as `@name` when the name is unique, or `nameN`

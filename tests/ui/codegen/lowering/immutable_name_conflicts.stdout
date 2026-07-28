@@ -19,13 +19,15 @@ fn @baseValue() {
 // === ROOT/tests/ui/codegen/lowering/immutable_name_conflicts.sol:Derived ===
 @module Derived
 immutables:
-  value0: u256
+  value0_: u256
   value1: u256
+  value0: u256
 
 fn @constructor() {
   bb0:
-    storeimmutable value0, 1
+    storeimmutable value0_, 1
     storeimmutable value1, 2
+    storeimmutable value0, 3
     stop
 }
 
@@ -36,9 +38,16 @@ fn @derivedValue() {
     returndata 128, 32
 }
 
-fn @baseValue() {
+fn @numberedValue() {
   bb0:
     v0 = loadimmutable value0
+    mstore 128, v0
+    returndata 128, 32
+}
+
+fn @baseValue() {
+  bb0:
+    v0 = loadimmutable value0_
     mstore 128, v0
     returndata 128, 32
 }
