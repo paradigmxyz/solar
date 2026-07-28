@@ -164,15 +164,6 @@ pub(crate) struct Lowerer<'gcx> {
     /// Cache of each function's HIR body size, used to budget lowering-time
     /// inlining.
     body_sizes: FxHashMap<HirFunctionId, usize>,
-    /// Calldata slices for the dynamic members of `calldata` struct parameters,
-    /// keyed by `(parameter, field index)`.
-    ///
-    /// The prologue also rebuilds such a struct in memory, which answers a
-    /// whole-member read. It cannot answer element addressing: the copy of an
-    /// array of structs holds pointers where calldata holds the elements inline.
-    /// The member's calldata position is known while decoding, so record it
-    /// there and hand it back at the member access.
-    calldata_struct_field_slices: FxHashMap<(VariableId, usize), ValueId>,
     /// Functions currently being lowered on demand.
     lowering_functions: GrowableBitSet<HirFunctionId>,
     /// Functions whose declarations are used as internal function values.
@@ -261,7 +252,6 @@ impl<'gcx> Lowerer<'gcx> {
             hir_to_internal_mir_functions: FxHashMap::default(),
             recursive_functions: FxHashMap::default(),
             body_sizes: FxHashMap::default(),
-            calldata_struct_field_slices: FxHashMap::default(),
             lowering_functions: GrowableBitSet::new_empty(),
             internal_function_pointer_targets: GrowableBitSet::new_empty(),
             internal_function_pointer_dispatchers: FxHashMap::default(),
@@ -656,57 +646,57 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Records a calldata slice for each dynamic array member of a `calldata`
-    /// struct parameter whose tail starts at `base`.
+    /// The calldata slice for a dynamic member of a `calldata` struct.
+    ///
+    /// The struct reached this function as a memory copy, which answers its
+    /// static members but not a dynamic one: a `bytes` member is a separate
+    /// object rather than a view, and an array-of-structs copy holds pointers
+    /// where calldata holds the elements inline. The copy carries the struct's
+    /// calldata position in a trailing word, so read the member where it
+    /// actually is.
     ///
     /// A dynamically encoded struct puts each member's head word at its own
     /// base, and a dynamic member's head word is the offset of its tail
-    /// *relative to that base*, so the member's `[len][data...]` sits at
-    /// `base + head`. Recorded one level deep: that is the shape reads take, and
-    /// a nested struct's members would need their own base.
-    ///
-    /// `bytes`/`string` members are left to the memory copy, which is
-    /// byte-identical for them and is what the pinned lowering tests expect.
-    fn record_calldata_struct_field_slices(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        param_id: VariableId,
-        param_ty: Ty<'gcx>,
-        base: ValueId,
-    ) {
-        let TyKind::Struct(struct_id) = param_ty.peel_refs().kind else { return };
-        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
-        let mut head_offset = 0u64;
-        for (index, &field_ty) in field_tys.iter().enumerate() {
-            let field_ty = field_ty.peel_refs();
-            let head_size = self.abi_head_size(field_ty);
-            if matches!(field_ty.kind, TyKind::DynArray(_) | TyKind::Slice(_)) {
-                let head_pos = self.offset_ptr(builder, base, head_offset);
-                let tail_offset = builder.calldataload(head_pos);
-                let len_pos = builder.add(base, tail_offset);
-                let len = builder.calldataload(len_pos);
-                let word = builder.imm_u64(EvmMemoryLayout::WORD_SIZE);
-                let data = builder.add(len_pos, word);
-                let slice = builder.make_slice(data, len, SliceLocation::Calldata);
-                self.calldata_struct_field_slices.insert((param_id, index), slice);
-            }
-            head_offset += head_size;
-        }
-    }
-
-    /// The recorded calldata slice for `base.member`, when `base` names a
-    /// `calldata` struct parameter and `member` is one of its array members.
+    /// relative to that base.
     pub(super) fn calldata_struct_field_slice(
         &mut self,
+        builder: &mut FunctionBuilder<'_>,
         base: &hir::Expr<'_>,
         member: solar_interface::Ident,
     ) -> Option<ValueId> {
-        if self.calldata_struct_field_slices.is_empty() {
+        let ty = self.get_expr_type(base)?;
+        if !matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Calldata)) {
             return None;
         }
-        let base_var = self.ident_variable(base)?;
+        let TyKind::Struct(struct_id) = ty.peel_refs().kind else { return None };
         let (_, index) = self.get_memory_struct_field_info(base, member)?;
-        self.calldata_struct_field_slices.get(&(base_var, index)).copied()
+        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        let field_ty = field_tys.get(index)?.peel_refs();
+        // Only a member that *is* a slice: an array, or `bytes`/`string`. A
+        // nested struct member is dynamic too, but it is its own copy, which
+        // carries its own base and answers its own members.
+        if !matches!(
+            field_ty.kind,
+            TyKind::DynArray(_)
+                | TyKind::Slice(_)
+                | TyKind::Elementary(
+                    solar_ast::ElementaryType::Bytes | solar_ast::ElementaryType::String
+                )
+        ) {
+            return None;
+        }
+
+        let ptr = self.lower_value_expr(builder, base);
+        let struct_base = self.calldata_base_of_copy(builder, ptr, field_tys.len() as u64);
+        let head_offset: u64 =
+            field_tys[..index].iter().map(|&f| self.abi_head_size(f.peel_refs())).sum();
+        let head_pos = self.offset_ptr(builder, struct_base, head_offset);
+        let tail_offset = builder.calldataload(head_pos);
+        let len_pos = builder.add(struct_base, tail_offset);
+        let len = builder.calldataload(len_pos);
+        let word = builder.imm_u64(EvmMemoryLayout::WORD_SIZE);
+        let data = builder.add(len_pos, word);
+        Some(builder.make_slice(data, len, SliceLocation::Calldata))
     }
 
     /// Returns the type and constant length of a fixed-size array parameter
@@ -983,10 +973,6 @@ impl<'gcx> Lowerer<'gcx> {
         self.locals.clear();
         self.local_memory_slots.clear();
         self.slice_slot_locals.clear();
-        // The recorded positions are SSA values of the function being lowered,
-        // so they must not outlive it: the same internal function can be
-        // inlined into one entry and lowered standalone for another.
-        self.calldata_struct_field_slices.clear();
         self.next_local_memory_offset = EvmMemoryLayout::HEAP_START;
         self.assigned_vars.clear();
         self.lowering_constructor = hir_func.kind == hir::FunctionKind::Constructor;
@@ -1076,16 +1062,6 @@ impl<'gcx> Lowerer<'gcx> {
                     let base = builder.add(args_base, offset);
                     let struct_ptr =
                         self.materialize_calldata_value_at(&mut builder, source, param_ty, base);
-                    if source == bytes::AbiSource::Calldata
-                        && param.data_location == Some(solar_ast::DataLocation::Calldata)
-                    {
-                        self.record_calldata_struct_field_slices(
-                            &mut builder,
-                            param_id,
-                            param_ty,
-                            base,
-                        );
-                    }
                     self.bind_param_value_deferred(param_id, struct_ptr, &mut deferred_param_slots);
                 } else if decodes_abi_params
                     && !self.param_is_storage_ref(param_id)
@@ -1097,14 +1073,6 @@ impl<'gcx> Lowerer<'gcx> {
                     let num_fields = field_ids.len();
                     let field_tys = self.gcx.struct_field_types(struct_id);
 
-                    // Allocate memory for the struct
-                    let struct_size = (num_fields as u64) * EvmMemoryLayout::WORD_SIZE;
-                    let struct_ptr = self.allocate_memory_object(
-                        &mut builder,
-                        struct_size,
-                        MemoryObjectKind::Struct,
-                    );
-
                     // Runtime calls read the inline head after the selector;
                     // constructors read the argument blob at the heap start.
                     let (agg_source, agg_args_base) = if self.lowering_constructor {
@@ -1112,6 +1080,34 @@ impl<'gcx> Lowerer<'gcx> {
                     } else {
                         (bytes::AbiSource::Calldata, 4)
                     };
+
+                    // Allocate memory for the struct, plus the trailing word a
+                    // calldata copy carries its source position in.
+                    let carries_base = agg_source == bytes::AbiSource::Calldata;
+                    let struct_size =
+                        (num_fields as u64 + u64::from(carries_base)) * EvmMemoryLayout::WORD_SIZE;
+                    // The extra word is reserved, not a field: keep the layout
+                    // at the declared field count so field addressing and the
+                    // allocation agree.
+                    let struct_size_val = builder.imm_u64(struct_size);
+                    let struct_ptr = builder.alloc_object(
+                        struct_size_val,
+                        crate::mir::MemoryObjectLayout::structure(num_fields as u64),
+                        crate::mir::AllocationSemantics::INTERNAL,
+                    );
+                    if carries_base {
+                        // A statically encoded struct sits inline from its own
+                        // head position, so that position is its base.
+                        let first_word = builder.func().params.len() as u64;
+                        let base = builder
+                            .imm_u64(agg_args_base + first_word * EvmMemoryLayout::WORD_SIZE);
+                        let slot = self.offset_ptr(
+                            &mut builder,
+                            struct_ptr,
+                            num_fields as u64 * EvmMemoryLayout::WORD_SIZE,
+                        );
+                        builder.mstore(slot, base);
+                    }
 
                     // Add MIR params for each struct field (they come from calldata)
                     for field_idx in 0..field_ids.len() {

@@ -3122,7 +3122,16 @@ impl<'gcx> Lowerer<'gcx> {
             hir::StmtKind::DeclSingle(var_id) => {
                 let var = self.gcx.hir.variable(*var_id);
                 if let Some(init) = var.initializer {
-                    let init_val = self.lower_value_expr(builder, init);
+                    // Coerce the same way the ordinary declaration path does:
+                    // this body is being lowered inline and bypasses
+                    // `lower_single_var_decl`.
+                    let init_val = if self.var_expects_memory_bytes_value(var) {
+                        self.lower_expr_as_memory_bytes(builder, init)
+                    } else if self.var_expects_memory_dyn_array_value(var) {
+                        self.lower_expr_as_memory_dyn_array(builder, init)
+                    } else {
+                        self.lower_value_expr(builder, init)
+                    };
                     self.locals.insert(*var_id, init_val);
                 } else if let Some(value) = self.lower_default_variable_value(builder, *var_id) {
                     self.locals.insert(*var_id, value);
