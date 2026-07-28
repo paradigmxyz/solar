@@ -4,7 +4,7 @@ use super::{Lowerer, checked_arith::PanicCode};
 use crate::mir::{FunctionBuilder, MemoryObjectKind, SliceLocation, ValueId};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::LitKind;
-use solar_interface::{Symbol, kw, sym};
+use solar_interface::{Symbol, diagnostics::ErrorGuaranteed, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
@@ -98,7 +98,7 @@ impl<'gcx> Lowerer<'gcx> {
             return ptr;
         }
         if self.expr_is_calldata_dynamic_bytes(expr) {
-            let value = self.lower_expr(builder, expr);
+            let value = self.lower_value_expr(builder, expr);
             // A decoded calldata-struct member is already a memory bytes
             // pointer despite its calldata-located type.
             if Self::value_is_calldata_slice(builder, value) {
@@ -106,7 +106,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
             return value;
         }
-        let value = self.lower_expr(builder, expr);
+        let value = self.lower_value_expr(builder, expr);
         self.coerce_memory_slice_value(builder, value)
     }
 
@@ -285,7 +285,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
             return self.materialize_calldata_dyn_array(builder, slice);
         }
-        self.lower_expr(builder, expr)
+        self.lower_value_expr(builder, expr)
     }
 
     /// Copies a single-word calldata array whose absolute length-word position
@@ -686,9 +686,16 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         slot: ValueId,
+        builtin: Builtin,
         method: Symbol,
         args: &CallArgs<'_>,
-    ) -> ValueId {
+    ) -> Option<ValueId> {
+        let exprs = match self.collect_builtin_args(builtin, args) {
+            Ok(exprs) => exprs,
+            Err(guar) => {
+                return (builtin == Builtin::ArrayPush0).then(|| builder.error_value(guar));
+            }
+        };
         let current = self.materialize_storage_bytes(builder, slot);
         let len = builder.memory_object_len(current, MemoryObjectKind::Bytes);
         match method {
@@ -699,11 +706,10 @@ impl<'gcx> Lowerer<'gcx> {
                 self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
 
                 let resized = self.resize_memory_bytes(builder, current, len, new_len);
-                let byte = args
-                    .exprs()
-                    .next()
+                let byte = exprs
+                    .first()
                     .map(|arg| {
-                        let value = self.lower_expr(builder, arg);
+                        let value = self.lower_value_expr(builder, arg);
                         self.bytes1_store_byte(builder, value)
                     })
                     .unwrap_or_else(|| builder.imm_u64(0));
@@ -711,6 +717,10 @@ impl<'gcx> Lowerer<'gcx> {
                 let dst = builder.add(data, len);
                 builder.mstore8(dst, byte);
                 self.copy_memory_bytes_to_storage(builder, slot, resized);
+                // The storage reference returned by `push()` reads as the
+                // newly zero-initialized byte when the call is used as an
+                // rvalue. Reuse the value written above.
+                return (builtin == Builtin::ArrayPush0).then_some(byte);
             }
             kw::Pop => {
                 self.emit_panic_if_zero(builder, len, PanicCode::PopEmptyArray);
@@ -721,7 +731,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
             _ => {}
         }
-        builder.imm_u64(0)
+        None
     }
 
     pub(super) fn resize_memory_bytes(
@@ -866,7 +876,7 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
-    ) -> (ValueId, ValueId) {
+    ) -> Result<(ValueId, ValueId), ErrorGuaranteed> {
         // Handle literal strings/bytes: "" or hex"..."
         if let ExprKind::Lit(lit) = &expr.kind
             && let LitKind::Str(_, bytes, _) = &lit.kind
@@ -876,7 +886,7 @@ impl<'gcx> Lowerer<'gcx> {
 
             if len == 0 {
                 // Empty bytes - no calldata
-                return (builder.imm_u64(0), builder.imm_u64(0));
+                return Ok((builder.imm_u64(0), builder.imm_u64(0)));
             }
 
             // Write the (left-aligned) bytes into a fresh allocation.
@@ -895,7 +905,7 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.mstore(addr, val);
             }
 
-            return (ptr, builder.imm_u64(len as u64));
+            return Ok((ptr, builder.imm_u64(len as u64)));
         }
 
         // Handle the abi.encode* family.
@@ -905,34 +915,25 @@ impl<'gcx> Lowerer<'gcx> {
         {
             match member.name {
                 sym::encodePacked => {
+                    self.collect_builtin_args(Builtin::AbiEncodePacked, args)?;
                     // Returns a `bytes memory` pointer: `[length][data...]`.
-                    let ptr = self.lower_abi_encode_packed(builder, args);
+                    let ptr = self.lower_abi_encode_packed(builder, args)?;
                     let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
                     let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
-                    return (data, len);
+                    return Ok((data, len));
                 }
                 sym::encode => {
-                    let arg_exprs: Vec<_> = args.exprs().collect();
-                    if let Some(payload) = self.abi_encode_call_payload(builder, None, &arg_exprs) {
-                        return payload;
-                    }
+                    let arg_exprs = self.collect_builtin_args(Builtin::AbiEncode, args)?;
+                    return self.abi_encode_call_payload(builder, None, &arg_exprs);
                 }
                 sym::encodeWithSelector => {
-                    let mut exprs = args.exprs();
-                    if let Some(selector_expr) = exprs.next() {
-                        let selector = self.lower_selector_word(builder, selector_expr);
-                        let arg_exprs: Vec<_> = exprs.collect();
-                        if let Some(payload) =
-                            self.abi_encode_call_payload(builder, Some(selector), &arg_exprs)
-                        {
-                            return payload;
-                        }
-                    }
+                    let exprs = self.collect_builtin_args(Builtin::AbiEncodeWithSelector, args)?;
+                    let selector = self.lower_selector_word(builder, exprs[0]);
+                    return self.abi_encode_call_payload(builder, Some(selector), &exprs[1..]);
                 }
                 sym::encodeWithSignature => {
-                    let mut exprs = args.exprs();
-                    if let Some(sig_expr) = exprs.next()
-                        && let ExprKind::Lit(lit) = &sig_expr.kind
+                    let exprs = self.collect_builtin_args(Builtin::AbiEncodeWithSignature, args)?;
+                    if let ExprKind::Lit(lit) = &exprs[0].kind
                         && let LitKind::Str(_, sig, _) = &lit.kind
                     {
                         let hash = keccak256(sig.as_byte_str());
@@ -940,12 +941,7 @@ impl<'gcx> Lowerer<'gcx> {
                             U256::from(u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]]))
                                 << 224;
                         let selector = builder.imm_u256(selector);
-                        let arg_exprs: Vec<_> = exprs.collect();
-                        if let Some(payload) =
-                            self.abi_encode_call_payload(builder, Some(selector), &arg_exprs)
-                        {
-                            return payload;
-                        }
+                        return self.abi_encode_call_payload(builder, Some(selector), &exprs[1..]);
                     }
                 }
                 _ => {}
@@ -960,27 +956,26 @@ impl<'gcx> Lowerer<'gcx> {
                 ))
                 .span(expr.span)
                 .emit();
-            let err = builder.error_value(guar);
-            return (err, err);
+            return Err(guar);
         }
 
         // A `bytes memory` value: `[length][data...]` pointer.
         if self.expr_yields_memory_bytes(expr) {
-            let ptr = self.lower_expr(builder, expr);
+            let ptr = self.lower_value_expr(builder, expr);
             let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
             let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
-            return (data, len);
+            return Ok((data, len));
         }
 
         // A `bytes`/`string` calldata value: copy it into memory (a low-level
         // call reads its input from memory), then use that region. This arises in
         // proxy fallbacks such as `impl.delegatecall(data)` with `bytes calldata`.
         if self.expr_is_calldata_dynamic_bytes(expr) {
-            let slice = self.lower_expr(builder, expr);
+            let slice = self.lower_value_expr(builder, expr);
             let ptr = self.materialize_calldata_bytes(builder, slice);
             let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
             let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-            return (data, len);
+            return Ok((data, len));
         }
 
         let guar = self
@@ -989,8 +984,7 @@ impl<'gcx> Lowerer<'gcx> {
             .err("codegen does not support this `bytes` expression as low-level call data yet")
             .span(expr.span)
             .emit();
-        let err = builder.error_value(guar);
-        (err, err)
+        Err(guar)
     }
 
     /// Looks through a `bytes(x)` / `string(x)` conversion to the underlying
@@ -1036,7 +1030,7 @@ impl<'gcx> Lowerer<'gcx> {
         // Calldata `bytes`/`string`: copy the data into memory, then hash it
         // (`keccak256` only reads memory).
         if self.expr_is_calldata_dynamic_bytes(inner) {
-            let slice = self.lower_expr(builder, inner);
+            let slice = self.lower_value_expr(builder, inner);
             let ptr = self.materialize_calldata_bytes(builder, slice);
             return Some(builder.keccak256_bytes(ptr));
         }
@@ -1045,7 +1039,7 @@ impl<'gcx> Lowerer<'gcx> {
         // object; hash its contents through the object reference, so the
         // optimizer sees one whole-object read instead of separate length and
         // data projections.
-        let ptr = self.lower_expr(builder, inner);
+        let ptr = self.lower_value_expr(builder, inner);
         Some(builder.keccak256_bytes(ptr))
     }
 

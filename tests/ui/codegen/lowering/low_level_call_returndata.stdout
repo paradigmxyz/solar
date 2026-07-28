@@ -107,7 +107,6 @@ fn @balanceOf(arg0: address) {
   bb3:
     revert 0, 0
   bb4:
-    mstore 128, 0
     v6 = address
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v8 = abi_encode [word], selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v7
@@ -115,7 +114,7 @@ fn @balanceOf(arg0: address) {
     v10 = slice_len v8
     v11 = gas
     v12 = staticcall v11, arg0, v9, v10, 0, 0
-    mstore 160, v12
+    mstore 128, v12
     v13 = returndatasize
     v14 = make_returndata_slice 0, v13
     v15 = slice_ptr v14
@@ -128,14 +127,14 @@ fn @balanceOf(arg0: address) {
     set_memory_object_len memorybytes, v21, v16
     v22 = memory_object_data memorybytes, v21
     returndatacopy v22, v15, v16
-    mstore 192, v21
-    v23 = mload 160
+    mstore 160, v21
+    v23 = mload 128
     v24 = iszero v23
     jumpi v24, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
-    v25 = mload 192
+    v25 = mload 160
     v26 = memory_object_len memorybytes, v25
     v27 = lt v26, 32
     jumpi v27, bb7, bb8
@@ -175,12 +174,11 @@ fn @forward(arg0: address, arg1: memorybytes) {
     v13 = memory_object_data memorybytes, v12
     v14 = add v6, 32
     calldatacopy v13, v14, v7
-    mstore 128, 0
     v15 = memory_object_data memorybytes, v12
     v16 = memory_object_len memorybytes, v12
     v17 = gas
     v18 = call v17, arg0, 0, v15, v16, 0, 0
-    mstore 160, v18
+    mstore 128, v18
     v19 = returndatasize
     v20 = make_returndata_slice 0, v19
     v21 = slice_ptr v20
@@ -193,14 +191,14 @@ fn @forward(arg0: address, arg1: memorybytes) {
     set_memory_object_len memorybytes, v27, v22
     v28 = memory_object_data memorybytes, v27
     returndatacopy v28, v21, v22
-    mstore 192, v27
-    v29 = mload 160
+    mstore 160, v27
+    v29 = mload 128
     v30 = iszero v29
     jumpi v30, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
-    v31 = mload 192
+    v31 = mload 160
     internal_call @__ret_bytes, 0, v31
     invalid
 }

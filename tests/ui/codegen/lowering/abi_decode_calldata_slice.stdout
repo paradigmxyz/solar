@@ -9,7 +9,6 @@ fn @decode(arg0: calldataslice) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = slice_ptr arg0
     v4 = slice_len arg0
     v5 = lt v4, 4
