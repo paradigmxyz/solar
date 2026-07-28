@@ -446,7 +446,7 @@ impl<'a> Validator<'a> {
         for inst_id in func.instructions() {
             let inst = func.inst(inst_id);
             match inst.kind {
-                InstKind::LoadImmutable { id } => {
+                InstKind::LoadImmutable(id) => {
                     match (module.get_immutable_type(id), inst.result_ty) {
                         (Some(expected), Some(actual)) if actual != expected => {
                             self.emit(format_args!(
@@ -468,7 +468,7 @@ impl<'a> Validator<'a> {
                         _ => {}
                     }
                 }
-                InstKind::StoreImmutable { id, value } => {
+                InstKind::StoreImmutable(id, value) => {
                     let Some(immutable) = module.get_immutable(id) else {
                         self.emit(format_args!(
                             "inst{} stores nonexistent immutable {}",

@@ -454,7 +454,7 @@ fn summarize_function(module: &Module, func: &Function) -> MirInlineSummary {
                     summary.has_external_call = true;
                 }
                 InstKind::SStore(..) | InstKind::TStore(..) => summary.has_storage_write = true,
-                InstKind::StoreImmutable { .. } => summary.has_immutable_write = true,
+                InstKind::StoreImmutable(..) => summary.has_immutable_write = true,
                 InstKind::Log0(..)
                 | InstKind::Log1(..)
                 | InstKind::Log2(..)
@@ -607,7 +607,7 @@ fn estimate_inst_cost(module: &Module, kind: &InstKind) -> MirCost {
         InstKind::AddMod(..) | InstKind::MulMod(..) => (8, 1),
         InstKind::SLoad(..) | InstKind::TLoad(..) => (100, 1),
         InstKind::SStore(..) | InstKind::TStore(..) => (5_000, 1),
-        InstKind::StoreImmutable { .. } => (6, 4),
+        InstKind::StoreImmutable(..) => (6, 4),
         InstKind::MCopy(..)
         | InstKind::CalldataCopy(..)
         | InstKind::CodeCopy(..)
@@ -616,7 +616,7 @@ fn estimate_inst_cost(module: &Module, kind: &InstKind) -> MirCost {
         InstKind::MSize | InstKind::CodeSize | InstKind::ReturnDataSize => (2, 1),
         InstKind::InternalFrameAddr(_) => (6, 3),
         // Typed PUSH<N> placeholder patched at deploy time.
-        InstKind::LoadImmutable { id } => {
+        InstKind::LoadImmutable(id) => {
             let ty = module.immutable_type(*id);
             let encoding = ty.immutable_encoding().expect("validated immutable declaration");
             let width = usize::from(encoding.type_size().bytes());
@@ -1167,10 +1167,10 @@ impl<'a> InlineCloner<'a> {
                 InstKind::InternalFrameAddr(self.frame_base + local_offset)
             }
             InstKind::CodeSize => InstKind::CodeSize,
-            InstKind::StoreImmutable { id, value } => {
-                InstKind::StoreImmutable { id, value: self.clone_value(value)? }
+            InstKind::StoreImmutable(id, value) => {
+                InstKind::StoreImmutable(id, self.clone_value(value)?)
             }
-            InstKind::LoadImmutable { id } => InstKind::LoadImmutable { id },
+            InstKind::LoadImmutable(id) => InstKind::LoadImmutable(id),
             InstKind::CodeCopy(a, b, c) => {
                 InstKind::CodeCopy(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
             }

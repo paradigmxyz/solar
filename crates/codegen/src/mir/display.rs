@@ -304,12 +304,12 @@ fn display_inst_kind<'a>(
     }
 
     fmt::from_fn(move |f| match kind {
-        InstKind::StoreImmutable { id, value } => {
+        InstKind::StoreImmutable(id, value) => {
             write!(f, "storeimmutable ")?;
             display_immutable_ref(f, *id, module)?;
             write!(f, ", {}", display_val(*value, func))
         }
-        InstKind::LoadImmutable { id } => {
+        InstKind::LoadImmutable(id) => {
             write!(f, "loadimmutable ")?;
             display_immutable_ref(f, *id, module)
         }

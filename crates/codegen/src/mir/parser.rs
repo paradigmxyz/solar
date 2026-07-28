@@ -1455,11 +1455,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let (id, _) = self.parse_immutable_ref()?;
                 self.parser.expect(TokenKind::Comma)?;
                 let value = self.parse_value(builder)?;
-                (InstKind::StoreImmutable { id, value }, None)
+                (InstKind::StoreImmutable(id, value), None)
             }
             kw::Loadimmutable => {
                 let (id, ty) = self.parse_immutable_ref()?;
-                (InstKind::LoadImmutable { id }, Some(ty))
+                (InstKind::LoadImmutable(id), Some(ty))
             }
             kw::Extcodesize => inst!(ExtCodeSize(a) => MirType::uint256()),
             kw::Extcodecopy => inst!(ExtCodeCopy(a, b, c, d)),

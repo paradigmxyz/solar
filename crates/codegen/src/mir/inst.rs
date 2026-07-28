@@ -703,13 +703,13 @@ pub(crate) enum InstKind {
     ExtCodeHash(ValueId),
     /// Assign an immutable during construction: `storeimmutable <name>, value`.
     /// Lowered to constructor staging memory after MIR optimization.
-    StoreImmutable { id: ImmutableId, value: ValueId },
+    StoreImmutable(ImmutableId, ValueId),
     /// Read an immutable declared by the module: `loadimmutable <name>`.
     ///
     /// In runtime code this assembles to a typed `PUSH<N>` placeholder that the
     /// constructor patches with the staged value before returning the runtime
     /// code. In constructor code it reads the staging word instead.
-    LoadImmutable { id: ImmutableId },
+    LoadImmutable(ImmutableId),
 
     // Return data operations
     /// Get return data size: `returndatasize()`
@@ -928,7 +928,7 @@ impl InstKind {
             | Self::Balance(a)
             | Self::BlockHash(a)
             | Self::BlobHash(a)
-            | Self::StoreImmutable { value: a, .. }
+            | Self::StoreImmutable(_, a)
             | Self::Keccak256Bytes(a)
             | Self::MemoryObjectLen(a, _)
             | Self::MemoryObjectData(a, _)
@@ -1028,7 +1028,7 @@ impl InstKind {
             | Self::CalldataSize
             | Self::InternalFrameAddr(_)
             | Self::CodeSize
-            | Self::LoadImmutable { .. }
+            | Self::LoadImmutable(_)
             | Self::ReturnDataSize
             | Self::Caller
             | Self::CallValue
@@ -1132,7 +1132,7 @@ impl InstKind {
             | Self::Balance(a)
             | Self::BlockHash(a)
             | Self::BlobHash(a)
-            | Self::StoreImmutable { value: a, .. }
+            | Self::StoreImmutable(_, a)
             | Self::SlicePtr(a)
             | Self::Keccak256Bytes(a)
             | Self::SliceLen(a)
@@ -1218,7 +1218,7 @@ impl InstKind {
             | Self::CalldataSize
             | Self::InternalFrameAddr(_)
             | Self::CodeSize
-            | Self::LoadImmutable { .. }
+            | Self::LoadImmutable(_)
             | Self::ReturnDataSize
             | Self::Caller
             | Self::CallValue
@@ -1298,8 +1298,8 @@ impl InstKind {
             Self::SliceLen(_) => "slice_len",
             Self::CodeSize => "codesize",
             Self::CodeCopy(_, _, _) => "codecopy",
-            Self::StoreImmutable { .. } => "storeimmutable",
-            Self::LoadImmutable { .. } => "loadimmutable",
+            Self::StoreImmutable(..) => "storeimmutable",
+            Self::LoadImmutable(_) => "loadimmutable",
             Self::ExtCodeSize(_) => "extcodesize",
             Self::ExtCodeCopy(_, _, _, _) => "extcodecopy",
             Self::ExtCodeHash(_) => "extcodehash",
@@ -1388,7 +1388,7 @@ impl InstKind {
             | Self::ExtCodeCopy(_, _, _, _)
             | Self::ReturnDataCopy(_, _, _)
             // Immutable assignment.
-            | Self::StoreImmutable { .. }
+            | Self::StoreImmutable(..)
         )
     }
 
@@ -1408,7 +1408,7 @@ impl InstKind {
             | Self::CodeCopy(_, _, _)
             | Self::ExtCodeCopy(_, _, _, _)
             | Self::ReturnDataCopy(_, _, _) => EffectKind::MemoryWrite,
-            Self::StoreImmutable { .. } => EffectKind::ImmutableWrite,
+            Self::StoreImmutable(..) => EffectKind::ImmutableWrite,
             Self::MLoad(_)
             | Self::MemoryObjectLen(_, _)
             | Self::Fmp
@@ -1458,7 +1458,7 @@ impl InstKind {
             | Self::BaseFee
             | Self::BlobBaseFee
             | Self::BlobHash(_) => EffectKind::EnvironmentRead,
-            Self::LoadImmutable { .. } => EffectKind::ImmutableRead,
+            Self::LoadImmutable(_) => EffectKind::ImmutableRead,
             Self::Add(_, _)
             | Self::MappingSlot(_, _)
             | Self::Sub(_, _)

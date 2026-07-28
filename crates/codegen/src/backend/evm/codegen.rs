@@ -2936,10 +2936,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::CODESIZE);
                 self.scheduler.instruction_executed(0, result_value);
             }
-            InstKind::StoreImmutable { .. } => {
+            InstKind::StoreImmutable(..) => {
                 unreachable!("immutable stores must be lowered before EVM codegen")
             }
-            InstKind::LoadImmutable { id } => {
+            InstKind::LoadImmutable(id) => {
                 self.emit_load_immutable(*id);
                 self.scheduler.instruction_executed(0, result_value);
             }
@@ -4507,7 +4507,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             self.asm.emit_op(op::GAS);
                             self.scheduler.stack.push(val);
                         }
-                        crate::mir::InstKind::LoadImmutable { id } if !self.in_constructor => {
+                        crate::mir::InstKind::LoadImmutable(id) if !self.in_constructor => {
                             self.emit_load_immutable(*id);
                             self.scheduler.stack.push(val);
                         }

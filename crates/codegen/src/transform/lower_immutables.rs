@@ -34,7 +34,7 @@ impl MirPass for LowerImmutables {
             let stores: Vec<_> = func
                 .instructions()
                 .filter_map(|inst_id| match func.inst(inst_id).kind {
-                    InstKind::StoreImmutable { id, value } => Some((inst_id, id, value)),
+                    InstKind::StoreImmutable(id, value) => Some((inst_id, id, value)),
                     _ => None,
                 })
                 .collect();

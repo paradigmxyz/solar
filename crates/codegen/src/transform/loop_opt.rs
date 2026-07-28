@@ -295,7 +295,7 @@ impl LoopOptimizer {
                         StorageSpace::Transient,
                     );
             }
-            InstKind::LoadImmutable { id } => {
+            InstKind::LoadImmutable(id) => {
                 return self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_assign_immutable(func, ctx.loop_data, id);
             }
@@ -586,7 +586,7 @@ impl LoopOptimizer {
             func.blocks[block_id].instructions.iter().any(|&inst_id| {
                 matches!(
                     func.inst(inst_id).kind,
-                    InstKind::StoreImmutable { id, .. } if id == load_id
+                    InstKind::StoreImmutable(id, _) if id == load_id
                 ) || matches!(func.inst(inst_id).kind, InstKind::InternalCall { .. })
             })
         })

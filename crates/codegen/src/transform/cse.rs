@@ -543,7 +543,7 @@ impl CommonSubexprEliminator {
                 | InstKind::ExtCodeHash(_)
                 | InstKind::Balance(_)
                 | InstKind::SelfBalance
-                | InstKind::LoadImmutable { .. }
+                | InstKind::LoadImmutable(_)
         )
     }
 
@@ -690,7 +690,7 @@ impl CommonSubexprEliminator {
             InstKind::BlockHash(a) => Some(ExprKey::BlockHash(operand(*a))),
             InstKind::BlobHash(a) => Some(ExprKey::BlobHash(operand(*a))),
             // Immutable reads are constant once the runtime code is patched.
-            InstKind::LoadImmutable { id } => Some(ExprKey::LoadImmutable(*id)),
+            InstKind::LoadImmutable(id) => Some(ExprKey::LoadImmutable(*id)),
 
             InstKind::Select(condition, then_value, else_value) => Some(ExprKey::Select(
                 operand(*condition),
@@ -817,7 +817,7 @@ impl CommonSubexprEliminator {
             clobbers.push(Clobber::AccountEnvironment);
         }
         match *kind {
-            InstKind::StoreImmutable { id, .. } => {
+            InstKind::StoreImmutable(id, _) => {
                 clobbers.push(Clobber::Immutable(ClobberScope::Specific(id)));
             }
             InstKind::InternalCall { .. } => {
