@@ -164,6 +164,15 @@ pub(crate) struct Lowerer<'gcx> {
     /// Cache of each function's HIR body size, used to budget lowering-time
     /// inlining.
     body_sizes: FxHashMap<HirFunctionId, usize>,
+    /// Calldata slices for the dynamic members of `calldata` struct parameters,
+    /// keyed by `(parameter, field index)`.
+    ///
+    /// The prologue also rebuilds such a struct in memory, which answers a
+    /// whole-member read. It cannot answer element addressing: the copy of an
+    /// array of structs holds pointers where calldata holds the elements inline.
+    /// The member's calldata position is known while decoding, so record it
+    /// there and hand it back at the member access.
+    calldata_struct_field_slices: FxHashMap<(VariableId, usize), ValueId>,
     /// Functions currently being lowered on demand.
     lowering_functions: GrowableBitSet<HirFunctionId>,
     /// Functions whose declarations are used as internal function values.
@@ -252,6 +261,7 @@ impl<'gcx> Lowerer<'gcx> {
             hir_to_internal_mir_functions: FxHashMap::default(),
             recursive_functions: FxHashMap::default(),
             body_sizes: FxHashMap::default(),
+            calldata_struct_field_slices: FxHashMap::default(),
             lowering_functions: GrowableBitSet::new_empty(),
             internal_function_pointer_targets: GrowableBitSet::new_empty(),
             internal_function_pointer_dispatchers: FxHashMap::default(),
@@ -646,8 +656,62 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Returns the constant length of a fixed-size array parameter whose elements are single
-    /// ABI words, for prologue decoding. Other parameter shapes return `None`.
+    /// Records a calldata slice for each dynamic array member of a `calldata`
+    /// struct parameter whose tail starts at `base`.
+    ///
+    /// A dynamically encoded struct puts each member's head word at its own
+    /// base, and a dynamic member's head word is the offset of its tail
+    /// *relative to that base*, so the member's `[len][data...]` sits at
+    /// `base + head`. Recorded one level deep: that is the shape reads take, and
+    /// a nested struct's members would need their own base.
+    ///
+    /// `bytes`/`string` members are left to the memory copy, which is
+    /// byte-identical for them and is what the pinned lowering tests expect.
+    fn record_calldata_struct_field_slices(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        param_id: VariableId,
+        param_ty: Ty<'gcx>,
+        base: ValueId,
+    ) {
+        let TyKind::Struct(struct_id) = param_ty.peel_refs().kind else { return };
+        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        let mut head_offset = 0u64;
+        for (index, &field_ty) in field_tys.iter().enumerate() {
+            let field_ty = field_ty.peel_refs();
+            let head_size = self.abi_head_size(field_ty);
+            if matches!(field_ty.kind, TyKind::DynArray(_) | TyKind::Slice(_)) {
+                let head_pos = self.offset_ptr(builder, base, head_offset);
+                let tail_offset = builder.calldataload(head_pos);
+                let len_pos = builder.add(base, tail_offset);
+                let len = builder.calldataload(len_pos);
+                let word = builder.imm_u64(EvmMemoryLayout::WORD_SIZE);
+                let data = builder.add(len_pos, word);
+                let slice = builder.make_slice(data, len, SliceLocation::Calldata);
+                self.calldata_struct_field_slices.insert((param_id, index), slice);
+            }
+            head_offset += head_size;
+        }
+    }
+
+    /// The recorded calldata slice for `base.member`, when `base` names a
+    /// `calldata` struct parameter and `member` is one of its array members.
+    pub(super) fn calldata_struct_field_slice(
+        &mut self,
+        base: &hir::Expr<'_>,
+        member: solar_interface::Ident,
+    ) -> Option<ValueId> {
+        if self.calldata_struct_field_slices.is_empty() {
+            return None;
+        }
+        let base_var = self.ident_variable(base)?;
+        let (_, index) = self.get_memory_struct_field_info(base, member)?;
+        self.calldata_struct_field_slices.get(&(base_var, index)).copied()
+    }
+
+    /// Returns the type and constant length of a fixed-size array parameter
+    /// whose elements are single ABI words. Other parameter shapes return
+    /// `None`.
     fn fixed_word_array_param(&self, param_id: VariableId) -> Option<(Ty<'gcx>, u64)> {
         let TyKind::Array(elem, len) = self.gcx.type_of_item(param_id.into()).peel_refs().kind
         else {
@@ -1008,6 +1072,16 @@ impl<'gcx> Lowerer<'gcx> {
                     let base = builder.add(args_base, offset);
                     let struct_ptr =
                         self.materialize_calldata_value_at(&mut builder, source, param_ty, base);
+                    if source == bytes::AbiSource::Calldata
+                        && param.data_location == Some(solar_ast::DataLocation::Calldata)
+                    {
+                        self.record_calldata_struct_field_slices(
+                            &mut builder,
+                            param_id,
+                            param_ty,
+                            base,
+                        );
+                    }
                     self.bind_param_value_deferred(param_id, struct_ptr, &mut deferred_param_slots);
                 } else if decodes_abi_params
                     && !self.param_is_storage_ref(param_id)
