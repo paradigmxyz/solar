@@ -16,6 +16,9 @@ use solar_sema::{
     ty::{Ty, TyFn, TyKind},
 };
 
+/// Covers Homestead's call and new-account costs plus setup emitted after `GAS`.
+const PRE_TANGERINE_PRECOMPILE_CALL_GAS_RESERVE: u64 = 25_100;
+
 /// How a value travels across a linked-library delegatecall boundary.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum LinkedFieldKind {
@@ -877,7 +880,7 @@ impl<'gcx> Lowerer<'gcx> {
         let address = builder.imm_u64(if builtin == Builtin::Sha256 { 2 } else { 3 });
         let output_ptr = builder.imm_u64(0);
         let output_size = builder.imm_u64(32);
-        let gas = builder.gas();
+        let gas = self.precompile_gas(builder);
         let success = self.emit_precompile_call(
             builder,
             gas,
@@ -936,7 +939,7 @@ impl<'gcx> Lowerer<'gcx> {
         let zero = builder.imm_u64(0);
         builder.mstore(output_ptr, zero);
 
-        let gas = builder.gas();
+        let gas = self.precompile_gas(builder);
         let address = builder.imm_u64(1);
         let input_size = builder.imm_u64(128);
         let output_size = builder.imm_u64(32);
@@ -1001,6 +1004,16 @@ impl<'gcx> Lowerer<'gcx> {
         } else {
             let value = builder.imm_u64(0);
             builder.call(gas, address, value, input_ptr, input_size, output_ptr, output_size)
+        }
+    }
+
+    fn precompile_gas(&self, builder: &mut FunctionBuilder<'_>) -> ValueId {
+        let gas = builder.gas();
+        if self.gcx.sess.opts.evm_version.can_overcharge_gas_for_call() {
+            gas
+        } else {
+            let reserved = builder.imm_u64(PRE_TANGERINE_PRECOMPILE_CALL_GAS_RESERVE);
+            builder.sub(gas, reserved)
         }
     }
 

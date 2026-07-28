@@ -107,6 +107,9 @@ str_enum! {
 }
 
 impl EvmVersion {
+    pub fn can_overcharge_gas_for_call(self) -> bool {
+        self >= Self::TangerineWhistle
+    }
     pub fn supports_returndata(self) -> bool {
         self >= Self::Byzantium
     }
