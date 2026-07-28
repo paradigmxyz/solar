@@ -4366,7 +4366,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         for &inst_id in &func.block(block).instructions {
-            self.add_immediate_uses(func, &func.inst(inst_id).kind.operands());
+            let kind = &func.inst(inst_id).kind;
+            if !matches!(kind, InstKind::Phi(_)) {
+                self.add_immediate_uses(func, &kind.operands());
+            }
         }
         if let Some(term) = &func.block(block).terminator {
             self.add_immediate_uses(func, &term.operands());
