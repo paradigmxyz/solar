@@ -1294,6 +1294,10 @@ def validate_growth_sweep_inputs(
     ]
     if missing:
         raise RuntimeError(f"synthetic compile provenance is missing {', '.join(missing)}")
+    if canonical.get("fixture_version") != SYNTHETIC_FIXTURE_VERSION:
+        raise RuntimeError(
+            "synthetic compile fixture version differs from the growth sweep manifest"
+        )
     compile_results = {}
     for scope, payload in compile_payloads.items():
         metadata = payload.get("metadata") or {}
@@ -1499,7 +1503,7 @@ def render_growth_sweep(
         f"The sweep produced {len(set(fingerprints.values()))} distinct whole-corpus "
         "artifact fingerprints. Gas was executed once per distinct creation/runtime "
         "artifact and mapped back to every budget. The sweep checks the fixed, round policy "
-        "limit against the saturated baseline; it does not select the compiler default."
+        "limit against the maximum-budget baseline; it does not select the compiler default."
     )
     text += "\n\n"
     text += markdown_table(
