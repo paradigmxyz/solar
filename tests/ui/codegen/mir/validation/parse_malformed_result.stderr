@@ -1,0 +1,8 @@
+error: expected identifier
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_malformed_result.mir:LL:CC
+   │
+LL │     %bad
+   ╰╴    ━
+
+error: aborting due to 1 previous error
+

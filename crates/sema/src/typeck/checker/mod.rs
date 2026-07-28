@@ -385,8 +385,8 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.gcx.mk_ty_err(err.emit())
                 }
             }
-            hir::ExprKind::Ident(res) => {
-                let res = self.resolve_overloads(res, expr.span);
+            hir::ExprKind::Ident(resolutions) => {
+                let res = self.resolve_value(expr, resolutions);
                 if let Some(reason) = self.res_not_lvalue_reason(res) {
                     self.try_set_not_lvalue(reason);
                 }
@@ -812,23 +812,16 @@ impl<'gcx> TypeChecker<'gcx> {
 
     /// Returns true if the expression refers to a local or return variable.
     fn is_local_or_return_variable(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
-        if let hir::ExprKind::Ident(res_slice) = &expr.kind {
-            let res = self.resolve_overloads(res_slice, expr.span);
-            if let hir::Res::Item(hir::ItemId::Variable(var_id)) = res {
-                let var = self.gcx.hir.variable(var_id);
-                return var.is_local_or_return();
-            }
+        if let Some(var_id) = self.results.resolved_expr(expr).and_then(|res| res.as_variable()) {
+            return self.gcx.hir.variable(var_id).is_local_or_return();
         }
         false
     }
 
     /// Returns true if the expression refers to a non-state storage pointer variable.
     fn is_storage_pointer_variable(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
-        if let hir::ExprKind::Ident(res_slice) = &expr.peel_parens().kind {
-            let res = self.resolve_overloads(res_slice, expr.span);
-            if let hir::Res::Item(hir::ItemId::Variable(var_id)) = res {
-                return !self.gcx.hir.variable(var_id).is_state_variable();
-            }
+        if let Some(var_id) = self.results.resolved_expr(expr).and_then(|res| res.as_variable()) {
+            return self.gcx.hir.variable(var_id).is_local_variable();
         }
         false
     }
@@ -1702,7 +1695,7 @@ impl<'gcx> TypeChecker<'gcx> {
         member: &members::Member<'gcx>,
     ) {
         if let Some(res) = member.res {
-            self.results.resolved_members.insert(expr.id, res);
+            self.results.resolved_exprs.insert(expr.id, res);
         }
     }
 
@@ -2426,17 +2419,21 @@ impl<'gcx> TypeChecker<'gcx> {
         res_not_lvalue_reason(self.gcx, res, self.in_constructor_context())
     }
 
-    fn resolve_overloads(&self, res: &[hir::Res], span: Span) -> hir::Res {
-        match self.try_resolve_overloads(res) {
+    fn resolve_value(&mut self, expr: &'gcx hir::Expr<'gcx>, resolutions: &[hir::Res]) -> hir::Res {
+        let res = match self.try_resolve_overloads(resolutions) {
             Ok(res) => res,
             Err(e) => {
                 let msg = match e {
                     OverloadError::NotFound => "no matching declarations found",
                     OverloadError::Ambiguous => "no unique declarations found",
                 };
-                hir::Res::Err(self.dcx().emit_err(span, msg))
+                hir::Res::Err(self.dcx().emit_err(expr.span, msg))
             }
+        };
+        if resolutions.len() > 1 {
+            self.results.resolved_exprs.insert(expr.id, res);
         }
+        res
     }
 
     fn try_resolve_overloads(&self, res: &[hir::Res]) -> Result<hir::Res, OverloadError> {
@@ -2630,12 +2627,21 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 // size expression of a fixed-array value type).
                 return self.visit_ty(&mapping.value);
             }
-            // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L713
-            // hir::TypeKind::Function(func) => {
-            //     if func.visibility == hir::Visibility::External {
-
-            //     }
-            // }
+            hir::TypeKind::Function(func) if func.visibility == hir::Visibility::External => {
+                for &var_id in func.parameters.iter().chain(func.returns.iter()) {
+                    let var = self.gcx.hir.variable(var_id);
+                    let ty = self.gcx.type_of_item(var_id.into());
+                    if ty.error_reported().is_err() {
+                        continue;
+                    }
+                    if !ty.can_be_exported(self.gcx) {
+                        self.dcx().emit_err(
+                            var.ty.span,
+                            "internal type cannot be used for external function type",
+                        );
+                    }
+                }
+            }
             _ => {}
         }
         self.walk_ty(hir_ty)

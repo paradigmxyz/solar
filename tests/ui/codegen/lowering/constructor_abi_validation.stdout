@@ -25,7 +25,7 @@ fn @_anonymous(arg0: bool, arg1: u256, arg2: u256) {
     v1 = iszero v0
     v2 = iszero v1
     v3 = eq v0, v2
-    br v3, bb2, bb1
+    jumpi v3, bb2, bb1
   bb1:
     revert 0, 0
   bb2:
@@ -34,7 +34,7 @@ fn @_anonymous(arg0: bool, arg1: u256, arg2: u256) {
     v6 = iszero v5
     v7 = iszero v6
     v8 = eq v5, v7
-    br v8, bb4, bb3
+    jumpi v8, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -44,7 +44,7 @@ fn @_anonymous(arg0: bool, arg1: u256, arg2: u256) {
     v11 = iszero v10
     v12 = iszero v11
     v13 = eq v10, v12
-    br v13, bb6, bb5
+    jumpi v13, bb6, bb5
   bb5:
     revert 0, 0
   bb6:

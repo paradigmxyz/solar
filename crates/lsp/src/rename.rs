@@ -98,11 +98,18 @@ struct ImportBindingKey {
 pub(crate) struct ImportBindings {
     aliases: FxHashMap<ImportBindingKey, ImportAliasId>,
     symbol_sources: FxHashMap<SymbolId, hir::SourceId>,
+    references: Vec<(Span, Vec<SymbolId>)>,
 }
 
 #[derive(Default)]
 pub(crate) struct MappingBindings {
     params: FxHashMap<VariableId, MappingNameId>,
+}
+
+impl ImportBindings {
+    pub(crate) fn references(&self) -> impl Iterator<Item = (Span, &[SymbolId])> {
+        self.references.iter().map(|(span, symbols)| (*span, symbols.as_slice()))
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -178,9 +185,11 @@ impl RenameIndex {
                             }
 
                             self.push_symbol_occurrence(gcx, imported.span, &symbols);
+                            bindings.references.push((imported.span, symbols.clone()));
                             if let Some(alias) = alias
                                 && let Some(alias_id) = self.add_alias(gcx, alias)
                             {
+                                bindings.references.push((alias.span, symbols.clone()));
                                 for &symbol_id in &symbols {
                                     bindings.aliases.insert(
                                         ImportBindingKey {
@@ -543,19 +552,16 @@ impl RenameIndex {
         let alias_offset = self.aliases.len();
         let mapping_name_offset = self.mapping_names.len();
         self.symbol_targets.extend(
-            other.symbol_targets.drain().map(|symbol_id| remap_symbol_id(symbol_id, symbol_offset)),
+            other.symbol_targets.drain().map(|symbol_id| symbol_id.offset_by(symbol_offset)),
         );
         self.yul_symbol_targets.extend(
-            other
-                .yul_symbol_targets
-                .drain()
-                .map(|symbol_id| remap_symbol_id(symbol_id, symbol_offset)),
+            other.yul_symbol_targets.drain().map(|symbol_id| symbol_id.offset_by(symbol_offset)),
         );
         for occurrence in &mut other.occurrences {
             for target in &mut occurrence.targets {
                 *target = match *target {
                     RenameTarget::Symbol(symbol_id) => {
-                        RenameTarget::Symbol(remap_symbol_id(symbol_id, symbol_offset))
+                        RenameTarget::Symbol(symbol_id.offset_by(symbol_offset))
                     }
                     RenameTarget::ImportAlias(alias_id) => {
                         RenameTarget::ImportAlias(remap_alias_id(alias_id, alias_offset))
@@ -568,7 +574,7 @@ impl RenameIndex {
         }
         for symbols in other.alias_symbols.values_mut() {
             for symbol_id in symbols {
-                *symbol_id = remap_symbol_id(*symbol_id, symbol_offset);
+                *symbol_id = symbol_id.offset_by(symbol_offset);
             }
         }
         self.conflicting_contents.extend(other.conflicting_contents);
@@ -909,10 +915,6 @@ fn target_for_ident(
 fn identifiers_in_span(gcx: Gcx<'_>, span: Span) -> Vec<Ident> {
     let Ok(source) = gcx.sess.source_map().span_to_snippet(span) else { return Vec::new() };
     Lexer::with_start_pos(gcx.sess, &source, span.lo()).filter_map(|token| token.ident()).collect()
-}
-
-fn remap_symbol_id(symbol_id: SymbolId, offset: usize) -> SymbolId {
-    SymbolId::from_usize(symbol_id.index() + offset)
 }
 
 fn remap_alias_id(alias_id: ImportAliasId, offset: usize) -> ImportAliasId {

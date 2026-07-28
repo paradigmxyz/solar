@@ -1,13 +1,19 @@
 //@compile-flags: --pass licm
+//@filecheck: --enable-var-scope
 @module LicmMemoryAlias
 immutables:
   value: u256
 
+// CHECK-LABEL: @hoist_non_aliasing_mload
+// CHECK: +     [[LOAD:v[0-9]+]] = mload [[ADDR:[0-9]+]]
+// CHECK-NEXT:  jump {{bb[0-9]+}}
+// CHECK: -     [[LOAD]] = mload [[ADDR]]
+// CHECK:       ret [[LOAD]]
 fn @hoist_non_aliasing_mload() -> u256 {
   bb0:
     jump bb1
   bb1:
-    br true, bb2, bb3
+    jumpi true, bb2, bb3
   bb2:
     v0 = mload 0
     mstore 64, 1
@@ -16,11 +22,16 @@ fn @hoist_non_aliasing_mload() -> u256 {
     ret v0
 }
 
+// CHECK-LABEL: @keep_aliasing_mload
+// CHECK: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^ +}}[[BODY]]:
+// CHECK: {{^ +}}{{v[0-9]+}} = mload {{[0-9]+}}
+// CHECK: {{^ +}}mstore {{[0-9]+}}, 1
 fn @keep_aliasing_mload() -> u256 {
   bb0:
     jump bb1
   bb1:
-    br true, bb2, bb3
+    jumpi true, bb2, bb3
   bb2:
     v0 = mload 0
     mstore 16, 1
@@ -29,11 +40,16 @@ fn @keep_aliasing_mload() -> u256 {
     ret v0
 }
 
+// CHECK-LABEL: @hoist_non_aliasing_keccak
+// CHECK: +     [[HASH:v[0-9]+]] = keccak256 [[ADDR:[0-9]+]], [[SIZE:[0-9]+]]
+// CHECK-NEXT:  jump {{bb[0-9]+}}
+// CHECK: -     [[HASH]] = keccak256 [[ADDR]], [[SIZE]]
+// CHECK:       ret [[HASH]]
 fn @hoist_non_aliasing_keccak() -> bytes32 {
   bb0:
     jump bb1
   bb1:
-    br true, bb2, bb3
+    jumpi true, bb2, bb3
   bb2:
     v0 = keccak256 0, 32
     mstore 64, 1
@@ -42,11 +58,16 @@ fn @hoist_non_aliasing_keccak() -> bytes32 {
     ret v0
 }
 
+// CHECK-LABEL: @keep_aliasing_keccak
+// CHECK: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^ +}}[[BODY]]:
+// CHECK: {{^ +}}{{v[0-9]+}} = keccak256 {{[0-9]+}}, {{[0-9]+}}
+// CHECK: {{^ +}}mstore {{[0-9]+}}, 1
 fn @keep_aliasing_keccak() -> bytes32 {
   bb0:
     jump bb1
   bb1:
-    br true, bb2, bb3
+    jumpi true, bb2, bb3
   bb2:
     v0 = keccak256 0, 32
     mstore 16, 1
@@ -59,7 +80,7 @@ fn @hoist_unassigned_immutable() -> u256 {
   bb0:
     jump bb1
   bb1:
-    br true, bb2, bb3
+    jumpi true, bb2, bb3
   bb2:
     v0 = loadimmutable value
     v1 = mul v0, 2
@@ -72,7 +93,7 @@ fn @keep_assigned_immutable() -> u256 {
   bb0:
     jump bb1
   bb1:
-    br true, bb2, bb3
+    jumpi true, bb2, bb3
   bb2:
     v0 = loadimmutable value
     v1 = mul v0, 2

@@ -28,7 +28,7 @@
 +     jump bb1
 +   bb1:
 +     v0 = calldatasize
-+     br v0, bb3, bb2
++     jumpi v0, bb3, bb2
 +   bb2:
 +     tail_call @recv
 +   bb3:

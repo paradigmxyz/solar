@@ -40,9 +40,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Adds an argument to the function.
     pub(crate) fn add_param(&mut self, ty: MirType) -> ValueId {
-        let index = self.func.params.len() as u32;
-        self.func.params.push(ty);
-        self.alloc_value(Value::Arg { index, ty })
+        self.func.alloc_param(ty)
     }
 
     /// Adds a return type to the function.
@@ -83,30 +81,41 @@ impl<'a> FunctionBuilder<'a> {
         self.func.alloc_value(value)
     }
 
-    /// Replaces an allocated value.
-    pub(crate) fn set_value(&mut self, id: ValueId, value: Value) {
-        self.func.values[id] = value;
-    }
-
-    fn emit_inst_raw(&mut self, kind: InstKind, result_ty: Option<MirType>) -> InstId {
+    fn make_inst(&self, kind: InstKind, result_ty: Option<MirType>) -> Instruction {
         let mut inst = Instruction::new(kind, result_ty);
         inst.metadata.set_effect(Some(inst.kind.effect_kind()));
         inst.metadata.set_memory_region(self.memory_region_for_inst(&inst.kind));
         inst.metadata.set_storage_alias(self.storage_alias_for_inst(&inst.kind));
-        self.append_instruction(inst)
+        inst
     }
 
     /// Appends a fully constructed instruction to the current block.
-    pub(crate) fn append_instruction(&mut self, inst: Instruction) -> InstId {
-        let inst_id = self.func.alloc_inst(inst);
+    pub(crate) fn append_instruction(&mut self, inst: Instruction) -> (InstId, Option<ValueId>) {
+        let (inst_id, result) = if inst.result_ty.is_some() {
+            let (inst_id, result) = self.func.alloc_value_inst(inst);
+            (inst_id, Some(result))
+        } else {
+            (self.func.alloc_inst(inst), None)
+        };
+        self.func.blocks[self.current_block].instructions.push(inst_id);
+        (inst_id, result)
+    }
+
+    /// Appends a fully constructed instruction for a preallocated undefined result value.
+    pub(crate) fn append_instruction_with_result(
+        &mut self,
+        inst: Instruction,
+        result: ValueId,
+    ) -> InstId {
+        let inst_id = self.func.alloc_inst_with_result(inst, result);
         self.func.blocks[self.current_block].instructions.push(inst_id);
         inst_id
     }
 
     fn emit_inst(&mut self, kind: InstKind, result_ty: Option<MirType>) -> ValueId {
         debug_assert!(result_ty.is_some(), "value-producing instructions must have a result type");
-        let inst_id = self.emit_inst_raw(kind, result_ty);
-        self.alloc_value(Value::Inst(inst_id))
+        let inst = self.make_inst(kind, result_ty);
+        self.append_instruction(inst).1.expect("value-producing instruction must have a result")
     }
 
     /// Emits an instruction that produces no value, such as a store or a log.
@@ -114,7 +123,8 @@ impl<'a> FunctionBuilder<'a> {
     /// No result [`Value`] is allocated: only value-producing instructions get
     /// an entry in the function's value table.
     fn emit_void_inst(&mut self, kind: InstKind) {
-        self.emit_inst_raw(kind, None);
+        let inst = self.make_inst(kind, None);
+        self.append_instruction(inst);
     }
 
     fn memory_region_for_inst(&self, kind: &InstKind) -> Option<MemoryRegion> {
@@ -142,7 +152,7 @@ impl<'a> FunctionBuilder<'a> {
             {
                 MemoryRegion::Scratch
             }
-            Value::Inst(inst_id) => match self.func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match self.func.inst(*inst_id).kind {
                 InstKind::InternalFrameAddr(_) => MemoryRegion::InternalFrame,
                 InstKind::Add(lhs, rhs) if self.is_internal_frame_add(lhs, rhs) => {
                     MemoryRegion::InternalFrame
@@ -154,7 +164,7 @@ impl<'a> FunctionBuilder<'a> {
                 }
                 _ => MemoryRegion::Unknown,
             },
-            Value::Arg { .. } | Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => {
+            Value::Arg(_) | Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => {
                 MemoryRegion::Unknown
             }
         }
@@ -169,7 +179,7 @@ impl<'a> FunctionBuilder<'a> {
         matches!(
             self.func.value(value),
             Value::Inst(inst_id)
-                if matches!(self.func.instructions[*inst_id].kind, InstKind::InternalFrameAddr(_))
+                if matches!(self.func.inst(*inst_id).kind, InstKind::InternalFrameAddr(_))
         )
     }
 
@@ -256,6 +266,11 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits a not instruction.
     pub(crate) fn not(&mut self, a: ValueId) -> ValueId {
         self.emit_inst(InstKind::Not(a), Some(MirType::uint256()))
+    }
+
+    /// Emits a clz instruction.
+    pub(crate) fn clz(&mut self, a: ValueId) -> ValueId {
+        self.emit_inst(InstKind::Clz(a), Some(MirType::uint256()))
     }
 
     /// Emits a shl instruction.
@@ -736,6 +751,24 @@ impl<'a> FunctionBuilder<'a> {
         )
     }
 
+    /// Emits a callcode instruction.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn callcode(
+        &mut self,
+        gas: ValueId,
+        addr: ValueId,
+        value: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+        ret_offset: ValueId,
+        ret_size: ValueId,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::CallCode { gas, addr, value, args_offset, args_size, ret_offset, ret_size },
+            Some(MirType::uint256()),
+        )
+    }
+
     /// Emits a staticcall instruction (read-only external call).
     pub(crate) fn staticcall(
         &mut self,
@@ -863,7 +896,7 @@ impl<'a> FunctionBuilder<'a> {
         let Value::Inst(inst_id) = *self.func.value(phi) else {
             panic!("add_phi_incoming: value is not an instruction result");
         };
-        let InstKind::Phi(incoming) = &mut self.func.instructions[inst_id].kind else {
+        let InstKind::Phi(incoming) = &mut self.func.inst_mut(inst_id).kind else {
             panic!("add_phi_incoming: instruction is not a phi");
         };
         incoming.push((block, value));

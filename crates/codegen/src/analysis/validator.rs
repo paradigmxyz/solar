@@ -6,11 +6,12 @@
 //!
 //! # Checks performed
 //!
-//! 1. **Defined-before-use**: every `ValueId` referenced as an operand has an entry in
-//!    `func.values`.
+//! 1. **Defined-before-use**: every `ValueId` referenced as an operand has an entry in the
+//!    function's value arena.
 //! 2. **Block reference validity**: every `BlockId` mentioned in a terminator or phi has an entry
 //!    in `func.blocks`.
-//! 3. **Single definition**: each `InstId` is referenced by at most one `Value::Inst` entry.
+//! 3. **Result consistency**: every value-producing instruction records a matching `Value::Inst`
+//!    entry.
 //! 4. **Terminator presence**: every block has a terminator.
 //! 5. **Predecessor back-link**: if A's terminator targets B, then B's `predecessors` contains A.
 //! 6. **Entry block has no predecessors**.
@@ -95,53 +96,13 @@ impl<'a> Validator<'a> {
 
     fn validate_function_body(&mut self, func: &Function) {
         let errors_before = self.error_count;
-        let num_values = func.values.len();
+        let num_values = func.num_values();
         let num_blocks = func.blocks.len();
-        let num_insts = func.instructions.len();
+        let num_insts = func.num_insts();
 
         if num_blocks == 0 {
             self.emit("function has no entry block");
             return;
-        }
-
-        // ----- Single-definition check -----
-        // Count how many Value entries claim to be the result of each InstId.
-        let mut inst_def_count: IndexVec<InstId, usize> = index_vec![0; num_insts];
-        let mut invalid_inst_def_count: FxHashMap<InstId, usize> = FxHashMap::default();
-        let mut inst_results: IndexVec<InstId, Option<ValueId>> = index_vec![None; num_insts];
-        for (value_id, v) in func.values.iter_enumerated() {
-            if let Value::Inst(inst_id) = v {
-                if inst_id.index() < num_insts {
-                    inst_def_count[*inst_id] += 1;
-                    inst_results[*inst_id] = Some(value_id);
-                } else {
-                    *invalid_inst_def_count.entry(*inst_id).or_default() += 1;
-                }
-            }
-        }
-        for (inst_id, &count) in inst_def_count.iter_enumerated() {
-            if count > 1 {
-                self.emit(format_args!(
-                    "instruction inst{} is defined by {count} Value entries (must be 1)",
-                    inst_id.index()
-                ));
-            }
-            // Only value-producing instructions may have a result value.
-            if count != 0 && func.instructions[inst_id].result_ty.is_none() {
-                self.emit(format_args!(
-                    "instruction inst{} (`{:?}`) has a result Value entry but no result type",
-                    inst_id.index(),
-                    func.instructions[inst_id].kind
-                ));
-            }
-        }
-        for (inst_id, count) in invalid_inst_def_count {
-            if count > 1 {
-                self.emit(format_args!(
-                    "instruction inst{} is defined by {count} Value entries (must be 1)",
-                    inst_id.index()
-                ));
-            }
         }
 
         // ----- Walk every block -----
@@ -233,7 +194,52 @@ impl<'a> Validator<'a> {
                     );
                     continue;
                 }
-                let inst = func.instruction(inst_id);
+                let inst = func.inst(inst_id);
+
+                match (inst.result_ty, func.inst_result_value(inst_id)) {
+                    (Some(_), Some(result)) if result.index() >= num_values => {
+                        self.emit_at_inst(
+                            format_args!(
+                                "instruction result references undefined value v{} \
+                                 (only {num_values} values exist)",
+                                result.index()
+                            ),
+                            block_id,
+                            inst_id,
+                        );
+                    }
+                    (Some(_), Some(result)) => {
+                        if !matches!(func.value(result), Value::Inst(def) if *def == inst_id) {
+                            self.emit_at_inst(
+                                format_args!(
+                                    "instruction result v{} does not refer back to inst{}",
+                                    result.index(),
+                                    inst_id.index()
+                                ),
+                                block_id,
+                                inst_id,
+                            );
+                        }
+                    }
+                    (Some(_), None) => {
+                        self.emit_at_inst(
+                            "value-producing instruction has no result value",
+                            block_id,
+                            inst_id,
+                        );
+                    }
+                    (None, Some(result)) => {
+                        self.emit_at_inst(
+                            format_args!(
+                                "instruction records result v{} but has no result type",
+                                result.index()
+                            ),
+                            block_id,
+                            inst_id,
+                        );
+                    }
+                    (None, None) => {}
+                }
 
                 // Operand range check.
                 for op in inst.kind.operands() {
@@ -335,7 +341,7 @@ impl<'a> Validator<'a> {
             index_vec![None; num_values];
         for (block_id, block) in func.blocks.iter_enumerated() {
             for (index, &inst_id) in block.instructions.iter().enumerate() {
-                if let Some(result) = inst_results[inst_id] {
+                if let Some(result) = func.inst_result_value(inst_id) {
                     def_location_of[result] = Some((block_id, index));
                 }
             }
@@ -364,7 +370,7 @@ impl<'a> Validator<'a> {
             }
             let block_in_cycle = reaches(block_id, block_id);
             for (index, &inst_id) in block.instructions.iter().enumerate() {
-                match &func.instructions[inst_id].kind {
+                match &func.inst(inst_id).kind {
                     InstKind::Phi(incoming) => {
                         for &(pred, value) in incoming {
                             if let Some((def, _)) = def_location_of[value]
@@ -435,25 +441,26 @@ impl<'a> Validator<'a> {
     }
 
     fn validate_immutables(&mut self, module: &Module, func: &Function) {
-        for (inst, instruction) in func.instructions.iter_enumerated() {
-            match instruction.kind {
+        for inst_id in func.instructions() {
+            let inst = func.inst(inst_id);
+            match inst.kind {
                 InstKind::LoadImmutable { id } => {
-                    match (module.get_immutable_type(id), instruction.result_ty) {
+                    match (module.get_immutable_type(id), inst.result_ty) {
                         (Some(expected), Some(actual)) if actual != expected => {
                             self.emit(format_args!(
                                 "inst{} loads immutable {} as `{actual}`, expected `{expected}`",
-                                inst.index(),
+                                inst_id.index(),
                                 id.index(),
-                            ))
+                            ));
                         }
                         (Some(_), None) => self.emit(format_args!(
                             "inst{} loads immutable {} without a result type",
-                            inst.index(),
+                            inst_id.index(),
                             id.index(),
                         )),
                         (None, _) => self.emit(format_args!(
                             "inst{} loads nonexistent immutable {}",
-                            inst.index(),
+                            inst_id.index(),
                             id.index()
                         )),
                         _ => {}
@@ -463,17 +470,17 @@ impl<'a> Validator<'a> {
                     let Some(immutable) = module.get_immutable(id) else {
                         self.emit(format_args!(
                             "inst{} stores nonexistent immutable {}",
-                            inst.index(),
+                            inst_id.index(),
                             id.index()
                         ));
                         continue;
                     };
-                    if let Some(actual) = Self::value_type(func, value)
+                    if let Some(actual) = func.value_ty(value)
                         && actual.immutable_encoding().is_none()
                     {
                         self.emit(format_args!(
                             "inst{} stores `{actual}` value into immutable `{}` of type `{}`",
-                            inst.index(),
+                            inst_id.index(),
                             immutable.name,
                             immutable.ty,
                         ));
@@ -495,15 +502,6 @@ impl<'a> Validator<'a> {
         }
     }
 
-    fn value_type(func: &Function, value: ValueId) -> Option<crate::mir::MirType> {
-        match func.value(value) {
-            Value::Arg { ty, .. } | Value::Undef(ty) => Some(*ty),
-            Value::Inst(inst) => func.instructions[*inst].result_ty,
-            Value::Immediate(imm) => Some(imm.ty()),
-            Value::Error(_) => None,
-        }
-    }
-
     /// Validates every function in a module.
     fn validate_module(mut self, module: &Module) {
         self.validate_module_phase(module);
@@ -517,8 +515,8 @@ impl<'a> Validator<'a> {
 
     /// Checks that call targets exist and argument counts match.
     fn validate_calls(&mut self, module: &Module, func: &Function) {
-        for inst in &func.instructions {
-            let InstKind::InternalCall { function, args, .. } = &inst.kind else {
+        for inst_id in func.instructions() {
+            let InstKind::InternalCall { function, args, .. } = &func.inst(inst_id).kind else {
                 continue;
             };
             let Some(callee) = module.functions.get(*function) else {
@@ -571,7 +569,7 @@ impl<'a> Validator<'a> {
             && !module.functions.iter().any(|f| f.name.name == sym::entry)
         {
             self.emit(format_args!(
-                "module is in the `{}` phase but has no `entry` dispatcher function",
+                "module is in the `{}` phase but has no `entry` routing function",
                 module.phase.name()
             ));
         }
@@ -594,7 +592,11 @@ impl<'a> Validator<'a> {
         // The memory-lowered phase is a strict representation boundary: no
         // nominal object types, layouts, or semantic accesses may survive.
         if module.phase >= crate::mir::MirPhase::MemoryLowered {
-            for ty in func.params.iter().chain(&func.returns) {
+            let signature_types = func
+                .arg_indices()
+                .map(|index| func.arg_ty(index))
+                .chain(func.returns.iter().copied());
+            for ty in signature_types {
                 if matches!(ty, crate::mir::MirType::MemoryObject(_)) {
                     self.emit(format_args!(
                         "memory-object signature type `{ty}` survives the `{}` phase boundary",
@@ -602,8 +604,14 @@ impl<'a> Validator<'a> {
                     ));
                 }
             }
-            for value in func.values.iter() {
-                if let Value::Undef(ty) = value
+            let mut values = DenseBitSet::new_empty(func.num_values());
+            for value in func.live_values() {
+                if value.index() < func.num_values() {
+                    values.insert(value);
+                }
+            }
+            for value in values.iter() {
+                if let Value::Undef(ty) = func.value(value)
                     && matches!(ty, crate::mir::MirType::MemoryObject(_))
                 {
                     self.emit(format_args!(
@@ -614,7 +622,7 @@ impl<'a> Validator<'a> {
             }
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for &inst_id in &block.instructions {
-                    let inst = &func.instructions[inst_id];
+                    let inst = func.inst(inst_id);
                     let semantic = matches!(
                         inst.kind,
                         InstKind::Alloc { kind: crate::mir::AllocationKind::Object(_), .. }
@@ -647,11 +655,15 @@ impl<'a> Validator<'a> {
         if module.phase >= crate::mir::MirPhase::EvmShaped {
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for &inst_id in &block.instructions {
-                    let kind = &func.instructions[inst_id].kind;
+                    let kind = &func.inst(inst_id).kind;
                     let semantic_op = match kind {
                         InstKind::MakeSlice { .. }
                         | InstKind::SlicePtr(_)
                         | InstKind::SliceLen(_) => Some("slice"),
+                        InstKind::Fmp | InstKind::SetFmp(_) => Some("abstract allocation"),
+                        InstKind::Alloc { .. } if !func.inst(inst_id).metadata.deferred_alloc() => {
+                            Some("abstract allocation")
+                        }
                         InstKind::AbiEncode { .. } => Some("ABI encoding"),
                         InstKind::StorageToMemory { .. }
                         | InstKind::MemoryToStorage { .. }
@@ -686,13 +698,9 @@ pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{
-        AbiLayout, AbiType, Function, FunctionBuilder, FunctionId, MirPhase, MirType, Module,
-        SliceLocation, StorageField, StorageLayout, Terminator,
-    };
+    use crate::mir::{Function, FunctionBuilder, MirType, Terminator};
     use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, Ident, Session};
-    use std::sync::Arc;
 
     fn with_session<F: FnOnce(&Session) + Send>(f: F) {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
@@ -702,22 +710,6 @@ mod tests {
 
     fn make_func() -> Function {
         Function::new(Ident::DUMMY)
-    }
-
-    #[test]
-    fn valid_simple_function() {
-        with_session(|sess| {
-            let mut func = make_func();
-            {
-                let mut b = FunctionBuilder::new(&mut func);
-                let x = b.add_param(MirType::uint256());
-                let one = b.imm_u64(1);
-                let sum = b.add(x, one);
-                b.ret([sum]);
-            }
-            Validator::new(&sess.dcx).validate_standalone_function(&func);
-            assert!(sess.dcx.has_errors().is_ok());
-        });
     }
 
     #[test]
@@ -798,56 +790,28 @@ error: [bb0] successor bb1 does not list bb0 as a predecessor
     }
 
     #[test]
-    fn entry_block_with_predecessors_is_caught() {
+    fn unexpected_stored_predecessor_is_caught() {
         with_session(|sess| {
             let mut func = make_func();
-            // Build a function that loops back to the entry block.
-            // The builder rejects this shape, so construct it manually for validation.
+            let target;
             {
-                let mut b = FunctionBuilder::new(&mut func);
-                b.stop();
+                let mut builder = FunctionBuilder::new(&mut func);
+                target = builder.create_block();
+                builder.stop();
+                builder.switch_to_block(target);
+                builder.stop();
             }
-            // Add the invalid predecessor to the entry block.
-            func.blocks[BlockId::ENTRY].predecessors.push(BlockId::ENTRY);
+            func.blocks[target].predecessors.push(BlockId::ENTRY);
             Validator::new(&sess.dcx).validate_standalone_function(&func);
             assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
-error: [bb0] stored predecessor bb0 does not branch to bb0
-
-error: [bb0] entry block must have no predecessors
+error: [bb1] stored predecessor bb0 does not branch to bb1
 
 
 "#]]
             );
-        });
-    }
-
-    #[test]
-    fn evm_shaped_rejects_semantic_memory_operations() {
-        with_session(|sess| {
-            let mut module = Module::new(Ident::DUMMY);
-            module.phase = MirPhase::EvmShaped;
-            let mut func = make_func();
-            {
-                let mut builder = FunctionBuilder::new(&mut func);
-                let zero = builder.imm_u64(0);
-                let slice = builder.make_slice(zero, zero, SliceLocation::Memory);
-                let layout = Arc::new(AbiLayout::new([AbiType::Bytes(SliceLocation::Memory)]));
-                builder.abi_encode(layout, None, [slice]);
-                let aggregate = Arc::new(StorageLayout::Struct([StorageField::Word].into()));
-                builder.storage_to_memory(aggregate, zero, zero);
-                builder.stop();
-            }
-            module.add_function(func);
-
-            Validator::new(&sess.dcx).validate_module(&module);
-            assert!(sess.dcx.has_errors().is_err());
-            let diagnostics = sess.emitted_diagnostics().unwrap().to_string();
-            assert!(diagnostics.contains("slice instruction"));
-            assert!(diagnostics.contains("ABI encoding instruction"));
-            assert!(diagnostics.contains("aggregate instruction"));
         });
     }
 
@@ -862,43 +826,6 @@ error: [bb0] entry block must have no predecessors
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
 error: function has no entry block
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn entry_with_just_terminator_is_valid() {
-        with_session(|sess| {
-            let mut func = make_func();
-            {
-                let mut b = FunctionBuilder::new(&mut func);
-                b.stop();
-            }
-            Validator::new(&sess.dcx).validate_standalone_function(&func);
-            assert!(sess.dcx.has_errors().is_ok());
-        });
-    }
-
-    #[test]
-    fn nonexistent_internal_call_target_is_caught() {
-        with_session(|sess| {
-            let mut caller = make_func();
-            {
-                let mut builder = FunctionBuilder::new(&mut caller);
-                builder.internal_call_void(FunctionId::from_usize(99), Vec::new(), 0);
-                builder.stop();
-            }
-            let mut module = Module::new(Ident::DUMMY);
-            module.add_function(caller);
-
-            validate(&sess.dcx, &module);
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: [fn0] internal_call targets nonexistent function fn99
 
 
 "#]]

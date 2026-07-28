@@ -1,0 +1,27 @@
+//@ compile-flags: -Zcodegen
+//@ filecheck:
+// CHECK-NOT: "errors"
+// CHECK: "contracts": {
+// CHECK: "Selected": {
+// CHECK: "bytecode": {
+// CHECK: "deployedBytecode": {
+// CHECK-NOT: "Dependency"
+// CHECK-NOT: "Unselected"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract Dependency { function ping() external {} } contract Selected { function create() external { new Dependency(); } } contract Unselected { function create() external { new Unselected(); } }"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "A.sol": {
+        "Selected": [
+          "evm.bytecode.object",
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}

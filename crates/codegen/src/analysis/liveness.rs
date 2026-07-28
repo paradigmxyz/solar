@@ -10,7 +10,7 @@
 //! treated as uses at the phi instruction in the merge block, and the phi result is
 //! defined like any other instruction result.
 
-use crate::mir::{BlockId, Function, InstId, Terminator, Value, ValueId};
+use crate::mir::{BlockId, Function, Terminator, Value, ValueId};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -56,17 +56,8 @@ impl Liveness {
     /// Computes liveness for a function.
     #[must_use]
     pub(crate) fn compute(func: &Function) -> Self {
-        let num_values = func.values.len();
+        let num_values = func.num_values();
         let num_blocks = func.blocks.len();
-
-        // Precompute InstId → ValueId mapping.
-        // This replaces the O(n) linear scans that were previously done per-instruction.
-        let mut inst_to_value: FxHashMap<InstId, ValueId> = FxHashMap::default();
-        for (val_id, val) in func.values.iter_enumerated() {
-            if let Value::Inst(inst_id) = val {
-                inst_to_value.insert(*inst_id, val_id);
-            }
-        }
 
         // Initialize per-block liveness
         let mut block_liveness = (0..num_blocks)
@@ -89,7 +80,7 @@ impl Liveness {
         for (block_id, block) in func.blocks.iter_enumerated() {
             // Process instructions in forward order to compute upward-exposed uses and defs
             for &inst_id in &block.instructions {
-                let inst = func.instruction(inst_id);
+                let inst = func.inst(inst_id);
 
                 // Collect uses (upward-exposed uses - used before defined in this block)
                 operand_buf.clear();
@@ -100,8 +91,7 @@ impl Liveness {
                     }
                 }
 
-                // Record definition using precomputed map (O(1) instead of O(n)).
-                if let Some(&val_id) = inst_to_value.get(&inst_id) {
+                if let Some(val_id) = func.inst_result_value(inst_id) {
                     block_defs[block_id].insert(val_id);
                 }
             }
@@ -176,7 +166,7 @@ impl Liveness {
             // Check instruction uses in reverse order
             // The first occurrence in reverse order is the last use in forward order
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate().rev() {
-                let inst = func.instruction(inst_id);
+                let inst = func.inst(inst_id);
                 operand_buf.clear();
                 inst.kind.collect_operands(&mut operand_buf);
                 for &operand in &operand_buf {
@@ -190,22 +180,14 @@ impl Liveness {
 
     /// Computes the subset of liveness needed by codegen when every computed
     /// value is consumed in its defining block and the function has no
-    /// arguments. Returns `None` when the function needs full dataflow.
+    /// referenced arguments. Returns `None` when the function needs full dataflow.
     ///
     /// Immediate and undefined values are rematerializable, so they do not
     /// need live-in/live-out tracking. Instruction results still retain exact
     /// last-use information for stack scheduling.
     pub(crate) fn compute_block_local_for_codegen(func: &Function) -> Option<Self> {
-        let num_values = func.values.len();
-        for val in &func.values {
-            match val {
-                Value::Inst(_) => {}
-                Value::Arg { .. } => return None,
-                Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => {}
-            }
-        }
-
-        let mut defining_blocks = index_vec![None; func.instructions.len()];
+        let num_values = func.num_values();
+        let mut defining_blocks = index_vec![None; func.num_insts()];
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 defining_blocks[inst_id] = Some(block_id);
@@ -214,14 +196,14 @@ impl Liveness {
 
         let is_local = |value, block_id| match func.value(value) {
             Value::Inst(inst_id) => defining_blocks[*inst_id] == Some(block_id),
-            Value::Arg { .. } => false,
+            Value::Arg(_) => false,
             Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
         };
         let mut operands = SmallVec::<[ValueId; 8]>::new();
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 operands.clear();
-                func.instruction(inst_id).kind.collect_operands(&mut operands);
+                func.inst(inst_id).kind.collect_operands(&mut operands);
                 if operands.iter().any(|&value| !is_local(value, block_id)) {
                     return None;
                 }
@@ -253,7 +235,7 @@ impl Liveness {
             }
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate().rev() {
                 operands.clear();
-                func.instruction(inst_id).kind.collect_operands(&mut operands);
+                func.inst(inst_id).kind.collect_operands(&mut operands);
                 for &operand in &operands {
                     last_use_in_block.entry((operand, block_id)).or_insert(Some(inst_idx));
                 }
@@ -278,7 +260,6 @@ impl Liveness {
     #[cfg(test)]
     fn live_at_inst(&self, func: &Function, block_id: BlockId, inst_idx: usize) -> LivenessInfo {
         let block = &func.blocks[block_id];
-        let inst_to_value = func.inst_results();
         let mut live = self.block_liveness[block_id].live_out.clone();
 
         if let Some(term) = &block.terminator {
@@ -292,11 +273,11 @@ impl Liveness {
         let mut operand_buf = SmallVec::<[ValueId; 8]>::new();
         for (idx, &inst_id) in block.instructions.iter().enumerate().rev() {
             let live_after = (idx == inst_idx).then(|| live.clone());
-            if let Some(&value) = inst_to_value.get(&inst_id) {
+            if let Some(value) = func.inst_result_value(inst_id) {
                 live.remove(value);
             }
             operand_buf.clear();
-            func.instruction(inst_id).kind.collect_operands(&mut operand_buf);
+            func.inst(inst_id).kind.collect_operands(&mut operand_buf);
             for &operand in &operand_buf {
                 live.insert(operand);
             }
@@ -598,6 +579,19 @@ mod tests {
     }
 
     #[test]
+    fn block_local_codegen_ignores_unused_param() {
+        let mut func = make_func();
+        let mut b = FunctionBuilder::new(&mut func);
+        let _unused = b.add_param(MirType::uint256());
+        let one = b.imm_u64(1);
+        let two = b.imm_u64(2);
+        let sum = b.add(one, two);
+        b.ret([sum]);
+
+        assert!(Liveness::compute_block_local_for_codegen(&func).is_some());
+    }
+
+    #[test]
     fn test_value_used_in_two_successors() {
         // entry: branch cond, left, right
         // left: ret x
@@ -854,12 +848,14 @@ mod tests {
         // Phase 2: insert the phi instruction at the head of `header` and point
         // the placeholder value at its result.
         let phi_val = phi_placeholder;
-        let phi_inst = func.alloc_inst(crate::mir::Instruction::new(
-            crate::mir::InstKind::Phi(vec![(entry, init), (body, updated)]),
-            Some(MirType::uint256()),
-        ));
+        let phi_inst = func.alloc_inst_with_result(
+            crate::mir::Instruction::new(
+                crate::mir::InstKind::Phi(vec![(entry, init), (body, updated)]),
+                Some(MirType::uint256()),
+            ),
+            phi_val,
+        );
         func.blocks[header].instructions.insert(0, phi_inst);
-        func.values[phi_val] = crate::mir::Value::Inst(phi_inst);
 
         let liveness = Liveness::compute(&func);
 

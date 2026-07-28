@@ -1,0 +1,26 @@
+//@compile-flags: --pipeline-default
+//@filecheck:
+@module PipelineCleanup
+
+// CHECK-LABEL: fn @fold_phi_after_promotion{{[( ]}}
+// CHECK: bb0:
+// CHECK-NEXT: ret 1
+// CHECK-NOT: invalid
+fn @fold_phi_after_promotion(arg0: bool) -> u256 {
+  bb0:
+    v1 = internal_frame_addr 128
+    mstore v1, 1
+    jumpi arg0, bb1, bb2
+  bb1:
+    v2 = internal_frame_addr 128
+    mstore v2, 1
+    jump bb3
+  bb2:
+    v3 = internal_frame_addr 128
+    mstore v3, 1
+    jump bb3
+  bb3:
+    v4 = internal_frame_addr 128
+    v5 = mload v4
+    ret v5
+}

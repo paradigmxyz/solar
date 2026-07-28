@@ -143,6 +143,9 @@ impl EvmVersion {
     pub fn has_mcopy(self) -> bool {
         self >= Self::Cancun
     }
+    pub fn has_clz(self) -> bool {
+        self >= Self::Osaka
+    }
 }
 
 str_enum! {
@@ -162,11 +165,16 @@ str_enum! {
 }
 
 impl OptimizationMode {
-    /// Returns whether codegen should favor bytecode size over runtime gas
-    /// (`-O size`).
+    /// Returns whether codegen should favor bytecode size over runtime gas (`-O size`).
     #[inline]
     pub const fn is_size(self) -> bool {
         matches!(self, Self::Size)
+    }
+
+    /// Returns whether codegen should favor runtime gas over bytecode size (`-O gas`).
+    #[inline]
+    pub const fn is_gas(self) -> bool {
+        matches!(self, Self::Gas)
     }
 }
 

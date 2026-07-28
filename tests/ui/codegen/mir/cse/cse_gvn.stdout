@@ -5,7 +5,7 @@
     bb0:
       v0 = add arg0, 16
       v1 = add v0, 16
-      br arg1, bb1, bb2
+      jumpi arg1, bb1, bb2
     bb1:
 -     v2 = add arg0, 32
 -     v3 = add v1, v2
@@ -19,7 +19,7 @@
     bb0:
       v0 = add 16, arg0
       v1 = add 16, v0
-      br arg1, bb1, bb2
+      jumpi arg1, bb1, bb2
     bb1:
 -     v2 = add arg0, 32
 -     ret v2
@@ -33,7 +33,7 @@
       v0 = add arg0, 16
       v1 = add v0, 16
       v2 = keccak256 v1, 32
-      br arg1, bb1, bb2
+      jumpi arg1, bb1, bb2
     bb1:
 -     v3 = add arg0, 32
 -     v4 = keccak256 v3, 32
@@ -48,7 +48,7 @@
       v0 = add arg0, 16
       v1 = add v0, 16
       v2 = mload v1
-      br arg1, bb1, bb2
+      jumpi arg1, bb1, bb2
     bb1:
 -     v3 = add arg0, 32
 -     mstore v3, 7
@@ -71,7 +71,7 @@
   
   fn @sink_common_phi_expression(arg0: u256, arg1: u256, arg2: bool) -> u256 {
     bb0:
-      br arg2, bb1, bb2
+      jumpi arg2, bb1, bb2
     bb1:
 -     v0 = add arg0, arg1
       jump bb3
@@ -88,7 +88,7 @@
   
   fn @keep_phi_expression_with_branch_local_operands(arg0: u256, arg1: bool) -> u256 {
     bb0:
-      br arg1, bb1, bb2
+      jumpi arg1, bb1, bb2
     bb1:
       v0 = add arg0, 1
       v1 = mul v0, 2

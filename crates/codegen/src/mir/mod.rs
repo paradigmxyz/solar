@@ -49,6 +49,9 @@ pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
 pub(crate) mod utils;
 
 newtype_index! {
+    /// A function argument index in the MIR.
+    pub(crate) struct ArgIdx;
+
     /// A unique identifier for a value in the MIR.
     pub(crate) struct ValueId;
 
@@ -234,6 +237,9 @@ mod round_trip {
         for path in fixture_paths(&dir, "mir") {
             count += 1;
             if let Err(e) = round_trip_mir(&path) {
+                if e.starts_with("first parse failed:") && path.with_extension("stderr").is_file() {
+                    continue;
+                }
                 let name = path.file_name().unwrap().to_string_lossy().into_owned();
                 failures.push(format!("{name}: {e}"));
             }

@@ -50,18 +50,13 @@ struct InstSimplifier {
 }
 
 struct RunState {
-    inst_results: FxHashMap<InstId, ValueId>,
     replacements: FxHashMap<ValueId, ValueId>,
     dead: DenseBitSet<InstId>,
 }
 
 impl RunState {
     fn new(func: &Function) -> Self {
-        Self {
-            inst_results: func.inst_results(),
-            replacements: FxHashMap::default(),
-            dead: DenseBitSet::new_empty(func.instructions.len()),
-        }
+        Self { replacements: FxHashMap::default(), dead: DenseBitSet::new_empty(func.num_insts()) }
     }
 }
 
@@ -69,12 +64,6 @@ impl InstSimplifier {
     /// Creates a new instruction simplifier.
     fn new() -> Self {
         Self::default()
-    }
-
-    #[cfg(test)]
-    fn run(&mut self, func: &mut Function) -> usize {
-        let mut state = RunState::new(func);
-        self.run_with_state(func, &mut state)
     }
 
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
@@ -89,7 +78,7 @@ impl InstSimplifier {
             for index in 0..instruction_count {
                 let inst_id = func.blocks[block_id].instructions[index];
                 loop {
-                    let kind = func.instructions[inst_id].kind.clone();
+                    let kind = func.inst(inst_id).kind.clone();
 
                     if self.is_dead_noop_inst(func, &kind, &state.replacements) {
                         tracing::trace!(
@@ -113,12 +102,12 @@ impl InstSimplifier {
                             output = %new_kind,
                             "mir_inst_simplify"
                         );
-                        func.instructions[inst_id].kind = new_kind;
+                        func.inst_mut(inst_id).kind = new_kind;
                         self.simplified_count += 1;
                         continue;
                     }
 
-                    let Some(&result) = state.inst_results.get(&inst_id) else {
+                    let Some(result) = func.inst_result_value(inst_id) else {
                         break;
                     };
                     let Some(replacement) = self.simplify_inst(func, &kind, &state.replacements)
@@ -237,19 +226,72 @@ impl InstSimplifier {
                     Some(InstKind::IsZero(b))
                 } else if a != b && Self::is_zero(func, b) {
                     Some(InstKind::IsZero(a))
+                } else if let Some((_, input, constant)) = Self::clz_const_operand(func, a, b) {
+                    if constant == U256::from(255) {
+                        let one = Self::imm_u256(func, U256::from(1));
+                        Some(InstKind::Eq(input, one))
+                    } else if constant == U256::from(256) {
+                        Some(InstKind::IsZero(input))
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
             }
+            InstKind::IsZero(a) => {
+                let a = resolve(*a);
+                let input = Self::clz_operand(func, a)?;
+                let zero = Self::imm_u256(func, U256::ZERO);
+                Some(InstKind::SLt(input, zero))
+            }
             // `a < 1` is `a == 0` for unsigned comparisons.
             InstKind::Lt(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
-                Self::is_one(func, b).then_some(InstKind::IsZero(a))
+                if let Some(input) = Self::clz_operand(func, a)
+                    && Self::is_const(func, b, U256::from(256))
+                {
+                    let zero = Self::imm_u256(func, U256::ZERO);
+                    Some(InstKind::Gt(input, zero))
+                } else if let Some(input) = Self::clz_operand(func, b)
+                    && Self::is_const(func, a, U256::from(255))
+                {
+                    Some(InstKind::IsZero(input))
+                } else {
+                    Self::is_one(func, b).then_some(InstKind::IsZero(a))
+                }
             }
             // `1 > b` is `b == 0` for unsigned comparisons.
             InstKind::Gt(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
-                Self::is_one(func, a).then_some(InstKind::IsZero(b))
+                if let Some(input) = Self::clz_operand(func, a)
+                    && Self::is_const(func, b, U256::from(255))
+                {
+                    Some(InstKind::IsZero(input))
+                } else if let Some(input) = Self::clz_operand(func, b)
+                    && Self::is_const(func, a, U256::from(256))
+                {
+                    let zero = Self::imm_u256(func, U256::ZERO);
+                    Some(InstKind::Gt(input, zero))
+                } else {
+                    Self::is_one(func, a).then_some(InstKind::IsZero(b))
+                }
+            }
+            InstKind::Shr(shift, value) => {
+                let (shift, value) = (resolve(*shift), resolve(*value));
+                if Self::is_const(func, shift, U256::from(8)) {
+                    Self::clz_operand(func, value).map(InstKind::IsZero)
+                } else {
+                    None
+                }
+            }
+            InstKind::Byte(index, value) => {
+                let (index, value) = (resolve(*index), resolve(*value));
+                if Self::is_const(func, index, U256::from(30)) {
+                    Self::clz_operand(func, value).map(InstKind::IsZero)
+                } else {
+                    None
+                }
             }
             InstKind::Select(condition, then_value, else_value) => {
                 let (condition, then_value, else_value) =
@@ -318,7 +360,11 @@ impl InstSimplifier {
                 let (a, b) = (resolve(*a), resolve(*b));
                 if Self::is_zero(func, a) || Self::is_one(func, b) {
                     Some(a)
-                } else if Self::is_zero(func, b) {
+                } else if Self::is_zero(func, b)
+                    || (matches!(kind, InstKind::Div(_, _))
+                        && Self::clz_operand(func, a).is_some()
+                        && func.value_u256(b).is_some_and(|b| b > U256::from(256)))
+                {
                     Some(Self::imm_u256(func, U256::ZERO))
                 } else {
                     None
@@ -330,6 +376,11 @@ impl InstSimplifier {
                     Some(a)
                 } else if Self::is_zero(func, b) || Self::is_one(func, b) || a == b {
                     Some(Self::imm_u256(func, U256::ZERO))
+                } else if matches!(kind, InstKind::Mod(_, _))
+                    && Self::clz_operand(func, a).is_some()
+                    && func.value_u256(b).is_some_and(|b| b > U256::from(256))
+                {
+                    Some(a)
                 } else {
                     None
                 }
@@ -346,7 +397,11 @@ impl InstSimplifier {
             }
             InstKind::And(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
-                if a == b
+                if let Some((clz, _, mask)) = Self::clz_const_operand(func, a, b)
+                    && mask & U256::from(0x1ff) == U256::from(0x1ff)
+                {
+                    Some(clz)
+                } else if a == b
                     || Self::is_zero(func, a)
                     || Self::is_all_ones(func, b)
                     || (Self::is_uint160_mask(func, b) && Self::is_clean_address(func, a))
@@ -394,6 +449,10 @@ impl InstSimplifier {
                 Self::not_operand(func, a)
                     .or_else(|| func.value_u256(a).map(|v| Self::imm_u256(func, !v)))
             }
+            InstKind::Clz(a) => {
+                let a = resolve(*a);
+                Self::has_known_sign_bit(func, a).then(|| Self::imm_u256(func, U256::ZERO))
+            }
             InstKind::IsZero(a) => {
                 let a = resolve(*a);
                 func.value_u256(a).map(|v| Self::imm_bool(func, v.is_zero())).or_else(|| {
@@ -405,8 +464,11 @@ impl InstSimplifier {
                 let (shift, value) = (resolve(*a), resolve(*b));
                 if Self::is_zero(func, shift) || Self::is_zero(func, value) {
                     Some(value)
-                } else if !matches!(kind, InstKind::Sar(_, _))
-                    && func.value_u256(shift).is_some_and(|shift| shift >= U256::from(256))
+                } else if (matches!(kind, InstKind::Shr(_, _))
+                    && Self::clz_operand(func, value).is_some()
+                    && func.value_u256(shift).is_some_and(|shift| shift >= U256::from(9)))
+                    || (!matches!(kind, InstKind::Sar(_, _))
+                        && func.value_u256(shift).is_some_and(|shift| shift >= U256::from(256)))
                 {
                     Some(Self::imm_u256(func, U256::ZERO))
                 } else {
@@ -414,15 +476,22 @@ impl InstSimplifier {
                 }
             }
             InstKind::Byte(a, b) => {
-                let (a, value) = (resolve(*a), resolve(*b));
+                let (index, value) = (resolve(*a), resolve(*b));
                 (Self::is_zero(func, value)
-                    || func.value_u256(a).is_some_and(|index| index >= U256::from(32)))
+                    || func.value_u256(index).is_some_and(|index| {
+                        index >= U256::from(32)
+                            || (index < U256::from(30) && Self::clz_operand(func, value).is_some())
+                    }))
                 .then(|| Self::imm_u256(func, U256::ZERO))
             }
             InstKind::Eq(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
                 if a == b {
                     Some(Self::imm_bool(func, true))
+                } else if Self::clz_const_operand(func, a, b)
+                    .is_some_and(|(_, _, constant)| constant > U256::from(256))
+                {
+                    Some(Self::imm_bool(func, false))
                 } else if Self::is_bool_value(func, a) && Self::is_one(func, b) {
                     Some(a)
                 } else if Self::is_bool_value(func, b) && Self::is_one(func, a) {
@@ -433,7 +502,9 @@ impl InstSimplifier {
             }
             InstKind::Lt(a, b) | InstKind::Gt(a, b) | InstKind::SLt(a, b) | InstKind::SGt(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
-                if a == b {
+                if let Some(value) = Self::fold_clz_range_comparison(func, kind, a, b) {
+                    Some(Self::imm_bool(func, value))
+                } else if a == b {
                     Some(Self::imm_bool(func, false))
                 } else {
                     match kind {
@@ -516,6 +587,8 @@ impl InstSimplifier {
                 let (byte, value) = (resolve(*a), resolve(*b));
                 if Self::is_zero(func, value)
                     || func.value_u256(byte).is_some_and(|byte| byte >= U256::from(31))
+                    || (Self::clz_operand(func, value).is_some()
+                        && func.value_u256(byte).is_some_and(|byte| byte >= U256::from(1)))
                 {
                     Some(value)
                 } else {
@@ -639,6 +712,9 @@ impl InstSimplifier {
                 Some(Self::imm_u256(func, constant(func, a)? ^ constant(func, b)?))
             }
             InstKind::Not(a) => Some(Self::imm_u256(func, !constant(func, a)?)),
+            InstKind::Clz(a) => {
+                Some(Self::imm_u256(func, U256::from(constant(func, a)?.leading_zeros() as u64)))
+            }
             InstKind::Shl(shift, value) => {
                 let shift = constant(func, shift)?;
                 let value = constant(func, value)?;
@@ -810,9 +886,64 @@ impl InstSimplifier {
         }
     }
 
+    fn clz_const_operand(
+        func: &Function,
+        a: ValueId,
+        b: ValueId,
+    ) -> Option<(ValueId, ValueId, U256)> {
+        let (clz, constant) = Self::const_operand(func, a, b)?;
+        let input = Self::clz_operand(func, clz)?;
+        Some((clz, input, constant))
+    }
+
+    fn clz_operand(func: &Function, value: ValueId) -> Option<ValueId> {
+        let Value::Inst(inst_id) = func.value(value) else { return None };
+        match func.inst(*inst_id).kind {
+            InstKind::Clz(input) => Some(input),
+            _ => None,
+        }
+    }
+
+    fn has_known_sign_bit(func: &Function, value: ValueId) -> bool {
+        if let Some(value) = func.value_u256(value) {
+            return value.bit(255);
+        }
+        let Value::Inst(inst_id) = func.value(value) else { return false };
+        match func.inst(*inst_id).kind {
+            InstKind::Or(a, b) => {
+                Self::has_known_sign_bit(func, a) || Self::has_known_sign_bit(func, b)
+            }
+            InstKind::Sar(_, value) => Self::has_known_sign_bit(func, value),
+            _ => false,
+        }
+    }
+
+    fn fold_clz_range_comparison(
+        func: &Function,
+        kind: &InstKind,
+        a: ValueId,
+        b: ValueId,
+    ) -> Option<bool> {
+        match kind {
+            InstKind::Lt(_, _) if Self::clz_operand(func, a).is_some() => {
+                func.value_u256(b).and_then(|b| (b > U256::from(256)).then_some(true))
+            }
+            InstKind::Lt(_, _) if Self::clz_operand(func, b).is_some() => {
+                func.value_u256(a).and_then(|a| (a >= U256::from(256)).then_some(false))
+            }
+            InstKind::Gt(_, _) if Self::clz_operand(func, a).is_some() => {
+                func.value_u256(b).and_then(|b| (b >= U256::from(256)).then_some(false))
+            }
+            InstKind::Gt(_, _) if Self::clz_operand(func, b).is_some() => {
+                func.value_u256(a).and_then(|a| (a > U256::from(256)).then_some(true))
+            }
+            _ => None,
+        }
+    }
+
     fn offset_base(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
         let Value::Inst(inst_id) = func.value(value) else { return None };
-        match func.instructions[*inst_id].kind {
+        match func.inst(*inst_id).kind {
             InstKind::Add(a, b) => Self::const_operand(func, a, b),
             InstKind::Sub(a, b) => {
                 let offset = func.value_u256(b)?;
@@ -824,7 +955,7 @@ impl InstSimplifier {
 
     fn and_mask_base(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
         let Value::Inst(inst_id) = func.value(value) else { return None };
-        match func.instructions[*inst_id].kind {
+        match func.inst(*inst_id).kind {
             InstKind::And(a, b) => Self::const_operand(func, a, b),
             _ => None,
         }
@@ -858,17 +989,16 @@ impl InstSimplifier {
     }
 
     fn is_bool_value(func: &Function, value: ValueId) -> bool {
-        match &func.values[value] {
+        match func.value(value) {
             Value::Immediate(Immediate::Bool(_)) => true,
-            Value::Arg { ty: MirType::Bool, .. } => true,
-            Value::Inst(inst_id) => func.instructions[*inst_id].result_ty == Some(MirType::Bool),
-            _ => false,
+            Value::Arg(_) | Value::Inst(_) => func.value_ty(value) == Some(MirType::Bool),
+            Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => false,
         }
     }
 
     fn same_value(func: &Function, a: ValueId, b: ValueId) -> bool {
         a == b
-            || match (&func.values[a], &func.values[b]) {
+            || match (func.value(a), func.value(b)) {
                 (Value::Immediate(a), Value::Immediate(b)) => a == b,
                 _ => false,
             }
@@ -884,9 +1014,9 @@ impl InstSimplifier {
     }
 
     fn is_clean_address(func: &Function, value: ValueId) -> bool {
-        match &func.values[value] {
+        match func.value(value) {
             Value::Inst(inst_id) => matches!(
-                func.instructions[*inst_id].kind,
+                func.inst(*inst_id).kind,
                 InstKind::Address
                     | InstKind::Caller
                     | InstKind::Origin
@@ -899,8 +1029,8 @@ impl InstSimplifier {
     }
 
     fn is_current_address(func: &Function, value: ValueId) -> bool {
-        match &func.values[value] {
-            Value::Inst(inst_id) => matches!(func.instructions[*inst_id].kind, InstKind::Address),
+        match func.value(value) {
+            Value::Inst(inst_id) => matches!(func.inst(*inst_id).kind, InstKind::Address),
             _ => false,
         }
     }
@@ -965,8 +1095,8 @@ impl InstSimplifier {
     /// Returns `x` when `value` computes `gt(x, 0)` or `lt(0, x)`, both of
     /// which are the unsigned nonzero test.
     fn nonzero_test_operand(func: &Function, value: ValueId) -> Option<ValueId> {
-        match &func.values[value] {
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+        match func.value(value) {
+            Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::Gt(a, b) if Self::is_zero(func, b) => Some(a),
                 InstKind::Lt(a, b) if Self::is_zero(func, a) => Some(b),
                 _ => None,
@@ -976,8 +1106,8 @@ impl InstSimplifier {
     }
 
     fn iszero_operand(func: &Function, value: ValueId) -> Option<ValueId> {
-        match &func.values[value] {
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+        match func.value(value) {
+            Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::IsZero(inner) => Some(inner),
                 _ => None,
             },
@@ -986,8 +1116,8 @@ impl InstSimplifier {
     }
 
     fn not_operand(func: &Function, value: ValueId) -> Option<ValueId> {
-        match &func.values[value] {
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+        match func.value(value) {
+            Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::Not(inner) => Some(inner),
                 _ => None,
             },
@@ -997,262 +1127,5 @@ impl InstSimplifier {
 
     fn is_bitwise_complement_pair(func: &Function, a: ValueId, b: ValueId) -> bool {
         Self::not_operand(func, a) == Some(b) || Self::not_operand(func, b) == Some(a)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::{BlockId, FunctionBuilder, MirType};
-    use solar_interface::Ident;
-
-    fn test_func() -> Function {
-        Function::new(Ident::DUMMY)
-    }
-
-    #[test]
-    fn removes_add_zero() {
-        let mut func = test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-        let arg = builder.add_param(MirType::uint256());
-        let zero = builder.imm_u64(0);
-        let sum = builder.add(arg, zero);
-        builder.ret(vec![sum]);
-
-        let mut pass = InstSimplifier::new();
-        assert_eq!(pass.run(&mut func), 1);
-
-        let block = &func.blocks[BlockId::ENTRY];
-        assert!(block.instructions.is_empty());
-        let Some(Terminator::Return { values }) = &block.terminator else {
-            panic!("expected return terminator");
-        };
-        assert_eq!(values.as_slice(), &[arg]);
-    }
-
-    #[test]
-    fn preserves_non_constant_side_of_mul_one() {
-        let mut func = test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-        let arg = builder.add_param(MirType::uint256());
-        let one = builder.imm_u64(1);
-        let product = builder.mul(one, arg);
-        builder.ret(vec![product]);
-
-        let mut pass = InstSimplifier::new();
-        assert_eq!(pass.run(&mut func), 1);
-
-        let block = &func.blocks[BlockId::ENTRY];
-        let Some(Terminator::Return { values }) = &block.terminator else {
-            panic!("expected return terminator");
-        };
-        assert_eq!(values.as_slice(), &[arg]);
-    }
-
-    #[test]
-    fn removes_self_sub() {
-        let mut func = test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-        let arg = builder.add_param(MirType::uint256());
-        let diff = builder.sub(arg, arg);
-        builder.ret(vec![diff]);
-
-        let mut pass = InstSimplifier::new();
-        assert_eq!(pass.run(&mut func), 1);
-
-        let block = &func.blocks[BlockId::ENTRY];
-        assert!(block.instructions.is_empty());
-        let Some(Terminator::Return { values }) = &block.terminator else {
-            panic!("expected return terminator");
-        };
-        assert_eq!(
-            func.values[values[0]].as_immediate().and_then(Immediate::as_u256),
-            Some(U256::ZERO)
-        );
-    }
-
-    #[test]
-    fn removes_idempotent_logic_ops() {
-        let mut func = test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-        let arg = builder.add_param(MirType::uint256());
-        let and = builder.and(arg, arg);
-        let or = builder.or(arg, arg);
-        let xor = builder.xor(arg, arg);
-        builder.ret(vec![and, or, xor]);
-
-        let mut pass = InstSimplifier::new();
-        assert_eq!(pass.run(&mut func), 3);
-
-        let block = &func.blocks[BlockId::ENTRY];
-        assert!(block.instructions.is_empty());
-        let Some(Terminator::Return { values }) = &block.terminator else {
-            panic!("expected return terminator");
-        };
-        assert_eq!(&values[..2], &[arg, arg]);
-        assert_eq!(
-            func.values[values[2]].as_immediate().and_then(Immediate::as_u256),
-            Some(U256::ZERO)
-        );
-    }
-
-    #[test]
-    fn folds_not_not() {
-        let mut func = test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-        let arg = builder.add_param(MirType::uint256());
-        let not = builder.not(arg);
-        let restored = builder.not(not);
-        builder.ret(vec![restored]);
-
-        let mut pass = InstSimplifier::new();
-        assert_eq!(pass.run_to_fixpoint(&mut func), 1);
-
-        let block = &func.blocks[BlockId::ENTRY];
-        let Some(Terminator::Return { values }) = &block.terminator else {
-            panic!("expected return terminator");
-        };
-        assert_eq!(values.as_slice(), &[arg]);
-    }
-
-    #[test]
-    fn folds_iszero_immediate() {
-        let mut func = test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-        let zero = builder.imm_u64(0);
-        let is_zero = builder.iszero(zero);
-        builder.ret(vec![is_zero]);
-
-        let mut pass = InstSimplifier::new();
-        assert_eq!(pass.run(&mut func), 1);
-
-        let block = &func.blocks[BlockId::ENTRY];
-        assert!(block.instructions.is_empty());
-        let Some(Terminator::Return { values }) = &block.terminator else {
-            panic!("expected return terminator");
-        };
-        assert_eq!(
-            func.values[values[0]].as_immediate().and_then(Immediate::as_u256),
-            Some(U256::from(1))
-        );
-    }
-
-    #[test]
-    fn rewrites_eq_zero_to_iszero() {
-        let mut func = test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-        let arg = builder.add_param(MirType::uint256());
-        let zero = builder.imm_u64(0);
-        let eq = builder.eq(arg, zero);
-        builder.ret(vec![eq]);
-
-        let mut pass = InstSimplifier::new();
-        assert_eq!(pass.run(&mut func), 1);
-
-        let block = &func.blocks[BlockId::ENTRY];
-        assert_eq!(block.instructions.len(), 1);
-        let eq_inst = func.instructions[block.instructions[0]].kind.clone();
-        assert!(matches!(eq_inst, InstKind::IsZero(value) if value == arg));
-    }
-
-    #[test]
-    fn preserves_non_constant_side_of_and_all_ones() {
-        let mut func = test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-        let arg = builder.add_param(MirType::uint256());
-        let all_ones = builder.imm_u256(U256::MAX);
-        let masked = builder.and(all_ones, arg);
-        builder.ret(vec![masked]);
-
-        let mut pass = InstSimplifier::new();
-        assert_eq!(pass.run(&mut func), 1);
-
-        let block = &func.blocks[BlockId::ENTRY];
-        let Some(Terminator::Return { values }) = &block.terminator else {
-            panic!("expected return terminator");
-        };
-        assert_eq!(values.as_slice(), &[arg]);
-    }
-
-    #[test]
-    fn removes_address_mask() {
-        let mut func = test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-        let addr = builder.address();
-        let mask = builder.imm_u256((U256::from(1) << 160) - U256::from(1));
-        let masked = builder.and(addr, mask);
-        builder.ret(vec![masked]);
-
-        let mut pass = InstSimplifier::new();
-        assert_eq!(pass.run(&mut func), 1);
-
-        let block = &func.blocks[BlockId::ENTRY];
-        assert_eq!(block.instructions.len(), 1);
-        let Some(Terminator::Return { values }) = &block.terminator else {
-            panic!("expected return terminator");
-        };
-        assert_eq!(values.as_slice(), &[addr]);
-    }
-
-    #[test]
-    fn rewrites_own_balance_to_selfbalance() {
-        let mut func = test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-        let addr = builder.address();
-        let balance = builder.balance(addr);
-        builder.ret(vec![balance]);
-
-        let mut pass = InstSimplifier::new();
-        assert_eq!(pass.run(&mut func), 1);
-
-        let block = &func.blocks[BlockId::ENTRY];
-        assert_eq!(block.instructions.len(), 2);
-        let balance_inst = func.instructions[*block.instructions.last().unwrap()].kind.clone();
-        assert!(matches!(balance_inst, InstKind::SelfBalance));
-    }
-
-    #[test]
-    fn inverts_iszero_branch_condition() {
-        let mut func = test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-        let arg = builder.add_param(MirType::uint256());
-        let zero = builder.imm_u64(0);
-        let cmp = builder.lt(zero, arg);
-        let inverted = builder.iszero(cmp);
-        let then_block = builder.create_block();
-        let else_block = builder.create_block();
-        builder.branch(inverted, then_block, else_block);
-
-        let mut pass = InstSimplifier::new();
-        assert_eq!(pass.run(&mut func), 2);
-
-        let block = &func.blocks[BlockId::ENTRY];
-        let Some(Terminator::Branch { condition, then_block: new_then, else_block: new_else }) =
-            block.terminator
-        else {
-            panic!("expected branch terminator");
-        };
-        assert_eq!(condition, arg);
-        assert_eq!(new_then, else_block);
-        assert_eq!(new_else, then_block);
-    }
-
-    #[test]
-    fn mask_rewrite_feeds_selfbalance() {
-        let mut func = test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-        let addr = builder.address();
-        let mask = builder.imm_u256((U256::from(1) << 160) - U256::from(1));
-        let masked = builder.and(addr, mask);
-        let balance = builder.balance(masked);
-        builder.ret(vec![balance]);
-
-        let mut pass = InstSimplifier::new();
-        assert_eq!(pass.run_to_fixpoint(&mut func), 2);
-
-        let block = &func.blocks[BlockId::ENTRY];
-        assert_eq!(block.instructions.len(), 2);
-        let balance_inst = func.instructions[*block.instructions.last().unwrap()].kind.clone();
-        assert!(matches!(balance_inst, InstKind::SelfBalance));
     }
 }

@@ -1,12 +1,17 @@
 //@compile-flags: --pass load-pre
+//@filecheck:
 // Memory diamonds are cost-model gated: a single 3-gas MLOAD does not pay for
 // a merge phi, but repeated same-key join reloads can amortize the insertion.
 // Loop-carried memory reloads are profitable now that canonical loop phis can
 // stay stack-resident in the EVM backend.
 @module LoadPreMemory
+// CHECK-LABEL: {{^[ +].*}}fn @mload_full_diamond{{[( ]}}
+// CHECK: {{^[ +].*}}bb3:
+// CHECK: {{^[ +].*}}[[JOIN:v[0-9]+]] = mload 128
+// CHECK: {{^[ +].*}}ret [[JOIN]]
 fn @mload_full_diamond(arg0: bool) -> u256 {
   bb0:
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     v1 = mload 128
     jump bb3
@@ -18,9 +23,13 @@ fn @mload_full_diamond(arg0: bool) -> u256 {
     ret v3
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @mstore_forwarding{{[( ]}}
+// CHECK: {{^[ +].*}}bb3:
+// CHECK: {{^[ +].*}}[[JOIN:v[0-9]+]] = mload 128
+// CHECK: {{^[ +].*}}ret [[JOIN]]
 fn @mstore_forwarding(arg0: bool, arg1: u256) -> u256 {
   bb0:
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     mstore 128, arg1
     jump bb3
@@ -32,13 +41,17 @@ fn @mstore_forwarding(arg0: bool, arg1: u256) -> u256 {
     ret v3
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @mstore8_overlap_kills{{[( ]}}
+// CHECK: {{^[ +].*}}mstore8 159
+// CHECK: {{^[ +].*}}bb3:
+// CHECK: {{^[ +].*}}[[JOIN:v[0-9]+]] = mload 128
 fn @mstore8_overlap_kills(arg0: bool) -> u256 {
   bb0:
     v1 = mload 128
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     mstore8 159, 7
-    br arg0, bb3, bb4
+    jumpi arg0, bb3, bb4
   bb2:
     jump bb3
   bb3:
@@ -48,9 +61,13 @@ fn @mstore8_overlap_kills(arg0: bool) -> u256 {
     ret v1
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @mload_partial_rejected{{[( ]}}
+// CHECK: {{^[ +].*}}bb3:
+// CHECK: {{^[ +].*}}[[JOIN:v[0-9]+]] = mload 128
+// CHECK: {{^[ +].*}}ret [[JOIN]]
 fn @mload_partial_rejected(arg0: bool) -> u256 {
   bb0:
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     v1 = mload 128
     jump bb3
@@ -61,9 +78,13 @@ fn @mload_partial_rejected(arg0: bool) -> u256 {
     ret v2
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @mload_partial_repeated_profitable{{[( ]}}
+// CHECK: + [[INSERTED:v[0-9]+]] = mload 128
+// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: {{v[0-9]+}}], [bb2: [[INSERTED]]]
+// CHECK: + {{v[0-9]+}} = add [[MERGE]], [[MERGE]]
 fn @mload_partial_repeated_profitable(arg0: bool) -> u256 {
   bb0:
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     v1 = mload 128
     jump bb3
@@ -76,6 +97,10 @@ fn @mload_partial_repeated_profitable(arg0: bool) -> u256 {
     ret v4
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @mload_partial_two_available{{[( ]}}
+// CHECK: {{^[ +].*}}bb4:
+// CHECK: {{^[ +].*}}[[JOIN:v[0-9]+]] = mload 128
+// CHECK: {{^[ +].*}}ret [[JOIN]]
 fn @mload_partial_two_available(arg0: u256) -> u256 {
   bb0:
     switch arg0, default bb3, [1 => bb1, 2 => bb2]
@@ -92,6 +117,9 @@ fn @mload_partial_two_available(arg0: u256) -> u256 {
     ret v3
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @mload_loop_header{{[( ]}}
+// CHECK: + [[LOAD:v[0-9]+]] = phi [bb0: {{v[0-9]+}}], [bb2: [[LOAD]]]
+// CHECK: + {{v[0-9]+}} = lt [[LOAD]], arg0
 fn @mload_loop_header(arg0: u256) -> u256 {
   bb0:
     v1 = mload 128
@@ -99,20 +127,24 @@ fn @mload_loop_header(arg0: u256) -> u256 {
   bb1:
     v2 = mload 128
     v3 = lt v2, arg0
-    br v3, bb2, bb3
+    jumpi v3, bb2, bb3
   bb2:
     jump bb1
   bb3:
     ret v2
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @staticcall_zero_return_preserves_memory{{[( ]}}
+// CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = mload 128
+// CHECK: {{^[ +].*}}staticcall
+// CHECK: + ret [[LOAD]]
 fn @staticcall_zero_return_preserves_memory(arg0: bool, arg1: address) -> u256 {
   bb0:
     v1 = mload 128
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     v2 = staticcall 100000, arg1, 0, 0, 0, 0
-    br arg0, bb3, bb4
+    jumpi arg0, bb3, bb4
   bb2:
     jump bb3
   bb3:
@@ -122,9 +154,12 @@ fn @staticcall_zero_return_preserves_memory(arg0: bool, arg1: address) -> u256 {
     ret v1
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @msize_blocks_memory{{[( ]}}
+// CHECK: {{^[ +].*}}msize
+// CHECK: {{^[ +].*}}[[JOIN:v[0-9]+]] = mload 128
 fn @msize_blocks_memory(arg0: bool) -> u256 {
   bb0:
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     v1 = mload 128
     jump bb3

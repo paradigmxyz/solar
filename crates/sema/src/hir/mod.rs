@@ -966,6 +966,8 @@ pub fn can_receive_ether(contract: &Contract<'_>, gcx: Gcx<'_>) -> bool {
 pub struct Modifier<'hir> {
     /// The span of the modifier or base class call.
     pub span: Span,
+    /// The span of the final name segment.
+    pub name_span: Span,
     /// The modifier or base class ID.
     pub id: ItemId,
     /// The arguments to the modifier or base class call.
@@ -1679,13 +1681,23 @@ impl Expr<'_> {
         expr
     }
 
+    /// Returns the resolution if this is an unambiguous identifier expression.
+    ///
+    /// Prefer using [`Gcx::resolved_expr`] instead, since this method does not account for
+    /// overloads.
+    ///
+    /// Parentheses are ignored.
+    pub fn as_res(&self) -> Option<Res> {
+        let ExprKind::Ident([res]) = self.peel_parens().kind else { return None };
+        Some(*res)
+    }
+
     /// Returns the variable ID if this is an unambiguous variable expression.
     ///
     /// Parentheses are ignored, but expressions with multiple resolutions are rejected even if
     /// one of those resolutions is a variable.
     pub fn as_variable(&self) -> Option<VariableId> {
-        let ExprKind::Ident([res]) = self.peel_parens().kind else { return None };
-        res.as_variable()
+        self.as_res()?.as_variable()
     }
 }
 
@@ -2028,12 +2040,14 @@ mod tests {
         let paren_values = [Some(&variable_expr)];
         let paren_expr =
             Expr { id: ExprId::new(2), kind: ExprKind::Tuple(&paren_values), span: Span::DUMMY };
+        assert_eq!(paren_expr.as_res(), Some(Res::Item(ItemId::Variable(variable))));
         assert_eq!(paren_expr.as_variable(), Some(variable));
 
         let ambiguous_res =
             [Res::Item(ItemId::Variable(variable)), Res::Item(ItemId::Function(function))];
         let ambiguous_expr =
             Expr { id: ExprId::new(3), kind: ExprKind::Ident(&ambiguous_res), span: Span::DUMMY };
+        assert_eq!(ambiguous_expr.as_res(), None);
         assert_eq!(ambiguous_expr.as_variable(), None);
     }
 

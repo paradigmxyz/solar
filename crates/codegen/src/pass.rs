@@ -43,6 +43,7 @@ use std::{
 /// All known MIR passes exposed to `solar mir-opt`.
 pub static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline,
+    &inline::SpecializeFunctionPointers,
     &outline_reverts::OutlineReverts,
     &cfg_simplify::FunctionDce,
     &sccp::Sccp,
@@ -85,10 +86,64 @@ pub fn lookup_pass(name: &str) -> Option<&'static dyn MirPass> {
     ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
 }
 
+struct SizeOnly<P>(P);
+
+impl<P: MirPass> MirPass for SizeOnly<P> {
+    fn name(&self) -> &'static str {
+        self.0.name()
+    }
+
+    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        gcx.sess.opts.optimization.is_size() && self.0.is_enabled(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        self.0.is_required()
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut ModuleAnalyses,
+    ) -> bool {
+        self.0.run_pass(gcx, module, analyses)
+    }
+}
+
+struct GasOnly<P>(P);
+
+impl<P: MirPass> MirPass for GasOnly<P> {
+    fn name(&self) -> &'static str {
+        self.0.name()
+    }
+
+    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        gcx.sess.opts.optimization.is_gas() && self.0.is_enabled(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        self.0.is_required()
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut ModuleAnalyses,
+    ) -> bool {
+        self.0.run_pass(gcx, module, analyses)
+    }
+}
+
 /// The canonical MIR pipeline used by EVM codegen.
 pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &inline::Inline,
     &cfg_simplify::FunctionDce,
+    // Early frame scalarization improves size but can increase hot-path gas.
+    &SizeOnly(cfg_simplify::CfgSimplify),
+    &SizeOnly(frame_promotion::FrameSlotPromotion),
+    &SizeOnly(sroa::Sroa),
     &sccp::Sccp,
     &pure_eval::PureEval,
     &inst_simplify::InstSimplify,
@@ -118,7 +173,24 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // equivalent terminal blocks: lowering and stack scheduling can
     // hide their shared semantic shape from the backend passes.
     &outline_reverts::OutlineReverts,
-    // Progressive lowering materializes ABI wrappers, the dispatcher, and
+    // Outlining and late control-flow rewrites expose scalar simplifications.
+    // Thread and clean the CFG first so the rest of this sequence observes the
+    // simplified graph in one pass through the pipeline.
+    &jump_threading::JumpThreading,
+    &cfg_simplify::CfgSimplify,
+    &inline::SpecializeFunctionPointers,
+    &cfg_simplify::FunctionDce,
+    &sccp::Sccp,
+    &inst_simplify::InstSimplify,
+    &cse::Cse,
+    &gvn::Gvn,
+    &check_elim::CheckElim,
+    &jump_threading::JumpThreading,
+    &cfg_simplify::CfgSimplify,
+    &frame_promotion::FrameSlotPromotion,
+    &memory_dse::MemoryDse,
+    &adce::Adce,
+    // Progressive lowering materializes ABI wrappers, selector routing, and
     // tail-call edges as MIR. Each pass bails without advancing the phase
     // when the module is outside its scope.
     &lower_abi::LowerAbi,
@@ -127,83 +199,43 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_aggregates::LowerAggregates,
     &inst_simplify::InstSimplify,
     &cfg_simplify::CfgSimplify,
+    &memory_dse::MemoryDse,
+    // Late CSE reduces runtime gas after aggregate lowering, but can grow
+    // bytecode through longer live ranges, so keep it out of `-Osize`.
+    &GasOnly(cse::Cse),
     &dce::Dce,
     &lower_slices::LowerSlices,
     &lower_dispatch::LowerDispatch,
     &lower_memory_objects::LowerMemoryObjects,
-    &lower_evm_shaped::LowerEvmShaped,
     &lower_immutables::LowerImmutables,
     &lower_alloc::LowerAlloc,
+    &lower_evm_shaped::LowerEvmShaped,
 ];
-
-const DEFAULT_LOWERING_PASSES: usize = 13;
-
-/// Cleanup passes rerun after the primary pipeline until no pass changes MIR.
-///
-/// Keep this group focused on simplification and canonicalization. Structural
-/// profitability passes such as inlining and storage promotion run once in
-/// [`DEFAULT_PIPELINE`], while this loop cleans up opportunities exposed by
-/// those transforms.
-pub static DEFAULT_CLEANUP_PIPELINE: &[&dyn MirPass] = &[
-    &sccp::Sccp,
-    &pure_eval::PureEval,
-    &inst_simplify::InstSimplify,
-    &cse::Cse,
-    &gvn::Gvn,
-    &pre::Pre,
-    &storage_load_cse::StorageLoadCse,
-    &storage_dse::StorageDse,
-    &load_pre::LoadPre,
-    &check_elim::CheckElim,
-    &jump_threading::JumpThreading,
-    &cfg_simplify::CfgSimplify,
-    &frame_promotion::FrameSlotPromotion,
-    &sroa::Sroa,
-    &copy_elision::CopyElision,
-    &memory_dse::MemoryDse,
-    &adce::Adce,
-    &dce::Dce,
-];
-
-const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
 
 /// Runs the canonical MIR pipeline used by EVM codegen.
 ///
-/// The optimization prefix advances the module to `MirPhase::Optimized` before
-/// cleanup. The lowering suffix then advances it as far as the module permits.
-/// Modules already past optimization resume at the lowering suffix. Ad-hoc
-/// `solar mir-opt` pass lists do not advance the phase.
+/// The optimization prefix advances the module to `MirPhase::Optimized`. The
+/// lowering suffix then advances it as far as the module permits. Modules
+/// already past optimization resume at the lowering suffix. Ad-hoc pass lists
+/// passed to `solar mir-opt` do not advance the phase.
 #[tracing::instrument(
     name = "mir_pipeline",
     level = "debug",
     skip_all,
     fields(module = %module.name),
 )]
+#[must_use]
 pub fn run_default_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-    let optimization_end = DEFAULT_PIPELINE.len() - DEFAULT_LOWERING_PASSES;
-    let (optimization_passes, lowering_passes) = DEFAULT_PIPELINE.split_at(optimization_end);
+    let lowering_start = DEFAULT_PIPELINE
+        .iter()
+        .position(|pass| pass.name() == lower_abi::LowerAbi.name())
+        .expect("default pipeline must contain `lower-abi`");
+    let (optimization_passes, lowering_passes) = DEFAULT_PIPELINE.split_at(lowering_start);
     let mut changed = false;
     if module.phase <= MirPhase::Optimized {
         changed |= run_passes(gcx, module, optimization_passes, Some(MirPhase::Optimized));
-        changed |= run_cleanup_pipeline_to_fixpoint(gcx, module, DEFAULT_CLEANUP_PIPELINE);
     }
     changed |= run_passes(gcx, module, lowering_passes, None);
-    changed
-}
-
-fn run_cleanup_pipeline_to_fixpoint(
-    gcx: solar_sema::Gcx<'_>,
-    module: &mut Module,
-    passes: &[&dyn MirPass],
-) -> bool {
-    let mut changed = false;
-    for _ in 0..DEFAULT_CLEANUP_MAX_ROUNDS {
-        let round_changed = run_passes(gcx, module, passes, None);
-        if !round_changed {
-            break;
-        }
-        changed = true;
-    }
     changed
 }
 
@@ -231,6 +263,7 @@ pub(crate) trait AnalysisPass {
 }
 
 /// Runs a function-local transform over every bodied function in a module.
+#[must_use]
 pub(crate) fn run_function_pass(
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
@@ -346,14 +379,15 @@ fn verified_preservation(
 ) -> (bool, bool) {
     let edges_after = cfg_edges(func);
     let keep_cfg = edges_after == edges_before;
-    let no_new_side_effects = (insts_before..func.instructions.len())
+    let no_new_side_effects = (insts_before..func.num_insts())
         .map(InstId::from_usize)
-        .all(|inst_id| !func.instructions[inst_id].kind.has_side_effects());
+        .all(|inst_id| !func.inst(inst_id).kind.has_side_effects());
     let keep_alias = no_new_side_effects
         && (keep_cfg || edges_after.iter().all(|edge| edges_before.binary_search(edge).is_ok()));
     (keep_alias, keep_cfg)
 }
 
+#[must_use]
 fn run_function_pass_cached(
     analyses: &mut ModuleAnalyses,
     module: &mut Module,
@@ -363,7 +397,7 @@ fn run_function_pass_cached(
     let bundle = analyses.bundle(func_id, &module.functions[func_id]);
     let func = &mut module.functions[func_id];
     let edges_before = cfg_edges(func);
-    let insts_before = func.instructions.len();
+    let insts_before = func.num_insts();
     let changed = run(func, &bundle);
     if changed {
         let (keep_alias, keep_cfg) = verified_preservation(func, &edges_before, insts_before);

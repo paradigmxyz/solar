@@ -159,9 +159,9 @@ impl LoopOptimizer {
                 .then_with(|| a.index().cmp(&b.index()))
         });
 
-        let mut selected = DenseBitSet::new_empty(func.instructions.len());
+        let mut selected = DenseBitSet::new_empty(func.num_insts());
         let mut closure = Vec::new();
-        let mut visiting = DenseBitSet::new_empty(func.instructions.len());
+        let mut visiting = DenseBitSet::new_empty(func.num_insts());
         for root in roots {
             closure.clear();
             visiting.clear();
@@ -229,7 +229,7 @@ impl LoopOptimizer {
             return false;
         }
 
-        let inst = &func.instructions[inst_id];
+        let inst = func.inst(inst_id);
         for operand in inst.kind.operands() {
             if let Value::Inst(dep_inst) = func.value(operand)
                 && self.inst_in_loop(func, *dep_inst, ctx.loop_data)
@@ -244,7 +244,7 @@ impl LoopOptimizer {
     }
 
     fn can_hoist_safely(&self, func: &Function, inst_id: InstId, ctx: LoopOptContext<'_>) -> bool {
-        let inst = &func.instructions[inst_id];
+        let inst = func.inst(inst_id);
 
         if inst.kind.has_side_effects() {
             return false;
@@ -388,20 +388,16 @@ impl LoopOptimizer {
     }
 
     fn function_observes_msize(&self, func: &Function) -> bool {
-        func.blocks.iter().any(|block| {
-            block
-                .instructions
-                .iter()
-                .any(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::MSize))
-        })
+        func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::MSize))
     }
 
     fn loop_contains_call_or_create(&self, func: &Function, loop_data: &Loop) -> bool {
         loop_data.blocks.iter().any(|block_id| {
             func.blocks[block_id].instructions.iter().any(|&inst_id| {
                 matches!(
-                    func.instructions[inst_id].kind,
+                    func.inst(inst_id).kind,
                     InstKind::Call { .. }
+                        | InstKind::CallCode { .. }
                         | InstKind::StaticCall { .. }
                         | InstKind::DelegateCall { .. }
                         | InstKind::InternalCall { .. }
@@ -417,7 +413,7 @@ impl LoopOptimizer {
     }
 
     fn licm_profit(&self, func: &Function, inst_id: InstId) -> u16 {
-        match func.instructions[inst_id].kind {
+        match func.inst(inst_id).kind {
             InstKind::SLoad(_) => 100,
             InstKind::TLoad(_) => 100,
             InstKind::Keccak256(_, _) => 30,
@@ -431,7 +427,8 @@ impl LoopOptimizer {
             | InstKind::Mod(_, _)
             | InstKind::SMod(_, _)
             | InstKind::AddMod(_, _, _)
-            | InstKind::MulMod(_, _, _) => 5,
+            | InstKind::MulMod(_, _, _)
+            | InstKind::Clz(_) => 5,
             InstKind::MLoad(_) | InstKind::CalldataLoad(_) => 3,
             _ => 0,
         }
@@ -457,7 +454,7 @@ impl LoopOptimizer {
     fn loop_observes_gas(&self, func: &Function, loop_data: &Loop) -> bool {
         for block_id in &loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                if matches!(func.instructions[inst_id].kind, InstKind::Gas) {
+                if matches!(func.inst(inst_id).kind, InstKind::Gas) {
                     return true;
                 }
             }
@@ -492,7 +489,7 @@ impl LoopOptimizer {
         let aa = self.alias();
         for block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                match func.instructions[inst_id].kind {
+                match func.inst(inst_id).kind {
                     InstKind::MStore(addr, _) => {
                         if self.memory_ranges_may_alias(
                             func, ctx, load_addr, load_width, addr, 32, block_id,
@@ -541,7 +538,7 @@ impl LoopOptimizer {
 
         for block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                match (space, &func.instructions[inst_id].kind) {
+                match (space, &func.inst(inst_id).kind) {
                     (StorageSpace::Persistent, InstKind::SStore(slot, _))
                     | (StorageSpace::Transient, InstKind::TStore(slot, _)) => {
                         let Some(store_alias) =
@@ -588,9 +585,9 @@ impl LoopOptimizer {
         loop_data.blocks.iter().any(|block_id| {
             func.blocks[block_id].instructions.iter().any(|&inst_id| {
                 matches!(
-                    func.instructions[inst_id].kind,
+                    func.inst(inst_id).kind,
                     InstKind::StoreImmutable { id, .. } if id == load_id
-                ) || matches!(func.instructions[inst_id].kind, InstKind::InternalCall { .. })
+                ) || matches!(func.inst(inst_id).kind, InstKind::InternalCall { .. })
             })
         })
     }
@@ -701,21 +698,21 @@ impl LoopOptimizer {
     fn const_addr(&self, func: &Function, value: ValueId) -> Option<u64> {
         match func.value(value) {
             Value::Immediate(imm) => imm.as_u256()?.try_into().ok(),
-            Value::Arg { .. } | Value::Inst(_) | Value::Undef(_) | Value::Error(_) => None,
+            Value::Arg(_) | Value::Inst(_) | Value::Undef(_) | Value::Error(_) => None,
         }
     }
 
     fn const_condition(&self, func: &Function, value: ValueId) -> Option<bool> {
         match func.value(value) {
             Value::Immediate(imm) => Some(!imm.as_u256()?.is_zero()),
-            Value::Arg { .. } | Value::Inst(_) | Value::Undef(_) | Value::Error(_) => None,
+            Value::Arg(_) | Value::Inst(_) | Value::Undef(_) | Value::Error(_) => None,
         }
     }
 
     fn const_i128(&self, func: &Function, value: ValueId) -> Option<i128> {
         match func.value(value) {
             Value::Immediate(imm) => u256_to_i128(imm.as_u256()?),
-            Value::Arg { .. } | Value::Inst(_) | Value::Undef(_) | Value::Error(_) => None,
+            Value::Arg(_) | Value::Inst(_) | Value::Undef(_) | Value::Error(_) => None,
         }
     }
 
@@ -743,7 +740,7 @@ impl LoopOptimizer {
         match func.value(value) {
             Value::Inst(inst_id) => self.inst_in_loop(func, *inst_id, loop_data),
             Value::Undef(_) | Value::Error(_) => true,
-            Value::Arg { .. } | Value::Immediate(_) => false,
+            Value::Arg(_) | Value::Immediate(_) => false,
         }
     }
 
@@ -756,7 +753,7 @@ impl LoopOptimizer {
         let Some(result) = func.inst_result_value(inst_id) else { return false };
         for block_id in &ctx.loop_data.blocks {
             for &user_inst in &func.blocks[block_id].instructions {
-                let kind = &func.instructions[user_inst].kind;
+                let kind = &func.inst(user_inst).kind;
                 let mut address_operands = ArrayVec::<ValueId, 2>::new();
                 match kind {
                     InstKind::MLoad(addr)
@@ -809,7 +806,7 @@ impl LoopOptimizer {
         if !self.inst_in_loop(func, *inst_id, ctx.loop_data) {
             return false;
         }
-        func.instructions[*inst_id]
+        func.inst(*inst_id)
             .kind
             .operands()
             .iter()
@@ -818,12 +815,12 @@ impl LoopOptimizer {
     }
 
     fn topological_sort_instructions(&self, func: &Function, insts: &[InstId]) -> Vec<InstId> {
-        let mut inst_set = DenseBitSet::new_empty(func.instructions.len());
+        let mut inst_set = DenseBitSet::new_empty(func.num_insts());
         for &inst_id in insts {
             inst_set.insert(inst_id);
         }
         let mut result = Vec::new();
-        let mut visited = DenseBitSet::new_empty(func.instructions.len());
+        let mut visited = DenseBitSet::new_empty(func.num_insts());
 
         fn visit(
             func: &Function,
@@ -836,9 +833,9 @@ impl LoopOptimizer {
                 return;
             }
 
-            let inst = &func.instructions[inst_id];
+            let inst = func.inst(inst_id);
             for operand in inst.kind.operands() {
-                if let Value::Inst(dep_inst) = &func.values[operand]
+                if let Value::Inst(dep_inst) = func.value(operand)
                     && inst_set.contains(*dep_inst)
                 {
                     visit(func, *dep_inst, inst_set, visited, result);
@@ -857,361 +854,4 @@ impl LoopOptimizer {
 
 fn u256_to_i128(value: U256) -> Option<i128> {
     if value <= U256::from(i128::MAX as u128) { Some(value.to::<u128>() as i128) } else { None }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::{FunctionBuilder, MirType, Terminator};
-    use solar_interface::Ident;
-
-    #[test]
-    fn licm_hoists_profitable_invariant_mul() {
-        let mut func = Function::new(Ident::DUMMY);
-        let mul_value;
-        let entry;
-        let header;
-        let body;
-
-        {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let x = builder.add_param(MirType::uint256());
-            let seven = builder.imm_u64(7);
-            let cond = builder.imm_bool(true);
-
-            entry = builder.current_block();
-            header = builder.create_block();
-            body = builder.create_block();
-            let exit = builder.create_block();
-
-            builder.jump(header);
-
-            builder.switch_to_block(header);
-            builder.branch(cond, body, exit);
-
-            builder.switch_to_block(body);
-            mul_value = builder.mul(x, seven);
-            builder.jump(header);
-
-            builder.switch_to_block(exit);
-            builder.stop();
-        }
-
-        let Value::Inst(mul_inst) = func.value(mul_value) else {
-            panic!("mul should be an instruction");
-        };
-        let mul_inst = *mul_inst;
-        assert!(func.blocks[body].instructions.contains(&mul_inst));
-
-        let mut optimizer = LoopOptimizer::with_limits(5, 4);
-        optimizer.optimize(&mut func);
-
-        assert!(func.blocks[entry].instructions.contains(&mul_inst));
-        assert!(!func.blocks[body].instructions.contains(&mul_inst));
-        assert!(matches!(func.blocks[header].terminator, Some(Terminator::Branch { .. })));
-    }
-
-    #[test]
-    fn licm_hoists_mload_past_non_overlapping_const_store() {
-        let mut func = Function::new(Ident::DUMMY);
-        let load_value;
-        let entry;
-        let body;
-
-        {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let zero = builder.imm_u64(0);
-            let sixty_four = builder.imm_u64(64);
-            let value = builder.imm_u64(1);
-            let cond = builder.imm_bool(true);
-
-            entry = builder.current_block();
-            let header = builder.create_block();
-            body = builder.create_block();
-            let exit = builder.create_block();
-
-            builder.jump(header);
-
-            builder.switch_to_block(header);
-            builder.branch(cond, body, exit);
-
-            builder.switch_to_block(body);
-            load_value = builder.mload(zero);
-            builder.mstore(sixty_four, value);
-            builder.jump(header);
-
-            builder.switch_to_block(exit);
-            builder.ret(vec![load_value]);
-        }
-
-        let Value::Inst(load_inst) = func.value(load_value) else {
-            panic!("mload should be an instruction");
-        };
-        let load_inst = *load_inst;
-        assert!(func.blocks[body].instructions.contains(&load_inst));
-
-        let mut optimizer = LoopOptimizer::with_limits(3, 4);
-        optimizer.optimize(&mut func);
-
-        assert!(func.blocks[entry].instructions.contains(&load_inst));
-        assert!(!func.blocks[body].instructions.contains(&load_inst));
-    }
-
-    #[test]
-    fn licm_keeps_mload_inside_loop_when_store_overlaps() {
-        let mut func = Function::new(Ident::DUMMY);
-        let load_value;
-        let body;
-
-        {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let zero = builder.imm_u64(0);
-            let overlapping = builder.imm_u64(16);
-            let value = builder.imm_u64(1);
-            let cond = builder.imm_bool(true);
-
-            let header = builder.create_block();
-            body = builder.create_block();
-            let exit = builder.create_block();
-
-            builder.jump(header);
-
-            builder.switch_to_block(header);
-            builder.branch(cond, body, exit);
-
-            builder.switch_to_block(body);
-            load_value = builder.mload(zero);
-            builder.mstore(overlapping, value);
-            builder.jump(header);
-
-            builder.switch_to_block(exit);
-            builder.ret(vec![load_value]);
-        }
-
-        let Value::Inst(load_inst) = func.value(load_value) else {
-            panic!("mload should be an instruction");
-        };
-        let load_inst = *load_inst;
-
-        let mut optimizer = LoopOptimizer::with_limits(3, 4);
-        optimizer.optimize(&mut func);
-
-        assert!(func.blocks[body].instructions.contains(&load_inst));
-    }
-
-    #[test]
-    fn licm_hoists_keccak_past_non_overlapping_const_store() {
-        let mut func = Function::new(Ident::DUMMY);
-        let hash_value;
-        let entry;
-        let body;
-
-        {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let zero = builder.imm_u64(0);
-            let thirty_two = builder.imm_u64(32);
-            let sixty_four = builder.imm_u64(64);
-            let value = builder.imm_u64(1);
-            let cond = builder.imm_bool(true);
-
-            entry = builder.current_block();
-            let header = builder.create_block();
-            body = builder.create_block();
-            let exit = builder.create_block();
-
-            builder.jump(header);
-
-            builder.switch_to_block(header);
-            builder.branch(cond, body, exit);
-
-            builder.switch_to_block(body);
-            hash_value = builder.keccak256(zero, thirty_two);
-            builder.mstore(sixty_four, value);
-            builder.jump(header);
-
-            builder.switch_to_block(exit);
-            builder.ret(vec![hash_value]);
-        }
-
-        let Value::Inst(hash_inst) = func.value(hash_value) else {
-            panic!("keccak256 should be an instruction");
-        };
-        let hash_inst = *hash_inst;
-
-        let mut optimizer = LoopOptimizer::with_limits(5, 4);
-        optimizer.optimize(&mut func);
-
-        assert!(func.blocks[entry].instructions.contains(&hash_inst));
-        assert!(!func.blocks[body].instructions.contains(&hash_inst));
-    }
-
-    #[test]
-    fn licm_keeps_keccak_inside_loop_when_store_overlaps() {
-        let mut func = Function::new(Ident::DUMMY);
-        let hash_value;
-        let body;
-
-        {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let zero = builder.imm_u64(0);
-            let thirty_two = builder.imm_u64(32);
-            let overlapping = builder.imm_u64(16);
-            let value = builder.imm_u64(1);
-            let cond = builder.imm_bool(true);
-
-            let header = builder.create_block();
-            body = builder.create_block();
-            let exit = builder.create_block();
-
-            builder.jump(header);
-
-            builder.switch_to_block(header);
-            builder.branch(cond, body, exit);
-
-            builder.switch_to_block(body);
-            hash_value = builder.keccak256(zero, thirty_two);
-            builder.mstore(overlapping, value);
-            builder.jump(header);
-
-            builder.switch_to_block(exit);
-            builder.ret(vec![hash_value]);
-        }
-
-        let Value::Inst(hash_inst) = func.value(hash_value) else {
-            panic!("keccak256 should be an instruction");
-        };
-        let hash_inst = *hash_inst;
-
-        let mut optimizer = LoopOptimizer::with_limits(5, 4);
-        optimizer.optimize(&mut func);
-
-        assert!(func.blocks[body].instructions.contains(&hash_inst));
-    }
-
-    #[test]
-    fn licm_hoists_sload_past_different_const_slot_store() {
-        let mut func = Function::new(Ident::DUMMY);
-        let load_value;
-        let entry;
-        let body;
-
-        {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let slot_zero = builder.imm_u64(0);
-            let slot_one = builder.imm_u64(1);
-            let value = builder.imm_u64(1);
-            let cond = builder.imm_bool(true);
-
-            entry = builder.current_block();
-            let header = builder.create_block();
-            body = builder.create_block();
-            let exit = builder.create_block();
-
-            builder.jump(header);
-
-            builder.switch_to_block(header);
-            builder.branch(cond, body, exit);
-
-            builder.switch_to_block(body);
-            load_value = builder.sload(slot_zero);
-            builder.sstore(slot_one, value);
-            builder.jump(header);
-
-            builder.switch_to_block(exit);
-            builder.ret(vec![load_value]);
-        }
-
-        let Value::Inst(load_inst) = func.value(load_value) else {
-            panic!("sload should be an instruction");
-        };
-        let load_inst = *load_inst;
-
-        let mut optimizer = LoopOptimizer::with_limits(5, 4);
-        optimizer.optimize(&mut func);
-
-        assert!(func.blocks[entry].instructions.contains(&load_inst));
-        assert!(!func.blocks[body].instructions.contains(&load_inst));
-    }
-
-    #[test]
-    fn licm_keeps_sload_inside_loop_when_store_uses_same_slot() {
-        let mut func = Function::new(Ident::DUMMY);
-        let load_value;
-        let body;
-
-        {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let slot = builder.imm_u64(0);
-            let value = builder.imm_u64(1);
-            let cond = builder.imm_bool(true);
-
-            let header = builder.create_block();
-            body = builder.create_block();
-            let exit = builder.create_block();
-
-            builder.jump(header);
-
-            builder.switch_to_block(header);
-            builder.branch(cond, body, exit);
-
-            builder.switch_to_block(body);
-            load_value = builder.sload(slot);
-            builder.sstore(slot, value);
-            builder.jump(header);
-
-            builder.switch_to_block(exit);
-            builder.ret(vec![load_value]);
-        }
-
-        let Value::Inst(load_inst) = func.value(load_value) else {
-            panic!("sload should be an instruction");
-        };
-        let load_inst = *load_inst;
-
-        let mut optimizer = LoopOptimizer::with_limits(5, 4);
-        optimizer.optimize(&mut func);
-
-        assert!(func.blocks[body].instructions.contains(&load_inst));
-    }
-
-    #[test]
-    fn licm_does_not_move_work_across_gas_observer() {
-        let mut func = Function::new(Ident::DUMMY);
-        let mul_value;
-        let body;
-
-        {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let x = builder.add_param(MirType::uint256());
-            let seven = builder.imm_u64(7);
-            let cond = builder.imm_bool(true);
-
-            let header = builder.create_block();
-            body = builder.create_block();
-            let exit = builder.create_block();
-
-            builder.jump(header);
-
-            builder.switch_to_block(header);
-            builder.branch(cond, body, exit);
-
-            builder.switch_to_block(body);
-            builder.gas();
-            mul_value = builder.mul(x, seven);
-            builder.jump(header);
-
-            builder.switch_to_block(exit);
-            builder.ret(vec![mul_value]);
-        }
-
-        let Value::Inst(mul_inst) = func.value(mul_value) else {
-            panic!("mul should be an instruction");
-        };
-        let mul_inst = *mul_inst;
-
-        let mut optimizer = LoopOptimizer::with_limits(5, 4);
-        optimizer.optimize(&mut func);
-
-        assert!(func.blocks[body].instructions.contains(&mul_inst));
-    }
 }

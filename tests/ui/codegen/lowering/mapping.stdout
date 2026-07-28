@@ -5,7 +5,7 @@ fn @balances(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -21,21 +21,21 @@ fn @allowances(arg0: address, arg1: address) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = eq v3, v4
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
     v6 = calldataload 36
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v8 = eq v6, v7
-    br v8, bb6, bb5
+    jumpi v8, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
@@ -52,7 +52,7 @@ fn @set_balance(arg0: u256, arg1: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -66,7 +66,7 @@ fn @add_balance(arg0: u256, arg1: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -74,7 +74,7 @@ fn @add_balance(arg0: u256, arg1: u256) {
     v4 = sload v3 !metadata(storage=symbolic(v3))
     v5 = add v4, arg1
     v6 = lt v5, v4
-    br v6, bb3, bb4
+    jumpi v6, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -90,21 +90,21 @@ fn @approve(arg0: address, arg1: address, arg2: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = eq v3, v4
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
     v6 = calldataload 36
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v8 = eq v6, v7
-    br v8, bb6, bb5
+    jumpi v8, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
@@ -119,21 +119,21 @@ fn @get_allowance(arg0: address, arg1: address) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = eq v3, v4
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
     v6 = calldataload 36
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v8 = eq v6, v7
-    br v8, bb6, bb5
+    jumpi v8, bb6, bb5
   bb5:
     revert 0, 0
   bb6:

@@ -5,7 +5,7 @@ use super::{
     MirType, SliceLocation, StorageLayoutRef, Value, ValueId,
 };
 use alloy_primitives::U256;
-use smallvec::SmallVec;
+use smallvec::{Array, SmallVec};
 use solar_interface::Span;
 use solar_sema::hir;
 use std::fmt;
@@ -233,7 +233,7 @@ impl StorageAlias {
     pub(crate) fn for_value(func: &Function, value: ValueId) -> Self {
         match func.value(value) {
             Value::Immediate(imm) => imm.as_u256().map_or(Self::Symbolic(value), Self::Slot),
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::Add(lhs, rhs) => {
                     if let Some(offset) = Self::immediate_u256(func, rhs) {
                         Self::add_offset(func, lhs, offset)
@@ -252,7 +252,7 @@ impl StorageAlias {
                 }
                 _ => Self::Symbolic(value),
             },
-            Value::Arg { .. } | Value::Undef(_) | Value::Error(_) => Self::Symbolic(value),
+            Value::Arg(_) | Value::Undef(_) | Value::Error(_) => Self::Symbolic(value),
         }
     }
 
@@ -480,6 +480,8 @@ pub(crate) struct Instruction {
     pub(crate) kind: InstKind,
     /// The result type (if any).
     pub(crate) result_ty: Option<MirType>,
+    /// The value allocated for this instruction's result.
+    result: Option<ValueId>,
     /// Metadata produced by lowering or analysis.
     pub(crate) metadata: InstructionMetadata,
 }
@@ -488,7 +490,18 @@ impl Instruction {
     /// Creates a new instruction.
     #[must_use]
     pub(crate) const fn new(kind: InstKind, result_ty: Option<MirType>) -> Self {
-        Self { kind, result_ty, metadata: InstructionMetadata::EMPTY }
+        Self { kind, result_ty, result: None, metadata: InstructionMetadata::EMPTY }
+    }
+
+    /// Returns the value allocated for this instruction's result.
+    #[must_use]
+    pub(super) const fn result(&self) -> Option<ValueId> {
+        self.result
+    }
+
+    /// Replaces the value allocated for this instruction's result.
+    pub(super) fn set_result(&mut self, result: Option<ValueId>) -> Option<ValueId> {
+        std::mem::replace(&mut self.result, result)
     }
 
     /// Returns the operands of this instruction.
@@ -536,6 +549,8 @@ pub(crate) enum InstKind {
     Xor(ValueId, ValueId),
     /// Bitwise NOT: `~a`
     Not(ValueId),
+    /// Count leading zero bits.
+    Clz(ValueId),
     /// Left shift: `a << b`
     Shl(ValueId, ValueId),
     /// Logical right shift: `a >> b`
@@ -777,6 +792,16 @@ pub(crate) enum InstKind {
         ret_offset: ValueId,
         ret_size: ValueId,
     },
+    /// Call code: `callcode(gas, addr, value, argsOffset, argsSize, retOffset, retSize)`
+    CallCode {
+        gas: ValueId,
+        addr: ValueId,
+        value: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+        ret_offset: ValueId,
+        ret_size: ValueId,
+    },
     /// Static call: `staticcall(gas, addr, argsOffset, argsSize, retOffset, retSize)`
     StaticCall {
         gas: ValueId,
@@ -831,7 +856,7 @@ pub(crate) enum InstKind {
 impl InstKind {
     /// Collects all operands of this instruction into the provided vector.
     /// This is the canonical way to get all operands for liveness analysis.
-    pub(crate) fn collect_operands(&self, out: &mut SmallVec<[ValueId; 8]>) {
+    pub(crate) fn collect_operands<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
         match self {
             // Binary operations
             Self::Add(a, b)
@@ -886,12 +911,12 @@ impl InstKind {
             }
 
             Self::AbiEncode { selector, args, .. } => {
-                out.extend(selector.iter().copied());
-                out.extend(args.iter().copied());
+                out.extend(selector.iter().chain(args).copied());
             }
 
             // Unary operations
             Self::Not(a)
+            | Self::Clz(a)
             | Self::IsZero(a)
             | Self::MLoad(a)
             | Self::SetFmp(a)
@@ -960,7 +985,8 @@ impl InstKind {
             }
 
             // Call operations
-            Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
+            Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size }
+            | Self::CallCode { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
                 out.push(*gas);
                 out.push(*addr);
                 out.push(*value);
@@ -1094,6 +1120,7 @@ impl InstKind {
             }
 
             Self::Not(a)
+            | Self::Clz(a)
             | Self::IsZero(a)
             | Self::MLoad(a)
             | Self::SetFmp(a)
@@ -1155,7 +1182,8 @@ impl InstKind {
                 f(g);
             }
 
-            Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
+            Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size }
+            | Self::CallCode { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
                 f(gas);
                 f(addr);
                 f(value);
@@ -1228,6 +1256,7 @@ impl InstKind {
             Self::Or(_, _) => "or",
             Self::Xor(_, _) => "xor",
             Self::Not(_) => "not",
+            Self::Clz(_) => "clz",
             Self::Shl(_, _) => "shl",
             Self::Shr(_, _) => "shr",
             Self::Sar(_, _) => "sar",
@@ -1301,6 +1330,7 @@ impl InstKind {
             Self::MappingSlotMemory(_, _) => "mapping_slot_memory",
             Self::MappingSlotCalldata(_, _) => "mapping_slot_calldata",
             Self::Call { .. } => "call",
+            Self::CallCode { .. } => "callcode",
             Self::StaticCall { .. } => "staticcall",
             Self::DelegateCall { .. } => "delegatecall",
             Self::InternalCall { .. } => "internal_call",
@@ -1339,6 +1369,7 @@ impl InstKind {
             | Self::MCopy(_, _, _)
             // External calls
             | Self::Call { .. }
+            | Self::CallCode { .. }
             | Self::StaticCall { .. }
             | Self::DelegateCall { .. }
             | Self::InternalCall { .. }
@@ -1391,9 +1422,10 @@ impl InstKind {
             }
             Self::TLoad(_) => EffectKind::TransientRead,
             Self::TStore(_, _) => EffectKind::TransientWrite,
-            Self::Call { .. } | Self::StaticCall { .. } | Self::DelegateCall { .. } => {
-                EffectKind::ExternalCall
-            }
+            Self::Call { .. }
+            | Self::CallCode { .. }
+            | Self::StaticCall { .. }
+            | Self::DelegateCall { .. } => EffectKind::ExternalCall,
             Self::InternalCall { .. } => EffectKind::InternalCall,
             Self::Create(_, _, _) | Self::Create2(_, _, _, _) => EffectKind::Create,
             Self::Log0(_, _)
@@ -1442,6 +1474,7 @@ impl InstKind {
             | Self::Or(_, _)
             | Self::Xor(_, _)
             | Self::Not(_)
+            | Self::Clz(_)
             | Self::Shl(_, _)
             | Self::Shr(_, _)
             | Self::Sar(_, _)

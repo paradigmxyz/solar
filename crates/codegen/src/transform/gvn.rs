@@ -120,6 +120,7 @@ enum ExprKind {
     Or(ClassId, ClassId),
     Xor(ClassId, ClassId),
     Not(ClassId),
+    Clz(ClassId),
     Shl(ClassId, ClassId),
     Shr(ClassId, ClassId),
     Sar(ClassId, ClassId),
@@ -147,7 +148,6 @@ enum ExprKind {
 struct ReplaceCtx<'a> {
     vn: &'a IndexVec<ValueId, ClassId>,
     cfg: &'a CfgInfo,
-    inst_results: &'a FxHashMap<InstId, ValueId>,
     replacements: &'a mut FxHashMap<ValueId, ValueId>,
     dead: &'a mut DenseBitSet<InstId>,
 }
@@ -173,29 +173,23 @@ impl GlobalValueNumberer {
     /// Runs one numbering and replacement round. Returns true if MIR changed.
     fn run_round(&mut self, func: &mut Function) -> bool {
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
-        let inst_results = func.inst_results();
-        let Some(vn) = Self::compute_value_numbers(func, cfg.rpo(), &inst_results) else {
+        let Some((vn, available_values)) = Self::compute_value_numbers(func, cfg.rpo()) else {
             return false;
         };
 
         // Immediates, arguments, and undefs are available everywhere, so their
         // classes start with a leader. This folds phi-of-same over constants.
         let mut leaders: FxHashMap<ClassId, ValueId> = FxHashMap::default();
-        for (value_id, value) in func.values.iter_enumerated() {
-            if !matches!(value, Value::Inst(_)) && vn[value_id] == value_id {
+        for value_id in available_values.iter() {
+            if vn[value_id] == value_id {
                 leaders.insert(value_id, value_id);
             }
         }
 
         let mut replacements = FxHashMap::default();
-        let mut dead = DenseBitSet::new_empty(func.instructions.len());
-        let mut ctx = ReplaceCtx {
-            vn: &vn,
-            cfg: &cfg,
-            inst_results: &inst_results,
-            replacements: &mut replacements,
-            dead: &mut dead,
-        };
+        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        let mut ctx =
+            ReplaceCtx { vn: &vn, cfg: &cfg, replacements: &mut replacements, dead: &mut dead };
         self.replace_in_block(func, BlockId::ENTRY, &mut leaders, &mut ctx);
 
         if replacements.is_empty() {
@@ -215,21 +209,31 @@ impl GlobalValueNumberer {
     fn compute_value_numbers(
         func: &Function,
         rpo: &[BlockId],
-        inst_results: &FxHashMap<InstId, ValueId>,
-    ) -> Option<IndexVec<ValueId, ClassId>> {
-        let mut vn = func.values.indices().collect::<IndexVec<ValueId, _>>();
+    ) -> Option<(IndexVec<ValueId, ClassId>, DenseBitSet<ValueId>)> {
+        let mut vn = IndexVec::with_capacity(func.num_values());
+        for _ in 0..func.num_values() {
+            let value_id = vn.next_idx();
+            vn.push(value_id);
+        }
+        let mut available_values = DenseBitSet::new_empty(func.num_values());
         let mut immediate_reps: FxHashMap<Immediate, ValueId> = FxHashMap::default();
-        let mut arg_reps: FxHashMap<u32, ValueId> = FxHashMap::default();
-        for (value_id, value) in func.values.iter_enumerated() {
-            match value {
-                Value::Immediate(imm) => {
-                    vn[value_id] = *immediate_reps.entry(imm.clone()).or_insert(value_id);
-                }
-                Value::Arg { index, .. } => {
-                    vn[value_id] = *arg_reps.entry(*index).or_insert(value_id);
-                }
-                Value::Inst(_) | Value::Undef(_) | Value::Error(_) => {}
+        let mut arg_reps = FxHashMap::default();
+        let mut initialize = |value_id| match func.value(value_id) {
+            Value::Immediate(imm) => {
+                available_values.insert(value_id);
+                vn[value_id] = *immediate_reps.entry(imm.clone()).or_insert(value_id);
             }
+            Value::Arg(index) => {
+                available_values.insert(value_id);
+                vn[value_id] = *arg_reps.entry(*index).or_insert(value_id);
+            }
+            Value::Undef(_) | Value::Error(_) => {
+                available_values.insert(value_id);
+            }
+            Value::Inst(_) => {}
+        };
+        for value in func.live_values() {
+            initialize(value);
         }
 
         for _ in 0..MAX_VN_SWEEPS {
@@ -237,8 +241,8 @@ impl GlobalValueNumberer {
             let mut changed = false;
             for &block_id in rpo {
                 for &inst_id in &func.blocks[block_id].instructions {
-                    let Some(&result) = inst_results.get(&inst_id) else { continue };
-                    let inst = &func.instructions[inst_id];
+                    let Some(result) = func.inst_result_value(inst_id) else { continue };
+                    let inst = func.inst(inst_id);
                     let Some(ty) = inst.result_ty else { continue };
                     let Some(class) =
                         Self::instruction_class(block_id, &inst.kind, ty, result, &vn, &mut table)
@@ -252,7 +256,7 @@ impl GlobalValueNumberer {
                 }
             }
             if !changed {
-                return Some(vn);
+                return Some((vn, available_values));
             }
         }
         None
@@ -364,6 +368,7 @@ impl GlobalValueNumberer {
             InstKind::SGt(a, b) => ExprKind::SLt(class(b), class(a)),
             InstKind::IsZero(a) => ExprKind::IsZero(class(a)),
             InstKind::Not(a) => ExprKind::Not(class(a)),
+            InstKind::Clz(a) => ExprKind::Clz(class(a)),
             InstKind::Select(condition, then_value, else_value) => {
                 ExprKind::Select(class(condition), class(then_value), class(else_value))
             }
@@ -402,8 +407,8 @@ impl GlobalValueNumberer {
         ctx: &mut ReplaceCtx<'_>,
     ) {
         for &inst_id in &func.blocks[block_id].instructions {
-            let Some(&result) = ctx.inst_results.get(&inst_id) else { continue };
-            let kind = &func.instructions[inst_id].kind;
+            let Some(result) = func.inst_result_value(inst_id) else { continue };
+            let kind = &func.inst(inst_id).kind;
             if !matches!(kind, InstKind::Phi(_)) && Self::expr_kind(kind, ctx.vn).is_none() {
                 continue;
             }
@@ -448,7 +453,7 @@ impl GlobalValueNumberer {
         let instruction_count = func.blocks[block_id].instructions.len();
         for index in 0..instruction_count {
             let inst_id = func.blocks[block_id].instructions[index];
-            let inst = &mut func.instructions[inst_id];
+            let inst = func.inst_mut(inst_id);
             if mir_utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements) != 0 {
                 if mir_utils::is_memory_inst(&inst.kind) {
                     inst.metadata.set_memory_region(None);

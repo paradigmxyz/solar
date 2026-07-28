@@ -12,8 +12,7 @@
 //! and whose terminator is `revert(imm, imm)`. A shape that occurs at least
 //! twice (and is big enough for the jump to pay for itself) is synthesized
 //! once as a shared no-return helper, and each occurrence is rewritten into an
-//! argless `tail_call` to it — a bare jump in the backend, on both the
-//! MIR-dispatch and backend-dispatcher paths.
+//! argless `tail_call` to it — a bare jump in the backend.
 
 use crate::{
     mir::{Function, FunctionBuilder, InstKind, Module, Terminator, Value},
@@ -136,7 +135,7 @@ fn constant_revert_shape(func: &Function, block_idx: usize) -> Option<RevertShap
     };
     let mut stores = SmallVec::with_capacity(block.instructions.len());
     for &inst_id in &block.instructions {
-        let InstKind::MStore(store_offset, value) = func.instructions[inst_id].kind else {
+        let InstKind::MStore(store_offset, value) = func.inst(inst_id).kind else {
             return None;
         };
         stores.push((imm(store_offset)?, imm(value)?));

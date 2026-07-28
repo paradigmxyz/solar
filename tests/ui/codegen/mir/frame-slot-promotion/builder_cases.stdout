@@ -1,0 +1,75 @@
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/builder_cases.mir (before frame-slot-promotion) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/builder_cases.mir (after frame-slot-promotion) ===
+  @module FramePromotionBuilderCases
+  fn @loop_carried() -> u256 {
+    bb0:
+      v0 = internal_frame_addr 128
+-     mstore v0, 0
+      jump bb1
+    bb1:
++     v10 = phi [bb0: 0], [bb2: v6]
+      v1 = internal_frame_addr 128
+-     v2 = mload v1
+-     v3 = lt v2, 4
++     v3 = lt v10, 4
+      jumpi v3, bb2, bb3
+    bb2:
+      v4 = internal_frame_addr 128
+-     v5 = mload v4
+-     v6 = add v5, 1
++     v6 = add v10, 1
+      v7 = internal_frame_addr 128
+-     mstore v7, v6
+      jump bb1
+    bb3:
+      v8 = internal_frame_addr 128
+-     v9 = mload v8
+-     ret v9
++     ret v10
+  }
+  
+  fn @escaped_address() -> (bytes32, u256) {
+    bb0:
+      v0 = internal_frame_addr 128
+      mstore v0, 42
+      v1 = keccak256 v0, 32
+      v2 = mload v0
+      ret v1, v2
+  }
+  
+  fn @gas_observed() -> u256 {
+    bb0:
+      v0 = internal_frame_addr 128
+      mstore v0, 42
+      v1 = gas
+      v2 = mload v0
+      ret v2
+  }
+  
+  fn @internal_call() -> u256 {
+    bb0:
+      v0 = internal_frame_addr 128
+-     mstore v0, 42
+      internal_call @callee, 0
+-     v1 = mload v0
+-     ret v1
++     ret 42
+  }
+  
+  fn @callee() {
+    bb0:
+      ret
+  }
+  
+  fn @constant_offset() -> u256 {
+    bb0:
+      v0 = internal_frame_addr 128
+      v1 = add v0, 32
+-     mstore v1, 99
+      v2 = internal_frame_addr 128
+      v3 = add v2, 32
+-     v4 = mload v3
+-     ret v4
++     ret 99
+  }
+  

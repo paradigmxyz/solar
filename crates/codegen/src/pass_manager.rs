@@ -48,10 +48,12 @@ pub trait MirPass: Sync {
     }
 
     /// Runs the pass and returns whether it changed MIR.
+    #[must_use]
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool;
 }
 
 /// Runs a sequence of MIR passes without validating after each pass.
+#[must_use]
 pub fn run_passes_no_validate(
     gcx: Gcx<'_>,
     module: &mut Module,
@@ -62,6 +64,7 @@ pub fn run_passes_no_validate(
 }
 
 /// Runs a sequence of MIR passes, then applies `phase_change` when present.
+#[must_use]
 pub fn run_passes(
     gcx: Gcx<'_>,
     module: &mut Module,
@@ -71,6 +74,7 @@ pub fn run_passes(
     run_passes_inner(gcx, module, passes, phase_change, true)
 }
 
+#[must_use]
 fn run_passes_inner(
     gcx: Gcx<'_>,
     module: &mut Module,
@@ -109,7 +113,9 @@ fn run_passes_inner(
             module.phase.name(),
             new_phase.name()
         );
+        let phase_changed = module.phase != new_phase;
         module.advance_phase(new_phase);
+        changed |= phase_changed;
         if cfg!(debug_assertions) {
             validate_module_after_pass(module, new_phase.name());
         }

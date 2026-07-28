@@ -18,11 +18,14 @@ use solar_config::LspArgs;
 use std::ops::ControlFlow;
 use tower::ServiceBuilder;
 
+mod call_hierarchy;
+mod code_lens;
 mod commands;
 mod config;
 mod diagnostics;
 mod document_links;
 mod flycheck;
+mod folding_range;
 mod formatter;
 mod global_state;
 mod handlers;
@@ -30,6 +33,7 @@ mod hover;
 mod inlay_hints;
 mod natspec_completion;
 mod override_index;
+mod progress;
 #[cfg(any(test, feature = "bench"))]
 #[cfg_attr(all(feature = "bench", not(test)), allow(dead_code))]
 mod project_fixture;
@@ -40,6 +44,7 @@ mod selection_range;
 mod serde;
 mod signature_help;
 mod symbols;
+mod type_hierarchy;
 mod utils;
 mod vfs;
 mod workspace;
@@ -76,7 +81,7 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
 
     // Lifecycle
     router
-        .request::<req::Initialize, _>(GlobalState::on_initialize)
+        .request::<proto::Initialize, _>(GlobalState::on_initialize)
         .notification::<notif::Initialized>(GlobalState::on_initialized)
         .request::<req::Shutdown, _>(|_, _| std::future::ready(Ok(())))
         .notification::<notif::Exit>(|_, _| ControlFlow::Break(Ok(())));
@@ -92,13 +97,21 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
         .request::<req::GotoDeclaration, _>(handlers::goto_declaration)
         .request::<req::GotoImplementation, _>(handlers::goto_implementation)
         .request::<req::References, _>(handlers::references)
+        .request::<req::CodeLensRequest, _>(handlers::code_lens)
+        .request::<req::CallHierarchyPrepare, _>(handlers::prepare_call_hierarchy)
+        .request::<req::CallHierarchyIncomingCalls, _>(handlers::call_hierarchy_incoming)
+        .request::<req::CallHierarchyOutgoingCalls, _>(handlers::call_hierarchy_outgoing)
         .request::<req::DocumentHighlightRequest, _>(handlers::document_highlight)
         .request::<req::HoverRequest, _>(handlers::hover)
         .request::<req::PrepareRenameRequest, _>(handlers::prepare_rename)
         .request::<req::Rename, _>(handlers::rename)
         .request::<req::SignatureHelpRequest, _>(handlers::signature_help)
         .request::<req::InlayHintRequest, _>(handlers::inlay_hints)
+        .request::<req::FoldingRangeRequest, _>(handlers::folding_range)
         .request::<req::SelectionRangeRequest, _>(handlers::selection_range)
+        .request::<req::TypeHierarchyPrepare, _>(handlers::prepare_type_hierarchy)
+        .request::<req::TypeHierarchySupertypes, _>(handlers::type_hierarchy_supertypes)
+        .request::<req::TypeHierarchySubtypes, _>(handlers::type_hierarchy_subtypes)
         .request::<req::Completion, _>(handlers::completion)
         .request::<req::DocumentDiagnosticRequest, _>(handlers::document_diagnostic)
         .request::<req::Formatting, _>(handlers::formatting);
@@ -115,7 +128,8 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
         .notification::<notif::DidChangeTextDocument>(handlers::did_change_text_document)
         .notification::<notif::WillSaveTextDocument>(handlers::will_save_text_document)
         .notification::<notif::DidSaveTextDocument>(handlers::did_save_text_document)
-        .notification::<notif::DidChangeConfiguration>(handlers::did_change_configuration);
+        .notification::<notif::DidChangeConfiguration>(handlers::did_change_configuration)
+        .notification::<notif::WorkDoneProgressCancel>(GlobalState::on_work_done_progress_cancel);
 
     router
 }
@@ -161,15 +175,19 @@ mod tests {
         router::Router,
     };
     use lsp_types::{
-        CancelParams, CompletionParams, CompletionResponse,
+        CallHierarchyIncomingCallsParams, CallHierarchyItem, CallHierarchyOutgoingCallsParams,
+        CallHierarchyPrepareParams, CancelParams, CompletionParams, CompletionResponse,
         DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
         DidSaveTextDocumentParams, DocumentFormattingParams, DocumentHighlightParams,
         DocumentLinkParams, DocumentSymbolParams, ExecuteCommandParams, FileChangeType, FileEvent,
-        FormattingOptions, HoverParams, InitializeParams, InitializedParams, NumberOrString,
-        PartialResultParams, Position, SelectionRangeParams, SignatureHelpParams,
+        FoldingRangeParams, FormattingOptions, HoverParams, InitializeParams, InitializedParams,
+        NumberOrString, PartialResultParams, Position, ProgressParams, ProgressParamsValue,
+        PublishDiagnosticsParams, Range, SelectionRangeParams, SignatureHelpParams, SymbolKind,
         TextDocumentIdentifier, TextDocumentPositionParams, TextDocumentSaveReason,
-        WillSaveTextDocumentParams, WorkDoneProgressParams, WorkspaceClientCapabilities,
-        notification as notif, notification::Notification, request, request::Request,
+        WillSaveTextDocumentParams, WindowClientCapabilities, WorkDoneProgress,
+        WorkDoneProgressCancelParams, WorkDoneProgressCreateParams, WorkDoneProgressParams,
+        WorkspaceClientCapabilities, WorkspaceSymbolParams, notification as notif,
+        notification::Notification, request, request::Request,
     };
     use solar_interface::data_structures::sync::RwLock;
     use std::{
@@ -229,6 +247,22 @@ mod tests {
         future
     }
 
+    #[derive(Debug)]
+    enum AnalysisClientEvent {
+        Create(WorkDoneProgressCreateParams),
+        Progress(ProgressParams),
+        Diagnostics(PublishDiagnosticsParams),
+    }
+
+    async fn next_analysis_event(
+        events: &mut mpsc::UnboundedReceiver<AnalysisClientEvent>,
+    ) -> AnalysisClientEvent {
+        tokio::time::timeout(Duration::from_secs(2), events.recv())
+            .await
+            .expect("analysis client event should arrive")
+            .expect("analysis client event channel should stay open")
+    }
+
     #[tokio::test(flavor = "current_thread")]
     async fn router_handles_watched_file_changes() {
         let mut router = new_router(ClientSocket::new_closed());
@@ -284,6 +318,21 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_work_done_progress_cancellation() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let params = WorkDoneProgressCancelParams {
+            token: NumberOrString::String("solar/workspace-index/1".into()),
+        };
+        let notification = serde_json::from_value::<AnyNotification>(serde_json::json!({
+            "method": notif::WorkDoneProgressCancel::METHOD,
+            "params": params,
+        }))
+        .unwrap();
+
+        assert!(matches!(router.notify(notification), ControlFlow::Continue(())));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
     async fn router_handles_cache_commands() {
         let mut router = new_router(ClientSocket::new_closed());
 
@@ -331,6 +380,49 @@ mod tests {
         let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
             "id": 1,
             "method": request::DocumentLinkRequest::METHOD,
+            "params": params,
+        }))
+        .unwrap();
+
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(response, serde_json::json!([]));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_code_lens_requests() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let params = serde_json::json!({
+            "textDocument": { "uri": "file:///workspace/src/Test.sol" },
+        });
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::CodeLensRequest::METHOD,
+            "params": params,
+        }))
+        .unwrap();
+
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(response, serde_json::json!([]));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_folding_range_requests() {
+        let project = TestProject::from_fixture("//- /Test.sol open\n");
+        let state = GlobalState::new(ClientSocket::new_closed());
+        *state.vfs.write() = project.vfs();
+        let mut router = new_router_with_state(state);
+        let params = FoldingRangeParams {
+            text_document: TextDocumentIdentifier {
+                uri: lsp_types::Url::from_file_path(project.path("/Test.sol")).unwrap(),
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::FoldingRangeRequest::METHOD,
             "params": params,
         }))
         .unwrap();
@@ -431,6 +523,47 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_type_hierarchy_requests() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let uri = lsp_types::Url::parse("untitled:Test.sol").unwrap();
+        let item = serde_json::json!({
+            "name": "C",
+            "kind": SymbolKind::CLASS,
+            "uri": uri,
+            "range": {
+                "start": { "line": 0, "character": 0 },
+                "end": { "line": 0, "character": 1 },
+            },
+            "selectionRange": {
+                "start": { "line": 0, "character": 0 },
+                "end": { "line": 0, "character": 1 },
+            },
+        });
+        let requests = [
+            (
+                request::TypeHierarchyPrepare::METHOD,
+                serde_json::json!({
+                    "textDocument": { "uri": uri },
+                    "position": { "line": 0, "character": 0 },
+                }),
+            ),
+            (request::TypeHierarchySupertypes::METHOD, serde_json::json!({ "item": item })),
+            (request::TypeHierarchySubtypes::METHOD, serde_json::json!({ "item": item })),
+        ];
+
+        for (id, (method, params)) in requests.into_iter().enumerate() {
+            let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+                "id": id,
+                "method": method,
+                "params": params,
+            }))
+            .unwrap();
+            let response = router.call(request).await.unwrap();
+            assert_eq!(response, serde_json::Value::Null, "request `{method}`");
+        }
+    }
+
+    #[tokio::test(flavor = "current_thread")]
     async fn router_handles_hover_requests() {
         let mut router = new_router(ClientSocket::new_closed());
         let params = HoverParams {
@@ -452,6 +585,60 @@ mod tests {
         let response = router.call(request).await.unwrap();
 
         assert_eq!(response, serde_json::Value::Null);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_call_hierarchy_requests() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let uri = lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap();
+        let range = Range::new(Position::new(0, 0), Position::new(0, 1));
+        let item = CallHierarchyItem {
+            name: "f".into(),
+            kind: SymbolKind::FUNCTION,
+            tags: None,
+            detail: None,
+            uri: uri.clone(),
+            range,
+            selection_range: range,
+            data: None,
+        };
+        let requests = [
+            serde_json::json!({
+                "id": 1,
+                "method": request::CallHierarchyPrepare::METHOD,
+                "params": CallHierarchyPrepareParams {
+                    text_document_position_params: TextDocumentPositionParams {
+                        text_document: TextDocumentIdentifier { uri },
+                        position: Position::new(0, 0),
+                    },
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                },
+            }),
+            serde_json::json!({
+                "id": 2,
+                "method": request::CallHierarchyIncomingCalls::METHOD,
+                "params": CallHierarchyIncomingCallsParams {
+                    item: item.clone(),
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                },
+            }),
+            serde_json::json!({
+                "id": 3,
+                "method": request::CallHierarchyOutgoingCalls::METHOD,
+                "params": CallHierarchyOutgoingCallsParams {
+                    item,
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                },
+            }),
+        ];
+
+        for request in requests {
+            let request = serde_json::from_value::<AnyRequest>(request).unwrap();
+            let response = router.call(request).await.unwrap();
+            assert_eq!(response, serde_json::Value::Null);
+        }
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -644,6 +831,201 @@ mod tests {
         server.exit(()).unwrap();
         assert!(server_main.await.unwrap().is_ok());
         assert!(matches!(client_main.await.unwrap(), Err(async_lsp::Error::Eof)));
+    }
+
+    #[test]
+    fn reindex_progress_honors_client_cancellation() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .max_blocking_threads(1)
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let project = TestProject::from_fixture(
+                r#"
+                //- /Broken.sol open
+                contract Broken {
+                    function broken() external { uint value = ; }
+                }
+                "#,
+            );
+            let broken_uri = lsp_types::Url::from_file_path(project.path("/Broken.sol")).unwrap();
+            let vfs = project.vfs();
+            let mut initialize = project.initialize_params();
+            initialize.capabilities.window = Some(WindowClientCapabilities {
+                work_done_progress: Some(true),
+                ..Default::default()
+            });
+
+            let (server_main, _client) = async_lsp::MainLoop::new_server(move |client| {
+                let mut state = GlobalState::new(client);
+                state.vfs = Arc::new(RwLock::new(vfs));
+                new_router_with_state(state)
+            });
+            let (events_tx, mut events_rx) = mpsc::unbounded_channel();
+            let (client_main, mut server) = async_lsp::MainLoop::new_client(move |_| {
+                let mut router = Router::new(events_tx);
+                router.request::<request::WorkDoneProgressCreate, _>(|events, params| {
+                    events.send(AnalysisClientEvent::Create(params)).unwrap();
+                    async { Ok(()) }
+                });
+                router.notification::<notif::Progress>(|events, params| {
+                    events.send(AnalysisClientEvent::Progress(params)).unwrap();
+                    ControlFlow::Continue(())
+                });
+                router.notification::<notif::PublishDiagnostics>(|events, params| {
+                    events.send(AnalysisClientEvent::Diagnostics(params)).unwrap();
+                    ControlFlow::Continue(())
+                });
+                router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
+                router
+            });
+
+            let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
+            let (server_rx, server_tx) = tokio::io::split(server_stream);
+            let server_task = tokio::spawn(
+                server_main.run_buffered(server_rx.compat(), server_tx.compat_write()),
+            );
+            let (client_rx, client_tx) = tokio::io::split(client_stream);
+            let client_task = tokio::spawn(
+                client_main.run_buffered(client_rx.compat(), client_tx.compat_write()),
+            );
+
+            server.initialize(initialize).await.unwrap();
+            server.initialized(InitializedParams {}).unwrap();
+
+            let (blocker_started_tx, blocker_started_rx) = std::sync::mpsc::channel();
+            let (release_blocker_tx, release_blocker_rx) = std::sync::mpsc::channel();
+            let blocker = tokio::task::spawn_blocking(move || {
+                blocker_started_tx.send(()).unwrap();
+                release_blocker_rx.recv().unwrap();
+            });
+            blocker_started_rx
+                .recv_timeout(Duration::from_secs(1))
+                .expect("blocking worker should be occupied");
+
+            let first_response = tokio::time::timeout(
+                Duration::from_secs(1),
+                server.request::<request::ExecuteCommand>(ExecuteCommandParams {
+                    command: commands::REINDEX.into(),
+                    ..Default::default()
+                }),
+            )
+            .await
+            .expect("reindex acknowledgement should not wait for analysis")
+            .unwrap();
+            assert_eq!(first_response, Some(serde_json::json!({ "success": true })));
+
+            let AnalysisClientEvent::Create(create) = next_analysis_event(&mut events_rx).await
+            else {
+                panic!("expected progress creation")
+            };
+            let token = create.token;
+            match next_analysis_event(&mut events_rx).await {
+                AnalysisClientEvent::Progress(ProgressParams {
+                    token: actual,
+                    value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
+                }) => {
+                    assert_eq!(actual, token);
+                    assert_eq!(begin.title, "Indexing workspace");
+                    assert_eq!(begin.cancellable, Some(false));
+                }
+                event => panic!("expected progress begin, got {event:?}"),
+            }
+
+            let second_response = tokio::time::timeout(
+                Duration::from_secs(1),
+                server.request::<request::ExecuteCommand>(ExecuteCommandParams {
+                    command: commands::REINDEX.into(),
+                    ..Default::default()
+                }),
+            )
+            .await
+            .expect("replacement reindex acknowledgement should not wait for analysis")
+            .unwrap();
+            assert_eq!(second_response, Some(serde_json::json!({ "success": true })));
+
+            match next_analysis_event(&mut events_rx).await {
+                AnalysisClientEvent::Progress(ProgressParams {
+                    token: actual,
+                    value: ProgressParamsValue::WorkDone(WorkDoneProgress::Report(report)),
+                }) => {
+                    assert_eq!(actual, token);
+                    assert_eq!(
+                        report.message.as_deref(),
+                        Some("Workspace changed, restarting analysis")
+                    );
+                }
+                event => panic!("expected replacement report, got {event:?}"),
+            }
+
+            server
+                .notify::<notif::WorkDoneProgressCancel>(WorkDoneProgressCancelParams {
+                    token: token.clone(),
+                })
+                .unwrap();
+            let _ = server
+                .request::<request::WorkspaceSymbolRequest>(WorkspaceSymbolParams {
+                    query: "cancel barrier".into(),
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+
+            match next_analysis_event(&mut events_rx).await {
+                AnalysisClientEvent::Progress(ProgressParams {
+                    token: actual,
+                    value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
+                }) => {
+                    assert_eq!(actual, token);
+                    assert!(end.message.is_none());
+                }
+                event => panic!("expected cancellation end, got {event:?}"),
+            }
+
+            release_blocker_tx.send(()).unwrap();
+            blocker.await.unwrap();
+
+            let mut saw_latest_diagnostics = false;
+            while !saw_latest_diagnostics {
+                match next_analysis_event(&mut events_rx).await {
+                    AnalysisClientEvent::Create(create) => {
+                        panic!("replacement created a second token: {create:?}")
+                    }
+                    AnalysisClientEvent::Diagnostics(params) => {
+                        if params.uri == broken_uri && !params.diagnostics.is_empty() {
+                            saw_latest_diagnostics = true;
+                        }
+                    }
+                    AnalysisClientEvent::Progress(progress) => {
+                        panic!("progress continued after cancellation: {progress:?}")
+                    }
+                }
+            }
+
+            server.shutdown(()).await.unwrap();
+            server.exit(()).unwrap();
+            assert!(server_task.await.unwrap().is_ok());
+            assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
+        });
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn initialize_advertises_type_hierarchy_statically() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::Initialize::METHOD,
+            "params": InitializeParams::default(),
+        }))
+        .unwrap();
+
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(response["capabilities"]["typeHierarchyProvider"], true);
+        assert_eq!(response["capabilities"]["codeLensProvider"]["resolveProvider"], false);
+        assert_eq!(response["capabilities"]["hoverProvider"], true);
+        assert_eq!(response["serverInfo"]["name"], "solar");
     }
 
     #[tokio::test(flavor = "current_thread")]

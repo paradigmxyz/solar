@@ -94,7 +94,7 @@ impl MirPass for DeferAlloc {
 
         let mut changed = false;
         for (func_id, alloc) in candidates {
-            let metadata = &mut module.functions[func_id].instructions[alloc].metadata;
+            let metadata = &mut module.functions[func_id].inst_mut(alloc).metadata;
             if !metadata.deferred_alloc() {
                 metadata.set_deferred_alloc();
                 changed = true;
@@ -133,13 +133,12 @@ fn eligible_static_allocations(func: &Function, aa: &AliasAnalysis) -> Vec<Stati
         return Vec::new();
     }
 
-    let inst_results = func.inst_results();
     let cfg = CfgInfo::new(func);
     let mut cyclic = FxHashMap::default();
     let mut candidates = Vec::new();
     for block in func.blocks.indices() {
         for &alloc in &func.blocks[block].instructions {
-            let InstKind::Alloc { size, semantics, .. } = func.instructions[alloc].kind else {
+            let InstKind::Alloc { size, semantics, .. } = func.inst(alloc).kind else {
                 continue;
             };
             if semantics != crate::mir::AllocationSemantics::INTERNAL {
@@ -154,7 +153,8 @@ fn eligible_static_allocations(func: &Function, aa: &AliasAnalysis) -> Vec<Stati
             {
                 continue;
             }
-            let candidate = StaticAllocCandidate { block, alloc, ptr: inst_results[&alloc], size };
+            let ptr = func.inst_result_value(alloc).expect("allocation must produce a value");
+            let candidate = StaticAllocCandidate { block, alloc, ptr, size };
             if !aa.value_escapes(func, candidate.ptr) && candidate_uses_are_safe(func, &candidate) {
                 candidates.push(candidate);
             }
@@ -164,12 +164,7 @@ fn eligible_static_allocations(func: &Function, aa: &AliasAnalysis) -> Vec<Stati
 }
 
 fn has_msize(func: &Function) -> bool {
-    func.blocks.iter().any(|block| {
-        block
-            .instructions
-            .iter()
-            .any(|&inst| matches!(func.instructions[inst].kind, InstKind::MSize))
-    })
+    func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize))
 }
 
 /// Returns true when `block` can execute more than once: it can reach itself.
@@ -192,39 +187,35 @@ fn block_in_cycle(func: &Function, block: BlockId) -> bool {
 
 /// Verifies every use of the pointer stays in bounds and never escapes.
 fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool {
-    let inst_results = func.inst_results();
-
     // In-bounds address derivations from the pointer, to a fixpoint so
     // definition order does not matter.
     let mut derived: FxHashMap<ValueId, u64> = FxHashMap::default();
     derived.insert(cand.ptr, 0);
-    for _ in 0..4 {
+    loop {
         let mut grew = false;
-        for block in func.blocks.iter() {
-            for &inst_id in &block.instructions {
-                if let InstKind::Add(a, b) = func.instructions[inst_id].kind
-                    && let Some(&result) = inst_results.get(&inst_id)
-                    && !derived.contains_key(&result)
-                {
-                    let (base, offset) = if derived.contains_key(&a) {
-                        (a, b)
-                    } else if derived.contains_key(&b) {
-                        (b, a)
-                    } else {
-                        continue;
-                    };
-                    let (Some(base_off), Some(off)) =
-                        (derived.get(&base).copied(), func.value_u64(offset))
-                    else {
-                        return false;
-                    };
-                    let Some(total) = base_off.checked_add(off) else { return false };
-                    if total >= cand.size {
-                        return false;
-                    }
-                    derived.insert(result, total);
-                    grew = true;
+        for inst_id in func.instructions() {
+            if let InstKind::Add(a, b) = func.inst(inst_id).kind
+                && let Some(result) = func.inst_result_value(inst_id)
+                && !derived.contains_key(&result)
+            {
+                let (base, offset) = if derived.contains_key(&a) {
+                    (a, b)
+                } else if derived.contains_key(&b) {
+                    (b, a)
+                } else {
+                    continue;
+                };
+                let (Some(base_off), Some(off)) =
+                    (derived.get(&base).copied(), func.value_u64(offset))
+                else {
+                    return false;
+                };
+                let Some(total) = base_off.checked_add(off) else { return false };
+                if total >= cand.size {
+                    return false;
                 }
+                derived.insert(result, total);
+                grew = true;
             }
         }
         if !grew {
@@ -239,7 +230,7 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool
             if inst_id == cand.alloc {
                 continue;
             }
-            let kind = &func.instructions[inst_id].kind;
+            let kind = &func.inst(inst_id).kind;
             for &operand in kind.operands().iter() {
                 let Some(&off) = derived.get(&operand) else { continue };
                 let ok = match *kind {
@@ -268,9 +259,9 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool
                     }
                     // In-bounds derivations were collected above; anything
                     // else consuming an address is an escape.
-                    InstKind::Add(_, _) => {
-                        inst_results.get(&inst_id).is_some_and(|r| derived.contains_key(r))
-                    }
+                    InstKind::Add(_, _) => func
+                        .inst_result_value(inst_id)
+                        .is_some_and(|result| derived.contains_key(&result)),
                     _ => false,
                 };
                 if !ok {

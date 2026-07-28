@@ -111,8 +111,22 @@ impl ScalarEvolution {
     #[must_use]
     pub(crate) fn analyze(func: &Function, loop_data: &Loop) -> Self {
         let mut analysis = Self::default();
-        for value in func.values.indices() {
-            let _ = analysis.affine_expr(func, loop_data, value);
+        for block_id in &loop_data.blocks {
+            let block = &func.blocks[block_id];
+            for &inst_id in &block.instructions {
+                let inst = func.inst(inst_id);
+                for operand in inst.kind.operands() {
+                    let _ = analysis.affine_expr(func, loop_data, operand);
+                }
+                if let Some(result) = func.inst_result_value(inst_id) {
+                    let _ = analysis.affine_expr(func, loop_data, result);
+                }
+            }
+            if let Some(terminator) = &block.terminator {
+                for operand in terminator.operands() {
+                    let _ = analysis.affine_expr(func, loop_data, operand);
+                }
+            }
         }
         analysis
     }
@@ -135,7 +149,7 @@ impl ScalarEvolution {
 
         let expr = match func.value(value) {
             Value::Immediate(imm) => AffineExpr::constant(u256_to_i128(imm.as_u256()?)?),
-            Value::Arg { .. } => AffineExpr::base(value),
+            Value::Arg(_) => AffineExpr::base(value),
             Value::Undef(_) | Value::Error(_) => return None,
             Value::Inst(_) if !value_defined_in_loop(func, value, loop_data) => {
                 AffineExpr::base(value)
@@ -144,7 +158,7 @@ impl ScalarEvolution {
                 if loop_data.induction_vars.iter().any(|iv| iv.value == value) {
                     AffineExpr::induction(value)
                 } else {
-                    match func.instructions[*inst_id].kind {
+                    match func.inst(*inst_id).kind {
                         InstKind::Add(a, b) => {
                             let a = self.affine_expr(func, loop_data, a)?;
                             let b = self.affine_expr(func, loop_data, b)?;
@@ -199,7 +213,7 @@ fn value_defined_in_loop(func: &Function, value: ValueId, loop_data: &Loop) -> b
             .iter()
             .any(|block_id| func.blocks[block_id].instructions.contains(inst_id)),
         Value::Undef(_) | Value::Error(_) => true,
-        Value::Arg { .. } | Value::Immediate(_) => false,
+        Value::Arg(_) | Value::Immediate(_) => false,
     }
 }
 

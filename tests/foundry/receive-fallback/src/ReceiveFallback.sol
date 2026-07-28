@@ -15,6 +15,10 @@ contract ReceiveFallback {
         fallbackCalls++;
         totalReceived += msg.value;
     }
+
+    function shortSelector250() external pure {
+        revert();
+    }
     
     function getBalance() external view returns (uint256) {
         return address(this).balance;

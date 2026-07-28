@@ -95,18 +95,17 @@ only when not the default). The phases, in order:
   callees the backend statically frames, so their arguments store at
   compile-time frame addresses with no return address pushed.
 
-The `lower-abi`, `lower-dispatch`, `lower-memory-objects`, and `lower-evm-shaped`
-passes are progressive MIR-to-MIR lowering, moving dispatch, ABI handling, and
-memory layout out of the backend. They run in the codegen pipeline and the
-backend consumes the `evm-shaped` module, with the MIR `entry` as the runtime
-prologue and `tail_call` lowered to a jump. A module where `lower-abi` bails —
-when any external function has returns (the wrappers do not implement
-returndata encoding yet), or there is no external interface — keeps its phase
-and is dispatched by the backend. When extending them or adding the next phase,
-make the transition a
-named pass that advances the phase via `Module::advance_phase`, keep it
-conservative (bail rather than miscompile — `lower-abi` skips dynamic types),
-and pin it with `.mir` UI tests under `tests/ui/codegen/mir/`.
+The `lower-abi`, `lower-dispatch`, `lower-memory-objects`, `lower-alloc`, and
+`lower-evm-shaped` passes are progressive MIR-to-MIR lowering, moving dispatch,
+ABI handling, and memory layout out of the backend. They run in the codegen
+pipeline and the backend only consumes the `evm-shaped` module, with the MIR
+`entry` as the runtime prologue and `tail_call` lowered to a jump. A module
+where a required lowering pass bails keeps its earlier phase and codegen
+reports it as unsupported. When extending them or adding the next phase, make
+the transition a named pass that advances the phase via
+`Module::advance_phase`, keep it conservative (bail rather than miscompile —
+`lower-abi` skips dynamic types), and pin it with `.mir` UI tests under
+`tests/ui/codegen/mir/`.
 
 ### Visitor Pattern
 
@@ -129,6 +128,13 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
   of scattered `text.contains(...)` assertions.
 - Auxiliary files go in an `auxiliary/` subdirectory next to the UI test that needs
   imports or secondary source files. Do not use `aux/`: Windows rejects it.
+
+When the same or similar source needs to be tested with different compiler flags,
+passes, optimization levels, EVM versions, or output modes, prefer one revisioned
+UI test using `//@ revisions:` and revision-scoped directives over multiple files
+with a common prefix. Keep separate files when the source text itself is the
+behavior under test or combining the cases would hide materially different
+programs or purposes.
 
 ### Codegen / MIR Pass Tests
 
@@ -165,30 +171,70 @@ contract Test {
 }
 ```
 
-Annotations: `//~ ERROR:`, `//~ WARN:`, `//~ NOTE:`, `//~ HELP:`
-Use `^` or `v` to point to lines above/below.
+Annotations: `//~ ERROR:`, `//~ WARN:`, `//~ NOTE:`, `//~ HELP:`, `//~ ICE:`,
+and `//~ diagnostic_code`. Use `^` or `v` to point to lines above/below, `|`
+to add another annotation for the same line, and `?` for a diagnostic without a
+location in the test file.
+
+The UI runner infers the expected exit status from annotations. `ERROR`, `ICE` 
+annotations expect status 1; tests without them expect status 0.
+Do not add `check-pass` or `check-fail` to ordinary tests.
+Use an explicit status directive only when the inferred status is wrong
+for the test.
 
 Common file-level UI directives:
 
 - `//@ compile-flags: ...`: Pass extra compiler flags for this test.
-- `//@ error-in-other-file: ...`: Expect a diagnostic with this text in an
-  imported/auxiliary source.
+- `//@ check-pass`: Mark the test as expected to pass even if no inline
+  diagnostic annotation appears in the primary file.
 - `//@ check-fail`: Mark the test as expected to fail even if no inline
   diagnostic annotation appears in the primary file.
+- `//@ failure-status: N`: Override the inferred exit status, for example when
+  testing a nonstandard failure status.
 - `//@ ignore-host: windows`: Skip a test on a specific host.
 - `//@[name] compile-flags: ...`: Define revision-specific flags for tests with
   multiple revisions.
+- `//@ run-call: add 1, 2 => 3`: Deploy a fresh contract, ABI-encode and call the
+  named function, then compare its ABI-encoded return values. Omit `=>` when no
+  return data is expected. Raw calldata and return data may be written as hex.
+  Add settings after a semicolon, for example
+  `add 2; constructor=[40], gas=100000, value=3 => 45`. Settings are
+  comma-separated. `constructor=[...]` supplies ABI-encoded constructor
+  arguments, `gas` sets the call transaction's gas limit, and `value` sets its
+  value in wei. Numeric settings accept decimal and `0x`-prefixed integers.
+  Deployment and `setUp()` use the default gas limit and zero value.
+- `//@ run-call-fail: fail()`: Like `run-call`, but require the call to fail.
+  Add `=> 0x...` to check exact revert data. Both directives use the EVM version
+  selected by `--evm-version`. Calls to functions named `test*` run a
+  zero-argument `setUp()` first when the contract defines it.
 - `//@ filecheck: ...`: Run LLVM FileCheck against the generated `.stdout` file
   after the UI test. Arguments after `filecheck:` are passed directly to
   FileCheck, for example `--check-prefix=ABI` or
   `--implicit-check-not=UnusedSymbol`.
+
+Prefer `run-call` and `run-call-fail` for small runtime checks that fit one
+isolated entry-point call and an exact output or failure expectation. Each
+directive deploys a fresh contract, so calls never share state. Put more
+complex runtime tests under `tests/foundry/` and run them with
+`cargo tq foundry`. Use Foundry for multi-transaction sequences, persistent
+state, multiple actors or contracts, event assertions, cheatcodes, and complex
+setup.
 
 Use FileCheck when exact full-output snapshots are too brittle or when a test
 needs to assert selected output properties such as ordering, presence, or
 absence. Put `// CHECK:`, `// CHECK-LABEL:`, `// CHECK-NOT:`, and related
 directives in the test source. Keep checks specific enough to fail for the bug
 being covered, and prefer `CHECK-LABEL` to anchor checks to the relevant
-contract/module section when the output contains multiple sections.
+contract/module section when the output contains multiple sections. Avoid using
+custom `--check-prefix` and use the default `CHECK` if only one prefix is present
+in the file, e.g. no revisions.
+
+Follow the [FileCheck reference](https://llvm.org/docs/CommandGuide/FileCheck.html):
+
+- Put checks immediately above the function or block they cover.
+- Keep labels and patterns short; omit full signatures and unrelated IR.
+- Capture changing values with `[[NAME:regex]]` and reuse them as `[[NAME]]`.
+- Generally keep filechecks for one function in one comment block.
 
 ### Porting Tests from Solc
 
@@ -321,3 +367,56 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
   "Solar is", or "Solar supports".
   - Exception: `docs/SOLC_DIVERGENCE.md` may say `solar` when explicitly
     contrasting behavior with `solc`.
+
+## Codegen Benchmarking
+
+Rank codegen results in this order: `-Ogas` runtime gas and correctness,
+generated bytecode size in both `-Ogas` and `-Osize`, then compiler time and
+memory use. Treat compile time as a tie-breaker after output quality. Reject a
+candidate whose only win is faster compilation.
+
+Use two corpora for codegen work. The UI codegen files give a fast generated
+size signal. The CI corpus in `walnuthq/solidity-compiler-benchmarks` is the
+source of truth for runtime checks and gas.
+
+Build the debug compiler in the current checkout, then use the benchmark
+repository's `solar_bench.py` to record both optimization modes before editing.
+Do not use release builds for routine local tests:
+
+```bash
+cargo build -p solar-compiler --bin solar
+uv run ~/github/danipopes/solidity-compiler-benchmarks/solar_bench.py \
+  --solar-only --solar target/debug/solar --solar-optimize gas \
+  --corpus tests/ui/codegen --allow-failures \
+  --output target/codegen-bench/ui-gas-baseline.json
+uv run ~/github/danipopes/solidity-compiler-benchmarks/solar_bench.py \
+  --solar-only --solar target/debug/solar --solar-optimize size \
+  --corpus tests/ui/codegen --allow-failures \
+  --output target/codegen-bench/ui-size-baseline.json
+```
+
+Record the baseline before editing. Rebuild and benchmark the candidate in the
+same checkout with distinct output paths. Do not create extra worktrees or
+isolated target directories for routine local comparisons. Compare the
+successful test IDs before aggregating sizes: expected diagnostic fixtures fail
+compilation, and a new failure must not make the candidate total look smaller.
+Compare per-file deltas as well because an aggregate win can hide a large
+regression in one contract.
+
+For the CI corpus, use the `BENCHMARK_REF` and `SOLC_VERSION` pinned in
+`.github/workflows/bench.yml`. Use the current benchmark checkout at that pin
+and initialize its recursive submodules; do not create another worktree. Run
+`solar_bench.py --suite all` as a quick size screen, then enable the hot gas
+workload with `--gas --gas-profile hot --start-anvil` before accepting an
+`-Ogas` candidate. Always write JSON with `--output`, retain the baseline JSON,
+and compare the same test IDs and gas-call labels. `--allow-failures` keeps an
+exploratory run going; it does not make compiler failures or runtime mismatches
+acceptable. Use `--solar-optimize size` for the corresponding `-Osize` screen.
+
+When tuning a pipeline, remove or move one pass group at a time. Record the
+candidate name, exact ordering, UI gas/size reports, CI size report, and hot-gas
+report under `target/codegen-bench/`. Use `-Ztime-passes` on a representative
+large contract to see which repeated pass invocations still change IR, then
+confirm every removal against both corpora. Equal byte counts are not enough:
+compare serialized bytecode and keep the relevant IR snapshots canonical. A
+`changed=false` result on one contract is not evidence that a pass is redundant.

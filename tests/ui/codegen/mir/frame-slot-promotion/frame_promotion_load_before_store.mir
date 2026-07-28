@@ -1,5 +1,11 @@
 //@compile-flags: --passes frame-slot-promotion
+//@filecheck:
 @module FramePromotionLoadBeforeStore
+// CHECK-LABEL: {{^[ +].*}}fn @load_before_store{{[( ]}}
+// CHECK: {{^[ +].*}}[[SLOT:v[0-9]+]] = internal_frame_addr 128
+// CHECK: {{^[ +].*}}[[BEFORE:v[0-9]+]] = mload [[SLOT]]
+// CHECK: {{^[ +].*}}mstore [[SLOT]], 1
+// CHECK: {{^[ +].*}}ret [[BEFORE]]
 fn @load_before_store() -> u256 {
   bb0:
     v1 = internal_frame_addr 128

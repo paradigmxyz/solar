@@ -1,27 +1,34 @@
 //@compile-flags: --pass loop-canonicalize
+//@filecheck:
 @module LoopCanonicalize
+// CHECK-LABEL: {{^[ +].*}}fn @insert_preheader{{[( ]}}
+// CHECK: + {{v[0-9]+}} = phi [bb4: 30], [bb6: [[ENTRY:v[0-9]+]]]
+// CHECK: + [[ENTRY]] = phi [bb1: 10], [bb2: 20]
 fn @insert_preheader(arg0: bool) -> u256 {
   bb0:
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     jump bb3
   bb2:
     jump bb3
   bb3:
     v1 = phi [bb1: 10], [bb2: 20], [bb4: 30]
-    br true, bb4, bb5
+    jumpi true, bb4, bb5
   bb4:
     jump bb3
   bb5:
     ret v1
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @split_conditional_predecessor{{[( ]}}
+// CHECK: + jumpi arg0, bb4, bb3
+// CHECK: + {{v[0-9]+}} = phi [bb2: 1], [bb4: 0]
 fn @split_conditional_predecessor(arg0: bool) -> u256 {
   bb0:
-    br arg0, bb1, bb3
+    jumpi arg0, bb1, bb3
   bb1:
     v1 = phi [bb0: 0], [bb2: 1]
-    br true, bb2, bb3
+    jumpi true, bb2, bb3
   bb2:
     jump bb1
   bb3:

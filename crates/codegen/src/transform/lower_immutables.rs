@@ -32,9 +32,8 @@ impl MirPass for LowerImmutables {
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
             let stores: Vec<_> = func
-                .instructions
-                .iter_enumerated()
-                .filter_map(|(inst_id, inst)| match inst.kind {
+                .instructions()
+                .filter_map(|inst_id| match func.inst(inst_id).kind {
                     InstKind::StoreImmutable { id, value } => Some((inst_id, id, value)),
                     _ => None,
                 })
@@ -44,7 +43,7 @@ impl MirPass for LowerImmutables {
                 let addr = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(
                     immutable_staging_addr(id),
                 ))));
-                let inst = &mut func.instructions[inst_id];
+                let inst = func.inst_mut(inst_id);
                 inst.kind = InstKind::MStore(addr, value);
                 inst.metadata.set_effect(Some(EffectKind::MemoryWrite));
                 inst.metadata.set_memory_region(Some(MemoryRegion::Unknown));

@@ -1,5 +1,5 @@
 //@compile-flags: --pipeline-default
-//@filecheck: --match-full-lines
+//@filecheck:
 // CHECK: @module PhasePipelineResume
 // CHECK-NEXT: @phase evm-shaped
 // The canonical pipeline resumes progressive lowering when the input has

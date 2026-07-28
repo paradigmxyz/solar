@@ -8,7 +8,7 @@
     bb0:
       mstore 0, 11
       v0 = mload 0
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
 -     v1 = mload 0
 -     ret v1
@@ -22,7 +22,7 @@
   fn @dominating_sload(arg0: bool) -> u256 {
     bb0:
       v0 = sload 0
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
 -     v1 = sload 0
 -     ret v1
@@ -36,7 +36,7 @@
   fn @dominating_loadimmutable(arg0: bool) -> u256 {
     bb0:
       v0 = loadimmutable value
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
 -     v1 = loadimmutable value
 -     ret v1
@@ -49,7 +49,7 @@
   
   fn @keep_phi_immutable_loads_before_branch_stores(arg0: bool) -> u256 {
     bb0:
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       v0 = loadimmutable value
       storeimmutable value, 1

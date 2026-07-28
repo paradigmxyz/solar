@@ -161,11 +161,11 @@ mod tests {
         ir::{Block, Instruction, Terminator, TerminatorKind},
     };
     use alloy_primitives::U256;
-    use solar_interface::Session;
+    use solar_interface::{Session, sym};
     use solar_sema::Compiler;
     #[test]
     fn branch_inverts_when_then_target_falls_through() {
-        let mut module = ir::Module::new("module");
+        let mut module = ir::Module::new(sym::module);
         let entry = module.add_block(Block::new(0));
         let then_block = module.add_block(Block::new(1));
         let else_block = module.add_block(Block::new(2));

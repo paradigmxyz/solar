@@ -1,13 +1,17 @@
 //@compile-flags: --pass cse
+//@filecheck:
 @module CseGlobalLoads
 immutables:
   value: u256
 
+// CHECK-LABEL: {{^[ +].*}}fn @dominating_mload{{[( ]}}
+// CHECK: - {{v[0-9]+}} = mload 0
+// CHECK: + ret {{v[0-9]+}}
 fn @dominating_mload(arg0: bool) -> u256 {
   bb0:
     mstore 0, 11
     v1 = mload 0
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     v2 = mload 0
     ret v2
@@ -17,10 +21,13 @@ fn @dominating_mload(arg0: bool) -> u256 {
     ret v3
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @dominating_sload{{[( ]}}
+// CHECK: - {{v[0-9]+}} = sload 0
+// CHECK: + ret {{v[0-9]+}}
 fn @dominating_sload(arg0: bool) -> u256 {
   bb0:
     v1 = sload 0
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     v2 = sload 0
     ret v2
@@ -33,7 +40,7 @@ fn @dominating_sload(arg0: bool) -> u256 {
 fn @dominating_loadimmutable(arg0: bool) -> u256 {
   bb0:
     v1 = loadimmutable value
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     v2 = loadimmutable value
     ret v2
@@ -45,7 +52,7 @@ fn @dominating_loadimmutable(arg0: bool) -> u256 {
 
 fn @keep_phi_immutable_loads_before_branch_stores(arg0: bool) -> u256 {
   bb0:
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     v1 = loadimmutable value
     storeimmutable value, 1

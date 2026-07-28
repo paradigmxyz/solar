@@ -8,7 +8,7 @@ fn @frame_counter_feeds_affine_address(arg0: u256, arg1: u256) -> u256 {
     v8 = phi [bb0: 0], [bb2: v6]
     v9 = phi [bb0: arg1], [bb2: v10]
     v3 = lt v8, arg0
-    br v3, bb2, bb3
+    jumpi v3, bb2, bb3
   bb2:
     mstore v9, v8
     v6 = add v8, 1

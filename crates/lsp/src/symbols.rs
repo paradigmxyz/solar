@@ -1,8 +1,8 @@
 use lsp_types::{
-    CompletionItem, CompletionItemKind, DocumentHighlight, DocumentHighlightKind, DocumentSymbol,
-    GotoDefinitionResponse, Hover, HoverContents, InlayHint, Location, MarkupContent, OneOf,
-    Position, Range, SymbolInformation, SymbolKind, Url, WorkspaceSymbol,
-    request::GotoTypeDefinitionResponse,
+    CodeLens, Command, CompletionItem, CompletionItemKind, DocumentHighlight,
+    DocumentHighlightKind, DocumentSymbol, GotoDefinitionResponse, Hover, HoverContents, InlayHint,
+    Location, MarkupContent, OneOf, Position, Range, SymbolInformation, SymbolKind,
+    TypeHierarchyItem, Url, WorkspaceSymbol, request::GotoTypeDefinitionResponse,
 };
 use solar_interface::{
     Span,
@@ -24,11 +24,15 @@ use solar_sema::{
     ty::{CallableParamSource, Ty, TyKind},
 };
 use std::{
+    fmt::Write as _,
     ops::ControlFlow,
     path::{Path, PathBuf},
 };
 
 use crate::{
+    call_hierarchy::CallHierarchyIndex,
+    code_lens::CodeLensIndex,
+    config::CodeLensConfig,
     document_links::DocumentLinkIndex,
     inlay_hints::InlayHintIndex,
     natspec_completion::{DeclarationKey, NatSpecCompletionIndex, NatSpecTargetSemantics},
@@ -38,6 +42,7 @@ use crate::{
         ImportBindings, MappingBindings, RenameCandidate, RenameIndex, RenameReferenceContext,
     },
     signature_help::SignatureHelpIndex,
+    type_hierarchy::TypeHierarchyIndex,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -64,6 +69,36 @@ pub(crate) struct SymbolTables {
     inlay_hints: InlayHintIndex,
     natspec_completion: NatSpecCompletionIndex,
     signature_help: SignatureHelpIndex,
+    call_hierarchy: CallHierarchyIndex,
+    type_hierarchy: TypeHierarchyIndex,
+    code_lens: CodeLensIndex,
+    has_merged_batches: bool,
+}
+
+#[derive(Default)]
+pub(crate) struct SymbolTablesAggregator {
+    tables: Option<SymbolTables>,
+    needs_rebuild: bool,
+}
+
+impl SymbolTablesAggregator {
+    pub(crate) fn push(&mut self, tables: SymbolTables) {
+        if let Some(merged) = &mut self.tables {
+            merged.extend_unindexed(tables);
+            self.needs_rebuild = true;
+        } else {
+            self.tables = Some(tables);
+        }
+    }
+
+    pub(crate) fn finish(self) -> SymbolTables {
+        let Self { tables, needs_rebuild } = self;
+        let Some(mut tables) = tables else { return SymbolTables::default() };
+        if needs_rebuild {
+            tables.rebuild_indexes();
+        }
+        tables
+    }
 }
 
 newtype_index! {
@@ -72,6 +107,12 @@ newtype_index! {
 
     /// A lexical scope ID in the LSP symbol table.
     pub(crate) struct ScopeId;
+}
+
+impl SymbolId {
+    pub(crate) fn offset_by(self, offset: usize) -> Self {
+        Self::from_usize(self.index() + offset)
+    }
 }
 
 type TypeDefinitionTargets = SmallVec<[SymbolId; 1]>;
@@ -274,6 +315,8 @@ impl SymbolTables {
         }
 
         tables.build_type_definitions(gcx, &item_symbols);
+        tables.call_hierarchy = CallHierarchyIndex::build(gcx, &item_symbols, &tables.declarations);
+        tables.code_lens = CodeLensIndex::build(gcx, &item_symbols);
 
         // Public state-variable getters are compiler-generated functions, but source member calls
         // such as `this.value()` still name the state variable. Point getter resolutions back to
@@ -284,10 +327,13 @@ impl SymbolTables {
                 item_symbols.insert(ItemId::Function(function_id), symbol_id);
             }
         }
+        tables.type_hierarchy = TypeHierarchyIndex::build(gcx, &item_symbols, &tables.declarations);
         tables.build_scopes(gcx);
         tables.build_receiver_member_completions(gcx);
         tables.build_member_completions(gcx);
         tables.build_references(gcx, &item_symbols);
+        // HIR IDs are scoped to this compiler run and cannot back published LSP queries.
+        tables.symbols_by_key = FxHashMap::default();
         tables.document_links = DocumentLinkIndex::build(gcx, document_link_sources);
         tables.inlay_hints = InlayHintIndex::build(gcx);
         tables.natspec_completion = NatSpecCompletionIndex::build(gcx);
@@ -312,7 +358,8 @@ impl SymbolTables {
             .flat_map(|symbols| symbols.iter().map(|&symbol_id| &self.declarations[symbol_id]))
     }
 
-    pub(crate) fn extend(&mut self, mut other: Self) {
+    fn extend_unindexed(&mut self, mut other: Self) {
+        self.has_merged_batches = true;
         if self.global_completions.is_empty() {
             self.global_completions = std::mem::take(&mut other.global_completions);
         }
@@ -325,35 +372,38 @@ impl SymbolTables {
         self.signature_help.extend(other.signature_help);
 
         let symbol_offset = self.declarations.len();
+        self.code_lens.extend(other.code_lens, symbol_offset);
+        self.call_hierarchy.extend(other.call_hierarchy, symbol_offset);
+        self.type_hierarchy.extend(other.type_hierarchy, symbol_offset);
         self.override_families.extend(other.override_families, symbol_offset);
         let scope_offset = self.scopes.len();
         for declaration in &mut other.declarations {
-            declaration.id = remap_symbol_id(declaration.id, symbol_offset);
-            declaration.parent =
-                declaration.parent.map(|parent| remap_symbol_id(parent, symbol_offset));
+            declaration.id = declaration.id.offset_by(symbol_offset);
+            declaration.parent = declaration.parent.map(|parent| parent.offset_by(symbol_offset));
         }
         for (symbol_id, mut targets) in other.type_definitions.drain() {
             for target in &mut targets {
-                *target = remap_symbol_id(*target, symbol_offset);
+                *target = target.offset_by(symbol_offset);
             }
-            self.type_definitions.insert(remap_symbol_id(symbol_id, symbol_offset), targets);
+            self.type_definitions.insert(symbol_id.offset_by(symbol_offset), targets);
         }
         for scope in &mut other.scopes {
             scope.parent = scope.parent.map(|parent| remap_scope_id(parent, scope_offset));
             for declaration in &mut scope.declarations {
-                declaration.symbol_id = remap_symbol_id(declaration.symbol_id, symbol_offset);
+                declaration.symbol_id = declaration.symbol_id.offset_by(symbol_offset);
             }
         }
         for reference in &mut other.references {
             for target in &mut reference.targets {
-                *target = remap_symbol_id(*target, symbol_offset);
+                *target = target.offset_by(symbol_offset);
             }
         }
 
         for (uri, symbols) in other.files {
-            self.files.entry(uri).or_default().extend(
-                symbols.into_iter().map(|symbol_id| remap_symbol_id(symbol_id, symbol_offset)),
-            );
+            self.files
+                .entry(uri)
+                .or_default()
+                .extend(symbols.into_iter().map(|symbol_id| symbol_id.offset_by(symbol_offset)));
         }
         self.declarations.extend(other.declarations);
         self.scopes.extend(other.scopes);
@@ -361,19 +411,105 @@ impl SymbolTables {
             other
                 .receiver_member_completions
                 .into_iter()
-                .map(|(symbol_id, items)| (remap_symbol_id(symbol_id, symbol_offset), items)),
+                .map(|(symbol_id, items)| (symbol_id.offset_by(symbol_offset), items)),
         );
         self.member_completions.extend(other.member_completions);
         self.references.extend(other.references);
         self.rename.extend(other.rename, symbol_offset);
-        // HIR IDs are scoped to one compiler run, so this build-time map is not meaningful after
-        // merging symbol tables from separate analysis batches.
-        self.symbols_by_key.clear();
-        self.rebuild_indexes();
     }
 
     pub(crate) fn inlay_hints(&self, uri: &Url, range: Range) -> Vec<InlayHint> {
         self.inlay_hints.hints(uri, range)
+    }
+
+    pub(crate) fn code_lenses(&self, uri: &Url, options: CodeLensConfig) -> Vec<CodeLens> {
+        if !options.enable {
+            return Vec::new();
+        }
+
+        let mut lenses = Vec::new();
+        for entry in self.code_lens.entries(uri) {
+            let position = entry.range.start;
+
+            if options.references
+                && let Some(count) = self.reference_count(&entry.symbol_ids)
+            {
+                let title = format_reference_title(count);
+                let (command, arguments) = if count > 0 && options.client_commands {
+                    (
+                        "solar.showReferences".into(),
+                        Some(vec![serde_json::json!({ "uri": uri, "position": position })]),
+                    )
+                } else {
+                    (String::new(), None)
+                };
+                lenses.push(CodeLens {
+                    range: entry.range,
+                    command: Some(Command { title, command, arguments }),
+                    data: None,
+                });
+            }
+
+            if options.selectors
+                && let Some(selector) = entry.selector
+            {
+                let title = format_selector_title(selector);
+                let arguments =
+                    options.client_commands.then(|| vec![serde_json::Value::String(title.clone())]);
+                lenses.push(CodeLens {
+                    range: entry.range,
+                    command: Some(Command {
+                        title,
+                        command: if options.client_commands { "solar.copySelector" } else { "" }
+                            .into(),
+                        arguments,
+                    }),
+                    data: None,
+                });
+            }
+
+            if options.inheritance
+                && entry.inheritance
+                && let Some((bases, derived)) = self.type_hierarchy.direct_counts(&entry.symbol_ids)
+            {
+                if bases > 0 {
+                    lenses.push(CodeLens {
+                        range: entry.range,
+                        command: Some(inheritance_command(
+                            InheritanceLensKind::Base,
+                            bases,
+                            uri,
+                            position,
+                            options.client_commands,
+                        )),
+                        data: None,
+                    });
+                }
+                if derived > 0 {
+                    lenses.push(CodeLens {
+                        range: entry.range,
+                        command: Some(inheritance_command(
+                            InheritanceLensKind::Derived,
+                            derived,
+                            uri,
+                            position,
+                            options.client_commands,
+                        )),
+                        data: None,
+                    });
+                }
+            }
+        }
+        lenses
+    }
+
+    fn reference_count(&self, targets: &[SymbolId]) -> Option<usize> {
+        let mut locations = FxHashSet::default();
+        for index in self.complete_reference_indices_for_targets(targets)? {
+            let location = &self.references[index].location;
+            locations.insert((&location.uri, location.range));
+        }
+        Some(locations.len())
     }
 
     pub(crate) fn document_links(&self, path: &Path) -> Vec<lsp_types::DocumentLink> {
@@ -553,6 +689,46 @@ impl SymbolTables {
         locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
         Some(GotoDefinitionResponse::Array(locations))
     }
+
+    pub(crate) fn prepare_type_hierarchy(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<Vec<TypeHierarchyItem>> {
+        if self.rename.conflicting_contents().contains(uri) {
+            return None;
+        }
+        if let Some(reference) = self.reference_at_position(uri, position) {
+            let range = reference.location.range;
+            let prepared = self.type_hierarchy.prepare(&reference.targets);
+            let references = self.file_references.get(uri)?;
+            let agree = references
+                .candidates_at(position, |index| self.references[index].location.range)
+                .filter(|&index| self.references[index].location.range == range)
+                .all(|index| {
+                    self.type_hierarchy.prepare(&self.references[index].targets) == prepared
+                });
+            return if agree { prepared } else { None };
+        }
+
+        let symbol_id = self.declaration_at_position(uri, position)?;
+        self.type_hierarchy.prepare(std::slice::from_ref(&symbol_id))
+    }
+
+    pub(crate) fn type_hierarchy_supertypes(
+        &self,
+        item: &TypeHierarchyItem,
+    ) -> Option<Vec<TypeHierarchyItem>> {
+        self.type_hierarchy.supertypes(item)
+    }
+
+    pub(crate) fn type_hierarchy_subtypes(
+        &self,
+        item: &TypeHierarchyItem,
+    ) -> Option<Vec<TypeHierarchyItem>> {
+        self.type_hierarchy.subtypes(item)
+    }
+
     pub(crate) fn goto_type_definition(
         &self,
         uri: &Url,
@@ -582,7 +758,7 @@ impl SymbolTables {
         position: Position,
         include_declaration: bool,
     ) -> Option<Vec<Location>> {
-        let target = self.symbol_ids_at_position(uri, position)?;
+        let target = self.reference_targets_at_position(uri, position)?;
         let mut locations = Vec::new();
 
         if include_declaration {
@@ -590,7 +766,7 @@ impl SymbolTables {
         }
 
         locations.extend(
-            self.reference_indices_for_targets(&target)
+            self.complete_reference_indices_for_targets(&target)?
                 .into_iter()
                 .map(|index| self.references[index].location.clone()),
         );
@@ -598,6 +774,39 @@ impl SymbolTables {
         sort_locations(&mut locations);
         locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
         Some(locations)
+    }
+
+    pub(crate) fn prepare_call_hierarchy(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<Vec<lsp_types::CallHierarchyItem>> {
+        self.call_hierarchy.prepare(
+            &self.declarations,
+            self.rename.conflicting_contents(),
+            uri,
+            position,
+            self.declaration_at_position(uri, position),
+        )
+    }
+
+    pub(crate) fn call_hierarchy_incoming(
+        &self,
+        item: &lsp_types::CallHierarchyItem,
+    ) -> Option<Vec<lsp_types::CallHierarchyIncomingCall>> {
+        self.call_hierarchy.incoming(&self.declarations, self.rename.conflicting_contents(), item)
+    }
+
+    pub(crate) fn call_hierarchy_outgoing(
+        &self,
+        item: &lsp_types::CallHierarchyItem,
+    ) -> Option<Vec<lsp_types::CallHierarchyOutgoingCall>> {
+        self.call_hierarchy.outgoing(&self.declarations, self.rename.conflicting_contents(), item)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn call_hierarchy_is_initialized(&self) -> bool {
+        self.call_hierarchy.is_query_initialized()
     }
 
     pub(crate) fn document_highlights(
@@ -756,6 +965,22 @@ impl SymbolTables {
         id
     }
 
+    fn push_reference_entry(
+        &mut self,
+        gcx: Gcx<'_>,
+        span: Span,
+        targets: ReferenceTargets,
+        kind: DocumentHighlightKind,
+    ) {
+        if targets.is_empty() {
+            return;
+        }
+        let Some(location) = proto::span_to_location(gcx.sess.source_map(), span) else {
+            return;
+        };
+        self.references.push(SymbolReference { location, targets, kind });
+    }
+
     #[cfg(test)]
     fn push_test_declaration(&mut self, declaration: DeclarationSymbol) -> SymbolId {
         let id = declaration.id;
@@ -831,6 +1056,14 @@ impl SymbolTables {
 
     fn build_references(&mut self, gcx: Gcx<'_>, item_symbols: &FxHashMap<ItemId, SymbolId>) {
         let bindings = self.rename.build_imports(gcx, item_symbols);
+        for (span, targets) in bindings.references() {
+            self.push_reference_entry(
+                gcx,
+                span,
+                targets.iter().copied().collect(),
+                DocumentHighlightKind::READ,
+            );
+        }
         let mapping_bindings = self.rename.build_mapping_names(gcx);
         self.rename.build_natspec(gcx, &bindings, item_symbols, &self.declarations);
         self.rename.build_overrides(
@@ -985,7 +1218,52 @@ impl SymbolTables {
         Some(ReferenceTargets::from_buf([symbol_id]))
     }
 
-    fn reference_indices_for_targets(&self, targets: &[SymbolId]) -> Vec<usize> {
+    fn reference_targets_at_position(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<ReferenceTargets> {
+        if !self.has_merged_batches {
+            // Duplicate declarations and conflicting snapshots can only come from aggregation.
+            debug_assert!(self.rename.conflicting_contents().is_empty());
+            return self.symbol_ids_at_position(uri, position);
+        }
+        if self.rename.conflicting_contents().contains(uri) {
+            return None;
+        }
+        if let Some(reference) = self.reference_at_position(uri, position) {
+            let range = reference.location.range;
+            let mut targets = self
+                .file_references
+                .get(uri)?
+                .candidates_at(position, |index| self.references[index].location.range)
+                .filter(|&index| self.references[index].location.range == range)
+                .flat_map(|index| self.references[index].targets.iter().copied())
+                .collect::<ReferenceTargets>();
+            targets.sort_unstable_by_key(|symbol_id| symbol_id.index());
+            targets.dedup();
+            return Some(targets);
+        }
+
+        let symbol_id = self.declaration_at_position(uri, position)?;
+        let declaration = &self.declarations[symbol_id];
+        let mut symbol_ids = self
+            .file_declaration_positions
+            .get(uri)?
+            .candidates_at(position, |symbol_id| self.declarations[symbol_id].name_range)
+            .filter(|&candidate| {
+                let candidate = &self.declarations[candidate];
+                candidate.name_range == declaration.name_range
+                    && candidate.location.range == declaration.location.range
+                    && candidate.name == declaration.name
+                    && candidate.kind == declaration.kind
+            })
+            .collect::<ReferenceTargets>();
+        symbol_ids.sort_unstable_by_key(|symbol_id| symbol_id.index());
+        Some(symbol_ids)
+    }
+
+    fn complete_reference_indices_for_targets(&self, targets: &[SymbolId]) -> Option<Vec<usize>> {
         let mut indices = targets
             .iter()
             .filter_map(|target| self.symbol_references.get(target))
@@ -994,7 +1272,12 @@ impl SymbolTables {
             .collect::<Vec<_>>();
         indices.sort_unstable();
         indices.dedup();
-        indices
+        if indices.iter().any(|&index| {
+            self.rename.conflicting_contents().contains(&self.references[index].location.uri)
+        }) {
+            return None;
+        }
+        Some(indices)
     }
 
     fn reference_at_position(&self, uri: &Url, position: Position) -> Option<&SymbolReference> {
@@ -1214,12 +1497,11 @@ impl SymbolTables {
             references.rebuild(|index| self.references[index].location.range);
         }
         self.override_families.rebuild(&self.declarations, self.rename.conflicting_contents());
+        self.type_hierarchy.rebuild(self.rename.conflicting_contents());
         self.rename.rebuild(&self.override_families);
+        self.code_lens.rebuild(&self.declarations, self.rename.conflicting_contents());
+        self.call_hierarchy.rebuild();
     }
-}
-
-fn remap_symbol_id(symbol_id: SymbolId, offset: usize) -> SymbolId {
-    SymbolId::from_usize(symbol_id.index() + offset)
 }
 
 fn remap_scope_id(scope_id: ScopeId, offset: usize) -> ScopeId {
@@ -1602,13 +1884,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
                 &targets,
             );
         }
-        if targets.is_empty() {
-            return;
-        }
-        let Some(location) = proto::span_to_location(self.gcx.sess.source_map(), span) else {
-            return;
-        };
-        self.tables.references.push(SymbolReference { location, targets, kind });
+        self.tables.push_reference_entry(self.gcx, span, targets, kind);
     }
 
     fn visit_ident_reference(
@@ -1617,10 +1893,11 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         resolutions: &[Res],
         kind: DocumentHighlightKind,
     ) {
-        let callee = self.gcx.resolved_callee(expr.id).filter(|callee| !callee.res.is_err());
-        let resolutions =
-            callee.as_ref().map_or(resolutions, |callee| std::slice::from_ref(&callee.res));
-        let targets = self.symbol_ids_for_res(resolutions.iter().copied());
+        let resolved = self.gcx.resolved_expr(expr).filter(|res| !res.is_err());
+        let targets = resolved.map_or_else(
+            || self.symbol_ids_for_res(resolutions.iter().copied()),
+            |res| self.symbol_id_for_res(res).into_iter().collect(),
+        );
         self.push_reference_with_kind(expr.span, targets, kind);
         self.push_namespace_references(expr.span, resolutions);
     }
@@ -1633,7 +1910,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         kind: DocumentHighlightKind,
     ) -> ControlFlow<Never> {
         self.visit_expr(receiver)?;
-        let targets = self.symbol_ids_for_member_expr(expr);
+        let targets = self.symbol_ids_for_expr(expr);
         self.push_reference_with_kind(ident.span, targets, kind);
         ControlFlow::Continue(())
     }
@@ -1681,15 +1958,9 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         }
     }
 
-    fn symbol_ids_for_member_expr(&self, expr: &hir::Expr<'gcx>) -> ReferenceTargets {
-        if let Some(res) = self.gcx.resolved_member(expr.id)
-            && let Some(symbol_id) = self.symbol_id_for_res(res)
-        {
-            return ReferenceTargets::from_buf([symbol_id]);
-        }
-
-        if let Some(callee) = self.gcx.resolved_callee(expr.id)
-            && let Some(symbol_id) = self.symbol_id_for_res(callee.res)
+    fn symbol_ids_for_expr(&self, expr: &hir::Expr<'gcx>) -> ReferenceTargets {
+        if let Some(symbol_id) =
+            self.gcx.resolved_expr(expr).and_then(|res| self.symbol_id_for_res(res))
         {
             return ReferenceTargets::from_buf([symbol_id]);
         }
@@ -1950,6 +2221,66 @@ fn sort_locations(locations: &mut [Location]) {
                 ))
         })
     });
+}
+
+fn format_reference_title(count: usize) -> String {
+    format!("{count} reference{}", if count == 1 { "" } else { "s" })
+}
+
+fn format_selector_title(selector: [u8; 4]) -> String {
+    let mut title = String::from("0x");
+    for byte in selector {
+        write!(title, "{byte:02x}").expect("writing a selector title cannot fail");
+    }
+    title
+}
+
+#[derive(Clone, Copy, Debug)]
+enum InheritanceLensKind {
+    Base,
+    Derived,
+}
+
+impl InheritanceLensKind {
+    fn title(self, count: usize) -> String {
+        let noun = match (self, count) {
+            (Self::Base, 1) => "base contract",
+            (Self::Base, _) => "base contracts",
+            (Self::Derived, 1) => "derived contract",
+            (Self::Derived, _) => "derived contracts",
+        };
+        format!("{count} {noun}")
+    }
+
+    fn direction(self) -> &'static str {
+        match self {
+            Self::Base => "supertypes",
+            Self::Derived => "subtypes",
+        }
+    }
+}
+
+fn inheritance_command(
+    kind: InheritanceLensKind,
+    count: usize,
+    uri: &Url,
+    position: Position,
+    enabled: bool,
+) -> Command {
+    let title = kind.title(count);
+    let (command, arguments) = if enabled {
+        (
+            "solar.showTypeHierarchy".into(),
+            Some(vec![serde_json::json!({
+                "uri": uri,
+                "position": position,
+                "direction": kind.direction(),
+            })]),
+        )
+    } else {
+        (String::new(), None)
+    };
+    Command { title, command, arguments }
 }
 
 fn sort_completion_items(items: &mut [CompletionItem]) {
@@ -2320,15 +2651,17 @@ mod tests {
     }
 
     #[test]
-    fn extend_preserves_document_links_without_declarations() {
+    fn aggregator_preserves_document_links_without_declarations() {
         let source_path = PathBuf::from("/workspace/src/Imports.sol");
         let target = parse_uri("file:///workspace/src/Dependency.sol");
         let link_range = range(0, 8, 0, 24);
-        let mut tables = SymbolTables::default();
         let mut other = SymbolTables::default();
         other.document_links.insert_for_test(source_path.clone(), link_range, target.clone());
+        let mut aggregator = SymbolTablesAggregator::default();
 
-        tables.extend(other);
+        aggregator.push(SymbolTables::default());
+        aggregator.push(other);
+        let tables = aggregator.finish();
 
         let links = tables.document_links(&source_path);
         assert_eq!(links.len(), 1);

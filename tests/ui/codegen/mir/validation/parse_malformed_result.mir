@@ -1,0 +1,8 @@
+//@compile-flags: --pass none
+
+@module MalformedResult
+
+fn @f() {
+  bb0:
+    %bad //~ ERROR: expected identifier
+}

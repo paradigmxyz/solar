@@ -83,6 +83,26 @@
           "default": true,
           "description": "Format files on save using Solar LSP"
         },
+        "solarLsp.codeLens.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show Solidity CodeLens annotations"
+        },
+        "solarLsp.codeLens.selectors": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show function selector CodeLens annotations"
+        },
+        "solarLsp.codeLens.references": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show reference count CodeLens annotations"
+        },
+        "solarLsp.codeLens.inheritance": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show contract inheritance CodeLens annotations"
+        },
         "solarLsp.flychecks": {
           "type": [
             "array",

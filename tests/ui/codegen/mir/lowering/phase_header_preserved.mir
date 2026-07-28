@@ -1,9 +1,10 @@
 //@compile-flags: --pipeline-default
 //@filecheck: --match-full-lines
-// CHECK: @module PhaseHeaderPreserved
-// CHECK-NEXT: @phase optimized
 // Re-running the default pipeline on its own output keeps the phase instead of
 // rejecting the idempotent optimized-to-optimized transition.
+// CHECK: @module PhaseHeaderPreserved
+// CHECK-NEXT: @phase optimized
+/// Module docs.
 @module PhaseHeaderPreserved
 @phase optimized
 fn @f() {

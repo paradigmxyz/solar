@@ -1,6 +1,11 @@
 //@compile-flags: --pass cse
+//@filecheck:
 @module MemoryObjectCse
 
+// CHECK-LABEL: {{^[ +].*}}fn @reuse_projections{{[( ]}}
+// CHECK: - {{v[0-9]+}} = memory_object_data memorybytes, arg0
+// CHECK: - {{v[0-9]+}} = memory_object_field_addr memorystruct<3>, arg1, 2
+// CHECK: - {{v[0-9]+}} = memory_object_element_addr memoryarray<2>, arg2, arg3
 fn @reuse_projections(arg0: memorybytes, arg1: memorystruct, arg2: memoryarray, arg3: u256) -> u256 {
   bb0:
     v4 = memory_object_data memorybytes, arg0
@@ -17,6 +22,9 @@ fn @reuse_projections(arg0: memorybytes, arg1: memorystruct, arg2: memoryarray, 
     ret v14
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @invalidate_length{{[( ]}}
+// CHECK: - {{v[0-9]+}} = memory_object_len memorybytes, arg0
+// CHECK: + {{v[0-9]+}} = add [[LENGTH:v[0-9]+]], [[LENGTH]]
 fn @invalidate_length(arg0: memorybytes) -> u256 {
   bb0:
     v1 = memory_object_len memorybytes, arg0

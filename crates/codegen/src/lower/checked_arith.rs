@@ -31,6 +31,7 @@ pub(super) enum PanicCode {
     PopEmptyArray,
     ArrayOutOfBounds,
     MemoryAllocationOverflow,
+    InvalidInternalFunction,
 }
 
 impl PanicCode {
@@ -42,6 +43,7 @@ impl PanicCode {
             Self::PopEmptyArray => 0x31,
             Self::ArrayOutOfBounds => 0x32,
             Self::MemoryAllocationOverflow => 0x41,
+            Self::InvalidInternalFunction => 0x51,
         }
     }
 }

@@ -27,13 +27,6 @@ impl BasicBlock {
     pub(crate) const fn is_terminated(&self) -> bool {
         self.terminator.is_some()
     }
-
-    /// Returns the terminator, if present.
-    #[must_use]
-    #[cfg(test)]
-    pub(crate) const fn terminator(&self) -> Option<&Terminator> {
-        self.terminator.as_ref()
-    }
 }
 
 impl Default for BasicBlock {
@@ -140,7 +133,7 @@ impl Terminator {
     pub(crate) const fn mnemonic(&self) -> &'static str {
         match self {
             Self::Jump(_) => "jump",
-            Self::Branch { .. } => "branch",
+            Self::Branch { .. } => "jumpi",
             Self::Switch { .. } => "switch",
             Self::Return { .. } => "return",
             Self::Revert { .. } => "revert",
@@ -186,7 +179,7 @@ impl fmt::Display for Terminator {
             Self::Branch { condition, then_block, else_block } => {
                 write!(
                     f,
-                    "branch v{}, bb{}, bb{}",
+                    "jumpi v{}, bb{}, bb{}",
                     condition.index(),
                     then_block.index(),
                     else_block.index()

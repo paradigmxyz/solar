@@ -108,24 +108,20 @@ impl PureEvaluator {
     }
 
     fn is_side_effect_free(&self, func: &Function) -> bool {
-        for block in &func.blocks {
-            for &inst_id in &block.instructions {
-                if func.instructions[inst_id].kind.has_side_effects() {
-                    return false;
-                }
-            }
-        }
-        true
+        func.instructions().all(|inst_id| !func.inst(inst_id).kind.has_side_effects())
     }
 
     fn evaluate(&self, func: &Function) -> Option<Vec<U256>> {
         let mut env = FxHashMap::default();
-        for (value_id, value) in func.values.iter_enumerated() {
-            if let Value::Immediate(imm) = value
+        let mut insert_immediate = |value_id| {
+            if let Value::Immediate(imm) = func.value(value_id)
                 && let Some(value) = imm.as_u256()
             {
                 env.insert(value_id, value);
             }
+        };
+        for value in func.live_values() {
+            insert_immediate(value);
         }
 
         let mut current = BlockId::ENTRY;
@@ -136,7 +132,7 @@ impl PureEvaluator {
             let block = &func.blocks[current];
 
             for &inst_id in &block.instructions {
-                let inst = &func.instructions[inst_id];
+                let inst = func.inst(inst_id);
                 let result = match &inst.kind {
                     InstKind::Phi(incoming) => {
                         let pred = predecessor?;
@@ -163,12 +159,13 @@ impl PureEvaluator {
                 Terminator::Switch { value, default, cases } => {
                     let value = self.value_const(&env, *value)?;
                     predecessor = Some(current);
-                    current = cases
-                        .iter()
-                        .find_map(|(case, target)| {
-                            (self.value_const(&env, *case)? == value).then_some(*target)
-                        })
-                        .unwrap_or(*default);
+                    current = *default;
+                    for (case, target) in cases {
+                        if self.value_const(&env, *case)? == value {
+                            current = *target;
+                            break;
+                        }
+                    }
                 }
                 Terminator::Return { values } => {
                     return values
@@ -210,6 +207,7 @@ impl PureEvaluator {
             InstKind::Or(a, b) => get(a)? | get(b)?,
             InstKind::Xor(a, b) => get(a)? ^ get(b)?,
             InstKind::Not(a) => !get(a)?,
+            InstKind::Clz(a) => U256::from(get(a)?.leading_zeros() as u64),
             InstKind::Shl(shift, value) => {
                 let shift = get(shift)?;
                 if shift >= U256::from(256) {

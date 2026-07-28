@@ -5,7 +5,7 @@
 //! fact only moves from false to true.
 
 use super::{AddressSpace, AliasAnalysis};
-use crate::mir::{Function, FunctionId, InstKind, Module, Terminator, Value, ValueId};
+use crate::mir::{ArgIdx, Function, FunctionId, InstKind, Module, Terminator, Value, ValueId};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
 /// Conservative memory effects and pointer captures for one MIR function.
@@ -17,7 +17,7 @@ pub(crate) struct FunctionMemorySummary {
     writes: u8,
     may_reset_fmp: bool,
     /// Parameters whose pointer value may escape the call.
-    captures: DenseBitSet<usize>,
+    captures: DenseBitSet<ArgIdx>,
 }
 
 impl FunctionMemorySummary {
@@ -54,8 +54,8 @@ impl FunctionMemorySummary {
 
     /// Returns whether a parameter's pointer value may escape the call.
     #[must_use]
-    pub(crate) fn captures_param(&self, index: usize) -> bool {
-        index >= self.captures.domain_size() || self.captures.contains(index)
+    pub(crate) fn captures_param(&self, index: ArgIdx) -> bool {
+        index.index() >= self.captures.domain_size() || self.captures.contains(index)
     }
 
     fn merge_effects(&mut self, other: &Self) {
@@ -94,7 +94,7 @@ impl MemoryCallSummaries {
                 for block in &func.blocks {
                     for &inst_id in &block.instructions {
                         if let InstKind::InternalCall { function, ref args, .. } =
-                            func.instructions[inst_id].kind
+                            func.inst(inst_id).kind
                         {
                             let callee = previous
                                 .get(function)
@@ -102,8 +102,8 @@ impl MemoryCallSummaries {
                                 .unwrap_or_else(|| FunctionMemorySummary::conservative(args.len()));
                             summary.merge_effects(&callee);
                             for (index, &arg) in args.iter().enumerate() {
-                                if callee.captures_param(index) {
-                                    capture_sources(&mut summary, &sources[arg]);
+                                if callee.captures_param(ArgIdx::new(index)) {
+                                    capture_sources(&mut summary, func, &sources, arg);
                                 }
                             }
                         }
@@ -115,8 +115,8 @@ impl MemoryCallSummaries {
                             .unwrap_or_else(|| FunctionMemorySummary::conservative(args.len()));
                         summary.merge_effects(&callee);
                         for (index, &arg) in args.iter().enumerate() {
-                            if callee.captures_param(index) {
-                                capture_sources(&mut summary, &sources[arg]);
+                            if callee.captures_param(ArgIdx::new(index)) {
+                                capture_sources(&mut summary, func, &sources, arg);
                             }
                         }
                     }
@@ -156,7 +156,7 @@ fn local_summary(func: &Function) -> FunctionMemorySummary {
     let aa = AliasAnalysis::new(func);
     for block in &func.blocks {
         for &inst_id in &block.instructions {
-            let kind = &func.instructions[inst_id].kind;
+            let kind = &func.inst(inst_id).kind;
             if matches!(kind, InstKind::InternalCall { .. }) {
                 continue;
             }
@@ -172,46 +172,52 @@ fn local_summary(func: &Function) -> FunctionMemorySummary {
                 | InstKind::MStore8(_, value)
                 | InstKind::SStore(_, value)
                 | InstKind::TStore(_, value)
-                | InstKind::SetFmp(value) => capture_sources(&mut summary, &sources[*value]),
+                | InstKind::SetFmp(value) => {
+                    capture_sources(&mut summary, func, &sources, *value);
+                }
                 _ => {}
             }
         }
 
         if let Some(Terminator::Return { values }) = &block.terminator {
             for &value in values {
-                capture_sources(&mut summary, &sources[value]);
+                capture_sources(&mut summary, func, &sources, value);
             }
         }
     }
     summary
 }
 
-fn capture_sources(summary: &mut FunctionMemorySummary, sources: &DenseBitSet<usize>) {
-    summary.captures.union(sources);
+fn capture_sources(
+    summary: &mut FunctionMemorySummary,
+    func: &Function,
+    sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
+    value: ValueId,
+) {
+    if let Value::Arg(index) = func.value(value)
+        && index.index() < summary.captures.domain_size()
+    {
+        summary.captures.insert(*index);
+    }
+    summary.captures.union(&sources[value]);
 }
 
 /// Tracks which parameters a value is derived from. Only pointer-preserving
 /// operations propagate sources; loading pointer bits through memory is
 /// deliberately not guessed, and storing a parameter is already a capture.
-fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<usize>> {
+/// Direct argument sources are handled lazily while propagating or capturing.
+fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> {
     let params = func.params.len();
-    let mut sources = IndexVec::with_capacity(func.values.len());
-    for _ in 0..func.values.len() {
+    let mut sources = IndexVec::with_capacity(func.num_values());
+    for _ in 0..func.num_values() {
         sources.push(DenseBitSet::new_empty(params));
-    }
-    for (value_id, value) in func.values.iter_enumerated() {
-        if let Value::Arg { index, .. } = value
-            && (*index as usize) < params
-        {
-            sources[value_id].insert(*index as usize);
-        }
     }
 
     loop {
         let mut changed = false;
-        for (value_id, value) in func.values.iter_enumerated() {
-            let Value::Inst(inst_id) = value else { continue };
-            let operands = match &func.instructions[*inst_id].kind {
+        for inst_id in func.instructions() {
+            let Some(value_id) = func.inst_result_value(inst_id) else { continue };
+            let operands = match &func.inst(inst_id).kind {
                 InstKind::Add(first, second)
                 | InstKind::Sub(first, second)
                 | InstKind::MakeSlice { ptr: first, len: second, .. } => {
@@ -229,6 +235,11 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<usize>> {
             };
             let mut propagated = DenseBitSet::new_empty(params);
             for operand in operands {
+                if let Value::Arg(index) = func.value(operand)
+                    && index.index() < params
+                {
+                    propagated.insert(*index);
+                }
                 propagated.union(&sources[operand]);
             }
             changed |= sources[value_id].union(&propagated);
@@ -297,8 +308,8 @@ mod tests {
         let returning_caller = module.add_function(returning_caller);
 
         let summaries = MemoryCallSummaries::new(&module);
-        assert!(!summaries.get(reader_caller).unwrap().captures_param(0));
-        assert!(summaries.get(returning_caller).unwrap().captures_param(0));
+        assert!(!summaries.get(reader_caller).unwrap().captures_param(ArgIdx::new(0)));
+        assert!(summaries.get(returning_caller).unwrap().captures_param(ArgIdx::new(0)));
         assert!(summaries.get(resetter).unwrap().may_reset_fmp());
     }
 }

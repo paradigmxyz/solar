@@ -1,0 +1,8 @@
+error: immutable ID exceeds the index limit
+   ╭▸ ROOT/tests/ui/codegen/evm-ir/validation/parse_immutable_overflow.evmir:LL:CC
+   │
+LL │   push_immutable 0xffffffff, 32
+   ╰╴                 ━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

@@ -9,7 +9,7 @@ use crate::{
     },
     pass::{MirPass, run_function_pass},
 };
-use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
+use solar_data_structures::bit_set::GrowableBitSet;
 
 /// Function pass for dead code elimination.
 pub(crate) struct Dce;
@@ -26,9 +26,9 @@ impl MirPass for Dce {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
-            let changed = DeadCodeEliminator::new().run_to_fixpoint(func) != 0;
-            repair_reachability_phis(func);
-            changed
+            let removed = DeadCodeEliminator::new().run_to_fixpoint(func);
+            let repaired = repair_reachability_phis(func);
+            removed != 0 || repaired
         })
     }
 }
@@ -58,21 +58,17 @@ impl DeadCodeEliminator {
         Self::default()
     }
 
-    fn run_with_inst_results(
-        &mut self,
-        func: &mut Function,
-        inst_to_value: &FxHashMap<InstId, ValueId>,
-    ) -> usize {
+    fn run_once(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
 
         // Phase 1: Remove unreachable blocks
-        self.eliminate_unreachable_blocks(func);
+        self.eliminated_count += self.eliminate_unreachable_blocks(func);
 
         // Phase 2: Find all used values
         self.collect_used_values(func);
 
         // Phase 3: Find dead instructions
-        self.find_dead_instructions(func, inst_to_value);
+        self.find_dead_instructions(func);
 
         // Remove dead instructions from blocks
         self.eliminated_count += self.dead.len();
@@ -87,9 +83,8 @@ impl DeadCodeEliminator {
     /// Runs dead code elimination iteratively until no more changes.
     pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total_eliminated = 0;
-        let inst_to_value = func.inst_results();
         loop {
-            let eliminated = self.run_with_inst_results(func, &inst_to_value);
+            let eliminated = self.run_once(func);
             if eliminated == 0 {
                 break;
             }
@@ -99,7 +94,7 @@ impl DeadCodeEliminator {
     }
 
     /// Eliminates unreachable blocks using CFG reachability analysis.
-    fn eliminate_unreachable_blocks(&mut self, func: &mut Function) {
+    fn eliminate_unreachable_blocks(&mut self, func: &mut Function) -> usize {
         let cfg = CfgInfo::new(func);
 
         // Collect unreachable block IDs
@@ -111,18 +106,25 @@ impl DeadCodeEliminator {
 
         // Clear unreachable blocks (we can't actually remove from IndexVec,
         // but we can clear their contents to prevent codegen)
-        for block_id in &unreachable {
-            let block = func.block_mut(*block_id);
+        let mut changed = 0;
+        for block_id in unreachable {
+            let block = func.block_mut(block_id);
+            changed += usize::from(
+                !block.instructions.is_empty()
+                    || !matches!(block.terminator, Some(Terminator::Invalid))
+                    || !block.predecessors.is_empty(),
+            );
             block.instructions.clear();
             block.terminator = Some(Terminator::Invalid);
             block.predecessors.clear();
         }
+        changed
     }
 
     /// Collects all values that are used (appear in instructions or terminators).
     fn collect_used_values(&mut self, func: &Function) {
         self.used_values.clear();
-        self.used_values.ensure(func.values.len());
+        self.used_values.ensure(func.num_values());
 
         // Add values used in terminators
         for (_, block) in func.blocks.iter_enumerated() {
@@ -134,35 +136,28 @@ impl DeadCodeEliminator {
         }
 
         // Add values used as operands in instructions
-        for (_, block) in func.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
-                let inst = &func.instructions[inst_id];
-                for val in inst.kind.operands() {
-                    self.used_values.insert(val);
-                }
+        for inst_id in func.instructions() {
+            let inst = func.inst(inst_id);
+            for val in inst.kind.operands() {
+                self.used_values.insert(val);
             }
         }
     }
 
     /// Finds instructions that are dead (unused result, no side effects).
-    fn find_dead_instructions(
-        &mut self,
-        func: &Function,
-        inst_to_value: &FxHashMap<InstId, ValueId>,
-    ) {
+    fn find_dead_instructions(&mut self, func: &Function) {
         self.dead.clear();
 
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
-                let inst = &func.instructions[inst_id];
+                let inst = func.inst(inst_id);
 
                 // Instructions with side effects are always kept.
                 if inst.kind.has_side_effects() {
                     continue;
                 }
 
-                // O(1) lookup via precomputed map (was O(V) linear scan).
-                if let Some(&result) = inst_to_value.get(&inst_id)
+                if let Some(result) = func.inst_result_value(inst_id)
                     && !self.used_values.contains(result)
                 {
                     self.dead.push((block_id, inst_id));

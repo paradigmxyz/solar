@@ -1,23 +1,27 @@
 //@compile-flags: --pass licm
+//@filecheck:
 // Two latches feeding the same phi with DIFFERENT increments (+1 and +7) take
 // the variable off the single-stride lattice that trip counts and affine
 // ranges assume: walking the +1 latch reaches i = 9, so the mstore really
 // writes byte 288 before the mload reads it. No induction variable may be
 // recorded and the mload must stay in the loop.
 @module LicmMultiLatch
+// CHECK-LABEL: {{^[ +].*}}fn @multi_latch_mixed_step{{[( ]}}
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}mload 288
 fn @multi_latch_mixed_step() -> u256 {
   bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v8], [bb3: v9]
     v2 = lt v1, 10
-    br v2, bb4, bb5
+    jumpi v2, bb4, bb5
   bb4:
     v6 = mul v1, 32
     mstore v6, 1
     v3 = mload 288
     v7 = calldataload 0
-    br v7, bb2, bb3
+    jumpi v7, bb2, bb3
   bb2:
     v8 = add v1, 1
     jump bb1
@@ -30,20 +34,23 @@ fn @multi_latch_mixed_step() -> u256 {
 
 // Two latches passing the SAME update value keep the stride uniform; the
 // store range is exactly [0, 320) and the mload at 320 may be hoisted.
+// CHECK-LABEL: {{^[ +].*}}fn @multi_latch_same_value{{[( ]}}
+// CHECK: + [[LOAD:v[0-9]+]] = mload 320
+// CHECK: - [[LOAD]] = mload 320
 fn @multi_latch_same_value() -> u256 {
   bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v8], [bb3: v8]
     v2 = lt v1, 10
-    br v2, bb4, bb5
+    jumpi v2, bb4, bb5
   bb4:
     v6 = mul v1, 32
     mstore v6, 1
     v3 = mload 320
     v8 = add v1, 1
     v7 = calldataload 0
-    br v7, bb2, bb3
+    jumpi v7, bb2, bb3
   bb2:
     jump bb1
   bb3:

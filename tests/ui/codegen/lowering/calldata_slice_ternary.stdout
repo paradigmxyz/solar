@@ -5,7 +5,7 @@ fn @pick(arg0: bool, arg1: calldataslice, arg2: calldataslice) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -13,12 +13,12 @@ fn @pick(arg0: bool, arg1: calldataslice, arg2: calldataslice) {
     v4 = iszero v3
     v5 = iszero v4
     v6 = eq v3, v5
-    br v6, bb4, bb3
+    jumpi v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
     mstore 128, 0
-    br arg0, bb5, bb6
+    jumpi arg0, bb5, bb6
   bb5:
     v7 = slice_ptr arg1
     v8 = slice_len arg1
@@ -45,7 +45,7 @@ fn @adopt(arg0: bool, arg1: calldataslice) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -53,7 +53,7 @@ fn @adopt(arg0: bool, arg1: calldataslice) {
     v4 = iszero v3
     v5 = iszero v4
     v6 = eq v3, v5
-    br v6, bb4, bb3
+    jumpi v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -63,12 +63,12 @@ fn @adopt(arg0: bool, arg1: calldataslice) {
     v8 = memory_object_data memorybytes, v7
     v9 = add v8, 0
     mstore v9, 0xaabb000000000000000000000000000000000000000000000000000000000000
-    br arg0, bb5, bb6
+    jumpi arg0, bb5, bb6
   bb5:
     v10 = slice_len arg1
     v11 = add v10, 31
     v12 = lt v11, v10
-    br v12, bb8, bb9
+    jumpi v12, bb8, bb9
   bb6:
     mstore 0, v7 !metadata(memory=scratch)
     jump bb7
@@ -87,7 +87,7 @@ fn @adopt(arg0: bool, arg1: calldataslice) {
     v16 = select v15, 32, v14
     v17 = add 32, v16
     v18 = lt v17, v16
-    br v18, bb10, bb11
+    jumpi v18, bb10, bb11
   bb10:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

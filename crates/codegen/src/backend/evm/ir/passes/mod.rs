@@ -35,6 +35,7 @@ pub trait EvmPass: Sync {
     }
 
     /// Runs the pass and returns whether it changed EVM IR.
+    #[must_use]
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
 }
 
@@ -59,18 +60,15 @@ pub(crate) static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &block_layout::BlockLayout,
     &share_reverts::ShareReverts,
     // Simplify and merge the explicit control-flow graph.
-    &cfg_simplify::CfgSimplify,
     &terminal_dedup::TerminalDedup,
     &cfg_simplify::CfgSimplify,
     &tail_merge::TailMerge,
     &cfg_simplify::CfgSimplify,
     &tail_merge::TailMerge,
-    &cfg_simplify::CfgSimplify,
     // Outline only after straight-line paths and terminal tails are canonical.
     &outline::Outline,
     &cfg_simplify::CfgSimplify,
-    &terminal_dedup::TerminalDedup,
-    &cfg_simplify::CfgSimplify,
+    &compact_pushes::CompactPushes,
     // Pack address-sensitive terminal blocks, then clean up any adjacent
     // revert branch that remains profitable in the final layout.
     &block_layout::BlockLayout,
@@ -85,6 +83,7 @@ pub fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
 }
 
 /// Runs an EVM IR pass pipeline.
+#[must_use]
 pub fn run_passes(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn EvmPass]) -> bool {
     let mut changed = false;
     for pass in passes {

@@ -34,6 +34,19 @@ the local binary:
 Formatting uses `forge fmt`, so install Foundry or disable
 `solarLsp.formatOnSave`.
 
+## CodeLens
+
+CodeLens annotations are enabled by default for function selectors, reference
+counts, and contract inheritance. Select a selector to copy it, a reference
+count to open Peek References, or inheritance information to open Type
+Hierarchy.
+
+Use `solarLsp.codeLens.enable` to disable all annotations, or configure
+`solarLsp.codeLens.selectors`, `solarLsp.codeLens.references`, and
+`solarLsp.codeLens.inheritance` separately. These settings are sent when the
+language server starts, so changing one restarts the client. Lenses refresh
+after the workspace is reanalyzed. Test and run actions are not yet supported.
+
 ## License
 
 Dual licensed under MIT or Apache-2.0.

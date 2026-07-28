@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     analysis::Liveness,
-    mir::{BlockId, Function, ValueId},
+    mir::{ArgIdx, BlockId, Function, ValueId},
 };
 
 /// Stack scheduler that generates stack manipulation operations.
@@ -34,7 +34,7 @@ pub(crate) enum ScheduledOp {
     LoadSpill(SpillSlot),
     /// Load a function argument from calldata.
     /// Contains the argument index (0-based).
-    LoadArg(u32),
+    LoadArg(ArgIdx),
 }
 
 impl StackScheduler {
@@ -114,7 +114,7 @@ impl StackScheduler {
                     self.stack.push(value);
                 }
             }
-            crate::mir::Value::Arg { index, .. } => {
+            crate::mir::Value::Arg(index) => {
                 // It's a function argument, load from calldata
                 self.ops.push(ScheduledOp::LoadArg(*index));
                 self.stack.push(value);
@@ -145,7 +145,7 @@ impl StackScheduler {
             return true;
         }
         // Check value type
-        matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. })
+        matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_))
     }
 
     /// Records that an instruction consumed its operands and produced a result.
@@ -335,9 +335,8 @@ mod tests {
         let mut func = make_test_func();
         let v0 = ValueId::from_usize(0);
         let v1 = ValueId::from_usize(1);
-        let inst =
-            func.alloc_inst(Instruction::new(InstKind::Add(v0, v1), Some(MirType::uint256())));
-        let deep = func.alloc_value(Value::Inst(inst));
+        let (_, deep) = func
+            .alloc_value_inst(Instruction::new(InstKind::Add(v0, v1), Some(MirType::uint256())));
         let mut scheduler = StackScheduler::new();
 
         scheduler.stack.push(deep);

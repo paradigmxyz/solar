@@ -1,7 +1,7 @@
-//@ error-in-other-file: operators can only be defined in a global
-//@ error-in-other-file: operators can only be defined in a global
-//@ error-in-other-file: operators can only be defined in a global
-//@ error-in-other-file: operators can only be defined in a global
+//~? ERROR: operators can only be defined in a global
+//~? ERROR: operators can only be defined in a global
+//~? ERROR: operators can only be defined in a global
+//~? ERROR: operators can only be defined in a global
 // ported-from: test/libsolidity/syntaxTests/operators/userDefined/calling_operator_imported_transitively_non_global.sol
 
 import "./auxiliary/non_global_left.sol";

@@ -1,5 +1,5 @@
-//@compile-flags: -Zcodegen -Zdump=mir
-//@filecheck: --check-prefix=STRUCT
+//@compile-flags: -Zcodegen -O none -Zdump=mir
+//@filecheck:
 
 // Mapping values that are structs use a runtime-computed base slot. Copy the
 // complete value in both directions, following nested memory-struct pointers,
@@ -19,10 +19,16 @@ contract MappingNestedStructCopy {
 
     mapping(uint256 => Outer) internal values;
 
+    // CHECK-LABEL: fn @set{{[( ]}}
+    // CHECK: = mapping_slot
+    // CHECK: memory_to_storage struct<word, struct<word, word>, word>
     function set(uint256 key, uint256 head, uint256 left, uint256 right, uint256 tail) external {
         values[key] = Outer(head, Inner(left, right), tail);
     }
 
+    // CHECK-LABEL: fn @get{{[( ]}}
+    // CHECK: = mapping_slot
+    // CHECK: storage_to_memory struct<word, struct<word, word>, word>
     function get(uint256 key)
         external
         view
@@ -32,17 +38,10 @@ contract MappingNestedStructCopy {
         return (value.head, value.inner.left, value.inner.right, value.tail);
     }
 
+    // CHECK-LABEL: fn @clear{{[( ]}}
+    // CHECK: = mapping_slot
+    // CHECK: clear_storage struct<word, struct<word, word>, word>
     function clear(uint256 key) external {
         delete values[key];
     }
 }
-
-// STRUCT-LABEL: fn @set
-// STRUCT: = mapping_slot
-// STRUCT: memory_to_storage struct<word, struct<word, word>, word>
-// STRUCT-LABEL: fn @get
-// STRUCT: = mapping_slot
-// STRUCT: storage_to_memory struct<word, struct<word, word>, word>
-// STRUCT-LABEL: fn @clear
-// STRUCT: = mapping_slot
-// STRUCT: clear_storage struct<word, struct<word, word>, word>

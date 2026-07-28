@@ -15,10 +15,7 @@ use clap::ValueHint;
 use solar_codegen::{
     lower,
     mir::{Module, validate},
-    pass::{
-        ALL_PASSES, DEFAULT_CLEANUP_PIPELINE, DEFAULT_PIPELINE, MirPass, lookup_pass,
-        run_default_pipeline, run_passes,
-    },
+    pass::{ALL_PASSES, DEFAULT_PIPELINE, MirPass, lookup_pass, run_default_pipeline, run_passes},
 };
 use solar_config::CompileOpts;
 use solar_data_structures::fmt::{self, FmtIteratorExt};
@@ -49,15 +46,11 @@ Passes:
 Default pipeline:
   {}
 
-Default cleanup fixpoint:
-  {}
-
 Input formats:
   *.sol  Solidity contract — lowered through the normal compiler pipeline
   *.mir  Textual MIR — parsed directly via solar_codegen::mir::Module::parse",
             display_pass_list(ALL_PASSES, separator),
-            display_pass_list(DEFAULT_PIPELINE, " → "),
-            display_pass_list(DEFAULT_CLEANUP_PIPELINE, " → ")
+            display_pass_list(DEFAULT_PIPELINE, " → ")
         )
     })
     .to_string()
@@ -125,7 +118,7 @@ fn selected_pass_list_label(passes: &[Option<&dyn MirPass>], separator: &str) ->
 fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: &str, args: &MirOptArgs) {
     let print_after_each = gcx.sess.opts.unstable.print_after_each;
     if args.pipeline_default {
-        run_default_pipeline(gcx, module);
+        let _changed = run_default_pipeline(gcx, module);
         if !print_after_each {
             print_module(module, name, "pipeline-default");
         }
@@ -137,7 +130,7 @@ fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: &str, args: &MirOptArgs
     for (index, &pass) in passes.iter().enumerate() {
         let before = gcx.sess.opts.unstable.pass_diff.then(|| module.to_text().to_string());
         if let Some(pass) = pass {
-            run_passes(gcx, module, &[pass], None);
+            let _changed = run_passes(gcx, module, &[pass], None);
         }
         if let Some(before) = before {
             let after = module.to_text().to_string();

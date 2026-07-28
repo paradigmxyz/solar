@@ -18,7 +18,7 @@ fn @copy() {
     v2 = slice_len v1
     v3 = add v2, 31
     v4 = lt v3, v2
-    br v4, bb1, bb2
+    jumpi v4, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -30,7 +30,7 @@ fn @copy() {
     v8 = select v7, 32, v6
     v9 = add 32, v8
     v10 = lt v9, v8
-    br v10, bb3, bb4
+    jumpi v10, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -73,7 +73,7 @@ fn @tail(arg0: u256, arg1: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -83,14 +83,14 @@ fn @tail(arg0: u256, arg1: u256) {
     v5 = slice_ptr v4
     v6 = slice_len v4
     v7 = gt arg1, v6
-    br v7, bb3, bb4
+    jumpi v7, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
     v8 = lt arg1, arg0
-    br v8, bb5, bb6
+    jumpi v8, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -102,7 +102,7 @@ fn @tail(arg0: u256, arg1: u256) {
     v12 = slice_len v11
     v13 = add v12, 31
     v14 = lt v13, v12
-    br v14, bb7, bb8
+    jumpi v14, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -114,7 +114,7 @@ fn @tail(arg0: u256, arg1: u256) {
     v18 = select v17, 32, v16
     v19 = add 32, v18
     v20 = lt v19, v18
-    br v20, bb9, bb10
+    jumpi v20, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

@@ -1,14 +1,21 @@
-use super::super::{AnalysisBatch, AnalysisResult, GlobalState, analyze};
-use crate::test_support::MarkedProject;
+use super::super::{
+    AnalysisBatch, AnalysisResult, AnalysisResultAccumulator, GlobalState, analyze,
+};
+use crate::test_support::{
+    MarkedProject, type_hierarchy_prepare_params, type_hierarchy_subtypes_params,
+    type_hierarchy_supertypes_params,
+};
 use async_lsp::{ClientSocket, ErrorCode};
 use lsp_types::{
-    CompletionContext, CompletionItem, CompletionParams, CompletionResponse, CompletionTextEdit,
-    CompletionTriggerKind, DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams,
-    DocumentLink, DocumentLinkParams, Documentation, GotoDefinitionParams, GotoDefinitionResponse,
-    Hover, HoverContents, HoverParams, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams,
-    Location, MarkupKind, ParameterLabel, PartialResultParams, Position, PrepareRenameResponse,
-    Range, ReferenceContext, ReferenceParams, RenameParams, SelectionRange, SelectionRangeParams,
-    SignatureHelp, SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams, Url,
+    CodeLens, CodeLensParams, CompletionContext, CompletionItem, CompletionParams,
+    CompletionResponse, CompletionTextEdit, CompletionTriggerKind, DocumentHighlight,
+    DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
+    Documentation, FoldingRange, FoldingRangeKind, FoldingRangeParams, GotoDefinitionParams,
+    GotoDefinitionResponse, Hover, HoverContents, HoverParams, InlayHint, InlayHintKind,
+    InlayHintLabel, InlayHintParams, Location, MarkupKind, ParameterLabel, PartialResultParams,
+    Position, PrepareRenameResponse, Range, ReferenceContext, ReferenceParams, RenameParams,
+    SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
+    TextDocumentIdentifier, TextDocumentPositionParams, TypeHierarchyItem, Url,
     WorkDoneProgressParams, WorkspaceEdit,
 };
 use snapbox::{IntoData, assert_data_eq};
@@ -64,27 +71,29 @@ impl RequestFixture {
         paths: &[&str],
         open_file: Option<(&str, String)>,
     ) -> Self {
-        let mut result =
-            AnalysisResult { diagnostics: Default::default(), symbol_tables: Default::default() };
+        let mut results = AnalysisResultAccumulator::default();
         for path in paths {
             let contents = open_file
                 .as_ref()
                 .filter(|(open_path, _)| open_path == path)
                 .map_or_else(|| marked.project().read_file(path), |(_, contents)| contents.clone());
             let path = marked.project().path(path);
-            let batch =
-                analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, contents)]));
-            result.symbol_tables.extend(batch.symbol_tables);
-            for (uri, mut diagnostics) in batch.diagnostics {
-                result.diagnostics.entry(uri).or_default().append(&mut diagnostics);
-            }
+            results.push(analyze(AnalysisBatch::from_files(
+                CompileOpts::default(),
+                [(path, contents)],
+            )));
         }
+        let result = results.finish();
         assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
         Self { marked, result }
     }
 
     pub(super) fn project_contents(&self, path: &str) -> String {
         self.marked.project().read_file(path)
+    }
+
+    pub(super) fn project_path(&self, path: &str) -> std::path::PathBuf {
+        self.marked.project().path(path)
     }
 
     pub(super) fn rename_state_and_params(
@@ -286,6 +295,40 @@ impl RequestFixture {
         assert_data_eq!(self.goto_output(response), expected);
     }
 
+    pub(super) fn prepare_type_hierarchy(&self, marker: &str) -> Option<Vec<TypeHierarchyItem>> {
+        let mut state = self.state();
+        let (uri, position) = self.marker_location(marker);
+        expect_ready(crate::handlers::prepare_type_hierarchy(
+            &mut state,
+            type_hierarchy_prepare_params(uri, position),
+        ))
+        .unwrap()
+    }
+
+    pub(super) fn type_hierarchy_supertypes(
+        &self,
+        item: TypeHierarchyItem,
+    ) -> Option<Vec<TypeHierarchyItem>> {
+        let mut state = self.state();
+        expect_ready(crate::handlers::type_hierarchy_supertypes(
+            &mut state,
+            type_hierarchy_supertypes_params(item),
+        ))
+        .unwrap()
+    }
+
+    pub(super) fn type_hierarchy_subtypes(
+        &self,
+        item: TypeHierarchyItem,
+    ) -> Option<Vec<TypeHierarchyItem>> {
+        let mut state = self.state();
+        expect_ready(crate::handlers::type_hierarchy_subtypes(
+            &mut state,
+            type_hierarchy_subtypes_params(item),
+        ))
+        .unwrap()
+    }
+
     pub(super) fn check_references(
         &self,
         marker: &str,
@@ -300,6 +343,45 @@ impl RequestFixture {
         ))
         .unwrap();
         assert_data_eq!(self.locations_output(response), expected);
+    }
+
+    pub(super) fn check_code_lenses(&self, path: &str, expected: impl IntoData) {
+        self.check_code_lenses_with_commands(path, true, expected);
+    }
+
+    pub(super) fn check_code_lenses_without_commands(&self, path: &str, expected: impl IntoData) {
+        self.check_code_lenses_with_commands(path, false, expected);
+    }
+
+    pub(super) fn check_code_lenses_json(&self, path: &str, expected: impl IntoData) {
+        let mut state = self.state();
+        Arc::make_mut(&mut state.config).enable_code_lens_client_commands();
+        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
+        let response =
+            expect_ready(crate::handlers::code_lens(&mut state, code_lens_params(uri.clone())))
+                .unwrap()
+                .unwrap_or_default();
+        let output = serde_json::to_string_pretty(&response)
+            .unwrap()
+            .replace(uri.as_str(), &format!("file://{path}"));
+        assert_data_eq!(output, expected);
+    }
+
+    fn check_code_lenses_with_commands(
+        &self,
+        path: &str,
+        client_commands: bool,
+        expected: impl IntoData,
+    ) {
+        let mut state = self.state();
+        if client_commands {
+            Arc::make_mut(&mut state.config).enable_code_lens_client_commands();
+        }
+        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
+        let response = expect_ready(crate::handlers::code_lens(&mut state, code_lens_params(uri)))
+            .unwrap()
+            .unwrap_or_default();
+        assert_data_eq!(code_lens_output(&response), expected);
     }
 
     pub(super) fn check_document_highlights(&self, marker: &str, expected: impl IntoData) {
@@ -371,6 +453,76 @@ impl RequestFixture {
                 .unwrap()
                 .unwrap_or_default();
         assert_data_eq!(self.document_links_output(links), expected);
+    }
+
+    pub(super) fn check_folding_ranges(&self, path: &str, expected: impl IntoData) {
+        let mut state = self.state();
+        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
+        let response =
+            block_on(crate::handlers::folding_range(&mut state, folding_range_params(uri)))
+                .unwrap()
+                .expect("folding-range request should return ranges");
+        assert_data_eq!(folding_range_output(&response), expected);
+    }
+
+    pub(super) fn check_folding_ranges_while_analysis_pending(
+        &self,
+        path: &str,
+        expected: impl IntoData,
+    ) {
+        let mut state = self.state();
+        state.mark_analysis_pending_for_test();
+        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
+        let response =
+            block_on(crate::handlers::folding_range(&mut state, folding_range_params(uri)))
+                .unwrap()
+                .expect("folding-range request should return ranges");
+        assert_data_eq!(folding_range_output(&response), expected);
+    }
+
+    pub(super) fn check_folding_range_uses_blocking_pool(
+        &self,
+        path: &str,
+        expected: impl IntoData,
+    ) {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .max_blocking_threads(1)
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let (release_worker, worker) = super::pause_blocking_pool();
+            let mut state = self.state();
+            let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
+            let mut request = std::pin::pin!(crate::handlers::folding_range(
+                &mut state,
+                folding_range_params(uri),
+            ));
+            let waker = Waker::noop();
+            let mut cx = Context::from_waker(waker);
+
+            let is_pending = request.as_mut().poll(&mut cx).is_pending();
+            release_worker.send(()).unwrap();
+            assert!(is_pending);
+            let response =
+                request.await.unwrap().expect("folding-range request should return ranges");
+            worker.await.unwrap();
+            assert_data_eq!(folding_range_output(&response), expected);
+        });
+    }
+
+    pub(super) fn check_folding_range_returns_none(&self, uri: Url) {
+        let mut state = self.state();
+        state.mark_analysis_pending_for_test();
+        let response =
+            block_on(crate::handlers::folding_range(&mut state, folding_range_params(uri)))
+                .unwrap();
+        assert_eq!(response, None);
+    }
+
+    pub(super) fn check_missing_folding_range_returns_none(&self, path: &str) {
+        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
+        self.check_folding_range_returns_none(uri);
     }
 
     pub(super) fn check_selection_ranges(&self, markers: &[&str], expected: impl IntoData) {
@@ -727,6 +879,29 @@ fn completion_output(items: &[CompletionItem]) -> String {
     output
 }
 
+fn code_lens_output(lenses: &[CodeLens]) -> String {
+    let mut output = String::new();
+    for lens in lenses {
+        let command = lens.command.as_ref().expect("eager CodeLens should have a title");
+        let label = if command.title.starts_with("0x") {
+            format!("selector={}", command.title)
+        } else if command.title.ends_with(" reference") || command.title.ends_with(" references") {
+            let count = command.title.split_once(' ').unwrap().0;
+            format!("references={count}")
+        } else {
+            format!("inheritance={}", command.title)
+        };
+        let command = if command.command.is_empty() { "<none>" } else { &command.command };
+        writeln!(
+            output,
+            "{}:{} {label} command={command}",
+            lens.range.start.line, lens.range.start.character
+        )
+        .unwrap();
+    }
+    output
+}
+
 fn completion_details_output(items: &[CompletionItem]) -> String {
     let mut output = String::new();
     for (index, item) in items.iter().enumerate() {
@@ -798,6 +973,29 @@ fn selection_range_output(ranges: &[SelectionRange], positions: &[Position]) -> 
             }
             current = selection.parent.as_deref();
         }
+    }
+    output
+}
+
+fn folding_range_output(ranges: &[FoldingRange]) -> String {
+    let mut output = String::new();
+    for range in ranges {
+        let kind = match range.kind {
+            None => "code",
+            Some(FoldingRangeKind::Comment) => "comment",
+            Some(FoldingRangeKind::Imports) => "imports",
+            Some(FoldingRangeKind::Region) => "region",
+        };
+        writeln!(
+            output,
+            "{}:{}-{}:{} kind={kind} collapsed_text={:?}",
+            range.start_line,
+            range.start_character.expect("start character should be present"),
+            range.end_line,
+            range.end_character.expect("end character should be present"),
+            range.collapsed_text,
+        )
+        .unwrap();
     }
     output
 }
@@ -991,6 +1189,14 @@ fn reference_params(uri: Url, position: Position, include_declaration: bool) -> 
     }
 }
 
+fn code_lens_params(uri: Url) -> CodeLensParams {
+    CodeLensParams {
+        text_document: TextDocumentIdentifier { uri },
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
+    }
+}
+
 fn document_highlight_params(uri: Url, position: Position) -> DocumentHighlightParams {
     DocumentHighlightParams {
         text_document_position_params: text_document_position(uri, position),
@@ -1042,6 +1248,14 @@ fn selection_range_params(uri: Url, positions: Vec<Position>) -> SelectionRangeP
     SelectionRangeParams {
         text_document: TextDocumentIdentifier { uri },
         positions,
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
+    }
+}
+
+fn folding_range_params(uri: Url) -> FoldingRangeParams {
+    FoldingRangeParams {
+        text_document: TextDocumentIdentifier { uri },
         work_done_progress_params: WorkDoneProgressParams::default(),
         partial_result_params: PartialResultParams::default(),
     }

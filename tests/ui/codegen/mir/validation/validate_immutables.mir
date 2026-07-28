@@ -1,12 +1,12 @@
 //@compile-flags: --pass dce
-//@failure-status: 1
 @module ValidateImmutables
 immutables:
-  invalid: void
+  invalid: void //~? ERROR: immutable `invalid` cannot use type `void`
   narrow: u8
 
 fn @invalid_store(arg0: memoryslice) {
   bb0:
     storeimmutable narrow, arg0
+    //~? ERROR: [fn0] inst0 stores `memoryslice` value into immutable `narrow` of type `u8`
     stop
 }

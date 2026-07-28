@@ -1,10 +1,14 @@
 //@compile-flags: --pass gvn
+//@filecheck:
 @module GvnLoadImmutable
 immutables:
   first: u256
   second: u256
 
 // GVN leaves immutable loads to CSE, which tracks their clobbers.
+// CHECK-LABEL: {{^[ +].*}}fn @same_immutable_stays{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = loadimmutable first
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = loadimmutable first
 fn @same_immutable_stays() -> u256 {
   bb0:
     v0 = loadimmutable first
@@ -14,6 +18,9 @@ fn @same_immutable_stays() -> u256 {
 }
 
 // Reads of different immutables stay distinct.
+// CHECK-LABEL: {{^[ +].*}}fn @different_immutables_stay{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = loadimmutable first
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = loadimmutable second
 fn @different_immutables_stay(arg0: u256) -> u256 {
   bb0:
     v0 = loadimmutable first

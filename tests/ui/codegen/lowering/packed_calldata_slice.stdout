@@ -5,7 +5,7 @@ fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -13,14 +13,14 @@ fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) {
     v3 = slice_ptr arg0
     v4 = slice_len arg0
     v5 = gt arg2, v4
-    br v5, bb3, bb4
+    jumpi v5, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
     v6 = lt arg2, arg1
-    br v6, bb5, bb6
+    jumpi v6, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -32,7 +32,7 @@ fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) {
     v10 = slice_len v9
     v11 = add v10, 31
     v12 = lt v11, v10
-    br v12, bb7, bb8
+    jumpi v12, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -44,7 +44,7 @@ fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) {
     v16 = select v15, 32, v14
     v17 = add 32, v16
     v18 = lt v17, v16
-    br v18, bb9, bb10
+    jumpi v18, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -106,7 +106,7 @@ fn @all() {
     v2 = slice_len v1
     v3 = add v2, 31
     v4 = lt v3, v2
-    br v4, bb1, bb2
+    jumpi v4, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -118,7 +118,7 @@ fn @all() {
     v8 = select v7, 32, v6
     v9 = add 32, v8
     v10 = lt v9, v8
-    br v10, bb3, bb4
+    jumpi v10, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

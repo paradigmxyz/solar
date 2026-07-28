@@ -1,0 +1,8 @@
+error: unknown block `bb9`
+   ╭▸ ROOT/tests/ui/codegen/evm-ir/validation/parse_unknown_block.evmir:LL:CC
+   │
+LL │   jump bb9
+   ╰╴       ━━━
+
+error: aborting due to 1 previous error
+

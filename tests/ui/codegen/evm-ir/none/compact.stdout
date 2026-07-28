@@ -1,0 +1,11 @@
+- // === ROOT/tests/ui/codegen/evm-ir/none/compact.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/evm-ir/none/compact.evmir (after none) ===
+  @module compact
+  bb0:
+    push 1
+    push 2
+    add
+    jump bb1
+  bb1 [cold]:
+    jump
+  
