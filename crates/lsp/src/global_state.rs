@@ -1052,9 +1052,9 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
 
 fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> AnalysisResult {
     let (emitter, diag_buffer) = InMemoryEmitter::new();
-    let AnalysisBatch { mut opts, files, seen_paths: document_link_sources } = batch;
-    debug_assert_eq!(files.len(), document_link_sources.len());
-    debug_assert!(files.iter().all(|(path, _)| document_link_sources.contains(path)));
+    let AnalysisBatch { mut opts, files, seen_paths: indexed_source_paths } = batch;
+    debug_assert_eq!(files.len(), indexed_source_paths.len());
+    debug_assert!(files.iter().all(|(path, _)| indexed_source_paths.contains(path)));
     opts.unstable.recover_incomplete_input = true;
     let sess = Session::builder()
         .opts(opts)
@@ -1092,7 +1092,7 @@ fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> 
             }
         }
 
-        let symbol_tables = SymbolTables::build(compiler.gcx(), &document_link_sources);
+        let symbol_tables = SymbolTables::build(compiler.gcx(), &indexed_source_paths);
         let diagnostics = diag_buffer
             .read()
             .iter()

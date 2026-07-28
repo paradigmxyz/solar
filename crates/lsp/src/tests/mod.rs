@@ -236,6 +236,131 @@ fn analysis_result_accumulator_merges_multiple_batches() {
     assert_eq!(names, vec!["One".to_owned(), "Two".to_owned()]);
 }
 
+#[test]
+fn analysis_indexes_document_local_data_only_for_batch_sources() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /Dependency.sol
+        contract Dependency {
+            function target(uint256 amount) public pure returns (uint256) {
+                return amount;
+            }
+
+            function use(uint256 localValue) public view returns (uint256) {
+                this.$1target($2 1);
+                return local$3Value;
+            }
+        }
+
+        //- /Main.sol
+        import "./Dependency.sol";
+        contract Main {
+            Dependency dependency;
+
+            function use() public view returns (uint256) {
+                return dependency.$4target(1);
+            }
+        }
+        "#,
+    );
+    let dependency_path = marked.project().path("/Dependency.sol");
+    let dependency_uri = Url::from_file_path(&dependency_path).unwrap();
+    let dependency_contents = marked.project().read_file("/Dependency.sol");
+    let main_path = marked.project().path("/Main.sol");
+    let main_uri = Url::from_file_path(&main_path).unwrap();
+    let main_contents = marked.project().read_file("/Main.sol");
+    let analyze_files =
+        |files| analyze(AnalysisBatch::from_files(CompileOpts::default(), files)).symbol_tables;
+
+    let dependency_only_as_import = analyze_files(vec![(main_path.clone(), main_contents.clone())]);
+
+    assert!(
+        dependency_only_as_import
+            .inlay_hints(
+                &dependency_uri,
+                Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
+            )
+            .is_empty()
+    );
+    assert!(
+        dependency_only_as_import
+            .completion_items(
+                &dependency_uri,
+                marked.marker("$1").position(),
+                crate::symbols::CompletionContext::new("", Some("this")),
+            )
+            .is_empty()
+    );
+    assert!(
+        dependency_only_as_import
+            .completion_items(
+                &dependency_uri,
+                marked.marker("$3").position(),
+                crate::symbols::CompletionContext::new("local", None),
+            )
+            .is_empty()
+    );
+    assert!(
+        dependency_only_as_import
+            .signature_help(
+                &dependency_uri,
+                marked.marker("$2").position(),
+                &crop::Rope::from(dependency_contents.as_str()),
+                crate::config::SignatureHelpClientOptions::default(),
+            )
+            .is_none()
+    );
+    assert!(
+        dependency_only_as_import
+            .goto_definition(&main_uri, marked.marker("$4").position())
+            .is_some()
+    );
+
+    let dependency_is_indexed = analyze_files(vec![
+        (main_path, main_contents),
+        (dependency_path, dependency_contents.clone()),
+    ]);
+
+    assert!(
+        !dependency_is_indexed
+            .inlay_hints(
+                &dependency_uri,
+                Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
+            )
+            .is_empty()
+    );
+    assert!(
+        dependency_is_indexed
+            .completion_items(
+                &dependency_uri,
+                marked.marker("$1").position(),
+                crate::symbols::CompletionContext::new("", Some("this")),
+            )
+            .iter()
+            .any(|item| item.label == "target")
+    );
+    assert!(
+        dependency_is_indexed
+            .completion_items(
+                &dependency_uri,
+                marked.marker("$3").position(),
+                crate::symbols::CompletionContext::new("local", None),
+            )
+            .iter()
+            .any(|item| item.label == "localValue")
+    );
+    assert!(
+        dependency_is_indexed
+            .signature_help(
+                &dependency_uri,
+                marked.marker("$2").position(),
+                &crop::Rope::from(dependency_contents.as_str()),
+                crate::config::SignatureHelpClientOptions::default(),
+            )
+            .is_some()
+    );
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn analysis_updates_refresh_code_lenses_only_when_active() {
     let (server_main, client) = async_lsp::MainLoop::new_server(|_| {

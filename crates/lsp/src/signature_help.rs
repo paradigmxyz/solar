@@ -8,7 +8,10 @@ use lsp_types::{
 };
 use solar_interface::{
     Span,
-    data_structures::{Never, map::FxHashMap},
+    data_structures::{
+        Never,
+        map::{FxHashMap, FxHashSet},
+    },
 };
 use solar_parse::Cursor;
 use solar_sema::{
@@ -64,11 +67,11 @@ struct ActiveArgument<'a> {
 }
 
 impl SignatureHelpIndex {
-    pub(crate) fn build(gcx: Gcx<'_>) -> Self {
+    pub(crate) fn build(gcx: Gcx<'_>, indexed_sources: &FxHashSet<hir::SourceId>) -> Self {
         let mut index = Self::default();
         index.build_callable_catalog(gcx);
         let mut collector = CallCollector { index: &mut index, gcx, source: None, contract: None };
-        for source_id in gcx.hir.source_ids() {
+        for &source_id in indexed_sources {
             collector.source = Some(source_id);
             collector.contract = None;
             let _ = collector.visit_nested_source(source_id);

@@ -2,7 +2,10 @@ use crate::proto;
 use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel, Position, Range, Url};
 use solar_interface::{
     Symbol,
-    data_structures::{Never, map::FxHashMap},
+    data_structures::{
+        Never,
+        map::{FxHashMap, FxHashSet},
+    },
 };
 use solar_sema::{
     Gcx,
@@ -37,9 +40,9 @@ impl InlayHintIndex {
     ///
     /// The compiler's HIR data is scoped to one analysis run. This index copies out the inlay
     /// hints that LSP requests can query after that run has finished.
-    pub(crate) fn build(gcx: Gcx<'_>) -> Self {
+    pub(crate) fn build(gcx: Gcx<'_>, indexed_sources: &FxHashSet<hir::SourceId>) -> Self {
         let mut collector = InlayHintCollector { gcx, index: Self::default() };
-        for source_id in gcx.hir.source_ids() {
+        for &source_id in indexed_sources {
             let _ = collector.visit_nested_source(source_id);
         }
         collector.index.sort();

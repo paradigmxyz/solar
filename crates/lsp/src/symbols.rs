@@ -251,14 +251,26 @@ impl SymbolTables {
     ///
     /// The compiler's resolver data is scoped to one analysis run. This table copies out the
     /// source-level declarations that LSP requests can query after that run has finished.
-    /// `document_link_sources` restricts link sources to files owned by this analysis batch;
-    /// every other table still includes transitive dependencies.
-    pub(crate) fn build(gcx: Gcx<'_>, document_link_sources: &FxHashSet<PathBuf>) -> Self {
+    /// `indexed_source_paths` restricts document-local indexes to files owned by this analysis
+    /// batch; global tables still include transitive dependencies.
+    pub(crate) fn build(gcx: Gcx<'_>, indexed_source_paths: &FxHashSet<PathBuf>) -> Self {
         let mut tables = Self::default();
         tables.rename.record_source_contents(gcx);
         tables.build_builtin_completions();
         let item_ids = gcx.hir.item_ids();
         let yul_variables = YulVariableCollector::collect(gcx);
+        let indexed_sources = gcx
+            .hir
+            .source_ids()
+            .filter(|&source_id| {
+                gcx.hir
+                    .source(source_id)
+                    .file
+                    .name
+                    .as_real()
+                    .is_some_and(|path| indexed_source_paths.contains(path))
+            })
+            .collect::<FxHashSet<_>>();
         let mut item_symbols =
             FxHashMap::with_capacity_and_hasher(item_ids.size_hint().0, Default::default());
 
@@ -328,16 +340,16 @@ impl SymbolTables {
             }
         }
         tables.type_hierarchy = TypeHierarchyIndex::build(gcx, &item_symbols, &tables.declarations);
-        tables.build_scopes(gcx);
+        tables.build_scopes(gcx, &indexed_sources);
         tables.build_receiver_member_completions(gcx);
-        tables.build_member_completions(gcx);
+        tables.build_member_completions(gcx, &indexed_sources);
         tables.build_references(gcx, &item_symbols);
         // HIR IDs are scoped to this compiler run and cannot back published LSP queries.
         tables.symbols_by_key = FxHashMap::default();
-        tables.document_links = DocumentLinkIndex::build(gcx, document_link_sources);
-        tables.inlay_hints = InlayHintIndex::build(gcx);
+        tables.document_links = DocumentLinkIndex::build(gcx, indexed_source_paths);
+        tables.inlay_hints = InlayHintIndex::build(gcx, &indexed_sources);
         tables.natspec_completion = NatSpecCompletionIndex::build(gcx);
-        tables.signature_help = SignatureHelpIndex::build(gcx);
+        tables.signature_help = SignatureHelpIndex::build(gcx, &indexed_sources);
         tables.rebuild_indexes();
         tables
     }
@@ -974,17 +986,21 @@ impl SymbolTables {
         id
     }
 
-    fn build_scopes(&mut self, gcx: Gcx<'_>) {
+    fn build_scopes(&mut self, gcx: Gcx<'_>, indexed_sources: &FxHashSet<hir::SourceId>) {
         let mut builder = ScopeBuilder { tables: self, gcx, scope: None };
-        for source_id in gcx.hir.source_ids() {
+        for &source_id in indexed_sources {
             builder.visit_source_scope(source_id);
         }
     }
 
-    fn build_member_completions(&mut self, gcx: Gcx<'_>) {
+    fn build_member_completions(
+        &mut self,
+        gcx: Gcx<'_>,
+        indexed_sources: &FxHashSet<hir::SourceId>,
+    ) {
         let mut collector =
             MemberCompletionCollector { tables: self, gcx, source: None, contract: None };
-        for source_id in gcx.hir.source_ids() {
+        for &source_id in indexed_sources {
             collector.source = Some(source_id);
             collector.contract = None;
             let _ = collector.visit_nested_source(source_id);
