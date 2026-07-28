@@ -6,9 +6,9 @@
 // element's head size and rebuilds it; only a word element sits inline in one
 // slot and loads directly.
 //
-// An array member of a calldata struct keeps its calldata position for the same
-// reason: the prologue's memory copy of an array of structs holds pointers where
-// calldata holds the elements inline, so it cannot answer element addressing.
+// An array member of a calldata struct is rebuilt into its ordinary memory
+// representation. Its element slots hold pointers to rebuilt structs, so
+// indexing reuses the copy instead of decoding the same calldata again.
 // Verified against solc on anvil.
 
 struct Item {
@@ -33,9 +33,9 @@ contract CalldataStructMemberIndex {
         return items[i].amount;
     }
 
-    // The member is read at its calldata position, so the same striding applies.
+    // The member uses the dynamic-memory-array layout and loads a struct pointer.
     // CDSMI-LABEL: fn @member
-    // CDSMI: mul {{.*}}, 128
+    // CDSMI: memory_object_element_addr memoryarray<1>
     function member(Params calldata p, uint256 i) external pure returns (uint256) {
         return p.items[i].amount;
     }
