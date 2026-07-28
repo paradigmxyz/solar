@@ -2,11 +2,11 @@
 //@filecheck: --check-prefix=CDSFS
 
 // Slicing a dynamic field of a calldata struct, the ERC-4337
-// `PackedUserOperation` accessor shape. The prologue decodes a calldata struct
-// into memory, so the field is a memory object and the slice is a memory slice
-// over that copy: a `bytes calldata` view is read-only, so the bytes — and
-// every length, index, hash and conversion taken from them — agree with a
-// calldata slice. Verified byte-identical to solc.
+// `PackedUserOperation` accessor shape. The prologue rebuilds a calldata struct
+// in memory for its static members, but a dynamic member is read where it
+// actually is: the copy carries the struct's calldata position in a trailing
+// word, so the member is a calldata slice and slicing it stays in calldata.
+// Verified against solc on anvil.
 
 struct PackedUserOperation {
     address sender;
@@ -22,12 +22,13 @@ struct PackedUserOperation {
 library ERC4337Utils {
     // Converting a slice to `bytesN` reads its leading word; the slice itself
     // must not survive into the backend.
+    // CDSFS-NOT: memory_object_len
     function factory(PackedUserOperation calldata self) internal pure returns (address) {
         return self.initCode.length < 20 ? address(0) : address(bytes20(self.initCode[0:20]));
     }
 
-    // Hashing a memory-backed slice hashes it in place rather than copying it
-    // as if it were calldata.
+    // Hashing a calldata slice copies it into memory first, as `keccak256`
+    // only reads memory.
     function tailHash(PackedUserOperation calldata self) internal pure returns (bytes32) {
         return self.initCode.length < 20 ? bytes32(0) : keccak256(self.initCode[20:]);
     }
@@ -39,7 +40,6 @@ library ERC4337Utils {
 
 contract CalldataStructFieldSlice {
     // CDSFS-LABEL: fn @factory
-    // CDSFS-NOT: make_calldata_slice
     function factory(PackedUserOperation calldata op) external pure returns (address) {
         return ERC4337Utils.factory(op);
     }

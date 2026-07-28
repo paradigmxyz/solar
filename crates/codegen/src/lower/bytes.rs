@@ -307,11 +307,19 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Whether an assignment target wants a MEMORY dynamic-array value.
     pub(super) fn lhs_expects_memory_dyn_array_value(&self, lhs: &hir::Expr<'_>) -> bool {
-        let Some(var_id) = self.gcx.resolved_variable(lhs) else {
-            return false;
-        };
-        let var = self.gcx.hir.variable(var_id);
-        !var.is_struct_member() && self.var_expects_memory_dyn_array_value(var)
+        if let Some(var_id) = self.gcx.resolved_variable(lhs) {
+            let var = self.gcx.hir.variable(var_id);
+            if !var.is_struct_member() {
+                return self.var_expects_memory_dyn_array_value(var);
+            }
+        }
+        // A member or element target names no variable of its own; its type
+        // says where it lives. A memory struct's array field assigned from a
+        // `calldata` one needs the copy just as a local would.
+        self.get_expr_type(lhs).is_some_and(|ty| {
+            matches!(ty.kind, TyKind::Ref(inner, solar_ast::DataLocation::Memory)
+                if matches!(inner.kind, TyKind::DynArray(_)))
+        })
     }
 
     /// Lowers an expression whose consumer needs a MEMORY dynamic array: a
@@ -584,7 +592,19 @@ impl<'gcx> Lowerer<'gcx> {
         fields: &[Ty<'gcx>],
         pos: ValueId,
     ) -> ValueId {
-        let size = (fields.len() as u64).checked_mul(32).expect("aggregate memory size overflow");
+        let word_count = fields.len() as u64;
+        // A copy built from calldata carries its source position in a trailing
+        // word. A `calldata` aggregate keeps its members' calldata-located
+        // types, so a read of one may still need its position — which the copy
+        // alone cannot give. Keeping the position in the copy means it survives
+        // assignment, indexing and internal calls without any of them knowing,
+        // where tracking it beside the value only ever covered the forms
+        // someone remembered to enumerate. See `calldata_base_of_copy`.
+        let carries_base = source == AbiSource::Calldata;
+        let size = word_count
+            .checked_add(u64::from(carries_base))
+            .and_then(|words| words.checked_mul(32))
+            .expect("aggregate memory size overflow");
         let ptr = self.allocate_memory(builder, size);
         let mut head_offset = 0;
         for (i, &field) in fields.iter().enumerate() {
@@ -599,7 +619,27 @@ impl<'gcx> Lowerer<'gcx> {
             builder.mstore(dest, value);
             head_offset += self.abi_head_size(field);
         }
+        if carries_base {
+            let base_slot = self.offset_ptr(builder, ptr, word_count * 32);
+            builder.mstore(base_slot, pos);
+        }
         ptr
+    }
+
+    /// Loads the calldata position a struct copy was built from.
+    ///
+    /// Valid only for a copy of a `calldata` aggregate, which
+    /// [`Self::materialize_calldata_fields_at`] gives a trailing word holding
+    /// the position. A `calldata`-located type is the proof: no other way of
+    /// producing one exists in the language.
+    pub(super) fn calldata_base_of_copy(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ptr: ValueId,
+        field_count: u64,
+    ) -> ValueId {
+        let base_slot = self.offset_ptr(builder, ptr, field_count * 32);
+        builder.mload(base_slot)
     }
 
     /// Resolves an ABI head position to the corresponding value body. Dynamic
