@@ -1240,9 +1240,10 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_library_call(builder, func_id, args, None);
         }
 
-        // `Base.f(...)` is an internal call to that exact base implementation,
-        // not an external call to a value represented by the contract type.
-        if self.is_contract_type_name_expr(base)
+        // `Base.f(...)` and `super.f(...)` are exact internal calls. Sema has
+        // already resolved `super` to the next implemented function in the
+        // current contract's linearization.
+        if self.is_contract_or_super_type_expr(base)
             && let Some(func_id) = self.resolved_function_callee(callee)
         {
             return self.lower_resolved_internal_call(builder, func_id, args);
@@ -1553,10 +1554,10 @@ impl<'gcx> Lowerer<'gcx> {
         self.gcx.hir.contract(contract_id).kind.is_library()
     }
 
-    fn is_contract_type_name_expr(&self, expr: &hir::Expr<'_>) -> bool {
+    fn is_contract_or_super_type_expr(&self, expr: &hir::Expr<'_>) -> bool {
         let Some(ty) = self.get_expr_type(expr) else { return false };
         let TyKind::Type(ty) = ty.kind else { return false };
-        matches!(ty.kind, TyKind::Contract(_))
+        matches!(ty.kind, TyKind::Contract(_) | TyKind::Super(_))
     }
 
     fn array_builtin_method_name(builtin: Builtin) -> Option<Symbol> {
