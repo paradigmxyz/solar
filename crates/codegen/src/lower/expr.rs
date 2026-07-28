@@ -626,18 +626,10 @@ impl<'gcx> Lowerer<'gcx> {
                         end.map(|e| self.lower_value_expr(builder, e)).unwrap_or(base_len);
                     if end_val != base_len {
                         let end_out_of_bounds = builder.gt(end_val, base_len);
-                        self.emit_panic_if(
-                            builder,
-                            end_out_of_bounds,
-                            super::checked_arith::PanicCode::ArrayOutOfBounds,
-                        );
+                        Self::emit_revert_if(builder, end_out_of_bounds);
                     }
                     let backwards = builder.lt(end_val, start_val);
-                    self.emit_panic_if(
-                        builder,
-                        backwards,
-                        super::checked_arith::PanicCode::ArrayOutOfBounds,
-                    );
+                    Self::emit_revert_if(builder, backwards);
                     let len = builder.sub(end_val, start_val);
                     let offset = if is_bytes {
                         start_val

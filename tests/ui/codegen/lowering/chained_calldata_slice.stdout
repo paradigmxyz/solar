@@ -14,9 +14,7 @@ fn @bytesChain(arg0: calldataslice) {
     v5 = lt v4, 1
     jumpi v5, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
     v6 = sub v4, 1
     v7 = add v3, 1
@@ -26,9 +24,7 @@ fn @bytesChain(arg0: calldataslice) {
     v11 = lt v10, 1
     jumpi v11, bb5, bb6
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb6:
     v12 = sub v10, 1
     v13 = add v9, 1
@@ -100,9 +96,7 @@ fn @arrChain(arg0: calldataslice) {
     v5 = lt v4, 1
     jumpi v5, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
     v6 = sub v4, 1
     v7 = mul 1, 32
@@ -113,9 +107,7 @@ fn @arrChain(arg0: calldataslice) {
     v12 = lt v11, 1
     jumpi v12, bb5, bb6
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb6:
     v13 = sub v11, 1
     v14 = mul 1, 32
