@@ -26,6 +26,8 @@
 //!     use its definition can never reach is garbage on every execution.
 //! 11. **Call consistency**: internal and tail-call targets exist and their argument counts match
 //!     the callee.
+//! 12. **Immutable consistency**: immutable declarations and stores use supported representations,
+//!     and loads use the declared type.
 //!
 //! # Usage
 //!

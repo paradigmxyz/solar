@@ -12,7 +12,7 @@ contract ConstructorArgsTest {
 
     function setUp() public {
         c = new ConstructorArgs(TEST_VALUE, TEST_OWNER);
-        immutableArgs = new ImmutableArgs(0xAB, -1234, TEST_OWNER, Tiny.wrap(0xBEEF));
+        immutableArgs = new ImmutableArgs(0xAB, -1234, TEST_OWNER, Tiny.wrap(0xBEEF), true);
     }
 
     function test_ValueSet() public view {
@@ -39,5 +39,7 @@ contract ConstructorArgsTest {
         assert(immutableArgs.fixedBytes() == 0xABCDEF);
         assert(immutableArgs.account() == TEST_OWNER);
         assert(Tiny.unwrap(immutableArgs.userDefined()) == 0xBEEF);
+        assert(immutableArgs.flag());
+        assert(immutableArgs.callFunctionPointer() == 7);
     }
 }

@@ -855,9 +855,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         let immutable_refs = std::mem::take(&mut self.runtime_immutable_refs);
 
         // The constructor copies the runtime code to memory and patches the
-        // immutable placeholders with the staged scratch words before
-        // returning. Copy to offset 0 unless that would overwrite the scratch
-        // words before the patch loop reads them.
+        // immutable placeholders with the staged words before
+        // returning. Copy to offset 0 unless that would overwrite the immutable
+        // staging area before the patch loop reads it.
         let copy_base = Self::runtime_copy_base(module, runtime_len, &immutable_refs);
 
         // Generate constructor initialization and the deployment postlude as
@@ -1093,10 +1093,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.function_labels.insert(func_id, label);
             }
 
-            // Constructor spill slots are absolute addresses starting at
-            // 0x1000. Keep the historical 0x4000 heap start as a floor, but
-            // patch it upward after emission if the lazily allocated spill area
-            // needs more room.
+            // Constructor spill slots use a backend-owned absolute region. Keep
+            // the historical 0x4000 heap start as a floor, but patch it upward
+            // after emission if immutable staging or lazily allocated spills
+            // need more room.
             let constructor_free_memory_start = self.asm.new_deferred_const();
             let constructor_arg_offset =
                 (!ctor.params.is_empty()).then(|| self.asm.new_deferred_const());
@@ -1150,7 +1150,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             let constructor_spill_size = self.record_function_spill_size(ctor_id);
             self.asm.set_deferred_const(
                 constructor_free_memory_start,
-                U256::from(Self::constructor_free_memory_start(constructor_spill_size)),
+                U256::from(Self::constructor_free_memory_start(
+                    module.immutable_count(),
+                    constructor_spill_size,
+                )),
             );
 
             self.resolve_pending_frame_size_consts(module);
@@ -3982,8 +3985,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         low_memory_start + func.internal_frame_size.max(func.external_static_return_size)
     }
 
-    fn constructor_free_memory_start(spill_size: u64) -> u64 {
-        EvmMemoryLayout::CONSTRUCTOR_HEAP_FLOOR.max(EvmMemoryLayout::SPILL_BASE + spill_size)
+    fn constructor_spill_base(immutable_count: usize) -> u64 {
+        if immutable_count == 0 {
+            EvmMemoryLayout::SPILL_BASE
+        } else {
+            immutable_staging_end(immutable_count)
+        }
+    }
+
+    fn constructor_free_memory_start(immutable_count: usize, spill_size: u64) -> u64 {
+        EvmMemoryLayout::CONSTRUCTOR_HEAP_FLOOR
+            .max(Self::constructor_spill_base(immutable_count) + spill_size)
     }
 
     fn uses_internal_frame_slot(func: &Function) -> bool {
@@ -4008,7 +4020,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 spill_base + func.internal_frame_size + u64::from(slot.offset) * 32,
             );
         } else if self.in_constructor {
-            self.asm.emit_push(U256::from(slot.byte_offset()));
+            let spill_addr = Self::constructor_spill_base(self.immutable_encodings.len())
+                + u64::from(slot.offset) * EvmMemoryLayout::WORD_SIZE;
+            self.asm.emit_push(U256::from(spill_addr));
         } else {
             // Route the address through a deferred constant and count the
             // reference; `assign_ranked_spill_addrs` renumbers the body's
@@ -5349,7 +5363,7 @@ mod tests {
     use solar_sema::{Compiler, hir::Visibility};
 
     #[test]
-    fn short_immutable_patch_does_not_overlap_scratch() {
+    fn constructor_memory_regions_do_not_overlap() {
         let mut module = Module::new(Ident::with_dummy_span(sym::Test));
         let id = module.add_immutable(
             Ident::with_dummy_span(sym::x),
@@ -5369,6 +5383,14 @@ mod tests {
         assert_eq!(
             EvmCodegen::runtime_copy_base(&module, runtime_len, &[short]),
             immutable_staging_end(1)
+        );
+
+        assert_eq!(EvmCodegen::constructor_spill_base(0), EvmMemoryLayout::SPILL_BASE);
+        assert_eq!(EvmCodegen::constructor_spill_base(1), immutable_staging_end(1));
+        assert_eq!(EvmCodegen::constructor_free_memory_start(257, 0), immutable_staging_end(257));
+        assert_eq!(
+            EvmCodegen::constructor_free_memory_start(1, 0x2000),
+            immutable_staging_end(1) + 0x2000
         );
     }
 

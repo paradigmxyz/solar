@@ -216,7 +216,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_immutable_declarations(&mut self, module: &mut Module) -> PResult<'sess, ()> {
         self.parser.expect_keyword(sym::immutables)?;
         self.parser.expect(TokenKind::Colon)?;
-        while !self.parser.is_eof() && !self.parser.check_keyword(sym::fn_) {
+        while !self.parser.is_eof()
+            && !(self.parser.check_keyword(sym::fn_)
+                && self.parser.look_ahead(1).kind == TokenKind::At)
+        {
             let name_span = self.parser.token().span;
             let name = self.parser.parse_ident()?;
             self.parser.expect(TokenKind::Colon)?;

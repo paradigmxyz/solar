@@ -20,18 +20,18 @@ contract ImmutableWidths {
         f = f_;
     }
 
+    // CHECK-LABEL: @module runtime
+    // CHECK: push_immutable 0, 1
+    // CHECK: push_immutable 1, 2
+    // CHECK-NEXT: push 1
+    // CHECK-NEXT: signextend
+    // CHECK: push_immutable 2, 3
+    // CHECK-NEXT: push 232
+    // CHECK-NEXT: shl
+    // CHECK: push_immutable 3, 20
+    // CHECK: push_immutable 4, 32
+    // CHECK: push_immutable 5, 2
     function read() external view returns (uint8, int16, bytes3, address, uint, Tiny) {
         return (a, b, c, d, e, f);
     }
 }
-
-// CHECK: push_immutable 0, 1
-// CHECK: push_immutable 1, 2
-// CHECK-NEXT: push 1
-// CHECK-NEXT: signextend
-// CHECK: push_immutable 2, 3
-// CHECK-NEXT: push 232
-// CHECK-NEXT: shl
-// CHECK: push_immutable 3, 20
-// CHECK: push_immutable 4, 32
-// CHECK: push_immutable 5, 2

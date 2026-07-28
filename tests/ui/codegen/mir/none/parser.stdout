@@ -1,6 +1,9 @@
 - // === ROOT/tests/ui/codegen/mir/none/parser.mir (before none) ===
 + // === ROOT/tests/ui/codegen/mir/none/parser.mir (after none) ===
   @module Parser
+  immutables:
+    fn: u8
+  
   fn @call(arg0: address, arg1: u256) -> u256 {
     bb0:
       v0 = call 100, arg0, arg1, 0, 0, 0, 0
@@ -52,5 +55,11 @@
     bb0:
       v0 = sload 0 !metadata(span=1..5)
       stop
+  }
+  
+  fn @immutable() -> u8 {
+    bb0:
+      v0 = loadimmutable fn
+      ret v0
   }
   

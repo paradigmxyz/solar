@@ -22,11 +22,11 @@ bb0:
   push 160
   mload
   dup1
-  push 0x1000
+  push 0x20c0
   mstore
   push 1
   signextend
-  push 0x1000
+  push 0x20c0
   mload
   sub
   push bb6

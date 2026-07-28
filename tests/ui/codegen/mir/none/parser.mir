@@ -2,6 +2,8 @@
 //@filecheck: --enable-var-scope
 
 @module Parser
+immutables:
+  fn: u8
 
 // CHECK-LABEL: @call
 // CHECK: {{^ +}}[[SUCCESS:v[0-9]+]] = call 100, arg0, arg1, 0, 0, 0, 0
@@ -82,4 +84,12 @@ fn @spaced_span() {
   bb0:
     v0 = sload 0 !metadata(span=1 .. 5)
     stop
+}
+
+// CHECK-LABEL: @immutable
+// CHECK: {{^ +}}{{v[0-9]+}} = loadimmutable fn
+fn @immutable() -> u8 {
+  bb0:
+    v0 = loadimmutable fn
+    ret v0
 }

@@ -29,7 +29,7 @@ bb2:
   jump bb3
 
 // CHECK-LABEL: {{^[ +].*}}bb3 [cold]:
-// CHECK: {{^[ +].*}}push_immutable 0
+// CHECK: {{^[ +].*}}push_immutable 0, 32
 // CHECK: {{^[ +].*}}revert
 bb3 [cold]:
   push_immutable 0, 32

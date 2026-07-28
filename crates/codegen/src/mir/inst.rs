@@ -708,7 +708,7 @@ pub(crate) enum InstKind {
     ///
     /// In runtime code this assembles to a typed `PUSH<N>` placeholder that the
     /// constructor patches with the staged value before returning the runtime
-    /// code. In constructor code it reads the staged scratch word instead.
+    /// code. In constructor code it reads the staging word instead.
     LoadImmutable { id: ImmutableId },
 
     // Return data operations

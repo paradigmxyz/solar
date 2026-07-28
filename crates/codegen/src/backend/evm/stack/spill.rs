@@ -3,7 +3,7 @@
 //! When more than 16 values are live simultaneously (the maximum accessible
 //! via DUP16/SWAP16), we spill values to memory.
 
-use crate::{memory::EvmMemoryLayout, mir::ValueId};
+use crate::mir::ValueId;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 
 /// A slot in memory where a spilled value is stored.
@@ -11,16 +11,6 @@ use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 pub(crate) struct SpillSlot {
     /// Offset in the spill area (in 32-byte words).
     pub offset: u32,
-}
-
-impl SpillSlot {
-    /// Returns the memory offset in bytes for this spill slot.
-    #[must_use]
-    pub(crate) const fn byte_offset(&self) -> u32 {
-        // Stack scheduling is already a physical backend phase, so spill slots
-        // use the absolute area selected by the shared EVM memory policy.
-        (EvmMemoryLayout::SPILL_BASE as u32) + self.offset * (EvmMemoryLayout::WORD_SIZE as u32)
-    }
 }
 
 /// Manages spill slots for values that cannot fit on the stack.
@@ -136,10 +126,6 @@ mod tests {
         assert_eq!(slot0.offset, 0);
         assert_eq!(slot1.offset, 1);
         assert_eq!(slot2.offset, 2);
-        // Spill slots use the backend spill area from the memory policy.
-        assert_eq!(slot0.byte_offset(), EvmMemoryLayout::SPILL_BASE as u32);
-        assert_eq!(slot1.byte_offset(), EvmMemoryLayout::SPILL_BASE as u32 + 32);
-        assert_eq!(slot2.byte_offset(), EvmMemoryLayout::SPILL_BASE as u32 + 64);
     }
 
     #[test]
