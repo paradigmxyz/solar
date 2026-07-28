@@ -224,8 +224,6 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         forced,
         layout,
     } = options;
-    let cost_table_target_width =
-        if optimization == OptimizationMode::Size { 1 } else { table_target_width };
     debug_assert!(values.windows(2).all(|values| values[0] < values[1]));
     debug_assert_eq!(values.len(), linear_values.len());
     if values.len() <= 1
@@ -239,7 +237,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
     let (linear_equality_costs, linear_ordered_costs) = case_test_costs(
         linear_values,
         evm_version,
-        cost_table_target_width,
+        table_target_width,
         default.needs_value_cleanup(),
         coalesce_case_targets,
     );
@@ -250,7 +248,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         values.len(),
         evm_version,
         default,
-        cost_table_target_width,
+        table_target_width,
     );
     if forced == SwitchLowering::Linear {
         return SwitchSelection { plan: SwitchPlan::Linear, gas_code_growth: 0 };
@@ -261,7 +259,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         let (equality_costs, ordered_costs) = case_test_costs(
             values,
             evm_version,
-            cost_table_target_width,
+            table_target_width,
             explicit_default.needs_value_cleanup(),
             coalesce_case_targets,
         );
@@ -277,7 +275,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                             leaf_size,
                             evm_version,
                             explicit_default,
-                            cost_table_target_width,
+                            table_target_width,
                         ),
                         SwitchPlan::Binary { leaf_size },
                     )
@@ -303,7 +301,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                                 bucket_count,
                                 evm_version,
                                 explicit_default,
-                                cost_table_target_width,
+                                table_target_width,
                             ),
                             SwitchPlan::Buckets { bucket_count },
                         )
@@ -323,7 +321,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 values,
                 evm_version,
                 default,
-                cost_table_target_width,
+                table_target_width,
                 layout.shared_case_continuation,
             )
             .map(|(low, range, cost)| (cost, SwitchPlan::Dense { low, range })),
@@ -332,7 +330,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 &equality_costs,
                 evm_version,
                 default,
-                cost_table_target_width,
+                table_target_width,
             )
             .into_iter()
             .min_by_key(|&(cost, plan)| {
@@ -357,7 +355,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
     let (equality_costs, ordered_costs) = case_test_costs(
         values,
         evm_version,
-        cost_table_target_width,
+        table_target_width,
         explicit_default.needs_value_cleanup(),
         coalesce_case_targets,
     );
@@ -370,7 +368,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 leaf_size,
                 evm_version,
                 explicit_default,
-                cost_table_target_width,
+                table_target_width,
             );
             let better = match optimization {
                 OptimizationMode::Gas => cost.is_better_for_gas_than(best.0, max_gas_code_size),
@@ -400,7 +398,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 bucket_count,
                 evm_version,
                 explicit_default,
-                cost_table_target_width,
+                table_target_width,
             );
             if cost.is_better_for_gas_than(best.0, max_gas_code_size) {
                 best = (cost, SwitchPlan::Buckets { bucket_count });
@@ -411,7 +409,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         values,
         evm_version,
         default,
-        cost_table_target_width,
+        table_target_width,
         layout.shared_case_continuation,
     ) {
         let better = match optimization {
@@ -436,7 +434,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         &equality_costs,
         evm_version,
         default,
-        cost_table_target_width,
+        table_target_width,
     ) {
         let better = match optimization {
             OptimizationMode::Gas => {
@@ -1293,23 +1291,18 @@ mod tests {
     }
 
     #[test]
-    fn selects_locally_packed_dense_switches_for_size() {
-        for values in [
-            vec![0, 3, 5, 7, 8, 18, 19],
-            vec![0, 4, 7, 8, 10, 11, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 26, 27, 31],
-        ] {
-            let values = values.into_iter().map(U256::from).collect::<Vec<_>>();
-            assert!(matches!(
-                select_switch_plan(
-                    &values,
-                    OptimizationMode::Size,
-                    EvmVersion::Cancun,
-                    SwitchDefault::CleanupJump,
-                    2,
-                ),
-                SwitchPlan::Dense { .. }
-            ));
-        }
+    fn keeps_size_plans_conservative_before_layout() {
+        let values = [0, 3, 5, 7, 8, 18, 19].into_iter().map(U256::from).collect::<Vec<_>>();
+        assert_eq!(
+            select_switch_plan(
+                &values,
+                OptimizationMode::Size,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+            ),
+            SwitchPlan::Linear
+        );
     }
 
     #[test]
