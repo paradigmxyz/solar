@@ -305,13 +305,11 @@ fn display_inst_kind<'a>(
 
     fmt::from_fn(move |f| match kind {
         InstKind::StoreImmutable(id, value) => {
-            write!(f, "storeimmutable ")?;
-            display_immutable_ref(f, *id, module)?;
+            write!(f, "storeimmutable {}", display_immutable_ref(*id, module))?;
             write!(f, ", {}", display_val(*value, func))
         }
         InstKind::LoadImmutable(id) => {
-            write!(f, "loadimmutable ")?;
-            display_immutable_ref(f, *id, module)
+            write!(f, "loadimmutable {}", display_immutable_ref(*id, module))
         }
         InstKind::Alloc { size, kind, semantics } => {
             let kind = match kind {
@@ -408,16 +406,25 @@ fn display_inst_kind<'a>(
     })
 }
 
-fn display_immutable_ref(
-    f: &mut fmt::Formatter<'_>,
+pub(super) fn display_immutable_ref(
     id: super::ImmutableId,
     module: Option<&Module>,
-) -> fmt::Result {
-    if let Some(immutable) = module.and_then(|module| module.get_immutable(id)) {
-        write!(f, "{}", immutable.name)
-    } else {
-        write!(f, "{}", id.index())
-    }
+) -> impl fmt::Display + '_ {
+    fmt::from_fn(move |f| {
+        if let Some(module) = module
+            && let Some(immutable) = module.get_immutable(id)
+        {
+            if module.iter_immutables().filter(|(_, other)| other.name == immutable.name).count()
+                == 1
+            {
+                write!(f, "{}", immutable.name)
+            } else {
+                write!(f, "{}{}", immutable.name, id.index())
+            }
+        } else {
+            write!(f, "{}", id.index())
+        }
+    })
 }
 
 /// Formats a function reference as `@name` when the name is unique, or `nameN`

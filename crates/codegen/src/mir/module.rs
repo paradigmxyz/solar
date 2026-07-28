@@ -238,8 +238,13 @@ impl Module {
             }
             if !self.immutables.is_empty() {
                 writeln!(f, "immutables:")?;
-                for immutable in &self.immutables {
-                    writeln!(f, "  {}: {}", immutable.name, immutable.ty)?;
+                for (id, immutable) in self.iter_immutables() {
+                    writeln!(
+                        f,
+                        "  {}: {}",
+                        super::display::display_immutable_ref(id, Some(self)),
+                        immutable.ty
+                    )?;
                 }
                 writeln!(f)?;
             }

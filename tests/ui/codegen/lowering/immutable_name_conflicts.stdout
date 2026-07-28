@@ -1,0 +1,48 @@
+// === ROOT/tests/ui/codegen/lowering/immutable_name_conflicts.sol:Base ===
+@module Base
+immutables:
+  value: u256
+
+fn @constructor() {
+  bb0:
+    storeimmutable value, 1
+    stop
+}
+
+fn @baseValue() {
+  bb0:
+    mstore 128, 0
+    v0 = loadimmutable value
+    mstore 128, v0
+    returndata 128, 32
+}
+
+// === ROOT/tests/ui/codegen/lowering/immutable_name_conflicts.sol:Derived ===
+@module Derived
+immutables:
+  value0: u256
+  value1: u256
+
+fn @constructor() {
+  bb0:
+    storeimmutable value0, 1
+    storeimmutable value1, 2
+    stop
+}
+
+fn @derivedValue() {
+  bb0:
+    mstore 128, 0
+    v0 = loadimmutable value1
+    mstore 128, v0
+    returndata 128, 32
+}
+
+fn @baseValue() {
+  bb0:
+    mstore 128, 0
+    v0 = loadimmutable value0
+    mstore 128, v0
+    returndata 128, 32
+}
+
