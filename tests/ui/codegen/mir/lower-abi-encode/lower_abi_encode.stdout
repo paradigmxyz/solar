@@ -48,3 +48,66 @@
 +     ret v20
   }
   
+  fn @returndata_bytes() -> memoryslice {
+    bb0:
+      v0 = returndatasize
+      v1 = make_returndata_slice 0, v0
+-     v2 = abi_encode [returndata_bytes], args v1
+-     ret v2
++     v3 = fmp
++     v4 = add v3, 32
++     v5 = sub v4, v3
++     mstore v3, v5
++     v6 = slice_len v1
++     mstore v4, v6
++     v7 = not 31
++     v8 = add v6, 31
++     v9 = and v8, v7
++     v10 = add v4, 32
++     v11 = iszero v9
++     br v11, bb2, bb1
++   bb1:
++     v12 = sub v9, 32
++     v13 = add v10, v12
++     mstore v13, 0
++     jump bb2
++   bb2:
++     v14 = slice_ptr v1
++     v15 = add v10, v9
++     returndatacopy v10, v14, v6
++     v16 = sub v15, v3
++     v17 = add v16, 0
++     v18 = add v17, 31
++     v19 = not 31
++     v20 = and v18, v19
++     v21 = alloc raw, exact, uninitialized, infallible, v20
++     v22 = make_memory_slice v21, v17
++     ret v22
+  }
+  
+  fn @returndata_words(arg0: u256) -> memoryslice {
+    bb0:
+      v0 = make_returndata_slice 0, arg0
+-     v1 = abi_encode [returndata_array<word>], args v0
+-     ret v1
++     v2 = fmp
++     v3 = add v2, 32
++     v4 = sub v3, v2
++     mstore v2, v4
++     v5 = slice_len v0
++     mstore v3, v5
++     v6 = mul v5, 32
++     v7 = add v3, 32
++     v8 = slice_ptr v0
++     v9 = add v7, v6
++     returndatacopy v7, v8, v6
++     v10 = sub v9, v2
++     v11 = add v10, 0
++     v12 = add v11, 31
++     v13 = not 31
++     v14 = and v12, v13
++     v15 = alloc raw, exact, uninitialized, infallible, v14
++     v16 = make_memory_slice v15, v11
++     ret v16
+  }
+  

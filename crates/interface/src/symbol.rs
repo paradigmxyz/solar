@@ -1076,6 +1076,8 @@ symbols! {
         result_ty,
         ret,
         returndata,
+        returndata_array,
+        returndata_bytes,
         returndataslice,
         ripemd160,
         runtime,
