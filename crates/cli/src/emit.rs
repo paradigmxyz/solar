@@ -142,11 +142,9 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
         ir::validate(&gcx.sess.dcx, &module);
         if gcx.dcx().has_errors().is_ok() {
             let name = source.name.display().to_string();
-            let _changed = if has_disasm_dump(gcx) {
-                ir::run_pipeline_silent(gcx, &mut module)
-            } else {
-                ir::run_pipeline(gcx, &mut module, Some(&name))
-            };
+            let options =
+                ir::PipelineOptions { name: Some(&name), emit_pass_output: !has_disasm_dump(gcx) };
+            let _changed = ir::run_pipeline(gcx, &mut module, options);
             ir::validate(&gcx.sess.dcx, &module);
             gcx.dcx().has_errors()?;
 

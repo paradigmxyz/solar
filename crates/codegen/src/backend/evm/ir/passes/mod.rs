@@ -87,6 +87,21 @@ pub fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
     ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
 }
 
+/// Options for running the configured EVM IR pipeline.
+#[derive(Clone, Copy, Debug)]
+pub struct PipelineOptions<'a> {
+    /// Overrides the module name in pass output.
+    pub name: Option<&'a str>,
+    /// Whether to emit intermediate pass output.
+    pub emit_pass_output: bool,
+}
+
+impl Default for PipelineOptions<'_> {
+    fn default() -> Self {
+        Self { name: None, emit_pass_output: true }
+    }
+}
+
 /// Runs an EVM IR pass pipeline.
 #[must_use]
 pub fn run_passes(
@@ -140,35 +155,18 @@ fn run_passes_inner(
 }
 
 /// Runs the configured EVM IR pipeline, or the canonical pipeline when none was provided.
-///
-/// `name` overrides the module name in pass output.
 #[must_use]
-pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
-    run_pipeline_inner(gcx, module, name, true)
-}
-
-/// Runs the configured EVM IR pipeline without printing intermediate pass output.
-#[must_use]
-pub fn run_pipeline_silent(gcx: Gcx<'_>, module: &mut Module) -> bool {
-    run_pipeline_inner(gcx, module, None, false)
-}
-
-#[must_use]
-fn run_pipeline_inner(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    name: Option<&str>,
-    emit_output: bool,
-) -> bool {
+pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, options: PipelineOptions<'_>) -> bool {
+    let PipelineOptions { name, emit_pass_output } = options;
     let Some(value) = gcx.sess.opts.unstable.evm_ir_pipeline.as_deref() else {
-        return run_passes_inner(gcx, module, DEFAULT_PIPELINE, None, emit_output);
+        return run_passes_inner(gcx, module, DEFAULT_PIPELINE, None, emit_pass_output);
     };
     let pipeline = match parse_pass_pipeline(gcx, value, "EVM IR", lookup_pass) {
         Ok(pipeline) => pipeline,
         Err(_) => return false,
     };
     let Some(passes) = pipeline else {
-        return run_passes_inner(gcx, module, DEFAULT_PIPELINE, None, emit_output);
+        return run_passes_inner(gcx, module, DEFAULT_PIPELINE, None, emit_pass_output);
     };
 
     let name =
@@ -176,12 +174,12 @@ fn run_pipeline_inner(
     let mut changed = false;
     for pass in passes {
         if let Some(pass) = pass {
-            let output_name = emit_output.then_some(name.as_str());
-            changed |= run_passes_inner(gcx, module, &[pass], output_name, emit_output);
-        } else if emit_output && gcx.sess.opts.unstable.pass_diff {
+            let output_name = emit_pass_output.then_some(name.as_str());
+            changed |= run_passes_inner(gcx, module, &[pass], output_name, emit_pass_output);
+        } else if emit_pass_output && gcx.sess.opts.unstable.pass_diff {
             let text = module.to_text();
             print_pass_diff(&name, "none", &text, &text);
-        } else if emit_output && gcx.sess.opts.unstable.print_after_each {
+        } else if emit_pass_output && gcx.sess.opts.unstable.print_after_each {
             println!("// === {name} (after none) ===");
             print!("{}", module.to_text());
         }

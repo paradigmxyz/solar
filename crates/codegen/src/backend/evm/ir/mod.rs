@@ -23,7 +23,7 @@ mod verify;
 pub(in crate::backend::evm) mod assembly;
 
 pub use passes::{
-    ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_pipeline, run_pipeline_silent,
+    ALL_PASSES, EvmPass, PipelineOptions, lookup_pass, pipeline_label, run_passes, run_pipeline,
 };
 
 /// Validates the invariants of an EVM IR module.
