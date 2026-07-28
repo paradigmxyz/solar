@@ -16,8 +16,8 @@
 //! - [`scheduler`] prepares the ordered operands for one instruction. It can consume dead values in
 //!   place, preserve live values, duplicate or swap accessible values, and rematerialize
 //!   immediates, arguments, or stored spills. Under size optimization, equal immediate operands
-//!   share one backend value identity and profitable repeated wide immediates may stay resident
-//!   within a block. Plans are replayable and are applied to the model only when chosen.
+//!   share one backend value identity. Plans are replayable and are applied to the model only when
+//!   chosen.
 //! - [`shuffler`] canonicalizes complete layouts on selected CFG edges. Layouts of up to four words
 //!   compare nontrivial greedy sequences with bounded shortest-action search and accept only Pareto
 //!   improvements in action count and static gas; larger layouts use the verified greedy result and
@@ -61,11 +61,11 @@
 //! values stack-resident; importing either whole allocator would require a separate machine IR and
 //! a different calling and memory model. Fe delegates EVM code generation to Sonatina through its
 //! [Sonatina integration], so it does not add another stack scheduler to adapt.
-//! The [LLVM EVM stack solver] used by solx independently follows a similar literal policy: always
-//! rematerialize zero and small literals, but retain a sufficiently wide literal when another use
-//! remains in the machine block. Its whole-function backward propagation, iterative spilling, and
-//! register allocation are not a fit for this direct MIR lowering, but its stack-pressure guard
-//! informs the local retention limits used here.
+//! The [LLVM EVM stack solver] used by solx always rematerializes zero and small literals, but
+//! retains a sufficiently wide literal when another use remains in the machine block. Its
+//! whole-function backward propagation, iterative spilling, and register allocation are not a fit
+//! for this direct MIR lowering. We benchmarked analogous cross-instruction retention, but it added
+//! no size win beyond equal-immediate canonicalization and regressed gas, so it is not enabled.
 //!
 //! [scheduler pipeline]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/lib.rs
 //! [Plank's intra-operation scheduler]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/greedy_intra_op_scheduler/mod.rs
@@ -128,12 +128,9 @@
 //! retains the straightforward emission path.
 //!
 //! Active equal immediates are canonicalized immediately before EVM lowering so `DUP` decisions
-//! see physical word reuse instead of allocation accidents in MIR. The block-local retention
-//! policy then keeps only constants with at least three remaining uses and an eight-byte compact
-//! materialization. It runs only under size optimization: the corresponding gas-mode policy
-//! regressed runtime gas and is deliberately not enabled. A new retained copy must fit inside the
-//! `DUP`/`SWAP` access window. Immediates remain rematerializable and never own spill slots, so
-//! stack pressure makes the policy decline caching rather than spill a constant.
+//! see physical word reuse instead of allocation accidents in MIR. This runs only under size
+//! optimization; gas-mode canonicalization regressed runtime gas and is deliberately not enabled.
+//! Immediates remain rematerializable and never own spill slots.
 //!
 //! Binary lowering may also plan an equivalent reversed operand order. This
 //! covers commutative instructions and comparison pairs such as `LT`/`GT`; the
