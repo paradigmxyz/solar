@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_static_tuple.sol:AbiDecodeStaticTuple ===
 @module AbiDecodeStaticTuple
-fn @decode(arg0: memorybytes) {
+fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_returns=[word, word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -61,11 +61,6 @@ fn @decode(arg0: memorybytes) {
     v32 = mload v31
     v33 = add v30, 64
     v34 = mload v33
-    mstore 128, v15
-    v35 = add 128, 32
-    mstore v35, v32
-    v36 = add 128, 64
-    mstore v36, v34
-    returndata 128, 96
+    ret v15, v32, v34
 }
 

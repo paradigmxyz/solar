@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_structs.sol:AbiDecodeStructs ===
 @module AbiDecodeStructs
-fn @dFlat(arg0: memorybytes) {
+fn @dFlat(arg0: memorybytes) -> (u256, address, bool) [abi_returns=[word, word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -60,15 +60,10 @@ fn @dFlat(arg0: memorybytes) {
     v31 = mload v30
     v32 = memory_object_field_addr memorystruct<3>, v15, 2
     v33 = mload v32
-    mstore 128, v29
-    v34 = add 128, 32
-    mstore v34, v31
-    v35 = add 128, 64
-    mstore v35, v33
-    returndata 128, 96
+    ret v29, v31, v33
 }
 
-fn @dNested(arg0: memorybytes) {
+fn @dNested(arg0: memorybytes) -> (u256, memorybytes, u256) [abi_returns=[word, memory_bytes, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -233,36 +228,10 @@ fn @dNested(arg0: memorybytes) {
     v92 = memory_object_field_addr memorystruct<3>, v17, 2
     v93 = mload v92
     v94 = mload v93
-    v95 = alloc raw, exact, uninitialized, infallible, 96
-    v96 = add v95, 96
-    mstore v95, v87
-    v97 = add v95, 32
-    v98 = sub v96, v95
-    mstore v97, v98
-    v99 = memory_object_len memorybytes, v91
-    mstore v96, v99
-    v100 = not 31
-    v101 = add v99, 31
-    v102 = and v101, v100
-    v103 = add v96, 32
-    v104 = iszero v102
-    br v104, bb20, bb19
-  bb19:
-    v105 = sub v102, 32
-    v106 = add v103, v105
-    mstore v106, 0
-    jump bb20
-  bb20:
-    v107 = memory_object_data memorybytes, v91
-    v108 = add v103, v102
-    mcopy v103, v107, v99
-    v109 = add v95, 64
-    mstore v109, v94
-    v110 = sub v108, v95
-    returndata v95, v110
+    ret v87, v91, v94
 }
 
-fn @dDynArr(arg0: memorybytes) {
+fn @dDynArr(arg0: memorybytes) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -342,8 +311,7 @@ fn @dDynArr(arg0: memorybytes) {
     v71 = mload v23
     mstore 128, v71
     v72 = mload 128
-    mstore 128, v72
-    returndata 128, 32
+    ret v72
   bb12:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

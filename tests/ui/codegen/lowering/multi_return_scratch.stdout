@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_scratch.sol:MultiReturnScratch ===
 @module MultiReturnScratch
-fn @stored(arg0: u256) {
+fn @stored(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -11,8 +11,7 @@ fn @stored(arg0: u256) {
   bb2:
     v3 = mapping_slot arg0, 0
     v4 = sload v3 !metadata(storage=symbolic(v3))
-    mstore 128, v4
-    returndata 128, 32
+    ret v4
 }
 
 fn @triple(arg0: u256) -> (u256, u256, u256) {
@@ -41,7 +40,7 @@ fn @triple(arg0: u256) -> (u256, u256, u256) {
     ret arg0, v1, v3
 }
 
-fn @assign(arg0: u256, arg1: u256) {
+fn @assign(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [abi_returns=[word, word, word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -72,13 +71,6 @@ fn @assign(arg0: u256, arg1: u256) {
     v13 = mload 160
     v14 = mload 192
     v15 = mload 224
-    mstore 128, v12
-    v16 = add 128, 32
-    mstore v16, v13
-    v17 = add 128, 64
-    mstore v17, v14
-    v18 = add 128, 96
-    mstore v18, v15
-    returndata 128, 128
+    ret v12, v13, v14, v15
 }
 
