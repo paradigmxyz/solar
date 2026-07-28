@@ -48,17 +48,17 @@
 //! accounted for separately. The deterministic walk scores candidates by applying and undoing them
 //! on one scratch layout, then records only the chosen action; it does not clone partial histories.
 //! Otherwise the A* queue handles the ambiguous layout. A required value with no reload route below
-//! `SWAP16` bypasses search so the fallback can expose and spill it. Search also bypasses a dead
-//! operand copy below `SWAP16` when the accessible window has no removable surplus: no available
-//! action could shorten the stack enough to remove that copy. Search states retain parent links
-//! rather than full action histories, and separate per-search limits bound expansions, created
-//! states, visited states, the open frontier, and estimated retained bytes. Reaching a limit stops
-//! new expansion while already queued goals remain eligible. Searches also share a function-wide
-//! expansion budget, and repeated capped failures stop later A* attempts without disabling the
-//! cheaper planning tiers. Gas optimization orders plans by static gas, encoded bytes, and action
-//! count. Size optimization orders them by encoded bytes, static gas, and action count. Equal
-//! estimates prefer deeper states, then queue serials make traversal deterministic. Returning
-//! `None` delegates to the existing correctness-oriented emitter.
+//! `SWAP16` bypasses search so the fallback can expose and spill it. Size mode also bypasses every
+//! dead operand copy below `SWAP16` because its action set cannot shorten the stack. Gas mode may
+//! search only when an accessible surplus copy can be popped to expose the buried copy. Search
+//! states retain parent links rather than full action histories, and separate per-search limits
+//! bound expansions, created states, visited states, the open frontier, and estimated retained
+//! bytes. Reaching a limit stops new expansion while already queued goals remain eligible. Searches
+//! also share a function-wide expansion budget, and repeated capped failures stop later A* attempts
+//! without disabling the cheaper planning tiers. Gas optimization orders plans by static gas,
+//! encoded bytes, and action count. Size optimization orders them by encoded bytes, static gas, and
+//! action count. Equal estimates prefer deeper states, then queue serials make traversal
+//! deterministic. Returning `None` delegates to the existing correctness-oriented emitter.
 //! “Optimal” here means the least estimated local preparation cost within this action model, not a
 //! whole-function stack-allocation optimum.
 //!
@@ -481,7 +481,10 @@ impl StackScheduler {
                         .count()
                         > 1
             });
-        if inaccessible_required || (inaccessible_dead_copy && !removable_accessible_surplus) {
+        let inaccessible_dead_copy_is_removable =
+            matches!(optimization, OptimizationMode::Gas) && removable_accessible_surplus;
+        if inaccessible_required || (inaccessible_dead_copy && !inaccessible_dead_copy_is_removable)
+        {
             #[cfg(test)]
             {
                 let mut stats = self.operand_search_stats.get();
@@ -2634,6 +2637,49 @@ mod tests {
                     &[],
                     &func,
                     OptimizationMode::Gas,
+                    EvmVersion::Shanghai,
+                    OperandCostModel::DIRECT,
+                )
+                .is_none()
+        );
+        let stats = scheduler.operand_search_stats.get();
+        assert_eq!(stats.unreachable_preflights, 1);
+        assert_eq!(stats.expansions, 0);
+    }
+
+    #[test]
+    fn size_operand_search_preflights_dead_copy_with_accessible_surplus() {
+        let mut func = make_test_func();
+        let a = ValueId::from_usize(0);
+        let b = ValueId::from_usize(1);
+        let (_, target) =
+            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
+        let (_, top) =
+            func.alloc_value_inst(Instruction::new(InstKind::Sub(a, b), Some(MirType::uint256())));
+        let surplus = func
+            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(256))));
+        let mut scheduler = StackScheduler::new();
+        scheduler.spills.allocate(target);
+        scheduler.spills.mark_reloadable(target);
+        scheduler.stack.push(target);
+        for value in 0..MAX_STACK_ACCESS - 2 {
+            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+                alloy_primitives::U256::from(value),
+            )));
+            scheduler.stack.push(filler);
+        }
+        scheduler.stack.push(surplus);
+        scheduler.stack.push(surplus);
+        scheduler.stack.push(top);
+        assert_eq!(scheduler.stack.find(target), Some(MAX_STACK_ACCESS + 1));
+
+        assert!(
+            scheduler
+                .plan_operands(
+                    &[top, target],
+                    &[],
+                    &func,
+                    OptimizationMode::Size,
                     EvmVersion::Shanghai,
                     OperandCostModel::DIRECT,
                 )

@@ -90,15 +90,15 @@
 //! unambiguous plans use a deterministic walk only when its cost reaches the
 //! admissible lower bound; ambiguous layouts use bounded A*. Before A*, a required value with no
 //! reload route below `SWAP16` sends control directly to the spilling fallback. The same preflight
-//! rejects a dead operand copy below `SWAP16` when no accessible surplus can be popped to expose
-//! it: no planner transition could remove that copy, so search cannot satisfy the exact goal. The
-//! search stores parent links instead of cloned action histories and independently caps
-//! expansions, created states, visited states, the open frontier, and estimated retained bytes.
-//! A function-wide expansion budget bounds the sum of otherwise independent searches, and
-//! repeated capped failures disable later A* calls while leaving the exact and linear tiers
-//! available. These are tiers of the same planner, not sequential optimizers: every accepted result
-//! satisfies the same exact goal and cost ordering, and a tier that cannot prove its
-//! result falls through without mutating the stack.
+//! rejects every dead operand copy below `SWAP16` in size mode because that action set cannot
+//! shorten the stack. Gas mode may search only when an accessible surplus copy can be popped to
+//! expose the buried copy. The search stores parent links instead of cloned action histories and
+//! independently caps expansions, created states, visited states, the open frontier, and estimated
+//! retained bytes. A function-wide expansion budget bounds the sum of otherwise independent
+//! searches, and repeated capped failures disable later A* calls while leaving the exact and linear
+//! tiers available. These are tiers of the same planner, not sequential optimizers: every accepted
+//! result satisfies the same exact goal and cost ordering, and a tier that cannot prove its result
+//! falls through without mutating the stack.
 //! Transitions are `DUP`, `SWAP`, safe redundant-copy `POP`, and sound
 //! materializations. A goal is valid only when the exact operand head is
 //! present, every preserved operand still has a copy below it, and no dead
