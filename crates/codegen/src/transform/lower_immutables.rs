@@ -8,7 +8,7 @@
 use crate::{
     immutable::immutable_staging_addr,
     mir::{EffectKind, Immediate, InstKind, MemoryRegion, Module, Value},
-    pass::{MirPass, run_function_pass},
+    pass::MirPass,
 };
 use alloy_primitives::U256;
 
@@ -28,9 +28,10 @@ impl MirPass for LowerImmutables {
         &self,
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        analyses: &mut crate::pass::ModuleAnalyses,
+        _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        let mut changed = false;
+        for func in &mut module.functions {
             let stores: Vec<_> = func
                 .instructions()
                 .filter_map(|inst_id| match func.inst(inst_id).kind {
@@ -48,7 +49,8 @@ impl MirPass for LowerImmutables {
                 inst.metadata.set_effect(Some(EffectKind::MemoryWrite));
                 inst.metadata.set_memory_region(Some(MemoryRegion::Unknown));
             }
-            !stores.is_empty()
-        })
+            changed |= !stores.is_empty();
+        }
+        changed
     }
 }
