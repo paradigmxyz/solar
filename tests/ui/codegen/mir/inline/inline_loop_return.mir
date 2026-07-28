@@ -5,9 +5,9 @@
 // CHECK-LABEL: @caller
 // CHECK: -     {{v[0-9]+}} = internal_call @callee
 // CHECK: +     jump
-// CHECK: +     [[RESULT:v[0-9]+]] = add [[CONT:v[0-9]+]], 1
+// CHECK: +     [[CONT:v[0-9]+]] = phi
+// CHECK: +     [[RESULT:v[0-9]+]] = add [[CONT]], 1
 // CHECK:       ret [[RESULT]]
-// CHECK: +     [[CONT]] = mload
 fn @caller() -> u256 [selector=0x01020304] {
   bb0:
     v0 = internal_call @callee, 1, 4
