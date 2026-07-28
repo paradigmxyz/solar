@@ -87,10 +87,7 @@ impl<'gcx> Lowerer<'gcx> {
             return false;
         }
         let ty = self.current_return_tys[0];
-        let hash = match self
-            .collect_builtin_args(Builtin::AbiEncodePacked, args)
-            .and_then(|_| self.lower_keccak_abi_encode_packed(builder, args))
-        {
+        let hash = match self.lower_keccak_abi_encode_packed(builder, args) {
             Ok(hash) => hash,
             Err(guar) => builder.error_value(guar),
         };

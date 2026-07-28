@@ -2560,7 +2560,7 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::Call(callee, args, _)
                 if self.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0) =>
             {
-                if let Err(guar) = self.collect_builtin_args(Builtin::ArrayPush0, args) {
+                if let Err(guar) = self.builtin_args::<0>(Builtin::ArrayPush0, args) {
                     return Some(builder.error_value(guar));
                 }
                 let ExprKind::Member(base, _) = &callee.kind else { return None };
@@ -2803,15 +2803,21 @@ impl<'gcx> Lowerer<'gcx> {
         builtin: Builtin,
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
-        let exprs = match self.collect_builtin_args(builtin, args) {
-            Ok(exprs) => exprs,
+        let arg = match builtin {
+            Builtin::ArrayPush0 => self.builtin_args::<0>(builtin, args).map(|[]| None),
+            Builtin::ArrayPush => self.builtin_args::<1>(builtin, args).map(|[arg]| Some(arg)),
+            Builtin::ArrayPop => self.builtin_args::<0>(builtin, args).map(|[]| None),
+            _ => unreachable!(),
+        };
+        let arg = match arg {
+            Ok(arg) => arg,
             Err(guar) => {
                 return (builtin == Builtin::ArrayPush0).then(|| builder.error_value(guar));
             }
         };
         let (slot, element_ty, element_slots) = array;
-        match builtin {
-            Builtin::ArrayPush0 => {
+        match (builtin, arg) {
+            (Builtin::ArrayPush0, None) => {
                 let element_slot =
                     self.lower_storage_array_push_slot(builder, slot, element_ty, element_slots);
                 if element_ty.is_reference_type() {
@@ -2822,8 +2828,7 @@ impl<'gcx> Lowerer<'gcx> {
                     Some(builder.imm_u64(0))
                 }
             }
-            Builtin::ArrayPush => {
-                let arg = exprs[0];
+            (Builtin::ArrayPush, Some(arg)) => {
                 let value = match element_ty.peel_refs().kind {
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                         self.lower_expr_as_memory_bytes(builder, arg)
@@ -2848,7 +2853,7 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.sstore(slot, new_length);
                 None
             }
-            Builtin::ArrayPop => {
+            (Builtin::ArrayPop, None) => {
                 let length = builder.sload(slot);
                 self.emit_panic_if_zero(builder, length, PanicCode::PopEmptyArray);
                 let one = builder.imm_u64(1);

@@ -65,8 +65,8 @@ impl<'gcx> Lowerer<'gcx> {
             // operations at the EVM level: a UDVT value is represented exactly as its
             // underlying type, so no wrapper is added or removed.
             if matches!(builtin, Builtin::UdvtWrap | Builtin::UdvtUnwrap) {
-                return Some(match self.collect_builtin_args(builtin, args) {
-                    Ok(args) => self.lower_value_expr(builder, args[0]),
+                return Some(match self.builtin_args(builtin, args) {
+                    Ok([arg]) => self.lower_value_expr(builder, arg),
                     Err(guar) => builder.error_value(guar),
                 });
             }
@@ -212,23 +212,92 @@ impl<'gcx> Lowerer<'gcx> {
         if valid {
             return Ok(exprs);
         }
+        Err(self.emit_wrong_builtin_arg_count(builtin, args.span, expected, exprs.len()))
+    }
 
+    fn emit_wrong_builtin_arg_count(
+        &self,
+        builtin: Builtin,
+        span: Span,
+        expected: BuiltinArgCount,
+        actual: usize,
+    ) -> ErrorGuaranteed {
         let expected = match expected {
             BuiltinArgCount::Exact(count) => count.to_string(),
             BuiltinArgCount::AtLeast(count) => format!("at least {count}"),
             BuiltinArgCount::Between(min, max) => format!("{min} to {max}"),
         };
         let kind = if builtin.is_yul() { "Yul builtin" } else { "builtin" };
-        Err(self
-            .gcx
+        self.gcx
             .dcx()
             .err(format!(
                 "wrong number of arguments for {kind} `{}`: expected {expected}, found {}",
                 builtin.name(),
-                exprs.len()
+                actual
             ))
-            .span(args.span)
-            .emit())
+            .span(span)
+            .emit()
+    }
+
+    pub(super) fn builtin_args<'a, 'hir, const N: usize>(
+        &self,
+        builtin: Builtin,
+        args: &'a CallArgs<'hir>,
+    ) -> Result<[&'a hir::Expr<'hir>; N], ErrorGuaranteed> {
+        if args.len() != N {
+            return Err(self.emit_wrong_builtin_arg_count(
+                builtin,
+                args.span,
+                BuiltinArgCount::Exact(N),
+                args.len(),
+            ));
+        }
+        let mut exprs = args.exprs();
+        Ok(std::array::from_fn(|_| exprs.next().unwrap()))
+    }
+
+    pub(super) fn builtin_args_with_rest<'a, 'hir, const N: usize>(
+        &self,
+        builtin: Builtin,
+        args: &'a CallArgs<'hir>,
+    ) -> Result<([&'a hir::Expr<'hir>; N], SmallVec<[&'a hir::Expr<'hir>; 4]>), ErrorGuaranteed>
+    {
+        if args.len() < N {
+            return Err(self.emit_wrong_builtin_arg_count(
+                builtin,
+                args.span,
+                BuiltinArgCount::AtLeast(N),
+                args.len(),
+            ));
+        }
+        let mut exprs = args.exprs();
+        let prefix = std::array::from_fn(|_| exprs.next().unwrap());
+        Ok((prefix, exprs.collect()))
+    }
+
+    pub(super) fn variadic_builtin_args<'a, 'hir>(
+        &self,
+        args: &'a CallArgs<'hir>,
+    ) -> SmallVec<[&'a hir::Expr<'hir>; 4]> {
+        args.exprs().collect()
+    }
+
+    fn builtin_args_with_optional<'a, 'hir, const N: usize>(
+        &self,
+        builtin: Builtin,
+        args: &'a CallArgs<'hir>,
+    ) -> Result<([&'a hir::Expr<'hir>; N], Option<&'a hir::Expr<'hir>>), ErrorGuaranteed> {
+        if !(N..=N + 1).contains(&args.len()) {
+            return Err(self.emit_wrong_builtin_arg_count(
+                builtin,
+                args.span,
+                BuiltinArgCount::Between(N, N + 1),
+                args.len(),
+            ));
+        }
+        let mut exprs = args.exprs();
+        let required = std::array::from_fn(|_| exprs.next().unwrap());
+        Ok((required, exprs.next()))
     }
 
     fn lower_builtin_args(
@@ -768,14 +837,21 @@ impl<'gcx> Lowerer<'gcx> {
         builtin: Builtin,
         args: &CallArgs<'_>,
     ) -> Result<(), ErrorGuaranteed> {
-        let exprs = self.collect_builtin_args(builtin, args)?;
         match builtin {
             Builtin::Selfdestruct => {
-                let addr = self.lower_value_expr(builder, exprs[0]);
+                let [addr] = self.builtin_args(builtin, args)?;
+                let addr = self.lower_value_expr(builder, addr);
                 builder.selfdestruct(addr);
             }
             Builtin::Require | Builtin::Assert => {
-                let cond = self.lower_value_expr(builder, exprs[0]);
+                let (cond, message) = if builtin == Builtin::Require {
+                    let ([cond], message) = self.builtin_args_with_optional::<1>(builtin, args)?;
+                    (cond, message)
+                } else {
+                    let [cond] = self.builtin_args(builtin, args)?;
+                    (cond, None)
+                };
+                let cond = self.lower_value_expr(builder, cond);
                 let is_false = builder.iszero(cond);
                 let revert_block = builder.create_block();
                 let continue_block = builder.create_block();
@@ -784,7 +860,7 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.switch_to_block(revert_block);
                 if matches!(builtin, Builtin::Assert) {
                     self.emit_panic_revert(builder, PanicCode::Assert);
-                } else if let Some(message) = exprs.get(1) {
+                } else if let Some(message) = message {
                     if !self.emit_revert_payload_from_expr(builder, message) {
                         let zero = builder.imm_u64(0);
                         builder.revert(zero, zero);
@@ -797,11 +873,13 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.switch_to_block(continue_block);
             }
             Builtin::Revert => {
+                let [] = self.builtin_args(builtin, args)?;
                 let zero = builder.imm_u64(0);
                 builder.revert(zero, zero);
             }
             Builtin::RevertMsg => {
-                let emitted = self.emit_revert_error_string_from_expr(builder, exprs[0]);
+                let [message] = self.builtin_args(builtin, args)?;
+                let emitted = self.emit_revert_error_string_from_expr(builder, message);
                 if !emitted {
                     let zero = builder.imm_u64(0);
                     builder.revert(zero, zero);
@@ -820,10 +898,8 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> Result<ValueId, ErrorGuaranteed> {
         match builtin {
             Builtin::Keccak256 => {
-                let exprs = self.collect_builtin_args(builtin, args)?;
-                let first = exprs[0];
+                let [first] = self.builtin_args(builtin, args)?;
                 if let Some(packed_args) = self.abi_encode_packed_call_args(first) {
-                    self.collect_builtin_args(Builtin::AbiEncodePacked, packed_args)?;
                     return self.lower_keccak_abi_encode_packed(builder, packed_args);
                 }
                 if let Some(encode_args) = self.abi_encode_call_args(first) {
@@ -843,11 +919,11 @@ impl<'gcx> Lowerer<'gcx> {
                 Ok(builder.keccak256(ptr, size))
             }
             Builtin::Erc7201 => {
-                let exprs = self.collect_builtin_args(builtin, args)?;
-                self.lower_erc7201_call(builder, exprs[0])
+                let [arg] = self.builtin_args(builtin, args)?;
+                self.lower_erc7201_call(builder, arg)
             }
             Builtin::Gasleft => {
-                self.collect_builtin_args(builtin, args)?;
+                let [] = self.builtin_args(builtin, args)?;
                 Ok(builder.gas())
             }
             Builtin::Selfdestruct
@@ -856,21 +932,23 @@ impl<'gcx> Lowerer<'gcx> {
             | Builtin::Revert
             | Builtin::RevertMsg => unreachable!("unit builtin lowered in value context"),
             Builtin::AddressBalance => {
-                let exprs = self.collect_builtin_args(builtin, args)?;
-                let addr = self.lower_value_expr(builder, exprs[0]);
+                let [addr] = self.builtin_args(builtin, args)?;
+                let addr = self.lower_value_expr(builder, addr);
                 Ok(builder.balance(addr))
             }
             Builtin::AddMod | Builtin::MulMod => {
-                let values = self.lower_builtin_args(builder, builtin, args)?;
+                let [a, b, modulus] = self.builtin_args(builtin, args)?;
+                let a = self.lower_value_expr(builder, a);
+                let b = self.lower_value_expr(builder, b);
+                let modulus = self.lower_value_expr(builder, modulus);
                 let value = if matches!(builtin, Builtin::AddMod) {
-                    builder.addmod(values[0], values[1], values[2])
+                    builder.addmod(a, b, modulus)
                 } else {
-                    builder.mulmod(values[0], values[1], values[2])
+                    builder.mulmod(a, b, modulus)
                 };
                 Ok(value)
             }
             Builtin::StringConcat | Builtin::BytesConcat => {
-                self.collect_builtin_args(builtin, args)?;
                 self.lower_abi_encode_packed(builder, args)
             }
             Builtin::Sha256 | Builtin::Ripemd160 => {
@@ -880,28 +958,26 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::AbiEncode => {
                 // abi.encode: a fresh `bytes memory` allocation holding the
                 // padded ABI tuple encoding of the arguments.
-                let arg_exprs = self.collect_builtin_args(builtin, args)?;
+                let arg_exprs = self.variadic_builtin_args(args);
                 self.lower_abi_encode_to_bytes(builder, &arg_exprs)
             }
             Builtin::AbiEncodePacked => {
                 // `abi.encodePacked`: pack values tightly based on their types.
                 // Returns `bytes memory` (length + data).
-                self.collect_builtin_args(builtin, args)?;
                 self.lower_abi_encode_packed(builder, args)
             }
             Builtin::AbiEncodeWithSelector => {
                 // A selector-prefixed payload adapted to a `bytes memory`
                 // value: `[length][selector + ABI tuple encoding]`.
-                let exprs = self.collect_builtin_args(builtin, args)?;
-                let selector = self.lower_selector_word(builder, exprs[0]);
-                let (data, len) =
-                    self.abi_encode_call_payload(builder, Some(selector), &exprs[1..])?;
+                let ([selector], exprs) = self.builtin_args_with_rest::<1>(builtin, args)?;
+                let selector = self.lower_selector_word(builder, selector);
+                let (data, len) = self.abi_encode_call_payload(builder, Some(selector), &exprs)?;
                 let slice = builder.make_slice(data, len, crate::mir::SliceLocation::Memory);
                 Ok(self.materialize_memory_slice_bytes(builder, slice))
             }
             Builtin::AbiEncodeWithSignature => {
-                let exprs = self.collect_builtin_args(builtin, args)?;
-                if let hir::ExprKind::Lit(lit) = &exprs[0].kind
+                let ([signature], exprs) = self.builtin_args_with_rest::<1>(builtin, args)?;
+                if let hir::ExprKind::Lit(lit) = &signature.kind
                     && let solar_ast::LitKind::Str(_, sig, _) = &lit.kind
                 {
                     let hash = alloy_primitives::keccak256(sig.as_byte_str());
@@ -909,7 +985,7 @@ impl<'gcx> Lowerer<'gcx> {
                         U256::from(u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]])) << 224;
                     let selector = builder.imm_u256(selector);
                     let (data, len) =
-                        self.abi_encode_call_payload(builder, Some(selector), &exprs[1..])?;
+                        self.abi_encode_call_payload(builder, Some(selector), &exprs)?;
                     let slice = builder.make_slice(data, len, crate::mir::SliceLocation::Memory);
                     return Ok(self.materialize_memory_slice_bytes(builder, slice));
                 }
@@ -917,25 +993,22 @@ impl<'gcx> Lowerer<'gcx> {
                     .gcx
                     .dcx()
                     .err("codegen requires a literal `abi.encodeWithSignature` signature")
-                    .span(exprs[0].span)
+                    .span(signature.span)
                     .emit())
             }
             Builtin::AbiDecode => {
-                let exprs = self.collect_builtin_args(builtin, args)?;
-                self.lower_abi_decode(builder, exprs[0], exprs[1], args.span)
+                let [data, types] = self.builtin_args(builtin, args)?;
+                self.lower_abi_decode(builder, data, types, args.span)
             }
             builtin if builtin.is_yul() => {
                 unreachable!("Yul builtin bypassed call result lowering")
             }
-            _ => {
-                self.collect_builtin_args(builtin, args)?;
-                Err(self
-                    .gcx
-                    .dcx()
-                    .err(format!("unsupported builtin call `{}`", builtin.name()))
-                    .span(args.span)
-                    .emit())
-            }
+            _ => Err(self
+                .gcx
+                .dcx()
+                .err(format!("unsupported builtin call `{}`", builtin.name()))
+                .span(args.span)
+                .emit()),
         }
     }
 
@@ -1172,12 +1245,12 @@ impl<'gcx> Lowerer<'gcx> {
         // Handle address payable transfer/send builtins
         if matches!(builtin, Some(Builtin::AddressPayableTransfer | Builtin::AddressPayableSend)) {
             let builtin = builtin.unwrap();
-            let exprs = match self.collect_builtin_args(builtin, args) {
+            let [amount] = match self.builtin_args(builtin, args) {
                 Ok(exprs) => exprs,
                 Err(guar) => return self.call_error_result(builder, callee, guar),
             };
             let addr = self.lower_value_expr(builder, base);
-            let amount = self.lower_value_expr(builder, exprs[0]);
+            let amount = self.lower_value_expr(builder, amount);
 
             // CALL adds the 2300 stipend for a nonzero value. Supplying another
             // 2300 would expose 4600 gas to the recipient.
@@ -1214,14 +1287,13 @@ impl<'gcx> Lowerer<'gcx> {
                     "codegen cannot use `staticcall` before Byzantium".to_string(),
                 );
             }
-            let exprs = match self.collect_builtin_args(builtin, args) {
+            let [data_arg] = match self.builtin_args(builtin, args) {
                 Ok(exprs) => exprs,
                 Err(guar) => return self.call_error_result(builder, callee, guar),
             };
             let addr = self.lower_value_expr(builder, base);
 
             // Get the calldata bytes argument.
-            let data_arg = exprs[0];
             // Supported inputs are literals and ABI encode calls. Other bytes
             // expressions are diagnosed by `lower_bytes_arg_to_memory`.
             let (calldata_offset, calldata_size) =
@@ -2445,8 +2517,8 @@ impl<'gcx> Lowerer<'gcx> {
         builtin: Builtin,
         args: &CallArgs<'_>,
     ) -> Result<ValueId, ErrorGuaranteed> {
-        let exprs = self.collect_builtin_args(builtin, args)?;
-        let input = self.peel_bytes_conversion(exprs[0]);
+        let [input] = self.builtin_args(builtin, args)?;
+        let input = self.peel_bytes_conversion(input);
         let (input_ptr, input_len) = self.lower_precompile_bytes_input(builder, input)?;
 
         let address = builder.imm_u64(if builtin == Builtin::Sha256 { 2 } else { 3 });
@@ -2483,11 +2555,11 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         args: &CallArgs<'_>,
     ) -> Result<ValueId, ErrorGuaranteed> {
-        let exprs = self.collect_builtin_args(Builtin::EcRecover, args)?;
-        let hash = self.lower_value_expr(builder, exprs[0]);
-        let v = self.lower_value_expr(builder, exprs[1]);
-        let r = self.lower_value_expr(builder, exprs[2]);
-        let s = self.lower_value_expr(builder, exprs[3]);
+        let [hash, v, r, s] = self.builtin_args(Builtin::EcRecover, args)?;
+        let hash = self.lower_value_expr(builder, hash);
+        let v = self.lower_value_expr(builder, v);
+        let r = self.lower_value_expr(builder, r);
+        let s = self.lower_value_expr(builder, s);
 
         let input_ptr = builder.fmp();
         builder.mstore(input_ptr, hash);
