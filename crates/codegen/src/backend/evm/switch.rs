@@ -1069,11 +1069,14 @@ const fn indexed_jump_stub_len(target_width: usize) -> usize {
 
 fn indexed_jump_code_size(
     table_size: usize,
-    target_width: usize,
+    _target_width: usize,
     evm_version: EvmVersion,
 ) -> usize {
+    let target_width = 1;
     if packs_indexed_jump(table_size, target_width, evm_version) {
-        9 + table_size * target_width + target_width
+        packed_indexed_jump_code_size(table_size, target_width)
+    } else if packs_two_word_indexed_jump(table_size, target_width, evm_version) {
+        packed_two_word_indexed_jump_code_size(table_size, target_width, evm_version)
     } else {
         INDEXED_JUMP_BASE_LEN + table_size * indexed_jump_stub_len(target_width)
     }
@@ -1085,13 +1088,14 @@ fn max_indexed_jump_code_size(
     evm_version: EvmVersion,
 ) -> usize {
     if packs_indexed_jump(table_size, target_width, evm_version) {
-        indexed_jump_code_size(table_size, target_width, evm_version)
+        packed_indexed_jump_code_size(table_size, target_width)
     } else {
         max_indexed_jump_base_len(target_width) + table_size * indexed_jump_stub_len(target_width)
     }
 }
 
-fn indexed_jump_gas(table_size: usize, target_width: usize, evm_version: EvmVersion) -> usize {
+fn indexed_jump_gas(table_size: usize, _target_width: usize, evm_version: EvmVersion) -> usize {
+    let target_width = 1;
     if packs_indexed_jump(table_size, target_width, evm_version) {
         let scale = target_width * 8;
         VERY_LOW_GAS * 6 + if scale.is_power_of_two() { VERY_LOW_GAS } else { MUL_GAS } + JUMP_GAS
@@ -1104,6 +1108,51 @@ fn packs_indexed_jump(table_size: usize, target_width: usize, evm_version: EvmVe
     evm_version.has_bitwise_shifting()
         && table_size >= 2
         && table_size.saturating_mul(target_width) <= 32
+}
+
+const fn packed_indexed_jump_code_size(table_size: usize, target_width: usize) -> usize {
+    9 + table_size * target_width + target_width
+}
+
+fn packs_two_word_indexed_jump(
+    table_size: usize,
+    target_width: usize,
+    evm_version: EvmVersion,
+) -> bool {
+    if !evm_version.has_bitwise_shifting() || !target_width.is_power_of_two() {
+        return false;
+    }
+    let entries_per_chunk = 32 / target_width;
+    let bytes = table_size.saturating_mul(target_width);
+    entries_per_chunk >= 2
+        && bytes > 32
+        && bytes <= 64
+        && packed_two_word_indexed_jump_code_size(table_size, target_width, evm_version)
+            < outlined_indexed_jump_code_size(table_size, target_width)
+}
+
+fn packed_two_word_indexed_jump_code_size(
+    table_size: usize,
+    target_width: usize,
+    evm_version: EvmVersion,
+) -> usize {
+    let entries_per_chunk = 32 / target_width;
+    let second_chunk_bytes = (table_size - entries_per_chunk) * target_width;
+    let chunk_shift = entries_per_chunk.ilog2();
+    let entry_mask = entries_per_chunk - 1;
+    let scale_shift = (target_width * 8).ilog2();
+    let target_mask = (U256::ONE << (target_width * 8)) - U256::ONE;
+    14 + push_len(U256::from(chunk_shift), evm_version)
+        + second_chunk_bytes
+        + 1
+        + 33
+        + push_len(U256::from(entry_mask), evm_version)
+        + push_len(U256::from(scale_shift), evm_version)
+        + push_len(target_mask, evm_version)
+}
+
+const fn outlined_indexed_jump_code_size(table_size: usize, target_width: usize) -> usize {
+    target_width + 6 + table_size * indexed_jump_stub_len(target_width)
 }
 
 const fn max_indexed_jump_base_len(table_target_width: usize) -> usize {
@@ -1239,6 +1288,33 @@ mod tests {
             ),
             SwitchPlan::Dense { .. }
         ));
+    }
+
+    #[test]
+    fn selects_locally_packed_dense_switches_for_size() {
+        for values in [
+            vec![0, 3, 5, 7, 8, 18, 19],
+            vec![0, 4, 7, 8, 10, 11, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 26, 27, 31],
+        ] {
+            let values = values.into_iter().map(U256::from).collect::<Vec<_>>();
+            assert!(matches!(
+                select_switch_plan(
+                    &values,
+                    OptimizationMode::Size,
+                    EvmVersion::Cancun,
+                    SwitchDefault::CleanupJump,
+                    2,
+                ),
+                SwitchPlan::Dense { .. }
+            ));
+        }
+    }
+
+    #[test]
+    fn models_locally_packed_indexed_jump_sizes() {
+        assert_eq!(indexed_jump_code_size(20, 2, EvmVersion::Cancun), 30);
+        assert_eq!(indexed_jump_code_size(33, 2, EvmVersion::Cancun), 57);
+        assert_eq!(max_indexed_jump_code_size(20, 2, EvmVersion::Cancun), 108);
     }
 
     #[test]
@@ -1537,7 +1613,9 @@ mod tests {
 
     #[test]
     fn keeps_packed_bit_slice_within_cap_for_shared_continuation() {
-        let values = (0..6).map(|index| U256::from(20_000 + index * 6)).collect::<Vec<_>>();
+        let values = (0..6)
+            .map(|index| U256::from((index + 1) * (index + 1) * 65536 + index))
+            .collect::<Vec<_>>();
         let select = |shared_case_continuation| {
             select_switch_plan_with_linear_values_and_budget(
                 &values,
@@ -1559,10 +1637,10 @@ mod tests {
             )
         };
         let unshared = select(false);
-        assert!(matches!(
-            unshared.plan,
-            SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } }
-        ));
+        assert!(
+            matches!(unshared.plan, SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } }),
+            "{unshared:?}"
+        );
         assert!(unshared.gas_code_growth <= MAX_BIT_SLICE_GAS_CODE_GROWTH);
         let shared = select(true);
         assert!(matches!(shared.plan, SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } }));
@@ -1853,7 +1931,8 @@ mod tests {
             false,
         );
 
-        assert_eq!(wide.code_size, packed.code_size + 32);
+        assert_eq!(wide.code_size, packed.code_size);
+        assert!(wide.max_code_size > packed.max_code_size);
         assert_eq!(wide.hit_gas_sum, packed.hit_gas_sum);
         assert_eq!(wide.miss_gas, packed.miss_gas);
     }
