@@ -2,35 +2,27 @@
 @module HigherOrderFunctionPointer
 fn @higher0() {
   bb0:
-    mstore 128, 0
     mstore 128, 2
     returndata 128, 32
 }
 
 fn @higher1() -> function {
   bb0:
-    v0 = internal_frame_addr 96
-    mstore v0, 0 !metadata(memory=internal_frame)
     ret 1
 }
 
 fn @higher2() -> function {
   bb0:
-    v0 = internal_frame_addr 96
-    mstore v0, 0 !metadata(memory=internal_frame)
     ret 2
 }
 
 fn @higher3() -> function {
   bb0:
-    v0 = internal_frame_addr 96
-    mstore v0, 0 !metadata(memory=internal_frame)
     ret 3
 }
 
 fn @callReturned() {
   bb0:
-    mstore 128, 0
     v0 = internal_call @__internal_dispatch_0, 1, 4
     v1 = internal_call @__internal_dispatch_0, 1, v0
     v2 = internal_call @__internal_dispatch_0, 1, v1
@@ -79,8 +71,6 @@ fn @__internal_dispatch_1(arg0: function) -> u256 {
 
 fn @higher0() -> u256 {
   bb0:
-    v0 = internal_frame_addr 96
-    mstore v0, 0 !metadata(memory=internal_frame)
     ret 2
 }
 

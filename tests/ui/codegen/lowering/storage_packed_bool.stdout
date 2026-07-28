@@ -2,7 +2,6 @@
 @module PackedBool
 fn @a() {
   bb0:
-    mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
     mstore 128, v1
@@ -11,7 +10,6 @@ fn @a() {
 
 fn @b() {
   bb0:
-    mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
     v2 = and v1, 255
@@ -60,7 +58,6 @@ fn @set(arg0: bool, arg1: bool) {
 
 fn @both() {
   bb0:
-    mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
     jumpi v1, bb1, bb2

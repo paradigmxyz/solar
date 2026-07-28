@@ -1,4 +1,4 @@
-//@compile-flags: --pass sccp
+//@compile-flags: -Zmir-pipeline=sccp
 //@filecheck:
 // Constant folding for the signed, modular, byte-level, and select operations,
 // with exact EVM edge-case semantics. Negative constants are written as

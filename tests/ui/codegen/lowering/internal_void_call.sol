@@ -35,4 +35,30 @@ contract InternalVoidCall {
             value = newValue;
         }
     }
+
+    // CHECK-LABEL: fn @returnVoidCall{{[( ]}}
+    // CHECK: sstore 0, arg0
+    // CHECK: stop
+    function returnVoidCall(uint256 newValue) public {
+        return writeIfNonZero(newValue);
+    }
+
+    // CHECK-LABEL: fn @returnRevert{{[( ]}}
+    // CHECK: revert 0, 0
+    function returnRevert() public pure {
+        return revert();
+    }
+
+    // CHECK-LABEL: fn @unitTernary{{[( ]}}
+    // CHECK: jumpi arg0,
+    // CHECK: sstore 0, arg1
+    // CHECK: sstore 0, 0
+    // CHECK-NOT: phi
+    function unitTernary(bool writeValue, uint256 newValue) public {
+        writeValue ? writeIfNonZero(newValue) : clear();
+    }
+
+    function clear() internal {
+        value = 0;
+    }
 }

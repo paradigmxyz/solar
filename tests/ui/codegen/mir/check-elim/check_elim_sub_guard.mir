@@ -1,4 +1,4 @@
-//@compile-flags: --pass check-elim
+//@compile-flags: -Zmir-pipeline=check-elim
 //@filecheck:
 @module CheckElimSubGuard
 

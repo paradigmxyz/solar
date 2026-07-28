@@ -9,7 +9,6 @@ fn @upow(arg0: u256, arg1: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = iszero arg1
     jumpi v3, bb3, bb4
   bb3:
@@ -92,7 +91,6 @@ fn @spow(arg0: i256, arg1: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = iszero arg1
     jumpi v3, bb3, bb4
   bb3:
@@ -232,7 +230,6 @@ fn @upow8(arg0: u8, arg1: u8) {
   bb5:
     revert 0, 0
   bb6:
-    mstore 128, 0
     v9 = iszero arg1
     jumpi v9, bb7, bb8
   bb7:
@@ -343,7 +340,6 @@ fn @spow8(arg0: i8, arg1: u8) {
   bb5:
     revert 0, 0
   bb6:
-    mstore 128, 0
     v9 = iszero arg1
     jumpi v9, bb7, bb8
   bb7:
@@ -469,7 +465,6 @@ fn @const2(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = gt arg0, 255
     jumpi v3, bb3, bb4
   bb3:
@@ -491,7 +486,6 @@ fn @const10(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = gt arg0, 77
     jumpi v3, bb3, bb4
   bb3:
@@ -513,7 +507,6 @@ fn @const_neg2(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = eq 2, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
     jumpi v3, bb3, bb4
   bb3:
@@ -661,7 +654,6 @@ fn @unchecked_pow8(arg0: u8, arg1: u8) {
   bb5:
     revert 0, 0
   bb6:
-    mstore 128, 0
     v9 = exp arg0, arg1
     v10 = and v9, 255
     mstore 128, v10

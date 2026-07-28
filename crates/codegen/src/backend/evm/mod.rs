@@ -23,7 +23,7 @@ pub(crate) mod assembler;
 
 pub(crate) mod stack;
 
-/// Runs the backend pipeline and assembles an EVM IR module.
+/// Assembles an EVM IR module.
 pub fn assemble_evm_ir(
     gcx: solar_sema::Gcx<'_>,
     module: ir::Module,

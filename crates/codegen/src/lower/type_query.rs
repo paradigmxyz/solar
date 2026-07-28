@@ -2,6 +2,7 @@
 
 use super::Lowerer;
 use solar_ast::{DataLocation, LitKind};
+use solar_interface::diagnostics::ErrorGuaranteed;
 use solar_sema::{
     hir::{self, ElementaryType, ExprKind},
     ty::TyKind,
@@ -20,6 +21,17 @@ impl<'gcx> Lowerer<'gcx> {
     /// Gets the type of an expression computed by sema's type checker.
     pub(super) fn get_expr_type(&self, expr: &hir::Expr<'_>) -> Option<solar_sema::ty::Ty<'gcx>> {
         self.gcx.type_of_expr(expr.id)
+    }
+
+    /// Returns an error referenced by an expression or its computed type.
+    pub(super) fn expr_references_error(
+        &self,
+        expr: &hir::Expr<'_>,
+    ) -> Result<(), ErrorGuaranteed> {
+        if let Some(ty) = self.get_expr_type(expr) {
+            ty.error_reported()?;
+        }
+        expr.references_error(&self.gcx.hir)
     }
 
     pub(super) fn resolved_struct_field(

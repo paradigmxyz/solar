@@ -1,11 +1,11 @@
 //@ revisions: size gas none berlin
-//@[size] compile-flags: -O size --evm-version shanghai -Zdump=disasm-runtime
+//@[size] compile-flags: -Zcodegen -Zevm-ir-pipeline=default -O size --evm-version shanghai -Zdump=disasm-runtime
 //@[size] filecheck: --check-prefix=COMPACT
-//@[gas] compile-flags: -O gas --evm-version shanghai -Zdump=disasm-runtime
+//@[gas] compile-flags: -Zcodegen -Zevm-ir-pipeline=default -O gas --evm-version shanghai -Zdump=disasm-runtime
 //@[gas] filecheck: --check-prefix=COMPACT
-//@[none] compile-flags: -O none --evm-version shanghai -Zdump=disasm-runtime
+//@[none] compile-flags: -Zcodegen -Zevm-ir-pipeline=default -O none --evm-version shanghai -Zdump=disasm-runtime
 //@[none] filecheck: --check-prefix=NONE --implicit-check-not=NOT
-//@[berlin] compile-flags: -O size --evm-version berlin -Zdump=disasm-runtime
+//@[berlin] compile-flags: -Zcodegen -Zevm-ir-pipeline=default -O size --evm-version berlin -Zdump=disasm-runtime
 //@[berlin] filecheck: --check-prefix=BERLIN --implicit-check-not=PUSH0
 
 @module compact_pushes

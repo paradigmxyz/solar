@@ -2,7 +2,6 @@
 @module ConstructorAbiValidation
 fn @flag() {
   bb0:
-    mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
     mstore 128, v1
@@ -11,7 +10,6 @@ fn @flag() {
 
 fn @second() {
   bb0:
-    mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
     v2 = and v1, 255

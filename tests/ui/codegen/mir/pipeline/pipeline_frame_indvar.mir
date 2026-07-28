@@ -1,4 +1,4 @@
-//@compile-flags: --pipeline-default
+//@compile-flags: -Zmir-pipeline=default
 //@filecheck: --implicit-check-not=internal_frame_addr --implicit-check-not=mload
 @module PipelineFrameIndVar
 // CHECK-LABEL: fn @frame_counter_feeds_affine_address{{[( ]}}

@@ -2,7 +2,6 @@
 @module BackendControlFlow
 fn @value() {
   bb0:
-    mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     mstore 128, v0
     returndata 128, 32
@@ -10,7 +9,6 @@ fn @value() {
 
 fn @totalSupply() {
   bb0:
-    mstore 128, 0
     v0 = sload 1 !metadata(storage=slot(1))
     mstore 128, v0
     returndata 128, 32
@@ -18,7 +16,6 @@ fn @totalSupply() {
 
 fn @reserve0() {
   bb0:
-    mstore 128, 0
     v0 = sload 2 !metadata(storage=slot(2))
     mstore 128, v0
     returndata 128, 32
@@ -26,7 +23,6 @@ fn @reserve0() {
 
 fn @reserve1() {
   bb0:
-    mstore 128, 0
     v0 = sload 3 !metadata(storage=slot(3))
     mstore 128, v0
     returndata 128, 32

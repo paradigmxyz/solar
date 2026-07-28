@@ -42,11 +42,17 @@ Options:
       -Zprint-natspec
           Print resolved NatSpec docs as diagnostics for UI tests
 
+      -Zmir-pipeline=<PASS[,PASS...]>
+          Comma-separated MIR pass pipeline. Use `default` for the compiler's canonical pipeline and `none` for no passes
+
+      -Zevm-ir-pipeline=<PASS[,PASS...]>
+          Comma-separated EVM IR pass pipeline. Use `default` for the compiler's canonical pipeline and `none` for no passes
+
       -Zprint-after-each
           Print MIR or EVM IR after every optimization pass
 
       -Zpass-diff
-          Print a before-and-after diff for each pass explicitly selected by `mir-opt` or `evm-opt`
+          Print a before-and-after diff for each pass explicitly selected by an IR pipeline
 
       -Ztime-passes
           Print the time spent in each MIR and EVM IR pass

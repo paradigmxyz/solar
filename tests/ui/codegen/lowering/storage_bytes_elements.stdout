@@ -2,7 +2,6 @@
 @module StorageBytesElements
 fn @b() {
   bb0:
-    mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     internal_call @__ret_bytes, 0, v0
     invalid
@@ -214,7 +213,6 @@ fn @poke() {
 
 fn @hashB() {
   bb0:
-    mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     v1 = keccak256_bytes v0
     mstore 128, v1
@@ -225,7 +223,6 @@ fn @hashB() {
 @module StorageStringConstructor
 fn @name() {
   bb0:
-    mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     internal_call @__ret_bytes, 0, v0
     invalid
@@ -299,7 +296,6 @@ fn @__ret_bytes(arg0: memorybytes) {
 
 fn @symbol() {
   bb0:
-    mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 1
     internal_call @__ret_bytes, 0, v0
     invalid
@@ -472,7 +468,6 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
 @module StorageStringBase
 fn @name() {
   bb0:
-    mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     internal_call @__ret_bytes, 0, v0
     invalid
@@ -546,7 +541,6 @@ fn @__ret_bytes(arg0: memorybytes) {
 
 fn @symbol() {
   bb0:
-    mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 1
     internal_call @__ret_bytes, 0, v0
     invalid
@@ -870,7 +864,6 @@ fn @_anonymous() {
 
 fn @name() {
   bb0:
-    mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     internal_call @__ret_bytes, 0, v0
     invalid
@@ -944,7 +937,6 @@ fn @__ret_bytes(arg0: memorybytes) {
 
 fn @symbol() {
   bb0:
-    mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 1
     internal_call @__ret_bytes, 0, v0
     invalid
@@ -1105,7 +1097,6 @@ fn @constructor() {
 
 fn @name() {
   bb0:
-    mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     internal_call @__ret_bytes, 0, v0
     invalid
@@ -1179,7 +1170,6 @@ fn @__ret_bytes(arg0: memorybytes) {
 
 fn @symbol() {
   bb0:
-    mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 1
     internal_call @__ret_bytes, 0, v0
     invalid

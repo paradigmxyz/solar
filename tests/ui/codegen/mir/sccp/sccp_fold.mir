@@ -1,4 +1,4 @@
-//@compile-flags: --pass sccp
+//@compile-flags: -Zmir-pipeline=sccp
 //@filecheck:
 // Constant arithmetic: 10 + 20 = 30, 30 * 2 = 60.
 // SCCP should propagate through the chain and fold everything.

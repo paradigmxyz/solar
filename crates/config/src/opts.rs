@@ -79,7 +79,7 @@ pub struct CompileOpts {
         )
     )]
     pub allow_paths: Vec<PathBuf>,
-    /// Source code language. Only Solidity is currently implemented.
+    /// Compiler input language.
     #[cfg_attr(
         feature = "clap",
         arg(help_heading = "Input options", long, value_enum, default_value_t, hide = true)
@@ -90,16 +90,13 @@ pub struct CompileOpts {
     #[cfg_attr(feature = "clap", arg(long, short = 'j', visible_alias = "jobs", default_value_t))]
     pub threads: Threads,
     /// EVM version.
-    #[cfg_attr(feature = "clap", arg(long, value_enum, default_value_t, global = true))]
+    #[cfg_attr(feature = "clap", arg(long, value_enum, default_value_t))]
     pub evm_version: EvmVersion,
     /// Stop execution after the given compiler stage.
     #[cfg_attr(feature = "clap", arg(long, value_enum))]
     pub stop_after: Option<CompilerStage>,
     /// MIR optimization objective.
-    #[cfg_attr(
-        feature = "clap",
-        arg(short = 'O', long = "optimize", value_enum, default_value_t, global = true)
-    )]
+    #[cfg_attr(feature = "clap", arg(short = 'O', long = "optimize", value_enum, default_value_t))]
     pub optimization: OptimizationMode,
 
     /// Library addresses for linking, as `LibraryName=0xADDRESS`.
@@ -367,11 +364,21 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub print_natspec: bool,
 
+    /// Comma-separated MIR pass pipeline. Use `default` for the compiler's canonical pipeline and
+    /// `none` for no passes.
+    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "PASS[,PASS...]"))]
+    pub mir_pipeline: Option<String>,
+
+    /// Comma-separated EVM IR pass pipeline. Use `default` for the compiler's canonical pipeline
+    /// and `none` for no passes.
+    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "PASS[,PASS...]"))]
+    pub evm_ir_pipeline: Option<String>,
+
     /// Print MIR or EVM IR after every optimization pass.
     #[cfg_attr(feature = "clap", arg(long))]
     pub print_after_each: bool,
 
-    /// Print a before-and-after diff for each pass explicitly selected by `mir-opt` or `evm-opt`.
+    /// Print a before-and-after diff for each pass explicitly selected by an IR pipeline.
     #[cfg_attr(feature = "clap", arg(long))]
     pub pass_diff: bool,
 

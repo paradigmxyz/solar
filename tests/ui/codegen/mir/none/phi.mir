@@ -1,4 +1,4 @@
-//@compile-flags: --pass none
+//@compile-flags: -Zmir-pipeline=none
 //@filecheck:
 @module PhiTest
 // CHECK-LABEL: {{^[ +].*}}fn @diamond{{[( ]}}

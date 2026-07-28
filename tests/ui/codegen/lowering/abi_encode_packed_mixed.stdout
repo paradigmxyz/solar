@@ -23,7 +23,6 @@ fn @fixedBytesArg(arg0: u256, arg1: address, arg2: bytes2) {
   bb5:
     revert 0, 0
   bb6:
-    mstore 128, 0
     v9 = fmp
     mstore v9, arg0
     v10 = shl 96, arg1
@@ -56,7 +55,6 @@ fn @dynamicArg(arg0: bytes32, arg1: memorybytes) {
     v10 = memory_object_data memorybytes, v9
     v11 = add v3, 32
     calldatacopy v10, v11, v4
-    mstore 128, 0
     v12 = fmp
     mstore v12, arg0
     v13 = add v12, 32
@@ -105,7 +103,6 @@ fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) {
   bb5:
     revert 0, 0
   bb6:
-    mstore 128, 0
     v19 = fmp
     v20 = memory_object_data memorybytes, v19
     v21 = shl 240, arg0

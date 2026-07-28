@@ -4,6 +4,8 @@ use solar_codegen::{
     ContractArtifact, ContractSelection,
     backend::evm::{self, ir},
     generate_contract_bytecodes,
+    mir::{Module, validate},
+    pass,
 };
 use solar_config::{CompilerOutput, Dump, DumpKind};
 use solar_data_structures::map::FxHashMap;
@@ -43,25 +45,39 @@ pub(crate) fn emit_requested(
     bytecode_contracts: ContractSelection,
 ) -> Result<Option<FxHashMap<ContractId, ContractArtifact>>> {
     let gcx = compiler.gcx();
-    let dump_contracts = codegen_dump_contracts(gcx)?;
-    let no_contracts = ContractSelection::empty(gcx);
-    let capture_mir =
-        dump_contracts.as_ref().filter(|_| has_mir_dump(gcx)).unwrap_or(&no_contracts);
-    let capture_evm_ir =
-        dump_contracts.as_ref().filter(|_| has_evm_ir_dump(gcx)).unwrap_or(&no_contracts);
-    let mut generated_bytecode_contracts = bytecode_contracts.clone();
-    if has_disasm_dump(gcx)
-        && let Some(dump_contracts) = &dump_contracts
-    {
-        generated_bytecode_contracts.union_with(dump_contracts);
+    if !gcx.sess.opts.language.is_source() {
+        emit_ir_input(gcx)?;
+        return Ok(None);
     }
-    let generate_artifacts = !bytecode_contracts.is_empty() || dump_contracts.is_some();
+
+    let dump_contracts = codegen_dump_contracts(gcx)?;
+    let pipeline_mir_output = mir_pipeline_output_requested(gcx);
+    let mut capture_mir = ContractSelection::empty(gcx);
+    if let Some(contracts) = dump_contracts.as_ref().filter(|_| has_mir_dump(gcx)) {
+        capture_mir.union_with(contracts);
+    }
+    if pipeline_mir_output {
+        capture_mir.union_with(&ContractSelection::All);
+    }
+    let mut capture_evm_ir = ContractSelection::empty(gcx);
+    if let Some(contracts) = dump_contracts.as_ref().filter(|_| has_evm_ir_dump(gcx)) {
+        capture_evm_ir.union_with(contracts);
+    }
+    let mut generated_bytecode_contracts = bytecode_contracts;
+    if has_disasm_dump(gcx)
+        && let Some(contracts) = &dump_contracts
+    {
+        generated_bytecode_contracts.union_with(contracts);
+    }
+    let generate_artifacts = !generated_bytecode_contracts.is_empty()
+        || !capture_mir.is_empty()
+        || !capture_evm_ir.is_empty();
     let artifacts = if generate_artifacts {
         Some(generate_contract_bytecodes(
             gcx,
             &generated_bytecode_contracts,
-            capture_mir,
-            capture_evm_ir,
+            &capture_mir,
+            &capture_evm_ir,
         )?)
     } else {
         None
@@ -71,6 +87,9 @@ pub(crate) fn emit_requested(
         && has_mir_dump(gcx)
     {
         dump_mir(gcx, contracts, artifacts.as_ref().expect("artifacts should be generated"))?;
+    }
+    if pipeline_mir_output {
+        emit_mir_pipeline_output(gcx, artifacts.as_ref().expect("artifacts should be generated"))?;
     }
     emit_combined_json(gcx, artifacts.as_ref())?;
     if let Some(contracts) = &dump_contracts
@@ -88,6 +107,145 @@ pub(crate) fn emit_requested(
         )?;
     }
     Ok(artifacts)
+}
+
+fn emit_ir_input(gcx: Gcx<'_>) -> Result {
+    let source = &gcx.sources.first().expect("IR source should be loaded").file;
+    if gcx.sess.opts.language.is_mir() {
+        let mut module = Module::parse(gcx.sess, source)?;
+        validate(&gcx.sess.dcx, &module);
+        if gcx.dcx().has_errors().is_ok() {
+            let name = source.name.display().to_string();
+            let _changed = pass::run_pipeline(gcx, &mut module, Some(&name));
+            validate(&gcx.sess.dcx, &module);
+            gcx.dcx().has_errors()?;
+
+            let value = gcx
+                .sess
+                .opts
+                .unstable
+                .mir_pipeline
+                .as_deref()
+                .expect("MIR pipeline should be configured");
+            if should_print_pipeline_output(gcx, value) {
+                write_pipeline_output(
+                    gcx,
+                    source.name.display(),
+                    pass::pipeline_label(value),
+                    module.to_text(),
+                )?;
+            }
+        }
+    } else {
+        debug_assert!(gcx.sess.opts.language.is_evm_ir());
+        let mut module = ir::Module::parse(gcx.sess, source)?;
+        ir::validate(&gcx.sess.dcx, &module);
+        if gcx.dcx().has_errors().is_ok() {
+            let name = source.name.display().to_string();
+            let _changed = if has_disasm_dump(gcx) {
+                ir::run_pipeline_silent(gcx, &mut module)
+            } else {
+                ir::run_pipeline(gcx, &mut module, Some(&name))
+            };
+            ir::validate(&gcx.sess.dcx, &module);
+            gcx.dcx().has_errors()?;
+
+            if has_disasm_dump(gcx) {
+                dump_evm_ir_input_disassembly(gcx, &module)?;
+            } else {
+                let value = gcx
+                    .sess
+                    .opts
+                    .unstable
+                    .evm_ir_pipeline
+                    .as_deref()
+                    .expect("EVM IR pipeline should be configured");
+                if should_print_pipeline_output(gcx, value) {
+                    write_pipeline_output(
+                        gcx,
+                        source.name.display(),
+                        ir::pipeline_label(value),
+                        module.to_text(),
+                    )?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: &ir::Module) -> Result {
+    let dump = gcx.sess.opts.unstable.dump.as_ref().expect("dump options should be present");
+    let bytecode = evm::assemble_evm_ir(gcx, module.clone())?;
+    let mut writer = out_writer(None)
+        .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+    if dump.kinds.contains(&DumpKind::DisasmDeploy) {
+        writeln!(writer, "// === {} (deployment) ===", module.name())
+            .and_then(|()| write!(writer, "{}", evm::disassemble(&bytecode)))
+            .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+    }
+    if dump.kinds.contains(&DumpKind::DisasmRuntime) {
+        writeln!(writer, "// === {} (runtime) ===", module.name())
+            .and_then(|()| write!(writer, "{}", evm::disassemble(&bytecode)))
+            .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+    }
+    writer.flush().map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())
+}
+
+fn mir_pipeline_output_requested(gcx: Gcx<'_>) -> bool {
+    !gcx.sess.opts.standard_json
+        && gcx.sess.opts.unstable.mir_pipeline.is_some()
+        && !gcx.sess.opts.emit.iter().any(|output| output.is_codegen())
+        && !gcx.sess.opts.unstable.dump.as_ref().is_some_and(|dump| dump.needs_codegen())
+}
+
+fn emit_mir_pipeline_output(
+    gcx: Gcx<'_>,
+    artifacts: &FxHashMap<ContractId, ContractArtifact>,
+) -> Result {
+    let value =
+        gcx.sess.opts.unstable.mir_pipeline.as_deref().expect("MIR pipeline should be configured");
+    if !should_print_pipeline_output(gcx, value) {
+        return Ok(());
+    }
+
+    let mut writer = out_writer(None)
+        .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+    for id in ContractSelection::All.into_iter(gcx) {
+        let module = artifacts
+            .get(&id)
+            .and_then(|artifact| artifact.mir.as_ref())
+            .expect("requested MIR should be captured");
+        writeln!(
+            writer,
+            "// === {} (after {}) ===",
+            gcx.contract_fully_qualified_name(id),
+            pass::pipeline_label(value)
+        )
+        .and_then(|()| write!(writer, "{}", module.to_text()))
+        .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+    }
+    writer.flush().map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+    Ok(())
+}
+
+fn should_print_pipeline_output(gcx: Gcx<'_>, value: &str) -> bool {
+    !gcx.sess.opts.unstable.print_after_each
+        && (!gcx.sess.opts.unstable.pass_diff || value == "default")
+}
+
+fn write_pipeline_output(
+    gcx: Gcx<'_>,
+    name: impl std::fmt::Display,
+    label: impl std::fmt::Display,
+    text: impl std::fmt::Display,
+) -> Result {
+    let mut writer = out_writer(None)
+        .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+    writeln!(writer, "// === {name} (after {label}) ===")
+        .and_then(|()| write!(writer, "{text}"))
+        .and_then(|()| writer.flush())
+        .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())
 }
 
 fn emit_combined_json(

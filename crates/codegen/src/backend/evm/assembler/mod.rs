@@ -130,7 +130,7 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
-    /// Runs the backend pipeline and assembles an EVM IR module.
+    /// Assembles an EVM IR module.
     pub(in crate::backend::evm) fn assemble_evm_ir(
         gcx: Gcx<'gcx>,
         mut module: ir::Module,
@@ -146,9 +146,7 @@ impl<'gcx> Assembler<'gcx> {
                 .emit());
         }
 
-        let input_is_valid = cfg!(debug_assertions) && is_valid_evm_ir(&module);
-        let _changed = ir::run_passes(gcx, &mut module, ir::DEFAULT_PIPELINE);
-        debug_assert!(!input_is_valid || is_valid_evm_ir(&module));
+        debug_assert!(is_valid_evm_ir(&module));
 
         // Parsed block labels may be sparse, but assembly indexes labels with a vector.
         for (index, block) in module.blocks.iter_mut().enumerate() {
@@ -207,15 +205,13 @@ impl<'gcx> Assembler<'gcx> {
 
     /// Emits a push instruction that will be resolved to a label's offset.
     pub(crate) fn emit_push_label(&mut self, label: Label) {
-        let (block, instruction) =
-            self.push_ir_instruction(ir::Instruction::push_value(U256::ZERO));
+        let (block, instruction) = self.push_ir_instruction(ir::Instruction::push_relocation());
         self.label_relocations.push((block, instruction, label));
     }
 
     /// Emits a push instruction for a deferred constant.
     pub(crate) fn emit_push_deferred(&mut self, id: DeferredConst) {
-        let (block, instruction) =
-            self.push_ir_instruction(ir::Instruction::push_value(U256::ZERO));
+        let (block, instruction) = self.push_ir_instruction(ir::Instruction::push_relocation());
         self.deferred_relocations.push((block, instruction, id));
     }
 
@@ -228,8 +224,7 @@ impl<'gcx> Assembler<'gcx> {
     /// exact backend frame layout is known.
     pub(in crate::backend::evm) fn emit_deferred_alloc(&mut self) -> DeferredAlloc {
         let id = self.next_deferred_alloc.next();
-        let (block, instruction) =
-            self.push_ir_instruction(ir::Instruction::push_value(U256::ZERO));
+        let (block, instruction) = self.push_ir_instruction(ir::Instruction::push_relocation());
         self.alloc_relocations.push((block, instruction, id));
         id
     }
@@ -425,7 +420,7 @@ impl<'gcx> Assembler<'gcx> {
         Self::resolve_known_deferred_constants(&mut ir_program, &self.deferred_values);
 
         let input_is_valid = cfg!(debug_assertions) && is_valid_evm_ir(&ir_program);
-        let _changed = ir::run_passes(self.gcx, &mut ir_program, ir::DEFAULT_PIPELINE);
+        let _changed = ir::run_pipeline(self.gcx, &mut ir_program, None);
         debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
 
         let evm_ir = capture_evm_ir.then(|| ir_program.clone());
@@ -719,6 +714,8 @@ impl<'gcx> BytecodeAssembler<'gcx> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::backend::evm::disassemble;
+    use snapbox::{assert_data_eq, str};
     use solar_config::CompileOpts;
     use solar_interface::Session;
     use solar_sema::Compiler;
@@ -788,15 +785,26 @@ mod tests {
             asm.emit_push(large);
             let first = asm.assemble();
 
-            assert!(!first.bytecode.is_empty());
+            assert_data_eq!(
+                disassemble(&first.bytecode),
+                str![[r#"
+PUSH4 0x80000000
+
+"#]]
+            );
             assert!(asm.program.blocks.is_empty());
             assert_eq!(asm.push_values.len(), 0);
 
             asm.emit_push(U256::from(2));
             let second = asm.assemble();
 
-            assert!(!second.bytecode.is_empty());
-            assert!(second.bytecode.len() < first.bytecode.len());
+            assert_data_eq!(
+                disassemble(&second.bytecode),
+                str![[r#"
+PUSH1 0x02
+
+"#]]
+            );
         });
     }
 

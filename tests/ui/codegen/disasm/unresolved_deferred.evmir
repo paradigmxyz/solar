@@ -1,4 +1,4 @@
-//@ compile-flags: -Zdump=disasm-runtime
+//@ compile-flags: -Zcodegen -Zevm-ir-pipeline=default -Zdump=disasm-runtime
 
 @module unresolved_deferred
 

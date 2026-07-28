@@ -1,4 +1,4 @@
-//@ compile-flags: -O gas -Zdump=disasm-runtime
+//@ compile-flags: -Zcodegen -Zevm-ir-pipeline=default -O gas -Zdump=disasm-runtime
 //@ filecheck:
 
 @module jumpi_layout
