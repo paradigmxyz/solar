@@ -113,6 +113,23 @@ contract NamedReturnAndDelete {
         returns (uint256[] memory values, bytes memory data)
     {}
 
+    // A named struct return whose fields are initialized before use does not
+    // construct default objects that those assignments immediately replace.
+    // CHECK-LABEL: fn @fullyInitializedNamedStruct{{[( ]}}
+    // CHECK: alloc memorystruct<2>
+    // CHECK-NOT: set_memory_object_len memoryarray, {{v[0-9]+}}, 0
+    // CHECK: set_memory_object_len memoryarray, {{v[0-9]+}}, 1
+    // CHECK-NOT: set_memory_object_len memorybytes, {{v[0-9]+}}, 0
+    // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 1
+    function fullyInitializedNamedStruct()
+        public
+        pure
+        returns (DynamicHolder memory holder)
+    {
+        holder.values = new uint256[](1);
+        holder.data = new bytes(1);
+    }
+
     // `delete` zeroes the elements in place; the pointer stays valid.
     // CHECK-LABEL: fn @deleteInPlace{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<3, 1>

@@ -1289,7 +1289,19 @@ impl<'gcx> Lowerer<'gcx> {
 
                 let offset = self.alloc_local_memory(ret_id);
                 let offset_val = self.local_memory_addr(&mut builder, offset);
-                if let Some(value) = self.lower_default_variable_value(&mut builder, ret_id) {
+                let fully_initialized_struct_ty = hir_func
+                    .body
+                    .as_ref()
+                    .and_then(|body| self.fully_initialized_named_return_struct_ty(ret_id, body));
+                if let Some(ty) = fully_initialized_struct_ty {
+                    let value = self.allocate_memory_object(
+                        &mut builder,
+                        self.calculate_memory_words_for_ty(ty) * EvmMemoryLayout::WORD_SIZE,
+                        MemoryObjectKind::Struct,
+                    );
+                    builder.mstore(offset_val, value);
+                } else if let Some(value) = self.lower_default_variable_value(&mut builder, ret_id)
+                {
                     builder.mstore(offset_val, value);
                 }
             }
@@ -1776,6 +1788,59 @@ impl<'gcx> Lowerer<'gcx> {
         for stmt in block.stmts {
             self.collect_assigned_vars_stmt(stmt);
         }
+    }
+
+    /// Returns the type of a named memory-struct return whose fields are all
+    /// assigned before the return variable is otherwise used.
+    fn fully_initialized_named_return_struct_ty(
+        &self,
+        ret_id: VariableId,
+        body: &hir::Block<'_>,
+    ) -> Option<Ty<'gcx>> {
+        let ret = self.gcx.hir.variable(ret_id);
+        if ret.name.is_none() || ret.data_location != Some(solar_ast::DataLocation::Memory) {
+            return None;
+        }
+
+        let ty = self.gcx.type_of_item(ret_id.into());
+        let TyKind::Struct(struct_id) = ty.peel_refs().kind else { return None };
+        let strukt = self.gcx.hir.strukt(struct_id);
+        if strukt.fields.is_empty() {
+            return None;
+        }
+
+        let mut initialized = GrowableBitSet::new_empty();
+        for stmt in body.stmts {
+            let hir::StmtKind::Expr(expr) = &stmt.kind else { return None };
+            let hir::ExprKind::Assign(lhs, None, rhs) = &expr.kind else { return None };
+            let hir::ExprKind::Member(base, _) = &lhs.kind else { return None };
+            if self.gcx.resolved_variable(base) != Some(ret_id)
+                || self.expr_references_variable(rhs, ret_id)
+            {
+                return None;
+            }
+
+            let (lhs_struct_id, field_index) = self.resolved_struct_field(lhs)?;
+            if lhs_struct_id != struct_id {
+                return None;
+            }
+            initialized.insert(strukt.fields[field_index]);
+            if initialized.count() == strukt.fields.len() {
+                return Some(ty);
+            }
+        }
+        None
+    }
+
+    fn expr_references_variable(&self, expr: &hir::Expr<'_>, var_id: VariableId) -> bool {
+        expr.visit(&mut |expr| {
+            if self.gcx.resolved_variable(expr) == Some(var_id) {
+                ControlFlow::Break(())
+            } else {
+                ControlFlow::Continue(())
+            }
+        })
+        .is_break()
     }
 
     /// Collects variables that are assigned after declaration in a statement.

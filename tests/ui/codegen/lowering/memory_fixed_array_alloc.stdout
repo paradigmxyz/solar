@@ -373,6 +373,100 @@ fn @emptyNamedReturns() {
     returndata v4, v24
 }
 
+fn @fullyInitializedNamedStruct() {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    mstore 128, v0
+    v1 = mul 1, 32
+    v2 = div v1, 32
+    v3 = eq v2, 1
+    jumpi v3, bb2, bb1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v4 = add v1, 32
+    v5 = lt v4, v1
+    jumpi v5, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v6 = alloc memoryarray<1>, exact, zeroed, panic, v4
+    set_memory_object_len memoryarray, v6, 1
+    v7 = mload 128
+    v8 = memory_object_field_addr memorystruct<2>, v7, 0
+    mstore v8, v6
+    v9 = add 1, 31
+    v10 = lt v9, 1
+    jumpi v10, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v11 = not 31
+    v12 = and v9, v11
+    v13 = add v12, 32
+    v14 = lt v13, v12
+    jumpi v14, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v15 = alloc memorybytes, exact, zeroed, panic, v13
+    set_memory_object_len memorybytes, v15, 1
+    v16 = mload 128
+    v17 = memory_object_field_addr memorystruct<2>, v16, 1
+    mstore v17, v15
+    v18 = mload 128
+    v19 = alloc raw, exact, uninitialized, infallible, 32
+    v20 = add v19, 32
+    v21 = sub v20, v19
+    mstore v19, v21
+    v22 = memory_object_field_addr memorystruct<2>, v18, 0
+    v23 = mload v22
+    v24 = memory_object_field_addr memorystruct<2>, v18, 1
+    v25 = mload v24
+    v26 = add v20, 64
+    v27 = sub v26, v20
+    mstore v20, v27
+    v28 = memory_object_len memoryarray, v23
+    mstore v26, v28
+    v29 = mul v28, 32
+    v30 = add v26, 32
+    v31 = memory_object_data memoryarray, v23
+    v32 = add v30, v29
+    mcopy v30, v31, v29
+    v33 = add v20, 32
+    v34 = sub v32, v20
+    mstore v33, v34
+    v35 = memory_object_len memorybytes, v25
+    mstore v32, v35
+    v36 = not 31
+    v37 = add v35, 31
+    v38 = and v37, v36
+    v39 = add v32, 32
+    v40 = iszero v38
+    jumpi v40, bb10, bb9
+  bb9:
+    v41 = sub v38, 32
+    v42 = add v39, v41
+    mstore v42, 0
+    jump bb10
+  bb10:
+    v43 = memory_object_data memorybytes, v25
+    v44 = add v39, v38
+    mcopy v39, v43, v35
+    v45 = sub v44, v20
+    v46 = add v20, v45
+    v47 = sub v46, v19
+    returndata v19, v47
+}
+
 fn @deleteInPlace() {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
