@@ -389,7 +389,7 @@ impl StackScheduler {
         if Self::operand_goal_reached_direct(self.stack.as_slice(), &goal, preserved) {
             let plan =
                 OperandPlan { actions: PlannedActions::new(), cost: ScheduleCost::default() };
-            return self.validate_operand_plan(plan, &goal, preserved);
+            return self.validate_operand_plan(plan, &goal, preserved, func);
         }
         if let Some(plan) = self.try_single_resident_operand_plan(
             operands,
@@ -398,7 +398,7 @@ impl StackScheduler {
             evm_version,
             cost_model,
         ) {
-            return self.validate_operand_plan(plan, &goal, preserved);
+            return self.validate_operand_plan(plan, &goal, preserved, func);
         }
         if let Some(plan) = self.try_direct_materialization_operand_plan(
             operands,
@@ -407,7 +407,7 @@ impl StackScheduler {
             evm_version,
             cost_model,
         ) {
-            return self.validate_operand_plan(plan, &goal, preserved);
+            return self.validate_operand_plan(plan, &goal, preserved, func);
         }
         if let Some(plan) = self.try_preserved_resident_binary_plan(
             operands,
@@ -417,7 +417,7 @@ impl StackScheduler {
             evm_version,
             cost_model,
         ) {
-            return self.validate_operand_plan(plan, &goal, preserved);
+            return self.validate_operand_plan(plan, &goal, preserved, func);
         }
         // Size mode keeps the established search tie-breaking because equal local costs can leave
         // residual stacks with different cleanup costs after the instruction.
@@ -430,7 +430,7 @@ impl StackScheduler {
                 evm_version,
                 cost_model,
             ) {
-                return self.validate_operand_plan(plan, &goal, preserved);
+                return self.validate_operand_plan(plan, &goal, preserved, func);
             }
             if let [value] = operands
                 && let Some(plan) = self.try_unary_operand_plan(
@@ -442,7 +442,7 @@ impl StackScheduler {
                     cost_model,
                 )
             {
-                return self.validate_operand_plan(plan, &goal, preserved);
+                return self.validate_operand_plan(plan, &goal, preserved, func);
             }
         }
 
@@ -500,7 +500,7 @@ impl StackScheduler {
         if let Some(plan) =
             self.try_goal_directed_operand_plan(start.clone(), &goal, &preserve_counts, context)
         {
-            return self.validate_operand_plan(plan, &goal, preserved);
+            return self.validate_operand_plan(plan, &goal, preserved, func);
         }
 
         let budget = self.operand_search_budget.get();
@@ -564,7 +564,7 @@ impl StackScheduler {
                     skipped_by_function_budget: false,
                 });
                 self.finish_operand_search(expansions, false);
-                return self.validate_operand_plan(plan, &goal, preserved);
+                return self.validate_operand_plan(plan, &goal, preserved, func);
             }
             if expansions >= expansion_limit {
                 limit_hit = true;
@@ -673,19 +673,24 @@ impl StackScheduler {
         plan: OperandPlan,
         goal: &[ValueId],
         preserved: &[ValueId],
+        func: &Function,
     ) -> Option<OperandPlan> {
         let mut stack = self.stack.as_slice().to_vec();
         for action in &plan.actions {
             match action.op {
                 ScheduledOp::Stack(StackOp::Swap(depth)) => {
                     let depth = usize::from(depth);
-                    if depth >= stack.len() {
+                    if !(1..=MAX_STACK_ACCESS).contains(&depth) || depth >= stack.len() {
                         return None;
                     }
                     stack.swap(0, depth);
                 }
                 ScheduledOp::Stack(StackOp::Dup(depth)) => {
-                    let value = stack.get(usize::from(depth - 1)).copied()?;
+                    let depth = usize::from(depth);
+                    if !(1..=MAX_STACK_ACCESS).contains(&depth) {
+                        return None;
+                    }
+                    let value = stack.get(depth - 1).copied()?;
                     stack.insert(0, value);
                 }
                 ScheduledOp::Stack(StackOp::Pop) => {
@@ -697,7 +702,11 @@ impl StackScheduler {
                 ScheduledOp::PushImmediate(_)
                 | ScheduledOp::LoadSpill(_)
                 | ScheduledOp::LoadArg(_) => {
-                    stack.insert(0, action.pushed);
+                    let pushed = action.pushed?;
+                    if self.materialize_operand(pushed, func).as_ref() != Some(&action.op) {
+                        return None;
+                    }
+                    stack.insert(0, Some(pushed));
                 }
             }
         }
@@ -2630,18 +2639,106 @@ mod tests {
     }
 
     #[test]
-    fn operand_plan_validation_fails_closed() {
-        let scheduler = StackScheduler::new();
-        let value = ValueId::from_usize(0);
-        let plan = OperandPlan {
+    fn operand_plan_validation_rejects_invalid_depths() {
+        let mut func = Function::new(Ident::DUMMY);
+        let target =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(target);
+        let swap0 = OperandPlan {
             actions: smallvec::smallvec![PlannedAction {
-                op: ScheduledOp::Stack(StackOp::Swap(16)),
+                op: ScheduledOp::Stack(StackOp::Swap(0)),
                 pushed: None,
             }],
             cost: ScheduleCost::default(),
         };
+        assert!(scheduler.validate_operand_plan(swap0, &[target], &[], &func).is_none());
 
-        assert!(scheduler.validate_operand_plan(plan, &[value], &[]).is_none());
+        for value in 0..=MAX_STACK_ACCESS {
+            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+                alloy_primitives::U256::from(value + 1),
+            )));
+            scheduler.stack.push(filler);
+        }
+        let swap17 = OperandPlan {
+            actions: smallvec::smallvec![PlannedAction {
+                op: ScheduledOp::Stack(StackOp::Swap(17)),
+                pushed: None,
+            }],
+            cost: ScheduleCost::default(),
+        };
+        assert!(scheduler.validate_operand_plan(swap17, &[target], &[], &func).is_none());
+
+        let scheduler = StackScheduler::new();
+        let dup0 = OperandPlan {
+            actions: smallvec::smallvec![PlannedAction {
+                op: ScheduledOp::Stack(StackOp::Dup(0)),
+                pushed: None,
+            }],
+            cost: ScheduleCost::default(),
+        };
+        assert!(scheduler.validate_operand_plan(dup0, &[target], &[], &func).is_none());
+
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(target);
+        for value in 0..MAX_STACK_ACCESS {
+            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+                alloy_primitives::U256::from(value + 100),
+            )));
+            scheduler.stack.push(filler);
+        }
+        let dup17 = OperandPlan {
+            actions: smallvec::smallvec![PlannedAction {
+                op: ScheduledOp::Stack(StackOp::Dup(17)),
+                pushed: Some(target),
+            }],
+            cost: ScheduleCost::default(),
+        };
+        assert!(scheduler.validate_operand_plan(dup17, &[target], &[target], &func).is_none());
+    }
+
+    #[test]
+    fn operand_plan_validation_rejects_forged_materializations() {
+        let mut func = Function::new(Ident::DUMMY);
+        let immediate =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+        let argument = func.alloc_param(MirType::uint256());
+        let spilled = func.alloc_param(MirType::uint256());
+        let mut scheduler = StackScheduler::new();
+        let spill = scheduler.spills.allocate(spilled);
+        scheduler.spills.mark_reloadable(spilled);
+
+        let forged_immediate = OperandPlan {
+            actions: smallvec::smallvec![PlannedAction {
+                op: ScheduledOp::PushImmediate(alloy_primitives::U256::from(1)),
+                pushed: Some(immediate),
+            }],
+            cost: ScheduleCost::default(),
+        };
+        assert!(
+            scheduler.validate_operand_plan(forged_immediate, &[immediate], &[], &func).is_none()
+        );
+
+        let forged_argument = OperandPlan {
+            actions: smallvec::smallvec![PlannedAction {
+                op: ScheduledOp::LoadArg(ArgIdx::from_usize(1)),
+                pushed: Some(argument),
+            }],
+            cost: ScheduleCost::default(),
+        };
+        assert!(
+            scheduler.validate_operand_plan(forged_argument, &[argument], &[], &func).is_none()
+        );
+
+        let forged_spill = OperandPlan {
+            actions: smallvec::smallvec![PlannedAction {
+                op: ScheduledOp::LoadSpill(SpillSlot { offset: spill.offset + 1 }),
+                pushed: Some(spilled),
+            }],
+            cost: ScheduleCost::default(),
+        };
+        assert!(scheduler.validate_operand_plan(forged_spill, &[spilled], &[], &func).is_none());
     }
 
     #[test]
