@@ -570,6 +570,7 @@ impl<'gcx> Assembler<'gcx> {
                 }
             }
         }
+
         // Compute new widths based on resolved offsets
         for (idx, inst) in program.instructions.iter().enumerate() {
             if let AsmInstKind::PushLabel(label) = inst.kind()
@@ -591,7 +592,6 @@ impl<'gcx> Assembler<'gcx> {
         push_widths: &FxHashMap<usize, u8>,
     ) -> AssembledCode {
         let mut out = BytecodeAssembler::new(self.gcx);
-
         for (idx, inst) in program.instructions.iter().enumerate() {
             match inst.kind() {
                 AsmInstKind::Op(opcode) => {
