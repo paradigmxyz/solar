@@ -1,15 +1,20 @@
 //@compile-flags: -Zcodegen -Zdump=mir
+//@filecheck: --check-prefix=CDSMI
 
-// The prologue rebuilds a calldata struct in memory. A memory copy stands in
-// for a whole-member read — length, hashing, encoding — because a
-// `bytes`/`T[] calldata` view is read-only and the bytes agree. It does not
-// stand in for element addressing: the copy of an array of structs holds
-// pointers where calldata holds the elements inline, and even a word-element
-// copy is addressed from the object rather than its data. Indexing such a
-// member is rejected instead of answering wrongly.
+// Indexing a calldata array whose elements are wider than a word. The elements
+// are laid out by the ABI rules for the element type, so an index strides by the
+// element's head size and rebuilds it; only a word element sits inline in one
+// slot and loads directly.
+//
+// An array member of a calldata struct keeps its calldata position for the same
+// reason: the prologue's memory copy of an array of structs holds pointers where
+// calldata holds the elements inline, so it cannot answer element addressing.
+// Verified against solc on anvil.
 
 struct Item {
     uint8 itemType;
+    address token;
+    uint256 identifier;
     uint256 amount;
 }
 
@@ -21,20 +26,30 @@ struct Params {
 }
 
 contract CalldataStructMemberIndex {
+    // A struct element strides by its head size (four words), not by one.
+    // CDSMI-LABEL: fn @plain
+    // CDSMI: mul {{.*}}, 128
+    function plain(Item[] calldata items, uint256 i) external pure returns (uint256) {
+        return items[i].amount;
+    }
+
+    // The member is read at its calldata position, so the same striding applies.
+    // CDSMI-LABEL: fn @member
+    // CDSMI: mul {{.*}}, 128
+    function member(Params calldata p, uint256 i) external pure returns (uint256) {
+        return p.items[i].amount;
+    }
+
+    // A word element still loads inline from `data + i * 32`.
+    // CDSMI-LABEL: fn @word
+    // CDSMI-NOT: mul {{.*}}, 128
+    function word(Params calldata p, uint256 i) external pure returns (uint256) {
+        return p.words[i];
+    }
+
     // Whole-member reads keep working off the memory copy.
+    // CDSMI-LABEL: fn @lengths
     function lengths(Params calldata p) external pure returns (uint256, uint256, uint256) {
         return (p.items.length, p.words.length, p.extra.length);
-    }
-
-    function hashExtra(Params calldata p) external pure returns (bytes32) {
-        return keccak256(p.extra);
-    }
-
-    function structElement(Params calldata p) external pure returns (uint256) {
-        return p.items[0].amount; //~ ERROR: codegen does not support indexing a dynamic array member of a calldata struct yet
-    }
-
-    function wordElement(Params calldata p) external pure returns (uint256) {
-        return p.words[0]; //~ ERROR: codegen does not support indexing a dynamic array member of a calldata struct yet
     }
 }

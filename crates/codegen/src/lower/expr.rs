@@ -443,6 +443,12 @@ impl<'gcx> Lowerer<'gcx> {
                     return builder.sload(slot);
                 }
 
+                // An array member of a calldata struct keeps its calldata
+                // position: the memory copy cannot answer element addressing.
+                if let Some(slice) = self.calldata_struct_field_slice(base, *member) {
+                    return slice;
+                }
+
                 // Regular memory struct member access
                 if let Some((struct_id, field_index)) = self.resolved_struct_field(expr)
                     && self.is_memory_struct_base(base, struct_id)
@@ -2971,7 +2977,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Checks if a member access is on a memory struct.
     /// Returns (struct_id, field_index) if the base expression is a memory struct.
-    fn get_memory_struct_field_info(
+    pub(super) fn get_memory_struct_field_info(
         &self,
         base: &hir::Expr<'_>,
         member: Ident,

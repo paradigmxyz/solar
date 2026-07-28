@@ -60,24 +60,6 @@ impl<'gcx> Lowerer<'gcx> {
             return builder.sload(mapping.slot);
         }
 
-        // Indexing a dynamic array member of a calldata struct reads the wrong
-        // words: the prologue rebuilds the struct in memory, and neither the
-        // calldata path (the member is not a calldata slice) nor the memory
-        // path (which addresses the object, not its data) lands on the element.
-        // A memory copy stands in for a whole-member read — length, hashing,
-        // encoding — but not for element addressing, so reject rather than
-        // silently answer wrongly.
-        if self.expr_is_calldata_struct_member(base)
-            && let Some(ty) = self.get_expr_type(base)
-            && matches!(ty.peel_refs().kind, TyKind::DynArray(_))
-        {
-            return self.err_value(
-                builder,
-                expr.span,
-                "codegen does not support indexing a dynamic array member of a calldata \
-                 struct yet",
-            );
-        }
         if let Some((slice, is_bytes)) = self.calldata_bytes_source(builder, base) {
             let index_val = self.lower_index_value(builder, base.span, index);
             let len = builder.slice_len(slice);
@@ -90,6 +72,37 @@ impl<'gcx> Lowerer<'gcx> {
                 let mask = builder.imm_u256(U256::from(0xffu64) << 248);
                 return builder.and(word, mask);
             }
+            // Only a word element sits inline in one slot. Anything wider — a
+            // struct, a fixed array, a dynamic element — is laid out by the ABI
+            // rules for the element type, so stride by its head size and rebuild
+            // it, rather than loading a single word at `data + i * 32`.
+            let elem_ty = self.get_expr_type(base).and_then(|ty| match ty.peel_refs().kind {
+                TyKind::DynArray(elem) | TyKind::Slice(elem) | TyKind::Array(elem, _) => Some(elem),
+                _ => None,
+            });
+            if let Some(elem_ty) = elem_ty
+                && !self.abi_is_word_element(elem_ty)
+            {
+                let element_pos = if self.abi_is_dynamic(elem_ty) {
+                    // A dynamic element's slot holds its offset from the array's
+                    // data start.
+                    let slot_offset = builder.mul(index_val, offset_32);
+                    let slot_pos = builder.add(data_pos, slot_offset);
+                    let tail_offset = builder.calldataload(slot_pos);
+                    builder.add(data_pos, tail_offset)
+                } else {
+                    let stride = builder.imm_u64(self.abi_head_size(elem_ty));
+                    let byte_offset = builder.mul(index_val, stride);
+                    builder.add(data_pos, byte_offset)
+                };
+                return self.materialize_calldata_value_at(
+                    builder,
+                    super::bytes::AbiSource::Calldata,
+                    elem_ty,
+                    element_pos,
+                );
+            }
+
             let byte_offset = builder.mul(index_val, offset_32);
             let element_pos = builder.add(data_pos, byte_offset);
             return builder.calldataload(element_pos);
@@ -137,7 +150,9 @@ impl<'gcx> Lowerer<'gcx> {
 
         let base_val = self.lower_value_expr(builder, base);
         let index_val = self.lower_index_value(builder, base.span, index);
-        let layout = if self.is_dynamic_memory_array_expr(base) {
+        let layout = if self.is_dynamic_memory_array_expr(base)
+            || Self::value_is_dynamic_array_object(builder, base_val)
+        {
             let len = self
                 .new_dynamic_memory_array_const_len(base)
                 .map(|len| builder.imm_u64(len))
@@ -216,7 +231,9 @@ impl<'gcx> Lowerer<'gcx> {
 
         let base_val = self.lower_value_expr(builder, base);
         let index_val = self.lower_index_value(builder, base.span, index);
-        let layout = if self.is_dynamic_memory_array_expr(base) {
+        let layout = if self.is_dynamic_memory_array_expr(base)
+            || Self::value_is_dynamic_array_object(builder, base_val)
+        {
             let len = builder.memory_object_len(base_val, MemoryObjectKind::DynamicArray);
             self.emit_index_bounds_check(builder, index_val, len);
             MemoryObjectLayout::WORD_ARRAY

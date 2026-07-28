@@ -162,6 +162,21 @@ impl<'gcx> Lowerer<'gcx> {
         matches!(builder.func().value_ty(value), Some(MirType::Slice(SliceLocation::Calldata)))
     }
 
+    /// Whether a lowered value is a `[length][data...]` dynamic-array memory
+    /// object. A calldata-located dynamic array can lower to one — an element of
+    /// a calldata array of arrays is rebuilt in memory — so the declared type
+    /// does not settle whether the length header is there to skip.
+    pub(super) fn value_is_dynamic_array_object(
+        builder: &FunctionBuilder<'_>,
+        value: ValueId,
+    ) -> bool {
+        use crate::mir::{MemoryObjectKind, MirType};
+        matches!(
+            builder.func().value_ty(value),
+            Some(MirType::MemoryObject(MemoryObjectKind::DynamicArray))
+        )
+    }
+
     /// Adapts a logical memory slice to Solidity's `[length][data...]` memory
     /// bytes layout. ABI-encode payloads are memory slices; a `bytes memory`
     /// consumer needs a real length-prefixed object.

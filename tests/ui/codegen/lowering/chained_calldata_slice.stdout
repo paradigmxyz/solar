@@ -133,7 +133,23 @@ fn @arrChain(arg0: calldataslice) {
     v20 = mul 0, 32
     v21 = add v19, v20
     v22 = calldataload v21
-    mstore 128, v22
+    v23 = add v19, v22
+    v24 = calldataload v23
+    v25 = add v23, 32
+    v26 = shr 251, v24
+    br v26, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    v27 = mul v24, 32
+    v28 = add 32, v27
+    v29 = alloc memoryarray<1>, exact, uninitialized, infallible, v28
+    set_memory_object_len memoryarray, v29, v24
+    v30 = memory_object_data memoryarray, v29
+    calldatacopy v30, v25, v27
+    mstore 128, v29
     returndata 128, 32
 }
 
