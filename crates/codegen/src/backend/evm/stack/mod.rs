@@ -129,11 +129,11 @@
 //!
 //! Active equal immediates are canonicalized immediately before EVM lowering so `DUP` decisions
 //! see physical word reuse instead of allocation accidents in MIR. The block-local retention
-//! policy then keeps only repeatedly used constants whose compact materialization is expensive
-//! enough for the selected optimization mode. Gas mode requires four remaining uses and at least
-//! 17 encoded bytes; size mode requires three uses and at least eight bytes. A new retained copy
-//! must fit inside the `DUP`/`SWAP` access window. Immediates remain rematerializable and never own
-//! spill slots, so stack pressure makes the policy decline caching rather than spill a constant.
+//! policy then keeps only constants with at least three remaining uses and an eight-byte compact
+//! materialization. It runs only under size optimization: the corresponding gas-mode policy
+//! regressed runtime gas and is deliberately not enabled. A new retained copy must fit inside the
+//! `DUP`/`SWAP` access window. Immediates remain rematerializable and never own spill slots, so
+//! stack pressure makes the policy decline caching rather than spill a constant.
 //!
 //! Binary lowering may also plan an equivalent reversed operand order. This
 //! covers commutative instructions and comparison pairs such as `LT`/`GT`; the

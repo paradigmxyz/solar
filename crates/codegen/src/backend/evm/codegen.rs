@@ -45,8 +45,6 @@ const GLOBAL_STACK_MIN_BLOCKS: usize = 8;
 const GLOBAL_STACK_MIN_ARG_USES: usize = 6;
 const GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS: usize = 16;
 const STACK_ARG_ROTATION_LIMIT: usize = 16;
-const GAS_IMMEDIATE_CACHE_MIN_USES: usize = 4;
-const GAS_IMMEDIATE_CACHE_MIN_BYTES: usize = 17;
 const SIZE_IMMEDIATE_CACHE_MIN_USES: usize = 3;
 const SIZE_IMMEDIATE_CACHE_MIN_BYTES: usize = 8;
 
@@ -842,7 +840,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .emit();
             return EvmArtifact::default();
         }
-        if !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size) {
             for func in &mut module.functions {
                 func.canonicalize_immediate_uses();
             }
@@ -4363,7 +4361,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     fn collect_block_immediate_uses(&mut self, func: &Function, block: BlockId) {
         self.remaining_immediate_uses.clear();
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if !matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size) {
             return;
         }
 
@@ -4412,8 +4410,6 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let optimization = self.gcx.sess.opts.optimization;
         let (min_uses, min_bytes) = match optimization {
-            OptimizationMode::None => return false,
-            OptimizationMode::Gas => (GAS_IMMEDIATE_CACHE_MIN_USES, GAS_IMMEDIATE_CACHE_MIN_BYTES),
             OptimizationMode::Size => {
                 (SIZE_IMMEDIATE_CACHE_MIN_USES, SIZE_IMMEDIATE_CACHE_MIN_BYTES)
             }
