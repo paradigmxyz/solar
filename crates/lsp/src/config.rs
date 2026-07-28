@@ -6,12 +6,14 @@ use crate::{
 };
 use lsp_types::{
     CallHierarchyServerCapability, CompletionOptions, DeclarationCapability, DiagnosticOptions,
-    DiagnosticServerCapabilities, DocumentLinkOptions, ExecuteCommandOptions,
+    DiagnosticServerCapabilities, DocumentLinkOptions, ExecuteCommandOptions, FileOperationFilter,
+    FileOperationPattern, FileOperationPatternKind, FileOperationRegistrationOptions,
     FoldingRangeProviderCapability, HoverProviderCapability, ImplementationProviderCapability,
     InitializeParams, OneOf, RenameOptions, SaveOptions, SelectionRangeProviderCapability,
     ServerCapabilities, SignatureHelpOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions, TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability,
-    WorkDoneProgressOptions,
+    WorkDoneProgressOptions, WorkspaceFileOperationsServerCapabilities,
+    WorkspaceServerCapabilities,
 };
 use solar_interface::data_structures::map::FxHashSet;
 use std::{
@@ -90,6 +92,23 @@ impl Config {
         &self.workspaces
     }
 
+    pub(crate) fn tracks_source_file(&self, path: &Path) -> bool {
+        self.workspaces.iter().any(|workspace| workspace.tracks_disk_file(path))
+    }
+
+    pub(crate) fn tracked_source_files_under(&self, roots: &[PathBuf]) -> Vec<PathBuf> {
+        let mut files = self
+            .workspaces
+            .iter()
+            .flat_map(Workspace::source_files)
+            .filter(|path| roots.iter().any(|root| path.starts_with(root)))
+            .cloned()
+            .collect::<Vec<_>>();
+        files.sort();
+        files.dedup();
+        files
+    }
+
     pub(crate) fn forge_path(&self) -> PathBuf {
         self.flycheck_options.forge_path()
     }
@@ -155,7 +174,27 @@ impl Config {
     }
 
     pub(crate) fn add_workspaces(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
-        self.workspace_roots.extend(paths);
+        for path in paths {
+            if !self.workspace_roots.contains(&path) {
+                self.workspace_roots.push(path);
+            }
+        }
+    }
+
+    pub(crate) fn reconcile_workspace_roots(
+        &mut self,
+        moves: &[(PathBuf, PathBuf)],
+        deleted_paths: &[PathBuf],
+    ) {
+        self.workspace_roots
+            .retain(|root| !deleted_paths.iter().any(|deleted| root.starts_with(deleted)));
+        for root in &mut self.workspace_roots {
+            if let Some(new_root) = renamed_path(root, moves) {
+                *root = new_root;
+            }
+        }
+        let mut seen = FxHashSet::default();
+        self.workspace_roots.retain(|root| seen.insert(root.clone()));
     }
 
     pub(crate) fn add_source_file(&mut self, path: PathBuf) {
@@ -193,6 +232,40 @@ impl Config {
 fn push_workspace(workspaces: &mut Vec<Workspace>, mut workspace: Workspace) {
     workspace.refresh_source_files();
     workspaces.push(workspace);
+}
+
+fn renamed_path(path: &Path, moves: &[(PathBuf, PathBuf)]) -> Option<PathBuf> {
+    moves
+        .iter()
+        .filter_map(|(old_path, new_path)| {
+            let suffix = path.strip_prefix(old_path).ok()?;
+            Some((old_path.components().count(), new_path.join(suffix)))
+        })
+        .max_by_key(|(components, _)| *components)
+        .map(|(_, path)| path)
+}
+
+fn workspace_file_operation_options() -> FileOperationRegistrationOptions {
+    FileOperationRegistrationOptions {
+        filters: vec![
+            FileOperationFilter {
+                scheme: Some("file".into()),
+                pattern: FileOperationPattern {
+                    glob: "**/*.sol".into(),
+                    matches: Some(FileOperationPatternKind::File),
+                    options: None,
+                },
+            },
+            FileOperationFilter {
+                scheme: Some("file".into()),
+                pattern: FileOperationPattern {
+                    glob: "**".into(),
+                    matches: Some(FileOperationPatternKind::Folder),
+                    options: None,
+                },
+            },
+        ],
+    }
 }
 
 pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabilities, Config) {
@@ -275,6 +348,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
         })
         .filter(|workspaces| !workspaces.is_empty())
         .unwrap_or_else(|| vec![root_path]);
+    let file_operations = workspace_file_operation_options();
 
     (
         ServerCapabilities {
@@ -329,6 +403,17 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
                     ..Default::default()
                 },
             )),
+            workspace: Some(WorkspaceServerCapabilities {
+                file_operations: Some(WorkspaceFileOperationsServerCapabilities {
+                    did_create: Some(file_operations.clone()),
+                    will_create: Some(file_operations.clone()),
+                    did_rename: Some(file_operations.clone()),
+                    will_rename: Some(file_operations.clone()),
+                    did_delete: Some(file_operations.clone()),
+                    will_delete: Some(file_operations),
+                }),
+                ..Default::default()
+            }),
             workspace_symbol_provider: Some(OneOf::Left(true)),
             ..Default::default()
         },
@@ -352,11 +437,13 @@ mod tests {
     use crate::{test_support::TestProject, workspace::WorkspaceKind};
     use lsp_types::{
         CallHierarchyServerCapability, CompletionClientCapabilities, CompletionItemCapability,
-        DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities, MarkupKind,
-        OneOf, ParameterInformationSettings, RenameOptions, SignatureHelpClientCapabilities,
-        SignatureInformationSettings, TextDocumentClientCapabilities, TextDocumentSyncCapability,
-        TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WindowClientCapabilities,
-        WorkspaceClientCapabilities, WorkspaceEditClientCapabilities,
+        DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities,
+        FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
+        FileOperationRegistrationOptions, MarkupKind, OneOf, ParameterInformationSettings,
+        RenameOptions, SignatureHelpClientCapabilities, SignatureInformationSettings,
+        TextDocumentClientCapabilities, TextDocumentSyncCapability, TextDocumentSyncSaveOptions,
+        TypeDefinitionProviderCapability, WindowClientCapabilities, WorkspaceClientCapabilities,
+        WorkspaceEditClientCapabilities,
     };
 
     #[test]
@@ -481,6 +568,39 @@ mod tests {
             panic!("expected save options");
         };
         assert_eq!(save_options.include_text, Some(false));
+    }
+
+    #[test]
+    fn negotiate_capabilities_advertises_workspace_file_operations() {
+        let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
+        let operations = capabilities.workspace.unwrap().file_operations.unwrap();
+        let options = FileOperationRegistrationOptions {
+            filters: vec![
+                FileOperationFilter {
+                    scheme: Some("file".into()),
+                    pattern: FileOperationPattern {
+                        glob: "**/*.sol".into(),
+                        matches: Some(FileOperationPatternKind::File),
+                        options: None,
+                    },
+                },
+                FileOperationFilter {
+                    scheme: Some("file".into()),
+                    pattern: FileOperationPattern {
+                        glob: "**".into(),
+                        matches: Some(FileOperationPatternKind::Folder),
+                        options: None,
+                    },
+                },
+            ],
+        };
+
+        assert_eq!(operations.did_create, Some(options.clone()));
+        assert_eq!(operations.will_create, Some(options.clone()));
+        assert_eq!(operations.did_rename, Some(options.clone()));
+        assert_eq!(operations.will_rename, Some(options.clone()));
+        assert_eq!(operations.did_delete, Some(options.clone()));
+        assert_eq!(operations.will_delete, Some(options));
     }
 
     #[test]

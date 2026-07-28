@@ -30,6 +30,7 @@ mod call_hierarchy;
 mod completion;
 mod document_highlight;
 mod document_link;
+mod file_operations;
 mod folding_range;
 mod goto_definition;
 mod hover;

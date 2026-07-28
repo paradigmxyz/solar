@@ -418,6 +418,20 @@ impl SymbolTables {
         self.document_links.links(path)
     }
 
+    pub(crate) fn import_rename_edits(
+        &self,
+        moves: &[crate::document_links::FileMove],
+    ) -> crate::document_links::ImportEditPlan {
+        self.document_links.rename_edits(moves)
+    }
+
+    pub(crate) fn import_delete_edits(
+        &self,
+        deleted_paths: &[PathBuf],
+    ) -> crate::document_links::ImportEditPlan {
+        self.document_links.delete_edits(deleted_paths)
+    }
+
     pub(crate) fn natspec_semantics(
         &self,
         uri: &Url,

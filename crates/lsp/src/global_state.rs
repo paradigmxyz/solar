@@ -124,6 +124,8 @@ impl GlobalState {
             });
         }
 
+        self.reindex();
+
         let _ = self.client.log_message(LogMessageParams {
             typ: MessageType::INFO,
             message: "solar initialized".into(),

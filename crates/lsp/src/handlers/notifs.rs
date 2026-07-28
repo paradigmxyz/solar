@@ -1,11 +1,12 @@
 use crate::{NotifyResult, global_state::GlobalState, proto, utils::apply_document_changes};
 use crop::Rope;
 use lsp_types::{
-    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
-    DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DidSaveTextDocumentParams, FileChangeType, WillSaveTextDocumentParams,
+    CreateFilesParams, DeleteFilesParams, DidChangeConfigurationParams,
+    DidChangeTextDocumentParams, DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
+    FileChangeType, RenameFilesParams, Url, WillSaveTextDocumentParams,
 };
-use std::{ops::ControlFlow, sync::Arc};
+use std::{ops::ControlFlow, path::PathBuf, sync::Arc};
 use tracing::{debug, error};
 
 pub(crate) fn did_open_text_document(
@@ -155,6 +156,71 @@ pub(crate) fn did_change_watched_files(
     }
 
     ControlFlow::Continue(())
+}
+
+pub(crate) fn did_create_files(state: &mut GlobalState, params: CreateFilesParams) -> NotifyResult {
+    let created_paths =
+        params.files.into_iter().filter_map(|file| file_uri_path(&file.uri)).collect();
+    reconcile_workspace_file_operations(state, created_paths, Vec::new(), Vec::new());
+    ControlFlow::Continue(())
+}
+
+pub(crate) fn did_rename_files(state: &mut GlobalState, params: RenameFilesParams) -> NotifyResult {
+    let moves = params
+        .files
+        .into_iter()
+        .filter_map(|file| Some((file_uri_path(&file.old_uri)?, file_uri_path(&file.new_uri)?)))
+        .collect();
+    reconcile_workspace_file_operations(state, Vec::new(), moves, Vec::new());
+    ControlFlow::Continue(())
+}
+
+pub(crate) fn did_delete_files(state: &mut GlobalState, params: DeleteFilesParams) -> NotifyResult {
+    let deleted_paths =
+        params.files.into_iter().filter_map(|file| file_uri_path(&file.uri)).collect();
+    reconcile_workspace_file_operations(state, Vec::new(), Vec::new(), deleted_paths);
+    ControlFlow::Continue(())
+}
+
+fn file_uri_path(uri: &str) -> Option<PathBuf> {
+    Url::parse(uri).ok()?.to_file_path().ok()
+}
+
+fn reconcile_workspace_file_operations(
+    state: &mut GlobalState,
+    created_paths: Vec<PathBuf>,
+    moves: Vec<(PathBuf, PathBuf)>,
+    deleted_paths: Vec<PathBuf>,
+) {
+    if created_paths.is_empty() && moves.is_empty() && deleted_paths.is_empty() {
+        return;
+    }
+
+    let removed_roots = moves
+        .iter()
+        .map(|(old_path, _)| old_path.clone())
+        .chain(deleted_paths.iter().cloned())
+        .collect::<Vec<_>>();
+    let mut removed_paths = state.config.tracked_source_files_under(&removed_roots);
+    {
+        let mut vfs = state.vfs.write();
+        removed_paths.extend(vfs.iter().filter_map(|(path, _)| {
+            let path = path.as_path()?;
+            removed_roots.iter().any(|root| path.starts_with(root)).then(|| path.to_path_buf())
+        }));
+        vfs.rename_file_prefixes(&moves);
+        vfs.remove_file_prefixes(&deleted_paths);
+    }
+    Arc::make_mut(&mut state.config).reconcile_workspace_roots(&moves, &deleted_paths);
+    removed_paths.extend(removed_roots);
+    removed_paths.sort();
+    removed_paths.dedup();
+
+    let mut disk_paths = created_paths;
+    disk_paths.extend(moves.into_iter().map(|(_, new_path)| new_path));
+    disk_paths.sort();
+    disk_paths.dedup();
+    state.recompute_for_file_changes(disk_paths, removed_paths, true);
 }
 
 pub(crate) fn did_change_workspace_folders(
