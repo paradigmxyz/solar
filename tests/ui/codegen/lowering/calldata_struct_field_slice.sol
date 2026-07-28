@@ -3,8 +3,13 @@
 
 // Slicing a dynamic field of a calldata struct, the ERC-4337
 // `PackedUserOperation` accessor shape. The prologue rebuilds a calldata struct
-// in memory, including independent memory objects for its dynamic members.
-// Slicing one therefore creates a memory slice over the existing copy.
+// in memory, including independent memory objects for its dynamic members, and
+// ordinary reads of a member go through that copy.
+//
+// Slicing is the exception: the result keeps a calldata-located type, so it may
+// be sliced again or have its `.offset` read in assembly, neither of which the
+// copy can answer. The copy carries the struct's calldata position in a
+// trailing word, so the slice is taken there instead.
 // Verified against solc on anvil.
 
 struct PackedUserOperation {
@@ -37,7 +42,7 @@ library ERC4337Utils {
 
 contract CalldataStructFieldSlice {
     // CDSFS-LABEL: fn @factory
-    // CDSFS: memory_object_len memorybytes
+    // CDSFS: make_calldata_slice
     function factory(PackedUserOperation calldata op) external pure returns (address) {
         return ERC4337Utils.factory(op);
     }
