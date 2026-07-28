@@ -73,21 +73,21 @@ fn merge_typeck_results<'gcx>(
         }
     }
 
-    for (id, res) in new_results.resolved_callees {
-        if let Some(prev_res) = results.resolved_callees.insert(id, res) {
+    for (id, res) in new_results.resolved_exprs {
+        if let Some(prev_res) = results.resolved_exprs.insert(id, res) {
             gcx.dcx()
                 .bug(format!(
-                    "expression {id:?} already has resolved callee {prev_res:?}; tried to register {res:?}",
+                    "expression {id:?} already has resolution {prev_res:?}; tried to register {res:?}",
                 ))
                 .emit();
         }
     }
 
-    for (id, member) in new_results.resolved_members {
-        if let Some(prev_member) = results.resolved_members.insert(id, member) {
+    for (id, res) in new_results.resolved_callees {
+        if let Some(prev_res) = results.resolved_callees.insert(id, res) {
             gcx.dcx()
                 .bug(format!(
-                    "expression {id:?} already has resolved member {prev_member:?}; tried to register {member:?}",
+                    "expression {id:?} already has resolved callee {prev_res:?}; tried to register {res:?}",
                 ))
                 .emit();
         }
@@ -649,6 +649,19 @@ contract C {
     }
 }
 "#;
+    const PUBLIC_STATE_VARIABLE_SOURCE: &str = r#"
+contract C {
+    uint256 public number;
+
+    function setNumber(uint256 newNumber) public {
+        number = newNumber;
+    }
+
+    function increment() public {
+        number++;
+    }
+}
+"#;
 
     struct FirstBinaryExpr<'hir> {
         hir: &'hir hir::Hir<'hir>,
@@ -686,6 +699,24 @@ contract C {
             if matches!(expr.kind, ExprKind::Call(..)) {
                 self.calls.push(expr);
             }
+            self.walk_expr(expr)
+        }
+    }
+
+    struct Exprs<'hir> {
+        hir: &'hir hir::Hir<'hir>,
+        exprs: Vec<&'hir hir::Expr<'hir>>,
+    }
+
+    impl<'hir> Visit<'hir> for Exprs<'hir> {
+        type BreakValue = Never;
+
+        fn hir(&self) -> &'hir hir::Hir<'hir> {
+            self.hir
+        }
+
+        fn visit_expr(&mut self, expr: &'hir hir::Expr<'hir>) -> ControlFlow<Self::BreakValue> {
+            self.exprs.push(expr);
             self.walk_expr(expr)
         }
     }
@@ -817,6 +848,46 @@ contract C {
             let ExprKind::Call(callee, ..) = call.kind else { unreachable!() };
             assert!(gcx.resolved_callee(callee.id).is_some_and(|resolved| resolved.res.is_err()));
             assert!(gcx.resolved_call(call).is_some_and(|resolved| resolved.res.is_err()));
+        });
+    }
+
+    #[test]
+    fn resolved_expr_uses_typechecked_value_overload() {
+        let sess = Session::builder().opts(CompileOpts::default()).with_test_emitter().build();
+        let mut compiler = Compiler::new(sess);
+
+        compiler.enter_mut(|c| {
+            let mut pcx = c.parse();
+            let file = c
+                .sess()
+                .source_map()
+                .new_source_file(PathBuf::from("state-variable.sol"), PUBLIC_STATE_VARIABLE_SOURCE)
+                .unwrap();
+            pcx.add_file(file);
+            pcx.parse();
+
+            assert_eq!(c.lower_asts(), Ok(ControlFlow::Continue(())));
+            assert_eq!(c.analysis(), Ok(ControlFlow::Continue(())));
+        });
+
+        compiler.enter(|c| {
+            let gcx = c.gcx();
+            let mut visitor = Exprs { hir: &gcx.hir, exprs: Vec::new() };
+            let source = gcx.hir.source_ids().next().unwrap();
+            assert_eq!(visitor.visit_nested_source(source), ControlFlow::Continue(()));
+
+            let source_map = gcx.sess.source_map();
+            let number_resolutions = visitor
+                .exprs
+                .into_iter()
+                .filter(|expr| source_map.span_to_snippet(expr.span).as_deref() == Ok("number"))
+                .map(|expr| gcx.resolved_variable(expr))
+                .collect::<Vec<_>>();
+            let [Some(assignment), Some(increment)] = number_resolutions.as_slice() else {
+                panic!("expected two resolved references, got {number_resolutions:?}")
+            };
+            assert_eq!(assignment, increment);
+            assert!(gcx.hir.variable(*assignment).getter.is_some());
         });
     }
 }

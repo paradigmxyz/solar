@@ -174,15 +174,15 @@ impl GlobalValueNumberer {
     /// Runs one numbering and replacement round. Returns true if MIR changed.
     fn run_round(&mut self, func: &mut Function) -> bool {
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
-        let Some(vn) = Self::compute_value_numbers(func, cfg.rpo()) else {
+        let Some((vn, available_values)) = Self::compute_value_numbers(func, cfg.rpo()) else {
             return false;
         };
 
         // Immediates, arguments, and undefs are available everywhere, so their
         // classes start with a leader. This folds phi-of-same over constants.
         let mut leaders: FxHashMap<ClassId, ValueId> = FxHashMap::default();
-        for (value_id, value) in func.values.iter_enumerated() {
-            if !matches!(value, Value::Inst(_)) && vn[value_id] == value_id {
+        for value_id in available_values.iter() {
+            if vn[value_id] == value_id {
                 leaders.insert(value_id, value_id);
             }
         }
@@ -210,20 +210,31 @@ impl GlobalValueNumberer {
     fn compute_value_numbers(
         func: &Function,
         rpo: &[BlockId],
-    ) -> Option<IndexVec<ValueId, ClassId>> {
-        let mut vn = func.values.indices().collect::<IndexVec<ValueId, _>>();
+    ) -> Option<(IndexVec<ValueId, ClassId>, DenseBitSet<ValueId>)> {
+        let mut vn = IndexVec::with_capacity(func.num_values());
+        for _ in 0..func.num_values() {
+            let value_id = vn.next_idx();
+            vn.push(value_id);
+        }
+        let mut available_values = DenseBitSet::new_empty(func.num_values());
         let mut immediate_reps: FxHashMap<Immediate, ValueId> = FxHashMap::default();
-        let mut arg_reps: FxHashMap<u32, ValueId> = FxHashMap::default();
-        for (value_id, value) in func.values.iter_enumerated() {
-            match value {
-                Value::Immediate(imm) => {
-                    vn[value_id] = *immediate_reps.entry(imm.clone()).or_insert(value_id);
-                }
-                Value::Arg { index, .. } => {
-                    vn[value_id] = *arg_reps.entry(*index).or_insert(value_id);
-                }
-                Value::Inst(_) | Value::Undef(_) | Value::Error(_) => {}
+        let mut arg_reps = FxHashMap::default();
+        let mut initialize = |value_id| match func.value(value_id) {
+            Value::Immediate(imm) => {
+                available_values.insert(value_id);
+                vn[value_id] = *immediate_reps.entry(imm.clone()).or_insert(value_id);
             }
+            Value::Arg(index) => {
+                available_values.insert(value_id);
+                vn[value_id] = *arg_reps.entry(*index).or_insert(value_id);
+            }
+            Value::Undef(_) | Value::Error(_) => {
+                available_values.insert(value_id);
+            }
+            Value::Inst(_) => {}
+        };
+        for value in func.live_values() {
+            initialize(value);
         }
 
         for _ in 0..MAX_VN_SWEEPS {
@@ -246,7 +257,7 @@ impl GlobalValueNumberer {
                 }
             }
             if !changed {
-                return Some(vn);
+                return Some((vn, available_values));
             }
         }
         None

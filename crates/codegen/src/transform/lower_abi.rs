@@ -38,7 +38,7 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         BlockId, Function, FunctionBuilder, FunctionId, InstKind, MirPhase, MirType, Module,
-        Terminator, Value,
+        Terminator,
     },
     pass::MirPass,
 };
@@ -290,21 +290,11 @@ fn has_live_value_return(func: &Function) -> bool {
     })
 }
 
-/// The MIR type a value carries, when it records one.
-fn value_type(func: &Function, value: crate::mir::ValueId) -> Option<MirType> {
-    match func.value(value) {
-        Value::Arg { ty, .. } | Value::Undef(ty) => Some(*ty),
-        Value::Inst(inst) => func.inst(*inst).result_ty,
-        Value::Immediate(_) => Some(MirType::uint256()),
-        Value::Error(_) => None,
-    }
-}
-
 /// Whether a return value is a plain ABI word — an inline value type rather
 /// than a pointer to dynamically encoded memory. Only these can be encoded by
 /// the fused-return sequence.
 fn is_static_word_return(func: &Function, value: crate::mir::ValueId) -> bool {
-    match value_type(func, value) {
+    match func.value_ty(value) {
         Some(
             MirType::MemPtr
             | MirType::MemoryObject(_)

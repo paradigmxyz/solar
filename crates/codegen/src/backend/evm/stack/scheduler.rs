@@ -73,7 +73,7 @@ use super::{
 };
 use crate::{
     analysis::Liveness,
-    mir::{BlockId, Function, ValueId},
+    mir::{ArgIdx, BlockId, Function, ValueId},
 };
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
@@ -107,7 +107,7 @@ pub(crate) enum ScheduledOp {
     /// Load a function argument through the active calling convention.
     ///
     /// Contains the argument index (0-based).
-    LoadArg(u32),
+    LoadArg(ArgIdx),
 }
 
 /// Cost of materializing a spill or argument under the active frame convention.
@@ -1265,7 +1265,7 @@ impl StackScheduler {
 
         match func.value(value) {
             crate::mir::Value::Immediate(imm) => imm.as_u256().map(ScheduledOp::PushImmediate),
-            crate::mir::Value::Arg { index, .. } => Some(ScheduledOp::LoadArg(*index)),
+            crate::mir::Value::Arg(index) => Some(ScheduledOp::LoadArg(*index)),
             _ => None,
         }
     }
@@ -1340,7 +1340,7 @@ impl StackScheduler {
                     self.stack.push(value);
                 }
             }
-            crate::mir::Value::Arg { index, .. } => {
+            crate::mir::Value::Arg(index) => {
                 // Load the function argument through the active calling convention.
                 self.ops.push(ScheduledOp::LoadArg(*index));
                 self.stack.push(value);
@@ -1371,7 +1371,7 @@ impl StackScheduler {
             return true;
         }
         // Check the value type.
-        matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. })
+        matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_))
     }
 
     /// Records that an instruction consumed its operands and produced a result.
@@ -2100,7 +2100,7 @@ mod tests {
     #[test]
     fn operand_plan_duplicates_value_below_dup16_reach() {
         let mut func = Function::new(Ident::DUMMY);
-        let target = func.alloc_value(Value::Arg { index: 0, ty: MirType::uint256() });
+        let target = func.alloc_param(MirType::uint256());
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(target);
         for value in 0..MAX_STACK_ACCESS {

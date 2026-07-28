@@ -5,7 +5,7 @@ use super::{
     SliceLocation, StorageLayoutRef, Value, ValueId,
 };
 use alloy_primitives::U256;
-use smallvec::SmallVec;
+use smallvec::{Array, SmallVec};
 use solar_interface::Span;
 use solar_sema::hir;
 use std::fmt;
@@ -248,7 +248,7 @@ impl StorageAlias {
                 }
                 _ => Self::Symbolic(value),
             },
-            Value::Arg { .. } | Value::Undef(_) | Value::Error(_) => Self::Symbolic(value),
+            Value::Arg(_) | Value::Undef(_) | Value::Error(_) => Self::Symbolic(value),
         }
     }
 
@@ -843,7 +843,7 @@ pub(crate) enum InstKind {
 impl InstKind {
     /// Collects all operands of this instruction into the provided vector.
     /// This is the canonical way to get all operands for liveness analysis.
-    pub(crate) fn collect_operands(&self, out: &mut SmallVec<[ValueId; 8]>) {
+    pub(crate) fn collect_operands<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
         match self {
             // Binary operations
             Self::Add(a, b)
@@ -898,8 +898,7 @@ impl InstKind {
             }
 
             Self::AbiEncode { selector, args, .. } => {
-                out.extend(selector.iter().copied());
-                out.extend(args.iter().copied());
+                out.extend(selector.iter().chain(args).copied());
             }
 
             // Unary operations

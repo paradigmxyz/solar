@@ -1197,8 +1197,8 @@ impl MemoryStoreEliminator {
     }
 
     fn immutable_copy_key(func: &Function, src: ValueId) -> Option<ImmutableCopyKey> {
-        match func.values[src] {
-            Value::Inst(inst_id) => match func.inst(inst_id).kind {
+        match func.value(src) {
+            Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::Sub(code_size, len) if Self::is_codesize(func, code_size) => {
                     Some(ImmutableCopyKey { len: func.value_u64(len)?, offset: 0 })
                 }
@@ -1223,7 +1223,7 @@ impl MemoryStoreEliminator {
     }
 
     fn is_codesize(func: &Function, value: ValueId) -> bool {
-        matches!(func.values[value], Value::Inst(inst_id) if matches!(func.inst(inst_id).kind, InstKind::CodeSize))
+        matches!(func.value(value), Value::Inst(inst_id) if matches!(func.inst(*inst_id).kind, InstKind::CodeSize))
     }
 
     fn copy_dominates(
