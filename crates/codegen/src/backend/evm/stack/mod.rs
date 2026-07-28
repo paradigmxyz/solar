@@ -15,8 +15,9 @@
 //!   value or an anonymous word produced by low-level code.
 //! - [`scheduler`] prepares the ordered operands for one instruction. It can consume dead values in
 //!   place, preserve live values, duplicate or swap accessible values, and rematerialize
-//!   immediates, arguments, or stored spills. Plans are replayable and are applied to the model
-//!   only when chosen.
+//!   immediates, arguments, or stored spills. Equal immediate operands share one backend value
+//!   identity, and profitable repeated wide immediates may stay resident within a block. Plans are
+//!   replayable and are applied to the model only when chosen.
 //! - [`shuffler`] canonicalizes complete layouts on selected CFG edges. Layouts of up to four words
 //!   compare nontrivial greedy sequences with bounded shortest-action search and accept only Pareto
 //!   improvements in action count and static gas; larger layouts use the verified greedy result and
@@ -60,6 +61,11 @@
 //! values stack-resident; importing either whole allocator would require a separate machine IR and
 //! a different calling and memory model. Fe delegates EVM code generation to Sonatina through its
 //! [Sonatina integration], so it does not add another stack scheduler to adapt.
+//! The [LLVM EVM stack solver] used by solx independently follows a similar literal policy: always
+//! rematerialize zero and small literals, but retain a sufficiently wide literal when another use
+//! remains in the machine block. Its whole-function backward propagation, iterative spilling, and
+//! register allocation are not a fit for this direct MIR lowering, but its stack-pressure guard
+//! informs the local retention limits used here.
 //!
 //! [scheduler pipeline]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/lib.rs
 //! [Plank's intra-operation scheduler]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/greedy_intra_op_scheduler/mod.rs
@@ -69,6 +75,7 @@
 //! [Sonatina's operand preparer]: https://github.com/fe-lang/sonatina/blob/55ca888f1fc83077e5eee803c0619231e9b50998/crates/codegen/src/stackalloc/stackify/planner/operand_prep.rs
 //! [normalized search]: https://github.com/fe-lang/sonatina/blob/55ca888f1fc83077e5eee803c0619231e9b50998/crates/codegen/src/stackalloc/stackify/planner/normalize_search.rs
 //! [Sonatina integration]: https://github.com/fe-lang/fe/blob/636607d1a859bb68d88460c5ee63dd9532791aa8/crates/codegen/src/sonatina/mod.rs
+//! [LLVM EVM stack solver]: https://github.com/NomicFoundation/solx-llvm/blob/c7d7ec5b23366238d6201a6672c25eeee79bdcf1/llvm/lib/Target/EVM/EVMStackSolver.cpp
 //!
 //! ## Operand planning
 //!
@@ -80,7 +87,10 @@
 //! operation must retain its sole resident operand while materializing the
 //! other. Gas mode also uses verified one-action and unary fast paths. Longer
 //! unambiguous plans use a deterministic walk only when its cost reaches the
-//! admissible lower bound; ambiguous layouts use bounded A*. These are tiers of
+//! admissible lower bound; ambiguous layouts use bounded A*. Before A*, a required value with no
+//! reload route below `SWAP16` sends control directly to the spilling fallback. The search stores
+//! parent links instead of cloned action histories and independently caps expansions, created
+//! states, visited states, the open frontier, and estimated retained bytes. These are tiers of
 //! the same planner, not sequential optimizers: every accepted result satisfies
 //! the same exact goal and cost ordering, and a tier that cannot prove its
 //! result falls through without mutating the stack.
@@ -89,9 +99,11 @@
 //! present, every preserved operand still has a copy below it, and no dead
 //! operand copy remains below it. The final condition prevents a locally cheap
 //! rematerialization such as `PUSH0` from deferring a more expensive cleanup
-//! until immediately after the instruction. Debug builds replay every accepted
-//! tier against that complete goal; exhaustive small-layout tests compare the
-//! selected plan with a reference Dijkstra search under the full cost order.
+//! until immediately after the instruction. Every build replays an accepted
+//! tier against that complete goal and falls back if validation fails. Exhaustive
+//! small-layout tests compare the selected plan with a reference Dijkstra search
+//! under the full cost order and separately check that the heuristic never
+//! exceeds exact remaining cost when anonymous slots are present.
 //!
 //! Size mode deliberately keeps the established deterministic/A* path after
 //! the exact-prefix and linear proofs. A local one-action or unary plan can tie
@@ -115,6 +127,14 @@
 //! memory are not duplicated preemptively. `-O none` bypasses the planner and
 //! retains the straightforward emission path.
 //!
+//! Active equal immediates are canonicalized immediately before EVM lowering so `DUP` decisions
+//! see physical word reuse instead of allocation accidents in MIR. The block-local retention
+//! policy then keeps only repeatedly used constants whose compact materialization is expensive
+//! enough for the selected optimization mode. Gas mode requires four remaining uses and at least
+//! 17 encoded bytes; size mode requires three uses and at least eight bytes. A new retained copy
+//! must fit inside the `DUP`/`SWAP` access window. Immediates remain rematerializable and never own
+//! spill slots, so stack pressure makes the policy decline caching rather than spill a constant.
+//!
 //! Binary lowering may also plan an equivalent reversed operand order. This
 //! covers commutative instructions and comparison pairs such as `LT`/`GT`; the
 //! cheaper complete plan wins. A free first orientation is already unbeatable,
@@ -129,6 +149,8 @@
 //! emitter. Complete edge shuffles require an exact final layout; lowering checks
 //! that an edge is preparable before committing it and treats a later shuffle
 //! failure as an internal invariant violation.
+//! The edge shuffler stops adding states at its cap but drains states that were already queued, so
+//! reaching the cap cannot hide an already-discovered target.
 //!
 //! The local planner is currently used only when operand identities remain
 //! stable during preparation. Memory stores and copies, contract creation, and

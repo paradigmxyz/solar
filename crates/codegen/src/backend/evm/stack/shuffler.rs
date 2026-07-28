@@ -5,7 +5,8 @@
 //! shortest-action search and take the searched sequence only when it improves one objective
 //! without worsening action count or static gas. Larger layouts use the verified greedy result,
 //! with the bounded search as the correctness fallback when the greedy pass cannot reach the
-//! target.
+//! target. When exact search reaches its state cap it stops enqueueing successors but drains the
+//! existing frontier, preserving targets that were discovered before the cap.
 //!
 //! ## Algorithm overview
 //!
@@ -137,10 +138,6 @@ impl<'a> StackShuffler<'a> {
                 ops.reverse();
                 return Some(ShuffleResult { ops });
             }
-            if predecessors.len() >= MAX_LAYOUT_SEARCH_STATES {
-                break;
-            }
-
             let max_swap = stack.len().saturating_sub(1).min(MAX_STACK_ACCESS);
             for depth in 1..=max_swap {
                 if stack[0] == stack[depth] {
@@ -199,7 +196,7 @@ impl<'a> StackShuffler<'a> {
         next: Layout,
         op: StackOp,
     ) {
-        if predecessors.contains_key(&next) {
+        if predecessors.len() >= MAX_LAYOUT_SEARCH_STATES || predecessors.contains_key(&next) {
             return;
         }
         predecessors.insert(next.clone(), Some((previous.clone(), op)));
@@ -528,6 +525,34 @@ mod tests {
         let target = [TargetSlot::Value(v1)];
 
         assert!(StackShuffler::new(&source, &target).shuffle().is_none());
+    }
+
+    #[test]
+    fn exact_search_drains_frontier_after_state_limit() {
+        let values = (0..8).map(ValueId::from_usize).collect::<Vec<_>>();
+        let source = values.iter().copied().map(Some).collect::<Layout>();
+        let target = values[..5].iter().copied().map(TargetSlot::Value).collect::<Vec<_>>();
+        let multiplicities = target.iter().fold(FxHashMap::default(), |mut counts, target| {
+            let TargetSlot::Value(value) = target;
+            *counts.entry(*value).or_default() += 1;
+            counts
+        });
+
+        let result = StackShuffler::search_exact(source, &target, &multiplicities).unwrap();
+
+        assert_eq!(
+            result.ops,
+            [
+                StackOp::Swap(3),
+                StackOp::Swap(6),
+                StackOp::Pop,
+                StackOp::Swap(3),
+                StackOp::Swap(6),
+                StackOp::Pop,
+                StackOp::Swap(3),
+                StackOp::Pop,
+            ]
+        );
     }
 
     #[test]

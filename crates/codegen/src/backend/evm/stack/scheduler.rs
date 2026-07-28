@@ -47,19 +47,26 @@
 //! whenever one already exists, even below the direct-access window; exposing that copy is
 //! accounted for separately. The deterministic walk scores candidates by applying and undoing them
 //! on one scratch layout, then records only the chosen action; it does not clone partial histories.
-//! Otherwise the A* queue handles the ambiguous layout. Gas optimization orders plans by static
+//! Otherwise the A* queue handles the ambiguous layout. A required value with no reload route below
+//! `SWAP16` bypasses search so the fallback can expose and spill it. Search states retain parent
+//! links rather than full action histories, and separate limits bound expansions, created states,
+//! visited states, the open frontier, and estimated retained bytes. Reaching a limit stops new
+//! expansion while already queued goals remain eligible. Gas optimization orders plans by static
 //! gas, encoded bytes, and action count. Size optimization orders them by encoded bytes, static
 //! gas, and action count. Equal estimates prefer deeper states, then queue serials make traversal
-//! deterministic. Search stops after [`MAX_OPERAND_SEARCH_STATES`]; returning `None` delegates to
-//! the existing correctness-oriented emitter. “Optimal” here means the least estimated local
-//! preparation cost within this action model, not a whole-function stack-allocation optimum.
+//! deterministic. Returning `None` delegates to the existing correctness-oriented emitter.
+//! “Optimal” here means the least estimated local preparation cost within this action model, not a
+//! whole-function stack-allocation optimum.
 //!
 //! ## Applying a plan
 //!
 //! [`StackScheduler::apply_operand_plan`] is the only operation that commits a
-//! plan. It replays every action into the live model and returns the matching
-//! physical operations for emission. Lowering then emits the EVM instruction
-//! and calls [`StackScheduler::instruction_executed`] with its stack effect.
+//! plan. Before that commit, every accepted planner tier is replayed against
+//! the exact goal in all builds; an invalid plan falls back without changing
+//! state. Applying the validated plan replays every action into the live model
+//! and returns the matching physical operations for emission. Lowering then
+//! emits the EVM instruction and calls [`StackScheduler::instruction_executed`]
+//! with its stack effect.
 //!
 //! Complete block-edge layouts use the separate shuffler through
 //! [`StackScheduler::shuffle_to_layout`]. Keeping local operand preparation and
@@ -78,9 +85,13 @@ use crate::{
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::map::FxHashMap;
-use std::{cmp::Ordering, collections::BinaryHeap};
+use std::{cmp::Ordering, collections::BinaryHeap, mem::size_of};
 
-const MAX_OPERAND_SEARCH_STATES: usize = 4096;
+const MAX_OPERAND_SEARCH_EXPANSIONS: usize = 1024;
+const MAX_OPERAND_SEARCH_CREATED_STATES: usize = 4096;
+const MAX_OPERAND_SEARCH_VISITED_STATES: usize = 4096;
+const MAX_OPERAND_SEARCH_OPEN_STATES: usize = 2048;
+const MAX_OPERAND_SEARCH_RETAINED_BYTES: usize = 2 * 1024 * 1024;
 
 type PlannedActions = SmallVec<[PlannedAction; 8]>;
 type SearchStack = SmallVec<[Option<ValueId>; 24]>;
@@ -93,6 +104,8 @@ pub(crate) struct StackScheduler {
     pub spills: SpillManager,
     /// Operations to emit.
     ops: Vec<ScheduledOp>,
+    #[cfg(test)]
+    operand_search_stats: std::cell::Cell<OperandSearchStats>,
 }
 
 /// A scheduled operation to emit.
@@ -229,6 +242,58 @@ struct SearchNode {
 }
 
 #[derive(Clone, Debug)]
+struct OperandSearchState {
+    stack: SearchStack,
+    cost: ScheduleCost,
+    parent: Option<(usize, PlannedAction)>,
+}
+
+#[derive(Clone, Debug)]
+struct OperandSearchQueueEntry {
+    priority: [u32; 3],
+    key: [u32; 3],
+    serial: usize,
+    state: usize,
+    actions: u32,
+}
+
+impl PartialEq for OperandSearchQueueEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key && self.serial == other.serial
+    }
+}
+
+impl Eq for OperandSearchQueueEntry {}
+
+impl PartialOrd for OperandSearchQueueEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for OperandSearchQueueEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other
+            .priority
+            .cmp(&self.priority)
+            .then_with(|| self.actions.cmp(&other.actions))
+            .then_with(|| other.serial.cmp(&self.serial))
+    }
+}
+
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Default)]
+struct OperandSearchStats {
+    expansions: usize,
+    created: usize,
+    max_visited: usize,
+    max_open: usize,
+    retained_bytes: usize,
+    unreachable_preflights: usize,
+}
+
+#[cfg(test)]
+#[derive(Clone, Debug)]
 struct QueueEntry {
     priority: [u32; 3],
     key: [u32; 3],
@@ -236,20 +301,24 @@ struct QueueEntry {
     node: SearchNode,
 }
 
+#[cfg(test)]
 impl PartialEq for QueueEntry {
     fn eq(&self, other: &Self) -> bool {
         self.key == other.key && self.serial == other.serial
     }
 }
 
+#[cfg(test)]
 impl Eq for QueueEntry {}
 
+#[cfg(test)]
 impl PartialOrd for QueueEntry {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
+#[cfg(test)]
 impl Ord for QueueEntry {
     fn cmp(&self, other: &Self) -> Ordering {
         // `BinaryHeap` is a max-heap; reverse the estimated cost so the most promising state is
@@ -267,7 +336,13 @@ impl StackScheduler {
     /// Creates a new stack scheduler.
     #[must_use]
     pub(crate) fn new() -> Self {
-        Self { stack: StackModel::new(), spills: SpillManager::new(), ops: Vec::new() }
+        Self {
+            stack: StackModel::new(),
+            spills: SpillManager::new(),
+            ops: Vec::new(),
+            #[cfg(test)]
+            operand_search_stats: std::cell::Cell::new(OperandSearchStats::default()),
+        }
     }
 
     /// Plans an ordered operand head without mutating the current stack.
@@ -284,6 +359,9 @@ impl StackScheduler {
         evm_version: EvmVersion,
         cost_model: OperandCostModel,
     ) -> Option<OperandPlan> {
+        #[cfg(test)]
+        self.operand_search_stats.set(OperandSearchStats::default());
+
         if matches!(optimization, OptimizationMode::None) {
             return None;
         }
@@ -292,7 +370,7 @@ impl StackScheduler {
         if Self::operand_goal_reached_direct(self.stack.as_slice(), &goal, preserved) {
             let plan =
                 OperandPlan { actions: PlannedActions::new(), cost: ScheduleCost::default() };
-            return Some(self.verify_operand_plan(plan, &goal, preserved));
+            return self.validate_operand_plan(plan, &goal, preserved);
         }
         if let Some(plan) = self.try_single_resident_operand_plan(
             operands,
@@ -301,7 +379,7 @@ impl StackScheduler {
             evm_version,
             cost_model,
         ) {
-            return Some(self.verify_operand_plan(plan, &goal, preserved));
+            return self.validate_operand_plan(plan, &goal, preserved);
         }
         if let Some(plan) = self.try_direct_materialization_operand_plan(
             operands,
@@ -310,7 +388,7 @@ impl StackScheduler {
             evm_version,
             cost_model,
         ) {
-            return Some(self.verify_operand_plan(plan, &goal, preserved));
+            return self.validate_operand_plan(plan, &goal, preserved);
         }
         if let Some(plan) = self.try_preserved_resident_binary_plan(
             operands,
@@ -320,7 +398,7 @@ impl StackScheduler {
             evm_version,
             cost_model,
         ) {
-            return Some(self.verify_operand_plan(plan, &goal, preserved));
+            return self.validate_operand_plan(plan, &goal, preserved);
         }
         // Size mode keeps the established search tie-breaking because equal local costs can leave
         // residual stacks with different cleanup costs after the instruction.
@@ -333,7 +411,7 @@ impl StackScheduler {
                 evm_version,
                 cost_model,
             ) {
-                return Some(self.verify_operand_plan(plan, &goal, preserved));
+                return self.validate_operand_plan(plan, &goal, preserved);
             }
             if let [value] = operands
                 && let Some(plan) = self.try_unary_operand_plan(
@@ -345,7 +423,7 @@ impl StackScheduler {
                     cost_model,
                 )
             {
-                return Some(self.verify_operand_plan(plan, &goal, preserved));
+                return self.validate_operand_plan(plan, &goal, preserved);
             }
         }
 
@@ -356,6 +434,23 @@ impl StackScheduler {
         let mut required_counts = preserve_counts.clone();
         for &value in &goal {
             *required_counts.entry(value).or_default() += 1;
+        }
+        if required_counts.keys().any(|&value| {
+            self.materialize_operand(value, func).is_none()
+                && !self
+                    .stack
+                    .as_slice()
+                    .iter()
+                    .take(MAX_STACK_ACCESS + 1)
+                    .any(|&slot| slot == Some(value))
+        }) {
+            #[cfg(test)]
+            {
+                let mut stats = self.operand_search_stats.get();
+                stats.unreachable_preflights += 1;
+                self.operand_search_stats.set(stats);
+            }
+            return None;
         }
 
         let start = SearchNode {
@@ -373,90 +468,157 @@ impl StackScheduler {
         if let Some(plan) =
             self.try_goal_directed_operand_plan(start.clone(), &goal, &preserve_counts, context)
         {
-            return Some(self.verify_operand_plan(plan, &goal, preserved));
+            return self.validate_operand_plan(plan, &goal, preserved);
         }
 
+        let start_state = OperandSearchState { stack: start.stack, cost: start.cost, parent: None };
+        let mut states = vec![start_state];
         let mut queue = BinaryHeap::new();
         let mut visited = FxHashMap::default();
         let mut serial = 0usize;
-        let start_key = start.cost.key(optimization);
-        let priority = self.operand_search_priority(&start, &goal, &preserve_counts, context);
-        visited.insert(start.stack.clone(), start_key);
-        queue.push(QueueEntry { priority, key: start_key, serial, node: start });
+        let start_key = states[0].cost.key(optimization);
+        let priority = self.operand_search_priority_parts(
+            &states[0].stack,
+            states[0].cost,
+            &goal,
+            &preserve_counts,
+            context,
+        );
+        visited.insert(states[0].stack.clone(), start_key);
+        queue.push(OperandSearchQueueEntry {
+            priority,
+            key: start_key,
+            serial,
+            state: 0,
+            actions: 0,
+        });
+        let mut retained_bytes = Self::operand_search_state_bytes(states[0].stack.len());
+        let mut max_visited = visited.len();
+        let mut max_open = queue.len();
 
         let mut expansions = 0usize;
-        while let Some(QueueEntry { key: queued_key, node, .. }) = queue.pop() {
-            if visited.get(&node.stack).is_some_and(|&best| best != queued_key) {
+        while let Some(OperandSearchQueueEntry { key: queued_key, state: state_idx, .. }) =
+            queue.pop()
+        {
+            let state = &states[state_idx];
+            if visited.get(&state.stack).is_some_and(|&best| best != queued_key) {
                 continue;
             }
-            if Self::operand_goal_reached(&node.stack, &goal, &preserve_counts) {
-                let plan = OperandPlan { actions: node.actions, cost: node.cost };
-                return Some(self.verify_operand_plan(plan, &goal, preserved));
+            if Self::operand_goal_reached(&state.stack, &goal, &preserve_counts) {
+                let plan = Self::operand_plan_from_search_state(&states, state_idx);
+                #[cfg(test)]
+                self.operand_search_stats.set(OperandSearchStats {
+                    expansions,
+                    created: states.len(),
+                    max_visited,
+                    max_open,
+                    retained_bytes,
+                    unreachable_preflights: 0,
+                });
+                return self.validate_operand_plan(plan, &goal, preserved);
+            }
+            if expansions >= MAX_OPERAND_SEARCH_EXPANSIONS {
+                continue;
             }
             expansions += 1;
-            if expansions > MAX_OPERAND_SEARCH_STATES {
-                break;
-            }
 
-            for action in self.operand_search_actions(&node.stack, &goal, &preserve_counts, context)
-            {
-                let next = Self::apply_planned_action(&node, action, evm_version, cost_model);
-
-                let key = next.cost.key(optimization);
-                if visited.get(&next.stack).is_some_and(|&old| old <= key) {
+            let stack = state.stack.clone();
+            let cost = state.cost;
+            for action in self.operand_search_actions(&stack, &goal, &preserve_counts, context) {
+                if states.len() >= MAX_OPERAND_SEARCH_CREATED_STATES
+                    || visited.len() >= MAX_OPERAND_SEARCH_VISITED_STATES
+                    || queue.len() >= MAX_OPERAND_SEARCH_OPEN_STATES
+                {
+                    break;
+                }
+                let mut next_stack = stack.clone();
+                let _ = Self::apply_planned_stack_action(&mut next_stack, &action);
+                let next_cost = cost.with_op(&action.op, evm_version, cost_model);
+                let key = next_cost.key(optimization);
+                if visited.get(&next_stack).is_some_and(|&old| old <= key) {
                     continue;
                 }
-                visited.insert(next.stack.clone(), key);
+                let state_bytes = Self::operand_search_state_bytes(next_stack.len());
+                if retained_bytes.saturating_add(state_bytes) > MAX_OPERAND_SEARCH_RETAINED_BYTES {
+                    break;
+                }
+                retained_bytes += state_bytes;
+                visited.insert(next_stack.clone(), key);
                 serial += 1;
-                let priority =
-                    self.operand_search_priority(&next, &goal, &preserve_counts, context);
-                queue.push(QueueEntry { priority, key, serial, node: next });
+                let actions = next_cost.actions;
+                let priority = self.operand_search_priority_parts(
+                    &next_stack,
+                    next_cost,
+                    &goal,
+                    &preserve_counts,
+                    context,
+                );
+                let next_state = states.len();
+                states.push(OperandSearchState {
+                    stack: next_stack,
+                    cost: next_cost,
+                    parent: Some((state_idx, action)),
+                });
+                queue.push(OperandSearchQueueEntry {
+                    priority,
+                    key,
+                    serial,
+                    state: next_state,
+                    actions,
+                });
+                max_visited = max_visited.max(visited.len());
+                max_open = max_open.max(queue.len());
             }
         }
+
+        #[cfg(test)]
+        self.operand_search_stats.set(OperandSearchStats {
+            expansions,
+            created: states.len(),
+            max_visited,
+            max_open,
+            retained_bytes,
+            unreachable_preflights: 0,
+        });
 
         None
     }
 
-    /// Replays every accepted planner tier in debug builds, matching the final goal check used by
-    /// the full search.
-    fn verify_operand_plan(
+    /// Replays every accepted planner tier and rejects a malformed plan.
+    fn validate_operand_plan(
         &self,
         plan: OperandPlan,
-        _goal: &[ValueId],
-        _preserved: &[ValueId],
-    ) -> OperandPlan {
-        #[cfg(debug_assertions)]
-        {
-            let mut stack = self.stack.as_slice().to_vec();
-            for action in &plan.actions {
-                match action.op {
-                    ScheduledOp::Stack(StackOp::Swap(depth)) => {
-                        stack.swap(0, usize::from(depth));
+        goal: &[ValueId],
+        preserved: &[ValueId],
+    ) -> Option<OperandPlan> {
+        let mut stack = self.stack.as_slice().to_vec();
+        for action in &plan.actions {
+            match action.op {
+                ScheduledOp::Stack(StackOp::Swap(depth)) => {
+                    let depth = usize::from(depth);
+                    if depth >= stack.len() {
+                        return None;
                     }
-                    ScheduledOp::Stack(StackOp::Dup(depth)) => {
-                        let value = stack[usize::from(depth - 1)];
-                        stack.insert(0, value);
+                    stack.swap(0, depth);
+                }
+                ScheduledOp::Stack(StackOp::Dup(depth)) => {
+                    let value = stack.get(usize::from(depth - 1)).copied()?;
+                    stack.insert(0, value);
+                }
+                ScheduledOp::Stack(StackOp::Pop) => {
+                    if stack.is_empty() {
+                        return None;
                     }
-                    ScheduledOp::Stack(StackOp::Pop) => {
-                        stack.remove(0);
-                    }
-                    ScheduledOp::PushImmediate(_)
-                    | ScheduledOp::LoadSpill(_)
-                    | ScheduledOp::LoadArg(_) => {
-                        stack.insert(0, action.pushed);
-                    }
+                    stack.remove(0);
+                }
+                ScheduledOp::PushImmediate(_)
+                | ScheduledOp::LoadSpill(_)
+                | ScheduledOp::LoadArg(_) => {
+                    stack.insert(0, action.pushed);
                 }
             }
-            debug_assert!(
-                Self::operand_goal_reached_direct(&stack, _goal, _preserved),
-                "operand plan does not reach its goal: stack={:?}, goal={:?}, \
-                 preserved={:?}, plan={plan:?}",
-                self.stack,
-                _goal,
-                _preserved
-            );
         }
-        plan
+        Self::operand_goal_reached_direct(&stack, goal, preserved).then_some(plan)
     }
 
     fn operand_goal_reached_direct(
@@ -953,6 +1115,7 @@ impl StackScheduler {
             && stack[1..].iter().take(MAX_STACK_ACCESS).any(|&slot| slot == Some(top))
     }
 
+    #[cfg(test)]
     fn apply_planned_action(
         node: &SearchNode,
         action: PlannedAction,
@@ -1007,17 +1170,40 @@ impl StackScheduler {
         }
     }
 
-    fn operand_search_priority(
+    fn operand_search_priority_parts(
         &self,
-        node: &SearchNode,
+        stack: &[Option<ValueId>],
+        cost: ScheduleCost,
         goal: &[ValueId],
         preserve_counts: &FxHashMap<ValueId, usize>,
         context: OperandPlanningContext<'_>,
     ) -> [u32; 3] {
         let optimization = context.optimization;
-        node.cost
-            .plus(self.operand_search_lower_bound(&node.stack, goal, preserve_counts, context))
+        cost.plus(self.operand_search_lower_bound(stack, goal, preserve_counts, context))
             .key(optimization)
+    }
+
+    fn operand_plan_from_search_state(
+        states: &[OperandSearchState],
+        mut state: usize,
+    ) -> OperandPlan {
+        let cost = states[state].cost;
+        let mut actions = PlannedActions::new();
+        while let Some((parent, action)) = &states[state].parent {
+            actions.push(action.clone());
+            state = *parent;
+        }
+        actions.reverse();
+        OperandPlan { actions, cost }
+    }
+
+    fn operand_search_state_bytes(stack_len: usize) -> usize {
+        let heap_stack_bytes =
+            stack_len.saturating_sub(24).saturating_mul(size_of::<Option<ValueId>>());
+        size_of::<OperandSearchState>()
+            .saturating_add(size_of::<SearchStack>())
+            .saturating_add(size_of::<OperandSearchQueueEntry>())
+            .saturating_add(heap_stack_bytes.saturating_mul(2))
     }
 
     fn operand_search_lower_bound(
@@ -1136,12 +1322,8 @@ impl StackScheduler {
                 }
             };
 
-            if let Some(&Some(top)) = stack.first()
-                && stack
-                    .iter()
-                    .take(MAX_STACK_ACCESS + 1)
-                    .skip(1)
-                    .any(|&slot| slot.is_some_and(|value| value != top))
+            if let Some(&top) = stack.first()
+                && stack.iter().take(MAX_STACK_ACCESS + 1).skip(1).any(|&slot| slot != top)
             {
                 consider(ScheduledOp::Stack(StackOp::Swap(1)));
             }
@@ -2070,6 +2252,118 @@ mod tests {
     }
 
     #[test]
+    fn operand_search_handles_anonymous_top_admissibly() {
+        let mut func = Function::new(Ident::DUMMY);
+        let a = func.alloc_param(MirType::uint256());
+        let c = func
+            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(17))));
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(a);
+        scheduler.stack.push(a);
+        scheduler.stack.push_unknown();
+        scheduler.stack.push(c);
+
+        let plan = scheduler
+            .plan_operands(
+                &[a, c, a],
+                &[a],
+                &func,
+                OptimizationMode::Gas,
+                EvmVersion::Shanghai,
+                OperandCostModel::DIRECT,
+            )
+            .unwrap();
+
+        assert_eq!(
+            plan.actions.iter().map(|action| &action.op).collect::<Vec<_>>(),
+            [
+                &ScheduledOp::Stack(StackOp::Dup(3)),
+                &ScheduledOp::Stack(StackOp::Swap(2)),
+                &ScheduledOp::Stack(StackOp::Swap(3)),
+            ]
+        );
+        assert_eq!(plan.cost.key(OptimizationMode::Gas), [9, 3, 3]);
+        let stats = scheduler.operand_search_stats.get();
+        assert!(stats.created > 0);
+        assert!(stats.expansions <= MAX_OPERAND_SEARCH_EXPANSIONS);
+        assert!(stats.created <= MAX_OPERAND_SEARCH_CREATED_STATES);
+        assert!(stats.max_visited <= MAX_OPERAND_SEARCH_VISITED_STATES);
+        assert!(stats.max_open <= MAX_OPERAND_SEARCH_OPEN_STATES);
+        assert!(stats.retained_bytes <= MAX_OPERAND_SEARCH_RETAINED_BYTES);
+    }
+
+    #[test]
+    fn operand_search_lower_bound_is_admissible_with_anonymous_slots() {
+        let mut func = Function::new(Ident::DUMMY);
+        let a = func.alloc_param(MirType::uint256());
+        let b = func.alloc_param(MirType::uint256());
+        let layouts = sequences(&[None, Some(a), Some(b)], 4);
+        let operand_sets = sequences(&[a, b], 2);
+        let preserved_sets = [vec![], vec![a], vec![b]];
+
+        for layout in layouts {
+            for operands in &operand_sets {
+                if operands.is_empty() {
+                    continue;
+                }
+                for preserved in &preserved_sets {
+                    if preserved.iter().any(|value| !operands.contains(value)) {
+                        continue;
+                    }
+                    for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+                        let mut scheduler = StackScheduler::new();
+                        for &slot in layout.iter().rev() {
+                            if let Some(value) = slot {
+                                scheduler.stack.push(value);
+                            } else {
+                                scheduler.stack.push_unknown();
+                            }
+                        }
+                        let Some(exact) = exact_operand_cost(
+                            &scheduler,
+                            operands,
+                            preserved,
+                            &func,
+                            optimization,
+                            EvmVersion::Shanghai,
+                        ) else {
+                            continue;
+                        };
+                        let goal = operands.iter().rev().copied().collect::<Vec<_>>();
+                        let mut preserve_counts = FxHashMap::default();
+                        for &value in preserved {
+                            *preserve_counts.entry(value).or_default() += 1;
+                        }
+                        let mut required_counts = preserve_counts.clone();
+                        for &value in &goal {
+                            *required_counts.entry(value).or_default() += 1;
+                        }
+                        let context = OperandPlanningContext {
+                            func: &func,
+                            required_counts: &required_counts,
+                            optimization,
+                            evm_version: EvmVersion::Shanghai,
+                            cost_model: OperandCostModel::DIRECT,
+                        };
+                        let lower = scheduler.operand_search_lower_bound(
+                            scheduler.stack.as_slice(),
+                            &goal,
+                            &preserve_counts,
+                            context,
+                        );
+
+                        assert!(
+                            lower.key(optimization) <= exact.cost.key(optimization),
+                            "layout={layout:?}, operands={operands:?}, preserved={preserved:?}, \
+                             optimization={optimization:?}, lower={lower:?}, exact={exact:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn operand_plan_can_consume_swap16_value() {
         let mut func = make_test_func();
         let target = ValueId::from_usize(0);
@@ -2095,6 +2389,59 @@ mod tests {
             .unwrap();
         assert_eq!(plan.actions.len(), 1);
         assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(16)));
+    }
+
+    #[test]
+    fn operand_search_preflights_value_below_swap16() {
+        let mut func = make_test_func();
+        let a = ValueId::from_usize(0);
+        let b = ValueId::from_usize(1);
+        let (_, target) =
+            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(target);
+        for value in 0..=MAX_STACK_ACCESS {
+            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+                alloy_primitives::U256::from(value),
+            )));
+            scheduler.stack.push(filler);
+        }
+        assert_eq!(scheduler.stack.find(target), Some(MAX_STACK_ACCESS + 1));
+
+        assert!(
+            scheduler
+                .plan_operands(
+                    &[target],
+                    &[],
+                    &func,
+                    OptimizationMode::Gas,
+                    EvmVersion::Shanghai,
+                    OperandCostModel::DIRECT,
+                )
+                .is_none()
+        );
+        let stats = scheduler.operand_search_stats.get();
+        assert_eq!(stats.unreachable_preflights, 1);
+        assert_eq!(stats.expansions, 0);
+        assert_eq!(stats.created, 0);
+        assert_eq!(stats.max_visited, 0);
+        assert_eq!(stats.max_open, 0);
+        assert_eq!(stats.retained_bytes, 0);
+    }
+
+    #[test]
+    fn operand_plan_validation_fails_closed() {
+        let scheduler = StackScheduler::new();
+        let value = ValueId::from_usize(0);
+        let plan = OperandPlan {
+            actions: smallvec::smallvec![PlannedAction {
+                op: ScheduledOp::Stack(StackOp::Swap(16)),
+                pushed: None,
+            }],
+            cost: ScheduleCost::default(),
+        };
+
+        assert!(scheduler.validate_operand_plan(plan, &[value], &[]).is_none());
     }
 
     #[test]
