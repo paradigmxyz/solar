@@ -3351,6 +3351,19 @@ impl<'gcx> Lowerer<'gcx> {
             if let Some(bytes) = Self::str_lit_key_bytes(expr) {
                 return self.compute_literal_mapping_slot(builder, bytes, slot);
             }
+            // A calldata slice reaches here from every slicing form, not only a
+            // directly named parameter, so decide from the lowered value. The
+            // expression check below still covers the forms whose value is not
+            // a slice.
+            if Self::value_is_calldata_slice(builder, key) {
+                return self.compute_dynamic_calldata_mapping_slot(builder, key, slot);
+            }
+            // A memory slice — a sub-slice of a calldata struct's member, which
+            // the prologue rebuilt in memory — hashes where it already is.
+            if Self::value_is_memory_slice(builder, key) {
+                let ptr = self.materialize_memory_slice_bytes(builder, key);
+                return self.compute_dynamic_memory_mapping_slot(builder, ptr, slot);
+            }
             if self.is_dynamic_calldata_arg(Some(expr)) {
                 return self.compute_dynamic_calldata_mapping_slot(builder, key, slot);
             }
