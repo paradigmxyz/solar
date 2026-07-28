@@ -141,6 +141,11 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
         let mut module = ir::Module::parse(gcx.sess, source)?;
         ir::validate(&gcx.sess.dcx, &module);
         if gcx.dcx().has_errors().is_ok() {
+            if has_disasm_dump(gcx) {
+                dump_evm_ir_input_disassembly(gcx, module)?;
+                return Ok(());
+            }
+
             let name = source.name.display().to_string();
             let _changed = ir::run_pipeline(gcx, &mut module, Some(&name));
             ir::validate(&gcx.sess.dcx, &module);
@@ -161,27 +166,24 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
                     module.to_text(),
                 )?;
             }
-            dump_evm_ir_input_disassembly(gcx, &module)?;
         }
     }
     Ok(())
 }
 
-fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: &ir::Module) -> Result {
-    if !has_disasm_dump(gcx) {
-        return Ok(());
-    }
+fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {
     let dump = gcx.sess.opts.unstable.dump.as_ref().expect("dump options should be present");
-    let bytecode = evm::assemble_evm_ir(gcx, module.clone())?;
+    let name = module.name();
+    let bytecode = evm::generate_evm_ir_bytecode(gcx, module)?;
     let mut writer = out_writer(None)
         .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
     if dump.kinds.contains(&DumpKind::DisasmDeploy) {
-        writeln!(writer, "// === {} (deployment) ===", module.name())
+        writeln!(writer, "// === {name} (deployment) ===")
             .and_then(|()| write!(writer, "{}", evm::disassemble(&bytecode)))
             .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
     }
     if dump.kinds.contains(&DumpKind::DisasmRuntime) {
-        writeln!(writer, "// === {} (runtime) ===", module.name())
+        writeln!(writer, "// === {name} (runtime) ===")
             .and_then(|()| write!(writer, "{}", evm::disassemble(&bytecode)))
             .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
     }

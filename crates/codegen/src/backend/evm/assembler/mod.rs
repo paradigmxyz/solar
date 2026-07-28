@@ -72,6 +72,8 @@ pub(crate) struct Assembler<'gcx> {
     gcx: Gcx<'gcx>,
     /// EVM IR emitted directly by MIR lowering.
     program: ir::Module,
+    /// Whether `program` already has explicit EVM IR terminators.
+    program_is_finalized: bool,
     /// Block currently receiving emitted instructions.
     current_block: Option<ir::BlockId>,
     /// Original assembler label attached to each EVM IR block.
@@ -114,6 +116,7 @@ impl<'gcx> Assembler<'gcx> {
         Self {
             gcx,
             program: Self::new_ir_module(),
+            program_is_finalized: false,
             current_block: None,
             block_labels: Vec::new(),
             label_blocks: FxHashMap::default(),
@@ -130,11 +133,11 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
-    /// Assembles an EVM IR module.
-    pub(in crate::backend::evm) fn assemble_evm_ir(
+    /// Creates an assembler with finalized EVM IR loaded into the ordinary backend pipeline.
+    pub(in crate::backend::evm) fn from_evm_ir(
         gcx: Gcx<'gcx>,
         mut module: ir::Module,
-    ) -> solar_interface::Result<AssembledCode> {
+    ) -> solar_interface::Result<Self> {
         if module
             .blocks
             .iter()
@@ -152,22 +155,14 @@ impl<'gcx> Assembler<'gcx> {
         for (index, block) in module.blocks.iter_mut().enumerate() {
             block.label = u32::try_from(index).expect("EVM IR block index should fit in u32");
         }
-
-        let mut assembler = Self::new(gcx);
-        let mut labels = Vec::new();
-        let program = assembly::lower_evm_ir(&module, &mut labels, &mut assembler);
-        let prepared = PreparedAssembly {
-            program,
-            push_values: std::mem::take(&mut assembler.push_values),
-            next_label: std::mem::take(&mut assembler.next_label),
-            ..Default::default()
-        };
-        Ok(assembler.assemble_prepared(&prepared, &[]))
+        let block_labels = vec![None; module.blocks.len()];
+        Ok(Self { program: module, program_is_finalized: true, block_labels, ..Self::new(gcx) })
     }
 
     /// Clears all emitted instructions and local identifiers.
     pub(crate) fn clear(&mut self) {
         self.program = Self::new_ir_module();
+        self.program_is_finalized = false;
         self.current_block = None;
         self.block_labels.clear();
         self.label_blocks.clear();
@@ -356,7 +351,11 @@ impl<'gcx> Assembler<'gcx> {
         self.label_blocks.clear();
         self.cold_labels.clear();
 
-        Self::finalize_evm_ir(&mut module);
+        if self.program_is_finalized {
+            self.program_is_finalized = false;
+        } else {
+            Self::finalize_evm_ir(&mut module);
+        }
         Some((module, std::mem::take(&mut self.block_labels)))
     }
 
