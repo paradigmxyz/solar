@@ -275,14 +275,21 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
     let max_gas_code_size = linear_cost.code_size.saturating_add(max_gas_code_growth);
     let mut best = (linear_cost, SwitchPlan::Linear);
     let explicit_default = default.without_fallthrough();
-    if optimization == OptimizationMode::Gas {
+    if matches!(optimization, OptimizationMode::Gas | OptimizationMode::Size) {
         for leaf_size in binary_leaf_sizes(values.len()) {
             let cost =
                 lowering_cost(values, leaf_size, evm_version, explicit_default, table_target_width);
-            if cost.is_better_for_gas_than(best.0, max_gas_code_size) {
+            let better = match optimization {
+                OptimizationMode::Gas => cost.is_better_for_gas_than(best.0, max_gas_code_size),
+                OptimizationMode::Size => cost.size_key() < best.0.size_key(),
+                _ => false,
+            };
+            if better {
                 best = (cost, SwitchPlan::Binary { leaf_size });
             }
         }
+    }
+    if optimization == OptimizationMode::Gas {
         if (MIN_BUCKET_CASES..=MAX_BUCKET_CASES).contains(&values.len()) {
             for bucket_count in bucket_count_candidates(values.len()) {
                 let cost = bucket_lowering_cost(
@@ -371,11 +378,16 @@ fn lowering_cost(
         };
         let mut path_gas = 0;
         for &value in values {
-            let test = equality_test_cost(value, evm_version, table_target_width);
+            let test = equality_test_cost(
+                value,
+                evm_version,
+                table_target_width,
+                default.needs_value_cleanup(),
+            );
             cost.code_size += test.code_size;
             cost.max_code_size += test.max_code_size;
-            path_gas += test.gas;
-            cost.hit_gas_sum += path_gas;
+            cost.hit_gas_sum += path_gas + test.hit_gas;
+            path_gas += test.miss_gas;
         }
         cost.miss_gas = path_gas + default.gas(evm_version);
         return cost;
@@ -392,11 +404,11 @@ fn lowering_cost(
             + JUMPDEST_LEN
             + left.max_code_size
             + right.max_code_size,
-        hit_gas_sum: split.gas * values.len()
+        hit_gas_sum: split.hit_gas * values.len()
             + left.hit_gas_sum
             + mid * JUMPDEST_GAS
             + right.hit_gas_sum,
-        miss_gas: split.gas + (left.miss_gas + JUMPDEST_GAS).max(right.miss_gas),
+        miss_gas: split.miss_gas + (left.miss_gas + JUMPDEST_GAS).max(right.miss_gas),
     }
 }
 
@@ -472,7 +484,12 @@ fn bucket_lowering_cost(
     let mut bucket_path_gas = vec![0; bucket_count];
     for &value in values {
         let index = bucket_index(value, bucket_count);
-        let test = equality_test_cost(value, evm_version, table_target_width);
+        let test = equality_test_cost(
+            value,
+            evm_version,
+            table_target_width,
+            default.needs_value_cleanup(),
+        );
         if bucket_path_gas[index] == 0 {
             cost.code_size += JUMPDEST_LEN + default.code_size(evm_version);
             cost.max_code_size +=
@@ -480,8 +497,8 @@ fn bucket_lowering_cost(
         }
         cost.code_size += test.code_size;
         cost.max_code_size += test.max_code_size;
-        bucket_path_gas[index] += test.gas;
-        cost.hit_gas_sum += bucket_path_gas[index];
+        cost.hit_gas_sum += bucket_path_gas[index] + test.hit_gas;
+        bucket_path_gas[index] += test.miss_gas;
         cost.miss_gas =
             cost.miss_gas.max(dispatch_gas + bucket_path_gas[index] + default.gas(evm_version));
     }
@@ -647,13 +664,18 @@ fn bit_slice_lowering_cost(
     };
 
     for &value in values {
-        let test = equality_test_cost(value, evm_version, table_target_width);
+        let test = equality_test_cost(
+            value,
+            evm_version,
+            table_target_width,
+            default.needs_value_cleanup(),
+        );
         cost.code_size += JUMPDEST_LEN + test.code_size + default.code_size(evm_version);
         cost.max_code_size += JUMPDEST_LEN
             + test.max_code_size
             + default.max_code_size(evm_version, table_target_width);
-        cost.hit_gas_sum += test.gas;
-        cost.miss_gas = cost.miss_gas.max(dispatch_gas + test.gas + default.gas(evm_version));
+        cost.hit_gas_sum += test.hit_gas;
+        cost.miss_gas = cost.miss_gas.max(dispatch_gas + test.miss_gas + default.gas(evm_version));
     }
     if default.needs_value_cleanup() && table_size > values.len() {
         let default = default.without_fallthrough();
@@ -794,20 +816,35 @@ pub(super) fn bucket_index(value: U256, bucket_count: usize) -> usize {
 struct TestCost {
     code_size: usize,
     max_code_size: usize,
-    gas: usize,
+    hit_gas: usize,
+    miss_gas: usize,
 }
 
-fn equality_test_cost(value: U256, evm_version: EvmVersion, table_target_width: usize) -> TestCost {
-    if value.is_zero() {
+fn equality_test_cost(
+    value: U256,
+    evm_version: EvmVersion,
+    table_target_width: usize,
+    cleanup_on_hit: bool,
+) -> TestCost {
+    let mut cost = if value.is_zero() {
         // DUP1, ISZERO, PUSH<label>, JUMPI.
         TestCost {
             code_size: 1 + 1 + MIN_LABEL_PUSH_LEN + 1,
             max_code_size: 1 + 1 + max_label_push_len(table_target_width) + 1,
-            gas: VERY_LOW_GAS + VERY_LOW_GAS + VERY_LOW_GAS + JUMPI_GAS,
+            hit_gas: VERY_LOW_GAS + VERY_LOW_GAS + VERY_LOW_GAS + JUMPI_GAS,
+            miss_gas: VERY_LOW_GAS + VERY_LOW_GAS + VERY_LOW_GAS + JUMPI_GAS,
         }
     } else {
         ordered_test_cost(value, evm_version, table_target_width)
+    };
+    if cleanup_on_hit {
+        // Invert the comparison and branch over POP, PUSH<label>, JUMP, JUMPDEST.
+        cost.code_size += 1 + 1 + MIN_LABEL_PUSH_LEN + 1 + JUMPDEST_LEN;
+        cost.max_code_size += 1 + 1 + max_label_push_len(table_target_width) + 1 + JUMPDEST_LEN;
+        cost.hit_gas += VERY_LOW_GAS + POP_GAS + VERY_LOW_GAS + JUMP_GAS;
+        cost.miss_gas += VERY_LOW_GAS + JUMPDEST_GAS;
     }
+    cost
 }
 
 fn ordered_test_cost(value: U256, evm_version: EvmVersion, table_target_width: usize) -> TestCost {
@@ -817,7 +854,8 @@ fn ordered_test_cost(value: U256, evm_version: EvmVersion, table_target_width: u
     TestCost {
         code_size: prefix_len + MIN_LABEL_PUSH_LEN + 1,
         max_code_size: prefix_len + max_label_push_len(table_target_width) + 1,
-        gas: VERY_LOW_GAS * 3 + value_gas + JUMPI_GAS,
+        hit_gas: VERY_LOW_GAS * 3 + value_gas + JUMPI_GAS,
+        miss_gas: VERY_LOW_GAS * 3 + value_gas + JUMPI_GAS,
     }
 }
 
@@ -834,13 +872,13 @@ mod tests {
     }
 
     #[test]
-    fn leaves_small_switches_linear() {
+    fn leaves_small_entry_switches_linear() {
         assert_eq!(
             select_switch_plan(
                 &values(4),
                 OptimizationMode::Gas,
                 EvmVersion::Cancun,
-                SwitchDefault::CleanupJump,
+                SwitchDefault::Jump,
                 2,
             ),
             SwitchPlan::Linear
@@ -922,7 +960,7 @@ mod tests {
                 &values,
                 OptimizationMode::Gas,
                 EvmVersion::Cancun,
-                SwitchDefault::CleanupJump,
+                SwitchDefault::Jump,
                 2,
             ),
             SwitchPlan::Binary { leaf_size: 3 }
@@ -944,8 +982,8 @@ mod tests {
                 forced: SwitchLowering::Binary,
             },
         );
-        assert_eq!(binary.plan, SwitchPlan::Binary { leaf_size: 4 });
-        assert_eq!(
+        assert_eq!(binary.plan, SwitchPlan::Binary { leaf_size: 3 });
+        assert!(matches!(
             select_switch_plan_with_budget(
                 &values,
                 OptimizationMode::Gas,
@@ -955,8 +993,8 @@ mod tests {
                 usize::MAX,
             )
             .plan,
-            SwitchPlan::Perfect { hash: PerfectHash::BitSlice { shift: 0, mask: 7 } }
-        );
+            SwitchPlan::Perfect { hash: PerfectHash::Affine { .. } }
+        ));
     }
 
     #[test]
@@ -986,10 +1024,13 @@ mod tests {
             lowering_cost(&values, values.len(), EvmVersion::Cancun, SwitchDefault::CleanupJump, 2);
         let without_cleanup =
             lowering_cost(&values, values.len(), EvmVersion::Cancun, SwitchDefault::Jump, 2);
-        assert_eq!(with_cleanup.code_size, without_cleanup.code_size + 1);
-        assert_eq!(with_cleanup.max_code_size, without_cleanup.max_code_size + 1);
-        assert_eq!(with_cleanup.hit_gas_sum, without_cleanup.hit_gas_sum);
-        assert_eq!(with_cleanup.miss_gas, without_cleanup.miss_gas + POP_GAS);
+        assert_eq!(with_cleanup.code_size, without_cleanup.code_size + values.len() * 6 + 1);
+        assert_eq!(
+            with_cleanup.max_code_size,
+            without_cleanup.max_code_size + values.len() * 7 + 1
+        );
+        assert_eq!(with_cleanup.hit_gas_sum, without_cleanup.hit_gas_sum + 88);
+        assert_eq!(with_cleanup.miss_gas, without_cleanup.miss_gas + 18);
     }
 
     #[test]
@@ -1035,9 +1076,9 @@ mod tests {
             bucket_lowering_cost(&values, 4, EvmVersion::Cancun, SwitchDefault::Jump, 2);
         assert_eq!(
             with_cleanup.code_size,
-            without_cleanup.code_size + 2 + JUMPDEST_LEN + 1 + MIN_DEFAULT_JUMP_LEN
+            without_cleanup.code_size + 12 + 2 + JUMPDEST_LEN + 1 + MIN_DEFAULT_JUMP_LEN
         );
-        assert_eq!(with_cleanup.hit_gas_sum, without_cleanup.hit_gas_sum);
+        assert_eq!(with_cleanup.hit_gas_sum, without_cleanup.hit_gas_sum + 32);
     }
 
     #[test]
@@ -1192,7 +1233,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_larger_dense_table_for_small_compact_ranges() {
+    fn selects_dense_table_for_small_internal_switches() {
         assert_eq!(
             select_switch_plan(
                 &values(8),
@@ -1201,7 +1242,7 @@ mod tests {
                 SwitchDefault::CleanupJump,
                 2,
             ),
-            SwitchPlan::Linear
+            SwitchPlan::Dense { low: U256::ZERO, range: 8 }
         );
     }
 

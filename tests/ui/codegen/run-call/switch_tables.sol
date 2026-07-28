@@ -6,6 +6,7 @@
 //@ run-call: testDenseSwitch()
 //@ run-call: testSparseInternalSwitch()
 //@ run-call: testBinarySwitch()
+//@ run-call: testAffineSwitch()
 
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
@@ -44,10 +45,10 @@ contract SwitchTables {
     }
 
     function sparse(uint256 key) external pure returns (uint256) {
-        return sparseInternal(key);
+        return sparseInternal(key, 1);
     }
 
-    function sparseInternal(uint256 key) internal pure returns (uint256 result) {
+    function sparseInternal(uint256 key, uint256 depth) internal pure returns (uint256 result) {
         assembly {
             switch key
             case 0xcbf99d38 { result := 200 }
@@ -83,6 +84,9 @@ contract SwitchTables {
             case 0x3d492ec4 { result := 230 }
             case 0x1f49dbe7 { result := 231 }
             default { result := 999 }
+        }
+        if (depth != 0) {
+            return sparseInternal(key, depth - 1);
         }
     }
 
@@ -229,6 +233,78 @@ contract BinarySwitch {
             default { result := 999 }
         }
     }
+
+    function selectAffine(uint256 key) external pure returns (uint256 result) {
+        assembly {
+            switch key
+            case 20000 { result := 400 }
+            case 20006 { result := 401 }
+            case 20012 { result := 402 }
+            case 20018 { result := 403 }
+            case 20024 { result := 404 }
+            case 20030 { result := 405 }
+            case 20036 { result := 406 }
+            case 20042 { result := 407 }
+            case 20048 { result := 408 }
+            case 20054 { result := 409 }
+            case 20060 { result := 410 }
+            case 20066 { result := 411 }
+            case 20072 { result := 412 }
+            case 20078 { result := 413 }
+            case 20084 { result := 414 }
+            case 20090 { result := 415 }
+            case 20096 { result := 416 }
+            case 20102 { result := 417 }
+            case 20108 { result := 418 }
+            case 20114 { result := 419 }
+            case 20120 { result := 420 }
+            case 20126 { result := 421 }
+            case 20132 { result := 422 }
+            case 20138 { result := 423 }
+            case 20144 { result := 424 }
+            case 20150 { result := 425 }
+            case 20156 { result := 426 }
+            case 20162 { result := 427 }
+            case 20168 { result := 428 }
+            case 20174 { result := 429 }
+            case 20180 { result := 430 }
+            case 20186 { result := 431 }
+            case 20192 { result := 432 }
+            case 20198 { result := 433 }
+            case 20204 { result := 434 }
+            case 20210 { result := 435 }
+            case 20216 { result := 436 }
+            case 20222 { result := 437 }
+            case 20228 { result := 438 }
+            case 20234 { result := 439 }
+            case 20240 { result := 440 }
+            case 20246 { result := 441 }
+            case 20252 { result := 442 }
+            case 20258 { result := 443 }
+            case 20264 { result := 444 }
+            case 20270 { result := 445 }
+            case 20276 { result := 446 }
+            case 20282 { result := 447 }
+            case 20288 { result := 448 }
+            case 20294 { result := 449 }
+            case 20300 { result := 450 }
+            case 20306 { result := 451 }
+            case 20312 { result := 452 }
+            case 20318 { result := 453 }
+            case 20324 { result := 454 }
+            case 20330 { result := 455 }
+            case 20336 { result := 456 }
+            case 20342 { result := 457 }
+            case 20348 { result := 458 }
+            case 20354 { result := 459 }
+            case 20360 { result := 460 }
+            case 20366 { result := 461 }
+            case 20372 { result := 462 }
+            case 20378 { result := 463 }
+            case 20384 { result := 464 }
+            default { result := 999 }
+        }
+    }
 }
 
 contract SwitchTablesTest {
@@ -342,5 +418,14 @@ contract SwitchTablesTest {
         assert(binarySwitch.select(39596) == 305);
         assert(binarySwitch.select(47515) == 306);
         assert(binarySwitch.select(47516) == 999);
+    }
+
+    function testAffineSwitch() public view {
+        assert(binarySwitch.selectAffine(19999) == 999);
+        assert(binarySwitch.selectAffine(20000) == 400);
+        assert(binarySwitch.selectAffine(20001) == 999);
+        assert(binarySwitch.selectAffine(20192) == 432);
+        assert(binarySwitch.selectAffine(20384) == 464);
+        assert(binarySwitch.selectAffine(20385) == 999);
     }
 }

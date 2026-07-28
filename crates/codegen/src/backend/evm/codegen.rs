@@ -5377,9 +5377,27 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_op(op::EQ);
             self.scheduler.instruction_executed_untracked(2);
         }
-        self.asm.emit_push_label(self.block_labels[&target]);
-        self.asm.emit_op(op::JUMPI);
-        self.scheduler.instruction_executed(1, None);
+        if self.emitting_entry {
+            self.asm.emit_push_label(self.block_labels[&target]);
+            self.asm.emit_op(op::JUMPI);
+            self.scheduler.instruction_executed(1, None);
+        } else {
+            self.asm.emit_op(op::ISZERO);
+            self.scheduler.instruction_executed_untracked(1);
+            let next = self.asm.new_label();
+            self.asm.emit_push_label(next);
+            self.asm.emit_op(op::JUMPI);
+            self.scheduler.instruction_executed(1, None);
+
+            let next_stack = self.scheduler.stack.clone();
+            self.asm.emit_op(op::POP);
+            self.scheduler.stack.pop();
+            self.asm.emit_push_label(self.block_labels[&target]);
+            self.asm.emit_op(op::JUMP);
+
+            self.asm.define_label(next);
+            self.scheduler.stack = next_stack;
+        }
     }
 
     fn emit_mir_switch_default(&mut self, default: BlockId, can_fallthrough: bool) {
