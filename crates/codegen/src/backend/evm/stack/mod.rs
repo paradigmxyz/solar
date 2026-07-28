@@ -23,7 +23,8 @@
 //!   improvements in action count and static gas; larger layouts use the verified greedy result and
 //!   reserve the search for failures.
 //! - [`spill`] assigns memory slots. Values visible across blocks receive function-stable
-//!   reservations, while block-local slots are released and reused after the block is emitted.
+//!   reservations, while a separate allocation list lets block-local slots be released and reused
+//!   after the block is emitted without rescanning every stable reservation.
 //!
 //! Local instruction scheduling and CFG-edge shuffling are intentionally
 //! separate. The former optimizes a small operand head without imposing one
@@ -88,11 +89,15 @@
 //! other. Gas mode also uses verified one-action and unary fast paths. Longer
 //! unambiguous plans use a deterministic walk only when its cost reaches the
 //! admissible lower bound; ambiguous layouts use bounded A*. Before A*, a required value with no
-//! reload route below `SWAP16` sends control directly to the spilling fallback. The search stores
-//! parent links instead of cloned action histories and independently caps expansions, created
-//! states, visited states, the open frontier, and estimated retained bytes. These are tiers of
-//! the same planner, not sequential optimizers: every accepted result satisfies
-//! the same exact goal and cost ordering, and a tier that cannot prove its
+//! reload route below `SWAP16` sends control directly to the spilling fallback. The same preflight
+//! rejects a dead operand copy below `SWAP16` when no accessible surplus can be popped to expose
+//! it: no planner transition could remove that copy, so search cannot satisfy the exact goal. The
+//! search stores parent links instead of cloned action histories and independently caps
+//! expansions, created states, visited states, the open frontier, and estimated retained bytes.
+//! A function-wide expansion budget bounds the sum of otherwise independent searches, and
+//! repeated capped failures disable later A* calls while leaving the exact and linear tiers
+//! available. These are tiers of the same planner, not sequential optimizers: every accepted result
+//! satisfies the same exact goal and cost ordering, and a tier that cannot prove its
 //! result falls through without mutating the stack.
 //! Transitions are `DUP`, `SWAP`, safe redundant-copy `POP`, and sound
 //! materializations. A goal is valid only when the exact operand head is
@@ -100,7 +105,9 @@
 //! operand copy remains below it. The final condition prevents a locally cheap
 //! rematerialization such as `PUSH0` from deferring a more expensive cleanup
 //! until immediately after the instruction. Every build replays an accepted
-//! tier against that complete goal and falls back if validation fails. Exhaustive
+//! tier against that complete goal, rejects stack operations outside `DUP1..16` and `SWAP1..16`,
+//! and verifies that each push or load materializes its claimed MIR value. Validation failure
+//! falls back without applying the plan. Exhaustive
 //! small-layout tests compare the selected plan with a reference Dijkstra search
 //! under the full cost order and separately check that the heuristic never
 //! exceeds exact remaining cost when anonymous slots are present.

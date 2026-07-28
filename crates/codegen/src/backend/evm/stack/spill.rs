@@ -5,7 +5,9 @@
 //! lowering places them after the external function's static memory, inside an
 //! internal function's frame, or in the constructor's reserved spill region.
 //! Cross-block reservations remain stable for the function, while block-local
-//! offsets are reused.
+//! allocations are tracked separately and their offsets are reused. Block
+//! cleanup therefore scales with allocations made in that block, not with the
+//! number of stable reservations in the function.
 
 use crate::{memory::EvmMemoryLayout, mir::ValueId};
 use solar_data_structures::{

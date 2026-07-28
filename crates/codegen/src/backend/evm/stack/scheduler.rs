@@ -48,13 +48,17 @@
 //! accounted for separately. The deterministic walk scores candidates by applying and undoing them
 //! on one scratch layout, then records only the chosen action; it does not clone partial histories.
 //! Otherwise the A* queue handles the ambiguous layout. A required value with no reload route below
-//! `SWAP16` bypasses search so the fallback can expose and spill it. Search states retain parent
-//! links rather than full action histories, and separate limits bound expansions, created states,
-//! visited states, the open frontier, and estimated retained bytes. Reaching a limit stops new
-//! expansion while already queued goals remain eligible. Gas optimization orders plans by static
-//! gas, encoded bytes, and action count. Size optimization orders them by encoded bytes, static
-//! gas, and action count. Equal estimates prefer deeper states, then queue serials make traversal
-//! deterministic. Returning `None` delegates to the existing correctness-oriented emitter.
+//! `SWAP16` bypasses search so the fallback can expose and spill it. Search also bypasses a dead
+//! operand copy below `SWAP16` when the accessible window has no removable surplus: no available
+//! action could shorten the stack enough to remove that copy. Search states retain parent links
+//! rather than full action histories, and separate per-search limits bound expansions, created
+//! states, visited states, the open frontier, and estimated retained bytes. Reaching a limit stops
+//! new expansion while already queued goals remain eligible. Searches also share a function-wide
+//! expansion budget, and repeated capped failures stop later A* attempts without disabling the
+//! cheaper planning tiers. Gas optimization orders plans by static gas, encoded bytes, and action
+//! count. Size optimization orders them by encoded bytes, static gas, and action count. Equal
+//! estimates prefer deeper states, then queue serials make traversal deterministic. Returning
+//! `None` delegates to the existing correctness-oriented emitter.
 //! “Optimal” here means the least estimated local preparation cost within this action model, not a
 //! whole-function stack-allocation optimum.
 //!
@@ -62,11 +66,13 @@
 //!
 //! [`StackScheduler::apply_operand_plan`] is the only operation that commits a
 //! plan. Before that commit, every accepted planner tier is replayed against
-//! the exact goal in all builds; an invalid plan falls back without changing
-//! state. Applying the validated plan replays every action into the live model
-//! and returns the matching physical operations for emission. Lowering then
-//! emits the EVM instruction and calls [`StackScheduler::instruction_executed`]
-//! with its stack effect.
+//! the exact goal in all builds. Replay accepts only `DUP1..16` and `SWAP1..16`
+//! and derives every immediate, argument, or spill load from the claimed MIR
+//! value; an invalid plan falls back without changing state. Applying the
+//! validated plan replays every action into the live model and returns the
+//! matching physical operations for emission. Lowering then emits the EVM
+//! instruction and calls [`StackScheduler::instruction_executed`] with its
+//! stack effect.
 //!
 //! Complete block-edge layouts use the separate shuffler through
 //! [`StackScheduler::shuffle_to_layout`]. Keeping local operand preparation and
