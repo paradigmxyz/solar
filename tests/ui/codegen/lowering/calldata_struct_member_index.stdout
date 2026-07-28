@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_member_index.sol:CalldataStructMemberIndex ===
 @module CalldataStructMemberIndex
-fn @plain(arg0: calldataslice, arg1: u256) {
+fn @plain(arg0: calldataslice, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -52,11 +52,10 @@ fn @plain(arg0: calldataslice, arg1: u256) {
     mstore v23, v7
     v24 = memory_object_field_addr memorystruct<4>, v8, 3
     v25 = mload v24
-    mstore 128, v25
-    returndata 128, 32
+    ret v25
 }
 
-fn @member(arg0: u256, arg1: u256) {
+fn @member(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -268,11 +267,10 @@ fn @member(arg0: u256, arg1: u256) {
     mstore v108, v92
     v109 = memory_object_field_addr memorystruct<4>, v93, 3
     v110 = mload v109
-    mstore 128, v110
-    returndata 128, 32
+    ret v110
 }
 
-fn @word(arg0: u256, arg1: u256) {
+fn @word(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -454,11 +452,10 @@ fn @word(arg0: u256, arg1: u256) {
     v91 = mul arg1, 32
     v92 = add v90, v91
     v93 = calldataload v92
-    mstore 128, v93
-    returndata 128, 32
+    ret v93
 }
 
-fn @lengths(arg0: u256) {
+fn @lengths(arg0: u256) -> (u256, u256, u256) [abi_returns=[word, word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -649,11 +646,6 @@ fn @lengths(arg0: u256) {
     v104 = add v102, 32
     v105 = make_calldata_slice v104, v103
     v106 = slice_len v105
-    mstore 128, v88
-    v107 = add 128, 32
-    mstore v107, v97
-    v108 = add 128, 64
-    mstore v108, v106
-    returndata 128, 96
+    ret v88, v97, v106
 }
 

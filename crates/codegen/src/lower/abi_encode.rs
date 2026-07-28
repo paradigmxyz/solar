@@ -8,7 +8,6 @@
 
 use super::Lowerer;
 use crate::{
-    memory::EvmMemoryLayout,
     mir::{
         AbiLayout, AbiType, FunctionBuilder, MemoryObjectKind, MirType, SliceLocation, Value,
         ValueId,
@@ -205,65 +204,6 @@ impl<'gcx> Lowerer<'gcx> {
             builder.add(args_size, selector_size)
         };
         builder.revert(buf, size);
-    }
-
-    /// Allocates a return buffer, ABI-encodes `items` into it, and terminates the
-    /// function with `ReturnData`.
-    pub(super) fn emit_abi_return(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        items: &[(ValueId, Ty<'gcx>)],
-    ) {
-        if items.is_empty() {
-            builder.stop();
-            return;
-        }
-
-        // The most common dynamic-return shape — a single `bytes`/`string`
-        // value — encodes through one shared helper per module instead of
-        // duplicating the offset/length/copy sequence in every wrapper.
-        if let [(value, ty)] = items
-            && !self.synthesizing_helper
-            && matches!(
-                ty.peel_refs().kind,
-                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
-            )
-        {
-            let helper = self.ensure_ret_bytes_helper();
-            builder.internal_call_void(helper, vec![*value], 0);
-            // The helper terminates externally; this is unreachable.
-            builder.invalid();
-            return;
-        }
-
-        let head_size: u64 = items.iter().map(|&(_, t)| self.abi_head_size(t)).sum();
-        let has_dynamic = items.iter().any(|&(_, ty)| self.abi_is_dynamic(ty));
-        let calldata_slices = FxHashSet::default();
-        if !has_dynamic {
-            let buf = builder.imm_u64(EvmMemoryLayout::HEAP_START);
-            let size = self.abi_encode_tuple(
-                builder,
-                items,
-                buf,
-                &calldata_slices,
-                lower_abi_encode::AbiScratch { base: None, depth: 0 },
-            );
-            builder.ret_data(buf, size);
-            return;
-        }
-
-        let scratch_words = self.abi_scratch_words(items);
-        let scratch_base =
-            (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
-        let buf = self.allocate_memory(builder, head_size);
-        let size = self.abi_encode_tuple(
-            builder,
-            items,
-            buf,
-            &calldata_slices,
-            lower_abi_encode::AbiScratch { base: scratch_base, depth: 0 },
-        );
-        builder.ret_data(buf, size);
     }
 
     fn abi_scratch_words(&self, items: &[(ValueId, Ty<'gcx>)]) -> u64 {
@@ -794,19 +734,14 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(done_block);
     }
 
-    /// Terminates the current function for the implicit-return epilogue's gathered
-    /// `items` (one per declared return). External entries go through the ABI
-    /// encoder; internal-frame functions return raw words/pointers.
-    pub(super) fn finish_external_or_internal_return(
+    /// Terminates the current function with the raw values gathered for its
+    /// declared returns. `lower-abi` turns returns from external entries into
+    /// ABI-encoded returndata; internal functions keep this convention.
+    pub(super) fn finish_return(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         items: Vec<(ValueId, Ty<'gcx>)>,
-        external: bool,
     ) {
-        if external {
-            self.emit_abi_return(builder, &items);
-            return;
-        }
         let vals: Vec<ValueId> = items.into_iter().map(|(v, _)| v).collect();
         builder.ret(vals);
     }

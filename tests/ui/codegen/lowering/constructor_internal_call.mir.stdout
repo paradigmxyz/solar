@@ -1,10 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_call.sol:ConstructorInternalCall ===
 @module ConstructorInternalCall
-fn @value() {
+fn @value() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 
 fn @_anonymous(arg0: u256) {

@@ -163,7 +163,7 @@ fn @midWord(arg0: memorystruct) -> bytes32 {
 
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_field_slice.sol:CalldataStructFieldSlice ===
 @module CalldataStructFieldSlice
-fn @factory(arg0: u256) {
+fn @factory(arg0: u256) -> address [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -338,8 +338,7 @@ fn @factory(arg0: u256) {
     br v97, bb22, bb23
   bb21:
     v107 = mload 0 !metadata(memory=scratch)
-    mstore 128, v107
-    returndata 128, 32
+    ret v107
   bb22:
     revert 0, 0
   bb23:
@@ -360,7 +359,7 @@ fn @factory(arg0: u256) {
     jump bb21
 }
 
-fn @tailHash(arg0: u256) {
+fn @tailHash(arg0: u256) -> bytes32 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -534,8 +533,7 @@ fn @tailHash(arg0: u256) {
     br v96, bb22, bb23
   bb21:
     v115 = mload 0 !metadata(memory=scratch)
-    mstore 128, v115
-    returndata 128, 32
+    ret v115
   bb22:
     revert 0, 0
   bb23:
@@ -576,7 +574,7 @@ fn @tailHash(arg0: u256) {
     jump bb21
 }
 
-fn @midWord(arg0: u256) {
+fn @midWord(arg0: u256) -> bytes32 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -746,7 +744,6 @@ fn @midWord(arg0: u256) {
     v90 = make_calldata_slice v89, v88
     v91 = slice_ptr v90
     v92 = calldataload v91
-    mstore 128, v92
-    returndata 128, 32
+    ret v92
 }
 

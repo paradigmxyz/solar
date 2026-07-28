@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_array_subslice.sol:CalldataArraySubslice ===
 @module CalldataArraySubslice
-fn @word(arg0: calldataslice) {
+fn @word(arg0: calldataslice) -> memoryarray [abi_returns=[memory_array<word>]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -35,18 +35,6 @@ fn @word(arg0: calldataslice) {
     set_memory_object_len memoryarray, v15, v10
     v16 = memory_object_data memoryarray, v15
     calldatacopy v16, v11, v13
-    v17 = alloc raw, exact, uninitialized, infallible, 32
-    v18 = add v17, 32
-    v19 = sub v18, v17
-    mstore v17, v19
-    v20 = memory_object_len memoryarray, v15
-    mstore v18, v20
-    v21 = mul v20, 32
-    v22 = add v18, 32
-    v23 = memory_object_data memoryarray, v15
-    v24 = add v22, v21
-    mcopy v22, v23, v21
-    v25 = sub v24, v17
-    returndata v17, v25
+    ret v15
 }
 

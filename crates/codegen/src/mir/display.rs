@@ -257,6 +257,9 @@ pub(crate) fn display_function_text<'a>(
                 write!(f, "({})", func.returns.iter().format(", "))?;
             }
         }
+        if let Some(layout) = &func.abi_returns {
+            write!(f, " [abi_returns={layout}]")?;
+        }
         writeln!(f, " {{")?;
 
         write!(
