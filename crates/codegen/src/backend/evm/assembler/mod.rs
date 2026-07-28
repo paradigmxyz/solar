@@ -422,6 +422,7 @@ impl<'gcx> Assembler<'gcx> {
             &mut labels,
             self,
             self.gcx.sess.opts.evm_version,
+            self.gcx.sess.opts.optimization.is_size(),
         );
         let evm_ir = capture_evm_ir.then_some(ir_program);
         PreparedAssembly {
@@ -879,6 +880,55 @@ PUSH1 0x03
 SHL
 PUSH2 0x100e
 SWAP1
+SHR
+PUSH1 0xff
+AND
+JUMP
+JUMPDEST
+STOP
+JUMPDEST
+INVALID
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn indexed_jump_uses_two_packed_label_tables_for_size() {
+        with_assembler(size_optimized_opts(), |mut asm| {
+            let left = asm.new_label();
+            let right = asm.new_label();
+            let mut targets = vec![left; 32];
+            targets.push(right);
+
+            asm.emit_push(U256::from(32));
+            asm.emit_indexed_jump(targets);
+            asm.define_label(left);
+            asm.emit_op(op::STOP);
+            asm.define_label(right);
+            asm.emit_op(op::INVALID);
+
+            assert_data_eq!(
+                disassemble(&asm.assemble().bytecode),
+                str![[r#"
+PUSH1 0x20
+DUP1
+PUSH1 0x05
+SHR
+DUP1
+PUSH1 0x3d
+MUL
+SWAP1
+ISZERO
+PUSH32 0x3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b
+MUL
+ADD
+SWAP1
+PUSH1 0x1f
+AND
+PUSH1 0x03
+SHL
 SHR
 PUSH1 0xff
 AND

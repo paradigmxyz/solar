@@ -1,4 +1,5 @@
-//@ revisions: auto buckets perfect
+//@ revisions: auto size buckets perfect
+//@[size] compile-flags: -O size
 //@[buckets] compile-flags: -Zswitch-lowering=buckets
 //@[perfect] compile-flags: -Zswitch-lowering=perfect
 //@ run-call: testBucketDispatch()
