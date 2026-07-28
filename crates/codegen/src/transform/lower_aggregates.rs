@@ -1,9 +1,13 @@
 //! Lower semantic memory/storage aggregate operations to word operations.
 
 use crate::{
-    mir::{Function, FunctionBuilder, InstKind, Module, StorageField, StorageLayout, ValueId},
+    mir::{
+        Function, FunctionBuilder, InstKind, Module, PackedStorageField, StorageCursor,
+        StorageField, StorageLayout, StoragePosition, ValueId,
+    },
     pass::MirPass,
 };
+use alloy_primitives::U256;
 use solar_sema::Gcx;
 use std::sync::Arc;
 
@@ -104,19 +108,19 @@ fn lower_storage_to_memory(
 ) {
     match layout {
         StorageLayout::Struct(fields) => {
-            let mut storage_offset = 0;
+            let mut cursor = StorageCursor::default();
             for (index, field) in fields.iter().enumerate() {
                 let memory = builder.memory_object_field_addr(
                     memory,
                     crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
                     index as u64,
                 );
-                lower_storage_field_to_memory(builder, field, storage, storage_offset, memory);
-                storage_offset += field.storage_slots();
+                let position = cursor.allocate(field);
+                lower_storage_field_to_memory(builder, field, storage, position, memory);
             }
         }
         StorageLayout::Array { element, len } => {
-            let mut storage_offset = 0;
+            let mut cursor = StorageCursor::default();
             for index in 0..*len {
                 let index_value = builder.imm_u64(index);
                 let memory = builder.memory_object_element_addr(
@@ -124,8 +128,8 @@ fn lower_storage_to_memory(
                     crate::mir::MemoryObjectLayout::word_fixed_array(*len),
                     index_value,
                 );
-                lower_storage_field_to_memory(builder, element, storage, storage_offset, memory);
-                storage_offset += element.storage_slots();
+                let position = cursor.allocate(element);
+                lower_storage_field_to_memory(builder, element, storage, position, memory);
             }
         }
     }
@@ -135,13 +139,17 @@ fn lower_storage_field_to_memory(
     builder: &mut FunctionBuilder<'_>,
     field: &StorageField,
     storage: ValueId,
-    storage_offset: u64,
+    position: StoragePosition,
     dest: ValueId,
 ) {
-    let slot = offset_value(builder, storage, storage_offset);
+    let slot = offset_value(builder, storage, position.slot);
     match field {
         StorageField::Word => {
             let value = builder.sload(slot);
+            builder.mstore(dest, value);
+        }
+        StorageField::Packed(field) => {
+            let value = load_packed_field(builder, slot, position.offset, *field);
             builder.mstore(dest, value);
         }
         StorageField::Aggregate(layout) => {
@@ -173,19 +181,19 @@ fn lower_memory_to_storage(
 ) {
     match layout {
         StorageLayout::Struct(fields) => {
-            let mut storage_offset = 0;
+            let mut cursor = StorageCursor::default();
             for (index, field) in fields.iter().enumerate() {
                 let memory = builder.memory_object_field_addr(
                     memory,
                     crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
                     index as u64,
                 );
-                lower_memory_field_to_storage(builder, field, memory, storage, storage_offset);
-                storage_offset += field.storage_slots();
+                let position = cursor.allocate(field);
+                lower_memory_field_to_storage(builder, field, memory, storage, position);
             }
         }
         StorageLayout::Array { element, len } => {
-            let mut storage_offset = 0;
+            let mut cursor = StorageCursor::default();
             for index in 0..*len {
                 let index_value = builder.imm_u64(index);
                 let memory = builder.memory_object_element_addr(
@@ -193,8 +201,8 @@ fn lower_memory_to_storage(
                     crate::mir::MemoryObjectLayout::word_fixed_array(*len),
                     index_value,
                 );
-                lower_memory_field_to_storage(builder, element, memory, storage, storage_offset);
-                storage_offset += element.storage_slots();
+                let position = cursor.allocate(element);
+                lower_memory_field_to_storage(builder, element, memory, storage, position);
             }
         }
     }
@@ -205,12 +213,15 @@ fn lower_memory_field_to_storage(
     field: &StorageField,
     source: ValueId,
     storage: ValueId,
-    storage_offset: u64,
+    position: StoragePosition,
 ) {
-    let slot = offset_value(builder, storage, storage_offset);
+    let slot = offset_value(builder, storage, position.slot);
     let value = builder.mload(source);
     match field {
         StorageField::Word => builder.sstore(slot, value),
+        StorageField::Packed(field) => {
+            store_packed_field(builder, slot, position.offset, *field, value);
+        }
         StorageField::Aggregate(layout) => {
             lower_memory_to_storage(builder, layout, value, slot);
         }
@@ -236,4 +247,62 @@ fn offset_value(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -
         let offset = builder.imm_u64(offset);
         builder.add(base, offset)
     }
+}
+
+fn load_packed_field(
+    builder: &mut FunctionBuilder<'_>,
+    slot: ValueId,
+    offset: u8,
+    field: PackedStorageField,
+) -> ValueId {
+    let word = builder.sload(slot);
+    let value = if offset == 0 {
+        word
+    } else {
+        let shift = builder.imm_u64(u64::from(offset) * 8);
+        builder.shr(shift, word)
+    };
+    let mask = (U256::from(1) << (usize::from(field.size) * 8)) - U256::from(1);
+    let mask = builder.imm_u256(mask);
+    let value = builder.and(value, mask);
+    if field.left_aligned {
+        let shift = builder.imm_u64(u64::from(32 - field.size) * 8);
+        builder.shl(shift, value)
+    } else if field.signed {
+        let size = builder.imm_u64(u64::from(field.size - 1));
+        builder.signextend(size, value)
+    } else {
+        value
+    }
+}
+
+fn store_packed_field(
+    builder: &mut FunctionBuilder<'_>,
+    slot: ValueId,
+    offset: u8,
+    field: PackedStorageField,
+    value: ValueId,
+) {
+    let value = if field.left_aligned {
+        let shift = builder.imm_u64(u64::from(32 - field.size) * 8);
+        builder.shr(shift, value)
+    } else {
+        value
+    };
+    let mask = (U256::from(1) << (usize::from(field.size) * 8)) - U256::from(1);
+    let shift_bits = usize::from(offset) * 8;
+    let shifted_mask = mask << shift_bits;
+    let keep_mask = builder.imm_u256(!shifted_mask);
+    let value_mask = builder.imm_u256(mask);
+    let word = builder.sload(slot);
+    let cleared = builder.and(word, keep_mask);
+    let value = builder.and(value, value_mask);
+    let value = if offset == 0 {
+        value
+    } else {
+        let shift = builder.imm_u64(shift_bits as u64);
+        builder.shl(shift, value)
+    };
+    let updated = builder.or(cleared, value);
+    builder.sstore(slot, updated);
 }

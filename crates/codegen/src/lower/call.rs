@@ -69,6 +69,15 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_internal_function_pointer_call(builder, callee, args, function);
         }
 
+        if let Some(TyKind::Fn(function)) = self.get_expr_type(callee).map(|ty| ty.kind)
+            && function.is_external()
+            && function.function_id.is_none()
+            && self.gcx.resolved_function(callee).is_none()
+        {
+            return self
+                .lower_external_function_pointer_call(builder, callee, args, call_opts, function);
+        }
+
         if let ExprKind::Member(base, member) = &callee.kind {
             return self
                 .lower_member_call_with_opts(builder, callee, base, *member, args, call_opts);
@@ -145,6 +154,90 @@ impl<'gcx> Lowerer<'gcx> {
             return builder.imm_u64(0);
         };
         builder.internal_call(dispatcher, arg_values, self.lower_type_from_ty(return_ty), returns)
+    }
+
+    fn lower_external_function_pointer_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        callee: &hir::Expr<'_>,
+        args: &CallArgs<'_>,
+        call_opts: Option<&[hir::NamedArg<'_>]>,
+        function: &'gcx TyFn<'gcx>,
+    ) -> ValueId {
+        let function_value = self.lower_expr(builder, callee);
+        let selector_mask = builder.imm_u256(U256::from(u32::MAX) << 64);
+        let selector = builder.and(function_value, selector_mask);
+        let selector_shift = builder.imm_u64(160);
+        let selector = builder.shl(selector_shift, selector);
+        let arg_exprs = args.exprs().collect::<Vec<_>>();
+        let Some((calldata_start, calldata_size)) =
+            self.abi_encode_call_payload(builder, Some(selector), &arg_exprs)
+        else {
+            return self.err_value(
+                builder,
+                callee.span,
+                "codegen cannot determine external call argument types",
+            );
+        };
+
+        let address_shift = builder.imm_u64(96);
+        let address = builder.shr(address_shift, function_value);
+        let scratch_address = builder.imm_u64(0);
+        builder.mstore(scratch_address, address);
+        let scratch_calldata = builder.imm_u64(32);
+        builder.mstore(scratch_calldata, calldata_start);
+
+        let num_returns = function
+            .returns
+            .iter()
+            .map(|ty| match ty.kind {
+                TyKind::Struct(struct_id) => self.gcx.hir.strukt(struct_id).fields.len(),
+                _ => 1,
+            })
+            .sum::<usize>()
+            .max(1);
+        let struct_return = if let [return_ty] = function.returns {
+            if let TyKind::Struct(struct_id) = return_ty.kind {
+                Some((struct_id, self.gcx.hir.strukt(struct_id).fields.len()))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let (ret_offset, ret_size, struct_ptr) =
+            if let Some((_struct_id, field_count)) = struct_return {
+                let size = builder.imm_u64(field_count as u64 * 32);
+                let ptr = builder.alloc_object(
+                    size,
+                    crate::mir::MemoryObjectLayout::Struct { fields: field_count as u64 },
+                    crate::mir::AllocationSemantics::INTERNAL,
+                );
+                (ptr, size, Some(ptr))
+            } else {
+                let offset = if num_returns > 1 { calldata_start } else { builder.imm_u64(0) };
+                let size = builder.imm_u64(num_returns as u64 * 32);
+                (offset, size, None)
+            };
+
+        let value = self.extract_call_value(builder, call_opts);
+        let address = builder.mload(scratch_address);
+        let gas = builder.gas();
+        let calldata_start = builder.mload(scratch_calldata);
+        let success =
+            builder.call(gas, address, value, calldata_start, calldata_size, ret_offset, ret_size);
+        let failed = builder.iszero(success);
+        let fail_block = builder.create_block();
+        let continue_block = builder.create_block();
+        builder.branch(failed, fail_block, continue_block);
+        builder.switch_to_block(fail_block);
+        let zero = builder.imm_u64(0);
+        let size = builder.returndatasize();
+        builder.returndatacopy(zero, zero, size);
+        builder.revert(zero, size);
+        builder.switch_to_block(continue_block);
+
+        struct_ptr.unwrap_or_else(|| builder.mload(ret_offset))
     }
 
     fn ensure_internal_function_pointer_dispatcher(

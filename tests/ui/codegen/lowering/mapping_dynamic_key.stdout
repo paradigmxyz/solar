@@ -12,7 +12,8 @@ fn @lookup(arg0: calldataslice) {
     mstore 128, 0
     v3 = mapping_slot_calldata arg0, 0
     v4 = sload v3 !metadata(storage=symbolic(v3))
-    mstore 128, v4
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 128, v5
     returndata 128, 32
 }
 
@@ -44,7 +45,8 @@ fn @set(arg0: memorybytes, arg1: address) {
     revert 0, 0
   bb4:
     v15 = mapping_slot_memory v9, 0
-    sstore v15, arg1 !metadata(storage=symbolic(v15))
+    v16 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore v15, v16 !metadata(storage=symbolic(v15))
     stop
 }
 
@@ -71,7 +73,8 @@ fn @get(arg0: memorybytes) {
     mstore 128, 0
     v12 = mapping_slot_memory v9, 0
     v13 = sload v12 !metadata(storage=symbolic(v12))
-    mstore 128, v13
+    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 128, v14
     returndata 128, 32
 }
 

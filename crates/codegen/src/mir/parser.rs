@@ -32,8 +32,8 @@ use super::{
     AbiLayout, AbiLayoutRef, AbiType, AllocationAlignment, AllocationFailure,
     AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, EffectKind, Function,
     FunctionBuilder, FunctionId, InstId, InstKind, Instruction, InstructionMetadata,
-    MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField,
-    StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
+    MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, PackedStorageField, StorageAlias,
+    StorageField, StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
 };
 use crate::mir::{MirType, SliceLocation};
 use alloy_primitives::U256;
@@ -730,7 +730,37 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_storage_field(&mut self) -> PResult<'sess, StorageField> {
         if self.parser.eat_keyword(sym::word) {
-            return Ok(StorageField::Word);
+            if !self.parser.eat(TokenKind::Lt) {
+                return Ok(StorageField::Word);
+            }
+            let size =
+                self.parser.parse_uint()?.try_into().map_err(|_| {
+                    self.parser.error("packed storage field size does not fit in u8")
+                })?;
+            self.parser.expect(TokenKind::Comma)?;
+            let left_aligned =
+                self.parser.parse_uint()?.try_into().map_err(|_| {
+                    self.parser.error("packed storage field flag does not fit in u8")
+                })?;
+            self.parser.expect(TokenKind::Comma)?;
+            let signed =
+                self.parser.parse_uint()?.try_into().map_err(|_| {
+                    self.parser.error("packed storage field flag does not fit in u8")
+                })?;
+            self.expect_gt()?;
+            if !(1..32).contains(&size) {
+                return Err(self.parser.error("packed storage field size must be 1 through 31"));
+            }
+            let parse_bool = |value| match value {
+                0 => Ok(false),
+                1 => Ok(true),
+                _ => Err(self.parser.error("packed storage field flag must be 0 or 1")),
+            };
+            return Ok(StorageField::Packed(PackedStorageField::new(
+                size,
+                parse_bool(left_aligned)?,
+                parse_bool(signed)?,
+            )));
         }
         Ok(StorageField::Aggregate(self.parse_storage_layout()?))
     }

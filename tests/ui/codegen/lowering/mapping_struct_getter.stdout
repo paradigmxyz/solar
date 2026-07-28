@@ -20,15 +20,17 @@ fn @items(arg0: u256) {
     mstore 192, 0
     v3 = mapping_slot arg0, 1
     v4 = sload v3 !metadata(storage=symbolic(v3))
-    v5 = add v3, 1
-    v6 = sload v5 !metadata(storage=offset(v3, 1))
-    v7 = add v3, 2
-    v8 = sload v7 !metadata(storage=offset(v3, 2))
-    mstore 128, v4
-    v9 = add 128, 32
-    mstore v9, v6
-    v10 = add 128, 64
-    mstore v10, v8
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = add v3, 1
+    v7 = sload v6 !metadata(storage=offset(v3, 1))
+    v8 = add v3, 2
+    v9 = sload v8 !metadata(storage=offset(v3, 2))
+    v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 128, v5
+    v11 = add 128, 32
+    mstore v11, v7
+    v12 = add 128, 64
+    mstore v12, v10
     returndata 128, 96
 }
 

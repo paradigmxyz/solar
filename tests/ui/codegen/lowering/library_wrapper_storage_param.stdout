@@ -2,7 +2,7 @@
 // === ROOT/tests/ui/codegen/lowering/library_wrapper_storage_param.sol:L (runtime) ===
 @module runtime
 bb0:
-  push 416
+  push 384
   push 64
   mstore
   callvalue
@@ -47,7 +47,7 @@ bb5:
   sgt
   push bb4
   jumpi
-  push 2
+  push 1
   push 4
   calldataload
   add
@@ -59,7 +59,7 @@ bb5:
   calldataload
   dup2
   dup1
-  push 288
+  push 320
   mstore
   add
   dup1
@@ -67,7 +67,7 @@ bb5:
   mstore
   dup2
   dup1
-  push 288
+  push 320
   mstore
   dup2
   lt
@@ -97,43 +97,54 @@ bb5:
   calldataload
   sload
   dup1
-  push 352
+  push 256
   mstore
+  push 0
+  not
+  push 128
+  shr
   dup2
+  and
+  dup3
   dup1
-  push 320
+  push 352
   mstore
   add
   dup1
   push 192
   mstore
-  dup2
+  dup3
   dup1
-  push 320
+  push 352
   mstore
   dup2
   lt
-  swap2
+  swap3
   pop
-  dup2
-  swap2
+  dup3
+  swap3
+  pop
   pop
   pop
   push bb11
   jumpi
-  push 1
-  push 4
-  calldataload
-  add
-  sload
+  push 256
+  mload
   dup1
-  push 384
+  push 256
   mstore
+  push 128
+  shr
+  push 0
+  not
+  push 128
+  shr
+  and
   push 192
   mload
   add
   dup1
-  push 256
+  push 288
   mstore
   push 192
   mload
@@ -143,10 +154,10 @@ bb5:
   gt
   push bb11
   jumpi
-  push 256
+  push 288
   mload
   dup1
-  push 256
+  push 288
   mstore
   push 128
   mstore

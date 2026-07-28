@@ -197,6 +197,16 @@ impl<'gcx> Lowerer<'gcx> {
                                     self.compute_member_selector(receiver, *function_name);
                                 return builder.imm_u256(U256::from(selector) << 224);
                             }
+                            let function = self.lower_expr(builder, base);
+                            let selector_mask = builder.imm_u256(U256::from(u32::MAX) << 64);
+                            let selector = builder.and(function, selector_mask);
+                            let shift = builder.imm_u64(160);
+                            return builder.shl(shift, selector);
+                        }
+                        Builtin::FunctionAddress => {
+                            let function = self.lower_expr(builder, base);
+                            let shift = builder.imm_u64(96);
+                            return builder.shr(shift, function);
                         }
                         Builtin::EventSelector => {
                             if let Some(selector) = self.lower_resolved_event_selector(base) {
@@ -270,6 +280,21 @@ impl<'gcx> Lowerer<'gcx> {
                     return builder.imm_u64(Self::internal_function_pointer_id(function_id));
                 }
 
+                if let Some(TyKind::Fn(function)) = self.get_expr_type(expr).map(|ty| ty.kind)
+                    && function.is_external()
+                    && let Some(hir::Res::Item(hir::ItemId::Function(function_id))) =
+                        self.gcx.resolved_expr(expr)
+                {
+                    let address = self.lower_expr(builder, base);
+                    let address_mask = builder.imm_u256((U256::from(1) << 160) - U256::from(1));
+                    let address = builder.and(address, address_mask);
+                    let address_shift = builder.imm_u64(96);
+                    let address = builder.shl(address_shift, address);
+                    let selector = u32::from_be_bytes(self.gcx.function_selector(function_id).0);
+                    let selector = builder.imm_u256(U256::from(selector) << 64);
+                    return builder.or(address, selector);
+                }
+
                 // Handle contract/library constants (e.g. MachineLib.NO_RECOVERY_PC).
                 if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) =
                     self.gcx.resolved_expr(expr)
@@ -311,23 +336,24 @@ impl<'gcx> Lowerer<'gcx> {
 
                 // Check if this is a storage struct member access (e.g., storedPoint.x)
                 if let Some((struct_id, field_index)) = self.resolved_struct_field(expr)
-                    && let Some(slot) = self.lower_storage_struct_field_slot_by_index(
-                        builder,
-                        base,
-                        struct_id,
-                        field_index,
-                    )
+                    && let Some((slot, location)) = self
+                        .lower_storage_struct_field_location_by_index(
+                            builder,
+                            base,
+                            struct_id,
+                            field_index,
+                        )
                 {
-                    return builder.sload(slot);
+                    return self.load_storage_location_at_slot(builder, location, slot);
                 }
 
                 if let Some((base_slot, struct_id, field_index)) =
                     self.get_storage_struct_field_info(base, *member)
                 {
-                    let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-                    let slot = base_slot + field_offset;
+                    let location = self.get_struct_field_storage_location(struct_id, field_index);
+                    let slot = base_slot + location.slot;
                     let slot_val = builder.imm_u64(slot);
-                    return builder.sload(slot_val);
+                    return self.load_storage_location_at_slot(builder, location, slot_val);
                 }
 
                 // Check if this is a nested storage struct access (e.g., storedNested.point.x)
@@ -671,7 +697,6 @@ impl<'gcx> Lowerer<'gcx> {
                             return self.materialize_storage_bytes(builder, slot_val);
                         }
 
-                        // For scalar storage variables, just load the value
                         return self.load_storage_location_at_slot(builder, location, slot_val);
                     }
                 }
@@ -976,7 +1001,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> Option<ValueId> {
         // Storage array (state variable or storage-reference local): dynamic
         // length at the base slot, fixed length is a compile-time constant.
-        if let Some((slot_val, fixed_len, _)) = self.storage_array_slot_of_base(builder, base) {
+        if let Some((slot_val, fixed_len, ..)) = self.storage_array_slot_of_base(builder, base) {
             return Some(match fixed_len {
                 Some(len) => builder.imm_u64(len),
                 None => builder.sload(slot_val),
@@ -1385,24 +1410,25 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::Member(base, member) => {
                 // Check if this is a storage struct member assignment (e.g., storedPoint.x = value)
                 if let Some((struct_id, field_index)) = self.resolved_struct_field(lhs)
-                    && let Some(slot) = self.lower_storage_struct_field_slot_by_index(
-                        builder,
-                        base,
-                        struct_id,
-                        field_index,
-                    )
+                    && let Some((slot, location)) = self
+                        .lower_storage_struct_field_location_by_index(
+                            builder,
+                            base,
+                            struct_id,
+                            field_index,
+                        )
                 {
-                    builder.sstore(slot, rhs);
+                    self.store_storage_location_at_slot(builder, location, slot, rhs);
                     return;
                 }
 
                 if let Some((base_slot, struct_id, field_index)) =
                     self.get_storage_struct_field_info(base, *member)
                 {
-                    let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-                    let slot = base_slot + field_offset;
+                    let location = self.get_struct_field_storage_location(struct_id, field_index);
+                    let slot = base_slot + location.slot;
                     let slot_val = builder.imm_u64(slot);
-                    builder.sstore(slot_val, rhs);
+                    self.store_storage_location_at_slot(builder, location, slot_val, rhs);
                     return;
                 }
 
@@ -1455,6 +1481,28 @@ impl<'gcx> Lowerer<'gcx> {
                 // This should only be reached for memory structs, not storage
                 let base_val = self.lower_expr(builder, base);
                 builder.mstore(base_val, rhs);
+            }
+            ExprKind::Call(callee, args, _)
+                if self.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0) =>
+            {
+                let ExprKind::Member(base, _) = &callee.kind else { return };
+                let Some((slot, element_ty, element_slots)) =
+                    self.storage_dynamic_array_info(builder, base)
+                else {
+                    return;
+                };
+                debug_assert!(args.is_empty());
+                let access = self.lower_storage_array_append_access(
+                    builder,
+                    slot,
+                    element_ty,
+                    element_slots,
+                );
+                if access.field.is_some() {
+                    self.store_storage_access(builder, access, rhs);
+                } else {
+                    self.store_storage_value_at(builder, element_ty, access.slot, rhs);
+                }
             }
             ExprKind::Call(..) => {
                 if let Some(slot) = self.lower_lvalue_slot(builder, lhs)
@@ -1698,17 +1746,17 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Resolves an array living in storage: a state variable, storage-reference
     /// local, mapping value, struct field, or nested array element. Returns its
-    /// runtime base slot, constant length (`None` for dynamic arrays), and the
-    /// number of storage slots occupied by one element.
+    /// runtime base slot, constant length (`None` for dynamic arrays), element
+    /// type, and the number of storage slots occupied by one element.
     pub(super) fn storage_array_slot_of_base(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
-    ) -> Option<(ValueId, Option<u64>, u64)> {
+    ) -> Option<(ValueId, Option<u64>, Ty<'gcx>, u64)> {
         let (element, fixed_len) = self.storage_array_type_of_expr(expr)?;
         let elem_slots = self.calculate_storage_slots_for_ty(element, expr.span);
         let slot = self.lower_lvalue_slot(builder, expr)?;
-        Some((slot, fixed_len, elem_slots))
+        Some((slot, fixed_len, element, elem_slots))
     }
 
     /// Resolves a dynamic array living in storage.
@@ -1726,23 +1774,21 @@ impl<'gcx> Lowerer<'gcx> {
         Some((slot, element, element_slots))
     }
 
-    /// Emits the bounds check for a storage array access and returns the element slot.
-    /// Dynamic arrays: length at `slot`, elements at `keccak256(slot) + index * elem_slots`.
-    /// Fixed-size arrays: constant length, elements at `slot + index * elem_slots`.
-    pub(super) fn lower_storage_array_element_slot(
+    /// Emits the bounds check for a storage array access and returns the element location.
+    pub(super) fn lower_storage_array_element_access(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         slot_val: ValueId,
         fixed_len: Option<u64>,
         index_val: ValueId,
+        element_ty: Ty<'gcx>,
         elem_slots: u64,
-    ) -> ValueId {
-        match fixed_len {
+    ) -> super::storage::StorageAccess {
+        let data_slot = match fixed_len {
             Some(len) => {
                 let len_val = builder.imm_u64(len);
                 self.emit_index_bounds_check(builder, index_val, len_val);
-                let offset = Self::scale_index_by_slots(builder, index_val, elem_slots);
-                builder.add(slot_val, offset)
+                slot_val
             }
             None => {
                 let len = builder.sload(slot_val);
@@ -1750,10 +1796,36 @@ impl<'gcx> Lowerer<'gcx> {
                 let mem_0 = builder.imm_u64(0);
                 builder.mstore(mem_0, slot_val);
                 let size_32 = builder.imm_u64(32);
-                let data_slot = builder.keccak256(mem_0, size_32);
-                let offset = Self::scale_index_by_slots(builder, index_val, elem_slots);
-                builder.add(data_slot, offset)
+                builder.keccak256(mem_0, size_32)
             }
+        };
+
+        self.storage_array_element_access_unchecked(
+            builder, data_slot, index_val, element_ty, elem_slots,
+        )
+    }
+
+    fn storage_array_element_access_unchecked(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        data_slot: ValueId,
+        index_val: ValueId,
+        element_ty: Ty<'gcx>,
+        elem_slots: u64,
+    ) -> super::storage::StorageAccess {
+        if let Some(field) = self.packed_storage_field(element_ty) {
+            let per_slot = builder.imm_u64(u64::from(32 / field.size));
+            let slot_offset = builder.div(index_val, per_slot);
+            let slot = builder.add(data_slot, slot_offset);
+            let element_index = builder.mod_(index_val, per_slot);
+            let size = builder.imm_u64(u64::from(field.size));
+            let offset = builder.mul(element_index, size);
+            super::storage::StorageAccess { slot, offset, field: Some(field) }
+        } else {
+            let slot_offset = Self::scale_index_by_slots(builder, index_val, elem_slots);
+            let slot = builder.add(data_slot, slot_offset);
+            let offset = builder.imm_u64(0);
+            super::storage::StorageAccess { slot, offset, field: None }
         }
     }
 
@@ -2264,6 +2336,27 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    fn lower_storage_struct_field_location_by_index(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base: &hir::Expr<'_>,
+        struct_id: hir::StructId,
+        field_index: usize,
+    ) -> Option<(ValueId, super::storage::StorageLocation)> {
+        if self.struct_id_of_expr(base)? != struct_id {
+            return None;
+        }
+        let base_slot = self.lower_lvalue_slot(builder, base)?;
+        let location = self.get_struct_field_storage_location(struct_id, field_index);
+        let slot = if location.slot == 0 {
+            base_slot
+        } else {
+            let off = builder.imm_u64(location.slot);
+            builder.add(base_slot, off)
+        };
+        Some((slot, location))
+    }
+
     fn lower_storage_struct_field_slot_by_index(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -2271,17 +2364,8 @@ impl<'gcx> Lowerer<'gcx> {
         struct_id: hir::StructId,
         field_index: usize,
     ) -> Option<ValueId> {
-        if self.struct_id_of_expr(base)? != struct_id {
-            return None;
-        }
-        let base_slot = self.lower_lvalue_slot(builder, base)?;
-        let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-        Some(if field_offset == 0 {
-            base_slot
-        } else {
-            let off = builder.imm_u64(field_offset);
-            builder.add(base_slot, off)
-        })
+        self.lower_storage_struct_field_location_by_index(builder, base, struct_id, field_index)
+            .map(|(slot, _)| slot)
     }
 
     /// If `base` is a storage location of struct type and `member` is one of its
@@ -2373,13 +2457,20 @@ impl<'gcx> Lowerer<'gcx> {
                 let ExprKind::Member(base, _) = &callee.kind else { return None };
                 let (slot, element_ty, element_slots) =
                     self.storage_dynamic_array_info(builder, base)?;
-                Some(self.lower_storage_array_push_slot(
+                debug_assert!(args.is_empty());
+                let access = self.lower_storage_array_append_access(
                     builder,
                     slot,
                     element_ty,
                     element_slots,
-                    args,
-                ))
+                );
+                if access.field.is_some() {
+                    let zero = builder.imm_u64(0);
+                    self.store_storage_access(builder, access, zero);
+                } else {
+                    self.clear_storage_value_at(builder, element_ty, access.slot);
+                }
+                Some(access.slot)
             }
             // A call to a function returning a storage reference (e.g. the
             // ERC-7201 `_layout()` getter) yields the slot value directly.
@@ -2569,17 +2660,14 @@ impl<'gcx> Lowerer<'gcx> {
         None
     }
 
-    /// Appends a zero-initialized element and returns its storage slot.
-    fn lower_storage_array_push_slot(
+    /// Extends a dynamic array and returns the new element's storage location.
+    fn lower_storage_array_append_access(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         slot: ValueId,
         element_ty: Ty<'gcx>,
         element_slots: u64,
-        args: &CallArgs<'_>,
-    ) -> ValueId {
-        debug_assert!(args.is_empty());
-
+    ) -> super::storage::StorageAccess {
         let length = builder.sload(slot);
         let one = builder.imm_u64(1);
         let new_length = builder.add(length, one);
@@ -2590,12 +2678,15 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(scratch, slot);
         let word = builder.imm_u64(32);
         let data_slot = builder.keccak256(scratch, word);
-        let offset = Self::scale_index_by_slots(builder, length, element_slots);
-        let element_slot = builder.add(data_slot, offset);
-
-        self.clear_storage_value_at(builder, element_ty, element_slot);
+        let access = self.storage_array_element_access_unchecked(
+            builder,
+            data_slot,
+            length,
+            element_ty,
+            element_slots,
+        );
         builder.sstore(slot, new_length);
-        element_slot
+        access
     }
 
     /// Lowers dynamic storage-array method calls.
@@ -2610,14 +2701,21 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> ValueId {
         match builtin {
             Builtin::ArrayPush0 => {
-                let element_slot = self.lower_storage_array_push_slot(
+                debug_assert!(args.is_empty());
+                let access = self.lower_storage_array_append_access(
                     builder,
                     slot,
                     element_ty,
                     element_slots,
-                    args,
                 );
-                if element_ty.is_reference_type() { element_slot } else { builder.imm_u64(0) }
+                if access.field.is_some() {
+                    let zero = builder.imm_u64(0);
+                    self.store_storage_access(builder, access, zero);
+                    builder.imm_u64(0)
+                } else {
+                    self.clear_storage_value_at(builder, element_ty, access.slot);
+                    if element_ty.is_reference_type() { access.slot } else { builder.imm_u64(0) }
+                }
             }
             Builtin::ArrayPush => {
                 let value = args
@@ -2631,21 +2729,17 @@ impl<'gcx> Lowerer<'gcx> {
                         _ => self.lower_expr(builder, arg),
                     })
                     .unwrap_or_else(|| builder.imm_u64(0));
-
-                let length = builder.sload(slot);
-                let one = builder.imm_u64(1);
-                let new_length = builder.add(length, one);
-                let overflow = builder.lt(new_length, length);
-                self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
-
-                let scratch = builder.imm_u64(0);
-                builder.mstore(scratch, slot);
-                let word = builder.imm_u64(32);
-                let data_slot = builder.keccak256(scratch, word);
-                let offset = Self::scale_index_by_slots(builder, length, element_slots);
-                let element_slot = builder.add(data_slot, offset);
-                self.store_storage_value_at(builder, element_ty, element_slot, value);
-                builder.sstore(slot, new_length);
+                let access = self.lower_storage_array_append_access(
+                    builder,
+                    slot,
+                    element_ty,
+                    element_slots,
+                );
+                if access.field.is_some() {
+                    self.store_storage_access(builder, access, value);
+                } else {
+                    self.store_storage_value_at(builder, element_ty, access.slot, value);
+                }
                 builder.imm_u64(0)
             }
             Builtin::ArrayPop => {
@@ -2658,9 +2752,19 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.mstore(scratch, slot);
                 let word = builder.imm_u64(32);
                 let data_slot = builder.keccak256(scratch, word);
-                let offset = Self::scale_index_by_slots(builder, new_length, element_slots);
-                let element_slot = builder.add(data_slot, offset);
-                self.clear_storage_value_at(builder, element_ty, element_slot);
+                let access = self.storage_array_element_access_unchecked(
+                    builder,
+                    data_slot,
+                    new_length,
+                    element_ty,
+                    element_slots,
+                );
+                if access.field.is_some() {
+                    let zero = builder.imm_u64(0);
+                    self.store_storage_access(builder, access, zero);
+                } else {
+                    self.clear_storage_value_at(builder, element_ty, access.slot);
+                }
                 builder.sstore(slot, new_length);
 
                 builder.imm_u64(0)
