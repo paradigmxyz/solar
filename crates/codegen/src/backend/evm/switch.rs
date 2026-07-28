@@ -1361,6 +1361,45 @@ mod tests {
     }
 
     #[test]
+    fn finds_cross_limb_bit_slice_after_pruning() {
+        let values = vec![
+            U256::ZERO,
+            U256::ONE << 63,
+            U256::ONE << 64,
+            (U256::ONE << 64) | (U256::ONE << 63) | U256::ONE,
+        ];
+        let candidates = perfect_hash_candidates(
+            &values,
+            EvmVersion::Cancun,
+            SwitchDefault::CleanupJump,
+            2,
+            false,
+        );
+        assert!(candidates.iter().any(|&(_, plan)| {
+            plan == SwitchPlan::Perfect { hash: PerfectHash::BitSlice { shift: 63, mask: 3 } }
+        }));
+
+        let selection = select_switch_plan_with_linear_values_and_budget(
+            &values,
+            &values,
+            SwitchPlanOptions {
+                optimization: OptimizationMode::Gas,
+                evm_version: EvmVersion::Cancun,
+                default: SwitchDefault::CleanupJump,
+                table_target_width: 2,
+                max_gas_code_growth: usize::MAX,
+                max_bit_slice_gas_code_growth: usize::MAX,
+                forced: SwitchLowering::Perfect,
+                layout: SwitchLayout::default(),
+            },
+        );
+        assert_eq!(
+            selection.plan,
+            SwitchPlan::Perfect { hash: PerfectHash::BitSlice { shift: 63, mask: 3 } }
+        );
+    }
+
+    #[test]
     fn shares_internal_bit_slice_misses() {
         let values =
             (0..16).map(|value| U256::from(value * value * 256 + value)).collect::<Vec<_>>();
