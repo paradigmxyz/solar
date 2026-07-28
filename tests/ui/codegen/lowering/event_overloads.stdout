@@ -18,22 +18,12 @@ fn @emitBoth(arg0: address, arg1: u256) {
   bb4:
     v6 = fmp
     mstore v6, arg1
-    v7 = add 32, 31
-    v8 = not 31
-    v9 = and v7, v8
-    v10 = add v6, v9
-    set_fmp v10
     log1 v6, 32, 0x248dd4076d0a389d795107efafd558ce7f31ae37b441ccb9a599c60868f480d5
-    v11 = fmp
-    mstore v11, arg0
-    v12 = add v11, 32
-    mstore v12, arg1
-    v13 = add 64, 31
-    v14 = not 31
-    v15 = and v13, v14
-    v16 = add v11, v15
-    set_fmp v16
-    log1 v11, 64, 0x69ca02dd4edd7bf0a4abb9ed3b7af3f14778db5d61921c7dc7cd545266326de2
+    v7 = fmp
+    mstore v7, arg0
+    v8 = add v7, 32
+    mstore v8, arg1
+    log1 v7, 64, 0x69ca02dd4edd7bf0a4abb9ed3b7af3f14778db5d61921c7dc7cd545266326de2
     stop
 }
 
