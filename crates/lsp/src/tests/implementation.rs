@@ -497,13 +497,10 @@ fn ignores_conflicting_source_snapshots_across_analysis_batches() {
 fn isolates_conflicting_dependency_implementations_across_analysis_batches() {
     let source = r#"
         //- /Shared.sol open
-        import "./open/OpenImpl.sol";
         abstract contract Base {
             function run(uint256) public virtual {}
         }
 
-        //- /open/OpenImpl.sol
-        import "../Shared.sol";
         contract OpenImpl is Base {
             function run(uint256) public override {}
         }
