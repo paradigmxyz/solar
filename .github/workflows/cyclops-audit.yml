@@ -29,7 +29,7 @@ jobs:
           printf '%s' '${{ secrets.EVENTS_CERT }}' > "${RUNNER_TEMP}/cert"
 
           # EVENTS_ARGS may contain additional curl arguments, not just a URL.
-          curl -sf -o /dev/null -X POST ${{ secrets.EVENTS_ARGS }} \
+          curl -sSf -o /dev/null -X POST ${{ secrets.EVENTS_ARGS }} \
             -H "Content-Type: application/json" \
             --key "${RUNNER_TEMP}/key" \
             --cert "${RUNNER_TEMP}/cert" \
@@ -315,7 +315,7 @@ jobs:
           printf '%s' "$PAYLOAD_B64" | base64 --decode > "${RUNNER_TEMP}/pr-audit-event.json"
 
           # EVENTS_ARGS may contain additional curl arguments, not just a URL.
-          curl -sf -o /dev/null -X POST ${{ secrets.EVENTS_ARGS }} \
+          curl -sSf -o /dev/null -X POST ${{ secrets.EVENTS_ARGS }} \
             -H "Content-Type: application/json" \
             --key "${RUNNER_TEMP}/key" \
             --cert "${RUNNER_TEMP}/cert" \
