@@ -1912,7 +1912,7 @@ impl<'gcx> Lowerer<'gcx> {
             if size_mode || has_storage_ref_param || self.function_is_recursive(func_id) {
                 return self.lower_internal_call_fallback(builder, func_id, arg_vals);
             }
-            return self.lower_inline_void_call(builder, func_id, arg_vals);
+            return self.lower_inline_void_call(builder, func_id, &arg_vals);
         }
 
         // A `bytes`/`string` calldata slice return crosses the internal-call
@@ -2205,7 +2205,7 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         ctor_id: hir::FunctionId,
-        arg_vals: Vec<ValueId>,
+        arg_vals: &[ValueId],
     ) -> ValueId {
         self.lower_inline_void_call(builder, ctor_id, arg_vals)
     }
@@ -2215,10 +2215,10 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         func_id: hir::FunctionId,
-        arg_vals: Vec<ValueId>,
+        arg_vals: &[ValueId],
     ) -> ValueId {
         let func = self.gcx.hir.function(func_id);
-        let parameters: Vec<_> = func.parameters.to_vec();
+        let parameters = func.parameters;
         let body = func.body;
 
         if !self.try_enter_inline(func_id) {
@@ -2244,7 +2244,7 @@ impl<'gcx> Lowerer<'gcx> {
             self.collect_assigned_vars_block(&body);
         }
 
-        for (i, param_id) in parameters.into_iter().enumerate() {
+        for (i, &param_id) in parameters.iter().enumerate() {
             if let Some(&arg_val) = arg_vals.get(i) {
                 self.locals.insert(param_id, arg_val);
             }
@@ -2597,7 +2597,7 @@ impl<'gcx> Lowerer<'gcx> {
                 if size_mode || has_storage_ref_param || self.function_is_recursive(func_id) {
                     return self.lower_internal_call_fallback(builder, func_id, arg_vals);
                 }
-                return self.lower_inline_void_call(builder, func_id, arg_vals);
+                return self.lower_inline_void_call(builder, func_id, &arg_vals);
             }
 
             // A library helper returning a calldata slice must inline for the

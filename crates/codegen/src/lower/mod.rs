@@ -25,6 +25,7 @@ use solar_data_structures::{
     Never,
     bit_set::GrowableBitSet,
     map::{FxHashMap, FxHashSet},
+    smallvec::SmallVec,
 };
 use solar_interface::{
     Ident, Span,
@@ -59,6 +60,11 @@ enum AbiWordValidator {
     Bool,
     /// The word must be less than the member count.
     EnumRange(u64),
+}
+
+enum ConstructorArguments {
+    Resolving,
+    Resolved(SmallVec<[ValueId; 4]>),
 }
 
 #[derive(Clone, Copy)]
@@ -1512,9 +1518,8 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         let contract = self.gcx.hir.contract(contract_id);
         let mut constructor_args = FxHashMap::default();
-        let mut resolving_constructor_args = FxHashSet::default();
 
-        let construction_order = contract.linearized_bases.to_vec();
+        let construction_order = contract.linearized_bases;
 
         // State variables are initialized from the most base contract to the
         // most derived contract before constructor argument expressions run.
@@ -1546,7 +1551,6 @@ impl<'gcx> Lowerer<'gcx> {
                         contract_id,
                         base_id,
                         &mut constructor_args,
-                        &mut resolving_constructor_args,
                     )
                     .is_err()
             {
@@ -1571,11 +1575,12 @@ impl<'gcx> Lowerer<'gcx> {
             if base_id != contract_id
                 && let Some(ctor_id) = self.gcx.hir.contract(base_id).ctor
             {
-                self.lower_base_constructor_call(
-                    builder,
-                    ctor_id,
-                    constructor_args[&base_id].clone(),
-                );
+                let Some(ConstructorArguments::Resolved(arg_values)) =
+                    constructor_args.get(&base_id)
+                else {
+                    unreachable!("base constructor arguments were not resolved")
+                };
+                self.lower_base_constructor_call(builder, ctor_id, arg_values);
             }
         }
     }
@@ -1585,22 +1590,24 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         contract_id: ContractId,
         base_id: ContractId,
-        values: &mut FxHashMap<ContractId, Vec<ValueId>>,
-        resolving: &mut FxHashSet<ContractId>,
+        values: &mut FxHashMap<ContractId, ConstructorArguments>,
     ) -> Result<(), ErrorGuaranteed> {
-        if values.contains_key(&base_id) {
-            return Ok(());
-        }
-        if !resolving.insert(base_id) {
-            return Err(self
-                .gcx
-                .dcx()
-                .err("cyclic base constructor arguments during codegen")
-                .span(self.gcx.hir.contract(base_id).span)
-                .emit());
+        match values.get(&base_id) {
+            Some(ConstructorArguments::Resolved(_)) => return Ok(()),
+            Some(ConstructorArguments::Resolving) => {
+                return Err(self
+                    .gcx
+                    .dcx()
+                    .err("cyclic base constructor arguments during codegen")
+                    .span(self.gcx.hir.contract(base_id).span)
+                    .emit());
+            }
+            None => {
+                values.insert(base_id, ConstructorArguments::Resolving);
+            }
         }
 
-        let linearized_bases = self.gcx.hir.contract(contract_id).linearized_bases.to_vec();
+        let linearized_bases = self.gcx.hir.contract(contract_id).linearized_bases;
         let provider = linearized_bases.iter().copied().find_map(|declaring_id| {
             let modifier = {
                 let declaring = self.gcx.hir.contract(declaring_id);
@@ -1624,8 +1631,7 @@ impl<'gcx> Lowerer<'gcx> {
             let parameters =
                 base.ctor.map_or(&[][..], |ctor_id| self.gcx.hir.function(ctor_id).parameters);
             if parameters.is_empty() {
-                values.insert(base_id, Vec::new());
-                resolving.remove(&base_id);
+                values.insert(base_id, ConstructorArguments::Resolved(SmallVec::new()));
                 return Ok(());
             }
             return Err(self
@@ -1637,13 +1643,7 @@ impl<'gcx> Lowerer<'gcx> {
         };
 
         if declaring_id != contract_id && self.gcx.hir.contract(declaring_id).ctor.is_some() {
-            self.lower_base_constructor_arguments(
-                builder,
-                contract_id,
-                declaring_id,
-                values,
-                resolving,
-            )?;
+            self.lower_base_constructor_arguments(builder, contract_id, declaring_id, values)?;
         }
 
         let ctor_id = self
@@ -1652,9 +1652,8 @@ impl<'gcx> Lowerer<'gcx> {
             .contract(base_id)
             .ctor
             .expect("base constructor argument provider without constructor");
-        let parameters = self.gcx.hir.function(ctor_id).parameters.to_vec();
-        let arguments: Vec<_> = modifier.args.exprs().collect();
-        if arguments.len() != parameters.len() {
+        let parameters = self.gcx.hir.function(ctor_id).parameters;
+        if modifier.args.len() != parameters.len() {
             return Err(self
                 .gcx
                 .dcx()
@@ -1663,15 +1662,14 @@ impl<'gcx> Lowerer<'gcx> {
                 .emit());
         }
 
-        let mut arg_values = Vec::with_capacity(arguments.len());
-        for (&param_id, argument) in parameters.iter().zip(arguments) {
+        let mut arg_values = SmallVec::new();
+        for (&param_id, argument) in parameters.iter().zip(modifier.args.exprs()) {
             let param = self.gcx.hir.variable(param_id);
             let value = self.lower_constructor_arg(builder, argument, &param.ty);
             self.locals.insert(param_id, value);
             arg_values.push(value);
         }
-        values.insert(base_id, arg_values);
-        resolving.remove(&base_id);
+        values.insert(base_id, ConstructorArguments::Resolved(arg_values));
 
         Ok(())
     }
