@@ -1,0 +1,14 @@
+error: codegen cannot use `staticcall` before Byzantium
+   ╭▸ ROOT/tests/ui/codegen/lowering/low_level_staticcall_evm_version.sol:LL:CC
+   │
+LL │         (bool success,) = target.staticcall("");
+   ╰╴                                 ━━━━━━━━━━
+
+error: codegen cannot bind low-level call returndata before Byzantium
+   ╭▸ ROOT/tests/ui/codegen/lowering/low_level_staticcall_evm_version.sol:LL:CC
+   │
+LL │         (, bytes memory data) = target.call("");
+   ╰╴                                ━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

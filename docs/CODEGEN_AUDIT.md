@@ -72,6 +72,9 @@ These are current miscompile or target-legality risks, not cleanup preferences.
 5. Indexed event arrays and structs require Solidity's indexed-event in-place
    encoding before hashing. Dynamic bytes/string and ordinary value topics are
    handled; aggregate topics still need a dedicated semantic operation.
+6. Applied modifiers are collected as dependencies but are not composed around
+   the function body; modifier placeholders lower to no-ops. This can omit
+   access-control, validation, and reentrancy logic entirely.
 
 ### Target and storage representation
 
@@ -106,6 +109,9 @@ These are current miscompile or target-legality risks, not cleanup preferences.
 - Add semantic contract creation with typed constructor arguments. A required
   pass should ABI-encode the tail, concatenate it with a constant creation-code
   object, emit `CREATE`/`CREATE2`, and forward failure.
+- Represent applied modifiers and placeholder continuations explicitly. Compose
+  them in declaration order before ordinary body lowering rather than teaching
+  statement lowering to splice modifier HIR into the function.
 - Add target legalization after representation lowering. `MCOPY`, shifts,
   `STATICCALL`, returndata opcodes, `PUSH0`, and new opcodes should be selected
   in one place from the configured EVM version.
