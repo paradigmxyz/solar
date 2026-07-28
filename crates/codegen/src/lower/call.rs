@@ -874,13 +874,13 @@ impl<'gcx> Lowerer<'gcx> {
         let (input_ptr, input_len) = self.lower_bytes_arg_to_memory(builder, input);
 
         let output_ptr = self.allocate_memory(builder, 32);
-        let zero = builder.imm_u64(0);
-        builder.mstore(output_ptr, zero);
 
         let address = builder.imm_u64(if builtin == Builtin::Sha256 { 2 } else { 3 });
         let output_size = builder.imm_u64(32);
         let gas = builder.gas();
-        builder.staticcall(gas, address, input_ptr, input_len, output_ptr, output_size);
+        let success =
+            builder.staticcall(gas, address, input_ptr, input_len, output_ptr, output_size);
+        Self::emit_revert_unless(builder, success);
 
         let output = builder.mload(output_ptr);
         if builtin == Builtin::Ripemd160 {
@@ -924,7 +924,9 @@ impl<'gcx> Lowerer<'gcx> {
         let address = builder.imm_u64(1);
         let input_size = builder.imm_u64(128);
         let output_size = builder.imm_u64(32);
-        builder.staticcall(gas, address, input_ptr, input_size, output_ptr, output_size);
+        let success =
+            builder.staticcall(gas, address, input_ptr, input_size, output_ptr, output_size);
+        Self::emit_revert_unless(builder, success);
         builder.mload(output_ptr)
     }
 
