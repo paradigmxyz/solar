@@ -6,6 +6,7 @@ use crate::backend::evm::{
     op,
 };
 use alloy_primitives::U256;
+use solar_config::EvmVersion;
 use solar_sema::Gcx;
 
 pub(super) struct CompactPushes;
@@ -25,11 +26,13 @@ const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
 const MIN_COMPACT_MASK_WIDTH: u8 = 5;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    let evm_version = gcx.sess.opts.evm_version;
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
         if !block.instructions.iter().any(|inst| {
-            immediate(inst).is_some_and(|value| !matches!(select(gcx, value), CompactPush::Literal))
+            immediate(inst)
+                .is_some_and(|value| !matches!(select(evm_version, value).1, CompactPush::Literal))
         }) {
             continue;
         }
@@ -41,7 +44,7 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 block.instructions.push(inst);
                 continue;
             };
-            match select(gcx, value) {
+            match select(evm_version, value).1 {
                 CompactPush::Literal => block.instructions.push(inst),
                 CompactPush::FullWord => {
                     block.instructions.push(push(U256::ZERO));
@@ -87,9 +90,13 @@ fn push(value: U256) -> Instruction {
     Instruction::push_value(value)
 }
 
-fn select(gcx: Gcx<'_>, value: U256) -> CompactPush {
-    let width = push_width(gcx, value);
-    let normal_len = fixed_push_len(gcx, width);
+pub(in crate::backend::evm) fn materialization_len(evm_version: EvmVersion, value: U256) -> usize {
+    select(evm_version, value).0
+}
+
+fn select(evm_version: EvmVersion, value: U256) -> (usize, CompactPush) {
+    let width = push_width(evm_version, value);
+    let normal_len = fixed_push_len(evm_version, width);
     let mut best = (normal_len, CompactPush::Literal);
     let mut consider = |len, compact| {
         if len < best.0 {
@@ -98,7 +105,7 @@ fn select(gcx: Gcx<'_>, value: U256) -> CompactPush {
     };
 
     if value == U256::MAX {
-        consider(zero_push_len(gcx) + 1, CompactPush::FullWord);
+        consider(zero_push_len(evm_version) + 1, CompactPush::FullWord);
     }
 
     if width >= MIN_COMPACT_MASK_WIDTH {
@@ -106,13 +113,19 @@ fn select(gcx: Gcx<'_>, value: U256) -> CompactPush {
         let start = EVM_WORD_BYTES - width as usize;
         if bytes[start..].iter().all(|&byte| byte == 0xff) {
             let shift = EVM_WORD_BITS - usize::from(width) * 8;
-            consider(zero_push_len(gcx) + 4, CompactPush::LowerAllOnesMask { shift: shift as u8 });
+            consider(
+                zero_push_len(evm_version) + 4,
+                CompactPush::LowerAllOnesMask { shift: shift as u8 },
+            );
         }
     }
 
     if width as usize == EVM_WORD_BYTES {
         let inverted = !value;
-        consider(fixed_push_len(gcx, push_width(gcx, inverted)) + 1, CompactPush::Not);
+        consider(
+            fixed_push_len(evm_version, push_width(evm_version, inverted)) + 1,
+            CompactPush::Not,
+        );
     }
 
     let trailing_zero_bytes = value.trailing_zeros() / 8;
@@ -120,28 +133,24 @@ fn select(gcx: Gcx<'_>, value: U256) -> CompactPush {
         let shift = trailing_zero_bytes * 8;
         let shifted = value >> shift;
         consider(
-            fixed_push_len(gcx, push_width(gcx, shifted)) + 3,
+            fixed_push_len(evm_version, push_width(evm_version, shifted)) + 3,
             CompactPush::Shl { shift: shift as u8 },
         );
     }
 
-    best.1
+    best
 }
 
-fn fixed_push_len(gcx: Gcx<'_>, width: u8) -> usize {
-    if width == 0 { zero_push_len(gcx) } else { 1 + width as usize }
+fn fixed_push_len(evm_version: EvmVersion, width: u8) -> usize {
+    if width == 0 { zero_push_len(evm_version) } else { 1 + width as usize }
 }
 
-fn zero_push_len(gcx: Gcx<'_>) -> usize {
-    if gcx.sess.opts.evm_version.has_push0() { 1 } else { 2 }
+fn zero_push_len(evm_version: EvmVersion) -> usize {
+    if evm_version.has_push0() { 1 } else { 2 }
 }
 
-fn push_width(gcx: Gcx<'_>, value: U256) -> u8 {
-    if value.is_zero() && !gcx.sess.opts.evm_version.has_push0() {
-        1
-    } else {
-        value.byte_len() as u8
-    }
+fn push_width(evm_version: EvmVersion, value: U256) -> u8 {
+    if value.is_zero() && !evm_version.has_push0() { 1 } else { value.byte_len() as u8 }
 }
 
 #[derive(Clone, Copy)]

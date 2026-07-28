@@ -45,6 +45,10 @@ const GLOBAL_STACK_MIN_BLOCKS: usize = 8;
 const GLOBAL_STACK_MIN_ARG_USES: usize = 6;
 const GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS: usize = 16;
 const STACK_ARG_ROTATION_LIMIT: usize = 16;
+const GAS_IMMEDIATE_CACHE_MIN_USES: usize = 4;
+const GAS_IMMEDIATE_CACHE_MIN_BYTES: usize = 17;
+const SIZE_IMMEDIATE_CACHE_MIN_USES: usize = 3;
+const SIZE_IMMEDIATE_CACHE_MIN_BYTES: usize = 8;
 
 #[derive(Default)]
 struct GeneratedCode {
@@ -599,6 +603,8 @@ pub struct EvmCodegen<'gcx> {
     /// Calldata words physically identical to arguments in the active global
     /// layout, adopted after their final validation use.
     global_stack_aliases: FxHashMap<ValueId, ValueId>,
+    /// Remaining uses of immediate values in the block currently being emitted.
+    remaining_immediate_uses: FxHashMap<ValueId, usize>,
     /// Immutable `PUSH32` placeholders in the last assembled runtime code.
     runtime_immutable_refs: Vec<ImmutableRef>,
     /// Whether we're currently generating constructor code.
@@ -650,6 +656,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             stack_phi_sources: FxHashMap::default(),
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
+            remaining_immediate_uses: FxHashMap::default(),
             runtime_immutable_refs: Vec::new(),
             in_constructor: false,
             constructor_exit: None,
@@ -834,6 +841,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .span(module.name.span)
                 .emit();
             return EvmArtifact::default();
+        }
+        if !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+            for func in &mut module.functions {
+                func.canonicalize_immediate_uses();
+            }
         }
         // First generate the runtime code
         let mut runtime_code = self.generate_runtime_code(module);
@@ -1364,6 +1376,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
 
+            self.collect_block_immediate_uses(func, block_id);
+
             // Generate instructions
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
                 let inst = func.inst(inst_id);
@@ -1403,6 +1417,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         self.spill_value_if_needed(func, result);
                     }
                 }
+                self.consume_immediate_uses(func, &inst.kind.operands());
             }
 
             let stack_phi_preserved = stack_phi_plan.edges.get(&block_id).is_some_and(|edge| {
@@ -4323,9 +4338,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             let carried_arg_is_live = self.global_stack_active
                 && matches!(func.value(value), crate::mir::Value::Arg(_))
                 && !liveness.is_dead_after(value, block, inst_idx);
+            let cached_immediate_is_live =
+                self.should_cache_immediate(func, value, operands, liveness, block, inst_idx);
             if !preserved.contains(&value)
                 && (!liveness.is_dead_after(value, block, inst_idx) || alias_is_live)
-                && (!Self::is_rematerializable_value(func, value) || carried_arg_is_live)
+                && (!Self::is_rematerializable_value(func, value)
+                    || carried_arg_is_live
+                    || cached_immediate_is_live)
                 && (!self.scheduler.spills.is_reloadable(value)
                     || self.scheduler.stack.contains(value))
             {
@@ -4340,6 +4359,77 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.gcx.sess.opts.evm_version,
             self.operand_cost_model(),
         )
+    }
+
+    fn collect_block_immediate_uses(&mut self, func: &Function, block: BlockId) {
+        self.remaining_immediate_uses.clear();
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+            return;
+        }
+
+        for &inst_id in &func.block(block).instructions {
+            self.add_immediate_uses(func, &func.inst(inst_id).kind.operands());
+        }
+        if let Some(term) = &func.block(block).terminator {
+            self.add_immediate_uses(func, &term.operands());
+        }
+    }
+
+    fn add_immediate_uses(&mut self, func: &Function, operands: &[ValueId]) {
+        for &value in operands {
+            if matches!(func.value(value), crate::mir::Value::Immediate(_)) {
+                *self.remaining_immediate_uses.entry(value).or_default() += 1;
+            }
+        }
+    }
+
+    fn consume_immediate_uses(&mut self, func: &Function, operands: &[ValueId]) {
+        for &value in operands {
+            if matches!(func.value(value), crate::mir::Value::Immediate(_))
+                && let Some(remaining) = self.remaining_immediate_uses.get_mut(&value)
+            {
+                *remaining = remaining.saturating_sub(1);
+            }
+        }
+    }
+
+    fn should_cache_immediate(
+        &self,
+        func: &Function,
+        value: ValueId,
+        operands: &[ValueId],
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) -> bool {
+        let crate::mir::Value::Immediate(immediate) = func.value(value) else {
+            return false;
+        };
+        let Some(word) = immediate.as_u256() else { return false };
+        if liveness.is_dead_after(value, block, inst_idx) {
+            return false;
+        }
+
+        let optimization = self.gcx.sess.opts.optimization;
+        let (min_uses, min_bytes) = match optimization {
+            OptimizationMode::None => return false,
+            OptimizationMode::Gas => (GAS_IMMEDIATE_CACHE_MIN_USES, GAS_IMMEDIATE_CACHE_MIN_BYTES),
+            OptimizationMode::Size => {
+                (SIZE_IMMEDIATE_CACHE_MIN_USES, SIZE_IMMEDIATE_CACHE_MIN_BYTES)
+            }
+            _ => return false,
+        };
+        let remaining = self.remaining_immediate_uses.get(&value).copied().unwrap_or_default();
+        let current = operands.iter().filter(|&&operand| operand == value).count();
+        if remaining < min_uses || remaining <= current {
+            return false;
+        }
+        if ir::immediate_materialization_len(self.gcx.sess.opts.evm_version, word) < min_bytes {
+            return false;
+        }
+
+        self.scheduler.stack.find(value).is_some_and(|depth| depth < MAX_STACK_ACCESS)
+            || self.scheduler.depth().saturating_add(operands.len() + 1) <= MAX_STACK_ACCESS
     }
 
     fn emit_operand_plan(&mut self, func: &Function, plan: OperandPlan) {

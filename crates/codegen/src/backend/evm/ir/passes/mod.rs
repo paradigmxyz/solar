@@ -19,6 +19,8 @@ use crate::timing::PassTimer;
 use solar_config::OptimizationMode;
 use solar_sema::Gcx;
 
+pub(in crate::backend::evm) use compact_pushes::materialization_len;
+
 /// A streamlined trait for an EVM IR transformation pass.
 pub trait EvmPass: Sync {
     /// Command-line and pipeline name.

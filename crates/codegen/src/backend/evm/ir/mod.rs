@@ -20,6 +20,8 @@ mod parse;
 mod passes;
 mod verify;
 
+pub(in crate::backend::evm) use passes::materialization_len as immediate_materialization_len;
+
 pub(in crate::backend::evm) mod assembly;
 
 pub use passes::{ALL_PASSES, EvmPass, lookup_pass, run_passes};
