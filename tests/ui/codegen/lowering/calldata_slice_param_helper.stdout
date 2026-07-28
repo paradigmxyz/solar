@@ -47,9 +47,7 @@ fn @lastWord2(arg0: calldataslice) {
     v6 = lt v5, 1
     br v6, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
     v7 = sub v5, 1
     v8 = add v4, 1

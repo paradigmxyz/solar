@@ -145,16 +145,12 @@ fn @tail(arg0: u256, arg1: u256) {
     v7 = gt arg1, v6
     jumpi v7, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
     v8 = lt arg1, arg0
     jumpi v8, bb5, bb6
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb6:
     v9 = sub arg1, arg0
     v10 = add v5, arg0
