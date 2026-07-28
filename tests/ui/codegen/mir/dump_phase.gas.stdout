@@ -17,17 +17,14 @@ fn @f() {
 fn @entry() {
   bb0:
     v0 = callvalue
-    jumpi v0, bb4, bb1
+    jumpi v0, bb3, bb1
   bb1:
-    v1 = calldatasize
-    jumpi v1, bb2, bb4
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xb3de648b => bb2]
   bb2:
-    v2 = calldataload 0
-    v3 = shr 224, v2
-    switch v3, default bb4, [0xb3de648b => bb3]
-  bb3:
     tail_call @f
-  bb4:
+  bb3:
     revert 0, 0
 }
 

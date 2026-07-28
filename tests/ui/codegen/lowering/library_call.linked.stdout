@@ -5,11 +5,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb4
-  jumpi
-  calldatasize
-  iszero
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -18,14 +14,14 @@ bb0:
   dup1
   push 0xed2f0bb8
   eq
-  push bb5
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
+  jump bb3
+bb3 [cold]:
   push 0
   dup1
   revert
-bb11 [cold]:
+bb10 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -37,14 +33,14 @@ bb11 [cold]:
   push 36
   push 0
   revert
-bb5:
+bb4:
   calldatasize
   push 4
   swap1
   sub
   push 96
   sgt
-  push bb4
+  push bb3
   jumpi
   push 36
   calldataload
@@ -55,7 +51,7 @@ bb5:
   dup2
   and
   sub
-  push bb4
+  push bb3
   jumpi
   push 36
   calldataload
@@ -94,7 +90,7 @@ bb5:
   swap2
   pop
   pop
-  push bb11
+  push bb10
   jumpi
   push 192
   mload
@@ -133,7 +129,7 @@ bb5:
   swap2
   pop
   pop
-  push bb11
+  push bb10
   jumpi
   push 224
   mload
@@ -152,11 +148,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb4
-  jumpi
-  calldatasize
-  iszero
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -165,7 +157,7 @@ bb0:
   dup1
   push 0x3dd41ca6
   sub
-  push bb4
+  push bb3
   jumpi
   calldatasize
   push 4
@@ -173,7 +165,7 @@ bb0:
   sub
   push 64
   sgt
-  push bb4
+  push bb3
   jumpi
   push 4
   calldataload
@@ -184,7 +176,7 @@ bb0:
   dup2
   and
   sub
-  push bb4
+  push bb3
   jumpi
   push 0
   push 128
@@ -240,7 +232,7 @@ bb0:
   swap1
   pop
   iszero
-  push bb10
+  push bb9
   jumpi
   push 0
   mload
@@ -249,11 +241,11 @@ bb0:
   push 32
   push 128
   return
-bb4 [cold]:
+bb3 [cold]:
   push 0
   dup1
   revert
-bb10 [cold]:
+bb9 [cold]:
   returndatasize
   dup1
   push 192

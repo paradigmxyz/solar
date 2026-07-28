@@ -9,6 +9,7 @@
 // CHECK: + fn @entry{{[( ]}}
 // CHECK: + [[VALUE:v[0-9]+]] = callvalue
 // CHECK: + jumpi [[VALUE]]
+// CHECK-NOT: calldatasize
 // CHECK: + switch {{.*}}[1 => {{.*}}2 =>
 // CHECK: + tail_call @a
 // CHECK: + tail_call @b

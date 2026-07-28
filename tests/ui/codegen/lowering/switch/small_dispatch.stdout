@@ -5,11 +5,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb4
-  jumpi
-  calldatasize
-  iszero
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -18,7 +14,7 @@ bb0:
   dup1
   push 0xa5850475
   sub
-  push bb4
+  push bb3
   jumpi
   push 0
   push 128
@@ -26,7 +22,7 @@ bb0:
   push 32
   push 128
   return
-bb4 [cold]:
+bb3 [cold]:
   push 0
   dup1
   revert
@@ -37,16 +33,57 @@ bb0:
   push 64
   mstore
   callvalue
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0xa5850475
+  eq
   push bb5
   jumpi
-  calldatasize
-  iszero
+  dup1
+  push 0xc27fc305
+  eq
+  push bb6
+  jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+bb5:
+  push 0
+  jump bb7
+bb7:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb6:
+  push 1
+  jump bb7
+// === ROOT/tests/ui/codegen/lowering/switch/small_dispatch.sol:ThreeFunctions (runtime) ===
+@module runtime
+bb0:
+  push 160
+  push 64
+  mstore
+  callvalue
   push bb5
   jumpi
   push 0
   calldataload
   push 224
   shr
+  dup1
+  push 0x9942ec6f
+  eq
+  push bb8
+  jumpi
   dup1
   push 0xa5850475
   eq
@@ -64,8 +101,8 @@ bb5 [cold]:
   revert
 bb6:
   push 0
-  jump bb8
-bb8:
+  jump bb9
+bb9:
   push 128
   mstore
   push 32
@@ -73,18 +110,17 @@ bb8:
   return
 bb7:
   push 1
-  jump bb8
-// === ROOT/tests/ui/codegen/lowering/switch/small_dispatch.sol:ThreeFunctions (runtime) ===
+  jump bb9
+bb8:
+  push 2
+  jump bb9
+// === ROOT/tests/ui/codegen/lowering/switch/small_dispatch.sol:FourFunctions (runtime) ===
 @module runtime
 bb0:
   push 160
   push 64
   mstore
   callvalue
-  push bb6
-  jumpi
-  calldatasize
-  iszero
   push bb6
   jumpi
   push 0
@@ -100,6 +136,11 @@ bb0:
   push 0xa5850475
   eq
   push bb7
+  jumpi
+  dup1
+  push 0xaaf05f3d
+  eq
+  push bb10
   jumpi
   dup1
   push 0xc27fc305
@@ -113,76 +154,19 @@ bb6 [cold]:
   revert
 bb7:
   push 0
-  jump bb10
-bb10:
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb8:
-  push 1
-  jump bb10
-bb9:
-  push 2
-  jump bb10
-// === ROOT/tests/ui/codegen/lowering/switch/small_dispatch.sol:FourFunctions (runtime) ===
-@module runtime
-bb0:
-  push 160
-  push 64
-  mstore
-  callvalue
-  push bb7
-  jumpi
-  calldatasize
-  iszero
-  push bb7
-  jumpi
-  push 0
-  calldataload
-  push 224
-  shr
-  dup1
-  push 0x9942ec6f
-  eq
-  push bb10
-  jumpi
-  dup1
-  push 0xa5850475
-  eq
-  push bb8
-  jumpi
-  dup1
-  push 0xaaf05f3d
-  eq
-  push bb11
-  jumpi
-  dup1
-  push 0xc27fc305
-  eq
-  push bb9
-  jumpi
-  jump bb7
-bb7 [cold]:
-  push 0
-  dup1
-  revert
-bb8:
-  push 0
-  jump bb12
-bb12:
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb9:
-  push 1
-  jump bb12
-bb10:
-  push 2
-  jump bb12
+  jump bb11
 bb11:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb8:
+  push 1
+  jump bb11
+bb9:
+  push 2
+  jump bb11
+bb10:
   push 3
-  jump bb12
+  jump bb11

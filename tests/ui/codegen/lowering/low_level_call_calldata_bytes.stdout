@@ -5,11 +5,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb5
-  jumpi
-  calldatasize
-  iszero
-  push bb5
+  push bb4
   jumpi
   push 0
   calldataload
@@ -18,19 +14,19 @@ bb0:
   dup1
   push 0x6a57f6c7
   eq
-  push bb13
+  push bb12
   jumpi
   dup1
   push 0x6b995abd
   eq
-  push bb6
+  push bb5
   jumpi
-  jump bb5
-bb5 [cold]:
+  jump bb4
+bb4 [cold]:
   push 0
   dup1
   revert
-bb20 [cold]:
+bb19 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -42,14 +38,14 @@ bb20 [cold]:
   push 36
   push 0
   revert
-bb6:
+bb5:
   calldatasize
   push 4
   swap1
   sub
   push 64
   sgt
-  push bb5
+  push bb4
   jumpi
   push 4
   calldataload
@@ -60,11 +56,11 @@ bb6:
   dup2
   and
   sub
-  push bb5
+  push bb4
   jumpi
-  push bb27
-  jump bb23
-bb23:
+  push bb26
+  jump bb22
+bb22:
   push 0
   push 128
   mstore
@@ -91,14 +87,14 @@ bb23:
   pop
   swap1
   jump
-bb13:
+bb12:
   calldatasize
   push 4
   swap1
   sub
   push 64
   sgt
-  push bb5
+  push bb4
   jumpi
   push 4
   calldataload
@@ -109,11 +105,11 @@ bb13:
   dup2
   and
   sub
-  push bb5
+  push bb4
   jumpi
-  push bb30
-  jump bb23
-bb25:
+  push bb29
+  jump bb22
+bb24:
   push 32
   dup2
   add
@@ -165,8 +161,8 @@ bb25:
   calldataload
   dup7
   call
-  jump bb21
-bb21:
+  jump bb20
+bb20:
   swap3
   pop
   pop
@@ -176,12 +172,12 @@ bb21:
   push 32
   push 128
   return
-bb26:
-  push bb20
+bb25:
+  push bb19
   jumpi
-  push bb25
-  jump bb24
-bb24:
+  push bb24
+  jump bb23
+bb23:
   push 64
   mload
   dup1
@@ -205,12 +201,12 @@ bb24:
   mstore
   swap1
   jump
-bb27:
-  push bb20
+bb26:
+  push bb19
   jumpi
-  push bb26
-  jump bb22
-bb22:
+  push bb25
+  jump bb21
+bb21:
   push 31
   not
   push 288
@@ -254,7 +250,7 @@ bb22:
   pop
   swap1
   jump
-bb28:
+bb27:
   push 32
   dup2
   add
@@ -305,14 +301,14 @@ bb28:
   calldataload
   dup6
   delegatecall
-  jump bb21
+  jump bb20
+bb28:
+  push bb19
+  jumpi
+  push bb27
+  jump bb23
 bb29:
-  push bb20
+  push bb19
   jumpi
   push bb28
-  jump bb24
-bb30:
-  push bb20
-  jumpi
-  push bb29
-  jump bb22
+  jump bb21

@@ -5,10 +5,10 @@ bb0:
   push 0x4000
   push 64
   mstore
-  push 385
+  push 380
   codesize
   sub
-  push 385
+  push 380
   push 128
   codecopy
   push 7
@@ -236,7 +236,7 @@ bb9:
   mstore
   push 0
   sstore
-  push 43
+  push 38
   dup1
   push 342
   push 0
@@ -251,11 +251,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb4
-  jumpi
-  calldatasize
-  iszero
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -264,7 +260,7 @@ bb0:
   dup1
   push 0x3fa4f245
   sub
-  push bb4
+  push bb3
   jumpi
   push 0
   sload
@@ -273,7 +269,7 @@ bb0:
   push 32
   push 128
   return
-bb4 [cold]:
+bb3 [cold]:
   push 0
   dup1
   revert

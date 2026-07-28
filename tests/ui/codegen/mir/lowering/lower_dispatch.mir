@@ -9,7 +9,6 @@
 // CHECK-LABEL: after lower-dispatch
 // CHECK: + fn @entry{{[( ]}}
 // CHECK: + [[SIZE:v[0-9]+]] = calldatasize
-// CHECK: + jumpi [[SIZE]]
 // CHECK: + [[SHORT:v[0-9]+]] = lt {{v[0-9]+}}, 4
 // CHECK: + jumpi [[SHORT]]
 // CHECK: + [[SELECTOR:v[0-9]+]] = shr 224

@@ -5,11 +5,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb4
-  jumpi
-  calldatasize
-  iszero
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -18,14 +14,14 @@ bb0:
   dup1
   push 0x2143aa9
   eq
-  push bb5
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
+  jump bb3
+bb3 [cold]:
   push 0
   dup1
   revert
-bb5:
+bb4:
   calldatasize
   push 4
   swap1
@@ -35,7 +31,7 @@ bb5:
   push 36
   calldataload
   swap1
-  push bb4
+  push bb3
   jumpi
   push 4
   calldataload
@@ -51,12 +47,12 @@ bb5:
   calldataload
   swap1
   iszero
-  push bb4
+  push bb3
   jumpi
   dup2
   push 192
   mstore
-  push bb19
+  push bb18
   jumpi
   push 192
   mload
@@ -84,7 +80,7 @@ bb5:
   push 36
   calldataload
   swap1
-  push bb21
+  push bb20
   jumpi
   push 8
   push 480
@@ -107,7 +103,7 @@ bb5:
   push 36
   calldataload
   swap1
-  push bb21
+  push bb20
   jumpi
   push 9
   push 480
@@ -130,7 +126,7 @@ bb5:
   push 36
   calldataload
   swap1
-  push bb21
+  push bb20
   jumpi
   push 64
   mload
@@ -174,7 +170,7 @@ bb5:
   push 36
   calldataload
   swap1
-  push bb21
+  push bb20
   jumpi
   push 192
   mload
@@ -198,14 +194,14 @@ bb5:
   push 36
   calldataload
   swap1
-  push bb21
+  push bb20
   jumpi
   push 576
   mload
   dup1
   push 576
-  jump bb22
-bb22:
+  jump bb21
+bb21:
   mstore
   push 128
   mstore
@@ -217,7 +213,7 @@ bb22:
   push 32
   push 128
   return
-bb17:
+bb16:
   push 36
   calldataload
   push 1
@@ -229,8 +225,8 @@ bb17:
   add
   dup1
   push 672
-  jump bb22
-bb18:
+  jump bb21
+bb17:
   push 64
   mload
   swap1
@@ -281,10 +277,10 @@ bb18:
   calldataload
   swap1
   iszero
-  push bb17
+  push bb16
   jumpi
-  jump bb21
-bb21 [cold]:
+  jump bb20
+bb20 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -296,7 +292,7 @@ bb21 [cold]:
   push 36
   push 0
   revert
-bb19:
+bb18:
   push 1
   dup2
   add
@@ -305,7 +301,7 @@ bb19:
   mstore
   dup2
   gt
-  push bb21
+  push bb20
   jumpi
   push 2
   dup2
@@ -323,6 +319,6 @@ bb19:
   calldataload
   swap1
   iszero
-  push bb18
+  push bb17
   jumpi
-  jump bb21
+  jump bb20

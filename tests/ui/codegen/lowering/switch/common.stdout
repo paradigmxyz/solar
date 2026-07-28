@@ -4,30 +4,19 @@ bb0:
   push 160
   push 64
   mstore
-  calldatasize
-  push bb2
-  jumpi
-  jump bb4
-bb4:
   push 0
   calldataload
   dup1
   push 128
   mstore
   dup1
-  push bb5
+  push bb2
   jumpi
   pop
   push 0
   push 0
   revert
 bb2:
-  push 0
-  calldataload
-  push 224
-  shr
-  jump bb4
-bb5:
   pop
   stop
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:Base64Remainder (runtime) ===
@@ -37,13 +26,8 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb5
+  push bb2
   jumpi
-  calldatasize
-  push bb3
-  jumpi
-  jump bb6
-bb6:
   push 0
   calldataload
   push 3
@@ -55,38 +39,32 @@ bb6:
   dup1
   push 1
   sub
-  push bb7
+  push bb4
   jumpi
   pop
   push 11
-  jump bb10
-bb10:
+  jump bb7
+bb7:
   push 0
   mstore
-  jump bb9
-bb9:
+  jump bb6
+bb6:
   push 32
   push 0
   return
-bb3:
-  push 0
-  calldataload
-  push 224
-  shr
-  jump bb6
-bb7:
+bb4:
   dup1
   push 2
   sub
-  push bb8
+  push bb5
   jumpi
   pop
   push 22
-  jump bb10
-bb8:
+  jump bb7
+bb5:
   pop
-  jump bb9
-bb5 [cold]:
+  jump bb6
+bb2 [cold]:
   push 0
   dup1
   revert
@@ -97,13 +75,8 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb5
+  push bb2
   jumpi
-  calldatasize
-  push bb3
-  jumpi
-  jump bb6
-bb6:
   push 0
   calldataload
   dup1
@@ -112,37 +85,31 @@ bb6:
   dup1
   push 64
   sub
-  push bb7
+  push bb4
   jumpi
   pop
   push 27
-  jump bb10
-bb10:
+  jump bb7
+bb7:
   push 0
   mstore
   push 32
   push 0
   return
-bb3:
-  push 0
-  calldataload
-  push 224
-  shr
-  jump bb6
-bb7:
+bb4:
   dup1
   push 65
   sub
-  push bb8
+  push bb5
   jumpi
   pop
   push 28
-  jump bb10
-bb8:
+  jump bb7
+bb5:
   pop
   push 0
-  jump bb10
-bb5 [cold]:
+  jump bb7
+bb2 [cold]:
   push 0
   dup1
   revert
@@ -153,13 +120,8 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb5
+  push bb2
   jumpi
-  calldatasize
-  push bb3
-  jumpi
-  jump bb6
-bb6:
   push 0
   calldataload
   push 32
@@ -175,30 +137,24 @@ bb6:
   push 160
   mload
   dup1
-  push bb7
+  push bb4
   jumpi
   pop
   push 128
   mload
   dup1
-  push bb10
+  push bb7
   jumpi
   pop
   push 1
-  jump bb13
-bb13:
+  jump bb10
+bb10:
   push 0
   mstore
   push 32
   push 0
   return
-bb3:
-  push 0
-  calldataload
-  push 224
-  shr
-  jump bb6
-bb7:
+bb4:
   pop
   push 1
   push 128
@@ -208,20 +164,20 @@ bb7:
   push 192
   mstore
   dup1
-  push bb12
+  push bb9
   jumpi
   pop
   push 2
-  jump bb13
-bb10:
+  jump bb10
+bb7:
   pop
   push 0
-  jump bb13
-bb12:
+  jump bb10
+bb9:
   pop
   push 3
-  jump bb13
-bb5 [cold]:
+  jump bb10
+bb2 [cold]:
   push 0
   dup1
   revert

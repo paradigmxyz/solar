@@ -137,9 +137,9 @@ impl LowerDispatchCx {
     /// Synthesizes the `entry` routing function and appends it to the module.
     ///
     /// It includes an optional hoisted callvalue check when every entry rejects
-    /// value, routes empty calldata to `receive`, then `fallback`, then revert,
-    /// routes short calldata to `fallback` or revert, and defaults the selector
-    /// switch to `fallback` or revert.
+    /// value, routes empty calldata to `receive`, rejects zero-padded short
+    /// selector matches, and defaults the selector switch to `fallback` or
+    /// revert.
     fn build_entry(
         &self,
         module: &mut Module,
@@ -151,77 +151,76 @@ impl LowerDispatchCx {
         let fallback_rejects =
             fallback.is_some_and(|id| super::utils::rejects_callvalue(module.function(id)));
         let needs_short_calldata_guard = routes.iter().any(|(selector, _)| selector & 0xff == 0);
+        let needs_size_dispatch = receive.is_some() || needs_short_calldata_guard;
 
         let mut entry = Function::new(Ident::with_dummy_span(sym::entry));
         {
             let mut builder = FunctionBuilder::new(&mut entry);
 
-            let size_block = builder.create_block();
-            // With no receive and no fallback there is no empty-calldata
-            // entry: empty calldata branches straight to the revert, and
-            // keeping `select_block` the fallthrough lets codegen invert the
-            // size check into the shared revert stub.
-            let empty_block =
-                (receive.is_some() || fallback.is_some()).then(|| builder.create_block());
-            let nonempty_block = needs_short_calldata_guard.then(|| builder.create_block());
+            let size_block = needs_size_dispatch.then(|| builder.create_block());
+            let short_size_block =
+                (receive.is_some() && needs_short_calldata_guard).then(|| builder.create_block());
+            let receive_block = receive.map(|_| builder.create_block());
             let select_block = builder.create_block();
             let case_blocks: Vec<_> = routes.iter().map(|_| builder.create_block()).collect();
             let default_block = fallback.map(|_| builder.create_block());
             let revert_block = builder.create_block();
+            let dispatch_block = size_block.unwrap_or(select_block);
 
             // Optional hoisted callvalue check.
             if hoist_callvalue {
                 let value = builder.callvalue();
-                builder.branch(value, revert_block, size_block);
+                builder.branch(value, revert_block, dispatch_block);
             } else {
-                builder.jump(size_block);
+                builder.jump(dispatch_block);
             }
 
-            // Empty calldata: receive, else fallback, else revert. Nonzero
-            // calldatasize is the branch condition itself; no comparison.
-            builder.switch_to_block(size_block);
-            let size = builder.calldatasize();
-            builder.branch(
-                size,
-                nonempty_block.unwrap_or(select_block),
-                empty_block.unwrap_or(revert_block),
-            );
-
-            if let Some(empty_block) = empty_block {
-                builder.switch_to_block(empty_block);
-                match (receive, fallback) {
-                    (Some(target), _) => builder.tail_call(target, Vec::new()),
-                    (None, Some(target)) => {
-                        self.guarded_tail_call(
-                            &mut builder,
-                            target,
-                            fallback_rejects && !hoist_callvalue,
-                            revert_block,
-                        );
-                    }
-                    (None, None) => unreachable!("empty_block exists without receive or fallback"),
+            if let Some(size_block) = size_block {
+                builder.switch_to_block(size_block);
+                let size = builder.calldatasize();
+                if receive.is_some() {
+                    builder.branch(
+                        size,
+                        short_size_block.unwrap_or(select_block),
+                        receive_block.expect("receive block must exist"),
+                    );
+                } else {
+                    let selector_size = builder.imm_u64(4);
+                    let short = builder.lt(size, selector_size);
+                    builder.branch(short, default_block.unwrap_or(revert_block), select_block);
                 }
             }
 
-            if let Some(nonempty_block) = nonempty_block {
+            if let Some(short_size_block) = short_size_block {
                 // CALLDATALOAD zero-pads short input. It can only spuriously
                 // match a selector whose final byte is zero.
-                builder.switch_to_block(nonempty_block);
+                builder.switch_to_block(short_size_block);
                 let size = builder.calldatasize();
                 let selector_size = builder.imm_u64(4);
                 let short = builder.lt(size, selector_size);
                 builder.branch(short, default_block.unwrap_or(revert_block), select_block);
             }
 
+            if let Some(receive_block) = receive_block
+                && let Some(target) = receive
+            {
+                builder.switch_to_block(receive_block);
+                builder.tail_call(target, Vec::new());
+            }
+
             // Selector switch; the default goes to the fallback when present.
             builder.switch_to_block(select_block);
-            let selector = self.load_selector(&mut builder);
-            let cases = routes
-                .iter()
-                .zip(&case_blocks)
-                .map(|((sel, _), block)| (builder.imm_u64(u64::from(*sel)), *block))
-                .collect();
-            builder.switch(selector, default_block.unwrap_or(revert_block), cases);
+            if routes.is_empty() {
+                builder.jump(default_block.unwrap_or(revert_block));
+            } else {
+                let selector = self.load_selector(&mut builder);
+                let cases = routes
+                    .iter()
+                    .zip(&case_blocks)
+                    .map(|((sel, _), block)| (builder.imm_u64(u64::from(*sel)), *block))
+                    .collect();
+                builder.switch(selector, default_block.unwrap_or(revert_block), cases);
+            }
 
             if let Some(default_block) = default_block
                 && let Some(target) = fallback
