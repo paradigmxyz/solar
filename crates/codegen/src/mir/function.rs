@@ -9,7 +9,7 @@ use solar_data_structures::{
     bit_set::DenseBitSet,
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
-    map::FxHashMap,
+    map::{FxHashMap, StdEntry},
 };
 use solar_interface::Ident;
 use solar_sema::hir::{StateMutability, Visibility};
@@ -209,12 +209,16 @@ impl Function {
         let mut replacements = FxHashMap::default();
         for value in self.live_values().collect::<Vec<_>>() {
             let Value::Immediate(immediate) = self.value(value) else { continue };
-            if let Some(&existing) = canonical.get(immediate) {
-                if existing != value {
-                    replacements.insert(value, existing);
+            match canonical.entry(immediate.clone()) {
+                StdEntry::Occupied(entry) => {
+                    let existing = *entry.get();
+                    if existing != value {
+                        replacements.insert(value, existing);
+                    }
                 }
-            } else {
-                canonical.insert(immediate.clone(), value);
+                StdEntry::Vacant(entry) => {
+                    entry.insert(value);
+                }
             }
         }
         if replacements.is_empty() {
