@@ -21,7 +21,7 @@ fn @plain(arg0: calldataslice, arg1: u256) {
     v5 = slice_ptr arg0
     v6 = mul arg1, 128
     v7 = add v5, v6
-    v8 = alloc raw, exact, uninitialized, infallible, 128
+    v8 = alloc raw, exact, uninitialized, infallible, 160
     v9 = calldataload v7
     v10 = and v9, 255
     v11 = eq v9, v10
@@ -48,9 +48,11 @@ fn @plain(arg0: calldataslice, arg1: u256) {
     v21 = calldataload v20
     v22 = add v8, 96
     mstore v22, v21
-    v23 = memory_object_field_addr memorystruct<4>, v8, 3
-    v24 = mload v23
-    mstore 128, v24
+    v23 = add v8, 128
+    mstore v23, v7
+    v24 = memory_object_field_addr memorystruct<4>, v8, 3
+    v25 = mload v24
+    mstore 128, v25
     returndata 128, 32
 }
 
@@ -69,7 +71,7 @@ fn @member(arg0: u256, arg1: u256) {
     revert 0, 0
   bb4:
     v4 = add 4, arg0
-    v5 = alloc raw, exact, uninitialized, infallible, 128
+    v5 = alloc raw, exact, uninitialized, infallible, 160
     v6 = calldataload v4
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v8 = eq v6, v7
@@ -115,21 +117,21 @@ fn @member(arg0: u256, arg1: u256) {
     br v24, bb12, bb13
   bb12:
     v25 = mload v20
-    v26 = alloc raw, exact, uninitialized, infallible, 128
+    v26 = alloc raw, exact, uninitialized, infallible, 160
     v27 = calldataload v25
     v28 = and v27, 255
     v29 = eq v27, v28
     br v29, bb15, bb14
   bb13:
-    v48 = add v5, 32
-    mstore v48, v18
-    v49 = add v4, 64
-    v50 = calldataload v49
-    v51 = add v4, v50
-    v52 = calldataload v51
-    v53 = add v51, 32
-    v54 = shr 251, v52
-    br v54, bb18, bb19
+    v49 = add v5, 32
+    mstore v49, v18
+    v50 = add v4, 64
+    v51 = calldataload v50
+    v52 = add v4, v51
+    v53 = calldataload v52
+    v54 = add v52, 32
+    v55 = shr 251, v53
+    br v55, bb18, bb19
   bb14:
     revert 0, 0
   bb15:
@@ -152,119 +154,121 @@ fn @member(arg0: u256, arg1: u256) {
     v39 = calldataload v38
     v40 = add v26, 96
     mstore v40, v39
-    v41 = mload v21
-    mstore v41, v26
-    v42 = mload v19
-    v43 = sub v42, 1
-    mstore v19, v43
-    v44 = mload v20
-    v45 = add v44, 128
-    mstore v20, v45
-    v46 = mload v21
-    v47 = add v46, 32
-    mstore v21, v47
+    v41 = add v26, 128
+    mstore v41, v25
+    v42 = mload v21
+    mstore v42, v26
+    v43 = mload v19
+    v44 = sub v43, 1
+    mstore v19, v44
+    v45 = mload v20
+    v46 = add v45, 128
+    mstore v20, v46
+    v47 = mload v21
+    v48 = add v47, 32
+    mstore v21, v48
     jump bb11
   bb18:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb19:
-    v55 = mul v52, 32
-    v56 = add 32, v55
-    v57 = alloc memoryarray<1>, exact, uninitialized, infallible, v56
-    set_memory_object_len memoryarray, v57, v52
-    v58 = memory_object_data memoryarray, v57
-    calldatacopy v58, v53, v55
-    v59 = add v5, 64
-    mstore v59, v57
-    v60 = add v4, 96
-    v61 = calldataload v60
-    v62 = add v4, v61
-    v63 = calldataload v62
-    v64 = add v63, 31
-    v65 = lt v64, v63
-    br v65, bb20, bb21
+    v56 = mul v53, 32
+    v57 = add 32, v56
+    v58 = alloc memoryarray<1>, exact, uninitialized, infallible, v57
+    set_memory_object_len memoryarray, v58, v53
+    v59 = memory_object_data memoryarray, v58
+    calldatacopy v59, v54, v56
+    v60 = add v5, 64
+    mstore v60, v58
+    v61 = add v4, 96
+    v62 = calldataload v61
+    v63 = add v4, v62
+    v64 = calldataload v63
+    v65 = add v64, 31
+    v66 = lt v65, v64
+    br v66, bb20, bb21
   bb20:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb21:
-    v66 = not 31
-    v67 = and v64, v66
-    v68 = iszero v67
-    v69 = select v68, 32, v67
-    v70 = add 32, v69
-    v71 = lt v70, v69
-    br v71, bb22, bb23
+    v67 = not 31
+    v68 = and v65, v67
+    v69 = iszero v68
+    v70 = select v69, 32, v68
+    v71 = add 32, v70
+    v72 = lt v71, v70
+    br v72, bb22, bb23
   bb22:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb23:
-    v72 = alloc memorybytes, exact, uninitialized, infallible, v70
-    mstore v72, v63
-    v73 = add v72, 32
-    v74 = sub v69, 32
-    v75 = add v73, v74
-    mstore v75, 0
-    v76 = add v62, 32
-    calldatacopy v73, v76, v63
-    v77 = add v5, 96
-    mstore v77, v72
-    v78 = add v4, 32
-    v79 = calldataload v78
-    v80 = add v4, v79
-    v81 = calldataload v80
-    v82 = add v80, 32
-    v83 = make_calldata_slice v82, v81
-    v84 = add v4, 64
-    v85 = calldataload v84
-    v86 = add v4, v85
-    v87 = calldataload v86
-    v88 = add v86, 32
-    v89 = make_calldata_slice v88, v87
+    v73 = alloc memorybytes, exact, uninitialized, infallible, v71
+    mstore v73, v64
+    v74 = add v73, 32
+    v75 = sub v70, 32
+    v76 = add v74, v75
+    mstore v76, 0
+    v77 = add v63, 32
+    calldatacopy v74, v77, v64
+    v78 = add v5, 96
+    mstore v78, v73
+    v79 = add v5, 128
+    mstore v79, v4
     mstore 128, 0
-    v90 = slice_len v83
-    v91 = lt arg1, v90
-    br v91, bb25, bb24
+    v80 = add v5, 128
+    v81 = mload v80
+    v82 = add v81, 32
+    v83 = calldataload v82
+    v84 = add v81, v83
+    v85 = calldataload v84
+    v86 = add v84, 32
+    v87 = make_calldata_slice v86, v85
+    v88 = slice_len v87
+    v89 = lt arg1, v88
+    br v89, bb25, bb24
   bb24:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb25:
-    v92 = slice_ptr v83
-    v93 = mul arg1, 128
-    v94 = add v92, v93
-    v95 = alloc raw, exact, uninitialized, infallible, 128
-    v96 = calldataload v94
-    v97 = and v96, 255
-    v98 = eq v96, v97
-    br v98, bb27, bb26
+    v90 = slice_ptr v87
+    v91 = mul arg1, 128
+    v92 = add v90, v91
+    v93 = alloc raw, exact, uninitialized, infallible, 160
+    v94 = calldataload v92
+    v95 = and v94, 255
+    v96 = eq v94, v95
+    br v96, bb27, bb26
   bb26:
     revert 0, 0
   bb27:
-    mstore v95, v96
-    v99 = add v94, 32
-    v100 = calldataload v99
-    v101 = and v100, 0xffffffffffffffffffffffffffffffffffffffff
-    v102 = eq v100, v101
-    br v102, bb29, bb28
+    mstore v93, v94
+    v97 = add v92, 32
+    v98 = calldataload v97
+    v99 = and v98, 0xffffffffffffffffffffffffffffffffffffffff
+    v100 = eq v98, v99
+    br v100, bb29, bb28
   bb28:
     revert 0, 0
   bb29:
-    v103 = add v95, 32
-    mstore v103, v100
-    v104 = add v94, 64
-    v105 = calldataload v104
-    v106 = add v95, 64
-    mstore v106, v105
-    v107 = add v94, 96
-    v108 = calldataload v107
-    v109 = add v95, 96
-    mstore v109, v108
-    v110 = memory_object_field_addr memorystruct<4>, v95, 3
-    v111 = mload v110
-    mstore 128, v111
+    v101 = add v93, 32
+    mstore v101, v98
+    v102 = add v92, 64
+    v103 = calldataload v102
+    v104 = add v93, 64
+    mstore v104, v103
+    v105 = add v92, 96
+    v106 = calldataload v105
+    v107 = add v93, 96
+    mstore v107, v106
+    v108 = add v93, 128
+    mstore v108, v92
+    v109 = memory_object_field_addr memorystruct<4>, v93, 3
+    v110 = mload v109
+    mstore 128, v110
     returndata 128, 32
 }
 
@@ -283,7 +287,7 @@ fn @word(arg0: u256, arg1: u256) {
     revert 0, 0
   bb4:
     v4 = add 4, arg0
-    v5 = alloc raw, exact, uninitialized, infallible, 128
+    v5 = alloc raw, exact, uninitialized, infallible, 160
     v6 = calldataload v4
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v8 = eq v6, v7
@@ -329,21 +333,21 @@ fn @word(arg0: u256, arg1: u256) {
     br v24, bb12, bb13
   bb12:
     v25 = mload v20
-    v26 = alloc raw, exact, uninitialized, infallible, 128
+    v26 = alloc raw, exact, uninitialized, infallible, 160
     v27 = calldataload v25
     v28 = and v27, 255
     v29 = eq v27, v28
     br v29, bb15, bb14
   bb13:
-    v48 = add v5, 32
-    mstore v48, v18
-    v49 = add v4, 64
-    v50 = calldataload v49
-    v51 = add v4, v50
-    v52 = calldataload v51
-    v53 = add v51, 32
-    v54 = shr 251, v52
-    br v54, bb18, bb19
+    v49 = add v5, 32
+    mstore v49, v18
+    v50 = add v4, 64
+    v51 = calldataload v50
+    v52 = add v4, v51
+    v53 = calldataload v52
+    v54 = add v52, 32
+    v55 = shr 251, v53
+    br v55, bb18, bb19
   bb14:
     revert 0, 0
   bb15:
@@ -366,91 +370,91 @@ fn @word(arg0: u256, arg1: u256) {
     v39 = calldataload v38
     v40 = add v26, 96
     mstore v40, v39
-    v41 = mload v21
-    mstore v41, v26
-    v42 = mload v19
-    v43 = sub v42, 1
-    mstore v19, v43
-    v44 = mload v20
-    v45 = add v44, 128
-    mstore v20, v45
-    v46 = mload v21
-    v47 = add v46, 32
-    mstore v21, v47
+    v41 = add v26, 128
+    mstore v41, v25
+    v42 = mload v21
+    mstore v42, v26
+    v43 = mload v19
+    v44 = sub v43, 1
+    mstore v19, v44
+    v45 = mload v20
+    v46 = add v45, 128
+    mstore v20, v46
+    v47 = mload v21
+    v48 = add v47, 32
+    mstore v21, v48
     jump bb11
   bb18:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb19:
-    v55 = mul v52, 32
-    v56 = add 32, v55
-    v57 = alloc memoryarray<1>, exact, uninitialized, infallible, v56
-    set_memory_object_len memoryarray, v57, v52
-    v58 = memory_object_data memoryarray, v57
-    calldatacopy v58, v53, v55
-    v59 = add v5, 64
-    mstore v59, v57
-    v60 = add v4, 96
-    v61 = calldataload v60
-    v62 = add v4, v61
-    v63 = calldataload v62
-    v64 = add v63, 31
-    v65 = lt v64, v63
-    br v65, bb20, bb21
+    v56 = mul v53, 32
+    v57 = add 32, v56
+    v58 = alloc memoryarray<1>, exact, uninitialized, infallible, v57
+    set_memory_object_len memoryarray, v58, v53
+    v59 = memory_object_data memoryarray, v58
+    calldatacopy v59, v54, v56
+    v60 = add v5, 64
+    mstore v60, v58
+    v61 = add v4, 96
+    v62 = calldataload v61
+    v63 = add v4, v62
+    v64 = calldataload v63
+    v65 = add v64, 31
+    v66 = lt v65, v64
+    br v66, bb20, bb21
   bb20:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb21:
-    v66 = not 31
-    v67 = and v64, v66
-    v68 = iszero v67
-    v69 = select v68, 32, v67
-    v70 = add 32, v69
-    v71 = lt v70, v69
-    br v71, bb22, bb23
+    v67 = not 31
+    v68 = and v65, v67
+    v69 = iszero v68
+    v70 = select v69, 32, v68
+    v71 = add 32, v70
+    v72 = lt v71, v70
+    br v72, bb22, bb23
   bb22:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb23:
-    v72 = alloc memorybytes, exact, uninitialized, infallible, v70
-    mstore v72, v63
-    v73 = add v72, 32
-    v74 = sub v69, 32
-    v75 = add v73, v74
-    mstore v75, 0
-    v76 = add v62, 32
-    calldatacopy v73, v76, v63
-    v77 = add v5, 96
-    mstore v77, v72
-    v78 = add v4, 32
-    v79 = calldataload v78
-    v80 = add v4, v79
-    v81 = calldataload v80
-    v82 = add v80, 32
-    v83 = make_calldata_slice v82, v81
-    v84 = add v4, 64
-    v85 = calldataload v84
-    v86 = add v4, v85
-    v87 = calldataload v86
-    v88 = add v86, 32
-    v89 = make_calldata_slice v88, v87
+    v73 = alloc memorybytes, exact, uninitialized, infallible, v71
+    mstore v73, v64
+    v74 = add v73, 32
+    v75 = sub v70, 32
+    v76 = add v74, v75
+    mstore v76, 0
+    v77 = add v63, 32
+    calldatacopy v74, v77, v64
+    v78 = add v5, 96
+    mstore v78, v73
+    v79 = add v5, 128
+    mstore v79, v4
     mstore 128, 0
-    v90 = slice_len v89
-    v91 = lt arg1, v90
-    br v91, bb25, bb24
+    v80 = add v5, 128
+    v81 = mload v80
+    v82 = add v81, 64
+    v83 = calldataload v82
+    v84 = add v81, v83
+    v85 = calldataload v84
+    v86 = add v84, 32
+    v87 = make_calldata_slice v86, v85
+    v88 = slice_len v87
+    v89 = lt arg1, v88
+    br v89, bb25, bb24
   bb24:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb25:
-    v92 = slice_ptr v89
-    v93 = mul arg1, 32
-    v94 = add v92, v93
-    v95 = calldataload v94
-    mstore 128, v95
+    v90 = slice_ptr v87
+    v91 = mul arg1, 32
+    v92 = add v90, v91
+    v93 = calldataload v92
+    mstore 128, v93
     returndata 128, 32
 }
 
@@ -469,7 +473,7 @@ fn @lengths(arg0: u256) {
     revert 0, 0
   bb4:
     v4 = add 4, arg0
-    v5 = alloc raw, exact, uninitialized, infallible, 128
+    v5 = alloc raw, exact, uninitialized, infallible, 160
     v6 = calldataload v4
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v8 = eq v6, v7
@@ -515,21 +519,21 @@ fn @lengths(arg0: u256) {
     br v24, bb12, bb13
   bb12:
     v25 = mload v20
-    v26 = alloc raw, exact, uninitialized, infallible, 128
+    v26 = alloc raw, exact, uninitialized, infallible, 160
     v27 = calldataload v25
     v28 = and v27, 255
     v29 = eq v27, v28
     br v29, bb15, bb14
   bb13:
-    v48 = add v5, 32
-    mstore v48, v18
-    v49 = add v4, 64
-    v50 = calldataload v49
-    v51 = add v4, v50
-    v52 = calldataload v51
-    v53 = add v51, 32
-    v54 = shr 251, v52
-    br v54, bb18, bb19
+    v49 = add v5, 32
+    mstore v49, v18
+    v50 = add v4, 64
+    v51 = calldataload v50
+    v52 = add v4, v51
+    v53 = calldataload v52
+    v54 = add v52, 32
+    v55 = shr 251, v53
+    br v55, bb18, bb19
   bb14:
     revert 0, 0
   bb15:
@@ -552,94 +556,104 @@ fn @lengths(arg0: u256) {
     v39 = calldataload v38
     v40 = add v26, 96
     mstore v40, v39
-    v41 = mload v21
-    mstore v41, v26
-    v42 = mload v19
-    v43 = sub v42, 1
-    mstore v19, v43
-    v44 = mload v20
-    v45 = add v44, 128
-    mstore v20, v45
-    v46 = mload v21
-    v47 = add v46, 32
-    mstore v21, v47
+    v41 = add v26, 128
+    mstore v41, v25
+    v42 = mload v21
+    mstore v42, v26
+    v43 = mload v19
+    v44 = sub v43, 1
+    mstore v19, v44
+    v45 = mload v20
+    v46 = add v45, 128
+    mstore v20, v46
+    v47 = mload v21
+    v48 = add v47, 32
+    mstore v21, v48
     jump bb11
   bb18:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb19:
-    v55 = mul v52, 32
-    v56 = add 32, v55
-    v57 = alloc memoryarray<1>, exact, uninitialized, infallible, v56
-    set_memory_object_len memoryarray, v57, v52
-    v58 = memory_object_data memoryarray, v57
-    calldatacopy v58, v53, v55
-    v59 = add v5, 64
-    mstore v59, v57
-    v60 = add v4, 96
-    v61 = calldataload v60
-    v62 = add v4, v61
-    v63 = calldataload v62
-    v64 = add v63, 31
-    v65 = lt v64, v63
-    br v65, bb20, bb21
+    v56 = mul v53, 32
+    v57 = add 32, v56
+    v58 = alloc memoryarray<1>, exact, uninitialized, infallible, v57
+    set_memory_object_len memoryarray, v58, v53
+    v59 = memory_object_data memoryarray, v58
+    calldatacopy v59, v54, v56
+    v60 = add v5, 64
+    mstore v60, v58
+    v61 = add v4, 96
+    v62 = calldataload v61
+    v63 = add v4, v62
+    v64 = calldataload v63
+    v65 = add v64, 31
+    v66 = lt v65, v64
+    br v66, bb20, bb21
   bb20:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb21:
-    v66 = not 31
-    v67 = and v64, v66
-    v68 = iszero v67
-    v69 = select v68, 32, v67
-    v70 = add 32, v69
-    v71 = lt v70, v69
-    br v71, bb22, bb23
+    v67 = not 31
+    v68 = and v65, v67
+    v69 = iszero v68
+    v70 = select v69, 32, v68
+    v71 = add 32, v70
+    v72 = lt v71, v70
+    br v72, bb22, bb23
   bb22:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb23:
-    v72 = alloc memorybytes, exact, uninitialized, infallible, v70
-    mstore v72, v63
-    v73 = add v72, 32
-    v74 = sub v69, 32
-    v75 = add v73, v74
-    mstore v75, 0
-    v76 = add v62, 32
-    calldatacopy v73, v76, v63
-    v77 = add v5, 96
-    mstore v77, v72
-    v78 = add v4, 32
-    v79 = calldataload v78
-    v80 = add v4, v79
-    v81 = calldataload v80
-    v82 = add v80, 32
-    v83 = make_calldata_slice v82, v81
-    v84 = add v4, 64
-    v85 = calldataload v84
-    v86 = add v4, v85
-    v87 = calldataload v86
-    v88 = add v86, 32
-    v89 = make_calldata_slice v88, v87
+    v73 = alloc memorybytes, exact, uninitialized, infallible, v71
+    mstore v73, v64
+    v74 = add v73, 32
+    v75 = sub v70, 32
+    v76 = add v74, v75
+    mstore v76, 0
+    v77 = add v63, 32
+    calldatacopy v74, v77, v64
+    v78 = add v5, 96
+    mstore v78, v73
+    v79 = add v5, 128
+    mstore v79, v4
     mstore 128, 0
     mstore 160, 0
     mstore 192, 0
-    v90 = slice_len v83
-    v91 = slice_len v89
-    v92 = memory_object_field_addr memorystruct<4>, v5, 3
-    v93 = mload v92
-    v94 = memory_object_field_addr memorystruct<4>, v5, 3
-    v95 = mload v94
-    v96 = memory_object_field_addr memorystruct<4>, v5, 3
-    v97 = mload v96
-    v98 = mload v97
-    mstore 128, v90
-    v99 = add 128, 32
-    mstore v99, v91
-    v100 = add 128, 64
-    mstore v100, v98
+    v80 = add v5, 128
+    v81 = mload v80
+    v82 = add v81, 32
+    v83 = calldataload v82
+    v84 = add v81, v83
+    v85 = calldataload v84
+    v86 = add v84, 32
+    v87 = make_calldata_slice v86, v85
+    v88 = slice_len v87
+    v89 = add v5, 128
+    v90 = mload v89
+    v91 = add v90, 64
+    v92 = calldataload v91
+    v93 = add v90, v92
+    v94 = calldataload v93
+    v95 = add v93, 32
+    v96 = make_calldata_slice v95, v94
+    v97 = slice_len v96
+    v98 = add v5, 128
+    v99 = mload v98
+    v100 = add v99, 96
+    v101 = calldataload v100
+    v102 = add v99, v101
+    v103 = calldataload v102
+    v104 = add v102, 32
+    v105 = make_calldata_slice v104, v103
+    v106 = slice_len v105
+    mstore 128, v88
+    v107 = add 128, 32
+    mstore v107, v97
+    v108 = add 128, 64
+    mstore v108, v106
     returndata 128, 96
 }
 
