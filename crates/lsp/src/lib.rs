@@ -23,6 +23,7 @@ mod commands;
 mod config;
 mod diagnostics;
 mod document_links;
+mod file_operations;
 mod flycheck;
 mod folding_range;
 mod formatter;

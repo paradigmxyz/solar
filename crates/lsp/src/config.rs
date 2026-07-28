@@ -1,6 +1,7 @@
 use crate::{
     commands,
     diagnostics::DiagnosticOwner,
+    file_operations::FileMoveBatch,
     flycheck::{FlycheckConfig, FlycheckInitializationOptions},
     workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest},
 };
@@ -130,6 +131,10 @@ impl Config {
         self.flychecks.iter().filter(|flycheck| flycheck.applies_to(path)).cloned().collect()
     }
 
+    pub(crate) fn flycheck_owners(&self) -> impl Iterator<Item = DiagnosticOwner> + '_ {
+        self.flychecks.iter().map(FlycheckConfig::owner)
+    }
+
     pub(crate) fn rediscover_workspaces(&mut self) -> Vec<DiagnosticOwner> {
         let mut workspaces = Vec::new();
         let mut seen_manifests = FxHashSet::default();
@@ -183,13 +188,13 @@ impl Config {
 
     pub(crate) fn reconcile_workspace_roots(
         &mut self,
-        moves: &[(PathBuf, PathBuf)],
+        moves: &FileMoveBatch,
         deleted_paths: &[PathBuf],
     ) {
         self.workspace_roots
             .retain(|root| !deleted_paths.iter().any(|deleted| root.starts_with(deleted)));
         for root in &mut self.workspace_roots {
-            if let Some(new_root) = renamed_path(root, moves) {
+            if let Some((_, new_root)) = moves.map_path(root) {
                 *root = new_root;
             }
         }
@@ -232,17 +237,6 @@ impl Config {
 fn push_workspace(workspaces: &mut Vec<Workspace>, mut workspace: Workspace) {
     workspace.refresh_source_files();
     workspaces.push(workspace);
-}
-
-fn renamed_path(path: &Path, moves: &[(PathBuf, PathBuf)]) -> Option<PathBuf> {
-    moves
-        .iter()
-        .filter_map(|(old_path, new_path)| {
-            let suffix = path.strip_prefix(old_path).ok()?;
-            Some((old_path.components().count(), new_path.join(suffix)))
-        })
-        .max_by_key(|(components, _)| *components)
-        .map(|(_, path)| path)
 }
 
 fn workspace_file_operation_options() -> FileOperationRegistrationOptions {

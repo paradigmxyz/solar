@@ -230,8 +230,8 @@ impl GlobalState {
         removed_paths: Vec<PathBuf>,
         changed_paths: Vec<PathBuf>,
     ) {
-        let removed_uris = self.prepare_removed_file_diagnostics(removed_paths);
-        let Some((version, progress)) = self.begin_analysis(mode, removed_uris, changed_paths)
+        self.prepare_removed_file_diagnostics(&removed_paths);
+        let Some((version, progress)) = self.begin_analysis(mode, removed_paths, changed_paths)
         else {
             return;
         };
@@ -280,7 +280,7 @@ impl GlobalState {
     fn begin_analysis(
         &mut self,
         mode: AnalysisMode,
-        removed_uris: Vec<Url>,
+        removed_paths: Vec<PathBuf>,
         changed_paths: Vec<PathBuf>,
     ) -> Option<(usize, ProgressTicket)> {
         let (version, rediscover, progress) = {
@@ -297,7 +297,10 @@ impl GlobalState {
             // end the previous wave after the new analysis becomes current.
             let progress = self.analysis_progress.start(version);
             self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover);
-            let batches = self.diagnostics.write().clear_uris_and_publish_batches(removed_uris);
+            let batches = self
+                .diagnostics
+                .write()
+                .clear_file_path_prefixes_and_publish_batches(&removed_paths);
             publish_diagnostic_batches(&mut self.client, batches);
             (version, rediscover, progress)
         };
@@ -485,23 +488,15 @@ impl GlobalState {
         }
     }
 
-    fn prepare_removed_file_diagnostics(&mut self, paths: Vec<PathBuf>) -> Vec<Url> {
-        let uris =
-            paths.iter().filter_map(|path| Url::from_file_path(path).ok()).collect::<Vec<_>>();
-        if uris.is_empty() {
-            return uris;
+    fn prepare_removed_file_diagnostics(&mut self, paths: &[PathBuf]) {
+        if paths.is_empty() {
+            return;
         }
 
-        let mut owners = FxHashSet::default();
-        for path in paths {
-            for flycheck in self.config.flychecks_for_path(&path) {
-                owners.insert(flycheck.owner());
-            }
-        }
+        let owners = self.config.flycheck_owners().collect::<FxHashSet<_>>();
         for owner in owners {
             self.begin_flycheck_epoch(&owner);
         }
-        uris
     }
 
     fn begin_flycheck_epoch(&mut self, owner: &DiagnosticOwner) -> usize {

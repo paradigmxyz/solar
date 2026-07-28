@@ -1,6 +1,7 @@
 use crate::{
     diagnostics::PullReport,
-    document_links::{FileMove, ImportEditPlan},
+    document_links::ImportEditPlan,
+    file_operations::{FileMoveBatch, parse_file_uri},
     formatter::{self, FormatterError},
     global_state::GlobalState,
     natspec_completion::{self, NatSpecCompletionResult},
@@ -292,17 +293,8 @@ pub(crate) fn will_rename_files(
     state: &mut GlobalState,
     params: RenameFilesParams,
 ) -> impl Future<Output = Result<Option<WorkspaceEdit>, ResponseError>> + use<> {
-    let moves = params
-        .files
-        .into_iter()
-        .filter_map(|file| {
-            Some(FileMove {
-                old_path: Url::parse(&file.old_uri).ok()?.to_file_path().ok()?,
-                new_path: Url::parse(&file.new_uri).ok()?.to_file_path().ok()?,
-            })
-        })
-        .collect::<Vec<_>>();
-    let request = (!moves.is_empty()).then(|| {
+    let moves = FileMoveBatch::try_from(params);
+    let request = moves.as_ref().is_ok_and(|moves| !moves.is_empty()).then(|| {
         (
             state.latest_analysis(),
             state.config.clone(),
@@ -311,6 +303,8 @@ pub(crate) fn will_rename_files(
         )
     });
     async move {
+        let moves = moves
+            .map_err(|error| ResponseError::new(ErrorCode::INVALID_PARAMS, error.to_string()))?;
         let Some((latest_analysis, config, vfs, document_changes)) = request else {
             return Ok(None);
         };
@@ -333,11 +327,8 @@ pub(crate) fn will_delete_files(
     state: &mut GlobalState,
     params: DeleteFilesParams,
 ) -> impl Future<Output = Result<Option<WorkspaceEdit>, ResponseError>> + use<> {
-    let deleted_paths = params
-        .files
-        .into_iter()
-        .filter_map(|file| Url::parse(&file.uri).ok()?.to_file_path().ok())
-        .collect::<Vec<_>>();
+    let deleted_paths =
+        params.files.into_iter().filter_map(|file| parse_file_uri(&file.uri)).collect::<Vec<_>>();
     let request = (!deleted_paths.is_empty()).then(|| {
         (
             state.latest_analysis(),

@@ -420,7 +420,7 @@ impl SymbolTables {
 
     pub(crate) fn import_rename_edits(
         &self,
-        moves: &[crate::document_links::FileMove],
+        moves: &crate::file_operations::FileMoveBatch,
     ) -> crate::document_links::ImportEditPlan {
         self.document_links.rename_edits(moves)
     }

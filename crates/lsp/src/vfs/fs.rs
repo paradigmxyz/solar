@@ -23,6 +23,7 @@
 //! [`SourceFile`]: solar_interface::source_map::SourceFile
 
 use super::VfsPath;
+use crate::file_operations::FileMoveBatch;
 use crop::Rope;
 use solar_interface::data_structures::map::rustc_hash::FxHashMap;
 use std::{mem, path::PathBuf};
@@ -74,7 +75,7 @@ impl Vfs {
     }
 
     /// Renames exact files and directory descendants from one snapshot of the VFS.
-    pub(crate) fn rename_file_prefixes(&mut self, moves: &[(PathBuf, PathBuf)]) {
+    pub(crate) fn rename_file_prefixes(&mut self, moves: &FileMoveBatch) {
         if moves.is_empty() {
             return;
         }
@@ -84,7 +85,10 @@ impl Vfs {
             .into_iter()
             .map(|(path, contents)| {
                 let version = old_versions.remove(&path);
-                let new_path = renamed_file_path(&path, moves).unwrap_or_else(|| path.clone());
+                let new_path = path
+                    .as_path()
+                    .and_then(|path| moves.map_path(path))
+                    .map_or_else(|| path.clone(), |(_, path)| VfsPath::from(path));
                 (path, new_path, contents, version)
             })
             .collect::<Vec<_>>();
@@ -138,19 +142,6 @@ impl Vfs {
     }
 }
 
-fn renamed_file_path(path: &VfsPath, moves: &[(PathBuf, PathBuf)]) -> Option<VfsPath> {
-    let path = path.as_path()?;
-    let mut best_match = None;
-    for (old_path, new_path) in moves {
-        let Ok(suffix) = path.strip_prefix(old_path) else { continue };
-        let components = old_path.components().count();
-        if best_match.is_none_or(|(best_components, _, _)| components > best_components) {
-            best_match = Some((components, new_path, suffix));
-        }
-    }
-    best_match.map(|(_, new_path, suffix)| VfsPath::from(new_path.join(suffix)))
-}
-
 fn has_file_prefix(path: &VfsPath, prefixes: &[PathBuf]) -> bool {
     path.as_path().is_some_and(|path| prefixes.iter().any(|prefix| path.starts_with(prefix)))
 }
@@ -172,16 +163,20 @@ mod tests {
         );
     }
 
+    fn moves(moves: impl IntoIterator<Item = (PathBuf, PathBuf)>) -> FileMoveBatch {
+        FileMoveBatch::new(moves).unwrap()
+    }
+
     #[test]
     fn rename_file_prefixes_uses_one_snapshot_and_preserves_versions() {
         let mut vfs = Vfs::default();
         insert(&mut vfs, "/workspace/A.sol", "contract A {}", 1);
         insert(&mut vfs, "/workspace/B.sol", "contract B {}", 2);
 
-        vfs.rename_file_prefixes(&[
+        vfs.rename_file_prefixes(&moves([
             (PathBuf::from("/workspace/A.sol"), PathBuf::from("/workspace/B.sol")),
             (PathBuf::from("/workspace/B.sol"), PathBuf::from("/workspace/C.sol")),
-        ]);
+        ]));
 
         assert!(!vfs.exists(&path("/workspace/A.sol")));
         assert_eq!(
@@ -202,10 +197,10 @@ mod tests {
         insert(&mut vfs, "/workspace/Old.sol", "contract Old {}", 1);
         insert(&mut vfs, "/workspace/New.sol", "contract UnsavedNew {}", 7);
 
-        vfs.rename_file_prefixes(&[(
+        vfs.rename_file_prefixes(&moves([(
             PathBuf::from("/workspace/Old.sol"),
             PathBuf::from("/workspace/New.sol"),
-        )]);
+        )]));
 
         assert!(!vfs.exists(&path("/workspace/Old.sol")));
         assert_eq!(
@@ -221,10 +216,10 @@ mod tests {
         insert(&mut vfs, "/workspace/pkg/Nested.sol", "contract Nested {}", 3);
         insert(&mut vfs, "/workspace/pkg2/Keep.sol", "contract Keep {}", 4);
 
-        vfs.rename_file_prefixes(&[(
+        vfs.rename_file_prefixes(&moves([(
             PathBuf::from("/workspace/pkg"),
             PathBuf::from("/workspace/moved"),
-        )]);
+        )]));
 
         assert!(!vfs.exists(&path("/workspace/pkg/Nested.sol")));
         assert_eq!(
@@ -240,10 +235,10 @@ mod tests {
         let mut vfs = Vfs::default();
         insert(&mut vfs, "/workspace/pkg/nested/Test.sol", "contract Test {}", 5);
 
-        vfs.rename_file_prefixes(&[
+        vfs.rename_file_prefixes(&moves([
             (PathBuf::from("/workspace/pkg"), PathBuf::from("/workspace/moved")),
             (PathBuf::from("/workspace/pkg/nested"), PathBuf::from("/workspace/special")),
-        ]);
+        ]));
 
         assert!(!vfs.exists(&path("/workspace/moved/nested/Test.sol")));
         assert_eq!(
