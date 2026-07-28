@@ -1,4 +1,4 @@
-//@compile-flags: --pass adce
+//@compile-flags: -Zmir-pipeline=adce
 //@filecheck:
 @module AdceBranchCycle
 // CHECK-LABEL: {{^[ +].*}}fn @keeps_branch_cycle{{[( ]}}

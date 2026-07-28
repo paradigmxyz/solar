@@ -1,7 +1,7 @@
 //@ revisions: pre pipeline
-//@[pre] compile-flags: --passes pre
+//@[pre] compile-flags: -Zmir-pipeline=pre
 //@[pre] filecheck: --check-prefix=PRE
-//@[pipeline] compile-flags: --pipeline-default
+//@[pipeline] compile-flags: -Zmir-pipeline=default
 //@[pipeline] filecheck: --check-prefix=PIPELINE --implicit-check-not=add
 // Two join blocks that are mutual predecessors: eliminating the expression
 // from one join inserts it into the other, which used to ping-pong forever.

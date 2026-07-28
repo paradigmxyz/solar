@@ -1,4 +1,4 @@
-//@compile-flags: --pass outline-reverts
+//@compile-flags: -Zmir-pipeline=outline-reverts
 //@filecheck:
 // Two functions carry the same constant panic block; it is outlined into one
 // shared no-return helper and each site becomes an argless `tail_call` — a

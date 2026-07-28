@@ -1,4 +1,4 @@
-//@compile-flags: --pass cse
+//@compile-flags: -Zmir-pipeline=cse
 //@filecheck:
 // Two SLOADs from the same slot within a block (no intervening SSTORE)
 // should be CSE'd. But after an SSTORE, the cache is invalidated.

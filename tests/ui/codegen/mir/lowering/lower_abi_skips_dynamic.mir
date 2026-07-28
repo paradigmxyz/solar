@@ -1,4 +1,4 @@
-//@compile-flags: --pass lower-abi
+//@compile-flags: -Zmir-pipeline=lower-abi
 //@filecheck: --implicit-check-not=@phase
 // A function that still returns MIR values needs its caller to encode them,
 // which absorption cannot do, so the module is left entirely untouched: the

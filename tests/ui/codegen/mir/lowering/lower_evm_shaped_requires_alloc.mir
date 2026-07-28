@@ -1,4 +1,4 @@
-//@compile-flags: --pass lower-evm-shaped
+//@compile-flags: -Zmir-pipeline=lower-evm-shaped
 //@filecheck: --match-full-lines
 // CHECK:   @phase memory-lowered
 // CHECK-NOT: + @phase evm-shaped

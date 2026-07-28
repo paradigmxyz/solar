@@ -1,4 +1,4 @@
-//@compile-flags: --pass load-pre
+//@compile-flags: -Zmir-pipeline=load-pre
 //@filecheck:
 // Keccak reads key the canonical size operand when the size is not constant:
 // reads with the same dynamic size unify across the join, reads with a
