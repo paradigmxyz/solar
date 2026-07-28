@@ -140,7 +140,8 @@ impl<P: MirPass> MirPass for GasOnly<P> {
 
 /// The canonical MIR pipeline used by EVM codegen.
 pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
-    &inline::Inline,
+    // MIR inlining remains available as an ad-hoc pass, but static internal
+    // frames make calls cheap enough that the measured candidates regress gas.
     &cfg_simplify::FunctionDce,
     // Early frame scalarization improves size but can increase hot-path gas.
     &SizeOnly(cfg_simplify::CfgSimplify),
