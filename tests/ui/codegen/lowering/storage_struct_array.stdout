@@ -42,8 +42,6 @@ fn @getS(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
-    mstore 160, 0
     v3 = lt arg0, 3
     jumpi v3, bb4, bb3
   bb3:

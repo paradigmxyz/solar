@@ -8,7 +8,6 @@ fn @constructor() {
 
 fn @get() {
   bb0:
-    mstore 128, 0
     v0 = loadimmutable 0
     mstore 128, v0
     returndata 128, 32

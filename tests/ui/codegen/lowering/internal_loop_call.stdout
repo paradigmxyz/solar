@@ -59,7 +59,6 @@ fn @run(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = internal_call @sumTo, 1, arg0
     mstore 128, v3
     returndata 128, 32

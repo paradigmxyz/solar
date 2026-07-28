@@ -214,7 +214,7 @@ bb17:
   push 64
   mload
   dup1
-  push 256
+  push 192
   mstore
   push 32
   add

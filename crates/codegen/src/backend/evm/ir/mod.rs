@@ -170,6 +170,18 @@ impl Instruction {
         Self::encoded_push(PushValue::Block(block), Self::ENCODED_PUSH)
     }
 
+    /// Creates an encoded push whose operand will be supplied by an assembler
+    /// relocation before EVM IR validation.
+    #[must_use]
+    pub(in crate::backend::evm) fn push_relocation() -> Self {
+        Self {
+            opcode: op::PUSH32,
+            encoding: Self::ENCODED_PUSH,
+            value: None,
+            metadata: Metadata { stack: Some(StackEffect::new(0, 1)) },
+        }
+    }
+
     /// Creates an encoded deferred push instruction.
     #[must_use]
     pub(in crate::backend::evm) fn push_deferred(id: assembly::DeferredConst) -> Self {

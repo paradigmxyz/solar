@@ -919,9 +919,6 @@ bb38:
   mload
   jump bb38
 bb44:
-  push 0
-  push 128
-  mstore
   caller
   push 0
   mstore
@@ -962,9 +959,6 @@ bb46:
   sgt
   push bb9
   jumpi
-  push 0
-  push 128
-  mstore
   caller
   push 0
   mstore
@@ -1157,9 +1151,6 @@ bb59:
   sstore
   jump bb43
 bb61:
-  push 0
-  push 128
-  mstore
   caller
   push 0
   mstore
@@ -1181,7 +1172,7 @@ bb62:
   push 0x420
   mload
   dup1
-  push 224
+  push 192
   mstore
   dup1
   push 0x400

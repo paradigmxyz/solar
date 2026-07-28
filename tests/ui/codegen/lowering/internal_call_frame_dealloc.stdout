@@ -46,9 +46,6 @@ bb5:
   sgt
   push bb4
   jumpi
-  push 0
-  push 128
-  mstore
   push 64
   mload
   push 160
@@ -66,20 +63,13 @@ bb5:
   dup1
   push 160
   mstore
-  push 224
+  push 192
   add
   push 64
   mstore
   push bb7
   jump bb13
 bb13:
-  push 160
-  mload
-  push 128
-  add
-  push 0
-  swap1
-  mstore
   push 160
   mload
   push 64
@@ -153,7 +143,7 @@ bb15:
   dup1
   push 160
   mstore
-  push 224
+  push 192
   add
   push 64
   mstore
@@ -169,7 +159,7 @@ bb16:
   dup1
   push 160
   mload
-  push 160
+  push 128
   add
   mstore
   push bb23
@@ -209,7 +199,7 @@ bb21:
   dup1
   push 160
   mstore
-  push 224
+  push 192
   add
   push 64
   mstore
@@ -244,7 +234,7 @@ bb23:
   dup1
   push 160
   mload
-  push 160
+  push 128
   add
   mstore
   push 160
@@ -256,13 +246,13 @@ bb23:
   dup1
   push 160
   mload
-  push 192
+  push 160
   add
   mstore
   dup1
   push 160
   mload
-  push 192
+  push 160
   add
   mstore
   push 160

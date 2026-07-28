@@ -120,7 +120,7 @@ bb5:
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 672
+  push 640
   push 64
   mstore
   callvalue
@@ -177,9 +177,6 @@ bb5:
   push bb4
   jumpi
   push 0
-  push 128
-  mstore
-  push 0
   push 320
   mstore
   push 4
@@ -203,7 +200,7 @@ bb5:
   push 0
   keccak256
   dup1
-  push 640
+  push 608
   mstore
   dup1
   sload
@@ -212,22 +209,22 @@ bb5:
   dup2
   add
   dup1
-  push 512
+  push 480
   mstore
   lt
   swap1
   pop
   push bb13
   jumpi
-  push 512
+  push 480
   mload
   dup1
-  push 512
+  push 480
   mstore
-  push 640
+  push 608
   mload
   sstore
-  push 640
+  push 608
   mload
   sload
   caller
@@ -236,12 +233,12 @@ bb5:
   dup2
   add
   dup1
-  push 608
+  push 576
   mstore
   lt
   push bb13
   jumpi
-  push 608
+  push 576
   mload
   push 416
   mstore

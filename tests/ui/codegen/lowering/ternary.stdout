@@ -9,7 +9,6 @@ fn @max(arg0: u256, arg1: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = gt arg0, arg1
     jumpi v3, bb3, bb4
   bb3:
@@ -33,7 +32,6 @@ fn @clamp(arg0: u256, arg1: u256, arg2: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = lt arg0, arg1
     jumpi v3, bb3, bb4
   bb3:
@@ -67,7 +65,6 @@ fn @abs_diff(arg0: u256, arg1: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = lt arg0, arg1
     v4 = iszero v3
     jumpi v4, bb3, bb4

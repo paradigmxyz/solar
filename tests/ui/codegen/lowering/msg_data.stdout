@@ -2,7 +2,6 @@
 @module MsgData
 fn @len() {
   bb0:
-    mstore 128, 0
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
     v2 = slice_len v1
@@ -12,7 +11,6 @@ fn @len() {
 
 fn @copy() {
   bb0:
-    mstore 128, 0
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
     v2 = slice_len v1
@@ -68,6 +66,69 @@ fn @__ret_bytes(arg0: memorybytes) {
     returndata v0, v10
 }
 
+fn @environment() {
+  bb0:
+    mstore 128, 0
+    v0 = coinbase
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = mload 128
+    v4 = xor v3, v2
+    mstore 128, v4
+    v5 = timestamp
+    v6 = mload 128
+    v7 = xor v6, v5
+    mstore 128, v7
+    v8 = prevrandao
+    v9 = mload 128
+    v10 = xor v9, v8
+    mstore 128, v10
+    v11 = number
+    v12 = mload 128
+    v13 = xor v12, v11
+    mstore 128, v13
+    v14 = gaslimit
+    v15 = mload 128
+    v16 = xor v15, v14
+    mstore 128, v16
+    v17 = chainid
+    v18 = mload 128
+    v19 = xor v18, v17
+    mstore 128, v19
+    v20 = basefee
+    v21 = mload 128
+    v22 = xor v21, v20
+    mstore 128, v22
+    v23 = blobbasefee
+    v24 = mload 128
+    v25 = xor v24, v23
+    mstore 128, v25
+    v26 = calldataload 0
+    v27 = shr 224, v26
+    v28 = shl 224, v27
+    v29 = shr 224, v28
+    v30 = and v29, 0xffffffff
+    v31 = mload 128
+    v32 = xor v31, v30
+    mstore 128, v32
+    v33 = origin
+    v34 = and v33, 0xffffffffffffffffffffffffffffffffffffffff
+    v35 = mload 128
+    v36 = xor v35, v34
+    mstore 128, v36
+    v37 = gasprice
+    v38 = mload 128
+    v39 = xor v38, v37
+    mstore 128, v39
+    v40 = gas
+    v41 = mload 128
+    v42 = xor v41, v40
+    mstore 128, v42
+    v43 = mload 128
+    mstore 128, v43
+    returndata 128, 32
+}
+
 fn @tail(arg0: u256, arg1: u256) {
   bb0:
     v0 = calldatasize
@@ -77,7 +138,6 @@ fn @tail(arg0: u256, arg1: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = calldatasize
     v4 = make_calldata_slice 0, v3
     v5 = slice_ptr v4
