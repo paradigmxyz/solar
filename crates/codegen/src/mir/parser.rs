@@ -45,7 +45,7 @@ use solar_ast::{
     Arena,
     token::{BinOpToken, Delimiter, TokenKind, TokenLitKind},
 };
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, StdEntry};
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym,
 };
@@ -224,13 +224,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let name = self.parser.parse_ident()?;
             self.parser.expect(TokenKind::Colon)?;
             let ty = self.parse_type()?;
-            if self.immutable_names.contains_key(&name) {
-                return Err(self
-                    .parser
-                    .error_at(name_span, format!("duplicate immutable declaration `{name}`")));
+            match self.immutable_names.entry(name) {
+                StdEntry::Occupied(entry) => {
+                    return Err(self.parser.error_at(
+                        name_span,
+                        format!("duplicate immutable declaration `{}`", entry.key()),
+                    ));
+                }
+                StdEntry::Vacant(entry) => {
+                    let id = module.add_immutable(Ident::new(name, name_span), ty);
+                    entry.insert((id, ty));
+                }
             }
-            let id = module.add_immutable(Ident::new(name, name_span), ty);
-            self.immutable_names.insert(name, (id, ty));
         }
         Ok(())
     }
