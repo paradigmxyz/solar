@@ -128,10 +128,8 @@ pub(crate) struct Lowerer<'gcx> {
     /// Variables that are assigned after declaration (need memory storage).
     /// Variables not in this set can be kept as SSA values.
     assigned_vars: GrowableBitSet<VariableId>,
-    /// Local variables that are storage references (pointers). Their value in
-    /// `locals` is a storage *slot*, so `r.field` reads `sload(slot + offset)`
-    /// and `r.field = v` writes `sstore(slot + offset, v)`, rather than treating
-    /// the value as a memory pointer.
+    /// Local variables that are storage references (pointers). Their value is a
+    /// storage slot kept in `locals` or a local memory slot when reassigned.
     storage_ref_locals: GrowableBitSet<VariableId>,
     /// Stack of function IDs currently being inlined (for cycle detection).
     inline_stack: Vec<HirFunctionId>,
@@ -1217,7 +1215,11 @@ impl<'gcx> Lowerer<'gcx> {
                             abi_param_source,
                         );
                     }
-                    if Self::calldata_dynamic_var_kind(param).is_some()
+                    if self.param_is_storage_ref(param_id) && self.is_var_assigned(&param_id) {
+                        let offset = self.alloc_local_memory(param_id);
+                        let offset_val = self.local_memory_addr(&mut builder, offset);
+                        builder.mstore(offset_val, head_or_value);
+                    } else if Self::calldata_dynamic_var_kind(param).is_some()
                         && self.is_var_assigned(&param_id)
                     {
                         // A rebindable calldata slice needs one representation

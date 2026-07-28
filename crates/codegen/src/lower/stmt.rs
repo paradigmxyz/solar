@@ -185,10 +185,16 @@ impl<'gcx> Lowerer<'gcx> {
         // (not the dereferenced value) so `r.field` reads/writes `sload`/`sstore`
         // at `slot + offset` rather than treating the value as a memory pointer.
         if var.data_location == Some(solar_ast::DataLocation::Storage) {
+            self.storage_ref_locals.insert(var_id);
             if let Some(init) = var.initializer {
                 if let Some(slot) = self.lower_lvalue_slot(builder, init) {
-                    self.locals.insert(var_id, slot);
-                    self.storage_ref_locals.insert(var_id);
+                    if self.is_var_assigned(&var_id) {
+                        let offset = self.alloc_local_memory(var_id);
+                        let offset_val = self.local_memory_addr(builder, offset);
+                        builder.mstore(offset_val, slot);
+                    } else {
+                        self.locals.insert(var_id, slot);
+                    }
                     return;
                 }
                 // Unhandled storage-reference initializer: don't silently
@@ -200,10 +206,9 @@ impl<'gcx> Lowerer<'gcx> {
                     .emit();
                 return;
             }
-            // No initializer (e.g. the slot is set later via `r.slot := ...`).
-            let zero = builder.imm_u256(U256::ZERO);
-            self.locals.insert(var_id, zero);
-            self.storage_ref_locals.insert(var_id);
+            if self.is_var_assigned(&var_id) {
+                self.alloc_local_memory(var_id);
+            }
             return;
         }
 
