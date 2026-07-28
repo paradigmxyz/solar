@@ -1,0 +1,20 @@
+error: internal type cannot be used for external function type
+   ╭▸ ROOT/tests/ui/typeck/external_fn_type_internal.sol:LL:CC
+   │
+LL │     function(function () internal) external x;
+   ╰╴             ━━━━━━━━━━━━━━━━━━━━
+
+error: internal type cannot be used for external function type
+   ╭▸ ROOT/tests/ui/typeck/external_fn_type_internal.sol:LL:CC
+   │
+LL │     function() external returns (function () internal) y;
+   ╰╴                                 ━━━━━━━━━━━━━━━━━━━━
+
+error: internal type cannot be used for external function type
+   ╭▸ ROOT/tests/ui/typeck/external_fn_type_internal.sol:LL:CC
+   │
+LL │     function(function(function () internal) external) external nested;
+   ╰╴                      ━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors
+

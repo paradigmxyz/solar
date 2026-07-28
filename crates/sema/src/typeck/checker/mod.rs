@@ -2627,12 +2627,21 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 // size expression of a fixed-array value type).
                 return self.visit_ty(&mapping.value);
             }
-            // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L713
-            // hir::TypeKind::Function(func) => {
-            //     if func.visibility == hir::Visibility::External {
-
-            //     }
-            // }
+            hir::TypeKind::Function(func) if func.visibility == hir::Visibility::External => {
+                for &var_id in func.parameters.iter().chain(func.returns.iter()) {
+                    let var = self.gcx.hir.variable(var_id);
+                    let ty = self.gcx.type_of_item(var_id.into());
+                    if ty.error_reported().is_err() {
+                        continue;
+                    }
+                    if !ty.can_be_exported(self.gcx) {
+                        self.dcx().emit_err(
+                            var.ty.span,
+                            "internal type cannot be used for external function type",
+                        );
+                    }
+                }
+            }
             _ => {}
         }
         self.walk_ty(hir_ty)
