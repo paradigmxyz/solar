@@ -25,12 +25,12 @@ from typing import Any, Iterable, Sequence
 DEFAULT_PIN = "01209d2b8ac81645b92e3ef801b5bcdfd61bfd69"
 DEFAULT_SOLC_VERSION = "0.8.36"
 DEFAULT_METHODS = ("auto", "linear", "binary", "buckets", "dense", "perfect")
-SYNTHETIC_FIXTURE_VERSION = 4
+SYNTHETIC_FIXTURE_VERSION = 5
 ANVIL_HARDFORK = "osaka"
 EXPECTED_UI_FAILURE_RE = re.compile(r"//~[\^v|?]*\s*(?:ERROR|ICE)(?::|\b)")
-GROWTH_SWEEP_CASE_COUNTS = {"synthetic": 52, "ui-gas": 147, "ci-gas": 12}
+GROWTH_SWEEP_CASE_COUNTS = {"synthetic": 54, "ui-gas": 147, "ci-gas": 12}
 GROWTH_SWEEP_TEST_IDS_SHA256 = {
-    "synthetic": "9361088c4aad17fe1e2ddc5ff57cb48f1c7d4ee6e98d133cbc8d985f42dffa90",
+    "synthetic": "2a8114a7f300165d8d2e5a3518549aabdc820a2d5432274dc23eb210d3102138",
     "ui-gas": "fdcd4acf090d23542816011e7997d5d1b87c120ba6f345b9cf9650ed88e3ee26",
     "ci-gas": "f370cc6074dd09c2d968355a51fc218fce3fa5f4d349d840bf5e36be3bc9ad6d",
 }
@@ -389,7 +389,7 @@ def synthetic_cases(
         labels[case.test_id] = case_labels
         runtime_checks[case.test_id] = checks
 
-    for count in (4, 5, 6, 7, 8, 16, 32, 64):
+    for count in (4, 5, 6, 7, 8, 16, 32, 64, 65):
         low = 10_000
         stride = 257
         values = [low + index * stride for index in range(count)]
@@ -403,7 +403,7 @@ def synthetic_cases(
         labels[case.test_id] = case_labels
         runtime_checks[case.test_id] = checks
 
-    for count in (4, 5, 6, 7, 8, 16, 32, 64):
+    for count in (4, 5, 6, 7, 8, 16, 32, 64, 65):
         low = 20_000
         stride = 6
         values = [low + index * stride for index in range(count)]
