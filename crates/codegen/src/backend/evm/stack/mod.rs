@@ -131,8 +131,11 @@
 //! not allocate new spill slots. In gas and size modes, a reloadable live
 //! operand that is already resident remains in the preservation set: consuming
 //! it would merely move the cost into a later `MLOAD`. Values present only in
-//! memory are not duplicated preemptively. `-O none` bypasses the planner and
-//! retains the straightforward emission path.
+//! memory are not duplicated preemptively. A reloadable slot may be valid before
+//! its defining block is emitted because runtime control flow still executes the
+//! store first. Cheap arithmetic live-ins without an emitted store are never
+//! planned as loads; the fallback recomputes them from stable operand leaves.
+//! `-O none` bypasses the planner and retains the straightforward emission path.
 //!
 //! Active equal immediates are canonicalized immediately before EVM lowering so `DUP` decisions
 //! see physical word reuse instead of allocation accidents in MIR. This runs only under size

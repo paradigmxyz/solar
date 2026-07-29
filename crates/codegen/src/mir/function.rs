@@ -203,7 +203,10 @@ impl Function {
         })
     }
 
-    /// Reuses one value identity for active uses of each equal immediate.
+    /// Reuses one value identity for active uses of each exactly equal immediate.
+    ///
+    /// Codegen calls this after pipeline validation. Keep this limited to replacing immediate uses
+    /// with an equal immediate unless the caller adds another validation boundary.
     pub(crate) fn canonicalize_immediate_uses(&mut self) -> usize {
         let mut canonical = FxHashMap::<Immediate, ValueId>::default();
         let mut replacements = FxHashMap::default();
