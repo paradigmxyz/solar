@@ -1,7 +1,7 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use solar_bench::{
-    COMPILERS, Compiler, ProjectSource, Source, get_projects, get_src, get_srcs, project_setup,
-    run_project_codegen, run_project_lower, run_project_parse,
+    COMPILERS, Compiler, IS_CODSPEED, ProjectSource, Source, get_projects, get_src, get_srcs,
+    project_setup, run_project_codegen, run_project_lower, run_project_parse,
 };
 use std::{any::Any, hint::black_box, time::Duration};
 
@@ -169,7 +169,16 @@ fn project_benches(c: &mut Criterion) {
     let stages: [ProjectBench; 3] = [
         ("parse", |_| true, run_project_parse),
         ("lower", |p| p.capabilities.can_lower(), run_project_lower),
-        ("codegen", |p| p.capabilities.can_codegen(), run_project_codegen),
+        (
+            "codegen",
+            // Instrumenting every deployable contract in a multi-megabyte
+            // Foundry project takes longer than the entire CI budget. Regular
+            // Criterion runs keep these cases; CodSpeed still measures the
+            // flattened compiler codegen inputs above, while the dedicated
+            // runtime job covers the large real-contract corpus.
+            |p| !IS_CODSPEED && p.capabilities.can_codegen(),
+            run_project_codegen,
+        ),
     ];
     for project in get_projects() {
         eprintln!("{}: {} files, {} bytes", project.name, project.files.len(), project.bytes);
