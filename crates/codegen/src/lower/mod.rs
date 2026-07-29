@@ -1337,6 +1337,10 @@ impl<'gcx> Lowerer<'gcx> {
                         MemoryObjectKind::Struct,
                     );
                     builder.mstore(offset_val, value);
+                } else if let Some(value) =
+                    self.lower_bulk_zero_return_struct(&mut builder, ret_id)
+                {
+                    builder.mstore(offset_val, value);
                 } else if let Some(value) = self.lower_default_variable_value(&mut builder, ret_id)
                 {
                     builder.mstore(offset_val, value);
