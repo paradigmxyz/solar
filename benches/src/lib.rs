@@ -19,7 +19,9 @@ use std::{
 };
 
 #[allow(unexpected_cfgs)]
-pub const COMPILERS: &[&dyn Compiler] = if cfg!(codspeed) {
+pub const IS_CODSPEED: bool = cfg!(codspeed);
+
+pub const COMPILERS: &[&dyn Compiler] = if IS_CODSPEED {
     // Only benchmark our own code in CI.
     &[&Solar]
 } else {
