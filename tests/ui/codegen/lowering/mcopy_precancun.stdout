@@ -1,122 +1,580 @@
-// === ROOT/tests/ui/codegen/lowering/mcopy_precancun.sol:McopyPreCancun ===
-@module McopyPreCancun
-fn @rt(arg0: memorybytes) -> memorybytes [abi_returns=[memory_bytes]] {
-  bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    br v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = add 4, arg0
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    mstore 128, 0
-    v12 = fmp
-    v13 = memory_object_data memorybytes, v12
-    v14 = add v13, 32
-    v15 = sub v14, v13
-    mstore v13, v15
-    v16 = memory_object_len memorybytes, v9
-    mstore v14, v16
-    v17 = not 31
-    v18 = add v16, 31
-    v19 = and v18, v17
-    v20 = add v14, 32
-    v21 = iszero v19
-    br v21, bb4, bb3
-  bb3:
-    v22 = sub v19, 32
-    v23 = add v20, v22
-    mstore v23, 0
-    jump bb4
-  bb4:
-    v24 = memory_object_data memorybytes, v9
-    v25 = add v20, v19
-    mcopy v20, v24, v16
-    v26 = sub v25, v13
-    set_memory_object_len memorybytes, v12, v26
-    v27 = add v26, 32
-    v28 = add v12, v27
-    set_fmp v28
-    v29 = memory_object_len memorybytes, v12
-    v30 = memory_object_data memorybytes, v12
-    v31 = lt v29, 32
-    br v31, bb5, bb6
-  bb5:
-    revert 0, 0
-  bb6:
-    v32 = mload v30
-    v33 = lt v32, 32
-    br v33, bb7, bb8
-  bb7:
-    revert 0, 0
-  bb8:
-    v34 = add v32, 32
-    v35 = lt v34, v32
-    br v35, bb9, bb10
-  bb9:
-    revert 0, 0
-  bb10:
-    v36 = gt v34, v29
-    br v36, bb11, bb12
-  bb11:
-    revert 0, 0
-  bb12:
-    v37 = add v30, v32
-    v38 = mload v37
-    v39 = add v38, 31
-    v40 = lt v39, v38
-    br v40, bb13, bb14
-  bb13:
-    revert 0, 0
-  bb14:
-    v41 = not 31
-    v42 = and v39, v41
-    v43 = add v34, v42
-    v44 = lt v43, v34
-    br v44, bb15, bb16
-  bb15:
-    revert 0, 0
-  bb16:
-    v45 = gt v43, v29
-    br v45, bb17, bb18
-  bb17:
-    revert 0, 0
-  bb18:
-    v46 = iszero v42
-    v47 = select v46, 32, v42
-    v48 = add 32, v47
-    v49 = lt v48, v47
-    br v49, bb19, bb20
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb20:
-    v50 = alloc memorybytes, exact, uninitialized, infallible, v48
-    set_memory_object_len memorybytes, v50, v38
-    v51 = memory_object_data memorybytes, v50
-    v52 = sub v47, 32
-    v53 = add v51, v52
-    mstore v53, 0
-    v54 = add v37, 32
-    v55 = gas
-    v56 = staticcall v55, 4, v54, v38, v51, v38
-    v57 = iszero v56
-    br v57, bb21, bb22
-  bb21:
-    revert 0, 0
-  bb22:
-    ret v50
-}
-
+// === ROOT/tests/ui/codegen/lowering/mcopy_precancun.sol:McopyPreCancun (runtime) ===
+PUSH2 0x0460
+PUSH1 0x40
+MSTORE
+CALLVALUE
+PUSH1 0x1f
+JUMPI
+CALLDATASIZE
+ISZERO
+PUSH1 0x1f
+JUMPI
+PUSH1 0x00
+CALLDATALOAD
+PUSH1 0xe0
+SHR
+DUP1
+PUSH4 0x9541c1ac
+EQ
+PUSH1 0x24
+JUMPI
+JUMPDEST
+PUSH1 0x00
+DUP1
+REVERT
+JUMPDEST
+CALLDATASIZE
+PUSH1 0x04
+SWAP1
+SUB
+PUSH1 0x20
+SGT
+PUSH1 0x1f
+JUMPI
+PUSH1 0x04
+PUSH1 0x04
+CALLDATALOAD
+ADD
+CALLDATALOAD
+PUSH1 0x1f
+DUP2
+ADD
+PUSH1 0x1f
+NOT
+AND
+PUSH1 0x20
+ADD
+PUSH1 0x40
+MLOAD
+DUP1
+PUSH2 0x0340
+MSTORE
+DUP2
+DUP2
+ADD
+SWAP2
+POP
+DUP2
+PUSH1 0x40
+MSTORE
+SWAP1
+POP
+DUP2
+DUP2
+MSTORE
+PUSH1 0x20
+DUP2
+ADD
+DUP1
+PUSH2 0x0220
+MSTORE
+PUSH1 0x24
+PUSH1 0x04
+CALLDATALOAD
+ADD
+DUP4
+DUP2
+DUP4
+DUP1
+PUSH2 0x0220
+MSTORE
+CALLDATACOPY
+POP
+SWAP2
+POP
+PUSH1 0x40
+MLOAD
+DUP1
+PUSH1 0xc0
+MSTORE
+PUSH1 0x20
+DUP2
+ADD
+DUP1
+PUSH1 0x80
+MSTORE
+PUSH1 0x20
+DUP2
+ADD
+DUP2
+DUP1
+PUSH1 0x80
+MSTORE
+DUP2
+SUB
+DUP3
+MSTORE
+DUP4
+DUP1
+PUSH2 0x0340
+MSTORE
+MLOAD
+DUP1
+PUSH2 0x0240
+MSTORE
+SWAP4
+POP
+DUP4
+PUSH2 0x0240
+MSTORE
+DUP4
+DUP1
+PUSH2 0x0240
+MSTORE
+SWAP1
+MSTORE
+PUSH1 0x1f
+DUP4
+ADD
+PUSH1 0x1f
+NOT
+AND
+DUP1
+PUSH2 0x0160
+MSTORE
+PUSH1 0x40
+DUP3
+ADD
+DUP1
+PUSH2 0x0180
+MSTORE
+DUP2
+SWAP6
+POP
+POP
+POP
+POP
+POP
+POP
+PUSH2 0x0303
+JUMPI
+JUMPDEST
+PUSH2 0x0160
+MLOAD
+DUP1
+PUSH2 0x0160
+MSTORE
+PUSH2 0x0180
+MLOAD
+ADD
+DUP1
+PUSH2 0x0360
+MSTORE
+GAS
+DUP1
+PUSH2 0x03e0
+MSTORE
+PUSH2 0x0240
+MLOAD
+PUSH2 0x0180
+MLOAD
+DUP2
+PUSH2 0x0220
+MLOAD
+PUSH1 0x04
+DUP6
+STATICCALL
+SWAP1
+POP
+ISZERO
+PUSH1 0x1f
+JUMPI
+PUSH1 0x80
+MLOAD
+DUP1
+PUSH1 0x80
+MSTORE
+SWAP1
+SUB
+DUP1
+PUSH2 0x03a0
+MSTORE
+PUSH1 0xc0
+MLOAD
+MSTORE
+PUSH1 0x20
+PUSH2 0x03a0
+MLOAD
+ADD
+PUSH1 0xc0
+MLOAD
+ADD
+PUSH1 0x40
+MSTORE
+PUSH1 0xc0
+MLOAD
+DUP1
+PUSH1 0xc0
+MSTORE
+MLOAD
+DUP1
+PUSH1 0xe0
+MSTORE
+PUSH1 0x20
+GT
+PUSH1 0x1f
+JUMPI
+PUSH1 0x80
+MLOAD
+DUP1
+PUSH1 0x80
+MSTORE
+MLOAD
+DUP1
+PUSH1 0xa0
+MSTORE
+PUSH1 0x20
+GT
+PUSH1 0x1f
+JUMPI
+PUSH1 0x20
+PUSH1 0xa0
+MLOAD
+ADD
+DUP1
+PUSH2 0x0100
+MSTORE
+PUSH1 0xa0
+MLOAD
+DUP1
+PUSH1 0xa0
+MSTORE
+GT
+PUSH1 0x1f
+JUMPI
+PUSH1 0xe0
+MLOAD
+DUP1
+PUSH1 0xe0
+MSTORE
+PUSH2 0x0100
+MLOAD
+GT
+PUSH1 0x1f
+JUMPI
+PUSH1 0xa0
+MLOAD
+DUP1
+PUSH1 0xa0
+MSTORE
+PUSH1 0x80
+MLOAD
+ADD
+DUP1
+PUSH2 0x0260
+MSTORE
+MLOAD
+DUP1
+PUSH2 0x0120
+MSTORE
+PUSH1 0x1f
+DUP2
+ADD
+DUP1
+PUSH2 0x02a0
+MSTORE
+DUP2
+DUP1
+PUSH2 0x0120
+MSTORE
+GT
+SWAP1
+POP
+PUSH1 0x1f
+JUMPI
+PUSH1 0x1f
+NOT
+PUSH2 0x02a0
+MLOAD
+AND
+DUP1
+PUSH2 0x0140
+MSTORE
+PUSH2 0x0100
+MLOAD
+ADD
+DUP1
+PUSH2 0x02c0
+MSTORE
+PUSH2 0x0100
+MLOAD
+DUP1
+PUSH2 0x0100
+MSTORE
+GT
+PUSH1 0x1f
+JUMPI
+PUSH1 0xe0
+MLOAD
+DUP1
+PUSH1 0xe0
+MSTORE
+PUSH2 0x02c0
+MLOAD
+GT
+PUSH1 0x1f
+JUMPI
+PUSH2 0x0140
+MLOAD
+DUP1
+PUSH2 0x0140
+MSTORE
+ISZERO
+PUSH2 0x0140
+MLOAD
+PUSH1 0x20
+DUP3
+DUP3
+DUP3
+SUB
+MUL
+SWAP1
+POP
+ADD
+DUP1
+PUSH2 0x02e0
+MSTORE
+SWAP1
+POP
+DUP1
+PUSH2 0x02e0
+MSTORE
+PUSH1 0x20
+DUP2
+ADD
+DUP1
+PUSH2 0x0300
+MSTORE
+DUP2
+DUP1
+PUSH2 0x02e0
+MSTORE
+DUP2
+LT
+PUSH2 0x032c
+JUMPI
+PUSH1 0x40
+MLOAD
+DUP1
+PUSH2 0x0280
+MSTORE
+DUP2
+DUP1
+PUSH2 0x0300
+MSTORE
+DUP2
+ADD
+SWAP2
+POP
+DUP2
+PUSH1 0x40
+MSTORE
+SWAP1
+POP
+PUSH2 0x0120
+MLOAD
+DUP1
+PUSH2 0x0120
+MSTORE
+DUP2
+MSTORE
+PUSH1 0x20
+DUP2
+ADD
+DUP1
+PUSH2 0x0320
+MSTORE
+PUSH1 0x20
+DUP4
+SUB
+SWAP3
+POP
+DUP3
+DUP2
+ADD
+SWAP3
+POP
+PUSH1 0x00
+DUP4
+MSTORE
+SWAP2
+POP
+PUSH1 0x20
+PUSH2 0x0260
+MLOAD
+ADD
+GAS
+DUP1
+PUSH2 0x0400
+MSTORE
+DUP2
+PUSH2 0x0420
+MSTORE
+PUSH2 0x0120
+MLOAD
+DUP5
+DUP2
+DUP5
+PUSH1 0x04
+DUP6
+STATICCALL
+SWAP4
+POP
+POP
+POP
+POP
+ISZERO
+PUSH1 0x1f
+JUMPI
+PUSH1 0x40
+MLOAD
+DUP1
+PUSH2 0x01a0
+MSTORE
+PUSH1 0x20
+DUP2
+ADD
+DUP2
+DUP1
+PUSH2 0x01a0
+MSTORE
+DUP2
+SUB
+DUP3
+MSTORE
+PUSH2 0x0280
+MLOAD
+DUP1
+PUSH2 0x0280
+MSTORE
+MLOAD
+DUP1
+PUSH2 0x01c0
+MSTORE
+SWAP1
+MSTORE
+PUSH1 0x1f
+PUSH2 0x01c0
+MLOAD
+ADD
+PUSH1 0x1f
+NOT
+AND
+DUP1
+PUSH2 0x01e0
+MSTORE
+PUSH1 0x40
+DUP3
+ADD
+DUP1
+PUSH2 0x0200
+MSTORE
+DUP2
+SWAP3
+POP
+POP
+POP
+PUSH2 0x0317
+JUMPI
+JUMPDEST
+PUSH2 0x01e0
+MLOAD
+DUP1
+PUSH2 0x01e0
+MSTORE
+PUSH2 0x0200
+MLOAD
+ADD
+DUP1
+PUSH2 0x0380
+MSTORE
+GAS
+DUP1
+PUSH2 0x0440
+MSTORE
+PUSH2 0x01c0
+MLOAD
+PUSH2 0x0200
+MLOAD
+DUP2
+PUSH2 0x0320
+MLOAD
+PUSH1 0x04
+DUP6
+STATICCALL
+SWAP1
+POP
+ISZERO
+PUSH1 0x1f
+JUMPI
+PUSH2 0x01a0
+MLOAD
+DUP1
+PUSH2 0x01a0
+MSTORE
+SWAP1
+SUB
+PUSH1 0x1f
+DUP2
+ADD
+PUSH1 0x1f
+NOT
+AND
+PUSH1 0x40
+MLOAD
+DUP1
+PUSH2 0x03c0
+MSTORE
+DUP2
+DUP2
+ADD
+SWAP2
+POP
+DUP2
+PUSH1 0x40
+MSTORE
+SWAP1
+POP
+DUP2
+DUP2
+RETURN
+JUMPDEST
+PUSH1 0x20
+PUSH2 0x0160
+MLOAD
+SUB
+PUSH2 0x0180
+MLOAD
+ADD
+PUSH1 0x00
+SWAP1
+MSTORE
+PUSH1 0xcc
+JUMP
+JUMPDEST
+PUSH1 0x20
+PUSH2 0x01e0
+MLOAD
+SUB
+PUSH2 0x0200
+MLOAD
+ADD
+PUSH1 0x00
+SWAP1
+MSTORE
+PUSH2 0x02a9
+JUMP
+JUMPDEST
+PUSH4 0x4e487b71
+PUSH1 0xe0
+SHL
+PUSH1 0x00
+MSTORE
+POP
+POP
+PUSH1 0x41
+PUSH1 0x04
+MSTORE
+PUSH1 0x24
+PUSH1 0x00
+REVERT
