@@ -43,7 +43,7 @@ class ProjectSliceTests(unittest.TestCase):
         root = SCRIPT.parents[2]
         counts = {}
         for case in benchmark.CASES:
-            project = json.loads((root / case.project).read_text())
+            project = benchmark.load_project(root / case.project)
             counts[case.test_id] = len(
                 benchmark.project_slice(project, case.source)
             )
