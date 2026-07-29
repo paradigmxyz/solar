@@ -11,7 +11,8 @@ use lsp_types::{
     ImplementationProviderCapability, InitializeParams, OneOf, RenameOptions, SaveOptions,
     SelectionRangeProviderCapability, ServerCapabilities, SignatureHelpOptions,
     TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions,
+    TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions,
+    WorkspaceFolder,
 };
 use serde::Deserialize;
 use solar_interface::data_structures::map::FxHashSet;
@@ -309,6 +310,23 @@ fn push_workspace(workspaces: &mut Vec<Workspace>, mut workspace: Workspace) {
     workspaces.push(workspace);
 }
 
+fn workspace_roots_from_initialize(
+    workspace_folders: Option<Vec<WorkspaceFolder>>,
+    root_uri: Option<Url>,
+    fallback_root: impl FnOnce() -> Option<PathBuf>,
+) -> Vec<PathBuf> {
+    let workspace_roots = workspace_folders
+        .map(|workspaces| {
+            workspaces.into_iter().filter_map(|it| it.uri.to_file_path().ok()).collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if !workspace_roots.is_empty() {
+        return workspace_roots;
+    }
+
+    root_uri.and_then(|uri| uri.to_file_path().ok()).or_else(fallback_root).into_iter().collect()
+}
+
 pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabilities, Config) {
     let capabilities = params.capabilities;
     let initialization_options = params.initialization_options;
@@ -318,16 +336,6 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
     let flycheck_options = FlycheckInitializationOptions::from_json(initialization_options.clone());
     let code_lens = CodeLensConfig::from_json(initialization_options);
 
-    // todo: make this absolute guaranteed
-    let root_path = match root_uri.and_then(|it| it.to_file_path().ok()) {
-        Some(it) => it,
-        None => {
-            // todo: unwrap
-            env::current_dir().unwrap()
-        }
-    };
-
-    // todo: make this absolute guaranteed
     // The latest LSP spec mandates clients report `workspace_folders`, but some might still report
     // `root_uri`.
     let watched_file_dynamic_registration = capabilities
@@ -402,12 +410,8 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             .unwrap_or(false),
     };
 
-    let workspace_roots = workspace_folders
-        .map(|workspaces| {
-            workspaces.into_iter().filter_map(|it| it.uri.to_file_path().ok()).collect::<Vec<_>>()
-        })
-        .filter(|workspaces| !workspaces.is_empty())
-        .unwrap_or_else(|| vec![root_path]);
+    let workspace_roots =
+        workspace_roots_from_initialize(workspace_folders, root_uri, || env::current_dir().ok());
 
     (
         ServerCapabilities {
@@ -498,6 +502,28 @@ mod tests {
         TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WindowClientCapabilities,
         WorkspaceClientCapabilities, WorkspaceEditClientCapabilities,
     };
+
+    #[test]
+    fn workspace_folders_skip_root_fallback() {
+        let workspace_root = env::temp_dir().join("solar-lsp-workspace");
+        let workspace_folders = Some(vec![WorkspaceFolder {
+            uri: Url::from_file_path(&workspace_root).unwrap(),
+            name: "workspace".into(),
+        }]);
+
+        let roots = workspace_roots_from_initialize(workspace_folders, None, || {
+            panic!("root fallback should not be evaluated")
+        });
+
+        assert_eq!(roots, [workspace_root]);
+    }
+
+    #[test]
+    fn unavailable_root_fallback_leaves_workspace_roots_empty() {
+        let roots = workspace_roots_from_initialize(None, None, || None);
+
+        assert!(roots.is_empty());
+    }
 
     #[test]
     fn negotiate_capabilities_records_work_done_progress_support() {

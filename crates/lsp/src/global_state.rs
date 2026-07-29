@@ -56,6 +56,13 @@ enum AnalysisTrigger {
     External,
 }
 
+#[derive(Default)]
+struct AnalysisRequest {
+    disk_paths: Vec<PathBuf>,
+    removed_paths: Vec<PathBuf>,
+    changed_paths: Vec<PathBuf>,
+}
+
 enum AnalysisTaskOutcome {
     Published,
     Superseded,
@@ -67,12 +74,16 @@ struct RefreshRequests {
     inlay_hints: bool,
 }
 
+#[derive(Default)]
+struct PendingExternalRefresh {
+    diagnostics_changed: bool,
+}
+
 /// State serialized with analysis and diagnostic publication.
 #[derive(Default)]
 struct AnalysisCommitState {
     cache_invalidated: bool,
-    external_refresh_pending: bool,
-    external_diagnostics_changed: bool,
+    external_refresh: Option<PendingExternalRefresh>,
     /// Last version that actually replaced the symbol tables.
     natspec_symbol_tables_version: usize,
     natspec_pending_source_changes: FxHashSet<PathBuf>,
@@ -80,9 +91,35 @@ struct AnalysisCommitState {
 }
 
 impl AnalysisCommitState {
+    fn begin_external_refresh(&mut self) {
+        self.external_refresh.get_or_insert_default();
+    }
+
     fn record_external_diagnostics_change(&mut self, changed: bool) {
-        if self.external_refresh_pending {
-            self.external_diagnostics_changed |= changed;
+        if changed && let Some(refresh) = &mut self.external_refresh {
+            refresh.diagnostics_changed = true;
+        }
+    }
+
+    fn fail_external_refresh(&mut self) -> RefreshRequests {
+        let diagnostics = self
+            .external_refresh
+            .as_mut()
+            .is_some_and(|refresh| mem::take(&mut refresh.diagnostics_changed));
+        RefreshRequests { diagnostics, inlay_hints: false }
+    }
+
+    fn finish_external_refresh(
+        &mut self,
+        diagnostics_changed: bool,
+        inlay_hints_changed: bool,
+    ) -> RefreshRequests {
+        let Some(refresh) = self.external_refresh.take() else {
+            return RefreshRequests::default();
+        };
+        RefreshRequests {
+            diagnostics: refresh.diagnostics_changed || diagnostics_changed,
+            inlay_hints: inlay_hints_changed,
         }
     }
 }
@@ -218,9 +255,7 @@ impl GlobalState {
         let changed_paths = disk_paths.clone();
         self.request_analysis(
             AnalysisMode::Recompute,
-            disk_paths,
-            Vec::new(),
-            changed_paths,
+            AnalysisRequest { disk_paths, changed_paths, ..Default::default() },
             AnalysisTrigger::Document,
             Duration::ZERO,
         );
@@ -230,9 +265,7 @@ impl GlobalState {
         let delay = self.config.source_change_debounce();
         self.request_analysis(
             AnalysisMode::Recompute,
-            Vec::new(),
-            Vec::new(),
-            changed_paths,
+            AnalysisRequest { changed_paths, ..Default::default() },
             AnalysisTrigger::Document,
             delay,
         );
@@ -249,9 +282,7 @@ impl GlobalState {
             if force_rediscover { AnalysisMode::Rediscover } else { AnalysisMode::Recompute };
         self.request_analysis(
             mode,
-            disk_paths,
-            removed_paths,
-            changed_paths,
+            AnalysisRequest { disk_paths, removed_paths, changed_paths },
             AnalysisTrigger::External,
             Duration::ZERO,
         );
@@ -260,9 +291,7 @@ impl GlobalState {
     pub(crate) fn reindex(&mut self) {
         self.request_analysis(
             AnalysisMode::Rediscover,
-            Vec::new(),
-            Vec::new(),
-            Vec::new(),
+            AnalysisRequest::default(),
             AnalysisTrigger::External,
             Duration::ZERO,
         );
@@ -271,9 +300,7 @@ impl GlobalState {
     pub(crate) fn reindex_if_invalidated(&mut self) {
         self.request_analysis(
             AnalysisMode::IfInvalidated,
-            Vec::new(),
-            Vec::new(),
-            Vec::new(),
+            AnalysisRequest::default(),
             AnalysisTrigger::Document,
             Duration::ZERO,
         );
@@ -282,6 +309,7 @@ impl GlobalState {
     pub(crate) fn clear_analysis_cache(&mut self) {
         let refresh_code_lenses =
             self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
+        let compare_inlay_hints = self.config.supports_inlay_hint_refresh();
         let (old_symbol_tables, refresh_requests) = {
             let Self {
                 client,
@@ -300,20 +328,19 @@ impl GlobalState {
                 // Invalidate workers before doing the potentially expensive diagnostic publication.
                 analysis_version.store(version, Ordering::Release);
                 let mut symbol_tables = symbol_tables.write();
-                let inlay_hints_changed =
-                    symbol_tables.inlay_hints_changed(&SymbolTables::default());
+                let inlay_hints_changed = compare_inlay_hints
+                    && symbol_tables.inlay_hints_changed(&SymbolTables::default());
                 let old_symbol_tables = mem::take(&mut *symbol_tables);
                 drop(symbol_tables);
                 let update = diagnostics.write().replace_and_publish_batches(
                     DiagnosticOwner::Compiler,
                     DiagnosticMap::default(),
                 );
-                let diagnostics_changed = mem::take(&mut commit.external_diagnostics_changed)
-                    || update.pull_reports_changed;
-                commit.external_refresh_pending = false;
+                let external_refresh = commit
+                    .finish_external_refresh(update.pull_reports_changed, inlay_hints_changed);
                 let refresh_requests = RefreshRequests {
-                    diagnostics: diagnostics_changed,
-                    inlay_hints: inlay_hints_changed,
+                    diagnostics: external_refresh.diagnostics || update.pull_reports_changed,
+                    inlay_hints: external_refresh.inlay_hints || inlay_hints_changed,
                 };
                 publish_diagnostic_batches(client, update.batches);
 
@@ -341,12 +368,11 @@ impl GlobalState {
     fn request_analysis(
         &mut self,
         mode: AnalysisMode,
-        disk_paths: Vec<PathBuf>,
-        removed_paths: Vec<PathBuf>,
-        changed_paths: Vec<PathBuf>,
+        request: AnalysisRequest,
         trigger: AnalysisTrigger,
         delay: Duration,
     ) {
+        let AnalysisRequest { disk_paths, removed_paths, changed_paths } = request;
         let removed_uris = self.prepare_removed_file_diagnostics(removed_paths);
         let Some((version, progress)) =
             self.begin_analysis(mode, removed_uris, changed_paths, trigger)
@@ -369,6 +395,8 @@ impl GlobalState {
         let analysis_version = self.analysis_version.clone();
         let published_analysis_version = self.published_analysis_version.clone();
         let analysis_commit = self.analysis_commit.clone();
+        let client = self.client.clone();
+        let config = self.config.clone();
 
         let mut tasks = scheduler.tasks.lock();
         tasks.cancel();
@@ -396,7 +424,7 @@ impl GlobalState {
                 worker
             };
 
-            monitor_analysis_task(
+            if let Some(refresh_requests) = monitor_analysis_task(
                 version,
                 worker,
                 progress,
@@ -404,7 +432,10 @@ impl GlobalState {
                 &published_analysis_version,
                 &analysis_commit,
             )
-            .await;
+            .await
+            {
+                request_pull_result_refreshes(&client, &config, refresh_requests);
+            }
 
             let mut tasks = task_scheduler.tasks.lock();
             if tasks.worker.as_ref().is_some_and(|(task_version, _)| *task_version == version) {
@@ -488,7 +519,7 @@ impl GlobalState {
         trigger: AnalysisTrigger,
     ) {
         if matches!(trigger, AnalysisTrigger::External) {
-            commit.external_refresh_pending = true;
+            commit.begin_external_refresh();
         }
         if context_changed {
             commit.natspec_context_change_version = version;
@@ -635,10 +666,7 @@ impl GlobalState {
         }
 
         let mut snapshot = self.snapshot();
-        let mut refresh_diagnostics = false;
-        for owner in owners {
-            refresh_diagnostics |= snapshot.publish_diagnostics(owner, DiagnosticMap::default());
-        }
+        let refresh_diagnostics = snapshot.clear_diagnostic_owners(owners);
         request_pull_result_refreshes(
             &self.client,
             &self.config,
@@ -708,8 +736,10 @@ impl GlobalState {
         let analysis_version = self.analysis_version.clone();
         let published_analysis_version = self.published_analysis_version.clone();
         let analysis_commit = self.analysis_commit.clone();
+        let client = self.client.clone();
+        let config = self.config.clone();
         tokio::spawn(async move {
-            monitor_analysis_task(
+            if let Some(refresh_requests) = monitor_analysis_task(
                 version,
                 task,
                 progress,
@@ -717,7 +747,10 @@ impl GlobalState {
                 &published_analysis_version,
                 &analysis_commit,
             )
-            .await;
+            .await
+            {
+                request_pull_result_refreshes(&client, &config, refresh_requests);
+            }
         });
     }
 }
@@ -773,32 +806,35 @@ async fn monitor_analysis_task(
     analysis_version: &Arc<AtomicUsize>,
     published_analysis_version: &watch::Sender<usize>,
     analysis_commit: &Arc<Mutex<AnalysisCommitState>>,
-) {
+) -> Option<RefreshRequests> {
     match task.await {
-        Ok(AnalysisTaskOutcome::Published) => finish_analysis_progress_if_current(
-            version,
-            analysis_version,
-            analysis_commit,
-            &progress,
-            "Workspace index ready",
-        ),
-        Ok(AnalysisTaskOutcome::Superseded) => {}
+        Ok(AnalysisTaskOutcome::Published) => {
+            finish_analysis_progress_if_current(
+                version,
+                analysis_version,
+                analysis_commit,
+                &progress,
+                "Workspace index ready",
+            );
+            None
+        }
+        Ok(AnalysisTaskOutcome::Superseded) => None,
         Err(error) => {
-            if handle_analysis_failure(
+            let refresh_requests = handle_analysis_failure(
                 version,
                 error,
                 analysis_version,
                 published_analysis_version,
                 analysis_commit,
-            ) {
-                finish_analysis_progress_if_current(
-                    version,
-                    analysis_version,
-                    analysis_commit,
-                    &progress,
-                    "Workspace indexing failed",
-                );
-            }
+            )?;
+            finish_analysis_progress_if_current(
+                version,
+                analysis_version,
+                analysis_commit,
+                &progress,
+                "Workspace indexing failed",
+            );
+            Some(refresh_requests)
         }
     }
 }
@@ -826,17 +862,18 @@ fn handle_analysis_failure(
     analysis_version: &Arc<AtomicUsize>,
     published_analysis_version: &watch::Sender<usize>,
     analysis_commit: &Arc<Mutex<AnalysisCommitState>>,
-) -> bool {
+) -> Option<RefreshRequests> {
     let mut commit = analysis_commit.lock();
     if analysis_version.load(Ordering::Acquire) != version {
-        return false;
+        return None;
     }
 
     tracing::warn!(%error, version, "analysis task failed");
+    let refresh_requests = commit.fail_external_refresh();
     commit.cache_invalidated = true;
     commit.natspec_context_change_version = commit.natspec_context_change_version.max(version);
     published_analysis_version.send_replace(version);
-    true
+    Some(refresh_requests)
 }
 
 struct AnalysisResult {
@@ -979,7 +1016,9 @@ impl GlobalStateSnapshot {
             }
 
             let mut symbol_tables = self.symbol_tables.write();
-            let inlay_hints_changed = symbol_tables.inlay_hints_changed(&result.symbol_tables);
+            let inlay_hints_changed = commit.external_refresh.is_some()
+                && self.config.supports_inlay_hint_refresh()
+                && symbol_tables.inlay_hints_changed(&result.symbol_tables);
             let old_symbol_tables = mem::replace(&mut *symbol_tables, result.symbol_tables);
             drop(symbol_tables);
             commit.natspec_symbol_tables_version = version;
@@ -988,13 +1027,8 @@ impl GlobalStateSnapshot {
                 .diagnostics
                 .write()
                 .replace_and_publish_batches(DiagnosticOwner::Compiler, result.diagnostics);
-            let external_refresh_pending = mem::take(&mut commit.external_refresh_pending);
-            let diagnostics_changed =
-                mem::take(&mut commit.external_diagnostics_changed) || update.pull_reports_changed;
-            let refresh_requests = RefreshRequests {
-                diagnostics: external_refresh_pending && diagnostics_changed,
-                inlay_hints: external_refresh_pending && inlay_hints_changed,
-            };
+            let refresh_requests =
+                commit.finish_external_refresh(update.pull_reports_changed, inlay_hints_changed);
             publish_diagnostic_batches(&mut self.client, update.batches);
             self.published_analysis_version.send_replace(version);
             (old_symbol_tables, refresh_requests)
@@ -1024,6 +1058,7 @@ impl GlobalStateSnapshot {
         Cow::Owned(vec![crate::workspace::Workspace::unconfigured()])
     }
 
+    #[cfg(test)]
     fn publish_diagnostics(&mut self, owner: DiagnosticOwner, diagnostics: DiagnosticMap) -> bool {
         let analysis_commit = self.analysis_commit.clone();
         let mut commit = analysis_commit.lock();
@@ -1032,7 +1067,21 @@ impl GlobalStateSnapshot {
             store.replace_and_publish_batches(owner, diagnostics)
         };
 
-        let refresh_immediately = update.pull_reports_changed && !commit.external_refresh_pending;
+        let refresh_immediately = update.pull_reports_changed && commit.external_refresh.is_none();
+        commit.record_external_diagnostics_change(update.pull_reports_changed);
+        publish_diagnostic_batches(&mut self.client, update.batches);
+        refresh_immediately
+    }
+
+    fn clear_diagnostic_owners(
+        &mut self,
+        owners: impl IntoIterator<Item = DiagnosticOwner>,
+    ) -> bool {
+        let analysis_commit = self.analysis_commit.clone();
+        let mut commit = analysis_commit.lock();
+        let update = self.diagnostics.write().clear_owners_and_publish_batches(owners);
+
+        let refresh_immediately = update.pull_reports_changed && commit.external_refresh.is_none();
         commit.record_external_diagnostics_change(update.pull_reports_changed);
         publish_diagnostic_batches(&mut self.client, update.batches);
         refresh_immediately

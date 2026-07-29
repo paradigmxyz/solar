@@ -30,6 +30,9 @@ impl<'de> serde::Deserialize<'de> for InitializeParams {
         D: serde::Deserializer<'de>,
     {
         let mut value = <serde_json::Value as serde::Deserialize>::deserialize(deserializer)?;
+        // LSP 3.17 uses `workspace.diagnostics`, while lsp-types 0.95.1 deserializes its
+        // `WorkspaceClientCapabilities::diagnostic` field from the singular spelling. Remove this
+        // shim after upgrading to an lsp-types version that accepts the plural wire field.
         if let Some(workspace) =
             value.pointer_mut("/capabilities/workspace").and_then(serde_json::Value::as_object_mut)
             && let Some(diagnostics) = workspace.get("diagnostics").cloned()

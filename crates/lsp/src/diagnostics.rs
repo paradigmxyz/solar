@@ -64,6 +64,22 @@ impl DiagnosticStore {
         self.publish_batches(affected_uris)
     }
 
+    pub(crate) fn clear_owners_and_publish_batches(
+        &mut self,
+        owners: impl IntoIterator<Item = DiagnosticOwner>,
+    ) -> DiagnosticUpdate {
+        let mut affected_uris = FxHashSet::default();
+        for owner in owners {
+            if let Some(diagnostics) = self.diagnostics.remove(&owner) {
+                affected_uris.extend(diagnostics.into_keys());
+            }
+        }
+        if affected_uris.is_empty() {
+            return DiagnosticUpdate::default();
+        }
+        self.publish_batches(affected_uris)
+    }
+
     pub(crate) fn pull_report(&self, uri: &Url, previous_result_id: Option<&str>) -> PullReport {
         let report = self.reports.get(uri);
         let result_id = report.map_or(EMPTY_RESULT_ID, |report| report.result_id.as_str());
@@ -308,6 +324,37 @@ mod tests {
         let batches = store.clear_uris_and_publish_batches([file.clone()]).batches;
 
         assert_eq!(batches, vec![(file, Vec::new())]);
+    }
+
+    #[test]
+    fn clearing_owners_publishes_only_final_merged_batches() {
+        let file = uri("src/Test.sol");
+        let mut store = DiagnosticStore::default();
+        let first = DiagnosticOwner::Flycheck {
+            id: "first".into(),
+            workspace: PathBuf::from("/workspace"),
+        };
+        let second = DiagnosticOwner::Flycheck {
+            id: "second".into(),
+            workspace: PathBuf::from("/workspace"),
+        };
+        store.replace_and_publish_batches(
+            DiagnosticOwner::Compiler,
+            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("compiler")])]),
+        );
+        store.replace_and_publish_batches(
+            first.clone(),
+            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("first")])]),
+        );
+        store.replace_and_publish_batches(
+            second.clone(),
+            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("second")])]),
+        );
+
+        let update = store.clear_owners_and_publish_batches([first, second]);
+
+        assert_eq!(update.batches, vec![(file, vec![diagnostic("compiler")])]);
+        assert!(update.pull_reports_changed);
     }
 
     #[test]
