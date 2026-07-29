@@ -4297,6 +4297,7 @@ dependencies = [
  "codspeed-criterion-compat",
  "gungraun",
  "semver 1.0.28",
+ "serde_json",
  "slang_solidity",
  "solang-parser",
  "solar-compiler",
