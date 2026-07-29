@@ -36,6 +36,8 @@ pub(crate) struct Config {
     watched_file_dynamic_registration: bool,
     workspace_edit_document_changes: bool,
     code_lens_refresh_support: bool,
+    diagnostic_refresh_support: bool,
+    inlay_hint_refresh_support: bool,
     work_done_progress: bool,
     hierarchical_document_symbol_support: bool,
     completion: CompletionClientOptions,
@@ -58,6 +60,8 @@ impl Default for Config {
             watched_file_dynamic_registration: false,
             workspace_edit_document_changes: false,
             code_lens_refresh_support: false,
+            diagnostic_refresh_support: false,
+            inlay_hint_refresh_support: false,
             work_done_progress: false,
             hierarchical_document_symbol_support: false,
             completion: CompletionClientOptions::default(),
@@ -131,6 +135,14 @@ impl Config {
 
     pub(crate) fn supports_code_lens_refresh(&self) -> bool {
         self.code_lens_refresh_support
+    }
+
+    pub(crate) fn supports_diagnostic_refresh(&self) -> bool {
+        self.diagnostic_refresh_support
+    }
+
+    pub(crate) fn supports_inlay_hint_refresh(&self) -> bool {
+        self.inlay_hint_refresh_support
     }
 
     pub(crate) fn supports_work_done_progress(&self) -> bool {
@@ -336,6 +348,18 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
         .and_then(|workspace| workspace.code_lens.as_ref())
         .and_then(|capabilities| capabilities.refresh_support)
         .unwrap_or(false);
+    let diagnostic_refresh_support = capabilities
+        .workspace
+        .as_ref()
+        .and_then(|workspace| workspace.diagnostic.as_ref())
+        .and_then(|capabilities| capabilities.refresh_support)
+        .unwrap_or(false);
+    let inlay_hint_refresh_support = capabilities
+        .workspace
+        .as_ref()
+        .and_then(|workspace| workspace.inlay_hint.as_ref())
+        .and_then(|capabilities| capabilities.refresh_support)
+        .unwrap_or(false);
     let work_done_progress =
         capabilities.window.as_ref().and_then(|window| window.work_done_progress).unwrap_or(false);
     let hierarchical_document_symbol_support = capabilities
@@ -448,6 +472,8 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             watched_file_dynamic_registration,
             workspace_edit_document_changes,
             code_lens_refresh_support,
+            diagnostic_refresh_support,
+            inlay_hint_refresh_support,
             work_done_progress,
             hierarchical_document_symbol_support,
             completion,
@@ -465,8 +491,9 @@ mod tests {
     use lsp_types::{
         CallHierarchyServerCapability, CodeLensWorkspaceClientCapabilities,
         CompletionClientCapabilities, CompletionItemCapability,
-        DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities, MarkupKind,
-        OneOf, ParameterInformationSettings, RenameOptions, SignatureHelpClientCapabilities,
+        DiagnosticWorkspaceClientCapabilities, DidChangeWatchedFilesClientCapabilities,
+        DocumentSymbolClientCapabilities, InlayHintWorkspaceClientCapabilities, MarkupKind, OneOf,
+        ParameterInformationSettings, RenameOptions, SignatureHelpClientCapabilities,
         SignatureInformationSettings, TextDocumentClientCapabilities, TextDocumentSyncCapability,
         TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WindowClientCapabilities,
         WorkspaceClientCapabilities, WorkspaceEditClientCapabilities,
@@ -542,6 +569,32 @@ mod tests {
         let (_, config) = negotiate_capabilities(params);
 
         assert!(config.supports_code_lens_refresh());
+    }
+
+    #[test]
+    fn negotiate_capabilities_records_pull_refresh_support_independently() {
+        for (diagnostic, inlay_hint) in [(false, false), (true, false), (false, true), (true, true)]
+        {
+            let mut params = InitializeParams::default();
+            params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+                diagnostic: Some(DiagnosticWorkspaceClientCapabilities {
+                    refresh_support: Some(diagnostic),
+                }),
+                inlay_hint: Some(InlayHintWorkspaceClientCapabilities {
+                    refresh_support: Some(inlay_hint),
+                }),
+                ..Default::default()
+            });
+
+            let (_, config) = negotiate_capabilities(params);
+
+            assert_eq!(config.supports_diagnostic_refresh(), diagnostic);
+            assert_eq!(config.supports_inlay_hint_refresh(), inlay_hint);
+        }
+
+        let (_, config) = negotiate_capabilities(InitializeParams::default());
+        assert!(!config.supports_diagnostic_refresh());
+        assert!(!config.supports_inlay_hint_refresh());
     }
 
     #[test]

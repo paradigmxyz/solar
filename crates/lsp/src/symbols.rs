@@ -422,6 +422,10 @@ impl SymbolTables {
         self.inlay_hints.hints(uri, range)
     }
 
+    pub(crate) fn inlay_hints_changed(&self, other: &Self) -> bool {
+        self.inlay_hints != other.inlay_hints
+    }
+
     pub(crate) fn code_lenses(&self, uri: &Url, options: CodeLensConfig) -> Vec<CodeLens> {
         if !options.enable {
             return Vec::new();

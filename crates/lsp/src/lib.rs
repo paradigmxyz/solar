@@ -81,7 +81,7 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
 
     // Lifecycle
     router
-        .request::<proto::Initialize, _>(GlobalState::on_initialize)
+        .request::<proto::Initialize, _>(|state, params| state.on_initialize(params.into_inner()))
         .notification::<notif::Initialized>(GlobalState::on_initialized)
         .request::<req::Shutdown, _>(|_, _| std::future::ready(Ok(())))
         .notification::<notif::Exit>(|_, _| ControlFlow::Break(Ok(())));

@@ -50,19 +50,41 @@ enum AnalysisMode {
     IfInvalidated,
 }
 
+#[derive(Clone, Copy)]
+enum AnalysisTrigger {
+    Document,
+    External,
+}
+
 enum AnalysisTaskOutcome {
     Published,
     Superseded,
+}
+
+#[derive(Clone, Copy, Default)]
+struct RefreshRequests {
+    diagnostics: bool,
+    inlay_hints: bool,
 }
 
 /// State serialized with analysis and diagnostic publication.
 #[derive(Default)]
 struct AnalysisCommitState {
     cache_invalidated: bool,
+    external_refresh_pending: bool,
+    external_diagnostics_changed: bool,
     /// Last version that actually replaced the symbol tables.
     natspec_symbol_tables_version: usize,
     natspec_pending_source_changes: FxHashSet<PathBuf>,
     natspec_context_change_version: usize,
+}
+
+impl AnalysisCommitState {
+    fn record_external_diagnostics_change(&mut self, changed: bool) {
+        if self.external_refresh_pending {
+            self.external_diagnostics_changed |= changed;
+        }
+    }
 }
 
 /// Serializes compiler analysis while allowing the newest request to replace a pending one.
@@ -199,6 +221,7 @@ impl GlobalState {
             disk_paths,
             Vec::new(),
             changed_paths,
+            AnalysisTrigger::Document,
             Duration::ZERO,
         );
     }
@@ -210,6 +233,7 @@ impl GlobalState {
             Vec::new(),
             Vec::new(),
             changed_paths,
+            AnalysisTrigger::Document,
             delay,
         );
     }
@@ -223,7 +247,14 @@ impl GlobalState {
         let changed_paths = disk_paths.clone();
         let mode =
             if force_rediscover { AnalysisMode::Rediscover } else { AnalysisMode::Recompute };
-        self.request_analysis(mode, disk_paths, removed_paths, changed_paths, Duration::ZERO);
+        self.request_analysis(
+            mode,
+            disk_paths,
+            removed_paths,
+            changed_paths,
+            AnalysisTrigger::External,
+            Duration::ZERO,
+        );
     }
 
     pub(crate) fn reindex(&mut self) {
@@ -232,6 +263,7 @@ impl GlobalState {
             Vec::new(),
             Vec::new(),
             Vec::new(),
+            AnalysisTrigger::External,
             Duration::ZERO,
         );
     }
@@ -242,6 +274,7 @@ impl GlobalState {
             Vec::new(),
             Vec::new(),
             Vec::new(),
+            AnalysisTrigger::Document,
             Duration::ZERO,
         );
     }
@@ -249,7 +282,7 @@ impl GlobalState {
     pub(crate) fn clear_analysis_cache(&mut self) {
         let refresh_code_lenses =
             self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
-        let old_symbol_tables = {
+        let (old_symbol_tables, refresh_requests) = {
             let Self {
                 client,
                 symbol_tables,
@@ -266,23 +299,35 @@ impl GlobalState {
             analysis_progress.finish_active_after("Workspace index cleared", || {
                 // Invalidate workers before doing the potentially expensive diagnostic publication.
                 analysis_version.store(version, Ordering::Release);
-                let old_symbol_tables = mem::take(&mut *symbol_tables.write());
-                let batches = diagnostics.write().replace_and_publish_batches(
+                let mut symbol_tables = symbol_tables.write();
+                let inlay_hints_changed =
+                    symbol_tables.inlay_hints_changed(&SymbolTables::default());
+                let old_symbol_tables = mem::take(&mut *symbol_tables);
+                drop(symbol_tables);
+                let update = diagnostics.write().replace_and_publish_batches(
                     DiagnosticOwner::Compiler,
                     DiagnosticMap::default(),
                 );
-                publish_diagnostic_batches(client, batches);
+                let diagnostics_changed = mem::take(&mut commit.external_diagnostics_changed)
+                    || update.pull_reports_changed;
+                commit.external_refresh_pending = false;
+                let refresh_requests = RefreshRequests {
+                    diagnostics: diagnostics_changed,
+                    inlay_hints: inlay_hints_changed,
+                };
+                publish_diagnostic_batches(client, update.batches);
 
                 commit.cache_invalidated = true;
                 commit.natspec_symbol_tables_version = version;
                 commit.natspec_pending_source_changes.clear();
                 commit.natspec_context_change_version = version;
                 published_analysis_version.send_replace(version);
-                old_symbol_tables
+                (old_symbol_tables, refresh_requests)
             })
         };
         self.analysis_scheduler.tasks.lock().cancel();
         drop(old_symbol_tables);
+        request_pull_result_refreshes(&self.client, &self.config, refresh_requests);
         if refresh_code_lenses {
             request_code_lens_refresh(&self.client);
         }
@@ -299,10 +344,12 @@ impl GlobalState {
         disk_paths: Vec<PathBuf>,
         removed_paths: Vec<PathBuf>,
         changed_paths: Vec<PathBuf>,
+        trigger: AnalysisTrigger,
         delay: Duration,
     ) {
         let removed_uris = self.prepare_removed_file_diagnostics(removed_paths);
-        let Some((version, progress)) = self.begin_analysis(mode, removed_uris, changed_paths)
+        let Some((version, progress)) =
+            self.begin_analysis(mode, removed_uris, changed_paths, trigger)
         else {
             return;
         };
@@ -376,6 +423,7 @@ impl GlobalState {
         mode: AnalysisMode,
         removed_uris: Vec<Url>,
         changed_paths: Vec<PathBuf>,
+        trigger: AnalysisTrigger,
     ) -> Option<(usize, ProgressTicket)> {
         let (version, rediscover, progress) = {
             let analysis_commit = self.analysis_commit.clone();
@@ -391,9 +439,10 @@ impl GlobalState {
             // the previous wave after the new analysis becomes current. The progress delay is armed
             // after debounce and scheduler wait complete.
             let progress = self.analysis_progress.reserve(version);
-            self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover);
-            let batches = self.diagnostics.write().clear_uris_and_publish_batches(removed_uris);
-            publish_diagnostic_batches(&mut self.client, batches);
+            self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover, trigger);
+            let update = self.diagnostics.write().clear_uris_and_publish_batches(removed_uris);
+            commit.record_external_diagnostics_change(update.pull_reports_changed);
+            publish_diagnostic_batches(&mut self.client, update.batches);
             (version, rediscover, progress)
         };
 
@@ -420,7 +469,13 @@ impl GlobalState {
         context_changed: bool,
     ) -> usize {
         let version = self.next_analysis_version();
-        self.commit_analysis_epoch(commit, version, changed_paths, context_changed);
+        self.commit_analysis_epoch(
+            commit,
+            version,
+            changed_paths,
+            context_changed,
+            AnalysisTrigger::Document,
+        );
         version
     }
 
@@ -430,7 +485,11 @@ impl GlobalState {
         version: usize,
         changed_paths: Vec<PathBuf>,
         context_changed: bool,
+        trigger: AnalysisTrigger,
     ) {
+        if matches!(trigger, AnalysisTrigger::External) {
+            commit.external_refresh_pending = true;
+        }
         if context_changed {
             commit.natspec_context_change_version = version;
         }
@@ -576,9 +635,15 @@ impl GlobalState {
         }
 
         let mut snapshot = self.snapshot();
+        let mut refresh_diagnostics = false;
         for owner in owners {
-            snapshot.publish_diagnostics(owner, DiagnosticMap::default());
+            refresh_diagnostics |= snapshot.publish_diagnostics(owner, DiagnosticMap::default());
         }
+        request_pull_result_refreshes(
+            &self.client,
+            &self.config,
+            RefreshRequests { diagnostics: refresh_diagnostics, inlay_hints: false },
+        );
     }
 
     fn prepare_removed_file_diagnostics(&mut self, paths: Vec<PathBuf>) -> Vec<Url> {
@@ -906,26 +971,36 @@ impl GlobalStateSnapshot {
     fn publish_analysis(&mut self, version: usize, result: AnalysisResult) -> bool {
         let refresh_code_lenses =
             self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
-        let old_symbol_tables = {
+        let (old_symbol_tables, refresh_requests) = {
             let analysis_commit = self.analysis_commit.clone();
             let mut commit = analysis_commit.lock();
             if !self.is_current(version) {
                 return false;
             }
 
-            let old_symbol_tables =
-                mem::replace(&mut *self.symbol_tables.write(), result.symbol_tables);
+            let mut symbol_tables = self.symbol_tables.write();
+            let inlay_hints_changed = symbol_tables.inlay_hints_changed(&result.symbol_tables);
+            let old_symbol_tables = mem::replace(&mut *symbol_tables, result.symbol_tables);
+            drop(symbol_tables);
             commit.natspec_symbol_tables_version = version;
             commit.natspec_pending_source_changes.clear();
-            let batches = self
+            let update = self
                 .diagnostics
                 .write()
                 .replace_and_publish_batches(DiagnosticOwner::Compiler, result.diagnostics);
-            publish_diagnostic_batches(&mut self.client, batches);
+            let external_refresh_pending = mem::take(&mut commit.external_refresh_pending);
+            let diagnostics_changed =
+                mem::take(&mut commit.external_diagnostics_changed) || update.pull_reports_changed;
+            let refresh_requests = RefreshRequests {
+                diagnostics: external_refresh_pending && diagnostics_changed,
+                inlay_hints: external_refresh_pending && inlay_hints_changed,
+            };
+            publish_diagnostic_batches(&mut self.client, update.batches);
             self.published_analysis_version.send_replace(version);
-            old_symbol_tables
+            (old_symbol_tables, refresh_requests)
         };
         drop(old_symbol_tables);
+        request_pull_result_refreshes(&self.client, &self.config, refresh_requests);
         if refresh_code_lenses {
             request_code_lens_refresh(&self.client);
         }
@@ -949,15 +1024,18 @@ impl GlobalStateSnapshot {
         Cow::Owned(vec![crate::workspace::Workspace::unconfigured()])
     }
 
-    fn publish_diagnostics(&mut self, owner: DiagnosticOwner, diagnostics: DiagnosticMap) {
+    fn publish_diagnostics(&mut self, owner: DiagnosticOwner, diagnostics: DiagnosticMap) -> bool {
         let analysis_commit = self.analysis_commit.clone();
-        let _commit = analysis_commit.lock();
-        let batches = {
+        let mut commit = analysis_commit.lock();
+        let update = {
             let mut store = self.diagnostics.write();
             store.replace_and_publish_batches(owner, diagnostics)
         };
 
-        publish_diagnostic_batches(&mut self.client, batches);
+        let refresh_immediately = update.pull_reports_changed && !commit.external_refresh_pending;
+        commit.record_external_diagnostics_change(update.pull_reports_changed);
+        publish_diagnostic_batches(&mut self.client, update.batches);
+        refresh_immediately
     }
 
     fn publish_flycheck_diagnostics(
@@ -966,17 +1044,26 @@ impl GlobalStateSnapshot {
         version: usize,
         diagnostics: DiagnosticMap,
     ) {
-        let analysis_commit = self.analysis_commit.clone();
-        let _commit = analysis_commit.lock();
-        if !self.is_current_flycheck(&owner, version) {
-            return;
-        }
+        let pull_reports_changed = {
+            let analysis_commit = self.analysis_commit.clone();
+            let _commit = analysis_commit.lock();
+            if !self.is_current_flycheck(&owner, version) {
+                return;
+            }
 
-        let batches = {
-            let mut store = self.diagnostics.write();
-            store.replace_and_publish_batches(owner, diagnostics)
+            let update = {
+                let mut store = self.diagnostics.write();
+                store.replace_and_publish_batches(owner, diagnostics)
+            };
+            let pull_reports_changed = update.pull_reports_changed;
+            publish_diagnostic_batches(&mut self.client, update.batches);
+            pull_reports_changed
         };
-        publish_diagnostic_batches(&mut self.client, batches);
+        request_pull_result_refreshes(
+            &self.client,
+            &self.config,
+            RefreshRequests { diagnostics: pull_reports_changed, inlay_hints: false },
+        );
     }
 }
 
@@ -986,6 +1073,39 @@ fn request_code_lens_refresh(client: &ClientSocket) {
     handle.spawn(async move {
         if let Err(error) = client.code_lens_refresh(()).await {
             tracing::debug!(%error, "client does not accept CodeLens refresh");
+        }
+    });
+}
+
+fn request_pull_result_refreshes(
+    client: &ClientSocket,
+    config: &Config,
+    requests: RefreshRequests,
+) {
+    if requests.diagnostics && config.supports_diagnostic_refresh() {
+        request_diagnostic_refresh(client);
+    }
+    if requests.inlay_hints && config.supports_inlay_hint_refresh() {
+        request_inlay_hint_refresh(client);
+    }
+}
+
+fn request_diagnostic_refresh(client: &ClientSocket) {
+    let mut client = client.clone();
+    let Ok(handle) = tokio::runtime::Handle::try_current() else { return };
+    handle.spawn(async move {
+        if let Err(error) = client.workspace_diagnostic_refresh(()).await {
+            tracing::debug!(%error, "client does not accept diagnostic refresh");
+        }
+    });
+}
+
+fn request_inlay_hint_refresh(client: &ClientSocket) {
+    let mut client = client.clone();
+    let Ok(handle) = tokio::runtime::Handle::try_current() else { return };
+    handle.spawn(async move {
+        if let Err(error) = client.inlay_hint_refresh(()).await {
+            tracing::debug!(%error, "client does not accept inlay-hint refresh");
         }
     });
 }

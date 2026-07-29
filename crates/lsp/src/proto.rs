@@ -1,7 +1,7 @@
 use crate::vfs::{self, VfsPath};
 use crop::Rope;
 use lsp_types::{
-    DiagnosticSeverity, InitializeParams, NumberOrString, ServerCapabilities, ServerInfo,
+    DiagnosticSeverity, NumberOrString, ServerCapabilities, ServerInfo,
     request::{Initialize as LspInitialize, Request},
 };
 use solar_config::version::SHORT_VERSION;
@@ -13,6 +13,34 @@ use solar_interface::{
 
 #[derive(Debug)]
 pub(crate) enum Initialize {}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(transparent)]
+pub(crate) struct InitializeParams(lsp_types::InitializeParams);
+
+impl InitializeParams {
+    pub(crate) fn into_inner(self) -> lsp_types::InitializeParams {
+        self.0
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for InitializeParams {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let mut value = <serde_json::Value as serde::Deserialize>::deserialize(deserializer)?;
+        if let Some(workspace) =
+            value.pointer_mut("/capabilities/workspace").and_then(serde_json::Value::as_object_mut)
+            && let Some(diagnostics) = workspace.get("diagnostics").cloned()
+        {
+            workspace.insert("diagnostic".into(), diagnostics);
+        }
+        <lsp_types::InitializeParams as serde::Deserialize>::deserialize(value)
+            .map(Self)
+            .map_err(serde::de::Error::custom)
+    }
+}
 
 impl Request for Initialize {
     type Params = InitializeParams;
@@ -311,7 +339,57 @@ fn severity(level: Level) -> lsp_types::DiagnosticSeverity {
 mod tests {
     use super::{checked_text_range, position_at_byte};
     use crop::Rope;
-    use lsp_types::{Position, Range};
+    use lsp_types::{Position, Range, request::Request};
+
+    fn diagnostic_refresh_support(workspace: serde_json::Value) -> Option<bool> {
+        let params: <super::Initialize as Request>::Params =
+            serde_json::from_value(serde_json::json!({
+                "capabilities": { "workspace": workspace }
+            }))
+            .unwrap();
+
+        params
+            .into_inner()
+            .capabilities
+            .workspace
+            .and_then(|workspace| workspace.diagnostic)
+            .and_then(|diagnostic| diagnostic.refresh_support)
+    }
+
+    #[test]
+    fn initialize_params_accept_standard_diagnostics_capability() {
+        assert_eq!(
+            diagnostic_refresh_support(serde_json::json!({
+                "diagnostics": { "refreshSupport": true }
+            })),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn initialize_params_accept_singular_diagnostic_fallback() {
+        assert_eq!(
+            diagnostic_refresh_support(serde_json::json!({
+                "diagnostic": { "refreshSupport": true }
+            })),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn initialize_params_prefer_standard_diagnostics_capability() {
+        for (diagnostic, diagnostics, expected) in
+            [(false, true, Some(true)), (true, false, Some(false))]
+        {
+            assert_eq!(
+                diagnostic_refresh_support(serde_json::json!({
+                    "diagnostic": { "refreshSupport": diagnostic },
+                    "diagnostics": { "refreshSupport": diagnostics }
+                })),
+                expected
+            );
+        }
+    }
 
     #[test]
     fn checked_text_range_uses_utf16_columns() {
