@@ -108,7 +108,7 @@ fn @arrChain(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v24 = calldataload v23
     v25 = add v23, 32
     v26 = shr 251, v24
-    br v26, bb9, bb10
+    jumpi v26, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

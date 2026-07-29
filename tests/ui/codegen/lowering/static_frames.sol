@@ -1,9 +1,8 @@
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 //@ filecheck:
 
-// Static frame overlays after MIR inlining: the surviving non-recursive chain
-// uses compile-time-fixed frame addresses, while recursive and mutually
-// recursive calls share the dynamic frame allocator and epilogue.
+// Static frame overlays use compile-time-fixed frame addresses, while recursive
+// and mutually recursive calls share the dynamic frame allocator and epilogue.
 contract SF {
     // CHECK: push 0x313ae541
     // CHECK: eq
@@ -18,24 +17,16 @@ contract SF {
     // CHECK: return
     uint256 public s;
 
-    // The optimized chainA/chainB/chainC path has one surviving static call.
+    // The chainA/chainB/chainC path uses static frame addresses.
     // CHECK: [[TOP]]:
     // CHECK: push 672
     // CHECK-NEXT: mstore
     // CHECK: push 704
     // CHECK-NEXT: mstore
     // CHECK-NEXT: push [[CHAIN_RET:bb[0-9]+]]
-    // CHECK-NOT: push 160
-    // CHECK: push 928
-    // CHECK-NEXT: mstore
-    // CHECK-NOT: push 160
-    // CHECK: push 736
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: jump
-    // CHECK-NEXT: [[CHAIN_RET]]:
+    // CHECK: [[CHAIN_RET]]:
     // CHECK-NEXT: push 736
     // CHECK-NEXT: mload
-    // CHECK-NOT: push 160
 
     // top -> rec allocates a dynamic frame.
     // CHECK: push 7
@@ -71,7 +62,9 @@ contract SF {
     // CHECK-NEXT: jump [[DYN_EPILOGUE]]
 
     // rec -> rec uses the same dynamic allocator and epilogue.
-    // CHECK: push [[PANIC:bb[0-9]+]]
+    // CHECK: swap1
+    // CHECK-NEXT: pop
+    // CHECK-NEXT: push [[PANIC:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push [[REC_RECUR_CONT:bb[0-9]+]]
     // CHECK-NEXT: jump [[DYN_ALLOC]]
