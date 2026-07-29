@@ -1,7 +1,7 @@
 use lsp_types::{TextEdit, Url};
 use normalize_path::NormalizePath;
 use solar_config::ImportRemapping;
-use solar_interface::source_map::apply_import_remappings;
+use solar_interface::source_map::{FileResolver, SourceMap};
 use std::path::{Component, Path, PathBuf};
 
 use super::{
@@ -195,7 +195,10 @@ fn anchored_import_resolves_to_target(
     let Some(configuration_root) = configuration_root else { return false };
     let configuration_root = moved_path(configuration_root, moves);
     let parent = source.strip_prefix(&configuration_root).unwrap_or(source);
-    let remapped = apply_import_remappings(remappings, import_path, Some(parent));
+    let source_map = SourceMap::empty();
+    let mut file_resolver = FileResolver::new(&source_map);
+    file_resolver.add_import_remappings(remappings.iter().cloned());
+    let remapped = file_resolver.remap_path(import_path, Some(parent));
     let resolved = if remapped.is_absolute() {
         remapped.as_ref().normalize()
     } else {
@@ -219,7 +222,10 @@ fn absolute_import_resolves_to_target(
     let resolver_root = resolver_root.map(|root| moved_path(root, moves));
     let parent =
         resolver_root.as_deref().and_then(|root| source.strip_prefix(root).ok()).unwrap_or(source);
-    let remapped = apply_import_remappings(remappings, import_path, Some(parent));
+    let source_map = SourceMap::empty();
+    let mut file_resolver = FileResolver::new(&source_map);
+    file_resolver.add_import_remappings(remappings.iter().cloned());
+    let remapped = file_resolver.remap_path(import_path, Some(parent));
     remapped.is_absolute() && remapped.as_ref().normalize() == target.normalize()
 }
 
