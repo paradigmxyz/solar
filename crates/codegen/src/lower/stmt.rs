@@ -908,40 +908,8 @@ impl<'gcx> Lowerer<'gcx> {
             return;
         }
         if let Some(expr) = value {
-            if let hir::ExprKind::Tuple(elements) = &expr.kind {
-                let ret_vals: Vec<_> = elements
-                    .iter()
-                    .filter_map(|elem_opt| {
-                        elem_opt.as_ref().map(|elem| self.lower_value_expr(builder, elem))
-                    })
-                    .collect();
-                builder.ret(ret_vals);
-            } else if let Some(arity) = self.get_ternary_tuple_arity(expr) {
-                let first = self.lower_value_expr(builder, expr);
-                let mut ret_vals = Vec::with_capacity(arity);
-                ret_vals.push(first);
-                if arity > 1 {
-                    let base = self.multi_return_buffer_base(builder);
-                    for i in 1..arity {
-                        ret_vals.push(self.load_multi_return_value(builder, base, i));
-                    }
-                }
-                builder.ret(ret_vals);
-            } else {
-                let ret_val = self.lower_value_expr(builder, expr);
-                let n = builder.func().returns.len();
-                if n > 1 {
-                    let mut ret_vals = Vec::with_capacity(n);
-                    ret_vals.push(ret_val);
-                    let base = self.multi_return_buffer_base(builder);
-                    for i in 1..n {
-                        ret_vals.push(self.load_multi_return_value(builder, base, i));
-                    }
-                    builder.ret(ret_vals);
-                } else {
-                    builder.ret([ret_val]);
-                }
-            }
+            let items = self.gather_return_items(builder, Some(expr));
+            self.finish_return(builder, items);
         } else {
             builder.ret([]);
         }
