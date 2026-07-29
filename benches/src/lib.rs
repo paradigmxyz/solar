@@ -77,8 +77,8 @@ pub fn get_srcs() -> &'static [Source] {
         // (`test/benchmarks/external-setup.sh` upstream): pinned Foundry
         // projects compiled with their full test suites.
         //
-        // All nine projects typecheck clean. Solmate compiles through codegen;
-        // the other projects stop before codegen on unsupported behavior.
+        // All nine projects typecheck clean; codegen remains capped on
+        // unsupported compiler behavior.
         sources.extend([
             include_source("../testdata/projects/seaport-1.6.json.gz", Capabilities::no_codegen()),
             include_source(
@@ -105,8 +105,7 @@ pub fn get_srcs() -> &'static [Source] {
                 "../testdata/projects/prb-math-4.1.1.json.gz",
                 Capabilities::no_codegen(),
             ),
-            include_source("../testdata/projects/solmate-6.json.gz", Capabilities::all())
-                .with_codspeed_codegen(),
+            include_source("../testdata/projects/solmate-6.json.gz", Capabilities::no_codegen()),
             include_source(
                 "../testdata/projects/solarray-a547630.json.gz",
                 Capabilities::no_codegen(),
