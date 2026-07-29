@@ -28,21 +28,22 @@ struct Params {
 contract CalldataStructMemberIndex {
     // A struct element strides by its head size (four words), not by one.
     // CDSMI-LABEL: fn @plain
-    // CDSMI: mul {{.*}}, 128
+    // CDSMI: shl 7, arg1
     function plain(Item[] calldata items, uint256 i) external pure returns (uint256) {
         return items[i].amount;
     }
 
     // The member uses the dynamic-memory-array layout and loads a struct pointer.
     // CDSMI-LABEL: fn @member
-    // CDSMI: memory_object_element_addr memoryarray<1>
+    // CDSMI: mul arg1, 32
+    // CDSMI: mload
     function member(Params calldata p, uint256 i) external pure returns (uint256) {
         return p.items[i].amount;
     }
 
     // A word element still loads inline from `data + i * 32`.
     // CDSMI-LABEL: fn @word
-    // CDSMI-NOT: mul {{.*}}, 128
+    // CDSMI-NOT: shl 7, arg1
     function word(Params calldata p, uint256 i) external pure returns (uint256) {
         return p.words[i];
     }

@@ -35,7 +35,7 @@ contract CompoundAssign {
     // CHECK: [[OLD:v[0-9]+]] = sload 0
     // CHECK: [[NEW:v[0-9]+]] = add [[OLD]], 1
     // CHECK: sstore 0, [[NEW]]
-    // CHECK: mstore 128, [[OLD]]
+    // CHECK: ret [[OLD]]
     function bump_post() public returns (uint256) {
         return value++;
     }
@@ -44,7 +44,7 @@ contract CompoundAssign {
     // CHECK: [[OLD:v[0-9]+]] = sload 0
     // CHECK: [[NEW:v[0-9]+]] = add [[OLD]], 1
     // CHECK: sstore 0, [[NEW]]
-    // CHECK: mstore 128, [[NEW]]
+    // CHECK: ret [[NEW]]
     function bump_pre() public returns (uint256) {
         return ++value;
     }

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_control_flow.sol:CalldataSliceControlFlow ===
 @module CalldataSliceControlFlow
-fn @trimLen(arg0: calldataslice) {
+fn @trimLen(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -23,8 +23,7 @@ fn @trimLen(arg0: calldataslice) {
     v12 = mload 160
     v13 = make_calldata_slice v11, v12
     v14 = slice_len v13
-    mstore 128, v14
-    returndata 128, 32
+    ret v14
   bb4:
     v7 = slice_ptr arg0
     v8 = add v7, 8
@@ -71,7 +70,7 @@ fn @_trim(arg0: calldataslice) -> memorybytes {
     ret v18
 }
 
-fn @forward(arg0: calldataslice) {
+fn @forward(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -123,8 +122,7 @@ fn @forward(arg0: calldataslice) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    mstore 128, v25
-    returndata 128, 32
+    ret v25
 }
 
 fn @_sum(arg0: calldataslice, arg1: calldataslice) -> u256 {
@@ -154,7 +152,7 @@ fn @_sum(arg0: calldataslice, arg1: calldataslice) -> u256 {
     ret v8
 }
 
-fn @explicitTrim(arg0: calldataslice) {
+fn @explicitTrim(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -173,8 +171,7 @@ fn @explicitTrim(arg0: calldataslice) {
     v16 = mload 160
     v17 = make_calldata_slice v15, v16
     v18 = slice_len v17
-    mstore 128, v18
-    returndata 128, 32
+    ret v18
   bb4:
     v5 = slice_ptr arg0
     v6 = slice_len arg0
@@ -220,7 +217,7 @@ fn @_explicitTrim(arg0: calldataslice) -> memorybytes {
     ret v7
 }
 
-fn @headTail(arg0: calldataslice) {
+fn @headTail(arg0: calldataslice) -> (u256, u256) [abi_returns=[word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -257,10 +254,7 @@ fn @headTail(arg0: calldataslice) {
     mstore 160, v27
     v28 = mload 128
     v29 = mload 160
-    mstore 128, v28
-    v30 = add 128, 32
-    mstore v30, v29
-    returndata 128, 64
+    ret v28, v29
   bb4:
     revert 0, 0
   bb5:

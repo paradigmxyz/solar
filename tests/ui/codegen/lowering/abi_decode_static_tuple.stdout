@@ -24,14 +24,14 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_returns=[word, word,
     mstore 160, 0
     mstore 192, 0
     v12 = memory_object_len memorybytes, v9
-    v13 = lt v12, 96
-    jumpi v13, bb3, bb4
+    v13 = memory_object_data memorybytes, v9
+    v14 = lt v12, 96
+    jumpi v14, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v14 = memory_object_data memorybytes, v9
-    v15 = mload v14
-    v16 = add v14, 32
+    v15 = mload v13
+    v16 = add v13, 32
     v17 = mload v16
     v18 = iszero v17
     v19 = iszero v18
@@ -41,7 +41,7 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_returns=[word, word,
   bb5:
     revert 0, 0
   bb6:
-    v22 = add v14, 64
+    v22 = add v13, 64
     v23 = mload v22
     v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
     v25 = eq v23, v24

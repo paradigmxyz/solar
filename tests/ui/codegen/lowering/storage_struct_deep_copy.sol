@@ -17,8 +17,8 @@ contract StorageStructDeepCopy {
 
     // SDC-LABEL: fn @assign
     // The dynamic array field's length and elements are written to storage.
-    // SDC: keccak256
-    // SDC: sstore
+    // SDC: sstore {{v[0-9]+}}, {{v[0-9]+}}
+    // SDC: sstore 1,
     function assign(address a, bytes4 x) public {
         bytes4[] memory ss = new bytes4[](1);
         ss[0] = x;

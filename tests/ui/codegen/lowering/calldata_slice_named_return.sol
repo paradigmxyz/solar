@@ -7,9 +7,6 @@
 // read and write through the slot. Verified behaviorally against solc.
 
 contract CalldataSliceNamedReturn {
-    // CSNR-LABEL: fn @unwrap
-    // CSNR: slice_ptr
-    // CSNR-NOT: unsupported
     function unwrap(bytes calldata signature)
         internal
         pure
@@ -25,6 +22,8 @@ contract CalldataSliceNamedReturn {
     }
 
     // CSNR-LABEL: fn @use
+    // CSNR: calldataload
+    // CSNR-NOT: unsupported
     function use(bytes calldata sig) external pure returns (uint256) {
         return unwrap(sig).length;
     }
