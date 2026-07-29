@@ -80,10 +80,7 @@ pub fn get_srcs() -> &'static [Source] {
         // All nine projects typecheck clean. Solmate compiles through codegen;
         // the other projects stop before codegen on unsupported behavior.
         sources.extend([
-            include_source(
-                "../testdata/projects/seaport-1.6.json.gz",
-                Capabilities::no_codegen(),
-            ),
+            include_source("../testdata/projects/seaport-1.6.json.gz", Capabilities::no_codegen()),
             include_source(
                 "../testdata/projects/openzeppelin-5.6.1.json.gz",
                 Capabilities::no_codegen(),
