@@ -1,6 +1,7 @@
 #![allow(clippy::disallowed_methods)]
 
 use alloy_primitives::Bytes;
+use flate2::read::GzDecoder;
 use solar::{
     codegen::{self, Backend, EvmCodegen},
     data_structures::map::FxHashMap,
@@ -11,6 +12,7 @@ use solar::{
 pub use solar::sema::Compiler as SemaCompiler;
 use std::{
     any::Any,
+    borrow::Cow,
     hint::black_box,
     io::Write,
     ops::ControlFlow,
@@ -40,7 +42,12 @@ pub fn get_srcs() -> &'static [Source] {
     static CACHE: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| {
         let mut sources = vec![
-            Source { name: "empty", path: "", src: "", capabilities: Capabilities::all() },
+            Source {
+                name: Cow::Borrowed("empty"),
+                path: Cow::Borrowed(""),
+                src: Cow::Borrowed(""),
+                capabilities: Capabilities::all(),
+            },
             include_source("../testdata/Counter.sol", Capabilities::all()),
             include_source(
                 "../testdata/solidity/test/benchmarks/verifier.sol",
@@ -106,7 +113,7 @@ fn parse_source(compiler: &mut CompilerRef<'_>, source: &Source) -> Result {
     let file = compiler
         .sess()
         .source_map()
-        .new_source_file(PathBuf::from(source.path), source.src)
+        .new_source_file(PathBuf::from(source.path.as_ref()), source.src.to_string())
         .unwrap();
     pcx.add_file(file);
     pcx.parse();
@@ -162,7 +169,7 @@ fn parse_project(compiler: &mut CompilerRef<'_>, project: &ProjectSource) -> Res
         project
             .files
             .iter()
-            .map(|&(name, content)| (PathBuf::from(name), content))
+            .map(|(name, content)| (PathBuf::from(name.as_ref()), content.to_string()))
             .collect::<Vec<_>>(),
     )?;
     pcx.parse();
@@ -221,19 +228,20 @@ fn include_source(path: &str, capabilities: Capabilities) -> Source {
              you may need to initialize submodules: `git submodule update --init --checkout`"
         ),
     };
-    source_from_path(path, source.leak(), capabilities)
+    source_from_path(path, source, capabilities)
 }
 
-fn source_from_path(path: &str, src: &'static str, capabilities: Capabilities) -> Source {
-    let path = Path::new(path).canonicalize().unwrap().to_string_lossy().into_owned().leak();
-    Source { name: Path::new(path).file_stem().unwrap().to_str().unwrap(), path, src, capabilities }
+fn source_from_path(path: &str, src: String, capabilities: Capabilities) -> Source {
+    let path = Path::new(path).canonicalize().unwrap().to_string_lossy().into_owned();
+    let name = Path::new(&path).file_stem().unwrap().to_str().unwrap().to_owned();
+    Source { name: Cow::Owned(name), path: Cow::Owned(path), src: Cow::Owned(src), capabilities }
 }
 
 #[derive(Clone, Debug)]
 pub struct Source {
-    pub name: &'static str,
-    pub path: &'static str,
-    pub src: &'static str,
+    pub name: Cow<'static, str>,
+    pub path: Cow<'static, str>,
+    pub src: Cow<'static, str>,
     pub capabilities: Capabilities,
 }
 
@@ -245,11 +253,11 @@ pub struct Source {
 /// code by file count and several times the flattened core by volume.
 #[derive(Clone, Debug)]
 pub struct ProjectSource {
-    pub name: &'static str,
+    pub name: Cow<'static, str>,
     /// `(source unit name, content)` pairs.
-    pub files: Vec<(&'static str, &'static str)>,
+    pub files: Vec<(Cow<'static, str>, Cow<'static, str>)>,
     /// Import remappings from the project's build configuration.
-    pub remappings: Vec<&'static str>,
+    pub remappings: Vec<Cow<'static, str>>,
     /// Total source bytes across every file.
     pub bytes: u64,
     pub capabilities: Capabilities,
@@ -270,25 +278,37 @@ pub fn get_projects() -> &'static [ProjectSource] {
         // user-defined operators (v4-core). Re-probe with `--test` when
         // those close.
         vec![
-            include_project("../testdata/projects/seaport-1.6.json", Capabilities::no_codegen()),
             include_project(
-                "../testdata/projects/openzeppelin-5.6.1.json",
-                Capabilities::no_codegen(),
-            ),
-            include_project("../testdata/projects/solady-0.1.26.json", Capabilities::no_codegen()),
-            include_project("../testdata/projects/v4-core-4.0.0.json", Capabilities::no_codegen()),
-            include_project(
-                "../testdata/projects/morpho-blue-1.0.0.json",
+                "../testdata/projects/seaport-1.6.json.gz",
                 Capabilities::no_codegen(),
             ),
             include_project(
-                "../testdata/projects/forge-std-1.16.1.json",
+                "../testdata/projects/openzeppelin-5.6.1.json.gz",
                 Capabilities::no_codegen(),
             ),
-            include_project("../testdata/projects/prb-math-4.1.1.json", Capabilities::no_codegen()),
-            include_project("../testdata/projects/solmate-6.json", Capabilities::all()),
             include_project(
-                "../testdata/projects/solarray-a547630.json",
+                "../testdata/projects/solady-0.1.26.json.gz",
+                Capabilities::no_codegen(),
+            ),
+            include_project(
+                "../testdata/projects/v4-core-4.0.0.json.gz",
+                Capabilities::no_codegen(),
+            ),
+            include_project(
+                "../testdata/projects/morpho-blue-1.0.0.json.gz",
+                Capabilities::no_codegen(),
+            ),
+            include_project(
+                "../testdata/projects/forge-std-1.16.1.json.gz",
+                Capabilities::no_codegen(),
+            ),
+            include_project(
+                "../testdata/projects/prb-math-4.1.1.json.gz",
+                Capabilities::no_codegen(),
+            ),
+            include_project("../testdata/projects/solmate-6.json.gz", Capabilities::all()),
+            include_project(
+                "../testdata/projects/solarray-a547630.json.gz",
                 Capabilities::no_codegen(),
             ),
         ]
@@ -297,11 +317,11 @@ pub fn get_projects() -> &'static [ProjectSource] {
 
 fn include_project(path: &str, capabilities: Capabilities) -> ProjectSource {
     let full_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(path);
-    let text = match std::fs::read_to_string(&full_path) {
-        Ok(text) => text,
+    let file = match std::fs::File::open(&full_path) {
+        Ok(file) => file,
         Err(e) => panic!("failed to read {path}: {e}"),
     };
-    let input: serde_json::Value = match serde_json::from_str(&text) {
+    let input: serde_json::Value = match serde_json::from_reader(GzDecoder::new(file)) {
         Ok(input) => input,
         Err(e) => panic!("failed to parse {path}: {e}"),
     };
@@ -313,22 +333,26 @@ fn include_project(path: &str, capabilities: Capabilities) -> ProjectSource {
             .as_str()
             .unwrap_or_else(|| panic!("{path}: source `{name}` has no content"));
         bytes += content.len() as u64;
-        files.push((
-            name.clone().leak() as &'static str,
-            content.to_string().leak() as &'static str,
-        ));
+        files.push((Cow::Owned(name.clone()), Cow::Owned(content.to_owned())));
     }
     let remappings = input["settings"]["remappings"]
         .as_array()
         .map(|remappings| {
             remappings
                 .iter()
-                .map(|remapping| remapping.as_str().unwrap().to_string().leak() as &'static str)
+                .map(|remapping| Cow::Owned(remapping.as_str().unwrap().to_owned()))
                 .collect()
         })
         .unwrap_or_default();
-    let name = Path::new(path).file_stem().unwrap().to_str().unwrap().to_string().leak();
-    ProjectSource { name, files, remappings, bytes, capabilities }
+    let name = Path::new(path)
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .strip_suffix(".json.gz")
+        .unwrap()
+        .to_owned();
+    ProjectSource { name: Cow::Owned(name), files, remappings, bytes, capabilities }
 }
 
 #[derive(Clone, Debug)]
@@ -432,7 +456,7 @@ impl Compiler for Solar {
     fn lex(&self, source: &Source, compiler_any: &mut dyn Any) {
         let compiler = compiler_any.downcast_ref::<SemaCompiler>().unwrap();
         compiler.enter(|compiler| {
-            for token in solar::parse::Lexer::new(compiler.sess(), source.src) {
+            for token in solar::parse::Lexer::new(compiler.sess(), source.src.as_ref()) {
                 black_box(token);
             }
             compiler.dcx().has_errors().unwrap();
@@ -444,12 +468,12 @@ impl Compiler for Solar {
         compiler
             .enter_mut(|compiler| -> solar::parse::interface::Result {
                 let arena = solar::parse::ast::Arena::new();
-                let filename = PathBuf::from(source.path);
+                let filename = PathBuf::from(source.path.as_ref());
                 let mut parser = solar::parse::Parser::from_source_code(
                     compiler.sess(),
                     &arena,
                     filename.into(),
-                    source.src,
+                    source.src.as_ref(),
                 )?;
                 let result = parser.parse_file().map_err(|e| e.emit())?;
                 compiler.dcx().has_errors()?;
@@ -497,7 +521,9 @@ impl Compiler for Solang {
     fn lex(&self, source: &Source, _: &mut dyn Any) {
         let mut comments = vec![];
         let mut errors = vec![];
-        for token in solang_parser::lexer::Lexer::new(source.src, 0, &mut comments, &mut errors) {
+        for token in
+            solang_parser::lexer::Lexer::new(source.src.as_ref(), 0, &mut comments, &mut errors)
+        {
             black_box(token);
         }
 
@@ -513,7 +539,7 @@ impl Compiler for Solang {
     }
 
     fn parse(&self, source: &Source, _: &mut dyn Any) {
-        match solang_parser::parse(source.src, 0) {
+        match solang_parser::parse(source.src.as_ref(), 0) {
             Ok(result) => {
                 black_box(result);
             }
@@ -543,7 +569,7 @@ impl Compiler for Slang {
         let version = semver::Version::new(0, 8, 22);
         let parser = slang_solidity::parser::Parser::create(version).unwrap();
         let rule = slang_solidity::cst::NonterminalKind::SourceUnit;
-        let output = parser.parse(rule, source.src);
+        let output = parser.parse(rule, source.src.as_ref());
 
         let errors = output.errors();
         if !errors.is_empty() {
@@ -601,9 +627,9 @@ impl Compiler for TreeSitter {
         let mut parser = tree_sitter::Parser::new();
         let language = tree_sitter_solidity::LANGUAGE;
         parser.set_language(&language.into()).expect("Error loading Solidity parser");
-        let tree = parser.parse(source.src, None).unwrap();
+        let tree = parser.parse(source.src.as_ref(), None).unwrap();
         if tree.root_node().has_error() {
-            on_error(source.src, &tree);
+            on_error(source.src.as_ref(), &tree);
         }
     }
 }
