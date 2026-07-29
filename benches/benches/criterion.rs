@@ -1,8 +1,5 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
-use solar_bench::{
-    COMPILERS, Compiler, IS_CODSPEED, ProjectSource, Source, get_projects, get_src, get_srcs,
-    project_setup, run_project_codegen, run_project_lower, run_project_parse,
-};
+use solar_bench::{COMPILERS, Compiler, IS_CODSPEED, Source, get_src, get_srcs};
 use std::{any::Any, hint::black_box, time::Duration};
 
 type CompilerBench = (
@@ -12,10 +9,11 @@ type CompilerBench = (
     fn(&dyn Compiler, &Source, &mut dyn Any),
 );
 
-type ProjectBench =
-    (&'static str, fn(&ProjectSource) -> bool, fn(&mut solar_bench::SemaCompiler, &ProjectSource));
-
 fn micro_benches(c: &mut Criterion) {
+    if std::env::var_os("SOLAR_BENCH_PROJECTS").is_some() {
+        return;
+    }
+
     let mut g = make_group(c, "micro");
 
     g.bench_function("session/new", |b| {
@@ -62,14 +60,13 @@ fn micro_benches(c: &mut Criterion) {
 
     g.bench_function("source_map/new_source_file", |b| {
         let source = black_box(get_src("Optimism"));
+        let (name, content) = &source.files[0];
         b.iter_batched_ref(
             solar::parse::interface::SourceMap::default,
             |sm| {
                 sm.new_source_file(
-                    solar::parse::interface::source_map::FileName::Real(
-                        source.path.as_ref().into(),
-                    ),
-                    source.src.to_string(),
+                    solar::parse::interface::source_map::FileName::Real(name.as_ref().into()),
+                    content.to_string(),
                 )
                 .unwrap()
             },
@@ -80,7 +77,8 @@ fn micro_benches(c: &mut Criterion) {
 
 fn compiler_benches(c: &mut Criterion) {
     for s in get_srcs() {
-        eprintln!("{}: {} LoC, {} bytes", s.name, s.src.lines().count(), s.src.len());
+        let lines = s.files.iter().map(|(_, content)| content.lines().count()).sum::<usize>();
+        eprintln!("{}: {} files, {} LoC, {} bytes", s.name, s.files.len(), lines, s.bytes);
     }
     eprintln!();
 
@@ -126,25 +124,31 @@ fn compiler_benches(c: &mut Criterion) {
 }
 
 fn bytes(source: &Source) -> Throughput {
-    Throughput::Bytes(source.src.len() as u64)
+    Throughput::Bytes(source.bytes)
 }
 
 fn can_lex(compiler: &dyn Compiler, source: &Source) -> bool {
-    compiler.capabilities().can_lex() && source.capabilities.can_lex()
+    compiler.supports(source) && compiler.capabilities().can_lex() && source.capabilities.can_lex()
 }
 
 fn can_parse(compiler: &dyn Compiler, source: &Source) -> bool {
-    let _ = (compiler, source);
     // compiler.capabilities().can_parse() && source.capabilities.can_parse()
-    true
+    compiler.supports(source)
 }
 
 fn can_lower(compiler: &dyn Compiler, source: &Source) -> bool {
-    compiler.capabilities().can_lower() && source.capabilities.can_lower()
+    compiler.supports(source)
+        && compiler.capabilities().can_lower()
+        && source.capabilities.can_lower()
 }
 
 fn can_codegen(compiler: &dyn Compiler, source: &Source) -> bool {
-    compiler.capabilities().can_codegen() && source.capabilities.can_codegen()
+    compiler.supports(source)
+        && compiler.capabilities().can_codegen()
+        && source.capabilities.can_codegen()
+        // Instrumenting every deployable contract in a multi-megabyte
+        // Foundry project takes longer than the entire CI budget.
+        && (!IS_CODSPEED || source.files.len() == 1)
 }
 
 fn run_lex(compiler: &dyn Compiler, source: &Source, setup: &mut dyn Any) {
@@ -163,58 +167,22 @@ fn run_codegen(compiler: &dyn Compiler, source: &Source, setup: &mut dyn Any) {
     compiler.codegen(source, setup);
 }
 
-/// Whole-project benches: solar compiling a project's full build input, test
-/// suite included, in one session. Solar-only: the foreign parsers have no
-/// notion of a multi-file project build.
-fn project_benches(c: &mut Criterion) {
-    let mut g = make_group(c, "project");
-    let stages: [ProjectBench; 3] = [
-        ("parse", |_| true, run_project_parse),
-        ("lower", |p| p.capabilities.can_lower(), run_project_lower),
-        (
-            "codegen",
-            // Instrumenting every deployable contract in a multi-megabyte
-            // Foundry project takes longer than the entire CI budget. Regular
-            // Criterion runs keep these cases; CodSpeed still measures the
-            // flattened compiler codegen inputs above, while the dedicated
-            // runtime job covers the large real-contract corpus.
-            |p| !IS_CODSPEED && p.capabilities.can_codegen(),
-            run_project_codegen,
-        ),
-    ];
-    for project in get_projects() {
-        eprintln!("{}: {} files, {} bytes", project.name, project.files.len(), project.bytes);
-        for (stage, enabled, run) in stages {
-            if !enabled(project) {
-                continue;
-            }
-            g.throughput(Throughput::Bytes(project.bytes));
-            g.bench_function(format!("{}/solar/{stage}", project.name), |b| {
-                b.iter_batched(
-                    || project_setup(project),
-                    |mut compiler| {
-                        run(&mut compiler, project);
-                        compiler
-                    },
-                    criterion::BatchSize::SmallInput,
-                )
-            });
-        }
-    }
-    g.finish();
-}
-
 fn make_group<'a>(
     c: &'a mut Criterion,
     name: &str,
 ) -> criterion::BenchmarkGroup<'a, criterion::measurement::WallTime> {
     let mut g = c.benchmark_group(name);
-    g.warm_up_time(Duration::from_secs(3));
-    g.measurement_time(Duration::from_secs(10));
+    if std::env::var_os("SOLAR_BENCH_PROJECTS").is_some() {
+        g.warm_up_time(Duration::from_secs(1));
+        g.measurement_time(Duration::from_secs(3));
+    } else {
+        g.warm_up_time(Duration::from_secs(3));
+        g.measurement_time(Duration::from_secs(10));
+    }
     g.sample_size(10);
     g.noise_threshold(0.05);
     g
 }
 
-criterion_group!(benches, micro_benches, compiler_benches, project_benches);
+criterion_group!(benches, micro_benches, compiler_benches);
 criterion_main!(benches);

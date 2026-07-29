@@ -268,20 +268,33 @@ jobs:
         uses: taiki-e/install-action@a6b2e2dcd845ddd7f509ce4f3ed3d922b80cc5d9 # v2.84.0
         with:
           tool: cargo-codspeed
-      - name: Build the benchmark target(s)
+      - name: Build the simulated benchmark targets
         run: >-
-          cargo codspeed build --profile profiling
+          cargo codspeed build -m simulation --profile profiling
           -p solar-bench -p solar-lsp
           --bench criterion --bench lsp
           --features solar-lsp/bench
-      - name: Run the benchmarks
+      - name: Build the project wall-time target
+        run: >-
+          cargo codspeed build -m walltime --profile profiling
+          -p solar-bench --bench criterion
+      - name: Run the simulated benchmarks
         uses: CodSpeedHQ/action@f99becdce5e5d51fd556489ebef684f4ecfd6286 # v4.18.5
         with:
           run: >-
-            cargo codspeed run
+            cargo codspeed run -m simulation
             -p solar-bench -p solar-lsp
             --bench criterion --bench lsp
-          mode: instrumentation
+          mode: simulation
+          token: ${{ secrets.CODSPEED_TOKEN }}
+      - name: Run the project wall-time benchmarks
+        uses: CodSpeedHQ/action@f99becdce5e5d51fd556489ebef684f4ecfd6286 # v4.18.5
+        with:
+          run: >-
+            SOLAR_BENCH_PROJECTS=1 cargo codspeed run -m walltime
+            -p solar-bench --bench criterion
+            'compiler/(seaport-1\.6|openzeppelin-5\.6\.1|solady-0\.1\.26|v4-core-4\.0\.0|morpho-blue-1\.0\.0|forge-std-1\.16\.1|prb-math-4\.1\.1|solmate-6|solarray-a547630)/solar/'
+          mode: walltime
           token: ${{ secrets.CODSPEED_TOKEN }}
 
   gungraun:
