@@ -144,7 +144,12 @@ impl FileMoveBatch {
         let path = path.normalize();
         self.moves.iter().enumerate().find_map(|(index, file_move)| {
             let suffix = path.strip_prefix(&file_move.old_path).ok()?;
-            Some((FileMoveId(index), file_move.new_path.join(suffix)))
+            let new_path = if suffix.as_os_str().is_empty() {
+                file_move.new_path.clone()
+            } else {
+                file_move.new_path.join(suffix)
+            };
+            Some((FileMoveId(index), new_path))
         })
     }
 
@@ -155,11 +160,12 @@ impl FileMoveBatch {
             .enumerate()
             .filter_map(|(index, file_move)| {
                 let suffix = path.strip_prefix(&file_move.new_path).ok()?;
-                Some((
-                    file_move.new_path.components().count(),
-                    FileMoveId(index),
-                    file_move.old_path.join(suffix),
-                ))
+                let old_path = if suffix.as_os_str().is_empty() {
+                    file_move.old_path.clone()
+                } else {
+                    file_move.old_path.join(suffix)
+                };
+                Some((file_move.new_path.components().count(), FileMoveId(index), old_path))
             })
             .max_by_key(|(depth, _, _)| *depth)
             .map(|(_, move_id, path)| (move_id, path))
@@ -660,6 +666,19 @@ mod tests {
             batch.map_path(Path::new("/workspace/src/Test.sol")).unwrap().1,
             path("/workspace/moved/Test.sol")
         );
+    }
+
+    #[test]
+    fn exact_file_mapping_preserves_destination_paths() {
+        let old = path("/workspace/src/Target.sol").normalize();
+        let new = path("/workspace/moved/Renamed.sol").normalize();
+        let batch = FileMoveBatch::new([(old.clone(), new.clone())]).unwrap();
+
+        let mapped = batch.map_path(&old).unwrap().1;
+        let reversed = batch.reverse_map_path(&new).unwrap().1;
+
+        assert_eq!(mapped.as_os_str(), new.as_os_str());
+        assert_eq!(reversed.as_os_str(), old.as_os_str());
     }
 
     #[test]

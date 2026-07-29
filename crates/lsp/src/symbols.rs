@@ -2671,7 +2671,7 @@ mod tests {
     #[test]
     fn aggregator_preserves_document_links_without_declarations() {
         let source_path = PathBuf::from("/workspace/src/Imports.sol");
-        let target = parse_uri("file:///workspace/src/Dependency.sol");
+        let target = Url::from_file_path(std::env::temp_dir().join("Dependency.sol")).unwrap();
         let link_range = range(0, 8, 0, 24);
         let mut other = SymbolTables::default();
         other.document_links.insert_for_test(source_path.clone(), link_range, target.clone());
