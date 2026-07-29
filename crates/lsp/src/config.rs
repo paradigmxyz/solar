@@ -10,8 +10,8 @@ use lsp_types::{
     DeclarationCapability, DiagnosticOptions, DiagnosticServerCapabilities, DocumentLinkOptions,
     ExecuteCommandOptions, FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
     FileOperationRegistrationOptions, FoldingRangeProviderCapability, HoverProviderCapability,
-    ImplementationProviderCapability, InitializeParams, OneOf, RenameOptions, SaveOptions,
-    SelectionRangeProviderCapability, ServerCapabilities, SignatureHelpOptions,
+    ImplementationProviderCapability, InitializeParams, MarkupKind, OneOf, RenameOptions,
+    SaveOptions, SelectionRangeProviderCapability, ServerCapabilities, SignatureHelpOptions,
     TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
     TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions,
     WorkspaceFileOperationsServerCapabilities, WorkspaceFolder, WorkspaceServerCapabilities,
@@ -79,9 +79,17 @@ impl Default for Config {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct CompletionClientOptions {
     pub(crate) snippet_support: bool,
+    pub(crate) markdown_documentation: bool,
+    pub(crate) resolve_documentation: bool,
+}
+
+impl Default for CompletionClientOptions {
+    fn default() -> Self {
+        Self { snippet_support: false, markdown_documentation: false, resolve_documentation: true }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -456,14 +464,23 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
         .and_then(|text_document| text_document.document_symbol.as_ref())
         .and_then(|capabilities| capabilities.hierarchical_document_symbol_support)
         .unwrap_or(false);
+    let completion_item = capabilities
+        .text_document
+        .as_ref()
+        .and_then(|text_document| text_document.completion.as_ref())
+        .and_then(|capabilities| capabilities.completion_item.as_ref());
     let completion = CompletionClientOptions {
-        snippet_support: capabilities
-            .text_document
-            .as_ref()
-            .and_then(|text_document| text_document.completion.as_ref())
-            .and_then(|capabilities| capabilities.completion_item.as_ref())
+        snippet_support: completion_item
             .and_then(|capabilities| capabilities.snippet_support)
             .unwrap_or(false),
+        markdown_documentation: prefers_markdown_documentation(
+            completion_item.and_then(|capabilities| capabilities.documentation_format.as_deref()),
+        ),
+        resolve_documentation: completion_item
+            .and_then(|capabilities| capabilities.resolve_support.as_ref())
+            .is_none_or(|support| {
+                support.properties.iter().any(|property| property == "documentation")
+            }),
     };
     let signature_information = capabilities
         .text_document
@@ -475,16 +492,9 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             .and_then(|settings| settings.parameter_information.as_ref())
             .and_then(|settings| settings.label_offset_support)
             .unwrap_or(false),
-        markdown_documentation: signature_information
-            .and_then(|settings| settings.documentation_format.as_ref())
-            .is_some_and(|formats| {
-                formats.iter().find(|format| {
-                    matches!(
-                        **format,
-                        lsp_types::MarkupKind::Markdown | lsp_types::MarkupKind::PlainText
-                    )
-                }) == Some(&lsp_types::MarkupKind::Markdown)
-            }),
+        markdown_documentation: prefers_markdown_documentation(
+            signature_information.and_then(|settings| settings.documentation_format.as_deref()),
+        ),
         signature_active_parameter: signature_information
             .and_then(|settings| settings.active_parameter_support)
             .unwrap_or(false),
@@ -498,6 +508,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
         ServerCapabilities {
             completion_provider: Some(CompletionOptions {
                 trigger_characters: Some(vec![".".into(), "/".into(), "*".into()]),
+                resolve_provider: Some(true),
                 ..Default::default()
             }),
             declaration_provider: Some(DeclarationCapability::Simple(true)),
@@ -580,6 +591,13 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
     )
 }
 
+fn prefers_markdown_documentation(formats: Option<&[MarkupKind]>) -> bool {
+    formats.is_some_and(|formats| {
+        formats.iter().find(|format| matches!(format, MarkupKind::Markdown | MarkupKind::PlainText))
+            == Some(&MarkupKind::Markdown)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -587,10 +605,11 @@ mod tests {
     use lsp_types::{
         CallHierarchyServerCapability, CodeLensWorkspaceClientCapabilities,
         CompletionClientCapabilities, CompletionItemCapability,
-        DiagnosticWorkspaceClientCapabilities, DidChangeWatchedFilesClientCapabilities,
-        DocumentSymbolClientCapabilities, FileOperationFilter, FileOperationPattern,
-        FileOperationPatternKind, FileOperationRegistrationOptions,
-        InlayHintWorkspaceClientCapabilities, MarkupKind, OneOf, ParameterInformationSettings,
+        CompletionItemCapabilityResolveSupport, DiagnosticWorkspaceClientCapabilities,
+        DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities,
+        FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
+        FileOperationRegistrationOptions, InlayHintWorkspaceClientCapabilities, MarkupKind, OneOf,
+        ParameterInformationSettings,
         RenameOptions, SignatureHelpClientCapabilities, SignatureInformationSettings,
         TextDocumentClientCapabilities, TextDocumentSyncCapability, TextDocumentSyncSaveOptions,
         TypeDefinitionProviderCapability, WindowClientCapabilities, WorkspaceClientCapabilities,
@@ -777,6 +796,7 @@ mod tests {
             completion_provider.trigger_characters,
             Some(vec![".".to_string(), "/".to_string(), "*".to_string()])
         );
+        assert_eq!(completion_provider.resolve_provider, Some(true));
         assert_eq!(capabilities.declaration_provider, Some(DeclarationCapability::Simple(true)));
         assert_eq!(capabilities.definition_provider, Some(OneOf::Left(true)));
         assert_eq!(
@@ -925,6 +945,8 @@ mod tests {
         let (_, config) = negotiate_capabilities(InitializeParams::default());
 
         assert!(!config.completion_options().snippet_support);
+        assert!(!config.completion_options().markdown_documentation);
+        assert!(config.completion_options().resolve_documentation);
     }
 
     #[test]
@@ -944,6 +966,78 @@ mod tests {
         let (_, config) = negotiate_capabilities(params);
 
         assert!(config.completion_options().snippet_support);
+    }
+
+    #[test]
+    fn negotiate_capabilities_records_completion_documentation_preference() {
+        let mut params = InitializeParams::default();
+        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+            completion: Some(CompletionClientCapabilities {
+                completion_item: Some(CompletionItemCapability {
+                    documentation_format: Some(vec![MarkupKind::Markdown, MarkupKind::PlainText]),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let (_, config) = negotiate_capabilities(params.clone());
+        assert!(config.completion_options().markdown_documentation);
+
+        params
+            .capabilities
+            .text_document
+            .as_mut()
+            .unwrap()
+            .completion
+            .as_mut()
+            .unwrap()
+            .completion_item
+            .as_mut()
+            .unwrap()
+            .documentation_format = Some(vec![MarkupKind::PlainText, MarkupKind::Markdown]);
+        let (_, config) = negotiate_capabilities(params);
+        assert!(!config.completion_options().markdown_documentation);
+    }
+
+    #[test]
+    fn negotiate_capabilities_records_completion_documentation_resolve_support() {
+        let mut params = InitializeParams::default();
+        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+            completion: Some(CompletionClientCapabilities {
+                completion_item: Some(CompletionItemCapability {
+                    resolve_support: Some(CompletionItemCapabilityResolveSupport {
+                        properties: vec!["additionalTextEdits".into()],
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let (_, config) = negotiate_capabilities(params.clone());
+        assert!(!config.completion_options().resolve_documentation);
+
+        params
+            .capabilities
+            .text_document
+            .as_mut()
+            .unwrap()
+            .completion
+            .as_mut()
+            .unwrap()
+            .completion_item
+            .as_mut()
+            .unwrap()
+            .resolve_support
+            .as_mut()
+            .unwrap()
+            .properties
+            .push("documentation".into());
+        let (_, config) = negotiate_capabilities(params);
+        assert!(config.completion_options().resolve_documentation);
     }
 
     #[test]
