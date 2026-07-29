@@ -66,8 +66,10 @@ fn micro_benches(c: &mut Criterion) {
             solar::parse::interface::SourceMap::default,
             |sm| {
                 sm.new_source_file(
-                    solar::parse::interface::source_map::FileName::Real(source.path.into()),
-                    source.src,
+                    solar::parse::interface::source_map::FileName::Real(
+                        source.path.as_ref().into(),
+                    ),
+                    source.src.to_string(),
                 )
                 .unwrap()
             },

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import os
 import posixpath
@@ -68,7 +69,7 @@ CASES = (
     Case(
         test_id="openzeppelin-governor",
         description="OpenZeppelin Governor",
-        project="testdata/projects/openzeppelin-5.6.1.json",
+        project="testdata/projects/openzeppelin-5.6.1.json.gz",
         source="test/governance/Governor.t.sol",
         contract="GovernorInternalTest",
         calls=(
@@ -95,7 +96,7 @@ CASES = (
     Case(
         test_id="solady-signature-checker",
         description="Solady SignatureCheckerLib",
-        project="testdata/projects/solady-0.1.26.json",
+        project="testdata/projects/solady-0.1.26.json.gz",
         source="test/SignatureCheckerLib.t.sol",
         contract="SignatureCheckerLibTest",
         calls=(
@@ -125,7 +126,7 @@ CASES = (
     Case(
         test_id="solady-lib-string",
         description="Solady LibString",
-        project="testdata/projects/solady-0.1.26.json",
+        project="testdata/projects/solady-0.1.26.json.gz",
         source="test/LibString.t.sol",
         contract="LibStringTest",
         calls=(
@@ -233,6 +234,11 @@ def project_slice(project: dict[str, Any], source: str) -> dict[str, Any]:
     return {name: sources[name] for name in sorted(selected)}
 
 
+def load_project(path: Path) -> dict[str, Any]:
+    with gzip.open(path, mode="rt", encoding="utf-8") as file:
+        return json.load(file)
+
+
 def compiler_version(path: Path) -> str:
     proc = run([str(path), "--version"], timeout=30)
     if proc.returncode != 0:
@@ -248,7 +254,7 @@ def compile_case(
     root: Path,
 ) -> dict[str, Any]:
     project_path = root / case.project
-    project = json.loads(project_path.read_text())
+    project = load_project(project_path)
     settings = dict(project.get("settings", {}))
     settings.pop("compilationTarget", None)
     settings["outputSelection"] = {
