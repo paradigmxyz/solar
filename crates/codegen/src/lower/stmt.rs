@@ -1331,6 +1331,21 @@ impl<'gcx> Lowerer<'gcx> {
                     (*call_opts).map(|opts| opts.args),
                 );
             }
+            if let Some(TyKind::Fn(function)) = self.get_expr_type(callee).map(|ty| ty.kind)
+                && function.is_external()
+                && function.function_id.is_none()
+                && self.gcx.resolved_function(callee).is_none()
+            {
+                return self
+                    .emit_external_function_pointer_call(
+                        builder,
+                        callee,
+                        args,
+                        (*call_opts).map(|opts| opts.args),
+                        function,
+                    )
+                    .0;
+            }
         }
 
         // Fallback: lower as normal and use the result
