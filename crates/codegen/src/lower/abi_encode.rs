@@ -16,7 +16,10 @@ use alloy_primitives::U256;
 use solar_ast::ElementaryType;
 use solar_data_structures::map::FxHashSet;
 use solar_interface::diagnostics::ErrorGuaranteed;
-use solar_sema::ty::{Ty, TyKind};
+use solar_sema::{
+    hir,
+    ty::{Ty, TyKind},
+};
 
 struct LoweredAbiItems<'gcx> {
     items: Vec<(ValueId, Ty<'gcx>)>,
@@ -302,7 +305,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn lower_abi_encode_items(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        arg_exprs: &[&solar_sema::hir::Expr<'_>],
+        arg_exprs: &[hir::Expr<'_>],
     ) -> Result<LoweredAbiItems<'gcx>, ErrorGuaranteed> {
         let mut tys = Vec::with_capacity(arg_exprs.len());
         for arg in arg_exprs {
@@ -353,7 +356,7 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn lower_abi_encode_to_bytes(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        arg_exprs: &[&solar_sema::hir::Expr<'_>],
+        arg_exprs: &[hir::Expr<'_>],
     ) -> Result<ValueId, ErrorGuaranteed> {
         let LoweredAbiItems { items, calldata_slices } =
             self.lower_abi_encode_items(builder, arg_exprs)?;
@@ -394,7 +397,7 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn lower_keccak_abi_encode(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        arg_exprs: &[&solar_sema::hir::Expr<'_>],
+        arg_exprs: &[hir::Expr<'_>],
     ) -> Result<ValueId, ErrorGuaranteed> {
         let LoweredAbiItems { items, calldata_slices } =
             self.lower_abi_encode_items(builder, arg_exprs)?;
@@ -489,7 +492,7 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         selector: Option<ValueId>,
-        arg_exprs: &[&solar_sema::hir::Expr<'_>],
+        arg_exprs: &[hir::Expr<'_>],
     ) -> Result<(ValueId, ValueId), ErrorGuaranteed> {
         let LoweredAbiItems { items, calldata_slices } =
             self.lower_abi_encode_items(builder, arg_exprs)?;

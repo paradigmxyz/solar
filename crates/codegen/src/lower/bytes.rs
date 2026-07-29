@@ -921,20 +921,21 @@ impl<'gcx> Lowerer<'gcx> {
             match member.name {
                 sym::encodePacked => {
                     // Returns a `bytes memory` pointer: `[length][data...]`.
-                    let ptr = self.lower_abi_encode_packed(builder, args)?;
+                    let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, args)?;
+                    let ptr = self.lower_abi_encode_packed(builder, exprs)?;
                     let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
                     let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
                     return Ok((data, len));
                 }
                 sym::encode => {
-                    let arg_exprs = self.variadic_builtin_args(args);
-                    return self.abi_encode_call_payload(builder, None, &arg_exprs);
+                    let arg_exprs = self.variadic_builtin_args(Builtin::AbiEncode, args)?;
+                    return self.abi_encode_call_payload(builder, None, arg_exprs);
                 }
                 sym::encodeWithSelector => {
                     let ([selector], exprs) =
                         self.builtin_args_with_rest(Builtin::AbiEncodeWithSelector, args)?;
                     let selector = self.lower_selector_word(builder, selector);
-                    return self.abi_encode_call_payload(builder, Some(selector), &exprs);
+                    return self.abi_encode_call_payload(builder, Some(selector), exprs);
                 }
                 sym::encodeWithSignature => {
                     let ([signature], exprs) =
@@ -947,7 +948,7 @@ impl<'gcx> Lowerer<'gcx> {
                             U256::from(u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]]))
                                 << 224;
                         let selector = builder.imm_u256(selector);
-                        return self.abi_encode_call_payload(builder, Some(selector), &exprs);
+                        return self.abi_encode_call_payload(builder, Some(selector), exprs);
                     }
                 }
                 _ => {}

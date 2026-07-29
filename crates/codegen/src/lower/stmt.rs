@@ -87,7 +87,10 @@ impl<'gcx> Lowerer<'gcx> {
             return false;
         }
         let ty = self.current_return_tys[0];
-        let hash = match self.lower_keccak_abi_encode_packed(builder, args) {
+        let hash = match self
+            .variadic_builtin_args(Builtin::AbiEncodePacked, args)
+            .and_then(|exprs| self.lower_keccak_abi_encode_packed(builder, exprs))
+        {
             Ok(hash) => hash,
             Err(guar) => builder.error_value(guar),
         };
@@ -1158,10 +1161,13 @@ impl<'gcx> Lowerer<'gcx> {
             || self.compute_member_selector(base, member),
             |func_id| u32::from_be_bytes(self.gcx.function_selector(func_id).0),
         );
-        let arg_exprs: Vec<_> = args.exprs().collect();
+        let arg_exprs = match self.positional_call_args(args) {
+            Ok(exprs) => exprs,
+            Err(guar) => return builder.error_value(guar),
+        };
         let selector = builder.imm_u256(U256::from(selector) << 224);
         let (args_offset, args_size) =
-            match self.abi_encode_call_payload(builder, Some(selector), &arg_exprs) {
+            match self.abi_encode_call_payload(builder, Some(selector), arg_exprs) {
                 Ok(payload) => payload,
                 Err(guar) => return builder.error_value(guar),
             };

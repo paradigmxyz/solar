@@ -92,6 +92,11 @@ These are current miscompile or target-legality risks, not cleanup preferences.
 6. Applied modifiers are collected as dependencies but are not composed around
    the function body; modifier placeholders lower to no-ops. This can omit
    access-control, validation, and reentrancy logic entirely.
+7. Several ordinary call, event, constructor, and struct-construction paths
+   iterate named arguments in source order instead of declaration order.
+   Builtins and external ABI payload construction now reject named arguments
+   rather than flattening them; the remaining paths need one shared
+   parameter-ordering helper.
 
 ### Target and storage representation
 

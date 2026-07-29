@@ -6,7 +6,6 @@ use crate::{
     mir::{Function, FunctionBuilder, FunctionId, MirType, ValueId},
 };
 use alloy_primitives::{U256, keccak256};
-use smallvec::SmallVec;
 use solar_ast::{DataLocation, LitKind, Span};
 use solar_data_structures::{bit_set::GrowableBitSet, map::StdEntry};
 use solar_interface::{
@@ -185,65 +184,101 @@ impl<'gcx> Lowerer<'gcx> {
             .emit()
     }
 
-    pub(super) fn builtin_args<'a, 'hir, const N: usize>(
+    fn builtin_arg_exprs<'hir>(
         &self,
         builtin: Builtin,
-        args: &'a CallArgs<'hir>,
-    ) -> Result<[&'a hir::Expr<'hir>; N], ErrorGuaranteed> {
-        if args.len() != N {
-            return Err(self.emit_wrong_builtin_arg_count(
+        args: &CallArgs<'hir>,
+    ) -> Result<&'hir [hir::Expr<'hir>], ErrorGuaranteed> {
+        match args.kind {
+            hir::CallArgsKind::Unnamed(exprs) => Ok(exprs),
+            hir::CallArgsKind::Named(_) => {
+                let kind = if builtin.is_yul() { "Yul builtin" } else { "builtin" };
+                Err(self
+                    .gcx
+                    .dcx()
+                    .err(format!(
+                        "named arguments are not supported for {kind} `{}` in codegen",
+                        builtin.name()
+                    ))
+                    .span(args.span)
+                    .emit())
+            }
+        }
+    }
+
+    pub(super) fn positional_call_args<'hir>(
+        &self,
+        args: &CallArgs<'hir>,
+    ) -> Result<&'hir [hir::Expr<'hir>], ErrorGuaranteed> {
+        match args.kind {
+            hir::CallArgsKind::Unnamed(exprs) => Ok(exprs),
+            hir::CallArgsKind::Named(_) => Err(self
+                .gcx
+                .dcx()
+                .err("named arguments are not supported in codegen")
+                .span(args.span)
+                .emit()),
+        }
+    }
+
+    pub(super) fn builtin_args<'hir, const N: usize>(
+        &self,
+        builtin: Builtin,
+        args: &CallArgs<'hir>,
+    ) -> Result<&'hir [hir::Expr<'hir>; N], ErrorGuaranteed> {
+        let exprs = self.builtin_arg_exprs(builtin, args)?;
+        exprs.try_into().map_err(|_| {
+            self.emit_wrong_builtin_arg_count(
                 builtin,
                 args.span,
                 BuiltinArgCount::Exact(N),
-                args.len(),
-            ));
-        }
-        let mut exprs = args.exprs();
-        Ok(std::array::from_fn(|_| exprs.next().unwrap()))
+                exprs.len(),
+            )
+        })
     }
 
-    pub(super) fn builtin_args_with_rest<'a, 'hir, const N: usize>(
+    pub(super) fn builtin_args_with_rest<'hir, const N: usize>(
         &self,
         builtin: Builtin,
-        args: &'a CallArgs<'hir>,
-    ) -> Result<([&'a hir::Expr<'hir>; N], SmallVec<[&'a hir::Expr<'hir>; 4]>), ErrorGuaranteed>
-    {
-        if args.len() < N {
+        args: &CallArgs<'hir>,
+    ) -> Result<(&'hir [hir::Expr<'hir>; N], &'hir [hir::Expr<'hir>]), ErrorGuaranteed> {
+        let exprs = self.builtin_arg_exprs(builtin, args)?;
+        if exprs.len() < N {
             return Err(self.emit_wrong_builtin_arg_count(
                 builtin,
                 args.span,
                 BuiltinArgCount::AtLeast(N),
-                args.len(),
+                exprs.len(),
             ));
         }
-        let mut exprs = args.exprs();
-        let prefix = std::array::from_fn(|_| exprs.next().unwrap());
-        Ok((prefix, exprs.collect()))
+        let (prefix, rest) = exprs.split_at(N);
+        Ok((prefix.try_into().unwrap(), rest))
     }
 
-    pub(super) fn variadic_builtin_args<'a, 'hir>(
-        &self,
-        args: &'a CallArgs<'hir>,
-    ) -> SmallVec<[&'a hir::Expr<'hir>; 4]> {
-        args.exprs().collect()
-    }
-
-    fn builtin_args_with_optional<'a, 'hir, const N: usize>(
+    pub(super) fn variadic_builtin_args<'hir>(
         &self,
         builtin: Builtin,
-        args: &'a CallArgs<'hir>,
-    ) -> Result<([&'a hir::Expr<'hir>; N], Option<&'a hir::Expr<'hir>>), ErrorGuaranteed> {
-        if !(N..=N + 1).contains(&args.len()) {
+        args: &CallArgs<'hir>,
+    ) -> Result<&'hir [hir::Expr<'hir>], ErrorGuaranteed> {
+        self.builtin_arg_exprs(builtin, args)
+    }
+
+    fn builtin_args_with_optional<'hir, const N: usize>(
+        &self,
+        builtin: Builtin,
+        args: &CallArgs<'hir>,
+    ) -> Result<(&'hir [hir::Expr<'hir>; N], Option<&'hir hir::Expr<'hir>>), ErrorGuaranteed> {
+        let exprs = self.builtin_arg_exprs(builtin, args)?;
+        if !(N..=N + 1).contains(&exprs.len()) {
             return Err(self.emit_wrong_builtin_arg_count(
                 builtin,
                 args.span,
                 BuiltinArgCount::Between(N, N + 1),
-                args.len(),
+                exprs.len(),
             ));
         }
-        let mut exprs = args.exprs();
-        let required = std::array::from_fn(|_| exprs.next().unwrap());
-        Ok((required, exprs.next()))
+        let (required, optional) = exprs.split_at(N);
+        Ok((required.try_into().unwrap(), optional.first()))
     }
 
     fn lower_builtin_args<const N: usize>(
@@ -253,7 +288,7 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
     ) -> Result<[ValueId; N], ErrorGuaranteed> {
         let exprs = self.builtin_args(builtin, args)?;
-        Ok(exprs.map(|arg| self.lower_value_expr(builder, arg)))
+        Ok(exprs.each_ref().map(|arg| self.lower_value_expr(builder, arg)))
     }
 
     fn lower_internal_function_pointer_call(
@@ -846,11 +881,13 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::Keccak256 => {
                 let [first] = self.builtin_args(builtin, args)?;
                 if let Some(packed_args) = self.abi_encode_packed_call_args(first) {
+                    let packed_args =
+                        self.variadic_builtin_args(Builtin::AbiEncodePacked, packed_args)?;
                     return self.lower_keccak_abi_encode_packed(builder, packed_args);
                 }
                 if let Some(encode_args) = self.abi_encode_call_args(first) {
-                    let arg_exprs: Vec<_> = encode_args.exprs().collect();
-                    return self.lower_keccak_abi_encode(builder, &arg_exprs);
+                    let arg_exprs = self.variadic_builtin_args(Builtin::AbiEncode, encode_args)?;
+                    return self.lower_keccak_abi_encode(builder, arg_exprs);
                 }
 
                 // Dynamic `bytes`/`string` (incl. `bytes(s)` of a calldata
@@ -895,7 +932,8 @@ impl<'gcx> Lowerer<'gcx> {
                 Ok(value)
             }
             Builtin::StringConcat | Builtin::BytesConcat => {
-                self.lower_abi_encode_packed(builder, args)
+                let exprs = self.variadic_builtin_args(builtin, args)?;
+                self.lower_abi_encode_packed(builder, exprs)
             }
             Builtin::Sha256 | Builtin::Ripemd160 => {
                 self.lower_hash_precompile_call(builder, builtin, args)
@@ -904,20 +942,21 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::AbiEncode => {
                 // abi.encode: a fresh `bytes memory` allocation holding the
                 // padded ABI tuple encoding of the arguments.
-                let arg_exprs = self.variadic_builtin_args(args);
-                self.lower_abi_encode_to_bytes(builder, &arg_exprs)
+                let arg_exprs = self.variadic_builtin_args(builtin, args)?;
+                self.lower_abi_encode_to_bytes(builder, arg_exprs)
             }
             Builtin::AbiEncodePacked => {
                 // `abi.encodePacked`: pack values tightly based on their types.
                 // Returns `bytes memory` (length + data).
-                self.lower_abi_encode_packed(builder, args)
+                let exprs = self.variadic_builtin_args(builtin, args)?;
+                self.lower_abi_encode_packed(builder, exprs)
             }
             Builtin::AbiEncodeWithSelector => {
                 // A selector-prefixed payload adapted to a `bytes memory`
                 // value: `[length][selector + ABI tuple encoding]`.
                 let ([selector], exprs) = self.builtin_args_with_rest(builtin, args)?;
                 let selector = self.lower_selector_word(builder, selector);
-                let (data, len) = self.abi_encode_call_payload(builder, Some(selector), &exprs)?;
+                let (data, len) = self.abi_encode_call_payload(builder, Some(selector), exprs)?;
                 let slice = builder.make_slice(data, len, crate::mir::SliceLocation::Memory);
                 Ok(self.materialize_memory_slice_bytes(builder, slice))
             }
@@ -931,7 +970,7 @@ impl<'gcx> Lowerer<'gcx> {
                         U256::from(u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]])) << 224;
                     let selector = builder.imm_u256(selector);
                     let (data, len) =
-                        self.abi_encode_call_payload(builder, Some(selector), &exprs)?;
+                        self.abi_encode_call_payload(builder, Some(selector), exprs)?;
                     let slice = builder.make_slice(data, len, crate::mir::SliceLocation::Memory);
                     return Ok(self.materialize_memory_slice_bytes(builder, slice));
                 }
@@ -1381,10 +1420,13 @@ impl<'gcx> Lowerer<'gcx> {
         // Use the recursive ABI encoder for every high-level call. The former
         // shallow struct loop copied nested memory pointers as calldata words
         // and treated dynamic bytes pointers as their encoded value.
-        let arg_exprs: Vec<_> = args.exprs().collect();
+        let arg_exprs = match self.positional_call_args(args) {
+            Ok(exprs) => exprs,
+            Err(guar) => return self.call_error_result(builder, callee, guar),
+        };
         let selector_word = builder.imm_u256(U256::from(selector) << 224);
         let (calldata_start, calldata_size) =
-            match self.abi_encode_call_payload(builder, Some(selector_word), &arg_exprs) {
+            match self.abi_encode_call_payload(builder, Some(selector_word), arg_exprs) {
                 Ok(payload) => payload,
                 Err(guar) => return self.call_error_result(builder, callee, guar),
             };
