@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import pathlib
 
+import symbolic_differential as symbolic
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -43,6 +45,48 @@ def write_target(
     (out_dir / "foundry.toml").write_text(_FOUNDRY_TOML)
 
 
+def write_symbolic_target(
+    out_dir: pathlib.Path,
+    solc_runtime: str,
+    solar_runtime: str,
+    function: dict[str, object],
+    max_returndata_bytes: int,
+    evm_version: str,
+) -> None:
+    """Write a single bounded pure-function symbolic differential target."""
+    if max_returndata_bytes <= 0:
+        raise ValueError("max returndata bytes must be positive")
+    src_dir = out_dir / "src"
+    test_dir = out_dir / "test"
+    src_dir.mkdir(parents=True, exist_ok=True)
+    test_dir.mkdir(parents=True, exist_ok=True)
+
+    input_types = list(function["inputs"])
+    declarations = ", ".join(symbolic.solidity_parameter_declarations(input_types))
+    arguments = ", ".join(f"arg{index}" for index in range(len(input_types)))
+    encode = f"abi.encodeWithSelector(TARGET_SELECTOR{', ' if arguments else ''}{arguments})"
+    word_checks = "\n".join(
+        "        "
+        f"if (retA.length > {offset}) "
+        f"assert(_word(retA, {offset}) == _word(retB, {offset}));"
+        for offset in range(0, max_returndata_bytes, 32)
+    )
+    test_source = _SYMBOLIC_DIFFERENTIAL_TEST_SOURCE_TEMPLATE.format(
+        solc_runtime=_hex_literal(solc_runtime),
+        solar_runtime=_hex_literal(solar_runtime),
+        selector=function["selector"],
+        test_name=function["test"],
+        declarations=declarations,
+        encode=encode,
+        max_returndata_bytes=max_returndata_bytes,
+        word_checks=word_checks,
+    )
+    (test_dir / "SymbolicDifferential.t.sol").write_text(test_source)
+    (out_dir / "foundry.toml").write_text(
+        _SYMBOLIC_FOUNDRY_TOML.format(evm_version=evm_version)
+    )
+
+
 _FOUNDRY_TOML = """\
 [profile.default]
 src = "src"
@@ -56,6 +100,21 @@ via_ir = true
 [fuzz]
 runs = 64
 max_test_rejects = 65536
+"""
+
+
+_SYMBOLIC_FOUNDRY_TOML = """\
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+cache_path = "cache"
+libs = []
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "{evm_version}"
+code_size_limit = 1000000
 """
 
 
@@ -353,6 +412,57 @@ contract FandangoRuntimeDifferentialTest {{
     function _bound(uint256 value, uint256 min, uint256 max) internal pure returns (uint256) {{
         uint256 size = max - min + 1;
         return min + (value % size);
+    }}
+}}
+"""
+
+
+_SYMBOLIC_DIFFERENTIAL_TEST_SOURCE_TEMPLATE = """\
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+interface Vm {{
+    function etch(address target, bytes calldata newRuntimeBytecode) external;
+}}
+
+contract SymbolicDifferentialTest {{
+    Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
+
+    address internal constant IMPLEMENTATION =
+        address(0x1000000000000000000000000000000000000001);
+    bytes4 internal constant TARGET_SELECTOR = bytes4({selector});
+    uint256 internal constant MAX_RETURNDATA_BYTES = {max_returndata_bytes};
+
+    bytes internal constant SOLC_RUNTIME = hex"{solc_runtime}";
+    bytes internal constant SOLAR_RUNTIME = hex"{solar_runtime}";
+
+    function setUp() public {{
+        vm.etch(IMPLEMENTATION, SOLC_RUNTIME);
+    }}
+
+    function {test_name}({declarations}) public {{
+        bytes memory callData = {encode};
+        (bool okA, bytes memory retA) = IMPLEMENTATION.staticcall(callData);
+        vm.etch(IMPLEMENTATION, SOLAR_RUNTIME);
+        (bool okB, bytes memory retB) = IMPLEMENTATION.staticcall(callData);
+
+        assert(okA == okB);
+        assert(retA.length == retB.length);
+
+        // This is an explicit soundness sentinel, not a mismatch claim. If a
+        // candidate reaches it, the runner independently replays both calls.
+        // Equal concrete outcomes are classified as incomplete and tell the
+        // caller to raise --max-returndata-bytes.
+        if (retA.length > MAX_RETURNDATA_BYTES) assert(false);
+{word_checks}
+    }}
+
+    function _word(bytes memory value, uint256 offset) internal pure returns (uint256 result) {{
+        assembly ("memory-safe") {{
+            result := mload(add(add(value, 0x20), offset))
+        }}
+        uint256 remaining = value.length - offset;
+        if (remaining < 32) result >>= (32 - remaining) * 8;
     }}
 }}
 """

@@ -29,6 +29,9 @@ diffs.
   and compiler runtimes with `vm.etch`, lets Foundry's builtin fuzzer drive the
   calls, then compares returndata, logs, and normalized state diffs with
   cheatcodes.
+- `fuzz/bin/solsymdiff` is the Phase 0 symbolic differential lane. It compares
+  one statically sized `pure` function under the same compiler settings and
+  only reports a mismatch after independent concrete replay.
 
 Generated artifacts belong under `fuzz/fandango/out/`, which is ignored.
 Promote only minimized, stable failures into `corpus.jsonl` or `tests/ui/`.
@@ -45,6 +48,10 @@ and Foundry for the builtin-fuzzer differential lane. It runs:
 - a small bounded sample from `solsmith.py`, and
 - replayed runtime regressions from `runtime-regressions/*.json`, and
 - a small bounded Foundry fuzz differential over generated SolSmith sources.
+
+The required `symbolic-differential` CI job separately runs bounded agreement,
+a controlled cold-branch mismatch with Foundry and fresh-Anvil replay, and
+budget-exhaustion checks against an exact pinned symbolic Foundry release.
 
 The ABI runner compares:
 
@@ -281,6 +288,143 @@ This compiles the generated harness with both compilers, embeds both runtime
 bytecode blobs into one Foundry test, installs them at fixed addresses with
 `vm.etch`, and lets Foundry fuzz calldata/caller/environment values while the
 test compares return bytes, revert behavior, logs, and normalized state diffs.
+
+### Symbolically Compare Solc and Solar
+
+The symbolic lane is for Solar compiler contributors investigating a suspected
+runtime semantic or codegen divergence in one small, stateless function. It is
+not a replacement for application fuzzing or the stateful Fandango/SolSmith
+lanes above.
+
+Build Solar and make sure `solc`, `anvil`, a symbolic-enabled `forge`, and its
+solver (Z3 by default) are available. Then run one command from the repository
+root. Required CI uses a pinned Foundry nightly because native symbolic testing
+has not reached the latest stable Foundry release yet, verifies the pinned solc
+download, and fixes Ubuntu 24.04 plus its Z3 package version; the existing
+Fandango job continues to use stable Foundry. Phase 0 currently supports Linux
+and macOS; it rejects Windows until equivalent child-process-tree isolation is
+available.
+
+```bash
+cargo build -p solar-compiler --bin solar
+
+fuzz/bin/solsymdiff \
+  --source fuzz/fandango/AbiVectorFixture.sol \
+  --contract AbiVectorFixture \
+  --signature 'panicSub(uint256,uint256)' \
+  --solc solc \
+  --solar target/debug/solar \
+  --forge forge \
+  --anvil anvil \
+  --evm-version osaka \
+  --timeout 60 \
+  --artifact-dir fuzz/fandango/out/symbolic-differentials \
+  --verbose
+```
+
+`--signature` selects the public or external function to compare. It may be
+omitted only when the contract has exactly one eligible function; otherwise the
+result is `incomplete` and lists the eligible signatures. The function must be
+`pure`. Phase 0 accepts `bool`, `address`, integer widths, `bytes1` through
+`bytes32`, and nested fixed arrays of those types for inputs and outputs.
+
+The command:
+
+1. Uses solc once to resolve the transitive import closure, embeds every source
+   unit, then compiles the byte-for-byte identical Standard JSON input with solc
+   and Solar from a shared empty working directory without filesystem import
+   fallback. The explicit settings are via-IR, optimizer enabled with 200 runs,
+   no metadata bytecode hash, and the selected EVM version.
+2. Generates one Foundry property that runs both runtime bytecodes sequentially
+   at the same fixed implementation address and makes two `staticcall`s with
+   the same symbolic ABI arguments. Keeping the address identical prevents
+   address-sensitive code from manufacturing a compiler difference.
+3. Compares success versus revert and the exact raw return or revert bytes.
+   Comparison is word-unrolled up to `--max-returndata-bytes` (256 by default);
+   reaching a longer result is an `incomplete` soundness sentinel, never a
+   passing equivalence claim.
+4. Runs Foundry under the requested solver and path/depth/query budgets.
+   `--timeout` is one shared wall-clock deadline across import materialization,
+   both compilations, symbolic execution, independent Anvil replay, and durable
+   artifact replay. A timed-out Forge invocation terminates its solver process
+   group, and a run that crosses the deadline is always `incomplete`. Forge and
+   Anvil run from isolated working directories with ambient tool configuration
+   removed. Forge also gets an empty home/config directory and an explicit
+   `--use` path for the same solc executable; the selected EVM version and Anvil
+   host are explicit.
+5. Concretely replays every symbolic candidate. A reported compiler mismatch
+   must be confirmed both by Foundry's counterexample replay and by independent
+   exact calls through a fixed `STATICCALL` proxy against both runtimes,
+   sequentially at the same address, in a fresh Anvil process.
+
+Use `--symbolic-timeout`, `--symbolic-max-paths`, and
+`--symbolic-max-depth` to tune solver bounds. The command prints a
+`solar:symbolic-differential@v1` JSON result. Its status and process exit code
+are:
+
+- `no_mismatch_within_bounds` (exit 0): no mismatch was found within the
+  recorded solver, path, depth, returndata, and wall-clock bounds. This is not
+  a proof of unbounded equivalence.
+- `replay_confirmed_mismatch` (exit 1): solc and Solar produced different
+  concrete success/revert status or exact output bytes, the saved Foundry
+  counterexample reproduced, and fresh-Anvil replay independently confirmed
+  the difference.
+- `incomplete` (exit 2): the run could not make either claim. Examples include
+  an unsupported ABI shape, compiler or solver setup failure, exhausted
+  symbolic budget, total timeout, an over-limit result, or a symbolic candidate
+  that did not differ under independent replay.
+
+Every invocation saves a timestamped bundle under `--artifact-dir`; setup
+failures still leave a manifest explaining why the run is incomplete. For a
+completed Forge run, the bundle is self-contained. Inspect `manifest.json`
+first: it records exact Standard JSON and per-source hashes, runtime hashes,
+compiler versions and commands, settings and bounds, the selected selector,
+Forge/Anvil/solver versions, Forge result, and independent solc/Solar outcomes.
+The bundle contains the exact `standard-input.json` passed to both compilers
+(root plus transitive imports), the generated project, a convenience copy of
+the snapshotted root source, raw Forge JSON/stdout/stderr, and, for a candidate,
+`foundry-counterexample.json` plus its replay result. It also records and saves
+the exact `STATICCALL` proxy input/runtime used by independent replay, along
+with the Anvil command, randomized chain ID, genesis block, and RPC call
+envelope. Commands in the manifest use paths relative to the bundle so they
+remain usable after the temporary run directory is removed.
+
+To replay a saved Foundry counterexample after the temporary working directory
+has gone away:
+
+```bash
+BUNDLE=fuzz/fandango/out/symbolic-differentials/AbiVectorFixture-<selector>-<timestamp>
+
+forge test \
+  --root "$BUNDLE/project" \
+  --evm-version osaka \
+  --use /path/to/the/recorded-solc \
+  --replay-symbolic-artifact "$BUNDLE/foundry-counterexample.json" \
+  --json
+```
+
+Use the exact EVM version and solc executable recorded in `manifest.json`; the
+stored durable-replay command is bundle-relative and includes both flags.
+
+Symbolic comparison is deliberately opt-in. `fuzz/bin/solsymdiff` is the
+focused command; running `run_foundry_target.py` without `--symbolic` retains
+the existing concrete Foundry fuzz workflow and its `--fuzz-runs` behavior. We
+do not run symbolic execution automatically before every fuzz campaign because
+it needs a solver, has a narrower valid target class, and can legitimately end
+`incomplete`.
+
+Phase 0 does not cover storage or stateful sequences, logs, constructors or
+immutables, proxies, dynamic ABI values (`bytes`, `string`, or dynamic arrays),
+ABI tuples, or protocol/invariant testing. It also does not claim equivalence
+beyond its recorded finite bounds. A Solidity `pure` ABI is not a closed-world
+guarantee: pure external interfaces and compiler-reflective constructs such as
+`codesize()` or `type(C).runtimeCode` can expose intentional implementation
+differences. The runner keeps execution address and RPC context identical, but
+contributors must still triage a confirmed difference before treating it as a
+compiler bug. Imports must currently be resolvable beneath the selected source
+file's parent directory; remapping and include-path flags are not part of Phase
+0. Use the concrete runtime and Foundry lanes above for stateful behavior; use
+this lane to obtain small, replayable witnesses for pure compiler semantics.
 
 ## Scaling
 
