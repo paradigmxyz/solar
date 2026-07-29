@@ -3130,15 +3130,20 @@ impl<'gcx> Lowerer<'gcx> {
         match &stmt.kind {
             hir::StmtKind::Return(Some(expr)) => {
                 if let hir::ExprKind::Tuple(elements) = &expr.kind {
+                    let return_tys: Vec<_> =
+                        func.returns.iter().map(|&id| self.gcx.type_of_item(id.into())).collect();
                     let values: Vec<_> = elements
                         .iter()
                         .flatten()
-                        .map(|element| self.lower_value_expr(builder, element))
+                        .zip(return_tys)
+                        .map(|(element, ty)| self.lower_return_value_for_ty(builder, element, ty))
                         .collect();
                     self.stage_multi_return_tail(builder, &values);
                     values.first().copied()
                 } else {
-                    Some(self.lower_value_expr(builder, expr))
+                    let ret_id = *func.returns.first()?;
+                    let ty = self.gcx.type_of_item(ret_id.into());
+                    Some(self.lower_return_value_for_ty(builder, expr, ty))
                 }
             }
             hir::StmtKind::Return(None) => {
