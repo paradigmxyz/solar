@@ -46,6 +46,7 @@ pub fn get_srcs() -> &'static [Source] {
                 remappings: Vec::new(),
                 bytes: 0,
                 capabilities: Capabilities::all(),
+                codspeed_codegen: true,
             },
             include_source("../testdata/Counter.sol", Capabilities::all()),
             include_source(
@@ -72,43 +73,37 @@ pub fn get_srcs() -> &'static [Source] {
         ];
         extend_repro_sources(&mut sources);
 
-        if std::env::var_os("SOLAR_BENCH_PROJECTS").is_some() {
-            // Whole-project inputs mirroring solc's external benchmarks
-            // (`test/benchmarks/external-setup.sh` upstream): pinned Foundry
-            // projects compiled with their full test suites.
-            //
-            // OpenZeppelin, v4-core, and PRBMath currently stop before codegen
-            // on unsupported compiler behavior.
-            sources.extend([
-                include_source("../testdata/projects/seaport-1.6.json.gz", Capabilities::all()),
-                include_source(
-                    "../testdata/projects/openzeppelin-5.6.1.json.gz",
-                    Capabilities::no_codegen(),
-                ),
-                include_source("../testdata/projects/solady-0.1.26.json.gz", Capabilities::all()),
-                include_source(
-                    "../testdata/projects/v4-core-4.0.0.json.gz",
-                    Capabilities::no_codegen(),
-                ),
-                include_source(
-                    "../testdata/projects/morpho-blue-1.0.0.json.gz",
-                    Capabilities::all(),
-                ),
-                include_source(
-                    "../testdata/projects/forge-std-1.16.1.json.gz",
-                    Capabilities::all(),
-                ),
-                include_source(
-                    "../testdata/projects/prb-math-4.1.1.json.gz",
-                    Capabilities::no_codegen(),
-                ),
-                include_source("../testdata/projects/solmate-6.json.gz", Capabilities::all()),
-                include_source(
-                    "../testdata/projects/solarray-a547630.json.gz",
-                    Capabilities::all(),
-                ),
-            ]);
-        }
+        // Whole-project inputs mirroring solc's external benchmarks
+        // (`test/benchmarks/external-setup.sh` upstream): pinned Foundry
+        // projects compiled with their full test suites.
+        //
+        // OpenZeppelin, v4-core, and PRBMath currently stop before codegen
+        // on unsupported compiler behavior. Only project codegen cases that
+        // keep the full simulated suite under ten minutes opt in below.
+        sources.extend([
+            include_source("../testdata/projects/seaport-1.6.json.gz", Capabilities::all()),
+            include_source(
+                "../testdata/projects/openzeppelin-5.6.1.json.gz",
+                Capabilities::no_codegen(),
+            ),
+            include_source("../testdata/projects/solady-0.1.26.json.gz", Capabilities::all()),
+            include_source(
+                "../testdata/projects/v4-core-4.0.0.json.gz",
+                Capabilities::no_codegen(),
+            ),
+            include_source("../testdata/projects/morpho-blue-1.0.0.json.gz", Capabilities::all())
+                .with_codspeed_codegen(),
+            include_source("../testdata/projects/forge-std-1.16.1.json.gz", Capabilities::all())
+                .with_codspeed_codegen(),
+            include_source(
+                "../testdata/projects/prb-math-4.1.1.json.gz",
+                Capabilities::no_codegen(),
+            ),
+            include_source("../testdata/projects/solmate-6.json.gz", Capabilities::all())
+                .with_codspeed_codegen(),
+            include_source("../testdata/projects/solarray-a547630.json.gz", Capabilities::all())
+                .with_codspeed_codegen(),
+        ]);
 
         sources
     })
@@ -222,6 +217,7 @@ fn include_source(path: &str, capabilities: Capabilities) -> Source {
             remappings: Vec::new(),
             bytes,
             capabilities,
+            codspeed_codegen: true,
         };
     }
 
@@ -260,7 +256,14 @@ fn include_source(path: &str, capabilities: Capabilities) -> Source {
         .strip_suffix(".json.gz")
         .unwrap()
         .to_owned();
-    Source { name: Cow::Owned(name), files, remappings, bytes, capabilities }
+    Source {
+        name: Cow::Owned(name),
+        files,
+        remappings,
+        bytes,
+        capabilities,
+        codspeed_codegen: false,
+    }
 }
 
 /// A single-file or whole-project compilation input.
@@ -274,9 +277,15 @@ pub struct Source {
     /// Total source bytes across every file.
     pub bytes: u64,
     pub capabilities: Capabilities,
+    pub codspeed_codegen: bool,
 }
 
 impl Source {
+    fn with_codspeed_codegen(mut self) -> Self {
+        self.codspeed_codegen = true;
+        self
+    }
+
     fn single_file(&self) -> (&str, &str) {
         let [(name, content)] = self.files.as_slice() else {
             panic!("`{}` is not a single-file source", self.name)

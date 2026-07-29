@@ -10,10 +10,6 @@ type CompilerBench = (
 );
 
 fn micro_benches(c: &mut Criterion) {
-    if std::env::var_os("SOLAR_BENCH_PROJECTS").is_some() {
-        return;
-    }
-
     let mut g = make_group(c, "micro");
 
     g.bench_function("session/new", |b| {
@@ -146,9 +142,7 @@ fn can_codegen(compiler: &dyn Compiler, source: &Source) -> bool {
     compiler.supports(source)
         && compiler.capabilities().can_codegen()
         && source.capabilities.can_codegen()
-        // Instrumenting every deployable contract in a multi-megabyte
-        // Foundry project takes longer than the entire CI budget.
-        && (!IS_CODSPEED || source.files.len() == 1)
+        && (!IS_CODSPEED || source.codspeed_codegen)
 }
 
 fn run_lex(compiler: &dyn Compiler, source: &Source, setup: &mut dyn Any) {
@@ -172,13 +166,8 @@ fn make_group<'a>(
     name: &str,
 ) -> criterion::BenchmarkGroup<'a, criterion::measurement::WallTime> {
     let mut g = c.benchmark_group(name);
-    if std::env::var_os("SOLAR_BENCH_PROJECTS").is_some() {
-        g.warm_up_time(Duration::from_secs(1));
-        g.measurement_time(Duration::from_secs(3));
-    } else {
-        g.warm_up_time(Duration::from_secs(3));
-        g.measurement_time(Duration::from_secs(10));
-    }
+    g.warm_up_time(Duration::from_secs(3));
+    g.measurement_time(Duration::from_secs(10));
     g.sample_size(10);
     g.noise_threshold(0.05);
     g

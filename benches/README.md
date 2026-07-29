@@ -11,9 +11,6 @@ Run with:
 cargo bench -p solar-bench --bench criterion -- --quiet --format terse parser |& tee benches/criterion.out
 uv --project benches/analyze run benches/analyze/main.py benches/README.md < benches/criterion.out
 
-# Criterion, including whole projects
-SOLAR_BENCH_PROJECTS=1 cargo bench -p solar-bench --bench criterion
-
 # Gungraun - requires `valgrind` and `gungraun-runner`
 cargo bench -p solar-bench --bench gungraun
 ```
@@ -31,11 +28,11 @@ result schema in [`schema/`](schema/). Its wall time is the total for the compar
 the harness, both compilers, and runtime checks.
 
 The [benchmark workflow](../.github/workflows/bench.yml) runs automatically for pull requests and
-updates to `main`. CodSpeed simulates the single-file benchmarks and measures whole projects by wall
-time, including codegen where supported. The workflow can also be dispatched for all benchmark
-families or one selected family: codegen runtime comparisons, CodSpeed, or Gungraun instruction
-counts. Dispatch inputs can select another Solar Git ref as the Gungraun baseline and override the
-pinned solc release or codegen benchmark corpus revision.
+updates to `main`. CodSpeed simulates the single-file and whole-project benchmarks, including
+codegen for selected projects. The workflow can also be dispatched for all benchmark families or
+one selected family: codegen runtime comparisons, CodSpeed, or Gungraun instruction counts.
+Dispatch inputs can select another Solar Git ref as the Gungraun baseline and override the pinned
+solc release or codegen benchmark corpus revision.
 
 The codegen runtime job also extracts the import closures for three large contracts from the pinned
 OpenZeppelin and Solady project inputs. It deploys them to Anvil with the EIP-170 limit disabled and
