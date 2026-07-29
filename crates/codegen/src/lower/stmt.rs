@@ -9,7 +9,7 @@ use alloy_primitives::U256;
 use solar_interface::{Span, kw};
 use solar_sema::{
     builtins::Builtin,
-    hir::{self, ExprKind, StmtKind},
+    hir::{self, ElementaryType, ExprKind, StmtKind},
     ty::{Ty, TyKind},
 };
 
@@ -350,7 +350,7 @@ impl<'gcx> Lowerer<'gcx> {
         Some(ptr)
     }
 
-    fn zero_memory_field_value_ty(
+    pub(super) fn zero_memory_field_value_ty(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         ty: Ty<'gcx>,
@@ -402,6 +402,13 @@ impl<'gcx> Lowerer<'gcx> {
                     zero,
                     crate::mir::MemoryObjectKind::DynamicArray,
                 );
+                ptr
+            }
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                let ptr =
+                    self.allocate_memory_object(builder, 32, crate::mir::MemoryObjectKind::Bytes);
+                let zero = builder.imm_u256(U256::ZERO);
+                builder.set_memory_object_len(ptr, zero, crate::mir::MemoryObjectKind::Bytes);
                 ptr
             }
             TyKind::Struct(_) => {

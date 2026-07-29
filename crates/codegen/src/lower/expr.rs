@@ -14,6 +14,9 @@ use solar_sema::{
     ty::{Ty, TyKind},
 };
 
+/// Small structs are cheaper to initialize with individual zero stores.
+const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
+
 pub(super) struct MappingElementSlot {
     pub(super) slot: ValueId,
     pub(super) value_is_mapping: bool,
@@ -675,6 +678,46 @@ impl<'gcx> Lowerer<'gcx> {
             hir::Res::Namespace(_) => builder.imm_u64(0),
             hir::Res::Err(_) => builder.imm_u64(0),
         }
+    }
+
+    /// Materializes a wide default return struct with one bulk zeroing
+    /// operation while giving reference fields real empty objects.
+    pub(super) fn lower_bulk_zero_return_struct(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        var_id: hir::VariableId,
+    ) -> Option<ValueId> {
+        let var = self.gcx.hir.variable(var_id);
+        let ty = self.gcx.type_of_hir_ty(&var.ty);
+        if var.initializer.is_some()
+            || var.data_location != Some(solar_ast::DataLocation::Memory)
+            || !matches!(ty.peel_refs().kind, TyKind::Struct(_))
+            || self.lowering_internal_function
+            || self.current_return_tys.len() != 1
+        {
+            return None;
+        }
+
+        let TyKind::Struct(struct_id) = ty.peel_refs().kind else { unreachable!() };
+        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        if field_tys.len() < MIN_BULK_ZERO_STRUCT_FIELDS {
+            return None;
+        }
+        let ptr = self.allocate_zeroed_memory_object(
+            builder,
+            self.calculate_memory_words_for_ty(ty) * crate::memory::EvmMemoryLayout::WORD_SIZE,
+            crate::mir::MemoryObjectKind::Struct,
+        );
+        let layout = crate::mir::MemoryObjectLayout::structure(field_tys.len() as u64);
+        for (i, field_ty) in field_tys.into_iter().enumerate() {
+            if field_ty.peel_refs().is_value_type() {
+                continue;
+            }
+            let value = self.zero_memory_field_value_ty(builder, field_ty, var.ty.span);
+            let field_addr = builder.memory_object_field_addr(ptr, layout, i as u64);
+            builder.mstore(field_addr, value);
+        }
+        Some(ptr)
     }
 
     /// Lowers a builtin reference.
@@ -1927,6 +1970,36 @@ impl<'gcx> Lowerer<'gcx> {
         size: u64,
         kind: crate::mir::MemoryObjectKind,
     ) -> ValueId {
+        self.allocate_memory_object_with_semantics(
+            builder,
+            size,
+            kind,
+            crate::mir::AllocationSemantics::INTERNAL,
+        )
+    }
+
+    /// Allocates a zero-initialized shaped memory object with a constant byte size.
+    pub(super) fn allocate_zeroed_memory_object(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        size: u64,
+        kind: crate::mir::MemoryObjectKind,
+    ) -> ValueId {
+        self.allocate_memory_object_with_semantics(
+            builder,
+            size,
+            kind,
+            crate::mir::AllocationSemantics::INTERNAL_ZEROED,
+        )
+    }
+
+    fn allocate_memory_object_with_semantics(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        size: u64,
+        kind: crate::mir::MemoryObjectKind,
+        semantics: crate::mir::AllocationSemantics,
+    ) -> ValueId {
         let layout = match kind {
             crate::mir::MemoryObjectKind::Bytes => crate::mir::MemoryObjectLayout::Bytes,
             crate::mir::MemoryObjectKind::DynamicArray => {
@@ -1940,7 +2013,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
         };
         let size = builder.imm_u64(size);
-        builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL)
+        builder.alloc_object(size, layout, semantics)
     }
 
     /// Lowers `abi.decode(data, (T...))` for elementary values from memory

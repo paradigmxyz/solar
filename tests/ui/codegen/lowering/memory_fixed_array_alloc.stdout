@@ -283,6 +283,59 @@ fn @namedReturn() {
     returndata 128, 128
 }
 
+fn @emptyWideNamedStruct() {
+  bb0:
+    v0 = alloc memorystruct<4>, exact, zeroed, infallible, 128
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v1, 0
+    v2 = memory_object_field_addr memorystruct<4>, v0, 1
+    mstore v2, v1
+    mstore 128, v0
+    v3 = mload 128
+    v4 = alloc raw, exact, uninitialized, infallible, 32
+    v5 = add v4, 32
+    v6 = sub v5, v4
+    mstore v4, v6
+    v7 = memory_object_field_addr memorystruct<4>, v3, 0
+    v8 = mload v7
+    v9 = memory_object_field_addr memorystruct<4>, v3, 1
+    v10 = mload v9
+    v11 = memory_object_field_addr memorystruct<4>, v3, 2
+    v12 = mload v11
+    v13 = memory_object_field_addr memorystruct<4>, v3, 3
+    v14 = mload v13
+    v15 = add v5, 128
+    mstore v5, v8
+    v16 = add v5, 32
+    v17 = sub v15, v5
+    mstore v16, v17
+    v18 = memory_object_len memorybytes, v10
+    mstore v15, v18
+    v19 = not 31
+    v20 = add v18, 31
+    v21 = and v20, v19
+    v22 = add v15, 32
+    v23 = iszero v21
+    jumpi v23, bb2, bb1
+  bb1:
+    v24 = sub v21, 32
+    v25 = add v22, v24
+    mstore v25, 0
+    jump bb2
+  bb2:
+    v26 = memory_object_data memorybytes, v10
+    v27 = add v22, v21
+    mcopy v22, v26, v18
+    v28 = add v5, 64
+    mstore v28, v12
+    v29 = add v5, 96
+    mstore v29, v14
+    v30 = sub v27, v5
+    v31 = add v5, v30
+    v32 = sub v31, v4
+    returndata v4, v32
+}
+
 fn @deleteInPlace() {
   bb0:
     mstore 128, 0

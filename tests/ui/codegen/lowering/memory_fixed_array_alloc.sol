@@ -64,6 +64,13 @@ contract MemoryFixedArrayAlloc {
 }
 
 contract NamedReturnAndDelete {
+    struct WideHolder {
+        uint256 first;
+        bytes data;
+        uint256 third;
+        uint256 fourth;
+    }
+
     // A named fixed-array return points at real zeroed memory, not scratch.
     // CHECK-LABEL: fn @namedReturn{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<3, 1>
@@ -79,6 +86,18 @@ contract NamedReturnAndDelete {
         b[0] = 0xEE;
         m = uint8(b[0]);
     }
+
+    // A single wide named struct return zeroes scalar fields in bulk while
+    // reference fields still point at real empty objects.
+    // CHECK-LABEL: fn @emptyWideNamedStruct{{[( ]}}
+    // CHECK: [[WIDE:v[0-9]+]] = alloc memorystruct<4>, exact, zeroed, infallible, 128
+    // CHECK: [[EMPTY:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 32
+    // CHECK: set_memory_object_len memorybytes, [[EMPTY]], 0
+    // CHECK: [[DATA:v[0-9]+]] = memory_object_field_addr memorystruct<4>, [[WIDE]], 1
+    // CHECK: mstore [[DATA]], [[EMPTY]]
+    // CHECK-NOT: mstore {{v[0-9]+}}, 0
+    // CHECK: mstore 128, [[WIDE]]
+    function emptyWideNamedStruct() public pure returns (WideHolder memory holder) {}
 
     // `delete` zeroes the elements in place; the pointer stays valid.
     // CHECK-LABEL: fn @deleteInPlace{{[( ]}}

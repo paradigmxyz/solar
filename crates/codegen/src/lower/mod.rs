@@ -1254,7 +1254,24 @@ impl<'gcx> Lowerer<'gcx> {
                 // within the function body (e.g., `liquidity = 1` in if/else branches)
                 let offset = self.alloc_local_memory(ret_id);
                 let offset_val = self.local_memory_addr(&mut builder, offset);
-                if matches!(ret_ty.peel_refs().kind, TyKind::Struct(_)) {
+                let fully_initialized_struct_ty = hir_func
+                    .body
+                    .as_ref()
+                    .and_then(|body| self.fully_initialized_named_return_struct_ty(ret_id, body));
+                if let Some(ty) = fully_initialized_struct_ty {
+                    let struct_size =
+                        self.calculate_memory_words_for_ty(ty) * EvmMemoryLayout::WORD_SIZE;
+                    let struct_ptr = self.allocate_memory_object(
+                        &mut builder,
+                        struct_size,
+                        MemoryObjectKind::Struct,
+                    );
+                    builder.mstore(offset_val, struct_ptr);
+                } else if let Some(struct_ptr) =
+                    self.lower_bulk_zero_return_struct(&mut builder, ret_id)
+                {
+                    builder.mstore(offset_val, struct_ptr);
+                } else if matches!(ret_ty.peel_refs().kind, TyKind::Struct(_)) {
                     let struct_size =
                         self.calculate_memory_words_for_ty(ret_ty) * EvmMemoryLayout::WORD_SIZE;
                     let struct_ptr = self.allocate_memory_object(
@@ -1627,6 +1644,52 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    /// Returns the type of a named memory-struct return whose fields are all
+    /// assigned before the return variable is otherwise used.
+    fn fully_initialized_named_return_struct_ty(
+        &self,
+        ret_id: VariableId,
+        body: &'gcx hir::Block<'gcx>,
+    ) -> Option<Ty<'gcx>> {
+        let ret = self.gcx.hir.variable(ret_id);
+        if ret.name.is_none() || ret.data_location != Some(solar_ast::DataLocation::Memory) {
+            return None;
+        }
+
+        let ty = self.gcx.type_of_hir_ty(&ret.ty);
+        let TyKind::Struct(struct_id) = ty.peel_refs().kind else { return None };
+        let strukt = self.gcx.hir.strukt(struct_id);
+        if strukt.fields.is_empty() {
+            return None;
+        }
+
+        let mut initialized = GrowableBitSet::new_empty();
+        for stmt in body.stmts {
+            let hir::StmtKind::Expr(expr) = &stmt.kind else { return None };
+            let hir::ExprKind::Assign(lhs, None, rhs) = &expr.kind else { return None };
+            let hir::ExprKind::Member(base, _) = &lhs.kind else { return None };
+            if self.gcx.resolved_variable(base) != Some(ret_id)
+                || self.expr_references_variable(rhs, ret_id)
+            {
+                return None;
+            }
+
+            let (lhs_struct_id, field_index) = self.resolved_struct_field(lhs)?;
+            if lhs_struct_id != struct_id {
+                return None;
+            }
+            initialized.insert(strukt.fields[field_index]);
+            if initialized.count() == strukt.fields.len() {
+                return Some(ty);
+            }
+        }
+        None
+    }
+
+    fn expr_references_variable(&self, expr: &'gcx hir::Expr<'gcx>, var_id: VariableId) -> bool {
+        VariableReferenceFinder { gcx: self.gcx, var_id }.visit_expr(expr).is_break()
+    }
+
     /// Collects variables that are assigned after declaration in a statement.
     fn collect_assigned_vars_stmt(&mut self, stmt: &hir::Stmt<'_>) {
         use hir::StmtKind;
@@ -1867,6 +1930,27 @@ pub fn contract_bytecode_dependencies(
     let mut deps = GrowableBitSet::new_empty();
     BytecodeDependencyCollector { gcx, deps: &mut deps }.collect_contract(contract_id);
     deps
+}
+
+struct VariableReferenceFinder<'gcx> {
+    gcx: Gcx<'gcx>,
+    var_id: VariableId,
+}
+
+impl<'gcx> Visit<'gcx> for VariableReferenceFinder<'gcx> {
+    type BreakValue = ();
+
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        &self.gcx.hir
+    }
+
+    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
+        if self.gcx.resolved_variable(expr) == Some(self.var_id) {
+            ControlFlow::Break(())
+        } else {
+            self.walk_expr(expr)
+        }
+    }
 }
 
 struct BytecodeDependencyCollector<'a, 'gcx> {
