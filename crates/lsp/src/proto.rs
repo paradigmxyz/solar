@@ -35,7 +35,7 @@ impl<'de> serde::Deserialize<'de> for InitializeParams {
         // shim after upgrading to an lsp-types version that accepts the plural wire field.
         if let Some(workspace) =
             value.pointer_mut("/capabilities/workspace").and_then(serde_json::Value::as_object_mut)
-            && let Some(diagnostics) = workspace.get("diagnostics").cloned()
+            && let Some(diagnostics) = workspace.remove("diagnostics")
         {
             workspace.insert("diagnostic".into(), diagnostics);
         }

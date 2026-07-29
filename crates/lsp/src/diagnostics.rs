@@ -74,9 +74,6 @@ impl DiagnosticStore {
                 affected_uris.extend(diagnostics.into_keys());
             }
         }
-        if affected_uris.is_empty() {
-            return DiagnosticUpdate::default();
-        }
         self.publish_batches(affected_uris)
     }
 
@@ -112,6 +109,10 @@ impl DiagnosticStore {
     }
 
     fn publish_batches(&mut self, affected_uris: FxHashSet<Url>) -> DiagnosticUpdate {
+        if affected_uris.is_empty() {
+            return DiagnosticUpdate::default();
+        }
+
         let Self { diagnostics: all_diagnostics, reports, next_result_id } = self;
         let mut owners = all_diagnostics.iter().collect::<Vec<_>>();
         owners.sort_by_key(|(owner, _)| *owner);

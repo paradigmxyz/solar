@@ -366,8 +366,36 @@ async fn clearing_analysis_cache_refreshes_only_changed_pull_results() {
 
     state.clear_analysis_cache();
     harness.expect_pull_result_refreshes().await;
+    harness.expect_no_event().await;
 
     state.clear_analysis_cache();
+    harness.expect_no_event().await;
+    harness.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn invalidated_analysis_refreshes_restored_pull_results() {
+    let mut harness = refresh_harness();
+    let mut state = GlobalState::new(harness.client.clone());
+    state.config = Arc::new(pull_refresh_config(true, true));
+    assert!(state.snapshot().publish_analysis(0, changed_pull_result()));
+    harness.expect_no_event().await;
+
+    state.clear_analysis_cache();
+    harness.expect_pull_result_refreshes().await;
+    harness.expect_no_event().await;
+
+    let (version, _progress) = state
+        .begin_analysis(
+            AnalysisMode::IfInvalidated,
+            Vec::new(),
+            Vec::new(),
+            AnalysisTrigger::Document,
+        )
+        .unwrap();
+    assert!(state.snapshot().publish_analysis(version, changed_pull_result()));
+
+    harness.expect_pull_result_refreshes().await;
     harness.expect_no_event().await;
     harness.shutdown().await;
 }

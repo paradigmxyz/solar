@@ -465,12 +465,16 @@ impl GlobalState {
 
             let invalidated = mem::take(&mut commit.cache_invalidated);
             let rediscover = matches!(mode, AnalysisMode::Rediscover) || invalidated;
+            let refresh_pull_results = invalidated || matches!(trigger, AnalysisTrigger::External);
             let version = self.next_analysis_version();
             // Reserve progress before publishing the epoch so a delayed create response cannot end
             // the previous wave after the new analysis becomes current. The progress delay is armed
             // after debounce and scheduler wait complete.
             let progress = self.analysis_progress.reserve(version);
-            self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover, trigger);
+            if refresh_pull_results {
+                commit.begin_external_refresh();
+            }
+            self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover);
             let update = self.diagnostics.write().clear_uris_and_publish_batches(removed_uris);
             commit.record_external_diagnostics_change(update.pull_reports_changed);
             publish_diagnostic_batches(&mut self.client, update.batches);
@@ -500,13 +504,7 @@ impl GlobalState {
         context_changed: bool,
     ) -> usize {
         let version = self.next_analysis_version();
-        self.commit_analysis_epoch(
-            commit,
-            version,
-            changed_paths,
-            context_changed,
-            AnalysisTrigger::Document,
-        );
+        self.commit_analysis_epoch(commit, version, changed_paths, context_changed);
         version
     }
 
@@ -516,11 +514,7 @@ impl GlobalState {
         version: usize,
         changed_paths: Vec<PathBuf>,
         context_changed: bool,
-        trigger: AnalysisTrigger,
     ) {
-        if matches!(trigger, AnalysisTrigger::External) {
-            commit.begin_external_refresh();
-        }
         if context_changed {
             commit.natspec_context_change_version = version;
         }
