@@ -13,6 +13,7 @@ use solar_sema::hir;
 /// Displays a DOT format CFG for a function.
 pub(crate) fn display_function_dot<'a>(
     func: &'a Function,
+    function: Option<FunctionId>,
     funcs: Option<&'a solar_data_structures::index::IndexVec<FunctionId, Function>>,
 ) -> impl fmt::Display + 'a {
     fn display_dot_node<'a>(
@@ -142,7 +143,7 @@ pub(crate) fn display_function_dot<'a>(
     }
 
     fmt::from_fn(move |f| {
-        writeln!(f, "digraph \"{}\" {{", func.name)?;
+        writeln!(f, "digraph \"{}\" {{", display_function_name(func, function, funcs))?;
         writeln!(f, "    node [shape=box, fontname=\"Courier\", fontsize=10];")?;
         writeln!(f, "    edge [fontname=\"Courier\", fontsize=9];")?;
         writeln!(f)?;
@@ -187,6 +188,7 @@ pub(crate) fn display_function_dot<'a>(
 /// ```
 pub(crate) fn display_function_text<'a>(
     func: &'a Function,
+    function: Option<FunctionId>,
     funcs: Option<&'a solar_data_structures::index::IndexVec<FunctionId, Function>>,
 ) -> impl fmt::Display + 'a {
     fn display_text_block<'a>(
@@ -238,7 +240,7 @@ pub(crate) fn display_function_text<'a>(
 
     fmt::from_fn(move |f| {
         // Header: fn @name(params) -> returns
-        write!(f, "fn @{}(", func.name)?;
+        write!(f, "fn @{}(", display_function_name(func, function, funcs))?;
         write!(
             f,
             "{}",
@@ -400,9 +402,22 @@ fn display_inst_kind<'a>(
     })
 }
 
-/// Formats a function reference as `@name` when the name is unique, or `nameN`
-/// when it needs the module index to disambiguate it. Falls back to `fnN` when
-/// a single function is printed without its module.
+fn display_function_name<'a>(
+    func: &'a Function,
+    function: Option<FunctionId>,
+    funcs: Option<&'a solar_data_structures::index::IndexVec<FunctionId, Function>>,
+) -> impl fmt::Display + 'a {
+    let disambiguator = function.filter(|_| {
+        funcs.is_some_and(|funcs| funcs.iter().filter(|other| other.name == func.name).count() > 1)
+    });
+    crate::ir_text::display_disambiguated_symbol(
+        func.name.name,
+        disambiguator.map(FunctionId::index),
+    )
+}
+
+/// Formats a function reference using its exact textual declaration name.
+/// Falls back to `fnN` when a single function is printed without its module.
 fn display_function_ref(
     function: FunctionId,
     funcs: Option<&solar_data_structures::index::IndexVec<FunctionId, Function>>,
@@ -410,11 +425,8 @@ fn display_function_ref(
     fmt::from_fn(move |f| {
         if let Some(funcs) = funcs
             && let Some(callee) = funcs.get(function)
-            && funcs.iter().filter(|other| other.name == callee.name).count() == 1
         {
-            write!(f, "@{}", callee.name)
-        } else if let Some(callee) = funcs.and_then(|funcs| funcs.get(function)) {
-            write!(f, "{}{}", callee.name, function.index())
+            write!(f, "@{}", display_function_name(callee, Some(function), Some(funcs)))
         } else {
             write!(f, "fn{}", function.index())
         }

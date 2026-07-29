@@ -498,7 +498,12 @@ impl Default for FunctionAttributes {
 
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "fn {}({})", self.name, self.params.iter().format(", "))?;
+        write!(
+            f,
+            "fn {}({})",
+            crate::ir_text::display_symbol(self.name.name),
+            self.params.iter().format(", ")
+        )?;
 
         if !self.returns.is_empty() {
             write!(f, " -> ({})", self.returns.iter().format(", "))?;
@@ -512,6 +517,18 @@ impl fmt::Display for Function {
 mod tests {
     use super::*;
     use crate::mir::FunctionBuilder;
+    use snapbox::assert_data_eq;
+    use solar_interface::{ColorChoice, Session, Symbol};
+
+    #[test]
+    fn display_mangles_name() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let name = ["f", ".name"].concat();
+            let func = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+            assert_data_eq!(func.to_string(), "fn f$2ename()");
+        });
+    }
 
     #[test]
     fn live_values_include_terminator_operands() {

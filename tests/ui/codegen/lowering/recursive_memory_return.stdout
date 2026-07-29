@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/recursive_memory_return.sol:C ===
 @module C
-fn @build(arg0: u256) {
+fn @build$$0(arg0: u256) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -35,7 +35,7 @@ fn @build(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v15 = internal_call build1, 1, v13
+    v15 = internal_call @build$$1, 1, v13
     v16 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v17 = memory_object_field_addr memorystruct<2>, v15, 0
     v18 = mload v17
@@ -72,7 +72,7 @@ fn @build(arg0: u256) {
     returndata 128, 64
 }
 
-fn @build(arg0: u256) -> memorystruct {
+fn @build$$1(arg0: u256) -> memorystruct {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -92,7 +92,7 @@ fn @build(arg0: u256) -> memorystruct {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v6 = internal_call build1, 1, v4
+    v6 = internal_call @build$$1, 1, v4
     v7 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v8 = memory_object_field_addr memorystruct<2>, v6, 0
     v9 = mload v8

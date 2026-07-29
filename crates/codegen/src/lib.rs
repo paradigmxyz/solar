@@ -22,7 +22,7 @@ pub use backend::{Backend, evm::EvmCodegen};
 mod contract;
 pub use contract::{ContractArtifact, ContractSelection, generate_contract_bytecodes};
 
-mod ir_parse;
+mod ir_text;
 
 pub mod lower;
 

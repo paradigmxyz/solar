@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/higher_order_mir.sol:HigherOrderFunctionPointer ===
 @module HigherOrderFunctionPointer
-fn @higher0() {
+fn @higher0$$0() {
   bb0:
     mstore 128, 2
     returndata 128, 32
@@ -61,7 +61,7 @@ fn @__internal_dispatch_1(arg0: function) -> u256 {
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb1:
-    v1 = internal_call higher07, 1
+    v1 = internal_call @higher0$$7, 1
     ret v1
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -69,7 +69,7 @@ fn @__internal_dispatch_1(arg0: function) -> u256 {
     revert 0, 36
 }
 
-fn @higher0() -> u256 {
+fn @higher0$$7() -> u256 {
   bb0:
     ret 2
 }

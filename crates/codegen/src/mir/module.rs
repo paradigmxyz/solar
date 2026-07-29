@@ -202,7 +202,7 @@ impl Module {
     /// Returns the human-readable textual MIR representation of this module.
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
-            writeln!(f, "@module {}", self.name)?;
+            writeln!(f, "@module {}", crate::ir_text::display_symbol(self.name.name))?;
             if self.phase != MirPhase::default() {
                 writeln!(f, "@phase {}", self.phase.name())?;
             }
@@ -210,8 +210,12 @@ impl Module {
                 f,
                 "{}",
                 self.functions
-                    .iter()
-                    .map(|func| super::display::display_function_text(func, Some(&self.functions)))
+                    .iter_enumerated()
+                    .map(|(function, func)| super::display::display_function_text(
+                        func,
+                        Some(function),
+                        Some(&self.functions)
+                    ))
                     .format("\n")
             )
         })
@@ -224,8 +228,12 @@ impl Module {
                 f,
                 "{}",
                 self.functions
-                    .iter()
-                    .map(|func| super::display::display_function_dot(func, Some(&self.functions)))
+                    .iter_enumerated()
+                    .map(|(function, func)| super::display::display_function_dot(
+                        func,
+                        Some(function),
+                        Some(&self.functions)
+                    ))
                     .format("\n\n")
             )
         })
