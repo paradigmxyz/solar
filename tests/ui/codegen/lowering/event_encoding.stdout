@@ -74,3 +74,9 @@ fn @emitIndexedBytes(arg0: memorybytes) {
     stop
 }
 
+fn @emitIndexedFixedBytes() {
+  bb0:
+    log2 0, 0, 0xd6843e74884f95c39ee4c0ac08d559101bead98aa590038d667afad12f9006bb, 0x6162630000000000000000000000000000000000000000000000000000000000
+    stop
+}
+

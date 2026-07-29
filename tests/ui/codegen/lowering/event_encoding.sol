@@ -5,6 +5,7 @@ contract EventEncoding {
     event ArrayEvent(uint256[2] values);
     event AnonymousEvent(address indexed sender, uint256 value) anonymous;
     event IndexedBytes(bytes indexed value);
+    event IndexedFixedBytes(bytes3 indexed value);
 
     // CHECK-LABEL: fn @emitArray
     // CHECK: log1 {{[^,]+}}, 64, 0x625921711aa49386aa5b640487cbc3efdcbda2656254ae2c5ad71b2ede1efcf4
@@ -23,5 +24,11 @@ contract EventEncoding {
     // CHECK: log2 0, 0, {{[^,]+}}, [[HASH]]
     function emitIndexedBytes(bytes memory value) external {
         emit IndexedBytes(value);
+    }
+
+    // CHECK-LABEL: fn @emitIndexedFixedBytes
+    // CHECK: log2 0, 0, {{[^,]+}}, 0x6162630000000000000000000000000000000000000000000000000000000000
+    function emitIndexedFixedBytes() external {
+        emit IndexedFixedBytes("abc");
     }
 }

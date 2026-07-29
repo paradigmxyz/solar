@@ -988,9 +988,19 @@ impl<'gcx> Lowerer<'gcx> {
             let ty = self.gcx.type_of_item((*param_id).into());
 
             if param.indexed {
-                // An indexed dynamic `bytes`/`string` is topic'd by the
-                // keccak256 of its contents, not by its (pointer) value.
-                if let Some(topic) = self.keccak_dynamic_bytes(builder, arg) {
+                if matches!(
+                    ty.peel_refs().kind,
+                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                ) {
+                    // An indexed dynamic `bytes`/`string` is topic'd by the
+                    // keccak256 of its contents, not by its (pointer) value.
+                    let topic = self.keccak_dynamic_bytes(builder, arg).unwrap_or_else(|| {
+                        self.err_value(
+                            builder,
+                            arg.span,
+                            "codegen expected dynamic event bytes to have a byte representation",
+                        )
+                    });
                     topics.push(topic);
                 } else if matches!(
                     ty.peel_refs().kind,
