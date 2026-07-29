@@ -1,6 +1,7 @@
 //@ run-call: Caller::lowLevelGas() => false
 //@ run-call: Caller::highLevelGas() => true
 //@ run-call: Caller::viewUsesStaticcall() => true
+//@ run-call: Caller::namedArguments() => 12
 //@ run-call: Caller::attachedStorageReceiver() => 7
 //@ run-call-fail: Caller::failedCreation() => 0xdeadbeef
 
@@ -16,6 +17,10 @@ contract CallTarget {
     }
 
     function ping() external {}
+
+    function ordered(uint256 a, uint256 b) external pure returns (uint256) {
+        return a * 10 + b;
+    }
 
     function touch() external {
         assembly {
@@ -72,6 +77,10 @@ contract Caller {
         } catch {
             return true;
         }
+    }
+
+    function namedArguments() external view returns (uint256) {
+        return target.ordered({b: 2, a: 1});
     }
 
     function attachedStorageReceiver() external returns (uint256) {

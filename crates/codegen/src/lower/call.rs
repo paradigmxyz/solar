@@ -17,7 +17,7 @@ use solar_sema::{
     builtins::Builtin,
     eval::erc7201_slot,
     hir::{self, CallArgs, ElementaryType, ExprKind},
-    ty::{Ty, TyFn, TyKind},
+    ty::{CallableParamSource, Ty, TyFn, TyKind},
 };
 
 /// Covers Homestead's call and new-account costs plus setup emitted after `GAS`.
@@ -206,19 +206,39 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    pub(super) fn positional_call_args<'hir>(
+    pub(super) fn ordered_call_args<'hir>(
         &self,
+        callee: &hir::Expr<'hir>,
         args: &CallArgs<'hir>,
-    ) -> Result<&'hir [hir::Expr<'hir>], ErrorGuaranteed> {
-        match args.kind {
-            hir::CallArgsKind::Unnamed(exprs) => Ok(exprs),
-            hir::CallArgsKind::Named(_) => Err(self
-                .gcx
-                .dcx()
-                .err("named arguments are not supported in codegen")
-                .span(args.span)
-                .emit()),
-        }
+    ) -> Result<Vec<&'hir hir::Expr<'hir>>, ErrorGuaranteed> {
+        let parameter_names = match args.kind {
+            hir::CallArgsKind::Unnamed(_) => None,
+            hir::CallArgsKind::Named(_) => {
+                let Some(func_id) = self.resolved_function_callee(callee) else {
+                    return Err(self
+                        .gcx
+                        .dcx()
+                        .err("codegen cannot resolve this call's named parameters")
+                        .span(args.span)
+                        .emit());
+                };
+                let func = self.gcx.hir.function(func_id);
+                Some(self.gcx.callable_param_names(CallableParamSource::Function {
+                    id: func_id,
+                    skips_receiver: func.parameters.len() == args.len() + 1,
+                }))
+            }
+        };
+        (0..args.len())
+            .map(|index| args.argument_for_parameter(index, parameter_names.as_deref()))
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| {
+                self.gcx
+                    .dcx()
+                    .err("codegen cannot order this call's arguments")
+                    .span(args.span)
+                    .emit()
+            })
     }
 
     pub(super) fn builtin_args<'hir, const N: usize>(
@@ -956,7 +976,8 @@ impl<'gcx> Lowerer<'gcx> {
                 // value: `[length][selector + ABI tuple encoding]`.
                 let ([selector], exprs) = self.builtin_args_with_rest(builtin, args)?;
                 let selector = self.lower_selector_word(builder, selector);
-                let (data, len) = self.abi_encode_call_payload(builder, Some(selector), exprs)?;
+                let (data, len) =
+                    self.abi_encode_call_payload(builder, Some(selector), exprs.iter())?;
                 let slice = builder.make_slice(data, len, crate::mir::SliceLocation::Memory);
                 Ok(self.materialize_memory_slice_bytes(builder, slice))
             }
@@ -970,7 +991,7 @@ impl<'gcx> Lowerer<'gcx> {
                         U256::from(u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]])) << 224;
                     let selector = builder.imm_u256(selector);
                     let (data, len) =
-                        self.abi_encode_call_payload(builder, Some(selector), exprs)?;
+                        self.abi_encode_call_payload(builder, Some(selector), exprs.iter())?;
                     let slice = builder.make_slice(data, len, crate::mir::SliceLocation::Memory);
                     return Ok(self.materialize_memory_slice_bytes(builder, slice));
                 }
@@ -1420,13 +1441,14 @@ impl<'gcx> Lowerer<'gcx> {
         // Use the recursive ABI encoder for every high-level call. The former
         // shallow struct loop copied nested memory pointers as calldata words
         // and treated dynamic bytes pointers as their encoded value.
-        let arg_exprs = match self.positional_call_args(args) {
+        let arg_exprs = match self.ordered_call_args(callee, args) {
             Ok(exprs) => exprs,
             Err(guar) => return self.call_error_result(builder, callee, guar),
         };
         let selector_word = builder.imm_u256(U256::from(selector) << 224);
         let (calldata_start, calldata_size) =
-            match self.abi_encode_call_payload(builder, Some(selector_word), arg_exprs) {
+            match self.abi_encode_call_payload(builder, Some(selector_word), arg_exprs.into_iter())
+            {
                 Ok(payload) => payload,
                 Err(guar) => return self.call_error_result(builder, callee, guar),
             };

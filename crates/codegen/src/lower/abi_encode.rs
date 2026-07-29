@@ -302,13 +302,13 @@ impl<'gcx> Lowerer<'gcx> {
     /// slices so the encoder can copy them directly into the destination.
     /// Arguments are evaluated before any output buffer is reserved: lowering
     /// an argument can allocate memory of its own.
-    fn lower_abi_encode_items(
+    fn lower_abi_encode_items<'hir>(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        arg_exprs: &[hir::Expr<'_>],
+        arg_exprs: impl ExactSizeIterator<Item = &'hir hir::Expr<'hir>> + Clone,
     ) -> Result<LoweredAbiItems<'gcx>, ErrorGuaranteed> {
         let mut tys = Vec::with_capacity(arg_exprs.len());
-        for arg in arg_exprs {
+        for arg in arg_exprs.clone() {
             let Some(ty) = self.get_expr_type(arg) else {
                 return Err(self
                     .gcx
@@ -326,7 +326,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let mut items = Vec::with_capacity(arg_exprs.len());
         let mut calldata_slices = FxHashSet::default();
-        for (arg, ty) in arg_exprs.iter().zip(tys) {
+        for (arg, ty) in arg_exprs.zip(tys) {
             let value = if let Some((slice, is_bytes)) = self.calldata_dyn_slice(builder, arg)
                 && (is_bytes
                     || matches!(ty.peel_refs().kind, TyKind::DynArray(elem) if self.abi_is_word_element(elem)))
@@ -359,7 +359,7 @@ impl<'gcx> Lowerer<'gcx> {
         arg_exprs: &[hir::Expr<'_>],
     ) -> Result<ValueId, ErrorGuaranteed> {
         let LoweredAbiItems { items, calldata_slices } =
-            self.lower_abi_encode_items(builder, arg_exprs)?;
+            self.lower_abi_encode_items(builder, arg_exprs.iter())?;
         let scratch_words = self.abi_scratch_words(&items);
         let scratch_base =
             (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
@@ -400,7 +400,7 @@ impl<'gcx> Lowerer<'gcx> {
         arg_exprs: &[hir::Expr<'_>],
     ) -> Result<ValueId, ErrorGuaranteed> {
         let LoweredAbiItems { items, calldata_slices } =
-            self.lower_abi_encode_items(builder, arg_exprs)?;
+            self.lower_abi_encode_items(builder, arg_exprs.iter())?;
         // Loop scratch must be a real allocation so it sits below the staging
         // area read by the hash.
         let scratch_words = self.abi_scratch_words(&items);
@@ -488,14 +488,14 @@ impl<'gcx> Lowerer<'gcx> {
     /// ABI-encodes call arguments (optionally prefixed by a left-aligned
     /// 4-byte selector word) into a fresh allocation from the free memory
     /// pointer. Returns `(offset, size)` of the encoded payload.
-    pub(super) fn abi_encode_call_payload(
+    pub(super) fn abi_encode_call_payload<'hir>(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         selector: Option<ValueId>,
-        arg_exprs: &[hir::Expr<'_>],
+        arg_exprs: impl ExactSizeIterator<Item = &'hir hir::Expr<'hir>> + Clone,
     ) -> Result<(ValueId, ValueId), ErrorGuaranteed> {
         let LoweredAbiItems { items, calldata_slices } =
-            self.lower_abi_encode_items(builder, arg_exprs)?;
+            self.lower_abi_encode_items(builder, arg_exprs.clone())?;
         let types = items
             .iter()
             .zip(arg_exprs)

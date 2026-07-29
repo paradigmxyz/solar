@@ -1161,13 +1161,13 @@ impl<'gcx> Lowerer<'gcx> {
             || self.compute_member_selector(base, member),
             |func_id| u32::from_be_bytes(self.gcx.function_selector(func_id).0),
         );
-        let arg_exprs = match self.positional_call_args(args) {
+        let arg_exprs = match self.ordered_call_args(callee, args) {
             Ok(exprs) => exprs,
             Err(guar) => return builder.error_value(guar),
         };
         let selector = builder.imm_u256(U256::from(selector) << 224);
         let (args_offset, args_size) =
-            match self.abi_encode_call_payload(builder, Some(selector), arg_exprs) {
+            match self.abi_encode_call_payload(builder, Some(selector), arg_exprs.into_iter()) {
                 Ok(payload) => payload,
                 Err(guar) => return builder.error_value(guar),
             };

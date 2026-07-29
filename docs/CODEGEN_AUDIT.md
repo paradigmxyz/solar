@@ -94,9 +94,9 @@ These are current miscompile or target-legality risks, not cleanup preferences.
    access-control, validation, and reentrancy logic entirely.
 7. Several ordinary call, event, constructor, and struct-construction paths
    iterate named arguments in source order instead of declaration order.
-   Builtins and external ABI payload construction now reject named arguments
-   rather than flattening them; the remaining paths need one shared
-   parameter-ordering helper.
+   Builtins reject named arguments rather than flattening them, and external
+   ABI payload construction orders them from the selected declaration. The
+   remaining paths need to use the same parameter-ordering query.
 
 ### Target and storage representation
 

@@ -929,13 +929,13 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 sym::encode => {
                     let arg_exprs = self.variadic_builtin_args(Builtin::AbiEncode, args)?;
-                    return self.abi_encode_call_payload(builder, None, arg_exprs);
+                    return self.abi_encode_call_payload(builder, None, arg_exprs.iter());
                 }
                 sym::encodeWithSelector => {
                     let ([selector], exprs) =
                         self.builtin_args_with_rest(Builtin::AbiEncodeWithSelector, args)?;
                     let selector = self.lower_selector_word(builder, selector);
-                    return self.abi_encode_call_payload(builder, Some(selector), exprs);
+                    return self.abi_encode_call_payload(builder, Some(selector), exprs.iter());
                 }
                 sym::encodeWithSignature => {
                     let ([signature], exprs) =
@@ -948,7 +948,7 @@ impl<'gcx> Lowerer<'gcx> {
                             U256::from(u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]]))
                                 << 224;
                         let selector = builder.imm_u256(selector);
-                        return self.abi_encode_call_payload(builder, Some(selector), exprs);
+                        return self.abi_encode_call_payload(builder, Some(selector), exprs.iter());
                     }
                 }
                 _ => {}
