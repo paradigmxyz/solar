@@ -75,6 +75,11 @@ pub(crate) struct SymbolTables {
     has_merged_batches: bool,
 }
 
+#[cfg(test)]
+std::thread_local! {
+    static INLAY_HINT_COMPARISONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 #[derive(Default)]
 pub(crate) struct SymbolTablesAggregator {
     tables: Option<SymbolTables>,
@@ -420,6 +425,17 @@ impl SymbolTables {
 
     pub(crate) fn inlay_hints(&self, uri: &Url, range: Range) -> Vec<InlayHint> {
         self.inlay_hints.hints(uri, range)
+    }
+
+    pub(crate) fn inlay_hints_changed(&self, other: &Self) -> bool {
+        #[cfg(test)]
+        INLAY_HINT_COMPARISONS.with(|comparisons| comparisons.set(comparisons.get() + 1));
+        self.inlay_hints != other.inlay_hints
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_inlay_hint_comparisons() -> usize {
+        INLAY_HINT_COMPARISONS.with(|comparisons| comparisons.replace(0))
     }
 
     pub(crate) fn code_lenses(&self, uri: &Url, options: CodeLensConfig) -> Vec<CodeLens> {
