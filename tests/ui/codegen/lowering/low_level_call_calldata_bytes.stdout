@@ -138,7 +138,7 @@ bb25:
   pop
   dup2
   dup1
-  push 320
+  push 288
   mstore
   mload
   swap2
@@ -182,7 +182,7 @@ bb24:
   push 64
   mload
   dup1
-  push 320
+  push 288
   mstore
   push 224
   mload
@@ -214,10 +214,10 @@ bb22:
   mload
   and
   dup1
-  push 288
+  push 320
   mstore
   iszero
-  push 288
+  push 320
   mload
   push 32
   dup3
@@ -279,7 +279,7 @@ bb28:
   pop
   dup2
   dup1
-  push 320
+  push 288
   mstore
   mload
   swap2

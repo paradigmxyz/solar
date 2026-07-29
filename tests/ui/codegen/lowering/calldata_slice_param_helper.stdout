@@ -1,58 +1,70 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_param_helper.sol:CalldataSliceParamHelper ===
 @module CalldataSliceParamHelper
-fn @lastWord(arg0: calldataslice) -> u256 [abi_returns=[word]] {
+@phase evm-shaped
+fn @lastWord() {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
-    v3 = internal_call @_last, 1, arg0
-    ret v3
+    v6 = add arg0, 36
+    v7 = add arg0, 4
+    v8 = calldataload v7
+    v3 = internal_call @_last, 1, v6, v8
+    mstore 128, v3
+    returndata 128, 32
 }
 
-fn @_last(arg0: calldataslice) -> u256 {
+fn @_last(arg0: calldataptr, arg1: u256) -> u256 {
   bb0:
-    v0 = internal_frame_addr 128
-    mstore v0, 0 !metadata(memory=internal_frame)
-    v1 = slice_ptr arg0
-    v2 = slice_len arg0
-    v3 = sub v2, 32
-    v4 = add v1, v3
+    v3 = sub arg1, 32
+    v4 = add arg0, v3
     v5 = calldataload v4
-    v6 = internal_frame_addr 128
-    mstore v6, v5 !metadata(memory=internal_frame)
-    v7 = internal_frame_addr 128
-    v8 = mload v7 !metadata(memory=internal_frame)
-    ret v8
+    ret v5
 }
 
-fn @lastWord2(arg0: calldataslice) -> u256 [abi_returns=[word]] {
+fn @lastWord2() {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
-    v3 = internal_call @_last, 1, arg0
-    v4 = slice_ptr arg0
-    v5 = slice_len arg0
-    v6 = lt v5, 1
-    br v6, bb3, bb4
+    v16 = add arg0, 36
+    v17 = add arg0, 4
+    v18 = calldataload v17
+    v3 = internal_call @_last, 1, v16, v18
+    jumpi v18, bb3, bb1
   bb3:
-    revert 0, 0
-  bb4:
-    v7 = sub v5, 1
-    v8 = add v4, 1
-    v9 = make_calldata_slice v8, v7
-    v10 = internal_call @_last, 1, v9
+    v7 = sub v18, 1
+    v8 = add v16, 1
+    v10 = internal_call @_last, 1, v8, v7
     v11 = xor v3, v10
-    ret v11
+    mstore 128, v11
+    returndata 128, 32
+}
+
+fn @entry() {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb5, bb1
+  bb1:
+    v1 = calldatasize
+    jumpi v1, bb2, bb5
+  bb2:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb5, [0x3955f902 => bb3, 0x97f495a8 => bb4]
+  bb3:
+    tail_call @lastWord
+  bb4:
+    tail_call @lastWord2
+  bb5:
+    revert 0, 0
 }
 

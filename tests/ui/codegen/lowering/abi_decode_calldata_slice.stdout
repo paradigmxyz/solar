@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_calldata_slice.sol:AbiDecodeCalldataSlice ===
 @module AbiDecodeCalldataSlice
-fn @decode(arg0: calldataslice) {
+fn @decode(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -49,14 +49,13 @@ fn @decode(arg0: calldataslice) {
     v22 = slice_ptr v8
     calldatacopy v19, v22, v9
     v23 = memory_object_len memorybytes, v18
-    v24 = lt v23, 32
-    jumpi v24, bb9, bb10
+    v24 = memory_object_data memorybytes, v18
+    v25 = lt v23, 32
+    jumpi v25, bb9, bb10
   bb9:
     revert 0, 0
   bb10:
-    v25 = memory_object_data memorybytes, v18
-    v26 = mload v25
-    mstore 128, v26
-    returndata 128, 32
+    v26 = mload v24
+    ret v26
 }
 

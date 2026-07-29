@@ -42,7 +42,7 @@ contract MemoryFixedArrayAlloc {
     // CHECK: mstore {{v[0-9]+}}, 7
     // CHECK: {{v[0-9]+}} = alloc memoryarray<1>
     // CHECK: mstore {{v[0-9]+}}, 9
-    // CHECK: returndata 128, 64
+    // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
     function fmpIntegrity() public pure returns (uint256, uint256) {
         uint256[3] memory x;
         x[2] = 7;
@@ -76,7 +76,7 @@ contract NamedReturnAndDelete {
     // CHECK: mstore {{v[0-9]+}}, 3
     // CHECK: {{v[0-9]+}} = alloc memorybytes
     // CHECK: mstore8 {{v[0-9]+}}, 238
-    // CHECK: returndata 128, 128
+    // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
     function namedReturn() public pure returns (uint256[3] memory x, uint256 m) {
         x[0] = 1;
         x[2] = 3;

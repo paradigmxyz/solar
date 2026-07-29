@@ -16,6 +16,7 @@ library DataTypes {
 contract E {
     // CHECK: push 0xbc477c04
     // CHECK: calldataload
+    // CHECK-NEXT: lt
     // CHECK-NEXT: iszero
     // CHECK: return
     function isNone(uint256 x) external pure returns (bool) {

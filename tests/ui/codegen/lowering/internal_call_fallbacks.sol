@@ -25,7 +25,7 @@ contract InternalCallFallbacks {
     // CHECK-LABEL: fn @multi{{[( ]}}
     // CHECK: internal_call @pair, 2, arg0
     // CHECK: mload 32
-    // CHECK: returndata 128, 64
+    // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
     function multi(uint256 x) public pure returns (uint256, uint256) {
         return pair(x);
     }
