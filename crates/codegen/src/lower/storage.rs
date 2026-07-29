@@ -553,7 +553,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// Copies a memory dynamic array to a storage dynamic array at `slot`:
     /// writes the length, then each element at `keccak256(slot) + i *
     /// elem_slots`.
-    fn copy_memory_dyn_array_to_storage(
+    pub(super) fn copy_memory_dyn_array_to_storage(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         slot: ValueId,
