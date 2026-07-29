@@ -1,0 +1,8 @@
+error: tag `@param` references non-existent parameter 'nope'
+   ╭▸ ROOT/tests/ui/natspec/solc_parity_shapes.sol:LL:CC
+   │
+LL │      * @param nope Not a parameter anywhere.
+   ╰╴        ━━━━━
+
+error: aborting due to 1 previous error
+

@@ -34,7 +34,7 @@ def main() -> None:
         generate_large_literals(output_dir, size_name, n_symbols)
         generate_many_storage(output_dir, size_name, n_symbols)
         generate_many_events(output_dir, size_name, n_symbols // 10)
-        generate_complex_inheritance(output_dir, size_name, min(n_depth, 50))
+        generate_complex_inheritance(output_dir, size_name, n_depth)
         generate_many_mappings(output_dir, size_name, n_symbols // 10)
         generate_many_modifiers(output_dir, size_name, n_symbols // 10)
 

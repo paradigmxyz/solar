@@ -4,18 +4,6 @@ error: tag @title can only be given once
 LL │ /// @title Second title
    ╰╴     ━━━━━
 
-error: duplicate documentation for parameter 'x'
-   ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
-   │
-LL │     /// @param x Second documentation
-   │          ━━━━━
-   ╰╴
-note: previously documented here
-   ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
-   │
-LL │     /// @param x First documentation
-   ╰╴         ━━━━━
-
 error: tag @inheritdoc can only be given once
    ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    │
@@ -64,5 +52,5 @@ error: tag `@inheritdoc` not valid for events
 LL │     /// @inheritdoc InvalidInheritdocBase
    ╰╴         ━━━━━━━━━━
 
-error: aborting due to 10 previous errors
+error: aborting due to 9 previous errors
 

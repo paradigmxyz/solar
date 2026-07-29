@@ -1,0 +1,10 @@
+{
+  "sources": {
+    "z_base.sol": {
+      "id": 0
+    },
+    "a_derived.sol": {
+      "id": 1
+    }
+  }
+}
