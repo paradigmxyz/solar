@@ -186,9 +186,6 @@ bb0:
   sub
   push bb4
   jumpi
-  push 0
-  push 128
-  mstore
   push 64
   mload
   dup1

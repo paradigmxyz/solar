@@ -1,4 +1,4 @@
-//@compile-flags: --pass licm
+//@compile-flags: -Zmir-pipeline=licm
 //@filecheck:
 @module LicmV2
 // CHECK-LABEL: {{^[ +].*}}fn @hoist_symbolic_offset_sload{{[( ]}}

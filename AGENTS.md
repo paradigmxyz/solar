@@ -76,8 +76,8 @@ only when not the default). The phases, in order:
 - `built`: fresh from HIR lowering — one MIR function per Solidity function,
   typed values, dispatch and ABI handling not yet materialized as MIR.
 - `optimized`: the canonical pass pipeline has run
-  (`run_default_pipeline_with_options` is the phase transition; ad-hoc
-  `mir-opt` pass lists do not advance the phase).
+  (`run_pipeline` is the phase transition; ad-hoc
+  `-Zmir-pipeline` pass lists do not advance the phase).
 - `abi`: each external function is a self-decoding wrapper — it decodes
   calldata into typed arguments and calls the original body as an internal
   function; the body keeps its fused external termination. Produced by the
@@ -145,7 +145,7 @@ programs or purposes.
   - Progressive MIR lowering pass tests (`lower-abi`, `lower-dispatch`, and
     `lower-evm-shaped`) go together under `tests/ui/codegen/mir/lowering/`.
   - EVM IR optimization tests go under `tests/ui/codegen/evm-ir/<pass-name>/`,
-    using the `evm-opt` pass name for the directory.
+    using the `-Zevm-ir-pipeline` pass name for the directory.
   - Pass-free round-trip fixtures, pipeline tests, and validation tests belong
     in their existing `none/`, `pipeline/`, or `validation/` directories.
 - Keep each fixture's `.stdout` or `.stderr` expectation beside its source

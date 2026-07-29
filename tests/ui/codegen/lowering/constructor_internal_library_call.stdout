@@ -2,50 +2,47 @@
 @module ConstructorLibrary
 fn @helper(arg0: u256) -> u256 {
   bb0:
-    v0 = internal_frame_addr 128
-    mstore v0, 0 !metadata(memory=internal_frame)
-    v1 = eq arg0, 0
-    jumpi v1, bb1, bb2
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
   bb1:
     ret 1
   bb2:
-    v2 = mul arg0, 7
-    v3 = iszero 7
-    v4 = div v2, 7
-    v5 = eq v4, arg0
-    v6 = or v3, v5
-    v7 = iszero v6
-    jumpi v7, bb3, bb4
+    v1 = mul arg0, 7
+    v2 = iszero 7
+    v3 = div v1, 7
+    v4 = eq v3, arg0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v8 = sub arg0, 1
-    v9 = lt arg0, 1
-    jumpi v9, bb5, bb6
+    v7 = sub arg0, 1
+    v8 = lt arg0, 1
+    jumpi v8, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v10 = internal_call @helper, 1, v8
-    v11 = add v2, v10
-    v12 = lt v11, v2
-    jumpi v12, bb7, bb8
+    v9 = internal_call @helper, 1, v7
+    v10 = add v1, v9
+    v11 = lt v10, v1
+    jumpi v11, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    ret v11
+    ret v10
 }
 
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_library_call.sol:ConstructorInternalLibraryCall ===
 @module ConstructorInternalLibraryCall
 fn @value() {
   bb0:
-    mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     mstore 128, v0
     returndata 128, 32
@@ -61,42 +58,40 @@ fn @_anonymous(arg0: u256) {
 
 fn @helper(arg0: u256) -> u256 {
   bb0:
-    v0 = internal_frame_addr 128
-    mstore v0, 0 !metadata(memory=internal_frame)
-    v1 = eq arg0, 0
-    jumpi v1, bb1, bb2
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
   bb1:
     ret 1
   bb2:
-    v2 = mul arg0, 7
-    v3 = iszero 7
-    v4 = div v2, 7
-    v5 = eq v4, arg0
-    v6 = or v3, v5
-    v7 = iszero v6
-    jumpi v7, bb3, bb4
+    v1 = mul arg0, 7
+    v2 = iszero 7
+    v3 = div v1, 7
+    v4 = eq v3, arg0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v8 = sub arg0, 1
-    v9 = lt arg0, 1
-    jumpi v9, bb5, bb6
+    v7 = sub arg0, 1
+    v8 = lt arg0, 1
+    jumpi v8, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v10 = internal_call @helper, 1, v8
-    v11 = add v2, v10
-    v12 = lt v11, v2
-    jumpi v12, bb7, bb8
+    v9 = internal_call @helper, 1, v7
+    v10 = add v1, v9
+    v11 = lt v10, v1
+    jumpi v11, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    ret v11
+    ret v10
 }
 

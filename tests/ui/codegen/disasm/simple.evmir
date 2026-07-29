@@ -1,0 +1,14 @@
+//@ compile-flags: -Zcodegen -Zevm-ir-pipeline=default -O none -Zdump=disasm-runtime
+//@ filecheck:
+
+@module simple
+
+// CHECK-LABEL: // === simple (runtime) ===
+// CHECK-NEXT: PUSH1 0x2a
+// CHECK-NEXT: PUSH1 0x0a
+// CHECK-NEXT: ADD
+bb0:
+  push 42
+  push 10
+  add
+  stop

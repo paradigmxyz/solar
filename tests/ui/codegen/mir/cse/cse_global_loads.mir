@@ -1,4 +1,4 @@
-//@compile-flags: --pass cse
+//@compile-flags: -Zmir-pipeline=cse
 //@filecheck:
 @module CseGlobalLoads
 // CHECK-LABEL: {{^[ +].*}}fn @dominating_mload{{[( ]}}

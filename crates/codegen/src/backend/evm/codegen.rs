@@ -25,7 +25,7 @@ use crate::{
         ArgIdx, BlockId, Function, FunctionId, InstId, InstKind, MirPhase, Module, Terminator,
         ValueId,
     },
-    pass::run_default_pipeline,
+    pass::run_pipeline,
 };
 use alloy_primitives::U256;
 use solar_config::OptimizationMode;
@@ -1097,7 +1097,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        let _changed = run_default_pipeline(self.gcx, module);
+        let _changed = run_pipeline(self.gcx, module, None);
     }
 
     /// Generates runtime bytecode for a module.
@@ -4161,18 +4161,18 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // A computed argument not retained physically survives the drain in
         // its spill slot and is reloaded raw after it; make sure the slot is
-        // written while the value is still reachable.
+        // reloadable on this path or write it while the value is still reachable.
         if let Some(mask) = &stack_mask {
             for (i, &arg) in args.iter().enumerate() {
                 if mask.contains(i)
                     && !retention_plan.as_ref().is_some_and(|plan| plan.retained.contains(i))
                     && matches!(func.value(arg), crate::mir::Value::Inst(_))
-                    && !self.scheduler.spills.is_stored(arg)
+                    && !self.scheduler.spills.is_reloadable(arg)
                 {
                     self.spill_value_if_needed(func, arg);
                     debug_assert!(
-                        self.scheduler.spills.is_stored(arg),
-                        "stack argument neither on the stack nor stored"
+                        self.scheduler.spills.is_reloadable(arg),
+                        "stack argument neither on the stack nor reloadable"
                     );
                 }
             }

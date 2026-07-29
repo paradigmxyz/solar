@@ -1,4 +1,4 @@
-//@compile-flags: --passes cse,lower-mapping-slots,lower-slices
+//@compile-flags: -Zmir-pipeline=cse,lower-mapping-slots,lower-slices
 //@filecheck:
 @module MappingSlotBuiltin
 // CHECK-LABEL: {{^[ +].*}}after cse

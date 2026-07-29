@@ -17,7 +17,6 @@ fn @pick(arg0: bool, arg1: calldataslice, arg2: calldataslice) {
   bb3:
     revert 0, 0
   bb4:
-    mstore 128, 0
     jumpi arg0, bb5, bb6
   bb5:
     v7 = slice_ptr arg1
@@ -57,7 +56,6 @@ fn @adopt(arg0: bool, arg1: calldataslice) {
   bb3:
     revert 0, 0
   bb4:
-    mstore 128, 0
     v7 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v7, 2
     v8 = memory_object_data memorybytes, v7

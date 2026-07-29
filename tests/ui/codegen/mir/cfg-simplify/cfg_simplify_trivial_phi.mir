@@ -1,4 +1,4 @@
-//@compile-flags: --passes cfg-simplify,dce
+//@compile-flags: -Zmir-pipeline=cfg-simplify,dce
 //@filecheck:
 @module CfgSimplifyTrivialPhi
 // CHECK-LABEL: {{^[ +].*}}fn @fold_same_value_phi{{[( ]}}
