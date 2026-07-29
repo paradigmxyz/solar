@@ -35,6 +35,7 @@ mod code_lens;
 mod completion;
 mod document_highlight;
 mod document_link;
+mod file_operations;
 mod folding_range;
 mod goto_definition;
 mod hover;
@@ -564,20 +565,21 @@ fn assert_external_context_notification_until_publish(
 #[test]
 fn replacement_analysis_invalidates_old_worker_before_removed_diagnostics_publish() {
     let uri = diagnostic_uri();
+    let path = uri.to_file_path().unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
     let (stale_version, _stale_progress) = state
         .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
         .unwrap();
     state.snapshot().publish_diagnostics(
         DiagnosticOwner::Compiler,
-        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("removed")])]),
+        DiagnosticMap::from_iter([(uri, vec![diagnostic("removed")])]),
     );
 
     assert_analysis_stale_before_diagnostic_publication(state, stale_version, move |state| {
         state
             .begin_analysis(
                 AnalysisMode::Recompute,
-                vec![uri],
+                vec![path],
                 Vec::new(),
                 AnalysisTrigger::Document,
             )
@@ -1799,7 +1801,7 @@ fn clearing_removed_flychecks_stales_removed_owner_results() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn recomputing_for_removed_files_stales_matching_flycheck_owner_only() {
+async fn recomputing_for_removed_files_stales_all_flycheck_owners() {
     let project = TestProject::from_fixture(
         r#"
         //- /first/foundry.toml
@@ -1829,34 +1831,40 @@ async fn recomputing_for_removed_files_stales_matching_flycheck_owner_only() {
     assert!(snapshot.is_current_flycheck(&second_owner, 0));
 
     let deleted_path = project.path("/first/src/Deleted.sol");
+    let uri = Url::from_file_path(&deleted_path).unwrap();
+    snapshot.publish_flycheck_diagnostics(
+        second_owner.clone(),
+        0,
+        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("existing")])]),
+    );
+    assert!(matches!(
+        state.diagnostics.read().pull_report(&uri, None),
+        PullReport::Full { diagnostics, .. } if diagnostics == vec![diagnostic("existing")]
+    ));
+
     state.recompute_for_file_changes(vec![deleted_path.clone()], vec![deleted_path.clone()], false);
 
     assert!(!snapshot.is_current_flycheck(&first_owner, 0));
-    assert!(snapshot.is_current_flycheck(&second_owner, 0));
+    assert!(!snapshot.is_current_flycheck(&second_owner, 0));
+    assert!(matches!(
+        state.diagnostics.read().pull_report(&uri, None),
+        PullReport::Full { diagnostics, .. } if diagnostics.is_empty()
+    ));
 
-    let uri = Url::from_file_path(deleted_path).unwrap();
     snapshot.publish_flycheck_diagnostics(
-        first_owner,
+        first_owner.clone(),
         0,
         DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("stale")])]),
     );
     snapshot.publish_flycheck_diagnostics(
-        second_owner.clone(),
+        second_owner,
         0,
-        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("current")])]),
+        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("stale cross-workspace")])]),
     );
-    let batches = state
-        .diagnostics
-        .write()
-        .replace_and_publish_batches(
-            second_owner,
-            DiagnosticMap::from_iter([(uri, vec![diagnostic("current")])]),
-        )
-        .batches;
-    assert_eq!(
-        batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>(),
-        ["current"]
-    );
+    assert!(matches!(
+        state.diagnostics.read().pull_report(&uri, None),
+        PullReport::Full { diagnostics, .. } if diagnostics.is_empty()
+    ));
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
         .await
         .expect("file-change analysis should finish")

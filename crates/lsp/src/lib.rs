@@ -24,6 +24,7 @@ mod commands;
 mod config;
 mod diagnostics;
 mod document_links;
+mod file_operations;
 mod flycheck;
 mod folding_range;
 mod formatter;
@@ -118,6 +119,12 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
 
     // Workspace management
     router
+        .request::<req::WillCreateFiles, _>(handlers::will_create_files)
+        .request::<req::WillRenameFiles, _>(handlers::will_rename_files)
+        .request::<req::WillDeleteFiles, _>(handlers::will_delete_files)
+        .notification::<notif::DidCreateFiles>(handlers::did_create_files)
+        .notification::<notif::DidRenameFiles>(handlers::did_rename_files)
+        .notification::<notif::DidDeleteFiles>(handlers::did_delete_files)
         .notification::<notif::DidChangeWorkspaceFolders>(handlers::did_change_workspace_folders)
         .notification::<notif::DidChangeWatchedFiles>(handlers::did_change_watched_files);
 

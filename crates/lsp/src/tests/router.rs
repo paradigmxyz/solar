@@ -112,6 +112,45 @@ async fn router_handles_watched_file_changes() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn router_handles_will_file_operation_requests() {
+    let mut router = new_router(ClientSocket::new_closed());
+
+    for method in [
+        request::WillCreateFiles::METHOD,
+        request::WillRenameFiles::METHOD,
+        request::WillDeleteFiles::METHOD,
+    ] {
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": method,
+            "params": { "files": [] },
+        }))
+        .unwrap();
+
+        assert_eq!(router.call(request).await.unwrap(), serde_json::Value::Null);
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn router_handles_did_file_operation_notifications() {
+    let mut router = new_router(ClientSocket::new_closed());
+
+    for method in [
+        notif::DidCreateFiles::METHOD,
+        notif::DidRenameFiles::METHOD,
+        notif::DidDeleteFiles::METHOD,
+    ] {
+        let notification = serde_json::from_value::<AnyNotification>(serde_json::json!({
+            "method": method,
+            "params": { "files": [] },
+        }))
+        .unwrap();
+
+        assert!(matches!(router.notify(notification), ControlFlow::Continue(())));
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn router_handles_document_saves() {
     let mut router = new_router(ClientSocket::new_closed());
     let params = DidSaveTextDocumentParams {
@@ -718,6 +757,19 @@ fn reindex_progress_honors_client_cancellation() {
 
         server.initialize(initialize).await.unwrap();
         server.initialized(InitializedParams {}).unwrap();
+
+        // Process and drain the automatic initialization reindex before testing cancellation.
+        let _ = server
+            .request::<request::WorkspaceSymbolRequest>(WorkspaceSymbolParams {
+                query: "initialization barrier".into(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        while !matches!(
+            next_analysis_event(&mut events_rx).await,
+            AnalysisClientEvent::Diagnostics(params) if params.uri == broken_uri
+        ) {}
 
         let (blocker_started_tx, blocker_started_rx) = std::sync::mpsc::channel();
         let (release_blocker_tx, release_blocker_rx) = std::sync::mpsc::channel();

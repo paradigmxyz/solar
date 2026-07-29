@@ -212,7 +212,12 @@ async fn external_analysis_preserves_early_diagnostic_changes_until_commit() {
     );
 
     let (version, _progress) = state
-        .begin_analysis(AnalysisMode::Recompute, vec![uri], Vec::new(), AnalysisTrigger::External)
+        .begin_analysis(
+            AnalysisMode::Recompute,
+            vec![uri.to_file_path().unwrap()],
+            Vec::new(),
+            AnalysisTrigger::External,
+        )
         .unwrap();
     assert!(state.snapshot().publish_analysis(
         version,
@@ -287,7 +292,12 @@ async fn external_refresh_intent_survives_superseded_analysis() {
     );
 
     let (stale_version, _progress) = state
-        .begin_analysis(AnalysisMode::Recompute, vec![uri], Vec::new(), AnalysisTrigger::External)
+        .begin_analysis(
+            AnalysisMode::Recompute,
+            vec![uri.to_file_path().unwrap()],
+            Vec::new(),
+            AnalysisTrigger::External,
+        )
         .unwrap();
     let mut stale_snapshot = state.snapshot();
     let (current_version, _progress) = state
@@ -324,7 +334,12 @@ async fn external_refresh_intent_survives_failed_analysis() {
     );
 
     let (failed_version, progress) = state
-        .begin_analysis(AnalysisMode::Recompute, vec![uri], Vec::new(), AnalysisTrigger::External)
+        .begin_analysis(
+            AnalysisMode::Recompute,
+            vec![uri.to_file_path().unwrap()],
+            Vec::new(),
+            AnalysisTrigger::External,
+        )
         .unwrap();
     let task = tokio::spawn(async { panic!("test analysis failure") });
     state.monitor_analysis_task(failed_version, task, progress);

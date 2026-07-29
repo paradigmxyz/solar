@@ -1,4 +1,6 @@
+use crate::file_operations::file_path_from_url;
 use lsp_types::{Diagnostic, Url};
+use normalize_path::NormalizePath;
 use solar_interface::data_structures::map::{FxHashMap, FxHashSet};
 use std::path::PathBuf;
 
@@ -47,17 +49,35 @@ impl DiagnosticStore {
         self.publish_batches(affected_uris)
     }
 
-    pub(crate) fn clear_uris_and_publish_batches(
+    pub(crate) fn clear_file_path_prefixes_and_publish_batches(
         &mut self,
-        uris: impl IntoIterator<Item = Url>,
+        prefixes: &[PathBuf],
     ) -> DiagnosticUpdate {
-        let affected_uris = uris.into_iter().collect::<FxHashSet<_>>();
-        if affected_uris.is_empty() {
+        if prefixes.is_empty() {
             return DiagnosticUpdate::default();
         }
 
+        let prefixes = prefixes.iter().map(|prefix| prefix.normalize()).collect::<Vec<_>>();
+        let matches_prefix = |uri: &Url| {
+            file_path_from_url(uri).is_some_and(|path| {
+                let path = path.normalize();
+                prefixes.iter().any(|prefix| path.starts_with(prefix))
+            })
+        };
+        let mut affected_uris = self
+            .reports
+            .keys()
+            .filter(|uri| matches_prefix(uri))
+            .cloned()
+            .collect::<FxHashSet<_>>();
         self.diagnostics.retain(|_, owner_diagnostics| {
-            owner_diagnostics.retain(|uri, _| !affected_uris.contains(uri));
+            owner_diagnostics.retain(|uri, _| {
+                let retain = !matches_prefix(uri);
+                if !retain {
+                    affected_uris.insert(uri.clone());
+                }
+                retain
+            });
             !owner_diagnostics.is_empty()
         });
 
@@ -180,7 +200,7 @@ mod tests {
     }
 
     fn uri(path: &str) -> Url {
-        Url::parse(&format!("file:///workspace/{path}")).unwrap()
+        Url::from_file_path(std::env::temp_dir().join("solar-lsp-diagnostics").join(path)).unwrap()
     }
 
     #[test]
@@ -306,23 +326,64 @@ mod tests {
     }
 
     #[test]
-    fn clearing_uris_removes_diagnostics_from_all_owners() {
-        let file = uri("src/Deleted.sol");
+    fn clearing_file_path_prefixes_removes_descendant_diagnostics_from_all_owners() {
+        let deleted = uri("pkg/Deleted.sol");
+        let nested = uri("pkg/nested/Dependency.sol");
+        let sibling = uri("pkg2/Keep.sol");
+        let unrelated = uri("other/Keep.sol");
+        let non_file = Url::parse("untitled:Keep.sol").unwrap();
+        let file_uri = uri("pkg/Keep.sol");
+        let hierarchical_non_file =
+            Url::parse(&file_uri.as_str().replacen("file:", "untitled:", 1)).unwrap();
         let mut store = DiagnosticStore::default();
 
         store.replace_and_publish_batches(
             DiagnosticOwner::Compiler,
-            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("compiler")])]),
+            DiagnosticMap::from_iter([
+                (deleted.clone(), vec![diagnostic("deleted compiler")]),
+                (nested.clone(), vec![diagnostic("nested compiler")]),
+                (sibling.clone(), vec![diagnostic("sibling")]),
+                (non_file.clone(), vec![diagnostic("non-file")]),
+                (hierarchical_non_file.clone(), vec![diagnostic("hierarchical non-file")]),
+            ]),
         );
+        let flycheck = DiagnosticOwner::Flycheck {
+            id: "forge-lint".into(),
+            workspace: PathBuf::from("/workspace"),
+        };
         store.replace_and_publish_batches(
-            DiagnosticOwner::Flycheck {
-                id: "forge-lint".into(),
-                workspace: PathBuf::from("/workspace"),
-            },
-            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("lint")])]),
+            flycheck.clone(),
+            DiagnosticMap::from_iter([
+                (nested.clone(), vec![diagnostic("nested lint")]),
+                (unrelated.clone(), vec![diagnostic("unrelated")]),
+            ]),
         );
 
-        let batches = store.clear_uris_and_publish_batches([file.clone()]).batches;
+        let prefix = uri("pkg").to_file_path().unwrap();
+        let batches = store.clear_file_path_prefixes_and_publish_batches(&[prefix]).batches;
+
+        assert_eq!(batches, vec![(deleted.clone(), Vec::new()), (nested.clone(), Vec::new())]);
+        assert!(store.diagnostics.values().all(|diagnostics| {
+            !diagnostics.contains_key(&deleted) && !diagnostics.contains_key(&nested)
+        }));
+        assert!(store.diagnostics[&DiagnosticOwner::Compiler].contains_key(&sibling));
+        assert!(store.diagnostics[&DiagnosticOwner::Compiler].contains_key(&non_file));
+        assert!(store.diagnostics[&DiagnosticOwner::Compiler].contains_key(&hierarchical_non_file));
+        assert!(store.diagnostics[&flycheck].contains_key(&unrelated));
+    }
+
+    #[test]
+    fn clearing_file_path_prefixes_normalizes_diagnostic_paths() {
+        let prefix = uri("lib").to_file_path().unwrap();
+        let path = prefix.parent().unwrap().join("src").join("..").join("lib/Dependency.sol");
+        let file = Url::from_file_path(path).unwrap();
+        let mut store = DiagnosticStore::default();
+        store.replace_and_publish_batches(
+            DiagnosticOwner::Compiler,
+            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("stale")])]),
+        );
+
+        let batches = store.clear_file_path_prefixes_and_publish_batches(&[prefix]).batches;
 
         assert_eq!(batches, vec![(file, Vec::new())]);
     }
@@ -492,7 +553,8 @@ mod tests {
         assert!(!update.batches.is_empty());
         assert!(!update.pull_reports_changed);
 
-        let update = store.clear_uris_and_publish_batches([file]);
+        let path = file.to_file_path().unwrap();
+        let update = store.clear_file_path_prefixes_and_publish_batches(&[path]);
         assert!(update.pull_reports_changed);
     }
 
@@ -508,7 +570,8 @@ mod tests {
         assert_eq!(update.batches, vec![(file.clone(), Vec::new())]);
         assert!(!update.pull_reports_changed);
 
-        let update = store.clear_uris_and_publish_batches([file]);
+        let path = file.to_file_path().unwrap();
+        let update = store.clear_file_path_prefixes_and_publish_batches(&[path]);
         assert!(!update.pull_reports_changed);
     }
 
@@ -525,7 +588,8 @@ mod tests {
             panic!("first pull should return a full report");
         };
 
-        store.clear_uris_and_publish_batches([file.clone()]);
+        let path = file.to_file_path().unwrap();
+        store.clear_file_path_prefixes_and_publish_batches(&[path]);
         assert!(store.reports.is_empty());
         let PullReport::Full { result_id: empty_id, diagnostics } =
             store.pull_report(&file, Some(&result_id))

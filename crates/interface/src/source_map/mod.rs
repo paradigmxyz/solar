@@ -20,7 +20,7 @@ mod file;
 pub use file::*;
 
 mod file_resolver;
-pub use file_resolver::{FileResolver, ResolveError};
+pub use file_resolver::{FileResolver, ResolveError, apply_import_remappings};
 
 #[cfg(test)]
 mod tests;

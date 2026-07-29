@@ -2,6 +2,7 @@ use crate::{
     NotifyResult,
     config::{Config, negotiate_capabilities},
     diagnostics::{DiagnosticMap, DiagnosticOwner, DiagnosticStore, PullReport},
+    file_operations::FileOperationCoordinator,
     flycheck,
     progress::{ProgressCoordinator, ProgressTicket},
     proto,
@@ -161,6 +162,7 @@ pub(crate) struct GlobalState {
     pub(crate) sess: Session,
     pub(crate) vfs: Arc<RwLock<Vfs>>,
     pub(crate) config: Arc<Config>,
+    pub(crate) file_operations: FileOperationCoordinator,
     analysis_version: Arc<AtomicUsize>,
     published_analysis_version: watch::Sender<usize>,
     analysis_commit: Arc<Mutex<AnalysisCommitState>>,
@@ -186,6 +188,7 @@ impl GlobalState {
             client,
             sess: Session::default(),
             vfs: Arc::new(Default::default()),
+            file_operations: FileOperationCoordinator::default(),
             analysis_version: Arc::new(AtomicUsize::new(0)),
             published_analysis_version,
             analysis_commit: Arc::new(Default::default()),
@@ -223,6 +226,8 @@ impl GlobalState {
                 }
             });
         }
+
+        self.reindex();
 
         let _ = self.client.log_message(LogMessageParams {
             typ: MessageType::INFO,
@@ -373,9 +378,9 @@ impl GlobalState {
         delay: Duration,
     ) {
         let AnalysisRequest { disk_paths, removed_paths, changed_paths } = request;
-        let removed_uris = self.prepare_removed_file_diagnostics(removed_paths);
+        self.prepare_removed_file_diagnostics(&removed_paths);
         let Some((version, progress)) =
-            self.begin_analysis(mode, removed_uris, changed_paths, trigger)
+            self.begin_analysis(mode, removed_paths, changed_paths, trigger)
         else {
             return;
         };
@@ -452,7 +457,7 @@ impl GlobalState {
     fn begin_analysis(
         &mut self,
         mode: AnalysisMode,
-        removed_uris: Vec<Url>,
+        removed_paths: Vec<PathBuf>,
         changed_paths: Vec<PathBuf>,
         trigger: AnalysisTrigger,
     ) -> Option<(usize, ProgressTicket)> {
@@ -475,7 +480,10 @@ impl GlobalState {
                 commit.begin_external_refresh();
             }
             self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover);
-            let update = self.diagnostics.write().clear_uris_and_publish_batches(removed_uris);
+            let update = self
+                .diagnostics
+                .write()
+                .clear_file_path_prefixes_and_publish_batches(&removed_paths);
             commit.record_external_diagnostics_change(update.pull_reports_changed);
             publish_diagnostic_batches(&mut self.client, update.batches);
             (version, rediscover, progress)
@@ -668,23 +676,15 @@ impl GlobalState {
         );
     }
 
-    fn prepare_removed_file_diagnostics(&mut self, paths: Vec<PathBuf>) -> Vec<Url> {
-        let uris =
-            paths.iter().filter_map(|path| Url::from_file_path(path).ok()).collect::<Vec<_>>();
-        if uris.is_empty() {
-            return uris;
+    fn prepare_removed_file_diagnostics(&mut self, paths: &[PathBuf]) {
+        if paths.is_empty() {
+            return;
         }
 
-        let mut owners = FxHashSet::default();
-        for path in paths {
-            for flycheck in self.config.flychecks_for_path(&path) {
-                owners.insert(flycheck.owner());
-            }
-        }
+        let owners = self.config.flycheck_owners().collect::<FxHashSet<_>>();
         for owner in owners {
             self.begin_flycheck_epoch(&owner);
         }
-        uris
     }
 
     fn begin_flycheck_epoch(&mut self, owner: &DiagnosticOwner) -> usize {

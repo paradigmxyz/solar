@@ -532,6 +532,24 @@ impl SymbolTables {
         self.document_links.links(path)
     }
 
+    pub(crate) fn file_operation_paths_under(&self, roots: &[PathBuf]) -> Vec<PathBuf> {
+        self.rename.source_paths_under(roots)
+    }
+
+    pub(crate) fn import_rename_edits(
+        &self,
+        moves: &crate::file_operations::FileMoveBatch,
+    ) -> crate::document_links::ImportEditPlan {
+        self.document_links.rename_edits(moves)
+    }
+
+    pub(crate) fn import_delete_edits(
+        &self,
+        deleted_paths: &[PathBuf],
+    ) -> crate::document_links::ImportEditPlan {
+        self.document_links.delete_edits(deleted_paths)
+    }
+
     pub(crate) fn natspec_semantics(
         &self,
         uri: &Url,
@@ -2669,7 +2687,7 @@ mod tests {
     #[test]
     fn aggregator_preserves_document_links_without_declarations() {
         let source_path = PathBuf::from("/workspace/src/Imports.sol");
-        let target = parse_uri("file:///workspace/src/Dependency.sol");
+        let target = Url::from_file_path(std::env::temp_dir().join("Dependency.sol")).unwrap();
         let link_range = range(0, 8, 0, 24);
         let mut other = SymbolTables::default();
         other.document_links.insert_for_test(source_path.clone(), link_range, target.clone());

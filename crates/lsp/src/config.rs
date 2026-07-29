@@ -1,18 +1,20 @@
 use crate::{
     commands,
     diagnostics::DiagnosticOwner,
+    file_operations::FileMoveBatch,
     flycheck::{FlycheckConfig, FlycheckInitializationOptions},
-    workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest},
+    workspace::{Workspace, WorkspaceKind, WorkspacePathIndex, manifest::ProjectManifest},
 };
 use lsp_types::{
     CallHierarchyServerCapability, CodeLensOptions as CodeLensServerOptions, CompletionOptions,
     DeclarationCapability, DiagnosticOptions, DiagnosticServerCapabilities, DocumentLinkOptions,
-    ExecuteCommandOptions, FoldingRangeProviderCapability, HoverProviderCapability,
+    ExecuteCommandOptions, FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
+    FileOperationRegistrationOptions, FoldingRangeProviderCapability, HoverProviderCapability,
     ImplementationProviderCapability, InitializeParams, OneOf, RenameOptions, SaveOptions,
     SelectionRangeProviderCapability, ServerCapabilities, SignatureHelpOptions,
     TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
     TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions,
-    WorkspaceFolder,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceFolder, WorkspaceServerCapabilities,
 };
 use serde::Deserialize;
 use solar_interface::data_structures::map::FxHashSet;
@@ -205,6 +207,37 @@ impl Config {
         &self.workspaces
     }
 
+    pub(crate) fn tracks_source_file(&self, path: &Path) -> bool {
+        self.workspaces.iter().any(|workspace| workspace.tracks_disk_file(path))
+    }
+
+    pub(crate) fn tracked_source_files_under(&self, roots: &[PathBuf]) -> Vec<PathBuf> {
+        let mut files = self
+            .workspaces
+            .iter()
+            .flat_map(Workspace::source_files)
+            .filter(|path| roots.iter().any(|root| path.starts_with(root)))
+            .cloned()
+            .collect::<Vec<_>>();
+        files.sort();
+        files.dedup();
+        files
+    }
+
+    pub(crate) fn file_operation_paths_under(&self, roots: &[PathBuf]) -> Vec<PathBuf> {
+        let mut paths = self.tracked_source_files_under(roots);
+        paths.extend(self.workspaces.iter().filter_map(|workspace| {
+            if workspace.kind() != WorkspaceKind::Foundry {
+                return None;
+            }
+            let manifest = workspace.compile_opts().base_path.as_ref()?.join("foundry.toml");
+            roots.iter().any(|root| manifest.starts_with(root)).then_some(manifest)
+        }));
+        paths.sort();
+        paths.dedup();
+        paths
+    }
+
     pub(crate) fn forge_path(&self) -> PathBuf {
         self.flycheck_options.forge_path()
     }
@@ -224,6 +257,10 @@ impl Config {
 
     pub(crate) fn flychecks_for_path(&self, path: &Path) -> Vec<FlycheckConfig> {
         self.flychecks.iter().filter(|flycheck| flycheck.applies_to(path)).cloned().collect()
+    }
+
+    pub(crate) fn flycheck_owners(&self) -> impl Iterator<Item = DiagnosticOwner> + '_ {
+        self.flychecks.iter().map(FlycheckConfig::owner)
     }
 
     pub(crate) fn rediscover_workspaces(&mut self) -> Vec<DiagnosticOwner> {
@@ -270,7 +307,27 @@ impl Config {
     }
 
     pub(crate) fn add_workspaces(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
-        self.workspace_roots.extend(paths);
+        for path in paths {
+            if !self.workspace_roots.contains(&path) {
+                self.workspace_roots.push(path);
+            }
+        }
+    }
+
+    pub(crate) fn reconcile_workspace_roots(
+        &mut self,
+        moves: &FileMoveBatch,
+        deleted_paths: &[PathBuf],
+    ) {
+        self.workspace_roots
+            .retain(|root| !deleted_paths.iter().any(|deleted| root.starts_with(deleted)));
+        for root in &mut self.workspace_roots {
+            if let Some((_, new_root)) = moves.map_path(root) {
+                *root = new_root;
+            }
+        }
+        let mut seen = FxHashSet::default();
+        self.workspace_roots.retain(|root| seen.insert(root.clone()));
     }
 
     pub(crate) fn add_source_file(&mut self, path: PathBuf) {
@@ -308,6 +365,29 @@ impl Config {
 fn push_workspace(workspaces: &mut Vec<Workspace>, mut workspace: Workspace) {
     workspace.refresh_source_files();
     workspaces.push(workspace);
+}
+
+fn workspace_file_operation_options() -> FileOperationRegistrationOptions {
+    FileOperationRegistrationOptions {
+        filters: vec![
+            FileOperationFilter {
+                scheme: Some("file".into()),
+                pattern: FileOperationPattern {
+                    glob: "**/*.sol".into(),
+                    matches: Some(FileOperationPatternKind::File),
+                    options: None,
+                },
+            },
+            FileOperationFilter {
+                scheme: Some("file".into()),
+                pattern: FileOperationPattern {
+                    glob: "**".into(),
+                    matches: Some(FileOperationPatternKind::Folder),
+                    options: None,
+                },
+            },
+        ],
+    }
 }
 
 fn workspace_roots_from_initialize(
@@ -412,6 +492,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
 
     let workspace_roots =
         workspace_roots_from_initialize(workspace_folders, root_uri, || env::current_dir().ok());
+    let file_operations = workspace_file_operation_options();
 
     (
         ServerCapabilities {
@@ -467,6 +548,17 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
                     ..Default::default()
                 },
             )),
+            workspace: Some(WorkspaceServerCapabilities {
+                file_operations: Some(WorkspaceFileOperationsServerCapabilities {
+                    did_create: Some(file_operations.clone()),
+                    will_create: Some(file_operations.clone()),
+                    did_rename: Some(file_operations.clone()),
+                    will_rename: Some(file_operations.clone()),
+                    did_delete: Some(file_operations.clone()),
+                    will_delete: Some(file_operations),
+                }),
+                ..Default::default()
+            }),
             workspace_symbol_provider: Some(OneOf::Left(true)),
             ..Default::default()
         },
@@ -496,11 +588,13 @@ mod tests {
         CallHierarchyServerCapability, CodeLensWorkspaceClientCapabilities,
         CompletionClientCapabilities, CompletionItemCapability,
         DiagnosticWorkspaceClientCapabilities, DidChangeWatchedFilesClientCapabilities,
-        DocumentSymbolClientCapabilities, InlayHintWorkspaceClientCapabilities, MarkupKind, OneOf,
-        ParameterInformationSettings, RenameOptions, SignatureHelpClientCapabilities,
-        SignatureInformationSettings, TextDocumentClientCapabilities, TextDocumentSyncCapability,
-        TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WindowClientCapabilities,
-        WorkspaceClientCapabilities, WorkspaceEditClientCapabilities,
+        DocumentSymbolClientCapabilities, FileOperationFilter, FileOperationPattern,
+        FileOperationPatternKind, FileOperationRegistrationOptions,
+        InlayHintWorkspaceClientCapabilities, MarkupKind, OneOf, ParameterInformationSettings,
+        RenameOptions, SignatureHelpClientCapabilities, SignatureInformationSettings,
+        TextDocumentClientCapabilities, TextDocumentSyncCapability, TextDocumentSyncSaveOptions,
+        TypeDefinitionProviderCapability, WindowClientCapabilities, WorkspaceClientCapabilities,
+        WorkspaceEditClientCapabilities,
     };
 
     #[test]
@@ -744,6 +838,39 @@ mod tests {
             panic!("expected save options");
         };
         assert_eq!(save_options.include_text, Some(false));
+    }
+
+    #[test]
+    fn negotiate_capabilities_advertises_workspace_file_operations() {
+        let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
+        let operations = capabilities.workspace.unwrap().file_operations.unwrap();
+        let options = FileOperationRegistrationOptions {
+            filters: vec![
+                FileOperationFilter {
+                    scheme: Some("file".into()),
+                    pattern: FileOperationPattern {
+                        glob: "**/*.sol".into(),
+                        matches: Some(FileOperationPatternKind::File),
+                        options: None,
+                    },
+                },
+                FileOperationFilter {
+                    scheme: Some("file".into()),
+                    pattern: FileOperationPattern {
+                        glob: "**".into(),
+                        matches: Some(FileOperationPatternKind::Folder),
+                        options: None,
+                    },
+                },
+            ],
+        };
+
+        assert_eq!(operations.did_create, Some(options.clone()));
+        assert_eq!(operations.will_create, Some(options.clone()));
+        assert_eq!(operations.did_rename, Some(options.clone()));
+        assert_eq!(operations.will_rename, Some(options.clone()));
+        assert_eq!(operations.did_delete, Some(options.clone()));
+        assert_eq!(operations.will_delete, Some(options));
     }
 
     #[test]
