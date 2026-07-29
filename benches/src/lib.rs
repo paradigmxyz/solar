@@ -77,39 +77,32 @@ pub fn get_srcs() -> &'static [Source] {
         // (`test/benchmarks/external-setup.sh` upstream): pinned Foundry
         // projects compiled with their full test suites.
         //
-        // All nine projects typecheck clean; codegen remains capped on
-        // unsupported compiler behavior.
+        // OpenZeppelin, v4-core, and PRBMath currently stop before codegen
+        // on unsupported compiler behavior. Only project codegen cases that
+        // keep the full simulated suite under ten minutes opt in below.
         sources.extend([
-            include_source("../testdata/projects/seaport-1.6.json.gz", Capabilities::no_codegen()),
+            include_source("../testdata/projects/seaport-1.6.json.gz", Capabilities::all()),
             include_source(
                 "../testdata/projects/openzeppelin-5.6.1.json.gz",
                 Capabilities::no_codegen(),
             ),
-            include_source(
-                "../testdata/projects/solady-0.1.26.json.gz",
-                Capabilities::no_codegen(),
-            ),
+            include_source("../testdata/projects/solady-0.1.26.json.gz", Capabilities::all()),
             include_source(
                 "../testdata/projects/v4-core-4.0.0.json.gz",
                 Capabilities::no_codegen(),
             ),
-            include_source(
-                "../testdata/projects/morpho-blue-1.0.0.json.gz",
-                Capabilities::no_codegen(),
-            ),
-            include_source(
-                "../testdata/projects/forge-std-1.16.1.json.gz",
-                Capabilities::no_codegen(),
-            ),
+            include_source("../testdata/projects/morpho-blue-1.0.0.json.gz", Capabilities::all())
+                .with_codspeed_codegen(),
+            include_source("../testdata/projects/forge-std-1.16.1.json.gz", Capabilities::all())
+                .with_codspeed_codegen(),
             include_source(
                 "../testdata/projects/prb-math-4.1.1.json.gz",
                 Capabilities::no_codegen(),
             ),
-            include_source("../testdata/projects/solmate-6.json.gz", Capabilities::no_codegen()),
-            include_source(
-                "../testdata/projects/solarray-a547630.json.gz",
-                Capabilities::no_codegen(),
-            ),
+            include_source("../testdata/projects/solmate-6.json.gz", Capabilities::all())
+                .with_codspeed_codegen(),
+            include_source("../testdata/projects/solarray-a547630.json.gz", Capabilities::all())
+                .with_codspeed_codegen(),
         ]);
 
         sources
@@ -288,6 +281,11 @@ pub struct Source {
 }
 
 impl Source {
+    fn with_codspeed_codegen(mut self) -> Self {
+        self.codspeed_codegen = true;
+        self
+    }
+
     fn single_file(&self) -> (&str, &str) {
         let [(name, content)] = self.files.as_slice() else {
             panic!("`{}` is not a single-file source", self.name)
