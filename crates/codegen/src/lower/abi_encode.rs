@@ -468,13 +468,6 @@ impl<'gcx> Lowerer<'gcx> {
         expr: &solar_sema::hir::Expr<'_>,
         ty: Ty<'gcx>,
     ) -> ValueId {
-        if let Some((slice, is_bytes)) = self.calldata_bytes_source(builder, expr) {
-            return if is_bytes {
-                self.materialize_calldata_bytes(builder, slice)
-            } else {
-                self.materialize_calldata_dyn_array_for_ty(builder, ty, slice)
-            };
-        }
         if self.expr_is_calldata_dynamic_bytes(expr) {
             let value = self.lower_value_expr(builder, expr);
             if Self::value_is_calldata_slice(builder, value) {
@@ -483,6 +476,13 @@ impl<'gcx> Lowerer<'gcx> {
             // A decoded calldata-struct member is already a memory bytes
             // pointer despite its calldata-located type.
             return value;
+        }
+        if let Some((slice, is_bytes)) = self.calldata_bytes_source(builder, expr) {
+            return if is_bytes {
+                self.materialize_calldata_bytes(builder, slice)
+            } else {
+                self.materialize_calldata_dyn_array_for_ty(builder, ty, slice)
+            };
         }
         if matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Calldata)) {
             let value = self.lower_value_expr(builder, expr);
