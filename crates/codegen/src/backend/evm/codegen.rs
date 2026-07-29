@@ -1284,6 +1284,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let liveness = &liveness;
 
         // Eliminate phis.
+        self.block_copies.clear();
         let phi_result = PhiEliminator::analyze(func);
         let has_phis = !phi_result.phis_to_remove.is_empty();
         for (block_id, copies) in phi_result.block_copies {
@@ -5306,6 +5307,32 @@ mod tests {
             codegen.generate_function_body(FunctionId::from_usize(0), &function);
 
             assert!(codegen.asm.assemble().bytecode.is_empty());
+        });
+    }
+
+    #[test]
+    fn unreachable_phi_copies_do_not_leak_between_functions() {
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            let mut first = Function::new(Ident::with_dummy_span(sym::Test));
+            let mut builder = FunctionBuilder::new(&mut first);
+            let unreachable_pred = builder.create_block();
+            let unreachable_merge = builder.create_block();
+            builder.stop();
+            builder.switch_to_block(unreachable_pred);
+            let value = builder.imm_u64(1);
+            builder.jump(unreachable_merge);
+            builder.switch_to_block(unreachable_merge);
+            let value = builder.phi(vec![(unreachable_pred, value)]);
+            builder.ret([value]);
+
+            codegen.generate_function_body(FunctionId::from_usize(0), &first);
+            assert!(codegen.block_copies.contains_key(&unreachable_pred));
+
+            let mut second = Function::new(Ident::with_dummy_span(sym::Test));
+            FunctionBuilder::new(&mut second).stop();
+            codegen.generate_function_body(FunctionId::from_usize(1), &second);
+
+            assert!(codegen.block_copies.is_empty());
         });
     }
 }
