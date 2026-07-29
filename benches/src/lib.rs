@@ -288,11 +288,6 @@ pub struct Source {
 }
 
 impl Source {
-    fn with_codspeed_codegen(mut self) -> Self {
-        self.codspeed_codegen = true;
-        self
-    }
-
     fn single_file(&self) -> (&str, &str) {
         let [(name, content)] = self.files.as_slice() else {
             panic!("`{}` is not a single-file source", self.name)
