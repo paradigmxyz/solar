@@ -301,6 +301,11 @@ impl<'gcx> Lowerer<'gcx> {
                                 return builder.imm_u256(selector);
                             }
                         }
+                        Builtin::InterfaceId => {
+                            if let ExprKind::TypeCall(ty) = &base.kind {
+                                return self.lower_interface_id(builder, ty);
+                            }
+                        }
                         // Handle type(T).min and type(T).max.
                         Builtin::TypeMin | Builtin::TypeMax => {
                             if let ExprKind::TypeCall(ty) = &base.kind {
@@ -1295,6 +1300,27 @@ impl<'gcx> Lowerer<'gcx> {
         Some(U256::from_be_bytes(self.gcx.event_selector(event_id).0))
     }
 
+    /// Lowers `type(Interface).interfaceId` to its left-aligned `bytes4` value.
+    fn lower_interface_id(&self, builder: &mut FunctionBuilder<'_>, ty: &hir::Type<'_>) -> ValueId {
+        let hir::TypeKind::Custom(hir::ItemId::Contract(contract_id)) = ty.kind else {
+            return self.err_value(
+                builder,
+                ty.span,
+                "codegen expected an interface type for `interfaceId`",
+            );
+        };
+        if !self.gcx.hir.contract(contract_id).kind.is_interface() {
+            return self.err_value(
+                builder,
+                ty.span,
+                "codegen expected an interface type for `interfaceId`",
+            );
+        }
+
+        let selector = u32::from_be_bytes(self.gcx.interface_id(contract_id).0);
+        builder.imm_u256(U256::from(selector) << 224)
+    }
+
     /// Lowers type(T).min or type(T).max to a constant value.
     fn lower_type_minmax(
         &mut self,
@@ -1303,6 +1329,11 @@ impl<'gcx> Lowerer<'gcx> {
         is_max: bool,
     ) -> ValueId {
         match &ty.kind {
+            hir::TypeKind::Custom(hir::ItemId::Enum(enum_id)) => {
+                let value =
+                    if is_max { self.gcx.hir.enumm(*enum_id).variants.len() - 1 } else { 0 };
+                builder.imm_u64(value as u64)
+            }
             hir::TypeKind::Elementary(elem) => match elem {
                 ElementaryType::UInt(size) => {
                     let bits = size.bits() as u32;
