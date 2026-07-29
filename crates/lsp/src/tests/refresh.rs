@@ -99,7 +99,7 @@ fn pull_refresh_config(diagnostics: bool, inlay_hints: bool) -> Config {
 }
 
 fn changed_pull_result() -> AnalysisResult {
-    let path = PathBuf::from("/workspace/Hints.sol");
+    let path = std::env::temp_dir().join("Hints.sol");
     let uri = Url::from_file_path(&path).unwrap();
     let mut result = analyze(AnalysisBatch::from_files(
         CompileOpts::default(),
