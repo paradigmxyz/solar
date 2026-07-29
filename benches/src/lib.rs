@@ -39,38 +39,7 @@ pub fn get_srcs() -> &'static [Source] {
     // Please do not modify the order of the sources and only add new sources at the end.
     static CACHE: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| {
-        let mut sources = vec![
-            Source {
-                name: Cow::Borrowed("empty"),
-                files: vec![(Cow::Borrowed(""), Cow::Borrowed(""))],
-                remappings: Vec::new(),
-                bytes: 0,
-                capabilities: Capabilities::all(),
-                codspeed_codegen: true,
-            },
-            include_source("../testdata/Counter.sol", Capabilities::all()),
-            include_source(
-                "../testdata/solidity/test/benchmarks/verifier.sol",
-                Capabilities::all(),
-            ),
-            include_source(
-                "../testdata/solidity/test/benchmarks/OptimizorClub.sol",
-                Capabilities::all(),
-            ),
-            include_source("../testdata/solidity/test/benchmarks/chains.sol", Capabilities::all()),
-            // Pre-0.8 source semantics: rejected by 0.8 type rules (unary `-` on
-            // unsigned, one-step sign+width conversions).
-            include_source("../testdata/UniswapV3.sol", Capabilities::no_codegen()),
-            include_source("../testdata/Solarray.sol", Capabilities::all()),
-            include_source("../testdata/console.sol", Capabilities::all()),
-            include_source("../testdata/Vm.sol", Capabilities::all()),
-            include_source("../testdata/safeconsole.sol", Capabilities::all()),
-            include_source("../testdata/Seaport.sol", Capabilities::all()),
-            include_source("../testdata/Solady.sol", Capabilities::all()),
-            // Multi-file concatenation: top-level redeclarations fail symbol
-            // resolution in `lower_asts`, so parsing is this source's ceiling.
-            include_source("../testdata/Optimism.sol", Capabilities::lex_and_parse()),
-        ];
+        let mut sources = common_sources();
         extend_repro_sources(&mut sources);
 
         // Whole-project inputs mirroring solc's external benchmarks
@@ -110,7 +79,45 @@ pub fn get_srcs() -> &'static [Source] {
 }
 
 pub fn get_src(name: &str) -> &'static Source {
+    static COMMON_SOURCES: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
+    if let Some(source) =
+        COMMON_SOURCES.get_or_init(common_sources).iter().find(|source| source.name == name)
+    {
+        return source;
+    }
     get_srcs().iter().find(|s| s.name == name).unwrap()
+}
+
+fn common_sources() -> Vec<Source> {
+    vec![
+        Source {
+            name: Cow::Borrowed("empty"),
+            files: vec![(Cow::Borrowed(""), Cow::Borrowed(""))],
+            remappings: Vec::new(),
+            bytes: 0,
+            capabilities: Capabilities::all(),
+            codspeed_codegen: true,
+        },
+        include_source("../testdata/Counter.sol", Capabilities::all()),
+        include_source("../testdata/solidity/test/benchmarks/verifier.sol", Capabilities::all()),
+        include_source(
+            "../testdata/solidity/test/benchmarks/OptimizorClub.sol",
+            Capabilities::all(),
+        ),
+        include_source("../testdata/solidity/test/benchmarks/chains.sol", Capabilities::all()),
+        // Pre-0.8 source semantics: rejected by 0.8 type rules (unary `-` on
+        // unsigned, one-step sign+width conversions).
+        include_source("../testdata/UniswapV3.sol", Capabilities::no_codegen()),
+        include_source("../testdata/Solarray.sol", Capabilities::all()),
+        include_source("../testdata/console.sol", Capabilities::all()),
+        include_source("../testdata/Vm.sol", Capabilities::all()),
+        include_source("../testdata/safeconsole.sol", Capabilities::all()),
+        include_source("../testdata/Seaport.sol", Capabilities::all()),
+        include_source("../testdata/Solady.sol", Capabilities::all()),
+        // Multi-file concatenation: top-level redeclarations fail symbol
+        // resolution in `lower_asts`, so parsing is this source's ceiling.
+        include_source("../testdata/Optimism.sol", Capabilities::lex_and_parse()),
+    ]
 }
 
 fn extend_repro_sources(sources: &mut Vec<Source>) {
