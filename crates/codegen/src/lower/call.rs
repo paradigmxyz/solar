@@ -869,6 +869,14 @@ impl<'gcx> Lowerer<'gcx> {
                 self.collect_builtin_args(builtin, args)?;
                 Ok(builder.gas())
             }
+            Builtin::Blockhash | Builtin::Blobhash => {
+                let values = self.lower_builtin_args(builder, builtin, args)?;
+                Ok(if builtin == Builtin::Blockhash {
+                    builder.blockhash(values[0])
+                } else {
+                    builder.blobhash(values[0])
+                })
+            }
             Builtin::Selfdestruct
             | Builtin::Require
             | Builtin::Assert
