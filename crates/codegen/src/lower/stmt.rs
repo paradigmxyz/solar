@@ -881,7 +881,7 @@ impl<'gcx> Lowerer<'gcx> {
                 if let Some(ctx) = &self.inline_returns {
                     builder.jump(ctx.exit_block);
                 } else if builder.func().is_public() && !self.lowering_internal_function {
-                    self.emit_abi_return(builder, &[]);
+                    builder.stop();
                 } else {
                     builder.ret([]);
                 }
