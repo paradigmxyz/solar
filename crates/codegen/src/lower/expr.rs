@@ -2540,7 +2540,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Emits a `for index in 0..len` loop around `body`; the builder ends up
     /// in the exit block.
-    fn emit_decode_elements_loop(
+    pub(super) fn emit_decode_elements_loop(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         len: ValueId,

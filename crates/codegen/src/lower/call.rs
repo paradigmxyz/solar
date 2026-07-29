@@ -1727,15 +1727,6 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
         let func = self.gcx.hir.function(func_id);
-        let Some(body) = func.body else {
-            let guar = self
-                .gcx
-                .dcx()
-                .err("codegen cannot lower an internal function without a body")
-                .span(func.span)
-                .emit();
-            return (!func.returns.is_empty()).then(|| builder.error_value(guar));
-        };
 
         // Collect argument values FIRST (before entering inline tracking)
         // This allows nested calls to the same function (e.g., add(add(x, 1), 2))
@@ -1780,6 +1771,15 @@ impl<'gcx> Lowerer<'gcx> {
         arg_vals: Vec<ValueId>,
     ) -> Option<ValueId> {
         let func = self.gcx.hir.function(func_id);
+        let Some(body) = func.body else {
+            let guar = self
+                .gcx
+                .dcx()
+                .err("codegen cannot lower an internal function without a body")
+                .span(func.span)
+                .emit();
+            return (!func.returns.is_empty()).then(|| builder.error_value(guar));
+        };
         let params = func.parameters;
 
         // A callee that takes a storage-reference parameter must be lowered
