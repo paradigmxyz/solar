@@ -341,7 +341,13 @@ def receipt_int(value: Any) -> int | None:
     return int(value)
 
 
-def rpc(method: str, params: Sequence[Any], rpc_url: str) -> tuple[Any | None, str]:
+def rpc(
+    method: str,
+    params: Sequence[Any],
+    rpc_url: str,
+    *,
+    timeout: int = 30,
+) -> tuple[Any | None, str]:
     proc = run(
         [
             "cast",
@@ -350,9 +356,9 @@ def rpc(method: str, params: Sequence[Any], rpc_url: str) -> tuple[Any | None, s
             rpc_url,
             "--raw",
             method,
-            json.dumps(list(params)),
         ],
-        timeout=30,
+        input_text=json.dumps(list(params)),
+        timeout=timeout,
     )
     if proc.returncode != 0:
         return None, (proc.stderr or proc.stdout or f"{method} failed")[:2000]
@@ -453,29 +459,48 @@ def deploy(
     proc = run(
         [
             "cast",
-            "send",
-            "--rpc-url",
-            rpc_url,
-            "--rpc-timeout",
-            "60",
-            "--timeout",
-            "60",
-            "--gas-limit",
-            GAS_LIMIT,
+            "wallet",
+            "address",
             "--private-key",
             private_key,
-            "--json",
-            "--create",
-            "0x" + bytecode + encoded,
         ],
-        timeout=90,
+        timeout=30,
     )
     if proc.returncode != 0:
-        return None, None, (proc.stderr or proc.stdout or "deployment failed")[:2000]
-    try:
-        receipt = json.loads(proc.stdout)
-    except json.JSONDecodeError as error:
-        return None, None, f"invalid deployment receipt: {error}"
+        return None, None, (proc.stderr or proc.stdout or "address derivation failed")[:2000]
+    sender = proc.stdout.strip()
+    if re.fullmatch(r"0x[0-9a-fA-F]{40}", sender) is None:
+        return None, None, "invalid deployer address"
+
+    transaction_hash, error = rpc(
+        "eth_sendTransaction",
+        (
+            {
+                "from": sender,
+                "gas": hex(int(GAS_LIMIT)),
+                "data": "0x" + bytecode + encoded,
+            },
+        ),
+        rpc_url,
+        timeout=90,
+    )
+    if error:
+        return None, None, error
+    if not isinstance(transaction_hash, str):
+        return None, None, "deployment returned no transaction hash"
+
+    receipt = None
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
+        receipt, error = rpc("eth_getTransactionReceipt", (transaction_hash,), rpc_url)
+        if error:
+            return None, None, error
+        if receipt is not None:
+            break
+        time.sleep(0.1)
+    if not isinstance(receipt, dict):
+        return None, None, "timed out waiting for deployment receipt"
+
     status = receipt_int(receipt.get("status"))
     gas = receipt_int(receipt.get("gasUsed"))
     if status != 1:
