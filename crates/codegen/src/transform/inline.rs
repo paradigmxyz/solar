@@ -607,6 +607,7 @@ fn estimate_inst_cost(kind: &InstKind) -> MirCost {
         | InstKind::CodeCopy(..)
         | InstKind::ExtCodeCopy(..)
         | InstKind::ReturnDataCopy(..) => (12, 1),
+        InstKind::MemoryZero(..) => (15, 2),
         InstKind::MSize | InstKind::CodeSize | InstKind::ReturnDataSize => (2, 1),
         InstKind::InternalFrameAddr(_) => (6, 3),
         // PUSH32 placeholder patched at deploy time.
@@ -1118,6 +1119,9 @@ impl<'a> InlineCloner<'a> {
             InstKind::MStore(a, b) => InstKind::MStore(self.clone_value(a)?, self.clone_value(b)?),
             InstKind::MStore8(a, b) => {
                 InstKind::MStore8(self.clone_value(a)?, self.clone_value(b)?)
+            }
+            InstKind::MemoryZero(a, b) => {
+                InstKind::MemoryZero(self.clone_value(a)?, self.clone_value(b)?)
             }
             InstKind::MSize => InstKind::MSize,
             InstKind::Fmp => InstKind::Fmp,

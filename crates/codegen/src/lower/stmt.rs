@@ -1,6 +1,6 @@
 //! Statement lowering.
 
-use super::{LoopContext, Lowerer};
+use super::{LoopContext, Lowerer, MIN_BULK_ZERO_MEMORY_WORDS};
 use crate::{
     memory::EvmMemoryLayout,
     mir::{FunctionBuilder, ValueId},
@@ -337,6 +337,11 @@ impl<'gcx> Lowerer<'gcx> {
             alloc_size,
             crate::mir::MemoryObjectKind::FixedArray,
         );
+        if len >= MIN_BULK_ZERO_MEMORY_WORDS && elem_ty.peel_refs().is_value_type() {
+            let size = builder.imm_u64(alloc_size);
+            builder.memory_zero(ptr, size);
+            return Some(ptr);
+        }
         for i in 0..len {
             let value = self.zero_memory_field_value_ty(builder, elem_ty, ty.span);
             let index = builder.imm_u64(i);
@@ -378,6 +383,11 @@ impl<'gcx> Lowerer<'gcx> {
                     alloc_size,
                     crate::mir::MemoryObjectKind::FixedArray,
                 );
+                if len >= MIN_BULK_ZERO_MEMORY_WORDS && elem_ty.peel_refs().is_value_type() {
+                    let size = builder.imm_u64(alloc_size);
+                    builder.memory_zero(ptr, size);
+                    return ptr;
+                }
                 for i in 0..len {
                     let value = self.zero_memory_field_value_ty(builder, elem_ty, span);
                     let index = builder.imm_u64(i);

@@ -163,6 +163,7 @@ impl MemoryStoreEliminator {
                 func.inst(inst_id).kind,
                 InstKind::MStore(_, _)
                     | InstKind::MStore8(_, _)
+                    | InstKind::MemoryZero(_, _)
                     | InstKind::MCopy(_, _, _)
                     | InstKind::CalldataCopy(_, _, _)
                     | InstKind::CodeCopy(_, _, _)
@@ -566,7 +567,8 @@ impl MemoryStoreEliminator {
                     mstores += 1;
                     memory_writes += 1;
                 }
-                InstKind::CalldataCopy(_, _, _)
+                InstKind::MemoryZero(_, _)
+                | InstKind::CalldataCopy(_, _, _)
                 | InstKind::CodeCopy(_, _, _)
                 | InstKind::ReturnDataCopy(_, _, _)
                 | InstKind::ExtCodeCopy(_, _, _, _) => memory_writes += 1,
@@ -654,7 +656,8 @@ impl MemoryStoreEliminator {
                 InstKind::SetFmp(_) => {
                     scratch.overwritten.insert(MemAddrKey(AliasAnalysis::fmp_location().address));
                 }
-                InstKind::CalldataCopy(dest, _, size)
+                InstKind::MemoryZero(dest, size)
+                | InstKind::CalldataCopy(dest, _, size)
                 | InstKind::CodeCopy(dest, _, size)
                 | InstKind::ReturnDataCopy(dest, _, size) => {
                     self.insert_or_clear_full_word_overwritten_range(
@@ -1134,7 +1137,8 @@ impl MemoryStoreEliminator {
                 {
                     scratch.stored_values.clear();
                 }
-                InstKind::CalldataCopy(dest, _, size)
+                InstKind::MemoryZero(dest, size)
+                | InstKind::CalldataCopy(dest, _, size)
                 | InstKind::CodeCopy(dest, _, size)
                 | InstKind::ReturnDataCopy(dest, _, size) => {
                     let Some(size) = func.value_u64(*size) else {

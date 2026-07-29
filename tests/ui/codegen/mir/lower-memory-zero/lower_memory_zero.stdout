@@ -1,0 +1,11 @@
+- // === ROOT/tests/ui/codegen/mir/lower-memory-zero/lower_memory_zero.mir (before lower-memory-zero) ===
++ // === ROOT/tests/ui/codegen/mir/lower-memory-zero/lower_memory_zero.mir (after lower-memory-zero) ===
+  @module LowerMemoryZero
+  fn @zero(arg0: memptr, arg1: u256) {
+    bb0:
+-     memory_zero arg0, arg1
++     v0 = calldatasize
++     calldatacopy arg0, v0, arg1
+      stop
+  }
+  

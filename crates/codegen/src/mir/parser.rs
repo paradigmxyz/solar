@@ -1214,6 +1214,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::Mload => inst!(MLoad(a) => MirType::uint256()),
             kw::Mstore => inst!(MStore(a, b)),
             kw::Mstore8 => inst!(MStore8(a, b)),
+            sym::memory_zero => inst!(MemoryZero(a, b)),
             kw::Msize => unit!(MSize => MirType::uint256()),
             kw::Mcopy => inst!(MCopy(a, b, c)),
             kw::Sload => inst!(SLoad(a) => MirType::uint256()),

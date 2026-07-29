@@ -35,6 +35,9 @@ use std::ops::ControlFlow;
 
 use self::storage::StorageLocation;
 
+/// Minimum contiguous zero-word count where bulk zeroing beats individual stores.
+const MIN_BULK_ZERO_MEMORY_WORDS: u64 = 4;
+
 /// Context for a loop (tracks break/continue targets).
 #[derive(Clone, Copy)]
 pub(crate) struct LoopContext {

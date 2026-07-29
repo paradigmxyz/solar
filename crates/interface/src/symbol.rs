@@ -1047,6 +1047,7 @@ symbols! {
         memory_read,
         memory_to_storage,
         memory_write,
+        memory_zero,
         memoryarray,
         memorybytes,
         memoryfixedarray,

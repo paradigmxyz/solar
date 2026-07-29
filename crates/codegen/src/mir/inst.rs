@@ -452,13 +452,6 @@ impl AllocationSemantics {
         failure: AllocationFailure::Infallible,
     };
 
-    /// Exact-size, zero-initialized allocation whose validity is already proven.
-    pub(crate) const INTERNAL_ZEROED: Self = Self {
-        alignment: AllocationAlignment::Exact,
-        initialization: AllocationInitialization::Zeroed,
-        failure: AllocationFailure::Infallible,
-    };
-
     /// Checked and zero-initialized Solidity object allocation.
     ///
     /// Object lowering includes the header and padding in `size`, so the
@@ -578,6 +571,8 @@ pub(crate) enum InstKind {
     MStore(ValueId, ValueId),
     /// Store a single byte: `mstore8(offset, value)`
     MStore8(ValueId, ValueId),
+    /// Set a contiguous memory range to zero: `memory_zero(offset, size)`
+    MemoryZero(ValueId, ValueId),
     /// Get memory size: `msize()`
     MSize,
     /// Read the free-memory pointer.
@@ -875,6 +870,7 @@ impl InstKind {
             | Self::Eq(a, b)
             | Self::MStore(a, b)
             | Self::MStore8(a, b)
+            | Self::MemoryZero(a, b)
             | Self::SStore(a, b)
             | Self::TStore(a, b)
             | Self::Keccak256(a, b)
@@ -1074,6 +1070,7 @@ impl InstKind {
             | Self::Eq(a, b)
             | Self::MStore(a, b)
             | Self::MStore8(a, b)
+            | Self::MemoryZero(a, b)
             | Self::SStore(a, b)
             | Self::TStore(a, b)
             | Self::Keccak256(a, b)
@@ -1262,6 +1259,7 @@ impl InstKind {
             Self::MLoad(_) => "mload",
             Self::MStore(_, _) => "mstore",
             Self::MStore8(_, _) => "mstore8",
+            Self::MemoryZero(_, _) => "memory_zero",
             Self::MSize => "msize",
             Self::Fmp => "fmp",
             Self::SetFmp(_) => "set_fmp",
@@ -1352,6 +1350,7 @@ impl InstKind {
             // Memory writes (may affect external calls)
             | Self::MStore(_, _)
             | Self::MStore8(_, _)
+            | Self::MemoryZero(_, _)
             | Self::SetFmp(_)
             | Self::Alloc { .. }
             | Self::SetMemoryObjectLen(_, _, _)
@@ -1387,6 +1386,7 @@ impl InstKind {
         match self {
             Self::MStore(_, _)
             | Self::MStore8(_, _)
+            | Self::MemoryZero(_, _)
             | Self::SetFmp(_)
             | Self::Alloc { .. }
             | Self::SetMemoryObjectLen(_, _, _)

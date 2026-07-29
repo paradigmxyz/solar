@@ -677,6 +677,7 @@ impl AliasAnalysis {
             | InstKind::MemoryObjectLen(address, _) => operand != *address,
             InstKind::MStore(address, _)
             | InstKind::MStore8(address, _)
+            | InstKind::MemoryZero(address, _)
             | InstKind::SetMemoryObjectLen(address, _, _) => operand != *address,
             InstKind::MCopy(dest, source, _)
             | InstKind::StorageToMemory { memory: dest, storage: source, .. } => {
@@ -809,6 +810,9 @@ impl AliasAnalysis {
             }
             InstKind::MStore8(address, _) => {
                 write_memory(&mut effects, address, SizeOperand::Const(1));
+            }
+            InstKind::MemoryZero(address, size) => {
+                write_memory(&mut effects, address, SizeOperand::Value(size));
             }
             InstKind::Fmp => {
                 effects.read(Access::Location(Location::Memory(Self::fmp_location())));
@@ -1406,6 +1410,7 @@ impl AliasAnalysis {
             InstKind::MStore(address, _) => Self::range_may_overlap_fmp(func, address, Some(32)),
             InstKind::MStore8(address, _) => Self::range_may_overlap_fmp(func, address, Some(1)),
             InstKind::MCopy(dest, _, size)
+            | InstKind::MemoryZero(dest, size)
             | InstKind::CalldataCopy(dest, _, size)
             | InstKind::CodeCopy(dest, _, size)
             | InstKind::ReturnDataCopy(dest, _, size) => {

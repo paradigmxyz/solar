@@ -1,10 +1,13 @@
 //! Expression lowering.
 
 use super::{
-    Lowerer,
+    Lowerer, MIN_BULK_ZERO_MEMORY_WORDS,
     checked_arith::{ArithmeticInfo, PanicCode},
 };
-use crate::mir::{FunctionBuilder, MemoryObjectKind, MirType, ValueId};
+use crate::{
+    memory::EvmMemoryLayout,
+    mir::{FunctionBuilder, MemoryObjectKind, MirType, ValueId},
+};
 use alloy_primitives::U256;
 use solar_ast::{LitKind, StrKind};
 use solar_interface::{Ident, Span, sym};
@@ -13,9 +16,6 @@ use solar_sema::{
     hir::{self, CallArgs, ElementaryType, ExprKind},
     ty::{Ty, TyKind},
 };
-
-/// Small structs are cheaper to initialize with individual zero stores.
-const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
 
 pub(super) struct MappingElementSlot {
     pub(super) slot: ValueId,
@@ -481,6 +481,15 @@ impl<'gcx> Lowerer<'gcx> {
                         && let hir::TypeKind::Array(array) = &var.ty.kind
                     {
                         let ptr = self.lower_expr(builder, target);
+                        let element_ty = self.gcx.type_of_hir_ty(&array.element);
+                        if len >= MIN_BULK_ZERO_MEMORY_WORDS
+                            && element_ty.peel_refs().is_value_type()
+                            && let Some(size) = len.checked_mul(EvmMemoryLayout::WORD_SIZE)
+                        {
+                            let size = builder.imm_u64(size);
+                            builder.memory_zero(ptr, size);
+                            return zero;
+                        }
                         for i in 0..len {
                             let value = self.zero_memory_field_value(builder, &array.element);
                             if i == 0 {
@@ -700,7 +709,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         let TyKind::Struct(struct_id) = ty.peel_refs().kind else { unreachable!() };
         let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
-        if field_tys.len() < MIN_BULK_ZERO_STRUCT_FIELDS {
+        if field_tys.len() < MIN_BULK_ZERO_MEMORY_WORDS as usize {
             return None;
         }
         let ptr = self.allocate_zeroed_memory_object(
@@ -1985,12 +1994,10 @@ impl<'gcx> Lowerer<'gcx> {
         size: u64,
         kind: crate::mir::MemoryObjectKind,
     ) -> ValueId {
-        self.allocate_memory_object_with_semantics(
-            builder,
-            size,
-            kind,
-            crate::mir::AllocationSemantics::INTERNAL_ZEROED,
-        )
+        let ptr = self.allocate_memory_object(builder, size, kind);
+        let size = builder.imm_u64(size);
+        builder.memory_zero(ptr, size);
+        ptr
     }
 
     fn allocate_memory_object_with_semantics(
