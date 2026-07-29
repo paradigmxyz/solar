@@ -82,6 +82,15 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_internal_function_pointer_call(builder, callee, args, function);
         }
 
+        if let Some(TyKind::Fn(function)) = self.get_expr_type(callee).map(|ty| ty.kind)
+            && function.is_external()
+            && function.function_id.is_none()
+            && self.gcx.resolved_function(callee).is_none()
+        {
+            return self
+                .lower_external_function_pointer_call(builder, callee, args, call_opts, function);
+        }
+
         if let ExprKind::Member(base, member) = &callee.kind {
             return self
                 .lower_member_call_with_opts(builder, callee, base, *member, args, call_opts);
@@ -411,6 +420,67 @@ impl<'gcx> Lowerer<'gcx> {
             function.parameters.iter().map(|&ty| self.lower_type_from_ty(ty)).collect(),
             function.returns.iter().map(|&ty| self.lower_type_from_ty(ty)).collect(),
         )
+    }
+
+    fn lower_external_function_pointer_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        callee: &hir::Expr<'_>,
+        args: &CallArgs<'_>,
+        call_opts: Option<&[hir::NamedArg<'_>]>,
+        function: &'gcx TyFn<'gcx>,
+    ) -> Option<ValueId> {
+        let (success, ret_offset) =
+            self.emit_external_function_pointer_call(builder, callee, args, call_opts, function);
+        let failed = builder.iszero(success);
+        let fail_block = builder.create_block();
+        let continue_block = builder.create_block();
+        builder.branch(failed, fail_block, continue_block);
+
+        builder.switch_to_block(fail_block);
+        let zero = builder.imm_u64(0);
+        let size = builder.returndatasize();
+        builder.returndatacopy(zero, zero, size);
+        builder.revert(zero, size);
+
+        builder.switch_to_block(continue_block);
+        (!function.returns.is_empty()).then(|| builder.mload(ret_offset))
+    }
+
+    pub(super) fn emit_external_function_pointer_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        callee: &hir::Expr<'_>,
+        args: &CallArgs<'_>,
+        call_opts: Option<&[hir::NamedArg<'_>]>,
+        function: &'gcx TyFn<'gcx>,
+    ) -> (ValueId, ValueId) {
+        let function_value = self.lower_value_expr(builder, callee);
+        let selector_mask = builder.imm_u64(u32::MAX as u64);
+        let selector = builder.and(function_value, selector_mask);
+        let selector_shift = builder.imm_u64(224);
+        let selector_word = builder.shl(selector_shift, selector);
+        let address_shift = builder.imm_u64(32);
+        let address = builder.shr(address_shift, function_value);
+
+        let arg_exprs: Vec<_> = args.exprs().collect();
+        let (calldata_start, calldata_size) =
+            match self.abi_encode_call_payload(builder, Some(selector_word), &arg_exprs) {
+                Ok(payload) => payload,
+                Err(guar) => {
+                    let error = builder.error_value(guar);
+                    return (error, error);
+                }
+            };
+
+        let ret_offset =
+            if function.returns.len() > 1 { calldata_start } else { builder.imm_u64(0) };
+        let ret_size = builder.imm_u64((function.returns.len() * 32) as u64);
+        let value = self.extract_call_value(builder, call_opts);
+        let gas = builder.gas();
+        let success =
+            builder.call(gas, address, value, calldata_start, calldata_size, ret_offset, ret_size);
+        (success, ret_offset)
     }
 
     pub(super) fn resolve_virtual_function_target(

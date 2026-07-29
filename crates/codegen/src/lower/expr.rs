@@ -375,6 +375,20 @@ impl<'gcx> Lowerer<'gcx> {
                     return builder.imm_u64(Self::internal_function_pointer_id(function_id));
                 }
 
+                if let Some(TyKind::Fn(function)) = self.get_expr_type(expr).map(|ty| ty.kind)
+                    && function.is_external()
+                    && let Some(function_id) =
+                        function.function_id.or_else(|| self.gcx.resolved_function(expr))
+                {
+                    let address = self.lower_value_expr(builder, base);
+                    let address_shift = builder.imm_u64(32);
+                    let address = builder.shl(address_shift, address);
+                    let selector =
+                        u32::from_be_bytes(self.gcx.function_selector(function_id).0) as u64;
+                    let selector = builder.imm_u64(selector);
+                    return builder.or(address, selector);
+                }
+
                 // Handle contract/library constants (e.g. MachineLib.NO_RECOVERY_PC).
                 if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) =
                     self.gcx.resolved_expr(expr)
