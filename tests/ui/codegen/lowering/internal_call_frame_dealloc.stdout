@@ -159,7 +159,7 @@ bb16:
   dup1
   push 160
   mload
-  push 128
+  push 160
   add
   mstore
   push bb23
@@ -217,9 +217,6 @@ bb22:
   mstore
   push 224
   mload
-  dup1
-  push 224
-  mstore
   gt
   push bb19
   jumpi
@@ -237,13 +234,7 @@ bb23:
   dup1
   push 160
   mload
-  push 128
-  add
-  mstore
-  dup1
   push 160
-  mload
-  push 128
   add
   mstore
   push 160
@@ -255,13 +246,13 @@ bb23:
   dup1
   push 160
   mload
-  push 160
+  push 128
   add
   mstore
   dup1
   push 160
   mload
-  push 160
+  push 128
   add
   mstore
   push 160

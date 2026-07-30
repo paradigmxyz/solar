@@ -302,52 +302,11 @@ impl<'a> FileResolver<'a> {
     /// Applies the import path mappings to `path`.
     // Reference: <https://github.com/argotorg/solidity/blob/e202d30db8e7e4211ee973237ecbe485048aae97/libsolidity/interface/ImportRemapper.cpp#L32>
     pub fn remap_path<'b>(&self, path: &'b Path, parent: Option<&Path>) -> Cow<'b, Path> {
-        let remapped = self.remap_path_(path, parent);
+        let remapped = apply_import_remappings(&self.remappings, path, parent);
         if remapped != path {
             trace!(remapped=%remapped.display());
         }
         remapped
-    }
-
-    fn remap_path_<'b>(&self, path: &'b Path, parent: Option<&Path>) -> Cow<'b, Path> {
-        let _context = &*parent.map(|p| p.to_string_lossy()).unwrap_or_default();
-
-        let mut longest_prefix = 0;
-        let mut longest_context = 0;
-        let mut best_match_target = None;
-        let mut unprefixed_path = path;
-        for ImportRemapping { context, prefix, path: target } in &self.remappings {
-            let context = &*sanitize_path(context);
-            let prefix = &*sanitize_path(prefix);
-
-            // Skip if current context is closer.
-            if context.len() < longest_context {
-                continue;
-            }
-            // Skip if current context is not a prefix of the context.
-            if !_context.starts_with(context) {
-                continue;
-            }
-            // Skip if we already have a closer prefix match.
-            if prefix.len() < longest_prefix && context.len() == longest_context {
-                continue;
-            }
-            // Skip if the prefix does not match.
-            let Ok(up) = path.strip_prefix(prefix) else {
-                continue;
-            };
-            longest_context = context.len();
-            longest_prefix = prefix.len();
-            best_match_target = Some(sanitize_path(target));
-            unprefixed_path = up;
-        }
-        if let Some(best_match_target) = best_match_target {
-            let mut out = PathBuf::from(&*best_match_target);
-            out.push(unprefixed_path);
-            Cow::Owned(out)
-        } else {
-            Cow::Borrowed(unprefixed_path)
-        }
     }
 
     /// Loads stdin into the source map.
@@ -412,6 +371,52 @@ impl<'a> FileResolver<'a> {
 
         trace!("not found");
         Ok(None)
+    }
+}
+
+/// Applies `remappings` to `path` using the same selection rules as [`FileResolver`].
+pub fn apply_import_remappings<'a>(
+    remappings: &[ImportRemapping],
+    path: &'a Path,
+    parent: Option<&Path>,
+) -> Cow<'a, Path> {
+    let context_path = &*parent.map(|path| path.to_string_lossy()).unwrap_or_default();
+
+    let mut longest_prefix = 0;
+    let mut longest_context = 0;
+    let mut best_match_target = None;
+    let mut unprefixed_path = path;
+    for ImportRemapping { context, prefix, path: target } in remappings {
+        let context = &*sanitize_path(context);
+        let prefix = &*sanitize_path(prefix);
+
+        // Skip if current context is closer.
+        if context.len() < longest_context {
+            continue;
+        }
+        // Skip if current context is not a prefix of the context.
+        if !context_path.starts_with(context) {
+            continue;
+        }
+        // Skip if we already have a closer prefix match.
+        if prefix.len() < longest_prefix && context.len() == longest_context {
+            continue;
+        }
+        // Skip if the prefix does not match.
+        let Ok(up) = path.strip_prefix(prefix) else {
+            continue;
+        };
+        longest_context = context.len();
+        longest_prefix = prefix.len();
+        best_match_target = Some(sanitize_path(target));
+        unprefixed_path = up;
+    }
+    if let Some(best_match_target) = best_match_target {
+        let mut out = PathBuf::from(&*best_match_target);
+        out.push(unprefixed_path);
+        Cow::Owned(out)
+    } else {
+        Cow::Borrowed(unprefixed_path)
     }
 }
 

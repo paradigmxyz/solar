@@ -1,0 +1,17 @@
+//@ compile-flags: -Zcodegen -Zevm-ir-pipeline=default -O gas -Zdump=disasm-runtime
+//@ filecheck: --implicit-check-not=JUMPDEST
+
+@module cold_fallthrough
+
+// CHECK-LABEL: // === cold_fallthrough (runtime) ===
+// CHECK-NEXT: PUSH1 0x01
+// CHECK-NEXT: PUSH0
+// CHECK-NEXT: PUSH0
+// CHECK-NEXT: REVERT
+bb0:
+  push 1
+  jump bb1
+bb1 [cold]:
+  push 0
+  push 0
+  revert

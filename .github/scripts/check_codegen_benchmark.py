@@ -388,11 +388,13 @@ def codegen_report(
     repo_results: list[dict[str, Any]],
     baseline_micro: list[dict[str, Any]],
     baseline_repo: list[dict[str, Any]],
+    large_results: list[dict[str, Any]] | None = None,
+    baseline_large: list[dict[str, Any]] | None = None,
 ) -> str:
     return report_section(
         "Codegen benchmark",
-        [*micro_results, *repo_results],
-        [*baseline_micro, *baseline_repo],
+        [*micro_results, *repo_results, *(large_results or ())],
+        [*baseline_micro, *baseline_repo, *(baseline_large or ())],
     )
 
 
@@ -569,12 +571,15 @@ def write_common_result(
     repo_results: list[dict[str, Any]],
     micro_timing: dict[str, Any] | None,
     repo_timing: dict[str, Any] | None,
+    large_results: list[dict[str, Any]] | None = None,
+    large_timing: dict[str, Any] | None = None,
 ) -> None:
     benchmarks = [
         benchmark
         for benchmark in (
             common_benchmark("micro", micro_results, micro_timing),
             common_benchmark("repo", repo_results, repo_timing),
+            common_benchmark("large", large_results or [], large_timing),
         )
         if benchmark is not None
     ]
@@ -602,34 +607,44 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--micro", type=Path)
     parser.add_argument("--repo", type=Path)
+    parser.add_argument("--large", type=Path)
     parser.add_argument("--baseline-micro", type=Path)
     parser.add_argument("--baseline-repo", type=Path)
+    parser.add_argument("--baseline-large", type=Path)
     parser.add_argument("--micro-timing", type=Path)
     parser.add_argument("--repo-timing", type=Path)
+    parser.add_argument("--large-timing", type=Path)
     parser.add_argument("--common-output", type=Path)
     args = parser.parse_args()
 
     micro_results = load_results(args.micro, "micro")
     repo_results = load_results(args.repo, "repository")
+    large_results = load_results(args.large, "large-contract")
     baseline_micro = load_results(args.baseline_micro, "baseline micro")
     baseline_repo = load_results(args.baseline_repo, "baseline repository")
+    baseline_large = load_results(args.baseline_large, "baseline large-contract")
 
     emit_warnings("micro", micro_results, baseline_micro)
     emit_warnings("repository", repo_results, baseline_repo)
+    emit_warnings("large-contract", large_results, baseline_large)
 
-    if args.micro is not None or args.repo is not None:
+    if args.micro is not None or args.repo is not None or args.large is not None:
         report = codegen_report(
             micro_results,
             repo_results,
             baseline_micro,
             baseline_repo,
+            large_results,
+            baseline_large,
         )
     else:
         report = "## Codegen benchmark\n\nNo benchmark inputs were configured.\n"
 
     should_comment = has_baseline_changes(
         micro_results, baseline_micro
-    ) or has_baseline_changes(repo_results, baseline_repo)
+    ) or has_baseline_changes(repo_results, baseline_repo) or has_baseline_changes(
+        large_results, baseline_large
+    )
     markdown = format_report(report, should_comment, branch_is_behind_main())
     print(markdown)
     append_step_summary(markdown)
@@ -641,6 +656,8 @@ def main() -> int:
             repo_results,
             load_timing(args.micro_timing, "micro"),
             load_timing(args.repo_timing, "repository"),
+            large_results,
+            load_timing(args.large_timing, "large-contract"),
         )
     return 0
 

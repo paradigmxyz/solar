@@ -1,0 +1,44 @@
+//@ revisions: size gas none berlin
+//@[size] compile-flags: -Zcodegen -Zevm-ir-pipeline=default -O size --evm-version shanghai -Zdump=disasm-runtime
+//@[size] filecheck: --check-prefix=COMPACT
+//@[gas] compile-flags: -Zcodegen -Zevm-ir-pipeline=default -O gas --evm-version shanghai -Zdump=disasm-runtime
+//@[gas] filecheck: --check-prefix=COMPACT
+//@[none] compile-flags: -Zcodegen -Zevm-ir-pipeline=default -O none --evm-version shanghai -Zdump=disasm-runtime
+//@[none] filecheck: --check-prefix=NONE --implicit-check-not=NOT
+//@[berlin] compile-flags: -Zcodegen -Zevm-ir-pipeline=default -O size --evm-version berlin -Zdump=disasm-runtime
+//@[berlin] filecheck: --check-prefix=BERLIN --implicit-check-not=PUSH0
+
+@module compact_pushes
+
+// COMPACT-LABEL: // === compact_pushes (runtime) ===
+// COMPACT-NEXT: PUSH0
+// COMPACT-NEXT: NOT
+// COMPACT: PUSH0
+// COMPACT-NEXT: NOT
+// COMPACT-NEXT: PUSH1 0x60
+// COMPACT-NEXT: SHR
+// COMPACT: PUSH1 0x1f
+// COMPACT-NEXT: NOT
+// COMPACT: PUSH1 0xff
+// COMPACT-NEXT: NOT
+// COMPACT: PUSH4 0x35ea6a75
+// COMPACT-NEXT: PUSH1 0xe0
+// COMPACT-NEXT: SHL
+// COMPACT: PUSH17 0x4d616368696e652066696e69736865643a
+// COMPACT-NEXT: PUSH1 0x78
+// COMPACT-NEXT: SHL
+
+// NONE-LABEL: // === compact_pushes (runtime) ===
+// NONE-NEXT: PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+
+// BERLIN-LABEL: // === compact_pushes (runtime) ===
+// BERLIN-NEXT: PUSH1 0x00
+// BERLIN-NEXT: NOT
+bb0:
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+  push 0x35ea6a7500000000000000000000000000000000000000000000000000000000
+  push 0x4d616368696e652066696e69736865643a000000000000000000000000000000
+  stop

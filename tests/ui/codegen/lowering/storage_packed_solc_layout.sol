@@ -4,6 +4,9 @@
 //@ run-call: PackedSolcLayout::aggregatePacking => true
 //@ run-call: PackedSolcLayout::dynamicArrayPacking => 1, 254, 3, 2
 //@ run-call: PackedSolcLayout::mappingPacking => 0xabcdef, -7, 0xabcdef, 249
+//@ run-call: PackedSolcLayout::memoryDynamicCopyPacking => true
+//@ run-call: PackedSolcLayout::memoryStructCopyPacking => true
+//@ run-call: PackedSolcLayout::memoryFixedCopyPacking => true
 //@ run-call: NestedPackedLayout::layout => 0, 5
 //@ run-call: NestedPackedLayout::packing => true
 //@ run-call: PackedArrayWidths::layout => 0, 2, 3
@@ -32,6 +35,17 @@ contract PackedSolcLayout {
     uint8[] private dynamicItems;
     mapping(uint256 => bytes3) private mappedBytes;
     mapping(uint256 => int8) private mappedSigned;
+
+    struct DeepPacked {
+        uint8 a;
+        uint8 b;
+        uint8[] items;
+        uint8 c;
+    }
+
+    uint8[] private copiedDynamic;
+    DeepPacked private copiedStruct;
+    uint8[4] private copiedFixed;
 
     function target() external pure returns (uint256) {
         return 77;
@@ -153,6 +167,67 @@ contract PackedSolcLayout {
             signedWord := sload(keccak256(0, 64))
         }
         return (mappedBytes[42], mappedSigned[42], bytesWord, signedWord);
+    }
+
+    function memoryDynamicCopyPacking() external returns (bool) {
+        uint8[] memory items = new uint8[](35);
+        items[0] = 1;
+        items[31] = 32;
+        items[32] = 33;
+        items[34] = 35;
+        copiedDynamic = items;
+
+        uint256 dynamicFirst;
+        uint256 dynamicSecond;
+        assembly {
+            mstore(0, copiedDynamic.slot)
+            let dynamicData := keccak256(0, 32)
+            dynamicFirst := sload(dynamicData)
+            dynamicSecond := sload(add(dynamicData, 1))
+        }
+        return copiedDynamic.length == 35 && copiedDynamic[0] == 1
+            && copiedDynamic[31] == 32 && copiedDynamic[32] == 33
+            && copiedDynamic[34] == 35
+            && dynamicFirst == ((uint256(32) << 248) | 1) && dynamicSecond == 0x230021;
+    }
+
+    function memoryStructCopyPacking() external returns (bool) {
+        uint8[] memory items = new uint8[](35);
+        items[0] = 1;
+        items[31] = 32;
+        items[32] = 33;
+        items[34] = 35;
+        copiedStruct = DeepPacked(7, 8, items, 9);
+
+        uint256 structHead;
+        uint256 structFirst;
+        uint256 structSecond;
+        uint256 structTail;
+        assembly {
+            structHead := sload(copiedStruct.slot)
+            mstore(0, add(copiedStruct.slot, 1))
+            let structData := keccak256(0, 32)
+            structFirst := sload(structData)
+            structSecond := sload(add(structData, 1))
+            structTail := sload(add(copiedStruct.slot, 2))
+        }
+        return copiedStruct.a == 7 && copiedStruct.b == 8
+            && copiedStruct.items.length == 35 && copiedStruct.items[0] == 1
+            && copiedStruct.items[31] == 32 && copiedStruct.items[32] == 33
+            && copiedStruct.items[34] == 35 && copiedStruct.c == 9 && structHead == 0x0807
+            && structFirst == ((uint256(32) << 248) | 1)
+            && structSecond == 0x230021 && structTail == 9;
+    }
+
+    function memoryFixedCopyPacking() external returns (bool) {
+        copiedFixed = [uint8(1), 2, 3, 4];
+
+        uint256 fixedWord;
+        assembly {
+            fixedWord := sload(copiedFixed.slot)
+        }
+        return copiedFixed[0] == 1 && copiedFixed[1] == 2
+            && copiedFixed[2] == 3 && copiedFixed[3] == 4 && fixedWord == 0x04030201;
     }
 }
 

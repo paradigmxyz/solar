@@ -1,31 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/backend_control_flow.sol:BackendControlFlow ===
 @module BackendControlFlow
-fn @value() {
+fn @value() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 
-fn @totalSupply() {
+fn @totalSupply() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 
-fn @reserve0() {
+fn @reserve0() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 
-fn @reserve1() {
+fn @reserve1() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 
 fn @localVarInConditional() {
@@ -71,7 +67,7 @@ fn @directStorageInConditional() {
     jump bb2
 }
 
-fn @phiAfterBranch() {
+fn @phiAfterBranch() -> u256 [abi_returns=[word]] {
   bb0:
     mstore 128, 0
     v0 = sload 1 !metadata(storage=slot(1))
@@ -96,11 +92,10 @@ fn @phiAfterBranch() {
   bb5:
     sstore 1, v4 !metadata(storage=slot(1))
     v6 = mload 128
-    mstore 128, v6
-    returndata 128, 32
+    ret v6
 }
 
-fn @phiUsedMultipleTimes() {
+fn @phiUsedMultipleTimes() -> u256 [abi_returns=[word]] {
   bb0:
     mstore 128, 0
     mstore 160, 0
@@ -149,11 +144,10 @@ fn @phiUsedMultipleTimes() {
   bb9:
     mstore 128, v14
     v16 = mload 128
-    mstore 128, v16
-    returndata 128, 32
+    ret v16
 }
 
-fn @phiWithTernary() {
+fn @phiWithTernary() -> u256 [abi_returns=[word]] {
   bb0:
     mstore 128, 0
     v0 = sload 1 !metadata(storage=slot(1))
@@ -242,7 +236,6 @@ fn @phiWithTernary() {
   bb18:
     sstore 1, v30 !metadata(storage=slot(1))
     v32 = mload 128
-    mstore 128, v32
-    returndata 128, 32
+    ret v32
 }
 

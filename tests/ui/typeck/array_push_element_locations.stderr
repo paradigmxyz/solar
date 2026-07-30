@@ -1,0 +1,26 @@
+error: no matching member `push` found on type `struct C.S[] storage`
+   ╭▸ ROOT/tests/ui/typeck/array_push_element_locations.sol:LL:CC
+   │
+LL │         ss.push(5);
+   ╰╴           ━━━━
+
+error: no matching member `push` found on type `struct C.S[] storage`
+   ╭▸ ROOT/tests/ui/typeck/array_push_element_locations.sol:LL:CC
+   │
+LL │         ss.push(t);
+   ╰╴           ━━━━
+
+error: no matching member `push` found on type `string[] storage`
+   ╭▸ ROOT/tests/ui/typeck/array_push_element_locations.sol:LL:CC
+   │
+LL │         strs.push(true);
+   ╰╴             ━━━━
+
+error: member `push` not found on type `uint256[] memory`
+   ╭▸ ROOT/tests/ui/typeck/array_push_element_locations.sol:LL:CC
+   │
+LL │         m.push(1);
+   ╰╴          ━━━━
+
+error: aborting due to 4 previous errors
+
