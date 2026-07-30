@@ -419,9 +419,9 @@ fn make_bytecode_output(
             .collect::<Vec<_>>();
         references.sort_unstable_by_key(|(ast_id, reference)| (*ast_id, reference.start));
 
-        let mut by_ast_id = FxIndexMap::<u64, Vec<OffsetLength>>::default();
+        let mut by_ast_id = FxIndexMap::<String, Vec<OffsetLength>>::default();
         for (ast_id, reference) in references {
-            by_ast_id.entry(ast_id).or_default().push(OffsetLength {
+            by_ast_id.entry(ast_id.to_string()).or_default().push(OffsetLength {
                 start: reference.start,
                 length: usize::from(reference.type_size.bytes()),
             });

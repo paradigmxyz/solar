@@ -409,7 +409,7 @@ pub(super) struct BytecodeOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) link_references: Option<FxIndexMap<String, FxIndexMap<String, Vec<OffsetLength>>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) immutable_references: Option<FxIndexMap<u64, Vec<OffsetLength>>>,
+    pub(super) immutable_references: Option<FxIndexMap<String, Vec<OffsetLength>>>,
     // Generated sources are not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // generated_sources: Option<CowValue<'static>>,
