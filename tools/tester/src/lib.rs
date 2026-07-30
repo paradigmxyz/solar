@@ -30,9 +30,7 @@ mod utils;
 
 /// Runs all the tests.
 ///
-/// `cmd` is the path to the `solar` binary used by all modes. `Mode::Mir`
-/// invokes it as `solar mir-opt …`; `Mode::EvmIr` invokes it as
-/// `solar evm-opt …`.
+/// `cmd` is the path to the `solar` binary used by all modes.
 pub fn run_tests(cmd: &'static Path) -> Result<()> {
     if runs_foundry_mode() {
         if std::env::args_os().any(|arg| arg == "--list") {
@@ -119,7 +117,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     let path = match mode {
         Mode::Ui | Mode::StandardJson => "tests/ui/",
         Mode::Mir => "tests/ui/codegen/mir/",
-        Mode::EvmIr => "tests/ui/codegen/evm-ir/",
+        Mode::EvmIr => "tests/ui/codegen/",
         Mode::SolcSolidity => "testdata/solidity/test/",
         Mode::SolcYul => "testdata/solidity/test/libyul/",
     };
@@ -141,12 +139,9 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
                 let mut args: Vec<OsString> =
                     ["-j1", "--error-format=rustc-json"].into_iter().map(Into::into).collect();
                 match mode {
-                    Mode::Mir => args.extend(
-                        ["mir-opt", "-Zui-testing", "-Zparse-yul", "-Zpass-diff"].map(Into::into),
-                    ),
-                    Mode::EvmIr => args.extend(
-                        ["evm-opt", "-Zui-testing", "-Zparse-yul", "-Zpass-diff"].map(Into::into),
-                    ),
+                    Mode::Mir | Mode::EvmIr => {
+                        args.extend(["-Zui-testing", "-Zparse-yul", "-Zpass-diff"].map(Into::into))
+                    }
                     Mode::StandardJson => {
                         args.extend(
                             ["-Zui-testing", "-Zparse-yul", "--standard-json", "--pretty-json"]
@@ -277,7 +272,7 @@ fn mode_from_config(config: &ui_test::Config) -> Mode {
         Mode::StandardJson
     } else if config.root_dir.ends_with("tests/ui/codegen/mir") {
         Mode::Mir
-    } else if config.root_dir.ends_with("tests/ui/codegen/evm-ir") {
+    } else if config.root_dir.ends_with("tests/ui/codegen") {
         Mode::EvmIr
     } else if config.root_dir.ends_with("testdata/solidity/test/libyul") {
         Mode::SolcYul
@@ -388,11 +383,9 @@ fn solc_per_file_config(config: &mut ui_test::Config, src: &str, path: &Path, cf
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
     Ui,
-    /// MIR-level tests: runs `solar mir-opt` on `.mir` files under
-    /// `tests/ui/codegen/mir/`.
+    /// MIR-level tests: runs `solar` on `.mir` files under `tests/ui/codegen/mir/`.
     Mir,
-    /// EVM-IR-level tests: runs `solar evm-opt` on `.evmir` files under
-    /// `tests/ui/codegen/evm-ir/`.
+    /// EVM-IR-level tests: runs `solar` on `.evmir` files under `tests/ui/codegen/`.
     EvmIr,
     StandardJson,
     SolcSolidity,

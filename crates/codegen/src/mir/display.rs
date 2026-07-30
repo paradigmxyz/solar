@@ -257,6 +257,9 @@ pub(crate) fn display_function_text<'a>(
                 write!(f, "({})", func.returns.iter().format(", "))?;
             }
         }
+        if let Some(layout) = &func.abi_returns {
+            write!(f, " [abi_returns={layout}]")?;
+        }
         writeln!(f, " {{")?;
 
         write!(
@@ -400,9 +403,8 @@ fn display_inst_kind<'a>(
     })
 }
 
-/// Formats a function reference as `@name` when the name is unique, or `nameN`
-/// when it needs the module index to disambiguate it. Falls back to `fnN` when
-/// a single function is printed without its module.
+/// Formats a function reference using its exact textual declaration name.
+/// Falls back to `fnN` when a single function is printed without its module.
 fn display_function_ref(
     function: FunctionId,
     funcs: Option<&solar_data_structures::index::IndexVec<FunctionId, Function>>,
@@ -410,11 +412,8 @@ fn display_function_ref(
     fmt::from_fn(move |f| {
         if let Some(funcs) = funcs
             && let Some(callee) = funcs.get(function)
-            && funcs.iter().filter(|other| other.name == callee.name).count() == 1
         {
             write!(f, "@{}", callee.name)
-        } else if let Some(callee) = funcs.and_then(|funcs| funcs.get(function)) {
-            write!(f, "{}{}", callee.name, function.index())
         } else {
             write!(f, "fn{}", function.index())
         }

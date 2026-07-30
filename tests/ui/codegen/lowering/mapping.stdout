@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/mapping.sol:Mapping ===
 @module Mapping
-fn @balances(arg0: u256) {
+fn @balances(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -9,14 +9,12 @@ fn @balances(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = mapping_slot arg0, 0
     v4 = sload v3 !metadata(storage=symbolic(v3))
-    mstore 128, v4
-    returndata 128, 32
+    ret v4
 }
 
-fn @allowances(arg0: address, arg1: address) {
+fn @allowances(arg0: address, arg1: address) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -39,12 +37,10 @@ fn @allowances(arg0: address, arg1: address) {
   bb5:
     revert 0, 0
   bb6:
-    mstore 128, 0
     v9 = mapping_slot arg0, 1
     v10 = mapping_slot arg1, v9
     v11 = sload v10 !metadata(storage=symbolic(v10))
-    mstore 128, v11
-    returndata 128, 32
+    ret v11
 }
 
 fn @set_balance(arg0: u256, arg1: u256) {
@@ -114,7 +110,7 @@ fn @approve(arg0: address, arg1: address, arg2: u256) {
     stop
 }
 
-fn @get_allowance(arg0: address, arg1: address) {
+fn @get_allowance(arg0: address, arg1: address) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -137,11 +133,9 @@ fn @get_allowance(arg0: address, arg1: address) {
   bb5:
     revert 0, 0
   bb6:
-    mstore 128, 0
     v9 = mapping_slot arg0, 1
     v10 = mapping_slot arg1, v9
     v11 = sload v10 !metadata(storage=symbolic(v10))
-    mstore 128, v11
-    returndata 128, 32
+    ret v11
 }
 

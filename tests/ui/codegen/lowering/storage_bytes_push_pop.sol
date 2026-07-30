@@ -47,7 +47,7 @@ contract StorageBytesPushPop {
 
     // CHECK-LABEL: fn @get{{[( ]}}
     // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
-    // CHECK: internal_call @__ret_bytes, 0, [[VALUE]]
+    // CHECK: ret [[VALUE]]
     function get() external view returns (bytes memory) {
         return data;
     }

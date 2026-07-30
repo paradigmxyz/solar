@@ -1,0 +1,44 @@
+// === ROOT/tests/ui/codegen/lowering/equal_immediate_scheduling.sol:EqualImmediateScheduling (runtime) ===
+@module runtime
+bb0:
+  push 160
+  push 64
+  mstore
+  callvalue
+  push bb4
+  jumpi
+  calldatasize
+  iszero
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0xd9171e32
+  sub
+  push bb4
+  jumpi
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  sgt
+  push bb4
+  jumpi
+  push 4
+  calldataload
+  push 0x123456789abcde
+  dup1
+  addmod
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb4 [cold]:
+  push 0
+  dup1
+  revert

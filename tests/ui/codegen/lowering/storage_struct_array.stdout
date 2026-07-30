@@ -33,7 +33,7 @@ fn @setS(arg0: u256, arg1: u256, arg2: u256) {
     stop
 }
 
-fn @getS(arg0: u256) {
+fn @getS(arg0: u256) -> (u256, u256) [abi_returns=[word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -42,8 +42,6 @@ fn @getS(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
-    mstore 160, 0
     v3 = lt arg0, 3
     jumpi v3, bb4, bb3
   bb3:
@@ -65,9 +63,6 @@ fn @getS(arg0: u256) {
     v9 = add 0, v8
     v10 = add v9, 1
     v11 = sload v10 !metadata(storage=offset(v8, 1))
-    mstore 128, v6
-    v12 = add 128, 32
-    mstore v12, v11
-    returndata 128, 64
+    ret v6, v11
 }
 

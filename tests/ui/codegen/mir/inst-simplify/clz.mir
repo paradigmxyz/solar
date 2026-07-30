@@ -1,4 +1,4 @@
-//@compile-flags: --pass inst-simplify
+//@compile-flags: -Zmir-pipeline=inst-simplify
 @module ClzInstSimplify
 
 fn @simplify_clz_predicates(arg0: u256) -> (bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool) {

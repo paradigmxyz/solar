@@ -1,5 +1,5 @@
 use solar_codegen::ContractSelection;
-use solar_config::{CompileOpts, CompilerOutput};
+use solar_config::CompileOpts;
 use solar_interface::{Result, Session};
 use solar_sema::{CompilerRef, ParsingContext};
 use std::{ops::ControlFlow, process::ExitCode};
@@ -55,18 +55,12 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
         return Ok(());
     }
 
-    let bytecode_contracts = if compiler
-        .gcx()
-        .sess
-        .opts
-        .emit
-        .iter()
-        .any(|output| matches!(output, CompilerOutput::Bin | CompilerOutput::BinRuntime))
-    {
-        ContractSelection::All
-    } else {
-        ContractSelection::empty(compiler.gcx())
-    };
+    let bytecode_contracts =
+        if compiler.gcx().sess.opts.emit.iter().any(|output| output.is_codegen()) {
+            ContractSelection::All
+        } else {
+            ContractSelection::empty(compiler.gcx())
+        };
     crate::emit::emit_requested(compiler, bytecode_contracts)?;
     Ok(())
 }
@@ -110,7 +104,7 @@ pub(crate) fn run_pipeline(
         return Err(sess
             .dcx
             .err("code generation is experimental")
-            .help("pass `-Zcodegen` to emit bytecode or dump MIR or EVM IR")
+            .help("pass `-Zcodegen` to emit bytecode or dump MIR, EVM IR, or disassembly")
             .emit());
     }
 
@@ -121,23 +115,7 @@ pub(crate) fn run_compiler_with(
     opts: CompileOpts,
     f: impl FnOnce(&mut CompilerRef<'_>) -> Result + Send,
 ) -> Result {
-    run_compiler_session_with(new_session(opts), f, true)
-}
-
-pub(crate) fn run_session_with(
-    opts: CompileOpts,
-    f: impl FnOnce(&Session) -> Result + Send,
-) -> Result {
-    let sess = new_session(opts);
-    sess.validate()?;
-    let result = sess.enter(|| f(&sess));
-    finish_session(&sess, result)
-}
-
-fn new_session(opts: CompileOpts) -> Session {
-    let mut sess = Session::new(opts);
-    sess.infer_language();
-    sess
+    run_compiler_session_with(Session::new(opts), f, true)
 }
 
 pub(crate) fn run_compiler_session_with(

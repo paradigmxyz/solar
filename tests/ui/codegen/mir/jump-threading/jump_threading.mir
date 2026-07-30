@@ -1,4 +1,4 @@
-//@compile-flags: --pass jump-threading
+//@compile-flags: -Zmir-pipeline=jump-threading
 //@filecheck:
 @module Threading
 // CHECK-LABEL: {{^[ +].*}}fn @forwarder_chain{{[( ]}}

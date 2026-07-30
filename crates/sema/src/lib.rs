@@ -61,6 +61,10 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
         return Ok(ControlFlow::Break(()));
     }
 
+    if !sess.opts.language.is_source() {
+        return Ok(gcx.advance_stage(CompilerStage::Lowering));
+    }
+
     if let Some(dump) = &sess.opts.unstable.dump
         && dump.kinds.contains(&DumpKind::Ast)
     {
@@ -104,6 +108,10 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
 fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
     if let ControlFlow::Break(()) = gcx.advance_stage(CompilerStage::Analysis) {
         return Ok(ControlFlow::Break(()));
+    }
+
+    if !gcx.sess.opts.language.is_source() {
+        return Ok(ControlFlow::Continue(()));
     }
 
     if let Some(dump) = &gcx.sess.opts.unstable.dump

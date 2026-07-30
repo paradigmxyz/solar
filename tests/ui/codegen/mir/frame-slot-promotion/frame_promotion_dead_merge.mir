@@ -1,4 +1,4 @@
-//@compile-flags: --passes frame-slot-promotion
+//@compile-flags: -Zmir-pipeline=frame-slot-promotion
 //@filecheck:
 @module FramePromotionDeadMerge
 // CHECK-LABEL: {{^[ +].*}}fn @dead_merge{{[( ]}}

@@ -1,8 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/signed_constant_ops.sol:SignedConstantOps ===
 @module SignedConstantOps
-fn @lt() {
+fn @lt() -> bool [abi_returns=[word]] {
   bb0:
-    mstore 128, 0
     v0 = eq 1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jumpi v0, bb1, bb2
   bb1:
@@ -12,13 +11,11 @@ fn @lt() {
   bb2:
     v1 = sub 0, 1
     v2 = slt v1, 1
-    mstore 128, v2
-    returndata 128, 32
+    ret v2
 }
 
-fn @div() {
+fn @div() -> i256 [abi_returns=[word]] {
   bb0:
-    mstore 128, 0
     v0 = eq 7, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8
     jumpi v0, bb1, bb2
   bb1:
@@ -43,13 +40,11 @@ fn @div() {
     revert 0, 36
   bb6:
     v5 = sdiv v1, 2
-    mstore 128, v5
-    returndata 128, 32
+    ret v5
 }
 
-fn @shr() {
+fn @shr() -> i256 [abi_returns=[word]] {
   bb0:
-    mstore 128, 0
     v0 = eq 8, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8
     jumpi v0, bb1, bb2
   bb1:
@@ -59,7 +54,6 @@ fn @shr() {
   bb2:
     v1 = sub 0, 8
     v2 = sar 1, v1
-    mstore 128, v2
-    returndata 128, 32
+    ret v2
 }
 

@@ -1,4 +1,4 @@
-//@compile-flags: --pass memory-dse
+//@compile-flags: -Zmir-pipeline=memory-dse
 //@filecheck:
 @module MemoryDseKeccakFold
 // CHECK-LABEL: {{^[ +].*}}fn @fold_constant_scratch_keccak{{[( ]}}

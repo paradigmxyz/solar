@@ -17,11 +17,7 @@ contract MirAllocOps {
     }
 
     // CHECK-LABEL: fn @frameShadow{{[( ]}}
-    // CHECK: mstore 128, 1
-    // CHECK: mstore {{.*}}, 2
-    // CHECK: mstore {{.*}}, 3
-    // CHECK: mstore {{.*}}, 4
-    // CHECK: returndata 128, 128
+    // CHECK: ret 1, 2, 3, 4
     function frameShadow()
         external
         pure

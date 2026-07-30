@@ -1,4 +1,4 @@
-//@compile-flags: --pass dce
+//@compile-flags: -Zmir-pipeline=dce
 //~? ERROR: [fn0] memory-object signature type `memorybytes` survives the `memory-lowered` phase boundary
 //~? ERROR: [fn0] memory-object signature type `memorystruct` survives the `memory-lowered` phase boundary
 //~? ERROR: [fn0] [bb0, inst0] memory-object instruction `alloc` survives the `memory-lowered` phase boundary

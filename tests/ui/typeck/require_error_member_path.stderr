@@ -1,0 +1,16 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/require_error_member_path.sol:LL:CC
+   │
+LL │         require(cond, Errors.FailedCall);
+   ╰╴                      ━━━━━━━━━━━━━━━━━ expected `string memory`, found `error Errors.FailedCall()`
+
+error: wrong argument count for function call: 1 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/require_error_member_path.sol:LL:CC
+   │
+LL │ …     require(cond, Errors.InsufficientBalance(1));
+   │                     ━━━━━━━━━━━━━━━━━━━━━━━━━━┬──
+   │                                               │
+   ╰╴                                              expected 2 arguments, found 1
+
+error: aborting due to 2 previous errors
+

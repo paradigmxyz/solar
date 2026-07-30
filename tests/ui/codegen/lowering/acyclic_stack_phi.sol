@@ -17,7 +17,7 @@ contract AcyclicStackPhi {
     // CHECK-NEXT: jumpi
     // CHECK: jump [[MERGE:bb[0-9]+]]
     // CHECK-NEXT: [[MERGE]]:
-    // CHECK-NEXT: dup2
+    // CHECK: pop
     // CHECK-NEXT: dup1
     // CHECK: [[TRIM]]:
     function trimLen(bytes calldata data) external pure returns (uint256) {

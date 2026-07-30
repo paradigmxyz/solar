@@ -27,14 +27,14 @@ contract StorageBytesFromCalldata {
 
     // CHECK-LABEL: fn @getText{{[( ]}}
     // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
-    // CHECK: internal_call @__ret_bytes, 0, [[VALUE]]
+    // CHECK: ret [[VALUE]]
     function getText() external view returns (string memory) {
         return text;
     }
 
     // CHECK-LABEL: fn @getBlob{{[( ]}}
     // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 1
-    // CHECK: internal_call @__ret_bytes, 0, [[VALUE]]
+    // CHECK: ret [[VALUE]]
     function getBlob() external view returns (bytes memory) {
         return blob;
     }

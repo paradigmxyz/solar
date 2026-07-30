@@ -1,12 +1,13 @@
 //! Statement lowering.
 
-use super::{LoopContext, Lowerer, MIN_BULK_ZERO_MEMORY_WORDS};
+use super::{LoopContext, Lowerer};
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{FunctionBuilder, ValueId},
+    mir::{FunctionBuilder, MemoryObjectKind, ValueId},
 };
 use alloy_primitives::U256;
-use solar_interface::{Span, kw};
+use smallvec::SmallVec;
+use solar_interface::{Span, diagnostics::ErrorGuaranteed, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, ElementaryType, ExprKind, StmtKind},
@@ -46,7 +47,11 @@ impl<'gcx> Lowerer<'gcx> {
             return None;
         };
         let var = self.gcx.hir.variable(var_id);
-        let packed_args = self.abi_encode_packed_call_args(var.initializer?)?;
+        let initializer = var.initializer?;
+        if self.hir_has_errors && self.expr_references_error(initializer).is_err() {
+            return None;
+        }
+        let packed_args = self.abi_encode_packed_call_args(initializer)?;
 
         let StmtKind::Return(Some(ret)) = &next?.kind else {
             return None;
@@ -82,9 +87,14 @@ impl<'gcx> Lowerer<'gcx> {
             return false;
         }
         let ty = self.current_return_tys[0];
-        let hash = self.lower_keccak_abi_encode_packed(builder, args);
-        let external = builder.func().is_public() && !self.lowering_internal_function;
-        self.finish_external_or_internal_return(builder, vec![(hash, ty)], external);
+        let hash = match self
+            .collect_builtin_args(Builtin::AbiEncodePacked, args)
+            .and_then(|_| self.lower_keccak_abi_encode_packed(builder, args))
+        {
+            Ok(hash) => hash,
+            Err(guar) => builder.error_value(guar),
+        };
+        self.finish_return(builder, vec![(hash, ty)]);
         true
     }
 
@@ -100,7 +110,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             StmtKind::Expr(expr) => {
-                self.lower_expr(builder, expr);
+                let _ = self.lower_expr(builder, expr);
             }
 
             StmtKind::Block(block) => {
@@ -179,31 +189,41 @@ impl<'gcx> Lowerer<'gcx> {
         var_id: hir::VariableId,
     ) {
         let var = self.gcx.hir.variable(var_id);
-        let var_ty = self.gcx.type_of_hir_ty(&var.ty);
+        let var_ty = self.gcx.type_of_item(var_id.into());
 
         // Storage reference: `T storage r = <lvalue>`. Bind the storage *slot*
         // (not the dereferenced value) so `r.field` reads/writes `sload`/`sstore`
         // at `slot + offset` rather than treating the value as a memory pointer.
         if var.data_location == Some(solar_ast::DataLocation::Storage) {
-            if let Some(init) = var.initializer {
+            self.storage_ref_locals.insert(var_id);
+            let slot = if let Some(init) = var.initializer {
                 if let Some(slot) = self.lower_lvalue_slot(builder, init) {
-                    self.locals.insert(var_id, slot);
-                    self.storage_ref_locals.insert(var_id);
+                    Some(slot)
+                } else {
+                    // Unhandled storage-reference initializer: don't silently
+                    // miscompile it as a memory pointer.
+                    self.gcx
+                        .dcx()
+                        .err("unsupported storage reference initializer")
+                        .span(init.span)
+                        .emit();
                     return;
                 }
-                // Unhandled storage-reference initializer: don't silently
-                // miscompile it as a memory pointer.
-                self.gcx
-                    .dcx()
-                    .err("unsupported storage reference initializer")
-                    .span(init.span)
-                    .emit();
-                return;
+            } else {
+                None
+            };
+
+            if self.is_var_assigned(&var_id) {
+                // Reserve a mergeable slot without inventing an initial storage address.
+                // Storage-reference assignment writes the actual address into it.
+                let offset = self.alloc_local_memory(var_id);
+                if let Some(slot) = slot {
+                    let addr = self.local_memory_addr(builder, offset);
+                    builder.mstore(addr, slot);
+                }
+            } else if let Some(slot) = slot {
+                self.locals.insert(var_id, slot);
             }
-            // No initializer (e.g. the slot is set later via `r.slot := ...`).
-            let zero = builder.imm_u256(U256::ZERO);
-            self.locals.insert(var_id, zero);
-            self.storage_ref_locals.insert(var_id);
             return;
         }
 
@@ -214,53 +234,45 @@ impl<'gcx> Lowerer<'gcx> {
         // allocated in proper memory, so they don't need extra local memory storage
         let is_struct_type = matches!(var_ty.peel_refs().kind, TyKind::Struct(_));
 
+        // Variables need memory storage if they are assigned after declaration
+        // or initialized from external calls, which write to shared memory at
+        // offset zero. Struct results already have properly allocated memory.
+        let needs_local_memory =
+            self.is_var_assigned(&var_id) || (has_external_call && !is_struct_type);
+        let is_calldata_dynamic = Lowerer::calldata_dynamic_var_kind(var).is_some();
+
+        // An uninitialized SSA value local is semantically zero. Leave it absent from the map
+        // until it is actually read; `lower_ident` materializes that zero on demand.
+        if var.initializer.is_none() && !needs_local_memory && var_ty.is_value_type() {
+            return;
+        }
+        if var.initializer.is_none() && !needs_local_memory && is_calldata_dynamic {
+            return;
+        }
+
         let initial_value = if let Some(init) = var.initializer {
             if self.var_expects_memory_bytes_value(var) {
                 self.lower_expr_as_memory_bytes(builder, init)
             } else if self.var_expects_memory_dyn_array_value(var) {
                 self.lower_expr_as_memory_dyn_array(builder, init)
             } else {
-                self.lower_expr(builder, init)
+                self.lower_value_expr(builder, init)
             }
-        } else if is_struct_type {
-            // Struct without initializer: allocate memory and zero-initialize
-            let struct_size = self.memory_struct_size(&var.ty);
-            let struct_ptr = self.allocate_memory_object(
-                builder,
-                struct_size,
-                crate::mir::MemoryObjectKind::Struct,
-            );
-            self.zero_initialize_memory_value(builder, &var.ty, struct_ptr);
-            struct_ptr
-        } else if self.is_fixed_memory_array_type(&var.ty, var.data_location) {
-            self.allocate_zeroed_fixed_memory_array(builder, &var.ty)
-                .unwrap_or_else(|| builder.imm_u256(U256::ZERO))
         } else {
-            builder.imm_u256(U256::ZERO)
+            self.lower_default_variable_value(builder, var_id).unwrap_or_else(|| {
+                self.err_value(builder, var.span, "codegen cannot initialize this local variable")
+            })
         };
 
-        // Variables need memory storage if:
-        // 1. They are assigned after declaration, OR
-        // 2. They are initialized from external calls (which write to shared memory at offset 0)
-        //    EXCEPT for struct types, which already have properly allocated memory
-        let needs_local_memory =
-            self.is_var_assigned(&var_id) || (has_external_call && !is_struct_type);
-
         if needs_local_memory {
-            if Lowerer::calldata_dynamic_var_kind(var).is_some() {
+            if is_calldata_dynamic {
                 // A rebindable calldata slice local keeps its two words in a
                 // dedicated slot so joins read one merged representation. An
                 // uninitialized one seeds an empty slice, not a zero word, so
                 // the slot store projects a real `make_slice` that folds away
                 // rather than a `slice_ptr`/`slice_len` of a non-slice value.
-                let initial = if var.initializer.is_some() {
-                    initial_value
-                } else {
-                    let zero = builder.imm_u64(0);
-                    builder.make_slice(zero, zero, crate::mir::SliceLocation::Calldata)
-                };
                 let offset = self.alloc_local_slice_memory(var_id);
-                self.store_slice_slot(builder, offset, initial);
+                self.store_slice_slot(builder, offset, initial_value);
                 return;
             }
             let offset = self.alloc_local_memory(var_id);
@@ -272,96 +284,14 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    fn memory_struct_size(&self, ty: &hir::Type<'_>) -> u64 {
-        let ty = self.gcx.type_of_hir_ty(ty);
-        if matches!(ty.peel_refs().kind, TyKind::Struct(_)) {
-            self.calculate_memory_words_for_ty(ty) * 32
-        } else {
-            32
-        }
-    }
-
-    fn zero_initialize_memory_value(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        ty: &hir::Type<'_>,
-        ptr: ValueId,
-    ) {
-        self.zero_initialize_memory_ty(builder, self.gcx.type_of_hir_ty(ty), ptr, ty.span);
-    }
-
-    pub(super) fn zero_memory_field_value(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        ty: &hir::Type<'_>,
-    ) -> ValueId {
-        self.zero_memory_field_value_ty(builder, self.gcx.type_of_hir_ty(ty), ty.span)
-    }
-
-    pub(super) fn is_fixed_memory_array_type(
-        &self,
-        ty: &hir::Type<'_>,
-        loc: Option<solar_ast::DataLocation>,
-    ) -> bool {
-        matches!(loc, None | Some(solar_ast::DataLocation::Memory))
-            && matches!(self.gcx.type_of_hir_ty(ty).peel_refs().kind, TyKind::Array(_, _))
-    }
-
-    pub(super) fn fixed_memory_array_len(&self, ty: &hir::Type<'_>) -> Option<u64> {
-        let TyKind::Array(_, len) = self.gcx.type_of_hir_ty(ty).peel_refs().kind else {
-            return None;
-        };
-        u64::try_from(len).ok()
-    }
-
-    pub(super) fn allocate_zeroed_fixed_memory_array(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        ty: &hir::Type<'_>,
-    ) -> Option<ValueId> {
-        let array_ty = self.gcx.type_of_hir_ty(ty);
-        let TyKind::Array(elem_ty, _) = array_ty.peel_refs().kind else {
-            return None;
-        };
-        let len = self.fixed_memory_array_len(ty)?;
-        let alloc_size = len.checked_mul(32).unwrap_or_else(|| {
-            self.gcx
-                .dcx()
-                .err("fixed-size memory array is too large for codegen")
-                .span(ty.span)
-                .emit();
-            0
-        });
-        let ptr = self.allocate_memory_object(
-            builder,
-            alloc_size,
-            crate::mir::MemoryObjectKind::FixedArray,
-        );
-        if len >= MIN_BULK_ZERO_MEMORY_WORDS && elem_ty.peel_refs().is_value_type() {
-            let size = builder.imm_u64(alloc_size);
-            builder.memory_zero(ptr, size);
-            return Some(ptr);
-        }
-        for i in 0..len {
-            let value = self.zero_memory_field_value_ty(builder, elem_ty, ty.span);
-            let index = builder.imm_u64(i);
-            let addr = builder.memory_object_element_addr(
-                ptr,
-                crate::mir::MemoryObjectLayout::word_fixed_array(len),
-                index,
-            );
-            builder.mstore(addr, value);
-        }
-        Some(ptr)
-    }
-
     pub(super) fn zero_memory_field_value_ty(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         ty: Ty<'gcx>,
         span: Span,
     ) -> ValueId {
-        match ty.peel_refs().kind {
+        let ty = ty.peel_refs();
+        match ty.kind {
             TyKind::Array(elem_ty, len) => {
                 let Some(len) = u64::try_from(len).ok() else {
                     return self.err_value(
@@ -370,24 +300,18 @@ impl<'gcx> Lowerer<'gcx> {
                         "fixed-size memory array is too large for codegen",
                     );
                 };
-                let alloc_size = len.checked_mul(32).unwrap_or_else(|| {
-                    self.gcx
-                        .dcx()
-                        .err("fixed-size memory array is too large for codegen")
-                        .span(span)
-                        .emit();
-                    0
-                });
+                let Some(alloc_size) = len.checked_mul(32) else {
+                    return self.err_value(
+                        builder,
+                        span,
+                        "fixed-size memory array is too large for codegen",
+                    );
+                };
                 let ptr = self.allocate_memory_object(
                     builder,
                     alloc_size,
                     crate::mir::MemoryObjectKind::FixedArray,
                 );
-                if len >= MIN_BULK_ZERO_MEMORY_WORDS && elem_ty.peel_refs().is_value_type() {
-                    let size = builder.imm_u64(alloc_size);
-                    builder.memory_zero(ptr, size);
-                    return ptr;
-                }
                 for i in 0..len {
                     let value = self.zero_memory_field_value_ty(builder, elem_ty, span);
                     let index = builder.imm_u64(i);
@@ -421,32 +345,28 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.set_memory_object_len(ptr, zero, crate::mir::MemoryObjectKind::Bytes);
                 ptr
             }
-            TyKind::Struct(_) => {
+            TyKind::Struct(struct_id) => {
                 let ptr = self.allocate_memory_object(
                     builder,
                     self.calculate_memory_words_for_ty(ty) * 32,
                     crate::mir::MemoryObjectKind::Struct,
                 );
-                self.zero_initialize_memory_ty(builder, ty, ptr, span);
+                self.zero_initialize_memory_struct(builder, struct_id, ptr, span);
                 ptr
             }
-            _ => builder.imm_u256(U256::ZERO),
+            TyKind::Err(guar) => builder.error_value(guar),
+            _ if ty.is_value_type() => builder.imm_u256(U256::ZERO),
+            _ => self.err_value(builder, span, "codegen cannot materialize this memory default"),
         }
     }
 
-    fn zero_initialize_memory_ty(
+    fn zero_initialize_memory_struct(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        ty: Ty<'gcx>,
+        struct_id: hir::StructId,
         ptr: ValueId,
         span: Span,
     ) {
-        let TyKind::Struct(struct_id) = ty.peel_refs().kind else {
-            let zero = builder.imm_u256(U256::ZERO);
-            builder.mstore(ptr, zero);
-            return;
-        };
-
         let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
         let layout = crate::mir::MemoryObjectLayout::structure(field_tys.len() as u64);
         for (i, field_ty) in field_tys.into_iter().enumerate() {
@@ -465,12 +385,31 @@ impl<'gcx> Lowerer<'gcx> {
         var_ids: &[Option<hir::VariableId>],
         init: &hir::Expr<'_>,
     ) {
+        if let hir::ExprKind::Tuple(elements) = &init.peel_parens().kind {
+            let Ok(values) = self.lower_tuple_values(builder, elements, init.span) else { return };
+            if values.len() != var_ids.len() {
+                self.gcx
+                    .dcx()
+                    .err("tuple declaration arity mismatch in codegen")
+                    .span(init.span)
+                    .emit();
+                return;
+            }
+
+            for (&var_id, value) in var_ids.iter().zip(values) {
+                if let Some(var_id) = var_id {
+                    self.bind_local_value(builder, var_id, value);
+                }
+            }
+            return;
+        }
+
         if self.is_low_level_call_expr(init) {
             // `(bool success, bytes memory data) = addr.call(...)`: the call
             // lowering returns the success flag, and the full returndata is
             // copied into a fresh `bytes memory` allocation right after the
             // call (nothing can clobber the return buffer in between).
-            let success = self.lower_expr(builder, init);
+            let success = self.lower_value_expr(builder, init);
             for (i, var_id_opt) in var_ids.iter().enumerate() {
                 let Some(var_id) = var_id_opt else { continue };
                 let val = if i == 0 { success } else { self.materialize_returndata_bytes(builder) };
@@ -485,7 +424,7 @@ impl<'gcx> Lowerer<'gcx> {
         // the unbumped return buffer independent of subsequent memory writes.
         let init_delivers_pending = self.is_slice_multi_return_call(init);
         self.pending_inline_returns = None;
-        let first_val = self.lower_expr(builder, init);
+        let first_val = self.lower_value_expr(builder, init);
         // An inlined multi-return callee with calldata-slice returns delivers
         // its values directly — a slice cannot ride the one-word-per-value
         // buffer — so bind them here instead of reading the buffer.
@@ -525,6 +464,11 @@ impl<'gcx> Lowerer<'gcx> {
                 let offset = self.alloc_local_memory(*var_id);
                 let offset_val = self.local_memory_addr(builder, offset);
                 builder.mstore(offset_val, val.expect("bound variable has a value"));
+                if self.gcx.hir.variable(*var_id).data_location
+                    == Some(solar_ast::DataLocation::Storage)
+                {
+                    self.storage_ref_locals.insert(*var_id);
+                }
             }
         }
     }
@@ -539,6 +483,9 @@ impl<'gcx> Lowerer<'gcx> {
         val: ValueId,
     ) {
         let var = self.gcx.hir.variable(var_id);
+        if var.data_location == Some(solar_ast::DataLocation::Storage) {
+            self.storage_ref_locals.insert(var_id);
+        }
         if Self::calldata_dynamic_var_kind(var).is_some() {
             if self.is_var_assigned(&var_id) {
                 let offset = self.alloc_local_slice_memory(var_id);
@@ -568,14 +515,19 @@ impl<'gcx> Lowerer<'gcx> {
         // Tuple RHS, `(a, b) = (x, y)` (including swaps `(a, b) = (b, a)`):
         // evaluate every RHS element before assigning any, so a swap reads the
         // old values.
-        if let hir::ExprKind::Tuple(rhs_elems) = &rhs.kind {
-            let vals: Vec<Option<ValueId>> =
-                rhs_elems.iter().map(|e| e.map(|e| self.lower_expr(builder, e))).collect();
-            for (i, &elem) in elements.iter().enumerate() {
-                if let Some(elem) = elem
-                    && let Some(Some(val)) = vals.get(i)
-                {
-                    self.lower_assign(builder, elem, *val);
+        if let hir::ExprKind::Tuple(rhs_elems) = &rhs.peel_parens().kind {
+            let Ok(values) = self.lower_tuple_values(builder, rhs_elems, rhs.span) else { return };
+            if values.len() != elements.len() {
+                self.gcx
+                    .dcx()
+                    .err("tuple assignment arity mismatch in codegen")
+                    .span(rhs.span)
+                    .emit();
+                return;
+            }
+            for (&elem, value) in elements.iter().zip(values) {
+                if let Some(elem) = elem {
+                    self.lower_assign(builder, elem, value);
                 }
             }
             return;
@@ -584,7 +536,7 @@ impl<'gcx> Lowerer<'gcx> {
         if self.is_low_level_call_expr(rhs) {
             // `(ok, data) = addr.call(...)`: the call lowering yields the success
             // flag; the full returndata is copied out right after the call.
-            let success = self.lower_expr(builder, rhs);
+            let success = self.lower_value_expr(builder, rhs);
             for (i, &elem) in elements.iter().enumerate() {
                 let Some(elem) = elem else { continue };
                 let val = if i == 0 { success } else { self.materialize_returndata_bytes(builder) };
@@ -598,7 +550,7 @@ impl<'gcx> Lowerer<'gcx> {
         // their destination and must not corrupt later tuple elements.
         let rhs_delivers_pending = self.is_slice_multi_return_call(rhs);
         self.pending_inline_returns = None;
-        let first_val = self.lower_expr(builder, rhs);
+        let first_val = self.lower_value_expr(builder, rhs);
         // An inlined multi-return callee with calldata-slice returns delivers
         // its values directly; assign them through the regular lvalue path,
         // which routes slice-slot locals through their two-word slots.
@@ -635,6 +587,29 @@ impl<'gcx> Lowerer<'gcx> {
             let Some(elem) = elem else { continue };
             self.lower_assign(builder, elem, val.expect("tuple element has a value"));
         }
+    }
+
+    /// Lowers every component of a tuple value without materializing an
+    /// aggregate or staging values through the multi-return buffer.
+    pub(super) fn lower_tuple_values(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        elements: &[Option<&hir::Expr<'_>>],
+        span: Span,
+    ) -> Result<SmallVec<[ValueId; 4]>, ErrorGuaranteed> {
+        let mut values = SmallVec::new();
+        for &element in elements {
+            let Some(element) = element else {
+                return Err(self
+                    .gcx
+                    .dcx()
+                    .err("tuple value contains an omitted element")
+                    .span(span)
+                    .emit());
+            };
+            values.push(self.lower_value_expr(builder, element));
+        }
+        Ok(values)
     }
 
     /// Stages return values 2..N at the unbumped free-memory pointer and
@@ -712,7 +687,7 @@ impl<'gcx> Lowerer<'gcx> {
         then_stmt: &hir::Stmt<'_>,
         else_stmt: Option<&hir::Stmt<'_>>,
     ) {
-        let cond_val = self.lower_expr(builder, cond);
+        let cond_val = self.lower_value_expr(builder, cond);
 
         let then_block = builder.create_block();
         let merge_block = builder.create_block();
@@ -739,7 +714,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers a switch statement.
     fn lower_switch(&mut self, builder: &mut FunctionBuilder<'_>, switch: &hir::StmtSwitch<'_>) {
-        let selector = self.lower_expr(builder, switch.selector);
+        let selector = self.lower_value_expr(builder, switch.selector);
         let merge_block = builder.create_block();
         let mut case_blocks = Vec::new();
         let mut body_blocks = Vec::new();
@@ -866,7 +841,7 @@ impl<'gcx> Lowerer<'gcx> {
         let then_block = builder.create_block();
         let else_block = builder.create_block();
 
-        let cond_val = self.lower_expr(builder, cond);
+        let cond_val = self.lower_value_expr(builder, cond);
         builder.branch(cond_val, then_block, else_block);
 
         // Then branch: lower all statements except the last (update)
@@ -898,6 +873,22 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers a return statement.
     fn lower_return(&mut self, builder: &mut FunctionBuilder<'_>, value: Option<&hir::Expr<'_>>) {
+        if let Some(expr) = value
+            && self.get_expr_type(expr).is_some_and(|ty| ty.is_unit())
+        {
+            let _ = self.lower_expr(builder, expr);
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                if let Some(ctx) = &self.inline_returns {
+                    builder.jump(ctx.exit_block);
+                } else if builder.func().is_public() && !self.lowering_internal_function {
+                    builder.stop();
+                } else {
+                    builder.ret([]);
+                }
+            }
+            return;
+        }
+
         // A `return` inside a body being inlined delivers its values to the
         // call site: store them into the callee's return-variable slots and
         // jump to the inline exit block. This must precede the external check —
@@ -909,44 +900,16 @@ impl<'gcx> Lowerer<'gcx> {
         let external = builder.func().is_public() && !self.lowering_internal_function;
         if external {
             let items = self.gather_return_items(builder, value);
-            self.emit_abi_return(builder, &items);
+            if items.is_empty() {
+                builder.stop();
+            } else {
+                self.finish_return(builder, items);
+            }
             return;
         }
         if let Some(expr) = value {
-            if let hir::ExprKind::Tuple(elements) = &expr.kind {
-                let ret_vals: Vec<_> = elements
-                    .iter()
-                    .filter_map(|elem_opt| {
-                        elem_opt.as_ref().map(|elem| self.lower_expr(builder, elem))
-                    })
-                    .collect();
-                builder.ret(ret_vals);
-            } else if let Some(arity) = self.get_ternary_tuple_arity(expr) {
-                let first = self.lower_expr(builder, expr);
-                let mut ret_vals = Vec::with_capacity(arity);
-                ret_vals.push(first);
-                if arity > 1 {
-                    let base = self.multi_return_buffer_base(builder);
-                    for i in 1..arity {
-                        ret_vals.push(self.load_multi_return_value(builder, base, i));
-                    }
-                }
-                builder.ret(ret_vals);
-            } else {
-                let ret_val = self.lower_expr(builder, expr);
-                let n = builder.func().returns.len();
-                if n > 1 {
-                    let mut ret_vals = Vec::with_capacity(n);
-                    ret_vals.push(ret_val);
-                    let base = self.multi_return_buffer_base(builder);
-                    for i in 1..n {
-                        ret_vals.push(self.load_multi_return_value(builder, base, i));
-                    }
-                    builder.ret(ret_vals);
-                } else {
-                    builder.ret([ret_val]);
-                }
-            }
+            let items = self.gather_return_items(builder, Some(expr));
+            self.finish_return(builder, items);
         } else {
             builder.ret([]);
         }
@@ -968,11 +931,11 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(expr) = value {
             if let hir::ExprKind::Tuple(elements) = &expr.kind {
                 for elem in elements.iter().flatten() {
-                    values.push(self.lower_expr(builder, elem));
+                    values.push(self.lower_value_expr(builder, elem));
                 }
             } else {
                 self.pending_inline_returns = None;
-                let first = self.lower_expr(builder, expr);
+                let first = self.lower_value_expr(builder, expr);
                 if n > 1 {
                     // A forwarded multi-return call: an inlined slice-returning
                     // callee leaves its values pending; anything else staged
@@ -1055,7 +1018,7 @@ impl<'gcx> Lowerer<'gcx> {
             let param = self.gcx.hir.variable(*param_id);
             let Some(arg) = arg_exprs.next() else { continue };
 
-            let ty = self.gcx.type_of_hir_ty(&param.ty);
+            let ty = self.gcx.type_of_item((*param_id).into());
 
             if param.indexed {
                 // An indexed dynamic `bytes`/`string` is topic'd by the
@@ -1140,7 +1103,6 @@ impl<'gcx> Lowerer<'gcx> {
     /// 3. If success (1), jump to success block
     /// 4. If failure (0), jump to catch block
     fn lower_try(&mut self, builder: &mut FunctionBuilder<'_>, try_stmt: &hir::StmtTry<'_>) {
-        // Create blocks for success, catch, and merge
         let success_block = builder.create_block();
         let catch_block = builder.create_block();
         let merge_block = builder.create_block();
@@ -1152,53 +1114,200 @@ impl<'gcx> Lowerer<'gcx> {
         // Branch: if success (non-zero), go to success_block, else catch_block
         builder.branch(success, success_block, catch_block);
 
-        // Generate success block (returns clause - always first in clauses)
+        // Success block (the `returns` clause is always first): decode the
+        // call's returndata into the bound variables, then run the block.
         builder.switch_to_block(success_block);
         if let Some(returns_clause) = try_stmt.clauses.first() {
             if !returns_clause.args.is_empty() {
-                self.gcx
-                    .dcx()
-                    .err("codegen does not support try/catch return bindings yet")
-                    .span(try_stmt.expr.span)
-                    .emit();
+                self.bind_try_returns(builder, returns_clause.args, try_stmt.expr.span);
             }
             self.lower_block(builder, &returns_clause.block);
         }
-        builder.jump(merge_block);
-
-        // Generate catch block(s)
-        builder.switch_to_block(catch_block);
-        let catch_clauses = &try_stmt.clauses[1..];
-        if catch_clauses.len() > 1 {
-            self.gcx
-                .dcx()
-                .err("codegen does not support multiple try/catch handlers yet")
-                .span(try_stmt.expr.span)
-                .emit();
-        }
-
-        // The catch clauses are after the first (returns) clause.
-        for clause in try_stmt.clauses.iter().skip(1) {
-            if clause.name.is_some() || !clause.args.is_empty() {
-                self.gcx
-                    .dcx()
-                    .err("codegen does not support typed try/catch handlers yet")
-                    .span(try_stmt.expr.span)
-                    .emit();
-            }
-            self.lower_block(builder, &clause.block);
-        }
-        // If no catch clauses (only returns clause), this is just an empty block
-        if try_stmt.clauses.len() <= 1 {
-            // No catch clause - re-revert
-            let zero = builder.imm_u64(0);
-            builder.revert(zero, zero);
-        } else {
+        if !builder.func().block(builder.current_block()).is_terminated() {
             builder.jump(merge_block);
         }
 
+        // Catch clauses: dispatch on the revert data's selector. `Error` and
+        // `Panic` handlers match their selectors; a low-level `catch (bytes)`
+        // or bare `catch` takes everything else; with no applicable handler
+        // the revert data is rethrown.
+        builder.switch_to_block(catch_block);
+        self.lower_catch_clauses(builder, &try_stmt.clauses[1..], merge_block, try_stmt.expr.span);
+
         // Continue after try/catch
         builder.switch_to_block(merge_block);
+    }
+
+    /// Decodes the successful call's returndata into the `returns` clause
+    /// bindings. Like solc, malformed returndata reverts rather than reaching
+    /// any catch clause: the external call itself succeeded.
+    fn bind_try_returns(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        vars: &[hir::VariableId],
+        span: Span,
+    ) {
+        // Validate every binding is decodable before emitting; report the
+        // first that is not.
+        let mut tys = Vec::with_capacity(vars.len());
+        for &var_id in vars {
+            let var = self.gcx.hir.variable(var_id);
+            let ty = self.gcx.type_of_hir_ty(&var.ty);
+            if self.abi_decode_strategy(ty).is_none() {
+                self.gcx
+                    .dcx()
+                    .err("codegen does not support this try return type yet")
+                    .span(var.span)
+                    .emit();
+                return;
+            }
+            tys.push(ty);
+        }
+
+        let slice = self.returndata_slice(builder);
+        let ptr = self.materialize_returndata_slice(builder, slice);
+        let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+
+        let decoded = self.decode_abi_region(builder, data_start, len, &tys);
+        for (&var_id, value) in vars.iter().zip(decoded) {
+            self.bind_local_value(builder, var_id, value);
+        }
+        let _ = span;
+    }
+
+    fn lower_catch_clauses(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        clauses: &[hir::TryCatchClause<'_>],
+        merge_block: crate::mir::BlockId,
+        span: Span,
+    ) {
+        let mut error_clause = None;
+        let mut panic_clause = None;
+        let mut fallback_clause = None;
+        for clause in clauses {
+            match clause.name {
+                Some(name) if name.name == sym::Error => error_clause = Some(clause),
+                Some(name) if name.name == sym::Panic => panic_clause = Some(clause),
+                Some(name) => {
+                    self.gcx
+                        .dcx()
+                        .err(format!("unknown try/catch handler `{}`", name.name))
+                        .span(clause.span)
+                        .emit();
+                }
+                None => fallback_clause = Some(clause),
+            }
+        }
+
+        // Rethrow: forward the revert data unchanged.
+        let rethrow_block = builder.create_block();
+
+        // Selector of the revert data; too-short data reads as selector zero,
+        // which no handler matches. The copy size degrades to zero so the
+        // returndata access stays in bounds.
+        let rds = builder.returndatasize();
+        let four = builder.imm_u64(4);
+        let zero = builder.imm_u64(0);
+        let too_short = builder.lt(rds, four);
+        let has_selector = builder.iszero(too_short);
+        builder.mstore(zero, zero);
+        let copy_size = builder.select(has_selector, four, zero);
+        builder.returndatacopy(zero, zero, copy_size);
+        let word = builder.mload(zero);
+        let shift = builder.imm_u64(224);
+        let selector = builder.shr(shift, word);
+
+        let fallback_target = builder.create_block();
+
+        // `catch Error(string memory reason)`.
+        if let Some(clause) = error_clause {
+            let error_selector = builder.imm_u64(0x08c379a0);
+            let matches = builder.eq(selector, error_selector);
+            let matches = builder.and(matches, has_selector);
+            let body = builder.create_block();
+            let next = builder.create_block();
+            builder.branch(matches, body, next);
+
+            builder.switch_to_block(body);
+            let slice = self.returndata_slice(builder);
+            let ptr = self.materialize_returndata_slice(builder, slice);
+            let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+            let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+            let region_base = builder.add(data, four);
+            let region_len = builder.sub(len, four);
+            let head = builder.mload(region_base);
+            let word = builder.imm_u64(32);
+            // Malformed `Error(string)` data reverts; solc instead falls
+            // through to a lower-level handler, which only differs for
+            // hostile callees that revert with a mangled Error selector.
+            let reason =
+                self.lower_abi_decode_dynamic_bytes(builder, region_base, region_len, word, head);
+            if let [var_id] = clause.args {
+                self.bind_local_value(builder, *var_id, reason);
+            }
+            self.lower_block(builder, &clause.block);
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(merge_block);
+            }
+
+            builder.switch_to_block(next);
+        }
+
+        // `catch Panic(uint256 code)`.
+        if let Some(clause) = panic_clause {
+            let panic_selector = builder.imm_u64(0x4e487b71);
+            let matches = builder.eq(selector, panic_selector);
+            let matches = builder.and(matches, has_selector);
+            let thirty_six = builder.imm_u64(36);
+            let panic_short = builder.lt(rds, thirty_six);
+            let long_enough = builder.iszero(panic_short);
+            let matches = builder.and(matches, long_enough);
+            let body = builder.create_block();
+            let next = builder.create_block();
+            builder.branch(matches, body, next);
+
+            builder.switch_to_block(body);
+            let zero = builder.imm_u64(0);
+            let word = builder.imm_u64(32);
+            builder.returndatacopy(zero, four, word);
+            let code = builder.mload(zero);
+            if let [var_id] = clause.args {
+                self.bind_local_value(builder, *var_id, code);
+            }
+            self.lower_block(builder, &clause.block);
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(merge_block);
+            }
+
+            builder.switch_to_block(next);
+        }
+        builder.jump(fallback_target);
+
+        // Low-level `catch (bytes memory data)` or bare `catch`; otherwise
+        // rethrow.
+        builder.switch_to_block(fallback_target);
+        if let Some(clause) = fallback_clause {
+            if let [var_id] = clause.args {
+                let slice = self.returndata_slice(builder);
+                let ptr = self.materialize_returndata_slice(builder, slice);
+                self.bind_local_value(builder, *var_id, ptr);
+            }
+            self.lower_block(builder, &clause.block);
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(merge_block);
+            }
+        } else {
+            builder.jump(rethrow_block);
+        }
+
+        builder.switch_to_block(rethrow_block);
+        let zero = builder.imm_u64(0);
+        let rds = builder.returndatasize();
+        builder.returndatacopy(zero, zero, rds);
+        builder.revert(zero, rds);
+        let _ = span;
     }
 
     /// Lowers a call expression for try/catch, returning the success flag.
@@ -1222,11 +1331,26 @@ impl<'gcx> Lowerer<'gcx> {
                     (*call_opts).map(|opts| opts.args),
                 );
             }
+            if let Some(TyKind::Fn(function)) = self.get_expr_type(callee).map(|ty| ty.kind)
+                && function.is_external()
+                && function.function_id.is_none()
+                && self.gcx.resolved_function(callee).is_none()
+            {
+                return self
+                    .emit_external_function_pointer_call(
+                        builder,
+                        callee,
+                        args,
+                        (*call_opts).map(|opts| opts.args),
+                        function,
+                    )
+                    .0;
+            }
         }
 
         // Fallback: lower as normal and use the result
         // This is incorrect but allows compilation to continue
-        let result = self.lower_expr(builder, expr);
+        let result = self.lower_value_expr(builder, expr);
         let is_zero = builder.iszero(result);
         builder.iszero(is_zero)
     }
@@ -1250,10 +1374,10 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Evaluate all arguments FIRST
         let arg_vals: Vec<crate::mir::ValueId> =
-            args.exprs().map(|arg| self.lower_expr(builder, arg)).collect();
+            args.exprs().map(|arg| self.lower_value_expr(builder, arg)).collect();
 
         // Evaluate the address
-        let addr = self.lower_expr(builder, base);
+        let addr = self.lower_value_expr(builder, base);
 
         // Write selector to memory
         let selector_word = U256::from(selector) << 224;

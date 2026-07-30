@@ -1,4 +1,4 @@
-//@compile-flags: --passes lower-aggregates
+//@compile-flags: -Zmir-pipeline=lower-aggregates
 //@filecheck:
 @module LowerAggregates
 
