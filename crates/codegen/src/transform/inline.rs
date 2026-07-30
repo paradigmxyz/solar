@@ -5,10 +5,11 @@
 
 use crate::{
     analysis::LoopAnalyzer,
+    immutable::immutable_push_type_size,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        BlockId, Function, FunctionId as MirFunctionId, Immediate, InstKind, Instruction, MirType,
-        Module, Terminator, Value, ValueId,
+        BlockId, Function, FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstKind,
+        Instruction, MirType, Module, Terminator, Value, ValueId,
     },
     pass::MirPass,
 };
@@ -36,7 +37,7 @@ impl MirPass for Inline {
         } else {
             MirInliner::default()
         };
-        inliner.run(module).inlined != 0
+        inliner.run(gcx, module).inlined != 0
     }
 }
 
@@ -159,7 +160,7 @@ struct MirInlineSummary {
 
 impl MirInliner {
     /// Runs the inliner over the whole module.
-    fn run(&mut self, module: &mut Module) -> MirInlineStats {
+    fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) -> MirInlineStats {
         let mut stats = MirInlineStats::default();
 
         // A zero budget is an explicit off switch (used by `-O size`). Avoid
@@ -169,7 +170,7 @@ impl MirInliner {
             return stats;
         }
 
-        let mut summaries = self.summarize_module(module);
+        let mut summaries = self.summarize_module(gcx, module);
 
         // Size-aware backstop: inlining grows emitted code, so track the module's
         // estimated runtime bytecode and stop inlining once it reaches the budget,
@@ -228,7 +229,7 @@ impl MirInliner {
                 let caller = module.function_mut(caller_id);
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
-                    let new_summary = summarize_function(module, module.function(caller_id));
+                    let new_summary = summarize_function(gcx, module, module.function(caller_id));
                     module_code_size = module_code_size
                         .saturating_sub(old_size)
                         .saturating_add(new_summary.estimated_code_size);
@@ -244,11 +245,15 @@ impl MirInliner {
         stats
     }
 
-    fn summarize_module(&self, module: &Module) -> FxHashMap<MirFunctionId, MirInlineSummary> {
+    fn summarize_module(
+        &self,
+        gcx: Gcx<'_>,
+        module: &Module,
+    ) -> FxHashMap<MirFunctionId, MirInlineSummary> {
         module
             .functions
             .iter_enumerated()
-            .map(|(id, func)| (id, summarize_function(module, func)))
+            .map(|(id, func)| (id, summarize_function(gcx, module, func)))
             .collect()
     }
 
@@ -415,7 +420,7 @@ struct CallSite {
     has_constant_function_selector: bool,
 }
 
-fn summarize_function(module: &Module, func: &Function) -> MirInlineSummary {
+fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInlineSummary {
     let mut summary = MirInlineSummary {
         block_count: func.blocks.len(),
         param_count: func.params.len(),
@@ -439,7 +444,7 @@ fn summarize_function(module: &Module, func: &Function) -> MirInlineSummary {
                 InstKind::MappingSlotCalldata(..) => 9,
                 _ => 1,
             };
-            let inst_cost = estimate_inst_cost(module, kind);
+            let inst_cost = estimate_inst_cost(gcx, module, kind);
             summary.estimated_code_size += inst_cost.code_size;
             summary.estimated_runtime_gas += inst_cost.runtime_gas;
             match kind {
@@ -528,7 +533,7 @@ struct MirCost {
     code_size: usize,
 }
 
-fn estimate_inst_cost(module: &Module, kind: &InstKind) -> MirCost {
+fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost {
     let (runtime_gas, code_size) = match kind {
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
         InstKind::MemoryObjectData(_, kind) => {
@@ -620,8 +625,21 @@ fn estimate_inst_cost(module: &Module, kind: &InstKind) -> MirCost {
         InstKind::LoadImmutable(id) => {
             let ty = module.immutable_type(*id);
             let encoding = ty.immutable_encoding().expect("validated immutable declaration");
-            let width = usize::from(encoding.type_size().bytes());
-            if encoding.needs_runtime_normalization() { (9, width + 4) } else { (3, width + 1) }
+            let type_size = immutable_push_type_size(
+                encoding,
+                gcx.sess.opts.optimization,
+                gcx.sess.opts.evm_version.has_bitwise_shifting(),
+            );
+            let width = usize::from(type_size.bytes());
+            if width == 32 {
+                (3, 33)
+            } else {
+                match encoding {
+                    ImmutableEncoding::Unsigned(_) => (3, width + 1),
+                    ImmutableEncoding::Signed(_) => (11, width + 4),
+                    ImmutableEncoding::LeftAligned(_) => (9, width + 4),
+                }
+            }
         }
         InstKind::ExtCodeSize(..)
         | InstKind::ExtCodeHash(..)

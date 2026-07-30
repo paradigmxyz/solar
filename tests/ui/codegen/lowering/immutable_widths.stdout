@@ -2,11 +2,11 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 455
+  push 476
   codesize
   sub
   dup1
-  push 455
+  push 476
   push 448
   codecopy
   push 448
@@ -116,60 +116,28 @@ bb0:
   mload
   push 352
   mstore
-  push 140
+  push 193
   dup1
-  push 315
-  push 0
+  push 283
+  push 384
   codecopy
   push 192
   mload
-  push 248
-  shl
-  push 31
-  mload
-  push 0
-  not
-  push 8
-  shr
-  and
-  or
-  push 31
-  mstore
+  push 415
+  mstore8
   push 224
   mload
-  push 240
-  shl
-  push 33
-  mload
-  push 0
-  not
-  push 16
-  shr
-  and
-  or
-  push 33
+  push 417
   mstore
   push 256
   mload
-  push 0xffffff
-  push 232
-  shl
-  and
-  push 39
-  mload
-  push 0
-  not
-  push 24
-  shr
-  and
-  or
-  push 39
+  push 450
   mstore
   push 288
   mload
   push 96
   shl
-  push 46
+  push 483
   mload
   push 0
   not
@@ -177,17 +145,17 @@ bb0:
   shr
   and
   or
-  push 46
+  push 483
   mstore
   push 320
   mload
-  push 67
+  push 504
   mstore
   push 352
   mload
   push 240
   shl
-  push 100
+  push 537
   mload
   push 0
   not
@@ -195,9 +163,9 @@ bb0:
   shr
   and
   or
-  push 100
+  push 537
   mstore
-  push 0
+  push 384
   return
 bb6 [cold]:
   push 0
@@ -227,12 +195,8 @@ bb0:
   push bb4
   jumpi
   push_immutable 0, 1
-  push_immutable 1, 2
-  push 1
-  signextend
-  push_immutable 2, 3
-  push 232
-  shl
+  push_immutable 1, 32
+  push_immutable 2, 32
   push_immutable 3, 20
   push_immutable 4, 32
   push_immutable 5, 2

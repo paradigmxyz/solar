@@ -21,11 +21,14 @@ use crate::{
         CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, Loop, LoopAnalyzer, ParallelCopy,
         PhiEliminator,
     },
-    immutable::{immutable_staging_addr, immutable_staging_base, immutable_staging_end},
+    immutable::{
+        immutable_push_type_size, immutable_staging_addr, immutable_staging_base,
+        immutable_staging_end,
+    },
     memory::EvmMemoryLayout,
     mir::{
         ArgIdx, BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind,
-        MirPhase, Module, Terminator, TypeSize, ValueId,
+        MirPhase, Module, Terminator, ValueId,
     },
     pass::run_pipeline,
 };
@@ -934,10 +937,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         immutable_refs: &[ImmutableRef],
     ) -> u64 {
         let patched_end = immutable_refs.iter().fold(runtime_len, |end, immutable_ref| {
+            let patch_size = if immutable_ref.type_size.bytes() == 1 { 1 } else { EVM_WORD_BYTES };
             end.max(
                 immutable_ref
                     .code_offset
-                    .checked_add(EVM_WORD_BYTES + 1)
+                    .checked_add(1 + patch_size)
                     .expect("immutable patch offset overflow"),
             )
         });
@@ -970,10 +974,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .immutable_type(r.id)
                 .immutable_encoding()
                 .expect("validated immutable declaration");
-            debug_assert!(
-                encoding.type_size() == r.type_size
-                    || (!self.gcx.sess.opts.evm_version.has_bitwise_shifting()
-                        && r.type_size == TypeSize::new_int_bits(256))
+            debug_assert_eq!(
+                immutable_push_type_size(
+                    encoding,
+                    self.gcx.sess.opts.optimization,
+                    self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
+                ),
+                r.type_size
             );
             self.emit_immutable_patch(copy_base, *r, encoding);
         }
@@ -997,6 +1004,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             immutable_ref.id,
         )));
         self.asm.emit_op(op::MLOAD);
+
+        if byte_width == 1 {
+            if matches!(encoding, ImmutableEncoding::LeftAligned(_)) {
+                self.asm.emit_push(U256::ZERO);
+                self.asm.emit_op(op::BYTE);
+            }
+            self.asm.emit_push(U256::from(destination));
+            self.asm.emit_op(op::MSTORE8);
+            return;
+        }
 
         if byte_width < 32 {
             let trailing_bits = usize::from(32 - byte_width) * 8;
@@ -1033,10 +1050,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let encoding = self.immutable_encodings[id];
-        let mut type_size = encoding.type_size();
-        if !self.gcx.sess.opts.evm_version.has_bitwise_shifting() && type_size.bytes() < 32 {
-            type_size = TypeSize::new_int_bits(256);
-        }
+        let type_size = immutable_push_type_size(
+            encoding,
+            self.gcx.sess.opts.optimization,
+            self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
+        );
         let byte_width = type_size.bytes();
         self.asm.emit_push_immutable(id, type_size);
         if byte_width == 32 {
@@ -5435,6 +5453,13 @@ mod tests {
 
         let short =
             ImmutableRef { id, code_offset: runtime_len - 2, type_size: TypeSize::new_int_bits(8) };
+        assert_eq!(EvmCodegen::runtime_copy_base(&module, runtime_len, &[short]), 0);
+
+        let short = ImmutableRef {
+            id,
+            code_offset: runtime_len - 3,
+            type_size: TypeSize::new_int_bits(16),
+        };
         assert_eq!(
             EvmCodegen::runtime_copy_base(&module, runtime_len, &[short]),
             immutable_staging_end(staging_base, 1)
