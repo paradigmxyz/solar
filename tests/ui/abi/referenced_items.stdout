@@ -107,6 +107,23 @@
         }
       ]
     },
+    "ROOT/tests/ui/abi/referenced_items.sol:FunctionPointer": {
+      "abi": [
+        {
+          "type": "event",
+          "name": "FunctionPointerEvent",
+          "inputs": [],
+          "anonymous": false
+        },
+        {
+          "type": "function",
+          "name": "run",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        }
+      ]
+    },
     "ROOT/tests/ui/abi/referenced_items.sol:VirtualBase": {
       "abi": [
         {

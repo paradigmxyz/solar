@@ -10,6 +10,7 @@ error UnusedError();
 
 event BaseHookEvent();
 event DerivedHookEvent();
+event FunctionPointerEvent();
 
 function initialize() view returns (uint256) {
     if (block.timestamp == 0) {
@@ -82,5 +83,16 @@ contract VirtualBase {
 contract VirtualDerived is VirtualBase {
     function hook() internal override {
         emit DerivedHookEvent();
+    }
+}
+
+contract FunctionPointer {
+    function run() external {
+        function() internal target = emitEvent;
+        target();
+    }
+
+    function emitEvent() internal {
+        emit FunctionPointerEvent();
     }
 }

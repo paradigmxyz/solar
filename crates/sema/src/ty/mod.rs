@@ -1435,6 +1435,11 @@ pub fn interface_errors(gcx: _, id: hir::ContractId) -> &'gcx [hir::ErrorId] {
     gcx.interface_items(id).errors
 }
 
+/// Returns the contracts whose bytecode is referenced by the given contract.
+pub fn contract_bytecode_dependencies(gcx: _, id: hir::ContractId) -> &'gcx [hir::ContractId] {
+    gcx.interface_items(id).bytecode_dependencies
+}
+
 /// Returns the [ERC-165] interface ID of the given contract.
 ///
 /// This is the XOR of the selectors of all function selectors in the interface.
