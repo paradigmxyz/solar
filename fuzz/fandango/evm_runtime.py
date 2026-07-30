@@ -384,7 +384,37 @@ def compile_standard_artifact(
         if isinstance(evm_artifact, dict)
         else None
     )
-    runtime = deployed.get("object") if isinstance(deployed, dict) else None
+    abi = artifact.get("abi", [])
+    identifiers = (
+        evm_artifact.get("methodIdentifiers")
+        if isinstance(evm_artifact, dict)
+        else None
+    )
+    if (
+        not isinstance(abi, list)
+        or not isinstance(identifiers, dict)
+        or not isinstance(deployed, dict)
+    ):
+        raise ValueError(f"contract {source_name}:{contract} has malformed {kind} output")
+    for field, label in (
+        ("immutableReferences", "immutable references"),
+        ("linkReferences", "unresolved library links"),
+    ):
+        if kind == "solc" and field not in deployed:
+            raise ValueError(
+                f"contract {source_name}:{contract} is missing solc {label}"
+            )
+        references = deployed.get(field, {})
+        if not isinstance(references, dict):
+            raise ValueError(
+                f"contract {source_name}:{contract} has malformed {kind} {label}"
+            )
+        if references:
+            raise ValueError(
+                f"contract {source_name}:{contract} has {label}, "
+                "which cannot be safely etched without deployment"
+            )
+    runtime = deployed.get("object")
     if not isinstance(runtime, str) or not runtime:
         raise ValueError(f"contract {source_name}:{contract} has no runtime bytecode")
     runtime_payload = runtime.removeprefix("0x")
@@ -404,14 +434,6 @@ def compile_standard_artifact(
         raise ValueError(
             f"contract {source_name}:{contract} runtime bytecode is not hex"
         )
-    abi = artifact.get("abi", [])
-    identifiers = (
-        evm_artifact.get("methodIdentifiers")
-        if isinstance(evm_artifact, dict)
-        else None
-    )
-    if not isinstance(abi, list) or not isinstance(identifiers, dict):
-        raise ValueError(f"contract {source_name}:{contract} has malformed {kind} output")
     return {
         "abi": abi,
         "runtime": "0x" + runtime_payload,
@@ -446,7 +468,15 @@ def _standard_settings(evm_version: str) -> dict[str, Any]:
         "evmVersion": evm_version,
         "metadata": {"bytecodeHash": "none"},
         "outputSelection": {
-            "*": {"*": ["abi", "evm.deployedBytecode.object", "evm.methodIdentifiers"]}
+            "*": {
+                "*": [
+                    "abi",
+                    "evm.deployedBytecode.immutableReferences",
+                    "evm.deployedBytecode.linkReferences",
+                    "evm.deployedBytecode.object",
+                    "evm.methodIdentifiers",
+                ]
+            }
         },
     }
 

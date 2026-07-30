@@ -236,7 +236,11 @@ class DeadlineTests(unittest.TestCase):
                                 "Root": {
                                     "abi": [],
                                     "evm": {
-                                        "deployedBytecode": {"object": "6000"},
+                                        "deployedBytecode": {
+                                            "object": "6000",
+                                            "immutableReferences": {},
+                                            "linkReferences": {},
+                                        },
                                         "methodIdentifiers": {},
                                     },
                                 }
@@ -324,7 +328,7 @@ class DeadlineTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "posix", "POSIX process-group regression")
     def test_compiler_timeout_reaps_a_real_grandchild(self):
-        self._assert_wrapper_grandchild_is_reaped(timeout=0.5, wrapper_sleep=60)
+        self._assert_wrapper_grandchild_is_reaped(timeout=1, wrapper_sleep=60)
 
     @unittest.skipUnless(os.name == "posix", "POSIX process-group regression")
     def test_successful_tool_reaps_a_real_grandchild(self):
@@ -391,32 +395,26 @@ class DeadlineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             pid_file = root / "grandchild-pid"
-            wrapper = root / "compiler-wrapper"
-            wrapper.write_text(
-                "#!/usr/bin/env python3\n"
-                "import pathlib\n"
-                "import subprocess\n"
-                "import sys\n"
-                "import time\n"
-                "grandchild = subprocess.Popen(\n"
-                "    [sys.executable, '-c', 'import time; time.sleep(60)'],\n"
-                "    stdin=subprocess.DEVNULL,\n"
-                "    stdout=subprocess.DEVNULL,\n"
-                "    stderr=subprocess.DEVNULL,\n"
-                ")\n"
-                f"pathlib.Path({str(pid_file)!r}).write_text(str(grandchild.pid))\n"
-                "print('wrapper version', flush=True)\n"
-                f"time.sleep({wrapper_sleep})\n"
+            wrapper_code = (
+                "import pathlib,subprocess,sys,time;"
+                "grandchild=subprocess.Popen("
+                "[sys.executable,'-c','import time; time.sleep(60)'],"
+                "stdin=subprocess.DEVNULL,"
+                "stdout=subprocess.DEVNULL,"
+                "stderr=subprocess.DEVNULL);"
+                f"pathlib.Path({str(pid_file)!r}).write_text(str(grandchild.pid));"
+                "print('wrapper version',flush=True);"
+                f"time.sleep({wrapper_sleep})"
             )
-            wrapper.chmod(0o755)
+            command = [sys.executable, "-c", wrapper_code]
             grandchild_pid = None
             try:
                 if wrapper_sleep:
                     with self.assertRaises(subprocess.TimeoutExpired):
-                        evm.compiler_version(str(wrapper), timeout)
+                        evm.run_process_group(command, timeout)
                 else:
                     self.assertEqual(
-                        evm.compiler_version(str(wrapper), timeout),
+                        evm.run_process_group(command, timeout).stdout.strip(),
                         "wrapper version",
                     )
                 self.assertTrue(pid_file.is_file())
@@ -548,6 +546,9 @@ class StandardInputMaterializationTests(unittest.TestCase):
             materialized["sha256"],
             hashlib.sha256(materialized["json"].encode("utf-8")).hexdigest(),
         )
+        selection = standard_input["settings"]["outputSelection"]["*"]["*"]
+        self.assertIn("evm.deployedBytecode.immutableReferences", selection)
+        self.assertIn("evm.deployedBytecode.linkReferences", selection)
 
     def test_rejects_an_import_that_cannot_be_snapshotted(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -604,7 +605,11 @@ class StandardInputMaterializationTests(unittest.TestCase):
                                     "Root": {
                                         "abi": [],
                                         "evm": {
-                                            "deployedBytecode": {"object": runtime},
+                                            "deployedBytecode": {
+                                                "object": runtime,
+                                                "immutableReferences": {},
+                                                "linkReferences": {},
+                                            },
                                             "methodIdentifiers": {},
                                         },
                                     }
@@ -616,6 +621,107 @@ class StandardInputMaterializationTests(unittest.TestCase):
                 )
                 with (
                     self.subTest(runtime=runtime),
+                    patch.object(evm, "run_process_group", return_value=result),
+                    self.assertRaisesRegex(ValueError, message),
+                ):
+                    evm.compile_standard_artifact(
+                        "solc",
+                        source,
+                        "Root",
+                        1.0,
+                        kind="solc",
+                        evm_version="osaka",
+                        standard_input=standard_input,
+                    )
+
+    def test_rejects_runtime_templates_that_require_deployment(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "Root.sol"
+            source.write_text("contract Root {}")
+            standard_input = evm._single_source_standard_input(source, "osaka")
+            cases = [
+                (
+                    {
+                        "object": "6000",
+                        "immutableReferences": {
+                            "configured": [{"start": 0, "length": 32}]
+                        },
+                        "linkReferences": {},
+                    },
+                    "immutable references",
+                ),
+                (
+                    {
+                        "object": "6000",
+                        "immutableReferences": {
+                            "library_deploy_address": [
+                                {"start": 0, "length": 20}
+                            ]
+                        },
+                        "linkReferences": {},
+                    },
+                    "immutable references",
+                ),
+                (
+                    {
+                        "object": "6000",
+                        "immutableReferences": {},
+                        "linkReferences": {
+                            "Library.sol": {
+                                "Library": [{"start": 0, "length": 20}]
+                            }
+                        },
+                    },
+                    "unresolved library links",
+                ),
+                (
+                    {
+                        "object": "6000",
+                        "immutableReferences": [],
+                        "linkReferences": {},
+                    },
+                    "malformed solc immutable references",
+                ),
+                (
+                    {
+                        "object": "6000",
+                        "immutableReferences": {},
+                        "linkReferences": [],
+                    },
+                    "malformed solc unresolved library links",
+                ),
+                (
+                    {"object": "6000", "linkReferences": {}},
+                    "missing solc immutable references",
+                ),
+                (
+                    {"object": "6000", "immutableReferences": {}},
+                    "missing solc unresolved library links",
+                ),
+            ]
+            for deployed, message in cases:
+                result = subprocess.CompletedProcess(
+                    args=[],
+                    returncode=0,
+                    stdout=json.dumps(
+                        {
+                            "contracts": {
+                                "Root.sol": {
+                                    "Root": {
+                                        "abi": [],
+                                        "evm": {
+                                            "deployedBytecode": deployed,
+                                            "methodIdentifiers": {},
+                                        },
+                                    }
+                                }
+                            }
+                        }
+                    ),
+                    stderr="",
+                )
+                with (
+                    self.subTest(message=message),
                     patch.object(evm, "run_process_group", return_value=result),
                     self.assertRaisesRegex(ValueError, message),
                 ):
@@ -1423,6 +1529,47 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             "no_mismatch_within_bounds",
         )
 
+    def test_contracts_requiring_deployment_are_incomplete_before_forge(self):
+        cases = [
+            (
+                "InlineImmutable",
+                (
+                    "contract InlineImmutable {"
+                    "uint256 public immutable configured = 1;"
+                    "function probe(uint256 x) external pure returns (uint256) {"
+                    "return x + 1;"
+                    "}"
+                    "}"
+                ),
+                "immutable references",
+            ),
+            (
+                "LinkedLibrary",
+                (
+                    "library ExternalLibrary {"
+                    "function add(uint256 x) external pure returns (uint256) {"
+                    "return x + 1;"
+                    "}"
+                    "}"
+                    "contract LinkedLibrary {"
+                    "function probe(uint256 x) external pure returns (uint256) {"
+                    "return ExternalLibrary.add(x);"
+                    "}"
+                    "}"
+                ),
+                "unresolved library links",
+            ),
+        ]
+        for contract, source_text, reason in cases:
+            with self.subTest(contract=contract):
+                returncode, summary, forge = self._run_rejected_source(
+                    contract, source_text
+                )
+                self.assertEqual(returncode, 2)
+                self.assertEqual(summary["status"], "incomplete")
+                self.assertIn(reason, summary["reason"])
+                forge.assert_not_called()
+
     def test_fixed_array_arguments_keep_the_target_abi_layout(self):
         returncode, summary, manifest = self._run(
             self.solar_reference, signature="fixedArray(uint256[2])"
@@ -1555,6 +1702,38 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         self.assertFalse(
             manifest["replay"]["durable_foundry_artifact"]["required"]
         )
+
+    def _run_rejected_source(self, contract: str, source_text: str):
+        temporary = tempfile.TemporaryDirectory(prefix="solar-symbolic-rejected-")
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name)
+        source = root / f"{contract}.sol"
+        source.write_text(source_text)
+        args = argparse.Namespace(
+            source=source,
+            contract=contract,
+            solc=self.solc,
+            solar=self.solar,
+            forge=self.forge,
+            anvil=self.anvil,
+            timeout=60.0,
+            signature="probe(uint256)",
+            evm_version="osaka",
+            symbolic_solver=self.z3,
+            symbolic_timeout=5,
+            symbolic_max_paths=64,
+            symbolic_max_depth=None,
+            max_returndata_bytes=256,
+            artifact_dir=root / "artifacts",
+            verbose=False,
+        )
+        output = io.StringIO()
+        with (
+            patch.object(run_foundry_target, "_forge_symbolic") as forge,
+            redirect_stdout(output),
+        ):
+            returncode = run_foundry_target._run_symbolic_or_incomplete(args)
+        return returncode, json.loads(output.getvalue()), forge
 
     def test_imported_source_bundle_contains_the_exact_compiler_input(self):
         output = io.StringIO()
