@@ -74,6 +74,9 @@ impl PureEvaluator {
         let Some(values) = self.evaluate(func) else {
             return &self.stats;
         };
+        if values.len() != func.returns.len() {
+            return &self.stats;
+        }
         if self.is_already_folded(func, &values) {
             return &self.stats;
         }
@@ -210,9 +213,13 @@ impl PureEvaluator {
             }
         }
 
+        let returns = func.returns.clone();
         let values = values
             .iter()
-            .map(|&value| func.alloc_value(Value::Immediate(Immediate::uint256(value))))
+            .zip(returns)
+            .map(|(&value, ty)| {
+                func.alloc_value(Value::Immediate(Immediate::for_type(Some(ty), value)))
+            })
             .collect();
         func.blocks[entry].terminator = Some(Terminator::Return { values });
     }

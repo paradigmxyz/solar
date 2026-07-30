@@ -48,6 +48,20 @@ pub(crate) enum Immediate {
 }
 
 impl Immediate {
+    /// Creates an immediate carrying `value` with the given integer type.
+    ///
+    /// Falls back to `uint256` when the type has no plain integer payload or
+    /// cannot represent the value.
+    #[must_use]
+    pub(crate) fn for_type(ty: Option<MirType>, value: U256) -> Self {
+        match ty {
+            Some(MirType::Bool) if value <= U256::from(1) => Self::Bool(!value.is_zero()),
+            Some(MirType::UInt(size)) if fits_unsigned(value, size) => Self::UInt(value, size),
+            Some(MirType::Int(size)) if fits_signed(value, size) => Self::Int(value, size),
+            _ => Self::uint256(value),
+        }
+    }
+
     /// Returns the type of this immediate.
     #[must_use]
     pub(crate) const fn ty(&self) -> MirType {
@@ -78,6 +92,20 @@ impl Immediate {
             Self::UInt(v, _) | Self::Int(v, _) => Some(*v),
         }
     }
+}
+
+fn fits_unsigned(value: U256, size: TypeSize) -> bool {
+    let bits = size.bits();
+    bits >= 256 || value.bit_len() <= usize::from(bits)
+}
+
+fn fits_signed(value: U256, size: TypeSize) -> bool {
+    let bits = size.bits();
+    if bits >= 256 || bits == 0 {
+        return bits >= 256;
+    }
+    let bits = usize::from(bits);
+    if value.bit(bits - 1) { (!value).bit_len() < bits } else { value.bit_len() < bits }
 }
 
 impl fmt::Display for Immediate {

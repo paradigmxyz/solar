@@ -39,6 +39,22 @@ fn @extended_evm_ops() -> u256 {
     ret v6
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @signed_return{{[( ]}}
+// CHECK: + ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
+fn @signed_return() -> i256 {
+  bb0:
+    v0 = sdiv 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 2
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @bool_return{{[( ]}}
+// CHECK: + ret 1
+fn @bool_return() -> bool {
+  bb0:
+    v0 = slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
+    ret v0
+}
+
 fn @unknown_case_precedes_match() -> u256 {
   bb0:
     v0 = address

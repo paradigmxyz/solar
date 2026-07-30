@@ -37,6 +37,20 @@
 +     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   }
   
+  fn @signed_return() -> i256 {
+    bb0:
+-     v0 = sdiv 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 2
+-     ret v0
++     ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
+  }
+  
+  fn @bool_return() -> bool {
+    bb0:
+-     v0 = slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
+-     ret v0
++     ret 1
+  }
+  
   fn @unknown_case_precedes_match() -> u256 {
     bb0:
       v0 = address
