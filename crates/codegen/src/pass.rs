@@ -29,9 +29,9 @@ use crate::{
         adce, cfg_simplify, check_elim, copy_elision, cse, dce, frame_promotion, gvn,
         indvar_simplify, inline, inst_simplify, jump_threading, load_pre, loop_canonicalize,
         loop_opt, lower_abi, lower_abi_encode, lower_aggregates, lower_alloc, lower_dispatch,
-        lower_evm_shaped, lower_mapping_slots, lower_memory_objects, lower_slices, memory_dse,
-        outline_reverts, pre, pure_eval, sccp, sroa, static_alloc, storage_dse, storage_load_cse,
-        storage_promotion,
+        lower_evm_shaped, lower_mapping_slots, lower_mcopy, lower_memory_objects, lower_slices,
+        memory_dse, outline_reverts, pre, pure_eval, sccp, sroa, static_alloc, storage_dse,
+        storage_load_cse, storage_promotion,
     },
 };
 use solar_data_structures::map::FxHashMap;
@@ -76,6 +76,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_dispatch::LowerDispatch,
     &lower_evm_shaped::LowerEvmShaped,
     &lower_mapping_slots::LowerMappingSlots,
+    &lower_mcopy::LowerMCopy,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
     &lower_memory_objects::LowerMemoryObjects,
@@ -140,7 +141,8 @@ impl<P: MirPass> MirPass for GasOnly<P> {
 
 /// The canonical MIR pipeline used by EVM codegen.
 pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
-    &inline::Inline,
+    // MIR inlining remains available as an ad-hoc pass, but static internal
+    // frames make calls cheap enough that the measured candidates regress gas.
     &cfg_simplify::FunctionDce,
     // Early frame scalarization improves size but can increase hot-path gas.
     &SizeOnly(cfg_simplify::CfgSimplify),
@@ -210,6 +212,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_dispatch::LowerDispatch,
     &lower_memory_objects::LowerMemoryObjects,
     &lower_alloc::LowerAlloc,
+    &lower_mcopy::LowerMCopy,
     &lower_evm_shaped::LowerEvmShaped,
 ];
 

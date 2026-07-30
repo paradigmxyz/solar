@@ -1,0 +1,8 @@
+error: no matching declarations found
+   ╭▸ ROOT/tests/ui/typeck/selector_override_chain.sol:LL:CC
+   │
+LL │         return g.selector;
+   ╰╴               ━
+
+error: aborting due to 1 previous error
+

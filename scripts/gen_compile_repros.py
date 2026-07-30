@@ -34,7 +34,7 @@ def main() -> None:
         generate_large_literals(output_dir, size_name, n_symbols)
         generate_many_storage(output_dir, size_name, n_symbols)
         generate_many_events(output_dir, size_name, n_symbols // 10)
-        generate_complex_inheritance(output_dir, size_name, min(n_depth, 50))
+        generate_complex_inheritance(output_dir, size_name, n_depth)
         generate_many_mappings(output_dir, size_name, n_symbols // 10)
         generate_many_modifiers(output_dir, size_name, n_symbols // 10)
 
@@ -216,7 +216,7 @@ def generate_many_modifiers(directory: Path, size: str, n: int) -> None:
     lines = ["contract C{", "address public o;", "uint public n;"]
     lines.extend(f'modifier m{i}(uint v){{require(v>{i},"m{i}");_;}}' for i in range(n))
     modifiers = " ".join(f"m{i}(x)" for i in range(min(n, 20)))
-    lines.append(f"function f(uint x)public {modifiers} returns(uint r){{r=x;}}")
+    lines.append(f"function f(uint x)public pure {modifiers} returns(uint r){{r=x;}}")
     lines.append("}")
     write_file(directory, f"many_modifiers_{size}.sol", source(lines))
 

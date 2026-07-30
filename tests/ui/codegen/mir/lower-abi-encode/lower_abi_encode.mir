@@ -21,3 +21,18 @@ fn @dynamic(arg0: calldataslice) -> memoryslice {
     v0 = abi_encode [calldata_bytes], args arg0
     ret v0
 }
+
+fn @returndata_bytes() -> memoryslice {
+  bb0:
+    v0 = returndatasize
+    v1 = make_returndata_slice 0, v0
+    v2 = abi_encode [returndata_bytes], args v1
+    ret v2
+}
+
+fn @returndata_words(arg0: u256) -> memoryslice {
+  bb0:
+    v0 = make_returndata_slice 0, arg0
+    v1 = abi_encode [returndata_array<word>], args v0
+    ret v1
+}

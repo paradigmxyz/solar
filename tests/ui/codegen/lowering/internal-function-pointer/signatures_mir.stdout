@@ -6,13 +6,12 @@ fn @constructor() {
     stop
 }
 
-fn @callVoid() {
+fn @callVoid() -> bool [abi_returns=[word]] {
   bb0:
     internal_call @__internal_dispatch_0, 0, 2
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
-    mstore 128, v1
-    returndata 128, 32
+    ret v1
 }
 
 fn @__internal_dispatch_0(arg0: function) {
@@ -38,17 +37,16 @@ fn @setFlag() {
     stop
 }
 
-fn @callState() {
+fn @callState() -> bool [abi_returns=[word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     internal_call @__internal_dispatch_0, 0, v0
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = and v1, 255
-    mstore 128, v2
-    returndata 128, 32
+    ret v2
 }
 
-fn @callPair(arg0: u256) {
+fn @callPair(arg0: u256) -> (u256, u256) [abi_returns=[word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -61,10 +59,7 @@ fn @callPair(arg0: u256) {
     v4 = mload 32 !metadata(memory=scratch)
     v5 = add v4, 32
     v6 = mload v5
-    mstore 128, v3
-    v7 = add 128, 32
-    mstore v7, v6
-    returndata 128, 64
+    ret v3, v6
 }
 
 fn @__internal_dispatch_1(arg0: function, arg1: u256) -> (u256, u256) {
@@ -115,11 +110,10 @@ fn @sum(arg0: u256, arg1: u256) -> u256 {
     ret v0
 }
 
-fn @callTwoArgs() {
+fn @callTwoArgs() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = internal_call @__internal_dispatch_2, 1, 7, 5, 1
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 
 fn @__internal_dispatch_2(arg0: function, arg1: u256, arg2: u256) -> u256 {

@@ -372,6 +372,13 @@ impl<'a> Validator<'a> {
                 match &func.inst(inst_id).kind {
                     InstKind::Phi(incoming) => {
                         for &(pred, value) in incoming {
+                            // An edge from an unreachable predecessor never
+                            // executes, so whatever it names is vacuous. A pass
+                            // that makes a predecessor unreachable need not also
+                            // rewrite every phi that still lists it.
+                            if !cfg.is_reachable(pred) {
+                                continue;
+                            }
                             if let Some((def, _)) = def_location_of[value]
                                 && def != pred
                                 && !reaches(def, pred)
@@ -450,6 +457,13 @@ impl<'a> Validator<'a> {
     }
 
     /// Checks that call targets exist and argument counts match.
+    ///
+    /// Only live instructions — those still present in a block — are checked. An
+    /// inlined or DCE'd call leaves its `Instruction` orphaned in the arena; a
+    /// later signature change (e.g. `lower-slices` expanding a slice parameter
+    /// into a pointer/length pair) makes that dead call's arg count disagree
+    /// with the callee even though it is never emitted. Block-based iteration
+    /// mirrors how the display and every pass treat instructions.
     fn validate_calls(&mut self, module: &Module, func: &Function) {
         for inst_id in func.instructions() {
             let InstKind::InternalCall { function, args, .. } = &func.inst(inst_id).kind else {

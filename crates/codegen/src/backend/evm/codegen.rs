@@ -1292,6 +1292,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let liveness = &liveness;
 
         // Eliminate phis.
+        self.block_copies.clear();
         let phi_result = PhiEliminator::analyze(func);
         let has_phis = !phi_result.phis_to_remove.is_empty();
         for (block_id, copies) in phi_result.block_copies {
@@ -1986,26 +1987,33 @@ impl<'gcx> EvmCodegen<'gcx> {
             for value in &values {
                 self.scheduler.spills.reserve(value);
             }
-            return;
+        } else {
+            let recomputable = Self::cross_block_recomputable_values(func);
+            let reloaded = values
+                .iter()
+                .any(|value| {
+                    !recomputable.contains(value)
+                        && StackScheduler::is_cheap_recomputable_value(func, value)
+                })
+                .then(|| Self::cross_block_reload_values(func));
+            for val in &values {
+                self.scheduler.spills.reserve(val);
+                if recomputable.contains(val) {
+                    self.scheduler.spills.mark_recomputable(val);
+                } else if reloaded.as_ref().is_some_and(|values| values.contains(val))
+                    && StackScheduler::is_cheap_recomputable_value(func, val)
+                {
+                    self.scheduler.spills.require_store(val);
+                }
+            }
         }
 
-        let recomputable = Self::cross_block_recomputable_values(func);
-        let reloaded = values
-            .iter()
-            .any(|value| {
-                !recomputable.contains(value)
-                    && StackScheduler::is_cheap_recomputable_value(func, value)
-            })
-            .then(|| Self::cross_block_reload_values(func));
-        for val in &values {
+        // A free-memory-pointer load cannot be recomputed after the pointer
+        // moves. Liveness does not always carry it to every using block, so
+        // reserve a stable slot and accept the runtime-preceding store.
+        for val in Self::fmp_load_values(func) {
             self.scheduler.spills.reserve(val);
-            if recomputable.contains(val) {
-                self.scheduler.spills.mark_recomputable(val);
-            } else if reloaded.as_ref().is_some_and(|values| values.contains(val))
-                && StackScheduler::is_cheap_recomputable_value(func, val)
-            {
-                self.scheduler.spills.require_store(val);
-            }
+            self.scheduler.spills.mark_reloadable(val);
         }
     }
 
@@ -2044,6 +2052,22 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         reloaded
+    }
+
+    /// Every live free-memory-pointer load result in the function.
+    fn fmp_load_values(func: &Function) -> Vec<ValueId> {
+        let mut values = Vec::new();
+        for inst_id in func.instructions() {
+            if matches!(
+                func.inst(inst_id).kind,
+                InstKind::MLoad(addr)
+                    if func.value_u64(addr) == Some(EvmMemoryLayout::FMP_SLOT)
+            ) && let Some(val) = func.inst_result_value(inst_id)
+            {
+                values.push(val);
+            }
+        }
+        values
     }
 
     fn cross_block_spill_values(func: &Function, liveness: &Liveness) -> DenseBitSet<ValueId> {
@@ -5496,6 +5520,32 @@ mod tests {
             codegen.generate_function_body(FunctionId::from_usize(0), &function);
 
             assert!(codegen.asm.assemble().bytecode.is_empty());
+        });
+    }
+
+    #[test]
+    fn unreachable_phi_copies_do_not_leak_between_functions() {
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            let mut first = Function::new(Ident::with_dummy_span(sym::Test));
+            let mut builder = FunctionBuilder::new(&mut first);
+            let unreachable_pred = builder.create_block();
+            let unreachable_merge = builder.create_block();
+            builder.stop();
+            builder.switch_to_block(unreachable_pred);
+            let value = builder.imm_u64(1);
+            builder.jump(unreachable_merge);
+            builder.switch_to_block(unreachable_merge);
+            let value = builder.phi(vec![(unreachable_pred, value)]);
+            builder.ret([value]);
+
+            codegen.generate_function_body(FunctionId::from_usize(0), &first);
+            assert!(codegen.block_copies.contains_key(&unreachable_pred));
+
+            let mut second = Function::new(Ident::with_dummy_span(sym::Test));
+            FunctionBuilder::new(&mut second).stop();
+            codegen.generate_function_body(FunctionId::from_usize(1), &second);
+
+            assert!(codegen.block_copies.is_empty());
         });
     }
 

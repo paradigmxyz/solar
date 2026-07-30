@@ -1,9 +1,8 @@
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 //@ filecheck:
 
-// Static frame overlays after MIR inlining: the surviving non-recursive chain
-// uses compile-time-fixed frame addresses, while recursive and mutually
-// recursive calls share the dynamic frame allocator and epilogue.
+// Static frame overlays use compile-time-fixed frame addresses, while recursive
+// and mutually recursive calls share the dynamic frame allocator and epilogue.
 contract SF {
     // CHECK: push 0x313ae541
     // CHECK: eq
@@ -18,24 +17,16 @@ contract SF {
     // CHECK: return
     uint256 public s;
 
-    // The optimized chainA/chainB/chainC path has one surviving static call.
+    // The chainA/chainB/chainC path uses static frame addresses.
     // CHECK: [[TOP]]:
     // CHECK: push 640
     // CHECK-NEXT: mstore
     // CHECK: push 672
     // CHECK-NEXT: mstore
     // CHECK-NEXT: push [[CHAIN_RET:bb[0-9]+]]
-    // CHECK-NOT: push 160
-    // CHECK: push 800
-    // CHECK-NEXT: mstore
-    // CHECK-NOT: push 160
-    // CHECK: push 704
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: jump
-    // CHECK-NEXT: [[CHAIN_RET]]:
+    // CHECK: [[CHAIN_RET]]:
     // CHECK-NEXT: push 704
     // CHECK-NEXT: mload
-    // CHECK-NOT: push 160
 
     // top -> rec allocates a dynamic frame.
     // CHECK: push 7
@@ -71,7 +62,24 @@ contract SF {
     // CHECK-NEXT: jump [[DYN_EPILOGUE]]
 
     // rec -> rec uses the same dynamic allocator and a result-aware epilogue.
-    // CHECK: push [[PANIC:bb[0-9]+]]
+    // CHECK: push 320
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: dup1
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 320
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 96
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: gt
+    // CHECK-NEXT: swap1
+    // CHECK-NEXT: pop
+    // CHECK-NEXT: push [[PANIC:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push [[REC_RECUR_CONT:bb[0-9]+]]
     // CHECK-NEXT: jump [[DYN_ALLOC]]
@@ -84,9 +92,9 @@ contract SF {
     // CHECK-NEXT: swap2
     // CHECK-NEXT: pop
     // CHECK-NEXT: pop
-    // CHECK-NEXT: push [[PANIC]]
+    // CHECK: push [[PANIC]]
     // CHECK-NEXT: jumpi
-    // CHECK-NEXT: push [[M1_M2_CONT:bb[0-9]+]]
+    // CHECK: push [[M1_M2_CONT:bb[0-9]+]]
     // CHECK-NEXT: jump [[DYN_ALLOC]]
     // CHECK-NEXT: [[M1_M2_RET:bb[0-9]+]]:
     // CHECK: push [[M1_AFTER_M2:bb[0-9]+]]

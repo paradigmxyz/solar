@@ -22,7 +22,7 @@ contract DynamicStructParam {
     // CHECK-LABEL: fn @init{{[( ]}}
     // CHECK: gt arg0, 0xffffffffffffffff
     // CHECK: add 4, arg0
-    // CHECK: alloc raw, exact, uninitialized, infallible, 128
+    // CHECK: alloc raw, exact, uninitialized, infallible, 160
     // CHECK-COUNT-2: calldatacopy
     function init(InitInput calldata input, address sink) external pure returns (uint256) {
         return input.decimals + uint160(sink);

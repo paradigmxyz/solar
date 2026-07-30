@@ -1,0 +1,14 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (before lower-abi) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after lower-abi) ===
+  @module LowerAbiDynamicReturn
+- fn @givesBytes(arg0: memorybytes) -> memorybytes [abi_returns=[memory_bytes]] {
++ @phase abi
++ fn @givesBytes() {
+    bb0:
+-     ret arg0
++     v0 = abi_encode [memory_bytes], args arg0
++     v1 = slice_ptr v0
++     v2 = slice_len v0
++     returndata v1, v2
+  }
+  

@@ -7,15 +7,18 @@ use crate::{
 };
 use async_lsp::{ClientSocket, ErrorCode, ResponseError, ServerSocket, router::Router};
 use lsp_types::{
-    CodeLensWorkspaceClientCapabilities, Diagnostic, DidChangeConfigurationParams,
-    DidChangeTextDocumentParams, DidChangeWatchedFilesParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentDiagnosticParams,
-    DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentSymbol, FileChangeType,
-    FileEvent, PartialResultParams, Position, ProgressParams, ProgressParamsValue,
-    PublishDiagnosticsParams, Range, SymbolKind, TextDocumentContentChangeEvent,
-    TextDocumentIdentifier, TextDocumentItem, VersionedTextDocumentIdentifier, WatchKind,
-    WorkDoneProgress, WorkDoneProgressCreateParams, WorkDoneProgressParams, WorkspaceSymbol,
-    notification, notification::Notification, request,
+    CodeLensWorkspaceClientCapabilities, Diagnostic, DiagnosticWorkspaceClientCapabilities,
+    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
+    DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    DidSaveTextDocumentParams, DocumentDiagnosticParams, DocumentDiagnosticReport,
+    DocumentDiagnosticReportResult, DocumentSymbol, FileChangeType, FileEvent,
+    InlayHintWorkspaceClientCapabilities, PartialResultParams, Position, ProgressParams,
+    ProgressParamsValue, PublishDiagnosticsParams, Range, SymbolKind,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
+    VersionedTextDocumentIdentifier, WatchKind, WorkDoneProgress, WorkDoneProgressCreateParams,
+    WorkDoneProgressParams, WorkspaceClientCapabilities, WorkspaceFolder,
+    WorkspaceFoldersChangeEvent, WorkspaceSymbol, notification, notification::Notification,
+    request,
 };
 use std::{
     future::Future,
@@ -32,12 +35,14 @@ mod code_lens;
 mod completion;
 mod document_highlight;
 mod document_link;
+mod file_operations;
 mod folding_range;
 mod goto_definition;
 mod hover;
 mod implementation;
 mod inlay_hint;
 mod references;
+mod refresh;
 mod rename;
 mod selection_range;
 mod signature_help;
@@ -493,6 +498,7 @@ fn assert_analysis_stale_before_diagnostic_publication(
 fn assert_source_notification_tracks_until_publish(
     project: &TestProject,
     path: &Path,
+    external_refresh_pending: bool,
     notify: impl FnOnce(&mut GlobalState),
 ) {
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -508,6 +514,10 @@ fn assert_source_notification_tracks_until_publish(
 
         notify(&mut state);
 
+        assert_eq!(
+            state.analysis_commit.lock().external_refresh.is_some(),
+            external_refresh_pending
+        );
         assert!(state.analysis_commit.lock().natspec_pending_source_changes.contains(path));
         let changed_uri = Url::from_file_path(path).unwrap();
         let other_uri = Url::from_file_path(project.path("/OtherRequest.sol")).unwrap();
@@ -524,20 +534,55 @@ fn assert_source_notification_tracks_until_publish(
     });
 }
 
+fn assert_external_context_notification_until_publish(
+    project: &TestProject,
+    notify: impl FnOnce(&mut GlobalState),
+) {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .max_blocking_threads(1)
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(project.config());
+        state.vfs = Arc::new(RwLock::new(project.vfs()));
+        let (release_worker, worker) = pause_blocking_pool();
+
+        notify(&mut state);
+
+        assert!(state.analysis_commit.lock().external_refresh.is_some());
+        release_worker.send(()).unwrap();
+        worker.await.unwrap();
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+            .await
+            .expect("external analysis should finish")
+            .unwrap();
+        assert!(state.analysis_commit.lock().external_refresh.is_none());
+    });
+}
+
 #[test]
 fn replacement_analysis_invalidates_old_worker_before_removed_diagnostics_publish() {
     let uri = diagnostic_uri();
+    let path = uri.to_file_path().unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    let (stale_version, _stale_progress) =
-        state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    let (stale_version, _stale_progress) = state
+        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
+        .unwrap();
     state.snapshot().publish_diagnostics(
         DiagnosticOwner::Compiler,
-        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("removed")])]),
+        DiagnosticMap::from_iter([(uri, vec![diagnostic("removed")])]),
     );
 
     assert_analysis_stale_before_diagnostic_publication(state, stale_version, move |state| {
         state
-            .begin_analysis(AnalysisMode::Recompute, vec![uri], Vec::new())
+            .begin_analysis(
+                AnalysisMode::Recompute,
+                vec![path],
+                Vec::new(),
+                AnalysisTrigger::Document,
+            )
             .expect("replacement analysis should start");
     });
 }
@@ -599,10 +644,14 @@ async fn clearing_analysis_cache_publishes_an_empty_current_snapshot() {
 
     let probe_owner =
         DiagnosticOwner::Flycheck { id: "probe".into(), workspace: project.root().into() };
-    let batches = state.diagnostics.write().replace_and_publish_batches(
-        probe_owner,
-        DiagnosticMap::from_iter([(uri, vec![diagnostic("probe")])]),
-    );
+    let batches = state
+        .diagnostics
+        .write()
+        .replace_and_publish_batches(
+            probe_owner,
+            DiagnosticMap::from_iter([(uri, vec![diagnostic("probe")])]),
+        )
+        .batches;
     assert_eq!(batches.len(), 1);
     let mut messages =
         batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>();
@@ -710,8 +759,9 @@ async fn clearing_analysis_cache_publishes_before_ending_progress() {
         event => panic!("expected seeded diagnostics, got {event:?}"),
     }
 
-    let (_, progress) =
-        state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    let (_, progress) = state
+        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
+        .unwrap();
     progress.begin();
     progress.report("Analyzing workspace");
     let WorkDoneEvent::Create(create) = harness.next_event().await else {
@@ -773,8 +823,9 @@ async fn clearing_analysis_cache_suppresses_progress_pending_creation() {
     );
     assert!(matches!(harness.next_event().await, WorkDoneEvent::Diagnostics(_)));
 
-    let (_, progress) =
-        state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    let (_, progress) = state
+        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
+        .unwrap();
     progress.begin();
     let WorkDoneEvent::Create(_) = harness.next_event().await else {
         panic!("expected progress creation")
@@ -813,8 +864,9 @@ async fn superseded_analysis_cannot_publish_or_end_latest_progress() {
     state.analysis_progress =
         ProgressCoordinator::with_timing(client, true, Duration::ZERO, Duration::from_secs(1));
 
-    let (stale_version, stale_progress) =
-        state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    let (stale_version, stale_progress) = state
+        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
+        .unwrap();
     let mut stale_snapshot = state.snapshot();
     stale_progress.begin();
     let WorkDoneEvent::Create(create) = harness.next_event().await else {
@@ -830,8 +882,9 @@ async fn superseded_analysis_cannot_publish_or_end_latest_progress() {
         }) if actual == token
     ));
 
-    let (latest_version, latest_progress) =
-        state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    let (latest_version, latest_progress) = state
+        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
+        .unwrap();
     let mut latest_snapshot = state.snapshot();
     match harness.next_event().await {
         WorkDoneEvent::Progress(ProgressParams {
@@ -916,10 +969,14 @@ fn clearing_analysis_cache_rejects_older_analysis_results() {
     assert!(state.symbol_tables.read().workspace_symbols("").is_empty());
     let probe_owner =
         DiagnosticOwner::Flycheck { id: "probe".into(), workspace: project.root().into() };
-    let batches = state.diagnostics.write().replace_and_publish_batches(
-        probe_owner,
-        DiagnosticMap::from_iter([(uri, vec![diagnostic("probe")])]),
-    );
+    let batches = state
+        .diagnostics
+        .write()
+        .replace_and_publish_batches(
+            probe_owner,
+            DiagnosticMap::from_iter([(uri, vec![diagnostic("probe")])]),
+        )
+        .batches;
     assert_eq!(
         batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>(),
         ["probe"]
@@ -944,8 +1001,9 @@ async fn failed_current_analysis_ends_visible_progress() {
     let mut state = GlobalState::new(client.clone());
     state.analysis_progress =
         ProgressCoordinator::with_timing(client, true, Duration::ZERO, Duration::from_secs(1));
-    let (version, progress) =
-        state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    let (version, progress) = state
+        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
+        .unwrap();
     progress.begin();
 
     let WorkDoneEvent::Create(create) = harness.next_event().await else {
@@ -1002,8 +1060,9 @@ async fn failed_current_analysis_recovers_after_save() {
         DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("old compiler")])]),
     );
 
-    let (version, progress) =
-        state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    let (version, progress) = state
+        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
+        .unwrap();
     let task = tokio::spawn(async { panic!("test analysis failure") });
     state.monitor_analysis_task(version, task, progress);
 
@@ -1017,10 +1076,14 @@ async fn failed_current_analysis_recovers_after_save() {
 
     let probe_owner =
         DiagnosticOwner::Flycheck { id: "probe".into(), workspace: project.root().into() };
-    let batches = state.diagnostics.write().replace_and_publish_batches(
-        probe_owner,
-        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("probe")])]),
-    );
+    let batches = state
+        .diagnostics
+        .write()
+        .replace_and_publish_batches(
+            probe_owner,
+            DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("probe")])]),
+        )
+        .batches;
     let mut messages =
         batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>();
     messages.sort_unstable();
@@ -1060,8 +1123,9 @@ async fn cancelled_current_analysis_recovers_after_save() {
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(project.config());
 
-    let (version, progress) =
-        state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    let (version, progress) = state
+        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
+        .unwrap();
     let task = tokio::spawn(std::future::pending::<AnalysisTaskOutcome>());
     task.abort();
     state.monitor_analysis_task(version, task, progress);
@@ -1124,6 +1188,7 @@ async fn reindex_rediscovers_disk_files_without_preclearing_the_old_index() {
 
         state.reindex();
 
+        assert!(state.analysis_commit.lock().external_refresh.is_some());
         assert!(current_tables.workspace_symbols("Old").iter().any(|symbol| symbol.name == "Old"));
         assert!(current_tables.workspace_symbols("New").is_empty());
     }
@@ -1288,7 +1353,7 @@ fn did_open_tracks_the_source_until_analysis_publishes() {
     let uri = Url::from_file_path(&path).unwrap();
     let contents = project.read_file("/Request.sol");
 
-    assert_source_notification_tracks_until_publish(&project, &path, |state| {
+    assert_source_notification_tracks_until_publish(&project, &path, false, |state| {
         let result = crate::handlers::did_open_text_document(
             state,
             DidOpenTextDocumentParams {
@@ -1310,7 +1375,7 @@ fn did_close_tracks_the_source_until_analysis_publishes() {
     let path = project.path("/Request.sol");
     let uri = Url::from_file_path(&path).unwrap();
 
-    assert_source_notification_tracks_until_publish(&project, &path, |state| {
+    assert_source_notification_tracks_until_publish(&project, &path, false, |state| {
         let result = crate::handlers::did_close_text_document(
             state,
             DidCloseTextDocumentParams { text_document: TextDocumentIdentifier::new(uri) },
@@ -1330,11 +1395,60 @@ fn watched_solidity_change_tracks_the_source_until_analysis_publishes() {
     let path = project.path("/Request.sol");
     let uri = Url::from_file_path(&path).unwrap();
 
-    assert_source_notification_tracks_until_publish(&project, &path, |state| {
+    assert_source_notification_tracks_until_publish(&project, &path, true, |state| {
         let result = crate::handlers::did_change_watched_files(
             state,
             DidChangeWatchedFilesParams {
                 changes: vec![FileEvent { uri, typ: FileChangeType::CHANGED }],
+            },
+        );
+        assert!(matches!(result, ControlFlow::Continue(())));
+    });
+}
+
+#[test]
+fn watched_manifest_change_tracks_external_refresh_until_analysis_publishes() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Request.sol
+        contract Request {}
+        "#,
+    );
+    let uri = Url::from_file_path(project.path("/foundry.toml")).unwrap();
+
+    assert_external_context_notification_until_publish(&project, |state| {
+        let result = crate::handlers::did_change_watched_files(
+            state,
+            DidChangeWatchedFilesParams {
+                changes: vec![FileEvent { uri, typ: FileChangeType::CHANGED }],
+            },
+        );
+        assert!(matches!(result, ControlFlow::Continue(())));
+    });
+}
+
+#[test]
+fn workspace_folder_change_tracks_external_refresh_until_analysis_publishes() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Request.sol
+        contract Request {}
+        "#,
+    );
+    let added_path = project.path("/added");
+    std::fs::create_dir(&added_path).unwrap();
+    let added =
+        WorkspaceFolder { uri: Url::from_file_path(added_path).unwrap(), name: "added".into() };
+
+    assert_external_context_notification_until_publish(&project, |state| {
+        let result = crate::handlers::did_change_workspace_folders(
+            state,
+            DidChangeWorkspaceFoldersParams {
+                event: WorkspaceFoldersChangeEvent { added: vec![added], removed: Vec::new() },
             },
         );
         assert!(matches!(result, ControlFlow::Continue(())));
@@ -1412,6 +1526,7 @@ fn did_change_tracks_the_request_source_until_analysis_publishes() {
         );
 
         assert!(matches!(result, ControlFlow::Continue(())));
+        assert!(state.analysis_commit.lock().external_refresh.is_none());
         assert!(
             state.analysis_commit.lock().natspec_pending_source_changes.contains(&request_path)
         );
@@ -1451,6 +1566,7 @@ fn configuration_change_invalidates_natspec_context_until_analysis_publishes() {
         );
 
         assert!(matches!(result, ControlFlow::Continue(())));
+        assert!(state.analysis_commit.lock().external_refresh.is_some());
         assert!(!state.natspec_semantics_are_usable(&request_uri));
 
         release_worker.send(()).unwrap();
@@ -1685,7 +1801,7 @@ fn clearing_removed_flychecks_stales_removed_owner_results() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn recomputing_for_removed_files_stales_matching_flycheck_owner_only() {
+async fn recomputing_for_removed_files_stales_all_flycheck_owners() {
     let project = TestProject::from_fixture(
         r#"
         //- /first/foundry.toml
@@ -1715,30 +1831,40 @@ async fn recomputing_for_removed_files_stales_matching_flycheck_owner_only() {
     assert!(snapshot.is_current_flycheck(&second_owner, 0));
 
     let deleted_path = project.path("/first/src/Deleted.sol");
+    let uri = Url::from_file_path(&deleted_path).unwrap();
+    snapshot.publish_flycheck_diagnostics(
+        second_owner.clone(),
+        0,
+        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("existing")])]),
+    );
+    assert!(matches!(
+        state.diagnostics.read().pull_report(&uri, None),
+        PullReport::Full { diagnostics, .. } if diagnostics == vec![diagnostic("existing")]
+    ));
+
     state.recompute_for_file_changes(vec![deleted_path.clone()], vec![deleted_path.clone()], false);
 
     assert!(!snapshot.is_current_flycheck(&first_owner, 0));
-    assert!(snapshot.is_current_flycheck(&second_owner, 0));
+    assert!(!snapshot.is_current_flycheck(&second_owner, 0));
+    assert!(matches!(
+        state.diagnostics.read().pull_report(&uri, None),
+        PullReport::Full { diagnostics, .. } if diagnostics.is_empty()
+    ));
 
-    let uri = Url::from_file_path(deleted_path).unwrap();
     snapshot.publish_flycheck_diagnostics(
-        first_owner,
+        first_owner.clone(),
         0,
         DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("stale")])]),
     );
     snapshot.publish_flycheck_diagnostics(
-        second_owner.clone(),
-        0,
-        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("current")])]),
-    );
-    let batches = state.diagnostics.write().replace_and_publish_batches(
         second_owner,
-        DiagnosticMap::from_iter([(uri, vec![diagnostic("current")])]),
+        0,
+        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("stale cross-workspace")])]),
     );
-    assert_eq!(
-        batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>(),
-        ["current"]
-    );
+    assert!(matches!(
+        state.diagnostics.read().pull_report(&uri, None),
+        PullReport::Full { diagnostics, .. } if diagnostics.is_empty()
+    ));
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
         .await
         .expect("file-change analysis should finish")

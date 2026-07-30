@@ -7,5 +7,4 @@ contract C {
     uint[] memory b1 = []; //~ ERROR: invalid data location
     S memory c1 = S(0);    //~ ERROR: invalid data location
     S[] memory d1 = [];    //~ ERROR: invalid data location
-    //~^ ERROR: cannot infer nameable array element type
 }
