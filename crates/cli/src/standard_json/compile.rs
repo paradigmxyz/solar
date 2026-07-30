@@ -2,13 +2,13 @@
 
 use super::data::{
     BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, EvmOutput, FxIndexMap,
-    OffsetLength, Optimizer, OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings,
+    OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings,
     SourceOutput, StandardJsonReadCallback, print_standard_json_stats, strip_json_comments,
 };
 use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection};
 use solar_config::{
-    CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, OptimizationMode,
+    CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
 };
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{
@@ -122,7 +122,7 @@ fn compile(
     // fields we don't act on yet are bound with a leading underscore and a note.
     // Adding a field to `Settings` then forces a decision here instead of it
     // being silently ignored.
-    let Settings { remappings, output_selection, stop_after, evm_version, optimizer } = settings;
+    let Settings { remappings, output_selection, stop_after, evm_version, libraries } = settings;
 
     let mut parsed_remappings = Vec::with_capacity(remappings.len());
     for remapping in &remappings {
@@ -152,14 +152,14 @@ fn compile(
     };
     opts.stop_after = stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
 
-    // Map the solc optimizer toggle onto our MIR optimization objective. We only
-    // override when the input explicitly disables the optimizer, leaving the
-    // CLI-driven default otherwise. `runs` and `details` have no analogue in the
-    // MIR optimizer yet, so they're parsed but unused.
-    if let Some(Optimizer { enabled: false, runs: _runs }) = optimizer {
-        opts.optimization = OptimizationMode::None;
+    opts.libraries = Vec::with_capacity(libraries.len());
+    for (source, libraries) in libraries.0 {
+        opts.libraries.extend(libraries.into_iter().map(|(name, address)| LibraryAddress {
+            source: (!source.is_empty()).then(|| source.to_string()),
+            name: name.into(),
+            address: address.into_array(),
+        }));
     }
-
     opts.input = sources.keys().map(ToString::to_string).collect();
 
     let sess = solar_interface::Session::builder()
@@ -323,7 +323,7 @@ fn make_contract_output(
     contract_id: solar_sema::hir::ContractId,
     output_selection: OutputSelectionFlags,
     bytecodes: Option<&FxHashMap<ContractId, ContractArtifact>>,
-) -> ContractOutput {
+) -> ContractOutput<'static> {
     let mut output = ContractOutput::default();
 
     if output_selection.contains(OutputSelectionFlags::ABI) {

@@ -359,7 +359,9 @@ impl fmt::Debug for ImportRemapping {
 /// A single library address for linking: `[path.sol:]Name=0xADDRESS`.
 #[derive(Clone, PartialEq, Eq)]
 pub struct LibraryAddress {
-    /// The library name, with any `path.sol:` prefix stripped.
+    /// The source path, or `None` when the address applies to any source.
+    pub source: Option<String>,
+    /// The library name.
     pub name: String,
     /// The library's deployed address, as big-endian bytes.
     pub address: [u8; 20],
@@ -372,7 +374,12 @@ impl std::str::FromStr for LibraryAddress {
         let Some((name, addr)) = s.split_once('=') else {
             return Err("missing '='");
         };
-        let name = name.rsplit(':').next_back().unwrap_or(name).trim();
+        let name = name.trim();
+        let (source, name) = if let Some((source, name)) = name.rsplit_once(':') {
+            (Some(source.trim()), name.trim())
+        } else {
+            (None, name)
+        };
         if name.is_empty() {
             return Err("empty library name");
         }
@@ -396,12 +403,19 @@ impl std::str::FromStr for LibraryAddress {
             let pos = start + i;
             address[pos / 2] |= nibble << (4 * (1 - pos % 2));
         }
-        Ok(Self { name: name.into(), address })
+        Ok(Self {
+            source: source.filter(|source| !source.is_empty()).map(str::to_owned),
+            name: name.into(),
+            address,
+        })
     }
 }
 
 impl fmt::Display for LibraryAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(source) = &self.source {
+            write!(f, "{source}:")?;
+        }
         write!(f, "{}=0x", self.name)?;
         for b in self.address {
             write!(f, "{b:02x}")?;

@@ -1,6 +1,6 @@
 //! Standard JSON data structures, serialization, selection parsing, and statistics.
 
-use alloy_primitives::Bytes;
+use alloy_primitives::{Address, Bytes};
 use indexmap::IndexMap;
 use serde::{
     Deserialize, Serialize,
@@ -79,14 +79,14 @@ pub(super) struct Settings<'a> {
     pub(super) stop_after: Option<CowStr<'a>>,
     #[serde(borrow)]
     pub(super) evm_version: Option<CowStr<'a>>,
-    #[serde(default)]
-    pub(super) optimizer: Option<Optimizer>,
+    // Optimizer settings are not supported.
+    // #[serde(borrow, default)]
+    // optimizer: Option<CowValue<'a>>,
     // Metadata output is not supported yet.
     // #[serde(borrow, default)]
     // metadata: Option<CowValue<'a>>,
-    // Library addresses are ignored because linking is not supported.
-    // #[serde(borrow, default)]
-    // libraries: Option<CowValue<'a>>,
+    #[serde(borrow, default)]
+    pub(super) libraries: Libraries<'a>,
     // Debug output is not supported yet.
     // #[serde(borrow, default)]
     // debug: Option<CowValue<'a>>,
@@ -102,21 +102,16 @@ pub(super) struct Settings<'a> {
     // via_ssa_cfg: Option<bool>,
 }
 
-/// The solc Standard JSON `settings.optimizer` object.
+/// The solc Standard JSON `settings.libraries` object.
 #[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct Optimizer {
-    /// Whether the optimizer is enabled. Mapped onto
-    /// [`solar_config::OptimizationMode::None`] when disabled.
-    #[serde(default)]
-    pub(super) enabled: bool,
-    /// Number of optimizer runs. The MIR optimizer has no runs parameter yet, so it's still
-    /// ignored.
-    #[serde(default)]
-    pub(super) runs: Option<u64>,
-    // Fine-grained optimizer settings are not supported yet.
-    // #[serde(borrow, default)]
-    // details: Option<CowValue<'a>>,
+pub(super) struct Libraries<'a>(
+    #[serde(borrow)] pub(super) FxIndexMap<CowStr<'a>, FxIndexMap<CowStr<'a>, Address>>,
+);
+
+impl Libraries<'_> {
+    pub(super) fn len(&self) -> usize {
+        self.0.values().map(FxIndexMap::len).sum()
+    }
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -126,10 +121,10 @@ pub(super) struct CompilerOutput<'a> {
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     pub(super) sources: FxIndexMap<String, SourceOutput>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub(super) contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput>>,
+    pub(super) contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput<'a>>>,
     // `ethdebug` output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
-    // ethdebug: Option<CowValue<'static>>,
+    // ethdebug: Option<CowValue<'a>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -138,14 +133,14 @@ pub(super) struct SourceOutput {
     //
     // Not supported.
     // #[serde(skip_serializing_if = "Option::is_none")]
-    // ast: Option<CowValue<'static>>,
+    // ast: Option<CowValue<'a>>,
 }
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct ContractOutput {
+pub(super) struct ContractOutput<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) abi: Option<Vec<alloy_json_abi::AbiItem<'static>>>,
+    pub(super) abi: Option<Vec<alloy_json_abi::AbiItem<'a>>>,
     // Metadata output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // metadata: Option<String>,
@@ -162,15 +157,15 @@ pub(super) struct ContractOutput {
     //
     // Not supported.
     // #[serde(skip_serializing_if = "Option::is_none")]
-    // ir: Option<CowValue<'static>>,
+    // ir: Option<CowValue<'a>>,
     // #[serde(skip_serializing_if = "Option::is_none")]
-    // ir_ast: Option<CowValue<'static>>,
+    // ir_ast: Option<CowValue<'a>>,
     // #[serde(skip_serializing_if = "Option::is_none")]
-    // ir_optimized: Option<CowValue<'static>>,
+    // ir_optimized: Option<CowValue<'a>>,
     // #[serde(skip_serializing_if = "Option::is_none")]
-    // ir_optimized_ast: Option<CowValue<'static>>,
+    // ir_optimized_ast: Option<CowValue<'a>>,
     // #[serde(rename = "yulCFGJson", skip_serializing_if = "Option::is_none")]
-    // yul_cfg_json: Option<CowValue<'static>>,
+    // yul_cfg_json: Option<CowValue<'a>>,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -185,11 +180,11 @@ pub(super) struct EvmOutput {
     //
     // Not supported.
     // #[serde(skip_serializing_if = "Option::is_none")]
-    // assembly: Option<CowValue<'static>>,
+    // assembly: Option<CowValue<'a>>,
     // #[serde(skip_serializing_if = "Option::is_none")]
-    // legacy_assembly: Option<CowValue<'static>>,
+    // legacy_assembly: Option<CowValue<'a>>,
     // #[serde(skip_serializing_if = "Option::is_none")]
-    // gas_estimates: Option<CowValue<'static>>,
+    // gas_estimates: Option<CowValue<'a>>,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -202,10 +197,10 @@ pub(super) struct BytecodeOutput {
     pub(super) object: Option<Bytes>,
     // Ethdebug output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
-    // ethdebug: Option<CowValue<'static>>,
+    // ethdebug: Option<CowValue<'a>>,
     // Function debug data is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
-    // function_debug_data: Option<CowValue<'static>>,
+    // function_debug_data: Option<CowValue<'a>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) opcodes: Option<String>,
     // Source map output is not supported yet.
@@ -218,7 +213,7 @@ pub(super) struct BytecodeOutput {
     //
     // Not supported.
     // #[serde(skip_serializing_if = "Option::is_none")]
-    // generated_sources: Option<CowValue<'static>>,
+    // generated_sources: Option<CowValue<'a>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -692,6 +687,12 @@ fn count_input_cows(input: &CompilerInput<'_>, stats: &mut InputCowStats) {
     if let Some(evm_version) = &input.settings.evm_version {
         stats.add(evm_version);
     }
+    for (source, libraries) in &input.settings.libraries.0 {
+        stats.add(source);
+        for library in libraries.keys() {
+            stats.add(library);
+        }
+    }
     for (source, contracts) in &input.settings.output_selection.0 {
         stats.add(source);
         for contract in contracts.keys() {
@@ -700,7 +701,7 @@ fn count_input_cows(input: &CompilerInput<'_>, stats: &mut InputCowStats) {
     }
 }
 
-impl ContractOutput {
+impl ContractOutput<'_> {
     pub(super) fn is_empty(&self) -> bool {
         self.abi.is_none()
             && self.userdoc.is_none()

@@ -2372,7 +2372,15 @@ impl<'gcx> Lowerer<'gcx> {
             return None;
         }
         let name = contract.name.as_str();
-        let library = libraries.iter().find(|library| library.name == name)?;
+        let source = self.gcx.hir.source(contract.source).file.name.display().to_string();
+        let library = libraries
+            .iter()
+            .find(|library| {
+                library.name == name && library.source.as_deref() == Some(source.as_str())
+            })
+            .or_else(|| {
+                libraries.iter().find(|library| library.name == name && library.source.is_none())
+            })?;
         Some(U256::from_be_slice(&library.address))
     }
 
