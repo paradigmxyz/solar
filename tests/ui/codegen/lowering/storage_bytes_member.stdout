@@ -138,9 +138,6 @@ bb17:
   jumpi
   push 224
   mload
-  dup1
-  push 224
-  mstore
   push 128
   mstore
   push 224
@@ -470,9 +467,6 @@ bb20:
   mstore
   push 320
   mload
-  dup1
-  push 320
-  mstore
   dup2
   mstore
   push 32
@@ -514,9 +508,6 @@ bb20:
 bb29:
   push 288
   mload
-  dup1
-  push 288
-  mstore
   push 352
   mload
   mstore
@@ -782,9 +773,6 @@ bb33:
   mstore
   push 256
   mload
-  dup1
-  push 256
-  mstore
   dup2
   mstore
   push 32
@@ -827,9 +815,6 @@ bb33:
 bb40:
   push 320
   mload
-  dup1
-  push 320
-  mstore
   push 224
   mload
   mstore
@@ -1105,9 +1090,6 @@ bb43:
 bb59:
   push 128
   mload
-  dup1
-  push 128
-  mstore
   push 0
   mstore
   push 4
@@ -1234,15 +1216,9 @@ bb64:
   add
   push 192
   mload
-  dup1
-  push 192
-  mstore
   dup2
   push 224
   mload
-  dup1
-  push 224
-  mstore
   mcopy
   pop
   push 320
