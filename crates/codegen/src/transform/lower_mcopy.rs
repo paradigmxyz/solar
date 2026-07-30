@@ -1,7 +1,7 @@
 //! Lower `mcopy` for EVM versions that predate Cancun.
 
 use crate::{
-    mir::{BlockId, Function, FunctionBuilder, InstKind, Module},
+    mir::{BlockId, Function, FunctionBuilder, InstKind, Module, ValueId},
     pass::MirPass,
     transform::utils::redirect_successor_predecessors,
 };
@@ -97,6 +97,7 @@ fn lower_mcopy(func: &mut Function, block: BlockId, position: usize, inst: crate
     let forward_offset = builder.phi(vec![(block, zero)]);
     let forward_remaining = builder.sub(len, forward_offset);
     let word_size = builder.imm_u64(32);
+    let byte_mask = builder.imm_u64(31);
     let forward_short = builder.lt(forward_remaining, word_size);
     builder.branch(forward_short, forward_byte_cond, forward_word_body);
 
@@ -117,8 +118,7 @@ fn lower_mcopy(func: &mut Function, block: BlockId, position: usize, inst: crate
 
     builder.switch_to_block(forward_byte_body);
     let forward_src = builder.add(src, forward_byte_offset);
-    let word = builder.mload(forward_src);
-    let byte = builder.byte(zero, word);
+    let byte = load_byte(&mut builder, forward_src, byte_mask);
     let forward_dest = builder.add(dest, forward_byte_offset);
     builder.mstore8(forward_dest, byte);
     let one = builder.imm_u64(1);
@@ -151,11 +151,18 @@ fn lower_mcopy(func: &mut Function, block: BlockId, position: usize, inst: crate
     let one = builder.imm_u64(1);
     let next_backward_byte = builder.sub(backward_byte_remaining, one);
     let backward_src = builder.add(src, next_backward_byte);
-    let word = builder.mload(backward_src);
-    let byte = builder.byte(zero, word);
+    let byte = load_byte(&mut builder, backward_src, byte_mask);
     let backward_dest = builder.add(dest, next_backward_byte);
     builder.mstore8(backward_dest, byte);
     let backward_byte_latch = builder.current_block();
     builder.jump(backward_byte_cond);
     builder.add_phi_incoming(backward_byte_remaining, backward_byte_latch, next_backward_byte);
+}
+
+fn load_byte(builder: &mut FunctionBuilder<'_>, address: ValueId, byte_mask: ValueId) -> ValueId {
+    // Avoid expanding memory past the source byte's containing word.
+    let byte_index = builder.and(address, byte_mask);
+    let aligned_address = builder.sub(address, byte_index);
+    let word = builder.mload(aligned_address);
+    builder.byte(byte_index, word)
 }

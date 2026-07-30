@@ -7,6 +7,10 @@
 // CHECK: {{^[ +].*}}ret arg0
 // CHECK: + {{v[0-9]+}} = mload
 // CHECK: + mstore
+// CHECK: + {{v[0-9]+}} = and {{v[0-9]+}}, 31
+// CHECK-NEXT: + {{v[0-9]+}} = sub
+// CHECK-NEXT: + {{v[0-9]+}} = mload
+// CHECK-NEXT: + {{v[0-9]+}} = byte
 // CHECK: + mstore8
 fn @copy(arg0: memptr, arg1: memptr, arg2: u256) -> memptr {
   bb0:
