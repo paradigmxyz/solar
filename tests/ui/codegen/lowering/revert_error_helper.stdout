@@ -101,9 +101,15 @@ bb12:
   add
   push 128
   mload
+  dup1
+  push 128
+  mstore
   dup2
   push 160
   mload
+  dup1
+  push 160
+  mstore
   mcopy
   pop
   push 224
