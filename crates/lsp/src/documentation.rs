@@ -1,6 +1,6 @@
-//! Renders resolved NatSpec for LSP hover responses.
+//! Resolves and renders NatSpec documentation for LSP responses.
 
-use lsp_types::{MarkupContent, MarkupKind};
+use lsp_types::{Documentation as LspDocumentation, MarkupContent, MarkupKind};
 use solar_interface::Symbol;
 use solar_sema::{
     Gcx,
@@ -9,26 +9,57 @@ use solar_sema::{
 };
 use std::fmt::Write;
 
-pub(crate) fn render(gcx: Gcx<'_>, item_id: hir::ItemId) -> Option<MarkupContent> {
-    let mut value = format!("```solidity\n{}\n```", HirPrinter::display(gcx, item_id));
-    append_documentation(&mut value, &documentation(gcx, item_id));
-    Some(MarkupContent { kind: MarkupKind::Markdown, value })
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ResolvedDocumentation {
+    markdown: MarkupContent,
+    plain_text: String,
+}
+
+impl ResolvedDocumentation {
+    pub(crate) fn hover(&self) -> MarkupContent {
+        self.markdown.clone()
+    }
+
+    pub(crate) fn completion(&self, markdown: bool) -> LspDocumentation {
+        if markdown {
+            LspDocumentation::MarkupContent(self.markdown.clone())
+        } else {
+            LspDocumentation::String(self.plain_text.clone())
+        }
+    }
+
+    pub(crate) fn renders_identically(&self, other: &Self) -> bool {
+        self == other
+    }
+}
+
+pub(crate) fn resolve(gcx: Gcx<'_>, item_id: hir::ItemId) -> ResolvedDocumentation {
+    let signature = HirPrinter::display(gcx, item_id).to_string();
+    let documentation = documentation(gcx, item_id);
+    let mut markdown = format!("```solidity\n{signature}\n```");
+    append_markdown_documentation(&mut markdown, &documentation);
+    let mut plain_text = signature;
+    append_plain_documentation(&mut plain_text, &documentation);
+    ResolvedDocumentation {
+        markdown: MarkupContent { kind: MarkupKind::Markdown, value: markdown },
+        plain_text,
+    }
 }
 
 #[derive(Default)]
-struct Documentation {
+struct NatSpecDocumentation {
     notice: Vec<String>,
     dev: Vec<String>,
     params: Vec<(Symbol, String)>,
     returns: Vec<(Option<Symbol>, String)>,
 }
 
-fn documentation(gcx: Gcx<'_>, item_id: hir::ItemId) -> Documentation {
+fn documentation(gcx: Gcx<'_>, item_id: hir::ItemId) -> NatSpecDocumentation {
     match item_id {
         hir::ItemId::Contract(id) => {
             let contract = gcx.hir.contract(id);
             if contract.doc.is_empty() {
-                Documentation::default()
+                NatSpecDocumentation::default()
             } else {
                 item_documentation(gcx.natspec_view(item_id).items())
             }
@@ -55,7 +86,7 @@ fn documentation(gcx: Gcx<'_>, item_id: hir::ItemId) -> Documentation {
         hir::ItemId::Struct(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_) => {
             let doc = gcx.hir.item(item_id).doc();
             if doc.is_empty() {
-                Documentation::default()
+                NatSpecDocumentation::default()
             } else {
                 item_documentation(gcx.natspec_view(item_id).items())
             }
@@ -69,9 +100,9 @@ fn callable_documentation(
     doc_id: hir::DocId,
     parameters: &[hir::VariableId],
     returns: &[hir::VariableId],
-) -> Documentation {
+) -> NatSpecDocumentation {
     if doc_id.is_empty() {
-        return Documentation::default();
+        return NatSpecDocumentation::default();
     }
     let view = gcx.natspec_view(item_id);
     let mut documentation = item_documentation(view.items());
@@ -90,7 +121,7 @@ fn callable_documentation(
     documentation
 }
 
-fn variable_documentation(gcx: Gcx<'_>, id: hir::VariableId) -> Documentation {
+fn variable_documentation(gcx: Gcx<'_>, id: hir::VariableId) -> NatSpecDocumentation {
     let variable = gcx.hir.variable(id);
     match (variable.kind, variable.parent) {
         (hir::VarKind::FunctionParam, Some(hir::ItemId::Function(parent))) => {
@@ -115,9 +146,9 @@ fn variable_documentation(gcx: Gcx<'_>, id: hir::VariableId) -> Documentation {
             selected_parameter_documentation(gcx, id, hir::ItemId::Error(parent), error.parameters)
         }
         (hir::VarKind::FunctionTyParam | hir::VarKind::FunctionTyReturn, _) => {
-            Documentation::default()
+            NatSpecDocumentation::default()
         }
-        _ if variable.doc.is_empty() => Documentation::default(),
+        _ if variable.doc.is_empty() => NatSpecDocumentation::default(),
         _ => {
             let view = gcx.natspec_view(hir::ItemId::Variable(id));
             let items = view.items();
@@ -142,16 +173,16 @@ fn selected_parameter_documentation(
     id: hir::VariableId,
     item_id: hir::ItemId,
     parameters: &[hir::VariableId],
-) -> Documentation {
+) -> NatSpecDocumentation {
     let Some(index) = parameters.iter().position(|&parameter| parameter == id) else {
-        return Documentation::default();
+        return NatSpecDocumentation::default();
     };
     if gcx.hir.item(item_id).doc().is_empty() {
-        return Documentation::default();
+        return NatSpecDocumentation::default();
     }
     let view = gcx.natspec_view(item_id);
     let params = parameter_doc_at(gcx, id, index, view).into_iter().collect();
-    Documentation { params, ..Documentation::default() }
+    NatSpecDocumentation { params, ..NatSpecDocumentation::default() }
 }
 
 fn selected_return_documentation(
@@ -159,20 +190,20 @@ fn selected_return_documentation(
     id: hir::VariableId,
     item_id: hir::ItemId,
     returns: &[hir::VariableId],
-) -> Documentation {
+) -> NatSpecDocumentation {
     let Some(index) = returns.iter().position(|&return_id| return_id == id) else {
-        return Documentation::default();
+        return NatSpecDocumentation::default();
     };
     if gcx.hir.item(item_id).doc().is_empty() {
-        return Documentation::default();
+        return NatSpecDocumentation::default();
     }
     let view = gcx.natspec_view(item_id);
     let returns = return_doc_at(gcx, id, index, view).into_iter().collect();
-    Documentation { returns, ..Documentation::default() }
+    NatSpecDocumentation { returns, ..NatSpecDocumentation::default() }
 }
 
-fn item_documentation(items: &[hir::NatSpecItem]) -> Documentation {
-    let mut documentation = Documentation::default();
+fn item_documentation(items: &[hir::NatSpecItem]) -> NatSpecDocumentation {
+    let mut documentation = NatSpecDocumentation::default();
     for item in items {
         let Some(content) = item_content(item) else { continue };
         match item.kind {
@@ -238,7 +269,7 @@ fn join_docs<'a>(mut docs: impl Iterator<Item = &'a str>) -> Option<String> {
     Some(joined)
 }
 
-fn append_documentation(output: &mut String, documentation: &Documentation) {
+fn append_markdown_documentation(output: &mut String, documentation: &NatSpecDocumentation) {
     for notice in &documentation.notice {
         output.push_str("\n\n");
         output.push_str(notice);
@@ -265,6 +296,57 @@ fn append_documentation(output: &mut String, documentation: &Documentation) {
             .iter()
             .map(|(name, content)| (name.as_ref().map(|name| name.as_str()), content.as_str())),
     );
+}
+
+fn append_plain_documentation(output: &mut String, documentation: &NatSpecDocumentation) {
+    for notice in &documentation.notice {
+        output.push_str("\n\n");
+        output.push_str(notice);
+    }
+    if !documentation.dev.is_empty() {
+        output.push_str("\n\n@dev");
+        for dev in &documentation.dev {
+            output.push_str("\n\n");
+            output.push_str(dev);
+        }
+    }
+    append_plain_list(
+        output,
+        "@param",
+        documentation.params.iter().map(|(name, content)| (Some(name.as_str()), content.as_str())),
+    );
+    append_plain_list(
+        output,
+        "@return",
+        documentation
+            .returns
+            .iter()
+            .map(|(name, content)| (name.as_ref().map(|name| name.as_str()), content.as_str())),
+    );
+}
+
+fn append_plain_list<'a>(
+    output: &mut String,
+    heading: &str,
+    items: impl Iterator<Item = (Option<&'a str>, &'a str)>,
+) {
+    let mut items = items.peekable();
+    if items.peek().is_none() {
+        return;
+    }
+    write!(output, "\n\n{heading}").unwrap();
+    for (name, content) in items {
+        output.push_str("\n\n");
+        if let Some(name) = name {
+            write!(output, "{name}: ").unwrap();
+        }
+        let mut lines = content.lines();
+        output.push_str(lines.next().unwrap_or_default());
+        for line in lines {
+            output.push_str("\n  ");
+            output.push_str(line);
+        }
+    }
 }
 
 fn append_list<'a>(
