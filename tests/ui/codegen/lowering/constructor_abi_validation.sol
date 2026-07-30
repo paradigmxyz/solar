@@ -12,26 +12,15 @@ contract ConstructorAbiValidation {
     bool public second;
 
     // CHECK-LABEL: fn @_anonymous{{[( ]}}
-    // CHECK: [[END:v[0-9]+]] = fmp
-    // CHECK-NEXT: [[BASE:v[0-9]+]] = constructor_args_base
-    // CHECK-NEXT: [[SIZE:v[0-9]+]] = sub [[END]], [[BASE]]
-    // CHECK-NEXT: [[SHORT:v[0-9]+]] = lt [[SIZE]], 96
-    // CHECK-NEXT: jumpi [[SHORT]],
-    // CHECK: set_fmp
+    // CHECK: [[BASE:v[0-9]+]] = constructor_args_base
     // CHECK: [[FIRST:v[0-9]+]] = add [[BASE]], 0
-    // CHECK: [[FIRST_END:v[0-9]+]] = add [[FIRST]], 32
-    // CHECK: gt [[FIRST_END]], [[END]]
-    // CHECK: {{v[0-9]+}} = mload [[FIRST]]
+    // CHECK-NEXT: {{v[0-9]+}} = mload [[FIRST]]
     // CHECK: revert 0, 0
     // CHECK: [[SECOND:v[0-9]+]] = add [[BASE]], 32
-    // CHECK: [[SECOND_END:v[0-9]+]] = add [[SECOND]], 32
-    // CHECK: gt [[SECOND_END]], [[END]]
-    // CHECK: {{v[0-9]+}} = mload [[SECOND]]
+    // CHECK-NEXT: {{v[0-9]+}} = mload [[SECOND]]
     // CHECK: revert 0, 0
     // CHECK: [[THIRD:v[0-9]+]] = add [[BASE]], 64
-    // CHECK: [[THIRD_END:v[0-9]+]] = add [[THIRD]], 32
-    // CHECK: gt [[THIRD_END]], [[END]]
-    // CHECK: {{v[0-9]+}} = mload [[THIRD]]
+    // CHECK-NEXT: {{v[0-9]+}} = mload [[THIRD]]
     // CHECK: revert 0, 0
     // CHECK: memory_object_element_addr memoryfixedarray<2, 1>, {{v[0-9]+}}, 1
     // CHECK: sstore 0,

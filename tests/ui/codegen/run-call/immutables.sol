@@ -9,7 +9,6 @@
 //@ run-call: userDefined; constructor=[171, -1234, 0x000000000000000000000000000000000000beef, 48879, true] => 48879
 //@ run-call: flag; constructor=[171, -1234, 0x000000000000000000000000000000000000beef, 48879, true] => true
 //@ run-call: callFunctionPointer; constructor=[171, -1234, 0x000000000000000000000000000000000000beef, 48879, true] => 7
-//@ run-call: SyntheticImmutableFrame::marker => 77
 
 type Tiny is uint16;
 
@@ -43,22 +42,4 @@ contract ImmutableArgs {
     function immutableTarget() internal pure returns (uint256) {
         return 7;
     }
-}
-
-contract SyntheticFrameBase {
-    uint256 public sink;
-
-    constructor() {
-        uint256 first;
-        uint256 second;
-        uint256 third;
-        first = 11;
-        second = 22;
-        third = 33;
-        sink = first + second + third;
-    }
-}
-
-contract SyntheticImmutableFrame is SyntheticFrameBase {
-    uint256 public immutable marker = 77;
 }

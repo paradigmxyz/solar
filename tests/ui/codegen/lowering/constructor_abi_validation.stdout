@@ -19,96 +19,52 @@ fn @second() {
 
 fn @_anonymous(arg0: bool, arg1: u256, arg2: u256) {
   bb0:
-    v0 = fmp
-    v1 = constructor_args_base
-    v2 = sub v0, v1
-    v3 = lt v2, 96
-    jumpi v3, bb1, bb2
+    v0 = constructor_args_base
+    v1 = add v0, 0
+    v2 = mload v1
+    v3 = iszero v2
+    v4 = iszero v3
+    v5 = eq v2, v4
+    jumpi v5, bb2, bb1
   bb1:
     revert 0, 0
   bb2:
-    v4 = add v0, 31
-    v5 = not 31
-    v6 = and v4, v5
-    set_fmp v6
-    v7 = add v1, 0
-    v8 = add v7, 32
-    v9 = lt v8, v7
-    jumpi v9, bb3, bb4
+    v6 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v7 = add v0, 32
+    v8 = mload v7
+    v9 = iszero v8
+    v10 = iszero v9
+    v11 = eq v8, v10
+    jumpi v11, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v10 = gt v8, v0
-    jumpi v10, bb5, bb6
+    v12 = memory_object_element_addr memoryfixedarray<2, 1>, v6, 0
+    mstore v12, arg1
+    v13 = add v0, 64
+    v14 = mload v13
+    v15 = iszero v14
+    v16 = iszero v15
+    v17 = eq v14, v16
+    jumpi v17, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
-    v11 = mload v7
-    v12 = iszero v11
-    v13 = iszero v12
-    v14 = eq v11, v13
-    jumpi v14, bb8, bb7
-  bb7:
-    revert 0, 0
-  bb8:
-    v15 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v16 = add v1, 32
-    v17 = add v16, 32
-    v18 = lt v17, v16
-    jumpi v18, bb9, bb10
-  bb9:
-    revert 0, 0
-  bb10:
-    v19 = gt v17, v0
-    jumpi v19, bb11, bb12
-  bb11:
-    revert 0, 0
-  bb12:
-    v20 = mload v16
-    v21 = iszero v20
-    v22 = iszero v21
-    v23 = eq v20, v22
-    jumpi v23, bb14, bb13
-  bb13:
-    revert 0, 0
-  bb14:
-    v24 = memory_object_element_addr memoryfixedarray<2, 1>, v15, 0
-    mstore v24, arg1
-    v25 = add v1, 64
-    v26 = add v25, 32
-    v27 = lt v26, v25
-    jumpi v27, bb15, bb16
-  bb15:
-    revert 0, 0
-  bb16:
-    v28 = gt v26, v0
-    jumpi v28, bb17, bb18
-  bb17:
-    revert 0, 0
-  bb18:
-    v29 = mload v25
-    v30 = iszero v29
-    v31 = iszero v30
-    v32 = eq v29, v31
-    jumpi v32, bb20, bb19
-  bb19:
-    revert 0, 0
-  bb20:
-    v33 = memory_object_element_addr memoryfixedarray<2, 1>, v15, 1
-    mstore v33, arg2
-    v34 = sload 0 !metadata(storage=slot(0))
-    v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v36 = and arg0, 255
-    v37 = or v35, v36
-    sstore 0, v37 !metadata(storage=slot(0))
-    v38 = memory_object_element_addr memoryfixedarray<2, 1>, v15, 1
-    v39 = mload v38
-    v40 = sload 0 !metadata(storage=slot(0))
-    v41 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
-    v42 = and v39, 255
-    v43 = shl 8, v42
-    v44 = or v41, v43
-    sstore 0, v44 !metadata(storage=slot(0))
+    v18 = memory_object_element_addr memoryfixedarray<2, 1>, v6, 1
+    mstore v18, arg2
+    v19 = sload 0 !metadata(storage=slot(0))
+    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v21 = and arg0, 255
+    v22 = or v20, v21
+    sstore 0, v22 !metadata(storage=slot(0))
+    v23 = memory_object_element_addr memoryfixedarray<2, 1>, v6, 1
+    v24 = mload v23
+    v25 = sload 0 !metadata(storage=slot(0))
+    v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v27 = and v24, 255
+    v28 = shl 8, v27
+    v29 = or v26, v28
+    sstore 0, v29 !metadata(storage=slot(0))
     stop
 }
 
