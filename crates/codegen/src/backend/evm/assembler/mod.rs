@@ -660,13 +660,23 @@ impl<'gcx> Assembler<'gcx> {
                 }
                 AsmInstKind::PushPackedLabels(labels) => {
                     let labels = &program.packed_labels[labels];
+                    let base_offset = labels.base.map_or(0, |base| {
+                        label_offsets
+                            .get(&base)
+                            .copied()
+                            .unwrap_or_else(|| panic!("label {base:?} was never defined"))
+                    });
                     let mut value = U256::ZERO;
                     for (index, &label) in labels.labels.iter().enumerate() {
                         let target_offset = label_offsets
                             .get(&label)
                             .copied()
                             .unwrap_or_else(|| panic!("label {label:?} was never defined"));
-                        let target = U256::from(target_offset);
+                        let target = U256::from(
+                            target_offset
+                                .checked_sub(base_offset)
+                                .expect("packed label must not precede its base"),
+                        );
                         assert!(
                             target.byte_len() <= usize::from(labels.label_width),
                             "label offset does not fit packed labels entry"

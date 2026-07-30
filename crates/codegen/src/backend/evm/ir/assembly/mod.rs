@@ -19,6 +19,7 @@ pub(in crate::backend::evm) use lower::lower_evm_ir;
 #[derive(Clone, Debug)]
 pub(in crate::backend::evm) struct PackedLabels {
     pub(in crate::backend::evm) labels: Box<[Label]>,
+    pub(in crate::backend::evm) base: Option<Label>,
     pub(in crate::backend::evm) label_width: u8,
 }
 
@@ -45,6 +46,7 @@ impl Program {
     pub(in crate::backend::evm) fn push_packed_labels(
         &mut self,
         labels: Box<[Label]>,
+        base: Option<Label>,
         label_width: u8,
     ) {
         assert!(!labels.is_empty(), "packed labels must not be empty");
@@ -52,7 +54,7 @@ impl Program {
             labels.len() * usize::from(label_width) <= 32,
             "packed labels must fit one EVM word"
         );
-        let labels = self.packed_labels.push(PackedLabels { labels, label_width });
+        let labels = self.packed_labels.push(PackedLabels { labels, base, label_width });
         self.push(AsmInst::push_packed_labels(labels));
     }
 
