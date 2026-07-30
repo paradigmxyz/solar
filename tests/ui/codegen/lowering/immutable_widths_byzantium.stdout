@@ -1,0 +1,140 @@
+// === ROOT/tests/ui/codegen/lowering/immutable_widths_byzantium.sol:ImmutableWidthsByzantium (creation) ===
+// === deployment ===
+@module deployment
+bb0:
+  push 356
+  codesize
+  sub
+  dup1
+  push 356
+  push 352
+  codecopy
+  push 352
+  add
+  push 31
+  add
+  push 31
+  not
+  and
+  push 64
+  mstore
+  push 352
+  dup1
+  push 288
+  mstore
+  mload
+  push 255
+  dup2
+  and
+  sub
+  push bb4
+  jumpi
+  push 32
+  push 288
+  mload
+  add
+  mload
+  dup1
+  push 320
+  mstore
+  push 1
+  signextend
+  push 320
+  mload
+  sub
+  push bb4
+  jumpi
+  push 64
+  push 288
+  mload
+  add
+  mload
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  not
+  dup2
+  and
+  sub
+  push bb4
+  jumpi
+  push 352
+  mload
+  push 192
+  mstore
+  push 352
+  push 32
+  add
+  mload
+  push 224
+  mstore
+  push 352
+  push 64
+  add
+  mload
+  push 256
+  mstore
+  push 180
+  dup1
+  push 176
+  push 0
+  codecopy
+  push 192
+  mload
+  push 60
+  mstore
+  push 224
+  mload
+  push 93
+  mstore
+  push 256
+  mload
+  push 126
+  mstore
+  push 0
+  return
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+
+// === runtime ===
+@module runtime
+bb0:
+  push 224
+  push 64
+  mstore
+  callvalue
+  push bb4
+  jumpi
+  calldatasize
+  iszero
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 0x100000000000000000000000000000000000000000000000000000000
+  swap1
+  div
+  dup1
+  push 0x57de26a4
+  sub
+  push bb4
+  jumpi
+  push_immutable 0, 32
+  push_immutable 1, 32
+  push_immutable 2, 32
+  dup3
+  push 128
+  mstore
+  swap2
+  pop
+  push 160
+  mstore
+  push 192
+  mstore
+  push 96
+  push 128
+  return
+bb4 [cold]:
+  push 0
+  dup1
+  revert

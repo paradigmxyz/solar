@@ -1,3 +1,5 @@
+//@ revisions: default byzantium
+//@[byzantium] compile-flags: --evm-version byzantium
 //@ run-call: tiny; constructor=[171, -1234, 0x000000000000000000000000000000000000beef, 48879, true] => 171
 //@ run-call: reassigned; constructor=[171, -1234, 0x000000000000000000000000000000000000beef, 48879, true] => 172
 //@ run-call: observedBeforeReassignment; constructor=[171, -1234, 0x000000000000000000000000000000000000beef, 48879, true] => 171

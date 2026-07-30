@@ -25,7 +25,7 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         ArgIdx, BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind,
-        MirPhase, Module, Terminator, ValueId,
+        MirPhase, Module, Terminator, TypeSize, ValueId,
     },
     pass::run_pipeline,
 };
@@ -967,7 +967,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .immutable_type(r.id)
                 .immutable_encoding()
                 .expect("validated immutable declaration");
-            debug_assert_eq!(encoding.type_size(), r.type_size);
+            debug_assert!(
+                encoding.type_size() == r.type_size
+                    || (!self.gcx.sess.opts.evm_version.has_bitwise_shifting()
+                        && r.type_size == TypeSize::new_int_bits(256))
+            );
             self.emit_immutable_patch(copy_base, *r, encoding);
         }
 
@@ -1026,7 +1030,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let encoding = self.immutable_encodings[id];
-        let type_size = encoding.type_size();
+        let mut type_size = encoding.type_size();
+        if !self.gcx.sess.opts.evm_version.has_bitwise_shifting() && type_size.bytes() < 32 {
+            type_size = TypeSize::new_int_bits(256);
+        }
         let byte_width = type_size.bytes();
         self.asm.emit_push_immutable(id, type_size);
         if byte_width == 32 {
