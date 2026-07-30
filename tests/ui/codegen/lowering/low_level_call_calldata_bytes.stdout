@@ -79,7 +79,7 @@ bb6:
   lt
   push bb20
   jumpi
-  push bb25
+  push bb23
   jump bb22
 bb22:
   push 31
@@ -147,9 +147,26 @@ bb13:
   lt
   push bb20
   jumpi
-  push bb27
+  push bb24
   jump bb22
-bb24:
+bb23:
+  push bb20
+  jumpi
+  push 64
+  mload
+  dup1
+  push 256
+  mstore
+  push 224
+  mload
+  dup2
+  add
+  push 64
+  mstore
+  push 192
+  mload
+  dup2
+  mstore
   push 32
   dup2
   add
@@ -168,9 +185,6 @@ bb24:
   add
   push 192
   mload
-  dup1
-  push 192
-  mstore
   dup2
   dup4
   calldatacopy
@@ -207,12 +221,9 @@ bb21:
   push 32
   push 128
   return
-bb25:
+bb24:
   push bb20
   jumpi
-  push bb24
-  jump bb23
-bb23:
   push 64
   mload
   dup1
@@ -226,14 +237,8 @@ bb23:
   mstore
   push 192
   mload
-  dup1
-  push 192
-  mstore
   dup2
   mstore
-  swap1
-  jump
-bb26:
   push 32
   dup2
   add
@@ -252,9 +257,6 @@ bb26:
   add
   push 192
   mload
-  dup1
-  push 192
-  mstore
   dup2
   dup4
   calldatacopy
@@ -280,8 +282,3 @@ bb26:
   dup6
   delegatecall
   jump bb21
-bb27:
-  push bb20
-  jumpi
-  push bb26
-  jump bb23

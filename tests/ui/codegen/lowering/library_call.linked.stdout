@@ -87,9 +87,6 @@ bb5:
   jumpi
   push 160
   mload
-  dup1
-  push 160
-  mstore
   push 192
   mload
   sstore
@@ -109,9 +106,6 @@ bb5:
   jumpi
   push 160
   mload
-  dup1
-  push 160
-  mstore
   push 128
   mstore
   push 32
