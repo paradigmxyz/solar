@@ -246,7 +246,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     ty
                 } else if let Some(op) = op {
                     let rhs_ty = self.check_expr(rhs);
-                    let result = self.check_binop(lhs, ty, rhs, rhs_ty, op, true);
+                    let result = self.check_binop(None, lhs, ty, rhs, rhs_ty, op, true);
                     debug_assert!(
                         result.references_error() || result == ty,
                         "compound assignment should not consider custom operators: {result:?} != {ty:?}"
@@ -273,7 +273,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     return lit_ty;
                 }
 
-                self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
+                self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false)
             }
             hir::ExprKind::Call(callee, ref args, opts) => {
                 let mut callee_ty = if let hir::ExprKind::Member(receiver, ident) = callee.kind {
@@ -713,7 +713,10 @@ impl<'gcx> TypeChecker<'gcx> {
                         return self.gcx.mk_ty(TyKind::IntLiteral(!neg, size, fixed_bytes_size));
                     }
                     ty
-                } else if let Some(ty) = self.check_user_unop(expr.span, ty, op.kind) {
+                } else if let Some((ty, function)) = self.check_user_unop(expr.span, ty, op.kind) {
+                    if let Some(function) = function {
+                        self.results.user_operators.insert(expr.id, function);
+                    }
                     ty
                 } else {
                     let msg = format!(
@@ -875,8 +878,10 @@ impl<'gcx> TypeChecker<'gcx> {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn check_binop(
         &mut self,
+        expr_id: Option<hir::ExprId>,
         lhs_e: &'gcx hir::Expr<'gcx>,
         lhs: Ty<'gcx>,
         rhs_e: &'gcx hir::Expr<'gcx>,
@@ -890,7 +895,10 @@ impl<'gcx> TypeChecker<'gcx> {
         {
             return if op.kind.is_cmp() { self.gcx.types.bool } else { common };
         }
-        if !assign && let Some(ty) = self.check_user_binop(op.span, lhs, rhs, op.kind) {
+        if !assign && let Some((ty, function)) = self.check_user_binop(op.span, lhs, rhs, op.kind) {
+            if let (Some(expr_id), Some(function)) = (expr_id, function) {
+                self.results.user_operators.insert(expr_id, function);
+            }
             return ty;
         }
 
@@ -905,7 +913,12 @@ impl<'gcx> TypeChecker<'gcx> {
         self.gcx.mk_ty_err(err.emit())
     }
 
-    fn check_user_unop(&self, span: Span, ty: Ty<'gcx>, op: hir::UnOpKind) -> Option<Ty<'gcx>> {
+    fn check_user_unop(
+        &self,
+        span: Span,
+        ty: Ty<'gcx>,
+        op: hir::UnOpKind,
+    ) -> Option<(Ty<'gcx>, Option<hir::FunctionId>)> {
         let op = UserDefinableOperator::from_unop(op)?;
         let mut functions = WantOne::Zero;
         self.gcx.for_each_user_operator(
@@ -927,7 +940,7 @@ impl<'gcx> TypeChecker<'gcx> {
         lhs: Ty<'gcx>,
         rhs: Ty<'gcx>,
         op: hir::BinOpKind,
-    ) -> Option<Ty<'gcx>> {
+    ) -> Option<(Ty<'gcx>, Option<hir::FunctionId>)> {
         let op = UserDefinableOperator::from_binop(op)?;
         let mut functions = WantOne::Zero;
         self.gcx.for_each_user_operator(
@@ -952,21 +965,22 @@ impl<'gcx> TypeChecker<'gcx> {
         &self,
         span: Span,
         functions: WantOne<hir::FunctionId>,
-    ) -> Option<Ty<'gcx>> {
+    ) -> Option<(Ty<'gcx>, Option<hir::FunctionId>)> {
         match functions {
             WantOne::Zero => None,
             WantOne::One(function) => {
                 let TyKind::Fn(function_ty) = self.gcx.type_of_item(function.into()).kind else {
                     unreachable!()
                 };
-                Some(self.fn_call_return_type(function_ty.returns))
+                Some((self.fn_call_return_type(function_ty.returns), Some(function)))
             }
             WantOne::Many => {
-                Some(self.gcx.mk_ty_err(
-                    self.dcx().emit_err(
+                Some((
+                    self.gcx.mk_ty_err(self.dcx().emit_err(
                         span,
                         "user-defined operator has more than one matching definition",
-                    ),
+                    )),
+                    None,
                 ))
             }
         }

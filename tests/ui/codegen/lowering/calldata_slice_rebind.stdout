@@ -28,9 +28,7 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     v13 = lt v12, arg1
     jumpi v13, bb5, bb6
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb6:
     v14 = sub v12, arg1
     v15 = add v11, arg1

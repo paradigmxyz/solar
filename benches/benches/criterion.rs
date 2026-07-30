@@ -1,5 +1,5 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
-use solar_bench::{COMPILERS, Compiler, Source, get_src, get_srcs};
+use solar_bench::{COMPILERS, Compiler, IS_CODSPEED, Source, get_src, get_srcs};
 use std::{any::Any, hint::black_box, time::Duration};
 
 type CompilerBench = (
@@ -56,12 +56,13 @@ fn micro_benches(c: &mut Criterion) {
 
     g.bench_function("source_map/new_source_file", |b| {
         let source = black_box(get_src("Optimism"));
+        let (name, content) = &source.files[0];
         b.iter_batched_ref(
             solar::parse::interface::SourceMap::default,
             |sm| {
                 sm.new_source_file(
-                    solar::parse::interface::source_map::FileName::Real(source.path.into()),
-                    source.src,
+                    solar::parse::interface::source_map::FileName::Real(name.as_ref().into()),
+                    content.to_string(),
                 )
                 .unwrap()
             },
@@ -72,7 +73,8 @@ fn micro_benches(c: &mut Criterion) {
 
 fn compiler_benches(c: &mut Criterion) {
     for s in get_srcs() {
-        eprintln!("{}: {} LoC, {} bytes", s.name, s.src.lines().count(), s.src.len());
+        let lines = s.files.iter().map(|(_, content)| content.lines().count()).sum::<usize>();
+        eprintln!("{}: {} files, {} LoC, {} bytes", s.name, s.files.len(), lines, s.bytes);
     }
     eprintln!();
 
@@ -118,25 +120,29 @@ fn compiler_benches(c: &mut Criterion) {
 }
 
 fn bytes(source: &Source) -> Throughput {
-    Throughput::Bytes(source.src.len() as u64)
+    Throughput::Bytes(source.bytes)
 }
 
 fn can_lex(compiler: &dyn Compiler, source: &Source) -> bool {
-    compiler.capabilities().can_lex() && source.capabilities.can_lex()
+    compiler.supports(source) && compiler.capabilities().can_lex() && source.capabilities.can_lex()
 }
 
 fn can_parse(compiler: &dyn Compiler, source: &Source) -> bool {
-    let _ = (compiler, source);
     // compiler.capabilities().can_parse() && source.capabilities.can_parse()
-    true
+    compiler.supports(source)
 }
 
 fn can_lower(compiler: &dyn Compiler, source: &Source) -> bool {
-    compiler.capabilities().can_lower() && source.capabilities.can_lower()
+    compiler.supports(source)
+        && compiler.capabilities().can_lower()
+        && source.capabilities.can_lower()
 }
 
 fn can_codegen(compiler: &dyn Compiler, source: &Source) -> bool {
-    compiler.capabilities().can_codegen() && source.capabilities.can_codegen()
+    compiler.supports(source)
+        && compiler.capabilities().can_codegen()
+        && source.capabilities.can_codegen()
+        && (!IS_CODSPEED || source.codspeed_codegen)
 }
 
 fn run_lex(compiler: &dyn Compiler, source: &Source, setup: &mut dyn Any) {

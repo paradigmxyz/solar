@@ -96,6 +96,10 @@ fn merge_typeck_results<'gcx>(
     for id in new_results.unsupported_udvt_operators.iter() {
         results.unsupported_udvt_operators.insert(id);
     }
+
+    for (id, function) in new_results.user_operators {
+        results.user_operators.insert(id, function);
+    }
 }
 
 fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<'gcx>) {

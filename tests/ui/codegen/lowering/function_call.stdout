@@ -13,7 +13,7 @@ fn @double(arg0: u256) -> u256 {
     ret v0
 }
 
-fn @quadruple(arg0: u256) {
+fn @quadruple(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -38,11 +38,10 @@ fn @quadruple(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    mstore 128, v5
-    returndata 128, 32
+    ret v5
 }
 
-fn @sum_then_double(arg0: u256, arg1: u256) {
+fn @sum_then_double(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -67,7 +66,6 @@ fn @sum_then_double(arg0: u256, arg1: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    mstore 128, v5
-    returndata 128, 32
+    ret v5
 }
 

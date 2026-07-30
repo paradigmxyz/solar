@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/while_loop.sol:WhileLoop ===
 @module WhileLoop
-fn @count_down(arg0: u256) {
+fn @count_down(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -17,8 +17,7 @@ fn @count_down(arg0: u256) {
     jumpi v4, bb5, bb7
   bb4:
     v8 = mload 128
-    mstore 128, v8
-    returndata 128, 32
+    ret v8
   bb5:
     v5 = mload 128
     v6 = sub v5, 1
@@ -37,7 +36,7 @@ fn @count_down(arg0: u256) {
     jump bb6
 }
 
-fn @do_at_least_once(arg0: u256) {
+fn @do_at_least_once(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -55,8 +54,7 @@ fn @do_at_least_once(arg0: u256) {
     jumpi v5, bb5, bb6
   bb4:
     v8 = mload 128
-    mstore 128, v8
-    returndata 128, 32
+    ret v8
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -74,7 +72,7 @@ fn @do_at_least_once(arg0: u256) {
     jump bb4
 }
 
-fn @break_when_found(arg0: u256, arg1: u256) {
+fn @break_when_found(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -91,8 +89,7 @@ fn @break_when_found(arg0: u256, arg1: u256) {
     jumpi v4, bb5, bb7
   bb4:
     v10 = mload 128
-    mstore 128, v10
-    returndata 128, 32
+    ret v10
   bb5:
     v5 = mload 128
     v6 = eq v5, arg1
