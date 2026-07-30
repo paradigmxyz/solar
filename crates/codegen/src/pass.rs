@@ -208,6 +208,9 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_alloc::LowerAlloc,
     &lower_mcopy::LowerMCopy,
     &lower_evm_shaped::LowerEvmShaped,
+    // Late lowering can leave pure address and length calculations unused.
+    // Remove their complete dependency chains before selecting physical stack order.
+    &dce::Dce,
     &evm_inst_schedule::EvmInstSchedule,
 ];
 

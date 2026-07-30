@@ -9,7 +9,9 @@
 //!
 //! ## Architecture
 //!
-//! The final pass in the default MIR lowering pipeline is `evm-inst-schedule`. It orders movable,
+//! Late MIR lowering is followed by dead-code elimination and then `evm-inst-schedule`, the final
+//! pass in the default MIR lowering pipeline. DCE removes complete unused dependency chains before
+//! they become physical operations ending in `POP`; instruction scheduling then orders movable,
 //! single-use expression trees in backend consumption order immediately before this subsystem.
 //! Effectful instructions, `gas`, `msize`, phis, and shared results constrain that order. This
 //! shortens producer-to-consumer distances without putting physical stack layouts into MIR;
