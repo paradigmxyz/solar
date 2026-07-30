@@ -12,15 +12,37 @@ fn @owner() {
 
 fn @_anonymous(arg0: address) {
   bb0:
-    v0 = constructor_args_base
-    v1 = add v0, 0
-    v2 = mload v1
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    v4 = eq v2, v3
-    jumpi v4, bb2, bb1
+    v0 = fmp
+    v1 = constructor_args_base
+    v2 = sub v0, v1
+    v3 = lt v2, 32
+    jumpi v3, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
+    v4 = add v0, 31
+    v5 = not 31
+    v6 = and v4, v5
+    set_fmp v6
+    v7 = add v1, 0
+    v8 = add v7, 32
+    v9 = lt v8, v7
+    jumpi v9, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v10 = gt v8, v0
+    jumpi v10, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v11 = mload v7
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
+    v13 = eq v11, v12
+    jumpi v13, bb8, bb7
+  bb7:
+    revert 0, 0
+  bb8:
     storeimmutable owner, arg0
     stop
 }

@@ -2,71 +2,170 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 356
+  push 532
   codesize
   sub
   dup1
-  push 356
-  push 352
+  push 532
+  push 480
   codecopy
-  push 352
+  push 480
   add
+  push 64
+  mstore
+  push 64
+  mload
+  dup1
+  push 288
+  mstore
+  push 480
+  dup1
+  push 320
+  mstore
+  dup2
+  sub
+  push 96
+  gt
+  swap1
+  pop
+  push bb11
+  jumpi
   push 31
+  push 288
+  mload
   add
   push 31
   not
   and
   push 64
   mstore
+  push 32
+  push 320
+  mload
+  add
+  dup1
   push 352
+  mstore
+  push 320
+  mload
+  dup1
+  push 320
+  mstore
+  gt
+  push bb11
+  jumpi
+  push 288
+  mload
   dup1
   push 288
+  mstore
+  push 352
+  mload
+  gt
+  push bb11
+  jumpi
+  push 320
+  mload
+  dup1
+  push 320
   mstore
   mload
   push 255
   dup2
   and
   sub
-  push bb4
+  push bb11
   jumpi
-  push 32
-  push 288
+  push 64
+  push 320
   mload
   add
+  dup1
+  push 384
+  mstore
+  push 352
   mload
   dup1
-  push 320
+  push 352
+  mstore
+  gt
+  push bb11
+  jumpi
+  push 288
+  mload
+  dup1
+  push 288
+  mstore
+  push 384
+  mload
+  gt
+  push bb11
+  jumpi
+  push 352
+  mload
+  dup1
+  push 352
+  mstore
+  mload
+  dup1
+  push 448
   mstore
   push 1
   signextend
-  push 320
+  push 448
   mload
   sub
-  push bb4
+  push bb11
   jumpi
-  push 64
-  push 288
+  push 96
+  push 320
   mload
   add
+  dup1
+  push 416
+  mstore
+  push 384
+  mload
+  dup1
+  push 384
+  mstore
+  gt
+  push bb11
+  jumpi
+  push 288
+  mload
+  dup1
+  push 288
+  mstore
+  push 416
+  mload
+  gt
+  push bb11
+  jumpi
+  push 384
+  mload
+  dup1
+  push 384
+  mstore
   mload
   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   not
   dup2
   and
   sub
-  push bb4
+  push bb11
   jumpi
-  push 352
+  push 480
   mload
   push 192
   mstore
-  push 352
+  push 480
   push 32
   add
   mload
   push 224
   mstore
-  push 352
+  push 480
   push 64
   add
   mload
@@ -74,7 +173,7 @@ bb0:
   mstore
   push 180
   dup1
-  push 176
+  push 352
   push 0
   codecopy
   push 192
@@ -91,9 +190,9 @@ bb0:
   mstore
   push 0
   return
-bb4 [cold]:
+bb11 [cold]:
   push 0
-  dup1
+  push 0
   revert
 
 // === runtime ===

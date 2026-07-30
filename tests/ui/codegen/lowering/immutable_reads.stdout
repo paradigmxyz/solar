@@ -20,17 +20,29 @@ fn @duration() {
 
 fn @_anonymous(arg0: u256) {
   bb0:
-    storeimmutable start, arg0
-    v0 = loadimmutable start
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v0 = fmp
+    v1 = constructor_args_base
+    v2 = sub v0, v1
+    v3 = lt v2, 32
+    jumpi v3, bb1, bb2
   bb1:
+    revert 0, 0
+  bb2:
+    v4 = add v0, 31
+    v5 = not 31
+    v6 = and v4, v5
+    set_fmp v6
+    storeimmutable start, arg0
+    v7 = loadimmutable start
+    v8 = add v7, 1
+    v9 = lt v8, v7
+    jumpi v9, bb3, bb4
+  bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    storeimmutable duration, v1
+  bb4:
+    storeimmutable duration, v8
     stop
 }
 

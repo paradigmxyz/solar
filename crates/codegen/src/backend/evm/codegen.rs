@@ -1127,24 +1127,24 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.constructor_param_count = ctor.params.len() as u32;
 
             // Constructor args are appended after generated deployment bytecode.
-            // Copy the complete blob above every fixed compiler-owned region,
-            // then place the free-memory pointer after its word-aligned end.
+            // Copy the complete blob above every fixed compiler-owned region
+            // and publish its exact end for the constructor ABI prologue.
             if let Some(arg_offset) = constructor_arg_offset {
                 self.constructor_args_base_const = Some(constructor_fixed_memory_end);
                 self.asm.emit_push_deferred(arg_offset);
                 self.asm.emit_op(op::CODESIZE);
                 self.asm.emit_op(op::SUB); // size = CODESIZE - arg_offset
+
                 self.asm.emit_op(op::dup(1));
                 self.asm.emit_push_deferred(arg_offset); // code offset
                 self.asm.emit_push_deferred(constructor_fixed_memory_end);
                 self.asm.emit_op(op::CODECOPY);
 
+                // Preserve the exact ABI region end for the constructor
+                // prologue, which rounds the free-memory pointer up after
+                // retaining the unaligned bound for dynamic decoding.
                 self.asm.emit_push_deferred(constructor_fixed_memory_end);
                 self.asm.emit_op(op::ADD);
-                self.asm.emit_push(U256::from(EvmMemoryLayout::WORD_SIZE - 1));
-                self.asm.emit_op(op::ADD);
-                self.asm.emit_push(U256::MAX - U256::from(EvmMemoryLayout::WORD_SIZE - 1));
-                self.asm.emit_op(op::AND);
                 self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
                 self.asm.emit_op(op::MSTORE);
             } else {

@@ -13,29 +13,65 @@ use solar_sema::{
 
 /// The ABI-encoded region an argument decode reads from. External calls read
 /// calldata after the selector; constructors read the argument blob CODECOPY'd
-/// into memory at the heap start.
+/// into a bounded compiler-owned memory region.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum AbiSource {
     Calldata,
-    Memory,
+    Memory { end: ValueId },
 }
 
 impl<'gcx> Lowerer<'gcx> {
+    /// Reverts if `[pos, pos + len)` escapes a bounded ABI source region.
+    pub(super) fn abi_check_range(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
+        pos: ValueId,
+        len: ValueId,
+    ) {
+        let AbiSource::Memory { end } = source else { return };
+        let range_end = builder.add(pos, len);
+        let overflow = builder.lt(range_end, pos);
+        self.emit_abi_decode_revert_if(builder, overflow);
+        let out_of_bounds = builder.gt(range_end, end);
+        self.emit_abi_decode_revert_if(builder, out_of_bounds);
+    }
+
+    /// Adds an ABI-relative offset while preserving the bounds of memory input.
+    pub(super) fn abi_offset(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
+        base: ValueId,
+        offset: ValueId,
+    ) -> ValueId {
+        let pos = builder.add(base, offset);
+        if matches!(source, AbiSource::Memory { .. }) {
+            let overflow = builder.lt(pos, base);
+            self.emit_abi_decode_revert_if(builder, overflow);
+        }
+        pos
+    }
+
     /// Loads one ABI word from `pos` in the selected source region.
-    fn abi_load(
-        &self,
+    pub(super) fn abi_load(
+        &mut self,
         builder: &mut FunctionBuilder<'_>,
         source: AbiSource,
         pos: ValueId,
     ) -> ValueId {
         match source {
             AbiSource::Calldata => builder.calldataload(pos),
-            AbiSource::Memory => builder.mload(pos),
+            AbiSource::Memory { .. } => {
+                let word = builder.imm_u64(32);
+                self.abi_check_range(builder, source, pos, word);
+                builder.mload(pos)
+            }
         }
     }
 
     /// Copies `len` bytes from `src` in the selected source region to memory.
-    fn abi_copy(
+    pub(super) fn abi_copy(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         source: AbiSource,
@@ -45,7 +81,10 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         match source {
             AbiSource::Calldata => builder.calldatacopy(dst, src, len),
-            AbiSource::Memory => self.mcopy(builder, dst, src, len, None),
+            AbiSource::Memory { .. } => {
+                self.abi_check_range(builder, source, src, len);
+                self.mcopy(builder, dst, src, len, None);
+            }
         }
     }
 
@@ -222,6 +261,13 @@ impl<'gcx> Lowerer<'gcx> {
         self.emit_panic_if(builder, rounded_overflow, PanicCode::MemoryAllocationOverflow);
         let mask = builder.not(thirty_one);
         let padded = builder.and(rounded, mask);
+        let bounded_data_pos = if matches!(source, AbiSource::Memory { .. }) {
+            let data_pos = builder.add(len_pos, word_size);
+            self.abi_check_range(builder, source, data_pos, padded);
+            Some(data_pos)
+        } else {
+            None
+        };
         let is_empty = builder.iszero(padded);
         let data_size = builder.select(is_empty, word_size, padded);
         let total_size = builder.add(word_size, data_size);
@@ -229,7 +275,11 @@ impl<'gcx> Lowerer<'gcx> {
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
 
         let ptr = self.allocate_memory_object_dynamic(builder, total_size, MemoryObjectKind::Bytes);
-        builder.mstore(ptr, len);
+        if matches!(source, AbiSource::Memory { .. }) {
+            builder.set_memory_object_len(ptr, len, MemoryObjectKind::Bytes);
+        } else {
+            builder.mstore(ptr, len);
+        }
 
         let data_ptr = builder.add(ptr, word_size);
         let zero = builder.imm_u64(0);
@@ -237,7 +287,7 @@ impl<'gcx> Lowerer<'gcx> {
         let last_word = builder.add(data_ptr, last_word_offset);
         builder.mstore(last_word, zero);
 
-        let data_pos = builder.add(len_pos, word_size);
+        let data_pos = bounded_data_pos.unwrap_or_else(|| builder.add(len_pos, word_size));
         self.abi_copy(builder, source, data_ptr, data_pos, len);
         ptr
     }
@@ -353,6 +403,7 @@ impl<'gcx> Lowerer<'gcx> {
         let too_big = builder.shr(shift, len);
         self.emit_panic_if(builder, too_big, PanicCode::MemoryAllocationOverflow);
         let byte_len = builder.mul(len, word_size);
+        self.abi_check_range(builder, source, data_pos, byte_len);
         let total_size = builder.add(word_size, byte_len);
 
         let ptr = self.allocate_memory_object_dynamic(
@@ -450,6 +501,16 @@ impl<'gcx> Lowerer<'gcx> {
         let total_size = builder.add(word, byte_len);
         let total_overflow = builder.lt(total_size, byte_len);
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
+
+        let elem_head_size = self.abi_head_size(elem);
+        if elem_head_size != 0 && matches!(source, AbiSource::Memory { .. }) {
+            let max_len = builder.imm_u256(U256::MAX / U256::from(elem_head_size));
+            let encoded_head_too_large = builder.gt(len, max_len);
+            self.emit_abi_decode_revert_if(builder, encoded_head_too_large);
+            let elem_head_size_value = builder.imm_u64(elem_head_size);
+            let encoded_head_size = builder.mul(len, elem_head_size_value);
+            self.abi_check_range(builder, source, data_pos, encoded_head_size);
+        }
 
         let ptr = self.allocate_memory_object_dynamic(
             builder,
@@ -554,7 +615,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// Resolves an ABI head position to the corresponding value body. Dynamic
     /// offsets are relative to the containing tuple's head area.
     fn calldata_abi_value_pos(
-        &self,
+        &mut self,
         builder: &mut FunctionBuilder<'_>,
         source: AbiSource,
         ty: Ty<'gcx>,
@@ -563,7 +624,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> ValueId {
         if self.abi_is_dynamic(ty) {
             let offset = self.abi_load(builder, source, head_pos);
-            builder.add(tuple_base, offset)
+            self.abi_offset(builder, source, tuple_base, offset)
         } else {
             head_pos
         }
