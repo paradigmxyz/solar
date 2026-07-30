@@ -40,6 +40,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTC_WRAPPER: "sccache"
   SOLC_VERSION: ${{ inputs.solc_version || '0.8.36' }}
   BENCHMARK_REPOSITORY: walnuthq/solidity-compiler-benchmarks
   DEFAULT_BENCHMARK_REF: 01209d2b8ac81645b92e3ef801b5bcdfd61bfd69
@@ -53,7 +54,7 @@ jobs:
       github.event_name != 'workflow_dispatch' ||
       inputs.benchmark == 'all' ||
       inputs.benchmark == 'codegen-runtime'
-    runs-on: depot-ubuntu-24.04-32
+    runs-on: depot-ubuntu-latest
     timeout-minutes: 45
     permissions:
       actions: read
@@ -90,6 +91,9 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-on-failure: true
+          cache-targets: false
+
+      - uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@b00af27efadbc7b4ca8b82abbd903b17cc874d2a # v1.9.0
@@ -271,7 +275,7 @@ jobs:
       github.event_name != 'workflow_dispatch' ||
       inputs.benchmark == 'all' ||
       inputs.benchmark == 'codspeed'
-    runs-on: depot-ubuntu-24.04-32
+    runs-on: depot-ubuntu-latest-4
     permissions:
       contents: read
     steps:
@@ -286,6 +290,8 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-on-failure: true
+          cache-targets: false
+      - uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
       - name: Install cargo-codspeed
         uses: taiki-e/install-action@a6b2e2dcd845ddd7f509ce4f3ed3d922b80cc5d9 # v2.84.0
         with:
@@ -311,7 +317,7 @@ jobs:
       github.event_name != 'workflow_dispatch' ||
       inputs.benchmark == 'all' ||
       inputs.benchmark == 'gungraun'
-    runs-on: depot-ubuntu-24.04-32
+    runs-on: depot-ubuntu-latest-4
     permissions:
       contents: read
     env:
@@ -349,6 +355,8 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-on-failure: true
+          cache-targets: false
+      - uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
       - name: Install benchmark runner
         run: |
           package=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name == "gungraun" or .name == "iai-callgrind").name' | head -n1)
