@@ -590,7 +590,7 @@ impl<'a> Validator<'a> {
         // selector functions must contain the synthesized `entry`.
         if module.phase >= crate::mir::MirPhase::Dispatch
             && module.functions.iter().any(|f| f.selector.is_some())
-            && !module.functions.iter().any(|f| f.name.name == sym::entry)
+            && !module.functions.iter().any(|f| f.name.symbol == sym::entry)
         {
             self.emit(format_args!(
                 "module is in the `{}` phase but has no `entry` routing function",

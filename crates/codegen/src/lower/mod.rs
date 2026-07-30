@@ -1407,6 +1407,7 @@ impl<'gcx> Lowerer<'gcx> {
                 self.current_return_tys.iter().map(|&ty| self.abi_head_size(ty)).sum();
         }
 
+        mir_func.name = self.module.function(mir_id).name;
         *self.module.function_mut(mir_id) = mir_func;
         self.check_expr_errors = check_expr_errors;
         mir_id

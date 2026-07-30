@@ -455,19 +455,15 @@ fn immutable_display_name(module: &Module, id: super::ImmutableId) -> Option<Str
     None
 }
 
-/// Formats a function reference as `@name` when the name is unique, or `nameN`
-/// when it needs the module index to disambiguate it. Falls back to `fnN` when
-/// a single function is printed without its module.
+/// Formats a function reference using its exact textual declaration name.
+/// Falls back to `fnN` when a single function is printed without its module.
 fn display_function_ref(function: FunctionId, module: Option<&Module>) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
         let funcs = module.map(|module| &module.functions);
         if let Some(funcs) = funcs
             && let Some(callee) = funcs.get(function)
-            && funcs.iter().filter(|other| other.name == callee.name).count() == 1
         {
             write!(f, "@{}", callee.name)
-        } else if let Some(callee) = funcs.and_then(|funcs| funcs.get(function)) {
-            write!(f, "{}{}", callee.name, function.index())
         } else {
             write!(f, "fn{}", function.index())
         }
