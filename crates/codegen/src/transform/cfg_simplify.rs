@@ -151,6 +151,16 @@ impl CfgSimplifyStats {
     }
 }
 
+pub(super) fn remove_unreachable_blocks(func: &mut Function) -> usize {
+    let cfg = CfgInfo::new(func);
+    let order = func.blocks.indices().filter(|&block| cfg.is_reachable(block)).collect::<Vec<_>>();
+    let removed = func.blocks.len() - order.len();
+    if removed != 0 {
+        retain_blocks(func, &order);
+    }
+    removed
+}
+
 /// CFG simplification pass for a single function.
 #[derive(Debug, Default)]
 struct CfgSimplifier {
@@ -397,19 +407,8 @@ impl CfgSimplifier {
             }
             total_stats.combine(&self.stats);
         }
-        total_stats.unreachable_blocks_removed = self.remove_unreachable_blocks(func);
+        total_stats.unreachable_blocks_removed = remove_unreachable_blocks(func);
         total_stats
-    }
-
-    fn remove_unreachable_blocks(&self, func: &mut Function) -> usize {
-        let cfg = CfgInfo::new(func);
-        let order =
-            func.blocks.indices().filter(|&block| cfg.is_reachable(block)).collect::<Vec<_>>();
-        let removed = func.blocks.len() - order.len();
-        if removed != 0 {
-            retain_blocks(func, &order);
-        }
-        removed
     }
 
     /// Merges blocks where A unconditionally jumps to B and B has only A as predecessor.

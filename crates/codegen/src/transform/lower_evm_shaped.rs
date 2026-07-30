@@ -22,6 +22,7 @@ use crate::{
     analysis::{CallGraphInfo, CfgInfo},
     mir::{Function, InstKind, MirPhase, Module, Terminator, utils::repair_reachability_phis},
     pass::MirPass,
+    transform::cfg_simplify::remove_unreachable_blocks,
 };
 use solar_data_structures::bit_set::DenseBitSet;
 
@@ -167,6 +168,7 @@ impl LowerEvmShapedCx {
             changed |= function_changed;
             if function_changed {
                 changed |= repair_reachability_phis(func);
+                remove_unreachable_blocks(func);
             }
         }
 
