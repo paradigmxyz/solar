@@ -44,6 +44,10 @@
 //! Constructor-staged immutable loads remain excluded because they are memory-backed until
 //! deployment finishes. A value used only as a phi-edge source does not require a mandatory store
 //! solely for that edge; a successfully preserved phi edge carries it on the stack.
+//! Free-memory-pointer loads are stored at their definitions because the pointer may move before a
+//! later use. Gas and unoptimized lowering give only cross-block values stable slots and reuse
+//! block-local slots after emission. Size lowering keeps every free-memory-pointer slot stable
+//! because the otherwise smaller local allocation increased generated size in corpus benchmarks.
 //!
 //! Anonymous stack words remain opaque in the modeled layout. The planner never
 //! claims one as a MIR operand. It may move one by physical position while

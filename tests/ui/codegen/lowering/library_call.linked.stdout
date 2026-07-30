@@ -225,12 +225,12 @@ bb4 [cold]:
 bb10 [cold]:
   returndatasize
   dup1
-  push 192
+  push 160
   mstore
   push 0
   dup1
   returndatacopy
-  push 192
+  push 160
   mload
   push 0
   revert

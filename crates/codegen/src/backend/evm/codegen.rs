@@ -2008,12 +2008,22 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
-        // A free-memory-pointer load cannot be recomputed after the pointer
-        // moves. Liveness does not always carry it to every using block, so
-        // reserve a stable slot and accept the runtime-preceding store.
-        for val in Self::fmp_load_values(func) {
-            self.scheduler.spills.reserve(val);
-            self.scheduler.spills.mark_reloadable(val);
+        // A free-memory-pointer load cannot be recomputed after the pointer moves. Reserve stable
+        // slots for cross-block values, including direct uses that liveness does not carry. Size
+        // mode keeps every FMP slot stable because block-local reuse can increase output size.
+        let fmp_values = Self::fmp_load_values(func);
+        if !fmp_values.is_empty() {
+            let reserve_all = matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size);
+            let reloaded = (!reserve_all).then(|| Self::cross_block_reload_values(func));
+            for val in fmp_values {
+                if reserve_all
+                    || values.contains(val)
+                    || reloaded.as_ref().is_some_and(|values| values.contains(val))
+                {
+                    self.scheduler.spills.reserve(val);
+                    self.scheduler.spills.mark_reloadable(val);
+                }
+            }
         }
     }
 

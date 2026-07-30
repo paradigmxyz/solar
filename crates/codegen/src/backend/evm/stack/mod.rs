@@ -24,7 +24,10 @@
 //!   reserve the search for failures.
 //! - [`spill`] assigns memory slots. Values visible across blocks receive function-stable
 //!   reservations, while a separate allocation list lets block-local slots be released and reused
-//!   after the block is emitted without rescanning every stable reservation.
+//!   after the block is emitted without rescanning every stable reservation. Free-memory-pointer
+//!   loads are stored at their definitions because later pointer updates make them impossible to
+//!   rematerialize. Gas and unoptimized lowering reserve stable slots only for those that cross a
+//!   block; size lowering keeps all of their slots stable to avoid downstream layout growth.
 //!
 //! Local instruction scheduling and CFG-edge shuffling are intentionally
 //! separate. The former optimizes a small operand head without imposing one
