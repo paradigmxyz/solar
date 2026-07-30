@@ -550,18 +550,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> Option<ValueId> {
         let (success, ret_offset) =
             self.emit_external_function_pointer_call(builder, callee, args, call_opts, function);
-        let failed = builder.iszero(success);
-        let fail_block = builder.create_block();
-        let continue_block = builder.create_block();
-        builder.branch(failed, fail_block, continue_block);
-
-        builder.switch_to_block(fail_block);
-        let zero = builder.imm_u64(0);
-        let size = builder.returndatasize();
-        builder.returndatacopy(zero, zero, size);
-        builder.revert(zero, size);
-
-        builder.switch_to_block(continue_block);
+        self.emit_forwarding_revert_unless(builder, success);
         (!function.returns.is_empty()).then(|| builder.mload(ret_offset))
     }
 
@@ -603,10 +592,20 @@ impl<'gcx> Lowerer<'gcx> {
         let ret_offset =
             if function.returns.len() > 1 { calldata_start } else { builder.imm_u64(0) };
         let ret_size = builder.imm_u64((function.returns.len() * 32) as u64);
-        let (gas, value) = self.lower_external_call_options(builder, call_opts, true);
-        let value = value.expect("value-enabled call options always produce a value");
-        let success =
-            builder.call(gas, address, value, calldata_start, calldata_size, ret_offset, ret_size);
+        let kind = self.external_call_kind(function.state_mutability);
+        let (gas, value) =
+            self.lower_external_call_options(builder, call_opts, kind == ExternalCallKind::Call);
+        let success = self.emit_external_call(
+            builder,
+            kind,
+            gas,
+            address,
+            value,
+            calldata_start,
+            calldata_size,
+            ret_offset,
+            ret_size,
+        );
         (success, ret_offset)
     }
 
@@ -1739,13 +1738,15 @@ impl<'gcx> Lowerer<'gcx> {
         &self,
         func_id: Option<hir::FunctionId>,
     ) -> ExternalCallKind {
+        let state_mutability = func_id
+            .map(|func_id| self.gcx.hir.function(func_id).state_mutability)
+            .unwrap_or(hir::StateMutability::NonPayable);
+        self.external_call_kind(state_mutability)
+    }
+
+    fn external_call_kind(&self, state_mutability: hir::StateMutability) -> ExternalCallKind {
         if self.gcx.sess.opts.evm_version.has_static_call()
-            && func_id.is_some_and(|func_id| {
-                matches!(
-                    self.gcx.hir.function(func_id).state_mutability,
-                    hir::StateMutability::Pure | hir::StateMutability::View
-                )
-            })
+            && matches!(state_mutability, hir::StateMutability::Pure | hir::StateMutability::View)
         {
             ExternalCallKind::StaticCall
         } else {
