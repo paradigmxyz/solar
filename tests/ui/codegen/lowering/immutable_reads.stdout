@@ -1,21 +1,25 @@
 // === ROOT/tests/ui/codegen/lowering/immutable_reads.sol:C ===
 @module C
+immutables:
+  start: u256
+  duration: u256
+
 fn @start() -> u256 [abi_returns=[word]] {
   bb0:
-    v0 = loadimmutable 0
+    v0 = loadimmutable start
     ret v0
 }
 
 fn @duration() -> u256 [abi_returns=[word]] {
   bb0:
-    v0 = loadimmutable 32
+    v0 = loadimmutable duration
     ret v0
 }
 
 fn @_anonymous(arg0: u256) {
   bb0:
-    mstore 0x2000, arg0
-    v0 = mload 0x2000
+    storeimmutable start, arg0
+    v0 = loadimmutable start
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
@@ -24,14 +28,14 @@ fn @_anonymous(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    mstore 0x2020, v1
+    storeimmutable duration, v1
     stop
 }
 
 fn @end() -> u256 [abi_returns=[word]] {
   bb0:
-    v0 = loadimmutable 0
-    v1 = loadimmutable 32
+    v0 = loadimmutable start
+    v1 = loadimmutable duration
     v2 = add v0, v1
     v3 = lt v2, v0
     jumpi v3, bb1, bb2

@@ -171,8 +171,16 @@ impl StorageLoadCseCx {
                                     .may_alias()
                                 });
                             }
-                            Access::Any(AddressSpace::Memory | AddressSpace::Transient)
-                            | Access::Location(Location::Memory(_) | Location::Transient(_)) => {}
+                            Access::Any(
+                                AddressSpace::Memory
+                                | AddressSpace::Transient
+                                | AddressSpace::Immutable,
+                            )
+                            | Access::Location(
+                                Location::Memory(_)
+                                | Location::Transient(_)
+                                | Location::Immutable(_),
+                            ) => {}
                         }
                     }
                 }
