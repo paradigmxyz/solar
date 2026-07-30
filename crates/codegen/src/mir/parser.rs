@@ -30,10 +30,10 @@
 
 use super::{
     AbiLayout, AbiLayoutRef, AbiType, AllocationAlignment, AllocationFailure,
-    AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, EffectKind, Function,
-    FunctionBuilder, FunctionId, InstId, InstKind, Instruction, InstructionMetadata,
-    MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField,
-    StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
+    AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, Disambiguator,
+    EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
+    InstructionMetadata, MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module,
+    StorageAlias, StorageField, StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
 };
 use crate::mir::{MirType, SliceLocation};
 use alloy_primitives::U256;
@@ -75,7 +75,7 @@ pub(super) fn parse_module(sess: &Session, input: &str) -> Result<Module> {
 
 struct Parser<'sess, 'ast> {
     parser: crate::ir_parse::Parser<'sess, 'ast>,
-    pending_function_ref: Option<(FunctionRefName, Span)>,
+    pending_function_ref: Option<(MangledSymbol, Span)>,
     function_refs: Vec<PendingFunctionRef>,
     arg_values: Vec<ValueId>,
     block_labels: FxHashMap<u32, BlockLabel>,
@@ -90,15 +90,9 @@ struct Parser<'sess, 'ast> {
 }
 
 struct PendingFunctionRef {
-    name: FunctionRefName,
+    name: MangledSymbol,
     span: Span,
     target: FunctionRefTarget,
-}
-
-#[derive(Clone, Copy)]
-enum FunctionRefName {
-    Declared(Symbol),
-    Display(Symbol),
 }
 
 enum FunctionRefTarget {
@@ -148,19 +142,29 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a function name: an identifier, optionally with `.`-joined
     /// segments (`f.body`), as minted by the ABI lowering.
-    fn parse_function_name(&mut self) -> PResult<'sess, Symbol> {
+    fn parse_function_name(&mut self) -> PResult<'sess, MangledSymbol> {
         let first = self.parser.parse_ident()?;
-        if !self.parser.eat(TokenKind::Dot) {
-            return Ok(first);
-        }
         let mut name = first.to_string();
-        name.push('.');
-        name.push_str(self.parser.parse_ident()?.as_str());
         while self.parser.eat(TokenKind::Dot) {
             name.push('.');
             name.push_str(self.parser.parse_ident()?.as_str());
         }
-        Ok(Symbol::intern(&name))
+        let symbol = Symbol::intern(&name);
+        let TokenKind::Literal(TokenLitKind::Rational, suffix) = self.parser.token().kind else {
+            return Ok(MangledSymbol::new(symbol));
+        };
+        let Some(disambiguator) = suffix.as_str().strip_prefix('.') else {
+            return Ok(MangledSymbol::new(symbol));
+        };
+        let disambiguator = disambiguator
+            .parse::<u32>()
+            .map_err(|_| self.parser.error("invalid function disambiguator"))?;
+        if disambiguator == u32::MAX {
+            return Err(self.parser.error("invalid function disambiguator"));
+        }
+        let disambiguator = Disambiguator::new(disambiguator as usize);
+        self.parser.bump();
+        Ok(MangledSymbol::disambiguated(symbol, disambiguator))
     }
 
     // ----- module / function parsing -----
@@ -209,27 +213,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         module: &mut Module,
         function_refs: Vec<(FunctionId, PendingFunctionRef)>,
     ) -> PResult<'sess, ()> {
-        let mut functions = FxHashMap::<Symbol, Vec<FunctionId>>::default();
-        let mut displayed_functions = FxHashMap::<Symbol, Vec<FunctionId>>::default();
+        let mut declarations = FxHashMap::<MangledSymbol, Vec<FunctionId>>::default();
         for (id, function) in module.functions.iter_enumerated() {
-            functions.entry(function.name.name).or_default().push(id);
-            let displayed_name = Symbol::intern(&format!("{}{}", function.name, id.index()));
-            displayed_functions.entry(displayed_name).or_default().push(id);
+            declarations.entry(function.name).or_default().push(id);
         }
         for (owner, reference) in function_refs {
-            let (name, matches) = match reference.name {
-                FunctionRefName::Declared(name) => (name, functions.get(&name)),
-                FunctionRefName::Display(name) => (name, displayed_functions.get(&name)),
-            };
+            let matches = declarations.get(&reference.name);
             let Some(matches) = matches else {
-                return Err(self
-                    .parser
-                    .error_at(reference.span, format!("unknown function reference `{name}`")));
+                return Err(self.parser.error_at(
+                    reference.span,
+                    format!("unknown function reference `{}`", reference.name),
+                ));
             };
             let [function] = matches.as_slice() else {
                 return Err(self.parser.error_at(
                     reference.span,
-                    format!("function reference `{name}` is ambiguous"),
+                    format!("function reference `{}` is ambiguous", reference.name),
                 ));
             };
             match reference.target {
@@ -263,8 +262,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parser.expect_keyword(sym::fn_)?;
         self.parser.expect(TokenKind::At)?;
         let name = self.parse_function_name()?;
-        let func_ident = Ident::with_dummy_span(name);
+        let func_ident = Ident::with_dummy_span(name.symbol);
         let mut func = Function::new(func_ident);
+        func.name = name;
         let block_remap = {
             let mut builder = FunctionBuilder::new(&mut func);
 
@@ -801,16 +801,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if self.parser.eat(TokenKind::At) {
             let span = self.parser.token().span;
             let name = self.parse_function_name()?;
-            self.pending_function_ref = Some((FunctionRefName::Declared(name), span));
+            self.pending_function_ref = Some((name, span));
             return Ok(FunctionId::from_usize(0));
         }
         let span = self.parser.token().span;
-        let name = self.parse_function_name()?;
+        let name = self.parser.parse_ident()?;
         if let Some(index) = name.as_str().strip_prefix("fn").and_then(|s| s.parse().ok()) {
             return Ok(FunctionId::from_usize(index));
         }
-        self.pending_function_ref = Some((FunctionRefName::Display(name), span));
-        Ok(FunctionId::from_usize(0))
+        Err(self.parser.error_at(span, format!("invalid function reference `{name}`")))
     }
 
     fn finish_function_ref(&mut self, target: FunctionRefTarget) {

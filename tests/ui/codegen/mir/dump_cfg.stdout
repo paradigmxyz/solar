@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/dump_cfg.sol:DumpCfg ===
-digraph "f" {
+digraph "f$" {
     node [shape=box, fontname="Courier", fontsize=10];
     edge [fontname="Courier", fontsize=9];
 

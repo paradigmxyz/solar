@@ -359,7 +359,8 @@ impl<'gcx> Lowerer<'gcx> {
             })
             .collect::<Vec<_>>();
 
-        let name = self.module.function(dispatcher).name;
+        let reserved = self.module.function(dispatcher);
+        let name = Ident::new(reserved.name.symbol, reserved.name_span);
         let mut dispatcher_function = Function::new(name);
         dispatcher_function.attributes.no_inline = true;
         {
@@ -409,6 +410,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
             self.emit_panic_revert(&mut builder, PanicCode::InvalidInternalFunction);
         }
+        dispatcher_function.name = self.module.function(dispatcher).name;
         *self.module.function_mut(dispatcher) = dispatcher_function;
     }
 
