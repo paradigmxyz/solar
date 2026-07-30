@@ -744,6 +744,10 @@ impl DeadFunctionEliminator {
             remap[old_id.index()] = Some(new_id);
         }
         module.functions = functions;
+        module.function_name_index.clear();
+        module.function_name_index.extend(
+            module.functions.iter_enumerated().map(|(id, function)| (function.unmangled_name, id)),
+        );
 
         for func in &mut module.functions {
             func.for_each_instruction_mut(|_, inst| {

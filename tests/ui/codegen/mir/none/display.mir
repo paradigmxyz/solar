@@ -38,17 +38,17 @@ fn @storage_ops(arg0: u256, arg1: u256) {
     ret v0
 }
 
-// CHECK-LABEL: fn @over.load$3(
-// CHECK: internal_call @over.load$4, 1
-fn @over.load$3() -> u256 {
+// CHECK-LABEL: fn @over.load.3(
+// CHECK: internal_call @over.load.4, 1
+fn @over.load.3() -> u256 {
   bb0:
-    v0 = internal_call @over.load$4, 1
+    v0 = internal_call @over.load.4, 1
     ret v0
 }
 
-// CHECK-LABEL: fn @over.load$4(
+// CHECK-LABEL: fn @over.load.4(
 // CHECK: ret 1
-fn @over.load$4() -> u256 {
+fn @over.load.4() -> u256 {
   bb0:
     ret 1
 }

@@ -4,6 +4,7 @@ use super::{AbiLayout, AbiLayoutRef, Function, FunctionId, StorageLayout, Storag
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
+    map::FxHashMap,
 };
 use solar_interface::{Ident, Symbol, sym};
 use std::sync::Arc;
@@ -93,6 +94,8 @@ pub struct Module {
     pub(crate) name: Ident,
     /// All functions in this module.
     pub(crate) functions: IndexVec<FunctionId, Function>,
+    /// Most recently added function for each name before disambiguation.
+    pub(crate) function_name_index: FxHashMap<Symbol, FunctionId>,
     /// Canonical ABI layouts referenced by semantic encoding operations.
     pub(crate) abi_layouts: Vec<AbiLayoutRef>,
     /// Canonical storage layouts referenced by semantic aggregate operations.
@@ -120,6 +123,7 @@ impl Module {
         Self {
             name,
             functions: IndexVec::new(),
+            function_name_index: FxHashMap::default(),
             abi_layouts: Vec::new(),
             aggregate_layouts: Vec::new(),
             immutable_data_len: 0,
@@ -144,17 +148,16 @@ impl Module {
 
     /// Adds a function to the module.
     pub(crate) fn add_function(&mut self, function: Function) -> FunctionId {
-        let duplicate = self
-            .functions
-            .iter_enumerated()
-            .find_map(|(id, func)| (func.unmangled_name == function.unmangled_name).then_some(id));
+        let unmangled_name = function.unmangled_name;
         let function = self.functions.push(function);
-        if let Some(duplicate) = duplicate {
-            for function in [duplicate, function] {
-                let func = &mut self.functions[function];
-                func.name.name =
-                    Symbol::intern(&format!("{}${}", func.unmangled_name, function.index()));
+        if let Some(duplicate) = self.function_name_index.insert(unmangled_name, function) {
+            let duplicate_func = &mut self.functions[duplicate];
+            if duplicate_func.name.name == unmangled_name {
+                duplicate_func.name.name =
+                    Symbol::intern(&format!("{unmangled_name}.{}", duplicate.index()));
             }
+            self.functions[function].name.name =
+                Symbol::intern(&format!("{unmangled_name}.{}", function.index()));
         }
         function
     }

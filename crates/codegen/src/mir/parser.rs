@@ -144,15 +144,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// segments (`f.body`), as minted by the ABI lowering.
     fn parse_function_name(&mut self) -> PResult<'sess, Symbol> {
         let first = self.parser.parse_ident()?;
-        if !self.parser.eat(TokenKind::Dot) {
-            return Ok(first);
-        }
         let mut name = first.to_string();
-        name.push('.');
-        name.push_str(self.parser.parse_ident()?.as_str());
-        while self.parser.eat(TokenKind::Dot) {
-            name.push('.');
-            name.push_str(self.parser.parse_ident()?.as_str());
+        loop {
+            if self.parser.eat(TokenKind::Dot) {
+                name.push('.');
+                name.push_str(self.parser.parse_ident()?.as_str());
+            } else if let TokenKind::Literal(TokenLitKind::Rational, symbol) =
+                self.parser.token().kind
+                && let Some(disambiguator) = symbol.as_str().strip_prefix('.')
+                && disambiguator.bytes().all(|byte| byte.is_ascii_digit())
+            {
+                name.push('.');
+                name.push_str(disambiguator);
+                self.parser.bump();
+            } else {
+                break;
+            }
         }
         Ok(Symbol::intern(&name))
     }
