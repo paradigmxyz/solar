@@ -428,7 +428,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.allocate_storage(contract_id);
 
-        // Collect reachable functions from the inheritance chain, handling overrides.
+        // Collect functions from the inheritance chain, filtering unreachable ones by default.
         // Functions are collected from most-derived to most-base, so if a function
         // with the same selector already exists, we skip the base version.
         let functions = self.collect_inherited_functions(contract_id);
@@ -446,7 +446,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.current_contract_id = None;
     }
 
-    /// Collects reachable functions from the inheritance chain, handling overrides.
+    /// Collects functions from the inheritance chain, filtering unreachable ones by default.
     ///
     /// Functions from more-derived contracts take precedence over base contracts.
     /// For regular functions, we use the selector to determine uniqueness.
@@ -454,7 +454,8 @@ impl<'gcx> Lowerer<'gcx> {
     fn collect_inherited_functions(&self, contract_id: ContractId) -> Vec<HirFunctionId> {
         let contract = self.gcx.hir.contract(contract_id);
         let linearized_bases = contract.linearized_bases;
-        let reachable = self.gcx.contract_reachable_functions(contract_id);
+        let reachable = (!self.gcx.sess.opts.unstable.codegen_all_functions)
+            .then(|| self.gcx.contract_reachable_functions(contract_id));
 
         let mut seen_selectors: FxHashSet<[u8; 4]> = FxHashSet::default();
         let mut has_constructor = false;
@@ -468,7 +469,7 @@ impl<'gcx> Lowerer<'gcx> {
             let base_contract = self.gcx.hir.contract(base_id);
 
             for func_id in base_contract.all_functions() {
-                if reachable.binary_search(&func_id).is_err() {
+                if reachable.is_some_and(|reachable| reachable.binary_search(&func_id).is_err()) {
                     continue;
                 }
                 let func = self.gcx.hir.function(func_id);

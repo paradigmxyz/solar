@@ -112,6 +112,30 @@ impl<'gcx> CallGraphBuilder<'gcx> {
         this.finish()
     }
 
+    fn build_all(gcx: Gcx<'gcx>, contract: hir::ContractId) -> CallGraph {
+        let mut this = Self::new(gcx, contract);
+        let contract = gcx.hir.contract(contract);
+        for modifier in contract.linearized_bases_args.iter().flatten() {
+            let _ = this.visit_modifier(modifier);
+        }
+        for &base in contract.linearized_bases {
+            let base = gcx.hir.contract(base);
+            for variable in base.variables() {
+                let variable = gcx.hir.variable(variable);
+                if variable.is_state_variable()
+                    && !variable.is_constant()
+                    && let Some(initializer) = variable.initializer
+                {
+                    let _ = this.visit_expr(initializer);
+                }
+            }
+            for function in base.all_functions() {
+                this.enqueue(function);
+            }
+        }
+        this.finish()
+    }
+
     fn finish(mut self) -> CallGraph {
         while let Some(function) = self.worklist.pop_front() {
             let _ = self.visit_nested_function(function);
@@ -340,4 +364,12 @@ pub(super) fn interface_items<'gcx>(gcx: Gcx<'gcx>, id: hir::ContractId) -> Inte
     let deployed = CallGraphBuilder::build_deployed(gcx, id, &creation);
 
     InterfaceItems { creation: creation.alloc_items(gcx), deployed: deployed.alloc_items(gcx) }
+}
+
+pub(super) fn all_bytecode_dependencies<'gcx>(
+    gcx: Gcx<'gcx>,
+    id: hir::ContractId,
+) -> &'gcx [hir::ContractId] {
+    let graph = CallGraphBuilder::build_all(gcx, id);
+    gcx.bump().alloc_from_iter(graph.bytecode_dependencies.iter())
 }

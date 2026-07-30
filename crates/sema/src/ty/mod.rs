@@ -1425,6 +1425,14 @@ fn interface_items(gcx: _, id: hir::ContractId) -> call_graph::InterfaceItems<'g
     call_graph::interface_items(gcx, id)
 }
 
+fn all_contract_bytecode_dependencies(
+    gcx: _,
+    id: hir::ContractId
+) -> &'gcx [hir::ContractId] {
+    assert!(gcx.has_typeck_results(), "contract dependencies require type checking");
+    call_graph::all_bytecode_dependencies(gcx, id)
+}
+
 /// Returns the [ERC-165] interface ID of the given contract.
 ///
 /// This is the XOR of the selectors of all function selectors in the interface.
@@ -1791,6 +1799,9 @@ impl<'gcx> Gcx<'gcx> {
 
     /// Returns the contracts whose bytecode is referenced by the given contract.
     pub fn contract_bytecode_dependencies(self, id: hir::ContractId) -> &'gcx [hir::ContractId] {
+        if self.sess.opts.unstable.codegen_all_functions {
+            return self.all_contract_bytecode_dependencies(id);
+        }
         let items = self.interface_items(id);
         let mut dependencies = DenseBitSet::new_empty(self.hir.contract_ids().count());
         for &dependency in
