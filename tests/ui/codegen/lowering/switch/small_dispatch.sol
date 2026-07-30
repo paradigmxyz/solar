@@ -71,12 +71,17 @@ contract FourFunctions {
 contract PartialTerminalDispatch {
     // SIZE-LABEL: small_dispatch.sol:PartialTerminalDispatch (runtime) ===
     // SIZE-COUNT-2: gt
+    // SIZE-NOT: gt
     // SIZE: eq
     // SIZE-NEXT: push [[STOP:bb[0-9]+]]
     // SIZE-NEXT: jumpi
     // SIZE: [[STOP]]:
     // SIZE-NEXT: stop
     // SIZE: gt
+    // SIZE-NOT: gt
+    // SIZE: eq
+    // SIZE-NEXT: push [[STOP]]
+    // SIZE-NEXT: jumpi
     // SIZE-NOT: gt
     function f0() external view returns (uint256) {
         (bool success,) = address(this).staticcall(hex"ffffffff");
