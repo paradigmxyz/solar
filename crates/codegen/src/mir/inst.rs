@@ -462,13 +462,6 @@ impl AllocationSemantics {
         failure: AllocationFailure::Infallible,
     };
 
-    /// Exact-size, zero-initialized allocation whose validity is already proven.
-    pub(crate) const INTERNAL_ZEROED: Self = Self {
-        alignment: AllocationAlignment::Exact,
-        initialization: AllocationInitialization::Zeroed,
-        failure: AllocationFailure::Infallible,
-    };
-
     /// Checked and zero-initialized Solidity object allocation.
     ///
     /// Object lowering includes the header and padding in `size`, so the
