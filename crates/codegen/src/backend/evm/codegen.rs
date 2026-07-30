@@ -962,6 +962,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         EvmArtifact {
             deployment: deploy_bytecode,
             runtime: runtime_code.bytecode,
+            immutable_references: immutable_refs,
             deployment_evm_ir: deploy_code.evm_ir,
             runtime_evm_ir: runtime_code.evm_ir,
         }
@@ -5811,6 +5812,8 @@ pub struct EvmArtifact {
     pub deployment: Vec<u8>,
     /// Runtime bytecode, i.e. the code stored on-chain.
     pub runtime: Vec<u8>,
+    /// Immutable placeholders in the runtime bytecode.
+    pub(crate) immutable_references: Vec<ImmutableRef>,
     /// Final deployment-prefix EVM IR immediately before byte emission.
     pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
@@ -5843,6 +5846,7 @@ mod tests {
         let id = module.add_immutable(
             Ident::with_dummy_span(sym::x),
             MirType::UInt(TypeSize::new_int_bits(8)),
+            None,
         );
         let staging_base = immutable_staging_base(&module);
         assert_eq!(staging_base, 0x3080);
