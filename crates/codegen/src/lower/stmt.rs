@@ -1,6 +1,6 @@
 //! Statement lowering.
 
-use super::{LoopContext, Lowerer, call::ExternalCallKind, MIN_BULK_ZERO_MEMORY_WORDS};
+use super::{LoopContext, Lowerer, MIN_BULK_ZERO_MEMORY_WORDS, call::ExternalCallKind};
 use crate::{
     memory::EvmMemoryLayout,
     mir::{FunctionBuilder, MemoryObjectKind, ValueId},
