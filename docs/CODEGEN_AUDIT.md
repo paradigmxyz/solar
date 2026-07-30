@@ -25,6 +25,7 @@ architecture.
 | Source-order iteration of named arguments in internal calls, libraries, structs, events, errors, and base constructors | Sema parameter sources plus one declaration-order mapper |
 | Conservative internal-call frame sizes based on a function's total MIR value count | Deferred constants resolved from exact post-emission spill sizes |
 | Target-dependent expansion of compiler-generated memory copies during HIR lowering | Semantic `mcopy` plus the required `lower-mcopy` legalization pass |
+| Separate EVM-word evaluators in instruction simplification, SCCP, and bounded pure evaluation | One shared MIR constant evaluator |
 
 The HIR inliner previously erased the callee return target for void calls.
 `return;` in an exact-base call could therefore terminate the enclosing public
