@@ -19,4 +19,18 @@
 -   push 32
 -   mload
     stop
+  bb2:
+    push 32
+    mload
+-   dup1
+-   push 32
+-   mstore
+    stop
+  bb3:
+    push 32
+    mload
+    dup1
+    push 64
+    mstore
+    stop
   
