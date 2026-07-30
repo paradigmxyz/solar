@@ -82,7 +82,7 @@
 //!
 //! Lowering supplies operands in EVM push order and a liveness-derived set of
 //! values that must survive the instruction. An exact-prefix check avoids all
-//! search and allocation. Linear proofs handle three common shapes: all
+//! search. Linear proofs handle three common shapes: all
 //! distinct operands require materialization; one unique last-use operand is
 //! already on top and every other operand must be materialized; or a binary
 //! operation must retain its sole resident operand while materializing the
@@ -159,9 +159,10 @@
 //! action list is replayed once, emitted once, and followed by the instruction's
 //! declared stack effect. Anonymous words are not treated as interchangeable
 //! MIR values, and failed bounded local searches fall back to the established
-//! emitter. Complete edge shuffles require an exact final layout; lowering checks
-//! that an edge is preparable before committing it and treats a later shuffle
-//! failure as an internal invariant violation.
+//! emitter. Complete edge shuffles require an exact final layout. Lowering checks
+//! that an edge is preparable before attempting it, and the shuffler changes the
+//! live model only after finding and validating that layout. A bounded failure
+//! therefore falls back to conservative spill/reload lowering.
 //! The edge shuffler stops adding states at its cap but drains states that were already queued, so
 //! reaching the cap cannot hide an already-discovered target.
 //!

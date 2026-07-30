@@ -20,8 +20,8 @@
 //! the cheapest common case. Linear proofs cover distinct operands that all
 //! require materialization, one resident last use among otherwise materialized
 //! operands, and a binary operation whose only resident operand must survive.
-//! Gas mode also uses allocation-free verified one-action and unary plans before
-//! a lower-bound-certified deterministic walk. Bounded A* is reserved for
+//! Gas mode also uses verified one-action and unary plans before a
+//! lower-bound-certified deterministic walk. Bounded A* is reserved for
 //! layouts where those proofs do not succeed. Size mode uses the linear proofs
 //! too, but skips the local one-action and unary ties whose different residual
 //! layouts could cost more to clean up after the instruction. The available
