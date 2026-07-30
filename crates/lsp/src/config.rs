@@ -207,6 +207,10 @@ impl Config {
         &self.workspaces
     }
 
+    pub(crate) fn workspace_roots(&self) -> &[PathBuf] {
+        &self.workspace_roots
+    }
+
     pub(crate) fn tracks_source_file(&self, path: &Path) -> bool {
         self.workspaces.iter().any(|workspace| workspace.tracks_disk_file(path))
     }
@@ -509,8 +513,10 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
                 identifier: None,
                 inter_file_dependencies: true,
-                workspace_diagnostics: false,
-                ..Default::default()
+                workspace_diagnostics: true,
+                work_done_progress_options: WorkDoneProgressOptions {
+                    work_done_progress: Some(true),
+                },
             })),
             document_link_provider: Some(DocumentLinkOptions {
                 resolve_provider: Some(false),
@@ -882,8 +888,10 @@ mod tests {
             Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
                 identifier: None,
                 inter_file_dependencies: true,
-                workspace_diagnostics: false,
-                work_done_progress_options: WorkDoneProgressOptions::default(),
+                workspace_diagnostics: true,
+                work_done_progress_options: WorkDoneProgressOptions {
+                    work_done_progress: Some(true),
+                },
             }))
         );
     }

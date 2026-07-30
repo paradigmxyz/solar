@@ -1,10 +1,11 @@
 use crate::file_operations::file_path_from_url;
-use lsp_types::{Diagnostic, Url};
+use lsp_types::{Diagnostic, PreviousResultId, Url};
 use normalize_path::NormalizePath;
 use solar_interface::data_structures::map::{FxHashMap, FxHashSet};
 use std::path::PathBuf;
 
 pub(crate) type DiagnosticMap = FxHashMap<Url, Vec<Diagnostic>>;
+pub(crate) type AnalyzedDocuments = FxHashMap<Url, Option<i64>>;
 
 const EMPTY_RESULT_ID: &str = "solar-empty";
 
@@ -20,6 +21,14 @@ pub(crate) enum PullReport {
     Unchanged { result_id: String },
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct WorkspacePullReport {
+    pub(crate) uri: Url,
+    pub(crate) version: Option<i64>,
+    pub(crate) report: PullReport,
+    pub(crate) is_stale: bool,
+}
+
 #[derive(Clone, Debug)]
 struct CachedReport {
     result_id: String,
@@ -30,6 +39,7 @@ struct CachedReport {
 pub(crate) struct DiagnosticStore {
     diagnostics: FxHashMap<DiagnosticOwner, DiagnosticMap>,
     reports: FxHashMap<Url, CachedReport>,
+    analyzed_documents: AnalyzedDocuments,
     next_result_id: u64,
 }
 
@@ -37,9 +47,24 @@ pub(crate) struct DiagnosticStore {
 pub(crate) struct DiagnosticUpdate {
     pub(crate) batches: Vec<(Url, Vec<Diagnostic>)>,
     pub(crate) pull_reports_changed: bool,
+    pub(crate) workspace_documents_changed: bool,
 }
 
 impl DiagnosticStore {
+    pub(crate) fn replace_compiler_snapshot_and_publish_batches(
+        &mut self,
+        diagnostics: DiagnosticMap,
+        analyzed_documents: AnalyzedDocuments,
+    ) -> DiagnosticUpdate {
+        let workspace_documents_changed = self.analyzed_documents.len() != analyzed_documents.len()
+            || self.analyzed_documents.keys().any(|uri| !analyzed_documents.contains_key(uri));
+        self.analyzed_documents = analyzed_documents;
+        let affected_uris = self.replace(DiagnosticOwner::Compiler, diagnostics);
+        let mut update = self.publish_batches(affected_uris);
+        update.workspace_documents_changed = workspace_documents_changed;
+        update
+    }
+
     pub(crate) fn replace_and_publish_batches(
         &mut self,
         owner: DiagnosticOwner,
@@ -53,15 +78,26 @@ impl DiagnosticStore {
         &mut self,
         prefixes: &[PathBuf],
     ) -> DiagnosticUpdate {
+        self.clear_file_path_prefixes_retaining_and_publish_batches(prefixes, &[])
+    }
+
+    pub(crate) fn clear_file_path_prefixes_retaining_and_publish_batches(
+        &mut self,
+        prefixes: &[PathBuf],
+        retained_prefixes: &[PathBuf],
+    ) -> DiagnosticUpdate {
         if prefixes.is_empty() {
             return DiagnosticUpdate::default();
         }
 
         let prefixes = prefixes.iter().map(|prefix| prefix.normalize()).collect::<Vec<_>>();
+        let retained_prefixes =
+            retained_prefixes.iter().map(|prefix| prefix.normalize()).collect::<Vec<_>>();
         let matches_prefix = |uri: &Url| {
             file_path_from_url(uri).is_some_and(|path| {
                 let path = path.normalize();
                 prefixes.iter().any(|prefix| path.starts_with(prefix))
+                    && !retained_prefixes.iter().any(|prefix| path.starts_with(prefix))
             })
         };
         let mut affected_uris = self
@@ -70,6 +106,9 @@ impl DiagnosticStore {
             .filter(|uri| matches_prefix(uri))
             .cloned()
             .collect::<FxHashSet<_>>();
+        let previous_document_count = self.analyzed_documents.len();
+        self.analyzed_documents.retain(|uri, _| !matches_prefix(uri));
+        let workspace_documents_changed = self.analyzed_documents.len() != previous_document_count;
         self.diagnostics.retain(|_, owner_diagnostics| {
             owner_diagnostics.retain(|uri, _| {
                 let retain = !matches_prefix(uri);
@@ -81,7 +120,9 @@ impl DiagnosticStore {
             !owner_diagnostics.is_empty()
         });
 
-        self.publish_batches(affected_uris)
+        let mut update = self.publish_batches(affected_uris);
+        update.workspace_documents_changed = workspace_documents_changed;
+        update
     }
 
     pub(crate) fn clear_owners_and_publish_batches(
@@ -110,6 +151,50 @@ impl DiagnosticStore {
         }
     }
 
+    pub(crate) fn workspace_pull_reports(
+        &self,
+        previous_result_ids: &[PreviousResultId],
+    ) -> Vec<WorkspacePullReport> {
+        let previous = previous_result_ids
+            .iter()
+            .map(|previous| (normalize_file_uri(previous.uri.clone()), previous.value.clone()))
+            .collect::<FxHashMap<_, _>>();
+        let mut uris = FxHashSet::default();
+        uris.extend(self.analyzed_documents.keys().cloned());
+        uris.extend(self.reports.keys().cloned());
+        uris.extend(previous.keys().cloned());
+
+        let mut uris = uris.into_iter().collect::<Vec<_>>();
+        uris.sort_by(|lhs, rhs| lhs.as_str().cmp(rhs.as_str()));
+        uris.into_iter()
+            .filter_map(|uri| {
+                let previous_result_id = previous.get(&uri).map(String::as_str);
+                let is_current =
+                    self.analyzed_documents.contains_key(&uri) || self.reports.contains_key(&uri);
+                if !is_current
+                    && previous_result_id.is_none_or(|result_id| {
+                        result_id.is_empty() || result_id == EMPTY_RESULT_ID
+                    })
+                {
+                    return None;
+                }
+                Some(WorkspacePullReport {
+                    version: self.analyzed_documents.get(&uri).copied().flatten(),
+                    report: self.pull_report(&uri, previous_result_id),
+                    uri,
+                    is_stale: !is_current,
+                })
+            })
+            .collect()
+    }
+
+    pub(crate) fn update_analyzed_document_version(&mut self, uri: Url, version: i64) {
+        let uri = normalize_file_uri(uri);
+        if let Some(current) = self.analyzed_documents.get_mut(&uri) {
+            *current = Some(version);
+        }
+    }
+
     fn replace(&mut self, owner: DiagnosticOwner, diagnostics: DiagnosticMap) -> FxHashSet<Url> {
         let mut affected_uris =
             FxHashSet::with_capacity_and_hasher(diagnostics.len(), Default::default());
@@ -133,7 +218,7 @@ impl DiagnosticStore {
             return DiagnosticUpdate::default();
         }
 
-        let Self { diagnostics: all_diagnostics, reports, next_result_id } = self;
+        let Self { diagnostics: all_diagnostics, reports, next_result_id, .. } = self;
         let mut owners = all_diagnostics.iter().collect::<Vec<_>>();
         owners.sort_by_key(|(owner, _)| *owner);
 
@@ -174,7 +259,7 @@ impl DiagnosticStore {
                 (has_entry || was_published).then_some((uri, diagnostics))
             })
             .collect();
-        DiagnosticUpdate { batches, pull_reports_changed }
+        DiagnosticUpdate { batches, pull_reports_changed, workspace_documents_changed: false }
     }
 
     fn next_result_id(next_result_id: &mut u64) -> String {
@@ -184,10 +269,14 @@ impl DiagnosticStore {
     }
 }
 
+fn normalize_file_uri(uri: Url) -> Url {
+    uri.to_file_path().ok().and_then(|path| Url::from_file_path(path).ok()).unwrap_or(uri)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lsp_types::{Position, Range};
+    use lsp_types::{Position, PreviousResultId, Range};
 
     fn diagnostic(message: &str) -> Diagnostic {
         Diagnostic::new_simple(
@@ -201,6 +290,92 @@ mod tests {
 
     fn uri(path: &str) -> Url {
         Url::from_file_path(std::env::temp_dir().join("solar-lsp-diagnostics").join(path)).unwrap()
+    }
+
+    #[test]
+    fn workspace_reports_include_clean_documents_and_reuse_result_ids() {
+        let clean = uri("src/Clean.sol");
+        let broken = uri("src/Broken.sol");
+        let mut store = DiagnosticStore::default();
+        store.replace_compiler_snapshot_and_publish_batches(
+            DiagnosticMap::from_iter([(broken.clone(), vec![diagnostic("broken")])]),
+            AnalyzedDocuments::from_iter([(clean.clone(), None), (broken.clone(), Some(7))]),
+        );
+
+        let reports = store.workspace_pull_reports(&[]);
+
+        assert_eq!(reports.iter().map(|report| &report.uri).collect::<Vec<_>>(), [&broken, &clean]);
+        assert_eq!(reports[0].version, Some(7));
+        assert_eq!(reports[1].version, None);
+        assert!(matches!(
+            &reports[0].report,
+            PullReport::Full { diagnostics, .. } if diagnostics.as_slice() == [diagnostic("broken")]
+        ));
+        assert!(matches!(
+            &reports[1].report,
+            PullReport::Full { diagnostics, .. } if diagnostics.is_empty()
+        ));
+
+        let previous = reports
+            .iter()
+            .map(|report| PreviousResultId {
+                uri: report.uri.clone(),
+                value: match &report.report {
+                    PullReport::Full { result_id, .. } | PullReport::Unchanged { result_id } => {
+                        result_id.clone()
+                    }
+                },
+            })
+            .collect::<Vec<_>>();
+        let reports = store.workspace_pull_reports(&previous);
+
+        assert!(reports.iter().all(|report| matches!(report.report, PullReport::Unchanged { .. })));
+    }
+
+    #[test]
+    fn workspace_reports_clear_removed_diagnostics_once() {
+        let canonical_uri = uri("src/Stale.sol");
+        let encoded_uri =
+            Url::parse(&canonical_uri.as_str().replacen("Stale.sol", "%53tale.sol", 1)).unwrap();
+        let mut store = DiagnosticStore::default();
+        store.replace_compiler_snapshot_and_publish_batches(
+            DiagnosticMap::from_iter([(
+                canonical_uri.clone(),
+                vec![diagnostic("stale diagnostic")],
+            )]),
+            AnalyzedDocuments::from_iter([(canonical_uri.clone(), None)]),
+        );
+        let [initial] = store.workspace_pull_reports(&[]).try_into().unwrap();
+        let PullReport::Full { result_id: stale_result_id, .. } = initial.report else {
+            panic!("initial report should be full");
+        };
+        store.replace_compiler_snapshot_and_publish_batches(
+            DiagnosticMap::default(),
+            AnalyzedDocuments::default(),
+        );
+
+        let [cleared] = store
+            .workspace_pull_reports(&[PreviousResultId {
+                uri: encoded_uri,
+                value: stale_result_id,
+            }])
+            .try_into()
+            .unwrap();
+
+        assert_eq!(cleared.uri, canonical_uri);
+        let PullReport::Full { result_id: empty_result_id, diagnostics } = cleared.report else {
+            panic!("removed diagnostics should be cleared with a full report");
+        };
+        assert!(diagnostics.is_empty());
+        assert_eq!(empty_result_id, EMPTY_RESULT_ID);
+        assert!(
+            store
+                .workspace_pull_reports(&[PreviousResultId {
+                    uri: canonical_uri,
+                    value: empty_result_id,
+                }])
+                .is_empty()
+        );
     }
 
     #[test]

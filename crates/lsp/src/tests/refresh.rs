@@ -135,6 +135,43 @@ async fn external_analysis_refreshes_changed_pull_results() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn external_analysis_refreshes_changed_workspace_membership_once() {
+    let mut harness = refresh_harness();
+    let mut state = GlobalState::new(harness.client.clone());
+    state.config = Arc::new(pull_refresh_config(true, false));
+    let uri = diagnostic_uri();
+
+    let (version, _progress) = state
+        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::External)
+        .unwrap();
+    assert!(state.snapshot().publish_analysis(
+        version,
+        AnalysisResult {
+            analyzed_documents: AnalyzedDocuments::from_iter([(uri.clone(), Some(1))]),
+            diagnostics: DiagnosticMap::default(),
+            symbol_tables: SymbolTables::default(),
+        },
+    ));
+    assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
+    harness.expect_no_event().await;
+
+    let (version, _progress) = state
+        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::External)
+        .unwrap();
+    assert!(state.snapshot().publish_analysis(
+        version,
+        AnalysisResult {
+            analyzed_documents: AnalyzedDocuments::from_iter([(uri, Some(2))]),
+            diagnostics: DiagnosticMap::default(),
+            symbol_tables: SymbolTables::default(),
+        },
+    ));
+    harness.expect_no_event().await;
+
+    harness.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn ordinary_and_unchanged_analyses_do_not_refresh_pull_results() {
     let mut harness = refresh_harness();
     let mut state = GlobalState::new(harness.client.clone());
@@ -146,6 +183,7 @@ async fn ordinary_and_unchanged_analyses_do_not_refresh_pull_results() {
         .unwrap();
     assert!(state.snapshot().publish_analysis(version, changed_pull_result()));
     assert_eq!(SymbolTables::take_inlay_hint_comparisons(), 0);
+    assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
     harness.expect_no_event().await;
 
     let (version, _progress) = state
@@ -222,6 +260,7 @@ async fn external_analysis_preserves_early_diagnostic_changes_until_commit() {
     assert!(state.snapshot().publish_analysis(
         version,
         AnalysisResult {
+            analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
             symbol_tables: SymbolTables::default(),
         },
@@ -253,6 +292,7 @@ async fn removed_flycheck_diagnostics_coalesce_with_external_analysis_refresh() 
     assert!(state.snapshot().publish_analysis(
         version,
         AnalysisResult {
+            analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
             symbol_tables: SymbolTables::default(),
         },
@@ -305,6 +345,7 @@ async fn external_refresh_intent_survives_superseded_analysis() {
         .unwrap();
     let mut current_snapshot = state.snapshot();
     let unchanged_result = || AnalysisResult {
+        analyzed_documents: AnalyzedDocuments::default(),
         diagnostics: DiagnosticMap::default(),
         symbol_tables: SymbolTables::default(),
     };
@@ -361,7 +402,7 @@ async fn external_refresh_intent_survives_failed_analysis() {
     let mut recovery_result = changed_pull_result();
     recovery_result.diagnostics.clear();
     assert!(state.snapshot().publish_analysis(recovery_version, recovery_result));
-    assert_eq!(harness.next_event().await, RefreshEvent::InlayHints);
+    harness.expect_pull_result_refreshes().await;
     harness.expect_no_event().await;
     {
         let commit = state.analysis_commit.lock();
@@ -377,6 +418,7 @@ async fn clearing_analysis_cache_refreshes_only_changed_pull_results() {
     let mut state = GlobalState::new(harness.client.clone());
     state.config = Arc::new(pull_refresh_config(true, true));
     assert!(state.snapshot().publish_analysis(0, changed_pull_result()));
+    assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
     harness.expect_no_event().await;
 
     state.clear_analysis_cache();
@@ -394,6 +436,7 @@ async fn invalidated_analysis_refreshes_restored_pull_results() {
     let mut state = GlobalState::new(harness.client.clone());
     state.config = Arc::new(pull_refresh_config(true, true));
     assert!(state.snapshot().publish_analysis(0, changed_pull_result()));
+    assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
     harness.expect_no_event().await;
 
     state.clear_analysis_cache();

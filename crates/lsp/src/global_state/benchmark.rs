@@ -441,13 +441,21 @@ impl BenchmarkAnalysis {
         let first = batches.next().expect("benchmark analysis needs at least one batch");
         let Self { root, diagnostics, symbol_tables, default_uri } = first;
         let mut accumulator = AnalysisResultAccumulator::default();
-        accumulator.push(AnalysisResult { diagnostics, symbol_tables });
+        accumulator.push(AnalysisResult {
+            analyzed_documents: Default::default(),
+            diagnostics,
+            symbol_tables,
+        });
 
         for batch in batches {
             let Self { diagnostics, symbol_tables, .. } = batch;
-            accumulator.push(AnalysisResult { diagnostics, symbol_tables });
+            accumulator.push(AnalysisResult {
+                analyzed_documents: Default::default(),
+                diagnostics,
+                symbol_tables,
+            });
         }
-        let AnalysisResult { diagnostics, symbol_tables } = accumulator.finish();
+        let AnalysisResult { diagnostics, symbol_tables, .. } = accumulator.finish();
         Self { root, diagnostics, symbol_tables, default_uri }
     }
 

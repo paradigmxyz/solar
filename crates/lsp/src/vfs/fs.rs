@@ -35,6 +35,7 @@ use std::{
 pub(crate) struct Vfs {
     data: FxHashMap<VfsPath, Rope>,
     versions: FxHashMap<VfsPath, i32>,
+    content_revision: u64,
     dirty: bool,
 }
 
@@ -51,6 +52,10 @@ impl Vfs {
         contents: Option<Rope>,
         version: Option<i32>,
     ) {
+        let contents_changed = match &contents {
+            Some(contents) => self.data.get(&path) != Some(contents),
+            None => self.data.contains_key(&path),
+        };
         if let Some(contents) = contents {
             self.data.insert(path.clone(), contents);
             if let Some(version) = version {
@@ -62,6 +67,9 @@ impl Vfs {
             self.data.remove(&path);
             self.versions.remove(&path);
         }
+        if contents_changed {
+            self.bump_content_revision();
+        }
         self.dirty = true;
     }
 
@@ -71,6 +79,10 @@ impl Vfs {
 
     pub(crate) fn get_file_version(&self, path: &VfsPath) -> Option<i32> {
         self.versions.get(path).copied()
+    }
+
+    pub(crate) fn content_revision(&self) -> u64 {
+        self.content_revision
     }
 
     pub(crate) fn exists(&self, path: &VfsPath) -> bool {
@@ -114,6 +126,9 @@ impl Vfs {
             }
         }
         self.dirty |= changed;
+        if changed {
+            self.bump_content_revision();
+        }
         Ok(())
     }
 
@@ -135,7 +150,11 @@ impl Vfs {
         let old_len = self.data.len();
         self.data.retain(|path, _| !has_file_prefix(path, deleted_paths));
         self.versions.retain(|path, _| !has_file_prefix(path, deleted_paths));
-        self.dirty |= self.data.len() != old_len;
+        let changed = self.data.len() != old_len;
+        self.dirty |= changed;
+        if changed {
+            self.bump_content_revision();
+        }
     }
 
     /// Whether the VFS is dirty or not.
@@ -162,6 +181,11 @@ impl Vfs {
     /// Returns an iterator over stored paths and their corresponding contents.
     pub(crate) fn iter(&self) -> impl Iterator<Item = (&VfsPath, &Rope)> {
         self.data.iter()
+    }
+
+    fn bump_content_revision(&mut self) {
+        self.content_revision =
+            self.content_revision.checked_add(1).expect("VFS content revision counter exhausted");
     }
 }
 

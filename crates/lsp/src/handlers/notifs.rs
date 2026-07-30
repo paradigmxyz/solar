@@ -30,6 +30,10 @@ pub(crate) fn did_open_text_document(
         if changed {
             state.recompute_after_source_changes(disk_path.into_iter().collect());
         } else {
+            state.update_analyzed_document_version(
+                params.text_document.uri,
+                params.text_document.version,
+            );
             state.reindex_if_invalidated();
         }
     }
@@ -62,6 +66,10 @@ pub(crate) fn did_change_text_document(
         if changed {
             state.recompute_after_source_changes(disk_path.into_iter().collect());
         } else {
+            state.update_analyzed_document_version(
+                params.text_document.uri,
+                params.text_document.version,
+            );
             state.reindex_if_invalidated();
         }
     }
@@ -177,19 +185,22 @@ pub(crate) fn did_change_workspace_folders(
     state: &mut GlobalState,
     params: DidChangeWorkspaceFoldersParams,
 ) -> NotifyResult {
+    let removed_paths = params
+        .event
+        .removed
+        .into_iter()
+        .filter_map(|workspace| workspace.uri.to_file_path().ok())
+        .collect::<Vec<_>>();
+    let added_paths =
+        params.event.added.into_iter().filter_map(|workspace| workspace.uri.to_file_path().ok());
+
     let config = Arc::make_mut(&mut state.config);
-
-    for workspace in params.event.removed {
-        let Ok(path) = workspace.uri.to_file_path() else {
-            continue;
-        };
-        config.remove_workspace(&path);
+    for path in &removed_paths {
+        config.remove_workspace(path);
     }
+    config.add_workspaces(added_paths);
 
-    let added = params.event.added.into_iter().filter_map(|it| it.uri.to_file_path().ok());
-    config.add_workspaces(added);
-
-    state.reindex();
+    state.reindex_after_removing_paths(removed_paths);
 
     ControlFlow::Continue(())
 }

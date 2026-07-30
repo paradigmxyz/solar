@@ -115,6 +115,7 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
         .request::<req::TypeHierarchySubtypes, _>(handlers::type_hierarchy_subtypes)
         .request::<req::Completion, _>(handlers::completion)
         .request::<req::DocumentDiagnosticRequest, _>(handlers::document_diagnostic)
+        .request::<req::WorkspaceDiagnosticRequest, _>(handlers::workspace_diagnostic)
         .request::<req::Formatting, _>(handlers::formatting);
 
     // Workspace management
@@ -141,8 +142,8 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
     router
 }
 
-fn request_layer() -> request_cancellation::RequestCancellationLayer {
-    request_cancellation::RequestCancellationLayer
+fn request_layer(client: ClientSocket) -> request_cancellation::RequestCancellationLayer {
+    request_cancellation::RequestCancellationLayer::new(client)
 }
 
 /// Start the LSP server over stdin/stdout.
@@ -165,7 +166,7 @@ pub async fn run_server_stdio(_args: LspArgs) -> async_lsp::Result<()> {
         ServiceBuilder::new()
             .layer(TracingLayer::default())
             .layer(LifecycleLayer::default())
-            .layer(request_layer())
+            .layer(request_layer(client.clone()))
             .layer(ClientProcessMonitorLayer::new(client.clone()))
             .service(new_router(client))
     });
