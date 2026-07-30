@@ -1,0 +1,60 @@
+// === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
+@module runtime
+bb0:
+  push 160
+  push 64
+  mstore
+  callvalue
+  push bb13
+  jumpi
+  push 0
+  calldataload
+  dup1
+  push 128
+  mstore
+  push 8
+  swap1
+  sub
+  dup1
+  push 57
+  gt
+  push bb4
+  jumpi
+  pop
+  jump bb13
+bb13 [cold]:
+  push 0
+  dup1
+  revert
+bb4:
+  indexed_jump bb5, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb6, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb7, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb8, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb9, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb10, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb11, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb12
+bb5:
+  push 100
+  jump bb14
+bb14:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb6:
+  push 101
+  jump bb14
+bb7:
+  push 102
+  jump bb14
+bb8:
+  push 103
+  jump bb14
+bb9:
+  push 104
+  jump bb14
+bb10:
+  push 105
+  jump bb14
+bb11:
+  push 106
+  jump bb14
+bb12:
+  push 107
+  jump bb14
