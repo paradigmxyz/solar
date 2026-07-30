@@ -544,36 +544,8 @@ impl<'gcx> Lowerer<'gcx> {
                     );
                 }
                 let source_ty = op.is_none().then(|| self.get_expr_type(rhs)).flatten();
-                let rhs_val = if op.is_none()
-                    && self
-                        .gcx
-                        .resolved_variable(lhs)
-                        .is_some_and(|var_id| self.storage_ref_locals.contains(var_id))
-                {
-                    self.lower_lvalue_slot(builder, rhs).unwrap_or_else(|| {
-                        self.err_value(
-                            builder,
-                            rhs.span,
-                            "unsupported storage reference assignment",
-                        )
-                    })
-                } else if op.is_none()
-                    && source_ty.is_some_and(|ty| {
-                        matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Storage))
-                    })
-                {
-                    let slot = self.lower_lvalue_slot(builder, rhs).unwrap_or_else(|| {
-                        self.err_value(builder, rhs.span, "unsupported storage value assignment")
-                    });
-                    self.load_storage_value_at(
-                        builder,
-                        source_ty.expect("storage source type is available"),
-                        slot,
-                    )
-                } else if op.is_none() && self.lhs_expects_memory_bytes_value(lhs) {
-                    self.lower_expr_as_memory_bytes(builder, rhs)
-                } else if op.is_none() && self.lhs_expects_memory_dyn_array_value(lhs) {
-                    self.lower_expr_as_memory_dyn_array(builder, rhs)
+                let rhs_val = if op.is_none() {
+                    self.lower_assignment_rhs(builder, lhs, rhs, source_ty)
                 } else {
                     self.lower_value_expr(builder, rhs)
                 };
@@ -737,6 +709,42 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Err(guar) => builder.error_value(*guar),
+        }
+    }
+
+    /// Lowers an assignment RHS according to the destination's data location.
+    pub(super) fn lower_assignment_rhs(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lhs: &hir::Expr<'_>,
+        rhs: &hir::Expr<'_>,
+        source_ty: Option<Ty<'gcx>>,
+    ) -> ValueId {
+        if self
+            .gcx
+            .resolved_variable(lhs)
+            .is_some_and(|var_id| self.storage_ref_locals.contains(var_id))
+        {
+            self.lower_lvalue_slot(builder, rhs).unwrap_or_else(|| {
+                self.err_value(builder, rhs.span, "unsupported storage reference assignment")
+            })
+        } else if source_ty
+            .is_some_and(|ty| matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Storage)))
+        {
+            let slot = self.lower_lvalue_slot(builder, rhs).unwrap_or_else(|| {
+                self.err_value(builder, rhs.span, "unsupported storage value assignment")
+            });
+            self.load_storage_value_at(
+                builder,
+                source_ty.expect("storage source type is available"),
+                slot,
+            )
+        } else if self.lhs_expects_memory_bytes_value(lhs) {
+            self.lower_expr_as_memory_bytes(builder, rhs)
+        } else if self.lhs_expects_memory_dyn_array_value(lhs) {
+            self.lower_expr_as_memory_dyn_array(builder, rhs)
+        } else {
+            self.lower_value_expr(builder, rhs)
         }
     }
 

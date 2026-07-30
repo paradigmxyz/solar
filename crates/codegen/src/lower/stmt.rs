@@ -7,7 +7,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_interface::{Span, diagnostics::ErrorGuaranteed, kw, sym};
+use solar_interface::{Span, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, ElementaryType, ExprKind, StmtKind},
@@ -251,13 +251,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         let initial_value = if let Some(init) = var.initializer {
-            if self.var_expects_memory_bytes_value(var) {
-                self.lower_expr_as_memory_bytes(builder, init)
-            } else if self.var_expects_memory_dyn_array_value(var) {
-                self.lower_expr_as_memory_dyn_array(builder, init)
-            } else {
-                self.lower_value_expr(builder, init)
-            }
+            self.lower_declaration_rhs(builder, Some(var_id), init)
         } else {
             self.lower_default_variable_value(builder, var_id).unwrap_or_else(|| {
                 self.err_value(builder, var.span, "codegen cannot initialize this local variable")
@@ -386,8 +380,7 @@ impl<'gcx> Lowerer<'gcx> {
         init: &hir::Expr<'_>,
     ) {
         if let hir::ExprKind::Tuple(elements) = &init.peel_parens().kind {
-            let Ok(values) = self.lower_tuple_values(builder, elements, init.span) else { return };
-            if values.len() != var_ids.len() {
+            if elements.len() != var_ids.len() {
                 self.gcx
                     .dcx()
                     .err("tuple declaration arity mismatch in codegen")
@@ -396,6 +389,18 @@ impl<'gcx> Lowerer<'gcx> {
                 return;
             }
 
+            let mut values = SmallVec::<[ValueId; 4]>::new();
+            for (&var_id, &element) in var_ids.iter().zip(elements.iter()) {
+                let Some(element) = element else {
+                    self.gcx
+                        .dcx()
+                        .err("tuple value contains an omitted element")
+                        .span(init.span)
+                        .emit();
+                    return;
+                };
+                values.push(self.lower_declaration_rhs(builder, var_id, element));
+            }
             for (&var_id, value) in var_ids.iter().zip(values) {
                 if let Some(var_id) = var_id {
                     self.bind_local_value(builder, var_id, value);
@@ -527,8 +532,7 @@ impl<'gcx> Lowerer<'gcx> {
         // evaluate every RHS element before assigning any, so a swap reads the
         // old values.
         if let hir::ExprKind::Tuple(rhs_elems) = &rhs.peel_parens().kind {
-            let Ok(values) = self.lower_tuple_values(builder, rhs_elems, rhs.span) else { return };
-            if values.len() != elements.len() {
+            if rhs_elems.len() != elements.len() {
                 self.gcx
                     .dcx()
                     .err("tuple assignment arity mismatch in codegen")
@@ -536,7 +540,25 @@ impl<'gcx> Lowerer<'gcx> {
                     .emit();
                 return;
             }
-            let values = values.into_iter().map(Some).collect::<Vec<_>>();
+            let mut values = SmallVec::<[Option<ValueId>; 4]>::new();
+            for ((&lhs, &rhs_element), &source_ty) in
+                elements.iter().zip(rhs_elems.iter()).zip(source_tys.iter())
+            {
+                let Some(rhs_element) = rhs_element else {
+                    self.gcx
+                        .dcx()
+                        .err("tuple value contains an omitted element")
+                        .span(rhs.span)
+                        .emit();
+                    return;
+                };
+                let value = if let Some(lhs) = lhs {
+                    self.lower_assignment_rhs(builder, lhs, rhs_element, source_ty)
+                } else {
+                    self.lower_value_expr(builder, rhs_element)
+                };
+                values.push(Some(value));
+            }
             self.assign_tuple_values(builder, elements, &values, &source_tys);
             return;
         }
@@ -634,27 +656,33 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Lowers every component of a tuple value without materializing an
-    /// aggregate or staging values through the multi-return buffer.
-    pub(super) fn lower_tuple_values(
+    /// Lowers a declaration initializer according to the declared variable's
+    /// data location.
+    fn lower_declaration_rhs(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        elements: &[Option<&hir::Expr<'_>>],
-        span: Span,
-    ) -> Result<SmallVec<[ValueId; 4]>, ErrorGuaranteed> {
-        let mut values = SmallVec::new();
-        for &element in elements {
-            let Some(element) = element else {
-                return Err(self
-                    .gcx
-                    .dcx()
-                    .err("tuple value contains an omitted element")
-                    .span(span)
-                    .emit());
-            };
-            values.push(self.lower_value_expr(builder, element));
+        var_id: Option<hir::VariableId>,
+        rhs: &hir::Expr<'_>,
+    ) -> ValueId {
+        let Some(var_id) = var_id else {
+            return self.lower_value_expr(builder, rhs);
+        };
+        let var = self.gcx.hir.variable(var_id);
+        if var.data_location == Some(solar_ast::DataLocation::Storage) {
+            return self.lower_lvalue_slot(builder, rhs).unwrap_or_else(|| {
+                self.err_value(builder, rhs.span, "unsupported storage reference initializer")
+            });
         }
-        Ok(values)
+        if let Some((value, _)) = self.materialize_storage_value_expr(builder, rhs) {
+            return value;
+        }
+        if self.var_expects_memory_bytes_value(var) {
+            self.lower_expr_as_memory_bytes(builder, rhs)
+        } else if self.var_expects_memory_dyn_array_value(var) {
+            self.lower_expr_as_memory_dyn_array(builder, rhs)
+        } else {
+            self.lower_value_expr(builder, rhs)
+        }
     }
 
     /// Stages return values 2..N at the unbumped free-memory pointer and

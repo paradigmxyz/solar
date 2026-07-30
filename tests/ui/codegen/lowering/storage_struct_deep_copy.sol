@@ -11,6 +11,11 @@
 //@run-call: verifyStorageReferenceLowLevelCall() => 7
 //@run-call: verifyStorageReferenceInternalCall() => 3, 187, 2, 5
 //@run-call: verifyStorageReferencePush() => 4660, 287454020, 3, 5, 8
+//@run-call: verifyTupleStorageReferenceDeclaration() => 3, 187, 2, 5, 91
+//@run-call: verifyTupleStorageReferenceAssignment() => 3, 204, 2, 3, 92
+//@run-call: verifyTupleStorageAliasDeclaration() => 7, 93
+//@run-call: verifyTupleStorageAliasAssignment() => 8, 94
+//@run-call: verifyStorageReferenceMemoryAggregates() => 4660, 287454020, 3, 8
 
 // Copying a memory struct with dynamic fields (bytes/string/dynamic arrays)
 // into storage — via assignment or a struct-element array push — writes each
@@ -260,6 +265,70 @@ contract StorageStructDeepCopy {
             fixedLists[0][0],
             fixedLists[0][1],
             fixedLists[0][2]
+        );
+    }
+
+    function verifyTupleStorageReferenceDeclaration()
+        external
+        returns (uint256, uint256, uint256, uint256, uint256)
+    {
+        initializeReferenceValues();
+        bytes storage storageData = sourceBytes;
+        uint256[] storage storageValues = sourceValues;
+        (bytes memory data, uint256[] memory values, uint256 marker) =
+            (storageData, storageValues, 91);
+        return (data.length, uint8(data[1]), values.length, values[1], marker);
+    }
+
+    function verifyTupleStorageReferenceAssignment()
+        external
+        returns (uint256, uint256, uint256, uint256, uint256)
+    {
+        initializeReferenceValues();
+        bytes storage storageData = sourceBytes;
+        uint256[] storage storageValues = sourceValues;
+        bytes memory data;
+        uint256[] memory values;
+        uint256 marker;
+        (data, values, marker) = (storageData, storageValues, 92);
+        return (data.length, uint8(data[2]), values.length, values[0], marker);
+    }
+
+    function verifyTupleStorageAliasDeclaration() external returns (uint256, uint256) {
+        initializeReferenceValues();
+        (uint256[] storage values, uint256 marker) = (sourceValues, 93);
+        values[1] = 7;
+        return (sourceValues[1], marker);
+    }
+
+    function verifyTupleStorageAliasAssignment() external returns (uint256, uint256) {
+        initializeReferenceValues();
+        uint256[] storage values = dynamicValues;
+        uint256 marker;
+        (values, marker) = (sourceValues, 94);
+        values[0] = 8;
+        return (sourceValues[0], marker);
+    }
+
+    function verifyStorageReferenceMemoryAggregates()
+        external
+        returns (uint256, uint256, uint256, uint256)
+    {
+        bytes4[] memory selectors = new bytes4[](1);
+        selectors[0] = bytes4(0x11223344);
+        sourceSel = Sel(address(0x1234), selectors);
+        Sel storage selection = sourceSel;
+        Sel memory copiedSelection = selection;
+
+        sourceFixed = [uint256(3), 5, 8];
+        uint256[3] storage values = sourceFixed;
+        uint256[3] memory copiedValues = values;
+
+        return (
+            uint160(copiedSelection.addr),
+            uint32(copiedSelection.selectors[0]),
+            copiedValues[0],
+            copiedValues[2]
         );
     }
 }
