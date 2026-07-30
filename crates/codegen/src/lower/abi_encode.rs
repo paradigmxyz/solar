@@ -536,6 +536,25 @@ impl<'gcx> Lowerer<'gcx> {
         self.coerce_memory_slice_value(builder, value)
     }
 
+    /// Lowers an expression for a declared return, preserving storage
+    /// references as slot values across internal call boundaries.
+    pub(super) fn lower_declared_return_value_for_ty(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &solar_sema::hir::Expr<'_>,
+        ty: Ty<'gcx>,
+    ) -> ValueId {
+        if matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Storage)) {
+            self.lower_storage_reference_expr(
+                builder,
+                expr,
+                "unsupported storage reference return value",
+            )
+        } else {
+            self.lower_return_value_for_ty(builder, expr, ty)
+        }
+    }
+
     /// Decodes a storage `bytes`/`string` slot into the memory layout the ABI
     /// encoder expects (`[length][data...]`), through the module's shared
     /// `__load_storage_bytes` helper: the short/long-form decode and copy loop
@@ -799,7 +818,7 @@ impl<'gcx> Lowerer<'gcx> {
                 .iter()
                 .flatten()
                 .enumerate()
-                .map(|(i, e)| (self.lower_return_value_for_ty(builder, e, tys[i]), tys[i]))
+                .map(|(i, e)| (self.lower_declared_return_value_for_ty(builder, e, tys[i]), tys[i]))
                 .collect();
         }
         if let Some(arity) = self.get_ternary_tuple_arity(expr) {
@@ -814,7 +833,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
             return items;
         }
-        let first = self.lower_return_value_for_ty(builder, expr, tys[0]);
+        let first = self.lower_declared_return_value_for_ty(builder, expr, tys[0]);
         let mut items = vec![(first, tys[0])];
         let tail_base = (tys.len() > 1).then(|| self.multi_return_buffer_base(builder));
         for (i, &ty) in tys.iter().enumerate().skip(1) {

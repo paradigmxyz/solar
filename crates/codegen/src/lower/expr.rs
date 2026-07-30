@@ -725,15 +725,19 @@ impl<'gcx> Lowerer<'gcx> {
             .resolved_variable(lhs)
             .is_some_and(|var_id| self.storage_ref_locals.contains(var_id))
         {
-            self.lower_lvalue_slot(builder, rhs).unwrap_or_else(|| {
-                self.err_value(builder, rhs.span, "unsupported storage reference assignment")
-            })
+            self.lower_storage_reference_expr(
+                builder,
+                rhs,
+                "unsupported storage reference assignment",
+            )
         } else if source_ty
             .is_some_and(|ty| matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Storage)))
         {
-            let slot = self.lower_lvalue_slot(builder, rhs).unwrap_or_else(|| {
-                self.err_value(builder, rhs.span, "unsupported storage value assignment")
-            });
+            let slot = self.lower_storage_reference_expr(
+                builder,
+                rhs,
+                "unsupported storage value assignment",
+            );
             self.load_storage_value_at(
                 builder,
                 source_ty.expect("storage source type is available"),
@@ -745,6 +749,54 @@ impl<'gcx> Lowerer<'gcx> {
             self.lower_expr_as_memory_dyn_array(builder, rhs)
         } else {
             self.lower_value_expr(builder, rhs)
+        }
+    }
+
+    /// Converts an already-lowered assignment value according to the
+    /// destination's data location.
+    pub(super) fn convert_assignment_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lhs: &hir::Expr<'_>,
+        value: ValueId,
+        source_ty: Option<Ty<'gcx>>,
+    ) -> ValueId {
+        if self
+            .gcx
+            .resolved_variable(lhs)
+            .is_some_and(|var_id| self.storage_ref_locals.contains(var_id))
+        {
+            return value;
+        }
+        if let Some(source_ty) = source_ty
+            && matches!(source_ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Storage))
+        {
+            return self.load_storage_value_at(builder, source_ty, value);
+        }
+        if (self.lhs_expects_memory_bytes_value(lhs)
+            || self.lhs_expects_memory_dyn_array_value(lhs))
+            && Self::value_is_slice(builder, value)
+        {
+            let ty = source_ty
+                .or_else(|| self.get_expr_type(lhs))
+                .expect("reference assignment has a type");
+            return self.materialize_slice_for_ty(builder, ty, value);
+        }
+        value
+    }
+
+    /// Lowers a storage-reference expression to its raw slot value.
+    pub(super) fn lower_storage_reference_expr(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+        unsupported: &'static str,
+    ) -> ValueId {
+        if matches!(expr.peel_parens().kind, ExprKind::Ternary(..)) {
+            self.lower_value_expr(builder, expr)
+        } else {
+            self.lower_lvalue_slot(builder, expr)
+                .unwrap_or_else(|| self.err_value(builder, expr.span, unsupported))
         }
     }
 
@@ -1708,6 +1760,15 @@ impl<'gcx> Lowerer<'gcx> {
         arm: &hir::Expr<'_>,
         result_ty: Option<Ty<'gcx>>,
     ) -> ValueId {
+        if result_ty
+            .is_some_and(|ty| matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Storage)))
+        {
+            return self.lower_storage_reference_expr(
+                builder,
+                arm,
+                "unsupported storage reference ternary arm",
+            );
+        }
         if let Some(ty) = result_ty
             && !matches!(
                 ty.kind,
@@ -1741,7 +1802,21 @@ impl<'gcx> Lowerer<'gcx> {
         let values = if let ExprKind::Tuple(elements) = &expr.kind {
             elements
                 .iter()
-                .filter_map(|elem| elem.map(|elem| self.lower_value_expr(builder, elem)))
+                .filter_map(|elem| {
+                    elem.map(|elem| {
+                        if self.get_expr_type(elem).is_some_and(|ty| {
+                            matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Storage))
+                        }) {
+                            self.lower_storage_reference_expr(
+                                builder,
+                                elem,
+                                "unsupported storage reference tuple element",
+                            )
+                        } else {
+                            self.lower_value_expr(builder, elem)
+                        }
+                    })
+                })
                 .collect::<Vec<_>>()
         } else {
             let first = self.lower_value_expr(builder, expr);
@@ -2102,6 +2177,7 @@ impl<'gcx> Lowerer<'gcx> {
         lhs: &'a hir::Expr<'hir>,
     ) -> LoweredTupleLvalue<'a, 'hir, 'gcx> {
         match &lhs.kind {
+            ExprKind::Tuple([Some(inner)]) => self.lower_tuple_lvalue(builder, inner),
             ExprKind::Ident(_) | ExprKind::YulMember(..) => LoweredTupleLvalue::Deferred(lhs),
             ExprKind::Index(base, index) => {
                 if let Some(slot) = self.lower_index_lvalue_slot(builder, base, index.as_deref()) {

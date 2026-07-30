@@ -43,9 +43,11 @@ impl<'gcx> Lowerer<'gcx> {
         let TyKind::Ref(_, solar_ast::DataLocation::Storage) = ty.kind else {
             return None;
         };
-        let slot = self.lower_lvalue_slot(builder, expr).unwrap_or_else(|| {
-            self.err_value(builder, expr.span, "unsupported storage value expression")
-        });
+        let slot = self.lower_storage_reference_expr(
+            builder,
+            expr,
+            "unsupported storage value expression",
+        );
         let value_ty = ty.peel_refs();
         let value = self.load_storage_value_at(builder, value_ty, slot);
         Some((value, value_ty))

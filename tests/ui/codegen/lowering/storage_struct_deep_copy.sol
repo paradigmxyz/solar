@@ -16,6 +16,12 @@
 //@run-call: verifyTupleStorageAliasDeclaration() => 7, 93
 //@run-call: verifyTupleStorageAliasAssignment() => 8, 94
 //@run-call: verifyStorageReferenceMemoryAggregates() => 4660, 287454020, 3, 8
+//@run-call: verifyParenthesizedTupleStorageAliasAssignment() => 9, 95
+//@run-call: verifyReturnedStorageReferenceDeclaration() => 5, 96
+//@run-call: verifyReturnedStorageReferenceAssignment() => 5, 96
+//@run-call: verifyReturnedStorageAlias() => 10, 96
+//@run-call: verifyNamedTernaryStorageAlias() => 5, 11, 97
+//@run-call: verifyTernaryTupleStorageAlias() => 5, 12, 98
 
 // Copying a memory struct with dynamic fields (bytes/string/dynamic arrays)
 // into storage — via assignment or a struct-element array push — writes each
@@ -330,5 +336,74 @@ contract StorageStructDeepCopy {
             copiedValues[0],
             copiedValues[2]
         );
+    }
+
+    function verifyParenthesizedTupleStorageAliasAssignment() external returns (uint256, uint256) {
+        initializeReferenceValues();
+        uint256[] storage values = dynamicValues;
+        uint256 marker;
+        ((values), marker) = (sourceValues, 95);
+        values[0] = 9;
+        return (sourceValues[0], marker);
+    }
+
+    function returnStorageReference()
+        internal
+        view
+        returns (uint256[] storage values, uint256 marker)
+    {
+        return (sourceValues, 96);
+    }
+
+    function verifyReturnedStorageReferenceDeclaration() external returns (uint256, uint256) {
+        initializeReferenceValues();
+        (uint256[] memory values, uint256 marker) = returnStorageReference();
+        return (values[1], marker);
+    }
+
+    function verifyReturnedStorageReferenceAssignment() external returns (uint256, uint256) {
+        initializeReferenceValues();
+        uint256[] memory values;
+        uint256 marker;
+        (values, marker) = returnStorageReference();
+        return (values[1], marker);
+    }
+
+    function verifyReturnedStorageAlias() external returns (uint256, uint256) {
+        initializeReferenceValues();
+        (uint256[] storage values, uint256 marker) = returnStorageReference();
+        values[0] = 10;
+        return (sourceValues[0], marker);
+    }
+
+    function namedTernaryStorageReference(bool chooseSource)
+        internal
+        view
+        returns (uint256[] storage values, uint256 marker)
+    {
+        values = chooseSource ? sourceValues : dynamicValues;
+        marker = 97;
+    }
+
+    function verifyNamedTernaryStorageAlias() external returns (uint256, uint256, uint256) {
+        initializeReferenceValues();
+        (uint256[] storage values, uint256 marker) = namedTernaryStorageReference(true);
+        values[0] = 11;
+        return (values[1], sourceValues[0], marker);
+    }
+
+    function ternaryTupleStorageReference(bool chooseSource)
+        internal
+        view
+        returns (uint256[] storage, uint256)
+    {
+        return chooseSource ? (sourceValues, 98) : (dynamicValues, 99);
+    }
+
+    function verifyTernaryTupleStorageAlias() external returns (uint256, uint256, uint256) {
+        initializeReferenceValues();
+        (uint256[] storage values, uint256 marker) = ternaryTupleStorageReference(true);
+        values[0] = 12;
+        return (values[1], sourceValues[0], marker);
     }
 }

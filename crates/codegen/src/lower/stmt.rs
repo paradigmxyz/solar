@@ -425,6 +425,13 @@ impl<'gcx> Lowerer<'gcx> {
             return;
         }
 
+        let source_tys =
+            if let Some(TyKind::Tuple(tys)) = self.get_expr_type(init).map(|ty| ty.kind) {
+                tys.iter().copied().map(Some).collect::<Vec<_>>()
+            } else {
+                vec![self.get_expr_type(init)]
+            };
+
         // Snapshot every bound tail value before storing any local. This keeps
         // the unbumped return buffer independent of subsequent memory writes.
         let init_delivers_pending = self.is_slice_multi_return_call(init);
@@ -437,6 +444,12 @@ impl<'gcx> Lowerer<'gcx> {
             for (i, var_id_opt) in var_ids.iter().enumerate() {
                 if let Some(var_id) = var_id_opt {
                     let val = values.get(i).copied().unwrap_or(first_val);
+                    let val = self.convert_declaration_value(
+                        builder,
+                        *var_id,
+                        val,
+                        source_tys.get(i).copied().flatten(),
+                    );
                     self.bind_local_value(builder, *var_id, val);
                 }
             }
@@ -463,12 +476,18 @@ impl<'gcx> Lowerer<'gcx> {
             })
             .collect();
 
-        for (var_id_opt, val) in var_ids.iter().zip(vals) {
+        for (i, (var_id_opt, val)) in var_ids.iter().zip(vals).enumerate() {
             if let Some(var_id) = var_id_opt {
+                let val = self.convert_declaration_value(
+                    builder,
+                    *var_id,
+                    val.expect("bound variable has a value"),
+                    source_tys.get(i).copied().flatten(),
+                );
                 // Allocate memory slot and store value
                 let offset = self.alloc_local_memory(*var_id);
                 let offset_val = self.local_memory_addr(builder, offset);
-                builder.mstore(offset_val, val.expect("bound variable has a value"));
+                builder.mstore(offset_val, val);
                 if self.gcx.hir.variable(*var_id).data_location
                     == Some(solar_ast::DataLocation::Storage)
                 {
@@ -599,11 +618,21 @@ impl<'gcx> Lowerer<'gcx> {
         // An inlined multi-return callee with calldata-slice returns delivers
         // its values directly; assign them through the regular lvalue path,
         // which routes slice-slot locals through their two-word slots.
-        if rhs_delivers_pending && let Some(values) = self.pending_inline_returns.take() {
+        if rhs_delivers_pending && let Some(pending) = self.pending_inline_returns.take() {
             let values = elements
                 .iter()
                 .enumerate()
-                .map(|(i, element)| element.map(|_| values.get(i).copied().unwrap_or(first_val)))
+                .map(|(i, element)| {
+                    element.map(|lhs| {
+                        let value = pending.get(i).copied().unwrap_or(first_val);
+                        self.convert_assignment_value(
+                            builder,
+                            lhs,
+                            value,
+                            source_tys.get(i).copied().flatten(),
+                        )
+                    })
+                })
                 .collect::<Vec<_>>();
             self.assign_tuple_values(builder, elements, &values, &source_tys);
             return;
@@ -613,7 +642,7 @@ impl<'gcx> Lowerer<'gcx> {
             let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
             builder.mload(ptr_slot)
         });
-        let vals: Vec<Option<ValueId>> = elements
+        let mut vals: Vec<Option<ValueId>> = elements
             .iter()
             .enumerate()
             .map(|(i, elem)| {
@@ -628,6 +657,16 @@ impl<'gcx> Lowerer<'gcx> {
                 })
             })
             .collect();
+        for (i, (&lhs, value)) in elements.iter().zip(vals.iter_mut()).enumerate() {
+            if let (Some(lhs), Some(value)) = (lhs, value) {
+                *value = self.convert_assignment_value(
+                    builder,
+                    lhs,
+                    *value,
+                    source_tys.get(i).copied().flatten(),
+                );
+            }
+        }
         self.assign_tuple_values(builder, elements, &vals, &source_tys);
     }
 
@@ -669,9 +708,11 @@ impl<'gcx> Lowerer<'gcx> {
         };
         let var = self.gcx.hir.variable(var_id);
         if var.data_location == Some(solar_ast::DataLocation::Storage) {
-            return self.lower_lvalue_slot(builder, rhs).unwrap_or_else(|| {
-                self.err_value(builder, rhs.span, "unsupported storage reference initializer")
-            });
+            return self.lower_storage_reference_expr(
+                builder,
+                rhs,
+                "unsupported storage reference initializer",
+            );
         }
         if let Some((value, _)) = self.materialize_storage_value_expr(builder, rhs) {
             return value;
@@ -683,6 +724,34 @@ impl<'gcx> Lowerer<'gcx> {
         } else {
             self.lower_value_expr(builder, rhs)
         }
+    }
+
+    /// Converts an already-lowered declaration value according to the
+    /// variable's data location.
+    fn convert_declaration_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        var_id: hir::VariableId,
+        value: ValueId,
+        source_ty: Option<Ty<'gcx>>,
+    ) -> ValueId {
+        let var = self.gcx.hir.variable(var_id);
+        if var.data_location == Some(solar_ast::DataLocation::Storage) {
+            return value;
+        }
+        if let Some(source_ty) = source_ty
+            && matches!(source_ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Storage))
+        {
+            return self.load_storage_value_at(builder, source_ty, value);
+        }
+        if (self.var_expects_memory_bytes_value(var)
+            || self.var_expects_memory_dyn_array_value(var))
+            && Self::value_is_slice(builder, value)
+        {
+            let ty = source_ty.unwrap_or_else(|| self.gcx.type_of_item(var_id.into()));
+            return self.materialize_slice_for_ty(builder, ty, value);
+        }
+        value
     }
 
     /// Stages return values 2..N at the unbumped free-memory pointer and
@@ -1055,7 +1124,7 @@ impl<'gcx> Lowerer<'gcx> {
             self.lower_value_expr(builder, expr)
         } else {
             let ty = self.gcx.type_of_item(ret_id.into());
-            self.lower_return_value_for_ty(builder, expr, ty)
+            self.lower_declared_return_value_for_ty(builder, expr, ty)
         }
     }
 

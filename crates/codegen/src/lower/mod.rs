@@ -1233,6 +1233,9 @@ impl<'gcx> Lowerer<'gcx> {
                     self.init_empty_slice_slot(&mut builder, offset);
                     continue;
                 }
+                if ret_var.data_location == Some(solar_ast::DataLocation::Storage) {
+                    self.storage_ref_locals.insert(ret_id);
+                }
 
                 let offset = self.alloc_local_memory(ret_id);
                 let offset_val = self.local_memory_addr(&mut builder, offset);
