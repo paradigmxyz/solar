@@ -17,8 +17,8 @@ fn @factory(arg0: memptr) -> address {
     v7 = add v6, 64
     v8 = calldataload v7
     v9 = add v6, v8
-    v10 = calldataload v9
     v11 = add v9, 32
+    v10 = calldataload v9
     v15 = gt 20, v10
     jumpi v15, bb4, bb5
   bb3:
@@ -106,8 +106,8 @@ fn @midWord(arg0: memptr) -> bytes32 {
     v2 = add v1, 96
     v3 = calldataload v2
     v4 = add v1, v3
-    v5 = calldataload v4
     v6 = add v4, 32
+    v5 = calldataload v4
     v10 = gt 32, v5
     jumpi v10, bb1, bb2
   bb1:
@@ -139,8 +139,8 @@ fn @factory() {
     v4 = calldataload 4
     v5 = lt v4, 32
     v6 = add v4, 4
-    v7 = lt v6, 4
     v8 = gt v6, v3
+    v7 = lt v6, 4
     v9 = or v5, v7
     v10 = or v9, v8
     jumpi v10, bb1, bb3
@@ -183,8 +183,8 @@ fn @factory() {
     v34 = calldataload v27
     v35 = lt v34, 256
     v36 = add v12, v34
-    v37 = lt v36, v12
     v38 = gt v36, v13
+    v37 = lt v36, v12
     v39 = or v35, v37
     v40 = or v39, v38
     jumpi v40, bb1, bb9
@@ -234,8 +234,8 @@ fn @factory() {
     v67 = calldataload v66
     v68 = lt v67, 256
     v69 = add v12, v67
-    v70 = lt v69, v12
     v71 = gt v69, v13
+    v70 = lt v69, v12
     v72 = or v68, v70
     v73 = or v72, v71
     jumpi v73, bb1, bb16
@@ -310,8 +310,8 @@ fn @factory() {
     v121 = calldataload v114
     v122 = lt v121, 256
     v123 = add v12, v121
-    v124 = lt v123, v12
     v125 = gt v123, v13
+    v124 = lt v123, v12
     v126 = or v122, v124
     v127 = or v126, v125
     jumpi v127, bb1, bb25
@@ -370,8 +370,8 @@ fn @factory() {
     v161 = add v160, 64
     v162 = calldataload v161
     v163 = add v160, v162
-    v164 = calldataload v163
     v165 = add v163, 32
+    v164 = calldataload v163
     v169 = gt 20, v164
     jumpi v169, bb1, bb34
   bb33:
@@ -405,8 +405,8 @@ fn @tailHash() {
     v4 = calldataload 4
     v5 = lt v4, 32
     v6 = add v4, 4
-    v7 = lt v6, 4
     v8 = gt v6, v3
+    v7 = lt v6, 4
     v9 = or v5, v7
     v10 = or v9, v8
     jumpi v10, bb1, bb3
@@ -449,8 +449,8 @@ fn @tailHash() {
     v34 = calldataload v27
     v35 = lt v34, 256
     v36 = add v12, v34
-    v37 = lt v36, v12
     v38 = gt v36, v13
+    v37 = lt v36, v12
     v39 = or v35, v37
     v40 = or v39, v38
     jumpi v40, bb1, bb9
@@ -500,8 +500,8 @@ fn @tailHash() {
     v67 = calldataload v66
     v68 = lt v67, 256
     v69 = add v12, v67
-    v70 = lt v69, v12
     v71 = gt v69, v13
+    v70 = lt v69, v12
     v72 = or v68, v70
     v73 = or v72, v71
     jumpi v73, bb1, bb16
@@ -576,8 +576,8 @@ fn @tailHash() {
     v121 = calldataload v114
     v122 = lt v121, 256
     v123 = add v12, v121
-    v124 = lt v123, v12
     v125 = gt v123, v13
+    v124 = lt v123, v12
     v126 = or v122, v124
     v127 = or v126, v125
     jumpi v127, bb1, bb25
@@ -687,8 +687,8 @@ fn @midWord() {
     v4 = calldataload 4
     v5 = lt v4, 32
     v6 = add v4, 4
-    v7 = lt v6, 4
     v8 = gt v6, v3
+    v7 = lt v6, 4
     v9 = or v5, v7
     v10 = or v9, v8
     jumpi v10, bb1, bb3
@@ -729,8 +729,8 @@ fn @midWord() {
     v34 = calldataload v27
     v35 = lt v34, 256
     v36 = add v12, v34
-    v37 = lt v36, v12
     v38 = gt v36, v13
+    v37 = lt v36, v12
     v39 = or v35, v37
     v40 = or v39, v38
     jumpi v40, bb1, bb9
@@ -780,8 +780,8 @@ fn @midWord() {
     v67 = calldataload v66
     v68 = lt v67, 256
     v69 = add v12, v67
-    v70 = lt v69, v12
     v71 = gt v69, v13
+    v70 = lt v69, v12
     v72 = or v68, v70
     v73 = or v72, v71
     jumpi v73, bb1, bb16
@@ -856,8 +856,8 @@ fn @midWord() {
     v121 = calldataload v114
     v122 = lt v121, 256
     v123 = add v12, v121
-    v124 = lt v123, v12
     v125 = gt v123, v13
+    v124 = lt v123, v12
     v126 = or v122, v124
     v127 = or v126, v125
     jumpi v127, bb1, bb25

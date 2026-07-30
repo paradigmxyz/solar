@@ -14,8 +14,8 @@ fn @lastWord() {
     v4 = calldataload 4
     v5 = lt v4, 32
     v6 = add v4, 4
-    v7 = lt v6, 4
     v8 = gt v6, v3
+    v7 = lt v6, 4
     v9 = or v5, v7
     v10 = or v9, v8
     jumpi v10, bb1, bb3
@@ -33,9 +33,9 @@ fn @lastWord() {
     v20 = or v18, v19
     jumpi v20, bb1, bb5
   bb5:
-    v28 = add arg0, 36
     v29 = add arg0, 4
     v30 = calldataload v29
+    v28 = add arg0, 36
     v21 = internal_call @_last, 1, v28, v30
     mstore 128, v21
     returndata 128, 32
@@ -62,8 +62,8 @@ fn @lastWord2() {
     v4 = calldataload 4
     v5 = lt v4, 32
     v6 = add v4, 4
-    v7 = lt v6, 4
     v8 = gt v6, v3
+    v7 = lt v6, 4
     v9 = or v5, v7
     v10 = or v9, v8
     jumpi v10, bb1, bb3

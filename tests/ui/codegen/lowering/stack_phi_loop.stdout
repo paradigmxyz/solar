@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/stack_phi_loop.sol:StackPhiLoop (runtime) ===
 @module runtime
 bb0:
-  push 512
+  push 480
   push 64
   mstore
   callvalue
@@ -82,7 +82,7 @@ bb48:
   jump bb14
 bb14:
   dup1
-  push 288
+  push 256
   mstore
   push 4
   calldataload
@@ -109,13 +109,13 @@ bb11:
   jump bb48
 bb16:
   dup1
-  push 288
+  push 256
   mstore
   push 3
   dup2
   mul
   dup1
-  push 256
+  push 192
   mstore
   push 3
   dup2
@@ -132,7 +132,7 @@ bb16:
   iszero
   push bb47
   jumpi
-  push 256
+  push 192
   mload
   push 224
   mload
@@ -153,13 +153,10 @@ bb16:
   jumpi
   push 192
   mload
-  dup1
-  push 192
-  mstore
   push 128
   mstore
   push 1
-  push 288
+  push 256
   mload
   add
   push 3
@@ -184,7 +181,7 @@ bb21:
   jump bb24
 bb24:
   dup1
-  push 416
+  push 320
   mstore
   push 4
   calldataload
@@ -196,7 +193,7 @@ bb24:
   push 1
   add
   dup1
-  push 320
+  push 224
   mstore
   push 128
   mload
@@ -204,21 +201,18 @@ bb24:
   dup2
   add
   dup1
-  push 224
+  push 256
   mstore
   lt
   swap1
   pop
   push bb47
   jumpi
-  push 224
+  push 256
   mload
-  dup1
-  push 224
-  mstore
   push 128
   mstore
-  push 320
+  push 224
   mload
   jump bb24
 bb27:
@@ -227,7 +221,7 @@ bb27:
   jump bb29
 bb29:
   dup1
-  push 384
+  push 288
   mstore
   push 36
   calldataload
@@ -241,13 +235,13 @@ bb29:
   jump bb50
 bb31:
   dup1
-  push 384
+  push 288
   mstore
   dup1
   push 1
   shl
   dup1
-  push 256
+  push 224
   mstore
   dup1
   push 1
@@ -261,38 +255,35 @@ bb31:
   push bb47
   jumpi
   push 3
-  push 256
+  push 224
   mload
   add
   dup1
-  push 352
-  mstore
   push 256
+  mstore
+  push 224
   mload
   gt
   push bb47
   jumpi
   push 128
   mload
-  push 352
+  push 256
   mload
   dup2
   add
   dup1
-  push 288
+  push 224
   mstore
   lt
   push bb47
   jumpi
-  push 288
+  push 224
   mload
-  dup1
-  push 288
-  mstore
   push 128
   mstore
   push 1
-  push 384
+  push 288
   mload
   add
   jump bb29
@@ -390,9 +381,6 @@ bb41:
   jumpi
   push 256
   mload
-  dup1
-  push 256
-  mstore
   push 128
   mstore
   push 1

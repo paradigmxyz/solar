@@ -14,8 +14,8 @@ fn @dFlat() {
     v4 = calldataload 4
     v5 = lt v4, 32
     v6 = add v4, 4
-    v7 = lt v6, 4
     v8 = gt v6, v3
+    v7 = lt v6, 4
     v9 = or v5, v7
     v10 = or v9, v8
     jumpi v10, bb1, bb3
@@ -112,9 +112,9 @@ fn @dFlat() {
   bb17:
     v70 = add v42, 64
     mstore v70, v66
-    v72 = mload v42
     v73 = add v42, 32
     v74 = mload v73
+    v72 = mload v42
     mstore 128, v72
     mstore 160, v74
     mstore 192, v66
@@ -134,8 +134,8 @@ fn @dNested() {
     v4 = calldataload 4
     v5 = lt v4, 32
     v6 = add v4, 4
-    v7 = lt v6, 4
     v8 = gt v6, v3
+    v7 = lt v6, 4
     v9 = or v5, v7
     v10 = or v9, v8
     jumpi v10, bb1, bb3
@@ -193,8 +193,8 @@ fn @dNested() {
     v42 = mload v38
     v43 = lt v42, 32
     v44 = add v38, v42
-    v45 = lt v44, v38
     v46 = gt v44, v40
+    v45 = lt v44, v38
     v47 = or v43, v45
     v48 = or v47, v46
     jumpi v48, bb1, bb12
@@ -254,8 +254,8 @@ fn @dNested() {
     v84 = mload v55
     v85 = lt v84, 160
     v86 = add v44, v84
-    v87 = lt v86, v44
     v88 = gt v86, v40
+    v87 = lt v86, v44
     v89 = or v85, v87
     v90 = or v89, v88
     jumpi v90, bb1, bb20
@@ -280,8 +280,8 @@ fn @dNested() {
     v102 = mload v96
     v103 = lt v102, 96
     v104 = add v86, v102
-    v105 = lt v104, v86
     v106 = gt v104, v40
+    v105 = lt v104, v86
     v107 = or v103, v105
     v108 = or v107, v106
     jumpi v108, bb1, bb23
@@ -329,8 +329,8 @@ fn @dNested() {
     v135 = mload v134
     v136 = lt v135, 96
     v137 = add v86, v135
-    v138 = lt v137, v86
     v139 = gt v137, v40
+    v138 = lt v137, v86
     v140 = or v136, v138
     v141 = or v140, v139
     jumpi v141, bb1, bb29
@@ -367,8 +367,8 @@ fn @dNested() {
     v160 = mload v159
     v161 = lt v160, 160
     v162 = add v44, v160
-    v163 = lt v162, v44
     v164 = gt v162, v40
+    v163 = lt v162, v44
     v165 = or v161, v163
     v166 = or v165, v164
     jumpi v166, bb1, bb33
@@ -422,8 +422,8 @@ fn @dNested() {
     v206 = mload 64 !metadata(memory=scratch)
     v207 = add v206, 96
     mstore v206, v195
-    v208 = add v206, 32
     v209 = sub v207, v206
+    v208 = add v206, 32
     mstore v208, v209
     v210 = mload v199
     mstore v207, v210
@@ -437,8 +437,8 @@ fn @dNested() {
     mstore v217, 0
     jump bb40
   bb40:
-    v218 = add v199, 32
     v219 = add v214, v213
+    v218 = add v199, 32
     mcopy v214, v218, v210
     v220 = add v206, 64
     mstore v220, v202
@@ -464,8 +464,8 @@ fn @dDynArr() {
     v4 = calldataload 4
     v5 = lt v4, 32
     v6 = add v4, 4
-    v7 = lt v6, 4
     v8 = gt v6, v3
+    v7 = lt v6, 4
     v9 = or v5, v7
     v10 = or v9, v8
     jumpi v10, bb1, bb3
@@ -524,8 +524,8 @@ fn @dDynArr() {
     v42 = mload v38
     v43 = lt v42, 32
     v44 = add v38, v42
-    v45 = lt v44, v38
     v46 = gt v44, v40
+    v45 = lt v44, v38
     v47 = or v43, v45
     v48 = or v47, v46
     jumpi v48, bb1, bb12
@@ -574,8 +574,8 @@ fn @dDynArr() {
     v73 = mload v72
     v74 = lt v73, v56
     v75 = add v49, v73
-    v76 = lt v75, v49
     v77 = gt v75, v40
+    v76 = lt v75, v49
     v78 = or v74, v76
     v79 = or v78, v77
     jumpi v79, bb1, bb21
@@ -604,8 +604,8 @@ fn @dDynArr() {
     v91 = mload v85
     v92 = lt v91, 96
     v93 = add v75, v91
-    v94 = lt v93, v75
     v95 = gt v93, v40
+    v94 = lt v93, v75
     v96 = or v92, v94
     v97 = or v96, v95
     jumpi v97, bb1, bb24
@@ -653,8 +653,8 @@ fn @dDynArr() {
     v124 = mload v123
     v125 = lt v124, 96
     v126 = add v75, v124
-    v127 = lt v126, v75
     v128 = gt v126, v40
+    v127 = lt v126, v75
     v129 = or v125, v127
     v130 = or v129, v128
     jumpi v130, bb1, bb30

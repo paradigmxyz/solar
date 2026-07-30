@@ -136,7 +136,6 @@ enum ExprKind {
     CalldataLoad(ClassId),
     BlockHash(ClassId),
     BlobHash(ClassId),
-    LoadImmutable(u32),
     MakeSlice(ClassId, ClassId, crate::mir::SliceLocation),
     SlicePtr(ClassId),
     SliceLen(ClassId),
@@ -376,8 +375,6 @@ impl GlobalValueNumberer {
             InstKind::CalldataLoad(a) => ExprKind::CalldataLoad(class(a)),
             InstKind::BlockHash(a) => ExprKind::BlockHash(class(a)),
             InstKind::BlobHash(a) => ExprKind::BlobHash(class(a)),
-            // Immutable reads are constant once the runtime code is patched.
-            InstKind::LoadImmutable(offset) => ExprKind::LoadImmutable(offset),
             InstKind::MakeSlice { ptr, len, location } => {
                 ExprKind::MakeSlice(class(ptr), class(len), location)
             }
@@ -393,7 +390,8 @@ impl GlobalValueNumberer {
                 ExprKind::MemoryObjectElementAddr(class(object), layout, class(index))
             }
             // Everything else (memory, storage, environment reads, calls,
-            // gas/msize/returndatasize, keccak) never merges in this pass.
+            // gas/msize/returndatasize, keccak, immutable reads) never merges
+            // in this pass. CSE handles reads that require clobber tracking.
             _ => return None,
         })
     }

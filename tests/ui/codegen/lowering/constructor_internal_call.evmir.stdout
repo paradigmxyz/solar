@@ -2,37 +2,52 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 0x4000
-  push 64
-  mstore
-  push 393
+  push 413
   codesize
   sub
   dup1
   push 32
   mstore
-  push 393
-  push 128
+  dup1
+  push 413
+  push 288
   codecopy
+  push 288
+  add
+  push 31
+  add
+  push 31
+  not
+  and
+  push 64
+  mstore
+  push 288
+  dup1
+  push 192
+  mstore
   push 32
   mload
   dup1
-  push 0x1000
+  push 224
   mstore
   push 32
   gt
+  swap1
+  pop
   push bb12
   jumpi
-  push 128
-  push 0x1000
+  push 224
+  mload
+  push 192
   mload
   add
-  push 128
+  push 192
+  mload
   gt
   push bb12
   jumpi
   push 7
-  push 128
+  push 288
   mload
   and
   push 64
@@ -223,7 +238,7 @@ bb11:
   add
   mload
   dup1
-  push 0x1020
+  push 256
   mstore
   push 160
   mload
@@ -237,13 +252,13 @@ bb11:
   push 160
   mstore
   dup1
-  push 0x1020
+  push 256
   mstore
   push 0
   sstore
   push 43
   dup1
-  push 350
+  push 370
   push 0
   codecopy
   push 0

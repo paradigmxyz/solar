@@ -1,0 +1,29 @@
+//@ compile-flags: -Zmir-pipeline=lower-immutables
+//@ filecheck:
+@module LowerImmutables
+immutables:
+  first: u8
+  second: bytes20
+
+// CHECK-LABEL: @constructor
+// CHECK: -     storeimmutable first, arg0
+// CHECK-NEXT: -     storeimmutable second, arg1
+// CHECK-NEXT: +     mstore 192, arg0
+// CHECK-NEXT: +     mstore 224, arg1
+// CHECK-NEXT:       [[LOAD:v[0-9]+]] = loadimmutable first
+// CHECK-NEXT:       ret [[LOAD]]
+fn @constructor(arg0: u8, arg1: bytes20) -> u8 {
+  bb0:
+    storeimmutable first, arg0
+    storeimmutable second, arg1
+    v0 = loadimmutable first
+    ret v0
+}
+
+// CHECK-LABEL: fn @runtime
+// CHECK: storeimmutable first, 1
+fn @runtime() [selector=1] {
+  bb0:
+    storeimmutable first, 1
+    stop
+}

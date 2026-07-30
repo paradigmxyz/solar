@@ -1,10 +1,7 @@
 //! Bytes and string lowering helpers.
 
 use super::{Lowerer, checked_arith::PanicCode};
-use crate::{
-    memory::EvmMemoryLayout,
-    mir::{FunctionBuilder, MemoryObjectKind, MirType, SliceLocation, ValueId},
-};
+use crate::mir::{FunctionBuilder, MemoryObjectKind, MirType, SliceLocation, ValueId};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::LitKind;
 use solar_interface::{Symbol, diagnostics::ErrorGuaranteed, kw, sym};
@@ -16,7 +13,7 @@ use solar_sema::{
 
 /// The ABI-encoded region an argument decode reads from. External calls read
 /// calldata after the selector; constructors read the argument blob CODECOPY'd
-/// into memory at the heap start.
+/// into its backend-owned memory region.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum AbiSource {
     Calldata,
@@ -58,7 +55,7 @@ impl<'gcx> Lowerer<'gcx> {
             AbiSource::Memory => {
                 let size_slot = builder.imm_u64(0x20);
                 let size = builder.mload(size_slot);
-                let base = builder.imm_u64(EvmMemoryLayout::HEAP_START);
+                let base = self.constructor_args_base(builder);
                 builder.add(base, size)
             }
         }

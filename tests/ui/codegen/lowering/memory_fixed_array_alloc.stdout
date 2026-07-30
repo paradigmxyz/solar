@@ -327,6 +327,19 @@ fn @emptyNamedReturns() -> (memoryarray, memorybytes) [abi_returns=[memory_array
     ret v3, v4
 }
 
+fn @emptyWideNamedStruct() -> memorystruct [abi_returns=[tuple<word, memory_bytes, word, word>]] {
+  bb0:
+    v0 = calldatasize
+    v1 = alloc memorystruct<4>, exact, zeroed, infallible, 128
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v2, 0
+    v3 = memory_object_field_addr memorystruct<4>, v1, 1
+    mstore v3, v2
+    mstore 128, v1
+    v4 = mload 128
+    ret v4
+}
+
 fn @fullyInitializedNamedStruct() -> memorystruct [abi_returns=[tuple<memory_array<word>, memory_bytes>]] {
   bb0:
     v0 = calldatasize

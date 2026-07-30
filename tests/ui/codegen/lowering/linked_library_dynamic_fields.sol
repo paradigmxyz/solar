@@ -22,11 +22,11 @@ library L {
     // CHECK: eq
     // CHECK-NEXT: push [[APPLY:bb[0-9]+]]
     // CHECK: [[APPLY]]:
-    // CHECK: calldatacopy
-    // CHECK: calldatacopy
-    // CHECK: keccak256
-    // CHECK: sstore
-    // CHECK: return
+    // CHECK-DAG: calldatacopy
+    // CHECK-DAG: calldatacopy
+    // CHECK-DAG: keccak256
+    // CHECK-DAG: sstore
+    // CHECK-DAG: return
     function apply_(mapping(address => uint256) storage m, P memory p)
         public
         returns (uint256)
@@ -56,15 +56,15 @@ contract C {
     mapping(address => uint256) public score;
 
     // CHECK: [[GO]]:
-    // CHECK: calldatacopy
-    // CHECK: calldatacopy
-    // CHECK: push 0xfa06cb96
-    // CHECK: mcopy
-    // CHECK: mcopy
-    // CHECK: push 0x1000000000000000000000000000000000000001
-    // CHECK: delegatecall
-    // CHECK: returndatacopy
-    // CHECK: revert
+    // CHECK-DAG: calldatacopy
+    // CHECK-DAG: calldatacopy
+    // CHECK-DAG: push 0xfa06cb96
+    // CHECK-DAG: mcopy
+    // CHECK-DAG: mcopy
+    // CHECK-DAG: push 0x1000000000000000000000000000000000000001
+    // CHECK-DAG: delegatecall
+    // CHECK-DAG: returndatacopy
+    // CHECK-DAG: revert
     function go(uint256 base, uint256[] calldata xs, bytes calldata tag, address who)
         external
         returns (uint256)

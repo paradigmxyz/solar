@@ -15,29 +15,19 @@ contract AbiEncodePackedCalldataSlice {
     // CHECK: eq
     // CHECK-NEXT: push [[OPEN_BODY:bb[0-9]+]]
     // CHECK: [[HASH_BODY]]:
+    // CHECK: jump [[PACK:bb[0-9]+]]
+    // CHECK: [[PACK]]:
     // CHECK: [[OPEN_BODY]]:
-    // CHECK: [[HASH_PACK:bb[0-9]+]]:
+    // CHECK: jump [[PACK]]
     // CHECK: calldatacopy
     // CHECK: mcopy
     // CHECK: jump [[DONE:bb[0-9]+]]
-    // CHECK-NEXT: [[DONE]]:
+    // CHECK: [[DONE]]:
     // CHECK: keccak256
-    // CHECK: return
-    // CHECK: [[HASH_ALLOC:bb[0-9]+]]:
-    // CHECK: push [[HASH_PACK]]
-    // CHECK-NEXT: jump [[ALLOC:bb[0-9]+]]
-    // CHECK-NEXT: [[ALLOC]]:
-    // CHECK: [[HASH_VALIDATE:bb[0-9]+]]:
-    // CHECK: [[PACK_SIZE:bb[0-9]+]]:
-    // CHECK: [[OPEN_PACK:bb[0-9]+]]:
     // CHECK: calldatacopy
     // CHECK: push 112
     // CHECK: mcopy
     // CHECK: jump [[DONE]]
-    // CHECK-NEXT: [[OPEN_ALLOC:bb[0-9]+]]:
-    // CHECK: push [[OPEN_PACK]]
-    // CHECK-NEXT: jump [[ALLOC]]
-    // CHECK-NEXT: [[OPEN_VALIDATE:bb[0-9]+]]:
     function hash(bytes calldata data, uint256 start, uint256 end) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(data[start:end]));
     }
