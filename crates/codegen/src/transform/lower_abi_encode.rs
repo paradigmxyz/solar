@@ -1,13 +1,14 @@
 //! Lower semantic ABI encoding operations to memory and slice operations.
 
 use crate::{
+    memory::EvmMemoryLayout,
     mir::{
         AbiLayout, AbiType, BlockId, Function, FunctionBuilder, InstKind, MemoryObjectKind, Module,
         SliceLocation, Terminator, Value, ValueId,
     },
     pass::MirPass,
 };
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_sema::Gcx;
 
 /// Lowers `abi_encode` after the main optimization pipeline.
@@ -56,6 +57,7 @@ fn lower_function(func: &mut Function) -> bool {
         return false;
     }
 
+    let terminal_return_encodes = terminal_return_encodes(func);
     let mut replacements = FxHashMap::default();
     let blocks: Vec<_> = func.blocks.indices().collect();
     for block in blocks {
@@ -73,7 +75,9 @@ fn lower_function(func: &mut Function) -> bool {
                 _ => None,
             };
             if let Some((selector, args, layout)) = encode {
-                let replacement = lower_encode(&mut builder, &layout, selector, &args);
+                let terminal_return = terminal_return_encodes.contains(inst);
+                let replacement =
+                    lower_encode(&mut builder, &layout, selector, &args, terminal_return);
                 let result = builder
                     .func()
                     .inst_result_value(inst)
@@ -89,6 +93,27 @@ fn lower_function(func: &mut Function) -> bool {
     func.replace_uses_canonicalized(&replacements);
     let repaired = crate::mir::utils::repair_reachability_phis(func);
     !replacements.is_empty() || repaired
+}
+
+fn terminal_return_encodes(func: &Function) -> DenseBitSet<crate::mir::InstId> {
+    let mut encodes = DenseBitSet::new_empty(func.num_insts());
+    for block in &func.blocks {
+        if let [.., encode, ptr, len] = block.instructions.as_slice()
+            && let Some(encoded) = func.inst_result_value(*encode)
+            && let Some(ptr_value) = func.inst_result_value(*ptr)
+            && let Some(len_value) = func.inst_result_value(*len)
+            && matches!(func.inst(*ptr).kind, InstKind::SlicePtr(value) if value == encoded)
+            && matches!(func.inst(*len).kind, InstKind::SliceLen(value) if value == encoded)
+            && matches!(
+                block.terminator,
+                Some(Terminator::ReturnData { offset, size })
+                    if offset == ptr_value && size == len_value
+            )
+        {
+            encodes.insert(*encode);
+        }
+    }
+    encodes
 }
 
 fn resolve(mut value: ValueId, replacements: &FxHashMap<ValueId, ValueId>) -> ValueId {
@@ -127,14 +152,19 @@ fn lower_encode(
     layout: &AbiLayout,
     selector: Option<ValueId>,
     args: &[ValueId],
+    terminal_return: bool,
 ) -> ValueId {
     debug_assert_eq!(layout.types.len(), args.len());
     let selector_size = if selector.is_some() { 4 } else { 0 };
     if !layout.types.iter().any(AbiType::is_dynamic) {
         let total_size = selector_size + layout.head_size();
-        let aligned_size = total_size.next_multiple_of(32);
-        let allocation_size = builder.imm_u64(aligned_size);
-        let buf = builder.alloc(allocation_size, crate::mir::AllocationSemantics::INTERNAL);
+        let buf = if terminal_return && selector.is_none() {
+            builder.imm_u64(EvmMemoryLayout::HEAP_START)
+        } else {
+            let aligned_size = total_size.next_multiple_of(32);
+            let allocation_size = builder.imm_u64(aligned_size);
+            builder.alloc(allocation_size, crate::mir::AllocationSemantics::INTERNAL)
+        };
         if let Some(selector) = selector {
             builder.mstore(buf, selector);
         }

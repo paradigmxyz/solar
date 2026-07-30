@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_packed_calldata_slice.sol:AbiEncodePackedCalldataSlice (runtime) ===
 @module runtime
 bb0:
-  push 640
+  push 608
   push 64
   mstore
   callvalue
@@ -295,26 +295,13 @@ bb31:
   sub
   push 384
   mload
-  keccak256
-  push 64
-  mload
-  dup1
-  push 576
   jump bb28
 bb28:
+  keccak256
+  push 128
   mstore
   push 32
-  dup2
-  add
-  push 64
-  mstore
-  dup2
-  dup2
-  mstore
-  swap1
-  pop
-  push 32
-  dup2
+  push 128
   return
 bb32:
   push bb5
@@ -516,11 +503,6 @@ bb33:
   swap1
   sub
   swap1
-  keccak256
-  push 64
-  mload
-  dup1
-  push 608
   jump bb28
 bb34:
   push bb5

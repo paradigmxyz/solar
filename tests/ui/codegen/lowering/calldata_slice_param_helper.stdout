@@ -33,15 +33,12 @@ fn @lastWord() {
     v20 = or v18, v19
     jumpi v20, bb1, bb5
   bb5:
-    v29 = add arg0, 36
-    v30 = add arg0, 4
-    v31 = calldataload v30
-    v21 = internal_call @_last, 1, v29, v31
-    v25 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v32 = add v25, 32
-    mstore 64, v32 !metadata(memory=scratch)
-    mstore v25, v21
-    returndata v25, 32
+    v28 = add arg0, 36
+    v29 = add arg0, 4
+    v30 = calldataload v29
+    v21 = internal_call @_last, 1, v28, v30
+    mstore 128, v21
+    returndata 128, 32
 }
 
 fn @_last(arg0: calldataptr, arg1: u256) -> u256 {
@@ -84,21 +81,18 @@ fn @lastWord2() {
     v20 = or v18, v19
     jumpi v20, bb1, bb5
   bb5:
-    v39 = add arg0, 36
-    v40 = add arg0, 4
-    v41 = calldataload v40
-    v21 = internal_call @_last, 1, v39, v41
-    jumpi v41, bb6, bb1
+    v38 = add arg0, 36
+    v39 = add arg0, 4
+    v40 = calldataload v39
+    v21 = internal_call @_last, 1, v38, v40
+    jumpi v40, bb6, bb1
   bb6:
-    v25 = sub v41, 1
-    v26 = add v39, 1
+    v25 = sub v40, 1
+    v26 = add v38, 1
     v28 = internal_call @_last, 1, v26, v25
     v29 = xor v21, v28
-    v33 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v42 = add v33, 32
-    mstore 64, v42 !metadata(memory=scratch)
-    mstore v33, v29
-    returndata v33, 32
+    mstore 128, v29
+    returndata 128, 32
 }
 
 fn @entry() {

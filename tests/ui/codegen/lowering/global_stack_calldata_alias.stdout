@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/global_stack_calldata_alias.sol:Test (runtime) ===
 @module runtime
 bb0:
-  push 512
+  push 320
   push 64
   mstore
   callvalue
@@ -98,27 +98,19 @@ bb5:
   pop
   push bb12
   jumpi
-  push 64
-  mload
-  dup1
-  push 384
-  mstore
-  push 32
-  dup2
-  add
-  push 64
-  mstore
   push 224
   mload
   dup1
   push 224
+  jump bb26
+bb26:
+  mstore
   jump bb25
 bb25:
-  mstore
-  dup2
+  push 128
   mstore
   push 32
-  dup2
+  push 128
   return
 bb9:
   push 1
@@ -143,21 +135,11 @@ bb9:
   pop
   push bb12
   jumpi
-  push 64
-  mload
-  dup1
-  push 320
-  mstore
-  push 32
-  dup2
-  add
-  push 64
-  mstore
   push 160
   mload
   dup1
   push 160
-  jump bb25
+  jump bb26
 bb13:
   push 2
   dup3
@@ -181,21 +163,11 @@ bb13:
   pop
   push bb12
   jumpi
-  push 64
-  mload
-  dup1
-  push 352
-  mstore
-  push 32
-  dup2
-  add
-  push 64
-  mstore
   push 192
   mload
   dup1
   push 192
-  jump bb25
+  jump bb26
 bb18:
   push 4
   dup2
@@ -224,25 +196,15 @@ bb18:
   pop
   push bb12
   jumpi
-  push 64
-  mload
-  dup1
-  push 416
-  mstore
-  push 32
-  dup2
-  add
-  push 64
-  mstore
   push 256
   mload
   dup1
   push 256
-  jump bb25
+  jump bb26
 bb21:
   push 5
   sub
-  push bb24
+  push bb25
   jumpi
   push 5
   dup2
@@ -261,37 +223,8 @@ bb21:
   pop
   push bb12
   jumpi
-  push 64
-  mload
-  dup1
-  push 480
-  mstore
-  push 32
-  dup2
-  add
-  push 64
-  mstore
   push 288
   mload
   dup1
   push 288
-  jump bb25
-bb24:
-  push 64
-  mload
-  dup1
-  push 448
-  mstore
-  push 32
-  dup2
-  add
-  push 64
-  mstore
-  dup2
-  dup2
-  mstore
-  swap1
-  pop
-  push 32
-  dup2
-  return
+  jump bb26

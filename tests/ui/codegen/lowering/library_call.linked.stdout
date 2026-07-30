@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:Lib (runtime) ===
 @module runtime
 bb0:
-  push 384
+  push 352
   push 64
   mstore
   callvalue
@@ -135,30 +135,20 @@ bb5:
   pop
   push bb11
   jumpi
-  push 64
-  mload
-  dup1
-  push 320
-  mstore
-  push 32
-  dup2
-  add
-  push 64
-  mstore
   push 224
   mload
   dup1
   push 224
   mstore
-  dup2
+  push 128
   mstore
   push 32
-  dup2
+  push 128
   return
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 384
+  push 352
   push 64
   mstore
   callvalue
@@ -239,7 +229,7 @@ bb5:
   mstore
   gas
   dup1
-  push 352
+  push 320
   mstore
   push 0
   push 0
@@ -331,23 +321,10 @@ bb5:
   push 160
   mstore
   mload
-  push 64
-  mload
-  dup1
-  push 320
+  push 128
   mstore
   push 32
-  dup2
-  add
-  push 64
-  mstore
-  dup2
-  dup2
-  mstore
-  swap1
-  pop
-  push 32
-  dup2
+  push 128
   return
 bb12 [cold]:
   returndatasize

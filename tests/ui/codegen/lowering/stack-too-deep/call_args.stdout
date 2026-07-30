@@ -2,7 +2,7 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 0x403
+  push 0x3f6
   dup1
   push 10
   push 0
@@ -13,7 +13,7 @@ bb0:
 // === runtime ===
 @module runtime
 bb0:
-  push 0x580
+  push 0x560
   push 64
   mstore
   callvalue
@@ -644,23 +644,13 @@ bb5:
   gt
   push bb46
   jumpi
-  push 64
-  mload
-  dup1
-  push 0x560
-  mstore
-  push 32
-  dup2
-  add
-  push 64
-  mstore
   push 0x540
   mload
   dup1
   push 0x540
   mstore
-  dup2
+  push 128
   mstore
   push 32
-  dup2
+  push 128
   return

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_calldata_bytes.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 864
+  push 800
   push 64
   mstore
   callvalue
@@ -251,7 +251,7 @@ bb29:
   sub
   push bb5
   jumpi
-  push 768
+  push 704
   dup1
   push 288
   mstore
@@ -299,10 +299,10 @@ bb29:
   mload
   and
   dup1
-  push 544
+  push 512
   mstore
   iszero
-  push 544
+  push 512
   mload
   push 32
   dup3
@@ -339,7 +339,7 @@ bb29:
   push 64
   mload
   dup1
-  push 512
+  push 480
   mstore
   push 384
   mload
@@ -384,7 +384,7 @@ bb29:
   pop
   dup2
   dup1
-  push 512
+  push 480
   mstore
   mload
   swap2
@@ -403,19 +403,19 @@ bb29:
   mload
   gas
   dup1
-  push 608
+  push 544
   mstore
   dup3
-  push 640
+  push 576
   mstore
   dup2
-  push 672
+  push 608
   mstore
   dup4
-  push 704
+  push 640
   mstore
   dup5
-  push 736
+  push 672
   mstore
   push 0
   push 0
@@ -427,36 +427,16 @@ bb29:
   call
   swap5
   pop
-  pop
-  pop
-  pop
-  pop
-  dup1
-  push 480
-  mstore
-  push 128
-  mstore
-  push 64
-  mload
-  dup1
-  push 576
-  mstore
-  push 32
-  dup2
-  add
-  push 64
-  mstore
-  push 480
-  mload
-  dup1
-  push 480
   jump bb27
 bb27:
-  mstore
-  dup2
+  pop
+  pop
+  pop
+  pop
+  push 128
   mstore
   push 32
-  dup2
+  push 128
   return
 bb30:
   push bb5
@@ -472,7 +452,7 @@ bb30:
   sub
   push bb5
   jumpi
-  push 704
+  push 640
   dup1
   push 288
   mstore
@@ -516,10 +496,10 @@ bb30:
   mload
   and
   dup1
-  push 512
+  push 480
   mstore
   iszero
-  push 512
+  push 480
   mload
   push 32
   dup3
@@ -556,7 +536,7 @@ bb30:
   push 64
   mload
   dup1
-  push 480
+  push 448
   mstore
   push 352
   mload
@@ -601,7 +581,7 @@ bb30:
   pop
   dup2
   dup1
-  push 480
+  push 448
   mstore
   mload
   swap2
@@ -614,16 +594,16 @@ bb30:
   mload
   gas
   dup1
-  push 576
+  push 512
   mstore
   dup2
-  push 608
+  push 544
   mstore
   dup3
-  push 640
+  push 576
   mstore
   dup4
-  push 672
+  push 608
   mstore
   push 0
   push 0
@@ -633,27 +613,4 @@ bb30:
   dup6
   delegatecall
   swap4
-  pop
-  pop
-  pop
-  pop
-  dup1
-  push 448
-  mstore
-  push 128
-  mstore
-  push 64
-  mload
-  dup1
-  push 544
-  mstore
-  push 32
-  dup2
-  add
-  push 64
-  mstore
-  push 448
-  mload
-  dup1
-  push 448
   jump bb27

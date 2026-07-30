@@ -74,22 +74,12 @@ bb9:
   jumpi
   jump bb12
 bb10:
-  push 64
-  mload
-  dup1
-  push 160
-  mstore
-  push 32
-  dup2
-  add
-  push 64
-  mstore
   push 4
   calldataload
-  dup2
+  push 128
   mstore
   push 32
-  dup2
+  push 128
   return
 bb11:
   push 4
@@ -177,22 +167,12 @@ bb20:
   jumpi
   jump bb23
 bb21:
-  push 64
-  mload
-  dup1
-  push 160
-  mstore
-  push 32
-  dup2
-  add
-  push 64
-  mstore
   push 4
   calldataload
-  dup2
+  push 128
   mstore
   push 32
-  dup2
+  push 128
   return
 bb22:
   push 4

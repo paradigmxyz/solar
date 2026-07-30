@@ -18,11 +18,8 @@ fn @doAdd() {
   bb3:
     tail_call @__revert_stub0
   bb4:
-    v11 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v13 = add v11, 32
-    mstore 64, v13 !metadata(memory=scratch)
-    mstore v11, v4
-    returndata v11, 32
+    mstore 128, v4
+    returndata 128, 32
 }
 
 fn @doNeg() {
@@ -40,11 +37,8 @@ fn @doNeg() {
     tail_call @__revert_stub0
   bb4:
     v5 = sub 0, arg0
-    v9 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v11 = add v9, 32
-    mstore 64, v11 !metadata(memory=scratch)
-    mstore v9, v5
-    returndata v9, 32
+    mstore 128, v5
+    returndata 128, 32
 }
 
 fn @__revert_stub0() {

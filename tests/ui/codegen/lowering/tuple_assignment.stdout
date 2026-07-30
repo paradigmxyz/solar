@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/tuple_assignment.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 992
+  push 928
   push 64
   mstore
   callvalue
@@ -170,7 +170,7 @@ bb7:
   push 0
   push 128
   mstore
-  push 768
+  push 704
   dup1
   push 288
   mstore
@@ -218,10 +218,10 @@ bb7:
   mload
   and
   dup1
-  push 544
+  push 512
   mstore
   iszero
-  push 544
+  push 512
   mload
   push 32
   dup3
@@ -258,7 +258,7 @@ bb7:
   push 64
   mload
   dup1
-  push 512
+  push 480
   mstore
   push 384
   mload
@@ -303,7 +303,7 @@ bb7:
   pop
   dup2
   dup1
-  push 512
+  push 480
   mstore
   mload
   swap2
@@ -322,19 +322,19 @@ bb7:
   mload
   gas
   dup1
-  push 608
+  push 544
   mstore
   dup3
-  push 640
+  push 576
   mstore
   dup2
-  push 672
+  push 608
   mstore
   dup4
-  push 704
+  push 640
   mstore
   dup5
-  push 736
+  push 672
   mstore
   push 0
   push 0
@@ -350,30 +350,10 @@ bb7:
   pop
   pop
   pop
-  dup1
-  push 480
-  mstore
   push 128
   mstore
-  push 64
-  mload
-  dup1
-  push 576
-  mstore
   push 32
-  dup2
-  add
-  push 64
-  mstore
-  push 480
-  mload
-  dup1
-  push 480
-  mstore
-  dup2
-  mstore
-  push 32
-  dup2
+  push 128
   return
 bb17:
   calldatasize
@@ -390,33 +370,12 @@ bb17:
   mstore
   push 36
   calldataload
+  jump bb22
+bb22:
   push 128
   mstore
   push 64
-  mload
-  dup1
-  push 192
-  mstore
-  push 64
-  dup2
-  add
-  push 64
-  mstore
-  push 36
-  calldataload
-  dup2
-  mstore
-  push 32
-  dup2
-  add
-  push 4
-  calldataload
-  jump bb22
-bb22:
-  swap1
-  mstore
-  push 64
-  dup2
+  push 128
   return
 bb20:
   push 100
@@ -427,14 +386,14 @@ bb20:
   mstore
   push bb21
   push 7
-  push 928
+  push 864
   mstore
   push 9
-  push 960
+  push 896
   mstore
   jump
 bb21:
-  push 928
+  push 864
   mload
   dup1
   push 256
@@ -443,7 +402,7 @@ bb21:
   mload
   push 32
   mstore
-  push 960
+  push 896
   mload
   push 32
   mload
@@ -458,39 +417,9 @@ bb21:
   push 32
   add
   mload
-  dup1
-  push 288
-  mstore
   push 160
   mstore
   dup1
   push 256
-  mstore
-  push 128
-  mstore
-  push 64
-  mload
-  dup1
-  push 320
-  mstore
-  push 64
-  dup2
-  add
-  push 64
-  mstore
-  push 256
-  mload
-  dup1
-  push 256
-  mstore
-  dup2
-  mstore
-  push 32
-  dup2
-  add
-  push 288
-  mload
-  dup1
-  push 288
   mstore
   jump bb22

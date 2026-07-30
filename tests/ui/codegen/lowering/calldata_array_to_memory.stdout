@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_array_to_memory.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 0x460
+  push 0x440
   push 64
   mstore
   callvalue
@@ -65,25 +65,12 @@ bb53 [cold]:
 bb8:
   push 0
   sload
-  push 64
-  mload
-  dup1
-  push 160
   jump bb57
 bb57:
+  push 128
   mstore
   push 32
-  dup2
-  add
-  push 64
-  mstore
-  dup2
-  dup2
-  mstore
-  swap1
-  pop
-  push 32
-  dup2
+  push 128
   return
 bb9:
   calldatasize
@@ -175,9 +162,9 @@ bb9:
   dup1
   push 448
   mstore
-  push bb60
-  jump bb59
-bb59:
+  push bb59
+  jump bb58
+bb58:
   push 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   swap1
   jump
@@ -293,28 +280,12 @@ bb18:
   mstore
   push 0
   sstore
-  push 64
-  mload
-  dup1
-  push 736
-  mstore
-  push 32
-  dup2
-  add
-  push 64
-  mstore
   push 576
   mload
   dup1
   push 576
-  jump bb58
-bb58:
   mstore
-  dup2
-  mstore
-  push 32
-  dup2
-  return
+  jump bb57
 bb26:
   calldatasize
   push 4
@@ -405,8 +376,8 @@ bb26:
   dup1
   push 352
   mstore
-  push bb61
-  jump bb59
+  push bb60
+  jump bb58
 bb35:
   calldatasize
   push 4
@@ -497,8 +468,8 @@ bb35:
   dup1
   push 544
   mstore
-  push bb62
-  jump bb59
+  push bb61
+  jump bb58
 bb24 [cold]:
   push 0x4e487b71
   push 224
@@ -508,7 +479,7 @@ bb24 [cold]:
   pop
   push 50
   jump bb56
-bb60:
+bb59:
   lt
   push bb7
   jumpi
@@ -655,7 +626,7 @@ bb60:
   pop
   push 0
   jump bb18
-bb61:
+bb60:
   lt
   push bb7
   jumpi
@@ -822,12 +793,8 @@ bb61:
   push 416
   mstore
   mload
-  push 64
-  mload
-  dup1
-  push 512
   jump bb57
-bb62:
+bb61:
   lt
   push bb7
   jumpi
@@ -1335,18 +1302,9 @@ bb62:
   gt
   push bb55
   jumpi
-  push 64
-  mload
-  dup1
-  push 0x440
-  mstore
-  push 32
-  dup2
-  add
-  push 64
-  mstore
   push 800
   mload
   dup1
   push 800
-  jump bb58
+  mstore
+  jump bb57

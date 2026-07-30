@@ -10,11 +10,8 @@ fn @f() {
   bb1:
     revert 0, 0
   bb2:
-    v9 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v11 = add v9, 32
-    mstore 64, v11 !metadata(memory=scratch)
-    mstore v9, arg0
-    returndata v9, 32
+    mstore 128, arg0
+    returndata 128, 32
 }
 
 fn @entry() {

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/assembler_block_dedup.sol:AssemblerBlockDedup (runtime) ===
 @module runtime
 bb0:
-  push 224
+  push 192
   push 64
   mstore
   callvalue
@@ -41,23 +41,13 @@ bb7 [cold]:
   dup1
   revert
 bb8:
-  push 64
-  mload
-  dup1
-  push 160
-  mstore
-  push 32
-  dup2
-  add
-  push 64
-  mstore
   push 1
   jump bb16
 bb16:
-  dup2
+  push 128
   mstore
   push 32
-  dup2
+  push 128
   return
 bb17:
   calldatasize
@@ -84,15 +74,5 @@ bb17:
   calldataload
   push bb7
   jumpi
-  push 64
-  mload
-  dup1
-  push 192
-  mstore
-  push 32
-  dup2
-  add
-  push 64
-  mstore
   push 2
   jump bb16

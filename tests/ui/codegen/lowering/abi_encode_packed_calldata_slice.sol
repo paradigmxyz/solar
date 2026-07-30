@@ -19,9 +19,10 @@ contract AbiEncodePackedCalldataSlice {
     // CHECK: [[HASH_PACK:bb[0-9]+]]:
     // CHECK: calldatacopy
     // CHECK: mcopy
-    // CHECK: keccak256
     // CHECK: jump [[DONE:bb[0-9]+]]
     // CHECK-NEXT: [[DONE]]:
+    // CHECK-NEXT: keccak256
+    // CHECK: return
     // CHECK: [[HASH_VALIDATE:bb[0-9]+]]:
     // CHECK: push [[HASH_PACK]]
     // CHECK-NEXT: jump [[ALLOC:bb[0-9]+]]
@@ -30,7 +31,6 @@ contract AbiEncodePackedCalldataSlice {
     // CHECK: calldatacopy
     // CHECK: push 112
     // CHECK: mcopy
-    // CHECK: keccak256
     // CHECK: jump [[DONE]]
     // CHECK: [[OPEN_VALIDATE:bb[0-9]+]]:
     // CHECK: push [[OPEN_PACK]]

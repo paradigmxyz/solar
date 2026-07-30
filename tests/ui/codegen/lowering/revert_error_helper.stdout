@@ -226,7 +226,7 @@ bb15:
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:R (runtime) ===
 @module runtime
 bb0:
-  push 352
+  push 320
   push 64
   mstore
   callvalue
@@ -285,38 +285,26 @@ bb9:
   gt
   iszero
   push bb13
-  jump bb36
-bb36:
-  jumpi
-  push 64
-  mload
-  dup1
-  push 160
   jump bb35
 bb35:
-  mstore
-  push 32
-  dup2
-  add
-  push 64
-  mstore
+  jumpi
   push 4
   calldataload
-  dup2
+  push 128
   mstore
   push 32
-  dup2
+  push 128
   return
 bb13 [cold]:
   push 2
-  push 288
+  push 256
   mstore
   push 0x3339
   push 240
-  jump bb37
-bb37 [cold]:
+  jump bb36
+bb36 [cold]:
   shl
-  push 320
+  push 288
   mstore
   push 0x8c379a0
   push 224
@@ -326,11 +314,11 @@ bb37 [cold]:
   push 32
   push 4
   mstore
-  push 288
+  push 256
   mload
   push 36
   mstore
-  push 320
+  push 288
   mload
   push 68
   mstore
@@ -352,14 +340,14 @@ bb14:
   gt
   iszero
   push bb18
-  jump bb36
+  jump bb35
 bb18 [cold]:
   push 11
-  push 288
+  push 256
   mstore
   push 0x6c69746572616c206d7367
   push 168
-  jump bb37
+  jump bb36
 bb19:
   calldatasize
   push 4
@@ -375,14 +363,14 @@ bb19:
   gt
   iszero
   push bb23
-  jump bb36
+  jump bb35
 bb23 [cold]:
   push 15
-  push 288
+  push 256
   mstore
   push 0x6c6f63616c2d636f6e73742d6d7367
   push 136
-  jump bb37
+  jump bb36
 bb24:
   calldatasize
   push 4
@@ -398,11 +386,6 @@ bb24:
   gt
   iszero
   push bb28
-  jumpi
-  push 64
-  mload
-  dup1
-  push 192
   jump bb35
 bb29:
   calldatasize
@@ -419,14 +402,14 @@ bb29:
   gt
   iszero
   push bb33
-  jump bb36
+  jump bb35
 bb33 [cold]:
   push 11
-  push 288
+  push 256
   mstore
   push 0x7265766572742d70617468
   push 168
-  jump bb37
+  jump bb36
 bb28 [cold]:
   push 64
   mload
