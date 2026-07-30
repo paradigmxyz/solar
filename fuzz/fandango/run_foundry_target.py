@@ -421,6 +421,7 @@ def _run_symbolic_function(
             direct,
             final_status,
             reason,
+            deadline,
         )
         bundle = _persist_bundle(
             artifact_root,
@@ -1194,6 +1195,7 @@ def _manifest(
     direct: dict[str, Any] | None,
     status: str,
     reason: str | None,
+    deadline: evm.Deadline,
 ) -> dict[str, Any]:
     standard_input = solc_artifact["standard_input"]
     source_manifest = _source_manifest(source, standard_input)
@@ -1213,7 +1215,7 @@ def _manifest(
             "solc": _compiler_manifest(solc_artifact),
             "solar": _compiler_manifest(solar_artifact),
         },
-        "bounds": _bounds_manifest(args, classified),
+        "bounds": _bounds_manifest(args, classified, deadline),
         "tools": _tools_manifest(args),
         "solver": {
             "requested": args.symbolic_solver,
@@ -1333,9 +1335,12 @@ def _root_source_content(standard_input: dict[str, Any]) -> str:
 
 
 def _bounds_manifest(
-    args: argparse.Namespace, classified: dict[str, Any] | None
+    args: argparse.Namespace,
+    classified: dict[str, Any] | None,
+    deadline: evm.Deadline | None = None,
 ) -> dict[str, Any]:
-    deadline = getattr(args, "_deadline", None)
+    if deadline is None:
+        deadline = getattr(args, "_deadline", None)
     return {
         "total_wall_timeout_seconds": getattr(
             args, "_function_timeout", args.timeout

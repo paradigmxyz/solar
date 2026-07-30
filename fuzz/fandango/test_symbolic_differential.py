@@ -1914,6 +1914,30 @@ class CampaignAggregationTests(unittest.TestCase):
         self.assertEqual(returncode, 0)
         self.assertEqual(allocations, [30.0, 30.0, 45.0])
 
+    def test_second_function_bounds_use_its_own_elapsed_time(self):
+        campaign_deadline = Mock()
+        campaign_deadline.elapsed.return_value = 47.0
+        function_deadline = Mock()
+        function_deadline.elapsed.return_value = 0.25
+        args = argparse.Namespace(
+            timeout=90.0,
+            symbolic_timeout=1.0,
+            symbolic_max_paths=32,
+            symbolic_max_depth=16,
+            max_returndata_bytes=4096,
+            _deadline=campaign_deadline,
+            _function_timeout=30.0,
+            _campaign_timeout=90.0,
+        )
+
+        bounds = run_foundry_target._bounds_manifest(
+            args, None, function_deadline
+        )
+
+        self.assertEqual(bounds["total_wall_timeout_seconds"], 30.0)
+        self.assertEqual(bounds["campaign_total_wall_timeout_seconds"], 90.0)
+        self.assertEqual(bounds["elapsed_wall_seconds"], 0.25)
+
 
 @unittest.skipUnless(
     os.environ.get("FANDANGO_SYMBOLIC_E2E") == "1",

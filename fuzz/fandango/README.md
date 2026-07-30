@@ -473,9 +473,11 @@ The supported scope does not include storage or stateful sequences, logs,
 constructors or immutables, linked libraries, proxies, dynamic ABI values
 (`bytes`, `string`, or dynamic arrays), tuples, user inline assembly anywhere
 in the source closure, EF/EOF runtimes, external calls in the deployed runtime,
-or protocol/invariant testing. Context-sensitive opcodes are rejected across
-the entire deployed object, so a non-eligible sibling can exclude an otherwise
-simple function. Imports must resolve beneath the source file's parent;
+or protocol/invariant testing. Context-sensitive opcodes whose context cannot
+be equalized are rejected across the entire deployed object; equalized opcodes
+such as `ADDRESS`, `CALLVALUE`, and `CALLDATA*` remain in scope. A non-eligible
+sibling can therefore exclude an otherwise simple function. Imports must
+resolve beneath the source file's parent;
 remapping and include-path flags are not accepted. The fixed compiler settings,
 clean storage, call context, solver bounds, and wall deadline are part of every
 claim. Use the concrete runtime lanes for broader or stateful behavior; use
