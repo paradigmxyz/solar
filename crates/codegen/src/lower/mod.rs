@@ -1325,7 +1325,11 @@ impl<'gcx> Lowerer<'gcx> {
 
                 let offset = self.alloc_local_memory(ret_id);
                 let offset_val = self.local_memory_addr(&mut builder, offset);
-                if let Some(value) = self.lower_default_variable_value(&mut builder, ret_id) {
+                if let Some(value) = self.lower_bulk_zero_return_struct(&mut builder, ret_id)
+                {
+                    builder.mstore(offset_val, value);
+                } else if let Some(value) = self.lower_default_variable_value(&mut builder, ret_id)
+                {
                     builder.mstore(offset_val, value);
                 }
             }
