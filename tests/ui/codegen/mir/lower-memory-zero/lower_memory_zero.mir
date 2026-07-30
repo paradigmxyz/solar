@@ -1,4 +1,4 @@
-//@ compile-flags: --passes=lower-memory-zero
+//@ compile-flags: -Zmir-pipeline=lower-memory-zero
 //@ filecheck:
 @module LowerMemoryZero
 

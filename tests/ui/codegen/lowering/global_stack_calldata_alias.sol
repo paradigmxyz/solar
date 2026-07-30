@@ -22,22 +22,21 @@ contract Test {
     // CHECK-NEXT: push 3
     // CHECK-NEXT: dup3
     // CHECK-NEXT: add
-    // CHECK: mstore
-    // CHECK: jump [[LOAD:bb[0-9]+]]
-    // CHECK: [[LOAD]]:
-    // CHECK-NEXT: mload
+    // CHECK: jump [[STORE:bb[0-9]+]]
+    // CHECK: [[STORE]]:
+    // CHECK-NEXT: mstore
     // CHECK: jump [[RETURN:bb[0-9]+]]
     // CHECK: [[RETURN]]:
     // CHECK: return
     // CHECK: push 1
     // CHECK-NEXT: dup3
     // CHECK-NEXT: add
-    // CHECK: jump [[LOAD]]
+    // CHECK: jump [[STORE]]
     // CHECK: [[TWO_BODY]]:
     // CHECK: push 2
     // CHECK-NEXT: dup3
     // CHECK-NEXT: add
-    // CHECK: jump [[LOAD]]
+    // CHECK: jump [[STORE]]
     // CHECK: [[REST]]:
     // CHECK: push 4
     // CHECK: dup3
