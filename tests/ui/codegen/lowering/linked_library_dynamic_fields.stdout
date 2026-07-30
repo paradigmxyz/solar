@@ -301,10 +301,8 @@ bb5:
   push 320
   mload
   add
-  dup1
   push 352
   mstore
-  pop
   pop
   push 0
   jump bb14

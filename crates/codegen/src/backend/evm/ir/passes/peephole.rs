@@ -48,6 +48,35 @@ fn optimize(
             rewrites += 1;
         }
     }
+    // Preserve the copy until longer store/load patterns have had a chance to match.
+    rewrites += elide_discarded_store_copies(instructions);
+    rewrites
+}
+
+// `DUP1 PUSH x MSTORE POP -> PUSH x MSTORE`.
+fn elide_discarded_store_copies(instructions: &mut Vec<Instruction>) -> usize {
+    let removed = instructions
+        .windows(4)
+        .enumerate()
+        .filter(|(_, window)| {
+            raw_opcode(&window[0]) == Some(op::DUP1)
+                && window[1].is_encoded_push()
+                && raw_opcode(&window[2]) == Some(op::MSTORE)
+                && raw_opcode(&window[3]) == Some(op::POP)
+        })
+        .flat_map(|(start, _)| [start, start + 3])
+        .collect::<Vec<_>>();
+    let rewrites = removed.len() / 2;
+    let mut removed = removed.into_iter().peekable();
+    let mut index = 0;
+    instructions.retain(|_| {
+        let keep = removed.peek().copied() != Some(index);
+        if !keep {
+            removed.next();
+        }
+        index += 1;
+        keep
+    });
     rewrites
 }
 

@@ -63,10 +63,8 @@ bb48:
   mstore
   push 0
   mload
-  dup1
   push 288
   mstore
-  pop
   push 0
   push 0
   swap1
