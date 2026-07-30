@@ -17,8 +17,9 @@ use super::{
     },
     switch::{
         MAX_BIT_SLICE_GAS_CODE_GROWTH, MAX_GAS_CODE_GROWTH, PerfectHash, SwitchDefault,
-        SwitchLayout, SwitchPlan, SwitchPlanOptions, SwitchSelection, affine_index,
-        bit_slice_index, bucket_index, select_switch_plan_with_linear_values_and_budget,
+        SwitchDefaultLayout, SwitchLayout, SwitchPlan, SwitchPlanOptions, SwitchSelection,
+        affine_index, bit_slice_index, bucket_index,
+        select_switch_plan_with_linear_values_and_budget,
     },
 };
 use crate::{
@@ -43,6 +44,7 @@ use solar_data_structures::{
 };
 use solar_interface::sym;
 use solar_sema::Gcx;
+use std::mem::size_of;
 
 const STACK_PHI_LAYOUT_LIMIT: usize = 8;
 const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
@@ -51,6 +53,10 @@ const GLOBAL_STACK_MIN_BLOCKS: usize = 8;
 const GLOBAL_STACK_MIN_ARG_USES: usize = 6;
 const GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS: usize = 16;
 const STACK_ARG_ROTATION_LIMIT: usize = 16;
+
+fn models_default_evm_ir_pipeline(pipeline: Option<&str>) -> bool {
+    matches!(pipeline, None | Some("default"))
+}
 
 #[derive(Default)]
 struct GeneratedCode {
@@ -5348,12 +5354,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         entries: &[MirSwitchEntry],
         default: BlockId,
     ) -> SwitchLayout {
+        let models_default_pipeline =
+            models_default_evm_ir_pipeline(self.gcx.sess.opts.unstable.evm_ir_pipeline.as_deref());
         let mut targets = FxHashSet::default();
-        let coalesce_case_targets = entries.iter().all(|entry| {
-            entry.target != default
-                && targets.insert(entry.target)
-                && func.blocks[entry.target].predecessors.len() == 1
-        });
+        let coalesce_case_targets = models_default_pipeline
+            && entries.iter().all(|entry| {
+                entry.target != default
+                    && targets.insert(entry.target)
+                    && func.blocks[entry.target].predecessors.len() == 1
+            });
         let continuation = coalesce_case_targets.then(|| {
             entries.first().and_then(|entry| {
                 let Terminator::Jump(target) = func.blocks[entry.target].terminator.as_ref()?
@@ -5371,7 +5380,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             })
         });
-        let shared_terminal_target = self.emitting_entry
+        let shared_terminal_target = models_default_pipeline
+            && self.emitting_entry
             && entries.iter().all(|entry| {
                 matches!(
                     func.blocks[entry.target].terminator.as_ref(),
@@ -5379,12 +5389,27 @@ impl<'gcx> EvmCodegen<'gcx> {
                         if args.is_empty() && self.empty_stop_functions.contains(*function)
                 )
             });
+        let default_layout = match func.blocks[default].terminator.as_ref() {
+            Some(Terminator::Revert { .. }) => SwitchDefaultLayout::Inline,
+            Some(Terminator::TailCall { function, args })
+                if args.is_empty() && self.empty_stop_functions.contains(*function) =>
+            {
+                SwitchDefaultLayout::SharedTerminal
+            }
+            _ => SwitchDefaultLayout::Outlined,
+        };
         SwitchLayout {
             coalesce_case_targets,
             shared_case_continuation,
             shared_terminal_target,
+            default_layout,
             trace_size_bounds: shared_terminal_target
-                .then(|| self.asm.current_trace_size_bounds(self.switch_table_target_width()))
+                .then(|| {
+                    self.asm.current_trace_size_bounds(
+                        self.switch_table_target_width(),
+                        size_of::<u64>(),
+                    )
+                })
                 .flatten(),
         }
     }
@@ -6045,6 +6070,14 @@ mod tests {
     fn with_codegen<T: Send>(opts: CompileOpts, f: impl FnOnce(EvmCodegen<'_>) -> T + Send) -> T {
         let compiler = Compiler::new(Session::builder().opts(opts).build());
         compiler.enter(|c| f(EvmCodegen::new(c.gcx())))
+    }
+
+    #[test]
+    fn models_only_the_default_evm_ir_pipeline() {
+        assert!(models_default_evm_ir_pipeline(None));
+        assert!(models_default_evm_ir_pipeline(Some("default")));
+        assert!(!models_default_evm_ir_pipeline(Some("none")));
+        assert!(!models_default_evm_ir_pipeline(Some("terminal-dedup,tail-merge")));
     }
 
     #[test]

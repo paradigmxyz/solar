@@ -207,6 +207,7 @@ impl<'gcx> Assembler<'gcx> {
     pub(crate) fn current_trace_size_bounds(
         &self,
         block_target_width: usize,
+        deferred_value_width: usize,
     ) -> Option<(usize, usize)> {
         let current = self.current_block?;
         let mut references = index_vec![0usize; self.program.blocks.len()];
@@ -264,8 +265,13 @@ impl<'gcx> Assembler<'gcx> {
                 instructions.len()
             };
             for (index, inst) in instructions[..end].iter().enumerate() {
-                let (min_size, layout_size) =
-                    self.instruction_size_bounds(block, index, inst, block_target_width);
+                let (min_size, layout_size) = self.instruction_size_bounds(
+                    block,
+                    index,
+                    inst,
+                    block_target_width,
+                    deferred_value_width,
+                );
                 bounds.0 += min_size;
                 bounds.1 += layout_size;
             }
@@ -313,6 +319,7 @@ impl<'gcx> Assembler<'gcx> {
         instruction: usize,
         inst: &ir::Instruction,
         block_target_width: usize,
+        deferred_value_width: usize,
     ) -> (usize, usize) {
         if inst.immutable_push().is_some() {
             (33, 33)
@@ -332,15 +339,36 @@ impl<'gcx> Assembler<'gcx> {
             .any(|&(source, index, _)| source == block && index == instruction)
         {
             (2, block_target_width + 1)
-        } else if self
-            .deferred_relocations
-            .iter()
-            .any(|&(source, index, _)| source == block && index == instruction)
+        } else if let Some(id) =
+            self.deferred_relocations.iter().find_map(|&(source, index, id)| {
+                (source == block && index == instruction).then_some(id)
+            })
         {
-            (1, block_target_width + 1)
+            self.deferred_values.get(&id).map_or((1, deferred_value_width + 1), |&value| {
+                let size = self.push_value_size(value);
+                (size, size)
+            })
+        } else if let Some(id) = self.alloc_relocations.iter().find_map(|&(source, index, id)| {
+            (source == block && index == instruction).then_some(id)
+        }) {
+            let slot_size = self.push_value_size(U256::from(EvmMemoryLayout::FMP_SLOT));
+            self.deferred_allocations.get(&id).map_or((1, slot_size * 2 + 33 + 4), |resolution| {
+                let size = match resolution {
+                    DeferredAllocResolution::Static(address) => self.push_value_size(*address),
+                    DeferredAllocResolution::Dynamic(size) => {
+                        slot_size * 2 + self.push_value_size(*size) + 4
+                    }
+                };
+                (size, size)
+            })
         } else {
             (1, 33)
         }
+    }
+
+    fn push_value_size(&self, value: U256) -> usize {
+        let width = value.byte_len();
+        if width == 0 && self.gcx.sess.opts.evm_version.has_push0() { 1 } else { width.max(1) + 1 }
     }
 
     /// Emits a push instruction that will be resolved to a label's offset.
@@ -1056,7 +1084,10 @@ PUSH1 0x02
             asm.emit_push(U256::from(224));
             asm.emit_op(op::SHR);
 
-            assert_eq!(asm.current_trace_size_bounds(2), Some((13, 16)));
+            assert_eq!(
+                asm.current_trace_size_bounds(2, std::mem::size_of::<u64>()),
+                Some((13, 22))
+            );
         });
     }
 

@@ -21,6 +21,7 @@ const MUL_GAS: usize = 5;
 const JUMPDEST_GAS: usize = 1;
 
 const INDEXED_JUMP_BASE_LEN: usize = 7;
+const PACKED_TERMINAL_TARGET_MAX_SIZE: usize = 2;
 const MIN_BUCKET_CASES: usize = 2;
 // Bound table footprint and the number of bucket blocks processed by EVM IR passes.
 const MAX_BUCKET_CASES: usize = 64;
@@ -67,6 +68,18 @@ pub(super) struct SwitchSelection {
     pub(super) gas_code_growth: usize,
 }
 
+/// Placement of the switch's default target after the canonical EVM IR pipeline.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) enum SwitchDefaultLayout {
+    /// The default reaches an outlined body of unknown size.
+    #[default]
+    Outlined,
+    /// The default terminates inline, such as a selector miss that reverts.
+    Inline,
+    /// The default and every case reach the same deduplicated empty terminal.
+    SharedTerminal,
+}
+
 /// Inputs that are shared by every switch lowering candidate.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct SwitchPlanOptions {
@@ -91,6 +104,8 @@ pub(super) struct SwitchLayout {
     /// Every entry case tail-calls an empty function that terminal deduplication
     /// maps to one nearby `STOP`.
     pub(super) shared_terminal_target: bool,
+    /// Placement of the default target relative to the switch.
+    pub(super) default_layout: SwitchDefaultLayout,
     /// Optimistic and conservative sizes of the entry trace before the switch.
     pub(super) trace_size_bounds: Option<(usize, usize)>,
 }
@@ -501,25 +516,38 @@ impl BinarySizeContext<'_> {
         let locality_credit = self
             .layout
             .trace_size_bounds
-            .filter(|_| self.layout.shared_terminal_target && self.table_target_width > 1)
             .and_then(|(prefix_min_size, prefix_layout_size)| {
+                if !self.layout.shared_terminal_target || self.table_target_width <= 1 {
+                    return None;
+                }
                 let linear_end = prefix_min_size.saturating_add(linear_cost.code_size);
-                let binary_end = prefix_layout_size.saturating_add(binary_first_block_max_size(
-                    self.equality_costs,
-                    self.ordered_costs,
-                    leaf_size,
-                    self.evm_version,
-                    self.default,
-                    self.table_target_width,
-                ));
-                (linear_end > usize::from(u8::MAX) && binary_end < usize::from(u8::MAX)).then(
-                    || {
-                        self.equality_costs
-                            .len()
-                            .saturating_add(1)
-                            .saturating_mul(self.table_target_width.saturating_sub(1))
-                    },
-                )
+                let first_block_size = match self.layout.default_layout {
+                    SwitchDefaultLayout::Outlined => return None,
+                    SwitchDefaultLayout::Inline => binary_first_block_max_size(
+                        self.equality_costs,
+                        self.ordered_costs,
+                        leaf_size,
+                        self.default
+                            .max_code_size(self.evm_version, self.table_target_width)
+                            .max(SwitchDefault::Revert.code_size(self.evm_version) + JUMPDEST_LEN),
+                    ),
+                    SwitchDefaultLayout::SharedTerminal => binary_first_block_max_size(
+                        self.equality_costs,
+                        self.ordered_costs,
+                        leaf_size,
+                        self.default.max_code_size(self.evm_version, self.table_target_width),
+                    ),
+                };
+                let binary_end = prefix_layout_size.saturating_add(first_block_size);
+                (linear_end > usize::from(u8::MAX)
+                    && binary_end.saturating_add(PACKED_TERMINAL_TARGET_MAX_SIZE)
+                        <= usize::from(u8::MAX))
+                .then(|| {
+                    self.equality_costs
+                        .len()
+                        .saturating_add(1)
+                        .saturating_mul(self.table_target_width.saturating_sub(1))
+                })
             })
             .unwrap_or_default();
         let tail_merge_credit = if self.layout.shared_terminal_target {
@@ -531,17 +559,7 @@ impl BinarySizeContext<'_> {
             0
         };
         let split_width_charge = self.layout.trace_size_bounds.map_or(0, |(_, prefix_size)| {
-            let width_charge = self.table_target_width.saturating_sub(1);
-            binary_wide_split_count(
-                self.equality_costs,
-                self.ordered_costs,
-                leaf_size,
-                self.evm_version,
-                self.default,
-                prefix_size,
-                width_charge,
-            )
-            .saturating_mul(width_charge)
+            binary_split_width_charge(self, leaf_size, prefix_size, locality_credit == 0)
         });
         (
             cost.code_size
@@ -563,21 +581,28 @@ fn binary_leaf_count(len: usize, leaf_size: usize) -> usize {
     }
 }
 
-fn binary_wide_split_count(
-    equality_costs: &[TestCost],
-    ordered_costs: &[TestCost],
+fn binary_split_width_charge(
+    context: BinarySizeContext<'_>,
     leaf_size: usize,
-    evm_version: EvmVersion,
-    default: SwitchDefault,
     prefix_size: usize,
-    width_charge: usize,
+    conservative_leaf_targets: bool,
 ) -> usize {
+    let BinarySizeContext {
+        equality_costs,
+        ordered_costs,
+        evm_version,
+        default,
+        table_target_width,
+        ..
+    } = context;
+
     struct Simulation<'a> {
         leaf_size: usize,
         evm_version: EvmVersion,
         default: SwitchDefault,
-        width_charge: usize,
-        wide: &'a mut [bool],
+        table_target_width: usize,
+        conservative_leaf_targets: bool,
+        width_charges: &'a mut [usize],
         next_split: usize,
     }
 
@@ -589,9 +614,20 @@ fn binary_wide_split_count(
             offset: &mut usize,
         ) -> bool {
             if equality_costs.len() <= self.leaf_size {
+                let default_size = if self.conservative_leaf_targets {
+                    self.default.max_code_size(self.evm_version, self.table_target_width)
+                } else {
+                    self.default.code_size(self.evm_version)
+                };
                 *offset = equality_costs.iter().fold(
-                    offset.saturating_add(self.default.code_size(self.evm_version)),
-                    |offset, test| offset.saturating_add(test.code_size),
+                    offset.saturating_add(default_size),
+                    |offset, test| {
+                        offset.saturating_add(if self.conservative_leaf_targets {
+                            test.max_code_size
+                        } else {
+                            test.code_size
+                        })
+                    },
                 );
                 return false;
             }
@@ -601,10 +637,12 @@ fn binary_wide_split_count(
             let mid = equality_costs.len() / 2;
             *offset = offset
                 .saturating_add(ordered_costs[mid].code_size)
-                .saturating_add(usize::from(self.wide[split]).saturating_mul(self.width_charge));
+                .saturating_add(self.width_charges[split]);
             let mut changed = self.run(&equality_costs[mid..], &ordered_costs[mid..], offset);
-            if *offset > usize::from(u8::MAX) && !self.wide[split] {
-                self.wide[split] = true;
+            let target_width = ((usize::BITS - offset.leading_zeros()) as usize).div_ceil(8).max(1);
+            let width_charge = target_width.saturating_sub(1);
+            if width_charge > self.width_charges[split] {
+                self.width_charges[split] = width_charge;
                 changed = true;
             }
             *offset = offset.saturating_add(JUMPDEST_LEN);
@@ -612,19 +650,20 @@ fn binary_wide_split_count(
         }
     }
 
-    let mut wide = vec![false; equality_costs.len()];
+    let mut width_charges = vec![0; equality_costs.len()];
     loop {
         let mut offset = prefix_size;
         let mut simulation = Simulation {
             leaf_size,
             evm_version,
             default,
-            width_charge,
-            wide: &mut wide,
+            table_target_width,
+            conservative_leaf_targets,
+            width_charges: &mut width_charges,
             next_split: 0,
         };
         if !simulation.run(equality_costs, ordered_costs, &mut offset) {
-            return wide.into_iter().filter(|&wide| wide).count();
+            return width_charges.into_iter().sum();
         }
     }
 }
@@ -633,16 +672,12 @@ fn binary_first_block_max_size(
     equality_costs: &[TestCost],
     ordered_costs: &[TestCost],
     leaf_size: usize,
-    evm_version: EvmVersion,
-    default: SwitchDefault,
-    table_target_width: usize,
+    leaf_default_size: usize,
 ) -> usize {
     if equality_costs.len() <= leaf_size {
         return equality_costs
             .iter()
-            .fold(default.max_code_size(evm_version, table_target_width), |size, test| {
-                size.saturating_add(test.max_code_size)
-            });
+            .fold(leaf_default_size, |size, test| size.saturating_add(test.max_code_size));
     }
 
     let mid = equality_costs.len() / 2;
@@ -650,9 +685,7 @@ fn binary_first_block_max_size(
         &equality_costs[mid..],
         &ordered_costs[mid..],
         leaf_size,
-        evm_version,
-        default,
-        table_target_width,
+        leaf_default_size,
     ))
 }
 
@@ -1478,6 +1511,24 @@ mod tests {
     }
 
     #[test]
+    fn models_each_binary_split_label_width() {
+        let tests = [TestCost { code_size: 1, max_code_size: 1, hit_gas: 0, miss_gas: 0 }; 2];
+        let context = BinarySizeContext {
+            equality_costs: &tests,
+            ordered_costs: &tests,
+            evm_version: EvmVersion::Cancun,
+            default: SwitchDefault::Revert,
+            table_target_width: 2,
+            layout: SwitchLayout::default(),
+        };
+        let charge = |prefix_size| binary_split_width_charge(context, 1, prefix_size, false);
+
+        assert_eq!(charge(250), 0);
+        assert_eq!(charge(251), 1);
+        assert_eq!(charge(65_530), 2);
+    }
+
+    #[test]
     fn forces_benchmark_switch_lowerings() {
         let select = |values: &[U256], forced| {
             select_switch_plan_with_linear_values_and_budget(
@@ -1527,6 +1578,7 @@ mod tests {
                     forced: SwitchLowering::Auto,
                     layout: SwitchLayout {
                         shared_terminal_target: true,
+                        default_layout: SwitchDefaultLayout::Inline,
                         trace_size_bounds: Some((14, 15)),
                         ..SwitchLayout::default()
                     },
@@ -1541,6 +1593,37 @@ mod tests {
         assert_eq!(select(77), SwitchPlan::Binary { leaf_size: 19 });
         assert_eq!(select(79), SwitchPlan::Binary { leaf_size: 19 });
         assert_eq!(select(80), SwitchPlan::Binary { leaf_size: 10 });
+    }
+
+    #[test]
+    fn rejects_locality_credit_across_outlined_default() {
+        let mut values = (0..39)
+            .map(|value| {
+                let hash = keccak256(format!("f{value}()"));
+                U256::from(u32::from_be_bytes(hash[..4].try_into().unwrap()))
+            })
+            .collect::<Vec<_>>();
+        values.sort_unstable();
+        let selection = select_switch_plan_with_linear_values_and_budget(
+            &values,
+            &values,
+            SwitchPlanOptions {
+                optimization: OptimizationMode::Size,
+                evm_version: EvmVersion::Cancun,
+                default: SwitchDefault::Jump,
+                table_target_width: 2,
+                max_gas_code_growth: MAX_GAS_CODE_GROWTH,
+                max_bit_slice_gas_code_growth: MAX_BIT_SLICE_GAS_CODE_GROWTH,
+                forced: SwitchLowering::Auto,
+                layout: SwitchLayout {
+                    shared_terminal_target: true,
+                    default_layout: SwitchDefaultLayout::Outlined,
+                    trace_size_bounds: Some((14, 15)),
+                    ..SwitchLayout::default()
+                },
+            },
+        );
+        assert_eq!(selection.plan, SwitchPlan::Linear);
     }
 
     #[test]
