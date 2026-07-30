@@ -1420,6 +1420,58 @@ macro_rules! cached {
 }
 
 cached! {
+fn virtual_function_target(
+    gcx: _,
+    key: (hir::ContractId, hir::FunctionId)
+) -> hir::FunctionId {
+    let (contract, function) = key;
+    let declaration = gcx.hir.function(function);
+    if !declaration.virtual_ || declaration.contract == Some(contract) {
+        return function;
+    }
+
+    for &base in gcx.hir.contract(contract).linearized_bases {
+        for candidate in gcx.hir.contract(base).functions() {
+            if candidate == function || function_overrides(gcx, candidate, function) {
+                return candidate;
+            }
+        }
+    }
+    function
+}
+
+fn super_function_target(
+    gcx: _,
+    key: (hir::ContractId, hir::ContractId, hir::FunctionId)
+) -> hir::FunctionId {
+    let (contract, defining_contract, function) = key;
+    let item = hir::ItemId::from(function);
+    let name = gcx.item_name(item).name;
+    let parameters = gcx.item_parameter_types(item);
+    let bases = gcx
+        .hir
+        .contract(contract)
+        .linearized_bases
+        .iter()
+        .skip_while(|&&base| base != defining_contract)
+        .skip(1);
+    for &base in bases {
+        for candidate in gcx.hir.contract(base).functions() {
+            let candidate_function = gcx.hir.function(candidate);
+            if candidate_function.is_ordinary()
+                && candidate_function.visibility > hir::Visibility::Private
+                && candidate_function.visibility != hir::Visibility::External
+                && candidate_function.body.is_some()
+                && gcx.item_name(candidate).name == name
+                && gcx.item_parameter_types(candidate) == parameters
+            {
+                return candidate;
+            }
+        }
+    }
+    function
+}
+
 fn interface_items(gcx: _, id: hir::ContractId) -> call_graph::InterfaceItems<'gcx> {
     assert!(gcx.has_typeck_results(), "interface items require type checking");
     call_graph::interface_items(gcx, id)
@@ -1756,7 +1808,33 @@ pub(crate) fn eval_const_value_result(gcx: _, expr: &hir::Expr<'_>)
 
 } // cached!
 
+fn function_overrides(gcx: Gcx<'_>, function: hir::FunctionId, base: hir::FunctionId) -> bool {
+    gcx.base_override_items(function.into()).iter().any(|item| {
+        let hir::ItemId::Function(overridden) = item else { return false };
+        *overridden == base || function_overrides(gcx, *overridden, base)
+    })
+}
+
 impl<'gcx> Gcx<'gcx> {
+    /// Resolves a virtual function in the context of the most-derived contract.
+    pub fn resolve_virtual_function(
+        self,
+        contract: hir::ContractId,
+        function: hir::FunctionId,
+    ) -> hir::FunctionId {
+        self.virtual_function_target((contract, function))
+    }
+
+    /// Resolves a `super` function call in the context of the most-derived contract.
+    pub fn resolve_super_function(
+        self,
+        contract: hir::ContractId,
+        defining_contract: hir::ContractId,
+        function: hir::FunctionId,
+    ) -> hir::FunctionId {
+        self.super_function_target((contract, defining_contract, function))
+    }
+
     /// Returns all events included in the external interface of the given contract.
     pub fn interface_events(self, id: hir::ContractId) -> &'gcx [hir::EventId] {
         let items = self.interface_items(id);

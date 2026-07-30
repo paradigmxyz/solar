@@ -238,67 +238,12 @@ impl<'gcx> CallGraphBuilder<'gcx> {
             return match ty.kind {
                 TyKind::Contract(_) => function,
                 TyKind::Super(defining_contract) => {
-                    self.resolve_super_target(defining_contract, function)
+                    self.gcx.resolve_super_function(self.contract, defining_contract, function)
                 }
-                _ => self.resolve_virtual_target(function),
+                _ => self.gcx.resolve_virtual_function(self.contract, function),
             };
         }
-        self.resolve_virtual_target(function)
-    }
-
-    fn resolve_virtual_target(&self, function: hir::FunctionId) -> hir::FunctionId {
-        let declaration = self.gcx.hir.function(function);
-        if !declaration.virtual_ || declaration.contract == Some(self.contract) {
-            return function;
-        }
-        for &base in self.gcx.hir.contract(self.contract).linearized_bases {
-            for candidate in self.gcx.hir.contract(base).functions() {
-                if candidate == function || self.overrides(candidate, function) {
-                    return candidate;
-                }
-            }
-        }
-        function
-    }
-
-    fn overrides(&self, function: hir::FunctionId, base: hir::FunctionId) -> bool {
-        self.gcx.base_override_items(function.into()).iter().any(|item| {
-            let hir::ItemId::Function(overridden) = item else { return false };
-            *overridden == base || self.overrides(*overridden, base)
-        })
-    }
-
-    fn resolve_super_target(
-        &self,
-        defining_contract: hir::ContractId,
-        function: hir::FunctionId,
-    ) -> hir::FunctionId {
-        let item = hir::ItemId::from(function);
-        let name = self.gcx.item_name(item).name;
-        let parameters = self.gcx.item_parameter_types(item);
-        let bases = self
-            .gcx
-            .hir
-            .contract(self.contract)
-            .linearized_bases
-            .iter()
-            .skip_while(|&&base| base != defining_contract)
-            .skip(1);
-        for &base in bases {
-            for candidate in self.gcx.hir.contract(base).functions() {
-                let candidate_function = self.gcx.hir.function(candidate);
-                if candidate_function.is_ordinary()
-                    && candidate_function.visibility > hir::Visibility::Private
-                    && candidate_function.visibility != hir::Visibility::External
-                    && candidate_function.body.is_some()
-                    && self.gcx.item_name(candidate).name == name
-                    && self.gcx.item_parameter_types(candidate) == parameters
-                {
-                    return candidate;
-                }
-            }
-        }
-        function
+        self.gcx.resolve_virtual_function(self.contract, function)
     }
 }
 
@@ -352,7 +297,7 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx> {
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
         if let hir::ItemId::Function(function) = modifier.id {
-            let function = self.resolve_virtual_target(function);
+            let function = self.gcx.resolve_virtual_function(self.contract, function);
             self.enqueue(function);
         }
         self.walk_modifier(modifier)

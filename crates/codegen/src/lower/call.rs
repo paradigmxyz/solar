@@ -619,33 +619,8 @@ impl<'gcx> Lowerer<'gcx> {
         &self,
         function_id: hir::FunctionId,
     ) -> hir::FunctionId {
-        let function = self.gcx.hir.function(function_id);
         let Some(contract_id) = self.contract_id else { return function_id };
-        if !function.virtual_ || function.contract == Some(contract_id) {
-            return function_id;
-        }
-
-        for &base_id in self.gcx.hir.contract(contract_id).linearized_bases {
-            for candidate in self.gcx.hir.contract(base_id).functions() {
-                if candidate == function_id
-                    || self.internal_function_overrides(candidate, function_id)
-                {
-                    return candidate;
-                }
-            }
-        }
-        function_id
-    }
-
-    fn internal_function_overrides(
-        &self,
-        function_id: hir::FunctionId,
-        base_id: hir::FunctionId,
-    ) -> bool {
-        self.gcx.base_override_items(function_id.into()).iter().any(|item| {
-            let hir::ItemId::Function(overridden_id) = item else { return false };
-            *overridden_id == base_id || self.internal_function_overrides(*overridden_id, base_id)
-        })
+        self.gcx.resolve_virtual_function(contract_id, function_id)
     }
 
     fn builtin_uses_direct_call_lowering(builtin: Builtin) -> bool {
@@ -2903,38 +2878,7 @@ impl<'gcx> Lowerer<'gcx> {
         function_id: hir::FunctionId,
     ) -> hir::FunctionId {
         let Some(contract_id) = self.contract_id else { return function_id };
-        let item = hir::ItemId::from(function_id);
-        let name = self.gcx.item_name(item).name;
-        let parameters = self.gcx.item_parameter_types(item);
-
-        let bases = self
-            .gcx
-            .hir
-            .contract(contract_id)
-            .linearized_bases
-            .iter()
-            .skip_while(|&&base_id| base_id != defining_contract_id)
-            .skip(1);
-        for &base_id in bases {
-            for candidate_id in self.gcx.hir.contract(base_id).functions() {
-                let candidate = self.gcx.hir.function(candidate_id);
-                if !candidate.is_ordinary()
-                    || candidate.visibility <= hir::Visibility::Private
-                    || candidate.visibility == hir::Visibility::External
-                    || candidate.body.is_none()
-                {
-                    continue;
-                }
-
-                let candidate_item = hir::ItemId::from(candidate_id);
-                if self.gcx.item_name(candidate_item).name == name
-                    && self.gcx.item_parameter_types(candidate_item) == parameters
-                {
-                    return candidate_id;
-                }
-            }
-        }
-        function_id
+        self.gcx.resolve_super_function(contract_id, defining_contract_id, function_id)
     }
 
     /// Checks if an expression has a contract value type.
