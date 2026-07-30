@@ -41,17 +41,12 @@ impl EvmMemoryLayout {
     pub(crate) const HEAP_START: u64 = 0x80;
     /// Runtime word that holds the current internal-frame pointer.
     pub(crate) const INTERNAL_FRAME_PTR_SLOT: u64 = 0xa0;
-    /// Base of the absolute scheduler spill area.
-    pub(crate) const SPILL_BASE: u64 = 0x1000;
     /// Header size for dynamically sized memory objects.
     pub(crate) const DYNAMIC_HEADER_SIZE: u64 = Self::WORD_SIZE;
     /// Header reserved by an internal-call frame before arguments and returns.
     pub(crate) const INTERNAL_FRAME_HEADER_SIZE: u64 = 2 * Self::WORD_SIZE;
     /// Maximum memory pointer accepted by Solidity-compatible allocation.
     pub(crate) const MAX_ALLOCATION_END: u64 = u64::MAX;
-    /// Historical constructor heap floor, raised further when spills require it.
-    pub(crate) const CONSTRUCTOR_HEAP_FLOOR: u64 = 0x4000;
-
     /// Returns whether an absolute address is in reserved low memory.
     #[must_use]
     pub(crate) const fn is_reserved(address: u64) -> bool {

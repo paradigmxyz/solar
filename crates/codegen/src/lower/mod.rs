@@ -167,6 +167,8 @@ pub(crate) struct Lowerer<'gcx> {
     internal_function_pointer_dispatchers: FxHashMap<InternalFunctionPointerShape, FunctionId>,
     /// Whether the current function body is constructor code.
     lowering_constructor: bool,
+    /// Shared base value for constructor ABI argument accesses.
+    constructor_args_base: Option<ValueId>,
     /// Whether local memory slots should be addressed through the internal-call frame.
     lowering_internal_function: bool,
     /// The module's shared `Error(string)` revert helper, synthesized on first
@@ -249,6 +251,7 @@ impl<'gcx> Lowerer<'gcx> {
             internal_function_pointer_targets: GrowableBitSet::new_empty(),
             internal_function_pointer_dispatchers: FxHashMap::default(),
             lowering_constructor: false,
+            constructor_args_base: None,
             lowering_internal_function: false,
             revert_error_helper: None,
             ret_bytes_helper: None,
@@ -387,6 +390,15 @@ impl<'gcx> Lowerer<'gcx> {
         } else {
             builder.imm_u64(offset)
         }
+    }
+
+    fn constructor_args_base(&mut self, builder: &mut FunctionBuilder<'_>) -> ValueId {
+        if let Some(base) = self.constructor_args_base {
+            return base;
+        }
+        let base = builder.constructor_args_base();
+        self.constructor_args_base = Some(base);
+        base
     }
 
     /// Loads an immutable value.
@@ -547,16 +559,19 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let mut builder = FunctionBuilder::new(&mut mir_func);
             let saved_lowering_constructor = self.lowering_constructor;
+            let saved_constructor_args_base = self.constructor_args_base;
             let saved_lowering_internal_function = self.lowering_internal_function;
             let saved_in_unchecked_block = self.in_unchecked_block;
             let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
             self.lowering_constructor = true;
+            self.constructor_args_base = None;
             self.lowering_internal_function = false;
             self.in_unchecked_block = false;
 
             self.lower_constructor_prelude(&mut builder, contract_id);
             builder.stop();
             self.lowering_constructor = saved_lowering_constructor;
+            self.constructor_args_base = saved_constructor_args_base;
             self.lowering_internal_function = saved_lowering_internal_function;
             self.in_unchecked_block = saved_in_unchecked_block;
             self.current_return_tys = saved_current_return_tys;
@@ -654,6 +669,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_pending_inline_returns = self.pending_inline_returns.take();
         let saved_current_contract_id = self.current_contract_id;
         let saved_lowering_constructor = self.lowering_constructor;
+        let saved_constructor_args_base = self.constructor_args_base;
         let saved_lowering_internal_function = self.lowering_internal_function;
         let saved_in_unchecked_block = self.in_unchecked_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
@@ -673,6 +689,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.pending_inline_returns = saved_pending_inline_returns;
         self.current_contract_id = saved_current_contract_id;
         self.lowering_constructor = saved_lowering_constructor;
+        self.constructor_args_base = saved_constructor_args_base;
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
@@ -814,6 +831,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_pending_inline_returns = self.pending_inline_returns.take();
         let saved_current_contract_id = self.current_contract_id;
         let saved_lowering_constructor = self.lowering_constructor;
+        let saved_constructor_args_base = self.constructor_args_base;
         let saved_lowering_internal_function = self.lowering_internal_function;
         let saved_in_unchecked_block = self.in_unchecked_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
@@ -831,6 +849,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.pending_inline_returns = saved_pending_inline_returns;
         self.current_contract_id = saved_current_contract_id;
         self.lowering_constructor = saved_lowering_constructor;
+        self.constructor_args_base = saved_constructor_args_base;
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
@@ -885,6 +904,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.next_local_memory_offset = EvmMemoryLayout::HEAP_START;
         self.assigned_vars.clear();
         self.lowering_constructor = hir_func.kind == hir::FunctionKind::Constructor;
+        self.constructor_args_base = None;
         self.lowering_internal_function = uses_internal_frame;
         self.in_unchecked_block = false;
         self.current_return_tys =
@@ -946,17 +966,16 @@ impl<'gcx> Lowerer<'gcx> {
                     // offsets relative to the struct's own base — lives in
                     // the tail. Rebuild it recursively. Runtime calls read
                     // calldata after the selector; constructors read the
-                    // argument blob CODECOPY'd into memory at the heap start.
+                    // argument blob CODECOPY'd into its backend-owned region.
                     let (source, args_base) = if self.lowering_constructor {
-                        (bytes::AbiSource::Memory, EvmMemoryLayout::HEAP_START)
+                        (bytes::AbiSource::Memory, self.constructor_args_base(&mut builder))
                     } else {
-                        (bytes::AbiSource::Calldata, 4)
+                        (bytes::AbiSource::Calldata, builder.imm_u64(4))
                     };
                     let offset = builder.add_param(MirType::uint256());
                     let limit = builder.imm_u64(0xffff_ffff_ffff_ffff);
                     let out_of_range = builder.gt(offset, limit);
                     self.emit_abi_decode_revert_if(&mut builder, out_of_range);
-                    let args_base = builder.imm_u64(args_base);
                     let base = builder.add(args_base, offset);
                     let struct_ptr =
                         self.materialize_calldata_value_at(&mut builder, source, param_ty, base);
@@ -980,11 +999,11 @@ impl<'gcx> Lowerer<'gcx> {
                     );
 
                     // Runtime calls read the inline head after the selector;
-                    // constructors read the argument blob at the heap start.
-                    let (agg_source, agg_args_base) = if self.lowering_constructor {
-                        (bytes::AbiSource::Memory, EvmMemoryLayout::HEAP_START)
+                    // constructors read the backend-owned argument blob.
+                    let (agg_source, constructor_args_base) = if self.lowering_constructor {
+                        (bytes::AbiSource::Memory, Some(self.constructor_args_base(&mut builder)))
                     } else {
-                        (bytes::AbiSource::Calldata, 4)
+                        (bytes::AbiSource::Calldata, None)
                     };
 
                     // Add MIR params for each struct field (they come from calldata)
@@ -1012,8 +1031,13 @@ impl<'gcx> Lowerer<'gcx> {
                             for _ in 0..head_words {
                                 builder.add_param(MirType::uint256());
                             }
-                            let pos = builder
-                                .imm_u64(agg_args_base + first_word * EvmMemoryLayout::WORD_SIZE);
+                            let offset = first_word * EvmMemoryLayout::WORD_SIZE;
+                            let pos = if let Some(args_base) = constructor_args_base {
+                                let offset = builder.imm_u64(offset);
+                                builder.add(args_base, offset)
+                            } else {
+                                builder.imm_u64(4 + offset)
+                            };
                             let field_ptr = self.materialize_calldata_value_at(
                                 &mut builder,
                                 agg_source,
@@ -1131,13 +1155,13 @@ impl<'gcx> Lowerer<'gcx> {
                     // an offset to `[length][elements...]` in the ABI argument
                     // blob. Runtime calls read it from calldata after the
                     // selector; constructors read it from the copied argument
-                    // blob at memory 0x80.
+                    // blob in its backend-owned region.
                     let head = builder.add_param(ty);
-                    let abi_base = builder.imm_u64(if self.lowering_constructor {
-                        EvmMemoryLayout::HEAP_START
+                    let abi_base = if self.lowering_constructor {
+                        self.constructor_args_base(&mut builder)
                     } else {
-                        4
-                    });
+                        builder.imm_u64(4)
+                    };
                     let len_pos = builder.add(abi_base, head);
                     let len = if self.lowering_constructor {
                         builder.mload(len_pos)
@@ -1172,13 +1196,13 @@ impl<'gcx> Lowerer<'gcx> {
                     // the payload's offset relative to the start of the ABI
                     // arguments. Runtime calls read it from calldata after the
                     // selector; constructors read it from the copied argument
-                    // blob at memory 0x80.
+                    // blob in its backend-owned region.
                     let head = builder.add_param(ty);
-                    let abi_base = builder.imm_u64(if self.lowering_constructor {
-                        EvmMemoryLayout::HEAP_START
+                    let abi_base = if self.lowering_constructor {
+                        self.constructor_args_base(&mut builder)
                     } else {
-                        4
-                    });
+                        builder.imm_u64(4)
+                    };
                     let len_pos = builder.add(abi_base, head);
                     let len = if self.lowering_constructor {
                         builder.mload(len_pos)
@@ -1487,10 +1511,10 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.calldataload(offset)
             }
             AbiParamSource::ConstructorMemory => {
-                // Constructor ABI arguments are copied to memory at 0x80 by the backend.
-                let offset = builder
-                    .imm_u64(EvmMemoryLayout::HEAP_START + arg_index * EvmMemoryLayout::WORD_SIZE);
-                builder.mload(offset)
+                let base = self.constructor_args_base(builder);
+                let offset = builder.imm_u64(arg_index * EvmMemoryLayout::WORD_SIZE);
+                let address = builder.add(base, offset);
+                builder.mload(address)
             }
         };
         self.emit_abi_word_clean_check(builder, word, validator);

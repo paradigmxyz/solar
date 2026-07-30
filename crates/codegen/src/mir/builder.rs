@@ -534,6 +534,11 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::SliceLen(slice), Some(MirType::uint256()))
     }
 
+    /// Emits the base address of the constructor ABI argument blob.
+    pub(crate) fn constructor_args_base(&mut self) -> ValueId {
+        self.emit_inst(InstKind::ConstructorArgsBase, Some(MirType::uint256()))
+    }
+
     /// Emits a calldatacopy instruction.
     pub(crate) fn calldatacopy(&mut self, dest: ValueId, offset: ValueId, size: ValueId) {
         self.emit_void_inst(InstKind::CalldataCopy(dest, offset, size))

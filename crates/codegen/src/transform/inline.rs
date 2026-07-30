@@ -614,6 +614,7 @@ fn estimate_inst_cost(module: &Module, kind: &InstKind) -> MirCost {
         | InstKind::ExtCodeCopy(..)
         | InstKind::ReturnDataCopy(..) => (12, 1),
         InstKind::MSize | InstKind::CodeSize | InstKind::ReturnDataSize => (2, 1),
+        InstKind::ConstructorArgsBase => (3, 3),
         InstKind::InternalFrameAddr(_) => (6, 3),
         // Typed PUSH<N> placeholder patched at deploy time.
         InstKind::LoadImmutable(id) => {
@@ -1166,6 +1167,7 @@ impl<'a> InlineCloner<'a> {
                 let local_offset = offset.checked_sub(self.callee_frame_prefix)?;
                 InstKind::InternalFrameAddr(self.frame_base + local_offset)
             }
+            InstKind::ConstructorArgsBase => InstKind::ConstructorArgsBase,
             InstKind::CodeSize => InstKind::CodeSize,
             InstKind::StoreImmutable(id, value) => {
                 InstKind::StoreImmutable(id, self.clone_value(value)?)

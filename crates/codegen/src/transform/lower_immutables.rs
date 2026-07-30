@@ -6,7 +6,7 @@
 //! only after those optimizations have finished.
 
 use crate::{
-    immutable::immutable_staging_addr,
+    immutable::{immutable_staging_addr, immutable_staging_base},
     mir::{EffectKind, Immediate, InstKind, MemoryRegion, Module, Value},
     pass::MirPass,
 };
@@ -30,6 +30,7 @@ impl MirPass for LowerImmutables {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
+        let staging_base = immutable_staging_base(module);
         let mut changed = false;
         for func in &mut module.functions {
             let stores: Vec<_> = func
@@ -42,7 +43,7 @@ impl MirPass for LowerImmutables {
 
             for &(inst_id, id, value) in &stores {
                 let addr = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(
-                    immutable_staging_addr(id),
+                    immutable_staging_addr(staging_base, id),
                 ))));
                 let inst = func.inst_mut(inst_id);
                 inst.kind = InstKind::MStore(addr, value);

@@ -93,3 +93,12 @@ fn @immutable() -> u8 {
     v0 = loadimmutable fn
     ret v0
 }
+
+// CHECK-LABEL: @constructor
+// CHECK: {{^ +}}[[BASE:v[0-9]+]] = constructor_args_base
+// CHECK: {{^ +}}ret [[BASE]]
+fn @constructor() -> u256 {
+  bb0:
+    v0 = constructor_args_base
+    ret v0
+}

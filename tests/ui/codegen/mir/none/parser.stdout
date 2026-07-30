@@ -63,3 +63,9 @@
       ret v0
   }
   
+  fn @constructor() -> u256 {
+    bb0:
+      v0 = constructor_args_base
+      ret v0
+  }
+  

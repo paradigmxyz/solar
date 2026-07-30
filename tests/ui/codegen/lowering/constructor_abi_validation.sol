@@ -12,11 +12,15 @@ contract ConstructorAbiValidation {
     bool public second;
 
     // CHECK-LABEL: fn @_anonymous{{[( ]}}
-    // CHECK: mload 128
+    // CHECK: [[BASE:v[0-9]+]] = constructor_args_base
+    // CHECK: [[FIRST:v[0-9]+]] = add [[BASE]], 0
+    // CHECK-NEXT: {{v[0-9]+}} = mload [[FIRST]]
     // CHECK: revert 0, 0
-    // CHECK: mload 160
+    // CHECK: [[SECOND:v[0-9]+]] = add [[BASE]], 32
+    // CHECK-NEXT: {{v[0-9]+}} = mload [[SECOND]]
     // CHECK: revert 0, 0
-    // CHECK: mload 192
+    // CHECK: [[THIRD:v[0-9]+]] = add [[BASE]], 64
+    // CHECK-NEXT: {{v[0-9]+}} = mload [[THIRD]]
     // CHECK: revert 0, 0
     // CHECK: memory_object_element_addr memoryfixedarray<2, 1>, {{v[0-9]+}}, 1
     // CHECK: sstore 0,

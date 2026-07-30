@@ -9,8 +9,8 @@
     bb0:
 -     storeimmutable first, arg0
 -     storeimmutable second, arg1
-+     mstore 0x2000, arg0
-+     mstore 0x2020, arg1
++     mstore 192, arg0
++     mstore 224, arg1
       v0 = loadimmutable first
       ret v0
   }

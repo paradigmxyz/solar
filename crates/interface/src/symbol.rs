@@ -987,6 +987,7 @@ symbols! {
         codehash,
         cold,
         concat,
+        constructor_args_base,
         creationCode,
         data,
         decode,
