@@ -1655,8 +1655,10 @@ impl MemoryStoreEliminator {
                 }
                 Access::Location(Location::Storage(_))
                 | Access::Location(Location::Transient(_))
+                | Access::Location(Location::Immutable(_))
                 | Access::Any(AddressSpace::Storage)
-                | Access::Any(AddressSpace::Transient) => {}
+                | Access::Any(AddressSpace::Transient)
+                | Access::Any(AddressSpace::Immutable) => {}
             }
         }
         Some(())
