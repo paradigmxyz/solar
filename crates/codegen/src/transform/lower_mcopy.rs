@@ -1,11 +1,20 @@
 //! Lower `mcopy` for EVM versions that predate Cancun.
 
 use crate::{
-    mir::{BlockId, Function, FunctionBuilder, InstKind, Module, ValueId},
+    analysis::CallGraphInfo,
+    mir::{
+        BlockId, EffectKind, Function, FunctionBuilder, FunctionId, InstKind, MirType, Module,
+        ValueId,
+    },
     pass::MirPass,
     transform::utils::redirect_successor_predecessors,
 };
+use solar_config::OptimizationMode;
+use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
+
+// Smallest measured site count where outlining improved every benchmarked gas path.
+const MIN_GAS_SHARED_SITES: usize = 21;
 
 /// Lowers `mcopy` to an overlap-safe memory loop when the target has no
 /// `MCOPY` opcode.
@@ -30,14 +39,117 @@ impl MirPass for LowerMCopy {
             return false;
         }
 
-        let mut changed = false;
-        for func in module.functions.iter_mut() {
-            if !func.blocks.is_empty() {
-                changed |= lower_function(func);
+        let functions = module.functions.indices().collect::<Vec<_>>();
+        let sites =
+            functions.iter().map(|&func| count_mcopies(&module.functions[func])).sum::<usize>();
+        if sites == 0 {
+            return false;
+        }
+        // Outlining changes the memory high-water mark, which is observable
+        // through `msize`.
+        if sites == 1
+            || functions.iter().any(|&func| {
+                module.functions[func]
+                    .instructions()
+                    .any(|inst| matches!(module.functions[func].inst(inst).kind, InstKind::MSize))
+            })
+        {
+            return lower_functions(module, &functions);
+        }
+
+        let optimization = gcx.sess.opts.optimization;
+        if !should_share_mcopies(optimization, sites) {
+            return lower_functions(module, &functions);
+        }
+
+        let call_graph = CallGraphInfo::new(module);
+        let constructors = functions
+            .iter()
+            .copied()
+            .filter(|&func| module.functions[func].attributes.is_constructor)
+            .collect::<Vec<_>>();
+        let mut constructor_reachable =
+            call_graph.reachable_callees_from(constructors.iter().copied());
+        for constructor in constructors {
+            constructor_reachable.insert(constructor);
+        }
+        // Constructor calls use dynamic frames at the free-memory pointer,
+        // which compiler-generated copies may also use as unreserved scratch
+        // space. Keep those copies inline so they cannot overwrite their frame.
+        let shared_sites = functions
+            .iter()
+            .filter(|&&func| !constructor_reachable.contains(func))
+            .map(|&func| count_mcopies(&module.functions[func]))
+            .sum::<usize>();
+        // Two sites already save bytecode, but their per-call gas results are
+        // mixed. Keep gas-oriented outlining to the measured threshold.
+        if !should_share_mcopies(optimization, shared_sites) {
+            return lower_functions(module, &functions);
+        }
+
+        let helper = mcopy_helper(module);
+        for func in functions {
+            if constructor_reachable.contains(func) {
+                lower_function(&mut module.functions[func]);
+            } else {
+                replace_mcopies(&mut module.functions[func], helper);
             }
         }
-        changed
+        lower_function(&mut module.functions[helper]);
+        true
     }
+}
+
+fn lower_functions(module: &mut Module, functions: &[FunctionId]) -> bool {
+    let mut changed = false;
+    for &func in functions {
+        changed |= lower_function(&mut module.functions[func]);
+    }
+    changed
+}
+
+fn should_share_mcopies(optimization: OptimizationMode, sites: usize) -> bool {
+    if optimization.is_size() {
+        sites >= 2
+    } else {
+        optimization.is_gas() && sites >= MIN_GAS_SHARED_SITES
+    }
+}
+
+fn count_mcopies(func: &Function) -> usize {
+    func.instructions()
+        .filter(|&inst| matches!(func.inst(inst).kind, InstKind::MCopy(_, _, _)))
+        .count()
+}
+
+fn replace_mcopies(func: &mut Function, helper: FunctionId) {
+    let instructions = func.instructions().collect::<Vec<_>>();
+    for inst in instructions {
+        if let InstKind::MCopy(dest, src, len) = func.inst(inst).kind {
+            let instruction = func.inst_mut(inst);
+            instruction.kind = InstKind::InternalCall {
+                function: helper,
+                args: vec![dest, src, len].into_boxed_slice(),
+                returns: 0,
+            };
+            instruction.metadata.set_effect(Some(EffectKind::InternalCall));
+            instruction.metadata.set_memory_region(None);
+        }
+    }
+}
+
+fn mcopy_helper(module: &mut Module) -> FunctionId {
+    let mut func = Function::new(Ident::with_dummy_span(sym::__mcopy));
+    func.attributes.no_inline = true;
+    {
+        let mut builder = FunctionBuilder::new(&mut func);
+        let dest = builder.add_param(MirType::MemPtr);
+        let src = builder.add_param(MirType::MemPtr);
+        let len = builder.add_param(MirType::uint256());
+        builder.mcopy(dest, src, len);
+        builder.ret([]);
+    }
+    module.add_function(func)
 }
 
 fn lower_function(func: &mut Function) -> bool {
@@ -165,4 +277,18 @@ fn load_byte(builder: &mut FunctionBuilder<'_>, address: ValueId, byte_mask: Val
     let aligned_address = builder.sub(address, byte_index);
     let word = builder.mload(aligned_address);
     builder.byte(byte_index, word)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mcopy_sharing_policy() {
+        assert!(!should_share_mcopies(OptimizationMode::None, usize::MAX));
+        assert!(!should_share_mcopies(OptimizationMode::Size, 1));
+        assert!(should_share_mcopies(OptimizationMode::Size, 2));
+        assert!(!should_share_mcopies(OptimizationMode::Gas, MIN_GAS_SHARED_SITES - 1));
+        assert!(should_share_mcopies(OptimizationMode::Gas, MIN_GAS_SHARED_SITES));
+    }
 }

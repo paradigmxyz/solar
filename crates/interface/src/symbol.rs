@@ -963,6 +963,7 @@ symbols! {
         Test,
         X,
         __load_storage_bytes,
+        __mcopy,
         __ret_bytes,
         __revert_error,
         __tmp_struct,

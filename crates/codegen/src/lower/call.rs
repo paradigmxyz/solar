@@ -1110,8 +1110,8 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::YulMcopy => {
                 // The Yul `mcopy` builtin is only available on Cancun-compatible
                 // VMs; solc rejects it on older targets. Compiler-generated
-                // memory copies use `Self::mcopy`, which falls back to the
-                // identity precompile — but an explicit assembly `mcopy` keeps
+                // memory copies use `Self::mcopy`, which falls back to an
+                // overlap-safe loop — but an explicit assembly `mcopy` keeps
                 // the diagnostic.
                 if self.gcx.sess.opts.evm_version.has_mcopy() {
                     builder.mcopy(args[0], args[1], args[2]);

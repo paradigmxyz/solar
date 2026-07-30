@@ -1,0 +1,21 @@
+//@compile-flags: --evm-version paris -Osize -Zmir-pipeline=lower-mcopy
+//@filecheck:
+@module SharedPreCancunMCopy
+
+// CHECK-LABEL: {{^[ +].*}}fn @copy_a{{[( ]}}
+// CHECK-COUNT-2: + internal_call @__mcopy
+// CHECK: + fn @__mcopy
+// CHECK: + {{v[0-9]+}} = mload
+// CHECK: + mstore
+// CHECK: + mstore8
+fn @copy_a(arg0: memptr, arg1: memptr, arg2: u256) -> memptr {
+  bb0:
+    mcopy arg0, arg1, arg2
+    ret arg0
+}
+
+fn @copy_b(arg0: memptr, arg1: memptr, arg2: u256) -> memptr {
+  bb0:
+    mcopy arg1, arg0, arg2
+    ret arg0
+}
