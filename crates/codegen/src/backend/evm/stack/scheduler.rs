@@ -111,7 +111,8 @@ const MAX_OPERAND_SEARCH_OPEN_STATES: usize = 2048;
 const MAX_OPERAND_SEARCH_RETAINED_BYTES: usize = 2 * 1024 * 1024;
 
 type PlannedActions = SmallVec<[PlannedAction; 8]>;
-type SearchStack = SmallVec<[Option<ValueId>; 24]>;
+// Keep the 17-word `SWAP16` window plus a ternary's three pushes inline.
+type SearchStack = SmallVec<[Option<ValueId>; 20]>;
 
 /// Tracks physical stack state and plans operand preparation.
 pub(crate) struct StackScheduler {
