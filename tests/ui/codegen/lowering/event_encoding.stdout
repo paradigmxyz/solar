@@ -1,0 +1,87 @@
+// === ROOT/tests/ui/codegen/lowering/event_encoding.sol:EventEncoding ===
+@module EventEncoding
+fn @emitArray(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v4 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 0
+    mstore v4, arg0
+    v5 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 1
+    mstore v5, arg1
+    v6 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 0
+    v7 = mload v6
+    mstore 0, v7 !metadata(memory=scratch)
+    v8 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 1
+    v9 = mload v8
+    mstore 32, v9 !metadata(memory=scratch)
+    v10 = add 32, 32
+    log1 0, 64, 0x625921711aa49386aa5b640487cbc3efdcbda2656254ae2c5ad71b2ede1efcf4
+    stop
+}
+
+fn @emitAnonymous(arg0: address, arg1: u256) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    mstore 0, arg1 !metadata(memory=scratch)
+    log1 0, 32, arg0
+    stop
+}
+
+fn @emitIndexedBytes(arg0: memorybytes) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = add 4, arg0
+    v4 = calldataload v3
+    v5 = add v4, 31
+    v6 = not 31
+    v7 = and v5, v6
+    v8 = add v7, 32
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
+    set_memory_object_len memorybytes, v9, v4
+    v10 = memory_object_data memorybytes, v9
+    v11 = add v3, 32
+    calldatacopy v10, v11, v4
+    v12 = keccak256_bytes v9
+    log2 0, 0, 0x302971c456dab97076d583d969187faf914418423e0641b0c0f01537060f04e7, v12
+    stop
+}
+
+fn @emitIndexedFixedBytes() {
+  bb0:
+    log2 0, 0, 0xd6843e74884f95c39ee4c0ac08d559101bead98aa590038d667afad12f9006bb, 0x6162630000000000000000000000000000000000000000000000000000000000
+    stop
+}
+
+fn @emitNamed() {
+  bb0:
+    mstore 0, 1 !metadata(memory=scratch)
+    mstore 32, 2 !metadata(memory=scratch)
+    log1 0, 64, 0x7d268c864ab74dc3ecd16b07321ad677da79fbcb3fd2c22d5bfe5d4b81c67d23
+    stop
+}
+

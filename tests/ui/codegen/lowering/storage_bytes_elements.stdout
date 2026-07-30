@@ -681,8 +681,10 @@ fn @_anonymous() {
     v25 = alloc raw, exact, uninitialized, infallible, 32
     mstore v25, 0
     v26 = keccak256 v25, 32
-    jumpi v23, bb2, bb1
+    jumpi v23, bb3, bb2
   bb1:
+    stop
+  bb2:
     v27 = mload v7
     v28 = mul v6, 8
     v29 = shr v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -691,18 +693,18 @@ fn @_anonymous() {
     v32 = shl 1, v6
     v33 = or v31, v32
     sstore 0, v33 !metadata(storage=slot(0))
-    jump bb5
-  bb2:
+    jump bb6
+  bb3:
     v34 = shl 1, v6
     v35 = or v34, 1
     sstore 0, v35 !metadata(storage=slot(0))
     mstore v25, 0
-    jump bb3
-  bb3:
+    jump bb4
+  bb4:
     v36 = mload v25
     v37 = lt v36, v24
-    jumpi v37, bb4, bb5
-  bb4:
+    jumpi v37, bb5, bb6
+  bb5:
     v38 = mload v25
     v39 = add v26, v38
     v40 = mul v38, 32
@@ -711,22 +713,22 @@ fn @_anonymous() {
     sstore v39, v42 !metadata(storage=symbolic(v39))
     v43 = add v38, 1
     mstore v25, v43
-    jump bb3
-  bb5:
-    mstore v25, v24
-    jump bb6
+    jump bb4
   bb6:
+    mstore v25, v24
+    jump bb7
+  bb7:
     v44 = mload v25
     v45 = lt v44, v19
-    jumpi v45, bb7, bb8
-  bb7:
+    jumpi v45, bb8, bb9
+  bb8:
     v46 = mload v25
     v47 = add v26, v46
     sstore v47, 0 !metadata(storage=symbolic(v47))
     v48 = add v46, 1
     mstore v25, v48
-    jump bb6
-  bb8:
+    jump bb7
+  bb9:
     v49 = memory_object_len memorybytes, v3
     v50 = memory_object_data memorybytes, v3
     v51 = sload 1 !metadata(storage=slot(1))
@@ -749,8 +751,8 @@ fn @_anonymous() {
     v68 = alloc raw, exact, uninitialized, infallible, 32
     mstore v68, 1
     v69 = keccak256 v68, 32
-    jumpi v66, bb10, bb9
-  bb9:
+    jumpi v66, bb11, bb10
+  bb10:
     v70 = mload v50
     v71 = mul v49, 8
     v72 = shr v71, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -759,18 +761,18 @@ fn @_anonymous() {
     v75 = shl 1, v49
     v76 = or v74, v75
     sstore 1, v76 !metadata(storage=slot(1))
-    jump bb13
-  bb10:
+    jump bb14
+  bb11:
     v77 = shl 1, v49
     v78 = or v77, 1
     sstore 1, v78 !metadata(storage=slot(1))
     mstore v68, 0
-    jump bb11
-  bb11:
+    jump bb12
+  bb12:
     v79 = mload v68
     v80 = lt v79, v67
-    jumpi v80, bb12, bb13
-  bb12:
+    jumpi v80, bb13, bb14
+  bb13:
     v81 = mload v68
     v82 = add v69, v81
     v83 = mul v81, 32
@@ -779,23 +781,23 @@ fn @_anonymous() {
     sstore v82, v85 !metadata(storage=symbolic(v82))
     v86 = add v81, 1
     mstore v68, v86
-    jump bb11
-  bb13:
-    mstore v68, v67
-    jump bb14
+    jump bb12
   bb14:
+    mstore v68, v67
+    jump bb15
+  bb15:
     v87 = mload v68
     v88 = lt v87, v62
-    jumpi v88, bb15, bb16
-  bb15:
+    jumpi v88, bb16, bb17
+  bb16:
     v89 = mload v68
     v90 = add v69, v89
     sstore v90, 0 !metadata(storage=symbolic(v90))
     v91 = add v89, 1
     mstore v68, v91
-    jump bb14
-  bb16:
-    stop
+    jump bb15
+  bb17:
+    jump bb1
 }
 
 fn @name() -> memorybytes [abi_returns=[memory_bytes]] {
@@ -892,8 +894,10 @@ fn @constructor() {
     v25 = alloc raw, exact, uninitialized, infallible, 32
     mstore v25, 0
     v26 = keccak256 v25, 32
-    jumpi v23, bb2, bb1
+    jumpi v23, bb3, bb2
   bb1:
+    stop
+  bb2:
     v27 = mload v7
     v28 = mul v6, 8
     v29 = shr v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -902,18 +906,18 @@ fn @constructor() {
     v32 = shl 1, v6
     v33 = or v31, v32
     sstore 0, v33 !metadata(storage=slot(0))
-    jump bb5
-  bb2:
+    jump bb6
+  bb3:
     v34 = shl 1, v6
     v35 = or v34, 1
     sstore 0, v35 !metadata(storage=slot(0))
     mstore v25, 0
-    jump bb3
-  bb3:
+    jump bb4
+  bb4:
     v36 = mload v25
     v37 = lt v36, v24
-    jumpi v37, bb4, bb5
-  bb4:
+    jumpi v37, bb5, bb6
+  bb5:
     v38 = mload v25
     v39 = add v26, v38
     v40 = mul v38, 32
@@ -922,22 +926,22 @@ fn @constructor() {
     sstore v39, v42 !metadata(storage=symbolic(v39))
     v43 = add v38, 1
     mstore v25, v43
-    jump bb3
-  bb5:
-    mstore v25, v24
-    jump bb6
+    jump bb4
   bb6:
+    mstore v25, v24
+    jump bb7
+  bb7:
     v44 = mload v25
     v45 = lt v44, v19
-    jumpi v45, bb7, bb8
-  bb7:
+    jumpi v45, bb8, bb9
+  bb8:
     v46 = mload v25
     v47 = add v26, v46
     sstore v47, 0 !metadata(storage=symbolic(v47))
     v48 = add v46, 1
     mstore v25, v48
-    jump bb6
-  bb8:
+    jump bb7
+  bb9:
     v49 = memory_object_len memorybytes, v3
     v50 = memory_object_data memorybytes, v3
     v51 = sload 1 !metadata(storage=slot(1))
@@ -960,8 +964,8 @@ fn @constructor() {
     v68 = alloc raw, exact, uninitialized, infallible, 32
     mstore v68, 1
     v69 = keccak256 v68, 32
-    jumpi v66, bb10, bb9
-  bb9:
+    jumpi v66, bb11, bb10
+  bb10:
     v70 = mload v50
     v71 = mul v49, 8
     v72 = shr v71, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -970,18 +974,18 @@ fn @constructor() {
     v75 = shl 1, v49
     v76 = or v74, v75
     sstore 1, v76 !metadata(storage=slot(1))
-    jump bb13
-  bb10:
+    jump bb14
+  bb11:
     v77 = shl 1, v49
     v78 = or v77, 1
     sstore 1, v78 !metadata(storage=slot(1))
     mstore v68, 0
-    jump bb11
-  bb11:
+    jump bb12
+  bb12:
     v79 = mload v68
     v80 = lt v79, v67
-    jumpi v80, bb12, bb13
-  bb12:
+    jumpi v80, bb13, bb14
+  bb13:
     v81 = mload v68
     v82 = add v69, v81
     v83 = mul v81, 32
@@ -990,23 +994,23 @@ fn @constructor() {
     sstore v82, v85 !metadata(storage=symbolic(v82))
     v86 = add v81, 1
     mstore v68, v86
-    jump bb11
-  bb13:
-    mstore v68, v67
-    jump bb14
+    jump bb12
   bb14:
+    mstore v68, v67
+    jump bb15
+  bb15:
     v87 = mload v68
     v88 = lt v87, v62
-    jumpi v88, bb15, bb16
-  bb15:
+    jumpi v88, bb16, bb17
+  bb16:
     v89 = mload v68
     v90 = add v69, v89
     sstore v90, 0 !metadata(storage=symbolic(v90))
     v91 = add v89, 1
     mstore v68, v91
-    jump bb14
-  bb16:
-    stop
+    jump bb15
+  bb17:
+    jump bb1
 }
 
 fn @name() -> memorybytes [abi_returns=[memory_bytes]] {

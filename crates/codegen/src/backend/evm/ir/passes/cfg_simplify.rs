@@ -207,6 +207,7 @@ fn is_direct_jump_label(block: &Block, at: usize) -> bool {
                 .is_some_and(|term| matches!(term.kind, TerminatorKind::Op(op::JUMP | op::JUMPI))))
 }
 
+#[must_use]
 fn remove_unreachable_blocks(
     module: &mut Module,
     reachable: &mut DenseBitSet<BlockId>,

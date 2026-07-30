@@ -143,13 +143,13 @@ contract NamedReturnAndDelete {
     // CHECK: mstore 128, [[WIDE]]
     function emptyWideNamedStruct() public pure returns (WideHolder memory holder) {}
 
-    // A named struct return whose fields are initialized before use does not
-    // construct default objects that those assignments immediately replace.
+    // Named struct returns always receive semantic default objects; optimization
+    // passes remove stores overwritten before reads.
     // CHECK-LABEL: fn @fullyInitializedNamedStruct{{[( ]}}
     // CHECK: alloc memorystruct<2>
-    // CHECK-NOT: set_memory_object_len memoryarray, {{v[0-9]+}}, 0
+    // CHECK: set_memory_object_len memoryarray, {{v[0-9]+}}, 0
+    // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 0
     // CHECK: set_memory_object_len memoryarray, {{v[0-9]+}}, 1
-    // CHECK-NOT: set_memory_object_len memorybytes, {{v[0-9]+}}, 0
     // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 1
     function fullyInitializedNamedStruct()
         public
