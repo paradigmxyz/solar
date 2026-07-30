@@ -11,6 +11,7 @@
 //! tests and debugging; the IR itself is not defined by that serialization.
 
 use super::op;
+use crate::symbol_mangling::SymbolName;
 use alloy_primitives::U256;
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
 use solar_interface::Symbol;
@@ -40,10 +41,12 @@ impl BlockId {
 }
 
 /// An EVM IR module.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Module {
-    /// Program name used by tools and diagnostics.
-    pub(crate) name: Symbol,
+    /// Mangled program name used by codegen.
+    pub(crate) name: SymbolName,
+    /// Source-level program name.
+    pub(crate) source_name: Symbol,
     /// Basic blocks in layout order.
     pub(crate) blocks: IndexVec<BlockId, Block>,
 }
@@ -60,23 +63,36 @@ impl Module {
     /// Creates an empty EVM IR program.
     #[must_use]
     pub(crate) fn new(name: Symbol) -> Self {
-        Self { name, blocks: IndexVec::new() }
+        Self { name: SymbolName::mangle(name), source_name: name, blocks: IndexVec::new() }
     }
 
     /// Changes the program name.
     pub(crate) fn set_name(&mut self, name: Symbol) {
-        self.name = name;
+        self.name = SymbolName::mangle(name);
+        self.source_name = name;
     }
 
-    /// Returns the program name.
+    /// Returns the mangled program name.
     #[must_use]
     pub const fn name(&self) -> Symbol {
-        self.name
+        self.name.as_symbol()
+    }
+
+    /// Returns the source-level program name.
+    #[must_use]
+    pub(crate) const fn source_name(&self) -> Symbol {
+        self.source_name
     }
 
     /// Adds a block to the program.
     pub(crate) fn add_block(&mut self, block: Block) -> BlockId {
         self.blocks.push(block)
+    }
+}
+
+impl Default for Module {
+    fn default() -> Self {
+        Self::new(Symbol::DUMMY)
     }
 }
 
@@ -423,5 +439,21 @@ fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect>
         TerminatorKind::Op(opcode) => {
             op::stack_io(*opcode).map(|(inputs, outputs)| StackEffect::new(inputs, outputs))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_interface::{ColorChoice, Session};
+
+    #[test]
+    fn stores_mangled_module_name() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let name = ["123", ".evm"].concat();
+            let module = Module::new(Symbol::intern(&name));
+            assert_eq!(module.name().as_str(), "$3123$2eevm");
+        });
     }
 }

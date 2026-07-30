@@ -36,7 +36,7 @@ use super::{
     StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
 };
 use crate::{
-    ir_text::TextSymbol,
+    ir_parse::ParsedSymbol,
     mir::{MirType, SliceLocation},
 };
 use alloy_primitives::U256;
@@ -77,8 +77,8 @@ pub(super) fn parse_module(sess: &Session, input: &str) -> Result<Module> {
 // =============================================================================
 
 struct Parser<'sess, 'ast> {
-    parser: crate::ir_text::Parser<'sess, 'ast>,
-    pending_function_ref: Option<(TextSymbol, Span)>,
+    parser: crate::ir_parse::Parser<'sess, 'ast>,
+    pending_function_ref: Option<(ParsedSymbol, Span)>,
     function_refs: Vec<PendingFunctionRef>,
     arg_values: Vec<ValueId>,
     block_labels: FxHashMap<u32, BlockLabel>,
@@ -93,7 +93,7 @@ struct Parser<'sess, 'ast> {
 }
 
 struct PendingFunctionRef {
-    name: TextSymbol,
+    name: ParsedSymbol,
     span: Span,
     target: FunctionRefTarget,
 }
@@ -113,7 +113,7 @@ struct BlockLabel {
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn new(sess: &'sess Session, arena: &'ast Arena, source: &SourceFile) -> Self {
         Self {
-            parser: crate::ir_text::Parser::new(sess, arena, source),
+            parser: crate::ir_parse::Parser::new(sess, arena, source),
             pending_function_ref: None,
             function_refs: Vec::new(),
             arg_values: Vec::new(),
@@ -190,19 +190,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn resolve_function_refs(
         &self,
         module: &mut Module,
-        function_names: &IndexVec<FunctionId, TextSymbol>,
+        function_names: &IndexVec<FunctionId, ParsedSymbol>,
         function_refs: Vec<(FunctionId, PendingFunctionRef)>,
     ) -> PResult<'sess, ()> {
         let mut functions = FxHashMap::<Symbol, Vec<FunctionId>>::default();
-        let mut declarations = FxHashMap::<TextSymbol, Vec<FunctionId>>::default();
-        for (id, function) in module.functions.iter_enumerated() {
-            functions.entry(function.name.name).or_default().push(id);
+        let mut declarations = FxHashMap::<ParsedSymbol, Vec<FunctionId>>::default();
+        for id in module.functions.indices() {
+            functions.entry(function_names[id].source).or_default().push(id);
             declarations.entry(function_names[id]).or_default().push(id);
         }
         for (owner, reference) in function_refs {
             let matches = match reference.name.disambiguator {
                 Some(_) => declarations.get(&reference.name),
-                None => functions.get(&reference.name.symbol),
+                None => functions.get(&reference.name.source),
             };
             let Some(matches) = matches else {
                 return Err(self.parser.error_at(
@@ -238,7 +238,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(())
     }
 
-    fn parse_function(&mut self) -> PResult<'sess, (Function, TextSymbol)> {
+    fn parse_function(&mut self) -> PResult<'sess, (Function, ParsedSymbol)> {
         self.arg_values.clear();
         self.block_labels.clear();
         self.block_order.clear();
@@ -246,8 +246,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         self.parser.expect_keyword(sym::fn_)?;
         self.parser.expect(TokenKind::At)?;
-        let name = self.parser.parse_text_symbol()?;
-        let func_ident = Ident::with_dummy_span(name.symbol);
+        let name = self.parser.parse_symbol_name()?;
+        let func_ident = Ident::with_dummy_span(name.source);
         let mut func = Function::new(func_ident);
         let block_remap = {
             let mut builder = FunctionBuilder::new(&mut func);
@@ -784,7 +784,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_function_id(&mut self) -> PResult<'sess, FunctionId> {
         if self.parser.eat(TokenKind::At) {
             let span = self.parser.token().span;
-            let name = self.parser.parse_text_symbol()?;
+            let name = self.parser.parse_symbol_name()?;
             self.pending_function_ref = Some((name, span));
             return Ok(FunctionId::from_usize(0));
         }

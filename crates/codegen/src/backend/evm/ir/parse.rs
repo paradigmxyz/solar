@@ -30,7 +30,7 @@ struct BlockLabel {
 }
 
 struct Parser<'sess, 'ast> {
-    parser: crate::ir_text::Parser<'sess, 'ast>,
+    parser: crate::ir_parse::Parser<'sess, 'ast>,
     block_labels: FxHashMap<Symbol, BlockLabel>,
     block_order: Vec<BlockId>,
 }
@@ -38,7 +38,7 @@ struct Parser<'sess, 'ast> {
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn new(sess: &'sess Session, arena: &'ast Arena, source: &SourceFile) -> Self {
         Self {
-            parser: crate::ir_text::Parser::new(sess, arena, source),
+            parser: crate::ir_parse::Parser::new(sess, arena, source),
             block_labels: FxHashMap::default(),
             block_order: Vec::new(),
         }

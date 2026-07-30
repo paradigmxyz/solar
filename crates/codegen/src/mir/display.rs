@@ -13,7 +13,6 @@ use solar_sema::hir;
 /// Displays a DOT format CFG for a function.
 pub(crate) fn display_function_dot<'a>(
     func: &'a Function,
-    function: Option<FunctionId>,
     funcs: Option<&'a solar_data_structures::index::IndexVec<FunctionId, Function>>,
 ) -> impl fmt::Display + 'a {
     fn display_dot_node<'a>(
@@ -143,7 +142,7 @@ pub(crate) fn display_function_dot<'a>(
     }
 
     fmt::from_fn(move |f| {
-        writeln!(f, "digraph \"{}\" {{", display_function_name(func, function, funcs))?;
+        writeln!(f, "digraph \"{}\" {{", func.name)?;
         writeln!(f, "    node [shape=box, fontname=\"Courier\", fontsize=10];")?;
         writeln!(f, "    edge [fontname=\"Courier\", fontsize=9];")?;
         writeln!(f)?;
@@ -188,7 +187,6 @@ pub(crate) fn display_function_dot<'a>(
 /// ```
 pub(crate) fn display_function_text<'a>(
     func: &'a Function,
-    function: Option<FunctionId>,
     funcs: Option<&'a solar_data_structures::index::IndexVec<FunctionId, Function>>,
 ) -> impl fmt::Display + 'a {
     fn display_text_block<'a>(
@@ -240,7 +238,7 @@ pub(crate) fn display_function_text<'a>(
 
     fmt::from_fn(move |f| {
         // Header: fn @name(params) -> returns
-        write!(f, "fn @{}(", display_function_name(func, function, funcs))?;
+        write!(f, "fn @{}(", func.name)?;
         write!(
             f,
             "{}",
@@ -405,20 +403,6 @@ fn display_inst_kind<'a>(
     })
 }
 
-fn display_function_name<'a>(
-    func: &'a Function,
-    function: Option<FunctionId>,
-    funcs: Option<&'a solar_data_structures::index::IndexVec<FunctionId, Function>>,
-) -> impl fmt::Display + 'a {
-    let disambiguator = function.filter(|_| {
-        funcs.is_some_and(|funcs| funcs.iter().filter(|other| other.name == func.name).count() > 1)
-    });
-    crate::ir_text::display_disambiguated_symbol(
-        func.name.name,
-        disambiguator.map(FunctionId::index),
-    )
-}
-
 /// Formats a function reference using its exact textual declaration name.
 /// Falls back to `fnN` when a single function is printed without its module.
 fn display_function_ref(
@@ -429,7 +413,7 @@ fn display_function_ref(
         if let Some(funcs) = funcs
             && let Some(callee) = funcs.get(function)
         {
-            write!(f, "@{}", display_function_name(callee, Some(function), Some(funcs)))
+            write!(f, "@{}", callee.name)
         } else {
             write!(f, "fn{}", function.index())
         }

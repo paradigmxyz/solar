@@ -105,8 +105,9 @@ fn run_passes_inner(
     passes: &[&dyn EvmPass],
     name: Option<&str>,
 ) -> bool {
-    let output_name =
-        name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()));
+    let output_name = name
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| pipeline_output_name(gcx, module.source_name()));
     let explicit = name.is_some();
     let mut changed = false;
     for pass in passes {
@@ -151,8 +152,9 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
         return run_passes(gcx, module, DEFAULT_PIPELINE, None);
     };
 
-    let name =
-        name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()));
+    let name = name
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| pipeline_output_name(gcx, module.source_name()));
     let mut changed = false;
     for pass in passes {
         if let Some(pass) = pass {

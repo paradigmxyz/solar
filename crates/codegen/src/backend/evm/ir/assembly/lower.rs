@@ -164,18 +164,20 @@ mod tests {
     use solar_sema::Compiler;
     #[test]
     fn branch_inverts_when_then_target_falls_through() {
-        let mut module = ir::Module::new(sym::module);
-        let entry = module.add_block(Block::new(0));
-        let then_block = module.add_block(Block::new(1));
-        let else_block = module.add_block(Block::new(2));
-        module.blocks[entry].instructions.push(Instruction::push_value(U256::ONE));
-        module.blocks[entry].terminator =
-            Some(Terminator::new(TerminatorKind::JumpI { then_block, else_block }));
-        module.blocks[then_block].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
-        module.blocks[else_block].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
-
         let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
         compiler.enter(|c| {
+            let mut module = ir::Module::new(sym::module);
+            let entry = module.add_block(Block::new(0));
+            let then_block = module.add_block(Block::new(1));
+            let else_block = module.add_block(Block::new(2));
+            module.blocks[entry].instructions.push(Instruction::push_value(U256::ONE));
+            module.blocks[entry].terminator =
+                Some(Terminator::new(TerminatorKind::JumpI { then_block, else_block }));
+            module.blocks[then_block].terminator =
+                Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+            module.blocks[else_block].terminator =
+                Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+
             let mut labels = vec![None; 3];
             let mut assembler = Assembler::new(c.gcx());
             let program = lower_evm_ir(&module, &mut labels, &mut assembler);

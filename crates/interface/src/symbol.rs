@@ -997,6 +997,7 @@ symbols! {
         deployment,
         dispatch,
         display_test,
+        dollar_e: "$e",
         ecrecover,
         effect,
         encode,

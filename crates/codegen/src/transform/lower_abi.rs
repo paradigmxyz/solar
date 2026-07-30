@@ -204,7 +204,10 @@ impl LowerAbiCx {
         // internal callers keep the original function semantics.
         let body_id = needs_body.then(|| {
             let mut body = module.function(wrapper_id).clone();
-            body.name = Ident::with_dummy_span(Symbol::intern(&format!("{}.body", body.name)));
+            body.set_name(Ident::with_dummy_span(Symbol::intern(&format!(
+                "{}.body",
+                body.source_name
+            ))));
             body.selector = None;
             body.abi_returns = None;
             body.attributes.visibility = solar_sema::hir::Visibility::Internal;

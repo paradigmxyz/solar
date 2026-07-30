@@ -4,6 +4,7 @@ use super::{
     AbiLayoutRef, ArgIdx, BasicBlock, BlockId, InstId, InstKind, Instruction, MirType,
     StorageAlias, Value, ValueId,
 };
+use crate::symbol_mangling::SymbolName;
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -17,8 +18,10 @@ use solar_sema::hir::{StateMutability, Visibility};
 /// A function in the MIR.
 #[derive(Clone, Debug)]
 pub(crate) struct Function {
-    /// Function name.
-    pub(crate) name: Ident,
+    /// Mangled function name used by codegen.
+    pub(crate) name: SymbolName,
+    /// Source-level function name.
+    pub(crate) source_name: Ident,
     /// Function selector (4 bytes, for external functions).
     pub(crate) selector: Option<[u8; 4]>,
     /// Function attributes.
@@ -66,7 +69,8 @@ impl Function {
         debug_assert_eq!(entry, BlockId::ENTRY);
 
         Self {
-            name,
+            name: SymbolName::mangle(name.name),
+            source_name: name,
             selector: None,
             attributes: FunctionAttributes::default(),
             params: IndexVec::new(),
@@ -79,6 +83,18 @@ impl Function {
             instructions: IndexVec::new(),
             blocks,
         }
+    }
+
+    /// Changes the source-level and mangled function names.
+    pub(crate) fn set_name(&mut self, name: Ident) {
+        self.name = SymbolName::mangle(name.name);
+        self.source_name = name;
+    }
+
+    /// Adds a stable declaration disambiguator to the mangled function name.
+    pub(super) fn set_name_disambiguator(&mut self, disambiguator: usize) {
+        self.name =
+            SymbolName::mangle_with_disambiguator(self.source_name.name, Some(disambiguator));
     }
 
     /// Returns the value for the given ID.
@@ -502,12 +518,7 @@ impl Default for FunctionAttributes {
 
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "fn {}({})",
-            crate::ir_text::display_symbol(self.name.name),
-            self.params.iter().format(", ")
-        )?;
+        write!(f, "fn {}({})", self.name, self.params.iter().format(", "))?;
 
         if !self.returns.is_empty() {
             write!(f, " -> ({})", self.returns.iter().format(", "))?;
@@ -525,11 +536,12 @@ mod tests {
     use solar_interface::{ColorChoice, Session, Symbol};
 
     #[test]
-    fn display_mangles_name() {
+    fn stores_mangled_name() {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         sess.enter(|| {
             let name = ["f", ".name"].concat();
             let func = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+            assert_eq!(func.name.as_symbol().as_str(), "f$2ename");
             assert_data_eq!(func.to_string(), "fn f$2ename()");
         });
     }
