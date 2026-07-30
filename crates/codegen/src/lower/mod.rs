@@ -423,35 +423,65 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.allocate_storage(contract_id);
 
-        // Collect functions from the inheritance chain, filtering unreachable ones by default.
-        // Functions are collected from most-derived to most-base, so if a function
-        // with the same selector already exists, we skip the base version.
-        let functions = self.collect_inherited_functions(contract_id);
-
         // Generate a constructor for inherited construction/state-variable
         // initialization when the current contract does not declare one.
         if contract.ctor.is_none() {
             self.generate_synthetic_constructor(contract_id);
         }
 
-        for func_id in functions {
-            self.ensure_function_lowered(func_id);
+        if self.gcx.sess.opts.unstable.codegen_all_functions || self.hir_has_errors {
+            for function in self.collect_unpruned_functions(contract_id) {
+                self.ensure_function_lowered(function);
+            }
+        } else {
+            self.lower_reachable_function_roots(contract_id);
         }
 
         self.current_contract_id = None;
     }
 
-    /// Collects functions from the inheritance chain, filtering unreachable ones by default.
-    ///
-    /// Functions from more-derived contracts take precedence over base contracts.
-    /// For regular functions, we use the selector to determine uniqueness.
-    /// For constructor/fallback/receive, we use the function kind.
-    fn collect_inherited_functions(&self, contract_id: ContractId) -> Vec<HirFunctionId> {
+    /// Lowers reachable function roots in inheritance order.
+    fn lower_reachable_function_roots(&mut self, contract_id: ContractId) {
+        let contract = self.gcx.hir.contract(contract_id);
+        let reachable = self.gcx.contract_reachable_functions(contract_id);
+        let interface = self
+            .gcx
+            .interface_functions(contract_id)
+            .iter()
+            .map(|function| function.id)
+            .collect::<FxHashSet<_>>();
+
+        for &base_id in contract.linearized_bases {
+            for function_id in self.gcx.hir.contract(base_id).all_functions() {
+                if reachable.binary_search(&function_id).is_err() {
+                    continue;
+                }
+
+                let function = self.gcx.hir.function(function_id);
+                let selected = match function.kind {
+                    hir::FunctionKind::Constructor => contract.ctor == Some(function_id),
+                    hir::FunctionKind::Fallback => contract.fallback == Some(function_id),
+                    hir::FunctionKind::Receive => contract.receive == Some(function_id),
+                    hir::FunctionKind::Function
+                        if function.visibility >= hir::Visibility::Public =>
+                    {
+                        interface.contains(&function_id)
+                    }
+                    hir::FunctionKind::Function | hir::FunctionKind::Modifier => {
+                        base_id == contract_id || function.visibility != hir::Visibility::Private
+                    }
+                };
+                if selected {
+                    self.ensure_function_lowered(function_id);
+                }
+            }
+        }
+    }
+
+    /// Collects function roots without callgraph reachability filtering.
+    fn collect_unpruned_functions(&self, contract_id: ContractId) -> Vec<HirFunctionId> {
         let contract = self.gcx.hir.contract(contract_id);
         let linearized_bases = contract.linearized_bases;
-        let reachable = (!self.gcx.sess.opts.unstable.codegen_all_functions
-            && !self.hir_has_errors)
-            .then(|| self.gcx.contract_reachable_functions(contract_id));
 
         let mut seen_selectors: FxHashSet<[u8; 4]> = FxHashSet::default();
         let mut has_constructor = false;
@@ -465,9 +495,6 @@ impl<'gcx> Lowerer<'gcx> {
             let base_contract = self.gcx.hir.contract(base_id);
 
             for func_id in base_contract.all_functions() {
-                if reachable.is_some_and(|reachable| reachable.binary_search(&func_id).is_err()) {
-                    continue;
-                }
                 let func = self.gcx.hir.function(func_id);
 
                 // Handle special functions by kind
