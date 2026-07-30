@@ -1,0 +1,163 @@
+// === ROOT/tests/ui/codegen/lowering/calldata_slice_bounds_revert.sol:CalldataSliceBoundsRevert ===
+@module CalldataSliceBoundsRevert
+@phase evm-shaped
+fn @endPastLength() {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v47 = add arg0, 36
+    v48 = add arg0, 4
+    v49 = calldataload v48
+    v5 = gt arg1, v49
+    jumpi v5, bb1, bb3
+  bb3:
+    jumpi arg1, bb4, bb1
+  bb4:
+    v7 = sub arg1, 1
+    v8 = add v47, 1
+    v11 = add v7, 31
+    v12 = lt v11, v7
+    jumpi v12, bb5, bb6
+  bb5:
+    tail_call @__revert_stub0
+  bb6:
+    v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = iszero v14
+    v16 = select v15, 32, v14
+    v17 = add v16, 32
+    v18 = lt v17, v16
+    jumpi v18, bb5, bb7
+  bb7:
+    v19 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v50 = add v19, v17
+    mstore 64, v50 !metadata(memory=scratch)
+    mstore v19, v7
+    v20 = add v19, 32
+    v21 = sub v16, 32
+    v22 = add v20, v21
+    mstore v22, 0
+    calldatacopy v20, v8, v7
+    v27 = mload 64 !metadata(memory=scratch)
+    v28 = add v27, 32
+    v29 = sub v28, v27
+    mstore v27, v29
+    v30 = mload v19
+    mstore v28, v30
+    v32 = add v30, 31
+    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v34 = add v27, 64
+    jumpi v33, bb8, bb9
+  bb8:
+    v36 = sub v33, 32
+    v37 = add v34, v36
+    mstore v37, 0
+    jump bb9
+  bb9:
+    v39 = add v34, v33
+    mcopy v34, v20, v30
+    v40 = sub v39, v27
+    v42 = add v40, 31
+    v44 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v45 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v51 = add v45, v44
+    mstore 64, v51 !metadata(memory=scratch)
+    returndata v45, v40
+}
+
+fn @startAfterEnd() {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 96
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v47 = add arg0, 36
+    v48 = add arg0, 4
+    v49 = calldataload v48
+    v5 = gt arg2, v49
+    jumpi v5, bb1, bb3
+  bb3:
+    v6 = lt arg2, arg1
+    jumpi v6, bb1, bb4
+  bb4:
+    v7 = sub arg2, arg1
+    v8 = add v47, arg1
+    v11 = add v7, 31
+    v12 = lt v11, v7
+    jumpi v12, bb5, bb6
+  bb5:
+    tail_call @__revert_stub0
+  bb6:
+    v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = iszero v14
+    v16 = select v15, 32, v14
+    v17 = add v16, 32
+    v18 = lt v17, v16
+    jumpi v18, bb5, bb7
+  bb7:
+    v19 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v50 = add v19, v17
+    mstore 64, v50 !metadata(memory=scratch)
+    mstore v19, v7
+    v20 = add v19, 32
+    v21 = sub v16, 32
+    v22 = add v20, v21
+    mstore v22, 0
+    calldatacopy v20, v8, v7
+    v27 = mload 64 !metadata(memory=scratch)
+    v28 = add v27, 32
+    v29 = sub v28, v27
+    mstore v27, v29
+    v30 = mload v19
+    mstore v28, v30
+    v32 = add v30, 31
+    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v34 = add v27, 64
+    jumpi v33, bb8, bb9
+  bb8:
+    v36 = sub v33, 32
+    v37 = add v34, v36
+    mstore v37, 0
+    jump bb9
+  bb9:
+    v39 = add v34, v33
+    mcopy v34, v20, v30
+    v40 = sub v39, v27
+    v42 = add v40, 31
+    v44 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v45 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v51 = add v45, v44
+    mstore 64, v51 !metadata(memory=scratch)
+    returndata v45, v40
+}
+
+fn @__revert_stub0() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @entry() {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb4, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb4, [0x598bfb30 => bb2, 0x8063d43b => bb3]
+  bb2:
+    tail_call @startAfterEnd
+  bb3:
+    tail_call @endPastLength
+  bb4:
+    revert 0, 0
+}
+

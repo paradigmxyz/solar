@@ -7,7 +7,7 @@ contract LoopSimple {
     // CHECK: [[I:v[0-9]+]] = mload 160
     // CHECK: lt [[I]], arg0
     // CHECK: {{v[0-9]+}} = mload 128
-    // CHECK: returndata
+    // CHECK: ret
     // CHECK: [[LOOP_I:v[0-9]+]] = mload 160
     // CHECK: add [[LOOP_I]], 1
     // CHECK: [[TOTAL:v[0-9]+]] = mload 128

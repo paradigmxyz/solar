@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/dynamic_struct_param.sol:DynamicStructParam ===
 @module DynamicStructParam
-fn @init(arg0: u256, arg1: address) {
+fn @init(arg0: u256, arg1: address) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -15,7 +15,7 @@ fn @init(arg0: u256, arg1: address) {
     revert 0, 0
   bb4:
     v4 = add 4, arg0
-    v5 = alloc raw, exact, uninitialized, infallible, 128
+    v5 = alloc raw, exact, uninitialized, infallible, 160
     v6 = calldataload v4
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v8 = eq v6, v7
@@ -102,29 +102,30 @@ fn @init(arg0: u256, arg1: address) {
     calldatacopy v45, v48, v35
     v49 = add v5, 96
     mstore v49, v44
-    v50 = calldataload 36
-    v51 = and v50, 0xffffffffffffffffffffffffffffffffffffffff
-    v52 = eq v50, v51
-    jumpi v52, bb18, bb17
+    v50 = add v5, 128
+    mstore v50, v4
+    v51 = calldataload 36
+    v52 = and v51, 0xffffffffffffffffffffffffffffffffffffffff
+    v53 = eq v51, v52
+    jumpi v53, bb18, bb17
   bb17:
     revert 0, 0
   bb18:
-    v53 = memory_object_field_addr memorystruct<4>, v5, 1
-    v54 = mload v53
-    v55 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
-    v56 = add v54, v55
-    v57 = gt v56, 0xffffffffffffffffffffffffffffffffffffffff
-    jumpi v57, bb19, bb20
+    v54 = memory_object_field_addr memorystruct<4>, v5, 1
+    v55 = mload v54
+    v56 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v57 = add v55, v56
+    v58 = gt v57, 0xffffffffffffffffffffffffffffffffffffffff
+    jumpi v58, bb19, bb20
   bb19:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb20:
-    mstore 128, v56
-    returndata 128, 32
+    ret v57
 }
 
-fn @flat(arg0: u256, arg1: u256) {
+fn @flat(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -147,7 +148,6 @@ fn @flat(arg0: u256, arg1: u256) {
     mstore v8, arg1
     v9 = memory_object_field_addr memorystruct<2>, v3, 0
     v10 = mload v9
-    mstore 128, v10
-    returndata 128, 32
+    ret v10
 }
 

@@ -520,10 +520,10 @@ bb26:
   mload
   and
   dup1
-  push 704
+  push 736
   mstore
   iszero
-  push 704
+  push 736
   mload
   push 32
   dup3
@@ -560,7 +560,7 @@ bb26:
   push 64
   mload
   dup1
-  push 736
+  push 704
   mstore
   push 384
   mload
@@ -613,7 +613,7 @@ bb26:
   mstore
   dup2
   dup1
-  push 736
+  push 704
   mstore
   dup2
   mstore

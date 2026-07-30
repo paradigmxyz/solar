@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:Errors (runtime) ===
 @module runtime
 bb0:
-  push 320
+  push 288
   push 64
   mstore
   callvalue
@@ -14,37 +14,110 @@ bb0:
   dup1
   push 0x561cce0a
   eq
-  push bb6
+  push bb8
   jumpi
   dup1
   push 0xa871da91
   sub
   push bb4
   jumpi
-  push 0x3339
-  push 240
-  shl
-  jump bb8
-bb8:
-  push 256
-  mstore
   push 64
   mload
   dup1
-  push 288
+  push 192
   mstore
   push 32
   dup2
-  mstore
-  push 256
-  mload
-  mload
-  push 32
-  dup3
   add
   dup2
+  dup1
+  push 192
+  mstore
+  dup2
+  sub
+  dup3
+  mstore
+  push 0x3339
+  push 240
+  shl
+  mload
+  dup1
+  push 128
+  mstore
   swap1
   mstore
+  push 31
+  push 128
+  mload
+  add
+  push 31
+  not
+  and
+  dup1
+  push 224
+  mstore
+  push 64
+  dup3
+  add
+  dup1
+  push 160
+  mstore
+  dup2
+  swap3
+  pop
+  pop
+  pop
+  iszero
+  push bb7
+  jumpi
+  push 32
+  push 224
+  mload
+  sub
+  push 160
+  mload
+  add
+  push 0
+  swap1
+  mstore
+  jump bb7
+bb7:
+  push 32
+  push 0x3339
+  push 240
+  shl
+  jump bb11
+bb11:
+  add
+  push 224
+  mload
+  dup1
+  push 224
+  mstore
+  push 160
+  mload
+  add
+  push 128
+  mload
+  dup1
+  push 128
+  mstore
+  dup3
+  push 160
+  mload
+  dup1
+  push 160
+  mstore
+  mcopy
+  swap1
+  pop
+  push 192
+  mload
+  dup1
+  push 192
+  mstore
+  swap1
+  sub
   push 31
   dup2
   add
@@ -52,39 +125,98 @@ bb8:
   not
   and
   push 64
-  dup4
-  add
-  push 32
-  dup3
-  sub
-  dup2
-  add
-  push 0
-  swap1
-  mstore
-  push 32
-  push 256
   mload
-  add
-  dup4
+  dup1
+  push 256
+  mstore
   dup2
-  dup4
-  mcopy
+  dup2
+  add
+  swap2
   pop
-  pop
+  dup2
+  push 64
+  mstore
   swap1
   pop
-  push 64
-  add
+  dup2
   dup2
   return
 bb4 [cold]:
   push 0
   dup1
   revert
-bb6:
+bb8:
+  push 64
+  mload
+  dup1
+  push 192
+  mstore
+  push 32
+  dup2
+  add
+  dup2
+  dup1
+  push 192
+  mstore
+  dup2
+  sub
+  dup3
+  mstore
+  push bb13
+  jump bb12
+bb12:
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
-  jump bb8
+  swap1
+  jump
+bb13:
+  mload
+  dup1
+  push 128
+  mstore
+  swap1
+  mstore
+  push 31
+  push 128
+  mload
+  add
+  push 31
+  not
+  and
+  dup1
+  push 224
+  mstore
+  push 64
+  dup3
+  add
+  dup1
+  push 160
+  mstore
+  dup2
+  swap3
+  pop
+  pop
+  pop
+  iszero
+  push bb10
+  jumpi
+  push 32
+  push 224
+  mload
+  sub
+  push 160
+  mload
+  add
+  push 0
+  swap1
+  mstore
+  jump bb10
+bb10:
+  push 32
+  push bb14
+  jump bb12
+bb14:
+  jump bb11
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:R (runtime) ===
 @module runtime
 bb0:

@@ -30,7 +30,7 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @memFixConst{{[( ]}}
     // CHECK-NOT: mstore 4, 50
-    // CHECK: returndata
+    // CHECK: ret
     function memFixConst() public pure returns (uint256) {
         uint256[3] memory x;
         x[2] = 30;

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/selection_mir.sol:FunctionPointerSelection ===
 @module FunctionPointerSelection
-fn @choose(arg0: bool, arg1: u256) {
+fn @choose(arg0: bool, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -27,8 +27,7 @@ fn @choose(arg0: bool, arg1: u256) {
   bb7:
     v7 = mload 0 !metadata(memory=scratch)
     v8 = internal_call @__internal_dispatch_0, 1, v7, arg1
-    mstore 128, v8
-    returndata 128, 32
+    ret v8
 }
 
 fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 {
@@ -82,7 +81,7 @@ fn @decrement(arg0: u256) -> u256 {
     ret v0
 }
 
-fn @callConstant(arg0: u256) {
+fn @callConstant(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -92,11 +91,10 @@ fn @callConstant(arg0: u256) {
     revert 0, 0
   bb2:
     v3 = internal_call @__internal_dispatch_0, 1, 2, arg0
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @throughCast(arg0: u256) {
+fn @throughCast(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -107,8 +105,7 @@ fn @throughCast(arg0: u256) {
   bb2:
     v3 = internal_call @castViewToPure, 1, 7
     v4 = internal_call @__internal_dispatch_0, 1, v3, arg0
-    mstore 128, v4
-    returndata 128, 32
+    ret v4
 }
 
 fn @castViewToPure(arg0: function) -> function {

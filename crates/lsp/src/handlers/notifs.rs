@@ -124,11 +124,13 @@ pub(crate) fn did_change_watched_files(
     state: &mut GlobalState,
     params: DidChangeWatchedFilesParams,
 ) -> NotifyResult {
+    let changes = super::file_operations::reconcile_watched_file_events(state, params.changes);
+
     let mut should_rediscover = false;
     let mut disk_paths = Vec::new();
     let mut removed_paths = Vec::new();
 
-    for event in params.changes {
+    for event in changes {
         let Some(vfs_path) = proto::vfs_path(&event.uri) else {
             continue;
         };
@@ -139,6 +141,9 @@ pub(crate) fn did_change_watched_files(
         match path.file_name().and_then(|name| name.to_str()) {
             Some("foundry.toml") => {
                 should_rediscover = true;
+                if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED) {
+                    state.file_operations.record_watched_events(event.typ, [path]);
+                }
             }
             Some(_) if path.extension().is_some_and(|ext| ext == "sol") => {
                 // Open documents are sourced from the VFS, and `didChange` already schedules their
@@ -151,6 +156,9 @@ pub(crate) fn did_change_watched_files(
                 } else if event.typ == FileChangeType::DELETED {
                     Arc::make_mut(&mut state.config).remove_source_file(&path);
                     removed_paths.push(path.clone());
+                }
+                if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED) {
+                    state.file_operations.record_watched_events(event.typ, [path.clone()]);
                 }
                 disk_paths.push(path);
             }

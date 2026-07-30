@@ -1,0 +1,41 @@
+// === ROOT/tests/ui/codegen/lowering/calldata_slice_named_return.sol:CalldataSliceNamedReturn ===
+@module CalldataSliceNamedReturn
+@phase evm-shaped
+fn @use() {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v19 = add arg0, 36
+    v20 = add arg0, 4
+    v21 = calldataload v20
+    v7 = sub v21, 32
+    v8 = add v19, v7
+    v9 = calldataload v8
+    jumpi v9, bb3, bb4
+  bb3:
+    jump bb4
+  bb4:
+    v18 = phi [bb2: v21], [bb3: v7]
+    mstore 128, v18
+    returndata 128, 32
+}
+
+fn @entry() {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0x1bd03f7 => bb2]
+  bb2:
+    tail_call @use
+  bb3:
+    revert 0, 0
+}
+

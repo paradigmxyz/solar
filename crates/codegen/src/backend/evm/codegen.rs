@@ -1327,6 +1327,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let liveness = &liveness;
 
         // Eliminate phis.
+        self.block_copies.clear();
         let phi_result = PhiEliminator::analyze(func);
         let has_phis = !phi_result.phis_to_remove.is_empty();
         for (block_id, copies) in phi_result.block_copies {
@@ -2005,6 +2006,34 @@ impl<'gcx> EvmCodegen<'gcx> {
         for val in &Self::cross_block_spill_values(func, liveness) {
             self.scheduler.spills.allocate(val);
         }
+        // A free-memory-pointer load is the one definition that can never be
+        // recomputed: by the time a later use needs it the pointer has moved,
+        // so the value must travel through a spill slot. Liveness does not
+        // always carry it to every using block, which leaves the slot
+        // unallocated and the reload path in `emit_value_fresh` with nothing to
+        // read. Reserve the slot up front and accept a reload, exactly as the
+        // cross-block spill protocol does for a definition whose block is
+        // emitted after a use that it still precedes at runtime.
+        for val in Self::fmp_load_values(func) {
+            self.scheduler.spills.allocate(val);
+            self.scheduler.spills.mark_reloadable(val);
+        }
+    }
+
+    /// Every live free-memory-pointer load result in the function.
+    fn fmp_load_values(func: &Function) -> Vec<ValueId> {
+        let mut values = Vec::new();
+        for inst_id in func.instructions() {
+            if matches!(
+                func.inst(inst_id).kind,
+                InstKind::MLoad(addr)
+                    if func.value_u64(addr) == Some(EvmMemoryLayout::FMP_SLOT)
+            ) && let Some(val) = func.inst_result_value(inst_id)
+            {
+                values.push(val);
+            }
+        }
+        values
     }
 
     fn cross_block_spill_values(func: &Function, liveness: &Liveness) -> DenseBitSet<ValueId> {
@@ -5799,6 +5828,32 @@ mod tests {
             codegen.generate_function_body(FunctionId::from_usize(0), &function);
 
             assert!(codegen.asm.assemble().bytecode.is_empty());
+        });
+    }
+
+    #[test]
+    fn unreachable_phi_copies_do_not_leak_between_functions() {
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            let mut first = Function::new(Ident::with_dummy_span(sym::Test));
+            let mut builder = FunctionBuilder::new(&mut first);
+            let unreachable_pred = builder.create_block();
+            let unreachable_merge = builder.create_block();
+            builder.stop();
+            builder.switch_to_block(unreachable_pred);
+            let value = builder.imm_u64(1);
+            builder.jump(unreachable_merge);
+            builder.switch_to_block(unreachable_merge);
+            let value = builder.phi(vec![(unreachable_pred, value)]);
+            builder.ret([value]);
+
+            codegen.generate_function_body(FunctionId::from_usize(0), &first);
+            assert!(codegen.block_copies.contains_key(&unreachable_pred));
+
+            let mut second = Function::new(Ident::with_dummy_span(sym::Test));
+            FunctionBuilder::new(&mut second).stop();
+            codegen.generate_function_body(FunctionId::from_usize(1), &second);
+
+            assert!(codegen.block_copies.is_empty());
         });
     }
 }

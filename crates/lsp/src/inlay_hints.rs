@@ -12,12 +12,12 @@ use solar_sema::{
 };
 use std::ops::ControlFlow;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct InlayHintIndex {
     by_file: FxHashMap<Url, Vec<StoredInlayHint>>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct StoredInlayHint {
     position: Position,
     // Labels are built once during analysis and only copied into LSP responses,
@@ -301,4 +301,55 @@ impl<'gcx> Visit<'gcx> for InlayHintCollector<'gcx> {
 
 fn hint_sort_key(hint: &StoredInlayHint) -> (Position, StoredInlayHintKind, &str) {
     (hint.position, hint.kind, hint.label.as_ref())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn index(hints: impl IntoIterator<Item = (&'static str, StoredInlayHint)>) -> InlayHintIndex {
+        let mut index = InlayHintIndex::default();
+        for (uri, hint) in hints {
+            index.push(Url::parse(uri).unwrap(), hint);
+        }
+        index.sort();
+        index
+    }
+
+    #[test]
+    fn complete_indexes_compare_stored_hint_contents() {
+        let first = index([
+            (
+                "file:///workspace/First.sol",
+                StoredInlayHint::parameter(Position::new(1, 2), "amount:"),
+            ),
+            (
+                "file:///workspace/Second.sol",
+                StoredInlayHint::call_type(Position::new(3, 4), ": uint256"),
+            ),
+        ]);
+        let same = index([
+            (
+                "file:///workspace/Second.sol",
+                StoredInlayHint::call_type(Position::new(3, 4), ": uint256"),
+            ),
+            (
+                "file:///workspace/First.sol",
+                StoredInlayHint::parameter(Position::new(1, 2), "amount:"),
+            ),
+        ]);
+        let changed = index([
+            (
+                "file:///workspace/First.sol",
+                StoredInlayHint::parameter(Position::new(1, 2), "recipient:"),
+            ),
+            (
+                "file:///workspace/Second.sol",
+                StoredInlayHint::call_type(Position::new(3, 4), ": uint256"),
+            ),
+        ]);
+
+        assert_eq!(first, same);
+        assert_ne!(first, changed);
+    }
 }

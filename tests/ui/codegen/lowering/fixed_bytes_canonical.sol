@@ -10,7 +10,7 @@ contract FixedBytesCanonical {
     }
 
     // CHECK-LABEL: fn @fromHex{{[( ]}}
-    // CHECK: mstore 128, 0x100000000000000000000000000000000000000000000000000000000000000
+    // CHECK: ret 0x100000000000000000000000000000000000000000000000000000000000000
     function fromHex() external pure returns (bytes1) {
         return hex"01";
     }

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/builtin_addmod_mulmod.sol:AddmodMulmod ===
 @module AddmodMulmod
-fn @am(arg0: u256, arg1: u256, arg2: u256) {
+fn @am(arg0: u256, arg1: u256, arg2: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -10,11 +10,10 @@ fn @am(arg0: u256, arg1: u256, arg2: u256) {
     revert 0, 0
   bb2:
     v3 = addmod arg0, arg1, arg2
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @mm(arg0: u256, arg1: u256, arg2: u256) {
+fn @mm(arg0: u256, arg1: u256, arg2: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -24,7 +23,6 @@ fn @mm(arg0: u256, arg1: u256, arg2: u256) {
     revert 0, 0
   bb2:
     v3 = mulmod arg0, arg1, arg2
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 

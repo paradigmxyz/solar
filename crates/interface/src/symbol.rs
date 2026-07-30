@@ -958,6 +958,8 @@ symbols! {
     // There is currently no checking that all symbols are used; that would be
     // nice to have.
     Symbols {
+        Error,
+        Panic,
         Test,
         X,
         __load_storage_bytes,
@@ -969,6 +971,7 @@ symbols! {
         abi,
         abi_encode,
         abi_return,
+        abi_returns,
         abicoder,
         alloc,
         args,
@@ -1075,6 +1078,8 @@ symbols! {
         result_ty,
         ret,
         returndata,
+        returndata_array,
+        returndata_bytes,
         returndataslice,
         ripemd160,
         runtime,

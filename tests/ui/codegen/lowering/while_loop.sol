@@ -6,7 +6,7 @@ contract WhileLoop {
     // CHECK-LABEL: fn @count_down{{[( ]}}
     // CHECK: [[I:v[0-9]+]] = mload 128
     // CHECK: gt [[I]], 0
-    // CHECK: returndata
+    // CHECK: ret
     // CHECK: [[BODY_I:v[0-9]+]] = mload 128
     // CHECK: sub [[BODY_I]], 1
     function count_down(uint256 n) public pure returns (uint256) {
@@ -20,7 +20,7 @@ contract WhileLoop {
     // CHECK-LABEL: fn @do_at_least_once{{[( ]}}
     // CHECK: [[I:v[0-9]+]] = mload 128
     // CHECK: {{v[0-9]+}} = add [[I]], 1
-    // CHECK: returndata
+    // CHECK: ret
     // CHECK: [[LOOP_I:v[0-9]+]] = mload 128
     // CHECK: lt [[LOOP_I]], arg0
     function do_at_least_once(uint256 n) public pure returns (uint256) {
@@ -34,7 +34,7 @@ contract WhileLoop {
     // CHECK-LABEL: fn @break_when_found{{[( ]}}
     // CHECK: [[I:v[0-9]+]] = mload 128
     // CHECK: lt [[I]], arg0
-    // CHECK: returndata
+    // CHECK: ret
     // CHECK: [[BODY_I:v[0-9]+]] = mload 128
     // CHECK: eq [[BODY_I]], arg1
     // CHECK: add {{v[0-9]+}}, 1

@@ -395,6 +395,9 @@ bb39:
   mload
   push 0
   dup2
+  swap2
+  swap3
+  swap2
   jump bb40
 bb40:
   dup2
@@ -428,27 +431,27 @@ bb40:
   dup1
   push 224
   mstore
-  push 256
+  push 288
   mload
   lt
   push bb46
   jumpi
-  push 256
+  push 288
   mload
   dup1
-  push 256
-  mstore
   push 288
+  mstore
+  push 256
   mload
   lt
   push bb46
   jumpi
   push 128
   mload
-  push 288
+  push 256
   mload
   dup1
-  push 288
+  push 256
   mstore
   dup2
   dup1
