@@ -20,10 +20,3 @@ fn @wrong_store_type(arg0: u16) {
     //~? ERROR: [fn1] [bb0, inst0] immutable assignment instruction `storeimmutable` survives the `evm-shaped` phase boundary
     stop
 }
-
-fn @constructor() {
-  bb0:
-    v0 = constructor_args_base
-    //~? ERROR: [fn2] inst0 uses the constructor argument base without constructor parameters
-    stop
-}

@@ -495,19 +495,13 @@ impl<'a> Validator<'a> {
                         ));
                     }
                 }
-                InstKind::ConstructorArgsBase => {
-                    if !func.attributes.is_constructor && func.name.name != kw::Constructor {
-                        self.emit(format_args!(
-                            "inst{} uses the constructor argument base outside a constructor",
-                            inst_id.index()
-                        ));
-                    } else if func.params.is_empty() {
-                        self.emit(format_args!(
-                            "inst{} uses the constructor argument base without constructor \
-                             parameters",
-                            inst_id.index()
-                        ));
-                    }
+                InstKind::ConstructorArgsBase
+                    if !func.attributes.is_constructor && func.name.name != kw::Constructor =>
+                {
+                    self.emit(format_args!(
+                        "inst{} uses the constructor argument base outside a constructor",
+                        inst_id.index()
+                    ));
                 }
                 _ => {}
             }

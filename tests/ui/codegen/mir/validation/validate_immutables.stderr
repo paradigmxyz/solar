@@ -8,7 +8,5 @@ error: [fn1] inst0 stores `u16` value into immutable `narrow` of type `u8`
 
 error: [fn1] [bb0, inst0] immutable assignment instruction `storeimmutable` survives the `evm-shaped` phase boundary
 
-error: [fn2] inst0 uses the constructor argument base without constructor parameters
-
-error: aborting due to 6 previous errors
+error: aborting due to 5 previous errors
 
