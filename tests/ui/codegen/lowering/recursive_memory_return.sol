@@ -18,12 +18,12 @@ contract C {
     }
 
     // recursive function returning a memory struct
-    // CHECK-LABEL: fn @build{{[$][$][0-9]+[( ]}}
-    // CHECK: internal_call [[BUILD:@build[$][$][0-9]+]], 1,
+    // CHECK-LABEL: fn @build{{[$][0-9]+[( ]}}
+    // CHECK: internal_call [[BUILD:@build[$][0-9]+]], 1,
     // CHECK: [[RESULT:v[0-9]+]] = alloc memorystruct<2>
     // CHECK: memory_object_field_addr memorystruct<2>, [[RESULT]], 0
     // CHECK: ret [[RESULT]]
-    // CHECK-LABEL: fn @build{{[$][$][0-9]+[( ]}}
+    // CHECK-LABEL: fn @build{{[$][0-9]+[( ]}}
     // CHECK: internal_call [[BUILD]], 1,
     // CHECK: [[RESULT:v[0-9]+]] = alloc memorystruct<2>
     // CHECK: ret [[RESULT]]

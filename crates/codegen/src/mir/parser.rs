@@ -35,17 +35,14 @@ use super::{
     MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField,
     StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
 };
-use crate::{
-    ir_parse::ParsedSymbol,
-    mir::{MirType, SliceLocation},
-};
+use crate::mir::{MirType, SliceLocation};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_ast::{
     Arena,
     token::{BinOpToken, Delimiter, TokenKind, TokenLitKind},
 };
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_data_structures::map::FxHashMap;
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym,
 };
@@ -78,7 +75,7 @@ pub(super) fn parse_module(sess: &Session, input: &str) -> Result<Module> {
 
 struct Parser<'sess, 'ast> {
     parser: crate::ir_parse::Parser<'sess, 'ast>,
-    pending_function_ref: Option<(ParsedSymbol, Span)>,
+    pending_function_ref: Option<(Symbol, Span)>,
     function_refs: Vec<PendingFunctionRef>,
     arg_values: Vec<ValueId>,
     block_labels: FxHashMap<u32, BlockLabel>,
@@ -93,7 +90,7 @@ struct Parser<'sess, 'ast> {
 }
 
 struct PendingFunctionRef {
-    name: ParsedSymbol,
+    name: Symbol,
     span: Span,
     target: FunctionRefTarget,
 }
@@ -143,13 +140,30 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(Symbol::intern(&name))
     }
 
+    /// Parses a function name: an identifier, optionally with `.`-joined
+    /// segments (`f.body`), as minted by the ABI lowering.
+    fn parse_function_name(&mut self) -> PResult<'sess, Symbol> {
+        let first = self.parser.parse_ident()?;
+        if !self.parser.eat(TokenKind::Dot) {
+            return Ok(first);
+        }
+        let mut name = first.to_string();
+        name.push('.');
+        name.push_str(self.parser.parse_ident()?.as_str());
+        while self.parser.eat(TokenKind::Dot) {
+            name.push('.');
+            name.push_str(self.parser.parse_ident()?.as_str());
+        }
+        Ok(Symbol::intern(&name))
+    }
+
     // ----- module / function parsing -----
 
     fn parse_module(&mut self) -> PResult<'sess, Module> {
         let mut phase = super::MirPhase::default();
         self.parser.expect(TokenKind::At)?;
         self.parser.expect_keyword(sym::module)?;
-        let module_name = self.parser.parse_symbol()?;
+        let module_name = self.parser.parse_ident()?;
         while self.parser.eat(TokenKind::At) {
             let attr = self.parser.parse_ident()?;
             match attr {
@@ -169,17 +183,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut module = Module::new(module_ident);
         module.phase = phase;
         let mut function_refs = Vec::new();
-        let mut function_names = IndexVec::new();
 
         while !self.parser.is_eof() {
-            let (func, name) = self.parse_function()?;
+            let func = self.parse_function()?;
             let function = module.add_function(func);
-            let text_function = function_names.push(name);
-            debug_assert_eq!(function, text_function);
             function_refs
                 .extend(self.function_refs.drain(..).map(|reference| (function, reference)));
         }
-        self.resolve_function_refs(&mut module, &function_names, function_refs)?;
+        self.resolve_function_refs(&mut module, function_refs)?;
 
         module.abi_layouts = std::mem::take(&mut self.abi_layouts);
         module.aggregate_layouts = std::mem::take(&mut self.storage_layouts);
@@ -190,12 +201,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn resolve_function_refs(
         &self,
         module: &mut Module,
-        function_names: &IndexVec<FunctionId, ParsedSymbol>,
         function_refs: Vec<(FunctionId, PendingFunctionRef)>,
     ) -> PResult<'sess, ()> {
-        let mut declarations = FxHashMap::<ParsedSymbol, Vec<FunctionId>>::default();
-        for id in module.functions.indices() {
-            declarations.entry(function_names[id]).or_default().push(id);
+        let mut declarations = FxHashMap::<Symbol, Vec<FunctionId>>::default();
+        for (id, function) in module.functions.iter_enumerated() {
+            declarations.entry(function.unmangled_name).or_default().push(id);
         }
         for (owner, reference) in function_refs {
             let matches = declarations.get(&reference.name);
@@ -233,7 +243,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(())
     }
 
-    fn parse_function(&mut self) -> PResult<'sess, (Function, ParsedSymbol)> {
+    fn parse_function(&mut self) -> PResult<'sess, Function> {
         self.arg_values.clear();
         self.block_labels.clear();
         self.block_order.clear();
@@ -241,8 +251,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         self.parser.expect_keyword(sym::fn_)?;
         self.parser.expect(TokenKind::At)?;
-        let name = self.parser.parse_symbol_name()?;
-        let func_ident = Ident::with_dummy_span(name.name.as_symbol());
+        let name = self.parse_function_name()?;
+        let func_ident = Ident::with_dummy_span(name);
         let mut func = Function::new(func_ident);
         let block_remap = {
             let mut builder = FunctionBuilder::new(&mut func);
@@ -337,7 +347,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
         }
 
-        Ok((func, name))
+        Ok(func)
     }
 
     fn try_parse_block_header(&mut self) -> PResult<'sess, Option<u32>> {
@@ -779,7 +789,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_function_id(&mut self) -> PResult<'sess, FunctionId> {
         if self.parser.eat(TokenKind::At) {
             let span = self.parser.token().span;
-            let name = self.parser.parse_symbol_name()?;
+            let name = self.parse_function_name()?;
             self.pending_function_ref = Some((name, span));
             return Ok(FunctionId::from_usize(0));
         }

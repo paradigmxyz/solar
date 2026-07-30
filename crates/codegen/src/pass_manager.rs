@@ -72,7 +72,7 @@ pub(crate) fn mir_output_name(gcx: Gcx<'_>, module: &Module) -> String {
         && let Some(contract_id) = gcx
             .hir
             .contract_ids()
-            .find(|&contract_id| gcx.hir.contract(contract_id).name == module.source_name)
+            .find(|&contract_id| gcx.hir.contract(contract_id).name == module.name)
     {
         return gcx.contract_fully_qualified_name(contract_id).to_string();
     }

@@ -1,7 +1,6 @@
 //! MIR module (top-level container).
 
 use super::{AbiLayout, AbiLayoutRef, Function, FunctionId, StorageLayout, StorageLayoutRef};
-use crate::symbol_mangling::SymbolName;
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
@@ -90,10 +89,8 @@ impl MirPhase {
 /// A MIR module representing a compiled contract.
 #[derive(Clone, Debug)]
 pub struct Module {
-    /// Mangled module/contract name used by codegen.
-    pub(crate) name: SymbolName,
-    /// Source-level module/contract name.
-    pub(crate) source_name: Ident,
+    /// Module/contract name.
+    pub(crate) name: Ident,
     /// All functions in this module.
     pub(crate) functions: IndexVec<FunctionId, Function>,
     /// Canonical ABI layouts referenced by semantic encoding operations.
@@ -121,8 +118,7 @@ impl Module {
     #[must_use]
     pub(crate) fn new(name: Ident) -> Self {
         Self {
-            name: SymbolName::mangle(name.name),
-            source_name: name,
+            name,
             functions: IndexVec::new(),
             abi_layouts: Vec::new(),
             aggregate_layouts: Vec::new(),
@@ -148,16 +144,16 @@ impl Module {
 
     /// Adds a function to the module.
     pub(crate) fn add_function(&mut self, function: Function) -> FunctionId {
-        let function = self.functions.push(function);
-        let source_name = self.functions[function].source_name;
-        let duplicates = self
+        let duplicate = self
             .functions
             .iter_enumerated()
-            .filter_map(|(id, func)| (func.source_name == source_name).then_some(id))
-            .collect::<Vec<_>>();
-        if duplicates.len() > 1 {
-            for duplicate in duplicates {
-                self.functions[duplicate].set_name_disambiguator(duplicate.index());
+            .find_map(|(id, func)| (func.unmangled_name == function.unmangled_name).then_some(id));
+        let function = self.functions.push(function);
+        if let Some(duplicate) = duplicate {
+            for function in [duplicate, function] {
+                let func = &mut self.functions[function];
+                func.name.name =
+                    Symbol::intern(&format!("{}${}", func.unmangled_name, function.index()));
             }
         }
         function
@@ -172,13 +168,6 @@ impl Module {
     /// Returns a mutable reference to the function.
     pub(crate) fn function_mut(&mut self, id: FunctionId) -> &mut Function {
         &mut self.functions[id]
-    }
-
-    /// Replaces a reserved function while preserving its module-assigned symbol.
-    pub(crate) fn replace_function(&mut self, id: FunctionId, mut function: Function) {
-        debug_assert_eq!(self.functions[id].source_name, function.source_name);
-        function.name = self.functions[id].name;
-        self.functions[id] = function;
     }
 
     /// Interns an ABI layout and returns its canonical shared reference.
@@ -258,31 +247,5 @@ impl Module {
 impl fmt::Display for Module {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.to_text())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use solar_interface::{ColorChoice, Session};
-
-    #[test]
-    fn stores_mangled_names() {
-        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        sess.enter(|| {
-            let module_name = ["123", ".module"].concat();
-            let module_name = Ident::with_dummy_span(Symbol::intern(&module_name));
-            let mut module = Module::new(module_name);
-            assert_eq!(module.name.as_symbol().as_str(), "123.module");
-
-            let function_name = ["over", ".load"].concat();
-            let function_name = Ident::with_dummy_span(Symbol::intern(&function_name));
-            let first = module.add_function(Function::new(function_name));
-            assert_eq!(module.function(first).name.as_symbol().as_str(), "over.load");
-
-            let second = module.add_function(Function::new(function_name));
-            assert_eq!(module.function(first).name.as_symbol().as_str(), "over.load$0");
-            assert_eq!(module.function(second).name.as_symbol().as_str(), "over.load$1");
-        });
     }
 }

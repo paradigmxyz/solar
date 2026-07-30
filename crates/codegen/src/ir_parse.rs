@@ -1,26 +1,10 @@
-//! Shared parser primitives for MIR and EVM IR text.
-
-use crate::symbol_mangling::SymbolName;
 use alloy_primitives::U256;
 use solar_ast::{
     Arena,
     token::{Token, TokenKind, TokenLitKind},
 };
-use solar_data_structures::fmt;
 use solar_interface::{Session, Span, Symbol, source_map::SourceFile};
 use solar_parse::PErr;
-
-/// A parsed codegen symbol.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct ParsedSymbol {
-    pub(crate) name: SymbolName,
-}
-
-impl fmt::Display for ParsedSymbol {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.name.fmt(f)
-    }
-}
 
 /// Shared parser primitives for the textual IR parsers.
 pub(crate) struct Parser<'sess, 'ast> {
@@ -89,44 +73,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let TokenKind::Ident(symbol) = self.token().kind else { return None };
         self.bump();
         Some(symbol)
-    }
-
-    pub(crate) fn parse_symbol(&mut self) -> Result<Symbol, PErr<'sess>> {
-        self.parse_stored_symbol()
-    }
-
-    pub(crate) fn parse_symbol_name(&mut self) -> Result<ParsedSymbol, PErr<'sess>> {
-        Ok(ParsedSymbol { name: SymbolName::new(self.parse_stored_symbol()?) })
-    }
-
-    fn parse_stored_symbol(&mut self) -> Result<Symbol, PErr<'sess>> {
-        let mut symbol = match self.token().kind {
-            TokenKind::Ident(symbol) | TokenKind::Literal(TokenLitKind::Integer, symbol) => symbol,
-            _ => return Err(self.error("expected identifier")),
-        };
-        self.bump();
-
-        if !self.eat(TokenKind::Dot) {
-            return Ok(symbol);
-        }
-
-        let mut name = symbol.to_string();
-        loop {
-            name.push('.');
-            let part = match self.token().kind {
-                TokenKind::Ident(symbol) | TokenKind::Literal(TokenLitKind::Integer, symbol) => {
-                    symbol
-                }
-                _ => return Err(self.error("expected identifier after `.`")),
-            };
-            self.bump();
-            name.push_str(part.as_str());
-            if !self.eat(TokenKind::Dot) {
-                break;
-            }
-        }
-        symbol = Symbol::intern(&name);
-        Ok(symbol)
     }
 
     pub(crate) fn parse_uint(&mut self) -> Result<U256, PErr<'sess>> {

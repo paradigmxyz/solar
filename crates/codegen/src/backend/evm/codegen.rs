@@ -686,7 +686,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.gcx
                 .dcx()
                 .err("codegen does not support `fallback(bytes) returns (bytes)` yet")
-                .span(module.source_name.span)
+                .span(module.name.span)
                 .emit();
             return true;
         }
@@ -701,7 +701,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                     _ => continue,
                 };
-                let span = inst.metadata.source_span().unwrap_or(module.source_name.span);
+                let span = inst.metadata.source_span().unwrap_or(module.name.span);
                 self.gcx.dcx().err(message).span(span).emit();
                 emitted = true;
                 // One diagnostic per function is enough to explain the bail.
@@ -829,7 +829,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     "EVM codegen requires MIR in the `evm-shaped` phase, stopped at `{}`",
                     module.phase.name()
                 ))
-                .span(module.source_name.span)
+                .span(module.name.span)
                 .emit();
             return EvmArtifact::default();
         }
@@ -1149,7 +1149,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let Some((entry_id, _)) = module
             .functions
             .iter_enumerated()
-            .find(|(_, f)| f.selector.is_none() && f.name.as_symbol() == sym::entry)
+            .find(|(_, f)| f.selector.is_none() && f.name.name == sym::entry)
         else {
             assert!(
                 !module.functions.iter().any(Self::is_external_entry),

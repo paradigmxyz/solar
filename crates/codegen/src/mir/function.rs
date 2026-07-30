@@ -4,7 +4,6 @@ use super::{
     AbiLayoutRef, ArgIdx, BasicBlock, BlockId, InstId, InstKind, Instruction, MirType,
     StorageAlias, Value, ValueId,
 };
-use crate::symbol_mangling::SymbolName;
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -12,16 +11,16 @@ use solar_data_structures::{
     index::IndexVec,
     map::FxHashMap,
 };
-use solar_interface::Ident;
+use solar_interface::{Ident, Symbol};
 use solar_sema::hir::{StateMutability, Visibility};
 
 /// A function in the MIR.
 #[derive(Clone, Debug)]
 pub(crate) struct Function {
-    /// Mangled function name used by codegen.
-    pub(crate) name: SymbolName,
-    /// Source-level function name.
-    pub(crate) source_name: Ident,
+    /// Function name used by codegen.
+    pub(crate) name: Ident,
+    /// Name before module-level disambiguation.
+    pub(crate) unmangled_name: Symbol,
     /// Function selector (4 bytes, for external functions).
     pub(crate) selector: Option<[u8; 4]>,
     /// Function attributes.
@@ -69,8 +68,8 @@ impl Function {
         debug_assert_eq!(entry, BlockId::ENTRY);
 
         Self {
-            name: SymbolName::mangle(name.name),
-            source_name: name,
+            name,
+            unmangled_name: name.name,
             selector: None,
             attributes: FunctionAttributes::default(),
             params: IndexVec::new(),
@@ -83,18 +82,6 @@ impl Function {
             instructions: IndexVec::new(),
             blocks,
         }
-    }
-
-    /// Changes the source-level and mangled function names.
-    pub(crate) fn set_name(&mut self, name: Ident) {
-        self.name = SymbolName::mangle(name.name);
-        self.source_name = name;
-    }
-
-    /// Adds a stable declaration disambiguator to the mangled function name.
-    pub(super) fn set_name_disambiguator(&mut self, disambiguator: usize) {
-        self.name =
-            SymbolName::mangle_with_disambiguator(self.source_name.name, Some(disambiguator));
     }
 
     /// Returns the value for the given ID.
@@ -532,19 +519,6 @@ impl fmt::Display for Function {
 mod tests {
     use super::*;
     use crate::mir::FunctionBuilder;
-    use snapbox::assert_data_eq;
-    use solar_interface::{ColorChoice, Session, Symbol};
-
-    #[test]
-    fn stores_mangled_name() {
-        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        sess.enter(|| {
-            let name = ["f", ".name"].concat();
-            let func = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
-            assert_eq!(func.name.as_symbol().as_str(), "f.name");
-            assert_data_eq!(func.to_string(), "fn f.name()");
-        });
-    }
 
     #[test]
     fn live_values_include_terminator_operands() {

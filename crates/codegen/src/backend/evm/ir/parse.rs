@@ -47,7 +47,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_module(&mut self) -> PResult<'sess, Module> {
         self.parser.expect(TokenKind::At)?;
         self.parser.expect_keyword(sym::module)?;
-        let name = self.parser.parse_symbol()?;
+        let name = self.parser.parse_ident()?;
 
         let mut module = Module::new(name);
         self.parse_program_body(&mut module)?;

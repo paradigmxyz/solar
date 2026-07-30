@@ -255,63 +255,61 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
 mod tests {
     use super::*;
     use crate::mir::{FunctionBuilder, MirType};
-    use solar_interface::Ident;
+    use solar_interface::{Ident, sym};
 
     #[test]
     fn propagates_captures_and_fmp_resets() {
-        solar_interface::enter(|| {
-            let mut module = Module::new(Ident::DUMMY);
+        let mut module = Module::new(Ident::DUMMY);
 
-            let mut reader = Function::new(Ident::DUMMY);
-            {
-                let mut builder = FunctionBuilder::new(&mut reader);
-                let ptr = builder.add_param(MirType::MemPtr);
-                let value = builder.mload(ptr);
-                builder.ret([value]);
-            }
-            reader.returns.push(MirType::uint256());
-            let reader = module.add_function(reader);
+        let mut reader = Function::new(Ident::with_dummy_span(sym::memory_read));
+        {
+            let mut builder = FunctionBuilder::new(&mut reader);
+            let ptr = builder.add_param(MirType::MemPtr);
+            let value = builder.mload(ptr);
+            builder.ret([value]);
+        }
+        reader.returns.push(MirType::uint256());
+        let reader = module.add_function(reader);
 
-            let mut returning = Function::new(Ident::DUMMY);
-            {
-                let mut builder = FunctionBuilder::new(&mut returning);
-                let ptr = builder.add_param(MirType::MemPtr);
-                builder.ret([ptr]);
-            }
-            returning.returns.push(MirType::MemPtr);
-            let returning = module.add_function(returning);
+        let mut returning = Function::new(Ident::with_dummy_span(sym::ret));
+        {
+            let mut builder = FunctionBuilder::new(&mut returning);
+            let ptr = builder.add_param(MirType::MemPtr);
+            builder.ret([ptr]);
+        }
+        returning.returns.push(MirType::MemPtr);
+        let returning = module.add_function(returning);
 
-            let mut resetter = Function::new(Ident::DUMMY);
-            {
-                let mut builder = FunctionBuilder::new(&mut resetter);
-                let ptr = builder.add_param(MirType::MemPtr);
-                builder.set_fmp(ptr);
-                builder.ret([]);
-            }
-            let resetter = module.add_function(resetter);
+        let mut resetter = Function::new(Ident::with_dummy_span(sym::fmp));
+        {
+            let mut builder = FunctionBuilder::new(&mut resetter);
+            let ptr = builder.add_param(MirType::MemPtr);
+            builder.set_fmp(ptr);
+            builder.ret([]);
+        }
+        let resetter = module.add_function(resetter);
 
-            let mut reader_caller = Function::new(Ident::DUMMY);
-            {
-                let mut builder = FunctionBuilder::new(&mut reader_caller);
-                let ptr = builder.add_param(MirType::MemPtr);
-                builder.internal_call_void(reader, vec![ptr], 1);
-                builder.ret([]);
-            }
-            let reader_caller = module.add_function(reader_caller);
+        let mut reader_caller = Function::new(Ident::with_dummy_span(sym::internal_call));
+        {
+            let mut builder = FunctionBuilder::new(&mut reader_caller);
+            let ptr = builder.add_param(MirType::MemPtr);
+            builder.internal_call_void(reader, vec![ptr], 1);
+            builder.ret([]);
+        }
+        let reader_caller = module.add_function(reader_caller);
 
-            let mut returning_caller = Function::new(Ident::DUMMY);
-            {
-                let mut builder = FunctionBuilder::new(&mut returning_caller);
-                let ptr = builder.add_param(MirType::MemPtr);
-                builder.internal_call_void(returning, vec![ptr], 1);
-                builder.ret([]);
-            }
-            let returning_caller = module.add_function(returning_caller);
+        let mut returning_caller = Function::new(Ident::with_dummy_span(sym::result_ty));
+        {
+            let mut builder = FunctionBuilder::new(&mut returning_caller);
+            let ptr = builder.add_param(MirType::MemPtr);
+            builder.internal_call_void(returning, vec![ptr], 1);
+            builder.ret([]);
+        }
+        let returning_caller = module.add_function(returning_caller);
 
-            let summaries = MemoryCallSummaries::new(&module);
-            assert!(!summaries.get(reader_caller).unwrap().captures_param(ArgIdx::new(0)));
-            assert!(summaries.get(returning_caller).unwrap().captures_param(ArgIdx::new(0)));
-            assert!(summaries.get(resetter).unwrap().may_reset_fmp());
-        });
+        let summaries = MemoryCallSummaries::new(&module);
+        assert!(!summaries.get(reader_caller).unwrap().captures_param(ArgIdx::new(0)));
+        assert!(summaries.get(returning_caller).unwrap().captures_param(ArgIdx::new(0)));
+        assert!(summaries.get(resetter).unwrap().may_reset_fmp());
     }
 }

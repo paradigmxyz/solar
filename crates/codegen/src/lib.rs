@@ -23,7 +23,6 @@ mod contract;
 pub use contract::{ContractArtifact, ContractSelection, generate_contract_bytecodes};
 
 mod ir_parse;
-mod symbol_mangling;
 
 pub mod lower;
 

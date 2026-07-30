@@ -359,7 +359,8 @@ impl<'gcx> Lowerer<'gcx> {
             })
             .collect::<Vec<_>>();
 
-        let name = self.module.function(dispatcher).source_name;
+        let reserved = self.module.function(dispatcher);
+        let name = Ident::new(reserved.unmangled_name, reserved.name.span);
         let mut dispatcher_function = Function::new(name);
         dispatcher_function.attributes.no_inline = true;
         {
@@ -409,7 +410,8 @@ impl<'gcx> Lowerer<'gcx> {
             }
             self.emit_panic_revert(&mut builder, PanicCode::InvalidInternalFunction);
         }
-        self.module.replace_function(dispatcher, dispatcher_function);
+        dispatcher_function.name = self.module.function(dispatcher).name;
+        *self.module.function_mut(dispatcher) = dispatcher_function;
     }
 
     fn internal_function_pointer_shape(
