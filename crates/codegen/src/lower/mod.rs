@@ -924,10 +924,18 @@ impl<'gcx> Lowerer<'gcx> {
             } else {
                 Ok(0)
             };
-        let (external_arg_head_size, external_static_return_size) =
-            match (external_arg_head_size, external_static_return_size) {
-                (Ok(arg_size), Ok(return_size)) => (arg_size, return_size),
-                (Err(guar), _) | (_, Err(guar)) => {
+        let abi_return_types = if uses_external_abi {
+            current_return_tys
+                .iter()
+                .map(|&ty| self.abi_type(ty, false).ok_or_else(|| self.abi_type_error()))
+                .collect::<Result<Vec<_>, _>>()
+        } else {
+            Ok(Vec::new())
+        };
+        let (external_arg_head_size, external_static_return_size, abi_return_types) =
+            match (external_arg_head_size, external_static_return_size, abi_return_types) {
+                (Ok(arg_size), Ok(return_size), Ok(types)) => (arg_size, return_size, types),
+                (Err(guar), _, _) | (_, Err(guar), _) | (_, _, Err(guar)) => {
                     let mut builder = FunctionBuilder::new(&mut mir_func);
                     builder.error_value(guar);
                     builder.invalid();
@@ -948,16 +956,9 @@ impl<'gcx> Lowerer<'gcx> {
         self.lowering_internal_function = uses_internal_frame;
         self.in_unchecked_block = false;
         self.current_return_tys = current_return_tys;
-        if uses_external_abi && !self.current_return_tys.is_empty() {
-            let types = self
-                .current_return_tys
-                .iter()
-                .map(|&ty| {
-                    self.abi_type(ty, false)
-                        .expect("recursive ABI return values cannot be materialized")
-                })
-                .collect::<Vec<_>>();
-            mir_func.abi_returns = Some(self.module.intern_abi_layout(AbiLayout::new(types)));
+        if !abi_return_types.is_empty() {
+            mir_func.abi_returns =
+                Some(self.module.intern_abi_layout(AbiLayout::new(abi_return_types)));
         }
 
         // Pre-analyze function body to find variables that are assigned after declaration.

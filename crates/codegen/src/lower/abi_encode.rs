@@ -32,6 +32,13 @@ impl<'gcx> Lowerer<'gcx> {
         self.abi_type_inner(ty, calldata, &mut visiting)
     }
 
+    pub(super) fn abi_type_error(&self) -> ErrorGuaranteed {
+        match self.gcx.dcx().has_errors() {
+            Err(guar) => guar,
+            Ok(()) => self.gcx.dcx().err("codegen cannot materialize this ABI type").emit(),
+        }
+    }
+
     fn abi_type_inner(
         &self,
         ty: Ty<'gcx>,
@@ -189,11 +196,11 @@ impl<'gcx> Lowerer<'gcx> {
         let values: Vec<_> = items.iter().map(|&(value, _)| value).collect();
         let types = items
             .iter()
-            .map(|&(value, ty)| {
-                self.abi_type(ty, calldata_slices.contains(&value))
-                    .expect("recursive ABI values cannot be materialized")
-            })
-            .collect::<Vec<_>>();
+            .map(|&(value, ty)| self.abi_type(ty, calldata_slices.contains(&value)))
+            .collect::<Option<Vec<_>>>();
+        let Some(types) = types else {
+            return builder.error_value(self.abi_type_error());
+        };
         lower_abi_encode::encode_tuple(builder, &values, &types, dest, scratch)
     }
 

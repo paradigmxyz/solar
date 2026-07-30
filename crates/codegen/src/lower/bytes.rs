@@ -443,13 +443,12 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::DynArray(elem) | TyKind::Slice(elem) => {
                 self.materialize_calldata_dynamic_array_at(builder, source, elem, pos)
             }
-            TyKind::Array(elem, len) => self.materialize_calldata_fixed_array_at(
-                builder,
-                source,
-                elem,
-                len.to::<u64>(),
-                pos,
-            ),
+            TyKind::Array(elem, len) => {
+                let Ok(len) = u64::try_from(len) else {
+                    return builder.error_value(self.abi_head_size_overflow());
+                };
+                self.materialize_calldata_fixed_array_at(builder, source, elem, len, pos)
+            }
             TyKind::Struct(id) => {
                 let fields = self.gcx.struct_field_types(id).to_vec();
                 self.materialize_calldata_fields_at(builder, source, &fields, pos)

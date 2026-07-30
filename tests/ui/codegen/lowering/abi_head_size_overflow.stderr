@@ -4,5 +4,11 @@ error: type too large for calldata
 LL │         uint256[18446744073709551616] calldata values
    ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 1 previous error
+error: type too large for memory
+   ╭▸ ROOT/tests/ui/codegen/lowering/abi_head_size_overflow.sol:LL:CC
+   │
+LL │         returns (uint256[][18446744073709551616] memory values)
+   ╰╴                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
 

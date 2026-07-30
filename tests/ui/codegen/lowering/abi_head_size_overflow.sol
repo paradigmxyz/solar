@@ -6,4 +6,10 @@ contract AbiHeadSizeOverflow {
     ) external pure returns (uint256) {
         return values[0];
     }
+
+    function oversizedDynamicReturn()
+        external
+        pure
+        returns (uint256[][18446744073709551616] memory values) //~ ERROR: type too large for memory
+    {}
 }
