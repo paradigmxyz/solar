@@ -2,7 +2,7 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 778
+  push 774
   dup1
   push 10
   push 0
@@ -535,9 +535,6 @@ bb5:
   jumpi
   push 160
   mload
-  dup1
-  push 160
-  mstore
   push 128
   mstore
   push 32
