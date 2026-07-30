@@ -1,5 +1,4 @@
 //@ revisions: mir size
-//@ignore-host: windows
 //@[mir] compile-flags: -Zcodegen -O none -Zdump=mir
 //@[mir] filecheck:
 //@[size] compile-flags: -Zcodegen -O size -Zdump=evm-ir-runtime
