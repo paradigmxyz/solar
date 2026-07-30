@@ -326,18 +326,48 @@ fn update_indexed_jump_encoding(
         return encoding;
     }
     let outlined_len = outlined_indexed_jump_len(targets.len(), absolute_width);
-    let packed_chunks = indexed_jump_packed_chunks(
+    let absolute_chunks = indexed_jump_packed_chunks(
         targets.len(),
         absolute_width,
         evm_version,
         pack_two_word_tables,
         outlined_len,
     );
-    if encoding.packed_chunks != PackedTableChunks::None && packed_chunks == PackedTableChunks::None
+    let absolute = if encoding.packed_chunks != PackedTableChunks::None
+        && absolute_chunks == PackedTableChunks::None
     {
-        IndexedJumpEncoding { packed_chunks, ..encoding }
+        IndexedJumpEncoding { packed_chunks: absolute_chunks, ..encoding }
     } else {
-        IndexedJumpEncoding { width: absolute_width, packed_chunks, base: None }
+        IndexedJumpEncoding { width: absolute_width, packed_chunks: absolute_chunks, base: None }
+    };
+    if !pack_two_word_tables {
+        return absolute;
+    }
+
+    let &base = targets
+        .iter()
+        .min_by_key(|&&target| offsets[target])
+        .expect("indexed jump must have targets");
+    let width = indexed_jump_relative_width(targets, base, offsets, global_width);
+    let base_width = indexed_jump_target_width(&[base], offsets, global_width);
+    let relative = IndexedJumpEncoding {
+        width,
+        packed_chunks: indexed_jump_packed_chunks(
+            targets.len(),
+            width,
+            evm_version,
+            true,
+            outlined_len,
+        ),
+        base: Some((base, base_width)),
+    };
+    if relative.packed_chunks != PackedTableChunks::None
+        && indexed_jump_encoding_len(relative, targets.len(), evm_version)
+            < indexed_jump_encoding_len(absolute, targets.len(), evm_version)
+    {
+        relative
+    } else {
+        absolute
     }
 }
 
@@ -1046,6 +1076,39 @@ mod tests {
         assert_eq!(encoding.width, 1);
         assert_eq!(encoding.packed_chunks, PackedTableChunks::One);
         assert_eq!(encoding.base, Some((targets[0], 2)));
+    }
+
+    #[test]
+    fn switches_to_relative_packing_after_table_growth() {
+        let mut module = ir::Module::new(sym::module);
+        let first = module.add_block(Block::new(0));
+        let second = module.add_block(Block::new(1));
+        let padding = module.add_block(Block::new(2));
+        for _ in 0..108 {
+            module.blocks[padding].instructions.push(Instruction::push_value(U256::ONE));
+        }
+        module.blocks[padding].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+        let targets = (3..=12)
+            .map(|label| {
+                let target = module.add_block(Block::new(label));
+                module.blocks[target].terminator =
+                    Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+                target
+            })
+            .collect::<Vec<_>>();
+        for source in [first, second] {
+            module.blocks[source].terminator = Some(Terminator::new(TerminatorKind::IndexedJump(
+                targets.clone().into_boxed_slice(),
+            )));
+        }
+
+        let lowerings = materialize_indexed_jump_tables(&mut module, EvmVersion::Osaka, true);
+        for source in [first, second] {
+            let encoding = lowerings[source].table.unwrap();
+            assert_eq!(encoding.width, 1);
+            assert_eq!(encoding.packed_chunks, PackedTableChunks::One);
+            assert_eq!(encoding.base, Some((targets[0], 2)));
+        }
     }
 
     #[test]

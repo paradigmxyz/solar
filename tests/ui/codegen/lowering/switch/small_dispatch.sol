@@ -1,8 +1,12 @@
-//@ revisions: gas size
-//@[gas] compile-flags: -Zcodegen -O gas -Zdump=evm-ir-runtime
+//@ revisions: gas size runtime
+//@[gas] compile-flags: -O gas -Zdump=evm-ir-runtime
 //@[gas] filecheck:
-//@[size] compile-flags: -Zcodegen -O size -Zdump=evm-ir-runtime
+//@[size] compile-flags: -O size -Zdump=evm-ir-runtime
 //@[size] filecheck: --check-prefixes=CHECK,SIZE
+//@[runtime] compile-flags: -O size
+//@[runtime] run-call: PartialTerminalDispatch::f0 => 0
+//@[runtime] run-call: PartialTerminalDispatch::f1
+//@[runtime] run-call: PartialTerminalDispatch::f39
 
 contract OneFunction {
     // CHECK-LABEL: small_dispatch.sol:OneFunction (runtime) ===
@@ -66,9 +70,17 @@ contract FourFunctions {
 
 contract PartialTerminalDispatch {
     // SIZE-LABEL: small_dispatch.sol:PartialTerminalDispatch (runtime) ===
+    // SIZE-COUNT-2: gt
+    // SIZE: eq
+    // SIZE-NEXT: push [[STOP:bb[0-9]+]]
+    // SIZE-NEXT: jumpi
+    // SIZE: [[STOP]]:
+    // SIZE-NEXT: stop
     // SIZE: gt
-    function f0() external pure returns (uint256) {
-        return 0;
+    // SIZE-NOT: gt
+    function f0() external view returns (uint256) {
+        (bool success,) = address(this).staticcall(hex"ffffffff");
+        return success ? 1 : 0;
     }
 
     function f1() external {}
