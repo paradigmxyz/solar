@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/internal_call_frame_dealloc.sol:InternalCallFrameDealloc (runtime) ===
 @module runtime
 bb0:
-  push 352
+  push 320
   push 64
   mstore
   callvalue
@@ -87,7 +87,7 @@ bb6:
   add
   mload
   dup1
-  push 224
+  push 256
   mstore
   push bb20
   jump bb19
@@ -111,7 +111,7 @@ bb8:
   add
   mload
   dup1
-  push 320
+  push 288
   mstore
   push bb21
   jump bb19
@@ -162,14 +162,14 @@ bb15:
   jump bb19
 bb20:
   dup1
-  push 224
+  push 256
   mstore
   push 1
   push 4
   calldataload
   add
   dup1
-  push 288
+  push 224
   mstore
   push 4
   calldataload
@@ -186,7 +186,7 @@ bb20:
   push 32
   add
   mstore
-  push 288
+  push 224
   mload
   dup2
   push 64
@@ -203,24 +203,21 @@ bb20:
   jump bb12
 bb21:
   dup1
-  push 320
+  push 288
   mstore
-  push 224
+  push 256
   mload
   add
   dup1
-  push 256
-  mstore
   push 224
+  mstore
+  push 256
   mload
   gt
   push bb18
   jumpi
-  push 256
+  push 224
   mload
-  dup1
-  push 256
-  mstore
   push 128
   mstore
   push 32

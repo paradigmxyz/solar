@@ -4,11 +4,14 @@
 //!
 //! ```text
 //! @module Counter
-//! fn @increment() {
+//! immutables:
+//!   initial: u256
+//!
+//! fn @constructor() {
 //!   bb0:
-//!     v0 = sload 0
+//!     v0 = loadimmutable initial
 //!     v1 = add v0, 1
-//!     sstore 0, v1
+//!     storeimmutable initial, v1
 //!     stop
 //! }
 //! ```
@@ -30,19 +33,19 @@
 
 use super::{
     AbiLayout, AbiLayoutRef, AbiType, AllocationAlignment, AllocationFailure,
-    AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, EffectKind, Function,
-    FunctionBuilder, FunctionId, InstId, InstKind, Instruction, InstructionMetadata,
-    MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField,
-    StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
+    AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, Disambiguator,
+    EffectKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstId, InstKind, Instruction,
+    InstructionMetadata, MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module,
+    StorageAlias, StorageField, StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
 };
-use crate::mir::{MirType, SliceLocation};
+use crate::mir::{MirType, SliceLocation, TypeSize};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_ast::{
     Arena,
     token::{BinOpToken, Delimiter, TokenKind, TokenLitKind},
 };
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, StdEntry};
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym,
 };
@@ -75,12 +78,13 @@ pub(super) fn parse_module(sess: &Session, input: &str) -> Result<Module> {
 
 struct Parser<'sess, 'ast> {
     parser: crate::ir_parse::Parser<'sess, 'ast>,
-    pending_function_ref: Option<(FunctionRefName, Span)>,
+    pending_function_ref: Option<(MangledSymbol, Span)>,
     function_refs: Vec<PendingFunctionRef>,
     arg_values: Vec<ValueId>,
     block_labels: FxHashMap<u32, BlockLabel>,
     block_order: Vec<BlockId>,
     value_labels: FxHashMap<u32, ValueId>,
+    immutable_names: FxHashMap<Symbol, (ImmutableId, MirType)>,
     /// ABI layouts interned while parsing instructions.
     abi_layouts: Vec<AbiLayoutRef>,
     /// Aggregate storage layouts interned while parsing instructions.
@@ -90,15 +94,9 @@ struct Parser<'sess, 'ast> {
 }
 
 struct PendingFunctionRef {
-    name: FunctionRefName,
+    name: MangledSymbol,
     span: Span,
     target: FunctionRefTarget,
-}
-
-#[derive(Clone, Copy)]
-enum FunctionRefName {
-    Declared(Symbol),
-    Display(Symbol),
 }
 
 enum FunctionRefTarget {
@@ -123,6 +121,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             block_labels: FxHashMap::default(),
             block_order: Vec::new(),
             value_labels: FxHashMap::default(),
+            immutable_names: FxHashMap::default(),
             abi_layouts: Vec::new(),
             storage_layouts: Vec::new(),
             pending_gt: 0,
@@ -148,19 +147,29 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a function name: an identifier, optionally with `.`-joined
     /// segments (`f.body`), as minted by the ABI lowering.
-    fn parse_function_name(&mut self) -> PResult<'sess, Symbol> {
+    fn parse_function_name(&mut self) -> PResult<'sess, MangledSymbol> {
         let first = self.parser.parse_ident()?;
-        if !self.parser.eat(TokenKind::Dot) {
-            return Ok(first);
-        }
         let mut name = first.to_string();
-        name.push('.');
-        name.push_str(self.parser.parse_ident()?.as_str());
         while self.parser.eat(TokenKind::Dot) {
             name.push('.');
             name.push_str(self.parser.parse_ident()?.as_str());
         }
-        Ok(Symbol::intern(&name))
+        let symbol = Symbol::intern(&name);
+        let TokenKind::Literal(TokenLitKind::Rational, suffix) = self.parser.token().kind else {
+            return Ok(MangledSymbol::new(symbol));
+        };
+        let Some(disambiguator) = suffix.as_str().strip_prefix('.') else {
+            return Ok(MangledSymbol::new(symbol));
+        };
+        let disambiguator = disambiguator
+            .parse::<u32>()
+            .map_err(|_| self.parser.error("invalid function disambiguator"))?;
+        if disambiguator == u32::MAX {
+            return Err(self.parser.error("invalid function disambiguator"));
+        }
+        let disambiguator = Disambiguator::new(disambiguator as usize);
+        self.parser.bump();
+        Ok(MangledSymbol::disambiguated(symbol, disambiguator))
     }
 
     // ----- module / function parsing -----
@@ -190,6 +199,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         module.phase = phase;
         let mut function_refs = Vec::new();
 
+        if self.parser.check_keyword(sym::immutables) {
+            self.parse_immutable_declarations(&mut module)?;
+        }
+
         while !self.parser.is_eof() {
             let func = self.parse_function()?;
             let function = module.add_function(func);
@@ -204,32 +217,54 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(module)
     }
 
+    fn parse_immutable_declarations(&mut self, module: &mut Module) -> PResult<'sess, ()> {
+        self.parser.expect_keyword(sym::immutables)?;
+        self.parser.expect(TokenKind::Colon)?;
+        while !self.parser.is_eof()
+            && !(self.parser.check_keyword(sym::fn_)
+                && self.parser.look_ahead(1).kind == TokenKind::At)
+        {
+            let name_span = self.parser.token().span;
+            let name = self.parser.parse_ident()?;
+            self.parser.expect(TokenKind::Colon)?;
+            let ty = self.parse_type()?;
+            match self.immutable_names.entry(name) {
+                StdEntry::Occupied(entry) => {
+                    return Err(self.parser.error_at(
+                        name_span,
+                        format!("duplicate immutable declaration `{}`", entry.key()),
+                    ));
+                }
+                StdEntry::Vacant(entry) => {
+                    let id = module.add_immutable(Ident::new(name, name_span), ty);
+                    entry.insert((id, ty));
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn resolve_function_refs(
         &self,
         module: &mut Module,
         function_refs: Vec<(FunctionId, PendingFunctionRef)>,
     ) -> PResult<'sess, ()> {
-        let mut functions = FxHashMap::<Symbol, Vec<FunctionId>>::default();
-        let mut displayed_functions = FxHashMap::<Symbol, Vec<FunctionId>>::default();
+        let mut declarations = FxHashMap::<MangledSymbol, Vec<FunctionId>>::default();
         for (id, function) in module.functions.iter_enumerated() {
-            functions.entry(function.name.name).or_default().push(id);
-            let displayed_name = Symbol::intern(&format!("{}{}", function.name, id.index()));
-            displayed_functions.entry(displayed_name).or_default().push(id);
+            declarations.entry(function.name).or_default().push(id);
         }
         for (owner, reference) in function_refs {
-            let (name, matches) = match reference.name {
-                FunctionRefName::Declared(name) => (name, functions.get(&name)),
-                FunctionRefName::Display(name) => (name, displayed_functions.get(&name)),
-            };
+            let matches = declarations.get(&reference.name);
             let Some(matches) = matches else {
-                return Err(self
-                    .parser
-                    .error_at(reference.span, format!("unknown function reference `{name}`")));
+                return Err(self.parser.error_at(
+                    reference.span,
+                    format!("unknown function reference `{}`", reference.name),
+                ));
             };
             let [function] = matches.as_slice() else {
                 return Err(self.parser.error_at(
                     reference.span,
-                    format!("function reference `{name}` is ambiguous"),
+                    format!("function reference `{}` is ambiguous", reference.name),
                 ));
             };
             match reference.target {
@@ -263,8 +298,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parser.expect_keyword(sym::fn_)?;
         self.parser.expect(TokenKind::At)?;
         let name = self.parse_function_name()?;
-        let func_ident = Ident::with_dummy_span(name);
+        let func_ident = Ident::with_dummy_span(name.symbol);
         let mut func = Function::new(func_ident);
+        func.name = name;
         let block_remap = {
             let mut builder = FunctionBuilder::new(&mut func);
 
@@ -443,16 +479,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let ty = if let Some(rest) = id_str.strip_prefix('u') {
             let bits: u16 =
                 rest.parse().map_err(|_| self.parser.error(format!("invalid u-type `{id}`")))?;
-            MirType::UInt(bits)
+            let size = TypeSize::try_new_int_bits(bits)
+                .filter(|size| size.bits_raw() != 0)
+                .ok_or_else(|| self.parser.error(format!("invalid u-type `{id}`")))?;
+            MirType::UInt(size)
         } else if let Some(rest) = id_str.strip_prefix('i') {
             let bits: u16 =
                 rest.parse().map_err(|_| self.parser.error(format!("invalid i-type `{id}`")))?;
-            MirType::Int(bits)
+            let size = TypeSize::try_new_int_bits(bits)
+                .filter(|size| size.bits_raw() != 0)
+                .ok_or_else(|| self.parser.error(format!("invalid i-type `{id}`")))?;
+            MirType::Int(size)
         } else if let Some(rest) = id_str.strip_prefix("bytes") {
             let n: u8 = rest
                 .parse()
                 .map_err(|_| self.parser.error(format!("invalid bytes type `{id}`")))?;
-            MirType::FixedBytes(n)
+            let size = TypeSize::try_new_fb_bytes(n)
+                .ok_or_else(|| self.parser.error(format!("invalid bytes type `{id}`")))?;
+            MirType::FixedBytes(size)
         } else {
             match id {
                 kw::Bool => MirType::Bool,
@@ -802,16 +846,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if self.parser.eat(TokenKind::At) {
             let span = self.parser.token().span;
             let name = self.parse_function_name()?;
-            self.pending_function_ref = Some((FunctionRefName::Declared(name), span));
+            self.pending_function_ref = Some((name, span));
             return Ok(FunctionId::from_usize(0));
         }
         let span = self.parser.token().span;
-        let name = self.parse_function_name()?;
+        let name = self.parser.parse_ident()?;
         if let Some(index) = name.as_str().strip_prefix("fn").and_then(|s| s.parse().ok()) {
             return Ok(FunctionId::from_usize(index));
         }
-        self.pending_function_ref = Some((FunctionRefName::Display(name), span));
-        Ok(FunctionId::from_usize(0))
+        Err(self.parser.error_at(span, format!("invalid function reference `{name}`")))
     }
 
     fn finish_function_ref(&mut self, target: FunctionRefTarget) {
@@ -1131,6 +1174,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::internal_call => EffectKind::InternalCall,
             kw::Create => EffectKind::Create,
             sym::log => EffectKind::Log,
+            sym::immutable_read => EffectKind::ImmutableRead,
+            sym::immutable_write => EffectKind::ImmutableWrite,
             _ => return Err(self.parser.error(format!("unknown effect metadata value `{value}`"))),
         })
     }
@@ -1139,6 +1184,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         value
             .try_into()
             .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u32")))
+    }
+
+    fn parse_immutable_ref(&mut self) -> PResult<'sess, (ImmutableId, MirType)> {
+        let span = self.parser.token().span;
+        let name = self.parser.parse_ident()?;
+        self.immutable_names.get(&name).copied().ok_or_else(|| {
+            self.parser.error_at(span, format!("unknown immutable declaration `{name}`"))
+        })
     }
 
     fn u256_to_u16(&self, value: U256) -> PResult<'sess, u16> {
@@ -1401,13 +1454,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             sym::slice_ptr => inst!(SlicePtr(a) => MirType::uint256()),
             sym::slice_len => inst!(SliceLen(a) => MirType::uint256()),
+            sym::constructor_args_base => unit!(ConstructorArgsBase => MirType::uint256()),
 
             kw::Codesize => unit!(CodeSize => MirType::uint256()),
             kw::Codecopy => inst!(CodeCopy(a, b, c)),
+            sym::storeimmutable => {
+                let (id, _) = self.parse_immutable_ref()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let value = self.parse_value(builder)?;
+                (InstKind::StoreImmutable(id, value), None)
+            }
             kw::Loadimmutable => {
-                let offset = self.parser.parse_uint()?;
-                let offset = self.u256_to_u32(offset)?;
-                (InstKind::LoadImmutable(offset), Some(MirType::uint256()))
+                let (id, ty) = self.parse_immutable_ref()?;
+                (InstKind::LoadImmutable(id), Some(ty))
             }
             kw::Extcodesize => inst!(ExtCodeSize(a) => MirType::uint256()),
             kw::Extcodecopy => inst!(ExtCodeCopy(a, b, c, d)),
@@ -1431,9 +1490,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::Gas => unit!(Gas => MirType::uint256()),
             kw::Basefee => unit!(BaseFee => MirType::uint256()),
             kw::Blobbasefee => unit!(BlobBaseFee => MirType::uint256()),
-            kw::Blockhash => inst!(BlockHash(a) => MirType::FixedBytes(32)),
+            kw::Blockhash => inst!(BlockHash(a) => MirType::bytes32()),
             kw::Balance => inst!(Balance(a) => MirType::uint256()),
-            kw::Blobhash => inst!(BlobHash(a) => MirType::FixedBytes(32)),
+            kw::Blobhash => inst!(BlobHash(a) => MirType::bytes32()),
 
             // Hashing.
             kw::Keccak256 => inst!(Keccak256(a, b) => MirType::bytes32()),

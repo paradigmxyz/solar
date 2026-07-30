@@ -10,7 +10,7 @@ mod inst;
 mod lower;
 
 pub(in crate::backend::evm) use inst::{
-    AsmIndex, AsmInst, AsmInstKind, DeferredAlloc, PackedLabelsId, PushValueId,
+    AsmIndex, AsmInst, AsmInstKind, DeferredAlloc, ImmutablePushId, PackedLabelsId, PushValueId,
 };
 pub(crate) use inst::{DeferredConst, Label};
 pub(in crate::backend::evm) use lower::lower_evm_ir;

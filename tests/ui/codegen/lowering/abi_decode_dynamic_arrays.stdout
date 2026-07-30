@@ -329,8 +329,8 @@ fn @strs() {
     mstore v97, 0
     jump bb24
   bb24:
-    v98 = add v85, 32
     v99 = add v94, v93
+    v98 = add v85, 32
     mcopy v94, v98, v90
     mstore v78, v99
     v100 = mload v69

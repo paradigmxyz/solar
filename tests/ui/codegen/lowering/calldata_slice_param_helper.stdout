@@ -10,9 +10,9 @@ fn @lastWord() {
   bb1:
     revert 0, 0
   bb2:
-    v6 = add arg0, 36
     v7 = add arg0, 4
     v8 = calldataload v7
+    v6 = add arg0, 36
     v3 = internal_call @_last, 1, v6, v8
     mstore 128, v3
     returndata 128, 32

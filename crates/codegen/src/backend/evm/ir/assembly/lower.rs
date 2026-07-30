@@ -476,8 +476,10 @@ fn estimated_block_size(
 ) -> usize {
     let mut size = 1usize;
     for inst in &block.instructions {
-        let inst_size = if inst.deferred_push().is_some() || inst.immutable_push().is_some() {
+        let inst_size = if inst.deferred_push().is_some() {
             33
+        } else if let Some(type_size) = inst.immutable_type_size() {
+            usize::from(type_size.bytes()) + 1
         } else if inst.is_encoded_push() {
             match &inst.value {
                 Some(ir::PushValue::Immediate(value)) => push_len(*value, evm_version),
@@ -599,8 +601,9 @@ fn lower_instruction(
 ) -> AsmInst {
     if let Some(id) = inst.deferred_push() {
         AsmInst::push_deferred(id)
-    } else if let Some(value) = inst.immutable_push() {
-        AsmInst::push_immutable(u32::try_from(value).expect("validated immutable ID must fit u32"))
+    } else if let Some(id) = inst.immutable_push() {
+        let type_size = inst.immutable_type_size().expect("validated immutable width");
+        assembler.immutable_push_inst(id, type_size)
     } else if inst.is_encoded_push() {
         match &inst.value {
             Some(ir::PushValue::Immediate(value)) => assembler.push_inst(*value),
@@ -768,9 +771,12 @@ fn label_for_block(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::evm::{
-        assembler::AsmInstKind,
-        ir::{Block, Instruction, Terminator, TerminatorKind},
+    use crate::{
+        backend::evm::{
+            assembler::AsmInstKind,
+            ir::{Block, Instruction, Terminator, TerminatorKind},
+        },
+        mir::{ImmutableId, TypeSize},
     };
     use alloy_primitives::U256;
     use solar_interface::{Session, sym};
@@ -849,6 +855,21 @@ mod tests {
     }
 
     #[test]
+    fn estimates_typed_immutable_width() {
+        let mut module = ir::Module::new(sym::module);
+        let entry = module.add_block(Block::new(0));
+        module.blocks[entry]
+            .instructions
+            .push(Instruction::push_immutable(ImmutableId::new(0), TypeSize::new_int_bits(8)));
+        module.blocks[entry].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+
+        assert_eq!(
+            estimated_block_size(&module, entry, &module.blocks[entry], EvmVersion::Osaka, 2, None),
+            3
+        );
+    }
+
+    #[test]
     fn indexed_jump_entries_are_reachable_blocks() {
         let mut module = ir::Module::new(sym::module);
         let entry = module.add_block(Block::new(0));
@@ -907,7 +928,10 @@ mod tests {
         let entry = module.add_block(Block::new(0));
         let target = module.add_block(Block::new(1));
         for id in 0..8 {
-            module.blocks[entry].instructions.push(Instruction::push_immutable(id));
+            module.blocks[entry].instructions.push(Instruction::push_immutable(
+                ImmutableId::new(id),
+                TypeSize::new_int_bits(256),
+            ));
         }
         module.blocks[entry].terminator =
             Some(Terminator::new(TerminatorKind::IndexedJump(vec![target].into_boxed_slice())));
@@ -938,7 +962,10 @@ mod tests {
             Some(Terminator::new(TerminatorKind::IndexedJump(targets.clone().into_boxed_slice())));
         let padding = module.add_block(Block::new(18));
         for id in 0..8 {
-            module.blocks[padding].instructions.push(Instruction::push_immutable(id));
+            module.blocks[padding].instructions.push(Instruction::push_immutable(
+                ImmutableId::new(id),
+                TypeSize::new_int_bits(256),
+            ));
         }
         module.blocks[padding].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 
@@ -959,7 +986,10 @@ mod tests {
         let entry = module.add_block(Block::new(0));
         let padding = module.add_block(Block::new(1));
         for id in 0..8 {
-            module.blocks[padding].instructions.push(Instruction::push_immutable(id));
+            module.blocks[padding].instructions.push(Instruction::push_immutable(
+                ImmutableId::new(id),
+                TypeSize::new_int_bits(256),
+            ));
         }
         module.blocks[padding].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
         let targets = (2..=11)
@@ -996,7 +1026,10 @@ mod tests {
             Some(Terminator::new(TerminatorKind::IndexedJump(targets.clone().into_boxed_slice())));
         let padding = module.add_block(Block::new(34));
         for id in 0..8 {
-            module.blocks[padding].instructions.push(Instruction::push_immutable(id));
+            module.blocks[padding].instructions.push(Instruction::push_immutable(
+                ImmutableId::new(id),
+                TypeSize::new_int_bits(256),
+            ));
         }
         module.blocks[padding].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 
@@ -1030,7 +1063,10 @@ mod tests {
             Some(Terminator::new(TerminatorKind::IndexedJump(targets.clone().into_boxed_slice())));
         let padding = module.add_block(Block::new(25));
         for id in 0..8 {
-            module.blocks[padding].instructions.push(Instruction::push_immutable(id));
+            module.blocks[padding].instructions.push(Instruction::push_immutable(
+                ImmutableId::new(id),
+                TypeSize::new_int_bits(256),
+            ));
         }
         module.blocks[padding].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 

@@ -45,9 +45,6 @@ bb0:
   mstore
   jump bb7
 bb7:
-  push 128
-  mload
-  pop
   dup1
   push 224
   mstore
@@ -61,14 +58,13 @@ bb3 [cold]:
   dup1
   revert
 bb8:
+  push 4
+  dup2
+  sub
   push 36
   push 4
   calldataload
   add
-  push 4
-  dup3
-  sub
-  swap1
   push 4
   add
   push 128

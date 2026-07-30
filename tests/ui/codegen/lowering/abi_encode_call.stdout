@@ -58,8 +58,8 @@ fn @asValue() {
     mstore v37, 0
     jump bb8
   bb8:
-    v38 = add v17, 32
     v39 = add v34, v33
+    v38 = add v17, 32
     mcopy v34, v38, v30
     v40 = sub v39, v27
     v42 = add v40, 31

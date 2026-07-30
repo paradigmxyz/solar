@@ -100,8 +100,8 @@ fn @push() {
   bb6:
     mstore 0, 2 !metadata(memory=scratch)
     v25 = shl 1, v21
-    v26 = add v25, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
     v28 = mload v18
+    v26 = add v25, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
     sstore v26, v28 !metadata(storage=symbolic(v26))
     v30 = mload v20
     v31 = add v25, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5acf

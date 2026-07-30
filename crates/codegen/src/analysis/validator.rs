@@ -26,6 +26,8 @@
 //!     use its definition can never reach is garbage on every execution.
 //! 11. **Call consistency**: internal and tail-call targets exist and their argument counts match
 //!     the callee.
+//! 12. **Immutable consistency**: immutable declarations and stores use supported representations,
+//!     and loads use the declared type.
 //!
 //! # Usage
 //!
@@ -42,7 +44,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_interface::diagnostics::DiagCtxt;
+use solar_interface::{diagnostics::DiagCtxt, kw};
 use std::fmt;
 
 /// Stateful MIR verifier.
@@ -89,6 +91,7 @@ impl<'a> Validator<'a> {
 
     fn validate_function(&mut self, module: &Module, func: &Function) {
         self.validate_function_body(func);
+        self.validate_immutables(module, func);
         self.validate_calls(module, func);
         self.validate_function_phase(module, func);
     }
@@ -446,9 +449,80 @@ impl<'a> Validator<'a> {
         }
     }
 
+    fn validate_immutables(&mut self, module: &Module, func: &Function) {
+        for inst_id in func.instructions() {
+            let inst = func.inst(inst_id);
+            match inst.kind {
+                InstKind::LoadImmutable(id) => {
+                    match (module.get_immutable_type(id), inst.result_ty) {
+                        (Some(expected), Some(actual)) if actual != expected => {
+                            self.emit(format_args!(
+                                "inst{} loads immutable {} as `{actual}`, expected `{expected}`",
+                                inst_id.index(),
+                                id.index(),
+                            ));
+                        }
+                        (Some(_), None) => self.emit(format_args!(
+                            "inst{} loads immutable {} without a result type",
+                            inst_id.index(),
+                            id.index(),
+                        )),
+                        (None, _) => self.emit(format_args!(
+                            "inst{} loads nonexistent immutable {}",
+                            inst_id.index(),
+                            id.index()
+                        )),
+                        _ => {}
+                    }
+                }
+                InstKind::StoreImmutable(id, value) => {
+                    let Some(immutable) = module.get_immutable(id) else {
+                        self.emit(format_args!(
+                            "inst{} stores nonexistent immutable {}",
+                            inst_id.index(),
+                            id.index()
+                        ));
+                        continue;
+                    };
+                    if let Some(actual) = func.value_ty(value)
+                        && actual.immutable_encoding().is_none()
+                    {
+                        self.emit(format_args!(
+                            "inst{} stores `{actual}` value into immutable `{}` of type `{}`",
+                            inst_id.index(),
+                            immutable.name,
+                            immutable.ty,
+                        ));
+                    }
+                }
+                InstKind::ConstructorArgsBase
+                    if !func.attributes.is_constructor && func.name.symbol != kw::Constructor =>
+                {
+                    self.emit(format_args!(
+                        "inst{} uses the constructor argument base outside a constructor",
+                        inst_id.index()
+                    ));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn validate_immutable_declarations(&mut self, module: &Module) {
+        for (_, immutable) in module.iter_immutables() {
+            if immutable.ty.immutable_encoding().is_none() {
+                self.emit(format_args!(
+                    "immutable `{}` cannot use type `{}`",
+                    immutable.name, immutable.ty
+                ));
+            }
+        }
+    }
+
     /// Validates every function in a module.
     fn validate_module(mut self, module: &Module) {
         self.validate_module_phase(module);
+        self.validate_immutable_declarations(module);
         for (id, func) in module.iter_functions() {
             self.function = Some(id);
             self.validate_function(module, func);
@@ -628,6 +702,7 @@ impl<'a> Validator<'a> {
                         InstKind::StorageToMemory { .. }
                         | InstKind::MemoryToStorage { .. }
                         | InstKind::ClearStorage { .. } => Some("aggregate"),
+                        InstKind::StoreImmutable(..) => Some("immutable assignment"),
                         _ => None,
                     };
                     if let Some(semantic_op) = semantic_op {

@@ -21,6 +21,9 @@ newtype_index! {
 
     /// A packed-label immediate identifier.
     pub(in crate::backend::evm) struct PackedLabelsId;
+
+    /// An interned immutable placeholder identifier.
+    pub(in crate::backend::evm) struct ImmutablePushId;
 }
 
 pub(in crate::backend::evm) trait AsmIndex: Idx {
@@ -52,6 +55,10 @@ impl AsmIndex for DeferredAlloc {
 
 impl AsmIndex for PushValueId {
     const NAME: &'static str = "assembler push value index";
+}
+
+impl AsmIndex for ImmutablePushId {
+    const NAME: &'static str = "assembler immutable push index";
 }
 
 impl AsmIndex for PackedLabelsId {
@@ -109,8 +116,8 @@ impl AsmInst {
         Self::tagged(Self::TAG_PUSH_DEFERRED, id.inst_payload())
     }
 
-    pub(in crate::backend::evm) fn push_immutable(id: u32) -> Self {
-        Self::tagged(Self::TAG_PUSH_IMMUTABLE, id)
+    pub(in crate::backend::evm) fn push_immutable(id: ImmutablePushId) -> Self {
+        Self::tagged(Self::TAG_PUSH_IMMUTABLE, id.inst_payload())
     }
 
     pub(in crate::backend::evm) fn label(label: Label) -> Self {
@@ -135,7 +142,9 @@ impl AsmInst {
             Self::TAG_PUSH_DEFERRED => {
                 AsmInstKind::PushDeferred(DeferredConst::from_inst_payload(payload))
             }
-            Self::TAG_PUSH_IMMUTABLE => AsmInstKind::PushImmutable(payload),
+            Self::TAG_PUSH_IMMUTABLE => {
+                AsmInstKind::PushImmutable(ImmutablePushId::from_inst_payload(payload))
+            }
             Self::TAG_LABEL => AsmInstKind::Label(Label::from_inst_payload(payload)),
             Self::TAG_PUSH_LABEL_FIXED => {
                 let label = Label::from_inst_payload(payload & Self::FIXED_LABEL_MASK);
@@ -159,6 +168,6 @@ pub(in crate::backend::evm) enum AsmInstKind {
     PushLabelFixed(Label, u8),
     PushPackedLabels(PackedLabelsId),
     PushDeferred(DeferredConst),
-    PushImmutable(u32),
+    PushImmutable(ImmutablePushId),
     Label(Label),
 }
