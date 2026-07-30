@@ -181,12 +181,9 @@ bb26:
   push bb23
   jumpi
   push 352
-  mload
-  dup1
-  push 352
   jump bb24
 bb24:
-  mstore
+  mload
   push 128
   mstore
   push 128
@@ -236,8 +233,5 @@ bb27:
   gt
   push bb23
   jumpi
-  push 416
-  mload
-  dup1
   push 416
   jump bb24
