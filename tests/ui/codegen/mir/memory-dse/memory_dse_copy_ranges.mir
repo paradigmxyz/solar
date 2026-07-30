@@ -42,3 +42,16 @@ fn @forward_fresh_array_length() -> u256 {
     v3 = mload v0
     ret v3
 }
+
+// A zero-length copy does not clobber a value stored through another base.
+// CHECK-LABEL: {{^[ +].*}}fn @forward_across_zero_length_copy{{[( ]}}
+// CHECK: {{^[ +].*}}calldatacopy
+// CHECK: + ret 1
+fn @forward_across_zero_length_copy() -> u256 {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v0, 1
+    calldatacopy 0, 0, 0
+    v1 = mload v0
+    ret v1
+}

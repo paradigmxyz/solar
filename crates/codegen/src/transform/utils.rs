@@ -22,12 +22,12 @@ pub(super) fn redirect_successor_predecessors(func: &mut Function, from: BlockId
                 *predecessor = to;
             }
         }
-        let phi_insts: Vec<_> = func.blocks[successor]
+        let phi_insts = func.blocks[successor]
             .instructions
             .iter()
             .copied()
             .take_while(|inst| matches!(func.inst(*inst).kind, InstKind::Phi(_)))
-            .collect();
+            .collect::<Vec<_>>();
         for phi in phi_insts {
             let InstKind::Phi(incoming) = &mut func.inst_mut(phi).kind else { unreachable!() };
             for (predecessor, _) in incoming {

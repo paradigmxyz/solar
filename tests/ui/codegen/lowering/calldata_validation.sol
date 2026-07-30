@@ -1,5 +1,7 @@
-//@compile-flags: -Zcodegen -O none -Zdump=mir
-//@filecheck:
+//@run-call: nestedFixed [[1, 2], [3, 4]], 9 => 19
+//@run-call: dynamicFixed [0x12, 0x3456], 7 => 10
+//@run-call: rejectsDirtyBoolArray() => true
+//@run-call: rejectsDirtyBoolArrayEncoding() => true
 
 // Pins the calldata lower-bound check and validators emitted for value-type
 // external parameters.
@@ -86,5 +88,51 @@ contract CalldataValidation {
     // CHECK: add arg0, arg1
     function vFull(uint256 a, bytes32 b, int256 c) external pure returns (uint256) {
         return a + uint256(b) + uint256(c);
+    }
+
+    function nestedFixed(uint256[2][2] calldata values, uint256 marker)
+        external
+        pure
+        returns (uint256)
+    {
+        return values[0][0] + values[0][1] + values[1][0] + values[1][1] + marker;
+    }
+
+    function dynamicFixed(bytes[2] calldata values, uint256 marker)
+        external
+        pure
+        returns (uint256)
+    {
+        return values[0].length + values[1].length + marker;
+    }
+
+    function boolMemory(bool[] memory values) external pure returns (bool) {
+        return values[0];
+    }
+
+    function rejectsDirtyBoolArray() external returns (bool rejected) {
+        assembly {
+            let payload := mload(0x40)
+            mstore(payload, shl(224, 0x66229b79))
+            mstore(add(payload, 4), 32)
+            mstore(add(payload, 36), 1)
+            mstore(add(payload, 68), 2)
+            rejected := iszero(call(gas(), address(), 0, payload, 100, 0, 0))
+        }
+    }
+
+    function reencodeBool(bool[] calldata values) external pure returns (bytes memory) {
+        return abi.encode(values);
+    }
+
+    function rejectsDirtyBoolArrayEncoding() external returns (bool rejected) {
+        assembly {
+            let payload := mload(0x40)
+            mstore(payload, shl(224, 0xe5cd4dbb))
+            mstore(add(payload, 4), 32)
+            mstore(add(payload, 36), 1)
+            mstore(add(payload, 68), 2)
+            rejected := iszero(call(gas(), address(), 0, payload, 100, 0, 0))
+        }
     }
 }

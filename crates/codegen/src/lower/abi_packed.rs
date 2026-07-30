@@ -124,6 +124,8 @@ impl<'gcx> Lowerer<'gcx> {
                 let value = self.lower_value_expr(builder, arg);
                 let ptr = if Self::value_is_calldata_slice(builder, value) {
                     self.materialize_calldata_bytes(builder, value)
+                } else if Self::value_is_memory_slice(builder, value) {
+                    self.materialize_memory_slice_bytes(builder, value)
                 } else {
                     value
                 };
@@ -492,6 +494,7 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::IntLiteral(..) => 32,
             TyKind::Contract(_) | TyKind::Super(_) => 20,
             TyKind::Enum(_) => 1,
+            TyKind::Fn(function) if function.is_external() => 24,
             TyKind::Udvt(inner, _) => self.get_packed_size_from_ty(inner),
             TyKind::Ref(inner, _) => self.get_packed_size_from_ty(inner),
             _ => 32,

@@ -90,27 +90,4 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn is_dynamic_bytes_expr(&self, expr: &hir::Expr<'_>) -> bool {
         self.expr_has_bytes_or_string_type(expr)
     }
-
-    pub(super) fn expr_struct_id(&self, expr: &hir::Expr<'_>) -> Option<hir::StructId> {
-        if let Some(var_id) = self.gcx.resolved_variable(expr)
-            && self.struct_storage_base_slots.contains_key(&var_id)
-        {
-            return None;
-        }
-
-        let ty = self.get_expr_type(expr)?;
-        let TyKind::Struct(struct_id) = ty.peel_refs().kind else { return None };
-        Some(struct_id)
-    }
-
-    /// Gets struct info for an expression if it has a struct type.
-    /// Returns (struct_id, field_count) if the expression is a struct.
-    pub(super) fn get_expr_struct_info(
-        &self,
-        expr: &hir::Expr<'_>,
-    ) -> Option<(hir::StructId, usize)> {
-        let struct_id = self.expr_struct_id(expr)?;
-        let field_count = self.gcx.struct_field_types(struct_id).len();
-        Some((struct_id, field_count))
-    }
 }

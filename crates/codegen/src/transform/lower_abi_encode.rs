@@ -233,6 +233,11 @@ fn encode_static(
     head_addr: ValueId,
 ) {
     match ty {
+        AbiType::ExternalFunction => {
+            let shift = builder.imm_u64(64);
+            let encoded = builder.shl(shift, value);
+            builder.mstore(head_addr, encoded);
+        }
         AbiType::Tuple(fields) => {
             let mut field_head = head_addr;
             for (index, field) in fields.iter().enumerate() {
@@ -315,7 +320,9 @@ fn encode_dynamic_body(
         } => {
             unreachable!("non-word calldata arrays are materialized before ABI encoding")
         }
-        AbiType::Word => unreachable!("word ABI values are static"),
+        AbiType::Word | AbiType::ExternalFunction => {
+            unreachable!("word ABI values are static")
+        }
     }
 }
 

@@ -1,6 +1,8 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen -O none -Zdump=mir
-//@filecheck:
+//@run-call: staticPair 7 => (7, 8)
+//@run-call: callStaticPair 11 => 23
+//@run-call: callNestedArray 3 => 3
+//@run-call: verifyDirectDelegatecall() => 42
 
 contract AbiNestedReturn {
     struct Pair {
@@ -29,5 +31,33 @@ contract AbiNestedReturn {
         uint256[][] memory out = new uint256[][](1);
         out[0] = new uint256[](n);
         return out;
+    }
+
+    function staticPair(uint256 x) public pure returns (Pair memory) {
+        return Pair(x, x + 1);
+    }
+
+    function callStaticPair(uint256 x) external view returns (uint256) {
+        Pair memory pair = this.staticPair(x);
+        return pair.a + pair.b;
+    }
+
+    function callNestedArray(uint256 n) external view returns (uint256) {
+        uint256[][] memory out = this.nestedArray(n);
+        return out[0].length;
+    }
+
+    function answer() external pure returns (uint256) {
+        return 42;
+    }
+
+    function directDelegatecall() external returns (bool, bytes memory) {
+        return address(this).delegatecall(abi.encodeWithSignature("answer()"));
+    }
+
+    function verifyDirectDelegatecall() external returns (uint256) {
+        (bool success, bytes memory data) = this.directDelegatecall();
+        require(success);
+        return abi.decode(data, (uint256));
     }
 }

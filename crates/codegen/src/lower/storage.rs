@@ -1,4 +1,4 @@
-use super::Lowerer;
+use super::{Lowerer, checked_arith::PanicCode};
 use crate::mir::{
     FunctionBuilder, MemoryObjectKind, MemoryObjectLayout, StorageField, StorageLayout,
     StorageLayoutRef, ValueId,
@@ -33,6 +33,98 @@ impl StorageLocation {
 }
 
 impl<'gcx> Lowerer<'gcx> {
+    /// Loads one Solidity value from a runtime-computed storage slot,
+    /// recursively materializing reference values into memory.
+    pub(super) fn load_storage_value_at(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        slot: ValueId,
+    ) -> ValueId {
+        match ty.peel_refs().kind {
+            TyKind::Struct(struct_id) => {
+                let fields = self.gcx.struct_field_types(struct_id).len().max(1) as u64;
+                let ptr =
+                    self.allocate_memory_object(builder, fields * 32, MemoryObjectKind::Struct);
+                self.copy_storage_to_memory_at(builder, struct_id, slot, ptr, 0);
+                ptr
+            }
+            TyKind::Array(element_ty, len) => {
+                let Ok(len) = u64::try_from(len) else {
+                    return self.err_value(
+                        builder,
+                        Span::DUMMY,
+                        "fixed-size storage array is too large to materialize",
+                    );
+                };
+                let Some(size) = len.checked_mul(32) else {
+                    return self.err_value(
+                        builder,
+                        Span::DUMMY,
+                        "fixed-size storage array is too large to materialize",
+                    );
+                };
+                let ptr = self.allocate_memory(builder, size);
+                let element_slots = self.calculate_storage_slots_for_ty(element_ty, Span::DUMMY);
+                for index in 0..len {
+                    let element_slot =
+                        self.offset_storage_slot(builder, slot, index * element_slots);
+                    let value = self.load_storage_value_at(builder, element_ty, element_slot);
+                    let address = self.offset_ptr(builder, ptr, index * 32);
+                    builder.mstore(address, value);
+                }
+                ptr
+            }
+            TyKind::DynArray(element_ty) => self.load_storage_dyn_array(builder, slot, element_ty),
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                self.materialize_storage_bytes(builder, slot)
+            }
+            TyKind::Mapping(..) => slot,
+            _ => builder.sload(slot),
+        }
+    }
+
+    fn load_storage_dyn_array(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slot: ValueId,
+        element_ty: Ty<'gcx>,
+    ) -> ValueId {
+        let len = builder.sload(slot);
+        let shift = builder.imm_u64(251);
+        let too_big = builder.shr(shift, len);
+        self.emit_panic_if(builder, too_big, PanicCode::MemoryAllocationOverflow);
+        let word = builder.imm_u64(32);
+        let byte_len = builder.mul(len, word);
+        let total = builder.add(byte_len, word);
+        let overflow = builder.lt(total, byte_len);
+        self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
+
+        let ptr =
+            self.allocate_memory_object_dynamic(builder, total, MemoryObjectKind::DynamicArray);
+        builder.set_memory_object_len(ptr, len, MemoryObjectKind::DynamicArray);
+        let data = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
+
+        let scratch = builder.imm_u64(0);
+        builder.mstore(scratch, slot);
+        let data_slot = builder.keccak256(scratch, word);
+        let element_slots = self.calculate_storage_slots_for_ty(element_ty, Span::DUMMY);
+        self.emit_decode_elements_loop(builder, len, move |this, builder, index| {
+            let element_slot = if element_slots == 1 {
+                builder.add(data_slot, index)
+            } else {
+                let stride = builder.imm_u64(element_slots);
+                let offset = builder.mul(index, stride);
+                builder.add(data_slot, offset)
+            };
+            let value = this.load_storage_value_at(builder, element_ty, element_slot);
+            let memory_offset = builder.mul(index, word);
+            let address = builder.add(data, memory_offset);
+            builder.mstore(address, value);
+        });
+        ptr
+    }
+
     /// Stores one Solidity value at a runtime-computed storage slot.
     pub(super) fn store_storage_value_at(
         &mut self,
@@ -41,12 +133,32 @@ impl<'gcx> Lowerer<'gcx> {
         slot: ValueId,
         value: ValueId,
     ) {
-        match ty.peel_refs().kind {
+        self.store_storage_value_from_memory_at(builder, ty, ty, slot, value);
+    }
+
+    /// Stores a memory value at a runtime-computed storage slot, preserving
+    /// source array lengths when Solidity permits a shorter fixed array to be
+    /// copied into a larger fixed or dynamic storage array.
+    pub(super) fn store_storage_value_from_memory_at(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        destination_ty: Ty<'gcx>,
+        source_ty: Ty<'gcx>,
+        slot: ValueId,
+        value: ValueId,
+    ) {
+        let destination_ty = destination_ty.peel_refs();
+        let source_ty = source_ty.peel_refs();
+        match destination_ty.kind {
             TyKind::Struct(struct_id) => {
-                let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
-                let fields = field_tys.len() as u64;
+                let destination_fields = self.gcx.struct_field_types(struct_id).to_vec();
+                let source_fields = match source_ty.kind {
+                    TyKind::Struct(source_id) => self.gcx.struct_field_types(source_id).to_vec(),
+                    _ => destination_fields.clone(),
+                };
+                let fields = destination_fields.len() as u64;
                 let mut storage_offset = 0;
-                for (index, field_ty) in field_tys.into_iter().enumerate() {
+                for (index, destination_field) in destination_fields.into_iter().enumerate() {
                     let memory = builder.memory_object_field_addr(
                         value,
                         MemoryObjectLayout::structure(fields),
@@ -54,32 +166,77 @@ impl<'gcx> Lowerer<'gcx> {
                     );
                     let field_value = builder.mload(memory);
                     let field_slot = self.offset_storage_slot(builder, slot, storage_offset);
-                    self.store_storage_value_at(builder, field_ty, field_slot, field_value);
-                    storage_offset += self.calculate_storage_slots_for_ty(field_ty, Span::DUMMY);
+                    let source_field =
+                        source_fields.get(index).copied().unwrap_or(destination_field);
+                    self.store_storage_value_from_memory_at(
+                        builder,
+                        destination_field,
+                        source_field,
+                        field_slot,
+                        field_value,
+                    );
+                    storage_offset +=
+                        self.calculate_storage_slots_for_ty(destination_field, Span::DUMMY);
                 }
             }
-            TyKind::Array(element_ty, len) => {
-                let Ok(len) = u64::try_from(len) else {
+            TyKind::Array(destination_element, destination_len) => {
+                let Ok(destination_len) = u64::try_from(destination_len) else {
                     self.gcx.dcx().err("fixed-size storage array is too large for codegen").emit();
                     return;
                 };
-                let element_slots = self.calculate_storage_slots_for_ty(element_ty, Span::DUMMY);
-                for index in 0..len {
-                    let index_value = builder.imm_u64(index);
-                    let memory = builder.memory_object_element_addr(
+                let (source_element, source_len) = match source_ty.kind {
+                    TyKind::Array(element, len) => {
+                        let Ok(len) = u64::try_from(len) else {
+                            self.gcx
+                                .dcx()
+                                .err("fixed-size memory array is too large for codegen")
+                                .emit();
+                            return;
+                        };
+                        (element, len)
+                    }
+                    _ => (destination_element, destination_len),
+                };
+                self.copy_memory_fixed_array_to_storage(
+                    builder,
+                    slot,
+                    value,
+                    source_element,
+                    source_len,
+                    destination_element,
+                    destination_len,
+                );
+            }
+            TyKind::DynArray(destination_element) => match source_ty.kind {
+                TyKind::Array(source_element, source_len) => {
+                    let Ok(source_len) = u64::try_from(source_len) else {
+                        self.gcx
+                            .dcx()
+                            .err("fixed-size memory array is too large for codegen")
+                            .emit();
+                        return;
+                    };
+                    self.copy_memory_array_to_dynamic_storage(
+                        builder,
+                        slot,
                         value,
-                        MemoryObjectLayout::word_fixed_array(len),
-                        index_value,
+                        source_element,
+                        Some(source_len),
+                        destination_element,
                     );
-                    let element_value = builder.mload(memory);
-                    let storage_offset = index.saturating_mul(element_slots);
-                    let element_slot = self.offset_storage_slot(builder, slot, storage_offset);
-                    self.store_storage_value_at(builder, element_ty, element_slot, element_value);
                 }
-            }
-            TyKind::DynArray(element_ty) => {
-                self.copy_memory_dyn_array_to_storage(builder, slot, value, element_ty);
-            }
+                TyKind::DynArray(source_element) => self.copy_memory_array_to_dynamic_storage(
+                    builder,
+                    slot,
+                    value,
+                    source_element,
+                    None,
+                    destination_element,
+                ),
+                _ => {
+                    self.copy_memory_dyn_array_to_storage(builder, slot, value, destination_element)
+                }
+            },
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 self.copy_memory_bytes_to_storage(builder, slot, value);
             }
@@ -124,9 +281,29 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.set_memory_object_len(empty, zero, MemoryObjectKind::Bytes);
                 self.copy_memory_bytes_to_storage(builder, slot, empty);
             }
+            TyKind::DynArray(element_ty) => {
+                let len = builder.sload(slot);
+                let scratch = builder.imm_u64(0);
+                builder.mstore(scratch, slot);
+                let word = builder.imm_u64(32);
+                let data_slot = builder.keccak256(scratch, word);
+                let element_slots = self.calculate_storage_slots_for_ty(element_ty, Span::DUMMY);
+                self.emit_decode_elements_loop(builder, len, move |this, builder, index| {
+                    let element_slot = if element_slots == 1 {
+                        builder.add(data_slot, index)
+                    } else {
+                        let stride = builder.imm_u64(element_slots);
+                        let offset = builder.mul(index, stride);
+                        builder.add(data_slot, offset)
+                    };
+                    this.clear_storage_value_at(builder, element_ty, element_slot);
+                });
+                let zero = builder.imm_u64(0);
+                builder.sstore(slot, zero);
+            }
             TyKind::Mapping(..) => {}
             TyKind::Err(_) => {}
-            _ if matches!(ty.kind, TyKind::DynArray(_)) || ty.is_value_type() => {
+            _ if ty.is_value_type() => {
                 let zero = builder.imm_u64(0);
                 builder.sstore(slot, zero);
             }
@@ -156,12 +333,21 @@ impl<'gcx> Lowerer<'gcx> {
         ty: Ty<'gcx>,
         span: Span,
     ) -> StorageLocation {
+        if self.storage_exhausted {
+            self.emit_storage_layout_overflow(span);
+            return StorageLocation::full_word(U256::MAX);
+        }
+
         if let Some(size) = self.packed_storage_size(ty)
             && size < StorageLocation::WORD_SIZE
         {
             if self.next_storage_offset + size > StorageLocation::WORD_SIZE {
-                self.next_storage_slot += U256::from(1);
+                self.advance_storage_cursor(1, span);
                 self.next_storage_offset = 0;
+                if self.storage_exhausted {
+                    self.emit_storage_layout_overflow(span);
+                    return StorageLocation::full_word(U256::MAX);
+                }
             }
             let location = StorageLocation {
                 slot: self.next_storage_slot,
@@ -170,32 +356,51 @@ impl<'gcx> Lowerer<'gcx> {
             };
             self.next_storage_offset += size;
             if self.next_storage_offset == StorageLocation::WORD_SIZE {
-                self.next_storage_slot += U256::from(1);
+                self.advance_storage_cursor(1, span);
                 self.next_storage_offset = 0;
             }
             return location;
         }
 
         if self.next_storage_offset != 0 {
-            self.next_storage_slot += U256::from(1);
+            self.advance_storage_cursor(1, span);
             self.next_storage_offset = 0;
+            if self.storage_exhausted {
+                self.emit_storage_layout_overflow(span);
+                return StorageLocation::full_word(U256::MAX);
+            }
         }
 
         let slot = self.next_storage_slot;
         let num_slots = self.calculate_storage_slots_for_ty(ty, span);
-        // Storage slots span the EVM's full 2^256 space; a layout that walks
-        // past its end wraps back onto earlier variables, so reject it.
-        match self.next_storage_slot.checked_add(U256::from(num_slots)) {
-            Some(next) => self.next_storage_slot = next,
-            None => {
-                self.gcx
-                    .dcx()
-                    .err("contract storage layout exceeds the addressable storage space")
-                    .span(span)
-                    .emit();
-            }
-        }
+        self.advance_storage_cursor(num_slots, span);
         StorageLocation::full_word(slot)
+    }
+
+    fn advance_storage_cursor(&mut self, slots: u64, span: Span) {
+        let slots = U256::from(slots);
+        if let Some(next) = self.next_storage_slot.checked_add(slots) {
+            self.next_storage_slot = next;
+            return;
+        }
+
+        // A range ending at slot `2^256 - 1` fits exactly, but its exclusive
+        // end cannot be represented by `U256`.
+        let last_offset = slots - U256::from(1);
+        if U256::MAX - self.next_storage_slot == last_offset {
+            self.storage_exhausted = true;
+        } else {
+            self.storage_exhausted = true;
+            self.emit_storage_layout_overflow(span);
+        }
+    }
+
+    fn emit_storage_layout_overflow(&self, span: Span) {
+        self.gcx
+            .dcx()
+            .err("contract storage layout exceeds the addressable storage space")
+            .span(span)
+            .emit();
     }
 
     /// Returns the byte width for scalar types that this lowering can safely pack.
@@ -380,21 +585,6 @@ impl<'gcx> Lowerer<'gcx> {
         layout
     }
 
-    /// Recursively copies a struct from storage to memory.
-    /// Allocates nested structs separately and stores their pointers in the parent.
-    /// Returns the next memory offset after all fields are copied.
-    pub(crate) fn copy_storage_to_memory(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        struct_id: hir::StructId,
-        base_slot: U256,
-        mem_ptr: ValueId,
-        mem_offset: u64,
-    ) -> u64 {
-        let base_slot = builder.imm_u256(base_slot);
-        self.copy_storage_to_memory_at(builder, struct_id, base_slot, mem_ptr, mem_offset)
-    }
-
     /// Recursively copies a struct from a runtime-computed storage slot to memory.
     pub(crate) fn copy_storage_to_memory_at(
         &mut self,
@@ -404,15 +594,27 @@ impl<'gcx> Lowerer<'gcx> {
         mem_ptr: ValueId,
         mem_offset: u64,
     ) -> u64 {
-        let layout = self.storage_layout_for_struct(struct_id);
         let memory = if mem_offset == 0 {
             mem_ptr
         } else {
             let offset = builder.imm_u64(mem_offset);
             builder.add(mem_ptr, offset)
         };
-        builder.storage_to_memory(Arc::clone(&layout), base_slot, memory);
-        mem_offset + layout.memory_words() * 32
+        if !self.struct_needs_deep_storage_copy(struct_id) {
+            let layout = self.storage_layout_for_struct(struct_id);
+            builder.storage_to_memory(Arc::clone(&layout), base_slot, memory);
+            return mem_offset + layout.memory_words() * 32;
+        }
+        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        let mut storage_offset = 0;
+        for (index, field_ty) in field_tys.iter().copied().enumerate() {
+            let field_slot = self.offset_storage_slot(builder, base_slot, storage_offset);
+            let value = self.load_storage_value_at(builder, field_ty, field_slot);
+            let field_address = self.offset_ptr(builder, memory, index as u64 * 32);
+            builder.mstore(field_address, value);
+            storage_offset += self.calculate_storage_slots_for_ty(field_ty, Span::DUMMY);
+        }
+        mem_offset + field_tys.len().max(1) as u64 * 32
     }
 
     /// Clears every storage slot occupied by a struct at a runtime-computed base slot.
@@ -422,54 +624,18 @@ impl<'gcx> Lowerer<'gcx> {
         struct_id: hir::StructId,
         base_slot: ValueId,
     ) {
-        let layout = self.storage_layout_for_struct(struct_id);
-        builder.clear_storage(layout, base_slot);
-    }
-
-    /// Recursively copies a struct from memory to storage.
-    /// Follows nested-struct pointers stored in the parent memory allocation.
-    /// Returns the next memory offset after all fields are read.
-    pub(crate) fn copy_memory_to_storage(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        struct_id: hir::StructId,
-        base_slot: U256,
-        mem_ptr: ValueId,
-        mem_offset: u64,
-    ) -> u64 {
-        let base_slot = builder.imm_u256(base_slot);
-        self.copy_memory_to_storage_at(builder, struct_id, base_slot, mem_ptr, mem_offset)
-    }
-
-    /// Recursively copies a struct from memory to a runtime-computed storage slot.
-    pub(crate) fn copy_memory_to_storage_at(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        struct_id: hir::StructId,
-        base_slot: ValueId,
-        mem_ptr: ValueId,
-        mem_offset: u64,
-    ) -> u64 {
-        let memory = if mem_offset == 0 {
-            mem_ptr
-        } else {
-            let offset = builder.imm_u64(mem_offset);
-            builder.add(mem_ptr, offset)
-        };
-        // Dynamic fields (bytes/string/dynamic arrays) do not fit the flat
-        // slot-for-word layout instruction; copy field by field so their
-        // storage length and data are written, not the memory pointer word.
-        if self.struct_needs_deep_storage_copy(struct_id) {
-            self.deep_copy_memory_struct_to_storage(builder, struct_id, base_slot, memory);
-            return mem_offset + self.calculate_memory_words_for_ty_struct(struct_id) * 32;
+        if !self.struct_needs_deep_storage_copy(struct_id) {
+            let layout = self.storage_layout_for_struct(struct_id);
+            builder.clear_storage(layout, base_slot);
+            return;
         }
-        let layout = self.storage_layout_for_struct(struct_id);
-        builder.memory_to_storage(Arc::clone(&layout), memory, base_slot);
-        mem_offset + layout.memory_words() * 32
-    }
-
-    fn calculate_memory_words_for_ty_struct(&self, struct_id: hir::StructId) -> u64 {
-        self.gcx.struct_field_types(struct_id).len().max(1) as u64
+        let fields = self.gcx.struct_field_types(struct_id).to_vec();
+        let mut storage_offset = 0;
+        for field_ty in fields {
+            let field_slot = self.offset_storage_slot(builder, base_slot, storage_offset);
+            self.clear_storage_value_at(builder, field_ty, field_slot);
+            storage_offset += self.calculate_storage_slots_for_ty(field_ty, Span::DUMMY);
+        }
     }
 
     /// Whether a struct (recursively) has a `bytes`/`string`/dynamic-array
@@ -490,66 +656,6 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Copies each field of a memory struct to storage, deep-copying dynamic
-    /// fields so their storage length and payload are written.
-    fn deep_copy_memory_struct_to_storage(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        struct_id: hir::StructId,
-        base_slot: ValueId,
-        mem_base: ValueId,
-    ) {
-        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
-        for (i, &field_ty) in field_tys.iter().enumerate() {
-            let field_slot_off = self.get_struct_field_slot_offset(struct_id, i);
-            let field_slot = if field_slot_off == 0 {
-                base_slot
-            } else {
-                let off = builder.imm_u64(field_slot_off);
-                builder.add(base_slot, off)
-            };
-            let mem_word_addr = if i == 0 {
-                mem_base
-            } else {
-                let off = builder.imm_u64((i as u64) * 32);
-                builder.add(mem_base, off)
-            };
-            let mem_word = builder.mload(mem_word_addr);
-            self.copy_memory_field_to_storage(builder, field_ty.peel_refs(), field_slot, mem_word);
-        }
-    }
-
-    /// Copies one struct field / array element from its memory word to a
-    /// storage slot. The memory word is a value for scalar fields or a pointer
-    /// for reference fields.
-    fn copy_memory_field_to_storage(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        ty: Ty<'gcx>,
-        slot: ValueId,
-        mem_word: ValueId,
-    ) {
-        match ty.peel_refs().kind {
-            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                self.copy_memory_bytes_to_storage(builder, slot, mem_word);
-            }
-            TyKind::DynArray(elem) => {
-                self.copy_memory_dyn_array_to_storage(builder, slot, mem_word, elem);
-            }
-            TyKind::Struct(id) => {
-                // `mem_word` is a pointer to the nested struct's memory.
-                self.copy_memory_to_storage_at(builder, id, slot, mem_word, 0);
-            }
-            TyKind::Array(elem, len) => {
-                self.copy_memory_fixed_array_to_storage(builder, slot, mem_word, elem, len.to());
-            }
-            _ => {
-                // A scalar field: its memory word is the value.
-                builder.sstore(slot, mem_word);
-            }
-        }
-    }
-
     /// Copies a memory dynamic array to a storage dynamic array at `slot`:
     /// writes the length, then each element at `keccak256(slot) + i *
     /// elem_slots`.
@@ -560,15 +666,35 @@ impl<'gcx> Lowerer<'gcx> {
         mem_ptr: ValueId,
         elem: Ty<'gcx>,
     ) {
-        let len = builder.memory_object_len(mem_ptr, MemoryObjectKind::DynamicArray);
+        self.copy_memory_array_to_dynamic_storage(builder, slot, mem_ptr, elem, None, elem);
+    }
+
+    fn copy_memory_array_to_dynamic_storage(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slot: ValueId,
+        mem_ptr: ValueId,
+        source_elem: Ty<'gcx>,
+        source_len: Option<u64>,
+        destination_elem: Ty<'gcx>,
+    ) {
+        let old_len = builder.sload(slot);
+        let len = source_len
+            .map(|len| builder.imm_u64(len))
+            .unwrap_or_else(|| builder.memory_object_len(mem_ptr, MemoryObjectKind::DynamicArray));
         builder.sstore(slot, len);
         let zero = builder.imm_u64(0);
         builder.mstore(zero, slot);
         let word = builder.imm_u64(32);
         let data_slot = builder.keccak256(zero, word);
-        let data_ptr = builder.memory_object_data(mem_ptr, MemoryObjectKind::DynamicArray);
-        let elem_slots = self.calculate_storage_slots_for_ty(elem, Span::DUMMY);
-        let elem = elem.peel_refs();
+        let data_ptr = if source_len.is_some() {
+            mem_ptr
+        } else {
+            builder.memory_object_data(mem_ptr, MemoryObjectKind::DynamicArray)
+        };
+        let elem_slots = self.calculate_storage_slots_for_ty(destination_elem, Span::DUMMY);
+        let source_elem = source_elem.peel_refs();
+        let destination_elem = destination_elem.peel_refs();
         self.emit_decode_elements_loop(builder, len, move |this, builder, index| {
             let mem_off = builder.mul(index, word);
             let mem_word_addr = builder.add(data_ptr, mem_off);
@@ -580,22 +706,49 @@ impl<'gcx> Lowerer<'gcx> {
                 let off = builder.mul(index, stride);
                 builder.add(data_slot, off)
             };
-            this.copy_memory_field_to_storage(builder, elem, elem_slot, mem_word);
+            this.store_storage_value_from_memory_at(
+                builder,
+                destination_elem,
+                source_elem,
+                elem_slot,
+                mem_word,
+            );
+        });
+
+        let shrunk = builder.lt(len, old_len);
+        let stale_len = builder.sub(old_len, len);
+        let stale_len = builder.select(shrunk, stale_len, zero);
+        self.emit_decode_elements_loop(builder, stale_len, move |this, builder, index| {
+            let stale_index = builder.add(len, index);
+            let elem_slot = if elem_slots == 1 {
+                builder.add(data_slot, stale_index)
+            } else {
+                let stride = builder.imm_u64(elem_slots);
+                let off = builder.mul(stale_index, stride);
+                builder.add(data_slot, off)
+            };
+            this.clear_storage_value_at(builder, destination_elem, elem_slot);
         });
     }
 
-    /// Copies a memory fixed-size array to consecutive storage slots.
+    /// Copies a memory fixed-size array to a fixed storage array, then clears
+    /// any destination elements beyond the source length.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn copy_memory_fixed_array_to_storage(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         slot: ValueId,
         mem_ptr: ValueId,
-        elem: Ty<'gcx>,
-        len: u64,
+        source_elem: Ty<'gcx>,
+        source_len: u64,
+        destination_elem: Ty<'gcx>,
+        destination_len: u64,
     ) {
-        let elem_slots = self.calculate_storage_slots_for_ty(elem, Span::DUMMY);
-        let elem = elem.peel_refs();
-        for i in 0..len {
+        let elem_slots = self.calculate_storage_slots_for_ty(destination_elem, Span::DUMMY);
+        let source_elem = source_elem.peel_refs();
+        let destination_elem = destination_elem.peel_refs();
+        let copied_len = source_len.min(destination_len);
+        for i in 0..copied_len {
             let mem_word_addr = if i == 0 {
                 mem_ptr
             } else {
@@ -609,7 +762,22 @@ impl<'gcx> Lowerer<'gcx> {
                 let off = builder.imm_u64(i * elem_slots);
                 builder.add(slot, off)
             };
-            self.copy_memory_field_to_storage(builder, elem, elem_slot, mem_word);
+            self.store_storage_value_from_memory_at(
+                builder,
+                destination_elem,
+                source_elem,
+                elem_slot,
+                mem_word,
+            );
+        }
+        for i in copied_len..destination_len {
+            let elem_slot = if i * elem_slots == 0 {
+                slot
+            } else {
+                let off = builder.imm_u64(i * elem_slots);
+                builder.add(slot, off)
+            };
+            self.clear_storage_value_at(builder, destination_elem, elem_slot);
         }
     }
 }

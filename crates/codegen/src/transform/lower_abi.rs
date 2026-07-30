@@ -15,9 +15,8 @@
 //!    according to the function's return layout and terminate with `returndata`.
 //!
 //! The wrapper keeps argument materialization lazy so values used after a
-//! branch can still be rematerialized instead of spilled. Dynamic return
-//! encoding becomes a semantic `abi_encode` operation here and lowers later;
-//! static returns use the fixed low-memory return buffer directly. Internal
+//! branch can still be rematerialized instead of spilled. Return encoding
+//! becomes a semantic `abi_encode` operation here and lowers later. Internal
 //! call sites that targeted a wrapped function are retargeted to its extracted
 //! raw-return body, so internal calls to public functions keep their convention.
 //!
@@ -31,7 +30,6 @@
 //! EVM codegen. Both passes must complete before the backend runs.
 
 use crate::{
-    memory::EvmMemoryLayout,
     mir::{BlockId, Function, FunctionBuilder, FunctionId, InstKind, MirPhase, Module, Terminator},
     pass::MirPass,
 };
@@ -279,22 +277,10 @@ fn encode_live_returns(func: &mut Function) -> usize {
         let values = values.clone().into_vec().into_boxed_slice();
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block_id);
-        if layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
-            let encoded = builder.abi_encode(layout.clone(), None, values);
-            let offset = builder.slice_ptr(encoded);
-            let size = builder.slice_len(encoded);
-            builder.ret_data(offset, size);
-        } else {
-            let offset = builder.imm_u64(EvmMemoryLayout::HEAP_START);
-            let size = super::lower_abi_encode::encode_tuple(
-                &mut builder,
-                &values,
-                &layout.types,
-                offset,
-                super::lower_abi_encode::AbiScratch { base: None, depth: 0 },
-            );
-            builder.ret_data(offset, size);
-        }
+        let encoded = builder.abi_encode(layout.clone(), None, values);
+        let offset = builder.slice_ptr(encoded);
+        let size = builder.slice_len(encoded);
+        builder.ret_data(offset, size);
         encoded_returns += 1;
     }
     encoded_returns

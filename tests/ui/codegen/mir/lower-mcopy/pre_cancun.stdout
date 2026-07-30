@@ -4,13 +4,59 @@
   fn @copy(arg0: memptr, arg1: memptr, arg2: u256) -> memptr {
     bb0:
 -     mcopy arg0, arg1, arg2
-+     v0 = gas
-+     v1 = staticcall v0, 4, arg1, arg2, arg0, arg2
-+     v2 = iszero v1
-+     jumpi v2, bb2, bb1
++     v0 = add arg1, arg2
++     v1 = gt arg0, arg1
++     v2 = lt arg0, v0
++     v3 = and v1, v2
++     jumpi v3, bb6, bb2
 +   bb1:
       ret arg0
 +   bb2:
-+     revert 0, 0
++     v4 = phi [bb0: 0], [bb3: v10]
++     v5 = sub arg2, v4
++     v6 = lt v5, 32
++     jumpi v6, bb4, bb3
++   bb3:
++     v7 = add arg1, v4
++     v8 = mload v7
++     v9 = add arg0, v4
++     mstore v9, v8
++     v10 = add v4, 32
++     jump bb2
++   bb4:
++     v11 = phi [bb2: v4], [bb5: v17]
++     v12 = lt v11, arg2
++     jumpi v12, bb5, bb1
++   bb5:
++     v13 = add arg1, v11
++     v14 = mload v13
++     v15 = byte 0, v14
++     v16 = add arg0, v11
++     mstore8 v16, v15
++     v17 = add v11, 1
++     jump bb4
++   bb6:
++     v18 = phi [bb0: arg2], [bb7: v20]
++     v19 = lt v18, 32
++     jumpi v19, bb8, bb7
++   bb7:
++     v20 = sub v18, 32
++     v21 = add arg1, v20
++     v22 = mload v21
++     v23 = add arg0, v20
++     mstore v23, v22
++     jump bb6
++   bb8:
++     v24 = phi [bb6: v18], [bb9: v26]
++     v25 = gt v24, 0
++     jumpi v25, bb9, bb1
++   bb9:
++     v26 = sub v24, 1
++     v27 = add arg1, v26
++     v28 = mload v27
++     v29 = byte 0, v28
++     v30 = add arg0, v26
++     mstore8 v30, v29
++     jump bb8
   }
   

@@ -83,6 +83,8 @@ impl<'gcx> Lowerer<'gcx> {
                     .into(),
             ),
             TyKind::Udvt(inner, _) => self.abi_type_inner(inner, calldata, visiting)?,
+            TyKind::Fn(function) if function.is_external() => AbiType::ExternalFunction,
+            TyKind::Fn(_) => return None,
             _ => AbiType::Word,
         })
     }
@@ -219,6 +221,7 @@ impl<'gcx> Lowerer<'gcx> {
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => false,
             TyKind::Elementary(_) | TyKind::Enum(_) | TyKind::Contract(_) => true,
+            TyKind::Fn(function) => function.is_external(),
             TyKind::Udvt(inner, _) => self.abi_is_word_element(inner),
             _ => false,
         }
@@ -275,10 +278,18 @@ impl<'gcx> Lowerer<'gcx> {
         for (arg, ty) in arg_exprs.iter().zip(tys) {
             let value = if let Some((slice, is_bytes)) = self.calldata_dyn_slice(builder, arg)
                 && (is_bytes
-                    || matches!(ty.peel_refs().kind, TyKind::DynArray(elem) if self.abi_is_word_element(elem)))
-            {
-                calldata_slices.insert(slice);
-                slice
+                    || matches!(
+                        ty.peel_refs().kind,
+                        TyKind::DynArray(elem)
+                            if self.abi_is_word_element(elem)
+                                && !self.abi_word_requires_validation(elem)
+                    )) {
+                if Self::value_is_calldata_slice(builder, slice) {
+                    calldata_slices.insert(slice);
+                    slice
+                } else {
+                    self.materialize_slice_for_ty(builder, ty, slice)
+                }
             } else if self.expr_is_calldata_dynamic_bytes(arg) {
                 let value = self.lower_value_expr(builder, arg);
                 // A decoded calldata-struct member is already a memory bytes
@@ -286,8 +297,12 @@ impl<'gcx> Lowerer<'gcx> {
                 // slices stay lazy in the payload.
                 if Self::value_is_calldata_slice(builder, value) {
                     calldata_slices.insert(value);
+                    value
+                } else if Self::value_is_memory_slice(builder, value) {
+                    self.materialize_memory_slice_bytes(builder, value)
+                } else {
+                    value
                 }
-                value
             } else {
                 self.lower_return_value_for_ty(builder, arg, ty)
             };
@@ -415,16 +430,19 @@ impl<'gcx> Lowerer<'gcx> {
         let exprs = self.collect_builtin_args(Builtin::AbiEncodeCall, args)?;
         let func_ref = exprs[0];
         let args_tuple = exprs[1];
-        let selector = self.lower_resolved_function_selector(func_ref).ok_or_else(|| {
-            self.gcx
-                .dcx()
-                .err("codegen cannot resolve the `abi.encodeCall` function reference")
-                .span(func_ref.span)
-                .emit()
-        })?;
-        let selector_word = builder.imm_u256(U256::from(selector) << 224);
-        let arg_exprs: Vec<_> = match &args_tuple.kind {
-            solar_sema::hir::ExprKind::Tuple(elems) => elems.iter().filter_map(|e| *e).collect(),
+        let selector = if let Some(selector) = self.lower_resolved_function_selector(func_ref) {
+            builder.imm_u64(u64::from(selector))
+        } else {
+            let function = self.lower_value_expr(builder, func_ref);
+            let mask = builder.imm_u64(u64::from(u32::MAX));
+            builder.and(function, mask)
+        };
+        let shift = builder.imm_u64(224);
+        let selector_word = builder.shl(shift, selector);
+        let arg_exprs = match &args_tuple.kind {
+            solar_sema::hir::ExprKind::Tuple(elems) => {
+                elems.iter().filter_map(|e| *e).collect::<Vec<_>>()
+            }
             _ => vec![args_tuple],
         };
         self.abi_encode_call_payload(builder, Some(selector_word), &arg_exprs)
@@ -470,34 +488,29 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> ValueId {
         if self.expr_is_calldata_dynamic_bytes(expr) {
             let value = self.lower_value_expr(builder, expr);
-            if Self::value_is_calldata_slice(builder, value) {
-                return self.materialize_calldata_bytes(builder, value);
+            if Self::value_is_slice(builder, value) {
+                return self.materialize_slice_for_ty(builder, ty, value);
             }
             // A decoded calldata-struct member is already a memory bytes
             // pointer despite its calldata-located type.
             return value;
         }
-        if let Some((slice, is_bytes)) = self.calldata_bytes_source(builder, expr) {
-            return if is_bytes {
-                self.materialize_calldata_bytes(builder, slice)
-            } else {
-                self.materialize_calldata_dyn_array_for_ty(builder, ty, slice)
-            };
+        match self.calldata_bytes_source(builder, expr) {
+            super::CalldataValue::Slice(slice, true) => {
+                return self.materialize_slice_for_ty(builder, ty, slice);
+            }
+            super::CalldataValue::Slice(slice, false) => {
+                return self.materialize_slice_for_ty(builder, ty, slice);
+            }
+            super::CalldataValue::Lowered(value) => return value,
+            super::CalldataValue::NotApplicable => {}
         }
         if matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Calldata)) {
             let value = self.lower_value_expr(builder, expr);
-            if !Self::value_is_calldata_slice(builder, value) {
+            if !Self::value_is_slice(builder, value) {
                 return value;
             }
-            return match ty.peel_refs().kind {
-                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                    self.materialize_calldata_bytes(builder, value)
-                }
-                TyKind::DynArray(_) | TyKind::Slice(_) => {
-                    self.materialize_calldata_dyn_array_for_ty(builder, ty, value)
-                }
-                _ => value,
-            };
+            return self.materialize_slice_for_ty(builder, ty, value);
         }
         if matches!(
             ty.peel_refs().kind,
@@ -763,6 +776,11 @@ impl<'gcx> Lowerer<'gcx> {
         // that upstream analysis already reported; do not index an empty list.
         if tys.is_empty() {
             return Vec::new();
+        }
+        if self.is_low_level_call_expr(expr) && tys.len() >= 2 {
+            let success = self.lower_value_expr(builder, expr);
+            let returndata = self.materialize_returndata_bytes(builder);
+            return vec![(success, tys[0]), (returndata, tys[1])];
         }
         if let ExprKind::Tuple(elements) = &expr.kind {
             return elements

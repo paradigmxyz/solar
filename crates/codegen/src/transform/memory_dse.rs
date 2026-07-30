@@ -194,12 +194,12 @@ struct SlotMap<T> {
     /// Groups whose base is not an allocation site. Every write has to consider
     /// these, but a write to a non-allocation base also invalidates nearly
     /// everything, so they stay few.
-    unindexed: Vec<SlotBucket<T>>,
+    unindexed: SmallVec<[SlotBucket<T>; 1]>,
 }
 
 impl<T> Default for SlotMap<T> {
     fn default() -> Self {
-        Self { by_alloc: FxHashMap::default(), unindexed: Vec::new() }
+        Self { by_alloc: FxHashMap::default(), unindexed: SmallVec::new() }
     }
 }
 
@@ -221,28 +221,15 @@ impl<T> SlotMap<T> {
     fn bucket_mut(&mut self, key: MemAddrKey) -> &mut SlotBucket<T> {
         let (region, base) = (key.0.region, key.0.base);
         let buckets = match Self::alloc_site(base) {
-            Some(site) => self.by_alloc.entry(site).or_default().as_mut_slice(),
-            None => self.unindexed.as_mut_slice(),
+            Some(site) => self.by_alloc.entry(site).or_default(),
+            None => &mut self.unindexed,
         };
-        // Borrow-checker dance: find the index first, then re-borrow to insert.
         if let Some(index) = buckets.iter().position(|b| b.region == region && b.base == base) {
-            return match Self::alloc_site(base) {
-                Some(site) => &mut self.by_alloc.get_mut(&site).unwrap()[index],
-                None => &mut self.unindexed[index],
-            };
+            return &mut buckets[index];
         }
         let bucket = SlotBucket { region, base, slots: BTreeMap::new() };
-        match Self::alloc_site(base) {
-            Some(site) => {
-                let group = self.by_alloc.entry(site).or_default();
-                group.push(bucket);
-                group.last_mut().unwrap()
-            }
-            None => {
-                self.unindexed.push(bucket);
-                self.unindexed.last_mut().unwrap()
-            }
-        }
+        buckets.push(bucket);
+        buckets.last_mut().unwrap()
     }
 
     fn get(&self, key: MemAddrKey) -> Option<&T> {
@@ -263,14 +250,19 @@ impl<T> SlotMap<T> {
     /// Stored entries are 32 bytes wide, matching the `mstore` slots this map
     /// tracks.
     fn invalidate(&mut self, write: MemAddrKey, size: u64) {
+        if size == 0 {
+            return;
+        }
         let write_site = Self::alloc_site(write.0.base);
         if let Some(site) = write_site {
             // A write into one allocation site cannot reach another, so only
             // this site's groups and the non-allocation groups can be affected.
-            if let Some(group) = self.by_alloc.get_mut(&site) {
-                group.retain(|bucket| Self::invalidate_bucket(bucket, write, size));
-                if group.is_empty() {
-                    self.by_alloc.remove(&site);
+            if let std::collections::hash_map::Entry::Occupied(mut entry) =
+                self.by_alloc.entry(site)
+            {
+                entry.get_mut().retain(|bucket| Self::invalidate_bucket(bucket, write, size));
+                if entry.get().is_empty() {
+                    entry.remove();
                 }
             }
         } else {
@@ -333,8 +325,11 @@ impl<T> SlotMap<T> {
             return false;
         };
         let first = write.0.offset.saturating_sub(31);
-        let doomed: SmallVec<[u64; 8]> =
-            bucket.slots.range(first..write_end).map(|(&offset, _)| offset).collect();
+        let doomed = bucket
+            .slots
+            .range(first..write_end)
+            .map(|(&offset, _)| offset)
+            .collect::<SmallVec<[u64; 8]>>();
         for offset in doomed {
             bucket.slots.remove(&offset);
         }
@@ -482,7 +477,7 @@ impl MemoryStoreEliminator {
         // direction information flows here.
         let (predecessors, order) = Self::block_order(func);
         let mut live_in = index_vec![MemLive::empty(); func.blocks.len()];
-        let mut worklist: VecDeque<BlockId> = order.into();
+        let mut worklist = VecDeque::<BlockId>::from(order);
         let mut queued = DenseBitSet::new_empty(func.blocks.len());
         for &block_id in &worklist {
             queued.insert(block_id);
@@ -538,13 +533,13 @@ impl MemoryStoreEliminator {
     /// converges most functions in a single drain. Unreachable blocks are
     /// included so their liveness converges too.
     fn block_order(func: &Function) -> (IndexVec<BlockId, SmallVec<[BlockId; 2]>>, Vec<BlockId>) {
-        let successors: IndexVec<BlockId, SmallVec<[BlockId; 2]>> = func
+        let successors = func
             .blocks
             .iter()
             .map(|block| {
                 block.terminator.as_ref().map(|term| term.successors()).unwrap_or_default()
             })
-            .collect();
+            .collect::<IndexVec<BlockId, SmallVec<[BlockId; 2]>>>();
 
         let mut predecessors = index_vec![SmallVec::new(); func.blocks.len()];
         for (block_id, succs) in successors.iter_enumerated() {

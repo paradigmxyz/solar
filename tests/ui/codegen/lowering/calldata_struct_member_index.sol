@@ -1,5 +1,6 @@
-//@compile-flags: -Zcodegen -Zdump=mir
-//@filecheck: --check-prefix=CDSMI
+//@run-call: sideEffectLength (0x0000000000000000000000000000000000000001, [(1, 0x0000000000000000000000000000000000000002, 3, 4)], [9], 0xaabb) => 1, 1
+//@run-call: sideEffectArgument (0x0000000000000000000000000000000000000001, [(1, 0x0000000000000000000000000000000000000002, 3, 4)], [9], 0xaabb) => 1, 4
+//@run-call: sliceFixed [[1, 2], [3, 4], [5, 6]] => 3, 4
 
 // Indexing a calldata array whose elements are wider than a word. The elements
 // are laid out by the ABI rules for the element type, so an index strides by the
@@ -26,6 +27,8 @@ struct Params {
 }
 
 contract CalldataStructMemberIndex {
+    uint256 private calls;
+
     // A struct element strides by its head size (four words), not by one.
     // CDSMI-LABEL: fn @plain
     // CDSMI: shl 7, arg1
@@ -52,5 +55,33 @@ contract CalldataStructMemberIndex {
     // CDSMI-LABEL: fn @lengths
     function lengths(Params calldata p) external pure returns (uint256, uint256, uint256) {
         return (p.items.length, p.words.length, p.extra.length);
+    }
+
+    function select(Params calldata p) internal returns (Params calldata) {
+        calls++;
+        return p;
+    }
+
+    function lastAmount(Item[] calldata items) internal pure returns (uint256) {
+        return items[items.length - 1].amount;
+    }
+
+    function sideEffectLength(Params calldata p) external returns (uint256, uint256) {
+        calls = 0;
+        uint256 length = select(p).items.length;
+        return (calls, length);
+    }
+
+    function sideEffectArgument(Params calldata p) external returns (uint256, uint256) {
+        calls = 0;
+        uint256 amount = lastAmount(select(p).items);
+        return (calls, amount);
+    }
+
+    function sliceFixed(
+        uint256[2][] calldata values
+    ) external pure returns (uint256, uint256) {
+        uint256[2][] calldata sliced = values[1:];
+        return (sliced[0][0], sliced[0][1]);
     }
 }

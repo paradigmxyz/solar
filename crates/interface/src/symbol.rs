@@ -1013,6 +1013,7 @@ symbols! {
         exact,
         experimental,
         external_call,
+        external_function,
         fmp,
         fn_: "fn",
         from,

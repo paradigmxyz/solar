@@ -1,5 +1,4 @@
-//@compile-flags: -Zcodegen -O none -Zdump=mir
-//@filecheck:
+//@run-call: 0x19306b7800000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000001aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899 => 0xaa00000000000000000000000000000000000000000000000000000000000000
 
 contract FixedBytesCanonical {
     // CHECK-LABEL: fn @fromUint{{[( ]}}
@@ -27,5 +26,9 @@ contract FixedBytesCanonical {
     // CHECK: and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
     function narrow(bytes4 value) external pure returns (bytes2) {
         return bytes2(value);
+    }
+
+    function fromDynamic(bytes calldata value) external pure returns (bytes4) {
+        return bytes4(value);
     }
 }

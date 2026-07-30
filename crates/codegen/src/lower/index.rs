@@ -5,7 +5,7 @@ use crate::mir::{FunctionBuilder, MemoryObjectKind, MemoryObjectLayout, ValueId}
 use alloy_primitives::U256;
 use solar_sema::{
     hir::{self, ElementaryType},
-    ty::TyKind,
+    ty::{Ty, TyKind},
 };
 
 impl<'gcx> Lowerer<'gcx> {
@@ -23,17 +23,8 @@ impl<'gcx> Lowerer<'gcx> {
             let element_slot = self.lower_storage_array_element_slot(
                 builder, slot_val, fixed_len, index_val, elem_slots,
             );
-            if let Some(ty) = self.get_expr_type(expr)
-                && let TyKind::Struct(struct_id) = ty.peel_refs().kind
-            {
-                let struct_size = self.calculate_memory_words_for_ty(ty) * 32;
-                let struct_ptr =
-                    self.allocate_memory_object(builder, struct_size, MemoryObjectKind::Struct);
-                self.copy_storage_to_memory_at(builder, struct_id, element_slot, struct_ptr, 0);
-                return struct_ptr;
-            }
-            if self.expr_has_bytes_or_string_type(expr) {
-                return self.materialize_storage_bytes(builder, element_slot);
+            if let Some(ty) = self.get_expr_type(expr) {
+                return self.load_storage_value_at(builder, ty, element_slot);
             }
             return builder.sload(element_slot);
         }
@@ -42,35 +33,34 @@ impl<'gcx> Lowerer<'gcx> {
             if mapping.value_is_mapping {
                 return mapping.slot;
             }
-            if let Some(ty) = self.get_expr_type(expr)
-                && let TyKind::Struct(struct_id) = ty.peel_refs().kind
-            {
-                let struct_size = self.calculate_memory_words_for_ty(ty) * 32;
-                let struct_ptr = self.allocate_memory_object(
-                    builder,
-                    struct_size,
-                    crate::mir::MemoryObjectKind::Struct,
-                );
-                self.copy_storage_to_memory_at(builder, struct_id, mapping.slot, struct_ptr, 0);
-                return struct_ptr;
-            }
-            if self.expr_has_bytes_or_string_type(expr) {
-                return self.materialize_storage_bytes(builder, mapping.slot);
+            if let Some(ty) = self.get_expr_type(expr) {
+                return self.load_storage_value_at(builder, ty, mapping.slot);
             }
             return builder.sload(mapping.slot);
         }
 
-        if let Some((slice, is_bytes)) = self.calldata_bytes_source(builder, base) {
+        let calldata_source = self.calldata_bytes_source(builder, base);
+        if let super::CalldataValue::Slice(slice, is_bytes) = calldata_source {
             let index_val = self.lower_index_value(builder, base.span, index);
             let len = builder.slice_len(slice);
             self.emit_index_bounds_check(builder, index_val, len);
             let offset_32 = builder.imm_u64(32);
             let data_pos = builder.slice_ptr(slice);
+            let is_memory = Self::value_is_memory_slice(builder, slice);
             if is_bytes {
                 let byte_pos = builder.add(data_pos, index_val);
-                let word = builder.calldataload(byte_pos);
+                let word = if is_memory {
+                    builder.mload(byte_pos)
+                } else {
+                    builder.calldataload(byte_pos)
+                };
                 let mask = builder.imm_u256(U256::from(0xffu64) << 248);
                 return builder.and(word, mask);
+            }
+            if is_memory {
+                let byte_offset = builder.mul(index_val, offset_32);
+                let element_pos = builder.add(data_pos, byte_offset);
+                return builder.mload(element_pos);
             }
             // Only a word element sits inline in one slot. Anything wider — a
             // struct, a fixed array, a dynamic element — is laid out by the ABI
@@ -88,8 +78,21 @@ impl<'gcx> Lowerer<'gcx> {
                     // data start.
                     let slot_offset = builder.mul(index_val, offset_32);
                     let slot_pos = builder.add(data_pos, slot_offset);
-                    let tail_offset = builder.calldataload(slot_pos);
-                    builder.add(data_pos, tail_offset)
+                    let end = builder.calldatasize();
+                    self.require_abi_range(builder, slot_pos, offset_32, end);
+                    let max_len = builder.imm_u256(U256::MAX / U256::from(32));
+                    let head_overflow = builder.gt(len, max_len);
+                    self.emit_abi_decode_revert_if(builder, head_overflow);
+                    let head_size = builder.mul(len, offset_32);
+                    self.resolve_abi_value_pos(
+                        builder,
+                        super::bytes::AbiSource::Calldata,
+                        elem_ty,
+                        slot_pos,
+                        data_pos,
+                        head_size,
+                        end,
+                    )
                 } else {
                     let stride = builder.imm_u64(self.abi_head_size(elem_ty));
                     let byte_offset = builder.mul(index_val, stride);
@@ -105,8 +108,17 @@ impl<'gcx> Lowerer<'gcx> {
 
             let byte_offset = builder.mul(index_val, offset_32);
             let element_pos = builder.add(data_pos, byte_offset);
-            return builder.calldataload(element_pos);
+            let value = builder.calldataload(element_pos);
+            if let Some(elem_ty) = elem_ty {
+                self.emit_abi_field_clean_check(builder, elem_ty, value);
+                return self.normalize_abi_decoded_word(builder, elem_ty, value);
+            }
+            return value;
         }
+        let prelowered_base = match calldata_source {
+            super::CalldataValue::Lowered(value) => Some(value),
+            super::CalldataValue::Slice(..) | super::CalldataValue::NotApplicable => None,
+        };
 
         // Storage `bytes`/`string` (state variable or a field reached through a
         // storage reference): its value lowers to a `[length][data...]` memory
@@ -124,7 +136,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         if self.is_memory_bytes_expr(base) {
-            let base_val = self.lower_value_expr(builder, base);
+            let base_val = prelowered_base.unwrap_or_else(|| self.lower_value_expr(builder, base));
             let index_val = self.lower_index_value(builder, base.span, index);
             let len = builder.memory_object_len(base_val, MemoryObjectKind::Bytes);
             self.emit_index_bounds_check(builder, index_val, len);
@@ -148,7 +160,7 @@ impl<'gcx> Lowerer<'gcx> {
             return self.clean_fixed_bytes(builder, shifted, 1);
         }
 
-        let base_val = self.lower_value_expr(builder, base);
+        let base_val = prelowered_base.unwrap_or_else(|| self.lower_value_expr(builder, base));
         let index_val = self.lower_index_value(builder, base.span, index);
         let layout = if self.is_dynamic_array_expr(base)
             || Self::value_is_dynamic_array_object(builder, base_val)
@@ -184,6 +196,7 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
         rhs: ValueId,
+        source_ty: Option<Ty<'gcx>>,
     ) {
         if let Some((slot_val, fixed_len, elem_slots)) =
             self.storage_array_slot_of_base(builder, base)
@@ -192,17 +205,29 @@ impl<'gcx> Lowerer<'gcx> {
             let element_slot = self.lower_storage_array_element_slot(
                 builder, slot_val, fixed_len, index_val, elem_slots,
             );
-            builder.sstore(element_slot, rhs);
+            if let Some(ty) = self.get_expr_type(lhs) {
+                self.store_storage_value_from_memory_at(
+                    builder,
+                    ty,
+                    source_ty.unwrap_or(ty),
+                    element_slot,
+                    rhs,
+                );
+            } else {
+                builder.sstore(element_slot, rhs);
+            }
             return;
         }
 
         if let Some(mapping) = self.lower_mapping_element_slot(builder, base, index) {
-            if let Some(ty) = self.get_expr_type(lhs)
-                && let TyKind::Struct(struct_id) = ty.peel_refs().kind
-            {
-                self.copy_memory_to_storage_at(builder, struct_id, mapping.slot, rhs, 0);
-            } else if self.expr_has_bytes_or_string_type(lhs) {
-                self.copy_memory_bytes_to_storage(builder, mapping.slot, rhs);
+            if let Some(ty) = self.get_expr_type(lhs) {
+                self.store_storage_value_from_memory_at(
+                    builder,
+                    ty,
+                    source_ty.unwrap_or(ty),
+                    mapping.slot,
+                    rhs,
+                );
             } else {
                 builder.sstore(mapping.slot, rhs);
             }

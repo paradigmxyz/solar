@@ -38,6 +38,9 @@ pub(crate) type AbiLayoutRef = Arc<AbiLayout>;
 pub(crate) enum AbiType {
     /// A scalar encoded as one word.
     Word,
+    /// An external function pointer represented internally as
+    /// `[address:160][selector:32]` in the low 192 bits.
+    ExternalFunction,
     /// A dynamic byte string represented in the given address space.
     Bytes(SliceLocation),
     /// A dynamic array represented in the given address space.
@@ -63,7 +66,7 @@ impl AbiType {
     #[must_use]
     pub(crate) fn is_dynamic(&self) -> bool {
         match self {
-            Self::Word => false,
+            Self::Word | Self::ExternalFunction => false,
             Self::Bytes(_) | Self::DynamicArray { .. } => true,
             Self::FixedArray { element, .. } => element.is_dynamic(),
             Self::Tuple(fields) => fields.iter().any(Self::is_dynamic),
@@ -91,7 +94,7 @@ impl AbiType {
             Self::DynamicArray { element, .. } => 1 + element.loop_depth(),
             Self::FixedArray { element, .. } => element.loop_depth(),
             Self::Tuple(fields) => fields.iter().map(Self::loop_depth).max().unwrap_or(0),
-            Self::Word | Self::Bytes(_) => 0,
+            Self::Word | Self::ExternalFunction | Self::Bytes(_) => 0,
         }
     }
 }
@@ -113,6 +116,7 @@ impl fmt::Display for AbiType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Word => write!(f, "word"),
+            Self::ExternalFunction => write!(f, "external_function"),
             // ABI values live in calldata (inputs) or memory (outputs); the
             // location's own `Display` yields the `memory`/`calldata` prefix.
             Self::Bytes(location) => write!(f, "{location}_bytes"),

@@ -650,6 +650,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let name = self.parser.parse_ident()?;
         Ok(match name {
             sym::word => AbiType::Word,
+            sym::external_function => AbiType::ExternalFunction,
             sym::memory_bytes => AbiType::Bytes(SliceLocation::Memory),
             sym::calldata_bytes => AbiType::Bytes(SliceLocation::Calldata),
             sym::returndata_bytes => AbiType::Bytes(SliceLocation::Returndata),

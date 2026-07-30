@@ -1021,6 +1021,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_push_deferred(arg_offset);
                 self.asm.emit_op(op::CODESIZE);
                 self.asm.emit_op(op::SUB); // size = CODESIZE - arg_offset
+                self.asm.emit_op(op::DUP1);
+                self.asm.emit_push(U256::from(0x20));
+                self.asm.emit_op(op::MSTORE);
                 self.asm.emit_push_deferred(arg_offset); // code offset
                 self.asm.emit_push(U256::from(EvmMemoryLayout::HEAP_START)); // destOffset in memory
                 self.asm.emit_op(op::CODECOPY);
@@ -4410,7 +4413,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // For instruction results, we need to check if they're spilled
                 // or if they're instruction results that produce fresh values (like GAS, MLOAD)
                 if let Some(slot) = self.scheduler.spills.get(val)
-                    && self.scheduler.spills.is_stored(val)
+                    && self.scheduler.spills.is_reloadable(val)
                 {
                     // Load from spill slot. Reloadable covers slots whose
                     // defining block is emitted later: the definition still
@@ -4609,8 +4612,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                             } else {
                                 panic!(
                                     "emit_value_fresh: value {val:?} ({:?}) is neither on the \
-                                     stack, spilled, nor re-executable",
-                                    func.inst(*inst_id).kind
+                                     stack, spilled, nor re-executable in `{}`",
+                                    func.inst(*inst_id).kind,
+                                    func.name
                                 );
                             }
                         }
