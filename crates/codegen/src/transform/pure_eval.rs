@@ -190,57 +190,10 @@ impl PureEvaluator {
 
     fn eval_inst(&self, kind: &InstKind, env: &FxHashMap<ValueId, U256>) -> Option<U256> {
         let get = |value| self.value_const(env, value);
-        Some(match *kind {
-            InstKind::Add(a, b) => get(a)?.wrapping_add(get(b)?),
-            InstKind::Sub(a, b) => get(a)?.wrapping_sub(get(b)?),
-            InstKind::Mul(a, b) => get(a)?.wrapping_mul(get(b)?),
-            InstKind::Div(a, b) => {
-                let b = get(b)?;
-                if b.is_zero() { U256::ZERO } else { get(a)? / b }
-            }
-            InstKind::Mod(a, b) => {
-                let b = get(b)?;
-                if b.is_zero() { U256::ZERO } else { get(a)? % b }
-            }
-            InstKind::Exp(a, b) => get(a)?.wrapping_pow(get(b)?),
-            InstKind::And(a, b) => get(a)? & get(b)?,
-            InstKind::Or(a, b) => get(a)? | get(b)?,
-            InstKind::Xor(a, b) => get(a)? ^ get(b)?,
-            InstKind::Not(a) => !get(a)?,
-            InstKind::Clz(a) => U256::from(get(a)?.leading_zeros() as u64),
-            InstKind::Shl(shift, value) => {
-                let shift = get(shift)?;
-                if shift >= U256::from(256) {
-                    U256::ZERO
-                } else {
-                    get(value)? << shift.to::<usize>()
-                }
-            }
-            InstKind::Shr(shift, value) => {
-                let shift = get(shift)?;
-                if shift >= U256::from(256) {
-                    U256::ZERO
-                } else {
-                    get(value)? >> shift.to::<usize>()
-                }
-            }
-            InstKind::Sar(shift, value) => evm_word::sar(get(value)?, get(shift)?),
-            InstKind::Byte(index, value) => evm_word::byte(get(index)?, get(value)?),
-            InstKind::SignExtend(size, value) => evm_word::signextend(get(size)?, get(value)?),
-            InstKind::Lt(a, b) => U256::from(get(a)? < get(b)?),
-            InstKind::Gt(a, b) => U256::from(get(a)? > get(b)?),
-            InstKind::Eq(a, b) => U256::from(get(a)? == get(b)?),
-            InstKind::IsZero(a) => U256::from(get(a)?.is_zero()),
-            InstKind::Select(condition, then_value, else_value) => {
-                if get(condition)?.is_zero() {
-                    get(else_value)?
-                } else {
-                    get(then_value)?
-                }
-            }
-            InstKind::Phi(_) => unreachable!("phis are handled by the block interpreter"),
-            _ => return None,
-        })
+        if let InstKind::Select(condition, then_value, else_value) = *kind {
+            return if get(condition)?.is_zero() { get(else_value) } else { get(then_value) };
+        }
+        evm_word::eval_inst(kind, |value| get(value).ok_or(())).ok().flatten()
     }
 
     fn rewrite_to_return(&self, func: &mut Function, values: &[U256]) {
