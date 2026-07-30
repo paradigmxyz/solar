@@ -3,7 +3,9 @@
 
 contract Test {
     // CHECK: push 0xc21f7bbb
-    // CHECK-NEXT: sub
+    // CHECK: eq
+    // CHECK-NEXT: push [[BODY:bb[0-9]+]]
+    // CHECK: [[BODY]]:
     // CHECK: push 1
     // CHECK-NEXT: dup2
     // CHECK-NEXT: eq
@@ -18,31 +20,31 @@ contract Test {
     // CHECK-NEXT: push [[REST:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 3
-    // CHECK-NEXT: jump [[ADD:bb[0-9]+]]
-    // CHECK: [[ADD]]:
     // CHECK-NEXT: dup3
     // CHECK-NEXT: add
-    // CHECK: jump [[STORE:bb[0-9]+]]
-    // CHECK: [[STORE]]:
     // CHECK: mstore
+    // CHECK: jump [[LOAD:bb[0-9]+]]
+    // CHECK: [[LOAD]]:
+    // CHECK-NEXT: mload
     // CHECK: jump [[RETURN:bb[0-9]+]]
     // CHECK: [[RETURN]]:
     // CHECK: return
     // CHECK: push 1
-    // CHECK-NEXT: jump [[ADD]]
+    // CHECK-NEXT: dup3
+    // CHECK-NEXT: add
+    // CHECK: jump [[LOAD]]
     // CHECK: [[TWO_BODY]]:
     // CHECK: push 2
-    // CHECK-NEXT: jump [[ADD]]
+    // CHECK-NEXT: dup3
+    // CHECK-NEXT: add
+    // CHECK: jump [[LOAD]]
     // CHECK: [[REST]]:
     // CHECK: push 4
-    // CHECK-NEXT: dup2
-    // CHECK-NEXT: sub
-    // CHECK: push 4
-    // CHECK-NEXT: jump [[ADD]]
+    // CHECK: dup3
+    // CHECK-NEXT: add
     // CHECK: push 5
     // CHECK: dup2
     // CHECK-NEXT: add
-    // CHECK-NEXT: jump [[STORE]]
     function select(address account, uint256 value) external pure returns (uint256) {
         if (account == address(1)) return value + 1;
         if (account == address(2)) return value + 2;
