@@ -174,10 +174,19 @@ These are current miscompile or target-legality risks, not cleanup preferences.
 - Emit structured `JumpI` terminators from MIR-to-EVM lowering. Raw
   push/`JUMPI` sequences force CFG passes to rediscover edges and make revert
   sharing special-case instruction streams.
+- Build one immutable stack-scheduling plan before emission. Global argument
+  layouts, stack phis, internal-call argument retention, block traversal, and
+  spill placement currently run as separate heuristic scans over the same
+  function and constrain one another indirectly.
 - Separate scheduler traversal from physical block layout. Cold analysis,
   stack scheduling order, and final EVM block placement currently overlap.
 - Let EVM IR own branch inversion, fallthrough selection, revert-tail sharing,
   and final layout exactly once.
+- Represent the deployment prefix, appended runtime object, and constructor
+  argument suffix in one deferred assembly object. Deployment currently
+  reassembles the prefix in an outer loop capped at eight iterations to
+  stabilize two offsets; the assembler should own the complete least fixed
+  point and have no magic convergence bound.
 
 ## Large and repetitive code
 
@@ -186,12 +195,17 @@ These are current miscompile or target-legality risks, not cleanup preferences.
 | `lower::Lowerer::lower_function` | ABI entry handling, local layout, constructor work, body lowering, and return lowering in one function | Entry convention, local initialization, body, epilogue |
 | `lower::expr::lower_value_expr_unchecked` | Source expression dispatch mixed with storage, memory, and ABI representation | Syntax dispatch calling representation-specific helpers |
 | `lower::call::lower_member_call_with_opts` | Builtins, arrays, libraries, low-level calls, and high-level calls share one dispatcher | Resolve call kind, then use one builder per semantic kind |
+| Builtin value-call dispatch | Solidity and Yul builtin matches repeat arity extraction, operand lowering, result typing, and nearly identical opcode recipes | Declarative builtin schemas plus small semantic exceptions |
+| Contract creation lowering | Bytecode staging, call-option evaluation, scalar-only argument encoding, opcode selection, and failure policy are coupled | Semantic creation instruction plus typed argument legalization |
 | Linked-library call lowering | Reimplements a restricted ABI head/tail encoder and return-area policy beside the semantic ABI encoder | Add storage-slot ABI values, then share external-call encoding and typed return decoding |
 | Try/catch lowering | Call construction, return decoding, selector dispatch, clause binding, and rethrow policy remain in one path | Semantic call results plus small success/failure policy blocks |
 | Internal-function-pointer dispatcher synthesis | Address-taken discovery, fixed-point function lowering, signature grouping, switch construction, and call lowering are coupled | Keep indirect calls semantic through target specialization, then lower them in one required pass |
+| Deployment artifact/prefix generation | Runtime generation, immutable patch planning, constructor emission, object concatenation, and offset convergence are interleaved | Build a deployment object graph and assemble its deferred layout once |
 | `backend::evm::codegen::generate_function_body` | Liveness, phi elimination, stack-phi planning, block layout, spill lifetime, and terminator emission are interleaved | Prepare a scheduled function plan before physical block emission |
+| Backend stack-layout analyses | `GlobalStackPlan`, stack-phi planning, stack-argument masks, and per-call retention each rescan CFG/liveness state with separate profitability gates | One scheduler-owned plan with explicit costs and invariants |
 | `backend::evm::codegen::generate_inst` | Opcode selection, stack effects, memory operations, and call conventions are interleaved | Instruction families plus shared operand scheduling |
 | `backend::evm::codegen::emit_value_fresh` | Repeats a large subset of opcode selection from `generate_inst` for rematerialization | Give rematerializable MIR instructions one shared target recipe |
+| Backend binary/unary operand emitters | Repeat top-of-stack, liveness, rematerialization, spill, swap, and result bookkeeping cases around a generic operand planner | Make the planner authoritative and leave opcode emission mechanical |
 | Dynamic and static internal-call emitters | Duplicate argument retention, frame stores, return setup, and result recovery around two frame-address policies | One call plan parameterized by dynamic or deferred-static addressing |
 | `backend::evm::codegen::generate_terminator` | MIR termination semantics, fallthrough choice, stack preservation, and raw EVM jump layout are coupled | Emit structured EVM IR terminators, then choose layout in EVM IR |
 | `backend::evm::codegen::resolve_static_frames` | Call-graph depth, frame overlay, static allocation acceptance, spill ranking, and heap-floor resolution are one fixed-point/layout routine | Compute an immutable frame-layout plan, then resolve deferred addresses |
