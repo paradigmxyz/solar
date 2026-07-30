@@ -1,0 +1,28 @@
+//@ compile-flags: -Zcodegen
+//@ filecheck:
+// CHECK-NOT: "errors"
+// CHECK: "deployedBytecode": {
+// CHECK-NEXT: "opcodes":
+// CHECK-SAME: PUSH20 0x1111111111111111111111111111111111111111
+// CHECK-NOT: 0x2222222222222222222222222222222222222222
+{
+  "language": "Solidity",
+  "sources": {},
+  "settings": {
+    "libraries": {
+      "Wrong.sol": {
+        "Lib": "0x2222222222222222222222222222222222222222"
+      },
+      "A.sol": {
+        "Lib": "0x1111111111111111111111111111111111111111"
+      }
+    },
+    "outputSelection": {
+      "A.sol": {
+        "C": [
+          "evm.deployedBytecode.opcodes"
+        ]
+      }
+    }
+  }
+}

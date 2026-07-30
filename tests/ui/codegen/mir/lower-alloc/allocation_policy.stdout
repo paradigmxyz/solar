@@ -16,8 +16,7 @@
 +     jumpi v8, bb2, bb1
 +   bb1:
 +     mstore 64, v4 !metadata(memory=scratch)
-+     v9 = calldatasize
-+     calldatacopy v0, v9, v3
++     memory_zero v0, v3
       ret v0
 +   bb2:
 +     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

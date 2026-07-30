@@ -5,6 +5,7 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+use alloy_primitives::Address;
 use std::{fmt, num::NonZeroUsize, sync::OnceLock};
 
 #[macro_use]
@@ -381,10 +382,12 @@ impl fmt::Debug for ImportRemapping {
 /// A single library address for linking: `[path.sol:]Name=0xADDRESS`.
 #[derive(Clone, PartialEq, Eq)]
 pub struct LibraryAddress {
-    /// The library name, with any `path.sol:` prefix stripped.
+    /// The source path, or `None` when the address applies to any source.
+    pub source: Option<String>,
+    /// The library name.
     pub name: String,
-    /// The library's deployed address, as big-endian bytes.
-    pub address: [u8; 20],
+    /// The library's deployed address.
+    pub address: Address,
 }
 
 impl std::str::FromStr for LibraryAddress {
@@ -394,41 +397,34 @@ impl std::str::FromStr for LibraryAddress {
         let Some((name, addr)) = s.split_once('=') else {
             return Err("missing '='");
         };
-        let name = name.rsplit(':').next_back().unwrap_or(name).trim();
+        let name = name.trim();
+        let (source, name) = if let Some((source, name)) = name.rsplit_once(':') {
+            (Some(source.trim()), name.trim())
+        } else {
+            (None, name)
+        };
         if name.is_empty() {
             return Err("empty library name");
         }
         let addr = addr.trim();
-        let digits = addr.strip_prefix("0x").unwrap_or(addr);
-        if digits.is_empty() || digits.len() > 40 {
-            return Err("address must be at most 20 hexadecimal bytes");
+        if !addr.starts_with("0x") {
+            return Err("library address must be prefixed with `0x`");
         }
-        // Right-align the digits in the 40-nibble (20-byte) address and fold
-        // each nibble into its byte; a leading half-byte lands in the high
-        // nibble of its position.
-        let mut address = [0u8; 20];
-        let start = 40 - digits.len();
-        for (i, b) in digits.bytes().enumerate() {
-            let nibble = match b {
-                b'0'..=b'9' => b - b'0',
-                b'a'..=b'f' => b - b'a' + 10,
-                b'A'..=b'F' => b - b'A' + 10,
-                _ => return Err("address contains a non-hexadecimal digit"),
-            };
-            let pos = start + i;
-            address[pos / 2] |= nibble << (4 * (1 - pos % 2));
-        }
-        Ok(Self { name: name.into(), address })
+        let address = addr.parse().map_err(|_| "invalid library address")?;
+        Ok(Self {
+            source: source.filter(|source| !source.is_empty()).map(str::to_owned),
+            name: name.into(),
+            address,
+        })
     }
 }
 
 impl fmt::Display for LibraryAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}=0x", self.name)?;
-        for b in self.address {
-            write!(f, "{b:02x}")?;
+        if let Some(source) = &self.source {
+            write!(f, "{source}:")?;
         }
-        Ok(())
+        write!(f, "{}={:#x}", self.name, self.address)
     }
 }
 

@@ -1,0 +1,60 @@
+// === ROOT/tests/ui/codegen/lowering/external_view_call_evm_version.sol:Caller ===
+@module Caller
+fn @read(arg0: address) -> u256 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = abi_encode [], selector 0x57de26a400000000000000000000000000000000000000000000000000000000
+    v7 = slice_ptr v6
+    v8 = slice_len v6
+    v9 = gas
+    v10 = staticcall v9, arg0, v7, v8, 0, 32
+    jumpi v10, bb6, bb5
+  bb5:
+    v11 = returndatasize
+    returndatacopy 0, 0, v11 !metadata(memory=scratch)
+    revert 0, v11
+  bb6:
+    v12 = mload 0 !metadata(memory=scratch)
+    ret v12
+}
+
+fn @readPointer(arg0: function) -> u256 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = and arg0, 0xffffffff
+    v4 = shl 224, v3
+    v5 = shr 32, arg0
+    v6 = abi_encode [], selector v4
+    v7 = slice_ptr v6
+    v8 = slice_len v6
+    v9 = gas
+    v10 = staticcall v9, v5, v7, v8, 0, 32
+    jumpi v10, bb4, bb3
+  bb3:
+    v11 = returndatasize
+    returndatacopy 0, 0, v11 !metadata(memory=scratch)
+    revert 0, v11
+  bb4:
+    v12 = mload 0 !metadata(memory=scratch)
+    ret v12
+}
+

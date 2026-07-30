@@ -14,7 +14,7 @@ mod codegen;
 pub use codegen::{EvmArtifact, EvmCodegen};
 
 mod disasm;
-pub use disasm::disassemble;
+pub use disasm::{disassemble, disassemble_standard_json};
 
 mod layout;
 

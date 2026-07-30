@@ -202,8 +202,7 @@ fn initialize(
     initialization: AllocationInitialization,
 ) {
     if initialization == AllocationInitialization::Zeroed {
-        let calldata_end = builder.calldatasize();
-        builder.calldatacopy(ptr, calldata_end, size);
+        builder.memory_zero(ptr, size);
     }
 }
 

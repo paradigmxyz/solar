@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
