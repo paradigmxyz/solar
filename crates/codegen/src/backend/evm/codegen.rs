@@ -3633,6 +3633,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 unreachable!("memory-object instructions must be lowered before EVM codegen")
             }
 
+            InstKind::MemoryZero(_, _) => {
+                unreachable!("memory-zero instructions must be lowered before EVM codegen")
+            }
+
             InstKind::AbiEncode { .. } => {
                 unreachable!("ABI encoding must be lowered before EVM codegen")
             }

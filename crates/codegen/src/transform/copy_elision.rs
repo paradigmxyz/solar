@@ -120,7 +120,9 @@ impl CopyElisionCx {
                         writes.push(inst_id);
                     }
                 }
-                InstKind::MStore8(addr, _) | InstKind::SetMemoryObjectLen(addr, _, _) => {
+                InstKind::MStore8(addr, _)
+                | InstKind::MemoryZero(addr, _)
+                | InstKind::SetMemoryObjectLen(addr, _, _) => {
                     if derived.contains(addr) {
                         writes.push(inst_id);
                     }

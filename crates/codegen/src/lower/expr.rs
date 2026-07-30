@@ -1,7 +1,7 @@
 //! Expression lowering.
 
 use super::{
-    Lowerer,
+    Lowerer, MIN_BULK_ZERO_MEMORY_WORDS,
     checked_arith::{ArithmeticInfo, PanicCode},
 };
 use crate::{
@@ -760,6 +760,11 @@ impl<'gcx> Lowerer<'gcx> {
                 && let Ok(len) = u64::try_from(len)
             {
                 let ptr = self.lower_value_expr(builder, target);
+                if len >= MIN_BULK_ZERO_MEMORY_WORDS && element_ty.peel_refs().is_value_type() {
+                    let size = builder.imm_u64(len * EvmMemoryLayout::WORD_SIZE);
+                    builder.memory_zero(ptr, size);
+                    return;
+                }
                 for i in 0..len {
                     let value = self.zero_memory_field_value_ty(builder, element_ty, var.ty.span);
                     if i == 0 {
@@ -2353,12 +2358,10 @@ impl<'gcx> Lowerer<'gcx> {
         size: u64,
         kind: crate::mir::MemoryObjectKind,
     ) -> ValueId {
-        self.allocate_memory_object_with_semantics(
-            builder,
-            size,
-            kind,
-            crate::mir::AllocationSemantics::INTERNAL_ZEROED,
-        )
+        let ptr = self.allocate_memory_object(builder, size, kind);
+        let size = builder.imm_u64(size);
+        builder.memory_zero(ptr, size);
+        ptr
     }
 
     fn allocate_memory_object_with_semantics(

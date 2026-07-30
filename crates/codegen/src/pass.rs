@@ -76,6 +76,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_memory_objects::LowerMemoryObjects,
     &lower_slices::LowerSlices,
     &lower_alloc::LowerAlloc,
+    &lower_memory_zero::LowerMemoryZero,
     &evm_inst_schedule::EvmInstSchedule,
 ];
 
@@ -208,6 +209,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_memory_objects::LowerMemoryObjects,
     &lower_immutables::LowerImmutables,
     &lower_alloc::LowerAlloc,
+    &lower_memory_zero::LowerMemoryZero,
     &lower_mcopy::LowerMCopy,
     &lower_evm_shaped::LowerEvmShaped,
     // Late lowering can leave pure address and length calculations unused.
