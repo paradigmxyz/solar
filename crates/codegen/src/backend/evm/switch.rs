@@ -91,6 +91,8 @@ pub(super) struct SwitchLayout {
     /// Every entry case tail-calls an empty function that terminal deduplication
     /// maps to one nearby `STOP`.
     pub(super) shared_terminal_target: bool,
+    /// Optimistic and conservative sizes of the entry trace before the switch.
+    pub(super) trace_size_bounds: Option<(usize, usize)>,
 }
 
 /// Emitted switch miss sequence.
@@ -263,6 +265,14 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
             explicit_default.needs_value_cleanup(),
             coalesce_case_targets,
         );
+        let binary_size = BinarySizeContext {
+            equality_costs: &equality_costs,
+            ordered_costs: &ordered_costs,
+            evm_version,
+            default: explicit_default,
+            table_target_width,
+            layout,
+        };
         let candidate = match forced {
             SwitchLowering::Binary => binary_leaf_sizes(values.len())
                 .into_iter()
@@ -281,14 +291,12 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                     )
                 })
                 .min_by_key(|&(cost, plan)| {
-                    plan_cost_key(
-                        cost,
-                        plan,
-                        optimization,
-                        values.len(),
-                        table_target_width,
-                        layout,
-                    )
+                    let SwitchPlan::Binary { leaf_size } = plan else { unreachable!() };
+                    if optimization == OptimizationMode::Size {
+                        binary_size.key(cost, linear_cost, leaf_size)
+                    } else {
+                        cost.gas_key()
+                    }
                 }),
             SwitchLowering::Buckets if (2..=MAX_BUCKET_CASES).contains(&values.len()) => {
                 bucket_count_candidates(values.len())
@@ -306,16 +314,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                             SwitchPlan::Buckets { bucket_count },
                         )
                     })
-                    .min_by_key(|&(cost, plan)| {
-                        plan_cost_key(
-                            cost,
-                            plan,
-                            optimization,
-                            values.len(),
-                            table_target_width,
-                            layout,
-                        )
-                    })
+                    .min_by_key(|&(cost, _)| plan_cost_key(cost, optimization))
             }
             SwitchLowering::Dense => dense_lowering_cost(
                 values,
@@ -333,9 +332,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 table_target_width,
             )
             .into_iter()
-            .min_by_key(|&(cost, plan)| {
-                plan_cost_key(cost, plan, optimization, values.len(), table_target_width, layout)
-            }),
+            .min_by_key(|&(cost, _)| plan_cost_key(cost, optimization)),
             _ => None,
         };
         let Some((cost, plan)) = candidate else {
@@ -351,6 +348,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
 
     let max_gas_code_size = linear_cost.code_size.saturating_add(max_gas_code_growth);
     let mut best = (linear_cost, SwitchPlan::Linear);
+    let mut best_size_key = linear_cost.size_key();
     let explicit_default = default.without_fallthrough();
     let (equality_costs, ordered_costs) = case_test_costs(
         values,
@@ -359,6 +357,14 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         explicit_default.needs_value_cleanup(),
         coalesce_case_targets,
     );
+    let binary_size = BinarySizeContext {
+        equality_costs: &equality_costs,
+        ordered_costs: &ordered_costs,
+        evm_version,
+        default: explicit_default,
+        table_target_width,
+        layout,
+    };
     if matches!(optimization, OptimizationMode::Gas | OptimizationMode::Size) {
         for leaf_size in binary_leaf_sizes(values.len()) {
             let cost = lowering_cost_with_tests(
@@ -373,13 +379,13 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
             let better = match optimization {
                 OptimizationMode::Gas => cost.is_better_for_gas_than(best.0, max_gas_code_size),
                 OptimizationMode::Size => {
-                    size_key_for_plan(
-                        cost,
-                        SwitchPlan::Binary { leaf_size },
-                        values.len(),
-                        table_target_width,
-                        layout,
-                    ) < size_key_for_plan(best.0, best.1, values.len(), table_target_width, layout)
+                    let key = binary_size.key(cost, linear_cost, leaf_size);
+                    if key < best_size_key {
+                        best_size_key = key;
+                        true
+                    } else {
+                        false
+                    }
                 }
                 _ => false,
             };
@@ -415,13 +421,13 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         let better = match optimization {
             OptimizationMode::Gas => cost.is_better_for_gas_than(best.0, max_gas_code_size),
             OptimizationMode::Size => {
-                size_key_for_plan(
-                    cost,
-                    SwitchPlan::Dense { low, range },
-                    values.len(),
-                    table_target_width,
-                    layout,
-                ) < size_key_for_plan(best.0, best.1, values.len(), table_target_width, layout)
+                let key = cost.size_key();
+                if key < best_size_key {
+                    best_size_key = key;
+                    true
+                } else {
+                    false
+                }
             }
             _ => false,
         };
@@ -449,8 +455,13 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 cost.is_better_for_gas_than(best.0, max_code_size)
             }
             OptimizationMode::Size => {
-                size_key_for_plan(cost, plan, values.len(), table_target_width, layout)
-                    < size_key_for_plan(best.0, best.1, values.len(), table_target_width, layout)
+                let key = cost.size_key();
+                if key < best_size_key {
+                    best_size_key = key;
+                    true
+                } else {
+                    false
+                }
             }
             _ => false,
         };
@@ -466,34 +477,183 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
     SwitchSelection { plan: best.1, gas_code_growth }
 }
 
-fn plan_cost_key(
-    cost: LoweringCost,
-    plan: SwitchPlan,
-    optimization: OptimizationMode,
-    len: usize,
+fn plan_cost_key(cost: LoweringCost, optimization: OptimizationMode) -> (usize, usize, usize) {
+    if optimization == OptimizationMode::Size { cost.size_key() } else { cost.gas_key() }
+}
+
+#[derive(Clone, Copy)]
+struct BinarySizeContext<'a> {
+    equality_costs: &'a [TestCost],
+    ordered_costs: &'a [TestCost],
+    evm_version: EvmVersion,
+    default: SwitchDefault,
     table_target_width: usize,
     layout: SwitchLayout,
-) -> (usize, usize, usize) {
-    if optimization == OptimizationMode::Size {
-        size_key_for_plan(cost, plan, len, table_target_width, layout)
-    } else {
-        cost.gas_key()
+}
+
+impl BinarySizeContext<'_> {
+    fn key(
+        self,
+        cost: LoweringCost,
+        linear_cost: LoweringCost,
+        leaf_size: usize,
+    ) -> (usize, usize, usize) {
+        let locality_credit = self
+            .layout
+            .trace_size_bounds
+            .filter(|_| self.layout.shared_terminal_target && self.table_target_width > 1)
+            .and_then(|(prefix_min_size, prefix_layout_size)| {
+                let linear_end = prefix_min_size.saturating_add(linear_cost.code_size);
+                let binary_end = prefix_layout_size.saturating_add(binary_first_block_max_size(
+                    self.equality_costs,
+                    self.ordered_costs,
+                    leaf_size,
+                    self.evm_version,
+                    self.default,
+                    self.table_target_width,
+                ));
+                (linear_end > usize::from(u8::MAX) && binary_end < usize::from(u8::MAX)).then(
+                    || {
+                        self.equality_costs
+                            .len()
+                            .saturating_add(1)
+                            .saturating_mul(self.table_target_width.saturating_sub(1))
+                    },
+                )
+            })
+            .unwrap_or_default();
+        let tail_merge_credit = if self.layout.shared_terminal_target {
+            let leaves = binary_leaf_count(self.equality_costs.len(), leaf_size);
+            // Tail merging replaces each leaf's common `EQ; PUSH; JUMPI; JUMP`
+            // suffix with a jump to one shared eight-byte tail block.
+            leaves.saturating_mul(4).saturating_sub(8)
+        } else {
+            0
+        };
+        let split_width_charge = self.layout.trace_size_bounds.map_or(0, |(_, prefix_size)| {
+            let width_charge = self.table_target_width.saturating_sub(1);
+            binary_wide_split_count(
+                self.equality_costs,
+                self.ordered_costs,
+                leaf_size,
+                self.evm_version,
+                self.default,
+                prefix_size,
+                width_charge,
+            )
+            .saturating_mul(width_charge)
+        });
+        (
+            cost.code_size
+                .saturating_add(split_width_charge)
+                .saturating_sub(locality_credit)
+                .saturating_sub(tail_merge_credit),
+            cost.hit_gas_sum,
+            cost.miss_gas,
+        )
     }
 }
 
-fn size_key_for_plan(
-    cost: LoweringCost,
-    plan: SwitchPlan,
-    len: usize,
+fn binary_leaf_count(len: usize, leaf_size: usize) -> usize {
+    if len <= leaf_size {
+        1
+    } else {
+        let mid = len / 2;
+        binary_leaf_count(mid, leaf_size) + binary_leaf_count(len - mid, leaf_size)
+    }
+}
+
+fn binary_wide_split_count(
+    equality_costs: &[TestCost],
+    ordered_costs: &[TestCost],
+    leaf_size: usize,
+    evm_version: EvmVersion,
+    default: SwitchDefault,
+    prefix_size: usize,
+    width_charge: usize,
+) -> usize {
+    struct Simulation<'a> {
+        leaf_size: usize,
+        evm_version: EvmVersion,
+        default: SwitchDefault,
+        width_charge: usize,
+        wide: &'a mut [bool],
+        next_split: usize,
+    }
+
+    impl Simulation<'_> {
+        fn run(
+            &mut self,
+            equality_costs: &[TestCost],
+            ordered_costs: &[TestCost],
+            offset: &mut usize,
+        ) -> bool {
+            if equality_costs.len() <= self.leaf_size {
+                *offset = equality_costs.iter().fold(
+                    offset.saturating_add(self.default.code_size(self.evm_version)),
+                    |offset, test| offset.saturating_add(test.code_size),
+                );
+                return false;
+            }
+
+            let split = self.next_split;
+            self.next_split += 1;
+            let mid = equality_costs.len() / 2;
+            *offset = offset
+                .saturating_add(ordered_costs[mid].code_size)
+                .saturating_add(usize::from(self.wide[split]).saturating_mul(self.width_charge));
+            let mut changed = self.run(&equality_costs[mid..], &ordered_costs[mid..], offset);
+            if *offset > usize::from(u8::MAX) && !self.wide[split] {
+                self.wide[split] = true;
+                changed = true;
+            }
+            *offset = offset.saturating_add(JUMPDEST_LEN);
+            changed | self.run(&equality_costs[..mid], &ordered_costs[..mid], offset)
+        }
+    }
+
+    let mut wide = vec![false; equality_costs.len()];
+    loop {
+        let mut offset = prefix_size;
+        let mut simulation = Simulation {
+            leaf_size,
+            evm_version,
+            default,
+            width_charge,
+            wide: &mut wide,
+            next_split: 0,
+        };
+        if !simulation.run(equality_costs, ordered_costs, &mut offset) {
+            return wide.into_iter().filter(|&wide| wide).count();
+        }
+    }
+}
+
+fn binary_first_block_max_size(
+    equality_costs: &[TestCost],
+    ordered_costs: &[TestCost],
+    leaf_size: usize,
+    evm_version: EvmVersion,
+    default: SwitchDefault,
     table_target_width: usize,
-    layout: SwitchLayout,
-) -> (usize, usize, usize) {
-    let locality_credit = usize::from(
-        layout.shared_terminal_target
-            && table_target_width > 1
-            && matches!(plan, SwitchPlan::Binary { .. }),
-    ) * len;
-    (cost.code_size.saturating_sub(locality_credit), cost.hit_gas_sum, cost.miss_gas)
+) -> usize {
+    if equality_costs.len() <= leaf_size {
+        return equality_costs
+            .iter()
+            .fold(default.max_code_size(evm_version, table_target_width), |size, test| {
+                size.saturating_add(test.max_code_size)
+            });
+    }
+
+    let mid = equality_costs.len() / 2;
+    ordered_costs[mid].max_code_size.saturating_add(binary_first_block_max_size(
+        &equality_costs[mid..],
+        &ordered_costs[mid..],
+        leaf_size,
+        evm_version,
+        default,
+        table_target_width,
+    ))
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -513,6 +673,10 @@ impl LoweringCost {
 
     fn gas_key(self) -> (usize, usize, usize) {
         (self.hit_gas_sum, self.miss_gas, self.code_size)
+    }
+
+    fn size_key(self) -> (usize, usize, usize) {
+        (self.code_size, self.hit_gas_sum, self.miss_gas)
     }
 }
 
@@ -1271,6 +1435,7 @@ fn push_len(value: U256, evm_version: EvmVersion) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_primitives::keccak256;
 
     fn values(n: usize) -> Vec<U256> {
         (0..n).map(U256::from).collect()
@@ -1340,44 +1505,15 @@ mod tests {
     }
 
     #[test]
-    fn accounts_for_shared_terminal_label_locality() {
-        let mut values = [
-            0xc43b1a78u64,
-            0x10c772cc,
-            0xebbd40a9,
-            0xd758c88e,
-            0x3d492ec4,
-            0xcba58af7,
-            0x8a67ee70,
-            0x4e580bc4,
-            0x6d738a50,
-            0x905f7d67,
-            0x8dc714ba,
-            0x40bcff2a,
-            0x6d4975a2,
-            0x920f5c73,
-            0x5fb43592,
-            0x24a75cfd,
-            0x3b88f6c2,
-            0xaa66aa63,
-            0x98e9a73d,
-            0xebd25c8f,
-            0xe6e0ae36,
-            0x1eb6457a,
-            0x965a68f5,
-            0xdca2fb5a,
-            0xcbf99d38,
-            0x67e648b5,
-            0x54eaadab,
-            0x7238232f,
-            0x1f49dbe7,
-            0x87d912cb,
-            0xf02a00c9,
-            0x41052a0d,
-        ]
-        .map(U256::from);
-        values.sort_unstable();
-        let select = |shared_terminal_target| {
+    fn models_shared_terminal_label_widths() {
+        let select = |len| {
+            let mut values = (0..len)
+                .map(|value| {
+                    let hash = keccak256(format!("f{value}()"));
+                    U256::from(u32::from_be_bytes(hash[..4].try_into().unwrap()) | 0x8000_0000)
+                })
+                .collect::<Vec<_>>();
+            values.sort_unstable();
             select_switch_plan_with_linear_values_and_budget(
                 &values,
                 &values,
@@ -1389,13 +1525,22 @@ mod tests {
                     max_gas_code_growth: MAX_GAS_CODE_GROWTH,
                     max_bit_slice_gas_code_growth: MAX_BIT_SLICE_GAS_CODE_GROWTH,
                     forced: SwitchLowering::Auto,
-                    layout: SwitchLayout { shared_terminal_target, ..SwitchLayout::default() },
+                    layout: SwitchLayout {
+                        shared_terminal_target: true,
+                        trace_size_bounds: Some((14, 15)),
+                        ..SwitchLayout::default()
+                    },
                 },
             )
             .plan
         };
-        assert_eq!(select(false), SwitchPlan::Linear);
-        assert!(matches!(select(true), SwitchPlan::Binary { .. }));
+        assert_eq!(select(16), SwitchPlan::Linear);
+        assert_eq!(select(24), SwitchPlan::Binary { leaf_size: 12 });
+        assert!(matches!(select(32), SwitchPlan::Binary { .. }));
+        assert_eq!(select(41), SwitchPlan::Binary { leaf_size: 20 });
+        assert_eq!(select(77), SwitchPlan::Binary { leaf_size: 19 });
+        assert_eq!(select(79), SwitchPlan::Binary { leaf_size: 19 });
+        assert_eq!(select(80), SwitchPlan::Binary { leaf_size: 10 });
     }
 
     #[test]

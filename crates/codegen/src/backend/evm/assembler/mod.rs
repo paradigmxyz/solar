@@ -15,7 +15,7 @@ use crate::{
     mir::IMMUTABLE_WORD_SIZE,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::GrowableBitSet, index::index_vec, map::FxHashMap};
 use solar_interface::{diagnostics::DiagCtxt, sym};
 use solar_sema::Gcx;
 
@@ -200,6 +200,147 @@ impl<'gcx> Assembler<'gcx> {
     /// Emits a push instruction with an immediate value.
     pub(crate) fn emit_push(&mut self, value: U256) {
         self.push_ir_instruction(ir::Instruction::push_value(value));
+    }
+
+    /// Returns optimistic and block-layout byte sizes for the entry trace through
+    /// the current block.
+    pub(crate) fn current_trace_size_bounds(
+        &self,
+        block_target_width: usize,
+    ) -> Option<(usize, usize)> {
+        let current = self.current_block?;
+        let mut references = index_vec![0usize; self.program.blocks.len()];
+        references[ir::BlockId::ENTRY] = 1;
+        for &(_, _, label) in &self.label_relocations {
+            if let Some(&target) = self.label_blocks.get(&label) {
+                references[target] += 1;
+            }
+        }
+        for (_, targets) in &self.indexed_jump_relocations {
+            for &label in targets {
+                if let Some(&target) = self.label_blocks.get(&label) {
+                    references[target] += 1;
+                }
+            }
+        }
+        for block in self.program.blocks.indices() {
+            if self.explicit_jump_target(block).is_none()
+                && !self.block_has_explicit_terminator(block)
+                && block.index() + 1 < self.program.blocks.len()
+            {
+                references[ir::BlockId::from_usize(block.index() + 1)] += 1;
+            }
+        }
+
+        let mut trace = vec![current];
+        while trace.last().copied() != Some(ir::BlockId::ENTRY) {
+            let target = *trace.last()?;
+            let mut predecessors = self
+                .program
+                .blocks
+                .indices()
+                .filter(|&block| self.trace_successor(block) == Some(target));
+            let predecessor = predecessors.next()?;
+            if predecessors.next().is_some() || trace.contains(&predecessor) {
+                return None;
+            }
+            trace.push(predecessor);
+        }
+        trace.reverse();
+
+        let mut bounds = (0usize, 0usize);
+        for (position, &block) in trace.iter().enumerate() {
+            if position != 0 && references[block] > 1 {
+                bounds.0 += 1;
+                bounds.1 += 1;
+            }
+
+            let next = trace.get(position + 1).copied();
+            let instructions = &self.program.blocks[block].instructions;
+            let end = if self.explicit_jump_target(block).is_some_and(|target| Some(target) == next)
+            {
+                instructions.len() - 2
+            } else {
+                instructions.len()
+            };
+            for (index, inst) in instructions[..end].iter().enumerate() {
+                let (min_size, layout_size) =
+                    self.instruction_size_bounds(block, index, inst, block_target_width);
+                bounds.0 += min_size;
+                bounds.1 += layout_size;
+            }
+        }
+        Some(bounds)
+    }
+
+    fn trace_successor(&self, block: ir::BlockId) -> Option<ir::BlockId> {
+        if self.indexed_jump_relocations.iter().any(|&(source, _)| source == block) {
+            None
+        } else if let Some(target) = self.explicit_jump_target(block) {
+            Some(target)
+        } else if self.block_has_explicit_terminator(block) {
+            None
+        } else {
+            (block.index() + 1 < self.program.blocks.len())
+                .then(|| ir::BlockId::from_usize(block.index() + 1))
+        }
+    }
+
+    fn explicit_jump_target(&self, block: ir::BlockId) -> Option<ir::BlockId> {
+        let instructions = &self.program.blocks[block].instructions;
+        let [.., push, jump] = instructions.as_slice() else { return None };
+        if !push.is_encoded_push() || jump.is_encoded_push() || jump.opcode != op::JUMP {
+            return None;
+        }
+        let instruction = instructions.len() - 2;
+        let label = self.label_relocations.iter().find_map(|&(source, index, label)| {
+            (source == block && index == instruction).then_some(label)
+        })?;
+        self.label_blocks.get(&label).copied()
+    }
+
+    fn block_has_explicit_terminator(&self, block: ir::BlockId) -> bool {
+        self.indexed_jump_relocations.iter().any(|&(source, _)| source == block)
+            || self.program.blocks[block]
+                .instructions
+                .last()
+                .is_some_and(|inst| !inst.is_encoded_push() && op::is_terminal(inst.opcode))
+    }
+
+    fn instruction_size_bounds(
+        &self,
+        block: ir::BlockId,
+        instruction: usize,
+        inst: &ir::Instruction,
+        block_target_width: usize,
+    ) -> (usize, usize) {
+        if inst.immutable_push().is_some() {
+            (33, 33)
+        } else if !inst.is_encoded_push() {
+            (1, 1)
+        } else if let Some(value) = inst.pushed_value() {
+            let width = value.byte_len();
+            let size = if width == 0 && self.gcx.sess.opts.evm_version.has_push0() {
+                1
+            } else {
+                width.max(1) + 1
+            };
+            (size, size)
+        } else if self
+            .label_relocations
+            .iter()
+            .any(|&(source, index, _)| source == block && index == instruction)
+        {
+            (2, block_target_width + 1)
+        } else if self
+            .deferred_relocations
+            .iter()
+            .any(|&(source, index, _)| source == block && index == instruction)
+        {
+            (1, block_target_width + 1)
+        } else {
+            (1, 33)
+        }
     }
 
     /// Emits a push instruction that will be resolved to a label's offset.
@@ -892,6 +1033,30 @@ PUSH1 0x02
 
 "#]]
             );
+        });
+    }
+
+    #[test]
+    fn current_trace_size_includes_predecessors() {
+        with_assembler(size_optimized_opts(), |mut asm| {
+            let cold = asm.new_label();
+            let selector = asm.new_label();
+
+            let frame_size = asm.new_deferred_const();
+            asm.emit_push_deferred(frame_size);
+            asm.emit_push(U256::from(64));
+            asm.emit_op(op::MSTORE);
+            asm.emit_op(op::CALLVALUE);
+            asm.emit_push_label(cold);
+            asm.emit_op(op::JUMPI);
+
+            asm.define_label(selector);
+            asm.emit_push(U256::ZERO);
+            asm.emit_op(op::CALLDATALOAD);
+            asm.emit_push(U256::from(224));
+            asm.emit_op(op::SHR);
+
+            assert_eq!(asm.current_trace_size_bounds(2), Some((13, 16)));
         });
     }
 

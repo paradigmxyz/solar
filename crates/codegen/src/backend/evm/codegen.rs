@@ -5379,7 +5379,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                         if args.is_empty() && self.empty_stop_functions.contains(*function)
                 )
             });
-        SwitchLayout { coalesce_case_targets, shared_case_continuation, shared_terminal_target }
+        SwitchLayout {
+            coalesce_case_targets,
+            shared_case_continuation,
+            shared_terminal_target,
+            trace_size_bounds: shared_terminal_target
+                .then(|| self.asm.current_trace_size_bounds(self.switch_table_target_width()))
+                .flatten(),
+        }
     }
 
     fn emit_linear_mir_switch(&mut self, func: &Function, cases: &[(ValueId, BlockId)]) {
