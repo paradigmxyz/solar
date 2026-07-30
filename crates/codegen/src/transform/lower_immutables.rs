@@ -7,10 +7,13 @@
 
 use crate::{
     immutable::{immutable_staging_addr, immutable_staging_base},
-    mir::{EffectKind, Immediate, InstKind, MemoryRegion, Module, Value},
+    mir::{EffectKind, FunctionId, Immediate, InstKind, MemoryRegion, Module, Terminator, Value},
     pass::MirPass,
 };
 use alloy_primitives::U256;
+use solar_data_structures::bit_set::DenseBitSet;
+use solar_interface::sym;
+use std::collections::VecDeque;
 
 /// Lowers immutable assignments to memory stores in the deployment staging area.
 pub(crate) struct LowerImmutables;
@@ -31,8 +34,12 @@ impl MirPass for LowerImmutables {
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         let staging_base = immutable_staging_base(module);
+        let runtime_reachable = runtime_reachable_functions(module);
+        let mut constructor_only = DenseBitSet::new_filled(module.functions.len());
+        constructor_only.subtract(&runtime_reachable);
         let mut changed = false;
-        for func in &mut module.functions {
+        for func_id in constructor_only.iter() {
+            let func = module.function_mut(func_id);
             let stores: Vec<_> = func
                 .instructions()
                 .filter_map(|inst_id| match func.inst(inst_id).kind {
@@ -54,4 +61,38 @@ impl MirPass for LowerImmutables {
         }
         changed
     }
+}
+
+fn runtime_reachable_functions(module: &Module) -> DenseBitSet<FunctionId> {
+    let mut reachable = DenseBitSet::new_empty(module.functions.len());
+    let mut worklist = VecDeque::new();
+    for (func_id, func) in module.functions.iter_enumerated() {
+        if (func.name.name == sym::entry
+            || func.selector.is_some()
+            || func.attributes.is_fallback
+            || func.attributes.is_receive)
+            && reachable.insert(func_id)
+        {
+            worklist.push_back(func_id);
+        }
+    }
+
+    while let Some(func_id) = worklist.pop_front() {
+        let func = module.function(func_id);
+        for inst_id in func.instructions() {
+            if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind
+                && reachable.insert(function)
+            {
+                worklist.push_back(function);
+            }
+        }
+        for block in &func.blocks {
+            if let Some(Terminator::TailCall { function, .. }) = &block.terminator
+                && reachable.insert(*function)
+            {
+                worklist.push_back(*function);
+            }
+        }
+    }
+    reachable
 }

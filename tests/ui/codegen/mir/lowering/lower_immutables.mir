@@ -19,3 +19,11 @@ fn @constructor(arg0: u8, arg1: bytes20) -> u8 {
     v0 = loadimmutable first
     ret v0
 }
+
+// CHECK-LABEL: fn @runtime
+// CHECK: storeimmutable first, 1
+fn @runtime() [selector=1] {
+  bb0:
+    storeimmutable first, 1
+    stop
+}

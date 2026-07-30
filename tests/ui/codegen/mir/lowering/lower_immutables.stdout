@@ -15,3 +15,9 @@
       ret v0
   }
   
+  fn @runtime() {
+    bb0:
+      storeimmutable first, 1
+      stop
+  }
+  
