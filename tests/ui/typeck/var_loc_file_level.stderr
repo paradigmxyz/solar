@@ -28,13 +28,11 @@ error: mismatched types
 LL │ uint[] memory constant b0 = [];
    ╰╴                            ━━ expected `uint256[] memory`, found `uint256[0] memory`
 
-error: cannot infer nameable array element type
+error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/var_loc_file_level.sol:LL:CC
    │
 LL │ S[] memory constant d0 = [];
-   │                          ━━
-   │
-   ╰ help: add an explicit type conversion for the first element
+   ╰╴                         ━━ expected `struct S[] memory`, found `struct S[0] memory`
 
 error: aborting due to 6 previous errors
 

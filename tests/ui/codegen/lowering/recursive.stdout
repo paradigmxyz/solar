@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/recursive.sol:Recursive ===
 @module Recursive
-fn @fact(arg0: u256) {
+fn @fact(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -9,13 +9,11 @@ fn @fact(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = gt arg0, 1
     v4 = iszero v3
     jumpi v4, bb3, bb4
   bb3:
-    mstore 128, 1
-    returndata 128, 32
+    ret 1
   bb4:
     v5 = sub arg0, 1
     v6 = lt arg0, 1
@@ -38,45 +36,42 @@ fn @fact(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 128, v8
-    returndata 128, 32
+    ret v8
 }
 
 fn @fact(arg0: u256) -> u256 {
   bb0:
-    v0 = internal_frame_addr 128
-    mstore v0, 0 !metadata(memory=internal_frame)
-    v1 = gt arg0, 1
-    v2 = iszero v1
-    jumpi v2, bb1, bb2
+    v0 = gt arg0, 1
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
   bb1:
     ret 1
   bb2:
-    v3 = sub arg0, 1
-    v4 = lt arg0, 1
-    jumpi v4, bb3, bb4
+    v2 = sub arg0, 1
+    v3 = lt arg0, 1
+    jumpi v3, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v5 = internal_call fact1, 1, v3
-    v6 = mul arg0, v5
-    v7 = iszero v5
-    v8 = div v6, v5
-    v9 = eq v8, arg0
-    v10 = or v7, v9
-    v11 = iszero v10
-    jumpi v11, bb5, bb6
+    v4 = internal_call fact1, 1, v2
+    v5 = mul arg0, v4
+    v6 = iszero v4
+    v7 = div v5, v4
+    v8 = eq v7, arg0
+    v9 = or v6, v8
+    v10 = iszero v9
+    jumpi v10, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    ret v6
+    ret v5
 }
 
-fn @fib(arg0: u256) {
+fn @fib(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -85,13 +80,11 @@ fn @fib(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = gt arg0, 1
     v4 = iszero v3
     jumpi v4, bb3, bb4
   bb3:
-    mstore 128, arg0
-    returndata 128, 32
+    ret arg0
   bb4:
     v5 = sub arg0, 1
     v6 = lt arg0, 1
@@ -119,50 +112,47 @@ fn @fib(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    mstore 128, v11
-    returndata 128, 32
+    ret v11
 }
 
 fn @fib(arg0: u256) -> u256 {
   bb0:
-    v0 = internal_frame_addr 128
-    mstore v0, 0 !metadata(memory=internal_frame)
-    v1 = gt arg0, 1
-    v2 = iszero v1
-    jumpi v2, bb1, bb2
+    v0 = gt arg0, 1
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
   bb1:
     ret arg0
   bb2:
-    v3 = sub arg0, 1
-    v4 = lt arg0, 1
-    jumpi v4, bb3, bb4
+    v2 = sub arg0, 1
+    v3 = lt arg0, 1
+    jumpi v3, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v5 = internal_call fib3, 1, v3
-    v6 = sub arg0, 2
-    v7 = lt arg0, 2
-    jumpi v7, bb5, bb6
+    v4 = internal_call fib3, 1, v2
+    v5 = sub arg0, 2
+    v6 = lt arg0, 2
+    jumpi v6, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v8 = internal_call fib3, 1, v6
-    v9 = add v5, v8
-    v10 = lt v9, v5
-    jumpi v10, bb7, bb8
+    v7 = internal_call fib3, 1, v5
+    v8 = add v4, v7
+    v9 = lt v8, v4
+    jumpi v9, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    ret v9
+    ret v8
 }
 
-fn @isEven(arg0: u256) {
+fn @isEven(arg0: u256) -> bool [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -171,12 +161,10 @@ fn @isEven(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = eq arg0, 0
     jumpi v3, bb3, bb4
   bb3:
-    mstore 128, 1
-    returndata 128, 32
+    ret 1
   bb4:
     v4 = sub arg0, 1
     v5 = lt arg0, 1
@@ -187,53 +175,48 @@ fn @isEven(arg0: u256) {
     revert 0, 36
   bb6:
     v6 = internal_call isOdd5, 1, v4
-    mstore 128, v6
-    returndata 128, 32
+    ret v6
 }
 
 fn @isOdd(arg0: u256) -> bool {
   bb0:
-    v0 = internal_frame_addr 128
-    mstore v0, 0 !metadata(memory=internal_frame)
-    v1 = eq arg0, 0
-    jumpi v1, bb1, bb2
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
   bb1:
     ret 0
   bb2:
-    v2 = sub arg0, 1
-    v3 = lt arg0, 1
-    jumpi v3, bb3, bb4
+    v1 = sub arg0, 1
+    v2 = lt arg0, 1
+    jumpi v2, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v4 = internal_call isEven6, 1, v2
-    ret v4
+    v3 = internal_call isEven6, 1, v1
+    ret v3
 }
 
 fn @isEven(arg0: u256) -> bool {
   bb0:
-    v0 = internal_frame_addr 128
-    mstore v0, 0 !metadata(memory=internal_frame)
-    v1 = eq arg0, 0
-    jumpi v1, bb1, bb2
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
   bb1:
     ret 1
   bb2:
-    v2 = sub arg0, 1
-    v3 = lt arg0, 1
-    jumpi v3, bb3, bb4
+    v1 = sub arg0, 1
+    v2 = lt arg0, 1
+    jumpi v2, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v4 = internal_call isOdd5, 1, v2
-    ret v4
+    v3 = internal_call isOdd5, 1, v1
+    ret v3
 }
 
-fn @isOdd(arg0: u256) {
+fn @isOdd(arg0: u256) -> bool [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -242,12 +225,10 @@ fn @isOdd(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = eq arg0, 0
     jumpi v3, bb3, bb4
   bb3:
-    mstore 128, 0
-    returndata 128, 32
+    ret 0
   bb4:
     v4 = sub arg0, 1
     v5 = lt arg0, 1
@@ -258,7 +239,6 @@ fn @isOdd(arg0: u256) {
     revert 0, 36
   bb6:
     v6 = internal_call isEven6, 1, v4
-    mstore 128, v6
-    returndata 128, 32
+    ret v6
 }
 

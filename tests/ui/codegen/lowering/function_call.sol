@@ -1,4 +1,4 @@
-//@revisions: mir size
+//@ revisions: mir size
 //@ignore-host: windows
 //@[mir] compile-flags: -Zcodegen -O none -Zdump=mir
 //@[mir] filecheck:

@@ -28,9 +28,7 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     v13 = lt v12, arg1
     jumpi v13, bb5, bb6
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb6:
     v14 = sub v12, arg1
     v15 = add v11, arg1
@@ -50,7 +48,7 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     v25 = mload 0 !metadata(memory=scratch)
     v26 = gas
     v27 = mload 32 !metadata(memory=scratch)
-    v28 = call v26, v25, 0, v27, v24, 0, 32
+    v28 = call v26, v25, 0, v27, v24, 0, 0
     v29 = iszero v28
     jumpi v29, bb7, bb8
   bb7:
@@ -58,7 +56,6 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     returndatacopy 0, 0, v30 !metadata(memory=scratch)
     revert 0, v30
   bb8:
-    v31 = mload 0 !metadata(memory=scratch)
     stop
 }
 

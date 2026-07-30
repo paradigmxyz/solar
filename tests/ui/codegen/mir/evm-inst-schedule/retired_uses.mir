@@ -1,4 +1,4 @@
-//@ compile-flags: --pass dce,evm-inst-schedule
+//@ compile-flags: -Zmir-pipeline=dce,evm-inst-schedule
 @module EvmInstScheduleRetiredUses
 
 // DCE leaves the removed multiply in the instruction arena. Its use of v4 must

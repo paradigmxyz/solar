@@ -1,0 +1,70 @@
+// === ROOT/tests/ui/codegen/lowering/calldata_slice_param_helper.sol:CalldataSliceParamHelper ===
+@module CalldataSliceParamHelper
+@phase evm-shaped
+fn @lastWord() {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v7 = add arg0, 4
+    v8 = calldataload v7
+    v6 = add arg0, 36
+    v3 = internal_call @_last, 1, v6, v8
+    mstore 128, v3
+    returndata 128, 32
+}
+
+fn @_last(arg0: calldataptr, arg1: u256) -> u256 {
+  bb0:
+    v3 = sub arg1, 32
+    v4 = add arg0, v3
+    v5 = calldataload v4
+    ret v5
+}
+
+fn @lastWord2() {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v16 = add arg0, 36
+    v17 = add arg0, 4
+    v18 = calldataload v17
+    v3 = internal_call @_last, 1, v16, v18
+    jumpi v18, bb3, bb1
+  bb3:
+    v7 = sub v18, 1
+    v8 = add v16, 1
+    v10 = internal_call @_last, 1, v8, v7
+    v11 = xor v3, v10
+    mstore 128, v11
+    returndata 128, 32
+}
+
+fn @entry() {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb5, bb1
+  bb1:
+    v1 = calldatasize
+    jumpi v1, bb2, bb5
+  bb2:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb5, [0x3955f902 => bb3, 0x97f495a8 => bb4]
+  bb3:
+    tail_call @lastWord
+  bb4:
+    tail_call @lastWord2
+  bb5:
+    revert 0, 0
+}
+

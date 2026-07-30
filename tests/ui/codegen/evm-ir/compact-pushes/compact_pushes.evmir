@@ -1,4 +1,4 @@
-//@compile-flags: --pass compact-pushes
+//@compile-flags: -Zevm-ir-pipeline=compact-pushes
 //@filecheck:
 @module module
 

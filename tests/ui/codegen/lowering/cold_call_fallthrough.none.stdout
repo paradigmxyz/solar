@@ -56,9 +56,6 @@ bb7 [cold]:
   revert
 bb8:
   push 0
-  push 128
-  mstore
-  push 0
   push 4
   calldataload
   eq
@@ -149,9 +146,6 @@ bb18 [cold]:
   dup1
   revert
 bb19:
-  push 0
-  push 128
-  mstore
   push 100
   push 4
   calldataload

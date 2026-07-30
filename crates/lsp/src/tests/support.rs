@@ -705,7 +705,7 @@ impl RequestFixture {
         response.unwrap_or_default()
     }
 
-    fn state(&self) -> GlobalState {
+    pub(super) fn state(&self) -> GlobalState {
         self.state_with_label_offsets(true)
     }
 
@@ -729,7 +729,7 @@ impl RequestFixture {
         state
     }
 
-    fn marker_location(&self, marker: &str) -> (Url, Position) {
+    pub(super) fn marker_location(&self, marker: &str) -> (Url, Position) {
         let marker = self.marked.marker(marker);
         let path = self.marked.project().path(marker.path());
         (Url::from_file_path(path).unwrap(), marker.position())

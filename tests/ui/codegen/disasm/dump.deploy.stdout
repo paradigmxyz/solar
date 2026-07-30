@@ -1,0 +1,8 @@
+// === ROOT/tests/ui/codegen/disasm/dump.sol:C (deployment) ===
+PUSH1 0x8a
+DUP1
+PUSH1 0x09
+PUSH0
+CODECOPY
+PUSH0
+RETURN

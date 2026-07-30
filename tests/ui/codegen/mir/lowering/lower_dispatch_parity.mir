@@ -1,4 +1,4 @@
-//@compile-flags: --pass lower-dispatch
+//@compile-flags: -Zmir-pipeline=lower-dispatch
 //@filecheck:
 // Full entry-routing behavior: empty calldata routes to `receive`,
 // the switch default routes to `fallback`, and the nonpayable entry gets a

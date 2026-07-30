@@ -24,7 +24,7 @@ fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
 
 // === ROOT/tests/ui/codegen/lowering/multi_return_call.sol:C ===
 @module C
-fn @sat(arg0: u256, arg1: u256) {
+fn @sat(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -33,23 +33,20 @@ fn @sat(arg0: u256, arg1: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = internal_call @tryAdd, 2, arg0, arg1
     v4 = mload 32 !metadata(memory=scratch)
     v5 = add v4, 32
     v6 = mload v5
-    mstore 160, v3
-    mstore 192, v6
-    v7 = mload 160
+    mstore 128, v3
+    mstore 160, v6
+    v7 = mload 128
     v8 = iszero v7
     jumpi v8, bb3, bb4
   bb3:
-    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    returndata 128, 32
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   bb4:
-    v9 = mload 192
-    mstore 128, v9
-    returndata 128, 32
+    v9 = mload 160
+    ret v9
 }
 
 fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
@@ -74,7 +71,7 @@ fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
     ret v10, v12
 }
 
-fn @tryA(arg0: u256, arg1: u256) {
+fn @tryA(arg0: u256, arg1: u256) -> (bool, u256) [abi_returns=[word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -83,15 +80,10 @@ fn @tryA(arg0: u256, arg1: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
-    mstore 160, 0
     v3 = internal_call @tryAdd, 2, arg0, arg1
     v4 = mload 32 !metadata(memory=scratch)
     v5 = add v4, 32
     v6 = mload v5
-    mstore 128, v3
-    v7 = add 128, 32
-    mstore v7, v6
-    returndata 128, 64
+    ret v3, v6
 }
 

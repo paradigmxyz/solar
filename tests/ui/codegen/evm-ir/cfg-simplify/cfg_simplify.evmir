@@ -1,4 +1,4 @@
-//@compile-flags: --pass cfg-simplify
+//@compile-flags: -Zevm-ir-pipeline=cfg-simplify
 //@filecheck:
 @module module
 

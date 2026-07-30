@@ -1,0 +1,1 @@
+{"contracts":{"ROOT/tests/ui/codegen/lowering/storage_ref_parenthesized_init.sol:StorageRefParenthesizedInit":{"bin-runtime":"60a060405234604a573615604a575f3560e01c8063da4a984203604a573660049003604013604a576004355f525f60205260405f206001815560010160243581555460805260206080f35b5f80fd"}},"version":"VERSION"}

@@ -13,5 +13,5 @@ modifier m6(uint v){require(v>6,"m6");_;}
 modifier m7(uint v){require(v>7,"m7");_;}
 modifier m8(uint v){require(v>8,"m8");_;}
 modifier m9(uint v){require(v>9,"m9");_;}
-function f(uint x)public m0(x) m1(x) m2(x) m3(x) m4(x) m5(x) m6(x) m7(x) m8(x) m9(x) returns(uint r){r=x;}
+function f(uint x)public pure m0(x) m1(x) m2(x) m3(x) m4(x) m5(x) m6(x) m7(x) m8(x) m9(x) returns(uint r){r=x;}
 }

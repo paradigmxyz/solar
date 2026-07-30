@@ -74,7 +74,7 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "invalid_denomination_no_whitespace"
         // Not actually a broken version, we just don't check "^0 and ^1".
         | "broken_version_1"
-        // TODO: CBA to implement.
+        // Checked during AST validation rather than parsing.
         | "unchecked_while_body"
         // TODO: EVM version-aware parsing.
         | "basefee_pre_london"
