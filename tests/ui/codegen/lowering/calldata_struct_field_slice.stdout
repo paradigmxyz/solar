@@ -115,7 +115,7 @@ fn @midWord(arg0: memptr) -> bytes32 {
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_field_slice.sol:CalldataStructFieldSlice ===
 @module CalldataStructFieldSlice
 @phase evm-shaped
-fn @factory() {
+fn @factory.0() {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -238,12 +238,12 @@ fn @factory() {
     mstore v74, v69
     v75 = add v5, 256
     mstore v75, v4
-    v76 = internal_call factory1, 1, v5
+    v76 = internal_call @factory.1, 1, v5
     mstore 128, v76
     returndata 128, 32
 }
 
-fn @factory(arg0: memptr) -> address {
+fn @factory.1(arg0: memptr) -> address {
   bb0:
     v0 = add arg0, 64
     v1 = mload v0
@@ -277,7 +277,7 @@ fn @factory(arg0: memptr) -> address {
     jump bb3
 }
 
-fn @tailHash() {
+fn @tailHash.2() {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -400,12 +400,12 @@ fn @tailHash() {
     mstore v74, v69
     v75 = add v5, 256
     mstore v75, v4
-    v76 = internal_call tailHash3, 1, v5
+    v76 = internal_call @tailHash.3, 1, v5
     mstore 128, v76
     returndata 128, 32
 }
 
-fn @tailHash(arg0: memptr) -> bytes32 {
+fn @tailHash.3(arg0: memptr) -> bytes32 {
   bb0:
     v0 = add arg0, 64
     v1 = mload v0
@@ -462,7 +462,7 @@ fn @tailHash(arg0: memptr) -> bytes32 {
     jump bb3
 }
 
-fn @midWord() {
+fn @midWord.4() {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -585,12 +585,12 @@ fn @midWord() {
     mstore v74, v69
     v75 = add v5, 256
     mstore v75, v4
-    v76 = internal_call midWord5, 1, v5
+    v76 = internal_call @midWord.5, 1, v5
     mstore 128, v76
     returndata 128, 32
 }
 
-fn @midWord(arg0: memptr) -> bytes32 {
+fn @midWord.5(arg0: memptr) -> bytes32 {
   bb0:
     v0 = add arg0, 256
     v1 = mload v0
@@ -627,11 +627,11 @@ fn @entry() {
     v3 = shr 224, v2
     switch v3, default bb6, [0x1af91295 => bb3, 0x9850c81b => bb4, 0xbb6106d2 => bb5]
   bb3:
-    tail_call factory0
+    tail_call @factory.0
   bb4:
-    tail_call tailHash2
+    tail_call @tailHash.2
   bb5:
-    tail_call midWord4
+    tail_call @midWord.4
   bb6:
     revert 0, 0
 }
