@@ -99,7 +99,7 @@ impl<'gcx> Lowerer<'gcx> {
         let mut packed_args = Vec::with_capacity(args.len());
 
         for arg in args.exprs() {
-            let Some(ty) = self.get_expr_type(arg) else {
+            let Some(mut ty) = self.get_expr_type(arg) else {
                 return Err(self
                     .gcx
                     .dcx()
@@ -113,6 +113,11 @@ impl<'gcx> Lowerer<'gcx> {
                 let bytes = bytes.as_byte_str().to_vec();
                 packed_args.push(PackedAbiArg::Bytes(bytes));
                 continue;
+            }
+
+            let storage_value = self.materialize_storage_value_expr(builder, arg);
+            if let Some((_, value_ty)) = storage_value {
+                ty = value_ty;
             }
 
             // Calldata `bytes`/`string` (a parameter, `msg.data`, a
@@ -138,14 +143,18 @@ impl<'gcx> Lowerer<'gcx> {
                 ty.peel_refs().kind,
                 TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
             ) {
-                let ptr = self.lower_value_expr(builder, arg);
+                let ptr = storage_value
+                    .map(|(value, _)| value)
+                    .unwrap_or_else(|| self.lower_value_expr(builder, arg));
                 packed_args.push(PackedAbiArg::DynamicBytes(ptr));
                 continue;
             }
 
             let size = self.get_packed_size_from_expr(arg, ty);
             let left_aligned = self.expr_is_fixed_bytes(arg);
-            let value = self.lower_value_expr(builder, arg);
+            let value = storage_value
+                .map(|(value, _)| value)
+                .unwrap_or_else(|| self.lower_value_expr(builder, arg));
             packed_args.push(PackedAbiArg::Value { value, size, left_aligned });
         }
 

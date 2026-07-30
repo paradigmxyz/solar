@@ -1790,7 +1790,11 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers a type-checked Solidity type to MIR's coarse value type.
     fn lower_type_from_ty(&self, ty: Ty<'gcx>) -> MirType {
-        match ty.peel_refs().kind {
+        let ty = ty.peel_refs();
+        if let TyKind::Slice(underlying) = ty.kind {
+            return self.lower_type_from_ty(underlying);
+        }
+        match ty.kind {
             TyKind::Elementary(elem) => match elem {
                 ElementaryType::Bool => MirType::Bool,
                 ElementaryType::Address(_) => MirType::Address,
@@ -1804,9 +1808,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             },
             TyKind::Mapping(_, _) => MirType::StoragePtr,
-            TyKind::DynArray(_) | TyKind::Slice(_) => {
-                MirType::MemoryObject(MemoryObjectKind::DynamicArray)
-            }
+            TyKind::DynArray(_) => MirType::MemoryObject(MemoryObjectKind::DynamicArray),
             TyKind::Array(_, _) => MirType::MemoryObject(MemoryObjectKind::FixedArray),
             TyKind::Fn(_) => MirType::Function,
             TyKind::Struct(_) => MirType::MemoryObject(MemoryObjectKind::Struct),

@@ -33,6 +33,24 @@ impl StorageLocation {
 }
 
 impl<'gcx> Lowerer<'gcx> {
+    /// Materializes a storage-reference expression into its memory value.
+    pub(super) fn materialize_storage_value_expr(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> Option<(ValueId, Ty<'gcx>)> {
+        let ty = self.get_expr_type(expr)?;
+        let TyKind::Ref(_, solar_ast::DataLocation::Storage) = ty.kind else {
+            return None;
+        };
+        let slot = self.lower_lvalue_slot(builder, expr).unwrap_or_else(|| {
+            self.err_value(builder, expr.span, "unsupported storage value expression")
+        });
+        let value_ty = ty.peel_refs();
+        let value = self.load_storage_value_at(builder, value_ty, slot);
+        Some((value, value_ty))
+    }
+
     /// Loads one Solidity value from a runtime-computed storage slot,
     /// recursively materializing reference values into memory.
     pub(super) fn load_storage_value_at(

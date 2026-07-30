@@ -256,6 +256,8 @@ impl<'gcx> Lowerer<'gcx> {
                 }) && let Some(slot) = self.lower_lvalue_slot(builder, arg)
                 {
                     slot
+                } else if let Some((value, _)) = self.materialize_storage_value_expr(builder, arg) {
+                    value
                 } else {
                     let value = self.lower_value_expr(builder, arg);
                     self.coerce_memory_slice_value(builder, value)
@@ -468,8 +470,22 @@ impl<'gcx> Lowerer<'gcx> {
         let selector_word = builder.shl(selector_shift, selector);
         let address_shift = builder.imm_u64(32);
         let address = builder.shr(address_shift, function_value);
+        let (value, gas_override) = self.lower_call_options(builder, call_opts);
+
+        let spill = self.allocate_memory(builder, 128);
+        builder.mstore(spill, address);
+        let selector_spill = self.offset_ptr(builder, spill, 32);
+        builder.mstore(selector_spill, selector_word);
+        let value_spill = self.offset_ptr(builder, spill, 64);
+        builder.mstore(value_spill, value);
+        let gas_spill = gas_override.map(|gas| {
+            let gas_spill = self.offset_ptr(builder, spill, 96);
+            builder.mstore(gas_spill, gas);
+            gas_spill
+        });
 
         let arg_exprs = args.exprs().collect::<Vec<_>>();
+        let selector_word = builder.mload(selector_spill);
         let (calldata_start, calldata_size) =
             match self.abi_encode_call_payload(builder, Some(selector_word), &arg_exprs) {
                 Ok(payload) => payload,
@@ -479,13 +495,14 @@ impl<'gcx> Lowerer<'gcx> {
             };
 
         let zero = builder.imm_u64(0);
-        let value = self.extract_call_value(builder, call_opts);
+        let address = builder.mload(spill);
+        let value = builder.mload(value_spill);
         if function.returns.is_empty() {
             let code_size = builder.extcodesize(address);
             let no_code = builder.iszero(code_size);
             self.emit_abi_decode_revert_if(builder, no_code);
         }
-        let gas = builder.gas();
+        let gas = if let Some(slot) = gas_spill { builder.mload(slot) } else { builder.gas() };
         if matches!(
             function.state_mutability,
             hir::StateMutability::Pure | hir::StateMutability::View
@@ -1215,8 +1232,30 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::YulChainid => builder.chainid(),
             Builtin::YulGas => builder.gas(),
             Builtin::YulBasefee => builder.basefee(),
-            Builtin::YulBlobbasefee => builder.blobbasefee(),
-            Builtin::YulBlobhash => builder.blobhash(args[0]),
+            Builtin::YulBlobbasefee => {
+                if !self.gcx.sess.opts.evm_version.has_blob_base_fee() {
+                    return Err(self
+                        .gcx
+                        .dcx()
+                        .err("codegen requires Cancun-compatible EVM for `blobbasefee`")
+                        .span(call_args.span)
+                        .help("compile with `--evm-version cancun` or newer")
+                        .emit());
+                }
+                builder.blobbasefee()
+            }
+            Builtin::YulBlobhash => {
+                if !self.gcx.sess.opts.evm_version.has_blob_base_fee() {
+                    return Err(self
+                        .gcx
+                        .dcx()
+                        .err("codegen requires Cancun-compatible EVM for `blobhash`")
+                        .span(call_args.span)
+                        .help("compile with `--evm-version cancun` or newer")
+                        .emit());
+                }
+                builder.blobhash(args[0])
+            }
             Builtin::YulKeccak256 => builder.keccak256(args[0], args[1]),
             Builtin::YulCall => {
                 builder.call(args[0], args[1], args[2], args[3], args[4], args[5], args[6])
@@ -1359,6 +1398,17 @@ impl<'gcx> Lowerer<'gcx> {
                 Err(guar) => return self.call_error_result(builder, callee, guar),
             };
             let addr = self.lower_value_expr(builder, base);
+            let (value, gas_override) = self.lower_call_options(builder, call_opts);
+
+            let spill = self.allocate_memory(builder, 96);
+            builder.mstore(spill, addr);
+            let value_spill = self.offset_ptr(builder, spill, 32);
+            builder.mstore(value_spill, value);
+            let gas_spill = gas_override.map(|gas| {
+                let gas_spill = self.offset_ptr(builder, spill, 64);
+                builder.mstore(gas_spill, gas);
+                gas_spill
+            });
 
             // Get the calldata bytes argument.
             let data_arg = exprs[0];
@@ -1370,25 +1420,22 @@ impl<'gcx> Lowerer<'gcx> {
                     Err(guar) => return self.call_error_result(builder, callee, guar),
                 };
 
-            // Gas: use all available gas
-            let gas = builder.gas();
-
-            // Value: extract from call options {value: X} or default to 0
-            let value = (builtin == Builtin::AddressCall)
-                .then(|| self.extract_call_value(builder, call_opts));
+            let addr = builder.mload(spill);
+            let value = builder.mload(value_spill);
 
             // This lowering models only the success flag. Solidity's second
             // `bytes` result is rejected by `lower_multi_var_decl` until the
             // compiler materializes returndata bytes.
             let ret_offset = builder.imm_u64(0);
             let ret_size = builder.imm_u64(0);
+            let gas = if let Some(slot) = gas_spill { builder.mload(slot) } else { builder.gas() };
 
             // Emit the appropriate CALL/STATICCALL/DELEGATECALL instruction
             let success = match builtin {
                 Builtin::AddressCall => builder.call(
                     gas,
                     addr,
-                    value.expect("address call value"),
+                    value,
                     calldata_offset,
                     calldata_size,
                     ret_offset,
@@ -1454,7 +1501,21 @@ impl<'gcx> Lowerer<'gcx> {
             && resolved.attached
             && let hir::Res::Item(hir::ItemId::Function(func_id)) = resolved.res
         {
-            let bound_arg = self.lower_value_expr(builder, base);
+            let bound_arg = if self
+                .gcx
+                .hir
+                .function(func_id)
+                .parameters
+                .first()
+                .is_some_and(|&param| self.param_is_storage_ref(param))
+            {
+                self.lower_lvalue_slot(builder, base)
+                    .unwrap_or_else(|| self.lower_value_expr(builder, base))
+            } else {
+                self.materialize_storage_value_expr(builder, base)
+                    .map(|(value, _)| value)
+                    .unwrap_or_else(|| self.lower_value_expr(builder, base))
+            };
             return self.lower_library_call(builder, func_id, args, Some(bound_arg));
         }
 
@@ -1495,9 +1556,20 @@ impl<'gcx> Lowerer<'gcx> {
                     hir::StateMutability::NonPayable,
                 )
             };
-        // Use the recursive ABI encoder for every high-level call. The former
-        // shallow struct loop copied nested memory pointers as calldata words
-        // and treated dynamic bytes pointers as their encoded value.
+        // Solidity evaluates the receiver, call options, then arguments.
+        let addr_expr = self.lower_value_expr(builder, base);
+        let (value, gas_override) = self.lower_call_options(builder, call_opts);
+        let spill = self.allocate_memory(builder, 128);
+        builder.mstore(spill, addr_expr);
+        let value_spill = self.offset_ptr(builder, spill, 32);
+        builder.mstore(value_spill, value);
+        let gas_spill = gas_override.map(|gas| {
+            let gas_spill = self.offset_ptr(builder, spill, 64);
+            builder.mstore(gas_spill, gas);
+            gas_spill
+        });
+
+        // Use the recursive ABI encoder for every high-level call.
         let arg_exprs: Vec<_> = args.exprs().collect();
         let selector_word = builder.imm_u256(U256::from(selector) << 224);
         let (calldata_start, calldata_size) =
@@ -1506,21 +1578,11 @@ impl<'gcx> Lowerer<'gcx> {
                 Err(guar) => return self.call_error_result(builder, callee, guar),
             };
 
-        // Evaluate every side-effecting operand before spilling live values.
-        // Call-option expressions can use the global scratch words themselves.
-        let addr_expr = self.lower_value_expr(builder, base);
-        let value = self.extract_call_value(builder, call_opts);
-
-        // Keep the address and calldata pointer in a private allocation across
-        // final CALL setup, away from the global 0x00/0x20 scratch region.
-        let spill = self.allocate_memory(builder, 64);
-        builder.mstore(spill, addr_expr);
-        let calldata_spill = self.offset_ptr(builder, spill, 32);
+        let calldata_spill = self.offset_ptr(builder, spill, 96);
         builder.mstore(calldata_spill, calldata_start);
 
-        // Gas: use all available gas (must be right before CALL to be on top of stack)
-        let gas = builder.gas();
         let addr = builder.mload(spill);
+        let value = builder.mload(value_spill);
         let calldata_start_reload = builder.mload(calldata_spill);
         let zero = builder.imm_u64(0);
         let has_empty_return_head = return_tys.as_ref().is_some_and(Vec::is_empty)
@@ -1530,6 +1592,7 @@ impl<'gcx> Lowerer<'gcx> {
             let no_code = builder.iszero(code_size);
             self.emit_abi_decode_revert_if(builder, no_code);
         }
+        let gas = if let Some(slot) = gas_spill { builder.mload(slot) } else { builder.gas() };
 
         // Decode from the complete returndata after the call. A fixed output
         // area cannot represent dynamic or nested return values.
@@ -1617,20 +1680,25 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Extracts the `value` from call options `{value: X}`, or returns 0 if not present.
-    pub(super) fn extract_call_value(
+    /// Evaluates external-call options in source order.
+    pub(super) fn lower_call_options(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         call_opts: Option<&[hir::NamedArg<'_>]>,
-    ) -> ValueId {
+    ) -> (ValueId, Option<ValueId>) {
+        let mut value = None;
+        let mut gas = None;
         if let Some(opts) = call_opts {
             for opt in opts {
-                if opt.name.name == sym::value {
-                    return self.lower_value_expr(builder, &opt.value);
+                let lowered = self.lower_value_expr(builder, &opt.value);
+                match opt.name.name {
+                    sym::value => value = Some(lowered),
+                    kw::Gas => gas = Some(lowered),
+                    _ => {}
                 }
             }
         }
-        builder.imm_u64(0)
+        (value.unwrap_or_else(|| builder.imm_u64(0)), gas)
     }
 
     /// Computes the function selector for a member call.
@@ -1831,7 +1899,10 @@ impl<'gcx> Lowerer<'gcx> {
                 } else {
                     // A memory parameter receives one word; a logical slice
                     // materializes into the memory object the parameter expects.
-                    let value = self.lower_value_expr(builder, arg);
+                    let value = self
+                        .materialize_storage_value_expr(builder, arg)
+                        .map(|(value, _)| value)
+                        .unwrap_or_else(|| self.lower_value_expr(builder, arg));
                     match params.get(i) {
                         Some(&param_id) => self.coerce_arg_for_param(builder, param_id, arg, value),
                         None => self.coerce_memory_slice_value(builder, value),
@@ -2353,6 +2424,9 @@ impl<'gcx> Lowerer<'gcx> {
         arg: &hir::Expr<'_>,
         param_ty: &hir::Type<'_>,
     ) -> ValueId {
+        if let Some((value, _)) = self.materialize_storage_value_expr(builder, arg) {
+            return value;
+        }
         if matches!(
             param_ty.kind,
             hir::TypeKind::Elementary(hir::ElementaryType::String | hir::ElementaryType::Bytes)
@@ -2541,7 +2615,10 @@ impl<'gcx> Lowerer<'gcx> {
                 {
                     arg_vals.push(slice);
                 } else {
-                    let value = self.lower_value_expr(builder, arg);
+                    let value = self
+                        .materialize_storage_value_expr(builder, arg)
+                        .map(|(value, _)| value)
+                        .unwrap_or_else(|| self.lower_value_expr(builder, arg));
                     arg_vals.push(match func.parameters.get(param_idx) {
                         Some(&param_id) => self.coerce_arg_for_param(builder, param_id, arg, value),
                         None => value,

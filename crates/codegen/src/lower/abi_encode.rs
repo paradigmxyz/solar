@@ -275,15 +275,21 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let mut items = Vec::with_capacity(arg_exprs.len());
         let mut calldata_slices = FxHashSet::default();
-        for (arg, ty) in arg_exprs.iter().zip(tys) {
-            let value = if let Some((slice, is_bytes)) = self.calldata_dyn_slice(builder, arg)
+        for (arg, mut ty) in arg_exprs.iter().zip(tys) {
+            let value = if let Some((value, value_ty)) =
+                self.materialize_storage_value_expr(builder, arg)
+            {
+                ty = value_ty;
+                value
+            } else if let Some((slice, is_bytes)) = self.calldata_dyn_slice(builder, arg)
                 && (is_bytes
                     || matches!(
                         ty.peel_refs().kind,
                         TyKind::DynArray(elem)
                             if self.abi_is_word_element(elem)
                                 && !self.abi_word_requires_validation(elem)
-                    )) {
+                    ))
+            {
                 if Self::value_is_calldata_slice(builder, slice) {
                     calldata_slices.insert(slice);
                     slice
@@ -431,6 +437,7 @@ impl<'gcx> Lowerer<'gcx> {
         let func_ref = exprs[0];
         let args_tuple = exprs[1];
         let selector = if let Some(selector) = self.lower_resolved_function_selector(func_ref) {
+            self.lower_function_member_receiver(builder, func_ref);
             builder.imm_u64(u64::from(selector))
         } else {
             let function = self.lower_value_expr(builder, func_ref);
@@ -486,6 +493,11 @@ impl<'gcx> Lowerer<'gcx> {
         expr: &solar_sema::hir::Expr<'_>,
         ty: Ty<'gcx>,
     ) -> ValueId {
+        if !matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Storage))
+            && let Some((value, _)) = self.materialize_storage_value_expr(builder, expr)
+        {
+            return value;
+        }
         if self.expr_is_calldata_dynamic_bytes(expr) {
             let value = self.lower_value_expr(builder, expr);
             if Self::value_is_slice(builder, value) {

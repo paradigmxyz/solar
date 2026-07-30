@@ -6,6 +6,5 @@ contract CalldataArraySubsliceDynamic {
     // rather than miscompiled.
     function dynamic(bytes[] calldata data) external pure returns (bytes[] memory) {
         return data[1:]; //~ ERROR: codegen does not support slicing a calldata array of dynamic elements yet
-        //~^ ERROR: codegen does not support slicing a calldata array of dynamic elements yet
     }
 }

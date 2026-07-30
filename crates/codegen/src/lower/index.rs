@@ -66,10 +66,7 @@ impl<'gcx> Lowerer<'gcx> {
             // struct, a fixed array, a dynamic element — is laid out by the ABI
             // rules for the element type, so stride by its head size and rebuild
             // it, rather than loading a single word at `data + i * 32`.
-            let elem_ty = self.get_expr_type(base).and_then(|ty| match ty.peel_refs().kind {
-                TyKind::DynArray(elem) | TyKind::Slice(elem) | TyKind::Array(elem, _) => Some(elem),
-                _ => None,
-            });
+            let elem_ty = self.get_expr_type(base).and_then(|ty| ty.base_type(self.gcx));
             if let Some(elem_ty) = elem_ty
                 && !self.abi_is_word_element(elem_ty)
             {
@@ -121,10 +118,13 @@ impl<'gcx> Lowerer<'gcx> {
         };
 
         // Storage `bytes`/`string` (state variable or a field reached through a
-        // storage reference): its value lowers to a `[length][data...]` memory
-        // copy; index into that with a bounds check.
+        // storage reference): materialize its packed storage representation,
+        // then index the resulting `[length][data...]` memory copy.
         if self.expr_is_storage_bytes_lvalue(base) {
-            let base_val = self.lower_value_expr(builder, base);
+            let slot = self.lower_lvalue_slot(builder, base).unwrap_or_else(|| {
+                self.err_value(builder, base.span, "unsupported storage bytes expression")
+            });
+            let base_val = self.materialize_storage_bytes(builder, slot);
             let index_val = self.lower_index_value(builder, base.span, index);
             let len = builder.memory_object_len(base_val, MemoryObjectKind::Bytes);
             self.emit_index_bounds_check(builder, index_val, len);

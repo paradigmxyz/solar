@@ -13,6 +13,12 @@
 //@ run-call-fail: tryVoidEoa()
 //@ run-call-fail: tryReturnEoa()
 //@ run-call: tryForgedViewStatic() => 1
+//@ run-call: callEvaluationOrder() => 1234
+//@ run-call: pointerEvaluationOrder() => 1234
+//@ run-call: tryEvaluationOrder() => 1234
+//@ run-call: lowLevelEvaluationOrder() => 1234
+//@ run-call: tryMemberFunctionPointer() => 11
+//@ run-call: memberFunctionPointerSelector() => true
 
 interface IVoid {
     function ping() external;
@@ -29,6 +35,10 @@ interface IReturns {
 contract ExternalFunctionPointerTry {
     struct Context {
         uint256 value;
+    }
+
+    struct PointerHolder {
+        function(uint256) external returns (uint256, bytes memory) fn;
     }
 
     uint256 private observed;
@@ -161,5 +171,69 @@ contract ExternalFunctionPointerTry {
         } catch {
             return observed + 1;
         }
+    }
+
+    function orderReceiver() public returns (ExternalFunctionPointerTry) {
+        observed = observed * 10 + 1;
+        return this;
+    }
+
+    function orderValue() public returns (uint256) {
+        observed = observed * 10 + 2;
+        return 0;
+    }
+
+    function orderGas() public returns (uint256) {
+        observed = observed * 10 + 3;
+        return gasleft();
+    }
+
+    function orderArg() public returns (uint256) {
+        observed = observed * 10 + 4;
+        return 7;
+    }
+
+    function acceptOrder(uint256) external payable {}
+
+    function callEvaluationOrder() external returns (uint256) {
+        observed = 0;
+        orderReceiver().acceptOrder{value: orderValue(), gas: orderGas()}(orderArg());
+        return observed;
+    }
+
+    function pointerEvaluationOrder() external returns (uint256) {
+        observed = 0;
+        function(uint256) external payable fn = orderReceiver().acceptOrder;
+        fn{value: orderValue(), gas: orderGas()}(orderArg());
+        return observed;
+    }
+
+    function tryEvaluationOrder() external returns (uint256) {
+        observed = 0;
+        try orderReceiver().acceptOrder{value: orderValue(), gas: orderGas()}(orderArg()) {} catch {}
+        return observed;
+    }
+
+    function lowLevelEvaluationOrder() external returns (uint256) {
+        observed = 0;
+        (bool success,) = address(orderReceiver()).call{value: orderValue(), gas: orderGas()}(
+            abi.encodeCall(this.acceptOrder, (orderArg()))
+        );
+        require(success);
+        return observed;
+    }
+
+    function tryMemberFunctionPointer() external returns (uint256) {
+        PointerHolder memory holder = PointerHolder(this.values);
+        try holder.fn(7) returns (uint256 value, bytes memory data) {
+            return value + data.length + uint8(data[0]);
+        } catch {
+            return 0;
+        }
+    }
+
+    function memberFunctionPointerSelector() external view returns (bool) {
+        PointerHolder memory holder = PointerHolder(this.values);
+        return holder.fn.selector == this.values.selector;
     }
 }

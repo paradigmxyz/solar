@@ -149,6 +149,9 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> ValueId {
+        if let Some((value, _)) = self.materialize_storage_value_expr(builder, expr) {
+            return value;
+        }
         if let ExprKind::Lit(lit) = &expr.kind
             && let Some(ptr) = self.lower_string_literal_to_memory(builder, lit)
         {
@@ -294,7 +297,8 @@ impl<'gcx> Lowerer<'gcx> {
         ty: Ty<'gcx>,
         slice: ValueId,
     ) -> ValueId {
-        let is_array = matches!(ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Slice(_));
+        let ty = self.slice_underlying_ty(ty);
+        let is_array = matches!(ty.kind, TyKind::DynArray(_));
         if Self::value_is_calldata_slice(builder, slice) {
             if is_array {
                 self.materialize_calldata_dyn_array_for_ty(builder, ty, slice)
@@ -317,12 +321,13 @@ impl<'gcx> Lowerer<'gcx> {
         if Self::value_is_memory_slice(builder, value) {
             return value;
         }
+        let ty = self.slice_underlying_ty(ty);
         let object = if Self::value_is_calldata_slice(builder, value) {
             self.materialize_slice_for_ty(builder, ty, value)
         } else {
             value
         };
-        let kind = if matches!(ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Slice(_)) {
+        let kind = if matches!(ty.kind, TyKind::DynArray(_)) {
             MemoryObjectKind::DynamicArray
         } else {
             MemoryObjectKind::Bytes
@@ -330,6 +335,13 @@ impl<'gcx> Lowerer<'gcx> {
         let ptr = builder.memory_object_data(object, kind);
         let len = builder.memory_object_len(object, kind);
         builder.make_slice(ptr, len, SliceLocation::Memory)
+    }
+
+    /// Resolves sema's `Slice(underlying array)` wrapper to the sliced
+    /// bytes/string or dynamic-array type.
+    fn slice_underlying_ty(&self, ty: Ty<'gcx>) -> Ty<'gcx> {
+        let ty = ty.peel_refs();
+        if let TyKind::Slice(underlying) = ty.kind { underlying.peel_refs() } else { ty }
     }
 
     /// Coerces a lowered value into a `bytes memory` consumer's shape: a
@@ -475,6 +487,9 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> ValueId {
+        if let Some((value, _)) = self.materialize_storage_value_expr(builder, expr) {
+            return value;
+        }
         match self.calldata_bytes_source(builder, expr) {
             super::CalldataValue::Slice(slice, false) => {
                 if let Some(ty) = self.get_expr_type(expr) {
@@ -517,7 +532,8 @@ impl<'gcx> Lowerer<'gcx> {
         ty: Ty<'gcx>,
         slice: ValueId,
     ) -> ValueId {
-        if let TyKind::DynArray(elem) | TyKind::Slice(elem) = ty.peel_refs().kind
+        let ty = self.slice_underlying_ty(ty);
+        if let TyKind::DynArray(elem) = ty.kind
             && (!self.abi_is_word_element(elem)
                 || matches!(elem.peel_refs().kind, TyKind::Fn(function) if function.is_external()))
         {
@@ -532,7 +548,7 @@ impl<'gcx> Lowerer<'gcx> {
             );
         }
         let ptr = self.materialize_calldata_dyn_array(builder, slice);
-        if let TyKind::DynArray(elem) | TyKind::Slice(elem) = ty.peel_refs().kind
+        if let TyKind::DynArray(elem) = ty.kind
             && self.abi_word_requires_validation(elem)
         {
             let len = builder.memory_object_len(ptr, MemoryObjectKind::DynamicArray);
@@ -622,12 +638,12 @@ impl<'gcx> Lowerer<'gcx> {
         pos: ValueId,
         end: ValueId,
     ) -> ValueId {
-        let ty = ty.peel_refs();
+        let ty = self.slice_underlying_ty(ty);
         match ty.kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 self.materialize_calldata_bytes_at(builder, source, pos, end)
             }
-            TyKind::DynArray(elem) | TyKind::Slice(elem) => {
+            TyKind::DynArray(elem) => {
                 self.materialize_calldata_dynamic_array_at(builder, source, elem, pos, end)
             }
             TyKind::Array(elem, len) => self.materialize_calldata_fixed_array_at(
@@ -1046,33 +1062,21 @@ impl<'gcx> Lowerer<'gcx> {
                 return (builtin == Builtin::ArrayPush0).then(|| builder.error_value(guar));
             }
         };
-        let current = self.materialize_storage_bytes(builder, slot);
-        let len = builder.memory_object_len(current, MemoryObjectKind::Bytes);
         match method {
             sym::push => {
-                let one = builder.imm_u64(1);
-                let new_len = builder.add(len, one);
-                let overflow = builder.lt(new_len, len);
-                self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
-
-                let resized = self.resize_memory_bytes(builder, current, len, new_len);
-                let byte = exprs
+                let value = exprs
                     .first()
-                    .map(|arg| {
-                        let value = self.lower_value_expr(builder, arg);
-                        self.bytes1_store_byte(builder, value)
-                    })
+                    .map(|arg| self.lower_value_expr(builder, arg))
                     .unwrap_or_else(|| builder.imm_u64(0));
-                let data = builder.memory_object_data(resized, MemoryObjectKind::Bytes);
-                let dst = builder.add(data, len);
-                builder.mstore8(dst, byte);
-                self.copy_memory_bytes_to_storage(builder, slot, resized);
+                let byte = self.push_storage_byte(builder, slot, value);
                 // The storage reference returned by `push()` reads as the
                 // newly zero-initialized byte when the call is used as an
                 // rvalue. Reuse the value written above.
                 return (builtin == Builtin::ArrayPush0).then_some(byte);
             }
             kw::Pop => {
+                let current = self.materialize_storage_bytes(builder, slot);
+                let len = builder.memory_object_len(current, MemoryObjectKind::Bytes);
                 self.emit_panic_if_zero(builder, len, PanicCode::PopEmptyArray);
                 let one = builder.imm_u64(1);
                 let new_len = builder.sub(len, one);
@@ -1082,6 +1086,29 @@ impl<'gcx> Lowerer<'gcx> {
             _ => {}
         }
         None
+    }
+
+    /// Appends one byte to a storage `bytes` value and returns that byte.
+    pub(super) fn push_storage_byte(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slot: ValueId,
+        value: ValueId,
+    ) -> ValueId {
+        let current = self.materialize_storage_bytes(builder, slot);
+        let len = builder.memory_object_len(current, MemoryObjectKind::Bytes);
+        let one = builder.imm_u64(1);
+        let new_len = builder.add(len, one);
+        let overflow = builder.lt(new_len, len);
+        self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
+
+        let resized = self.resize_memory_bytes(builder, current, len, new_len);
+        let byte = self.bytes1_store_byte(builder, value);
+        let data = builder.memory_object_data(resized, MemoryObjectKind::Bytes);
+        let dst = builder.add(data, len);
+        builder.mstore8(dst, byte);
+        self.copy_memory_bytes_to_storage(builder, slot, resized);
+        byte
     }
 
     pub(super) fn resize_memory_bytes(
@@ -1334,7 +1361,7 @@ impl<'gcx> Lowerer<'gcx> {
         // A storage `bytes`/`string`: decode its short/long form into memory,
         // which a low-level call reads its input from. This arises in reentrancy
         // harnesses that stash the payload in storage and replay it.
-        if self.is_storage_bytes_expr(expr)
+        if self.expr_is_storage_bytes_lvalue(expr)
             && let Some(slot) = self.lower_lvalue_slot(builder, expr)
         {
             let ptr = self.materialize_storage_bytes(builder, slot);
@@ -1466,11 +1493,16 @@ impl<'gcx> Lowerer<'gcx> {
             return None;
         }
 
-        // Memory and storage values lower to a memory `[length][data...]`
-        // object; hash its contents through the object reference, so the
-        // optimizer sees one whole-object read instead of separate length and
-        // data projections.
-        let ptr = self.lower_value_expr(builder, inner);
+        // Memory and storage values hash their materialized byte contents, not
+        // the pointer or storage-slot word.
+        let ptr = if self.expr_is_storage_bytes_lvalue(inner) {
+            let slot = self.lower_lvalue_slot(builder, inner).unwrap_or_else(|| {
+                self.err_value(builder, inner.span, "unsupported storage bytes expression")
+            });
+            self.materialize_storage_bytes(builder, slot)
+        } else {
+            self.lower_value_expr(builder, inner)
+        };
         Some(builder.keccak256_bytes(ptr))
     }
 

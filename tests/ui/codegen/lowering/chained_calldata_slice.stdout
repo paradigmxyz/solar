@@ -9,56 +9,86 @@ fn @bytesChain(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] 
   bb1:
     revert 0, 0
   bb2:
-    v3 = slice_ptr arg0
-    v4 = slice_len arg0
-    v5 = lt v4, 1
-    jumpi v5, bb3, bb4
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 32
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v6 = sub v4, 1
-    v7 = add v3, 1
-    v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = lt v10, 1
-    jumpi v11, bb5, bb6
+    v11 = add v6, 32
+    v12 = lt v11, v6
+    v13 = gt v11, v3
+    v14 = or v12, v13
+    jumpi v14, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
-    v12 = sub v10, 1
-    v13 = add v9, 1
-    v14 = make_calldata_slice v13, v12
-    v15 = slice_len v14
-    v16 = add v15, 31
-    v17 = lt v16, v15
-    jumpi v17, bb7, bb8
+    v15 = calldataload v6
+    v16 = add v6, 32
+    v17 = add v16, v15
+    v18 = lt v17, v16
+    v19 = gt v17, v3
+    v20 = or v18, v19
+    jumpi v20, bb7, bb8
   bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb8:
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = iszero v19
-    v21 = select v20, 32, v19
-    v22 = add 32, v21
-    v23 = lt v22, v21
+    v21 = slice_ptr arg0
+    v22 = slice_len arg0
+    v23 = lt v22, 1
     jumpi v23, bb9, bb10
   bb9:
+    revert 0, 0
+  bb10:
+    v24 = sub v22, 1
+    v25 = add v21, 1
+    v26 = make_calldata_slice v25, v24
+    v27 = slice_ptr v26
+    v28 = slice_len v26
+    v29 = lt v28, 1
+    jumpi v29, bb11, bb12
+  bb11:
+    revert 0, 0
+  bb12:
+    v30 = sub v28, 1
+    v31 = add v27, 1
+    v32 = make_calldata_slice v31, v30
+    v33 = slice_len v32
+    v34 = add v33, 31
+    v35 = lt v34, v33
+    jumpi v35, bb13, bb14
+  bb13:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb10:
-    v24 = alloc memorybytes, exact, uninitialized, infallible, v22
-    set_memory_object_len memorybytes, v24, v15
-    v25 = memory_object_data memorybytes, v24
-    v26 = sub v21, 32
-    v27 = add v25, v26
-    mstore v27, 0
-    v28 = slice_ptr v14
-    calldatacopy v25, v28, v15
-    ret v24
+  bb14:
+    v36 = not 31
+    v37 = and v34, v36
+    v38 = iszero v37
+    v39 = select v38, 32, v37
+    v40 = add 32, v39
+    v41 = lt v40, v39
+    jumpi v41, bb15, bb16
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb16:
+    v42 = alloc memorybytes, exact, uninitialized, infallible, v40
+    set_memory_object_len memorybytes, v42, v33
+    v43 = memory_object_data memorybytes, v42
+    v44 = sub v39, 32
+    v45 = add v43, v44
+    mstore v45, 0
+    v46 = slice_ptr v32
+    calldatacopy v43, v46, v33
+    ret v42
 }
 
 fn @arrChain(arg0: calldataslice) -> u256 [abi_returns=[word]] {
@@ -70,56 +100,76 @@ fn @arrChain(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = slice_ptr arg0
-    v4 = slice_len arg0
-    v5 = lt v4, 1
-    jumpi v5, bb3, bb4
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 32
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v6 = sub v4, 1
-    v7 = mul 1, 32
-    v8 = add v3, v7
-    v9 = make_calldata_slice v8, v6
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = lt v11, 1
-    jumpi v12, bb5, bb6
+    v11 = add v6, 32
+    v12 = lt v11, v6
+    v13 = gt v11, v3
+    v14 = or v12, v13
+    jumpi v14, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
-    v13 = sub v11, 1
-    v14 = mul 1, 32
-    v15 = add v10, v14
-    v16 = make_calldata_slice v15, v13
-    v17 = slice_len v16
-    v18 = lt 0, v17
-    jumpi v18, bb8, bb7
+    v15 = calldataload v6
+    v16 = add v6, 32
+    v17 = gt v15, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v17, bb7, bb8
   bb7:
+    revert 0, 0
+  bb8:
+    v18 = mul v15, 32
+    v19 = add v16, v18
+    v20 = lt v19, v16
+    v21 = gt v19, v3
+    v22 = or v20, v21
+    jumpi v22, bb9, bb10
+  bb9:
+    revert 0, 0
+  bb10:
+    v23 = slice_ptr arg0
+    v24 = slice_len arg0
+    v25 = lt v24, 1
+    jumpi v25, bb11, bb12
+  bb11:
+    revert 0, 0
+  bb12:
+    v26 = sub v24, 1
+    v27 = mul 1, 32
+    v28 = add v23, v27
+    v29 = make_calldata_slice v28, v26
+    v30 = slice_ptr v29
+    v31 = slice_len v29
+    v32 = lt v31, 1
+    jumpi v32, bb13, bb14
+  bb13:
+    revert 0, 0
+  bb14:
+    v33 = sub v31, 1
+    v34 = mul 1, 32
+    v35 = add v30, v34
+    v36 = make_calldata_slice v35, v33
+    v37 = slice_len v36
+    v38 = lt 0, v37
+    jumpi v38, bb16, bb15
+  bb15:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb8:
-    v19 = slice_ptr v16
-    v20 = mul 0, 32
-    v21 = add v19, v20
-    v22 = calldataload v21
-    v23 = add v19, v22
-    v24 = calldataload v23
-    v25 = add v23, 32
-    v26 = shr 251, v24
-    jumpi v26, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    v27 = mul v24, 32
-    v28 = add 32, v27
-    v29 = alloc memoryarray<1>, exact, uninitialized, infallible, v28
-    set_memory_object_len memoryarray, v29, v24
-    v30 = memory_object_data memoryarray, v29
-    calldatacopy v30, v25, v27
-    ret v29
+  bb16:
+    v39 = slice_ptr v36
+    v40 = mul 0, 32
+    v41 = add v39, v40
+    v42 = calldataload v41
+    ret v42
 }
 

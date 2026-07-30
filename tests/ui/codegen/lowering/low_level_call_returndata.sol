@@ -9,7 +9,7 @@ interface IERC20Minimal {
 contract LowLevelCallReturndata {
     // CHECK-LABEL: fn @safeTransfer{{[( ]}}
     // CHECK: {{v[0-9]+}} = abi_encode [word, word], selector 0xa9059cbb
-    // CHECK: {{v[0-9]+}} = call {{v[0-9]+}}, arg0, 0,
+    // CHECK: {{v[0-9]+}} = call
     // CHECK: {{v[0-9]+}} = make_returndata_slice 0,
     // CHECK: returndatacopy
     // CHECK: internal_call @__revert_error
@@ -21,7 +21,7 @@ contract LowLevelCallReturndata {
 
     // CHECK-LABEL: fn @balanceOf{{[( ]}}
     // CHECK: abi_encode [word], selector 0x70a08231
-    // CHECK: {{v[0-9]+}} = staticcall {{v[0-9]+}}, arg0,
+    // CHECK: {{v[0-9]+}} = staticcall
     // CHECK: {{v[0-9]+}} = make_returndata_slice 0,
     // CHECK: returndatacopy
     // CHECK: mload
@@ -33,7 +33,7 @@ contract LowLevelCallReturndata {
     }
 
     // CHECK-LABEL: fn @forward{{[( ]}}
-    // CHECK: {{v[0-9]+}} = call {{v[0-9]+}}, arg0, 0,
+    // CHECK: {{v[0-9]+}} = call
     // CHECK: {{v[0-9]+}} = make_returndata_slice 0,
     // CHECK: returndatacopy
     // CHECK: ret {{v[0-9]+}}
@@ -42,4 +42,5 @@ contract LowLevelCallReturndata {
         require(success);
         return result;
     }
+
 }

@@ -536,25 +536,35 @@ impl<'gcx> Lowerer<'gcx> {
                     .emit();
                 return;
             }
-            for ((&elem, value), source_ty) in
-                elements.iter().zip(values).zip(source_tys.iter().copied())
-            {
-                if let Some(elem) = elem {
-                    self.lower_assign_from(builder, elem, value, source_ty);
-                }
-            }
+            let values = values.into_iter().map(Some).collect::<Vec<_>>();
+            self.assign_tuple_values(builder, elements, &values, &source_tys);
             return;
         }
 
         if self.is_low_level_call_expr(rhs) {
             // `(ok, data) = addr.call(...)`: the call lowering yields the success
-            // flag; the full returndata is copied out right after the call.
+            // flag. Snapshot returndata before evaluating either lvalue because
+            // an effectful destination can make another external call.
             let success = self.lower_value_expr(builder, rhs);
-            for (i, &elem) in elements.iter().enumerate() {
-                let Some(elem) = elem else { continue };
-                let val = if i == 0 { success } else { self.materialize_returndata_bytes(builder) };
-                self.lower_assign_from(builder, elem, val, source_tys.get(i).copied().flatten());
-            }
+            let returndata = elements
+                .iter()
+                .skip(1)
+                .any(Option::is_some)
+                .then(|| self.materialize_returndata_bytes(builder));
+            let values = elements
+                .iter()
+                .enumerate()
+                .map(|(i, element)| {
+                    element.map(|_| {
+                        if i == 0 {
+                            success
+                        } else {
+                            returndata.expect("returndata value is available")
+                        }
+                    })
+                })
+                .collect::<Vec<_>>();
+            self.assign_tuple_values(builder, elements, &values, &source_tys);
             return;
         }
 
@@ -568,17 +578,12 @@ impl<'gcx> Lowerer<'gcx> {
         // its values directly; assign them through the regular lvalue path,
         // which routes slice-slot locals through their two-word slots.
         if rhs_delivers_pending && let Some(values) = self.pending_inline_returns.take() {
-            for (i, &elem) in elements.iter().enumerate() {
-                if let Some(elem) = elem {
-                    let val = values.get(i).copied().unwrap_or(first_val);
-                    self.lower_assign_from(
-                        builder,
-                        elem,
-                        val,
-                        source_tys.get(i).copied().flatten(),
-                    );
-                }
-            }
+            let values = elements
+                .iter()
+                .enumerate()
+                .map(|(i, element)| element.map(|_| values.get(i).copied().unwrap_or(first_val)))
+                .collect::<Vec<_>>();
+            self.assign_tuple_values(builder, elements, &values, &source_tys);
             return;
         }
         self.pending_inline_returns = None;
@@ -601,13 +606,30 @@ impl<'gcx> Lowerer<'gcx> {
                 })
             })
             .collect();
-        for (i, (&elem, val)) in elements.iter().zip(vals).enumerate() {
-            let Some(elem) = elem else { continue };
-            self.lower_assign_from(
+        self.assign_tuple_values(builder, elements, &vals, &source_tys);
+    }
+
+    /// Evaluates tuple lvalue locations left-to-right, then stores right-to-left.
+    fn assign_tuple_values(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        elements: &[Option<&hir::Expr<'_>>],
+        values: &[Option<ValueId>],
+        source_tys: &[Option<Ty<'gcx>>],
+    ) {
+        let locations = elements
+            .iter()
+            .map(|element| element.map(|element| self.lower_tuple_lvalue(builder, element)))
+            .collect::<Vec<_>>();
+        for (index, location) in locations.into_iter().enumerate().rev() {
+            let Some(location) = location else { continue };
+            let value =
+                values.get(index).copied().flatten().expect("tuple destination has a value");
+            self.store_tuple_lvalue(
                 builder,
-                elem,
-                val.expect("tuple element has a value"),
-                source_tys.get(i).copied().flatten(),
+                location,
+                value,
+                source_tys.get(index).copied().flatten(),
             );
         }
     }
@@ -1431,20 +1453,6 @@ impl<'gcx> Lowerer<'gcx> {
                 let success = builder.iszero(failed);
                 return (success, Some(created));
             }
-            // Check if this is a member access (external call)
-            if let ExprKind::Member(base, member) = &callee.kind {
-                return (
-                    self.lower_try_member_call(
-                        builder,
-                        callee,
-                        base,
-                        *member,
-                        args,
-                        (*call_opts).map(|opts| opts.args),
-                    ),
-                    None,
-                );
-            }
             if let Some(TyKind::Fn(function)) = self.get_expr_type(callee).map(|ty| ty.kind)
                 && function.is_external()
                 && function.function_id.is_none()
@@ -1457,6 +1465,20 @@ impl<'gcx> Lowerer<'gcx> {
                         args,
                         (*call_opts).map(|opts| opts.args),
                         function,
+                    ),
+                    None,
+                );
+            }
+            // Check if this is a statically resolved member access.
+            if let ExprKind::Member(base, member) = &callee.kind {
+                return (
+                    self.lower_try_member_call(
+                        builder,
+                        callee,
+                        base,
+                        *member,
+                        args,
+                        (*call_opts).map(|opts| opts.args),
                     ),
                     None,
                 );
@@ -1497,6 +1519,19 @@ impl<'gcx> Lowerer<'gcx> {
                 )
             };
         let selector_word = builder.imm_u256(U256::from(selector) << 224);
+        let addr = self.lower_value_expr(builder, base);
+        let (value, gas_override) = self.lower_call_options(builder, call_opts);
+
+        let spill = self.allocate_memory(builder, 96);
+        builder.mstore(spill, addr);
+        let value_spill = self.offset_ptr(builder, spill, 32);
+        builder.mstore(value_spill, value);
+        let gas_spill = gas_override.map(|gas| {
+            let gas_spill = self.offset_ptr(builder, spill, 64);
+            builder.mstore(gas_spill, gas);
+            gas_spill
+        });
+
         let arg_exprs = args.exprs().collect::<Vec<_>>();
         let (calldata_start, calldata_size) =
             match self.abi_encode_call_payload(builder, Some(selector_word), &arg_exprs) {
@@ -1504,15 +1539,15 @@ impl<'gcx> Lowerer<'gcx> {
                 Err(guar) => return builder.error_value(guar),
             };
 
-        let addr = self.lower_value_expr(builder, base);
+        let addr = builder.mload(spill);
         let zero = builder.imm_u64(0);
-        let value = self.extract_call_value(builder, call_opts);
+        let value = builder.mload(value_spill);
         if returns_empty {
             let code_size = builder.extcodesize(addr);
             let no_code = builder.iszero(code_size);
             self.emit_abi_decode_revert_if(builder, no_code);
         }
-        let gas = builder.gas();
+        let gas = if let Some(slot) = gas_spill { builder.mload(slot) } else { builder.gas() };
 
         // The success and catch paths consume the complete return buffer with
         // RETURNDATA instructions, so the call needs no fixed output area.

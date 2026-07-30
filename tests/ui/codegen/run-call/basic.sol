@@ -6,6 +6,10 @@
 //@ run-call: increment => 41
 //@ run-call: testInline()
 //@ run-call: fullyInitializedNamedStruct => ([0], 0x00)
+//@ run-call: sameTupleTarget() => 1
+//@ run-call: effectfulTupleLocations() => 12, 10, 20
+//@ run-call: captureReturndataBeforeLvalueEffects() => true, 7
+//@ run-call: storageBytesPushLvalues() => 5, 18, 52, 86
 //@ run-call: 0x1003e2d20000000000000000000000000000000000000000000000000000000000000002 => 0x000000000000000000000000000000000000000000000000000000000000002a
 
 contract RunCall {
@@ -15,6 +19,11 @@ contract RunCall {
     }
 
     uint256 private base;
+    uint256[] private tupleValues;
+    uint256 private trace;
+    mapping(uint256 => bool) private outcomes;
+    bytes private captured;
+    bytes private pushed;
 
     constructor() {
         base = 40;
@@ -53,5 +62,54 @@ contract RunCall {
     {
         holder.values = new uint256[](1);
         holder.data = new bytes(1);
+    }
+
+    function sameTupleTarget() external pure returns (uint256 value) {
+        (value, value) = (1, 2);
+    }
+
+    function firstTupleIndex() internal returns (uint256) {
+        trace = trace * 10 + 1;
+        return 0;
+    }
+
+    function secondTupleIndex() internal returns (uint256) {
+        trace = trace * 10 + 2;
+        return 1;
+    }
+
+    function effectfulTupleLocations() external returns (uint256, uint256, uint256) {
+        tupleValues.push(0);
+        tupleValues.push(0);
+        (tupleValues[firstTupleIndex()], tupleValues[secondTupleIndex()]) = (10, 20);
+        return (trace, tupleValues[0], tupleValues[1]);
+    }
+
+    function seven() external pure returns (uint256) {
+        return 7;
+    }
+
+    function one() external pure returns (uint256) {
+        return 1;
+    }
+
+    function effectfulReturndataIndex() internal returns (uint256) {
+        (bool success,) = address(this).call(abi.encodeCall(this.one, ()));
+        require(success);
+        return 1;
+    }
+
+    function captureReturndataBeforeLvalueEffects() external returns (bool, uint256) {
+        (outcomes[effectfulReturndataIndex()], captured) =
+            address(this).call(abi.encodeCall(this.seven, ()));
+        return (outcomes[1], abi.decode(captured, (uint256)));
+    }
+
+    function storageBytesPushLvalues() external returns (uint256, uint8, uint8, uint8) {
+        pushed.push(0x01);
+        pushed.push(0x02);
+        pushed.push() = 0x12;
+        (pushed.push(), pushed.push()) = (0x34, 0x56);
+        return (pushed.length, uint8(pushed[2]), uint8(pushed[3]), uint8(pushed[4]));
     }
 }
