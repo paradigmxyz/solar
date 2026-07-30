@@ -621,8 +621,7 @@ impl<'gcx> Lowerer<'gcx> {
                 if var.is_state_variable() && var.is_immutable() {
                     let ty = self.lower_type_from_var(var_id);
                     let name = var.name.expect("state immutable must be named");
-                    let ast_id = self.gcx.hir.global_item_id(var_id) as u64;
-                    let id = self.module.add_immutable(name, ty, Some(ast_id));
+                    let id = self.module.add_immutable(name, ty, Some(var_id));
                     self.immutable_ids.insert(var_id, id);
                 } else if var.is_state_variable() && !var.is_constant() {
                     let var_ty = self.gcx.type_of_item(var_id.into());

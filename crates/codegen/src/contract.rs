@@ -18,7 +18,10 @@ use solar_data_structures::{
     sync::{self, Scope},
 };
 use solar_interface::Result;
-use solar_sema::{Gcx, hir::ContractId};
+use solar_sema::{
+    Gcx,
+    hir::{ContractId, VariableId},
+};
 use std::sync::{
     OnceLock,
     atomic::{AtomicUsize, Ordering},
@@ -45,8 +48,8 @@ pub struct ContractArtifact {
 /// An immutable placeholder in runtime bytecode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ImmutableReference {
-    /// Source-level AST identifier of the immutable declaration.
-    pub ast_id: u64,
+    /// Source variable containing the immutable declaration.
+    pub variable_id: VariableId,
     /// Byte offset where the placeholder data begins.
     pub start: usize,
     /// Type width encoded by the placeholder.
@@ -338,7 +341,9 @@ fn generate_contract_bytecode(
         .map(|reference| {
             let immutable = module.immutable(reference.id);
             ImmutableReference {
-                ast_id: immutable.ast_id.expect("Solidity immutable must have an AST ID"),
+                variable_id: immutable
+                    .variable_id
+                    .expect("Solidity immutable must have a variable ID"),
                 start: reference.code_offset + 1,
                 type_size: reference.type_size,
             }

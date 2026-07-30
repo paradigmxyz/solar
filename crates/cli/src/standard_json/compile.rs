@@ -356,20 +356,14 @@ fn make_contract_output(
         | OutputSelectionFlags::BYTECODE_OPCODES
         | OutputSelectionFlags::BYTECODE_LINK_REFERENCES;
     if output_selection.intersects(bytecode_outputs) {
-        evm.bytecode = Some(make_bytecode_output(
-            artifact,
-            output_selection,
-            false,
-            gcx.sess.opts.evm_version,
-        ));
+        evm.bytecode = Some(make_bytecode_output(gcx, artifact, output_selection, false));
     }
     let deployed_bytecode_outputs = OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT
         | OutputSelectionFlags::DEPLOYED_BYTECODE_OPCODES
         | OutputSelectionFlags::DEPLOYED_BYTECODE_LINK_REFERENCES
         | OutputSelectionFlags::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES;
     if output_selection.intersects(deployed_bytecode_outputs) {
-        evm.deployed_bytecode =
-            Some(make_bytecode_output(artifact, output_selection, true, gcx.sess.opts.evm_version));
+        evm.deployed_bytecode = Some(make_bytecode_output(gcx, artifact, output_selection, true));
     }
     if !evm.is_empty() {
         output.evm = Some(evm);
@@ -379,10 +373,10 @@ fn make_contract_output(
 }
 
 fn make_bytecode_output(
+    gcx: Gcx<'_>,
     artifact: Option<&ContractArtifact>,
     output_selection: OutputSelectionFlags,
     deployed: bool,
-    evm_version: EvmVersion,
 ) -> BytecodeOutput {
     let object_flag = if deployed {
         OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT
@@ -409,7 +403,7 @@ fn make_bytecode_output(
     if output_selection.contains(opcodes_flag) {
         output.opcodes = Some(solar_codegen::backend::evm::disassemble_standard_json(
             bytecode.map_or(&[], |bytecode| bytecode.as_ref()),
-            evm_version,
+            gcx.sess.opts.evm_version,
         ));
     }
     if output_selection.contains(link_references_flag) {
@@ -421,12 +415,13 @@ fn make_bytecode_output(
         let mut references = artifact
             .into_iter()
             .flat_map(|artifact| artifact.immutable_references.iter())
+            .map(|reference| (gcx.hir.global_item_id(reference.variable_id) as u64, reference))
             .collect::<Vec<_>>();
-        references.sort_unstable_by_key(|reference| (reference.ast_id, reference.start));
+        references.sort_unstable_by_key(|(ast_id, reference)| (*ast_id, reference.start));
 
         let mut by_ast_id = FxIndexMap::<u64, Vec<OffsetLength>>::default();
-        for reference in references {
-            by_ast_id.entry(reference.ast_id).or_default().push(OffsetLength {
+        for (ast_id, reference) in references {
+            by_ast_id.entry(ast_id).or_default().push(OffsetLength {
                 start: reference.start,
                 length: usize::from(reference.type_size.bytes()),
             });

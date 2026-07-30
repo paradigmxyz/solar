@@ -10,6 +10,7 @@ use solar_data_structures::{
     map::FxHashMap,
 };
 use solar_interface::{Ident, Symbol, sym};
+use solar_sema::hir::VariableId;
 use std::sync::Arc;
 
 /// A named immutable declared by a MIR module.
@@ -19,8 +20,8 @@ pub(crate) struct Immutable {
     pub(crate) name: Ident,
     /// The immutable's MIR type.
     pub(crate) ty: MirType,
-    /// The source-level AST identifier, when this module was lowered from Solidity.
-    pub(crate) ast_id: Option<u64>,
+    /// The source variable, when this module was lowered from Solidity.
+    pub(crate) variable_id: Option<VariableId>,
 }
 
 /// The lowering phase a [`Module`] is in.
@@ -208,9 +209,9 @@ impl Module {
         &mut self,
         name: Ident,
         ty: MirType,
-        ast_id: Option<u64>,
+        variable_id: Option<VariableId>,
     ) -> ImmutableId {
-        self.immutables.push(Immutable { name, ty, ast_id })
+        self.immutables.push(Immutable { name, ty, variable_id })
     }
 
     /// Returns an immutable declaration.
