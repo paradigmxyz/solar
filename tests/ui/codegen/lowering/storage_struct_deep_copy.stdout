@@ -43,16 +43,16 @@ fn @assign() {
     stop
   bb8:
     mstore 64, v41 !metadata(memory=scratch)
-    v45 = calldatasize
-    calldatacopy v14, v45, 64
+    v46 = calldatasize
+    calldatacopy v14, v46, 64
     mstore v14, 1
     v39 = add v14, 32
     v40 = mul 0, 32
     v17 = add v39, v40
     mstore v17, arg1
     v18 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v46 = add v18, 64
-    mstore 64, v46 !metadata(memory=scratch)
+    v45 = add v18, 64
+    mstore 64, v45 !metadata(memory=scratch)
     mstore v18, arg0
     v20 = add v18, 32
     mstore v20, v14
@@ -100,8 +100,8 @@ fn @push() {
   bb6:
     mstore 0, 2 !metadata(memory=scratch)
     v25 = shl 1, v21
-    v26 = add v25, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
     v28 = mload v18
+    v26 = add v25, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
     sstore v26, v28 !metadata(storage=symbolic(v26))
     v30 = mload v20
     v31 = add v25, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5acf
@@ -129,16 +129,16 @@ fn @push() {
     stop
   bb10:
     mstore 64, v48 !metadata(memory=scratch)
-    v52 = calldatasize
-    calldatacopy v14, v52, 64
+    v53 = calldatasize
+    calldatacopy v14, v53, 64
     mstore v14, 1
     v46 = add v14, 32
     v47 = mul 0, 32
     v17 = add v46, v47
     mstore v17, arg1
     v18 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v53 = add v18, 64
-    mstore 64, v53 !metadata(memory=scratch)
+    v52 = add v18, 64
+    mstore 64, v52 !metadata(memory=scratch)
     mstore v18, arg0
     v20 = add v18, 32
     mstore v20, v14

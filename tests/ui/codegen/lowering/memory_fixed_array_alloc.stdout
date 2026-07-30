@@ -186,6 +186,29 @@ fn @literal() -> u256 [abi_returns=[word]] {
     ret v5
 }
 
+fn @bulkDefault(arg0: u256) -> u256 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
+    memory_zero v3, 128
+    v4 = lt arg0, 4
+    jumpi v4, bb4, bb3
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v5 = memory_object_element_addr memoryfixedarray<4, 1>, v3, arg0
+    v6 = mload v5
+    ret v6
+}
+
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
 @module NamedReturnAndDelete
 fn @namedReturn() -> (memoryfixedarray, u256) [abi_returns=[array<3, word>, word]] {
@@ -319,6 +342,19 @@ fn @emptyNamedReturns() -> (memoryarray, memorybytes) [abi_returns=[memory_array
     ret v2, v3
 }
 
+fn @emptyWideNamedStruct() -> memorystruct [abi_returns=[tuple<word, memory_bytes, word, word>]] {
+  bb0:
+    v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    memory_zero v0, 128
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v1, 0
+    v2 = memory_object_field_addr memorystruct<4>, v0, 1
+    mstore v2, v1
+    mstore 128, v0
+    v3 = mload 128
+    ret v3
+}
+
 fn @fullyInitializedNamedStruct() -> memorystruct [abi_returns=[tuple<memory_array<word>, memory_bytes>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
@@ -399,5 +435,23 @@ fn @deleteInPlace() -> (u256, u256) [abi_returns=[word, word]] {
     v12 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
     v13 = mload v12
     ret v11, v13
+}
+
+fn @bulkDeleteInPlace() -> (u256, u256) [abi_returns=[word, word]] {
+  bb0:
+    v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
+    memory_zero v0, 128
+    v1 = memory_object_element_addr memoryfixedarray<4, 1>, v0, 0
+    mstore v1, 5
+    v2 = memory_object_element_addr memoryfixedarray<4, 1>, v0, 3
+    mstore v2, 7
+    memory_zero v0, 128
+    v3 = memory_object_element_addr memoryfixedarray<4, 1>, v0, 3
+    mstore v3, 9
+    v4 = memory_object_element_addr memoryfixedarray<4, 1>, v0, 0
+    v5 = mload v4
+    v6 = memory_object_element_addr memoryfixedarray<4, 1>, v0, 3
+    v7 = mload v6
+    ret v5, v7
 }
 
