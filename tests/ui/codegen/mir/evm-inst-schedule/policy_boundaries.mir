@@ -1,4 +1,4 @@
-//@ compile-flags: --pass evm-inst-schedule
+//@ compile-flags: -Zmir-pipeline=evm-inst-schedule
 @module EvmInstSchedulePolicy
 
 // Schedule a complete expression tree in EVM stack-input order.
