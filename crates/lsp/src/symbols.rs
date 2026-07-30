@@ -4,7 +4,7 @@ use lsp_types::{
     Location, OneOf, Position, Range, SymbolInformation, SymbolKind, TypeHierarchyItem, Url,
     WorkspaceSymbol, request::GotoTypeDefinitionResponse,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use solar_interface::{
     Span,
     data_structures::{
@@ -140,8 +140,7 @@ pub(crate) struct DeclarationSymbol {
     documentation: Option<crate::documentation::ResolvedDocumentation>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub(crate) struct CompletionItemData {
     version: u8,
     uri: Url,
@@ -150,12 +149,33 @@ pub(crate) struct CompletionItemData {
 
 impl CompletionItemData {
     pub(crate) fn from_item(item: &CompletionItem) -> Option<Self> {
-        let data = Self::deserialize(item.data.as_ref()?).ok()?;
+        let (version, uri, start_line, start_character, end_line, end_character) =
+            <(u8, Url, u32, u32, u32, u32)>::deserialize(item.data.as_ref()?).ok()?;
+        let data = Self {
+            version,
+            uri,
+            selection_range: Range::new(
+                Position::new(start_line, start_character),
+                Position::new(end_line, end_character),
+            ),
+        };
         (data.version == COMPLETION_ITEM_DATA_VERSION).then_some(data)
     }
 
     pub(crate) fn uri(&self) -> &Url {
         &self.uri
+    }
+
+    fn to_value(uri: &Url, selection_range: Range) -> serde_json::Value {
+        serde_json::to_value((
+            COMPLETION_ITEM_DATA_VERSION,
+            uri,
+            selection_range.start.line,
+            selection_range.start.character,
+            selection_range.end.line,
+            selection_range.end.character,
+        ))
+        .expect("completion item data is serializable")
     }
 }
 
@@ -1552,12 +1572,7 @@ impl SymbolTables {
 
     fn completion_item_data(&self, symbol_id: SymbolId) -> serde_json::Value {
         let symbol = &self.declarations[symbol_id];
-        serde_json::to_value(CompletionItemData {
-            version: COMPLETION_ITEM_DATA_VERSION,
-            uri: symbol.location.uri.clone(),
-            selection_range: symbol.name_range,
-        })
-        .expect("completion item data is serializable")
+        CompletionItemData::to_value(&symbol.location.uri, symbol.name_range)
     }
 
     fn selection_location(&self, symbol_id: SymbolId) -> Location {

@@ -30,6 +30,20 @@ value: The value to increment.
 result: The incremented value."#;
 
 #[tokio::test(flavor = "current_thread")]
+async fn source_completion_uses_compact_resolve_data() {
+    let fixture = completion_resolve_fixture();
+    let mut router = crate::new_router_with_state(fixture.state());
+    let item = request_completion_item(&mut router, &fixture, "$1", "documented").await;
+    let (uri, start) = fixture.marker_location("$2");
+    let (_, end) = fixture.marker_location("$3");
+
+    assert_eq!(
+        item.data,
+        Some(serde_json::json!([1, uri, start.line, start.character, end.line, end.character,])),
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn resolves_source_completion_documentation_without_changing_identity() {
     for (formats, resolve_properties, expected) in [
         (
@@ -97,28 +111,33 @@ async fn sends_documentation_eagerly_when_client_cannot_resolve_it() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn resolves_public_getter_member_completion_documentation() {
+async fn resolves_imported_public_getter_member_completion_documentation() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
-        //- /Getter.sol open
-        contract Token {
-            /// @notice Returns the current balance.
-            uint256 public balance;
-        }
+        //- /Main.sol open
+        import {Token} from "./Token.sol";
 
         contract C {
             function read(Token token) public view returns (uint256) {
                 return token.bal$1();
             }
         }
+
+        //- /Token.sol
+        contract Token {
+            /// @notice Returns the current balance.
+            uint256 public balance;
+        }
         "#,
-        "/Getter.sol",
+        "/Main.sol",
     );
     let mut router = crate::new_router_with_state(fixture.state());
     let item = request_completion_item(&mut router, &fixture, "$1", "balance").await;
+    let token_uri = lsp_types::Url::from_file_path(fixture.project_path("/Token.sol")).unwrap();
 
     assert_eq!(item.kind, Some(CompletionItemKind::METHOD));
     assert!(item.data.is_some(), "public getter completion should carry source resolve data");
+    assert_eq!(item.data.as_ref().unwrap()[1], serde_json::json!(token_uri));
     assert!(item.documentation.is_none(), "documentation should be deferred");
 
     let original = item.clone();
@@ -185,8 +204,19 @@ async fn validates_completion_data_before_waiting_and_uses_latest_analysis() {
     };
     assert_eq!(response.unwrap(), malformed);
 
+    let mut wrong_coordinate_type = item.clone();
+    wrong_coordinate_type.data.as_mut().unwrap()[2] = serde_json::json!("invalid");
+    let mut wrong_coordinate_request = std::pin::pin!(crate::handlers::resolve_completion_item(
+        &mut state,
+        wrong_coordinate_type.clone(),
+    ));
+    let Poll::Ready(response) = wrong_coordinate_request.as_mut().poll(&mut context) else {
+        panic!("invalid completion data coordinates should not wait for analysis");
+    };
+    assert_eq!(response.unwrap(), wrong_coordinate_type);
+
     let mut non_file = item.clone();
-    non_file.data.as_mut().unwrap()["uri"] = serde_json::json!("untitled:Completion.sol");
+    non_file.data.as_mut().unwrap()[1] = serde_json::json!("untitled:Completion.sol");
     let mut non_file_request =
         std::pin::pin!(crate::handlers::resolve_completion_item(&mut state, non_file.clone(),));
     let Poll::Ready(response) = non_file_request.as_mut().poll(&mut context) else {
@@ -403,15 +433,19 @@ async fn returns_untrusted_completion_items_unchanged() {
     items.push(malformed);
 
     let mut unknown_version = item.clone();
-    unknown_version.data.as_mut().unwrap()["version"] = serde_json::json!(2);
+    unknown_version.data.as_mut().unwrap()[0] = serde_json::json!(2);
     items.push(unknown_version);
 
-    let mut unknown_field = item.clone();
-    unknown_field.data.as_mut().unwrap()["unexpected"] = serde_json::json!(true);
-    items.push(unknown_field);
+    let mut extra_field = item.clone();
+    extra_field.data.as_mut().unwrap().as_array_mut().unwrap().push(serde_json::json!(true));
+    items.push(extra_field);
+
+    let mut missing_field = item.clone();
+    missing_field.data.as_mut().unwrap().as_array_mut().unwrap().pop();
+    items.push(missing_field);
 
     let mut non_file_uri = item.clone();
-    non_file_uri.data.as_mut().unwrap()["uri"] = serde_json::json!("untitled:Completion.sol");
+    non_file_uri.data.as_mut().unwrap()[1] = serde_json::json!("untitled:Completion.sol");
     items.push(non_file_uri);
 
     let mut wrong_kind = item.clone();
@@ -419,7 +453,7 @@ async fn returns_untrusted_completion_items_unchanged() {
     items.push(wrong_kind);
 
     let mut wrong_range = item.clone();
-    wrong_range.data.as_mut().unwrap()["selectionRange"]["start"]["line"] = serde_json::json!(999);
+    wrong_range.data.as_mut().unwrap()[2] = serde_json::json!(999);
     items.push(wrong_range);
 
     let mut wrong_identity = item;
@@ -440,7 +474,7 @@ fn completion_resolve_fixture() -> RequestFixture {
             /// @notice Adds one to the provided value.
             /// @param value The value to increment.
             /// @return result The incremented value.
-            function documented(uint256 value) public pure returns (uint256 result) {
+            function $2documented$3(uint256 value) public pure returns (uint256 result) {
                 return value + 1;
             }
 
