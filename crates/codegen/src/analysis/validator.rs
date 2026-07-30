@@ -44,7 +44,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_interface::{diagnostics::DiagCtxt, sym};
+use solar_interface::{diagnostics::DiagCtxt, kw, sym};
 use std::fmt;
 
 /// Stateful MIR verifier.
@@ -488,6 +488,14 @@ impl<'a> Validator<'a> {
                         ));
                     }
                 }
+                InstKind::ConstructorArgsBase
+                    if !func.attributes.is_constructor && func.name.name != kw::Constructor =>
+                {
+                    self.emit(format_args!(
+                        "inst{} uses the constructor argument base outside a constructor",
+                        inst_id.index()
+                    ));
+                }
                 _ => {}
             }
         }
@@ -670,6 +678,7 @@ impl<'a> Validator<'a> {
                         InstKind::StorageToMemory { .. }
                         | InstKind::MemoryToStorage { .. }
                         | InstKind::ClearStorage { .. } => Some("aggregate"),
+                        InstKind::StoreImmutable(..) => Some("immutable assignment"),
                         _ => None,
                     };
                     if let Some(semantic_op) = semantic_op {

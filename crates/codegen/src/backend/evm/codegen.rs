@@ -712,6 +712,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => {
                         "codegen does not support this calldata-slice usage yet"
                     }
+                    InstKind::StoreImmutable(..) => {
+                        "immutable assignments must be lowered before EVM codegen"
+                    }
                     _ => continue,
                 };
                 let span = inst.metadata.source_span().unwrap_or(module.name.span);
