@@ -19,8 +19,8 @@ newtype_index! {
     /// An interned push immediate identifier.
     pub(in crate::backend::evm) struct PushValueId;
 
-    /// A packed label table identifier.
-    pub(in crate::backend::evm) struct LabelTableId;
+    /// A packed-label immediate identifier.
+    pub(in crate::backend::evm) struct PackedLabelsId;
 }
 
 pub(in crate::backend::evm) trait AsmIndex: Idx {
@@ -54,8 +54,8 @@ impl AsmIndex for PushValueId {
     const NAME: &'static str = "assembler push value index";
 }
 
-impl AsmIndex for LabelTableId {
-    const NAME: &'static str = "assembler label table index";
+impl AsmIndex for PackedLabelsId {
+    const NAME: &'static str = "assembler packed labels index";
 }
 
 /// An instruction in the assembler.
@@ -73,7 +73,7 @@ impl AsmInst {
     const TAG_PUSH_IMMUTABLE: u32 = 0xc000_0000;
     const TAG_LABEL: u32 = 0xd000_0000;
     const TAG_PUSH_LABEL_FIXED: u32 = 0xe000_0000;
-    const TAG_PUSH_LABEL_TABLE: u32 = 0xf000_0000;
+    const TAG_PUSH_PACKED_LABELS: u32 = 0xf000_0000;
     const FIXED_LABEL_MASK: u32 = 0x007f_ffff;
     const FIXED_WIDTH_SHIFT: u32 = 23;
 
@@ -101,8 +101,8 @@ impl AsmInst {
         Self::tagged(Self::TAG_PUSH_LABEL_FIXED, width | label)
     }
 
-    pub(in crate::backend::evm) fn push_label_table(table: LabelTableId) -> Self {
-        Self::tagged(Self::TAG_PUSH_LABEL_TABLE, table.inst_payload())
+    pub(in crate::backend::evm) fn push_packed_labels(labels: PackedLabelsId) -> Self {
+        Self::tagged(Self::TAG_PUSH_PACKED_LABELS, labels.inst_payload())
     }
 
     pub(in crate::backend::evm) fn push_deferred(id: DeferredConst) -> Self {
@@ -142,8 +142,8 @@ impl AsmInst {
                 let width = ((payload >> Self::FIXED_WIDTH_SHIFT) + 1) as u8;
                 AsmInstKind::PushLabelFixed(label, width)
             }
-            Self::TAG_PUSH_LABEL_TABLE => {
-                AsmInstKind::PushLabelTable(LabelTableId::from_inst_payload(payload))
+            Self::TAG_PUSH_PACKED_LABELS => {
+                AsmInstKind::PushPackedLabels(PackedLabelsId::from_inst_payload(payload))
             }
             _ => unreachable!("invalid assembler instruction tag"),
         }
@@ -157,7 +157,7 @@ pub(in crate::backend::evm) enum AsmInstKind {
     Push(PushValueId),
     PushLabel(Label),
     PushLabelFixed(Label, u8),
-    PushLabelTable(LabelTableId),
+    PushPackedLabels(PackedLabelsId),
     PushDeferred(DeferredConst),
     PushImmutable(u32),
     Label(Label),

@@ -525,11 +525,11 @@ fn lower_terminator(
                     );
                     program.push_op(op::SHR);
                     program.push_op(op::DUP1);
-                    program.push_label_table(second.into(), target_width);
+                    program.push_packed_labels(second.into(), target_width);
                     program.push_op(op::MUL);
                     program.push_op(op::SWAP1);
                     program.push_op(op::ISZERO);
-                    program.push_label_table(first.into(), target_width);
+                    program.push_packed_labels(first.into(), target_width);
                     program.push_op(op::MUL);
                     program.push_op(op::ADD);
                     program.push_op(op::SWAP1);
@@ -552,7 +552,7 @@ fn lower_terminator(
                     program.push_op(op::MUL);
                 }
                 if table_encoding.packed_chunks == PackedTableChunks::One {
-                    program.push_label_table(labels.into_boxed_slice(), target_width);
+                    program.push_packed_labels(labels.into_boxed_slice(), target_width);
                     program.push_op(op::SWAP1);
                 }
                 program.push_op(op::SHR);
@@ -679,7 +679,7 @@ mod tests {
                 .instructions
                 .iter()
                 .find_map(|inst| match inst.kind() {
-                    AsmInstKind::PushLabelTable(table) => Some(&program.label_tables[table]),
+                    AsmInstKind::PushPackedLabels(labels) => Some(&program.packed_labels[labels]),
                     _ => None,
                 })
                 .expect("packed label table");

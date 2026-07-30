@@ -526,7 +526,7 @@ impl<'gcx> Assembler<'gcx> {
                 AsmInstKind::Label(_)
                     | AsmInstKind::PushLabel(_)
                     | AsmInstKind::PushLabelFixed(_, _)
-                    | AsmInstKind::PushLabelTable(_)
+                    | AsmInstKind::PushPackedLabels(_)
             )
         }) {
             let mut result =
@@ -592,9 +592,9 @@ impl<'gcx> Assembler<'gcx> {
                 AsmInstKind::PushLabelFixed(_, width) => {
                     offset += out.fixed_push_len(width);
                 }
-                AsmInstKind::PushLabelTable(table) => {
-                    let table = &program.label_tables[table];
-                    let width = usize::from(table.label_width) * table.labels.len();
+                AsmInstKind::PushPackedLabels(labels) => {
+                    let labels = &program.packed_labels[labels];
+                    let width = usize::from(labels.label_width) * labels.labels.len();
                     offset += out.fixed_push_len(width as u8);
                 }
                 AsmInstKind::PushDeferred(_) => {
@@ -658,22 +658,22 @@ impl<'gcx> Assembler<'gcx> {
                         .unwrap_or_else(|| panic!("label {label:?} was never defined"));
                     out.emit_push_fixed_width(U256::from(target_offset), width);
                 }
-                AsmInstKind::PushLabelTable(table) => {
-                    let table = &program.label_tables[table];
+                AsmInstKind::PushPackedLabels(labels) => {
+                    let labels = &program.packed_labels[labels];
                     let mut value = U256::ZERO;
-                    for (index, &label) in table.labels.iter().enumerate() {
+                    for (index, &label) in labels.labels.iter().enumerate() {
                         let target_offset = label_offsets
                             .get(&label)
                             .copied()
                             .unwrap_or_else(|| panic!("label {label:?} was never defined"));
                         let target = U256::from(target_offset);
                         assert!(
-                            target.byte_len() <= usize::from(table.label_width),
-                            "label offset does not fit packed table entry"
+                            target.byte_len() <= usize::from(labels.label_width),
+                            "label offset does not fit packed labels entry"
                         );
-                        value |= target << (index * usize::from(table.label_width) * 8);
+                        value |= target << (index * usize::from(labels.label_width) * 8);
                     }
-                    let width = table.labels.len() * usize::from(table.label_width);
+                    let width = labels.labels.len() * usize::from(labels.label_width);
                     out.emit_push_fixed_width(value, width as u8);
                 }
                 AsmInstKind::PushDeferred(_) => {
@@ -921,7 +921,7 @@ INVALID
     }
 
     #[test]
-    fn indexed_jump_uses_two_packed_label_tables_for_size() {
+    fn indexed_jump_uses_two_packed_label_words_for_size() {
         with_assembler(size_optimized_opts(), |mut asm| {
             let left = asm.new_label();
             let right = asm.new_label();
