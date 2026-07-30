@@ -257,6 +257,7 @@ pub(crate) fn is_memory_inst(kind: &InstKind) -> bool {
         InstKind::MLoad(_)
             | InstKind::MStore(_, _)
             | InstKind::MStore8(_, _)
+            | InstKind::MemoryZero(_, _)
             | InstKind::MCopy(_, _, _)
             | InstKind::CalldataCopy(_, _, _)
             | InstKind::CodeCopy(_, _, _)

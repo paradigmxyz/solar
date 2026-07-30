@@ -40,6 +40,9 @@ use std::{collections::hash_map::Entry, ops::ControlFlow};
 
 use self::storage::StorageLocation;
 
+/// Minimum contiguous zero-word count where bulk zeroing beats individual stores.
+const MIN_BULK_ZERO_MEMORY_WORDS: u64 = 4;
+
 /// Context for a loop (tracks break/continue targets).
 #[derive(Clone, Copy)]
 pub(crate) struct LoopContext {
@@ -613,7 +616,7 @@ impl<'gcx> Lowerer<'gcx> {
                 if var.is_state_variable() && var.is_immutable() {
                     let ty = self.lower_type_from_var(var_id);
                     let name = var.name.expect("state immutable must be named");
-                    let id = self.module.add_immutable(name, ty);
+                    let id = self.module.add_immutable(name, ty, Some(var_id));
                     self.immutable_ids.insert(var_id, id);
                 } else if var.is_state_variable() && !var.is_constant() {
                     let var_ty = self.gcx.type_of_item(var_id.into());

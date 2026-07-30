@@ -343,6 +343,11 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::MStore8(offset, value))
     }
 
+    /// Emits a memory-zero instruction.
+    pub(crate) fn memory_zero(&mut self, offset: ValueId, size: ValueId) {
+        self.emit_void_inst(InstKind::MemoryZero(offset, size))
+    }
+
     /// Emits an msize instruction.
     pub(crate) fn msize(&mut self) -> ValueId {
         self.emit_inst(InstKind::MSize, Some(MirType::uint256()))

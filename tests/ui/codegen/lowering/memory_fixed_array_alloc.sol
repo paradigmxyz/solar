@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -O none -Zdump=mir
+//@ compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
 contract MemoryFixedArrayAlloc {
@@ -60,6 +60,16 @@ contract MemoryFixedArrayAlloc {
     function literal() public pure returns (uint256) {
         uint256[3] memory x = [uint256(1), uint256(2), uint256(3)];
         return x[2];
+    }
+
+    // Wide value arrays use one semantic bulk-zero operation.
+    // CHECK-LABEL: fn @bulkDefault{{[( ]}}
+    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<4, 1>
+    // CHECK: memory_zero [[ARRAY]], 128
+    // CHECK: memory_object_element_addr memoryfixedarray<4, 1>, [[ARRAY]], arg0
+    function bulkDefault(uint256 i) public pure returns (uint256) {
+        uint256[4] memory x;
+        return x[i];
     }
 }
 
@@ -123,7 +133,8 @@ contract NamedReturnAndDelete {
     // A single wide named struct return zeroes scalar fields in bulk while
     // reference fields still point at real empty objects.
     // CHECK-LABEL: fn @emptyWideNamedStruct{{[( ]}}
-    // CHECK: [[WIDE:v[0-9]+]] = alloc memorystruct<4>, exact, zeroed, infallible, 128
+    // CHECK: [[WIDE:v[0-9]+]] = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    // CHECK: memory_zero [[WIDE]], 128
     // CHECK: [[EMPTY:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 32
     // CHECK: set_memory_object_len memorybytes, [[EMPTY]], 0
     // CHECK: [[DATA:v[0-9]+]] = memory_object_field_addr memorystruct<4>, [[WIDE]], 1
@@ -166,5 +177,20 @@ contract NamedReturnAndDelete {
         delete x;
         x[2] = 9;
         return (x[0], x[2]);
+    }
+
+    // Deleting a wide value array also zeroes it in bulk.
+    // CHECK-LABEL: fn @bulkDeleteInPlace{{[( ]}}
+    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<4, 1>
+    // CHECK: mstore {{v[0-9]+}}, 7
+    // CHECK: memory_zero [[ARRAY]], 128
+    // CHECK: mstore {{v[0-9]+}}, 9
+    function bulkDeleteInPlace() public pure returns (uint256, uint256) {
+        uint256[4] memory x;
+        x[0] = 5;
+        x[3] = 7;
+        delete x;
+        x[3] = 9;
+        return (x[0], x[3]);
     }
 }
