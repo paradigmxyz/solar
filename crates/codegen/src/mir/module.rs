@@ -19,6 +19,8 @@ pub(crate) struct Immutable {
     pub(crate) name: Ident,
     /// The immutable's MIR type.
     pub(crate) ty: MirType,
+    /// The source-level AST identifier, when this module was lowered from Solidity.
+    pub(crate) ast_id: Option<u64>,
 }
 
 /// The lowering phase a [`Module`] is in.
@@ -202,8 +204,13 @@ impl Module {
     }
 
     /// Adds a named immutable and returns its stable identifier.
-    pub(crate) fn add_immutable(&mut self, name: Ident, ty: MirType) -> ImmutableId {
-        self.immutables.push(Immutable { name, ty })
+    pub(crate) fn add_immutable(
+        &mut self,
+        name: Ident,
+        ty: MirType,
+        ast_id: Option<u64>,
+    ) -> ImmutableId {
+        self.immutables.push(Immutable { name, ty, ast_id })
     }
 
     /// Returns an immutable declaration.

@@ -236,7 +236,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     ));
                 }
                 StdEntry::Vacant(entry) => {
-                    let id = module.add_immutable(Ident::new(name, name_span), ty);
+                    let id = module.add_immutable(Ident::new(name, name_span), ty, None);
                     entry.insert((id, ty));
                 }
             }
