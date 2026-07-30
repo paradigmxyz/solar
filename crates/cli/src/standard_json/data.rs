@@ -79,9 +79,8 @@ pub(super) struct Settings<'a> {
     pub(super) stop_after: Option<CowStr<'a>>,
     #[serde(borrow)]
     pub(super) evm_version: Option<CowStr<'a>>,
-    // Optimizer settings are not supported.
-    // #[serde(borrow, default)]
-    // optimizer: Option<CowValue<'a>>,
+    #[serde(default)]
+    pub(super) optimizer: Option<Optimizer>,
     // Metadata output is not supported yet.
     // #[serde(borrow, default)]
     // metadata: Option<CowValue<'a>>,
@@ -100,6 +99,18 @@ pub(super) struct Settings<'a> {
     // via_ir: Option<bool>,
     // #[serde(default)]
     // via_ssa_cfg: Option<bool>,
+}
+
+/// The supported subset of solc's Standard JSON `settings.optimizer` object.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct Optimizer {
+    /// Whether the optimizer is enabled.
+    #[serde(default)]
+    pub(super) enabled: bool,
+    /// Number of optimizer runs. The MIR optimizer has no runs parameter yet.
+    #[serde(default)]
+    pub(super) runs: Option<u64>,
 }
 
 /// The solc Standard JSON `settings.libraries` object.

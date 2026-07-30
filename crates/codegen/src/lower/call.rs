@@ -2381,7 +2381,7 @@ impl<'gcx> Lowerer<'gcx> {
             .or_else(|| {
                 libraries.iter().find(|library| library.name == name && library.source.is_none())
             })?;
-        Some(U256::from_be_slice(&library.address))
+        Some(U256::from_be_slice(library.address.as_slice()))
     }
 
     /// How a struct field travels across a linked-library call boundary.

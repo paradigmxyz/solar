@@ -5,6 +5,7 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+use alloy_primitives::Address;
 use std::{fmt, num::NonZeroUsize, sync::OnceLock};
 
 #[macro_use]
@@ -363,8 +364,8 @@ pub struct LibraryAddress {
     pub source: Option<String>,
     /// The library name.
     pub name: String,
-    /// The library's deployed address, as big-endian bytes.
-    pub address: [u8; 20],
+    /// The library's deployed address.
+    pub address: Address,
 }
 
 impl std::str::FromStr for LibraryAddress {
@@ -384,25 +385,10 @@ impl std::str::FromStr for LibraryAddress {
             return Err("empty library name");
         }
         let addr = addr.trim();
-        let digits = addr.strip_prefix("0x").unwrap_or(addr);
-        if digits.is_empty() || digits.len() > 40 {
-            return Err("address must be at most 20 hexadecimal bytes");
+        if !addr.starts_with("0x") {
+            return Err("library address must be prefixed with `0x`");
         }
-        // Right-align the digits in the 40-nibble (20-byte) address and fold
-        // each nibble into its byte; a leading half-byte lands in the high
-        // nibble of its position.
-        let mut address = [0u8; 20];
-        let start = 40 - digits.len();
-        for (i, b) in digits.bytes().enumerate() {
-            let nibble = match b {
-                b'0'..=b'9' => b - b'0',
-                b'a'..=b'f' => b - b'a' + 10,
-                b'A'..=b'F' => b - b'A' + 10,
-                _ => return Err("address contains a non-hexadecimal digit"),
-            };
-            let pos = start + i;
-            address[pos / 2] |= nibble << (4 * (1 - pos % 2));
-        }
+        let address = addr.parse().map_err(|_| "invalid library address")?;
         Ok(Self {
             source: source.filter(|source| !source.is_empty()).map(str::to_owned),
             name: name.into(),
@@ -416,11 +402,7 @@ impl fmt::Display for LibraryAddress {
         if let Some(source) = &self.source {
             write!(f, "{source}:")?;
         }
-        write!(f, "{}=0x", self.name)?;
-        for b in self.address {
-            write!(f, "{b:02x}")?;
-        }
-        Ok(())
+        write!(f, "{}={:#x}", self.name, self.address)
     }
 }
 

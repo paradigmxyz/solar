@@ -2,13 +2,14 @@
 
 use super::data::{
     BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, EvmOutput, FxIndexMap,
-    OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings,
+    OffsetLength, Optimizer, OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings,
     SourceOutput, StandardJsonReadCallback, print_standard_json_stats, strip_json_comments,
 };
 use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection};
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
+    OptimizationMode,
 };
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{
@@ -122,7 +123,8 @@ fn compile(
     // fields we don't act on yet are bound with a leading underscore and a note.
     // Adding a field to `Settings` then forces a decision here instead of it
     // being silently ignored.
-    let Settings { remappings, output_selection, stop_after, evm_version, libraries } = settings;
+    let Settings { remappings, output_selection, stop_after, evm_version, optimizer, libraries } =
+        settings;
 
     let mut parsed_remappings = Vec::with_capacity(remappings.len());
     for remapping in &remappings {
@@ -152,12 +154,16 @@ fn compile(
     };
     opts.stop_after = stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
 
+    if let Some(Optimizer { enabled: false, runs: _runs }) = optimizer {
+        opts.optimization = OptimizationMode::None;
+    }
+
     opts.libraries = Vec::with_capacity(libraries.len());
     for (source, libraries) in libraries.0 {
         opts.libraries.extend(libraries.into_iter().map(|(name, address)| LibraryAddress {
             source: (!source.is_empty()).then(|| source.to_string()),
             name: name.into(),
-            address: address.into_array(),
+            address,
         }));
     }
     opts.input = sources.keys().map(ToString::to_string).collect();
