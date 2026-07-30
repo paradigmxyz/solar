@@ -3,6 +3,7 @@
 //@ run-call: ConstructorArgumentOrder::order() => 1, 3, 2, 4
 //@ run-call: ConstructorInitializationOrder::x() => 4
 //@ run-call: NamedDerived::value() => 12
+//@ run-call: BaseConstructorReturn::value() => 2
 // ported-from: test/libsolidity/semanticTests/constructor/order_of_evaluation.sol
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_inheritance_init_order_3_legacy.sol
 
@@ -83,3 +84,19 @@ contract NamedBase {
 }
 
 contract NamedDerived is NamedBase({b: 2, a: 1}) {}
+
+contract ReturningBase {
+    uint256 public value;
+
+    constructor() {
+        value = 1;
+        return;
+        value = 3;
+    }
+}
+
+contract BaseConstructorReturn is ReturningBase {
+    constructor() {
+        value = 2;
+    }
+}

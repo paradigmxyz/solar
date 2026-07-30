@@ -2201,10 +2201,17 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         if let Some(body) = body {
+            let exit_block = builder.create_block();
+            self.inline_returns =
+                Some(crate::lower::InlineReturnCtx { exit_block, return_vars: Vec::new() });
             let saved_in_unchecked_block = self.in_unchecked_block;
             self.in_unchecked_block = false;
             self.lower_block(builder, &body);
             self.in_unchecked_block = saved_in_unchecked_block;
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(exit_block);
+            }
+            builder.switch_to_block(exit_block);
         }
 
         // Keep `next_local_memory_offset`: the body's local slots stay part of
