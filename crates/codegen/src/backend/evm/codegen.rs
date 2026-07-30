@@ -3134,18 +3134,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             // Ternary operations
-            InstKind::AddMod(a, b, n) => self.emit_ternary_op(
+            InstKind::AddMod(a, b, n) => self.emit_nary_op(
                 func,
-                [*n, *b, *a],
+                &[*n, *b, *a],
                 op::ADDMOD,
                 result_value,
                 liveness,
                 block,
                 inst_idx,
             ),
-            InstKind::MulMod(a, b, n) => self.emit_ternary_op(
+            InstKind::MulMod(a, b, n) => self.emit_nary_op(
                 func,
-                [*n, *b, *a],
+                &[*n, *b, *a],
                 op::MULMOD,
                 result_value,
                 liveness,
@@ -3219,26 +3219,24 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::Phi(_) => {}
 
             // Contract creation
-            InstKind::Create(value, offset, size) => {
-                self.emit_value(func, *size);
-                self.emit_operand(func, *offset);
-                self.emit_operand(func, *value);
-                self.asm.emit_op(op::CREATE);
-                // CREATE consumes 3 values and produces 1 (new contract address)
-                self.scheduler.instruction_executed(3, result_value);
-            }
-
-            InstKind::Create2(value, offset, size, salt) => {
-                // CREATE2 expects stack (top to bottom): salt, size, offset, value
-                // So we push in reverse order: value first (goes deepest), then offset, size, salt
-                self.emit_value(func, *value);
-                self.emit_operand(func, *offset);
-                self.emit_operand(func, *size);
-                self.emit_operand(func, *salt);
-                self.asm.emit_op(op::CREATE2);
-                // CREATE2 consumes 4 values and produces 1 (new contract address)
-                self.scheduler.instruction_executed(4, result_value);
-            }
+            InstKind::Create(value, offset, size) => self.emit_nary_op(
+                func,
+                &[*size, *offset, *value],
+                op::CREATE,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::Create2(value, offset, size, salt) => self.emit_nary_op(
+                func,
+                &[*salt, *size, *offset, *value],
+                op::CREATE2,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
 
             // External calls
             //
@@ -5305,22 +5303,22 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.instruction_executed(operands.len(), None);
     }
 
-    /// Emits a ternary operation with liveness awareness.
+    /// Emits an operation with liveness awareness.
     #[allow(clippy::too_many_arguments)]
-    fn emit_ternary_op(
+    fn emit_nary_op(
         &mut self,
         func: &Function,
-        operands: [ValueId; 3],
+        operands: &[ValueId],
         opcode: u8,
         result: Option<ValueId>,
         liveness: &Liveness,
         block: BlockId,
         inst_idx: usize,
     ) {
-        if let Some(plan) = self.plan_operands(func, &operands, liveness, block, inst_idx) {
+        if let Some(plan) = self.plan_operands(func, operands, liveness, block, inst_idx) {
             self.emit_operand_plan(func, plan);
             self.asm.emit_op(opcode);
-            self.scheduler.instruction_executed(3, result);
+            self.scheduler.instruction_executed(operands.len(), result);
             return;
         }
 
@@ -5336,7 +5334,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         self.asm.emit_op(opcode);
-        self.scheduler.instruction_executed(3, result);
+        self.scheduler.instruction_executed(operands.len(), result);
     }
 
     /// Generates a parallel copy.
