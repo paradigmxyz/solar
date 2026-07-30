@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/disasm/switch/lowerings.sol:SwitchLowerings (runtime) ===
+// === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 @module runtime
 bb0:
   push 160
@@ -176,7 +176,7 @@ bb70:
   jump bb13
 bb71:
   jump bb12
-// === ROOT/tests/ui/codegen/disasm/switch/lowerings.sol:SwitchLowerings (runtime) ===
+// === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 PUSH1 0xa0
 PUSH1 0x40
 MSTORE
