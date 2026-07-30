@@ -78,9 +78,6 @@ bb26:
   jumpi
   push 160
   mload
-  dup1
-  push 160
-  mstore
   jump bb25
 bb25:
   push 128

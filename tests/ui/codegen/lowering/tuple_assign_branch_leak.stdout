@@ -125,9 +125,6 @@ bb5:
   add
   push 416
   mload
-  dup1
-  push 416
-  mstore
   swap1
   mstore
   dup1
@@ -171,11 +168,8 @@ bb5:
   jumpi
   push 448
   mload
-  dup1
-  push 448
   jump bb22
 bb22:
-  mstore
   push 128
   mstore
   pop
@@ -198,6 +192,7 @@ bb17:
   add
   dup1
   push 416
+  mstore
   jump bb22
 bb18:
   push 64

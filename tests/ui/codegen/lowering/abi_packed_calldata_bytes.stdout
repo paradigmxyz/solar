@@ -112,9 +112,6 @@ bb23:
   mstore
   push 192
   mload
-  dup1
-  push 192
-  mstore
   dup2
   mstore
   push 32
@@ -135,9 +132,6 @@ bb23:
   add
   push 192
   mload
-  dup1
-  push 192
-  mstore
   dup2
   dup4
   calldatacopy
@@ -231,9 +225,6 @@ bb25:
   mstore
   push 192
   mload
-  dup1
-  push 192
-  mstore
   dup2
   mstore
   push 32
@@ -254,9 +245,6 @@ bb25:
   add
   push 192
   mload
-  dup1
-  push 192
-  mstore
   dup2
   dup4
   calldatacopy

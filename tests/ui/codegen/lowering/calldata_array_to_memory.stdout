@@ -166,9 +166,6 @@ bb14:
   sstore
   push 352
   mload
-  dup1
-  push 352
-  mstore
   jump bb42
 bb16:
   push 192
@@ -206,9 +203,6 @@ bb16:
   jumpi
   push 224
   mload
-  dup1
-  push 224
-  mstore
   push 160
   mstore
   push 192
@@ -224,9 +218,6 @@ bb16:
   jumpi
   push 224
   mload
-  dup1
-  push 224
-  mstore
   push 192
   mstore
   push 224
@@ -382,9 +373,6 @@ bb27:
   mstore
   push 192
   mload
-  dup1
-  push 192
-  mstore
   dup2
   mstore
   push 32
@@ -393,9 +381,6 @@ bb27:
   dup3
   push 224
   mload
-  dup1
-  push 224
-  mstore
   dup3
   calldatacopy
   pop
@@ -476,9 +461,6 @@ bb27:
   mstore
   push 256
   mload
-  dup1
-  push 256
-  mstore
   dup2
   mstore
   push 32
@@ -499,9 +481,6 @@ bb27:
   add
   push 256
   mload
-  dup1
-  push 256
-  mstore
   dup2
   dup4
   calldatacopy
@@ -600,9 +579,6 @@ bb27:
   jumpi
   push 160
   mload
-  dup1
-  push 160
-  mstore
   jump bb42
 bb20 [cold]:
   push 0x4e487b71

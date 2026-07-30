@@ -232,9 +232,6 @@ bb28:
   mstore
   push 192
   mload
-  dup1
-  push 192
-  mstore
   dup2
   mstore
   push 32
@@ -251,14 +248,8 @@ bb28:
   mstore
   push 192
   mload
-  dup1
-  push 192
-  mstore
   push 160
   mload
-  dup1
-  push 160
-  mstore
   dup3
   calldatacopy
   push 64
@@ -310,9 +301,6 @@ bb29:
   mstore
   push 160
   mload
-  dup1
-  push 160
-  mstore
   dup2
   mstore
   push 32
@@ -329,14 +317,8 @@ bb29:
   mstore
   push 160
   mload
-  dup1
-  push 160
-  mstore
   push 192
   mload
-  dup1
-  push 192
-  mstore
   dup3
   calldatacopy
   push 64
