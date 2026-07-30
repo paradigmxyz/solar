@@ -10,6 +10,8 @@
     pop
 -   swap1
     pop
+    push 0
+    mstore
     stop
   bb1:
     push 1
@@ -22,6 +24,8 @@
     pop
 -   swap1
     pop
+    push 0
+    mstore
     stop
   bb2:
     push 1
@@ -60,5 +64,7 @@
     pop
 -   swap1
     pop
+    push 0
+    mstore
     stop
   
