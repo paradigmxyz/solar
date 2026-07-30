@@ -41,17 +41,29 @@ pub fn get_srcs() -> &'static [Source] {
     CACHE.get_or_init(|| {
         let mut sources = common_sources();
         extend_repro_sources(&mut sources);
+        sources.push(include_source(
+            "../testdata/solidity/test/benchmarks/chains.sol",
+            Capabilities::all(),
+        ));
+        sources.extend(project_sources());
         sources
     })
 }
 
-pub fn get_project_srcs() -> &'static [Source] {
-    static CACHE: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
-    CACHE.get_or_init(project_sources)
-}
-
 pub fn get_src(name: &str) -> &'static Source {
-    get_srcs().iter().find(|source| source.name == name).unwrap()
+    static GUNGRAUN_SOURCES: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
+    GUNGRAUN_SOURCES
+        .get_or_init(|| {
+            // Keep the measured harness equivalent to the pre-project corpus:
+            // Gungraun does not benchmark the compressed projects, but it did
+            // initialize both the common and generated repro sources.
+            let mut sources = common_sources();
+            extend_repro_sources(&mut sources);
+            sources
+        })
+        .iter()
+        .find(|source| source.name == name)
+        .unwrap()
 }
 
 fn common_sources() -> Vec<Source> {
@@ -71,7 +83,6 @@ fn common_sources() -> Vec<Source> {
             "../testdata/solidity/test/benchmarks/OptimizorClub.sol",
             Capabilities::all(),
         ),
-        include_source("../testdata/solidity/test/benchmarks/chains.sol", Capabilities::all()),
         // Pre-0.8 source semantics: rejected by 0.8 type rules (unary `-` on
         // unsigned, one-step sign+width conversions).
         include_source("../testdata/UniswapV3.sol", Capabilities::no_codegen()),
