@@ -27,8 +27,8 @@ impl FunctionMemorySummary {
 
     fn conservative(params: usize) -> Self {
         Self {
-            reads: 0b111,
-            writes: 0b111,
+            reads: 0b1111,
+            writes: 0b1111,
             may_reset_fmp: true,
             captures: DenseBitSet::new_filled(params),
         }
@@ -143,6 +143,7 @@ const fn space_index(space: AddressSpace) -> usize {
         AddressSpace::Memory => 0,
         AddressSpace::Storage => 1,
         AddressSpace::Transient => 2,
+        AddressSpace::Immutable => 3,
     }
 }
 
@@ -161,7 +162,12 @@ fn local_summary(func: &Function) -> FunctionMemorySummary {
                 continue;
             }
             let effects = aa.instruction_mod_ref(func, inst_id);
-            for space in [AddressSpace::Memory, AddressSpace::Storage, AddressSpace::Transient] {
+            for space in [
+                AddressSpace::Memory,
+                AddressSpace::Storage,
+                AddressSpace::Transient,
+                AddressSpace::Immutable,
+            ] {
                 summary.reads |= (effects.reads_space(space) as u8) << space_index(space);
                 summary.writes |= (effects.writes_space(space) as u8) << space_index(space);
             }

@@ -1,0 +1,230 @@
+// === ROOT/tests/ui/codegen/lowering/immutable_widths.sol:ImmutableWidths (creation) ===
+// === deployment ===
+@module deployment
+bb0:
+  push 472
+  codesize
+  sub
+  dup1
+  push 472
+  push 416
+  codecopy
+  push 416
+  add
+  push 31
+  add
+  push 31
+  not
+  and
+  push 64
+  mstore
+  push 416
+  dup1
+  push 384
+  mstore
+  dup1
+  mload
+  push 255
+  dup2
+  and
+  eq
+  swap1
+  pop
+  iszero
+  push bb6
+  jumpi
+  push 32
+  push 384
+  mload
+  add
+  mload
+  dup1
+  push 1
+  signextend
+  sub
+  push bb6
+  jumpi
+  push 64
+  push 384
+  mload
+  add
+  mload
+  push 0xffffff
+  push 232
+  shl
+  dup2
+  and
+  sub
+  push bb6
+  jumpi
+  push 96
+  push 384
+  mload
+  add
+  mload
+  push 0
+  not
+  push 96
+  shr
+  dup2
+  and
+  sub
+  push bb6
+  jumpi
+  push 160
+  push 384
+  mload
+  add
+  mload
+  push 0xffff
+  dup2
+  and
+  sub
+  push bb6
+  jumpi
+  push 416
+  mload
+  push 192
+  mstore
+  push 416
+  push 32
+  add
+  mload
+  push 224
+  mstore
+  push 416
+  push 64
+  add
+  mload
+  push 256
+  mstore
+  push 416
+  push 96
+  add
+  mload
+  push 288
+  mstore
+  push 416
+  push 128
+  add
+  mload
+  push 320
+  mstore
+  push 416
+  push 160
+  add
+  mload
+  push 352
+  mstore
+  push 193
+  dup1
+  push 279
+  push 384
+  codecopy
+  push 192
+  mload
+  push 415
+  mstore8
+  push 224
+  mload
+  push 417
+  mstore
+  push 256
+  mload
+  push 450
+  mstore
+  push 288
+  mload
+  push 96
+  shl
+  push 483
+  mload
+  push 0
+  not
+  push 160
+  shr
+  and
+  or
+  push 483
+  mstore
+  push 320
+  mload
+  push 504
+  mstore
+  push 352
+  mload
+  push 240
+  shl
+  push 537
+  mload
+  push 0
+  not
+  push 16
+  shr
+  and
+  or
+  push 537
+  mstore
+  push 384
+  return
+bb6 [cold]:
+  push 0
+  dup1
+  revert
+
+// === runtime ===
+@module runtime
+bb0:
+  push 320
+  push 64
+  mstore
+  callvalue
+  push bb4
+  jumpi
+  calldatasize
+  iszero
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x57de26a4
+  sub
+  push bb4
+  jumpi
+  push_immutable 0, 1
+  push_immutable 1, 32
+  push_immutable 2, 32
+  push_immutable 3, 20
+  push_immutable 4, 32
+  push_immutable 5, 2
+  dup6
+  push 128
+  mstore
+  swap5
+  pop
+  dup4
+  push 160
+  mstore
+  swap3
+  pop
+  dup2
+  push 192
+  mstore
+  swap1
+  pop
+  push 224
+  mstore
+  push 256
+  mstore
+  push 288
+  mstore
+  push 192
+  push 128
+  return
+bb4 [cold]:
+  push 0
+  dup1
+  revert
