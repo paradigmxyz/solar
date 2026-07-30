@@ -417,6 +417,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parser.expect(TokenKind::Eq)?;
                     builder.func_mut().abi_returns = Some(self.parse_abi_layout()?);
                 }
+                sym::entry => builder.func_mut().attributes.is_dispatch_entry = true,
                 kw::Receive => builder.func_mut().attributes.is_receive = true,
                 kw::Fallback => builder.func_mut().attributes.is_fallback = true,
                 kw::Payable => {

@@ -154,6 +154,7 @@ impl LowerDispatchCx {
         let needs_size_dispatch = receive.is_some() || needs_short_calldata_guard;
 
         let mut entry = Function::new(Ident::with_dummy_span(sym::entry));
+        entry.attributes.is_dispatch_entry = true;
         {
             let mut builder = FunctionBuilder::new(&mut entry);
 

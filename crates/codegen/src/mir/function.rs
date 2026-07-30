@@ -519,6 +519,8 @@ pub(crate) struct FunctionAttributes {
     pub(crate) is_fallback: bool,
     /// Whether this is a receive function.
     pub(crate) is_receive: bool,
+    /// Whether this is the synthesized runtime dispatch entry.
+    pub(crate) is_dispatch_entry: bool,
     /// Never clone this function into multiple callers (synthesized shared
     /// helpers whose whole point is existing once per module). A sole call
     /// site may still absorb it: with one caller there is nothing to share.
@@ -533,6 +535,7 @@ impl Default for FunctionAttributes {
             is_constructor: false,
             is_fallback: false,
             is_receive: false,
+            is_dispatch_entry: false,
             no_inline: false,
         }
     }

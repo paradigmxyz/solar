@@ -570,6 +570,7 @@ impl<'gcx> Lowerer<'gcx> {
             is_constructor: true,
             is_fallback: false,
             is_receive: false,
+            is_dispatch_entry: false,
             no_inline: false,
         };
 
@@ -892,6 +893,7 @@ impl<'gcx> Lowerer<'gcx> {
             is_constructor: hir_func.kind == hir::FunctionKind::Constructor,
             is_fallback: hir_func.kind == hir::FunctionKind::Fallback,
             is_receive: hir_func.kind == hir::FunctionKind::Receive,
+            is_dispatch_entry: false,
             no_inline: false,
         };
 

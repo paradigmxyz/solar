@@ -145,7 +145,7 @@ fn @__revert_stub0() {
     revert 0, 36
 }
 
-fn @entry() {
+fn @entry() [entry] {
   bb0:
     v0 = callvalue
     jumpi v0, bb4, bb1

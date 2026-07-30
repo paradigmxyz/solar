@@ -42,7 +42,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_interface::{diagnostics::DiagCtxt, sym};
+use solar_interface::diagnostics::DiagCtxt;
 use std::fmt;
 
 /// Stateful MIR verifier.
@@ -513,15 +513,23 @@ impl<'a> Validator<'a> {
     /// the phase is a real contract rather than a label.
     fn validate_module_phase(&mut self, module: &Module) {
         // From the `dispatch` phase on, routing is materialized: a module with
-        // selector functions must contain the synthesized `entry`.
+        // a runtime interface must contain exactly one synthesized `entry`.
         if module.phase >= crate::mir::MirPhase::Dispatch
-            && module.functions.iter().any(|f| f.selector.is_some())
-            && !module.functions.iter().any(|f| f.name.name == sym::entry)
+            && module.functions.iter().any(|f| {
+                f.selector.is_some() || f.attributes.is_receive || f.attributes.is_fallback
+            })
         {
-            self.emit(format_args!(
-                "module is in the `{}` phase but has no `entry` routing function",
-                module.phase.name()
-            ));
+            match module.functions.iter().filter(|f| f.attributes.is_dispatch_entry).count() {
+                1 => {}
+                0 => self.emit(format_args!(
+                    "module is in the `{}` phase but has no `entry` routing function",
+                    module.phase.name()
+                )),
+                _ => self.emit(format_args!(
+                    "module is in the `{}` phase but has multiple `entry` routing functions",
+                    module.phase.name()
+                )),
+            }
         }
     }
 
