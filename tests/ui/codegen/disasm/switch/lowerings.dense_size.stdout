@@ -1,0 +1,153 @@
+// === ROOT/tests/ui/codegen/disasm/switch/lowerings.sol:SwitchLowerings (runtime) ===
+@module runtime
+bb0:
+  push 160
+  push 64
+  mstore
+  callvalue
+  push bb13
+  jumpi
+  push 0
+  calldataload
+  dup1
+  push 128
+  mstore
+  push 8
+  swap1
+  sub
+  dup1
+  push 57
+  gt
+  push bb4
+  jumpi
+  pop
+  jump bb13
+bb13 [cold]:
+  push 0
+  dup1
+  revert
+bb4:
+  indexed_jump bb5, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb6, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb7, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb8, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb9, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb10, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb11, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb12
+bb5:
+  push 100
+  jump bb14
+bb14:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb6:
+  push 101
+  jump bb14
+bb7:
+  push 102
+  jump bb14
+bb8:
+  push 103
+  jump bb14
+bb9:
+  push 104
+  jump bb14
+bb10:
+  push 105
+  jump bb14
+bb11:
+  push 106
+  jump bb14
+bb12:
+  push 107
+  jump bb14
+// === ROOT/tests/ui/codegen/disasm/switch/lowerings.sol:SwitchLowerings (runtime) ===
+PUSH1 0xa0
+PUSH1 0x40
+MSTORE
+CALLVALUE
+PUSH1 0x1b ; bb0
+JUMPI
+PUSH0
+CALLDATALOAD
+DUP1
+PUSH1 0x80
+MSTORE
+PUSH1 0x08
+SWAP1
+SUB
+DUP1
+PUSH1 0x39
+GT
+PUSH1 0x1f ; bb1
+JUMPI
+POP
+; bb0
+JUMPDEST
+PUSH0
+DUP1
+REVERT
+; bb1
+JUMPDEST
+DUP1
+PUSH1 0x05
+SHR
+DUP1
+PUSH25 0x9f1b1b1b1b1b1b1b991b1b1b1b1b1b1b931b1b1b1b1b1b1b8d
+MUL
+SWAP1
+ISZERO
+PUSH32 0x1b1b1b1b1b1b1b871b1b1b1b1b1b1b811b1b1b1b1b1b1b7b1b1b1b1b1b1b1b71
+MUL
+ADD
+SWAP1
+PUSH1 0x1f
+AND
+PUSH1 0x03
+SHL
+SHR
+PUSH1 0xff
+AND
+JUMP ; unknown
+; bb2
+JUMPDEST
+PUSH1 0x64
+; bb3
+JUMPDEST
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+; bb4
+JUMPDEST
+PUSH1 0x65
+PUSH1 0x74 ; bb3
+JUMP
+; bb5
+JUMPDEST
+PUSH1 0x66
+PUSH1 0x74 ; bb3
+JUMP
+; bb6
+JUMPDEST
+PUSH1 0x67
+PUSH1 0x74 ; bb3
+JUMP
+; bb7
+JUMPDEST
+PUSH1 0x68
+PUSH1 0x74 ; bb3
+JUMP
+; bb8
+JUMPDEST
+PUSH1 0x69
+PUSH1 0x74 ; bb3
+JUMP
+; bb9
+JUMPDEST
+PUSH1 0x6a
+PUSH1 0x74 ; bb3
+JUMP
+; bb10
+JUMPDEST
+PUSH1 0x6b
+PUSH1 0x74 ; bb3
+JUMP

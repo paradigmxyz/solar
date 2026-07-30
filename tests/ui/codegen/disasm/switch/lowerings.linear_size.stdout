@@ -1,0 +1,214 @@
+// === ROOT/tests/ui/codegen/disasm/switch/lowerings.sol:SwitchLowerings (runtime) ===
+@module runtime
+bb0:
+  push 160
+  push 64
+  mstore
+  callvalue
+  push bb2
+  jumpi
+  push 0
+  calldataload
+  dup1
+  push 128
+  mstore
+  dup1
+  push 8
+  sub
+  push bb4
+  jumpi
+  pop
+  push 100
+  jump bb12
+bb12:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb4:
+  dup1
+  push 16
+  sub
+  push bb5
+  jumpi
+  pop
+  push 101
+  jump bb12
+bb5:
+  dup1
+  push 24
+  sub
+  push bb6
+  jumpi
+  pop
+  push 102
+  jump bb12
+bb6:
+  dup1
+  push 32
+  sub
+  push bb7
+  jumpi
+  pop
+  push 103
+  jump bb12
+bb7:
+  dup1
+  push 40
+  sub
+  push bb8
+  jumpi
+  pop
+  push 104
+  jump bb12
+bb8:
+  dup1
+  push 48
+  sub
+  push bb9
+  jumpi
+  pop
+  push 105
+  jump bb12
+bb9:
+  dup1
+  push 56
+  sub
+  push bb10
+  jumpi
+  pop
+  push 106
+  jump bb12
+bb10:
+  dup1
+  push 64
+  sub
+  push bb11
+  jumpi
+  pop
+  push 107
+  jump bb12
+bb11:
+  pop
+  push 0
+  dup1
+  revert
+bb2 [cold]:
+  push 0
+  dup1
+  revert
+// === ROOT/tests/ui/codegen/disasm/switch/lowerings.sol:SwitchLowerings (runtime) ===
+PUSH1 0xa0
+PUSH1 0x40
+MSTORE
+CALLVALUE
+PUSH1 0x87 ; bb9
+JUMPI
+PUSH0
+CALLDATALOAD
+DUP1
+PUSH1 0x80
+MSTORE
+DUP1
+PUSH1 0x08
+SUB
+PUSH1 0x20 ; bb1
+JUMPI
+POP
+PUSH1 0x64
+; bb0
+JUMPDEST
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+; bb1
+JUMPDEST
+DUP1
+PUSH1 0x10
+SUB
+PUSH1 0x2e ; bb2
+JUMPI
+POP
+PUSH1 0x65
+PUSH1 0x19 ; bb0
+JUMP
+; bb2
+JUMPDEST
+DUP1
+PUSH1 0x18
+SUB
+PUSH1 0x3c ; bb3
+JUMPI
+POP
+PUSH1 0x66
+PUSH1 0x19 ; bb0
+JUMP
+; bb3
+JUMPDEST
+DUP1
+PUSH1 0x20
+SUB
+PUSH1 0x4a ; bb4
+JUMPI
+POP
+PUSH1 0x67
+PUSH1 0x19 ; bb0
+JUMP
+; bb4
+JUMPDEST
+DUP1
+PUSH1 0x28
+SUB
+PUSH1 0x58 ; bb5
+JUMPI
+POP
+PUSH1 0x68
+PUSH1 0x19 ; bb0
+JUMP
+; bb5
+JUMPDEST
+DUP1
+PUSH1 0x30
+SUB
+PUSH1 0x66 ; bb6
+JUMPI
+POP
+PUSH1 0x69
+PUSH1 0x19 ; bb0
+JUMP
+; bb6
+JUMPDEST
+DUP1
+PUSH1 0x38
+SUB
+PUSH1 0x74 ; bb7
+JUMPI
+POP
+PUSH1 0x6a
+PUSH1 0x19 ; bb0
+JUMP
+; bb7
+JUMPDEST
+DUP1
+PUSH1 0x40
+SUB
+PUSH1 0x82 ; bb8
+JUMPI
+POP
+PUSH1 0x6b
+PUSH1 0x19 ; bb0
+JUMP
+; bb8
+JUMPDEST
+POP
+PUSH0
+DUP1
+REVERT
+; bb9
+JUMPDEST
+PUSH0
+DUP1
+REVERT

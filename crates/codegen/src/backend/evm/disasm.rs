@@ -2,13 +2,24 @@
 
 use super::op;
 use solar_config::EvmVersion;
-use std::fmt::Write;
+use std::{
+    collections::{BTreeMap, VecDeque},
+    fmt::Write,
+};
 
-/// Disassembles EVM bytecode into one opcode per line.
+/// Disassembles EVM bytecode into one opcode per line and labels reachable jump destinations.
 pub fn disassemble(bytecode: &[u8]) -> String {
     let mut output = String::with_capacity(bytecode.len().saturating_mul(8));
+    let instructions = instructions(bytecode).collect::<Vec<_>>();
+    let labels = reachable_jumpdest_labels(&instructions);
 
-    for instruction in instructions(bytecode) {
+    for (index, instruction) in instructions.iter().enumerate() {
+        if instruction.opcode == op::JUMPDEST
+            && let Some(label) = labels.get(&instruction.offset)
+        {
+            writeln!(output, "; bb{label}").unwrap();
+        }
+
         if instruction.push_width != 0 {
             let width = instruction.push_width;
             write!(output, "PUSH{width} 0x").unwrap();
@@ -20,10 +31,105 @@ pub fn disassemble(bytecode: &[u8]) -> String {
         } else {
             write!(output, "UNKNOWN 0x{:02x}", instruction.opcode).unwrap();
         }
+        if is_push(instruction)
+            && instructions
+                .get(index + 1)
+                .is_some_and(|next| matches!(next.opcode, op::JUMP | op::JUMPI))
+        {
+            if let Some(label) = pushed_offset(instruction).and_then(|offset| labels.get(&offset)) {
+                write!(output, " ; bb{label}").unwrap();
+            } else {
+                output.push_str(" ; unknown");
+            }
+        } else if matches!(instruction.opcode, op::JUMP | op::JUMPI)
+            && !index.checked_sub(1).is_some_and(|previous| is_push(&instructions[previous]))
+        {
+            output.push_str(" ; unknown");
+        }
         output.push('\n');
     }
 
     output
+}
+
+fn reachable_jumpdest_labels(instructions: &[DecodedInstruction<'_>]) -> BTreeMap<usize, usize> {
+    let offsets = instructions
+        .iter()
+        .enumerate()
+        .map(|(index, inst)| (inst.offset, index))
+        .collect::<BTreeMap<_, _>>();
+    let jumpdests = instructions
+        .iter()
+        .enumerate()
+        .filter_map(|(index, inst)| (inst.opcode == op::JUMPDEST).then_some(index))
+        .collect::<Vec<_>>();
+    let mut reachable = vec![false; instructions.len()];
+    let mut pending = VecDeque::from([0]);
+
+    while let Some(index) = pending.pop_front() {
+        let Some(instruction) = instructions.get(index) else { continue };
+        if std::mem::replace(&mut reachable[index], true) {
+            continue;
+        }
+
+        if instruction.opcode == op::JUMP {
+            add_jump_successors(instructions, &offsets, &jumpdests, index, &mut pending);
+        } else if instruction.opcode == op::JUMPI {
+            pending.push_back(index + 1);
+            add_jump_successors(instructions, &offsets, &jumpdests, index, &mut pending);
+        } else if !op::is_terminal(instruction.opcode) {
+            pending.push_back(index + 1);
+        }
+    }
+
+    instructions
+        .iter()
+        .enumerate()
+        .filter(|&(index, inst)| reachable[index] && inst.opcode == op::JUMPDEST)
+        .enumerate()
+        .map(|(label, (_, inst))| (inst.offset, label))
+        .collect()
+}
+
+fn add_jump_successors(
+    instructions: &[DecodedInstruction<'_>],
+    offsets: &BTreeMap<usize, usize>,
+    jumpdests: &[usize],
+    index: usize,
+    pending: &mut VecDeque<usize>,
+) {
+    if let Some(previous) = index.checked_sub(1)
+        && is_push(&instructions[previous])
+    {
+        if let Some(target) = pushed_offset(&instructions[previous])
+            .and_then(|offset| offsets.get(&offset))
+            .copied()
+            .filter(|&target| instructions[target].opcode == op::JUMPDEST)
+        {
+            pending.push_back(target);
+        }
+    } else {
+        // An unresolved dynamic jump may target any JUMPDEST.
+        pending.extend(jumpdests.iter().copied());
+    }
+}
+
+fn pushed_offset(instruction: &DecodedInstruction<'_>) -> Option<usize> {
+    if instruction.opcode == op::PUSH0 {
+        Some(0)
+    } else {
+        (instruction.push_width != 0)
+            .then(|| {
+                instruction.data.iter().try_fold(0usize, |value, &byte| {
+                    value.checked_mul(256)?.checked_add(byte.into())
+                })
+            })
+            .flatten()
+    }
+}
+
+fn is_push(instruction: &DecodedInstruction<'_>) -> bool {
+    instruction.opcode == op::PUSH0 || instruction.push_width != 0
 }
 
 /// Disassembles EVM bytecode in the format used by solc's Standard JSON output.
@@ -57,6 +163,7 @@ pub fn disassemble_standard_json(bytecode: &[u8], evm_version: EvmVersion) -> St
 }
 
 struct DecodedInstruction<'a> {
+    offset: usize,
     opcode: u8,
     push_width: u8,
     data: &'a [u8],
@@ -65,6 +172,7 @@ struct DecodedInstruction<'a> {
 fn instructions(bytecode: &[u8]) -> impl Iterator<Item = DecodedInstruction<'_>> {
     let mut offset = 0;
     std::iter::from_fn(move || {
+        let instruction_offset = offset;
         let &opcode = bytecode.get(offset)?;
         offset += 1;
 
@@ -73,7 +181,7 @@ fn instructions(bytecode: &[u8]) -> impl Iterator<Item = DecodedInstruction<'_>>
         let end = offset.saturating_add(usize::from(push_width)).min(bytecode.len());
         let data = &bytecode[offset..end];
         offset = end;
-        Some(DecodedInstruction { opcode, push_width, data })
+        Some(DecodedInstruction { offset: instruction_offset, opcode, push_width, data })
     })
 }
 
