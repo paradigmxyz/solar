@@ -87,6 +87,11 @@ bb6:
   mstore
   jump bb8
 bb8:
+  push 192
+  mload
+  push 160
+  mload
+  add
   push 32
   push 0x3339
   push 240
@@ -94,24 +99,12 @@ bb8:
   jump bb12
 bb12:
   add
-  push 192
-  mload
-  push 160
-  mload
-  add
   push 128
   mload
-  dup1
-  push 128
-  mstore
-  dup3
+  dup2
   push 160
   mload
-  dup1
-  push 160
-  mstore
   mcopy
-  swap1
   pop
   push 224
   mload
@@ -197,6 +190,11 @@ bb14:
   mstore
   jump bb11
 bb11:
+  push 192
+  mload
+  push 160
+  mload
+  add
   push 32
   push bb15
   jump bb13

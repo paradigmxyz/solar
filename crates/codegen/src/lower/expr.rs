@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{FunctionBuilder, MemoryObjectKind, ValueId},
+    mir::{FunctionBuilder, MemoryObjectKind, TypeSize, ValueId},
 };
 use alloy_primitives::U256;
 use solar_ast::{LitKind, StrKind};
@@ -16,6 +16,9 @@ use solar_sema::{
     hir::{self, CallArgs, ElementaryType, ExprKind},
     ty::{Ty, TyKind},
 };
+
+/// Small structs are cheaper to initialize with individual zero stores.
+const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
 
 pub(super) struct MappingElementSlot {
     pub(super) slot: ValueId,
@@ -183,7 +186,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // left-aligned and must be re-masked to its width: a right shift
                 // moves data below the `N`-byte boundary, which has to be cleared.
                 if let Some(width) = self.fixed_bytes_width_of_expr(expr) {
-                    return self.clean_fixed_bytes(builder, result, width);
+                    return self.clean_fixed_bytes(builder, result, TypeSize::new_fb_bytes(width));
                 }
                 result
             }
@@ -889,8 +892,8 @@ impl<'gcx> Lowerer<'gcx> {
                     }
 
                     // Check if it's an immutable - load from appended runtime data.
-                    if let Some(&offset) = self.immutable_slots.get(var_id) {
-                        return self.load_immutable_value(builder, offset);
+                    if let Some(&id) = self.immutable_ids.get(var_id) {
+                        return self.load_immutable_value(builder, id);
                     }
 
                     // Check if it's a storage variable
@@ -944,6 +947,46 @@ impl<'gcx> Lowerer<'gcx> {
             }
             hir::Res::Err(guar) => builder.error_value(*guar),
         }
+    }
+
+    /// Materializes a wide default return struct with one bulk zeroing
+    /// operation while giving reference fields real empty objects.
+    pub(super) fn lower_bulk_zero_return_struct(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        var_id: hir::VariableId,
+    ) -> Option<ValueId> {
+        let var = self.gcx.hir.variable(var_id);
+        let ty = self.gcx.type_of_hir_ty(&var.ty);
+        if var.initializer.is_some()
+            || var.data_location != Some(solar_ast::DataLocation::Memory)
+            || !matches!(ty.peel_refs().kind, TyKind::Struct(_))
+            || self.lowering_internal_function
+            || self.current_return_tys.len() != 1
+        {
+            return None;
+        }
+
+        let TyKind::Struct(struct_id) = ty.peel_refs().kind else { unreachable!() };
+        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        if field_tys.len() < MIN_BULK_ZERO_STRUCT_FIELDS {
+            return None;
+        }
+        let ptr = self.allocate_zeroed_memory_object(
+            builder,
+            self.calculate_memory_words_for_ty(ty) * crate::memory::EvmMemoryLayout::WORD_SIZE,
+            crate::mir::MemoryObjectKind::Struct,
+        );
+        let layout = crate::mir::MemoryObjectLayout::structure(field_tys.len() as u64);
+        for (i, field_ty) in field_tys.into_iter().enumerate() {
+            if field_ty.peel_refs().is_value_type() {
+                continue;
+            }
+            let value = self.zero_memory_field_value_ty(builder, field_ty, var.ty.span);
+            let field_addr = builder.memory_object_field_addr(ptr, layout, i as u64);
+            builder.mstore(field_addr, value);
+        }
+        Some(ptr)
     }
 
     /// Materializes a language-defined default for an uninitialized local or
@@ -1692,8 +1735,8 @@ impl<'gcx> Lowerer<'gcx> {
                     } else if let Some(local) = self.locals.get_mut(&var_id) {
                         // Function parameter - update SSA mapping (shouldn't happen normally)
                         *local = rhs;
-                    } else if let Some(&offset) = self.immutable_slots.get(&var_id) {
-                        self.store_immutable_value(builder, offset, rhs);
+                    } else if let Some(&id) = self.immutable_ids.get(&var_id) {
+                        builder.store_immutable(id, rhs);
                     } else if let Some(&location) = self.storage_locations.get(&var_id) {
                         let base_slot = location.slot;
                         let ty = self.gcx.type_of_hir_ty(&var.ty).peel_refs();
@@ -1968,28 +2011,23 @@ impl<'gcx> Lowerer<'gcx> {
                 let is_zero = builder.iszero(value);
                 builder.iszero(is_zero)
             }
-            ElementaryType::Address(_) => self.mask_to_bits(builder, value, 160),
-            ElementaryType::UInt(size) => {
-                let bits = size.bits() as u32;
-                self.mask_to_bits(builder, value, bits)
+            ElementaryType::Address(_) => {
+                self.mask_to_bits(builder, value, TypeSize::new_int_bits(160))
             }
-            ElementaryType::Int(size) => {
-                let bits = size.bits() as u32;
-                self.sign_extend_to_bits(builder, value, bits)
-            }
+            ElementaryType::UInt(size) => self.mask_to_bits(builder, value, *size),
+            ElementaryType::Int(size) => self.sign_extend_to_bits(builder, value, *size),
             ElementaryType::FixedBytes(size) => {
-                let bytes = size.bytes();
                 // `bytesN(someBytesSlice)` takes the slice's leading word,
                 // which is already left-aligned like every fixed-bytes value.
                 // Without this the slice value itself would be shifted as if it
                 // were a number, and the slice would survive to the backend.
                 if let Some(word) = self.slice_leading_word(builder, value) {
-                    return self.clean_fixed_bytes(builder, word, bytes);
+                    return self.clean_fixed_bytes(builder, word, *size);
                 }
                 if self.expr_is_fixed_bytes(source) {
-                    self.clean_fixed_bytes(builder, value, bytes)
+                    self.clean_fixed_bytes(builder, value, *size)
                 } else {
-                    self.shift_numeric_to_fixed_bytes(builder, value, bytes)
+                    self.shift_numeric_to_fixed_bytes(builder, value, *size)
                 }
             }
             ElementaryType::String
@@ -2018,8 +2056,9 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,
-        bytes: u8,
+        size: TypeSize,
     ) -> ValueId {
+        let bytes = size.bytes();
         let shift_bits = u64::from(32 - bytes) * 8;
         let shifted = if shift_bits == 0 {
             value
@@ -2027,15 +2066,16 @@ impl<'gcx> Lowerer<'gcx> {
             let shift = builder.imm_u64(shift_bits);
             builder.shl(shift, value)
         };
-        self.clean_fixed_bytes(builder, shifted, bytes)
+        self.clean_fixed_bytes(builder, shifted, size)
     }
 
     pub(super) fn clean_fixed_bytes(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,
-        bytes: u8,
+        size: TypeSize,
     ) -> ValueId {
+        let bytes = size.bytes();
         if bytes >= 32 {
             return value;
         }
@@ -2049,8 +2089,9 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,
-        bits: u32,
+        size: TypeSize,
     ) -> ValueId {
+        let bits = size.bits();
         if bits == 0 || bits >= 256 {
             return value;
         }
@@ -2064,8 +2105,9 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,
-        bits: u32,
+        size: TypeSize,
     ) -> ValueId {
+        let bits = size.bits();
         if bits == 0 || bits >= 256 {
             return value;
         }
@@ -2353,6 +2395,36 @@ impl<'gcx> Lowerer<'gcx> {
         size: u64,
         kind: crate::mir::MemoryObjectKind,
     ) -> ValueId {
+        self.allocate_memory_object_with_semantics(
+            builder,
+            size,
+            kind,
+            crate::mir::AllocationSemantics::INTERNAL,
+        )
+    }
+
+    /// Allocates a zero-initialized shaped memory object with a constant byte size.
+    pub(super) fn allocate_zeroed_memory_object(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        size: u64,
+        kind: crate::mir::MemoryObjectKind,
+    ) -> ValueId {
+        self.allocate_memory_object_with_semantics(
+            builder,
+            size,
+            kind,
+            crate::mir::AllocationSemantics::INTERNAL_ZEROED,
+        )
+    }
+
+    fn allocate_memory_object_with_semantics(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        size: u64,
+        kind: crate::mir::MemoryObjectKind,
+        semantics: crate::mir::AllocationSemantics,
+    ) -> ValueId {
         let layout = match kind {
             crate::mir::MemoryObjectKind::Bytes => crate::mir::MemoryObjectLayout::Bytes,
             crate::mir::MemoryObjectKind::DynamicArray => {
@@ -2366,7 +2438,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
         };
         let size = builder.imm_u64(size);
-        builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL)
+        builder.alloc_object(size, layout, semantics)
     }
 
     /// Lowers `abi.decode(data, (T...))` for elementary values from memory
@@ -2752,14 +2824,12 @@ impl<'gcx> Lowerer<'gcx> {
                 let is_zero = builder.iszero(value);
                 builder.iszero(is_zero)
             }
-            ElementaryType::Address(_) => self.mask_to_bits(builder, value, 160),
-            ElementaryType::UInt(size) => self.mask_to_bits(builder, value, size.bits() as u32),
-            ElementaryType::Int(size) => {
-                self.sign_extend_to_bits(builder, value, size.bits() as u32)
+            ElementaryType::Address(_) => {
+                self.mask_to_bits(builder, value, TypeSize::new_int_bits(160))
             }
-            ElementaryType::FixedBytes(size) => {
-                self.clean_fixed_bytes(builder, value, size.bytes())
-            }
+            ElementaryType::UInt(size) => self.mask_to_bits(builder, value, *size),
+            ElementaryType::Int(size) => self.sign_extend_to_bits(builder, value, *size),
+            ElementaryType::FixedBytes(size) => self.clean_fixed_bytes(builder, value, *size),
             ElementaryType::String
             | ElementaryType::Bytes
             | ElementaryType::Fixed(_, _)

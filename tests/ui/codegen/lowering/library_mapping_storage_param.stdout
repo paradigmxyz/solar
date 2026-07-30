@@ -101,7 +101,6 @@ bb12 [cold]:
   shl
   push 0
   mstore
-  pop
   push 17
   push 4
   mstore

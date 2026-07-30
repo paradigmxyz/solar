@@ -16,9 +16,8 @@ mod type_query;
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        AbiLayout, BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId,
-        IMMUTABLE_WORD_SIZE, MemoryObjectKind, MirType, Module, SliceLocation, StorageLayoutRef,
-        ValueId,
+        AbiLayout, BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, ImmutableId,
+        MemoryObjectKind, MirType, Module, SliceLocation, StorageLayoutRef, TypeSize, ValueId,
     },
 };
 use alloy_primitives::{Bytes, U256};
@@ -107,10 +106,8 @@ pub(crate) struct Lowerer<'gcx> {
     next_storage_slot: U256,
     /// Next available byte offset in `next_storage_slot` for packed variables.
     next_storage_offset: u8,
-    /// Mapping from HIR immutable variable IDs to runtime immutable byte offsets.
-    immutable_slots: FxHashMap<VariableId, u32>,
-    /// Next available immutable byte offset.
-    next_immutable_offset: u32,
+    /// Mapping from HIR immutable variable IDs to MIR immutable IDs.
+    immutable_ids: FxHashMap<VariableId, ImmutableId>,
     /// Mapping from HIR variable IDs to MIR values (for local variables).
     /// For SSA-style immutable variables (function params and non-mutated locals).
     locals: FxHashMap<VariableId, ValueId>,
@@ -173,6 +170,8 @@ pub(crate) struct Lowerer<'gcx> {
     internal_function_pointer_dispatchers: FxHashMap<InternalFunctionPointerShape, FunctionId>,
     /// Whether the current function body is constructor code.
     lowering_constructor: bool,
+    /// Shared base value for constructor ABI argument accesses.
+    constructor_args_base: Option<ValueId>,
     /// Whether local memory slots should be addressed through the internal-call frame.
     lowering_internal_function: bool,
     /// The module's shared `Error(string)` revert helper, synthesized on first
@@ -228,8 +227,7 @@ impl<'gcx> Lowerer<'gcx> {
             storage_locations: FxHashMap::default(),
             next_storage_slot: U256::ZERO,
             next_storage_offset: 0,
-            immutable_slots: FxHashMap::default(),
-            next_immutable_offset: 0,
+            immutable_ids: FxHashMap::default(),
             locals: FxHashMap::default(),
             local_memory_slots: FxHashMap::default(),
             slice_slot_locals: FxHashSet::default(),
@@ -253,6 +251,7 @@ impl<'gcx> Lowerer<'gcx> {
             internal_function_pointer_targets: GrowableBitSet::new_empty(),
             internal_function_pointer_dispatchers: FxHashMap::default(),
             lowering_constructor: false,
+            constructor_args_base: None,
             lowering_internal_function: false,
             revert_error_helper: None,
             storage_bytes_helper: None,
@@ -392,39 +391,22 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Returns the constructor scratch address for an immutable word.
-    pub(crate) fn immutable_scratch_addr(offset: u32) -> u64 {
-        EvmMemoryLayout::IMMUTABLE_SCRATCH_BASE + u64::from(offset)
+    fn constructor_args_base(&mut self, builder: &mut FunctionBuilder<'_>) -> ValueId {
+        if let Some(base) = self.constructor_args_base {
+            return base;
+        }
+        let base = builder.constructor_args_base();
+        self.constructor_args_base = Some(base);
+        base
     }
 
-    /// Stages an immutable word in constructor memory.
-    pub(crate) fn store_immutable_value(
-        &self,
-        builder: &mut FunctionBuilder<'_>,
-        offset: u32,
-        value: ValueId,
-    ) {
-        let addr = builder.imm_u64(Self::immutable_scratch_addr(offset));
-        builder.mstore(addr, value);
-    }
-
-    /// Loads an immutable word.
-    ///
-    /// Runtime code reads a `PUSH32` placeholder that the constructor patches
-    /// with the staged value before returning the runtime code. The running
-    /// constructor's own placeholders are never patched, so constructor-context
-    /// reads load the staged scratch word instead.
+    /// Loads an immutable value.
     pub(crate) fn load_immutable_value(
         &self,
         builder: &mut FunctionBuilder<'_>,
-        offset: u32,
+        id: ImmutableId,
     ) -> ValueId {
-        if self.lowering_constructor {
-            let addr = builder.imm_u64(Self::immutable_scratch_addr(offset));
-            builder.mload(addr)
-        } else {
-            builder.load_immutable(offset)
-        }
+        builder.load_immutable(id, self.module.immutable_type(id))
     }
 
     /// Registers a contract's bytecode for use in `new` expressions.
@@ -575,17 +557,37 @@ impl<'gcx> Lowerer<'gcx> {
 
         {
             let mut builder = FunctionBuilder::new(&mut mir_func);
+            let saved_locals = std::mem::take(&mut self.locals);
+            let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+            let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
+            let saved_next_local_memory_offset = self.next_local_memory_offset;
+            let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+            let saved_inline_returns = self.inline_returns.take();
+            let saved_pending_inline_returns = self.pending_inline_returns.take();
             let saved_lowering_constructor = self.lowering_constructor;
+            let saved_constructor_args_base = self.constructor_args_base;
             let saved_lowering_internal_function = self.lowering_internal_function;
             let saved_in_unchecked_block = self.in_unchecked_block;
             let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
+            self.next_local_memory_offset = EvmMemoryLayout::HEAP_START;
             self.lowering_constructor = true;
+            self.constructor_args_base = None;
             self.lowering_internal_function = false;
             self.in_unchecked_block = false;
 
             self.lower_constructor_prelude(&mut builder, contract_id);
             builder.stop();
+            builder.func_mut().internal_frame_size =
+                self.next_local_memory_offset.saturating_sub(EvmMemoryLayout::HEAP_START);
+            self.locals = saved_locals;
+            self.local_memory_slots = saved_local_memory_slots;
+            self.slice_slot_locals = saved_slice_slot_locals;
+            self.next_local_memory_offset = saved_next_local_memory_offset;
+            self.assigned_vars = saved_assigned_vars;
+            self.inline_returns = saved_inline_returns;
+            self.pending_inline_returns = saved_pending_inline_returns;
             self.lowering_constructor = saved_lowering_constructor;
+            self.constructor_args_base = saved_constructor_args_base;
             self.lowering_internal_function = saved_lowering_internal_function;
             self.in_unchecked_block = saved_in_unchecked_block;
             self.current_return_tys = saved_current_return_tys;
@@ -614,17 +616,13 @@ impl<'gcx> Lowerer<'gcx> {
                 }
 
                 let var = self.gcx.hir.variable(var_id);
-                // Constants are inlined. Immutables are patched into the
-                // runtime code's `PUSH32` placeholders at deploy time.
+                // Constants are inlined. Immutables are patched into typed
+                // runtime-code `PUSH<N>` placeholders at deploy time.
                 if var.is_state_variable() && var.is_immutable() {
-                    let offset = self.next_immutable_offset;
-                    self.next_immutable_offset = self
-                        .next_immutable_offset
-                        .checked_add(IMMUTABLE_WORD_SIZE as u32)
-                        .expect("immutable offset overflow");
-                    self.immutable_slots.insert(var_id, offset);
-
-                    self.module.add_immutable();
+                    let ty = self.lower_type_from_var(var_id);
+                    let name = var.name.expect("state immutable must be named");
+                    let id = self.module.add_immutable(name, ty);
+                    self.immutable_ids.insert(var_id, id);
                 } else if var.is_state_variable() && !var.is_constant() {
                     let var_ty = self.gcx.type_of_item(var_id.into());
                     let location = self.allocate_storage_location(var_ty, var.ty.span);
@@ -738,6 +736,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_pending_inline_returns = self.pending_inline_returns.take();
         let saved_current_contract_id = self.current_contract_id;
         let saved_lowering_constructor = self.lowering_constructor;
+        let saved_constructor_args_base = self.constructor_args_base;
         let saved_lowering_internal_function = self.lowering_internal_function;
         let saved_in_unchecked_block = self.in_unchecked_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
@@ -757,6 +756,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.pending_inline_returns = saved_pending_inline_returns;
         self.current_contract_id = saved_current_contract_id;
         self.lowering_constructor = saved_lowering_constructor;
+        self.constructor_args_base = saved_constructor_args_base;
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
@@ -781,8 +781,8 @@ impl<'gcx> Lowerer<'gcx> {
             func.attributes.no_inline = true;
             {
                 let mut builder = FunctionBuilder::new(&mut func);
-                let len = builder.add_param(MirType::UInt(256));
-                let data = builder.add_param(MirType::UInt(256));
+                let len = builder.add_param(MirType::uint256());
+                let data = builder.add_param(MirType::uint256());
                 let selector = builder.imm_u256(U256::from(0x08c3_79a0u64) << 224);
                 let zero = builder.imm_u64(0);
                 builder.mstore(zero, selector);
@@ -843,6 +843,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_pending_inline_returns = self.pending_inline_returns.take();
         let saved_current_contract_id = self.current_contract_id;
         let saved_lowering_constructor = self.lowering_constructor;
+        let saved_constructor_args_base = self.constructor_args_base;
         let saved_lowering_internal_function = self.lowering_internal_function;
         let saved_in_unchecked_block = self.in_unchecked_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
@@ -860,6 +861,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.pending_inline_returns = saved_pending_inline_returns;
         self.current_contract_id = saved_current_contract_id;
         self.lowering_constructor = saved_lowering_constructor;
+        self.constructor_args_base = saved_constructor_args_base;
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
@@ -914,6 +916,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.next_local_memory_offset = EvmMemoryLayout::HEAP_START;
         self.assigned_vars.clear();
         self.lowering_constructor = hir_func.kind == hir::FunctionKind::Constructor;
+        self.constructor_args_base = None;
         self.lowering_internal_function = uses_internal_frame;
         self.in_unchecked_block = false;
         self.current_return_tys =
@@ -997,17 +1000,16 @@ impl<'gcx> Lowerer<'gcx> {
                     // offsets relative to the struct's own base — lives in
                     // the tail. Rebuild it recursively. Runtime calls read
                     // calldata after the selector; constructors read the
-                    // argument blob CODECOPY'd into memory at the heap start.
+                    // argument blob CODECOPY'd into its backend-owned region.
                     let (source, args_base) = if self.lowering_constructor {
-                        (bytes::AbiSource::Memory, EvmMemoryLayout::HEAP_START)
+                        (bytes::AbiSource::Memory, self.constructor_args_base(&mut builder))
                     } else {
-                        (bytes::AbiSource::Calldata, 4)
+                        (bytes::AbiSource::Calldata, builder.imm_u64(4))
                     };
                     let offset = builder.add_param(MirType::uint256());
                     let limit = builder.imm_u64(0xffff_ffff_ffff_ffff);
                     let out_of_range = builder.gt(offset, limit);
                     self.emit_abi_decode_revert_if(&mut builder, out_of_range);
-                    let args_base = builder.imm_u64(args_base);
                     let base = builder.add(args_base, offset);
                     let struct_ptr =
                         self.materialize_calldata_value_at(&mut builder, source, param_ty, base);
@@ -1023,11 +1025,11 @@ impl<'gcx> Lowerer<'gcx> {
                     let field_tys = self.gcx.struct_field_types(struct_id);
 
                     // Runtime calls read the inline head after the selector;
-                    // constructors read the argument blob at the heap start.
-                    let (agg_source, agg_args_base) = if self.lowering_constructor {
-                        (bytes::AbiSource::Memory, EvmMemoryLayout::HEAP_START)
+                    // constructors read the backend-owned argument blob.
+                    let (agg_source, constructor_args_base) = if self.lowering_constructor {
+                        (bytes::AbiSource::Memory, Some(self.constructor_args_base(&mut builder)))
                     } else {
-                        (bytes::AbiSource::Calldata, 4)
+                        (bytes::AbiSource::Calldata, None)
                     };
 
                     // Rebuild every field into its ordinary memory
@@ -1066,8 +1068,13 @@ impl<'gcx> Lowerer<'gcx> {
                             for _ in 0..head_words {
                                 builder.add_param(MirType::uint256());
                             }
-                            let pos = builder
-                                .imm_u64(agg_args_base + first_word * EvmMemoryLayout::WORD_SIZE);
+                            let offset = first_word * EvmMemoryLayout::WORD_SIZE;
+                            let pos = if let Some(args_base) = constructor_args_base {
+                                let offset = builder.imm_u64(offset);
+                                builder.add(args_base, offset)
+                            } else {
+                                builder.imm_u64(4 + offset)
+                            };
                             let field_ptr = self.materialize_calldata_value_at(
                                 &mut builder,
                                 agg_source,
@@ -1185,13 +1192,13 @@ impl<'gcx> Lowerer<'gcx> {
                     // an offset to `[length][elements...]` in the ABI argument
                     // blob. Runtime calls read it from calldata after the
                     // selector; constructors read it from the copied argument
-                    // blob at memory 0x80.
+                    // blob in its backend-owned region.
                     let head = builder.add_param(ty);
-                    let abi_base = builder.imm_u64(if self.lowering_constructor {
-                        EvmMemoryLayout::HEAP_START
+                    let abi_base = if self.lowering_constructor {
+                        self.constructor_args_base(&mut builder)
                     } else {
-                        4
-                    });
+                        builder.imm_u64(4)
+                    };
                     let len_pos = builder.add(abi_base, head);
                     let len = if self.lowering_constructor {
                         builder.mload(len_pos)
@@ -1226,13 +1233,13 @@ impl<'gcx> Lowerer<'gcx> {
                     // the payload's offset relative to the start of the ABI
                     // arguments. Runtime calls read it from calldata after the
                     // selector; constructors read it from the copied argument
-                    // blob at memory 0x80.
+                    // blob in its backend-owned region.
                     let head = builder.add_param(ty);
-                    let abi_base = builder.imm_u64(if self.lowering_constructor {
-                        EvmMemoryLayout::HEAP_START
+                    let abi_base = if self.lowering_constructor {
+                        self.constructor_args_base(&mut builder)
                     } else {
-                        4
-                    });
+                        builder.imm_u64(4)
+                    };
                     let len_pos = builder.add(abi_base, head);
                     let len = if self.lowering_constructor {
                         builder.mload(len_pos)
@@ -1336,6 +1343,9 @@ impl<'gcx> Lowerer<'gcx> {
                         self.calculate_memory_words_for_ty(ty) * EvmMemoryLayout::WORD_SIZE,
                         MemoryObjectKind::Struct,
                     );
+                    builder.mstore(offset_val, value);
+                } else if let Some(value) = self.lower_bulk_zero_return_struct(&mut builder, ret_id)
+                {
                     builder.mstore(offset_val, value);
                 } else if let Some(value) = self.lower_default_variable_value(&mut builder, ret_id)
                 {
@@ -1546,10 +1556,10 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.calldataload(offset)
             }
             AbiParamSource::ConstructorMemory => {
-                // Constructor ABI arguments are copied to memory at 0x80 by the backend.
-                let offset = builder
-                    .imm_u64(EvmMemoryLayout::HEAP_START + arg_index * EvmMemoryLayout::WORD_SIZE);
-                builder.mload(offset)
+                let base = self.constructor_args_base(builder);
+                let offset = builder.imm_u64(arg_index * EvmMemoryLayout::WORD_SIZE);
+                let address = builder.add(base, offset);
+                builder.mload(address)
             }
         };
         self.emit_abi_word_clean_check(builder, word, validator);
@@ -1605,8 +1615,8 @@ impl<'gcx> Lowerer<'gcx> {
                     && let Some(init) = var.initializer
                 {
                     let init_val = self.lower_value_expr(builder, init);
-                    if let Some(&offset) = self.immutable_slots.get(&var_id) {
-                        self.store_immutable_value(builder, offset, init_val);
+                    if let Some(&id) = self.immutable_ids.get(&var_id) {
+                        builder.store_immutable(id, init_val);
                     } else if let Some(&location) = self.storage_locations.get(&var_id) {
                         self.store_storage_location(builder, location, init_val);
                     }
@@ -1802,11 +1812,13 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::Elementary(elem) => match elem {
                 ElementaryType::Bool => MirType::Bool,
                 ElementaryType::Address(_) => MirType::Address,
-                ElementaryType::Int(bits) => MirType::Int(bits.bits()),
-                ElementaryType::UInt(bits) => MirType::UInt(bits.bits()),
-                ElementaryType::Fixed(_, _) => MirType::Int(256),
-                ElementaryType::UFixed(_, _) => MirType::UInt(256),
-                ElementaryType::FixedBytes(n) => MirType::FixedBytes(n.bytes()),
+                ElementaryType::Int(size) => MirType::Int(TypeSize::new_int_bits(size.bits())),
+                ElementaryType::UInt(size) => MirType::UInt(TypeSize::new_int_bits(size.bits())),
+                ElementaryType::Fixed(size, _) => MirType::Int(TypeSize::new_int_bits(size.bits())),
+                ElementaryType::UFixed(size, _) => {
+                    MirType::UInt(TypeSize::new_int_bits(size.bits()))
+                }
+                ElementaryType::FixedBytes(size) => MirType::FixedBytes(size),
                 ElementaryType::String | ElementaryType::Bytes => {
                     MirType::MemoryObject(MemoryObjectKind::Bytes)
                 }
@@ -1818,7 +1830,8 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::Array(_, _) => MirType::MemoryObject(MemoryObjectKind::FixedArray),
             TyKind::Fn(_) => MirType::Function,
             TyKind::Struct(_) => MirType::MemoryObject(MemoryObjectKind::Struct),
-            TyKind::Enum(_) => MirType::UInt(8),
+            TyKind::Enum(_) => MirType::UInt(TypeSize::new_int_bits(8)),
+            TyKind::Udvt(underlying, _) => self.lower_type_from_ty(underlying),
             TyKind::Contract(_) | TyKind::Super(_) => MirType::Address,
             TyKind::StringLiteral(_, _)
             | TyKind::IntLiteral(_, _, _)

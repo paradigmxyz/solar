@@ -35,10 +35,10 @@ fn @assign() {
     v36 = mload v51
     v37 = shr 3, v32
     v38 = add v37, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6
-    v39 = and v32, 7
-    v40 = shl 2, v39
     v41 = shr 224, v36
     v42 = and v41, 0xffffffff
+    v39 = and v32, 7
+    v40 = shl 2, v39
     v43 = shl 3, v40
     v44 = shl v43, v42
     v45 = shl v43, 0xffffffff
@@ -140,10 +140,10 @@ fn @push() {
     v43 = mload v58
     v44 = shr 3, v39
     v45 = add v37, v44
-    v46 = and v39, 7
-    v47 = shl 2, v46
     v48 = shr 224, v43
     v49 = and v48, 0xffffffff
+    v46 = and v39, 7
+    v47 = shl 2, v46
     v50 = shl 3, v47
     v51 = shl v50, v49
     v52 = shl v50, 0xffffffff

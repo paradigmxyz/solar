@@ -5,8 +5,8 @@
     push 1
     push_deferred 2
     push_deferred 0xfffffff
-    push_immutable 3
-    push_immutable 0xfffffff
+    push_immutable 3, 1
+    push_immutable 0xfffffff, 32
     pop
     pop
     pop

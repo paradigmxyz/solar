@@ -1,6 +1,6 @@
 //! MIR values.
 
-use super::{ArgIdx, InstId, MirType};
+use super::{ArgIdx, InstId, MirType, TypeSize};
 use alloy_primitives::U256;
 use solar_interface::diagnostics::ErrorGuaranteed;
 use std::fmt;
@@ -42,9 +42,9 @@ pub(crate) enum Immediate {
     /// Boolean constant.
     Bool(bool),
     /// Unsigned integer constant.
-    UInt(U256, u16),
+    UInt(U256, TypeSize),
     /// Signed integer constant.
-    Int(U256, u16),
+    Int(U256, TypeSize),
 }
 
 impl Immediate {
@@ -61,7 +61,7 @@ impl Immediate {
     /// Creates a new uint256 immediate from a U256 value.
     #[must_use]
     pub(crate) const fn uint256(value: U256) -> Self {
-        Self::UInt(value, 256)
+        Self::UInt(value, TypeSize::new_int_bits(256))
     }
 
     /// Creates a new boolean immediate.

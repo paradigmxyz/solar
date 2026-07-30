@@ -15,6 +15,7 @@ pub mod mir;
 pub(crate) mod memory;
 
 mod analysis;
+mod immutable;
 
 pub mod backend;
 pub use backend::{Backend, evm::EvmCodegen};

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_packed_calldata_bytes.sol:P (runtime) ===
 @module runtime
 bb0:
-  push 384
+  push 352
   push 64
   mstore
   callvalue
@@ -57,13 +57,13 @@ bb6:
   add
   calldataload
   dup1
-  push 160
+  push 192
   mstore
   push 31
   dup2
   add
   dup1
-  push 192
+  push 160
   mstore
   lt
   push bb19
@@ -73,7 +73,7 @@ bb6:
 bb21:
   push 31
   not
-  push 192
+  push 160
   mload
   and
   dup1
@@ -88,13 +88,13 @@ bb21:
   pop
   add
   dup1
-  push 224
+  push 160
   mstore
   push 32
   dup2
   add
   dup1
-  push 256
+  push 224
   mstore
   lt
   swap1
@@ -125,13 +125,13 @@ bb12:
   add
   calldataload
   dup1
-  push 160
+  push 192
   mstore
   push 31
   dup2
   add
   dup1
-  push 192
+  push 160
   mstore
   lt
   push bb19
@@ -144,26 +144,23 @@ bb22:
   push 64
   mload
   dup1
-  push 352
+  push 320
   mstore
-  push 256
+  push 224
   mload
   dup2
   add
   push 64
   mstore
-  push 160
+  push 192
   mload
-  dup1
-  push 160
-  mstore
   dup2
   mstore
   push 32
   dup2
   add
   push 32
-  push 224
+  push 160
   mload
   sub
   dup2
@@ -175,11 +172,8 @@ bb22:
   push 4
   calldataload
   add
-  push 160
+  push 192
   mload
-  dup1
-  push 160
-  mstore
   dup2
   dup4
   calldatacopy
@@ -187,21 +181,21 @@ bb22:
   push 64
   mload
   dup1
-  push 288
+  push 256
   mstore
   swap2
   mload
   dup1
-  push 320
+  push 288
   mstore
   dup2
   dup4
   dup1
-  push 288
+  push 256
   mstore
   mcopy
   pop
-  push 320
+  push 288
   mload
   dup2
   add
@@ -229,26 +223,23 @@ bb23:
   push 64
   mload
   dup1
-  push 320
+  push 288
   mstore
-  push 256
+  push 224
   mload
   dup2
   add
   push 64
   mstore
-  push 160
+  push 192
   mload
-  dup1
-  push 160
-  mstore
   dup2
   mstore
   push 32
   dup2
   add
   push 32
-  push 224
+  push 160
   mload
   sub
   dup2
@@ -260,11 +251,8 @@ bb23:
   push 4
   calldataload
   add
-  push 160
+  push 192
   mload
-  dup1
-  push 160
-  mstore
   dup2
   dup4
   calldatacopy
@@ -272,7 +260,7 @@ bb23:
   push 64
   mload
   dup1
-  push 352
+  push 320
   mstore
   push 0x707265
   push 232
@@ -285,7 +273,7 @@ bb23:
   swap3
   mload
   dup1
-  push 288
+  push 256
   mstore
   dup3
   dup5
@@ -293,7 +281,7 @@ bb23:
   swap1
   pop
   swap1
-  push 288
+  push 256
   mload
   add
   push 36
