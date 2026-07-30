@@ -843,6 +843,26 @@ pub(crate) enum InstKind {
 }
 
 impl InstKind {
+    /// Returns binary operands whose evaluation order may be exchanged during EVM lowering.
+    ///
+    /// This includes commutative instructions and comparisons whose opcode can be reversed with
+    /// their operands.
+    pub(crate) const fn reorderable_binary_operands(&self) -> Option<(ValueId, ValueId)> {
+        match self {
+            Self::Add(a, b)
+            | Self::Mul(a, b)
+            | Self::And(a, b)
+            | Self::Or(a, b)
+            | Self::Xor(a, b)
+            | Self::Eq(a, b)
+            | Self::Lt(a, b)
+            | Self::Gt(a, b)
+            | Self::SLt(a, b)
+            | Self::SGt(a, b) => Some((*a, *b)),
+            _ => None,
+        }
+    }
+
     /// Collects all operands of this instruction into the provided vector.
     /// This is the canonical way to get all operands for liveness analysis.
     pub(crate) fn collect_operands<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
