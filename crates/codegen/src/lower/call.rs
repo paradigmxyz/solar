@@ -114,17 +114,21 @@ impl<'gcx> Lowerer<'gcx> {
                     return self.lower_internal_call(builder, func_id, args);
                 }
                 hir::ItemId::Contract(_) => {
-                    if let Some(first_arg) = args.exprs().next() {
-                        return Some(self.lower_value_expr(builder, first_arg));
-                    }
+                    let [arg] = match self.positional_args(args, "contract conversion") {
+                        Ok(args) => args,
+                        Err(guar) => return self.call_error_result(builder, callee, guar),
+                    };
+                    return Some(self.lower_value_expr(builder, arg));
                 }
                 hir::ItemId::Enum(enum_id) => {
-                    if let Some(first_arg) = args.exprs().next() {
-                        let value = self.lower_value_expr(builder, first_arg);
-                        let variant_count = self.gcx.hir.enumm(enum_id).variants.len();
-                        self.emit_enum_range_check(builder, value, variant_count);
-                        return Some(value);
-                    }
+                    let [arg] = match self.positional_args(args, "enum conversion") {
+                        Ok(args) => args,
+                        Err(guar) => return self.call_error_result(builder, callee, guar),
+                    };
+                    let value = self.lower_value_expr(builder, arg);
+                    let variant_count = self.gcx.hir.enumm(enum_id).variants.len();
+                    self.emit_enum_range_check(builder, value, variant_count);
+                    return Some(value);
                 }
                 hir::ItemId::Struct(struct_id) => {
                     return Some(self.lower_struct_constructor(builder, struct_id, args));
@@ -135,11 +139,13 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Handle Type(expr) where callee is an explicit Type expression
         // e.g., uint256(x), address(y), bytes32(z)
-        if let ExprKind::Type(ty) = &callee.kind
-            && let Some(first_arg) = args.exprs().next()
-        {
-            let value = self.lower_value_expr(builder, first_arg);
-            return Some(self.lower_type_conversion(builder, ty, first_arg, value));
+        if let ExprKind::Type(ty) = &callee.kind {
+            let [arg] = match self.positional_args(args, "type conversion") {
+                Ok(args) => args,
+                Err(guar) => return self.call_error_result(builder, callee, guar),
+            };
+            let value = self.lower_value_expr(builder, arg);
+            return Some(self.lower_type_conversion(builder, ty, arg, value));
         }
 
         self.err_call_result(
@@ -218,6 +224,31 @@ impl<'gcx> Lowerer<'gcx> {
                     .emit())
             }
         }
+    }
+
+    fn positional_args<'hir, const N: usize>(
+        &self,
+        args: &CallArgs<'hir>,
+        context: &str,
+    ) -> Result<&'hir [hir::Expr<'hir>; N], ErrorGuaranteed> {
+        let hir::CallArgsKind::Unnamed(exprs) = args.kind else {
+            return Err(self
+                .gcx
+                .dcx()
+                .err(format!("named arguments are not supported for {context} in codegen"))
+                .span(args.span)
+                .emit());
+        };
+        exprs.try_into().map_err(|_| {
+            self.gcx
+                .dcx()
+                .err(format!(
+                    "wrong number of arguments for {context} in codegen: expected {N}, found {}",
+                    exprs.len()
+                ))
+                .span(args.span)
+                .emit()
+        })
     }
 
     pub(super) fn ordered_args_for<'hir>(
@@ -711,12 +742,9 @@ impl<'gcx> Lowerer<'gcx> {
             );
         }
 
-        let Some(len) = args.exprs().next() else {
-            return self.err_value(
-                builder,
-                args.span,
-                "codegen expected a length for dynamic memory array allocation",
-            );
+        let [len] = match self.positional_args(args, "dynamic memory array allocation") {
+            Ok(args) => args,
+            Err(guar) => return builder.error_value(guar),
         };
         let len = self.lower_value_expr(builder, len);
 
@@ -1160,9 +1188,9 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::YulMcopy => {
                 // The Yul `mcopy` builtin is only available on Cancun-compatible
                 // VMs; solc rejects it on older targets. Compiler-generated
-                // memory copies use `Self::mcopy`, which falls back to the
-                // identity precompile — but an explicit assembly `mcopy` keeps
-                // the diagnostic.
+                // copies stay as semantic MIR and the required `lower-mcopy`
+                // pass uses the identity precompile on older targets, but an
+                // explicit assembly `mcopy` keeps the diagnostic.
                 if self.gcx.sess.opts.evm_version.has_mcopy() {
                     let [dst, src, size] = self.lower_builtin_args(builder, builtin, call_args)?;
                     builder.mcopy(dst, src, size);
@@ -1350,8 +1378,11 @@ impl<'gcx> Lowerer<'gcx> {
         // Handle enum conversion written as `Container.Enum(x)`.
         if let Some(resolved) = resolved
             && let hir::Res::Item(hir::ItemId::Enum(enum_id)) = resolved.res
-            && let Some(arg) = args.exprs().next()
         {
+            let [arg] = match self.positional_args(args, "enum conversion") {
+                Ok(args) => args,
+                Err(guar) => return self.call_error_result(builder, callee, guar),
+            };
             let value = self.lower_value_expr(builder, arg);
             let variant_count = self.gcx.hir.enumm(enum_id).variants.len();
             self.emit_enum_range_check(builder, value, variant_count);
@@ -2622,7 +2653,7 @@ impl<'gcx> Lowerer<'gcx> {
                     callees.push(func_id);
                 }
                 self.expr_collect_callees(callee, callees);
-                for arg in args.exprs() {
+                for arg in args.kind.exprs() {
                     self.expr_collect_callees(arg, callees);
                 }
                 if let Some(call_opts) = call_opts {

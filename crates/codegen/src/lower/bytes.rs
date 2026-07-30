@@ -1162,7 +1162,7 @@ impl<'gcx> Lowerer<'gcx> {
                 ty.kind,
                 hir::TypeKind::Elementary(hir::ElementaryType::Bytes | hir::ElementaryType::String)
             )
-            && let Some(inner) = args.exprs().next()
+            && let hir::CallArgsKind::Unnamed([inner]) = args.kind
         {
             return inner;
         }

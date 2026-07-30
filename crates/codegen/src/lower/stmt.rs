@@ -67,11 +67,10 @@ impl<'gcx> Lowerer<'gcx> {
             return false;
         }
 
-        let mut exprs = args.exprs();
-        let Some(arg) = exprs.next() else {
+        let hir::CallArgsKind::Unnamed([arg]) = args.kind else {
             return false;
         };
-        exprs.next().is_none() && self.resolves_to_variable(arg, var_id)
+        self.resolves_to_variable(arg, var_id)
     }
 
     fn resolves_to_variable(&self, expr: &hir::Expr<'_>, var_id: hir::VariableId) -> bool {
