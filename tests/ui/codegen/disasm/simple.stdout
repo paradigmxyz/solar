@@ -1,0 +1,4 @@
+// === simple (runtime) ===
+PUSH1 0x2a
+PUSH1 0x0a
+ADD

@@ -6,8 +6,10 @@ use crate::{
     timing::PassTimer,
 };
 use solar_config::OptimizationMode;
-use solar_interface::diagnostics::DiagCtxt;
+use solar_data_structures::fmt::line_diff;
+use solar_interface::{Result, diagnostics::DiagCtxt};
 use solar_sema::Gcx;
+use std::fmt::Display;
 
 // `foo::Bar<'a>` becomes `Bar`, matching rustc's default MIR pass naming.
 const fn simplify_pass_type_name(name: &'static str) -> &'static str {
@@ -28,6 +30,58 @@ const fn simplify_pass_type_name(name: &'static str) -> &'static str {
         Ok(name) => name,
         Err(_) => panic!(),
     }
+}
+
+pub(crate) fn parse_pass_pipeline<P: Copy>(
+    gcx: Gcx<'_>,
+    value: &str,
+    ir: &str,
+    lookup: impl Fn(&str) -> Option<P>,
+) -> Result<Option<Vec<Option<P>>>> {
+    if value == "default" {
+        return Ok(None);
+    }
+    let passes = value
+        .split(',')
+        .map(|name| match name {
+            "none" => Ok(None),
+            _ => lookup(name)
+                .map(Some)
+                .ok_or_else(|| gcx.dcx().err(format!("unknown {ir} pass: {name}")).emit()),
+        })
+        .collect::<Result<_>>()?;
+    Ok(Some(passes))
+}
+
+/// Returns the display label for a configured IR pipeline.
+pub fn pipeline_label(value: &str) -> &str {
+    if value == "default" { "pipeline-default" } else { value }
+}
+
+pub(crate) fn pipeline_output_name(gcx: Gcx<'_>, fallback: impl Display) -> String {
+    if !gcx.sess.opts.language.is_source()
+        && let Some(source) = gcx.sources.first()
+    {
+        return source.file.name.display().to_string();
+    }
+    fallback.to_string()
+}
+
+pub(crate) fn mir_output_name(gcx: Gcx<'_>, module: &Module) -> String {
+    if gcx.sess.opts.language.is_source()
+        && let Some(contract_id) = gcx
+            .hir
+            .contract_ids()
+            .find(|&contract_id| gcx.hir.contract(contract_id).name == module.name)
+    {
+        return gcx.contract_fully_qualified_name(contract_id).to_string();
+    }
+    pipeline_output_name(gcx, module.name)
+}
+
+#[derive(Clone, Copy)]
+struct PassOutput<'a> {
+    name: Option<&'a str>,
 }
 
 /// A streamlined trait for a MIR transformation pass.
@@ -60,7 +114,8 @@ pub fn run_passes_no_validate(
     passes: &[&dyn MirPass],
     phase_change: Option<MirPhase>,
 ) -> bool {
-    run_passes_inner(gcx, module, passes, phase_change, false)
+    let output = PassOutput { name: None };
+    run_passes_inner(gcx, module, passes, phase_change, false, output)
 }
 
 /// Runs a sequence of MIR passes, then applies `phase_change` when present.
@@ -70,8 +125,10 @@ pub fn run_passes(
     module: &mut Module,
     passes: &[&dyn MirPass],
     phase_change: Option<MirPhase>,
+    name: Option<&str>,
 ) -> bool {
-    run_passes_inner(gcx, module, passes, phase_change, true)
+    let output = PassOutput { name };
+    run_passes_inner(gcx, module, passes, phase_change, true, output)
 }
 
 #[must_use]
@@ -81,27 +138,39 @@ fn run_passes_inner(
     passes: &[&dyn MirPass],
     phase_change: Option<MirPhase>,
     validate_each: bool,
+    output: PassOutput<'_>,
 ) -> bool {
+    let output_name =
+        output.name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module));
+    let explicit = output.name.is_some();
     let mut changed = false;
     let mut analyses = ModuleAnalyses::default();
     for pass in passes {
         let pass_name = pass.name();
-        if !pass.is_enabled(gcx, module) {
+        let before =
+            (explicit && gcx.sess.opts.unstable.pass_diff).then(|| module.to_text().to_string());
+        let enabled = pass.is_enabled(gcx, module);
+        if !enabled && !explicit {
             continue;
         }
 
-        analyses.begin_pass();
-        let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-        let pass_changed = pass.run_pass(gcx, module, &mut analyses);
-        timer.finish("MIR", module.name, pass_name, pass_changed);
-        analyses.finish_pass(pass_changed);
-        changed |= pass_changed;
+        if enabled {
+            analyses.begin_pass();
+            let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
+            let pass_changed = pass.run_pass(gcx, module, &mut analyses);
+            timer.finish("MIR", module.name, pass_name, pass_changed);
+            analyses.finish_pass(pass_changed);
+            changed |= pass_changed;
 
-        if validate_each && cfg!(debug_assertions) {
-            validate_module_after_pass(module, pass_name);
+            if validate_each && cfg!(debug_assertions) {
+                validate_module_after_pass(module, pass_name);
+            }
         }
-        if gcx.sess.opts.unstable.print_after_each && !gcx.sess.opts.unstable.pass_diff {
-            println!("// === {} (after {pass_name}) ===", module.name);
+
+        if let Some(before) = before {
+            print_pass_diff(&output_name, pass_name, before, module.to_text());
+        } else if gcx.sess.opts.unstable.print_after_each && !gcx.sess.opts.unstable.pass_diff {
+            println!("// === {output_name} (after {pass_name}) ===");
             print!("{}", module.to_text());
         }
     }
@@ -130,4 +199,15 @@ fn validate_module_after_pass(module: &Module, pass_name: &str) {
     if dcx.has_errors().is_err() {
         panic!("MIR validation failed after `{pass_name}`");
     }
+}
+
+pub(crate) fn print_pass_diff(
+    name: impl Display,
+    pass: impl Display,
+    before: impl Display,
+    after: impl Display,
+) {
+    let before = format!("// === {name} (before {pass}) ===\n{before}");
+    let after = format!("// === {name} (after {pass}) ===\n{after}");
+    print!("{}", line_diff(&before, &after));
 }

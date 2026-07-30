@@ -1,4 +1,4 @@
-//@compile-flags: --passes lower-slices
+//@compile-flags: -Zmir-pipeline=lower-slices
 //@filecheck:
 @module SplitAggregates
 

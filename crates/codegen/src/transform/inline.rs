@@ -104,13 +104,11 @@ impl Default for MirInliner {
             max_hot_code_growth: 512,
             max_caller_inlined_instructions: 64,
             min_call_savings: 120,
-            // Budget in `estimated_code_size` units (a per-instruction proxy that
-            // runs well below final bytecode because it does not model stack
-            // scheduling/spills). Calibrated as a conservative backstop: a module
-            // already this large has little headroom under the EIP-170 24576-byte
-            // limit, so further (growth-only) inlining is skipped to keep it
-            // deployable. Ordinary contracts are far smaller and inline normally.
-            max_module_code_size: 7450,
+            // The estimator runs below final bytecode because it does not model
+            // stack scheduling or spills. Nitro's 7,885-unit OneStepProofEntry
+            // emits 15,225 bytes, so 12,000 units leave a conservative margin
+            // below EIP-170's 24,576-byte limit.
+            max_module_code_size: 12_000,
         }
     }
 }

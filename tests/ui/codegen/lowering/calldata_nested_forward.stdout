@@ -65,7 +65,7 @@ fn @forward(arg0: calldataslice, arg1: address) {
     v46 = mload 0 !metadata(memory=scratch)
     v47 = gas
     v48 = mload 32 !metadata(memory=scratch)
-    v49 = call v47, v46, 0, v48, v45, 0, 32
+    v49 = call v47, v46, 0, v48, v45, 0, 0
     v50 = iszero v49
     jumpi v50, bb16, bb17
   bb12:
@@ -110,7 +110,6 @@ fn @forward(arg0: calldataslice, arg1: address) {
     returndatacopy 0, 0, v51 !metadata(memory=scratch)
     revert 0, v51
   bb17:
-    v52 = mload 0 !metadata(memory=scratch)
     stop
 }
 
@@ -166,7 +165,7 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
     v19 = mload v14
     v20 = calldataload v19
     v21 = add v6, v20
-    v22 = alloc raw, exact, uninitialized, infallible, 64
+    v22 = alloc raw, exact, uninitialized, infallible, 96
     v23 = calldataload v21
     mstore v22, v23
     v24 = add v21, 32
@@ -177,17 +176,17 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
     v29 = lt v28, v27
     jumpi v29, bb12, bb13
   bb11:
-    v49 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v12
-    v50 = slice_ptr v49
-    v51 = slice_len v49
+    v50 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v12
+    v51 = slice_ptr v50
+    v52 = slice_len v50
     mstore 0, arg1 !metadata(memory=scratch)
-    mstore 32, v50 !metadata(memory=scratch)
-    v52 = mload 0 !metadata(memory=scratch)
-    v53 = gas
-    v54 = mload 32 !metadata(memory=scratch)
-    v55 = call v53, v52, 0, v54, v51, 0, 32
-    v56 = iszero v55
-    jumpi v56, bb16, bb17
+    mstore 32, v51 !metadata(memory=scratch)
+    v53 = mload 0 !metadata(memory=scratch)
+    v54 = gas
+    v55 = mload 32 !metadata(memory=scratch)
+    v56 = call v54, v53, 0, v55, v52, 0, 0
+    v57 = iszero v56
+    jumpi v57, bb16, bb17
   bb12:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -215,24 +214,25 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
     calldatacopy v37, v40, v27
     v41 = add v22, 32
     mstore v41, v36
-    v42 = mload v15
-    mstore v42, v22
-    v43 = mload v13
-    v44 = sub v43, 1
-    mstore v13, v44
-    v45 = mload v14
-    v46 = add v45, 32
-    mstore v14, v46
-    v47 = mload v15
-    v48 = add v47, 32
-    mstore v15, v48
+    v42 = add v22, 64
+    mstore v42, v21
+    v43 = mload v15
+    mstore v43, v22
+    v44 = mload v13
+    v45 = sub v44, 1
+    mstore v13, v45
+    v46 = mload v14
+    v47 = add v46, 32
+    mstore v14, v47
+    v48 = mload v15
+    v49 = add v48, 32
+    mstore v15, v49
     jump bb9
   bb16:
-    v57 = returndatasize
-    returndatacopy 0, 0, v57 !metadata(memory=scratch)
-    revert 0, v57
+    v58 = returndatasize
+    returndatacopy 0, 0, v58 !metadata(memory=scratch)
+    revert 0, v58
   bb17:
-    v58 = mload 0 !metadata(memory=scratch)
     stop
 }
 

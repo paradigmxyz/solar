@@ -62,25 +62,50 @@ bb6:
   sub
   push bb5
   jumpi
-  push bb25
-  jump bb23
-bb23:
-  push 0
-  push 128
-  mstore
   push 4
   push 36
   calldataload
   add
   calldataload
   dup1
-  push 224
+  push 160
   mstore
   push 31
   dup2
   add
   dup1
   push 192
+  mstore
+  lt
+  push bb20
+  jumpi
+  push bb25
+  jump bb22
+bb22:
+  push 31
+  not
+  push 192
+  mload
+  and
+  dup1
+  iszero
+  push 32
+  swap1
+  dup3
+  dup3
+  sub
+  mul
+  swap1
+  pop
+  add
+  dup1
+  push 224
+  mstore
+  push 32
+  dup2
+  add
+  dup1
+  push 256
   mstore
   lt
   swap1
@@ -105,31 +130,31 @@ bb13:
   sub
   push bb5
   jumpi
-  push bb27
-  jump bb23
-bb24:
+  push 4
+  push 36
+  calldataload
+  add
+  calldataload
+  dup1
+  push 160
+  mstore
+  push 31
+  dup2
+  add
+  dup1
+  push 192
+  mstore
+  lt
   push bb20
   jumpi
-  push 64
-  mload
-  dup1
-  push 288
-  mstore
-  push 256
-  mload
+  push bb27
+  jump bb22
+bb24:
+  push 32
   dup2
   add
-  push 64
-  mstore
+  push 32
   push 224
-  mload
-  dup2
-  mstore
-  push 32
-  dup2
-  add
-  push 32
-  push 192
   mload
   sub
   dup2
@@ -141,8 +166,11 @@ bb24:
   push 36
   calldataload
   add
-  push 224
+  push 160
   mload
+  dup1
+  push 160
+  mstore
   dup2
   dup4
   calldatacopy
@@ -183,39 +211,8 @@ bb25:
   push bb20
   jumpi
   push bb24
-  jump bb22
-bb22:
-  push 31
-  not
-  push 192
-  mload
-  and
-  dup1
-  iszero
-  push 32
-  swap1
-  dup3
-  dup3
-  sub
-  mul
-  swap1
-  pop
-  add
-  dup1
-  push 192
-  mstore
-  push 32
-  dup2
-  add
-  dup1
-  push 256
-  mstore
-  lt
-  swap1
-  jump
-bb26:
-  push bb20
-  jumpi
+  jump bb23
+bb23:
   push 64
   mload
   dup1
@@ -227,15 +224,21 @@ bb26:
   add
   push 64
   mstore
-  push 224
+  push 160
   mload
+  dup1
+  push 160
+  mstore
   dup2
   mstore
+  swap1
+  jump
+bb26:
   push 32
   dup2
   add
   push 32
-  push 192
+  push 224
   mload
   sub
   dup2
@@ -247,8 +250,11 @@ bb26:
   push 36
   calldataload
   add
-  push 224
+  push 160
   mload
+  dup1
+  push 160
+  mstore
   dup2
   dup4
   calldatacopy
@@ -278,4 +284,4 @@ bb27:
   push bb20
   jumpi
   push bb26
-  jump bb22
+  jump bb23

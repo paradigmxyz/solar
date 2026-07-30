@@ -1,4 +1,4 @@
-//@compile-flags: --pass licm
+//@compile-flags: -Zmir-pipeline=licm
 //@filecheck:
 // Two latches feeding the same phi with DIFFERENT increments (+1 and +7) take
 // the variable off the single-stride lattice that trip counts and affine

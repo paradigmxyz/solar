@@ -7,4 +7,4 @@ uint[] memory constant b0 = []; //~ ERROR: data locations are not allowed here
 //~^ ERROR: mismatched types
 S memory constant c0 = S(0);    //~ ERROR: data locations are not allowed here
 S[] memory constant d0 = [];    //~ ERROR: data locations are not allowed here
-//~^ ERROR: cannot infer nameable array element type
+//~^ ERROR: mismatched types

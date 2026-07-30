@@ -22,9 +22,7 @@ mod verify;
 
 pub(in crate::backend::evm) mod assembly;
 
-pub use passes::{ALL_PASSES, EvmPass, lookup_pass, run_passes};
-
-pub(crate) use passes::DEFAULT_PIPELINE;
+pub use passes::{ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_pipeline};
 
 /// Validates the invariants of an EVM IR module.
 pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
@@ -168,6 +166,18 @@ impl Instruction {
     #[must_use]
     pub(crate) fn push_block(block: BlockId) -> Self {
         Self::encoded_push(PushValue::Block(block), Self::ENCODED_PUSH)
+    }
+
+    /// Creates an encoded push whose operand will be supplied by an assembler
+    /// relocation before EVM IR validation.
+    #[must_use]
+    pub(in crate::backend::evm) fn push_relocation() -> Self {
+        Self {
+            opcode: op::PUSH32,
+            encoding: Self::ENCODED_PUSH,
+            value: None,
+            metadata: Metadata { stack: Some(StackEffect::new(0, 1)) },
+        }
     }
 
     /// Creates an encoded deferred push instruction.

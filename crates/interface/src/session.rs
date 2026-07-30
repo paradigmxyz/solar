@@ -3,7 +3,7 @@ use crate::{
     diagnostics::{DiagCtxt, EmittedDiagnostics},
 };
 use solar_config::{
-    CompileOpts, CompilerOutput, CompilerStage, SINGLE_THREADED_TARGET, UnstableOpts,
+    CompileOpts, CompilerOutput, CompilerStage, Language, SINGLE_THREADED_TARGET, UnstableOpts,
 };
 use std::{
     fmt,
@@ -152,28 +152,26 @@ impl SessionBuilder {
                 .map(DiagCtxt::from_opts)
                 .unwrap_or_else(|| panic!("either diagnostics context or options must be set"))
         });
-        let sess = Session {
-            globals: Arc::new(match self.globals.take() {
-                Some(globals) => {
-                    // Check that the source map matches the one in the diagnostics context.
-                    if let Some(sm) = dcx.source_map_mut() {
-                        assert!(
-                            Arc::ptr_eq(&globals.source_map, sm),
-                            "session source map does not match the one in the diagnostics context"
-                        );
-                    }
-                    globals
+        let globals = Arc::new(match self.globals.take() {
+            Some(globals) => {
+                // Check that the source map matches the one in the diagnostics context.
+                if let Some(sm) = dcx.source_map_mut() {
+                    assert!(
+                        Arc::ptr_eq(&globals.source_map, sm),
+                        "session source map does not match the one in the diagnostics context"
+                    );
                 }
-                None => {
-                    // Set the source map from the diagnostics context.
-                    let sm = dcx.source_map_mut().cloned().unwrap_or_default();
-                    SessionGlobals::new(sm)
-                }
-            }),
-            dcx,
-            opts: opts.unwrap_or_default(),
-            thread_pool: OnceLock::new(),
-        };
+                globals
+            }
+            None => {
+                // Set the source map from the diagnostics context.
+                let sm = dcx.source_map_mut().cloned().unwrap_or_default();
+                SessionGlobals::new(sm)
+            }
+        });
+        let mut opts = opts.unwrap_or_default();
+        Session::infer_language(&mut opts);
+        let sess = Session { globals, dcx, opts, thread_pool: OnceLock::new() };
         sess.reconfigure();
         debug!(version = %solar_config::version::SEMVER_VERSION, "created new session");
         sess
@@ -181,6 +179,33 @@ impl SessionBuilder {
 }
 
 impl Session {
+    fn infer_language(opts: &mut CompileOpts) {
+        if opts.standard_json {
+            return;
+        }
+
+        let mut inputs = opts.input.iter().filter(|input| !input.contains('='));
+        if let Some(language) = inputs.clone().find_map(|input| {
+            match Path::new(input).extension().and_then(|extension| extension.to_str()) {
+                Some("mir") => Some(Language::Mir),
+                Some("evmir") => Some(Language::EvmIr),
+                _ => None,
+            }
+        }) {
+            opts.language = language;
+        } else if inputs.clone().next().is_some()
+            && inputs.all(|input| Path::new(input).extension() == Some("yul".as_ref()))
+        {
+            opts.language = Language::Yul;
+        }
+
+        if opts.language.is_mir() && opts.unstable.mir_pipeline.is_none() {
+            opts.unstable.mir_pipeline = Some("none".to_string());
+        } else if opts.language.is_evm_ir() && opts.unstable.evm_ir_pipeline.is_none() {
+            opts.unstable.evm_ir_pipeline = Some("none".to_string());
+        }
+    }
+
     /// Creates a new session builder.
     #[inline]
     pub fn builder() -> SessionBuilder {
@@ -194,20 +219,30 @@ impl Session {
         Self::builder().opts(opts).build()
     }
 
-    /// Infers the language from the input files.
-    pub fn infer_language(&mut self) {
-        if !self.opts.input.is_empty()
-            && self.opts.input.iter().all(|arg| Path::new(arg).extension() == Some("yul".as_ref()))
-        {
-            self.opts.language = solar_config::Language::Yul;
-        }
-    }
-
     /// Validates the session options.
     pub fn validate(&self) -> crate::Result<()> {
         let mut result = Ok(());
         result = result.and(self.check_unique("emit", &self.opts.emit));
+        result = result.and(self.validate_language());
         result
+    }
+
+    fn validate_language(&self) -> crate::Result<()> {
+        if self.opts.language.is_source() {
+            return Ok(());
+        }
+
+        let input_count = self.opts.input.iter().filter(|input| !input.contains('=')).count();
+        if input_count != 1 {
+            return Err(self.dcx.err("IR compilation requires exactly one input file").emit());
+        }
+        if self.opts.language.is_mir() && self.opts.unstable.evm_ir_pipeline.is_some() {
+            return Err(self.dcx.err("`-Zevm-ir-pipeline` requires an .evmir input file").emit());
+        }
+        if self.opts.language.is_evm_ir() && self.opts.unstable.mir_pipeline.is_some() {
+            return Err(self.dcx.err("`-Zmir-pipeline` requires a .sol or .mir input file").emit());
+        }
+        Ok(())
     }
 
     /// Reconfigures inner state to match any new options.
@@ -569,6 +604,27 @@ mod tests {
     fn not_builder() {
         let _ = Session::new(CompileOpts::default());
         let _ = Session::default();
+    }
+
+    #[test]
+    fn infer_language() {
+        let mut opts = CompileOpts::default();
+        opts.input.push("input.mir".to_string());
+        let sess = Session::new(opts);
+        assert_eq!(sess.opts.language, Language::Mir);
+        assert_eq!(sess.opts.unstable.mir_pipeline.as_deref(), Some("none"));
+
+        let mut opts = CompileOpts::default();
+        opts.input.push("input.evmir".to_string());
+        let sess = Session::new(opts);
+        assert_eq!(sess.opts.language, Language::EvmIr);
+        assert_eq!(sess.opts.unstable.evm_ir_pipeline.as_deref(), Some("none"));
+
+        let mut opts = CompileOpts { standard_json: true, ..Default::default() };
+        opts.input.push("input.mir".to_string());
+        let sess = Session::new(opts);
+        assert_eq!(sess.opts.language, Language::Solidity);
+        assert!(sess.opts.unstable.mir_pipeline.is_none());
     }
 
     #[test]

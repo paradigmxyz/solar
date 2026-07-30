@@ -1,8 +1,8 @@
 //! MIR functions.
 
 use super::{
-    ArgIdx, BasicBlock, BlockId, Immediate, InstId, InstKind, Instruction, MirType, StorageAlias,
-    Value, ValueId, utils,
+    AbiLayoutRef, ArgIdx, BasicBlock, BlockId, Immediate, InstId, InstKind, Instruction,
+    MangledSymbol, MirType, StorageAlias, Value, ValueId, utils,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -11,14 +11,16 @@ use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, StdEntry},
 };
-use solar_interface::Ident;
+use solar_interface::{Ident, Span};
 use solar_sema::hir::{StateMutability, Visibility};
 
 /// A function in the MIR.
 #[derive(Clone, Debug)]
 pub(crate) struct Function {
-    /// Function name.
-    pub(crate) name: Ident,
+    /// Function name used by codegen.
+    pub(crate) name: MangledSymbol,
+    /// Source span of the function name.
+    pub(crate) name_span: Span,
     /// Function selector (4 bytes, for external functions).
     pub(crate) selector: Option<[u8; 4]>,
     /// Function attributes.
@@ -27,6 +29,9 @@ pub(crate) struct Function {
     pub(crate) params: IndexVec<ArgIdx, MirType>,
     /// Return types.
     pub(crate) returns: Vec<MirType>,
+    /// ABI layout of values returned by an external entry before `lower-abi`
+    /// materializes returndata encoding.
+    pub(crate) abi_returns: Option<AbiLayoutRef>,
     /// Bytes reserved for lowered local memory slots.
     ///
     /// Internal-call functions place these in the internal frame; external entries
@@ -63,11 +68,13 @@ impl Function {
         debug_assert_eq!(entry, BlockId::ENTRY);
 
         Self {
-            name,
+            name: MangledSymbol::new(name.name),
+            name_span: name.span,
             selector: None,
             attributes: FunctionAttributes::default(),
             params: IndexVec::new(),
             returns: Vec::new(),
+            abi_returns: None,
             internal_frame_size: 0,
             external_static_return_size: 0,
             values: IndexVec::new(),
@@ -203,7 +210,11 @@ impl Function {
         })
     }
 
-    /// Reuses one value identity for active uses of each equal immediate.
+    /// Reuses one value identity for active uses of each exactly equal immediate.
+    ///
+    /// Codegen calls this after the canonical pass pipeline and final phase check. Keep this
+    /// limited to replacing immediate uses with an equal immediate unless the caller adds
+    /// another validation boundary.
     pub(crate) fn canonicalize_immediate_uses(&mut self) -> usize {
         let mut canonical = FxHashMap::<Immediate, ValueId>::default();
         let mut replacements = FxHashMap::default();

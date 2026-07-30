@@ -1,0 +1,24 @@
+// A base contract imported through an import cycle must still linearize
+// before its derived contract. Cycles are cut from DFS roots in source-name
+// order, matching solc, so the insertion order below (base's file first,
+// sorting after the derived's) must not flip the cut.
+// CHECK: "sources": {
+// CHECK: "z_base.sol": {
+// CHECK-NEXT: "id": 0
+// CHECK: "a_derived.sol": {
+// CHECK-NEXT: "id": 1
+// CHECK-NOT: definition of base has to precede definition of derived contract
+{
+  "language": "Solidity",
+  "sources": {
+    "z_base.sol": {
+      "content": "import \"./a_derived.sol\";\ncontract Base {\n    function ping() public pure returns (uint256) {\n        return 1;\n    }\n}\ncontract Holder {\n    Derived d;\n}\n"
+    },
+    "a_derived.sol": {
+      "content": "import \"./z_base.sol\";\ncontract Derived is Base {}\n"
+    }
+  },
+  "settings": {
+    "outputSelection": {}
+  }
+}

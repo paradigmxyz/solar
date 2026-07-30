@@ -37,8 +37,7 @@ contract StackPhiLoop {
     // CHECK: push [[FIRST_EXIT:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK: push 1
-    // CHECK: push [[FIRST_HEADER]]
-    // CHECK-NEXT: jumpi
+    // CHECK: jump [[FIRST_HEADER]]
     // CHECK: [[FIRST_EXIT]]:
     // CHECK: jump [[SECOND_HEADER:bb[0-9]+]]
     // CHECK: [[SECOND_HEADER]]:
@@ -64,9 +63,8 @@ contract StackPhiLoop {
     // CHECK: [[OUTER_BODY]]:
     // CHECK: jump [[INNER_HEADER:bb[0-9]+]]
     // CHECK: [[INNER_HEADER]]:
-    // CHECK: push {{bb[0-9]+}}
+    // CHECK: push [[OUTER_HEADER]]
     // CHECK-NEXT: jumpi
-    // CHECK: jump [[OUTER_HEADER]]
     // CHECK: jump [[INNER_HEADER]]
     function nested(uint256 outer, uint256 inner) public pure returns (uint256) {
         uint256 acc = 0;

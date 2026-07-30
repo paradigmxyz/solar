@@ -1,9 +1,13 @@
 //! MIR module (top-level container).
 
-use super::{AbiLayout, AbiLayoutRef, Function, FunctionId, StorageLayout, StorageLayoutRef};
+use super::{
+    AbiLayout, AbiLayoutRef, Disambiguator, Function, FunctionId, MangledSymbol, StorageLayout,
+    StorageLayoutRef,
+};
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
+    map::FxHashMap,
 };
 use solar_interface::{Ident, Symbol, sym};
 use std::sync::Arc;
@@ -93,6 +97,8 @@ pub struct Module {
     pub(crate) name: Ident,
     /// All functions in this module.
     pub(crate) functions: IndexVec<FunctionId, Function>,
+    /// Most recently added function for each name before disambiguation.
+    pub(crate) function_name_index: FxHashMap<Symbol, FunctionId>,
     /// Canonical ABI layouts referenced by semantic encoding operations.
     pub(crate) abi_layouts: Vec<AbiLayoutRef>,
     /// Canonical storage layouts referenced by semantic aggregate operations.
@@ -120,6 +126,7 @@ impl Module {
         Self {
             name,
             functions: IndexVec::new(),
+            function_name_index: FxHashMap::default(),
             abi_layouts: Vec::new(),
             aggregate_layouts: Vec::new(),
             immutable_data_len: 0,
@@ -144,7 +151,20 @@ impl Module {
 
     /// Adds a function to the module.
     pub(crate) fn add_function(&mut self, function: Function) -> FunctionId {
-        self.functions.push(function)
+        let symbol = function.name.symbol;
+        let function = self.functions.push(function);
+        if let Some(duplicate) = self.function_name_index.insert(symbol, function) {
+            let duplicate_func = &mut self.functions[duplicate];
+            if duplicate_func.name.disambiguator.is_none() {
+                duplicate_func.name =
+                    MangledSymbol::disambiguated(symbol, Disambiguator::from_foreign(duplicate));
+            }
+            if self.functions[function].name.disambiguator.is_none() {
+                self.functions[function].name =
+                    MangledSymbol::disambiguated(symbol, Disambiguator::from_foreign(function));
+            }
+        }
+        function
     }
 
     /// Returns the function for the given ID.

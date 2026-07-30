@@ -1,9 +1,10 @@
 use lsp_types::{
     CodeLens, Command, CompletionItem, CompletionItemKind, DocumentHighlight,
     DocumentHighlightKind, DocumentSymbol, GotoDefinitionResponse, Hover, HoverContents, InlayHint,
-    Location, MarkupContent, OneOf, Position, Range, SymbolInformation, SymbolKind,
-    TypeHierarchyItem, Url, WorkspaceSymbol, request::GotoTypeDefinitionResponse,
+    Location, OneOf, Position, Range, SymbolInformation, SymbolKind, TypeHierarchyItem, Url,
+    WorkspaceSymbol, request::GotoTypeDefinitionResponse,
 };
+use serde::Deserialize;
 use solar_interface::{
     Span,
     data_structures::{
@@ -45,6 +46,8 @@ use crate::{
     type_hierarchy::TypeHierarchyIndex,
 };
 
+const COMPLETION_ITEM_DATA_VERSION: u8 = 1;
+
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SymbolTables {
     declarations: IndexVec<SymbolId, DeclarationSymbol>,
@@ -73,6 +76,11 @@ pub(crate) struct SymbolTables {
     type_hierarchy: TypeHierarchyIndex,
     code_lens: CodeLensIndex,
     has_merged_batches: bool,
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static INLAY_HINT_COMPARISONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 #[derive(Default)]
@@ -128,7 +136,47 @@ pub(crate) struct DeclarationSymbol {
     pub(crate) name_range: Range,
     pub(crate) parent: Option<SymbolId>,
     has_definition: bool,
-    hover: Option<MarkupContent>,
+    has_getter_completion: bool,
+    documentation: Option<crate::documentation::ResolvedDocumentation>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct CompletionItemData {
+    version: u8,
+    uri: Url,
+    selection_range: Range,
+}
+
+impl CompletionItemData {
+    pub(crate) fn from_item(item: &CompletionItem) -> Option<Self> {
+        let (version, uri, start_line, start_character, end_line, end_character) =
+            <(u8, Url, u32, u32, u32, u32)>::deserialize(item.data.as_ref()?).ok()?;
+        let data = Self {
+            version,
+            uri,
+            selection_range: Range::new(
+                Position::new(start_line, start_character),
+                Position::new(end_line, end_character),
+            ),
+        };
+        (data.version == COMPLETION_ITEM_DATA_VERSION).then_some(data)
+    }
+
+    pub(crate) fn uri(&self) -> &Url {
+        &self.uri
+    }
+
+    fn to_value(uri: &Url, selection_range: Range) -> serde_json::Value {
+        serde_json::to_value((
+            COMPLETION_ITEM_DATA_VERSION,
+            uri,
+            selection_range.start.line,
+            selection_range.start.character,
+            selection_range.end.line,
+            selection_range.end.character,
+        ))
+        .expect("completion item data is serializable")
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -293,7 +341,11 @@ impl SymbolTables {
                     name_range: name_location.range,
                     parent: None,
                     has_definition: item_has_definition(gcx, item_id),
-                    hover: crate::hover::render(gcx, item_id),
+                    has_getter_completion: matches!(
+                        item_id,
+                        ItemId::Variable(id) if gcx.hir.variable(id).getter.is_some()
+                    ),
+                    documentation: Some(crate::documentation::resolve(gcx, item_id)),
                 },
             );
             item_symbols.insert(item_id, symbol_id);
@@ -422,6 +474,17 @@ impl SymbolTables {
         self.inlay_hints.hints(uri, range)
     }
 
+    pub(crate) fn inlay_hints_changed(&self, other: &Self) -> bool {
+        #[cfg(test)]
+        INLAY_HINT_COMPARISONS.with(|comparisons| comparisons.set(comparisons.get() + 1));
+        self.inlay_hints != other.inlay_hints
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_inlay_hint_comparisons() -> usize {
+        INLAY_HINT_COMPARISONS.with(|comparisons| comparisons.replace(0))
+    }
+
     pub(crate) fn code_lenses(&self, uri: &Url, options: CodeLensConfig) -> Vec<CodeLens> {
         if !options.enable {
             return Vec::new();
@@ -514,6 +577,24 @@ impl SymbolTables {
 
     pub(crate) fn document_links(&self, path: &Path) -> Vec<lsp_types::DocumentLink> {
         self.document_links.links(path)
+    }
+
+    pub(crate) fn file_operation_paths_under(&self, roots: &[PathBuf]) -> Vec<PathBuf> {
+        self.rename.source_paths_under(roots)
+    }
+
+    pub(crate) fn import_rename_edits(
+        &self,
+        moves: &crate::file_operations::FileMoveBatch,
+    ) -> crate::document_links::ImportEditPlan {
+        self.document_links.rename_edits(moves)
+    }
+
+    pub(crate) fn import_delete_edits(
+        &self,
+        deleted_paths: &[PathBuf],
+    ) -> crate::document_links::ImportEditPlan {
+        self.document_links.delete_edits(deleted_paths)
     }
 
     pub(crate) fn natspec_semantics(
@@ -852,7 +933,7 @@ impl SymbolTables {
             let symbol_id = self.declaration_at_position(uri, position)?;
             (symbol_id, self.declarations[symbol_id].name_range)
         };
-        let contents = self.declarations[symbol_id].hover.clone()?;
+        let contents = self.declarations[symbol_id].documentation.as_ref()?.hover();
         Some(Hover { contents: HoverContents::Markup(contents), range: Some(range) })
     }
 
@@ -909,6 +990,63 @@ impl SymbolTables {
         items.sort_by(|a, b| a.label.cmp(&b.label));
         items.dedup_by(|a, b| a.label == b.label);
         filter_completion_items(items, context.prefix)
+    }
+
+    pub(crate) fn resolve_completion_item(
+        &self,
+        mut item: CompletionItem,
+        data: CompletionItemData,
+        markdown_documentation: bool,
+    ) -> CompletionItem {
+        self.resolve_completion_item_documentation(&mut item, &data, markdown_documentation);
+        item
+    }
+
+    pub(crate) fn resolve_completion_items(
+        &self,
+        items: &mut [CompletionItem],
+        markdown_documentation: bool,
+    ) {
+        for item in items {
+            let Some(data) = CompletionItemData::from_item(item) else { continue };
+            self.resolve_completion_item_documentation(item, &data, markdown_documentation);
+        }
+    }
+
+    fn resolve_completion_item_documentation(
+        &self,
+        item: &mut CompletionItem,
+        data: &CompletionItemData,
+        markdown_documentation: bool,
+    ) {
+        if self.rename.conflicting_contents().contains(&data.uri) {
+            return;
+        }
+        let Some(declarations) = self.file_declaration_positions.get(&data.uri) else { return };
+        let mut candidates = declarations
+            .candidates_at(data.selection_range.start, |symbol_id| {
+                self.declarations[symbol_id].name_range
+            })
+            .map(|symbol_id| &self.declarations[symbol_id])
+            .filter(|symbol| symbol.name_range == data.selection_range);
+        let Some(symbol) = candidates.next() else { return };
+        let Some(kind) = item.kind else { return };
+        if item.label != symbol.name || !symbol_supports_completion_kind(symbol, kind) {
+            return;
+        }
+        let Some(documentation) = symbol.documentation.as_ref() else { return };
+        if candidates.any(|candidate| {
+            candidate.name != symbol.name
+                || !symbol_supports_completion_kind(candidate, kind)
+                || !candidate
+                    .documentation
+                    .as_ref()
+                    .is_some_and(|other| other.renders_identically(documentation))
+        }) {
+            return;
+        }
+
+        item.documentation = Some(documentation.completion(markdown_documentation));
     }
 
     fn build_builtin_completions(&mut self) {
@@ -1155,7 +1293,8 @@ impl SymbolTables {
             name_range,
             parent,
             has_definition: true,
-            hover: None,
+            has_getter_completion: false,
+            documentation: None,
         });
         self.rebuild_indexes();
         pushed_id
@@ -1410,6 +1549,7 @@ impl SymbolTables {
             label: symbol.name.clone(),
             kind: Some(completion_item_kind(symbol.kind)),
             detail: self.container_name(symbol),
+            data: Some(self.completion_item_data(symbol_id)),
             ..Default::default()
         }
     }
@@ -1423,8 +1563,16 @@ impl SymbolTables {
             label: member.name.to_string(),
             kind: Some(member_completion_item_kind(gcx, member)),
             detail: member.attached.then_some("using for".to_string()),
+            data: self
+                .symbol_id_for_getter_member_completion(gcx, member)
+                .map(|symbol_id| self.completion_item_data(symbol_id)),
             ..Default::default()
         }
+    }
+
+    fn completion_item_data(&self, symbol_id: SymbolId) -> serde_json::Value {
+        let symbol = &self.declarations[symbol_id];
+        CompletionItemData::to_value(&symbol.location.uri, symbol.name_range)
     }
 
     fn selection_location(&self, symbol_id: SymbolId) -> Location {
@@ -1434,6 +1582,16 @@ impl SymbolTables {
 
     fn symbol_id_for_member_completion(&self, member: Member<'_>) -> Option<SymbolId> {
         member.res.and_then(|res| self.symbol_id_for_res(res))
+    }
+
+    fn symbol_id_for_getter_member_completion(
+        &self,
+        gcx: Gcx<'_>,
+        member: Member<'_>,
+    ) -> Option<SymbolId> {
+        let Res::Item(ItemId::Function(function_id)) = member.res? else { return None };
+        let variable_id = gcx.hir.function(function_id).gettee?;
+        self.symbols_by_key.get(&SymbolKey::Item(ItemId::Variable(variable_id))).copied()
     }
 
     fn symbol_id_for_res(&self, res: Res) -> Option<SymbolId> {
@@ -2321,6 +2479,11 @@ fn member_completion_item_kind(gcx: Gcx<'_>, member: Member<'_>) -> CompletionIt
     }
 }
 
+fn symbol_supports_completion_kind(symbol: &DeclarationSymbol, kind: CompletionItemKind) -> bool {
+    completion_item_kind(symbol.kind) == kind
+        || (symbol.has_getter_completion && kind == CompletionItemKind::METHOD)
+}
+
 fn completion_item_kind(kind: SymbolKind) -> CompletionItemKind {
     match kind {
         SymbolKind::FILE => CompletionItemKind::FILE,
@@ -2653,7 +2816,7 @@ mod tests {
     #[test]
     fn aggregator_preserves_document_links_without_declarations() {
         let source_path = PathBuf::from("/workspace/src/Imports.sol");
-        let target = parse_uri("file:///workspace/src/Dependency.sol");
+        let target = Url::from_file_path(std::env::temp_dir().join("Dependency.sol")).unwrap();
         let link_range = range(0, 8, 0, 24);
         let mut other = SymbolTables::default();
         other.document_links.insert_for_test(source_path.clone(), link_range, target.clone());

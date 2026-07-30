@@ -8,7 +8,7 @@ contract CustomErrorPayloads {
     // CHECK-LABEL: fn @revert_empty{{[( ]}}
     // CHECK: [[PAYLOAD:v[0-9]+]] = alloc raw
     // CHECK: mstore [[PAYLOAD]], 0x{{[0-9a-f]+}}
-    // CHECK: revert [[PAYLOAD]], {{v[0-9]+}}
+    // CHECK: revert [[PAYLOAD]], 4
     function revert_empty() public pure {
         revert EmptyError();
     }

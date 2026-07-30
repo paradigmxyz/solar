@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_validation.sol:CalldataValidation ===
 @module CalldataValidation
-fn @vUint8(arg0: u8) {
+fn @vUint8(arg0: u8) -> u8 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -16,12 +16,10 @@ fn @vUint8(arg0: u8) {
   bb3:
     revert 0, 0
   bb4:
-    mstore 128, 0
-    mstore 128, arg0
-    returndata 128, 32
+    ret arg0
 }
 
-fn @vInt16(arg0: i16) {
+fn @vInt16(arg0: i16) -> i16 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -37,12 +35,10 @@ fn @vInt16(arg0: i16) {
   bb3:
     revert 0, 0
   bb4:
-    mstore 128, 0
-    mstore 128, arg0
-    returndata 128, 32
+    ret arg0
 }
 
-fn @vBool(arg0: bool) {
+fn @vBool(arg0: bool) -> bool [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -59,12 +55,10 @@ fn @vBool(arg0: bool) {
   bb3:
     revert 0, 0
   bb4:
-    mstore 128, 0
-    mstore 128, arg0
-    returndata 128, 32
+    ret arg0
 }
 
-fn @vAddress(arg0: address) {
+fn @vAddress(arg0: address) -> address [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -80,12 +74,10 @@ fn @vAddress(arg0: address) {
   bb3:
     revert 0, 0
   bb4:
-    mstore 128, 0
-    mstore 128, arg0
-    returndata 128, 32
+    ret arg0
 }
 
-fn @vBytes4(arg0: bytes4) {
+fn @vBytes4(arg0: bytes4) -> bytes4 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -101,12 +93,10 @@ fn @vBytes4(arg0: bytes4) {
   bb3:
     revert 0, 0
   bb4:
-    mstore 128, 0
-    mstore 128, arg0
-    returndata 128, 32
+    ret arg0
 }
 
-fn @vEnum(arg0: u8) {
+fn @vEnum(arg0: u8) -> u8 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -121,12 +111,10 @@ fn @vEnum(arg0: u8) {
   bb3:
     revert 0, 0
   bb4:
-    mstore 128, 0
-    mstore 128, arg0
-    returndata 128, 32
+    ret arg0
 }
 
-fn @vMulti(arg0: u32, arg1: i8) {
+fn @vMulti(arg0: u32, arg1: i8) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -149,7 +137,6 @@ fn @vMulti(arg0: u32, arg1: i8) {
   bb5:
     revert 0, 0
   bb6:
-    mstore 128, 0
     v9 = and arg0, 0xffffffff
     v10 = shl 248, arg1
     v11 = sar 248, v10
@@ -162,11 +149,10 @@ fn @vMulti(arg0: u32, arg1: i8) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 128, v13
-    returndata 128, 32
+    ret v13
 }
 
-fn @vFull(arg0: u256, arg1: bytes32, arg2: i256) {
+fn @vFull(arg0: u256, arg1: bytes32, arg2: i256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -175,7 +161,6 @@ fn @vFull(arg0: u256, arg1: bytes32, arg2: i256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = add arg0, arg1
     v4 = lt v3, arg0
     jumpi v4, bb3, bb4
@@ -192,7 +177,6 @@ fn @vFull(arg0: u256, arg1: bytes32, arg2: i256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    mstore 128, v5
-    returndata 128, 32
+    ret v5
 }
 

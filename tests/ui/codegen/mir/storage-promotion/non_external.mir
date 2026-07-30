@@ -1,4 +1,4 @@
-//@compile-flags: --pass storage-promotion
+//@compile-flags: -Zmir-pipeline=storage-promotion
 //@filecheck: --enable-var-scope
 @module StoragePromotionNonExternal
 

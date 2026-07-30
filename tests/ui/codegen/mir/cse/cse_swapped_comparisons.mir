@@ -1,4 +1,4 @@
-//@compile-flags: --pass cse
+//@compile-flags: -Zmir-pipeline=cse
 //@filecheck:
 // Swapped comparisons canonicalize to the same key: `gt b, a` unifies with `lt a, b`
 // (and the signed variants likewise) in both directions, while the kept instruction

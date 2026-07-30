@@ -4,9 +4,9 @@
 //! makes it an ordinary MIR function named `entry` (the dispatch phase of the
 //! sketch in [`MirPhase`]).
 //!
-//! The synthesized `entry` function loads the 4-byte selector
-//! (`calldataload(0) >> 224`) and switches on it to one argument-free
-//! `internal_call` per external wrapper, defaulting to a `revert`. It is meant
+//! The synthesized `entry` function loads the 4-byte selector from
+//! `calldataload(0)` and switches on it to one argument-free `internal_call`
+//! per external wrapper, defaulting to a `revert`. It is meant
 //! to run after [`super::lower_abi::LowerAbi`], which turns external functions into the
 //! argument-free self-decoding wrappers this switch routes to; that is why it
 //! only routes selector-bearing functions that take no MIR arguments.
@@ -22,6 +22,7 @@ use crate::{
     mir::{Function, FunctionBuilder, FunctionId, MirPhase, Module, ValueId},
     pass::MirPass,
 };
+use alloy_primitives::U256;
 use solar_interface::{Ident, sym};
 
 /// Dispatch phase lowering pass.
@@ -42,11 +43,15 @@ impl MirPass for LowerDispatch {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        LowerDispatchCx::default().run(module)
+        LowerDispatchCx {
+            stats: LowerDispatchStats::default(),
+            has_bitwise_shifting: gcx.sess.opts.evm_version.has_bitwise_shifting(),
+        }
+        .run(module)
     }
 }
 
@@ -57,9 +62,10 @@ struct LowerDispatchStats {
     routed: usize,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct LowerDispatchCx {
     stats: LowerDispatchStats,
+    has_bitwise_shifting: bool,
 }
 
 impl LowerDispatchCx {
@@ -209,7 +215,7 @@ impl LowerDispatchCx {
 
             // Selector switch; the default goes to the fallback when present.
             builder.switch_to_block(select_block);
-            let selector = load_selector(&mut builder);
+            let selector = self.load_selector(&mut builder);
             let cases = routes
                 .iter()
                 .zip(&case_blocks)
@@ -262,12 +268,17 @@ impl LowerDispatchCx {
         }
         builder.tail_call(target, Vec::new());
     }
-}
 
-/// Emits `calldataload(0) >> 224`, the 4-byte function selector.
-fn load_selector(builder: &mut FunctionBuilder<'_>) -> ValueId {
-    let zero = builder.imm_u64(0);
-    let word = builder.calldataload(zero);
-    let shift = builder.imm_u64(224);
-    builder.shr(shift, word)
+    /// Loads the 4-byte function selector from the first calldata word.
+    fn load_selector(&self, builder: &mut FunctionBuilder<'_>) -> ValueId {
+        let zero = builder.imm_u64(0);
+        let word = builder.calldataload(zero);
+        if self.has_bitwise_shifting {
+            let shift = builder.imm_u64(224);
+            builder.shr(shift, word)
+        } else {
+            let divisor = builder.imm_u256(U256::from(1) << 224);
+            builder.div(word, divisor)
+        }
+    }
 }
