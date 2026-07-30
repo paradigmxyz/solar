@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:Lib (runtime) ===
 @module runtime
 bb0:
-  push 352
+  push 256
   push 64
   mstore
   callvalue
@@ -69,76 +69,48 @@ bb5:
   push 0
   keccak256
   dup1
-  push 160
+  push 224
   mstore
+  dup1
   sload
   push 68
   calldataload
   dup2
-  dup1
-  push 256
-  mstore
   add
   dup1
-  push 192
+  push 160
   mstore
-  dup2
-  dup1
-  push 256
-  mstore
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
+  swap1
   pop
   push bb11
   jumpi
-  push 192
+  push 160
   mload
   dup1
-  push 192
-  mstore
   push 160
+  mstore
+  push 224
   mload
   sstore
-  push 160
+  push 224
   mload
-  dup1
-  push 160
-  mstore
   sload
   caller
   push 255
   and
   dup2
-  dup1
-  push 288
-  mstore
   add
   dup1
-  push 224
+  push 192
   mstore
-  dup2
-  dup1
-  push 288
-  mstore
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
   push bb11
   jumpi
-  push 224
+  push 192
   mload
   dup1
-  push 224
+  push 192
   mstore
   push 128
   mstore
@@ -148,7 +120,7 @@ bb5:
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 352
+  push 288
   push 64
   mstore
   callvalue
@@ -164,15 +136,9 @@ bb0:
   shr
   dup1
   push 0x3dd41ca6
-  eq
-  push bb5
+  sub
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
-  push 0
-  dup1
-  revert
-bb5:
   calldatasize
   push 4
   swap1
@@ -195,7 +161,7 @@ bb5:
   push 64
   mload
   dup1
-  push 288
+  push 192
   mstore
   push 128
   dup2
@@ -229,7 +195,7 @@ bb5:
   mstore
   gas
   dup1
-  push 320
+  push 256
   mstore
   push 0
   push 0
@@ -256,18 +222,13 @@ bb5:
   push 64
   mload
   dup1
-  push 224
-  mstore
-  dup2
-  dup2
-  add
-  swap2
-  pop
-  dup2
-  push 64
+  push 192
   mstore
   swap1
-  pop
+  dup2
+  add
+  push 64
+  mstore
   dup2
   dup2
   mstore
@@ -286,12 +247,9 @@ bb5:
   returndatacopy
   swap2
   pop
-  dup1
-  push 224
-  mstore
   mload
   dup1
-  push 192
+  push 224
   mstore
   push 32
   gt
@@ -299,42 +257,37 @@ bb5:
   pop
   push bb4
   jumpi
-  push 192
+  push 224
   mload
-  dup1
-  push 192
-  mstore
   push 160
   mload
   add
   push 160
   mload
-  dup1
-  push 160
-  mstore
   gt
   push bb4
   jumpi
   push 160
   mload
-  dup1
-  push 160
-  mstore
   mload
   push 128
   mstore
   push 32
   push 128
   return
+bb4 [cold]:
+  push 0
+  dup1
+  revert
 bb12 [cold]:
   returndatasize
   dup1
-  push 256
+  push 192
   mstore
   push 0
   dup1
   returndatacopy
-  push 256
+  push 192
   mload
   push 0
   revert

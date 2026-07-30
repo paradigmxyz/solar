@@ -10,6 +10,8 @@
 //@ run-call: effectfulTupleLocations() => 12, 10, 20
 //@ run-call: captureReturndataBeforeLvalueEffects() => true, 7
 //@ run-call: storageBytesPushLvalues() => 5, 18, 52, 86
+//@ run-call: reservedSpillFreshness(bool) true => 83
+//@ run-call: reservedSpillFreshness(bool) false => 137
 //@ run-call: 0x1003e2d20000000000000000000000000000000000000000000000000000000000000002 => 0x000000000000000000000000000000000000000000000000000000000000002a
 
 contract RunCall {
@@ -111,5 +113,23 @@ contract RunCall {
         pushed.push() = 0x12;
         (pushed.push(), pushed.push()) = (0x34, 0x56);
         return (pushed.length, uint8(pushed[2]), uint8(pushed[3]), uint8(pushed[4]));
+    }
+
+    function reservedSpillFreshness(bool first) external returns (uint256 out) {
+        uint256 seed = base;
+        uint256 a = seed;
+        uint256 off = seed;
+        if (first) {
+            (a, off) = pairInternal(seed);
+            out = a + off;
+        } else {
+            base = 99;
+            (uint256 b, uint256 c) = pairInternal(off + 7);
+            out = b + c + off;
+        }
+    }
+
+    function pairInternal(uint256 value) internal pure returns (uint256, uint256) {
+        return (value + 1, value + 2);
     }
 }

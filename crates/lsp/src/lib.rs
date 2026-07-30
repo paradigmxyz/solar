@@ -24,13 +24,13 @@ mod commands;
 mod config;
 mod diagnostics;
 mod document_links;
+mod documentation;
 mod file_operations;
 mod flycheck;
 mod folding_range;
 mod formatter;
 mod global_state;
 mod handlers;
-mod hover;
 mod inlay_hints;
 mod natspec_completion;
 mod override_index;
@@ -114,6 +114,7 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
         .request::<req::TypeHierarchySupertypes, _>(handlers::type_hierarchy_supertypes)
         .request::<req::TypeHierarchySubtypes, _>(handlers::type_hierarchy_subtypes)
         .request::<req::Completion, _>(handlers::completion)
+        .request::<req::ResolveCompletionItem, _>(handlers::resolve_completion_item)
         .request::<req::DocumentDiagnosticRequest, _>(handlers::document_diagnostic)
         .request::<req::Formatting, _>(handlers::formatting);
 

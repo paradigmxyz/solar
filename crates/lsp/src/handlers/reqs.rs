@@ -4,7 +4,7 @@ use crate::{
     formatter::{self, FormatterError},
     global_state::GlobalState,
     natspec_completion::{self, NatSpecCompletionResult},
-    symbols::{CompletionContext, SymbolTables},
+    symbols::{CompletionContext, CompletionItemData, SymbolTables},
     vfs::{Vfs, VfsPath},
 };
 use async_lsp::{ErrorCode, ResponseError};
@@ -12,14 +12,14 @@ use crop::Rope;
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
-    CodeLens, CodeLensParams, CompletionParams, CompletionResponse, DocumentDiagnosticParams,
-    DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentFormattingParams,
-    DocumentHighlight, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
-    DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeParams,
-    FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
-    InlayHint, InlayHintParams, Position, PrepareRenameResponse, ReferenceParams,
-    RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport, RenameParams,
-    SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
+    CodeLens, CodeLensParams, CompletionItem, CompletionParams, CompletionResponse,
+    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
+    DocumentFormattingParams, DocumentHighlight, DocumentHighlightParams, DocumentLink,
+    DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
+    FoldingRangeParams, FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse,
+    Hover, HoverParams, InlayHint, InlayHintParams, Position, PrepareRenameResponse,
+    ReferenceParams, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
+    RenameParams, SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
     TextDocumentPositionParams, TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams,
     TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, UnchangedDocumentDiagnosticReport,
     Url, WorkspaceEdit, WorkspaceSymbolParams, WorkspaceSymbolResponse,
@@ -664,12 +664,39 @@ pub(crate) fn completion(
     }
     let input = completion_input(state, &params.text_document.uri, params.position);
     let context = input.as_ref().map(CompletionInput::context).unwrap_or_default();
-    let items = state.symbol_tables.read().completion_items(
-        &params.text_document.uri,
-        params.position,
-        context,
-    );
+    let options = state.config.completion_options();
+    let symbol_tables = state.symbol_tables.read();
+    let mut items =
+        symbol_tables.completion_items(&params.text_document.uri, params.position, context);
+    if !options.resolve_documentation {
+        symbol_tables.resolve_completion_items(&mut items, options.markdown_documentation);
+    }
     ready(Ok(Some(CompletionResponse::Array(items))))
+}
+
+pub(crate) fn resolve_completion_item(
+    state: &mut GlobalState,
+    item: CompletionItem,
+) -> impl Future<Output = Result<CompletionItem, ResponseError>> + use<> {
+    let options = state.config.completion_options();
+    let request = if options.resolve_documentation {
+        CompletionItemData::from_item(&item).and_then(|data| {
+            let latest_analysis = latest_analysis_for_uri(state, data.uri())?;
+            Some((data, latest_analysis))
+        })
+    } else {
+        None
+    };
+    async move {
+        let Some((data, latest_analysis)) = request else { return Ok(item) };
+        let symbol_tables = latest_analysis.await?;
+        let resolved = symbol_tables.read().resolve_completion_item(
+            item,
+            data,
+            options.markdown_documentation,
+        );
+        Ok(resolved)
+    }
 }
 
 struct CompletionInput {
