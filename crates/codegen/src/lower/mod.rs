@@ -139,6 +139,8 @@ pub(crate) struct Lowerer<'gcx> {
     /// Variables that are assigned after declaration (need memory storage).
     /// Variables not in this set can be kept as SSA values.
     assigned_vars: GrowableBitSet<VariableId>,
+    /// Invalid event declarations whose topic-count error has already been emitted.
+    invalid_event_topics: GrowableBitSet<hir::EventId>,
     /// Whether the next expression is an error-checking boundary.
     check_expr_errors: bool,
     /// Whether HIR contained errors before codegen started.
@@ -234,6 +236,7 @@ impl<'gcx> Lowerer<'gcx> {
             contract_bytecodes: FxHashMap::default(),
             loop_stack: Vec::new(),
             assigned_vars: GrowableBitSet::new_empty(),
+            invalid_event_topics: GrowableBitSet::new_empty(),
             check_expr_errors: hir_has_errors,
             hir_has_errors,
             storage_ref_locals: GrowableBitSet::new_empty(),

@@ -67,10 +67,12 @@ impl<'gcx> Lowerer<'gcx> {
                         return None;
                     }
                 };
-                AbiType::FixedArray {
-                    element: Box::new(self.abi_type_inner(element, false, visiting)?),
-                    len,
+                let element = Box::new(self.abi_type_inner(element, false, visiting)?);
+                if len.checked_mul(element.head_size()).is_none() {
+                    self.abi_head_size_overflow();
+                    return None;
                 }
+                AbiType::FixedArray { element, len }
             }
             TyKind::Struct(id) => {
                 if !visiting.insert(id) {

@@ -956,11 +956,13 @@ impl<'gcx> Lowerer<'gcx> {
             .filter(|&&param_id| self.gcx.hir.variable(param_id).indexed)
             .count();
         if indexed > max_indexed {
-            self.gcx
-                .dcx()
-                .err(format!("event cannot have more than {max_indexed} indexed parameters"))
-                .span(event.span)
-                .emit();
+            if self.invalid_event_topics.insert(event_id) {
+                self.gcx
+                    .dcx()
+                    .err(format!("event cannot have more than {max_indexed} indexed parameters"))
+                    .span(event.span)
+                    .emit();
+            }
             return;
         }
 

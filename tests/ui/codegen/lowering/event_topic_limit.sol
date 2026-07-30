@@ -18,9 +18,11 @@ contract EventTopicLimit {
 
     function emitNamed() external {
         emit Named(1, 2, 3, 4);
+        emit Named(1, 2, 3, 4);
     }
 
     function emitAnonymous() external {
+        emit Anonymous(1, 2, 3, 4, 5);
         emit Anonymous(1, 2, 3, 4, 5);
     }
 }
