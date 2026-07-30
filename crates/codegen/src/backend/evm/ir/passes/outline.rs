@@ -7,7 +7,10 @@ use crate::backend::evm::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHasher},
+};
 use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
 
@@ -35,12 +38,29 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
 }
 
 fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> bool {
+    // Enumerating every contiguous run is quadratic in a block's length, and
+    // hashing each run's instructions made it cubic. Two exact filters keep it
+    // in hand without changing which groups are found:
+    //
+    // - A run can only be outlined if it occurs at least twice, so every instruction in it occurs
+    //   at least twice module-wide. Runs are cut at any instruction that does not, which ends them
+    //   at the unique pushes that separate most straight-line code.
+    // - A run's hash comes from a per-block prefix table, so it costs the same whatever the run's
+    //   length. Equality still compares instructions, so the grouping is exactly as before.
+    let hashes = InstHashes::new(module);
+
     let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         for start in 0..block.instructions.len() {
+            if !hashes.repeats(block_id, start) {
+                continue;
+            }
             let mut height = 0i32;
             for end in start..block.instructions.len() {
                 let inst = &block.instructions[end];
+                if !hashes.repeats(block_id, end) {
+                    break;
+                }
                 let Some((reads, pops, pushes)) = whitelisted_effect(inst) else { break };
                 if height < i32::from(reads) {
                     break;
@@ -48,7 +68,10 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
                 height = height - i32::from(pops) + i32::from(pushes);
                 let len = end + 1 - start;
                 if len >= MIN_CLOSED_RUN && matches!(height, 0 | 1) {
-                    let key = MachineInstSlice(&block.instructions[start..=end]);
+                    let key = MachineInstSlice {
+                        hash: hashes.range(block_id, start, end),
+                        insts: &block.instructions[start..=end],
+                    };
                     candidates.entry(key).or_default().push(Site {
                         block: block_id,
                         start,
@@ -63,7 +86,7 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
     let mut groups: Vec<_> = candidates.into_iter().filter(|(_, sites)| sites.len() >= 2).collect();
     groups.sort_unstable_by_key(|(key, sites)| {
         let first = sites[0];
-        (std::cmp::Reverse(key.0.len()), first.block.index(), first.start)
+        (std::cmp::Reverse(key.insts.len()), first.block.index(), first.start)
     });
     let mut claimed = FxHashMap::<BlockId, DenseBitSet<usize>>::default();
     let mut chosen = Vec::new();
@@ -249,13 +272,93 @@ struct ChosenGroup {
     height: u16,
 }
 
+/// The identity of an instruction for outlining: what a run must match on.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct InstKey(u8, u8, Option<PushValue>);
+
+impl InstKey {
+    fn new(inst: &Instruction) -> Self {
+        Self(inst.opcode, inst.encoding, inst.value)
+    }
+}
+
+/// Per-block instruction tables: whether each instruction occurs more than
+/// once module-wide, and prefix hashes so any run hashes in constant time.
+///
+/// `prefix[i + 1] = prefix[i] * BASE + hash(inst[i])`, so the run `[start, end]`
+/// hashes to `prefix[end + 1] - prefix[start] * BASE^len`. Equal instruction
+/// sequences always produce equal hashes, which is all the map needs: equality
+/// still compares the instructions themselves.
+struct InstHashes {
+    prefixes: Vec<Vec<u64>>,
+    repeats: Vec<DenseBitSet<usize>>,
+    powers: Vec<u64>,
+}
+
+impl InstHashes {
+    const BASE: u64 = 0x100_0000_01b3;
+
+    fn new(module: &Module) -> Self {
+        let mut counts = FxHashMap::<InstKey, u32>::default();
+        for block in module.blocks.iter() {
+            for inst in &block.instructions {
+                *counts.entry(InstKey::new(inst)).or_insert(0) += 1;
+            }
+        }
+
+        let mut longest = 0;
+        let mut prefixes = Vec::with_capacity(module.blocks.len());
+        let mut repeats = Vec::with_capacity(module.blocks.len());
+        for block in module.blocks.iter() {
+            longest = longest.max(block.instructions.len());
+            let mut prefix = Vec::with_capacity(block.instructions.len() + 1);
+            let mut repeated = DenseBitSet::new_empty(block.instructions.len());
+            prefix.push(0u64);
+            for (index, inst) in block.instructions.iter().enumerate() {
+                let key = InstKey::new(inst);
+                if counts.get(&key).copied().unwrap_or(0) >= 2 {
+                    repeated.insert(index);
+                }
+                let mut hasher = FxHasher::default();
+                key.hash(&mut hasher);
+                let last = *prefix.last().expect("prefix starts with the empty run");
+                prefix.push(last.wrapping_mul(Self::BASE).wrapping_add(hasher.finish()));
+            }
+            prefixes.push(prefix);
+            repeats.push(repeated);
+        }
+
+        let mut powers = Vec::with_capacity(longest + 1);
+        powers.push(1u64);
+        for index in 0..longest {
+            powers.push(powers[index].wrapping_mul(Self::BASE));
+        }
+        Self { prefixes, repeats, powers }
+    }
+
+    /// Whether this instruction occurs more than once in the module. A run that
+    /// contains an instruction occurring exactly once can never occur twice, so
+    /// it can never be outlined.
+    fn repeats(&self, block: BlockId, index: usize) -> bool {
+        self.repeats[block.index()].contains(index)
+    }
+
+    fn range(&self, block: BlockId, start: usize, end: usize) -> u64 {
+        let prefix = &self.prefixes[block.index()];
+        prefix[end + 1].wrapping_sub(prefix[start].wrapping_mul(self.powers[end + 1 - start]))
+    }
+}
+
 #[derive(Clone, Copy)]
-struct MachineInstSlice<'a>(&'a [Instruction]);
+struct MachineInstSlice<'a> {
+    hash: u64,
+    insts: &'a [Instruction],
+}
 
 impl PartialEq for MachineInstSlice<'_> {
     fn eq(&self, other: &Self) -> bool {
-        self.0.len() == other.0.len()
-            && self.0.iter().zip(other.0).all(|(a, b)| {
+        self.insts.len() == other.insts.len()
+            && self.insts.iter().zip(other.insts).all(|(a, b)| {
                 a.opcode == b.opcode && a.encoding == b.encoding && a.value == b.value
             })
     }
@@ -265,12 +368,7 @@ impl Eq for MachineInstSlice<'_> {}
 
 impl Hash for MachineInstSlice<'_> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.len().hash(state);
-        for inst in self.0 {
-            inst.opcode.hash(state);
-            inst.encoding.hash(state);
-            inst.value.hash(state);
-        }
+        state.write_u64(self.hash);
     }
 }
 

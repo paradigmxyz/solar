@@ -27,7 +27,7 @@ contract StorageStructArray {
     // CHECK: sload {{v[0-9]+}} !metadata(storage=symbolic([[OFFSET]]))
     // CHECK: [[OFFSET2:v[0-9]+]] = mul arg0, 2
     // CHECK: sload {{v[0-9]+}} !metadata(storage=offset([[OFFSET2]], 1))
-    // CHECK: returndata 128, 64
+    // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
     function getS(uint256 i) public view returns (uint256, uint256) {
         return (arr[i].a, arr[i].b);
     }

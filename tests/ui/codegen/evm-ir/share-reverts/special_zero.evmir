@@ -1,4 +1,4 @@
-//@compile-flags: --pass share-reverts
+//@compile-flags: -Zevm-ir-pipeline=share-reverts
 //@filecheck:
 @module module
 

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:Errors (runtime) ===
 @module runtime
 bb0:
-  push 320
+  push 288
   push 64
   mstore
   callvalue
@@ -18,40 +18,105 @@ bb0:
   dup1
   push 0x561cce0a
   eq
-  push bb7
+  push bb9
   jumpi
   dup1
   push 0xa871da91
-  sub
-  push bb5
+  eq
+  push bb6
   jumpi
+  jump bb5
+bb5 [cold]:
   push 0
-  push 128
+  dup1
+  revert
+bb6:
+  push 64
+  mload
+  dup1
+  push 224
+  mstore
+  push 32
+  dup2
+  add
+  dup2
+  dup2
+  sub
+  dup3
   mstore
   push 0x3339
   push 240
   shl
-  jump bb9
-bb9:
-  push 256
-  mstore
-  push 64
   mload
   dup1
-  push 288
+  push 128
   mstore
-  push 32
-  dup2
-  mstore
-  push 256
-  mload
-  mload
-  push 32
-  dup3
-  add
-  dup2
   swap1
   mstore
+  push 31
+  push 128
+  mload
+  add
+  push 31
+  not
+  and
+  dup1
+  push 192
+  mstore
+  push 64
+  dup3
+  add
+  dup1
+  push 160
+  mstore
+  pop
+  swap1
+  pop
+  iszero
+  push bb8
+  jumpi
+  push 32
+  push 192
+  mload
+  sub
+  push 160
+  mload
+  add
+  push 0
+  swap1
+  mstore
+  jump bb8
+bb8:
+  push 32
+  push 0x3339
+  push 240
+  shl
+  jump bb12
+bb12:
+  add
+  push 192
+  mload
+  push 160
+  mload
+  add
+  push 128
+  mload
+  dup1
+  push 128
+  mstore
+  dup3
+  push 160
+  mload
+  dup1
+  push 160
+  mstore
+  mcopy
+  swap1
+  pop
+  push 224
+  mload
+  swap1
+  sub
   push 31
   dup2
   add
@@ -59,42 +124,84 @@ bb9:
   not
   and
   push 64
-  dup4
-  add
-  push 32
-  dup3
-  sub
-  dup2
-  add
-  push 0
-  swap1
-  mstore
-  push 32
-  push 256
   mload
-  add
-  dup4
-  dup2
-  dup4
-  mcopy
-  pop
-  pop
+  dup1
+  push 256
+  mstore
   swap1
-  pop
-  push 64
+  dup2
   add
+  push 64
+  mstore
+  dup2
   dup2
   return
-bb5 [cold]:
-  push 0
+bb9:
+  push 64
+  mload
   dup1
-  revert
-bb7:
-  push 0
+  push 224
+  mstore
+  push 32
+  dup2
+  add
+  dup2
+  dup2
+  sub
+  dup3
+  mstore
+  push bb14
+  jump bb13
+bb13:
+  push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
+  swap1
+  jump
+bb14:
+  mload
+  dup1
   push 128
   mstore
-  push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
-  jump bb9
+  swap1
+  mstore
+  push 31
+  push 128
+  mload
+  add
+  push 31
+  not
+  and
+  dup1
+  push 192
+  mstore
+  push 64
+  dup3
+  add
+  dup1
+  push 160
+  mstore
+  pop
+  swap1
+  pop
+  iszero
+  push bb11
+  jumpi
+  push 32
+  push 192
+  mload
+  sub
+  push 160
+  mload
+  add
+  push 0
+  swap1
+  mstore
+  jump bb11
+bb11:
+  push 32
+  push bb15
+  jump bb13
+bb15:
+  jump bb12
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:R (runtime) ===
 @module runtime
 bb0:
@@ -151,19 +258,22 @@ bb9:
   sgt
   push bb8
   jumpi
-  push bb38
-  jump bb37
-bb37:
-  push 0
-  push 128
-  mstore
   push 5
   push 4
   calldataload
   gt
   iszero
-  swap1
-  jump
+  push bb13
+  jump bb35
+bb35:
+  jumpi
+  push 4
+  calldataload
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb13 [cold]:
   push 2
   push 256
@@ -203,8 +313,13 @@ bb14:
   sgt
   push bb8
   jumpi
-  push bb39
-  jump bb37
+  push 5
+  push 4
+  calldataload
+  gt
+  iszero
+  push bb18
+  jump bb35
 bb18 [cold]:
   push 11
   push 256
@@ -221,8 +336,13 @@ bb19:
   sgt
   push bb8
   jumpi
-  push bb40
-  jump bb37
+  push 5
+  push 4
+  calldataload
+  gt
+  iszero
+  push bb23
+  jump bb35
 bb23 [cold]:
   push 15
   push 256
@@ -239,8 +359,13 @@ bb24:
   sgt
   push bb8
   jumpi
-  push bb41
-  jump bb37
+  push 5
+  push 4
+  calldataload
+  gt
+  iszero
+  push bb28
+  jump bb35
 bb29:
   calldatasize
   push 4
@@ -250,8 +375,13 @@ bb29:
   sgt
   push bb8
   jumpi
-  push bb42
-  jump bb37
+  push 5
+  push 4
+  calldataload
+  gt
+  iszero
+  push bb33
+  jump bb35
 bb33 [cold]:
   push 11
   push 256
@@ -259,30 +389,6 @@ bb33 [cold]:
   push 0x7265766572742d70617468
   push 168
   jump bb36
-bb38:
-  push bb13
-  jump bb35
-bb35:
-  jumpi
-  push 4
-  calldataload
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb39:
-  push bb18
-  jump bb35
-bb40:
-  push bb23
-  jump bb35
-bb41:
-  push bb28
-  jump bb35
-bb42:
-  push bb33
-  jump bb35
 bb28 [cold]:
   push 64
   mload

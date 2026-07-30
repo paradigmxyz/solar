@@ -4,7 +4,7 @@ use crate::{
 };
 use solar_ast as ast;
 use solar_data_structures::{BumpExt, map::FxHashSet, smallvec::SmallVec};
-use solar_interface::{Ident, Span, Symbol};
+use solar_interface::{Ident, Span, Symbol, kw};
 use std::ops::Range;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -282,7 +282,6 @@ impl<'gcx> Resolver<'gcx> {
         #[derive(Default)]
         struct ValidationState {
             seen_tags: SeenTags,
-            seen_params: SmallVec<[(Symbol, Span); 6]>,
             return_count: usize,
         }
 
@@ -350,25 +349,33 @@ impl<'gcx> Resolver<'gcx> {
                             continue;
                         }
 
-                        if let Some(&(_, prev_span)) =
-                            state.seen_params.iter().find(|(sym, _)| *sym == name.name)
-                        {
-                            self.emit_duplicate_param_error(name.name, tag_span, prev_span);
-                            continue;
-                        }
-                        state.seen_params.push((name.name, tag_span));
-
+                        // Valid `@param` targets are the parameter and return
+                        // variable names; unnamed variables contribute the
+                        // empty symbol, which an empty documented name
+                        // (`@param -`) refers to. Duplicates are not
+                        // diagnosed. This matches solc.
                         let params = parameters.get_or_insert_with(|| {
-                            self.gcx.hir.item(item_id).parameters().map_or(
-                                FxHashSet::default(),
-                                |p| {
-                                    p.iter()
-                                        .filter_map(|&id| {
-                                            self.gcx.hir.variable(id).name.map(|ident| ident.name)
-                                        })
-                                        .collect()
-                                },
-                            )
+                            let mut set = FxHashSet::default();
+                            let item = self.gcx.hir.item(item_id);
+                            if let Some(p) = item.parameters() {
+                                set.extend(p.iter().map(|&id| {
+                                    self.gcx
+                                        .hir
+                                        .variable(id)
+                                        .name
+                                        .map_or(kw::Empty, |ident| ident.name)
+                                }));
+                            }
+                            if let hir::ItemId::Function(id) = item_id {
+                                set.extend(self.gcx.hir.function(id).returns.iter().map(|&id| {
+                                    self.gcx
+                                        .hir
+                                        .variable(id)
+                                        .name
+                                        .map_or(kw::Empty, |ident| ident.name)
+                                }));
+                            }
+                            set
                         });
 
                         if params.contains(&name.name) {
@@ -502,16 +509,6 @@ impl<'gcx> Resolver<'gcx> {
     #[cold]
     fn emit_duplicate_tag_error(&self, tag_name: &str, tag_span: Span) {
         self.gcx.dcx().emit_err(tag_span, format!("tag {tag_name} can only be given once"));
-    }
-
-    #[cold]
-    fn emit_duplicate_param_error(&self, param_name: Symbol, tag_span: Span, prev_span: Span) {
-        self.gcx.dcx().emit_err_span_note(
-            tag_span,
-            format!("duplicate documentation for parameter '{param_name}'"),
-            prev_span,
-            "previously documented here",
-        );
     }
 
     /// Helper to validate tags that can only be defined once.

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/chained_calldata_slice.sol:ChainedCalldataSlice ===
 @module ChainedCalldataSlice
-fn @bytesChain(arg0: calldataslice) {
+fn @bytesChain(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -9,15 +9,12 @@ fn @bytesChain(arg0: calldataslice) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = slice_ptr arg0
     v4 = slice_len arg0
     v5 = lt v4, 1
     jumpi v5, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
     v6 = sub v4, 1
     v7 = add v3, 1
@@ -27,9 +24,7 @@ fn @bytesChain(arg0: calldataslice) {
     v11 = lt v10, 1
     jumpi v11, bb5, bb6
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb6:
     v12 = sub v10, 1
     v13 = add v9, 1
@@ -63,31 +58,10 @@ fn @bytesChain(arg0: calldataslice) {
     mstore v27, 0
     v28 = slice_ptr v14
     calldatacopy v25, v28, v15
-    internal_call @__ret_bytes, 0, v24
-    invalid
+    ret v24
 }
 
-fn @__ret_bytes(arg0: memorybytes) {
-  bb0:
-    v0 = fmp
-    mstore v0, 32
-    v1 = memory_object_len memorybytes, arg0
-    v2 = add v0, 32
-    mstore v2, v1
-    v3 = add v1, 31
-    v4 = not 31
-    v5 = and v3, v4
-    v6 = add v2, 32
-    v7 = sub v5, 32
-    v8 = add v6, v7
-    mstore v8, 0
-    v9 = memory_object_data memorybytes, arg0
-    mcopy v6, v9, v1
-    v10 = add 64, v5
-    returndata v0, v10
-}
-
-fn @arrChain(arg0: calldataslice) {
+fn @arrChain(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -96,15 +70,12 @@ fn @arrChain(arg0: calldataslice) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = slice_ptr arg0
     v4 = slice_len arg0
     v5 = lt v4, 1
     jumpi v5, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
     v6 = sub v4, 1
     v7 = mul 1, 32
@@ -115,9 +86,7 @@ fn @arrChain(arg0: calldataslice) {
     v12 = lt v11, 1
     jumpi v12, bb5, bb6
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb6:
     v13 = sub v11, 1
     v14 = mul 1, 32
@@ -135,7 +104,22 @@ fn @arrChain(arg0: calldataslice) {
     v20 = mul 0, 32
     v21 = add v19, v20
     v22 = calldataload v21
-    mstore 128, v22
-    returndata 128, 32
+    v23 = add v19, v22
+    v24 = calldataload v23
+    v25 = add v23, 32
+    v26 = shr 251, v24
+    jumpi v26, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    v27 = mul v24, 32
+    v28 = add 32, v27
+    v29 = alloc memoryarray<1>, exact, uninitialized, infallible, v28
+    set_memory_object_len memoryarray, v29, v24
+    v30 = memory_object_data memoryarray, v29
+    calldatacopy v30, v25, v27
+    ret v29
 }
 

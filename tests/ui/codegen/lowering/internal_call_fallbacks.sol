@@ -25,7 +25,7 @@ contract InternalCallFallbacks {
     // CHECK-LABEL: fn @multi{{[( ]}}
     // CHECK: internal_call @pair, 2, arg0
     // CHECK: mload 32
-    // CHECK: returndata 128, 64
+    // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
     function multi(uint256 x) public pure returns (uint256, uint256) {
         return pair(x);
     }
@@ -35,5 +35,16 @@ contract InternalCallFallbacks {
     // CHECK: ret arg0, [[SECOND]]
     function pair(uint256 x) internal pure returns (uint256, uint256) {
         return (x, x + 1);
+    }
+
+    // CHECK-LABEL: fn @callVoid{{[( ]}}
+    // CHECK-NOT: = internal_call @branchingVoid, 0, arg0
+    // CHECK: internal_call @branchingVoid, 0, arg0
+    function callVoid(uint256 x) public pure {
+        branchingVoid(x);
+    }
+
+    function branchingVoid(uint256 x) internal pure {
+        if (x != 0) branchingVoid(x - 1);
     }
 }

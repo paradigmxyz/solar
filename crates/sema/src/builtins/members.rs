@@ -204,21 +204,28 @@ fn reference<'gcx>(
             TyKind::DynArray(_) | TyKind::Elementary(ElementaryType::Bytes),
             DataLocation::Storage,
         ) => {
-            let inner = if let TyKind::DynArray(inner) = inner.kind {
-                inner.with_loc_if_ref(gcx, loc)
+            let element = if let TyKind::DynArray(element) = inner.kind {
+                element
             } else {
                 gcx.types.fixed_bytes(1)
             };
-            let value = inner.with_loc_if_ref(gcx, DataLocation::Memory);
+            // `push()` returns a reference to the new storage slot, but
+            // `push(x)` takes its argument location-less, like a mapping key:
+            // the value is copied into storage, so any data location converts,
+            // matching solc's direct-storage-reference conversion rule.
             vec![
                 Member::of_builtin(gcx, Builtin::ArrayLength),
                 Member::with_attached_builtin(
                     Builtin::ArrayPush0,
-                    gcx.mk_builtin_fn(&[this], SM::NonPayable, &[inner]),
+                    gcx.mk_builtin_fn(
+                        &[this],
+                        SM::NonPayable,
+                        &[element.with_loc_if_ref(gcx, loc)],
+                    ),
                 ),
                 Member::with_attached_builtin(
                     Builtin::ArrayPush,
-                    gcx.mk_builtin_fn(&[this, value], SM::NonPayable, &[]),
+                    gcx.mk_builtin_fn(&[this, element], SM::NonPayable, &[]),
                 ),
                 Member::with_attached_builtin(
                     Builtin::ArrayPop,

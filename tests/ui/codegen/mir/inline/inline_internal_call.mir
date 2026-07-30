@@ -1,4 +1,4 @@
-//@compile-flags: --pass inline
+//@compile-flags: -Zmir-pipeline=inline
 //@filecheck:
 @module InlineInternalCall
 // CHECK-LABEL: {{^[ +].*}}fn @caller{{[( ]}}
