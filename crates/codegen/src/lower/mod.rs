@@ -35,7 +35,7 @@ use solar_sema::{
     hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId},
     ty::{CallableParamSource, Gcx, Ty, TyKind},
 };
-use std::{collections::hash_map::Entry, ops::ControlFlow};
+use std::collections::hash_map::Entry;
 
 use self::storage::StorageLocation;
 
@@ -449,7 +449,8 @@ impl<'gcx> Lowerer<'gcx> {
     fn collect_inherited_functions(&self, contract_id: ContractId) -> Vec<HirFunctionId> {
         let contract = self.gcx.hir.contract(contract_id);
         let linearized_bases = contract.linearized_bases;
-        let reachable = (!self.gcx.sess.opts.unstable.codegen_all_functions)
+        let reachable = (!self.gcx.sess.opts.unstable.codegen_all_functions
+            && !self.hir_has_errors)
             .then(|| self.gcx.contract_reachable_functions(contract_id));
 
         let mut seen_selectors: FxHashSet<[u8; 4]> = FxHashSet::default();
