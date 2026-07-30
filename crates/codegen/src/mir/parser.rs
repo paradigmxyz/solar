@@ -33,15 +33,8 @@
 
 use super::{
     AbiLayout, AbiLayoutRef, AbiType, AllocationAlignment, AllocationFailure,
-    AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, EffectKind, Function,
-    FunctionBuilder, FunctionId, ImmutableId, InstId, InstKind, Instruction, InstructionMetadata,
-    MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField,
-    StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
-};
-use super::{
-    AbiLayout, AbiLayoutRef, AbiType, AllocationAlignment, AllocationFailure,
     AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, Disambiguator,
-    EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
+    EffectKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstId, InstKind, Instruction,
     InstructionMetadata, MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module,
     StorageAlias, StorageField, StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
 };

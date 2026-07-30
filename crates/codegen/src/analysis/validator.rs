@@ -496,7 +496,7 @@ impl<'a> Validator<'a> {
                     }
                 }
                 InstKind::ConstructorArgsBase
-                    if !func.attributes.is_constructor && func.name.name != kw::Constructor =>
+                    if !func.attributes.is_constructor && func.name.symbol != kw::Constructor =>
                 {
                     self.emit(format_args!(
                         "inst{} uses the constructor argument base outside a constructor",

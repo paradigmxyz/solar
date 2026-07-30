@@ -67,7 +67,7 @@ fn runtime_reachable_functions(module: &Module) -> DenseBitSet<FunctionId> {
     let mut reachable = DenseBitSet::new_empty(module.functions.len());
     let mut worklist = VecDeque::new();
     for (func_id, func) in module.functions.iter_enumerated() {
-        if (func.name.name == sym::entry
+        if (func.name.symbol == sym::entry
             || func.selector.is_some()
             || func.attributes.is_fallback
             || func.attributes.is_receive)

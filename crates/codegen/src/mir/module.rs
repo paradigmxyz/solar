@@ -1,8 +1,8 @@
 //! MIR module (top-level container).
 
 use super::{
-    AbiLayout, AbiLayoutRef, Disambiguator, Function, FunctionId, ImmutableId, MirType, MangledSymbol, StorageLayout,
-    StorageLayoutRef,
+    AbiLayout, AbiLayoutRef, Disambiguator, Function, FunctionId, ImmutableId, MangledSymbol,
+    MirType, StorageLayout, StorageLayoutRef,
 };
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
