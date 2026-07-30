@@ -22,6 +22,9 @@ from typing import Any
 SOLC_ADDRESS = "0x1000000000000000000000000000000000000001"
 SOLAR_ADDRESS = "0x1000000000000000000000000000000000000002"
 STATIC_PROXY_ADDRESS = "0x1000000000000000000000000000000000000003"
+SYMBOLIC_ROUTER_ADDRESS = SOLC_ADDRESS
+SYMBOLIC_SOLC_RUNTIME_ADDRESS = SOLAR_ADDRESS
+SYMBOLIC_SOLAR_RUNTIME_ADDRESS = STATIC_PROXY_ADDRESS
 # Well-known anvil dev account 0; unlocked, so `eth_sendTransaction` needs no
 # signature.
 ANVIL_SENDER = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
@@ -434,6 +437,11 @@ def compile_standard_artifact(
         raise ValueError(
             f"contract {source_name}:{contract} runtime bytecode is not hex"
         )
+    inline_assembly = (
+        _solc_inline_assembly_sites(output, standard_input)
+        if kind == "solc"
+        else None
+    )
     return {
         "abi": abi,
         "runtime": "0x" + runtime_payload,
@@ -443,6 +451,7 @@ def compile_standard_artifact(
         "command": command,
         "standard_input": standard_input,
         "standard_input_sha256": standard_input["sha256"],
+        "inline_assembly": inline_assembly,
         "filesystem_import_fallback": False,
     }
 
@@ -469,6 +478,7 @@ def _standard_settings(evm_version: str) -> dict[str, Any]:
         "metadata": {"bytecodeHash": "none"},
         "outputSelection": {
             "*": {
+                "": ["ast"],
                 "*": [
                     "abi",
                     "evm.deployedBytecode.immutableReferences",
@@ -479,6 +489,50 @@ def _standard_settings(evm_version: str) -> dict[str, Any]:
             }
         },
     }
+
+
+def _solc_inline_assembly_sites(
+    output: dict[str, Any], standard_input: dict[str, Any]
+) -> list[dict[str, str]] | None:
+    """Find user InlineAssembly nodes in the exact authoritative Solc output."""
+    try:
+        input_sources = json.loads(standard_input["json"])["sources"]
+    except (KeyError, TypeError, json.JSONDecodeError):
+        return None
+    output_sources = output.get("sources")
+    if (
+        not isinstance(input_sources, dict)
+        or not isinstance(output_sources, dict)
+        or set(output_sources) != set(input_sources)
+    ):
+        return None
+    sites = []
+    for source_name in sorted(input_sources):
+        source_output = output_sources.get(source_name)
+        ast = source_output.get("ast") if isinstance(source_output, dict) else None
+        if not isinstance(ast, dict):
+            return None
+        stack: list[Any] = [ast]
+        while stack:
+            value = stack.pop()
+            if isinstance(value, dict):
+                if value.get("nodeType") == "InlineAssembly":
+                    location = value.get("src")
+                    sites.append(
+                        {
+                            "source": source_name,
+                            "src": (
+                                location
+                                if isinstance(location, str)
+                                else "unknown"
+                            ),
+                        }
+                    )
+                stack.extend(value.values())
+            elif isinstance(value, list):
+                stack.extend(value)
+    sites.sort(key=lambda site: (site["source"], site["src"]))
+    return sites
 
 
 def _single_source_standard_input(

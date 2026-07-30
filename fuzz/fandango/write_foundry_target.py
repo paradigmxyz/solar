@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 
+import evm_runtime as evm
 import symbolic_differential as symbolic
 
 
@@ -80,6 +81,9 @@ def write_symbolic_target(
         encode=encode,
         max_returndata_bytes=max_returndata_bytes,
         word_checks=word_checks,
+        router_address=evm.SYMBOLIC_ROUTER_ADDRESS,
+        solc_runtime_address=evm.SYMBOLIC_SOLC_RUNTIME_ADDRESS,
+        solar_runtime_address=evm.SYMBOLIC_SOLAR_RUNTIME_ADDRESS,
     )
     (test_dir / "SymbolicDifferential.t.sol").write_text(test_source)
     (out_dir / "foundry.toml").write_text(
@@ -425,11 +429,31 @@ interface Vm {{
     function etch(address target, bytes calldata newRuntimeBytecode) external;
 }}
 
+contract RuntimeRouter {{
+    fallback() external payable {{
+        assembly ("memory-safe") {{
+            if lt(calldatasize(), 20) {{ revert(0, 0) }}
+            let target := shr(96, calldataload(0))
+            let targetCalldataSize := sub(calldatasize(), 20)
+            calldatacopy(0, 20, targetCalldataSize)
+            let ok := delegatecall(gas(), target, 0, targetCalldataSize, 0, 0)
+            returndatacopy(0, 0, returndatasize())
+            switch ok
+            case 0 {{ revert(0, returndatasize()) }}
+            default {{ return(0, returndatasize()) }}
+        }}
+    }}
+}}
+
 contract SymbolicDifferentialTest {{
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
 
-    address internal constant IMPLEMENTATION =
-        address(0x1000000000000000000000000000000000000001);
+    RuntimeRouter internal constant ROUTER =
+        RuntimeRouter(payable({router_address}));
+    address internal constant SOLC_IMPLEMENTATION =
+        address({solc_runtime_address});
+    address internal constant SOLAR_IMPLEMENTATION =
+        address({solar_runtime_address});
     bytes4 internal constant TARGET_SELECTOR = bytes4({selector});
     uint256 internal constant MAX_RETURNDATA_BYTES = {max_returndata_bytes};
 
@@ -437,14 +461,16 @@ contract SymbolicDifferentialTest {{
     bytes internal constant SOLAR_RUNTIME = hex"{solar_runtime}";
 
     function setUp() public {{
-        vm.etch(IMPLEMENTATION, SOLC_RUNTIME);
+        vm.etch(address(ROUTER), type(RuntimeRouter).runtimeCode);
+        vm.etch(SOLC_IMPLEMENTATION, SOLC_RUNTIME);
+        vm.etch(SOLAR_IMPLEMENTATION, SOLAR_RUNTIME);
     }}
 
     function {test_name}({declarations}) public {{
         bytes memory callData = {encode};
-        (bool okA, bytes memory retA) = IMPLEMENTATION.staticcall(callData);
-        vm.etch(IMPLEMENTATION, SOLAR_RUNTIME);
-        (bool okB, bytes memory retB) = IMPLEMENTATION.staticcall(callData);
+        _warmRouter();
+        (bool okA, bytes memory retA) = _routedStaticCall(SOLC_IMPLEMENTATION, callData);
+        (bool okB, bytes memory retB) = _routedStaticCall(SOLAR_IMPLEMENTATION, callData);
 
         assert(okA == okB);
         assert(retA.length == retB.length);
@@ -455,6 +481,18 @@ contract SymbolicDifferentialTest {{
         // caller to raise --max-returndata-bytes.
         if (retA.length > MAX_RETURNDATA_BYTES) assert(false);
 {word_checks}
+    }}
+
+    function _warmRouter() internal {{
+        (bool ok,) = address(ROUTER).staticcall("");
+        assert(!ok);
+    }}
+
+    function _routedStaticCall(
+        address target,
+        bytes memory callData
+    ) internal returns (bool ok, bytes memory result) {{
+        return address(ROUTER).staticcall(abi.encodePacked(target, callData));
     }}
 
     function _word(bytes memory value, uint256 offset) internal pure returns (uint256 result) {{

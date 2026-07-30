@@ -41,6 +41,31 @@ MANIFEST_KEYS = {
     "artifact_dir",
 }
 
+CAMPAIGN_MANIFEST_KEYS = {
+    "schema",
+    "schema_version",
+    "created_at",
+    "status",
+    "reason",
+    "source",
+    "standard_input",
+    "contract",
+    "settings",
+    "compilers",
+    "tools",
+    "solver",
+    "bounds",
+    "inventory",
+    "functions",
+    "not_run",
+    "findings",
+    "counts",
+    "all_eligible_completed",
+    "campaign_complete",
+    "artifacts",
+    "artifact_dir",
+}
+
 
 def artifact(
     *,
@@ -549,6 +574,41 @@ class StandardInputMaterializationTests(unittest.TestCase):
         selection = standard_input["settings"]["outputSelection"]["*"]["*"]
         self.assertIn("evm.deployedBytecode.immutableReferences", selection)
         self.assertIn("evm.deployedBytecode.linkReferences", selection)
+        self.assertEqual(
+            standard_input["settings"]["outputSelection"]["*"][""],
+            ["ast"],
+        )
+
+    def test_finds_inline_assembly_in_the_exact_solc_source_asts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "Root.sol"
+            source.write_text("contract Root {}")
+            standard_input = evm._single_source_standard_input(
+                source, "osaka"
+            )
+        output = {
+            "sources": {
+                "Root.sol": {
+                    "ast": {
+                        "nodeType": "SourceUnit",
+                        "nodes": [
+                            {
+                                "nodeType": "InlineAssembly",
+                                "src": "42:18:0",
+                            }
+                        ],
+                    }
+                }
+            }
+        }
+
+        self.assertEqual(
+            evm._solc_inline_assembly_sites(output, standard_input),
+            [{"source": "Root.sol", "src": "42:18:0"}],
+        )
+        self.assertIsNone(
+            evm._solc_inline_assembly_sites({"sources": {}}, standard_input)
+        )
 
     def test_rejects_an_import_that_cannot_be_snapshotted(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -841,6 +901,16 @@ class StaticFunctionSelectionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not found|missing"):
             symbolic.select_function(solc, solar, "missing(uint256)")
 
+    def test_focused_selection_rejects_duplicate_abi_signatures(self):
+        solc = artifact()
+        solc["abi"].append(copy.deepcopy(solc["abi"][0]))
+        solar = copy.deepcopy(solc)
+
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            symbolic.select_function(
+                solc, solar, "probe(uint256,address)"
+            )
+
 
 class FunctionInventoryTests(unittest.TestCase):
     @staticmethod
@@ -962,6 +1032,109 @@ class FunctionInventoryTests(unittest.TestCase):
         self.assertTrue(
             any("strings" in item["reason"] for item in inventory["errors"])
         )
+
+
+class RuntimeScopeTests(unittest.TestCase):
+    def test_detects_unsupported_opcodes_but_not_push_data(self):
+        self.assertEqual(
+            symbolic.runtime_scope_opcodes("0x60fa00"),
+            [],
+        )
+        self.assertEqual(
+            symbolic.runtime_scope_opcodes("0x6000fa"),
+            [{"offset": 2, "opcode": "STATICCALL"}],
+        )
+        self.assertEqual(
+            symbolic.runtime_scope_opcodes("0x383958595a"),
+            [
+                {"offset": 0, "opcode": "CODESIZE"},
+                {"offset": 1, "opcode": "CODECOPY"},
+                {"offset": 2, "opcode": "PC"},
+                {"offset": 3, "opcode": "MSIZE"},
+                {"offset": 4, "opcode": "GAS"},
+            ],
+        )
+        self.assertEqual(
+            symbolic.runtime_scope_opcodes("0x323342"),
+            [
+                {"offset": 0, "opcode": "ORIGIN"},
+                {"offset": 1, "opcode": "CALLER"},
+                {"offset": 2, "opcode": "TIMESTAMP"},
+            ],
+        )
+
+    def test_untrusted_metadata_cannot_hide_a_message_call(self):
+        # A compiler-under-test may emit malformed metadata, so a length-like
+        # trailer is never trusted to remove bytes from the fail-closed scan.
+        self.assertEqual(
+            symbolic.runtime_scope_opcodes("0x00a1fa0002"),
+            [{"offset": 2, "opcode": "STATICCALL"}],
+        )
+
+    def test_rejects_reserved_ef_prefixed_runtime_formats(self):
+        for runtime in ("0xef00", "0xef0100" + "11" * 20):
+            with self.subTest(runtime=runtime):
+                self.assertEqual(
+                    symbolic.runtime_scope_opcodes(runtime),
+                    [
+                        {
+                            "offset": 0,
+                            "opcode": "EF_PREFIXED_NON_LEGACY_RUNTIME",
+                        }
+                    ],
+                )
+
+    def test_rejects_malformed_runtime_bytecode(self):
+        for runtime in ("0x0", "0xzz"):
+            with self.subTest(runtime=runtime), self.assertRaises(ValueError):
+                symbolic.runtime_scope_opcodes(runtime)
+
+
+class SymbolicTargetGenerationTests(unittest.TestCase):
+    def test_runtime_switching_happens_only_during_concrete_setup(self):
+        function = {
+            "signature": "probe(uint256)",
+            "selector": "0x01020304",
+            "inputs": ["uint256"],
+            "outputs": ["uint256"],
+            "test": "checkDiff_01020304",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary)
+            run_foundry_target.write_foundry_target.write_symbolic_target(
+                project,
+                "0x6000",
+                "0x6001",
+                function,
+                64,
+                "osaka",
+            )
+            source = (
+                project / "test" / "SymbolicDifferential.t.sol"
+            ).read_text()
+
+        property_body = source.split("function checkDiff_01020304", 1)[1]
+        router_body = source.split("contract RuntimeRouter", 1)[1].split(
+            "contract SymbolicDifferentialTest", 1
+        )[0]
+        self.assertNotIn("vm.etch", property_body)
+        self.assertNotIn("function ", router_body)
+        self.assertIn("type(RuntimeRouter).runtimeCode", source)
+        self.assertIn(
+            "_routedStaticCall(SOLC_IMPLEMENTATION, callData)",
+            source,
+        )
+        self.assertIn(
+            "_routedStaticCall(SOLAR_IMPLEMENTATION, callData)",
+            source,
+        )
+        self.assertLess(
+            property_body.index("_warmRouter();"),
+            property_body.index(
+                "_routedStaticCall(SOLC_IMPLEMENTATION, callData)"
+            ),
+        )
+        self.assertIn("delegatecall", source)
 
 
 class TargetCalldataTests(unittest.TestCase):
@@ -1351,6 +1524,34 @@ class ManifestPersistenceTests(unittest.TestCase):
         self.assertEqual(manifest["status"], "incomplete")
         self.assertEqual(saved_source, "contract Root {}")
 
+    def test_campaign_setup_error_keeps_the_campaign_schema(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "Root.sol"
+            source.write_text("contract Root {}", encoding="utf-8")
+            args = self._args(source, root / "artifacts")
+            args.signature = None
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                returncode = run_foundry_target._symbolic_setup_incomplete(
+                    args, OSError("missing compiler")
+                )
+
+            summary = json.loads(output.getvalue())
+            manifest = json.loads(
+                (
+                    Path(summary["artifact_dir"]) / "manifest.json"
+                ).read_text()
+            )
+
+        self.assertEqual(returncode, 2)
+        self.assertEqual(summary["schema"], symbolic.CAMPAIGN_SCHEMA)
+        self.assertEqual(manifest["schema"], symbolic.CAMPAIGN_SCHEMA)
+        self.assertEqual(set(manifest), CAMPAIGN_MANIFEST_KEYS)
+        self.assertEqual(manifest["counts"]["selection_errors"], 1)
+        self.assertFalse(manifest["campaign_complete"])
+
     def test_provisional_bundle_never_claims_a_mismatch(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -1434,6 +1635,286 @@ class ManifestPersistenceTests(unittest.TestCase):
                 run_foundry_target._run_symbolic(args)
 
 
+class CampaignAggregationTests(unittest.TestCase):
+    @staticmethod
+    def _function(name: str, selector: str) -> dict[str, object]:
+        return {
+            "signature": f"{name}(uint256)",
+            "selector": selector,
+            "inputs": ["uint256"],
+            "outputs": ["uint256"],
+        }
+
+    @staticmethod
+    def _manifest(records: list[dict[str, object]]) -> dict[str, object]:
+        return {
+            "status": "incomplete",
+            "reason": "campaign is still running",
+            "bounds": {},
+            "functions": records,
+            "not_run": [],
+            "findings": [],
+            "counts": {},
+            "all_eligible_completed": False,
+            "campaign_complete": False,
+        }
+
+    @staticmethod
+    def _record(
+        function: dict[str, object], status: str
+    ) -> dict[str, object]:
+        return {
+            "signature": function["signature"],
+            "selector": function["selector"],
+            "status": status,
+            "reason": None,
+            "artifact_dir": f"functions/{function['selector']}",
+            "manifest": f"functions/{function['selector']}/manifest.json",
+            "manifest_sha256": "00" * 32,
+        }
+
+    def test_confirmed_mismatch_dominates_an_incomplete_child(self):
+        first = self._function("first", "0x00000001")
+        second = self._function("second", "0x00000002")
+        inventory = {
+            "eligible": [first, second],
+            "excluded": [],
+            "errors": [],
+        }
+        manifest = self._manifest(
+            [
+                self._record(first, "replay_confirmed_mismatch"),
+                self._record(second, "incomplete"),
+            ]
+        )
+        deadline = Mock()
+        deadline.elapsed.return_value = 1.0
+
+        run_foundry_target._refresh_campaign_manifest(
+            manifest,
+            inventory,
+            deadline,
+            final=True,
+            deadline_reason=None,
+        )
+
+        self.assertEqual(manifest["status"], "replay_confirmed_mismatch")
+        self.assertEqual(manifest["counts"]["mismatches"], 1)
+        self.assertEqual(manifest["counts"]["incomplete"], 1)
+        self.assertFalse(manifest["campaign_complete"])
+
+    def test_deadline_leaves_deterministic_not_run_inventory(self):
+        first = self._function("first", "0x00000001")
+        second = self._function("second", "0x00000002")
+        inventory = {
+            "eligible": [first, second],
+            "excluded": [],
+            "errors": [],
+        }
+        manifest = self._manifest(
+            [self._record(first, "no_mismatch_within_bounds")]
+        )
+        deadline = Mock()
+        deadline.elapsed.return_value = 10.0
+
+        run_foundry_target._refresh_campaign_manifest(
+            manifest,
+            inventory,
+            deadline,
+            final=True,
+            deadline_reason="campaign deadline expired",
+        )
+
+        self.assertEqual(manifest["status"], "incomplete")
+        self.assertEqual(
+            [item["signature"] for item in manifest["not_run"]],
+            ["second(uint256)"],
+        )
+        self.assertEqual(
+            manifest["not_run"][0]["reason"], "campaign deadline expired"
+        )
+
+    def test_in_progress_function_is_attempted_but_not_completed(self):
+        first = self._function("first", "0x00000001")
+        second = self._function("second", "0x00000002")
+        inventory = {
+            "eligible": [first, second],
+            "excluded": [],
+            "errors": [],
+        }
+        manifest = self._manifest(
+            [
+                self._record(first, "no_mismatch_within_bounds"),
+                self._record(second, "in_progress"),
+            ]
+        )
+        deadline = Mock()
+        deadline.elapsed.return_value = 2.0
+
+        run_foundry_target._refresh_campaign_manifest(
+            manifest,
+            inventory,
+            deadline,
+            final=True,
+            deadline_reason=None,
+        )
+
+        self.assertEqual(manifest["status"], "incomplete")
+        self.assertEqual(manifest["counts"]["attempted"], 2)
+        self.assertEqual(manifest["counts"]["completed"], 1)
+        self.assertEqual(manifest["counts"]["in_progress"], 1)
+        self.assertEqual(manifest["not_run"], [])
+        self.assertFalse(manifest["all_eligible_completed"])
+        self.assertFalse(manifest["campaign_complete"])
+
+    def test_final_deadline_prevents_a_clean_campaign_pass(self):
+        function = self._function("probe", "0x00000001")
+        inventory = {
+            "eligible": [function],
+            "excluded": [],
+            "errors": [],
+        }
+        manifest = self._manifest(
+            [self._record(function, "no_mismatch_within_bounds")]
+        )
+        deadline = Mock()
+        deadline.elapsed.return_value = 10.1
+
+        run_foundry_target._refresh_campaign_manifest(
+            manifest,
+            inventory,
+            deadline,
+            final=True,
+            deadline_reason="campaign deadline expired",
+        )
+
+        self.assertEqual(manifest["status"], "incomplete")
+        self.assertTrue(manifest["all_eligible_completed"])
+        self.assertFalse(manifest["campaign_complete"])
+        self.assertEqual(manifest["reason"], "campaign deadline expired")
+
+    def test_final_deadline_does_not_suppress_a_confirmed_mismatch(self):
+        function = self._function("probe", "0x00000001")
+        inventory = {
+            "eligible": [function],
+            "excluded": [],
+            "errors": [],
+        }
+        manifest = self._manifest(
+            [self._record(function, "replay_confirmed_mismatch")]
+        )
+        deadline = Mock()
+        deadline.elapsed.return_value = 10.1
+
+        run_foundry_target._refresh_campaign_manifest(
+            manifest,
+            inventory,
+            deadline,
+            final=True,
+            deadline_reason="campaign deadline expired",
+        )
+
+        self.assertEqual(manifest["status"], "replay_confirmed_mismatch")
+        self.assertTrue(manifest["all_eligible_completed"])
+        self.assertFalse(manifest["campaign_complete"])
+
+    def test_campaign_allocations_carry_unused_wall_time_forward(self):
+        functions = [
+            self._function("first", "0x00000001"),
+            self._function("second", "0x00000002"),
+            self._function("third", "0x00000003"),
+        ]
+        inventory = {
+            "eligible": functions,
+            "excluded": [],
+            "errors": [],
+        }
+
+        class ScriptedDeadline:
+            def __init__(self):
+                self.remaining_wall = iter([90.0, 60.0, 45.0])
+
+            def remaining(self, operation):
+                if operation.startswith("symbolic campaign function"):
+                    return next(self.remaining_wall)
+                return 1.0
+
+            @staticmethod
+            def elapsed():
+                return 1.0
+
+        with tempfile.TemporaryDirectory() as temporary:
+            bundle = Path(temporary) / "campaign"
+            functions_root = bundle / "functions"
+            functions_root.mkdir(parents=True)
+            manifest = self._manifest([])
+            manifest["schema"] = symbolic.CAMPAIGN_SCHEMA
+            manifest["counts"] = {}
+            manifest["bounds"] = {}
+            allocations = []
+
+            def run_child(
+                _args,
+                child_root,
+                _source,
+                _standard_input,
+                _solc_artifact,
+                _solar_artifact,
+                _function,
+                deadline,
+                *,
+                emit_summary,
+                bundle_name,
+            ):
+                self.assertFalse(emit_summary)
+                allocations.append(deadline.total_seconds)
+                child_bundle = child_root / bundle_name
+                child_bundle.mkdir()
+                (child_bundle / "manifest.json").write_text(
+                    json.dumps(
+                        {
+                            "status": "no_mismatch_within_bounds",
+                            "reason": None,
+                            "bounds": {"elapsed_wall_seconds": 0.1},
+                        }
+                    )
+                )
+                return 0
+
+            args = argparse.Namespace(
+                timeout=90.0,
+                contract="Contract",
+                verbose=False,
+            )
+            output = io.StringIO()
+            with (
+                patch.object(
+                    run_foundry_target,
+                    "_create_campaign_bundle",
+                    return_value=(bundle, manifest),
+                ),
+                patch.object(
+                    run_foundry_target,
+                    "_run_symbolic_function",
+                    side_effect=run_child,
+                ),
+                redirect_stdout(output),
+            ):
+                returncode = run_foundry_target._run_symbolic_campaign(
+                    args,
+                    Path(temporary),
+                    Path(temporary) / "Contract.sol",
+                    {},
+                    {},
+                    {},
+                    ScriptedDeadline(),
+                    inventory,
+                )
+
+        self.assertEqual(returncode, 0)
+        self.assertEqual(allocations, [30.0, 30.0, 45.0])
+
+
 @unittest.skipUnless(
     os.environ.get("FANDANGO_SYMBOLIC_E2E") == "1",
     "set FANDANGO_SYMBOLIC_E2E=1 to run compiler/Forge/Anvil integration tests",
@@ -1461,6 +1942,12 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         cls.mutant = (fixture_dir / "ControlledMutant.sol").resolve()
         cls.address_context = (
             fixture_dir / "AddressContextReference.sol"
+        ).resolve()
+        cls.calldata_context = (
+            fixture_dir / "CalldataContextReference.sol"
+        ).resolve()
+        cls.calldata_mutant = (
+            fixture_dir / "CalldataContextMutant.sol"
         ).resolve()
         cls.imported = (fixture_dir / "imported" / "ImportedReference.sol").resolve()
         cls.reference_input = evm.materialize_standard_input(
@@ -1517,6 +2004,36 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             evm_version="osaka",
             standard_input=cls.address_context_input,
         )
+        cls.calldata_context_input = evm.materialize_standard_input(
+            cls.solc,
+            cls.calldata_context,
+            30,
+            "osaka",
+        )
+        cls.solc_calldata_context = evm.compile_standard_artifact(
+            cls.solc,
+            cls.calldata_context,
+            "CalldataContextDifferential",
+            30,
+            kind="solc",
+            evm_version="osaka",
+            standard_input=cls.calldata_context_input,
+        )
+        calldata_mutant_input = evm.materialize_standard_input(
+            cls.solc,
+            cls.calldata_mutant,
+            30,
+            "osaka",
+        )
+        cls.solar_calldata_mutant = evm.compile_standard_artifact(
+            cls.solar,
+            cls.calldata_mutant,
+            "CalldataContextDifferential",
+            30,
+            kind="solar",
+            evm_version="osaka",
+            standard_input=calldata_mutant_input,
+        )
         cls.static_proxy = evm.compile_standard_artifact(
             cls.solc,
             (Path(__file__).parent / "StaticCallProxy.sol").resolve(),
@@ -1547,6 +2064,7 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         contract="ControlledDifferential",
         solc_artifact=None,
         materialized=None,
+        catch_setup_errors=False,
     ):
         output = io.StringIO()
         source = source or self.reference
@@ -1596,7 +2114,12 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             ),
             redirect_stdout(output),
         ):
-            returncode = run_foundry_target._run_symbolic(args)
+            runner = (
+                run_foundry_target._run_symbolic_or_incomplete
+                if catch_setup_errors
+                else run_foundry_target._run_symbolic
+            )
+            returncode = runner(args)
         summary = json.loads(output.getvalue())
         manifest = json.loads(
             (Path(summary["artifact_dir"]) / "manifest.json").read_text()
@@ -1612,6 +2135,246 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         self.assertEqual(set(manifest), MANIFEST_KEYS)
         self.assertTrue(manifest["tools"]["forge"])
         self.assertEqual(manifest["forge"]["command"][3], "project")
+
+    def test_campaign_scans_every_eligible_function(self):
+        returncode, summary, manifest = self._run(
+            self.solar_reference, signature=None
+        )
+        bundle = Path(summary["artifact_dir"])
+
+        self.assertEqual(returncode, 0)
+        self.assertEqual(summary["schema"], symbolic.CAMPAIGN_SCHEMA)
+        self.assertEqual(set(manifest), CAMPAIGN_MANIFEST_KEYS)
+        self.assertEqual(summary["status"], "no_mismatch_within_bounds")
+        self.assertTrue(summary["campaign_complete"])
+        self.assertEqual(manifest["counts"]["eligible"], 2)
+        self.assertEqual(manifest["counts"]["no_mismatch"], 2)
+        self.assertEqual(
+            [item["signature"] for item in manifest["functions"]],
+            ["fixedArray(uint256[2])", "probe(uint256)"],
+        )
+        self.assertEqual(manifest["not_run"], [])
+        self.assertTrue((bundle / "solc-runtime.hex").is_file())
+        self.assertTrue((bundle / "solar-runtime.hex").is_file())
+        for function in manifest["functions"]:
+            child = bundle / function["artifact_dir"]
+            self.assertEqual(
+                run_foundry_target._file_sha256(child / "manifest.json"),
+                function["manifest_sha256"],
+            )
+
+    def test_campaign_aggregates_a_durable_finding_and_a_pass(self):
+        returncode, summary, manifest = self._run(
+            self.solar_mutant, signature=None
+        )
+        bundle = Path(summary["artifact_dir"])
+
+        self.assertEqual(returncode, 1)
+        self.assertEqual(summary["status"], "replay_confirmed_mismatch")
+        self.assertTrue(summary["campaign_complete"])
+        self.assertEqual(manifest["counts"]["mismatches"], 1)
+        self.assertEqual(manifest["counts"]["no_mismatch"], 1)
+        self.assertEqual(
+            manifest["findings"][0]["signature"], "probe(uint256)"
+        )
+        finding = bundle / manifest["findings"][0]["artifact_dir"]
+        child_manifest = json.loads(
+            (finding / "manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertTrue(
+            child_manifest["replay"]["durable_foundry_artifact"]["reproduced"]
+        )
+
+    def test_campaign_checkpoints_an_in_progress_child_before_execution(self):
+        original = run_foundry_target._run_symbolic_function
+        observed = []
+
+        def observe_parent(*call_args, **call_kwargs):
+            functions_root = call_args[1]
+            function = call_args[6]
+            parent_manifest = json.loads(
+                (functions_root.parent / "manifest.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            record = parent_manifest["functions"][-1]
+            observed.append((record["signature"], record["status"]))
+            self.assertEqual(record["signature"], function["signature"])
+            self.assertEqual(record["status"], "in_progress")
+            self.assertEqual(parent_manifest["counts"]["in_progress"], 1)
+            return original(*call_args, **call_kwargs)
+
+        with patch.object(
+            run_foundry_target,
+            "_run_symbolic_function",
+            side_effect=observe_parent,
+        ):
+            returncode, _, manifest = self._run(
+                self.solar_reference, signature=None
+            )
+
+        self.assertEqual(returncode, 0)
+        self.assertEqual(
+            observed,
+            [
+                ("fixedArray(uint256[2])", "in_progress"),
+                ("probe(uint256)", "in_progress"),
+            ],
+        )
+        self.assertEqual(manifest["counts"]["attempted"], 2)
+        self.assertEqual(manifest["counts"]["completed"], 2)
+        self.assertEqual(manifest["counts"]["in_progress"], 0)
+
+    def test_transient_parent_write_failure_cannot_hide_a_durable_finding(self):
+        original = run_foundry_target._write_json_atomic
+        campaign_writes = 0
+
+        def fail_after_finding(path, value):
+            nonlocal campaign_writes
+            if value.get("schema") == symbolic.CAMPAIGN_SCHEMA:
+                campaign_writes += 1
+                if campaign_writes == 5:
+                    raise OSError("injected parent persistence failure")
+            return original(path, value)
+
+        with patch.object(
+            run_foundry_target,
+            "_write_json_atomic",
+            side_effect=fail_after_finding,
+        ):
+            returncode, summary, manifest = self._run(
+                self.solar_mutant, signature=None
+            )
+
+        bundle = Path(summary["artifact_dir"])
+        self.assertEqual(returncode, 1)
+        self.assertEqual(summary["status"], "replay_confirmed_mismatch")
+        self.assertEqual(manifest["status"], "replay_confirmed_mismatch")
+        self.assertEqual(manifest["counts"]["mismatches"], 1)
+        self.assertEqual(
+            manifest["findings"][0]["signature"], "probe(uint256)"
+        )
+        self.assertIn("-all-", bundle.name)
+        self.assertNotIn("-all-incomplete-", bundle.name)
+        self.assertEqual(
+            [entry for entry in bundle.parent.iterdir() if entry.is_dir()],
+            [bundle],
+        )
+        self.assertGreaterEqual(campaign_writes, 6)
+
+    def test_child_manifest_hash_failure_preserves_the_original_finding_bundle(self):
+        original = run_foundry_target._file_sha256
+
+        def fail_child_manifest(path):
+            if path.name == "manifest.json" and "functions" in path.parts:
+                raise OSError("injected child manifest hash failure")
+            return original(path)
+
+        with patch.object(
+            run_foundry_target,
+            "_file_sha256",
+            side_effect=fail_child_manifest,
+        ):
+            returncode, summary, manifest = self._run(
+                self.solar_mutant,
+                signature=None,
+                catch_setup_errors=True,
+            )
+
+        bundle = Path(summary["artifact_dir"])
+        self.assertEqual(returncode, 1)
+        self.assertEqual(summary["status"], "replay_confirmed_mismatch")
+        self.assertFalse(summary["campaign_complete"])
+        self.assertEqual(manifest["counts"]["mismatches"], 1)
+        self.assertIsNone(manifest["findings"][0]["manifest_sha256"])
+        self.assertEqual(
+            [entry for entry in bundle.parent.iterdir() if entry.is_dir()],
+            [bundle],
+        )
+        self.assertNotIn("-all-incomplete-", bundle.name)
+
+    def test_deadline_expiring_after_the_last_child_prevents_a_clean_pass(self):
+        original = run_foundry_target.evm.Deadline.remaining
+
+        def expire_at_finalization(deadline, operation):
+            if operation == "campaign finalization":
+                raise TimeoutError("injected campaign deadline expiry")
+            return original(deadline, operation)
+
+        with patch.object(
+            run_foundry_target.evm.Deadline,
+            "remaining",
+            autospec=True,
+            side_effect=expire_at_finalization,
+        ):
+            returncode, summary, manifest = self._run(
+                self.solar_reference, signature=None
+            )
+
+        self.assertEqual(returncode, 2)
+        self.assertEqual(summary["status"], "incomplete")
+        self.assertTrue(summary["all_eligible_completed"])
+        self.assertFalse(summary["campaign_complete"])
+        self.assertIn("deadline expiry", manifest["reason"])
+
+    def test_campaign_runs_valid_siblings_but_inventory_errors_prevent_a_pass(self):
+        solar = copy.deepcopy(self.solar_reference)
+        solar["abi"] = [
+            entry
+            for entry in solar["abi"]
+            if entry.get("name") != "fixedArray"
+        ]
+        solar["method_identifiers"].pop("fixedArray(uint256[2])")
+
+        returncode, summary, manifest = self._run(solar, signature=None)
+
+        self.assertEqual(returncode, 2)
+        self.assertEqual(summary["status"], "incomplete")
+        self.assertTrue(summary["all_eligible_completed"])
+        self.assertFalse(summary["campaign_complete"])
+        self.assertEqual(manifest["counts"]["completed"], 1)
+        self.assertEqual(manifest["counts"]["selection_errors"], 1)
+        self.assertEqual(
+            manifest["functions"][0]["signature"], "probe(uint256)"
+        )
+
+    def test_campaign_mismatch_dominates_an_inventory_error(self):
+        solar = copy.deepcopy(self.solar_mutant)
+        solar["abi"] = [
+            entry
+            for entry in solar["abi"]
+            if entry.get("name") != "fixedArray"
+        ]
+        solar["method_identifiers"].pop("fixedArray(uint256[2])")
+
+        returncode, summary, manifest = self._run(solar, signature=None)
+
+        self.assertEqual(returncode, 1)
+        self.assertEqual(summary["status"], "replay_confirmed_mismatch")
+        self.assertFalse(summary["campaign_complete"])
+        self.assertEqual(manifest["counts"]["mismatches"], 1)
+        self.assertEqual(manifest["counts"]["selection_errors"], 1)
+
+    def test_campaign_with_no_eligible_function_is_incomplete_without_forge(self):
+        solc = copy.deepcopy(self.solc_reference)
+        solar = copy.deepcopy(self.solar_reference)
+        for compiler in (solc, solar):
+            for entry in compiler["abi"]:
+                if entry.get("type") == "function":
+                    entry["stateMutability"] = "view"
+
+        with patch.object(run_foundry_target, "_forge_symbolic") as forge:
+            returncode, summary, manifest = self._run(
+                solar,
+                signature=None,
+                solc_artifact=solc,
+            )
+
+        self.assertEqual(returncode, 2)
+        self.assertEqual(summary["status"], "incomplete")
+        self.assertIn("no eligible", summary["reason"])
+        self.assertEqual(manifest["counts"]["excluded"], 2)
+        forge.assert_not_called()
 
     def test_focused_wrapper_resolves_the_default_relative_solar_path(self):
         repository = Path(__file__).resolve().parents[2]
@@ -1657,7 +2420,54 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             "no_mismatch_within_bounds",
         )
 
-    def test_contracts_requiring_deployment_are_incomplete_before_forge(self):
+    def test_public_command_scans_the_real_abi_vector_contract(self):
+        repository = Path(__file__).resolve().parents[2]
+        artifacts = self._artifact_root("abi-vector-campaign")
+        result = subprocess.run(
+            [
+                str(repository / "fuzz" / "bin" / "solsymdiff"),
+                "--source",
+                str(repository / "fuzz" / "fandango" / "AbiVectorFixture.sol"),
+                "--contract",
+                "AbiVectorFixture",
+                "--solc",
+                self.solc,
+                "--solar",
+                self.solar,
+                "--forge",
+                self.forge,
+                "--anvil",
+                self.anvil,
+                "--symbolic-solver",
+                self.z3,
+                "--artifact-dir",
+                artifacts,
+                "--timeout",
+                "60",
+                "--symbolic-timeout",
+                "5",
+            ],
+            cwd=repository,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        summary = json.loads(result.stdout)
+        manifest = json.loads(
+            (
+                Path(summary["artifact_dir"]) / "manifest.json"
+            ).read_text()
+        )
+        self.assertEqual(summary["schema"], symbolic.CAMPAIGN_SCHEMA)
+        self.assertEqual(summary["status"], "no_mismatch_within_bounds")
+        self.assertEqual(manifest["counts"]["eligible"], 3)
+        self.assertEqual(manifest["counts"]["excluded"], 8)
+        self.assertEqual(manifest["counts"]["no_mismatch"], 3)
+
+    def test_unsupported_contract_scopes_are_incomplete_before_forge(self):
         cases = [
             (
                 "InlineImmutable",
@@ -1686,6 +2496,48 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
                     "}"
                 ),
                 "unresolved library links",
+            ),
+            (
+                "ExternalPureCall",
+                (
+                    "interface ClaimedPure {"
+                    "function read() external pure returns (uint256);"
+                    "}"
+                    "contract ExternalPureCall {"
+                    "uint256 private value;"
+                    "function read() external view returns (uint256) {"
+                    "return value;"
+                    "}"
+                    "function probe(uint256 raw) external pure returns (uint256) {"
+                    "return ClaimedPure(address(uint160(raw))).read();"
+                    "}"
+                    "}"
+                ),
+                "external-control-flow",
+            ),
+            (
+                "CodeIntrospection",
+                (
+                    "contract CodeIntrospection {"
+                    "function probe(uint256) "
+                    "external pure returns (uint256 size) {"
+                    "assembly { size := codesize() }"
+                    "}"
+                    "}"
+                ),
+                "CODESIZE",
+            ),
+            (
+                "MemoryLayoutIntrospection",
+                (
+                    "contract MemoryLayoutIntrospection {"
+                    "function probe(uint256) "
+                    "external pure returns (uint256 pointer) {"
+                    "assembly { pointer := mload(0x40) }"
+                    "}"
+                    "}"
+                ),
+                "user inline assembly",
             ),
         ]
         for contract, source_text, reason in cases:
@@ -1735,21 +2587,84 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         )
         self.assertIsInstance(manifest["replay"]["anvil"]["block"], dict)
 
-    def test_byte_identical_runtimes_share_one_execution_address(self):
+    def test_router_preserves_target_msg_data_and_selector(self):
         returncode, summary, manifest = self._run(
-            self.solc_address_context,
-            source=self.address_context,
-            contract="AddressContextDifferential",
-            solc_artifact=self.solc_address_context,
-            materialized=self.address_context_input,
+            self.solar_calldata_mutant,
+            source=self.calldata_context,
+            contract="CalldataContextDifferential",
+            solc_artifact=self.solc_calldata_context,
+            materialized=self.calldata_context_input,
         )
 
-        self.assertEqual(returncode, 0)
-        self.assertEqual(summary["status"], "no_mismatch_within_bounds")
+        self.assertEqual(returncode, 1)
+        self.assertEqual(summary["status"], "replay_confirmed_mismatch")
+        self.assertTrue(
+            manifest["replay"]["durable_foundry_artifact"]["reproduced"]
+        )
+        self.assertEqual(
+            len(bytes.fromhex(manifest["replay"]["target_calldata"][2:])),
+            36,
+        )
+
+    def test_external_call_runtime_is_incomplete_before_forge(self):
+        with patch.object(run_foundry_target, "_forge_symbolic") as forge:
+            returncode, summary, manifest = self._run(
+                self.solc_address_context,
+                source=self.address_context,
+                contract="AddressContextDifferential",
+                solc_artifact=self.solc_address_context,
+                materialized=self.address_context_input,
+                catch_setup_errors=True,
+            )
+
+        self.assertEqual(returncode, 2)
+        self.assertEqual(summary["status"], "incomplete")
+        self.assertIn("external-control-flow", summary["reason"])
         self.assertEqual(
             manifest["compilers"]["solc"]["runtime_bytecode_sha256"],
             manifest["compilers"]["solar"]["runtime_bytecode_sha256"],
         )
+        forge.assert_not_called()
+
+    def test_campaign_excludes_external_call_runtimes_before_forge(self):
+        with patch.object(run_foundry_target, "_forge_symbolic") as forge:
+            returncode, summary, manifest = self._run(
+                self.solc_address_context,
+                signature=None,
+                source=self.address_context,
+                contract="AddressContextDifferential",
+                solc_artifact=self.solc_address_context,
+                materialized=self.address_context_input,
+            )
+
+        self.assertEqual(returncode, 2)
+        self.assertEqual(summary["schema"], symbolic.CAMPAIGN_SCHEMA)
+        self.assertIn("external-control-flow", summary["reason"])
+        self.assertEqual(manifest["counts"]["eligible"], 0)
+        self.assertEqual(manifest["counts"]["selection_errors"], 1)
+        self.assertEqual(manifest["counts"]["excluded"], 1)
+        forge.assert_not_called()
+
+    def test_nonlegacy_and_context_dependent_runtimes_stop_before_forge(self):
+        cases = [
+            ("0xef00", "EF_PREFIXED_NON_LEGACY_RUNTIME"),
+            ("0x3300", "CALLER"),
+        ]
+        for runtime, reason in cases:
+            solar = copy.deepcopy(self.solar_reference)
+            solar["runtime"] = runtime
+            with (
+                self.subTest(runtime=runtime),
+                patch.object(run_foundry_target, "_forge_symbolic") as forge,
+            ):
+                returncode, summary, _ = self._run(
+                    solar, catch_setup_errors=True
+                )
+
+            self.assertEqual(returncode, 2)
+            self.assertEqual(summary["status"], "incomplete")
+            self.assertIn(reason, summary["reason"])
+            forge.assert_not_called()
 
     def test_ambient_foundry_configuration_cannot_change_the_oracle(self):
         with tempfile.TemporaryDirectory() as hostile:

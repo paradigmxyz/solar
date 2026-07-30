@@ -20,6 +20,77 @@ import evm_runtime as evm
 
 RESULT_SCHEMA = "solar:symbolic-differential@v1"
 CAMPAIGN_SCHEMA = "solar:symbolic-differential-campaign@v1"
+UNSUPPORTED_RUNTIME_OPCODES = {
+    # The symbolic router and independent Anvil replay intentionally use
+    # different callers and fresh execution environments. Reject opcodes that
+    # could make a compiler-introduced context dependency invisible in one of
+    # those fixed contexts.
+    0x31: "BALANCE",
+    0x32: "ORIGIN",
+    0x33: "CALLER",
+    # These expose compiler-specific code or memory layout and can therefore
+    # turn an intentional representation difference into a false semantic
+    # finding.
+    0x38: "CODESIZE",
+    0x39: "CODECOPY",
+    0x3A: "GASPRICE",
+    0x3B: "EXTCODESIZE",
+    0x3C: "EXTCODECOPY",
+    0x3F: "EXTCODEHASH",
+    0x40: "BLOCKHASH",
+    0x41: "COINBASE",
+    0x42: "TIMESTAMP",
+    0x43: "NUMBER",
+    0x44: "PREVRANDAO",
+    0x45: "GASLIMIT",
+    0x46: "CHAINID",
+    0x47: "SELFBALANCE",
+    0x48: "BASEFEE",
+    0x49: "BLOBHASH",
+    0x4A: "BLOBBASEFEE",
+    0x58: "PC",
+    0x59: "MSIZE",
+    0x5A: "GAS",
+    # A pure entry point can reach a caller-supplied contract through an
+    # interface that claims to be pure. The stateless comparison router cannot
+    # soundly model those open-world calls, so the entire runtime is rejected.
+    0xF0: "CREATE",
+    0xF1: "CALL",
+    0xF2: "CALLCODE",
+    0xF4: "DELEGATECALL",
+    0xF5: "CREATE2",
+    0xFA: "STATICCALL",
+}
+
+
+def runtime_scope_opcodes(runtime: str) -> list[dict[str, Any]]:
+    """Return fail-closed opcodes in legacy EVM bytecode, excluding PUSH data."""
+    if not isinstance(runtime, str):
+        raise ValueError("runtime bytecode must be text")
+    payload = runtime.removeprefix("0x")
+    if len(payload) % 2:
+        raise ValueError("runtime bytecode must be byte-aligned hex")
+    try:
+        code = bytes.fromhex(payload)
+    except ValueError as err:
+        raise ValueError("runtime bytecode must be hex") from err
+    if code.startswith(b"\xef"):
+        return [{"offset": 0, "opcode": "EF_PREFIXED_NON_LEGACY_RUNTIME"}]
+    found = []
+    offset = 0
+    while offset < len(code):
+        opcode = code[offset]
+        if opcode in UNSUPPORTED_RUNTIME_OPCODES:
+            found.append(
+                {
+                    "offset": offset,
+                    "opcode": UNSUPPORTED_RUNTIME_OPCODES[opcode],
+                }
+            )
+        offset += 1
+        if 0x60 <= opcode <= 0x7F:
+            offset += opcode - 0x5F
+    return found
 
 
 def function_inventory(
@@ -697,10 +768,17 @@ def _abi_signature(entry: dict[str, Any]) -> str:
 def _validate_abi(abi: Any, label: str) -> None:
     if not isinstance(abi, list) or not all(isinstance(entry, dict) for entry in abi):
         raise ValueError(f"{label} ABI must be an array of objects")
+    signatures = set()
     for entry in abi:
         if entry.get("type") != "function":
             continue
         _validate_function_entry(entry, label)
+        signature = _abi_signature(entry)
+        if signature in signatures:
+            raise ValueError(
+                f"{label} ABI contains duplicate function `{signature}`"
+            )
+        signatures.add(signature)
 
 
 def _validate_method_identifiers(identifiers: Any, label: str) -> None:
@@ -738,8 +816,8 @@ def _canonical_type(item: dict[str, Any]) -> str:
 def _function_shape(entry: dict[str, Any]) -> tuple[Any, ...]:
     return (
         entry.get("stateMutability"),
-        tuple(item.get("type") for item in entry.get("inputs", [])),
-        tuple(item.get("type") for item in entry.get("outputs", [])),
+        tuple(_canonical_type(item) for item in entry.get("inputs", [])),
+        tuple(_canonical_type(item) for item in entry.get("outputs", [])),
     )
 
 

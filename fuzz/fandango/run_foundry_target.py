@@ -59,10 +59,13 @@ def symbolic_main() -> int:
     """Run the focused repository-local `solsymdiff` command."""
     parser = argparse.ArgumentParser(
         prog="solsymdiff",
-        description="Find bounded, replayable Solc-vs-Solar runtime differences.",
+        description=(
+            "Search a contract's supported pure runtime surface for bounded, "
+            "replayable Solc-vs-Solar differences."
+        ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    _add_shared_arguments(parser, contract_required=True)
+    _add_shared_arguments(parser, contract_required=True, symbolic_only=True)
     _add_symbolic_arguments(parser)
     args = parser.parse_args()
     args.symbolic = True
@@ -70,7 +73,10 @@ def symbolic_main() -> int:
 
 
 def _add_shared_arguments(
-    parser: argparse.ArgumentParser, *, contract_required: bool = False
+    parser: argparse.ArgumentParser,
+    *,
+    contract_required: bool = False,
+    symbolic_only: bool = False,
 ) -> None:
     parser.add_argument(
         "--source",
@@ -103,8 +109,13 @@ def _add_shared_arguments(
         type=float,
         default=60.0,
         help=(
-            "total symbolic wall-clock deadline across compilation, execution, "
-            "and replay (per-process timeout for concrete fuzzing)"
+            "total wall-clock deadline across materialization, both compilers, "
+            "all selected functions, replay, and persistence"
+            if symbolic_only
+            else (
+                "total symbolic wall-clock deadline across compilation, execution, "
+                "and replay (per-process timeout for concrete fuzzing)"
+            )
         ),
     )
     parser.add_argument(
@@ -117,10 +128,7 @@ def _add_shared_arguments(
 def _add_symbolic_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--signature",
-        help=(
-            "canonical function signature; optional only when exactly one "
-            "eligible function exists"
-        ),
+        help="focus on one canonical function signature; omit to scan every eligible function",
     )
     parser.add_argument(
         "--evm-version",
@@ -136,30 +144,30 @@ def _add_symbolic_arguments(parser: argparse.ArgumentParser) -> None:
         "--symbolic-timeout",
         type=int,
         default=30,
-        help="Forge symbolic solver-query timeout in seconds",
+        help="Forge symbolic solver-query timeout in seconds per function",
     )
     parser.add_argument(
         "--symbolic-max-paths",
         type=int,
         default=1024,
-        help="maximum symbolic paths explored by Forge",
+        help="maximum symbolic paths explored by Forge per function",
     )
     parser.add_argument(
         "--symbolic-max-depth",
         type=int,
-        help="optional maximum symbolic execution depth",
+        help="optional maximum symbolic execution depth per function",
     )
     parser.add_argument(
         "--max-returndata-bytes",
         type=int,
         default=256,
-        help="maximum exact return/revert bytes compared symbolically",
+        help="maximum exact return/revert bytes compared per function",
     )
     parser.add_argument(
         "--artifact-dir",
         type=pathlib.Path,
         default=pathlib.Path("fuzz/fandango/out/symbolic-differentials"),
-        help="directory for durable result bundles",
+        help="directory for durable focused or campaign result bundles",
     )
 
 
@@ -270,11 +278,51 @@ def _run_symbolic(args: argparse.Namespace) -> int:
         or solar_artifact["standard_input_sha256"] != standard_input["sha256"]
     ):
         raise ValueError("compilers did not receive the materialized Standard JSON input")
+    runtime_scope_error = _runtime_scope_error(solc_artifact, solar_artifact)
+    if args.signature is None:
+        inventory = symbolic.function_inventory(solc_artifact, solar_artifact)
+        if runtime_scope_error is not None:
+            inventory = _exclude_open_runtime(inventory, runtime_scope_error)
+        return _run_symbolic_campaign(
+            args,
+            artifact_root,
+            source,
+            standard_input,
+            solc_artifact,
+            solar_artifact,
+            deadline,
+            inventory,
+        )
     function = symbolic.select_function(solc_artifact, solar_artifact, args.signature)
-    expected_test = (
-        f"{function['test']}({','.join(function['inputs'])})"
+    if runtime_scope_error is not None:
+        raise ValueError(runtime_scope_error)
+    return _run_symbolic_function(
+        args,
+        artifact_root,
+        source,
+        standard_input,
+        solc_artifact,
+        solar_artifact,
+        function,
+        deadline,
+        emit_summary=True,
     )
 
+
+def _run_symbolic_function(
+    args: argparse.Namespace,
+    artifact_root: pathlib.Path,
+    source: pathlib.Path,
+    standard_input: dict[str, Any],
+    solc_artifact: dict[str, Any],
+    solar_artifact: dict[str, Any],
+    function: dict[str, Any],
+    deadline: evm.Deadline,
+    *,
+    emit_summary: bool,
+    bundle_name: str | None = None,
+) -> int:
+    expected_test = f"{function['test']}({','.join(function['inputs'])})"
     with tempfile.TemporaryDirectory(prefix="solar-symbolic-differential-") as tmp:
         project = pathlib.Path(tmp)
         write_foundry_target.write_symbolic_target(
@@ -383,6 +431,7 @@ def _run_symbolic(args: argparse.Namespace) -> int:
             forge_run,
             classified,
             direct,
+            bundle_name=bundle_name,
         )
         persistence_timeout = _deadline_error(deadline, "artifact persistence")
         durable = _durable_replay(
@@ -436,12 +485,604 @@ def _run_symbolic(args: argparse.Namespace) -> int:
         },
         "artifact_dir": str(bundle),
     }
-    print(json.dumps(summary, indent=2 if args.verbose else None, sort_keys=True))
+    if emit_summary:
+        print(json.dumps(summary, indent=2 if args.verbose else None, sort_keys=True))
     return {
         "no_mismatch_within_bounds": 0,
         "replay_confirmed_mismatch": 1,
         "incomplete": 2,
     }[final_status]
+
+
+def _run_symbolic_campaign(
+    args: argparse.Namespace,
+    artifact_root: pathlib.Path,
+    source: pathlib.Path,
+    standard_input: dict[str, Any],
+    solc_artifact: dict[str, Any],
+    solar_artifact: dict[str, Any],
+    deadline: evm.Deadline,
+    inventory: dict[str, list[dict[str, Any]]],
+) -> int:
+    bundle, manifest = _create_campaign_bundle(
+        args,
+        artifact_root,
+        source,
+        standard_input,
+        solc_artifact,
+        solar_artifact,
+        inventory,
+        deadline,
+    )
+    functions_root = bundle / "functions"
+    args._campaign_timeout = args.timeout
+    deadline_reason = None
+    parent_persistence_error = None
+    eligible = inventory["eligible"]
+    for index, function in enumerate(eligible):
+        remaining_functions = len(eligible) - index
+        try:
+            remaining_wall = deadline.remaining(
+                f"symbolic campaign function {function['signature']}"
+            )
+        except TimeoutError as err:
+            deadline_reason = str(err)
+            break
+        allocation = remaining_wall / remaining_functions
+        function_deadline = evm.Deadline(allocation)
+        args._function_timeout = allocation
+        child_name = f"{index + 1:03d}-{function['selector'][2:]}"
+        child_bundle = functions_root / child_name
+        started_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        manifest["functions"].append(
+            {
+                "signature": function["signature"],
+                "selector": function["selector"],
+                "status": "in_progress",
+                "reason": "function is running",
+                "started_at": started_at,
+                "allocated_wall_seconds": allocation,
+                "elapsed_wall_seconds": 0.0,
+                "artifact_dir": None,
+                "manifest": None,
+                "manifest_sha256": None,
+            }
+        )
+        _refresh_campaign_manifest(
+            manifest,
+            inventory,
+            deadline,
+            final=False,
+            deadline_reason=None,
+        )
+        try:
+            _write_json_atomic(bundle / "manifest.json", manifest)
+        except (OSError, TypeError, ValueError) as err:
+            parent_persistence_error = (
+                f"campaign manifest persistence failed before "
+                f"`{function['signature']}`: {err}"
+            )
+            manifest["functions"][-1].update(
+                {
+                    "status": "incomplete",
+                    "reason": parent_persistence_error,
+                    "elapsed_wall_seconds": function_deadline.elapsed(),
+                }
+            )
+            break
+        try:
+            returncode = _run_symbolic_function(
+                args,
+                functions_root,
+                source,
+                standard_input,
+                solc_artifact,
+                solar_artifact,
+                function,
+                function_deadline,
+                emit_summary=False,
+                bundle_name=child_name,
+            )
+            child_manifest = json.loads(
+                (child_bundle / "manifest.json").read_text(encoding="utf-8")
+            )
+            child_status = child_manifest.get("status")
+            expected_returncode = {
+                "no_mismatch_within_bounds": 0,
+                "replay_confirmed_mismatch": 1,
+                "incomplete": 2,
+            }.get(child_status)
+            if expected_returncode != returncode:
+                raise ValueError(
+                    "child manifest status does not match its process result"
+                )
+            record = _campaign_function_record(
+                bundle,
+                function,
+                child_bundle,
+                child_manifest,
+                allocation,
+                started_at,
+            )
+        except (
+            KeyError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+            TimeoutError,
+            subprocess.SubprocessError,
+        ) as err:
+            record = {
+                "signature": function["signature"],
+                "selector": function["selector"],
+                "status": "incomplete",
+                "reason": f"function execution or persistence failed: {err}",
+                "started_at": started_at,
+                "allocated_wall_seconds": allocation,
+                "elapsed_wall_seconds": function_deadline.elapsed(),
+                "artifact_dir": None,
+                "manifest": None,
+                "manifest_sha256": None,
+            }
+            provisional = child_bundle / "manifest.json"
+            provisional_exists = False
+            provisional_hash = None
+            try:
+                provisional_exists = provisional.is_file()
+                if provisional_exists:
+                    provisional_hash = _file_sha256(provisional)
+            except (OSError, ValueError):
+                pass
+            if provisional_exists:
+                record["artifact_dir"] = (
+                    child_bundle.relative_to(bundle).as_posix()
+                )
+                record["manifest"] = provisional.relative_to(bundle).as_posix()
+                record["manifest_sha256"] = provisional_hash
+        manifest["functions"][-1] = record
+        _refresh_campaign_manifest(
+            manifest,
+            inventory,
+            deadline,
+            final=False,
+            deadline_reason=None,
+        )
+        try:
+            _write_json_atomic(bundle / "manifest.json", manifest)
+        except (OSError, TypeError, ValueError) as err:
+            parent_persistence_error = (
+                f"campaign manifest persistence failed after "
+                f"`{function['signature']}`: {err}"
+            )
+            break
+    if hasattr(args, "_function_timeout"):
+        del args._function_timeout
+    if hasattr(args, "_campaign_timeout"):
+        del args._campaign_timeout
+
+    final_deadline_reason = deadline_reason or _deadline_error(
+        deadline, "campaign finalization"
+    )
+    _refresh_campaign_manifest(
+        manifest,
+        inventory,
+        deadline,
+        final=True,
+        deadline_reason=final_deadline_reason,
+    )
+    if parent_persistence_error is not None and (
+        manifest["not_run"] or manifest["counts"]["incomplete"]
+    ):
+        if manifest["findings"]:
+            manifest["reason"] = (
+                "a mismatch was confirmed, but "
+                + parent_persistence_error
+            )
+        else:
+            manifest["reason"] = parent_persistence_error
+    try:
+        _write_json_atomic(bundle / "manifest.json", manifest)
+    except (OSError, TypeError, ValueError) as err:
+        final_persistence_error = f"campaign finalization failed: {err}"
+        manifest["campaign_complete"] = False
+        if manifest["findings"]:
+            manifest["status"] = "replay_confirmed_mismatch"
+            manifest["reason"] = (
+                "a mismatch was confirmed, but " + final_persistence_error
+            )
+        else:
+            manifest["status"] = "incomplete"
+            manifest["reason"] = final_persistence_error
+    else:
+        post_persistence_timeout = _deadline_error(
+            deadline, "campaign final persistence"
+        )
+        if (
+            post_persistence_timeout is not None
+            and final_deadline_reason is None
+        ):
+            final_deadline_reason = post_persistence_timeout
+            _refresh_campaign_manifest(
+                manifest,
+                inventory,
+                deadline,
+                final=True,
+                deadline_reason=final_deadline_reason,
+            )
+            try:
+                _write_json_atomic(bundle / "manifest.json", manifest)
+            except (OSError, TypeError, ValueError) as err:
+                manifest["campaign_complete"] = False
+                if manifest["findings"]:
+                    manifest["status"] = "replay_confirmed_mismatch"
+                    manifest["reason"] = (
+                        "a mismatch was confirmed, but the timed-out campaign "
+                        f"manifest could not be finalized: {err}"
+                    )
+                else:
+                    manifest["status"] = "incomplete"
+                    manifest["reason"] = (
+                        "the campaign deadline expired and its manifest could "
+                        f"not be finalized: {err}"
+                    )
+    summary = {
+        "schema": symbolic.CAMPAIGN_SCHEMA,
+        "status": manifest["status"],
+        "reason": manifest["reason"],
+        "source": str(source),
+        "contract": args.contract,
+        "counts": manifest["counts"],
+        "all_eligible_completed": manifest["all_eligible_completed"],
+        "campaign_complete": manifest["campaign_complete"],
+        "findings": manifest["findings"],
+        "artifact_dir": str(bundle),
+    }
+    print(json.dumps(summary, indent=2 if args.verbose else None, sort_keys=True))
+    return {
+        "no_mismatch_within_bounds": 0,
+        "replay_confirmed_mismatch": 1,
+        "incomplete": 2,
+    }[manifest["status"]]
+
+
+def _runtime_scope_error(
+    solc_artifact: dict[str, Any], solar_artifact: dict[str, Any]
+) -> str | None:
+    errors = []
+    inline_assembly = solc_artifact.get("inline_assembly")
+    if not isinstance(inline_assembly, list) or not all(
+        isinstance(site, dict)
+        and isinstance(site.get("source"), str)
+        and isinstance(site.get("src"), str)
+        for site in inline_assembly
+    ):
+        errors.append(
+            "the authoritative Solc AST inline-assembly inventory is unavailable"
+        )
+    elif inline_assembly:
+        locations = ", ".join(
+            f"{site['source']}:{site['src']}" for site in inline_assembly[:5]
+        )
+        if len(inline_assembly) > 5:
+            locations += f", and {len(inline_assembly) - 5} more"
+        errors.append(
+            "the materialized source closure contains user inline assembly "
+            f"({locations})"
+        )
+    compiler_opcodes = {
+        "solc": symbolic.runtime_scope_opcodes(solc_artifact["runtime"]),
+        "Solar": symbolic.runtime_scope_opcodes(solar_artifact["runtime"]),
+    }
+    found = []
+    for compiler, matches in compiler_opcodes.items():
+        if matches:
+            opcodes = ", ".join(
+                sorted({match["opcode"] for match in matches})
+            )
+            found.append(f"{compiler}: {opcodes}")
+    if found:
+        errors.append(
+            "deployed runtimes contain unsupported context-sensitive or "
+            "external-control-flow opcodes (" + "; ".join(found) + ")"
+        )
+    if not errors:
+        return None
+    return (
+        "symbolic differential high-confidence scope rejected this contract: "
+        + "; ".join(errors)
+    )
+
+
+def _exclude_open_runtime(
+    inventory: dict[str, list[dict[str, Any]]], reason: str
+) -> dict[str, list[dict[str, Any]]]:
+    restricted = copy.deepcopy(inventory)
+    restricted["excluded"].extend(
+        {
+            "signature": function["signature"],
+            "reason": reason,
+        }
+        for function in restricted["eligible"]
+    )
+    restricted["excluded"].sort(key=lambda item: item["signature"])
+    restricted["eligible"] = []
+    restricted["errors"].append(
+        {
+            "signature": None,
+            "compiler": "runtime scope",
+            "reason": reason,
+        }
+    )
+    return restricted
+
+
+def _create_campaign_bundle(
+    args: argparse.Namespace,
+    artifact_root: pathlib.Path,
+    source: pathlib.Path,
+    standard_input: dict[str, Any],
+    solc_artifact: dict[str, Any],
+    solar_artifact: dict[str, Any],
+    inventory: dict[str, list[dict[str, Any]]],
+    deadline: evm.Deadline,
+) -> tuple[pathlib.Path, dict[str, Any]]:
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y%m%dT%H%M%S%fZ"
+    )
+    bundle = artifact_root / f"{source.stem}-all-{timestamp}"
+    bundle.mkdir()
+    (bundle / "functions").mkdir()
+    source_dir = bundle / "source"
+    source_dir.mkdir()
+    source_path = source_dir / source.name
+    source_path.write_bytes(_root_source_content(standard_input).encode("utf-8"))
+    standard_input_path = bundle / "standard-input.json"
+    standard_input_path.write_bytes(standard_input["json"].encode("utf-8"))
+    solc_runtime = bundle / "solc-runtime.hex"
+    solar_runtime = bundle / "solar-runtime.hex"
+    solc_runtime.write_text(solc_artifact["runtime"] + "\n", encoding="utf-8")
+    solar_runtime.write_text(solar_artifact["runtime"] + "\n", encoding="utf-8")
+    manifest = {
+        "schema": symbolic.CAMPAIGN_SCHEMA,
+        "schema_version": 1,
+        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "status": "incomplete",
+        "reason": "campaign is still running",
+        "source": _source_manifest(source, standard_input),
+        "standard_input": _standard_input_manifest(standard_input),
+        "contract": args.contract,
+        "settings": solc_artifact["settings"],
+        "compilers": {
+            "solc": _compiler_manifest(solc_artifact),
+            "solar": _compiler_manifest(solar_artifact),
+        },
+        "tools": _tools_manifest(args),
+        "solver": {
+            "requested": args.symbolic_solver,
+            "executable": getattr(
+                args, "_solver_executable", args.symbolic_solver
+            ),
+        },
+        "bounds": {
+            "total_wall_timeout_seconds": args.timeout,
+            "allocation": (
+                "remaining campaign wall time divided by remaining functions"
+            ),
+            "solver_query_timeout_seconds_per_function": args.symbolic_timeout,
+            "max_paths_per_function": args.symbolic_max_paths,
+            "max_depth_per_function": args.symbolic_max_depth,
+            "max_returndata_bytes_per_function": args.max_returndata_bytes,
+            "elapsed_wall_seconds": deadline.elapsed(),
+        },
+        "inventory": {
+            "eligible": [
+                _campaign_function_summary(function)
+                for function in inventory["eligible"]
+            ],
+            "excluded": inventory["excluded"],
+            "errors": inventory["errors"],
+        },
+        "functions": [],
+        "not_run": [
+            {
+                **_campaign_function_summary(function),
+                "reason": "function has not started",
+            }
+            for function in inventory["eligible"]
+        ],
+        "findings": [],
+        "counts": {
+            "eligible": len(inventory["eligible"]),
+            "excluded": len(inventory["excluded"]),
+            "selection_errors": len(inventory["errors"]),
+            "attempted": 0,
+            "completed": 0,
+            "in_progress": 0,
+            "no_mismatch": 0,
+            "mismatches": 0,
+            "incomplete": 0,
+            "not_run": len(inventory["eligible"]),
+        },
+        "all_eligible_completed": False,
+        "campaign_complete": False,
+        "artifacts": {
+            "source": {
+                "path": source_path.relative_to(bundle).as_posix(),
+                "sha256": _file_sha256(source_path),
+            },
+            "standard_input": {
+                "path": standard_input_path.name,
+                "sha256": _file_sha256(standard_input_path),
+            },
+            "solc_runtime": {
+                "path": solc_runtime.name,
+                "sha256": _file_sha256(solc_runtime),
+            },
+            "solar_runtime": {
+                "path": solar_runtime.name,
+                "sha256": _file_sha256(solar_runtime),
+            },
+        },
+        "artifact_dir": str(bundle),
+    }
+    _write_json_atomic(bundle / "manifest.json", manifest)
+    return bundle, manifest
+
+
+def _campaign_function_summary(function: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "signature": function["signature"],
+        "selector": function["selector"],
+        "inputs": function["inputs"],
+        "outputs": function["outputs"],
+    }
+
+
+def _campaign_function_record(
+    campaign_bundle: pathlib.Path,
+    function: dict[str, Any],
+    child_bundle: pathlib.Path,
+    child_manifest: dict[str, Any],
+    allocation: float,
+    started_at: str,
+) -> dict[str, Any]:
+    child_manifest_path = child_bundle / "manifest.json"
+    child_reason = child_manifest.get("reason")
+    try:
+        manifest_sha256 = _file_sha256(child_manifest_path)
+    except (OSError, ValueError) as err:
+        manifest_sha256 = None
+        link_reason = f"campaign could not hash the child manifest: {err}"
+        child_reason = (
+            f"{child_reason}; {link_reason}" if child_reason else link_reason
+        )
+    return {
+        "signature": function["signature"],
+        "selector": function["selector"],
+        "status": child_manifest["status"],
+        "reason": child_reason,
+        "started_at": started_at,
+        "allocated_wall_seconds": allocation,
+        "elapsed_wall_seconds": child_manifest["bounds"][
+            "elapsed_wall_seconds"
+        ],
+        "artifact_dir": child_bundle.relative_to(campaign_bundle).as_posix(),
+        "manifest": child_manifest_path.relative_to(campaign_bundle).as_posix(),
+        "manifest_sha256": manifest_sha256,
+    }
+
+
+def _refresh_campaign_manifest(
+    manifest: dict[str, Any],
+    inventory: dict[str, list[dict[str, Any]]],
+    deadline: evm.Deadline,
+    *,
+    final: bool,
+    deadline_reason: str | None,
+) -> None:
+    records = manifest["functions"]
+    terminal_statuses = {
+        "no_mismatch_within_bounds",
+        "replay_confirmed_mismatch",
+        "incomplete",
+    }
+    successful_statuses = {
+        "no_mismatch_within_bounds",
+        "replay_confirmed_mismatch",
+    }
+    attempted = {record["signature"] for record in records}
+    manifest["not_run"] = [
+        {
+            **_campaign_function_summary(function),
+            "reason": deadline_reason
+            or (
+                "campaign ended before this function ran"
+                if final
+                else "function has not started"
+            ),
+        }
+        for function in inventory["eligible"]
+        if function["signature"] not in attempted
+    ]
+    manifest["findings"] = [
+        {
+            "signature": record["signature"],
+            "selector": record["selector"],
+            "artifact_dir": record["artifact_dir"],
+            "manifest": record["manifest"],
+            "manifest_sha256": record["manifest_sha256"],
+        }
+        for record in records
+        if record["status"] == "replay_confirmed_mismatch"
+    ]
+    manifest["counts"] = {
+        "eligible": len(inventory["eligible"]),
+        "excluded": len(inventory["excluded"]),
+        "selection_errors": len(inventory["errors"]),
+        "attempted": len(records),
+        "completed": sum(
+            record["status"] in terminal_statuses for record in records
+        ),
+        "in_progress": sum(
+            record["status"] == "in_progress" for record in records
+        ),
+        "no_mismatch": sum(
+            record["status"] == "no_mismatch_within_bounds"
+            for record in records
+        ),
+        "mismatches": len(manifest["findings"]),
+        "incomplete": sum(
+            record["status"] == "incomplete" for record in records
+        ),
+        "not_run": len(manifest["not_run"]),
+    }
+    manifest["bounds"]["elapsed_wall_seconds"] = deadline.elapsed()
+    all_completed = (
+        bool(inventory["eligible"])
+        and not manifest["not_run"]
+        and len(records) == len(inventory["eligible"])
+        and all(record["status"] in successful_statuses for record in records)
+        and all(record.get("manifest_sha256") for record in records)
+    )
+    manifest["all_eligible_completed"] = all_completed
+    manifest["campaign_complete"] = (
+        all_completed and not inventory["errors"] and deadline_reason is None
+    )
+    if not final:
+        manifest["status"] = "incomplete"
+        manifest["reason"] = "campaign is still running"
+        manifest["campaign_complete"] = False
+        return
+    if manifest["findings"]:
+        manifest["status"] = "replay_confirmed_mismatch"
+        manifest["reason"] = (
+            None
+            if manifest["campaign_complete"]
+            else "a mismatch was confirmed, but the campaign is incomplete"
+        )
+    elif manifest["campaign_complete"]:
+        manifest["status"] = "no_mismatch_within_bounds"
+        manifest["reason"] = None
+    else:
+        manifest["status"] = "incomplete"
+        if inventory["errors"]:
+            manifest["reason"] = (
+                inventory["errors"][0]["reason"]
+                if len(inventory["errors"]) == 1
+                else "function inventory or runtime scope is incomplete"
+            )
+        elif not inventory["eligible"]:
+            manifest["reason"] = "no eligible functions were found"
+        elif manifest["not_run"]:
+            manifest["reason"] = (
+                deadline_reason or "campaign ended before every function ran"
+            )
+        elif deadline_reason is not None:
+            manifest["reason"] = deadline_reason
+        else:
+            manifest["reason"] = "at least one function did not complete"
 
 
 def _forge_symbolic(
@@ -487,7 +1128,10 @@ def _forge_symbolic(
         return {
             "command": command,
             "status": "timeout",
-            "reason": f"Forge exceeded the {args.timeout:g}s total wall timeout",
+            "reason": (
+                "Forge exceeded the "
+                f"{deadline.total_seconds:g}s function total wall timeout"
+            ),
             "stdout": _expired_text(getattr(err, "stdout", None)),
             "stderr": _expired_text(getattr(err, "stderr", None)),
             "report": None,
@@ -591,6 +1235,7 @@ def _manifest(
             ),
             "artifact": classified.get("artifact") if classified else None,
             "assumptions": classified.get("assumptions", []) if classified else [],
+            "execution_context": _symbolic_execution_context(),
             "environment": {
                 "cleared_prefixes": ["FOUNDRY_", "DAPP_", "SVM_HOME"],
                 "evm_version_from_cli": args.evm_version,
@@ -647,6 +1292,7 @@ def _compiler_manifest(artifact: dict[str, Any]) -> dict[str, Any]:
         "standard_input_sha256": artifact["standard_input_sha256"],
         "runtime_bytecode_sha256": hashlib.sha256(runtime).hexdigest(),
         "runtime_bytecode_bytes": len(runtime),
+        "inline_assembly": artifact.get("inline_assembly"),
         "environment": {
             "filesystem_import_fallback": artifact.get(
                 "filesystem_import_fallback", False
@@ -691,7 +1337,12 @@ def _bounds_manifest(
 ) -> dict[str, Any]:
     deadline = getattr(args, "_deadline", None)
     return {
-        "total_wall_timeout_seconds": args.timeout,
+        "total_wall_timeout_seconds": getattr(
+            args, "_function_timeout", args.timeout
+        ),
+        "campaign_total_wall_timeout_seconds": getattr(
+            args, "_campaign_timeout", None
+        ),
         "solver_query_timeout_seconds": args.symbolic_timeout,
         "max_paths": args.symbolic_max_paths,
         "max_depth": args.symbolic_max_depth,
@@ -707,6 +1358,19 @@ def _tools_manifest(args: argparse.Namespace) -> dict[str, Any]:
         "forge": versions.get("forge"),
         "anvil": versions.get("anvil"),
         "solver": versions.get("solver"),
+    }
+
+
+def _symbolic_execution_context() -> dict[str, str]:
+    return {
+        "call_kind": "staticcall_router_delegatecall",
+        "router_address": evm.SYMBOLIC_ROUTER_ADDRESS,
+        "solc_runtime_address": evm.SYMBOLIC_SOLC_RUNTIME_ADDRESS,
+        "solar_runtime_address": evm.SYMBOLIC_SOLAR_RUNTIME_ADDRESS,
+        "runtime_installation": "concrete setUp",
+        "runtime_selection": (
+            "20-byte implementation prefix removed before delegatecall"
+        ),
     }
 
 
@@ -740,11 +1404,17 @@ def _persist_bundle(
     forge_run: dict[str, Any],
     classified: dict[str, Any] | None,
     direct: dict[str, Any] | None,
+    *,
+    bundle_name: str | None = None,
 ) -> pathlib.Path:
     root.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    selector = manifest["function"]["selector"][2:]
-    bundle = root / f"{source.stem}-{selector}-{timestamp}"
+    if bundle_name is None:
+        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y%m%dT%H%M%S%fZ"
+        )
+        selector = manifest["function"]["selector"][2:]
+        bundle_name = f"{source.stem}-{selector}-{timestamp}"
+    bundle = root / bundle_name
     bundle.mkdir()
     provisional = copy.deepcopy(manifest)
     provisional["status"] = "incomplete"
@@ -960,6 +1630,8 @@ def _deadline_error(deadline: evm.Deadline, operation: str) -> str | None:
 
 
 def _symbolic_setup_incomplete(args: argparse.Namespace, err: Exception) -> int:
+    if getattr(args, "signature", None) is None:
+        return _campaign_setup_incomplete(args, err)
     root = args.artifact_dir.resolve()
     root.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
@@ -1023,6 +1695,7 @@ def _symbolic_setup_incomplete(args: argparse.Namespace, err: Exception) -> int:
             "counterexample": None,
             "artifact": None,
             "assumptions": [],
+            "execution_context": _symbolic_execution_context(),
             "environment": {
                 "cleared_prefixes": ["FOUNDRY_", "DAPP_", "SVM_HOME"],
                 "evm_version_from_cli": args.evm_version,
@@ -1096,6 +1769,144 @@ def _symbolic_setup_incomplete(args: argparse.Namespace, err: Exception) -> int:
             if args.signature is not None
             else None
         ),
+        "artifact_dir": str(bundle),
+    }
+    print(json.dumps(summary, indent=2 if args.verbose else None, sort_keys=True))
+    return 2
+
+
+def _campaign_setup_incomplete(args: argparse.Namespace, err: Exception) -> int:
+    root = args.artifact_dir.resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y%m%dT%H%M%S%fZ"
+    )
+    source = args.source.resolve()
+    source_stem = source.stem or "source"
+    bundle = root / f"{source_stem}-all-incomplete-{timestamp}"
+    bundle.mkdir()
+    (bundle / "functions").mkdir()
+    standard_input = getattr(args, "_standard_input", None)
+    has_standard_input = isinstance(standard_input, dict)
+    source_manifest = (
+        _source_manifest(source, standard_input)
+        if has_standard_input
+        else {"path": str(source), "sha256": None}
+    )
+    artifacts = {
+        "source": None,
+        "standard_input": None,
+        "solc_runtime": None,
+        "solar_runtime": None,
+    }
+    if has_standard_input:
+        source_dir = bundle / "source"
+        source_dir.mkdir()
+        saved_source = source_dir / source.name
+        saved_source.write_bytes(
+            _root_source_content(standard_input).encode("utf-8")
+        )
+        standard_input_path = bundle / "standard-input.json"
+        standard_input_path.write_bytes(standard_input["json"].encode("utf-8"))
+        artifacts["source"] = {
+            "path": saved_source.relative_to(bundle).as_posix(),
+            "sha256": _file_sha256(saved_source),
+        }
+        artifacts["standard_input"] = {
+            "path": standard_input_path.name,
+            "sha256": _file_sha256(standard_input_path),
+        }
+    compiler_manifests = {}
+    for label in ("solc", "solar"):
+        artifact = getattr(args, f"_{label}_artifact", None)
+        compiler_manifests[label] = (
+            _compiler_manifest(artifact) if isinstance(artifact, dict) else None
+        )
+        if isinstance(artifact, dict):
+            runtime_path = bundle / f"{label}-runtime.hex"
+            runtime_path.write_text(artifact["runtime"] + "\n", encoding="utf-8")
+            artifacts[f"{label}_runtime"] = {
+                "path": runtime_path.name,
+                "sha256": _file_sha256(runtime_path),
+            }
+    deadline = getattr(args, "_deadline", None)
+    manifest = {
+        "schema": symbolic.CAMPAIGN_SCHEMA,
+        "schema_version": 1,
+        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "status": "incomplete",
+        "reason": str(err),
+        "source": source_manifest,
+        "standard_input": (
+            _standard_input_manifest(standard_input)
+            if has_standard_input
+            else None
+        ),
+        "contract": args.contract,
+        "settings": (
+            standard_input.get("settings") if has_standard_input else None
+        ),
+        "compilers": compiler_manifests,
+        "tools": _tools_manifest(args),
+        "solver": {
+            "requested": args.symbolic_solver,
+            "executable": getattr(
+                args, "_solver_executable", args.symbolic_solver
+            ),
+        },
+        "bounds": {
+            "total_wall_timeout_seconds": args.timeout,
+            "allocation": (
+                "remaining campaign wall time divided by remaining functions"
+            ),
+            "solver_query_timeout_seconds_per_function": args.symbolic_timeout,
+            "max_paths_per_function": args.symbolic_max_paths,
+            "max_depth_per_function": args.symbolic_max_depth,
+            "max_returndata_bytes_per_function": args.max_returndata_bytes,
+            "elapsed_wall_seconds": deadline.elapsed() if deadline else None,
+        },
+        "inventory": {
+            "eligible": [],
+            "excluded": [],
+            "errors": [
+                {
+                    "signature": None,
+                    "compiler": None,
+                    "reason": str(err),
+                }
+            ],
+        },
+        "functions": [],
+        "not_run": [],
+        "findings": [],
+        "counts": {
+            "eligible": 0,
+            "excluded": 0,
+            "selection_errors": 1,
+            "attempted": 0,
+            "completed": 0,
+            "in_progress": 0,
+            "no_mismatch": 0,
+            "mismatches": 0,
+            "incomplete": 0,
+            "not_run": 0,
+        },
+        "all_eligible_completed": False,
+        "campaign_complete": False,
+        "artifacts": artifacts,
+        "artifact_dir": str(bundle),
+    }
+    _write_json_atomic(bundle / "manifest.json", manifest)
+    summary = {
+        "schema": symbolic.CAMPAIGN_SCHEMA,
+        "status": "incomplete",
+        "reason": str(err),
+        "source": str(source),
+        "contract": args.contract,
+        "counts": manifest["counts"],
+        "all_eligible_completed": False,
+        "campaign_complete": False,
+        "findings": [],
         "artifact_dir": str(bundle),
     }
     print(json.dumps(summary, indent=2 if args.verbose else None, sort_keys=True))
