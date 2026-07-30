@@ -1,6 +1,6 @@
 //! Shared utilities for MIR transforms.
 
-use crate::mir::Function;
+use crate::mir::{BlockId, Function, InstKind, Terminator};
 use solar_sema::hir::StateMutability;
 
 /// Whether an external entry must reject nonzero callvalue.
@@ -9,6 +9,34 @@ pub(super) fn rejects_callvalue(func: &Function) -> bool {
         func.attributes.state_mutability,
         StateMutability::NonPayable | StateMutability::View | StateMutability::Pure
     )
+}
+
+/// Redirects successor predecessor metadata after splitting `from` into a
+/// continuation block `to`.
+pub(super) fn redirect_successor_predecessors(func: &mut Function, from: BlockId, to: BlockId) {
+    let successors =
+        func.blocks[to].terminator.as_ref().map(Terminator::successors).unwrap_or_default();
+    for successor in successors {
+        for predecessor in &mut func.blocks[successor].predecessors {
+            if *predecessor == from {
+                *predecessor = to;
+            }
+        }
+        let phi_insts: Vec<_> = func.blocks[successor]
+            .instructions
+            .iter()
+            .copied()
+            .take_while(|inst| matches!(func.inst(*inst).kind, InstKind::Phi(_)))
+            .collect();
+        for phi in phi_insts {
+            let InstKind::Phi(incoming) = &mut func.inst_mut(phi).kind else { unreachable!() };
+            for (predecessor, _) in incoming {
+                if *predecessor == from {
+                    *predecessor = to;
+                }
+            }
+        }
+    }
 }
 
 /// Incremental form of the shared dispatch callvalue-hoisting predicate:

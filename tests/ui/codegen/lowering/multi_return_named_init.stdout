@@ -80,7 +80,7 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) {
     jump bb1
 }
 
-fn @readTwice(arg0: calldataslice) {
+fn @readTwice(arg0: calldataslice) -> (u64, u64) [abi_returns=[word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -97,9 +97,6 @@ fn @readTwice(arg0: calldataslice) {
     mstore 160, v4
     v5 = mload 128
     v6 = mload 160
-    mstore 128, v5
-    v7 = add 128, 32
-    mstore v7, v6
-    returndata 128, 64
+    ret v5, v6
 }
 

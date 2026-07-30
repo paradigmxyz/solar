@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/array_bounds_panic.sol:ArrayBoundsPanic ===
 @module ArrayBoundsPanic
-fn @memFix(arg0: u256) {
+fn @memFix(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -27,11 +27,10 @@ fn @memFix(arg0: u256) {
   bb4:
     v9 = memory_object_element_addr memoryfixedarray<3, 1>, v3, arg0
     v10 = mload v9
-    mstore 128, v10
-    returndata 128, 32
+    ret v10
 }
 
-fn @memFixConst() {
+fn @memFixConst() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
@@ -44,11 +43,10 @@ fn @memFixConst() {
     mstore v4, 30
     v5 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
     v6 = mload v5
-    mstore 128, v6
-    returndata 128, 32
+    ret v6
 }
 
-fn @memFixConstOob() {
+fn @memFixConstOob() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
@@ -65,11 +63,10 @@ fn @memFixConstOob() {
   bb2:
     v4 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 5
     v5 = mload v4
-    mstore 128, v5
-    returndata 128, 32
+    ret v5
 }
 
-fn @memDyn(arg0: u256, arg1: u256) {
+fn @memDyn(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -107,11 +104,10 @@ fn @memDyn(arg0: u256, arg1: u256) {
   bb8:
     v11 = memory_object_element_addr memoryarray<1>, v8, arg1
     v12 = mload v11
-    mstore 128, v12
-    returndata 128, 32
+    ret v12
 }
 
-fn @stDyn(arg0: u256) {
+fn @stDyn(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -132,8 +128,7 @@ fn @stDyn(arg0: u256) {
     v5 = keccak256 0, 32 !metadata(memory=scratch)
     v6 = add v5, arg0
     v7 = sload v6 !metadata(storage=symbolic(v6))
-    mstore 128, v7
-    returndata 128, 32
+    ret v7
 }
 
 fn @stDynWrite(arg0: u256, arg1: u256) {
@@ -160,7 +155,7 @@ fn @stDynWrite(arg0: u256, arg1: u256) {
     stop
 }
 
-fn @stFix(arg0: u256) {
+fn @stFix(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -178,11 +173,10 @@ fn @stFix(arg0: u256) {
   bb4:
     v4 = add 1, arg0
     v5 = sload v4 !metadata(storage=offset(arg0, 1))
-    mstore 128, v5
-    returndata 128, 32
+    ret v5
 }
 
-fn @cdDyn(arg0: calldataslice, arg1: u256) {
+fn @cdDyn(arg0: calldataslice, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -203,11 +197,10 @@ fn @cdDyn(arg0: calldataslice, arg1: u256) {
     v6 = mul arg1, 32
     v7 = add v5, v6
     v8 = calldataload v7
-    mstore 128, v8
-    returndata 128, 32
+    ret v8
 }
 
-fn @cdFix(arg0: u256, arg1: u256, arg2: u256, arg3: u256) {
+fn @cdFix(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -232,11 +225,10 @@ fn @cdFix(arg0: u256, arg1: u256, arg2: u256, arg3: u256) {
   bb4:
     v8 = memory_object_element_addr memoryfixedarray<3, 1>, v3, arg3
     v9 = mload v8
-    mstore 128, v9
-    returndata 128, 32
+    ret v9
 }
 
-fn @cdBytes(arg0: calldataslice, arg1: u256) {
+fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -257,7 +249,6 @@ fn @cdBytes(arg0: calldataslice, arg1: u256) {
     v6 = add v5, arg1
     v7 = calldataload v6
     v8 = and v7, 0xff00000000000000000000000000000000000000000000000000000000000000
-    mstore 128, v8
-    returndata 128, 32
+    ret v8
 }
 

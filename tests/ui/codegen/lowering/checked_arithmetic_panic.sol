@@ -72,7 +72,7 @@ contract CheckedArithmeticPanic {
     // CHECK-LABEL: fn @unchecked_add{{[( ]}}
     // CHECK: add arg0, arg1
     // CHECK-NOT: mstore 4, 17
-    // CHECK: returndata
+    // CHECK: ret
     function unchecked_add(uint256 a, uint256 b) public pure returns (uint256) {
         unchecked {
             return a + b;
@@ -83,7 +83,7 @@ contract CheckedArithmeticPanic {
     // CHECK-NOT: mstore 4, 17
     // CHECK: sub 0, arg0
     // CHECK-NOT: mstore 4, 17
-    // CHECK: returndata
+    // CHECK: ret
     // CHECK-NOT: mstore 4, 17
     function unchecked_neg(int256 a) public pure returns (int256) {
         unchecked {
@@ -95,7 +95,7 @@ contract CheckedArithmeticPanic {
     // CHECK-NOT: mstore 4, 17
     // CHECK: exp arg0, arg1
     // CHECK-NOT: mstore 4, 17
-    // CHECK: returndata
+    // CHECK: ret
     // CHECK-NOT: mstore 4, 17
     function unchecked_pow(uint256 a, uint256 b) public pure returns (uint256) {
         unchecked {

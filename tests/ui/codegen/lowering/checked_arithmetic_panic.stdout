@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/checked_arithmetic_panic.sol:CheckedArithmeticPanic ===
 @module CheckedArithmeticPanic
-fn @add(arg0: u256, arg1: u256) {
+fn @add(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -17,11 +17,10 @@ fn @add(arg0: u256, arg1: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @sub(arg0: u256, arg1: u256) {
+fn @sub(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -38,11 +37,10 @@ fn @sub(arg0: u256, arg1: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @mul(arg0: u256, arg1: u256) {
+fn @mul(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -63,11 +61,10 @@ fn @mul(arg0: u256, arg1: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @div_zero(arg0: u256, arg1: u256) {
+fn @div_zero(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -83,11 +80,10 @@ fn @div_zero(arg0: u256, arg1: u256) {
     revert 0, 36
   bb4:
     v3 = div arg0, arg1
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @pow(arg0: u256, arg1: u256) {
+fn @pow(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -100,8 +96,7 @@ fn @pow(arg0: u256, arg1: u256) {
     jumpi v3, bb3, bb4
   bb3:
     v31 = phi [bb2: 1], [bb4: 0], [bb5: 1], [bb10: v8], [bb11: v16], [bb19: v30]
-    mstore 128, v31
-    returndata 128, 32
+    ret v31
   bb4:
     v4 = iszero arg0
     jumpi v4, bb3, bb5
@@ -169,7 +164,7 @@ fn @pow(arg0: u256, arg1: u256) {
     jump bb3
 }
 
-fn @signed_add(arg0: i256, arg1: i256) {
+fn @signed_add(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -188,11 +183,10 @@ fn @signed_add(arg0: i256, arg1: i256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @signed_neg(arg0: i256) {
+fn @signed_neg(arg0: i256) -> i256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -209,11 +203,10 @@ fn @signed_neg(arg0: i256) {
     revert 0, 36
   bb4:
     v4 = sub 0, arg0
-    mstore 128, v4
-    returndata 128, 32
+    ret v4
 }
 
-fn @narrow_add(arg0: u8, arg1: u8) {
+fn @narrow_add(arg0: u8, arg1: u8) -> u8 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -244,11 +237,10 @@ fn @narrow_add(arg0: u8, arg1: u8) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 128, v9
-    returndata 128, 32
+    ret v9
 }
 
-fn @unchecked_add(arg0: u256, arg1: u256) {
+fn @unchecked_add(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -258,11 +250,10 @@ fn @unchecked_add(arg0: u256, arg1: u256) {
     revert 0, 0
   bb2:
     v3 = add arg0, arg1
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @unchecked_neg(arg0: i256) {
+fn @unchecked_neg(arg0: i256) -> i256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -272,11 +263,10 @@ fn @unchecked_neg(arg0: i256) {
     revert 0, 0
   bb2:
     v3 = sub 0, arg0
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @unchecked_pow(arg0: u256, arg1: u256) {
+fn @unchecked_pow(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -286,11 +276,10 @@ fn @unchecked_pow(arg0: u256, arg1: u256) {
     revert 0, 0
   bb2:
     v3 = exp arg0, arg1
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @unchecked_call(arg0: u256, arg1: u256) {
+fn @unchecked_call(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -300,8 +289,7 @@ fn @unchecked_call(arg0: u256, arg1: u256) {
     revert 0, 0
   bb2:
     v3 = internal_call @checked_inner, 1, arg0, arg1
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
 fn @checked_inner(arg0: u256, arg1: u256) -> u256 {

@@ -1,0 +1,8 @@
+//@compile-flags: -Zmir-pipeline=lower-abi
+// A dynamic memory value is encoded into returndata by the ABI wrapper. The
+// later lower-abi-encode pass expands the semantic encoder operation.
+@module LowerAbiDynamicReturn
+fn @givesBytes(arg0: memorybytes) -> memorybytes [selector=0x0dead001, abi_returns=[memory_bytes]] {
+  bb0:
+    ret arg0
+}

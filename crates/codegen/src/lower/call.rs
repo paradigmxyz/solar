@@ -88,6 +88,15 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_internal_function_pointer_call(builder, callee, args, function);
         }
 
+        if let Some(TyKind::Fn(function)) = self.get_expr_type(callee).map(|ty| ty.kind)
+            && function.is_external()
+            && function.function_id.is_none()
+            && self.gcx.resolved_function(callee).is_none()
+        {
+            return self
+                .lower_external_function_pointer_call(builder, callee, args, call_opts, function);
+        }
+
         if let ExprKind::Member(base, member) = &callee.kind {
             return self
                 .lower_member_call_with_opts(builder, callee, base, *member, args, call_opts);
@@ -107,9 +116,17 @@ impl<'gcx> Lowerer<'gcx> {
                 hir::ItemId::Function(func_id) => {
                     return self.lower_internal_call(builder, func_id, args);
                 }
-                hir::ItemId::Contract(_) | hir::ItemId::Enum(_) => {
+                hir::ItemId::Contract(_) => {
                     if let Some(first_arg) = args.exprs().next() {
                         return Some(self.lower_value_expr(builder, first_arg));
+                    }
+                }
+                hir::ItemId::Enum(enum_id) => {
+                    if let Some(first_arg) = args.exprs().next() {
+                        let value = self.lower_value_expr(builder, first_arg);
+                        let variant_count = self.gcx.hir.enumm(enum_id).variants.len();
+                        self.emit_enum_range_check(builder, value, variant_count);
+                        return Some(value);
                     }
                 }
                 hir::ItemId::Struct(struct_id) => {
@@ -473,6 +490,70 @@ impl<'gcx> Lowerer<'gcx> {
             function.parameters.iter().map(|&ty| self.lower_type_from_ty(ty)).collect(),
             function.returns.iter().map(|&ty| self.lower_type_from_ty(ty)).collect(),
         )
+    }
+
+    fn lower_external_function_pointer_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        callee: &hir::Expr<'_>,
+        args: &CallArgs<'_>,
+        call_opts: Option<&[hir::NamedArg<'_>]>,
+        function: &'gcx TyFn<'gcx>,
+    ) -> Option<ValueId> {
+        let (success, ret_offset) =
+            self.emit_external_function_pointer_call(builder, callee, args, call_opts, function);
+        let failed = builder.iszero(success);
+        let fail_block = builder.create_block();
+        let continue_block = builder.create_block();
+        builder.branch(failed, fail_block, continue_block);
+
+        builder.switch_to_block(fail_block);
+        let zero = builder.imm_u64(0);
+        let size = builder.returndatasize();
+        builder.returndatacopy(zero, zero, size);
+        builder.revert(zero, size);
+
+        builder.switch_to_block(continue_block);
+        (!function.returns.is_empty()).then(|| builder.mload(ret_offset))
+    }
+
+    pub(super) fn emit_external_function_pointer_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        callee: &hir::Expr<'_>,
+        args: &CallArgs<'_>,
+        call_opts: Option<&[hir::NamedArg<'_>]>,
+        function: &'gcx TyFn<'gcx>,
+    ) -> (ValueId, ValueId) {
+        let function_value = self.lower_value_expr(builder, callee);
+        let selector_mask = builder.imm_u64(u32::MAX as u64);
+        let selector = builder.and(function_value, selector_mask);
+        let selector_shift = builder.imm_u64(224);
+        let selector_word = builder.shl(selector_shift, selector);
+        let address_shift = builder.imm_u64(32);
+        let address = builder.shr(address_shift, function_value);
+
+        let arg_exprs: Vec<_> = args.exprs().collect();
+        let (calldata_start, calldata_size) = match self.abi_encode_call_payload(
+            builder,
+            Some(selector_word),
+            arg_exprs.iter().copied(),
+        ) {
+            Ok(payload) => payload,
+            Err(guar) => {
+                let error = builder.error_value(guar);
+                return (error, error);
+            }
+        };
+
+        let ret_offset =
+            if function.returns.len() > 1 { calldata_start } else { builder.imm_u64(0) };
+        let ret_size = builder.imm_u64((function.returns.len() * 32) as u64);
+        let (gas, value) = self.lower_external_call_options(builder, call_opts, true);
+        let value = value.expect("value-enabled call options always produce a value");
+        let success =
+            builder.call(gas, address, value, calldata_start, calldata_size, ret_offset, ret_size);
+        (success, ret_offset)
     }
 
     pub(super) fn resolve_virtual_function_target(
@@ -929,6 +1010,14 @@ impl<'gcx> Lowerer<'gcx> {
                 let [] = self.builtin_args(builtin, args)?;
                 Ok(builder.gas())
             }
+            Builtin::Blockhash | Builtin::Blobhash => {
+                let [value] = self.lower_builtin_args(builder, builtin, args)?;
+                Ok(if builtin == Builtin::Blockhash {
+                    builder.blockhash(value)
+                } else {
+                    builder.blobhash(value)
+                })
+            }
             Builtin::Selfdestruct
             | Builtin::Require
             | Builtin::Assert
@@ -983,24 +1072,17 @@ impl<'gcx> Lowerer<'gcx> {
             }
             Builtin::AbiEncodeWithSignature => {
                 let ([signature], exprs) = self.builtin_args_with_rest(builtin, args)?;
-                if let hir::ExprKind::Lit(lit) = &signature.kind
-                    && let solar_ast::LitKind::Str(_, sig, _) = &lit.kind
-                {
-                    let hash = alloy_primitives::keccak256(sig.as_byte_str());
-                    let selector =
-                        U256::from(u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]])) << 224;
-                    let selector = builder.imm_u256(selector);
-                    let (data, len) =
-                        self.abi_encode_call_payload(builder, Some(selector), exprs.iter())?;
-                    let slice = builder.make_slice(data, len, crate::mir::SliceLocation::Memory);
-                    return Ok(self.materialize_memory_slice_bytes(builder, slice));
-                }
-                Err(self
-                    .gcx
-                    .dcx()
-                    .err("codegen requires a literal `abi.encodeWithSignature` signature")
-                    .span(signature.span)
-                    .emit())
+                let selector = self.lower_signature_selector(builder, signature);
+                let (data, len) =
+                    self.abi_encode_call_payload(builder, Some(selector), exprs.iter())?;
+                let slice = builder.make_slice(data, len, crate::mir::SliceLocation::Memory);
+                Ok(self.materialize_memory_slice_bytes(builder, slice))
+            }
+            Builtin::AbiEncodeCall => {
+                // `abi.encodeCall(F, (args))` as a `bytes memory` value.
+                let (data, len) = self.abi_encode_call_from_args(builder, args)?;
+                let slice = builder.make_slice(data, len, crate::mir::SliceLocation::Memory);
+                Ok(self.materialize_memory_slice_bytes(builder, slice))
             }
             Builtin::AbiDecode => {
                 let [data, types] = self.builtin_args(builtin, args)?;
@@ -1063,8 +1145,23 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::YulMstore => lower!(mstore(offset, value)),
             Builtin::YulMstore8 => lower!(mstore8(offset, value)),
             Builtin::YulMcopy => {
-                let [dst, src, size] = self.lower_builtin_args(builder, builtin, call_args)?;
-                self.mcopy(builder, dst, src, size, Some(call_args.span));
+                // The Yul `mcopy` builtin is only available on Cancun-compatible
+                // VMs; solc rejects it on older targets. Compiler-generated
+                // memory copies use `Self::mcopy`, which falls back to the
+                // identity precompile — but an explicit assembly `mcopy` keeps
+                // the diagnostic.
+                if self.gcx.sess.opts.evm_version.has_mcopy() {
+                    let [dst, src, size] = self.lower_builtin_args(builder, builtin, call_args)?;
+                    self.mcopy(builder, dst, src, size, Some(call_args.span));
+                } else {
+                    return Err(self
+                        .gcx
+                        .dcx()
+                        .err("codegen requires Cancun-compatible EVM for memory copy")
+                        .span(call_args.span)
+                        .help("compile with `--evm-version cancun` or newer")
+                        .emit());
+                }
             }
             Builtin::YulSstore => lower!(sstore(slot, value)),
             Builtin::YulTstore => lower!(tstore(slot, value)),
@@ -1237,14 +1334,15 @@ impl<'gcx> Lowerer<'gcx> {
             return Some(self.lower_struct_constructor(builder, struct_id, args));
         }
 
-        // Handle enum conversion written as `Container.Enum(x)`. An enum value is
-        // represented by its integer, so — like the `Ident` enum-callee path in
-        // `lower_call` — the conversion is the identity on the argument.
+        // Handle enum conversion written as `Container.Enum(x)`.
         if let Some(resolved) = resolved
-            && let hir::Res::Item(hir::ItemId::Enum(_)) = resolved.res
+            && let hir::Res::Item(hir::ItemId::Enum(enum_id)) = resolved.res
             && let Some(arg) = args.exprs().next()
         {
-            return Some(self.lower_value_expr(builder, arg));
+            let value = self.lower_value_expr(builder, arg);
+            let variant_count = self.gcx.hir.enumm(enum_id).variants.len();
+            self.emit_enum_range_check(builder, value, variant_count);
+            return Some(value);
         }
 
         // Handle library function calls: Library.func(args).
@@ -1728,15 +1826,6 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
         let func = self.gcx.hir.function(func_id);
-        if func.body.is_none() {
-            let guar = self
-                .gcx
-                .dcx()
-                .err("codegen cannot lower an internal function without a body")
-                .span(func.span)
-                .emit();
-            return (!func.returns.is_empty()).then(|| builder.error_value(guar));
-        }
 
         // A storage-reference parameter (a `mapping`, or an array/struct in
         // `storage`) is passed by slot number, so such an argument is lowered to
@@ -1752,13 +1841,40 @@ impl<'gcx> Lowerer<'gcx> {
                 {
                     slot
                 } else {
-                    // A `bytes memory` parameter receives one word; an
-                    // ABI-encode payload (a memory slice) materializes first.
+                    // A memory parameter receives one word; a logical slice
+                    // materializes into the memory object the parameter expects.
                     let value = self.lower_value_expr(builder, arg);
-                    self.coerce_memory_slice_value(builder, value)
+                    match params.get(i) {
+                        Some(&param_id) => self.coerce_arg_for_param(builder, param_id, arg, value),
+                        None => self.coerce_memory_slice_value(builder, value),
+                    }
                 }
             })
             .collect();
+
+        self.lower_internal_call_values(builder, func_id, arg_vals)
+    }
+
+    /// Lowers an internal call given already-lowered argument values. Used for
+    /// operator expressions, whose operands are plain values rather than
+    /// argument expressions.
+    pub(super) fn lower_internal_call_values(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        arg_vals: Vec<ValueId>,
+    ) -> Option<ValueId> {
+        let func = self.gcx.hir.function(func_id);
+        if func.body.is_none() {
+            let guar = self
+                .gcx
+                .dcx()
+                .err("codegen cannot lower an internal function without a body")
+                .span(func.span)
+                .emit();
+            return (!func.returns.is_empty()).then(|| builder.error_value(guar));
+        }
+        let params = func.parameters;
 
         if func.returns.is_empty() {
             self.emit_internal_void_call(builder, func_id, arg_vals);
@@ -1888,7 +2004,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         for (i, &param_id) in func.parameters.iter().enumerate() {
             if let Some(&arg_val) = arg_vals.get(i) {
-                self.locals.insert(param_id, arg_val);
+                self.bind_param_value(builder, param_id, arg_val);
             }
         }
 
@@ -2023,7 +2139,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         for (i, &param_id) in parameters.iter().enumerate() {
             if let Some(&arg_val) = arg_vals.get(i) {
-                self.locals.insert(param_id, arg_val);
+                self.bind_param_value(builder, param_id, arg_val);
             }
         }
 
@@ -2338,7 +2454,11 @@ impl<'gcx> Lowerer<'gcx> {
                 {
                     arg_vals.push(slot);
                 } else {
-                    arg_vals.push(self.lower_value_expr(builder, arg));
+                    let value = self.lower_value_expr(builder, arg);
+                    arg_vals.push(match func.parameters.get(param_idx) {
+                        Some(&param_id) => self.coerce_arg_for_param(builder, param_id, arg, value),
+                        None => value,
+                    });
                 }
             }
 

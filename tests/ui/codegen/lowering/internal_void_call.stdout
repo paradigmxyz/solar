@@ -1,10 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/internal_void_call.sol:InternalVoidCall ===
 @module InternalVoidCall
-fn @value() {
+fn @value() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 
 fn @set(arg0: u256) {

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:MemoryFixedArrayAlloc ===
 @module MemoryFixedArrayAlloc
-fn @guardedFix(arg0: u256) {
+fn @guardedFix(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -25,11 +25,10 @@ fn @guardedFix(arg0: u256) {
   bb4:
     v8 = memory_object_element_addr memoryfixedarray<3, 1>, v3, arg0
     v9 = mload v8
-    mstore 128, v9
-    returndata 128, 32
+    ret v9
 }
 
-fn @structArr(arg0: u256) {
+fn @structArr(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -59,11 +58,10 @@ fn @structArr(arg0: u256) {
   bb4:
     v12 = memory_object_element_addr memoryfixedarray<3, 1>, v10, arg0
     v13 = mload v12
-    mstore 128, v13
-    returndata 128, 32
+    ret v13
 }
 
-fn @nested(arg0: u256, arg1: u256) {
+fn @nested(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -116,11 +114,10 @@ fn @nested(arg0: u256, arg1: u256) {
   bb6:
     v23 = memory_object_element_addr memoryfixedarray<2, 1>, v21, arg1
     v24 = mload v23
-    mstore 128, v24
-    returndata 128, 32
+    ret v24
 }
 
-fn @fmpIntegrity() {
+fn @fmpIntegrity() -> (u256, u256) [abi_returns=[word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
@@ -172,13 +169,10 @@ fn @fmpIntegrity() {
   bb8:
     v18 = memory_object_element_addr memoryarray<1>, v10, 0
     v19 = mload v18
-    mstore 128, v15
-    v20 = add 128, 32
-    mstore v20, v19
-    returndata 128, 64
+    ret v15, v19
 }
 
-fn @literal() {
+fn @literal() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = add v0, 0
@@ -189,13 +183,12 @@ fn @literal() {
     mstore v3, 3
     v4 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
     v5 = mload v4
-    mstore 128, v5
-    returndata 128, 32
+    ret v5
 }
 
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
 @module NamedReturnAndDelete
-fn @namedReturn() {
+fn @namedReturn() -> (memoryfixedarray, u256) [abi_returns=[array<3, word>, word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
@@ -260,24 +253,10 @@ fn @namedReturn() {
     mstore 160, v26
     v27 = mload 128
     v28 = mload 160
-    v29 = memory_object_element_addr memoryfixedarray<3, 1>, v27, 0
-    v30 = mload v29
-    mstore 128, v30
-    v31 = add 128, 32
-    v32 = memory_object_element_addr memoryfixedarray<3, 1>, v27, 1
-    v33 = mload v32
-    mstore v31, v33
-    v34 = add v31, 32
-    v35 = memory_object_element_addr memoryfixedarray<3, 1>, v27, 2
-    v36 = mload v35
-    mstore v34, v36
-    v37 = add v34, 32
-    v38 = add 128, 96
-    mstore v38, v28
-    returndata 128, 128
+    ret v27, v28
 }
 
-fn @emptyMemoryReferences() {
+fn @emptyMemoryReferences() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v0, 0
@@ -324,11 +303,10 @@ fn @emptyMemoryReferences() {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    mstore 128, v19
-    returndata 128, 32
+    ret v19
 }
 
-fn @emptyNamedReturns() {
+fn @emptyNamedReturns() -> (memoryarray, memorybytes) [abi_returns=[memory_array<word>, memory_bytes]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v0, 0
@@ -338,42 +316,10 @@ fn @emptyNamedReturns() {
     mstore 160, v1
     v2 = mload 128
     v3 = mload 160
-    v4 = alloc raw, exact, uninitialized, infallible, 64
-    v5 = add v4, 64
-    v6 = sub v5, v4
-    mstore v4, v6
-    v7 = memory_object_len memoryarray, v2
-    mstore v5, v7
-    v8 = mul v7, 32
-    v9 = add v5, 32
-    v10 = memory_object_data memoryarray, v2
-    v11 = add v9, v8
-    mcopy v9, v10, v8
-    v12 = add v4, 32
-    v13 = sub v11, v4
-    mstore v12, v13
-    v14 = memory_object_len memorybytes, v3
-    mstore v11, v14
-    v15 = not 31
-    v16 = add v14, 31
-    v17 = and v16, v15
-    v18 = add v11, 32
-    v19 = iszero v17
-    jumpi v19, bb2, bb1
-  bb1:
-    v20 = sub v17, 32
-    v21 = add v18, v20
-    mstore v21, 0
-    jump bb2
-  bb2:
-    v22 = memory_object_data memorybytes, v3
-    v23 = add v18, v17
-    mcopy v18, v22, v14
-    v24 = sub v23, v4
-    returndata v4, v24
+    ret v2, v3
 }
 
-fn @fullyInitializedNamedStruct() {
+fn @fullyInitializedNamedStruct() -> memorystruct [abi_returns=[tuple<memory_array<word>, memory_bytes>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v1 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
@@ -431,51 +377,10 @@ fn @fullyInitializedNamedStruct() {
     v21 = memory_object_field_addr memorystruct<2>, v20, 1
     mstore v21, v19
     v22 = mload 128
-    v23 = alloc raw, exact, uninitialized, infallible, 32
-    v24 = add v23, 32
-    v25 = sub v24, v23
-    mstore v23, v25
-    v26 = memory_object_field_addr memorystruct<2>, v22, 0
-    v27 = mload v26
-    v28 = memory_object_field_addr memorystruct<2>, v22, 1
-    v29 = mload v28
-    v30 = add v24, 64
-    v31 = sub v30, v24
-    mstore v24, v31
-    v32 = memory_object_len memoryarray, v27
-    mstore v30, v32
-    v33 = mul v32, 32
-    v34 = add v30, 32
-    v35 = memory_object_data memoryarray, v27
-    v36 = add v34, v33
-    mcopy v34, v35, v33
-    v37 = add v24, 32
-    v38 = sub v36, v24
-    mstore v37, v38
-    v39 = memory_object_len memorybytes, v29
-    mstore v36, v39
-    v40 = not 31
-    v41 = add v39, 31
-    v42 = and v41, v40
-    v43 = add v36, 32
-    v44 = iszero v42
-    jumpi v44, bb10, bb9
-  bb9:
-    v45 = sub v42, 32
-    v46 = add v43, v45
-    mstore v46, 0
-    jump bb10
-  bb10:
-    v47 = memory_object_data memorybytes, v29
-    v48 = add v43, v42
-    mcopy v43, v47, v39
-    v49 = sub v48, v24
-    v50 = add v24, v49
-    v51 = sub v50, v23
-    returndata v23, v51
+    ret v22
 }
 
-fn @deleteInPlace() {
+fn @deleteInPlace() -> (u256, u256) [abi_returns=[word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
@@ -501,9 +406,6 @@ fn @deleteInPlace() {
     v11 = mload v10
     v12 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
     v13 = mload v12
-    mstore 128, v11
-    v14 = add 128, 32
-    mstore v14, v13
-    returndata 128, 64
+    ret v11, v13
 }
 

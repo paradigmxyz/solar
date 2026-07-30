@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_staticcall_evm_version.sol:Caller ===
 @module Caller
-fn @probe(arg0: address) {
+fn @probe(arg0: address) -> bool [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -18,11 +18,10 @@ fn @probe(arg0: address) {
   bb4:
     v6 = gas
     v7 = staticcall v6, arg0, 0, 0, 0, 0
-    mstore 128, v7
-    returndata 128, 32
+    ret v7
 }
 
-fn @probeCall(arg0: address) {
+fn @probeCall(arg0: address) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -53,7 +52,6 @@ fn @probeCall(arg0: address) {
     v17 = memory_object_data memorybytes, v16
     returndatacopy v17, v10, v11
     v18 = mload v16
-    mstore 128, v18
-    returndata 128, 32
+    ret v18
 }
 

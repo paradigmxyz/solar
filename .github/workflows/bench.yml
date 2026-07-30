@@ -2,6 +2,10 @@ name: Benchmark
 
 permissions: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main]
@@ -68,6 +72,8 @@ jobs:
           "$RUNNER_TEMP/schema-test/bin/pip" install jsonschema==4.25.1
           "$RUNNER_TEMP/schema-test/bin/python" -m unittest discover \
             -s .github/scripts -p 'test_check_codegen_benchmark.py'
+          "$RUNNER_TEMP/schema-test/bin/python" -m unittest discover \
+            -s .github/scripts -p 'test_run_large_codegen_benchmark.py'
 
       - name: Checkout benchmark corpus
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -180,6 +186,20 @@ jobs:
             echo "::warning::Repository codegen benchmark failed to complete"
           fi
 
+      - name: Run large-contract codegen benchmark
+        id: large-bench
+        run: |
+          set -euo pipefail
+          mkdir -p target/codegen-bench
+          timing="target/codegen-bench/large-timing.json"
+          /usr/bin/time -q -f '{"wall_time_seconds": %e}' -o "$timing.tmp" \
+            python3 .github/scripts/run_large_codegen_benchmark.py \
+            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
+            --solar target/debug/solar \
+            --start-anvil \
+            --output target/codegen-bench/large.json
+          mv "$timing.tmp" "$timing"
+
       - name: Generate runtime benchmark report
         id: runtime-report
         if: always()
@@ -192,8 +212,10 @@ jobs:
           args=(
             --micro target/codegen-bench/micro.json
             --repo target/codegen-bench/repo.json
+            --large target/codegen-bench/large.json
             --micro-timing target/codegen-bench/micro-timing.json
             --repo-timing target/codegen-bench/repo-timing.json
+            --large-timing target/codegen-bench/large-timing.json
             --common-output target/codegen-bench/common.json
           )
           if [[ -f target/codegen-bench/baseline/micro.json ]]; then
@@ -201,6 +223,9 @@ jobs:
           fi
           if [[ -f target/codegen-bench/baseline/repo.json ]]; then
             args+=(--baseline-repo target/codegen-bench/baseline/repo.json)
+          fi
+          if [[ -f target/codegen-bench/baseline/large.json ]]; then
+            args+=(--baseline-large target/codegen-bench/baseline/large.json)
           fi
           python3 .github/scripts/check_codegen_benchmark.py "${args[@]}" \
             | tee target/codegen-bench/report.md
@@ -237,6 +262,7 @@ jobs:
           path: |
             target/codegen-bench/micro.json
             target/codegen-bench/repo.json
+            target/codegen-bench/large.json
           retention-days: 90
           if-no-files-found: ignore
 
@@ -264,9 +290,9 @@ jobs:
         uses: taiki-e/install-action@a6b2e2dcd845ddd7f509ce4f3ed3d922b80cc5d9 # v2.84.0
         with:
           tool: cargo-codspeed
-      - name: Build the benchmark target(s)
+      - name: Build the benchmark targets
         run: >-
-          cargo codspeed build --profile profiling
+          cargo codspeed build -m simulation --profile profiling
           -p solar-bench -p solar-lsp
           --bench criterion --bench lsp
           --features solar-lsp/bench
@@ -274,10 +300,10 @@ jobs:
         uses: CodSpeedHQ/action@f99becdce5e5d51fd556489ebef684f4ecfd6286 # v4.18.5
         with:
           run: >-
-            cargo codspeed run
+            cargo codspeed run -m simulation
             -p solar-bench -p solar-lsp
             --bench criterion --bench lsp
-          mode: instrumentation
+          mode: simulation
           token: ${{ secrets.CODSPEED_TOKEN }}
 
   gungraun:

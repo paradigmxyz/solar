@@ -1,16 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_multi_return.sol:Lib ===
 @module Lib
-fn @pair() {
+fn @pair() -> (u256, u256) [abi_returns=[word, word]] {
   bb0:
-    mstore 128, 4
-    v0 = add 128, 32
-    mstore v0, 5
-    returndata 128, 64
+    ret 4, 5
 }
 
 // === ROOT/tests/ui/codegen/lowering/linked_library_multi_return.sol:C ===
 @module C
-fn @pair() {
+fn @pair() -> (u256, u256) [abi_returns=[word, word]] {
   bb0:
     v0 = fmp
     mstore v0, 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
@@ -28,9 +25,6 @@ fn @pair() {
     v6 = mload 32 !metadata(memory=scratch)
     v7 = add v6, 32
     v8 = mload v7
-    mstore 128, v5
-    v9 = add 128, 32
-    mstore v9, v8
-    returndata 128, 64
+    ret v5, v8
 }
 

@@ -16,7 +16,7 @@ fn @_empty() -> memorybytes {
     ret v7
 }
 
-fn @emptyLen() {
+fn @emptyLen() -> u256 [abi_returns=[word]] {
   bb0:
     mstore 128, 0
     mstore 160, 0
@@ -27,8 +27,7 @@ fn @emptyLen() {
     v1 = mload 160
     v2 = make_calldata_slice v0, v1
     v3 = internal_call @_sink, 1, v2
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
 fn @_sink(arg0: calldataslice) -> u256 {
@@ -37,7 +36,7 @@ fn @_sink(arg0: calldataslice) -> u256 {
     ret v0
 }
 
-fn @trimLen(arg0: calldataslice) {
+fn @trimLen(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -60,11 +59,10 @@ fn @trimLen(arg0: calldataslice) {
     v10 = mload 160
     v11 = make_calldata_slice v9, v10
     v12 = slice_len v11
-    mstore 128, v12
-    returndata 128, 32
+    ret v12
 }
 
-fn @conditional(arg0: calldataslice) {
+fn @conditional(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -88,7 +86,6 @@ fn @conditional(arg0: calldataslice) {
     v8 = mload 160
     v9 = make_calldata_slice v7, v8
     v10 = slice_len v9
-    mstore 128, v10
-    returndata 128, 32
+    ret v10
 }
 

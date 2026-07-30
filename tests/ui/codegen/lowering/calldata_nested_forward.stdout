@@ -160,7 +160,7 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
     v19 = mload v14
     v20 = calldataload v19
     v21 = add v6, v20
-    v22 = alloc raw, exact, uninitialized, infallible, 64
+    v22 = alloc raw, exact, uninitialized, infallible, 96
     v23 = calldataload v21
     mstore v22, v23
     v24 = add v21, 32
@@ -171,12 +171,12 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
     v29 = lt v28, v27
     jumpi v29, bb12, bb13
   bb11:
-    v49 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v12
-    v50 = slice_ptr v49
-    v51 = slice_len v49
-    v52 = gas
-    v53 = call v52, arg1, 0, v50, v51, 0, 0
-    jumpi v53, bb17, bb16
+    v50 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v12
+    v51 = slice_ptr v50
+    v52 = slice_len v50
+    v53 = gas
+    v54 = call v53, arg1, 0, v51, v52, 0, 0
+    jumpi v54, bb17, bb16
   bb12:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -204,22 +204,24 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
     calldatacopy v37, v40, v27
     v41 = add v22, 32
     mstore v41, v36
-    v42 = mload v15
-    mstore v42, v22
-    v43 = mload v13
-    v44 = sub v43, 1
-    mstore v13, v44
-    v45 = mload v14
-    v46 = add v45, 32
-    mstore v14, v46
-    v47 = mload v15
-    v48 = add v47, 32
-    mstore v15, v48
+    v42 = add v22, 64
+    mstore v42, v21
+    v43 = mload v15
+    mstore v43, v22
+    v44 = mload v13
+    v45 = sub v44, 1
+    mstore v13, v45
+    v46 = mload v14
+    v47 = add v46, 32
+    mstore v14, v47
+    v48 = mload v15
+    v49 = add v48, 32
+    mstore v15, v49
     jump bb9
   bb16:
-    v54 = returndatasize
-    returndatacopy 0, 0, v54 !metadata(memory=scratch)
-    revert 0, v54
+    v55 = returndatasize
+    returndatacopy 0, 0, v55 !metadata(memory=scratch)
+    revert 0, v55
   bb17:
     stop
 }

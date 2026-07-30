@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/external_view_call_evm_version.sol:Caller ===
 @module Caller
-fn @read(arg0: address) {
+fn @read(arg0: address) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -28,7 +28,6 @@ fn @read(arg0: address) {
     revert 0, v11
   bb6:
     v12 = mload 0 !metadata(memory=scratch)
-    mstore 128, v12
-    returndata 128, 32
+    ret v12
 }
 

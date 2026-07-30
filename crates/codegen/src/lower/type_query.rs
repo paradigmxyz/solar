@@ -1,7 +1,6 @@
 //! Expression type queries used by lowering.
 
 use super::Lowerer;
-use solar_ast::DataLocation;
 use solar_interface::diagnostics::ErrorGuaranteed;
 use solar_sema::{
     hir::{self, ElementaryType},
@@ -52,12 +51,9 @@ impl<'gcx> Lowerer<'gcx> {
         Some((variable.parent?.as_enum()?, res.enum_variant_index(&self.gcx.hir)?))
     }
 
-    pub(super) fn is_dynamic_memory_array_expr(&self, expr: &hir::Expr<'_>) -> bool {
-        let Some(ty) = self.get_expr_type(expr) else { return false };
-        match ty.kind {
-            TyKind::Ref(inner, DataLocation::Memory) => matches!(inner.kind, TyKind::DynArray(_)),
-            _ => false,
-        }
+    pub(super) fn is_dynamic_array_expr(&self, expr: &hir::Expr<'_>) -> bool {
+        self.get_expr_type(expr)
+            .is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::DynArray(_)))
     }
 
     pub(super) fn is_dynamic_bytes_expr(&self, expr: &hir::Expr<'_>) -> bool {
