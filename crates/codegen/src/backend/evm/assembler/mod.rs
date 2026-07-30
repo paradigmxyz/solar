@@ -989,7 +989,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
     }
 }
 
-// DO NOT ADD CODEGEN TESTS HERE. USE UI TESTS UNDER tests/ui/codegen/disasm INSTEAD.
+// DO NOT ADD CODEGEN TESTS HERE. USE UI TESTS UNDER tests/ui/codegen INSTEAD.
 #[cfg(test)]
 mod tests {
     use super::*;
