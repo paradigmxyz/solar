@@ -360,7 +360,7 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
   iterators; never scan `0..domain_size` and test membership one index at a time.
 - **Symbol comparisons**: Use `sym::name` or `kw::Keyword` instead of `.as_str()` for performance. Add new symbols to the `symbols! { ... }` list in `crates/interface/src/symbol.rs`.
 - **No inline interning of fixed strings**: Never call `Symbol::intern("...")` with a string literal. Add the name to the pre-interned `symbols!` set and use `sym::name`; `Symbol::intern` is only for strings built at runtime.
-- **Arena allocation**: AST nodes use arenas for performance.
+- **Arena allocation**: AST nodes use arenas for performance. When needing to allocate on arena, prefer allocating and writing into it if possible, and if not try to use the specialized methods like `alloc_vec`, `alloc_smallvec`, `alloc_from_iter`, etc. See @crates/data-structures/src/bump_ext.rs.
 - **Benchmarks**: See @benches/README.md to benchmark when working on performance-critical code.
 - Do not describe Solar in the third person. This repository is the project:
   say "we", "this codebase", or "the compiler" instead of "Solar does",
