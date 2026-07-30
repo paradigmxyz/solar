@@ -51,3 +51,4 @@ fn @baseValue() -> u256 [abi_returns=[word]] {
     v1 = loadimmutable value0_
     ret v1
 }
+
