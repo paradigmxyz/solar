@@ -436,7 +436,7 @@ fn requested_bytecode_contracts(
     output_selection: &OutputSelection<'_>,
 ) -> ContractSelection {
     let bytecode_outputs = OutputSelectionFlags::BYTECODE | OutputSelectionFlags::DEPLOYED_BYTECODE;
-    if output_selection.contract("*", "*").intersects(bytecode_outputs) {
+    if output_selection.all().intersects(bytecode_outputs) {
         return ContractSelection::All;
     }
 
