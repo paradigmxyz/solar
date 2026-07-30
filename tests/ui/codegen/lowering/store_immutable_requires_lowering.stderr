@@ -1,0 +1,8 @@
+error: immutable assignments must be lowered before EVM codegen
+   ╭▸ ROOT/tests/ui/codegen/lowering/store_immutable_requires_lowering.sol:LL:CC
+   │
+LL │ contract StoreImmutableRequiresLowering {
+   ╰╴         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

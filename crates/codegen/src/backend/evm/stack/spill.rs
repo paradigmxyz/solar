@@ -10,7 +10,7 @@
 //! with allocations made in that block, not with the number of stable
 //! reservations in the function.
 
-use crate::{memory::EvmMemoryLayout, mir::ValueId};
+use crate::mir::ValueId;
 use solar_data_structures::{
     bit_set::GrowableBitSet,
     map::{FxHashMap, StdEntry},
@@ -21,20 +21,6 @@ use solar_data_structures::{
 pub(crate) struct SpillSlot {
     /// Offset in the spill area (in 32-byte words).
     pub offset: u32,
-}
-
-impl SpillSlot {
-    /// Returns this slot's absolute address in the constructor spill region.
-    ///
-    /// Constructor lowering raises the free-memory pointer above the maximum
-    /// address used by this region. Other function kinds resolve logical slot
-    /// offsets relative to their own static memory or frame base.
-    #[must_use]
-    pub(crate) const fn constructor_byte_offset(&self) -> u32 {
-        // Stack scheduling is already a physical backend phase, so spill slots
-        // use the absolute area selected by the shared EVM memory policy.
-        (EvmMemoryLayout::SPILL_BASE as u32) + self.offset * (EvmMemoryLayout::WORD_SIZE as u32)
-    }
 }
 
 /// Manages memory slots for spilled MIR values.
@@ -262,10 +248,6 @@ mod tests {
         assert_eq!(slot0.offset, 0);
         assert_eq!(slot1.offset, 1);
         assert_eq!(slot2.offset, 2);
-        // Spill slots use the backend spill area from the memory policy.
-        assert_eq!(slot0.constructor_byte_offset(), EvmMemoryLayout::SPILL_BASE as u32);
-        assert_eq!(slot1.constructor_byte_offset(), EvmMemoryLayout::SPILL_BASE as u32 + 32);
-        assert_eq!(slot2.constructor_byte_offset(), EvmMemoryLayout::SPILL_BASE as u32 + 64);
     }
 
     #[test]
