@@ -2,7 +2,7 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 0x45a
+  push 912
   dup1
   push 10
   push 0
@@ -63,7 +63,7 @@ bb5:
   calldataload
   add
   dup1
-  push 800
+  push 832
   mstore
   push 4
   calldataload
@@ -75,7 +75,7 @@ bb5:
   calldataload
   add
   dup1
-  push 832
+  push 864
   mstore
   push 4
   calldataload
@@ -87,7 +87,7 @@ bb5:
   calldataload
   add
   dup1
-  push 864
+  push 896
   mstore
   push 4
   calldataload
@@ -99,7 +99,7 @@ bb5:
   calldataload
   add
   dup1
-  push 896
+  push 928
   mstore
   push 4
   calldataload
@@ -111,7 +111,7 @@ bb5:
   calldataload
   add
   dup1
-  push 928
+  push 960
   mstore
   push 4
   calldataload
@@ -123,7 +123,7 @@ bb5:
   calldataload
   add
   dup1
-  push 960
+  push 992
   mstore
   push 4
   calldataload
@@ -135,7 +135,7 @@ bb5:
   calldataload
   add
   dup1
-  push 992
+  push 0x400
   mstore
   push 4
   calldataload
@@ -147,7 +147,7 @@ bb5:
   calldataload
   add
   dup1
-  push 0x400
+  push 0x420
   mstore
   push 4
   calldataload
@@ -159,7 +159,7 @@ bb5:
   calldataload
   add
   dup1
-  push 0x420
+  push 0x440
   mstore
   push 4
   calldataload
@@ -171,7 +171,7 @@ bb5:
   calldataload
   add
   dup1
-  push 0x440
+  push 0x460
   mstore
   push 4
   calldataload
@@ -183,7 +183,7 @@ bb5:
   calldataload
   add
   dup1
-  push 0x460
+  push 0x480
   mstore
   push 4
   calldataload
@@ -195,7 +195,7 @@ bb5:
   calldataload
   add
   dup1
-  push 0x480
+  push 0x4a0
   mstore
   push 4
   calldataload
@@ -207,7 +207,7 @@ bb5:
   calldataload
   add
   dup1
-  push 0x4a0
+  push 0x4c0
   mstore
   push 4
   calldataload
@@ -219,7 +219,7 @@ bb5:
   calldataload
   add
   dup1
-  push 0x4c0
+  push 0x4e0
   mstore
   push 4
   calldataload
@@ -231,7 +231,7 @@ bb5:
   calldataload
   add
   dup1
-  push 0x4e0
+  push 0x500
   mstore
   push 4
   calldataload
@@ -243,7 +243,7 @@ bb5:
   calldataload
   add
   dup1
-  push 0x500
+  push 0x520
   mstore
   push 4
   calldataload
@@ -255,7 +255,7 @@ bb5:
   calldataload
   add
   dup1
-  push 0x520
+  push 0x540
   mstore
   push 4
   calldataload
@@ -267,7 +267,7 @@ bb5:
   calldataload
   add
   dup1
-  push 0x540
+  push 0x560
   mstore
   push 4
   calldataload
@@ -279,7 +279,7 @@ bb5:
   calldataload
   add
   dup1
-  push 0x560
+  push 0x580
   mstore
   push 4
   calldataload
@@ -291,7 +291,7 @@ bb5:
   calldataload
   add
   dup1
-  push 0x580
+  push 0x5a0
   mstore
   push 4
   calldataload
@@ -303,23 +303,7 @@ bb5:
   calldataload
   add
   dup1
-  push 0x5a0
-  mstore
-  push 4
-  calldataload
-  gt
-  push bb50
-  jumpi
-  push 800
-  mload
-  dup1
-  push 800
-  mstore
-  push 4
-  calldataload
-  add
-  dup1
-  push 160
+  push 0x5c0
   mstore
   push 4
   calldataload
@@ -328,351 +312,253 @@ bb5:
   jumpi
   push 832
   mload
-  dup1
-  push 832
-  mstore
-  push 160
-  mload
+  push 4
+  calldataload
   add
   dup1
-  push 192
-  mstore
-  push 160
-  mload
-  dup1
   push 160
   mstore
+  push 4
+  calldataload
   gt
   push bb50
   jumpi
   push 864
   mload
-  dup1
-  push 864
-  mstore
-  push 192
+  push 160
   mload
   add
   dup1
-  push 224
-  mstore
   push 192
+  mstore
+  push 160
   mload
-  dup1
-  push 192
-  mstore
   gt
   push bb50
   jumpi
   push 896
   mload
-  dup1
-  push 896
-  mstore
-  push 224
+  push 192
   mload
   add
   dup1
-  push 256
-  mstore
   push 224
+  mstore
+  push 192
   mload
-  dup1
-  push 224
-  mstore
   gt
   push bb50
   jumpi
   push 928
   mload
-  dup1
-  push 928
-  mstore
-  push 256
+  push 224
   mload
   add
   dup1
-  push 288
-  mstore
   push 256
+  mstore
+  push 224
   mload
-  dup1
-  push 256
-  mstore
   gt
   push bb50
   jumpi
   push 960
   mload
-  dup1
-  push 960
-  mstore
-  push 288
+  push 256
   mload
   add
   dup1
-  push 320
-  mstore
   push 288
+  mstore
+  push 256
   mload
-  dup1
-  push 288
-  mstore
   gt
   push bb50
   jumpi
   push 992
   mload
-  dup1
-  push 992
-  mstore
-  push 320
+  push 288
   mload
   add
   dup1
-  push 352
-  mstore
   push 320
+  mstore
+  push 288
   mload
-  dup1
-  push 320
-  mstore
   gt
   push bb50
   jumpi
   push 0x400
   mload
-  dup1
-  push 0x400
-  mstore
-  push 352
+  push 320
   mload
   add
   dup1
-  push 384
-  mstore
   push 352
+  mstore
+  push 320
   mload
-  dup1
-  push 352
-  mstore
   gt
   push bb50
   jumpi
   push 0x420
   mload
-  dup1
-  push 0x420
-  mstore
-  push 384
+  push 352
   mload
   add
   dup1
-  push 416
-  mstore
   push 384
+  mstore
+  push 352
   mload
-  dup1
-  push 384
-  mstore
   gt
   push bb50
   jumpi
   push 0x440
   mload
-  dup1
-  push 0x440
-  mstore
-  push 416
+  push 384
   mload
   add
   dup1
-  push 448
-  mstore
   push 416
+  mstore
+  push 384
   mload
-  dup1
-  push 416
-  mstore
   gt
   push bb50
   jumpi
   push 0x460
   mload
-  dup1
-  push 0x460
-  mstore
-  push 448
+  push 416
   mload
   add
   dup1
-  push 480
-  mstore
   push 448
+  mstore
+  push 416
   mload
-  dup1
-  push 448
-  mstore
   gt
   push bb50
   jumpi
   push 0x480
   mload
-  dup1
-  push 0x480
-  mstore
-  push 480
+  push 448
   mload
   add
   dup1
-  push 512
-  mstore
   push 480
+  mstore
+  push 448
   mload
-  dup1
-  push 480
-  mstore
   gt
   push bb50
   jumpi
   push 0x4a0
   mload
-  dup1
-  push 0x4a0
-  mstore
-  push 512
+  push 480
   mload
   add
   dup1
-  push 544
-  mstore
   push 512
+  mstore
+  push 480
   mload
-  dup1
-  push 512
-  mstore
   gt
   push bb50
   jumpi
   push 0x4c0
   mload
-  dup1
-  push 0x4c0
-  mstore
-  push 544
+  push 512
   mload
   add
   dup1
-  push 576
-  mstore
   push 544
+  mstore
+  push 512
   mload
-  dup1
-  push 544
-  mstore
   gt
   push bb50
   jumpi
   push 0x4e0
   mload
-  dup1
-  push 0x4e0
-  mstore
-  push 576
+  push 544
   mload
   add
   dup1
-  push 608
-  mstore
   push 576
+  mstore
+  push 544
   mload
-  dup1
-  push 576
-  mstore
   gt
   push bb50
   jumpi
   push 0x500
   mload
-  dup1
-  push 0x500
-  mstore
-  push 608
+  push 576
   mload
   add
   dup1
-  push 640
-  mstore
   push 608
+  mstore
+  push 576
   mload
-  dup1
-  push 608
-  mstore
   gt
   push bb50
   jumpi
   push 0x520
   mload
-  dup1
-  push 0x520
-  mstore
-  push 640
+  push 608
   mload
   add
   dup1
-  push 672
-  mstore
   push 640
+  mstore
+  push 608
   mload
-  dup1
-  push 640
-  mstore
   gt
   push bb50
   jumpi
   push 0x540
   mload
-  dup1
-  push 0x540
-  mstore
-  push 672
+  push 640
   mload
   add
   dup1
-  push 704
-  mstore
   push 672
+  mstore
+  push 640
   mload
-  dup1
-  push 672
-  mstore
   gt
   push bb50
   jumpi
   push 0x560
   mload
-  dup1
-  push 0x560
-  mstore
-  push 704
+  push 672
   mload
   add
   dup1
-  push 736
-  mstore
   push 704
+  mstore
+  push 672
   mload
-  dup1
-  push 704
-  mstore
   gt
   push bb50
   jumpi
   push 0x580
   mload
+  push 704
+  mload
+  add
   dup1
-  push 0x580
+  push 736
   mstore
+  push 704
+  mload
+  gt
+  push bb50
+  jumpi
+  push 0x5a0
+  mload
   push 736
   mload
   add
@@ -681,35 +567,26 @@ bb5:
   mstore
   push 736
   mload
-  dup1
-  push 736
-  mstore
   gt
   push bb50
   jumpi
-  push 0x5a0
+  push 0x5c0
   mload
-  dup1
-  push 0x5a0
-  mstore
   push 768
   mload
   add
   dup1
-  push 0x5c0
+  push 800
   mstore
   push 768
   mload
-  dup1
-  push 768
-  mstore
   gt
   push bb50
   jumpi
-  push 0x5c0
+  push 800
   mload
   dup1
-  push 0x5c0
+  push 800
   mstore
   push 128
   mstore

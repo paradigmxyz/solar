@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/dump_phase.sol:DumpPhase (runtime) ===
+// === ROOT/tests/ui/codegen/lowering/equal_immediate_scheduling.sol:EqualImmediateScheduling (runtime) ===
 @module runtime
 bb0:
   push 160
@@ -20,7 +20,7 @@ bb2:
   push 224
   shr
   dup1
-  push 0xb3de648b
+  push 0xd9171e32
   eq
   push bb3
   jumpi
@@ -37,19 +37,24 @@ bb5:
   swap1
   sub
   push 32
-  sgt
+  swap1
+  slt
+  iszero
   push bb7
   jumpi
   jump bb6
-bb6:
+bb6 [cold]:
+  push 0
+  dup1
+  revert
+bb7:
   push 4
   calldataload
+  push 0x123456789abcde
+  push 0x123456789abcde
+  addmod
   push 128
   mstore
   push 32
   push 128
   return
-bb7 [cold]:
-  push 0
-  dup1
-  revert
