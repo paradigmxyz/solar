@@ -10,7 +10,7 @@
 //! treated as uses at the phi instruction in the merge block, and the phi result is
 //! defined like any other instruction result.
 
-use crate::mir::{BlockId, Function, Terminator, Value, ValueId};
+use crate::mir::{BlockId, Function, InstKind, Terminator, Value, ValueId};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -176,6 +176,102 @@ impl Liveness {
         }
 
         Self { block_liveness, last_use_in_block, num_values }
+    }
+
+    /// Computes values live immediately after each block's phi definitions.
+    ///
+    /// Phi operands are edge uses rather than ordinary uses in their target
+    /// block. Keeping them edge-specific avoids carrying a preheader source
+    /// around a loop merely because the header consumes it once.
+    pub(crate) fn compute_live_after_phis(func: &Function) -> IndexVec<BlockId, LiveSet> {
+        let num_values = func.num_values();
+        let num_blocks = func.blocks.len();
+        let mut phi_defs = (0..num_blocks)
+            .map(|_| LiveSet::with_capacity(num_values))
+            .collect::<IndexVec<BlockId, _>>();
+        let mut non_phi_defs = (0..num_blocks)
+            .map(|_| LiveSet::with_capacity(num_values))
+            .collect::<IndexVec<BlockId, _>>();
+        let mut non_phi_uses = (0..num_blocks)
+            .map(|_| LiveSet::with_capacity(num_values))
+            .collect::<IndexVec<BlockId, _>>();
+        let mut edge_phi_uses = FxHashMap::<(BlockId, BlockId), LiveSet>::default();
+
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                let inst = func.inst(inst_id);
+                let InstKind::Phi(incoming) = &inst.kind else { continue };
+                if let Some(result) = func.inst_result_value(inst_id) {
+                    phi_defs[block_id].insert(result);
+                }
+                for &(predecessor, source) in incoming {
+                    edge_phi_uses
+                        .entry((predecessor, block_id))
+                        .or_insert_with(|| LiveSet::with_capacity(num_values))
+                        .insert(source);
+                }
+            }
+
+            for &inst_id in &block.instructions {
+                let inst = func.inst(inst_id);
+                if matches!(inst.kind, InstKind::Phi(_)) {
+                    continue;
+                }
+                for operand in inst.operands() {
+                    if !non_phi_defs[block_id].contains(operand) {
+                        non_phi_uses[block_id].insert(operand);
+                    }
+                }
+                if let Some(result) = func.inst_result_value(inst_id) {
+                    non_phi_defs[block_id].insert(result);
+                }
+            }
+            if let Some(terminator) = &block.terminator {
+                for operand in terminator.operands() {
+                    if !non_phi_defs[block_id].contains(operand) {
+                        non_phi_uses[block_id].insert(operand);
+                    }
+                }
+            }
+        }
+
+        let mut live_after_phis = (0..num_blocks)
+            .map(|_| LiveSet::with_capacity(num_values))
+            .collect::<IndexVec<BlockId, _>>();
+        let mut worklist: VecDeque<_> = func.blocks.indices().rev().collect();
+        let mut queued = DenseBitSet::new_filled(num_blocks);
+        let mut new_live_out = LiveSet::with_capacity(num_values);
+        let mut edge_live = LiveSet::with_capacity(num_values);
+        let mut new_live_after_phis = LiveSet::with_capacity(num_values);
+
+        while let Some(block_id) = worklist.pop_front() {
+            queued.remove(block_id);
+            new_live_out.clear();
+            if let Some(terminator) = &func.blocks[block_id].terminator {
+                for successor in terminator.successors() {
+                    edge_live.clone_from(&live_after_phis[successor]);
+                    edge_live.subtract(&phi_defs[successor]);
+                    if let Some(phi_uses) = edge_phi_uses.get(&(block_id, successor)) {
+                        edge_live.union(phi_uses);
+                    }
+                    new_live_out.union(&edge_live);
+                }
+            }
+
+            new_live_after_phis.clone_from(&new_live_out);
+            new_live_after_phis.subtract(&non_phi_defs[block_id]);
+            new_live_after_phis.union(&non_phi_uses[block_id]);
+            if new_live_after_phis != live_after_phis[block_id] {
+                std::mem::swap(&mut live_after_phis[block_id], &mut new_live_after_phis);
+                for &predecessor in &func.blocks[block_id].predecessors {
+                    if queued.insert(predecessor) {
+                        worklist.push_back(predecessor);
+                    }
+                }
+            }
+        }
+
+        live_after_phis
     }
 
     /// Computes the subset of liveness needed by codegen when every computed
@@ -868,5 +964,10 @@ mod tests {
         assert!(liveness.live_in(exit).contains(phi_val), "phi_val live-in to exit");
         // phi_val should NOT be live-in to entry (it's defined in header).
         assert!(!liveness.live_in(entry).contains(phi_val), "phi_val not live-in to entry");
+
+        let live_after_phis = Liveness::compute_live_after_phis(&func);
+        assert!(!live_after_phis[header].contains(init), "preheader source consumed by phi");
+        assert!(!live_after_phis[header].contains(updated), "latch source redefined before reuse");
+        assert!(live_after_phis[header].contains(phi_val), "phi result used after definition");
     }
 }

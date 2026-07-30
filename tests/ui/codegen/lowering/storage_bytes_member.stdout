@@ -1571,12 +1571,6 @@ bb67:
   mstore
   push 5
   shr
-  dup1
-  push 0x560
-  mstore
-  dup2
-  push 0x540
-  mstore
   push 0x520
   mload
   swap2
@@ -1619,15 +1613,6 @@ bb69:
   push 0x580
   mload
   sub
-  dup1
-  push 0x620
-  mstore
-  dup3
-  push 0x5e0
-  mstore
-  dup2
-  push 0x600
-  mstore
   swap1
   swap2
   swap1

@@ -4,8 +4,12 @@
 //@ run-call: repeatedSourceJoin(bool,uint256,uint256) false, 7, 9 => 9, 7
 //@ run-call: loopJoin(uint256) 0 => 0
 //@ run-call: loopJoin(uint256) 4 => 12
+//@ run-call: storageSourceJoin(bool) true => 14
+//@ run-call: storageSourceJoin(bool) false => 10
 
 contract AcyclicStackPhi {
+    uint256 private stored = 7;
+
     function trimLen(bytes calldata data) external pure returns (uint256) {
         return trim(data).length;
     }
@@ -39,5 +43,12 @@ contract AcyclicStackPhi {
             }
             result += value;
         }
+    }
+
+    function storageSourceJoin(bool first) external returns (uint256) {
+        uint256 source = stored;
+        uint256 selected = first ? source : 3;
+        stored = 11;
+        return source + selected;
     }
 }

@@ -17,15 +17,9 @@ bb0:
   shr
   dup1
   push 0x341fda35
-  eq
-  push bb5
+  sub
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
-  push 0
-  dup1
-  revert
-bb5:
   calldatasize
   push 4
   swap1
@@ -162,13 +156,17 @@ bb11:
   mload
   pop
   dup1
-  push 384
+  push 352
   mstore
   push 128
   mstore
   push 32
   push 128
   return
+bb4 [cold]:
+  push 0
+  dup1
+  revert
 bb12:
   push 36
   push 4
@@ -185,11 +183,7 @@ bb12:
   dup2
   push 128
   mstore
-  swap1
+  swap2
   pop
-  dup1
-  push 352
-  mstore
-  swap1
   pop
   jump bb11

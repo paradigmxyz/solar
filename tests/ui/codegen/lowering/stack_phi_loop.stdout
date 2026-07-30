@@ -82,9 +82,6 @@ bb48:
   push 0
   push 128
   mstore
-  dup1
-  push 384
-  mstore
   push 0
   jump bb14
 bb14:
@@ -196,12 +193,6 @@ bb16:
   push 192
   mload
   add
-  dup2
-  push 416
-  mstore
-  dup1
-  push 448
-  mstore
   swap1
   jump bb14
 bb21:
@@ -220,7 +211,7 @@ bb21:
   jump bb24
 bb24:
   dup1
-  push 512
+  push 480
   mstore
   push 4
   calldataload
@@ -371,9 +362,6 @@ bb31:
   push 256
   mload
   add
-  dup1
-  push 480
-  mstore
   jump bb29
 bb35:
   calldatasize
@@ -509,15 +497,6 @@ bb41:
   push 288
   mload
   add
-  dup3
-  push 448
-  mstore
-  dup2
-  push 480
-  mstore
-  dup1
-  push 512
-  mstore
   push 224
   mload
   swap1

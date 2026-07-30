@@ -103,6 +103,7 @@ struct StackPhiEdge {
     target: BlockId,
     sources: Vec<ValueId>,
     results: Vec<ValueId>,
+    preserved_sources: Vec<ValueId>,
 }
 
 /// Canonical argument layouts carried between MIR basic blocks.
@@ -353,6 +354,20 @@ impl<'a> StackPhiPlanner<'a> {
         for block in self.func.blocks.indices() {
             self.plan_join(block, &mut plan);
         }
+        if plan.edges.is_empty() {
+            return plan;
+        }
+        let live_after_phis = Liveness::compute_live_after_phis(self.func);
+        for edge in plan.edges.values_mut() {
+            edge.preserved_sources = edge
+                .sources
+                .iter()
+                .copied()
+                .filter(|source| {
+                    !edge.results.contains(source) && live_after_phis[edge.target].contains(*source)
+                })
+                .collect();
+        }
         plan
     }
 
@@ -420,7 +435,12 @@ impl<'a> StackPhiPlanner<'a> {
             plan.edge_sources.insert(pred, sources.clone());
             plan.edges.insert(
                 pred,
-                StackPhiEdge { target: loop_info.header, sources, results: entry.clone() },
+                StackPhiEdge {
+                    target: loop_info.header,
+                    sources,
+                    results: entry.clone(),
+                    preserved_sources: Vec::new(),
+                },
             );
         }
     }
@@ -459,8 +479,15 @@ impl<'a> StackPhiPlanner<'a> {
         plan.entries.insert(block_id, results.clone());
         for (pred, sources) in edges {
             plan.edge_sources.insert(pred, sources.clone());
-            plan.edges
-                .insert(pred, StackPhiEdge { target: block_id, sources, results: results.clone() });
+            plan.edges.insert(
+                pred,
+                StackPhiEdge {
+                    target: block_id,
+                    sources,
+                    results: results.clone(),
+                    preserved_sources: Vec::new(),
+                },
+            );
         }
     }
 
@@ -1417,11 +1444,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     return false;
                 }
                 // Relabeling a source as its phi result must not destroy the
-                // source when the target still uses its original identity.
-                for &source in &edge.sources {
-                    if liveness.live_in(edge.target).contains(source) {
-                        self.spill_value_if_needed(func, source);
-                    }
+                // source when another instruction still uses its original
+                // identity.
+                for &source in &edge.preserved_sources {
+                    self.spill_value_if_needed(func, source);
                 }
                 self.spill_live_out_values_except(func, liveness, block_id, &edge.sources);
                 self.pop_stack_values_not_needed_by(&edge.sources);
@@ -5304,7 +5330,7 @@ impl crate::backend::Backend for EvmCodegen<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::FunctionBuilder;
+    use crate::mir::{FunctionBuilder, MirType};
     use solar_config::CompileOpts;
     use solar_interface::{Ident, Session, sym};
     use solar_sema::{Compiler, hir::Visibility};
@@ -5350,5 +5376,77 @@ mod tests {
 
             assert!(codegen.block_copies.is_empty());
         });
+    }
+
+    #[test]
+    fn stack_phi_preserves_only_independent_source_uses() {
+        let mut function = Function::new(Ident::with_dummy_span(sym::Test));
+        let (left, right, source, alternative);
+        {
+            let mut builder = FunctionBuilder::new(&mut function);
+            source = builder.add_param(MirType::uint256());
+            alternative = builder.add_param(MirType::uint256());
+            let condition = builder.add_param(MirType::Bool);
+            left = builder.create_block();
+            right = builder.create_block();
+            let merge = builder.create_block();
+            builder.branch(condition, left, right);
+
+            builder.switch_to_block(left);
+            builder.jump(merge);
+
+            builder.switch_to_block(right);
+            builder.jump(merge);
+
+            builder.switch_to_block(merge);
+            let merged = builder.phi(vec![(left, source), (right, alternative)]);
+            let result = builder.add(source, merged);
+            builder.ret([result]);
+        }
+
+        let plan = StackPhiPlan::analyze(&function);
+        assert_eq!(plan.edges[&left].preserved_sources, [source]);
+        assert!(plan.edges[&right].preserved_sources.is_empty());
+    }
+
+    #[test]
+    fn stack_phi_does_not_preserve_loop_edge_sources() {
+        let mut function = Function::new(Ident::with_dummy_span(sym::Test));
+        let (entry, header, body, initial, updated, phi);
+        {
+            let mut builder = FunctionBuilder::new(&mut function);
+            initial = builder.add_param(MirType::uint256());
+            let limit = builder.add_param(MirType::uint256());
+            entry = builder.current_block();
+            header = builder.create_block();
+            body = builder.create_block();
+            let exit = builder.create_block();
+            builder.jump(header);
+
+            builder.switch_to_block(header);
+            phi = builder.undef(MirType::uint256());
+            let condition = builder.lt(phi, limit);
+            builder.branch(condition, body, exit);
+
+            builder.switch_to_block(body);
+            let one = builder.imm_u64(1);
+            updated = builder.add(phi, one);
+            builder.jump(header);
+
+            builder.switch_to_block(exit);
+            builder.ret([phi]);
+        }
+        let phi_inst = function.alloc_inst_with_result(
+            crate::mir::Instruction::new(
+                InstKind::Phi(vec![(entry, initial), (body, updated)]),
+                Some(MirType::uint256()),
+            ),
+            phi,
+        );
+        function.blocks[header].instructions.insert(0, phi_inst);
+
+        let plan = StackPhiPlan::analyze(&function);
+        assert!(plan.edges[&entry].preserved_sources.is_empty());
+        assert!(plan.edges[&body].preserved_sources.is_empty());
     }
 }
