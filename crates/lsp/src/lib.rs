@@ -54,8 +54,9 @@ mod workspace;
 #[cfg(feature = "bench")]
 #[doc(hidden)]
 pub use global_state::benchmark::{
-    BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkEdit, BenchmarkError, BenchmarkProject,
-    BenchmarkRequest, BenchmarkResponse,
+    BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit,
+    BenchmarkError, BenchmarkProject, BenchmarkRequest, BenchmarkResponse,
+    BenchmarkWorkspaceReports,
 };
 
 /// Runs the selection-range kernel for Criterion benchmarks.

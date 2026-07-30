@@ -4,11 +4,20 @@ use super::{
     AnalysisBatch, AnalysisResult, AnalysisResultAccumulator, DiagnosticMap, SymbolTables, analyze,
     analyze_with_source_map,
 };
-use crate::{project_fixture::ProjectFixture, utils::apply_document_changes, workspace::Workspace};
+use crate::{
+    diagnostics::{AnalyzedDocuments, DiagnosticStore, PullReport},
+    handlers,
+    project_fixture::ProjectFixture,
+    utils::apply_document_changes,
+    vfs::VfsPath,
+    workspace::Workspace,
+};
+use async_lsp::ClientSocket;
 use crop::Rope;
 use lsp_types::{
-    Diagnostic, GotoDefinitionResponse, Hover, HoverContents, Location, Position, Range,
-    TextDocumentContentChangeEvent, Url, WorkspaceSymbol,
+    Diagnostic, DidChangeTextDocumentParams, GotoDefinitionResponse, Hover, HoverContents,
+    Location, Position, PreviousResultId, Range, TextDocumentContentChangeEvent, Url,
+    VersionedTextDocumentIdentifier, WorkspaceSymbol,
 };
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, Threads};
@@ -366,6 +375,103 @@ impl BenchmarkDocumentChange {
     pub fn apply(self) -> Self {
         let Self { contents, changes } = self;
         Self { contents: apply_document_changes(&contents, changes), changes: Vec::new() }
+    }
+}
+
+/// A prepared content-identical document update through the production notification handler.
+#[doc(hidden)]
+pub struct BenchmarkDocumentUpdate {
+    state: super::GlobalState,
+    params: DidChangeTextDocumentParams,
+}
+
+impl BenchmarkDocumentUpdate {
+    /// Prepare one open document and a full-content update with the same source text.
+    pub fn from_source(source: String) -> Self {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/benchmark.sol");
+        let uri = Url::from_file_path(&path).expect("benchmark path should be a file URL");
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        state.vfs.write().set_file_contents_with_version(
+            VfsPath::from(path),
+            Some(Rope::from(source.as_str())),
+            Some(0),
+        );
+        let params = DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier::new(uri, 1),
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: None,
+                range_length: None,
+                text: source,
+            }],
+        };
+        Self { state, params }
+    }
+
+    /// Apply the prepared update and return the resulting VFS content revision.
+    #[inline(never)]
+    pub fn apply(mut self) -> u64 {
+        assert!(handlers::did_change_text_document(&mut self.state, self.params).is_continue());
+        self.state.vfs.read().content_revision()
+    }
+}
+
+/// A diagnostic store prepared with overlapping current, reported, and previous document sets.
+#[doc(hidden)]
+pub struct BenchmarkWorkspaceReports {
+    store: DiagnosticStore,
+    previous: Vec<PreviousResultId>,
+}
+
+impl BenchmarkWorkspaceReports {
+    /// Prepare a representative workspace report request for `document_count` current documents.
+    pub fn new(document_count: usize) -> Self {
+        assert!(document_count > 0);
+        let uris = (0..document_count)
+            .map(|index| {
+                Url::from_file_path(
+                    std::env::temp_dir().join(format!("solar-lsp-benchmark-{index:05}.sol")),
+                )
+                .expect("benchmark path should be a file URL")
+            })
+            .collect::<Vec<_>>();
+        let analyzed_documents =
+            uris.iter().cloned().map(|uri| (uri, None)).collect::<AnalyzedDocuments>();
+        let diagnostics = uris
+            .iter()
+            .step_by(4)
+            .cloned()
+            .map(|uri| (uri, vec![Diagnostic::new_simple(Range::default(), "benchmark".into())]))
+            .collect::<DiagnosticMap>();
+        let mut store = DiagnosticStore::default();
+        store.replace_compiler_snapshot_and_publish_batches(diagnostics, analyzed_documents);
+        let mut previous = store
+            .workspace_pull_reports(Vec::new())
+            .into_iter()
+            .map(|report| PreviousResultId {
+                uri: report.uri,
+                value: match report.report {
+                    PullReport::Full { result_id, .. } | PullReport::Unchanged { result_id } => {
+                        result_id
+                    }
+                },
+            })
+            .collect::<Vec<_>>();
+        previous.extend((0..document_count / 4).map(|index| {
+            PreviousResultId {
+                uri: Url::from_file_path(
+                    std::env::temp_dir().join(format!("solar-lsp-stale-{index:05}.sol")),
+                )
+                .expect("benchmark path should be a file URL"),
+                value: format!("stale-{index}"),
+            }
+        }));
+        Self { store, previous }
+    }
+
+    /// Generate workspace reports through the production diagnostic-store path.
+    #[inline(never)]
+    pub fn generate(self) -> usize {
+        self.store.workspace_pull_reports(self.previous).len()
     }
 }
 

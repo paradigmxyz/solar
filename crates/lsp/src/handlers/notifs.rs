@@ -25,17 +25,9 @@ pub(crate) fn did_open_text_document(
             Some(Rope::from(params.text_document.text)),
             Some(params.text_document.version),
         );
-        let changed = vfs.mark_clean();
+        vfs.mark_clean();
         drop(vfs);
-        if changed {
-            state.recompute_after_source_changes(disk_path.into_iter().collect());
-        } else {
-            state.update_analyzed_document_version(
-                params.text_document.uri,
-                params.text_document.version,
-            );
-            state.reindex_if_invalidated();
-        }
+        state.recompute_after_source_changes(disk_path.into_iter().collect());
     }
 
     ControlFlow::Continue(())
@@ -47,18 +39,16 @@ pub(crate) fn did_change_text_document(
 ) -> NotifyResult {
     if let Some(path) = proto::vfs_path(&params.text_document.uri) {
         let disk_path = path.as_path().map(ToOwned::to_owned);
-        let (changed, new_contents) = {
+        let new_contents = {
             let _guard = state.vfs.read();
             let Some(contents) = _guard.get_file_contents(&path) else {
                 error!(?path, "orphan DidChangeTextDocument");
                 return ControlFlow::Continue(());
             };
-            let new_contents = apply_document_changes(contents, params.content_changes);
-
-            (contents != &new_contents, new_contents)
+            apply_document_changes(contents, params.content_changes)
         };
 
-        state.vfs.write().set_file_contents_with_version(
+        let changed = state.vfs.write().set_file_contents_with_version(
             path,
             Some(new_contents),
             Some(params.text_document.version),

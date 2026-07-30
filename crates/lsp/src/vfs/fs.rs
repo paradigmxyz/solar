@@ -27,6 +27,7 @@ use crate::file_operations::{FileMoveBatch, FileMoveError};
 use crop::Rope;
 use solar_interface::data_structures::map::rustc_hash::FxHashMap;
 use std::{
+    collections::hash_map::Entry,
     mem,
     path::{Path, PathBuf},
 };
@@ -51,26 +52,38 @@ impl Vfs {
         path: VfsPath,
         contents: Option<Rope>,
         version: Option<i32>,
-    ) {
-        let contents_changed = match &contents {
-            Some(contents) => self.data.get(&path) != Some(contents),
-            None => self.data.contains_key(&path),
-        };
+    ) -> bool {
         if let Some(contents) = contents {
-            self.data.insert(path.clone(), contents);
+            let contents_changed = match self.data.entry(path.clone()) {
+                Entry::Occupied(mut entry) => {
+                    let changed = entry.get() != &contents;
+                    entry.insert(contents);
+                    changed
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(contents);
+                    true
+                }
+            };
             if let Some(version) = version {
                 self.versions.insert(path, version);
             } else {
                 self.versions.remove(&path);
             }
+            if contents_changed {
+                self.bump_content_revision();
+            }
+            self.dirty = true;
+            contents_changed
         } else {
-            self.data.remove(&path);
+            let contents_changed = self.data.remove(&path).is_some();
             self.versions.remove(&path);
+            if contents_changed {
+                self.bump_content_revision();
+            }
+            self.dirty = true;
+            contents_changed
         }
-        if contents_changed {
-            self.bump_content_revision();
-        }
-        self.dirty = true;
     }
 
     pub(crate) fn get_file_contents(&self, path: &VfsPath) -> Option<&Rope> {
@@ -212,6 +225,43 @@ mod tests {
 
     fn moves(moves: impl IntoIterator<Item = (PathBuf, PathBuf)>) -> FileMoveBatch {
         FileMoveBatch::new(moves).unwrap()
+    }
+
+    #[test]
+    fn set_file_contents_reports_content_changes() {
+        let mut vfs = Vfs::default();
+        let file = path("/workspace/Test.sol");
+
+        assert!(vfs.set_file_contents_with_version(
+            file.clone(),
+            Some(Rope::from("contract Test {}")),
+            Some(1),
+        ));
+        let revision = vfs.content_revision();
+        vfs.mark_clean();
+
+        assert!(!vfs.set_file_contents_with_version(
+            file.clone(),
+            Some(Rope::from("contract Test {}")),
+            Some(2),
+        ));
+        assert_eq!(vfs.content_revision(), revision);
+        assert_eq!(vfs.get_file_version(&file), Some(2));
+        assert!(vfs.is_dirty());
+
+        assert!(vfs.set_file_contents_with_version(
+            file.clone(),
+            Some(Rope::from("contract Changed {}")),
+            Some(3),
+        ));
+        assert_eq!(vfs.content_revision(), revision + 1);
+        assert_eq!(vfs.get_file_version(&file), Some(3));
+        assert!(vfs.set_file_contents_with_version(file.clone(), None, None));
+        assert_eq!(vfs.content_revision(), revision + 2);
+        assert_eq!(vfs.get_file_contents(&file), None);
+        assert_eq!(vfs.get_file_version(&file), None);
+        assert!(!vfs.set_file_contents_with_version(file, None, None));
+        assert_eq!(vfs.content_revision(), revision + 2);
     }
 
     #[test]

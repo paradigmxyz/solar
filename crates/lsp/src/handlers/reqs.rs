@@ -4,6 +4,7 @@ use crate::{
     formatter::{self, FormatterError},
     global_state::GlobalState,
     natspec_completion::{self, NatSpecCompletionResult},
+    progress::send_progress,
     symbols::{CompletionContext, SymbolTables},
     vfs::{Vfs, VfsPath},
 };
@@ -17,16 +18,16 @@ use lsp_types::{
     DocumentHighlight, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
     DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeParams,
     FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
-    InlayHint, InlayHintParams, Position, PrepareRenameResponse, ProgressParams,
-    ProgressParamsValue, ProgressToken, ReferenceParams, RelatedFullDocumentDiagnosticReport,
-    RelatedUnchangedDocumentDiagnosticReport, RenameParams, SelectionRange, SelectionRangeParams,
-    SignatureHelp, SignatureHelpParams, TextDocumentPositionParams, TextEdit, TypeHierarchyItem,
-    TypeHierarchyPrepareParams, TypeHierarchySubtypesParams, TypeHierarchySupertypesParams,
-    UnchangedDocumentDiagnosticReport, Url, WorkDoneProgress, WorkDoneProgressBegin,
-    WorkDoneProgressEnd, WorkspaceDiagnosticParams, WorkspaceDiagnosticReport,
-    WorkspaceDiagnosticReportPartialResult, WorkspaceDiagnosticReportResult,
-    WorkspaceDocumentDiagnosticReport, WorkspaceEdit, WorkspaceFullDocumentDiagnosticReport,
-    WorkspaceSymbolParams, WorkspaceSymbolResponse, WorkspaceUnchangedDocumentDiagnosticReport,
+    InlayHint, InlayHintParams, Position, PrepareRenameResponse, ProgressToken, ReferenceParams,
+    RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport, RenameParams,
+    SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
+    TextDocumentPositionParams, TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams,
+    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, UnchangedDocumentDiagnosticReport,
+    Url, WorkDoneProgress, WorkDoneProgressBegin, WorkDoneProgressEnd, WorkspaceDiagnosticParams,
+    WorkspaceDiagnosticReport, WorkspaceDiagnosticReportPartialResult,
+    WorkspaceDiagnosticReportResult, WorkspaceDocumentDiagnosticReport, WorkspaceEdit,
+    WorkspaceFullDocumentDiagnosticReport, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    WorkspaceUnchangedDocumentDiagnosticReport,
     notification::{Notification, Progress},
     request::GotoImplementationParams,
 };
@@ -61,17 +62,16 @@ struct RequestWorkDoneProgress {
 impl RequestWorkDoneProgress {
     fn begin(client: ClientSocket, token: Option<ProgressToken>) -> Self {
         if let Some(token) = &token {
-            let _ = client.notify::<Progress>(ProgressParams {
-                token: token.clone(),
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(
-                    WorkDoneProgressBegin {
-                        title: WORKSPACE_DIAGNOSTIC_PROGRESS_TITLE.into(),
-                        cancellable: Some(false),
-                        message: None,
-                        percentage: None,
-                    },
-                )),
-            });
+            send_progress(
+                &client,
+                token,
+                WorkDoneProgress::Begin(WorkDoneProgressBegin {
+                    title: WORKSPACE_DIAGNOSTIC_PROGRESS_TITLE.into(),
+                    cancellable: Some(false),
+                    message: None,
+                    percentage: None,
+                }),
+            );
         }
         Self { client, token }
     }
@@ -80,12 +80,7 @@ impl RequestWorkDoneProgress {
 impl Drop for RequestWorkDoneProgress {
     fn drop(&mut self) {
         let Some(token) = &self.token else { return };
-        let _ = self.client.notify::<Progress>(ProgressParams {
-            token: token.clone(),
-            value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(
-                WorkDoneProgressEnd::default(),
-            )),
-        });
+        send_progress(&self.client, token, WorkDoneProgress::End(WorkDoneProgressEnd::default()));
     }
 }
 
@@ -385,8 +380,9 @@ pub(crate) fn workspace_diagnostic(
     let work_done_token = params.work_done_progress_params.work_done_token;
     async move {
         let _work_done = RequestWorkDoneProgress::begin(client.clone(), work_done_token);
-        let items = reports.await?.into_iter().map(workspace_document_diagnostic_report).collect();
-        let items = stream_workspace_diagnostic_partials(&client, partial_result_token, items);
+        let items = reports.await?.into_iter().map(workspace_document_diagnostic_report);
+        let items =
+            stream_workspace_diagnostic_partials(&client, partial_result_token, items).await;
         Ok(WorkspaceDiagnosticReport { items }.into())
     }
 }
@@ -417,13 +413,13 @@ fn workspace_document_diagnostic_report(
     }
 }
 
-fn stream_workspace_diagnostic_partials(
+async fn stream_workspace_diagnostic_partials(
     client: &ClientSocket,
     token: Option<ProgressToken>,
-    items: Vec<WorkspaceDocumentDiagnosticReport>,
+    items: impl Iterator<Item = WorkspaceDocumentDiagnosticReport>,
 ) -> Vec<WorkspaceDocumentDiagnosticReport> {
-    let Some(token) = token else { return items };
-    let mut items = items.into_iter();
+    let Some(token) = token else { return items.collect() };
+    let mut items = items.peekable();
     loop {
         let batch =
             items.by_ref().take(WORKSPACE_DIAGNOSTIC_PARTIAL_BATCH_SIZE).collect::<Vec<_>>();
@@ -434,6 +430,10 @@ fn stream_workspace_diagnostic_partials(
             token: token.clone(),
             value: WorkspaceDiagnosticReportPartialResult { items: batch },
         });
+        if items.peek().is_some() {
+            // Let the socket writer and request cancellation run between batches.
+            tokio::task::yield_now().await;
+        }
     }
     Vec::new()
 }

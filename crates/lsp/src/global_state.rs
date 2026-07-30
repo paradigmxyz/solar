@@ -377,8 +377,8 @@ impl GlobalState {
                 );
                 let pull_results_changed =
                     update.pull_reports_changed || update.workspace_documents_changed;
-                let external_refresh =
-                    commit.finish_external_refresh(pull_results_changed, inlay_hints_changed);
+                let external_refresh = commit
+                    .finish_external_refresh(update.pull_reports_changed, inlay_hints_changed);
                 let refresh_requests = RefreshRequests {
                     diagnostics: external_refresh.diagnostics || pull_results_changed,
                     inlay_hints: external_refresh.inlay_hints || inlay_hints_changed,
@@ -532,15 +532,11 @@ impl GlobalState {
                 commit.begin_external_refresh();
             }
             self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover);
-            let mut diagnostics = self.diagnostics.write();
-            let update = if retained_paths.is_empty() {
-                diagnostics.clear_file_path_prefixes_and_publish_batches(&removed_paths)
-            } else {
-                diagnostics.clear_file_path_prefixes_retaining_and_publish_batches(
+            let update =
+                self.diagnostics.write().clear_file_path_prefixes_retaining_and_publish_batches(
                     &removed_paths,
                     retained_paths,
-                )
-            };
+                );
             commit.record_external_diagnostics_change(
                 update.pull_reports_changed || update.workspace_documents_changed,
             );
@@ -633,7 +629,7 @@ impl GlobalState {
         async move {
             latest_analysis.await?;
             let vfs = vfs.read();
-            let mut reports = diagnostics.read().workspace_pull_reports(&previous_result_ids);
+            let mut reports = diagnostics.read().workspace_pull_reports(previous_result_ids);
             for report in &mut reports {
                 if report.is_stale
                     && let Some(path) = proto::vfs_path(&report.uri)
@@ -1135,10 +1131,8 @@ impl GlobalStateSnapshot {
                 .write()
                 .replace_compiler_snapshot_and_publish_batches(diagnostics, analyzed_documents);
             drop(vfs);
-            let pull_results_changed =
-                update.pull_reports_changed || update.workspace_documents_changed;
             let external_refresh =
-                commit.finish_external_refresh(pull_results_changed, inlay_hints_changed);
+                commit.finish_external_refresh(update.pull_reports_changed, inlay_hints_changed);
             let refresh_requests = RefreshRequests {
                 diagnostics: external_refresh.diagnostics || update.workspace_documents_changed,
                 inlay_hints: external_refresh.inlay_hints,

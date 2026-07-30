@@ -316,6 +316,67 @@ async fn workspace_diagnostics_stream_at_most_64_reports_per_partial_result() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn workspace_diagnostics_can_be_cancelled_between_partial_batches() {
+    let mut harness = workspace_diagnostic_harness();
+    let state = GlobalState::new(harness.client.clone());
+    let analyzed_documents = (0..129)
+        .map(|index| {
+            let uri = Url::from_file_path(
+                std::env::temp_dir().join(format!("workspace-cancel-{index:03}.sol")),
+            )
+            .unwrap();
+            (uri, None)
+        })
+        .collect();
+    assert!(state.snapshot().publish_analysis(
+        0,
+        AnalysisResult {
+            analyzed_documents,
+            diagnostics: DiagnosticMap::default(),
+            symbol_tables: SymbolTables::default(),
+        },
+    ));
+    let router = crate::new_router_with_state(state);
+    let mut service = crate::request_layer(ClientSocket::new_closed()).layer(router);
+    std::future::poll_fn(|context| service.poll_ready(context)).await.unwrap();
+    let request = serde_json::from_value(serde_json::json!({
+        "id": "workspace-mid-stream-cancel",
+        "method": WorkspaceDiagnosticRequest::METHOD,
+        "params": {
+            "previousResultIds": [],
+            "partialResultToken": "workspace-cancel-partial",
+        },
+    }))
+    .unwrap();
+    let mut response = std::pin::pin!(service.call(request));
+    let waker = Waker::noop();
+    let mut context = Context::from_waker(waker);
+
+    assert!(response.as_mut().poll(&mut context).is_pending());
+    let progress = harness.next_progress().await;
+    assert_eq!(progress.token, NumberOrString::String("workspace-cancel-partial".into()));
+    let partial =
+        serde_json::from_value::<WorkspaceDiagnosticReportPartialResult>(progress.value).unwrap();
+    assert_eq!(partial.items.len(), 64);
+
+    let cancel = serde_json::from_value(serde_json::json!({
+        "method": notification::Cancel::METHOD,
+        "params": { "id": "workspace-mid-stream-cancel" },
+    }))
+    .unwrap();
+    assert!(service.notify(cancel).is_continue());
+
+    let error = response.await.unwrap_err();
+    assert_eq!(error.code, ErrorCode::REQUEST_CANCELLED);
+    assert!(matches!(
+        harness.progress.try_recv(),
+        Err(tokio::sync::mpsc::error::TryRecvError::Empty)
+    ));
+
+    harness.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn workspace_diagnostics_report_work_done_on_the_request_token() {
     let mut harness = workspace_diagnostic_harness();
     let mut state = GlobalState::new(harness.client.clone());
@@ -609,7 +670,7 @@ fn current_analysis_cannot_overwrite_a_newer_unchanged_document_version() {
         },
     ));
 
-    let reports = state.diagnostics.read().workspace_pull_reports(&[]);
+    let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
     let [report] = reports.as_slice() else {
         panic!("workspace diagnostic should contain one report")
     };
@@ -649,7 +710,7 @@ fn changed_document_version_does_not_relabel_pending_analysis() {
         },
     ));
 
-    let reports = state.diagnostics.read().workspace_pull_reports(&[]);
+    let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
     let [report] = reports.as_slice() else {
         panic!("workspace diagnostic should contain one report")
     };
@@ -776,7 +837,7 @@ async fn removed_workspace_membership_stays_cleared_after_failed_reindex() {
     let previous = state
         .diagnostics
         .read()
-        .workspace_pull_reports(&[])
+        .workspace_pull_reports(Vec::new())
         .into_iter()
         .map(|report| PreviousResultId {
             uri: report.uri,
@@ -820,7 +881,7 @@ async fn removed_workspace_membership_stays_cleared_after_failed_reindex() {
         .expect("failed workspace reindex should release waiters")
         .unwrap();
 
-    let reports = state.diagnostics.read().workspace_pull_reports(&previous);
+    let reports = state.diagnostics.read().workspace_pull_reports(previous);
     let removed = reports.iter().find(|report| report.uri == removed_uri).unwrap();
     assert!(matches!(
         &removed.report,
@@ -858,7 +919,7 @@ async fn stale_clearing_report_keeps_the_removed_open_document_version() {
             symbol_tables: SymbolTables::default(),
         },
     ));
-    let [initial] = state.diagnostics.read().workspace_pull_reports(&[]).try_into().unwrap();
+    let [initial] = state.diagnostics.read().workspace_pull_reports(Vec::new()).try_into().unwrap();
     let PullReport::Full { result_id, .. } = initial.report else {
         panic!("initial workspace report should be full")
     };
