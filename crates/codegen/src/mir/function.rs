@@ -1,8 +1,8 @@
 //! MIR functions.
 
 use super::{
-    AbiLayoutRef, ArgIdx, BasicBlock, BlockId, Immediate, InstId, InstKind, Instruction, MangledSymbol,
-    MirType, StorageAlias, Value, ValueId, utils,
+    AbiLayoutRef, ArgIdx, BasicBlock, BlockId, Immediate, InstId, InstKind, Instruction,
+    MangledSymbol, MirType, StorageAlias, Value, ValueId, utils,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
