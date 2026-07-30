@@ -356,14 +356,20 @@ fn make_contract_output(
         | OutputSelectionFlags::BYTECODE_OPCODES
         | OutputSelectionFlags::BYTECODE_LINK_REFERENCES;
     if output_selection.intersects(bytecode_outputs) {
-        evm.bytecode = Some(make_bytecode_output(artifact, output_selection, false));
+        evm.bytecode = Some(make_bytecode_output(
+            artifact,
+            output_selection,
+            false,
+            gcx.sess.opts.evm_version,
+        ));
     }
     let deployed_bytecode_outputs = OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT
         | OutputSelectionFlags::DEPLOYED_BYTECODE_OPCODES
         | OutputSelectionFlags::DEPLOYED_BYTECODE_LINK_REFERENCES
         | OutputSelectionFlags::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES;
     if output_selection.intersects(deployed_bytecode_outputs) {
-        evm.deployed_bytecode = Some(make_bytecode_output(artifact, output_selection, true));
+        evm.deployed_bytecode =
+            Some(make_bytecode_output(artifact, output_selection, true, gcx.sess.opts.evm_version));
     }
     if !evm.is_empty() {
         output.evm = Some(evm);
@@ -376,6 +382,7 @@ fn make_bytecode_output(
     artifact: Option<&ContractArtifact>,
     output_selection: OutputSelectionFlags,
     deployed: bool,
+    evm_version: EvmVersion,
 ) -> BytecodeOutput {
     let object_flag = if deployed {
         OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT
@@ -400,8 +407,10 @@ fn make_bytecode_output(
         output.object = Some(bytecode.cloned().unwrap_or_default());
     }
     if output_selection.contains(opcodes_flag) {
-        output.opcodes =
-            Some(standard_json_opcodes(bytecode.map_or(&[], |bytecode| bytecode.as_ref())));
+        output.opcodes = Some(solar_codegen::backend::evm::disassemble_standard_json(
+            bytecode.map_or(&[], |bytecode| bytecode.as_ref()),
+            evm_version,
+        ));
     }
     if output_selection.contains(link_references_flag) {
         output.link_references = Some(FxIndexMap::default());
@@ -423,22 +432,6 @@ fn make_bytecode_output(
             });
         }
         output.immutable_references = Some(by_ast_id);
-    }
-    output
-}
-
-fn standard_json_opcodes(bytecode: &[u8]) -> String {
-    let disassembly = solar_codegen::backend::evm::disassemble(bytecode);
-    let mut output = String::with_capacity(disassembly.len());
-    for instruction in disassembly.lines() {
-        if let Some((opcode, immediate)) = instruction.split_once(" 0x") {
-            output.push_str(opcode);
-            output.push_str(" 0x");
-            output.push_str(&immediate.to_ascii_uppercase());
-        } else {
-            output.push_str(instruction);
-        }
-        output.push(' ');
     }
     output
 }

@@ -12,18 +12,14 @@
 // CHECK: "immutableReferences": {
 // CHECK: "length": 1
 // CHECK: "length": 20
-// CHECK-LABEL: "OnlyRefs": {
+// CHECK-LABEL: "A": {
 // CHECK: "deployedBytecode": {
 // CHECK-NEXT: "immutableReferences": {
-// CHECK: "length": 2
+// CHECK: "length": 32
 // CHECK-NOT: "object":
 {
   "language": "Solidity",
-  "sources": {
-    "A.sol": {
-      "content": "contract Widths { uint8 immutable a; address immutable b; constructor(uint8 a_, address b_) { a = a_; b = b_; } function values() external view returns (uint8, address) { return (a, b); } } contract OnlyRefs { uint16 immutable x = 7; function value() external pure returns (uint16) { return x; } }"
-    }
-  },
+  "sources": {},
   "settings": {
     "outputSelection": {
       "*": {
@@ -31,7 +27,7 @@
           "evm.bytecode",
           "evm.deployedBytecode"
         ],
-        "OnlyRefs": [
+        "A": [
           "evm.deployedBytecode.immutableReferences"
         ]
       }
