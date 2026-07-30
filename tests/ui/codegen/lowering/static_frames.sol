@@ -17,15 +17,12 @@ contract SF {
     // CHECK: return
     uint256 public s;
 
-    // Recursive calls use a shared dynamic frame allocator.
+    // The first recursive call allocates a dynamic frame at the call site.
     // CHECK: [[TOP]]:
     // CHECK: push 7
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: mod
-    // CHECK-NEXT: push [[TOP_REC_CONT:bb[0-9]+]]
-    // CHECK-NEXT: jump [[DYN_ALLOC:bb[0-9]+]]
-    // CHECK-NEXT: [[DYN_ALLOC]]:
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mload
     // CHECK-NEXT: push 160
@@ -34,10 +31,16 @@ contract SF {
     // CHECK-NEXT: push 32
     // CHECK-NEXT: add
     // CHECK-NEXT: mstore
-    // CHECK-NEXT: swap1
-    // CHECK-NEXT: jump
+    // CHECK: push 416
+    // CHECK-NEXT: add
+    // CHECK-NEXT: push 64
+    // CHECK-NEXT: mstore
+    // CHECK: push [[TOP_REC_RET:bb[0-9]+]]
+    // CHECK-NEXT: jump [[REC_ENTRY:bb[0-9]+]]
+    // CHECK-NEXT: [[REC_ENTRY]]:
 
-    // Dynamic returns share one epilogue.
+    // The top-level dynamic returns share one epilogue.
+    // CHECK: [[TOP_REC_RET]]:
     // CHECK: push [[TOP_AFTER_REC:bb[0-9]+]]
     // CHECK-NEXT: jump [[DYN_EPILOGUE:bb[0-9]+]]
     // CHECK-NEXT: [[DYN_EPILOGUE]]:
@@ -57,21 +60,62 @@ contract SF {
     // CHECK-NEXT: jump [[DYN_EPILOGUE]]
 
     // The chainA/chainB/chainC path uses static frame addresses.
+    // CHECK: push 640
+    // CHECK-NEXT: mstore
     // CHECK: push 672
     // CHECK-NEXT: mstore
     // CHECK: push 704
     // CHECK-NEXT: mstore
-    // CHECK: push 736
-    // CHECK-NEXT: mstore
-    // CHECK: push 736
+    // CHECK: push 704
     // CHECK-NEXT: mload
 
-    // Recursive and mutually recursive sites reuse those blocks.
-    // CHECK: jump [[DYN_ALLOC]]
-    // CHECK: jump [[DYN_EPILOGUE]]
-    // CHECK: jump [[DYN_ALLOC]]
-    // CHECK: jump [[DYN_EPILOGUE]]
-    // CHECK: jump [[DYN_ALLOC]]
+    // Recursive sites share a dynamic frame allocator.
+    // CHECK: [[TOP_AFTER_M1]]:
+    // CHECK: push 1
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 96
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: add
+    // CHECK-NEXT: dup1
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 256
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: dup1
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 256
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 96
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: gt
+    // CHECK-NEXT: swap1
+    // CHECK-NEXT: pop
+    // CHECK-NEXT: push [[PANIC:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: push [[REC_RECUR_CONT:bb[0-9]+]]
+    // CHECK-NEXT: jump [[DYN_ALLOC:bb[0-9]+]]
+    // CHECK-NEXT: [[DYN_ALLOC]]:
+    // CHECK-NEXT: push 64
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: dup2
+    // CHECK-NEXT: push 32
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mstore
+    // CHECK: dup1
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: swap1
+    // CHECK-NEXT: jump
     // CHECK: jump [[DYN_ALLOC]]
     function top(uint256 x) external returns (uint256) {
         uint256 keep = x * 3; // live across all the calls below

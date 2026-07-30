@@ -33,8 +33,8 @@ contract TupleAssignBranchLeak {
     // CHECK-NEXT: dup2
     // CHECK: add
     // CHECK: jumpi
-    // CHECK-NEXT: push [[ELSE:bb[0-9]+]]
-    // CHECK-NEXT: push 448
+    // CHECK-NEXT: push [[ELSE_RET:bb[0-9]+]]
+    // CHECK-NEXT: push 416
     // CHECK-NEXT: mload
     // CHECK-NEXT: jump [[PAIR:bb[0-9]+]]
     // CHECK: [[PAIR]]:
@@ -43,19 +43,22 @@ contract TupleAssignBranchLeak {
     // CHECK: push 2
     // CHECK: add
     // CHECK: [[THEN]]:
-    // CHECK-NEXT: push [[THEN_CONT:bb[0-9]+]]
+    // CHECK-NEXT: push [[THEN_RET:bb[0-9]+]]
     // CHECK: jump [[PAIR]]
+    // CHECK: [[THEN_RET]]:
+    // CHECK-NEXT: push [[THEN_CONT:bb[0-9]+]]
+    // CHECK-NEXT: jump [[PICKUP:bb[0-9]+]]
+    // CHECK: [[PICKUP]]:
+    // CHECK: [[ELSE_RET]]:
+    // CHECK-NEXT: push [[ELSE_CONT:bb[0-9]+]]
+    // CHECK-NEXT: jump [[PICKUP]]
     // CHECK: [[THEN_CONT]]:
     // CHECK: jump [[RETURN:bb[0-9]+]]
     // CHECK: [[RETURN]]:
     // CHECK: return
     // The else continuation combines both call results with the original
     // `off` slot, rather than a value assigned only in the then arm.
-    // CHECK: [[ELSE]]:
-    // CHECK-NEXT: push 736
-    // CHECK-NEXT: mload
-    // CHECK: push 768
-    // CHECK-NEXT: mload
+    // CHECK: [[ELSE_CONT]]:
     // CHECK: push 192
     // CHECK-NEXT: mload
     // CHECK: add

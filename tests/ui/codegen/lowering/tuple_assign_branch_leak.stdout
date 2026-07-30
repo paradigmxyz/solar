@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/tuple_assign_branch_leak.sol:TupleAssignBranchLeak (runtime) ===
 @module runtime
 bb0:
-  push 864
+  push 704
   push 64
   mstore
   callvalue
@@ -49,12 +49,8 @@ bb5:
   push 4
   calldataload
   dup1
-  push 544
-  mstore
   iszero
   iszero
-  push 544
-  mload
   sub
   push bb4
   jumpi
@@ -77,65 +73,51 @@ bb5:
   mload
   push 7
   dup2
-  dup1
-  push 512
-  mstore
   add
   dup1
-  push 448
+  push 416
   mstore
-  dup2
-  dup1
-  push 512
-  mstore
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
   push bb23
   jumpi
   push bb15
-  push 448
+  push 416
   mload
   jump bb19
 bb19:
-  push 704
+  push 544
   mstore
   push 1
-  push 704
+  push 544
   mload
   add
   dup1
-  push 800
+  push 640
   mstore
-  push 704
+  push 544
   mload
   gt
   push bb23
   jumpi
   push 2
-  push 704
+  push 544
   mload
   add
   dup1
-  push 832
+  push 672
   mstore
-  push 704
+  push 544
   mload
   gt
   push bb23
   jumpi
-  push 800
+  push 640
   mload
-  push 736
+  push 576
   mstore
-  push 832
+  push 672
   mload
-  push 768
+  push 608
   mstore
   jump
 bb9:
@@ -144,16 +126,19 @@ bb9:
   calldataload
   jump bb19
 bb10:
-  push 736
+  push bb26
+  jump bb25
+bb25:
+  push 576
   mload
   dup1
-  push 320
+  push 288
   mstore
   push 64
   mload
   push 32
   mstore
-  push 768
+  push 608
   mload
   push 32
   mload
@@ -161,8 +146,14 @@ bb10:
   add
   mstore
   dup1
-  push 320
+  push 288
   mstore
+  swap1
+  jump
+bb15:
+  push bb27
+  jump bb25
+bb26:
   push 32
   mload
   push 32
@@ -170,43 +161,29 @@ bb10:
   mload
   dup2
   dup1
-  push 320
+  push 288
   mstore
   push 160
   mstore
   dup1
-  push 416
+  push 448
   mstore
   push 192
   mstore
-  push 416
+  push 448
   mload
-  dup1
-  push 416
-  mstore
   dup2
   add
   dup1
-  push 352
-  mstore
-  dup2
-  dup1
   push 320
   mstore
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
   push bb23
   jumpi
-  push 352
+  push 320
   mload
   dup1
-  push 352
+  push 320
   jump bb24
 bb24:
   mstore
@@ -219,69 +196,30 @@ bb24:
   push 32
   push 128
   return
-bb15:
-  push 736
-  mload
-  dup1
-  push 480
-  mstore
-  push 64
-  mload
-  push 32
-  mstore
-  push 768
-  mload
-  push 32
-  mload
-  push 32
-  add
-  mstore
-  dup1
-  push 480
-  mstore
+bb27:
   push 32
   mload
   push 32
   add
   mload
-  dup1
-  push 576
-  mstore
   dup2
   add
   dup1
-  push 288
+  push 352
   mstore
-  dup2
-  dup1
-  push 480
-  mstore
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
   push bb23
   jumpi
   push 192
   mload
-  dup1
-  push 608
-  mstore
-  push 288
+  push 352
   mload
   add
   dup1
   push 384
   mstore
-  push 288
+  push 352
   mload
-  dup1
-  push 288
-  mstore
   gt
   push bb23
   jumpi
