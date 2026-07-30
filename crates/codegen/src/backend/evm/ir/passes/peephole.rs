@@ -2,7 +2,7 @@
 
 use super::EvmPass;
 use crate::backend::evm::{
-    ir::{Instruction, Module, PushValue},
+    ir::{Instruction, Module, PushValue, TerminatorKind},
     op,
 };
 use alloy_primitives::U256;
@@ -28,7 +28,18 @@ fn optimize_module(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
-        changed |= optimize(&mut block.instructions, &mut scratch, block.label) != 0;
+        let mut rewrites = optimize(&mut block.instructions, &mut scratch, block.label);
+        // `STOP` does not observe the stack, so trailing cleanup `POP`s only spend gas.
+        if matches!(
+            block.terminator.as_ref().map(|term| &term.kind),
+            Some(TerminatorKind::Op(op::STOP))
+        ) {
+            while block.instructions.last().is_some_and(|inst| raw_opcode(inst) == Some(op::POP)) {
+                block.instructions.pop();
+                rewrites += 1;
+            }
+        }
+        changed |= rewrites != 0;
     }
     changed
 }

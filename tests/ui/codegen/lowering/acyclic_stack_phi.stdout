@@ -49,9 +49,6 @@ bb0:
   mstore
   jump bb8
 bb8:
-  push 128
-  mload
-  pop
   dup1
   push 224
   mstore
