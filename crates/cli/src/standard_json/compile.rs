@@ -424,9 +424,9 @@ fn make_bytecode_output(
             .collect::<Vec<_>>();
         references.sort_unstable_by_key(|reference| (reference.ast_id, reference.start));
 
-        let mut by_ast_id = FxIndexMap::<String, Vec<OffsetLength>>::default();
+        let mut by_ast_id = FxIndexMap::<u64, Vec<OffsetLength>>::default();
         for reference in references {
-            by_ast_id.entry(reference.ast_id.to_string()).or_default().push(OffsetLength {
+            by_ast_id.entry(reference.ast_id).or_default().push(OffsetLength {
                 start: reference.start,
                 length: usize::from(reference.type_size.bytes()),
             });
@@ -440,13 +440,7 @@ fn requested_bytecode_contracts(
     gcx: solar_sema::Gcx<'_>,
     output_selection: &OutputSelection<'_>,
 ) -> ContractSelection {
-    let bytecode_outputs = OutputSelectionFlags::BYTECODE_OBJECT
-        | OutputSelectionFlags::BYTECODE_OPCODES
-        | OutputSelectionFlags::BYTECODE_LINK_REFERENCES
-        | OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT
-        | OutputSelectionFlags::DEPLOYED_BYTECODE_OPCODES
-        | OutputSelectionFlags::DEPLOYED_BYTECODE_LINK_REFERENCES
-        | OutputSelectionFlags::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES;
+    let bytecode_outputs = OutputSelectionFlags::BYTECODE | OutputSelectionFlags::DEPLOYED_BYTECODE;
     if output_selection.contract("*", "*").intersects(bytecode_outputs) {
         return ContractSelection::All;
     }

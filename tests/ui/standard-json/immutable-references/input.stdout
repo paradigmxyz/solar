@@ -1,0 +1,45 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "Widths": {
+        "evm": {
+          "deployedBytecode": {
+            "immutableReferences": {
+              "5": [
+                {
+                  "start": 30,
+                  "length": 1
+                }
+              ],
+              "6": [
+                {
+                  "start": 32,
+                  "length": 20
+                }
+              ]
+            }
+          }
+        }
+      },
+      "A": {
+        "evm": {
+          "deployedBytecode": {
+            "immutableReferences": {
+              "7": [
+                {
+                  "start": 30,
+                  "length": 32
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

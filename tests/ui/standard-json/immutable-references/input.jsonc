@@ -1,17 +1,11 @@
 //@ compile-flags: -Zcodegen
 //@ filecheck:
 // CHECK-LABEL: "Widths": {
-// CHECK: "bytecode": {
-// CHECK: "object":
-// CHECK: "opcodes":
-// CHECK: "linkReferences": {}
 // CHECK: "deployedBytecode": {
-// CHECK: "object":
-// CHECK: "opcodes":
-// CHECK: "linkReferences": {}
-// CHECK: "immutableReferences": {
+// CHECK-NEXT: "immutableReferences": {
 // CHECK: "length": 1
 // CHECK: "length": 20
+// CHECK-NOT: "object":
 // CHECK-LABEL: "A": {
 // CHECK: "deployedBytecode": {
 // CHECK-NEXT: "immutableReferences": {
@@ -24,8 +18,7 @@
     "outputSelection": {
       "*": {
         "Widths": [
-          "evm.bytecode",
-          "evm.deployedBytecode"
+          "evm.deployedBytecode.immutableReferences"
         ],
         "A": [
           "evm.deployedBytecode.immutableReferences"

@@ -78,30 +78,7 @@ fn instructions(bytecode: &[u8]) -> impl Iterator<Item = DecodedInstruction<'_>>
 }
 
 fn standard_json_mnemonic(opcode: u8, evm_version: EvmVersion) -> Option<&'static str> {
-    if matches!(
-        opcode,
-        op::DATALOAD
-            | op::DATALOADN
-            | op::DATASIZE
-            | op::DATACOPY
-            | op::RJUMP
-            | op::RJUMPI
-            | op::RJUMPV
-            | op::CALLF
-            | op::RETF
-            | op::JUMPF
-            | op::DUPN
-            | op::SWAPN
-            | op::EXCHANGE
-            | op::EOFCREATE
-            | op::RETURNCONTRACT
-            | op::RETURNDATALOAD
-            | op::EXTCALL
-            | op::EXTDELEGATECALL
-            | op::EXTSTATICCALL
-    ) {
-        None
-    } else if opcode == op::PREVRANDAO && evm_version < EvmVersion::Paris {
+    if opcode == op::PREVRANDAO && evm_version < EvmVersion::Paris {
         Some("difficulty")
     } else {
         op::mnemonic(opcode)
@@ -116,7 +93,7 @@ mod tests {
     #[test]
     fn standard_json_matches_solc_format() {
         let actual = format!(
-            "pushes: {:?}\nunknown: {:?}\npre-paris: {:?}\nparis: {:?}\n",
+            "pushes: {:?}\nmixed: {:?}\npre-paris: {:?}\nparis: {:?}\n",
             disassemble_standard_json(&[op::PUSH2, 0x01, 0x20, op::PUSH2, 0x01], EvmVersion::Osaka,),
             disassemble_standard_json(&[0x0c, op::DATALOAD], EvmVersion::Osaka),
             disassemble_standard_json(&[op::PREVRANDAO], EvmVersion::Homestead),
@@ -126,7 +103,7 @@ mod tests {
             actual,
             str![[r#"
 pushes: "PUSH2 0x120 PUSH2 0x100 "
-unknown: "0xC 0xD0 "
+mixed: "0xC DATALOAD "
 pre-paris: "DIFFICULTY "
 paris: "PREVRANDAO "
 
