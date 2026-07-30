@@ -22,6 +22,7 @@ pub(crate) mod lower_alloc;
 pub(crate) mod lower_dispatch;
 pub(crate) mod lower_evm_shaped;
 pub(crate) mod lower_mapping_slots;
+pub(crate) mod lower_mcopy;
 pub(crate) mod lower_memory_objects;
 pub(crate) mod lower_slices;
 pub(crate) mod memory_dse;

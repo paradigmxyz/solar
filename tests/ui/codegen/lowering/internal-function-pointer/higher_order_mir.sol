@@ -5,7 +5,7 @@
 
 contract HigherOrderFunctionPointer {
     // CHECK-LABEL: fn @higher0{{[$][$][0-9]+[( ]}}
-    // CHECK: returndata 128, 32
+    // CHECK: ret 2
     function higher0() public pure returns (uint256) {
         return 2;
     }

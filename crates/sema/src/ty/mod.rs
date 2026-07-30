@@ -84,6 +84,9 @@ pub struct TypeckResults<'gcx> {
     pub(crate) resolved_exprs: FxHashMap<hir::ExprId, hir::Res>,
     pub(crate) resolved_callees: FxHashMap<hir::ExprId, ResolvedCallee>,
     pub(crate) unsupported_udvt_operators: GrowableBitSet<hir::ExprId>,
+    /// The user-defined operator function a binary/unary operator expression
+    /// resolves to, keyed by the operator expression's id.
+    pub(crate) user_operators: FxHashMap<hir::ExprId, hir::FunctionId>,
 }
 
 /// The target selected for a call callee expression.
@@ -176,6 +179,13 @@ impl<'gcx> TypeckResults<'gcx> {
     #[inline]
     pub fn unsupported_udvt_operator(&self, id: hir::ExprId) -> bool {
         self.unsupported_udvt_operators.contains(id)
+    }
+
+    /// Returns the user-defined operator function this operator expression
+    /// resolves to, if any.
+    #[inline]
+    pub fn user_operator(&self, id: hir::ExprId) -> Option<hir::FunctionId> {
+        self.user_operators.get(&id).copied()
     }
 }
 
@@ -339,8 +349,7 @@ pub struct GlobalCtxt<'gcx> {
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
-    pub(crate) inherited_override_functions:
-        FxOnceMap<hir::ContractId, &'gcx crate::typeck::override_checker::InheritedFunctions<'gcx>>,
+    pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
 }
 
 impl fmt::Debug for GlobalCtxt<'_> {
@@ -375,7 +384,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
             hir_arenas,
             interner,
             cache: Cache::default(),
-            inherited_override_functions: FxOnceMap::default(),
+            override_index: OnceLock::new(),
         }
     }
 }
@@ -662,6 +671,13 @@ impl<'gcx> Gcx<'gcx> {
     #[inline]
     pub fn unsupported_udvt_operator(self, id: hir::ExprId) -> bool {
         self.typeck_results.get().is_some_and(|results| results.unsupported_udvt_operator(id))
+    }
+
+    /// Returns the user-defined operator function this operator expression
+    /// resolves to, if any.
+    #[inline]
+    pub fn user_operator(self, id: hir::ExprId) -> Option<hir::FunctionId> {
+        self.typeck_results.get()?.user_operator(id)
     }
 
     /// Returns whether sparse type-checker results are available for codegen queries.

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/checked_arithmetic_shapes.sol:CheckedArithmeticShapes ===
 @module CheckedArithmeticShapes
-fn @sadd(arg0: i256, arg1: i256) {
+fn @sadd(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -19,11 +19,10 @@ fn @sadd(arg0: i256, arg1: i256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @ssub(arg0: i256, arg1: i256) {
+fn @ssub(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -42,11 +41,10 @@ fn @ssub(arg0: i256, arg1: i256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @smul(arg0: i256, arg1: i256) {
+fn @smul(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -71,11 +69,10 @@ fn @smul(arg0: i256, arg1: i256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @sdiv(arg0: i256, arg1: i256) {
+fn @sdiv(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -100,11 +97,10 @@ fn @sdiv(arg0: i256, arg1: i256) {
     revert 0, 36
   bb6:
     v6 = sdiv arg0, arg1
-    mstore 128, v6
-    returndata 128, 32
+    ret v6
 }
 
-fn @smod(arg0: i256, arg1: i256) {
+fn @smod(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -120,11 +116,10 @@ fn @smod(arg0: i256, arg1: i256) {
     revert 0, 36
   bb4:
     v3 = smod arg0, arg1
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @neg(arg0: i256) {
+fn @neg(arg0: i256) -> i256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -141,11 +136,33 @@ fn @neg(arg0: i256) {
     revert 0, 36
   bb4:
     v4 = sub 0, arg0
+    ret v4
+}
+
+fn @inc(arg0: u256) -> u256 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, arg0
+    v3 = mload 128
+    v4 = add v3, 1
+    v5 = lt v4, v3
+    jumpi v5, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
     mstore 128, v4
-    returndata 128, 32
+    ret v4
 }
 
-fn @inc(arg0: u256) {
+fn @dec(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -154,40 +171,21 @@ fn @inc(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = add arg0, 1
-    v4 = lt v3, arg0
-    jumpi v4, bb3, bb4
+    mstore 128, arg0
+    v3 = mload 128
+    v4 = sub v3, 1
+    v5 = lt v3, 1
+    jumpi v5, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v3
-    returndata 128, 32
+    mstore 128, v4
+    ret v4
 }
 
-fn @dec(arg0: u256) {
-  bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = sub arg0, 1
-    v4 = lt arg0, 1
-    jumpi v4, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    mstore 128, v3
-    returndata 128, 32
-}
-
-fn @uadd128(arg0: u128, arg1: u128) {
+fn @uadd128(arg0: u128, arg1: u128) -> u128 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -218,11 +216,10 @@ fn @uadd128(arg0: u128, arg1: u128) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 128, v9
-    returndata 128, 32
+    ret v9
 }
 
-fn @umul128(arg0: u128, arg1: u128) {
+fn @umul128(arg0: u128, arg1: u128) -> u128 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -253,11 +250,10 @@ fn @umul128(arg0: u128, arg1: u128) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 128, v9
-    returndata 128, 32
+    ret v9
 }
 
-fn @smul128(arg0: i128, arg1: i128) {
+fn @smul128(arg0: i128, arg1: i128) -> i128 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -290,11 +286,10 @@ fn @smul128(arg0: i128, arg1: i128) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 128, v9
-    returndata 128, 32
+    ret v9
 }
 
-fn @umul192(arg0: u192, arg1: u192) {
+fn @umul192(arg0: u192, arg1: u192) -> u192 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -331,7 +326,6 @@ fn @umul192(arg0: u192, arg1: u192) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 128, v9
-    returndata 128, 32
+    ret v9
 }
 

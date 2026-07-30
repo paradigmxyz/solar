@@ -62,15 +62,17 @@ contract CheckedArithmeticShapes {
     }
 
     // CHECK-LABEL: fn @inc{{[( ]}}
-    // CHECK: [[RESULT:v[0-9]+]] = add arg0, 1
-    // CHECK: lt [[RESULT]], arg0
+    // CHECK: [[OLD:v[0-9]+]] = mload 128
+    // CHECK: [[RESULT:v[0-9]+]] = add [[OLD]], 1
+    // CHECK: lt [[RESULT]], [[OLD]]
     function inc(uint256 a) public pure returns (uint256) {
         return ++a;
     }
 
     // CHECK-LABEL: fn @dec{{[( ]}}
-    // CHECK: [[RESULT:v[0-9]+]] = sub arg0, 1
-    // CHECK: lt arg0, 1
+    // CHECK: [[OLD:v[0-9]+]] = mload 128
+    // CHECK: [[RESULT:v[0-9]+]] = sub [[OLD]], 1
+    // CHECK: lt [[OLD]], 1
     function dec(uint256 a) public pure returns (uint256) {
         return --a;
     }

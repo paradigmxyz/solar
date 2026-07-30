@@ -1,8 +1,8 @@
 //! MIR functions.
 
 use super::{
-    ArgIdx, BasicBlock, BlockId, InstId, InstKind, Instruction, MirType, StorageAlias, Value,
-    ValueId,
+    AbiLayoutRef, ArgIdx, BasicBlock, BlockId, InstId, InstKind, Instruction, MirType,
+    StorageAlias, Value, ValueId,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -27,6 +27,9 @@ pub(crate) struct Function {
     pub(crate) params: IndexVec<ArgIdx, MirType>,
     /// Return types.
     pub(crate) returns: Vec<MirType>,
+    /// ABI layout of values returned by an external entry before `lower-abi`
+    /// materializes returndata encoding.
+    pub(crate) abi_returns: Option<AbiLayoutRef>,
     /// Bytes reserved for lowered local memory slots.
     ///
     /// Internal-call functions place these in the internal frame; external entries
@@ -68,6 +71,7 @@ impl Function {
             attributes: FunctionAttributes::default(),
             params: IndexVec::new(),
             returns: Vec::new(),
+            abi_returns: None,
             internal_frame_size: 0,
             external_static_return_size: 0,
             values: IndexVec::new(),

@@ -1,17 +1,20 @@
 use crate::{
     commands,
     diagnostics::DiagnosticOwner,
+    file_operations::FileMoveBatch,
     flycheck::{FlycheckConfig, FlycheckInitializationOptions},
-    workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest},
+    workspace::{Workspace, WorkspaceKind, WorkspacePathIndex, manifest::ProjectManifest},
 };
 use lsp_types::{
     CallHierarchyServerCapability, CodeLensOptions as CodeLensServerOptions, CompletionOptions,
     DeclarationCapability, DiagnosticOptions, DiagnosticServerCapabilities, DocumentLinkOptions,
-    ExecuteCommandOptions, FoldingRangeProviderCapability, HoverProviderCapability,
+    ExecuteCommandOptions, FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
+    FileOperationRegistrationOptions, FoldingRangeProviderCapability, HoverProviderCapability,
     ImplementationProviderCapability, InitializeParams, OneOf, RenameOptions, SaveOptions,
     SelectionRangeProviderCapability, ServerCapabilities, SignatureHelpOptions,
     TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions,
+    TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceFolder, WorkspaceServerCapabilities,
 };
 use serde::Deserialize;
 use solar_interface::data_structures::map::FxHashSet;
@@ -36,6 +39,8 @@ pub(crate) struct Config {
     watched_file_dynamic_registration: bool,
     workspace_edit_document_changes: bool,
     code_lens_refresh_support: bool,
+    diagnostic_refresh_support: bool,
+    inlay_hint_refresh_support: bool,
     work_done_progress: bool,
     hierarchical_document_symbol_support: bool,
     completion: CompletionClientOptions,
@@ -58,6 +63,8 @@ impl Default for Config {
             watched_file_dynamic_registration: false,
             workspace_edit_document_changes: false,
             code_lens_refresh_support: false,
+            diagnostic_refresh_support: false,
+            inlay_hint_refresh_support: false,
             work_done_progress: false,
             hierarchical_document_symbol_support: false,
             completion: CompletionClientOptions::default(),
@@ -133,6 +140,14 @@ impl Config {
         self.code_lens_refresh_support
     }
 
+    pub(crate) fn supports_diagnostic_refresh(&self) -> bool {
+        self.diagnostic_refresh_support
+    }
+
+    pub(crate) fn supports_inlay_hint_refresh(&self) -> bool {
+        self.inlay_hint_refresh_support
+    }
+
     pub(crate) fn supports_work_done_progress(&self) -> bool {
         self.work_done_progress
     }
@@ -192,6 +207,37 @@ impl Config {
         &self.workspaces
     }
 
+    pub(crate) fn tracks_source_file(&self, path: &Path) -> bool {
+        self.workspaces.iter().any(|workspace| workspace.tracks_disk_file(path))
+    }
+
+    pub(crate) fn tracked_source_files_under(&self, roots: &[PathBuf]) -> Vec<PathBuf> {
+        let mut files = self
+            .workspaces
+            .iter()
+            .flat_map(Workspace::source_files)
+            .filter(|path| roots.iter().any(|root| path.starts_with(root)))
+            .cloned()
+            .collect::<Vec<_>>();
+        files.sort();
+        files.dedup();
+        files
+    }
+
+    pub(crate) fn file_operation_paths_under(&self, roots: &[PathBuf]) -> Vec<PathBuf> {
+        let mut paths = self.tracked_source_files_under(roots);
+        paths.extend(self.workspaces.iter().filter_map(|workspace| {
+            if workspace.kind() != WorkspaceKind::Foundry {
+                return None;
+            }
+            let manifest = workspace.compile_opts().base_path.as_ref()?.join("foundry.toml");
+            roots.iter().any(|root| manifest.starts_with(root)).then_some(manifest)
+        }));
+        paths.sort();
+        paths.dedup();
+        paths
+    }
+
     pub(crate) fn forge_path(&self) -> PathBuf {
         self.flycheck_options.forge_path()
     }
@@ -211,6 +257,10 @@ impl Config {
 
     pub(crate) fn flychecks_for_path(&self, path: &Path) -> Vec<FlycheckConfig> {
         self.flychecks.iter().filter(|flycheck| flycheck.applies_to(path)).cloned().collect()
+    }
+
+    pub(crate) fn flycheck_owners(&self) -> impl Iterator<Item = DiagnosticOwner> + '_ {
+        self.flychecks.iter().map(FlycheckConfig::owner)
     }
 
     pub(crate) fn rediscover_workspaces(&mut self) -> Vec<DiagnosticOwner> {
@@ -257,7 +307,27 @@ impl Config {
     }
 
     pub(crate) fn add_workspaces(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
-        self.workspace_roots.extend(paths);
+        for path in paths {
+            if !self.workspace_roots.contains(&path) {
+                self.workspace_roots.push(path);
+            }
+        }
+    }
+
+    pub(crate) fn reconcile_workspace_roots(
+        &mut self,
+        moves: &FileMoveBatch,
+        deleted_paths: &[PathBuf],
+    ) {
+        self.workspace_roots
+            .retain(|root| !deleted_paths.iter().any(|deleted| root.starts_with(deleted)));
+        for root in &mut self.workspace_roots {
+            if let Some((_, new_root)) = moves.map_path(root) {
+                *root = new_root;
+            }
+        }
+        let mut seen = FxHashSet::default();
+        self.workspace_roots.retain(|root| seen.insert(root.clone()));
     }
 
     pub(crate) fn add_source_file(&mut self, path: PathBuf) {
@@ -297,6 +367,46 @@ fn push_workspace(workspaces: &mut Vec<Workspace>, mut workspace: Workspace) {
     workspaces.push(workspace);
 }
 
+fn workspace_file_operation_options() -> FileOperationRegistrationOptions {
+    FileOperationRegistrationOptions {
+        filters: vec![
+            FileOperationFilter {
+                scheme: Some("file".into()),
+                pattern: FileOperationPattern {
+                    glob: "**/*.sol".into(),
+                    matches: Some(FileOperationPatternKind::File),
+                    options: None,
+                },
+            },
+            FileOperationFilter {
+                scheme: Some("file".into()),
+                pattern: FileOperationPattern {
+                    glob: "**".into(),
+                    matches: Some(FileOperationPatternKind::Folder),
+                    options: None,
+                },
+            },
+        ],
+    }
+}
+
+fn workspace_roots_from_initialize(
+    workspace_folders: Option<Vec<WorkspaceFolder>>,
+    root_uri: Option<Url>,
+    fallback_root: impl FnOnce() -> Option<PathBuf>,
+) -> Vec<PathBuf> {
+    let workspace_roots = workspace_folders
+        .map(|workspaces| {
+            workspaces.into_iter().filter_map(|it| it.uri.to_file_path().ok()).collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if !workspace_roots.is_empty() {
+        return workspace_roots;
+    }
+
+    root_uri.and_then(|uri| uri.to_file_path().ok()).or_else(fallback_root).into_iter().collect()
+}
+
 pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabilities, Config) {
     let capabilities = params.capabilities;
     let initialization_options = params.initialization_options;
@@ -306,16 +416,6 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
     let flycheck_options = FlycheckInitializationOptions::from_json(initialization_options.clone());
     let code_lens = CodeLensConfig::from_json(initialization_options);
 
-    // todo: make this absolute guaranteed
-    let root_path = match root_uri.and_then(|it| it.to_file_path().ok()) {
-        Some(it) => it,
-        None => {
-            // todo: unwrap
-            env::current_dir().unwrap()
-        }
-    };
-
-    // todo: make this absolute guaranteed
     // The latest LSP spec mandates clients report `workspace_folders`, but some might still report
     // `root_uri`.
     let watched_file_dynamic_registration = capabilities
@@ -334,6 +434,18 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
         .workspace
         .as_ref()
         .and_then(|workspace| workspace.code_lens.as_ref())
+        .and_then(|capabilities| capabilities.refresh_support)
+        .unwrap_or(false);
+    let diagnostic_refresh_support = capabilities
+        .workspace
+        .as_ref()
+        .and_then(|workspace| workspace.diagnostic.as_ref())
+        .and_then(|capabilities| capabilities.refresh_support)
+        .unwrap_or(false);
+    let inlay_hint_refresh_support = capabilities
+        .workspace
+        .as_ref()
+        .and_then(|workspace| workspace.inlay_hint.as_ref())
         .and_then(|capabilities| capabilities.refresh_support)
         .unwrap_or(false);
     let work_done_progress =
@@ -378,12 +490,9 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             .unwrap_or(false),
     };
 
-    let workspace_roots = workspace_folders
-        .map(|workspaces| {
-            workspaces.into_iter().filter_map(|it| it.uri.to_file_path().ok()).collect::<Vec<_>>()
-        })
-        .filter(|workspaces| !workspaces.is_empty())
-        .unwrap_or_else(|| vec![root_path]);
+    let workspace_roots =
+        workspace_roots_from_initialize(workspace_folders, root_uri, || env::current_dir().ok());
+    let file_operations = workspace_file_operation_options();
 
     (
         ServerCapabilities {
@@ -439,6 +548,17 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
                     ..Default::default()
                 },
             )),
+            workspace: Some(WorkspaceServerCapabilities {
+                file_operations: Some(WorkspaceFileOperationsServerCapabilities {
+                    did_create: Some(file_operations.clone()),
+                    will_create: Some(file_operations.clone()),
+                    did_rename: Some(file_operations.clone()),
+                    will_rename: Some(file_operations.clone()),
+                    did_delete: Some(file_operations.clone()),
+                    will_delete: Some(file_operations),
+                }),
+                ..Default::default()
+            }),
             workspace_symbol_provider: Some(OneOf::Left(true)),
             ..Default::default()
         },
@@ -448,6 +568,8 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             watched_file_dynamic_registration,
             workspace_edit_document_changes,
             code_lens_refresh_support,
+            diagnostic_refresh_support,
+            inlay_hint_refresh_support,
             work_done_progress,
             hierarchical_document_symbol_support,
             completion,
@@ -465,12 +587,37 @@ mod tests {
     use lsp_types::{
         CallHierarchyServerCapability, CodeLensWorkspaceClientCapabilities,
         CompletionClientCapabilities, CompletionItemCapability,
-        DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities, MarkupKind,
-        OneOf, ParameterInformationSettings, RenameOptions, SignatureHelpClientCapabilities,
-        SignatureInformationSettings, TextDocumentClientCapabilities, TextDocumentSyncCapability,
-        TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WindowClientCapabilities,
-        WorkspaceClientCapabilities, WorkspaceEditClientCapabilities,
+        DiagnosticWorkspaceClientCapabilities, DidChangeWatchedFilesClientCapabilities,
+        DocumentSymbolClientCapabilities, FileOperationFilter, FileOperationPattern,
+        FileOperationPatternKind, FileOperationRegistrationOptions,
+        InlayHintWorkspaceClientCapabilities, MarkupKind, OneOf, ParameterInformationSettings,
+        RenameOptions, SignatureHelpClientCapabilities, SignatureInformationSettings,
+        TextDocumentClientCapabilities, TextDocumentSyncCapability, TextDocumentSyncSaveOptions,
+        TypeDefinitionProviderCapability, WindowClientCapabilities, WorkspaceClientCapabilities,
+        WorkspaceEditClientCapabilities,
     };
+
+    #[test]
+    fn workspace_folders_skip_root_fallback() {
+        let workspace_root = env::temp_dir().join("solar-lsp-workspace");
+        let workspace_folders = Some(vec![WorkspaceFolder {
+            uri: Url::from_file_path(&workspace_root).unwrap(),
+            name: "workspace".into(),
+        }]);
+
+        let roots = workspace_roots_from_initialize(workspace_folders, None, || {
+            panic!("root fallback should not be evaluated")
+        });
+
+        assert_eq!(roots, [workspace_root]);
+    }
+
+    #[test]
+    fn unavailable_root_fallback_leaves_workspace_roots_empty() {
+        let roots = workspace_roots_from_initialize(None, None, || None);
+
+        assert!(roots.is_empty());
+    }
 
     #[test]
     fn negotiate_capabilities_records_work_done_progress_support() {
@@ -542,6 +689,32 @@ mod tests {
         let (_, config) = negotiate_capabilities(params);
 
         assert!(config.supports_code_lens_refresh());
+    }
+
+    #[test]
+    fn negotiate_capabilities_records_pull_refresh_support_independently() {
+        for (diagnostic, inlay_hint) in [(false, false), (true, false), (false, true), (true, true)]
+        {
+            let mut params = InitializeParams::default();
+            params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+                diagnostic: Some(DiagnosticWorkspaceClientCapabilities {
+                    refresh_support: Some(diagnostic),
+                }),
+                inlay_hint: Some(InlayHintWorkspaceClientCapabilities {
+                    refresh_support: Some(inlay_hint),
+                }),
+                ..Default::default()
+            });
+
+            let (_, config) = negotiate_capabilities(params);
+
+            assert_eq!(config.supports_diagnostic_refresh(), diagnostic);
+            assert_eq!(config.supports_inlay_hint_refresh(), inlay_hint);
+        }
+
+        let (_, config) = negotiate_capabilities(InitializeParams::default());
+        assert!(!config.supports_diagnostic_refresh());
+        assert!(!config.supports_inlay_hint_refresh());
     }
 
     #[test]
@@ -665,6 +838,39 @@ mod tests {
             panic!("expected save options");
         };
         assert_eq!(save_options.include_text, Some(false));
+    }
+
+    #[test]
+    fn negotiate_capabilities_advertises_workspace_file_operations() {
+        let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
+        let operations = capabilities.workspace.unwrap().file_operations.unwrap();
+        let options = FileOperationRegistrationOptions {
+            filters: vec![
+                FileOperationFilter {
+                    scheme: Some("file".into()),
+                    pattern: FileOperationPattern {
+                        glob: "**/*.sol".into(),
+                        matches: Some(FileOperationPatternKind::File),
+                        options: None,
+                    },
+                },
+                FileOperationFilter {
+                    scheme: Some("file".into()),
+                    pattern: FileOperationPattern {
+                        glob: "**".into(),
+                        matches: Some(FileOperationPatternKind::Folder),
+                        options: None,
+                    },
+                },
+            ],
+        };
+
+        assert_eq!(operations.did_create, Some(options.clone()));
+        assert_eq!(operations.will_create, Some(options.clone()));
+        assert_eq!(operations.did_rename, Some(options.clone()));
+        assert_eq!(operations.will_rename, Some(options.clone()));
+        assert_eq!(operations.did_delete, Some(options.clone()));
+        assert_eq!(operations.will_delete, Some(options));
     }
 
     #[test]

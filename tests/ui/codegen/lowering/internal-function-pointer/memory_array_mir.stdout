@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/memory_array_mir.sol:FunctionPointerMemoryArray ===
 @module FunctionPointerMemoryArray
-fn @arrayA$$0(arg0: u256) {
+fn @arrayA$$0(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -17,11 +17,10 @@ fn @arrayA$$0(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @arrayB$$1(arg0: u256) {
+fn @arrayB$$1(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -38,11 +37,10 @@ fn @arrayB$$1(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @arrayC$$2(arg0: u256) {
+fn @arrayC$$2(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -59,11 +57,10 @@ fn @arrayC$$2(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @arrayD$$3(arg0: u256) {
+fn @arrayD$$3(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -80,11 +77,10 @@ fn @arrayD$$3(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @arrayE$$4(arg0: u256) {
+fn @arrayE$$4(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -101,11 +97,10 @@ fn @arrayE$$4(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @callArray(arg0: u256, arg1: u256) {
+fn @callArray(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -194,8 +189,7 @@ fn @callArray(arg0: u256, arg1: u256) {
     v26 = memory_object_element_addr memoryarray<1>, v8, arg1
     v27 = mload v26
     v28 = internal_call @__internal_dispatch_0, 1, v27, arg0
-    mstore 128, v28
-    returndata 128, 32
+    ret v28
 }
 
 fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 {
