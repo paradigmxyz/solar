@@ -2359,12 +2359,10 @@ impl<'gcx> Lowerer<'gcx> {
         size: u64,
         kind: crate::mir::MemoryObjectKind,
     ) -> ValueId {
-        self.allocate_memory_object_with_semantics(
-            builder,
-            size,
-            kind,
-            crate::mir::AllocationSemantics::INTERNAL_ZEROED,
-        )
+        let ptr = self.allocate_memory_object(builder, size, kind);
+        let size = builder.imm_u64(size);
+        builder.memory_zero(ptr, size);
+        ptr
     }
 
     fn allocate_memory_object_with_semantics(
