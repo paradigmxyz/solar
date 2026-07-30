@@ -989,26 +989,19 @@ impl<'gcx> BytecodeAssembler<'gcx> {
     }
 }
 
+// DO NOT ADD CODEGEN TESTS HERE. USE UI TESTS UNDER tests/ui/codegen/disasm INSTEAD.
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::backend::evm::disassemble;
     use snapbox::{assert_data_eq, str};
-    use solar_config::{CompileOpts, EvmVersion, OptimizationMode};
+    use solar_config::CompileOpts;
     use solar_interface::Session;
     use solar_sema::Compiler;
 
     fn with_assembler<T: Send>(opts: CompileOpts, f: impl FnOnce(Assembler<'_>) -> T + Send) -> T {
         let compiler = Compiler::new(Session::builder().opts(opts).build());
         compiler.enter(|c| f(Assembler::new(c.gcx())))
-    }
-
-    fn size_optimized_opts() -> CompileOpts {
-        opts(EvmVersion::Shanghai, OptimizationMode::Size)
-    }
-
-    fn opts(evm_version: EvmVersion, optimization: OptimizationMode) -> CompileOpts {
-        CompileOpts { evm_version, optimization, ..Default::default() }
     }
 
     #[test]
@@ -1073,7 +1066,6 @@ mod tests {
 
             asm.emit_push_immutable(narrow, narrow_size);
             asm.emit_push_immutable(address, address_size);
-            assert_eq!(asm.current_trace_size_bounds(2, 8), Some((23, 23)));
             let result = asm.assemble();
 
             assert_data_eq!(
@@ -1120,118 +1112,6 @@ PUSH4 0x80000000
                 disassemble(&second.bytecode),
                 str![[r#"
 PUSH1 0x02
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn current_trace_size_includes_predecessors() {
-        with_assembler(size_optimized_opts(), |mut asm| {
-            let cold = asm.new_label();
-            let selector = asm.new_label();
-
-            let frame_size = asm.new_deferred_const();
-            asm.emit_push_deferred(frame_size);
-            asm.emit_push(U256::from(64));
-            asm.emit_op(op::MSTORE);
-            asm.emit_op(op::CALLVALUE);
-            asm.emit_push_label(cold);
-            asm.emit_op(op::JUMPI);
-
-            asm.define_label(selector);
-            asm.emit_push(U256::ZERO);
-            asm.emit_op(op::CALLDATALOAD);
-            asm.emit_push(U256::from(224));
-            asm.emit_op(op::SHR);
-
-            assert_eq!(
-                asm.current_trace_size_bounds(2, std::mem::size_of::<u64>()),
-                Some((13, 22))
-            );
-        });
-    }
-
-    #[test]
-    fn indexed_jump_uses_packed_label_table() {
-        with_assembler(opts(EvmVersion::Shanghai, OptimizationMode::None), |mut asm| {
-            let left = asm.new_label();
-            let right = asm.new_label();
-
-            asm.emit_push(U256::from(1));
-            asm.emit_indexed_jump(vec![left, right]);
-            assert!(asm.current_block.is_none());
-            asm.define_label(left);
-            asm.emit_op(op::STOP);
-            asm.define_label(right);
-            asm.emit_op(op::INVALID);
-
-            assert_data_eq!(
-                disassemble(&asm.assemble().bytecode),
-                str![[r#"
-PUSH1 0x01
-PUSH1 0x03
-SHL
-PUSH2 0x100e
-SWAP1
-SHR
-PUSH1 0xff
-AND
-JUMP
-JUMPDEST
-STOP
-JUMPDEST
-INVALID
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn indexed_jump_uses_two_packed_label_words_for_size() {
-        with_assembler(size_optimized_opts(), |mut asm| {
-            let left = asm.new_label();
-            let right = asm.new_label();
-            let mut targets = vec![left; 32];
-            targets.push(right);
-
-            asm.emit_push(U256::from(32));
-            asm.emit_indexed_jump(targets);
-            asm.define_label(left);
-            asm.emit_op(op::STOP);
-            asm.define_label(right);
-            asm.emit_op(op::INVALID);
-
-            assert_data_eq!(
-                disassemble(&asm.assemble().bytecode),
-                str![[r#"
-PUSH1 0x20
-DUP1
-PUSH1 0x05
-SHR
-DUP1
-PUSH1 0x3d
-MUL
-SWAP1
-ISZERO
-PUSH32 0x3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b
-MUL
-ADD
-SWAP1
-PUSH1 0x1f
-AND
-PUSH1 0x03
-SHL
-SHR
-PUSH1 0xff
-AND
-JUMP
-JUMPDEST
-STOP
-JUMPDEST
-INVALID
 
 "#]]
             );
