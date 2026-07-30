@@ -26,8 +26,8 @@ use crate::{
     mir::{Function, FunctionId, InstId, MirPhase, Module},
     pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff},
     transform::{
-        adce, cfg_simplify, check_elim, copy_elision, cse, dce, frame_promotion, gvn,
-        indvar_simplify, inline, inst_simplify, jump_threading, load_pre, loop_canonicalize,
+        adce, cfg_simplify, check_elim, copy_elision, cse, dce, evm_inst_schedule, frame_promotion,
+        gvn, indvar_simplify, inline, inst_simplify, jump_threading, load_pre, loop_canonicalize,
         loop_opt, lower_abi, lower_abi_encode, lower_aggregates, lower_alloc, lower_dispatch,
         lower_evm_shaped, lower_mapping_slots, lower_mcopy, lower_memory_objects,
         lower_memory_zero, lower_slices, memory_dse, outline_reverts, pre, pure_eval, sccp, sroa,
@@ -83,6 +83,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_slices::LowerSlices,
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
+    &evm_inst_schedule::EvmInstSchedule,
 ];
 
 /// Finds a MIR pass by command-line name.
@@ -216,6 +217,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_memory_zero::LowerMemoryZero,
     &lower_mcopy::LowerMCopy,
     &lower_evm_shaped::LowerEvmShaped,
+    &evm_inst_schedule::EvmInstSchedule,
 ];
 
 /// Runs the configured MIR pipeline, substituting it for the canonical pipeline.
