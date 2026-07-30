@@ -154,8 +154,14 @@ fn compile(
     };
     opts.stop_after = stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
 
-    if let Some(Optimizer { enabled: false, runs: _runs }) = optimizer {
-        opts.optimization = OptimizationMode::None;
+    if let Some(Optimizer { enabled, runs }) = optimizer {
+        // 200 runs is the default value if unspecified in solc.
+        // Treat lower values as Size.
+        opts.optimization = if enabled {
+            if runs >= Some(200) { OptimizationMode::Gas } else { OptimizationMode::Size }
+        } else {
+            OptimizationMode::None
+        };
     }
 
     opts.libraries = Vec::with_capacity(libraries.len());
