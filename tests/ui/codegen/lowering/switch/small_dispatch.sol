@@ -1,5 +1,8 @@
-//@ compile-flags: -Zcodegen -O gas -Zdump=evm-ir-runtime
-//@ filecheck:
+//@ revisions: gas size
+//@[gas] compile-flags: -Zcodegen -O gas -Zdump=evm-ir-runtime
+//@[gas] filecheck:
+//@[size] compile-flags: -Zcodegen -O size -Zdump=evm-ir-runtime
+//@[size] filecheck: --check-prefixes=CHECK,SIZE
 
 contract OneFunction {
     // CHECK-LABEL: small_dispatch.sol:OneFunction (runtime) ===
@@ -59,4 +62,52 @@ contract FourFunctions {
     function f3() external pure returns (uint256) {
         return 3;
     }
+}
+
+contract PartialTerminalDispatch {
+    // SIZE-LABEL: small_dispatch.sol:PartialTerminalDispatch (runtime) ===
+    // SIZE: gt
+    function f0() external pure returns (uint256) {
+        return 0;
+    }
+
+    function f1() external {}
+    function f2() external {}
+    function f3() external {}
+    function f4() external {}
+    function f5() external {}
+    function f6() external {}
+    function f7() external {}
+    function f8() external {}
+    function f9() external {}
+    function f10() external {}
+    function f11() external {}
+    function f12() external {}
+    function f13() external {}
+    function f14() external {}
+    function f15() external {}
+    function f16() external {}
+    function f17() external {}
+    function f18() external {}
+    function f19() external {}
+    function f20() external {}
+    function f21() external {}
+    function f22() external {}
+    function f23() external {}
+    function f24() external {}
+    function f25() external {}
+    function f26() external {}
+    function f27() external {}
+    function f28() external {}
+    function f29() external {}
+    function f30() external {}
+    function f31() external {}
+    function f32() external {}
+    function f33() external {}
+    function f34() external {}
+    function f35() external {}
+    function f36() external {}
+    function f37() external {}
+    function f38() external {}
+    function f39() external {}
 }

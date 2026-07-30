@@ -101,9 +101,9 @@ pub(super) struct SwitchLayout {
     pub(super) coalesce_case_targets: bool,
     /// The coalesced case targets all jump to one continuation.
     pub(super) shared_case_continuation: bool,
-    /// Every entry case tail-calls an empty function that terminal deduplication
-    /// maps to one nearby `STOP`.
-    pub(super) shared_terminal_target: bool,
+    /// Number of entry cases whose empty function targets terminal
+    /// deduplication maps to one shared `STOP`.
+    pub(super) terminal_case_count: usize,
     /// Placement of the default target relative to the switch.
     pub(super) default_layout: SwitchDefaultLayout,
     /// Optimistic and conservative sizes of the entry trace before the switch.
@@ -513,11 +513,15 @@ impl BinarySizeContext<'_> {
         linear_cost: LoweringCost,
         leaf_size: usize,
     ) -> (usize, usize, usize) {
+        let leaves = binary_leaf_count(self.equality_costs.len(), leaf_size);
         let locality_credit = self
             .layout
             .trace_size_bounds
             .and_then(|(prefix_min_size, prefix_layout_size)| {
-                if !self.layout.shared_terminal_target || self.table_target_width <= 1 {
+                // Tail merging can replace at most one terminal reference per
+                // leaf. The remaining references must still make the shared
+                // terminal eligible for block-layout packing.
+                if self.layout.terminal_case_count <= leaves || self.table_target_width <= 1 {
                     return None;
                 }
                 let linear_end = prefix_min_size.saturating_add(linear_cost.code_size);
@@ -545,21 +549,28 @@ impl BinarySizeContext<'_> {
                 .then(|| {
                     self.equality_costs
                         .len()
+                        .min(self.layout.terminal_case_count)
                         .saturating_add(1)
                         .saturating_mul(self.table_target_width.saturating_sub(1))
                 })
             })
             .unwrap_or_default();
-        let tail_merge_credit = if self.layout.shared_terminal_target {
-            let leaves = binary_leaf_count(self.equality_costs.len(), leaf_size);
-            // Tail merging replaces each leaf's common `EQ; PUSH; JUMPI; JUMP`
-            // suffix with a jump to one shared eight-byte tail block.
-            leaves.saturating_mul(4).saturating_sub(8)
-        } else {
-            0
-        };
+        let nonterminal_cases =
+            self.equality_costs.len().saturating_sub(self.layout.terminal_case_count);
+        // Every nonterminal case can prevent at most one leaf from ending in
+        // the common empty terminal. Tail merging replaces each remaining
+        // leaf's `EQ; PUSH; JUMPI; JUMP` suffix with a jump to one shared
+        // eight-byte tail block.
+        let terminal_leaves = leaves.saturating_sub(nonterminal_cases);
+        let tail_merge_credit = terminal_leaves.saturating_mul(4).saturating_sub(8);
         let split_width_charge = self.layout.trace_size_bounds.map_or(0, |(_, prefix_size)| {
-            binary_split_width_charge(self, leaf_size, prefix_size, locality_credit == 0)
+            let all_cases_terminal = self.layout.terminal_case_count >= self.equality_costs.len();
+            binary_split_width_charge(
+                self,
+                leaf_size,
+                prefix_size,
+                locality_credit == 0 || !all_cases_terminal,
+            )
         });
         (
             cost.code_size
@@ -1577,7 +1588,7 @@ mod tests {
                     max_bit_slice_gas_code_growth: MAX_BIT_SLICE_GAS_CODE_GROWTH,
                     forced: SwitchLowering::Auto,
                     layout: SwitchLayout {
-                        shared_terminal_target: true,
+                        terminal_case_count: len,
                         default_layout: SwitchDefaultLayout::Inline,
                         trace_size_bounds: Some((14, 15)),
                         ..SwitchLayout::default()
@@ -1593,6 +1604,42 @@ mod tests {
         assert_eq!(select(77), SwitchPlan::Binary { leaf_size: 19 });
         assert_eq!(select(79), SwitchPlan::Binary { leaf_size: 19 });
         assert_eq!(select(80), SwitchPlan::Binary { leaf_size: 10 });
+    }
+
+    #[test]
+    fn models_partial_terminal_targets() {
+        let select = |len| {
+            let mut values = (0..len)
+                .map(|value| {
+                    let hash = keccak256(format!("f{value}()"));
+                    U256::from(u32::from_be_bytes(hash[..4].try_into().unwrap()))
+                })
+                .collect::<Vec<_>>();
+            values.sort_unstable();
+            select_switch_plan_with_linear_values_and_budget(
+                &values,
+                &values,
+                SwitchPlanOptions {
+                    optimization: OptimizationMode::Size,
+                    evm_version: EvmVersion::Osaka,
+                    default: SwitchDefault::Jump,
+                    table_target_width: 2,
+                    max_gas_code_growth: MAX_GAS_CODE_GROWTH,
+                    max_bit_slice_gas_code_growth: MAX_BIT_SLICE_GAS_CODE_GROWTH,
+                    forced: SwitchLowering::Auto,
+                    layout: SwitchLayout {
+                        terminal_case_count: len - 1,
+                        default_layout: SwitchDefaultLayout::Inline,
+                        trace_size_bounds: Some((13, 22)),
+                        ..SwitchLayout::default()
+                    },
+                },
+            )
+            .plan
+        };
+
+        assert_eq!(select(40), SwitchPlan::Binary { leaf_size: 10 });
+        assert_eq!(select(220), SwitchPlan::Binary { leaf_size: 27 });
     }
 
     #[test]
@@ -1616,7 +1663,7 @@ mod tests {
                 max_bit_slice_gas_code_growth: MAX_BIT_SLICE_GAS_CODE_GROWTH,
                 forced: SwitchLowering::Auto,
                 layout: SwitchLayout {
-                    shared_terminal_target: true,
+                    terminal_case_count: values.len(),
                     default_layout: SwitchDefaultLayout::Outlined,
                     trace_size_bounds: Some((14, 15)),
                     ..SwitchLayout::default()

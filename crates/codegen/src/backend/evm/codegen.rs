@@ -5697,15 +5697,20 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             })
         });
-        let shared_terminal_target = models_default_pipeline
-            && self.emitting_entry
-            && entries.iter().all(|entry| {
-                matches!(
-                    func.blocks[entry.target].terminator.as_ref(),
-                    Some(Terminator::TailCall { function, args })
-                        if args.is_empty() && self.empty_stop_functions.contains(*function)
-                )
-            });
+        let terminal_case_count = if models_default_pipeline && self.emitting_entry {
+            entries
+                .iter()
+                .filter(|entry| {
+                    matches!(
+                        func.blocks[entry.target].terminator.as_ref(),
+                        Some(Terminator::TailCall { function, args })
+                            if args.is_empty() && self.empty_stop_functions.contains(*function)
+                    )
+                })
+                .count()
+        } else {
+            0
+        };
         let default_layout = match func.blocks[default].terminator.as_ref() {
             Some(Terminator::Revert { .. }) => SwitchDefaultLayout::Inline,
             Some(Terminator::TailCall { function, args })
@@ -5718,9 +5723,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         SwitchLayout {
             coalesce_case_targets,
             shared_case_continuation,
-            shared_terminal_target,
+            terminal_case_count,
             default_layout,
-            trace_size_bounds: shared_terminal_target
+            trace_size_bounds: (terminal_case_count != 0)
                 .then(|| {
                     self.asm.current_trace_size_bounds(
                         self.switch_table_target_width(),

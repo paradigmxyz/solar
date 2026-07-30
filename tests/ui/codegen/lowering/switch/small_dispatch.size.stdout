@@ -1,0 +1,413 @@
+// === ROOT/tests/ui/codegen/lowering/switch/small_dispatch.sol:OneFunction (runtime) ===
+@module runtime
+bb0:
+  push 160
+  push 64
+  mstore
+  callvalue
+  push bb3
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0xa5850475
+  sub
+  push bb3
+  jumpi
+  push 0
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb3 [cold]:
+  push 0
+  dup1
+  revert
+// === ROOT/tests/ui/codegen/lowering/switch/small_dispatch.sol:TwoFunctions (runtime) ===
+@module runtime
+bb0:
+  push 160
+  push 64
+  mstore
+  callvalue
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0xa5850475
+  eq
+  push bb5
+  jumpi
+  dup1
+  push 0xc27fc305
+  eq
+  push bb6
+  jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+bb5:
+  push 0
+  jump bb7
+bb7:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb6:
+  push 1
+  jump bb7
+// === ROOT/tests/ui/codegen/lowering/switch/small_dispatch.sol:ThreeFunctions (runtime) ===
+@module runtime
+bb0:
+  push 160
+  push 64
+  mstore
+  callvalue
+  push bb5
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x9942ec6f
+  eq
+  push bb8
+  jumpi
+  dup1
+  push 0xa5850475
+  eq
+  push bb6
+  jumpi
+  dup1
+  push 0xc27fc305
+  eq
+  push bb7
+  jumpi
+  jump bb5
+bb5 [cold]:
+  push 0
+  dup1
+  revert
+bb6:
+  push 0
+  jump bb9
+bb9:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb7:
+  push 1
+  jump bb9
+bb8:
+  push 2
+  jump bb9
+// === ROOT/tests/ui/codegen/lowering/switch/small_dispatch.sol:FourFunctions (runtime) ===
+@module runtime
+bb0:
+  push 160
+  push 64
+  mstore
+  callvalue
+  push bb6
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x9942ec6f
+  eq
+  push bb9
+  jumpi
+  dup1
+  push 0xa5850475
+  eq
+  push bb7
+  jumpi
+  dup1
+  push 0xaaf05f3d
+  eq
+  push bb10
+  jumpi
+  dup1
+  push 0xc27fc305
+  eq
+  push bb8
+  jumpi
+  jump bb6
+bb6 [cold]:
+  push 0
+  dup1
+  revert
+bb7:
+  push 0
+  jump bb11
+bb11:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb8:
+  push 1
+  jump bb11
+bb9:
+  push 2
+  jump bb11
+bb10:
+  push 3
+  jump bb11
+// === ROOT/tests/ui/codegen/lowering/switch/small_dispatch.sol:PartialTerminalDispatch (runtime) ===
+@module runtime
+bb0:
+  push 160
+  push 64
+  mstore
+  callvalue
+  push bb45
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x8dc714ba
+  gt
+  push bb3
+  jumpi
+  dup1
+  push 0xc3f90202
+  gt
+  push bb2
+  jumpi
+  dup1
+  push 0xc3f90202
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0xc9ff79aa
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0xcbf99d38
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0xd0e6758e
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0xdca2fb5a
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0xdf2025dc
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0xe6e0ae36
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0xe7025593
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0xebd25c8f
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0xf02a00c9
+  jump bb48
+bb48:
+  sub
+  push bb45
+  jumpi
+  jump bb47
+bb47:
+  stop
+bb45 [cold]:
+  push 0
+  dup1
+  revert
+bb2:
+  dup1
+  push 0x8dc714ba
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x920f5c73
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x965a68f5
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x98e9a73d
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x9942ec6f
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0xa5850475
+  eq
+  push bb46
+  jumpi
+  dup1
+  push 0xaa66aa63
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0xaaf05f3d
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0xc0290202
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0xc27fc305
+  jump bb48
+bb3:
+  dup1
+  push 0x54eaadab
+  gt
+  push bb4
+  jumpi
+  dup1
+  push 0x54eaadab
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x5f4b2922
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x5fb43592
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x67e648b5
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x6830f8f1
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x6d4975a2
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x7238232f
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x7c396b83
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x822fe54c
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x87d912cb
+  jump bb48
+bb4:
+  dup1
+  push 0x16b46ff5
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x16f8ce65
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x18c404cc
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x1eb6457a
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x1f49dbe7
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x24a75cfd
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x3b88f6c2
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x3c9d377d
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x40bcff2a
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x41052a0d
+  jump bb48
+bb46:
+  push 0
+  push 128
+  mstore
+  push 32
+  push 128
+  return
