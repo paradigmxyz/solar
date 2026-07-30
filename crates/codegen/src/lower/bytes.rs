@@ -1423,10 +1423,14 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     fn literal_signature_selector(expr: &hir::Expr<'_>) -> Option<U256> {
-        let ExprKind::Lit(lit) = &expr.kind else { return None };
-        let LitKind::Str(_, sig, _) = &lit.kind else { return None };
-        let hash = keccak256(sig.as_byte_str());
-        Some(U256::from(u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]])) << 224)
+        if let ExprKind::Lit(lit) = &expr.kind
+            && let LitKind::Str(_, sig, _) = &lit.kind
+        {
+            let hash = keccak256(sig.as_byte_str());
+            Some(U256::from(u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]])) << 224)
+        } else {
+            None
+        }
     }
 
     /// Looks through a `bytes(x)` / `string(x)` conversion to the underlying

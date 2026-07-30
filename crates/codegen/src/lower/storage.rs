@@ -68,14 +68,11 @@ impl<'gcx> Lowerer<'gcx> {
                 ptr
             }
             TyKind::Array(element_ty, len) => {
-                let Ok(len) = u64::try_from(len) else {
-                    return self.err_value(
-                        builder,
-                        Span::DUMMY,
-                        "fixed-size storage array is too large to materialize",
-                    );
-                };
-                let Some(size) = len.checked_mul(32) else {
+                let (len, size) = if let Ok(len) = u64::try_from(len)
+                    && let Some(size) = len.checked_mul(32)
+                {
+                    (len, size)
+                } else {
                     return self.err_value(
                         builder,
                         Span::DUMMY,
