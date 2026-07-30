@@ -609,11 +609,10 @@ mod tests {
         DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities,
         FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
         FileOperationRegistrationOptions, InlayHintWorkspaceClientCapabilities, MarkupKind, OneOf,
-        ParameterInformationSettings,
-        RenameOptions, SignatureHelpClientCapabilities, SignatureInformationSettings,
-        TextDocumentClientCapabilities, TextDocumentSyncCapability, TextDocumentSyncSaveOptions,
-        TypeDefinitionProviderCapability, WindowClientCapabilities, WorkspaceClientCapabilities,
-        WorkspaceEditClientCapabilities,
+        ParameterInformationSettings, RenameOptions, SignatureHelpClientCapabilities,
+        SignatureInformationSettings, TextDocumentClientCapabilities, TextDocumentSyncCapability,
+        TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WindowClientCapabilities,
+        WorkspaceClientCapabilities, WorkspaceEditClientCapabilities,
     };
 
     #[test]

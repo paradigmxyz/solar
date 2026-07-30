@@ -1,7 +1,6 @@
-//! Renders resolved NatSpec for LSP hover responses.
+//! Resolves and renders NatSpec documentation for LSP responses.
 
 use lsp_types::{Documentation as LspDocumentation, MarkupContent, MarkupKind};
-use solar_interface::Symbol;
 use solar_sema::{
     Gcx,
     hir::{self, HirPrinter},
@@ -9,45 +8,59 @@ use solar_sema::{
 };
 use std::fmt::Write;
 
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct RenderedDocumentation {
-    markdown: MarkupContent,
-    plain_text: String,
+#[derive(Clone, Debug)]
+pub(crate) struct ResolvedDocumentation {
+    signature: String,
+    natspec: NatSpecDocumentation,
 }
 
-impl RenderedDocumentation {
+impl ResolvedDocumentation {
     pub(crate) fn hover(&self) -> MarkupContent {
-        self.markdown.clone()
+        MarkupContent { kind: MarkupKind::Markdown, value: self.markdown() }
     }
 
     pub(crate) fn completion(&self, markdown: bool) -> LspDocumentation {
         if markdown {
-            LspDocumentation::MarkupContent(self.markdown.clone())
+            LspDocumentation::MarkupContent(self.hover())
         } else {
-            LspDocumentation::String(self.plain_text.clone())
+            LspDocumentation::String(self.plain_text())
         }
+    }
+
+    pub(crate) fn renders_identically(&self, other: &Self) -> bool {
+        if self.signature != other.signature {
+            return false;
+        }
+        self.natspec == other.natspec
+            || (self.markdown() == other.markdown() && self.plain_text() == other.plain_text())
+    }
+
+    fn markdown(&self) -> String {
+        let mut value = format!("```solidity\n{}\n```", self.signature);
+        append_markdown_documentation(&mut value, &self.natspec);
+        value
+    }
+
+    fn plain_text(&self) -> String {
+        let mut value = self.signature.clone();
+        append_plain_documentation(&mut value, &self.natspec);
+        value
     }
 }
 
-pub(crate) fn render(gcx: Gcx<'_>, item_id: hir::ItemId) -> Option<RenderedDocumentation> {
-    let signature = HirPrinter::display(gcx, item_id).to_string();
-    let documentation = documentation(gcx, item_id);
-    let mut markdown = format!("```solidity\n{signature}\n```");
-    append_documentation(&mut markdown, &documentation);
-    let mut plain_text = signature;
-    append_plain_documentation(&mut plain_text, &documentation);
-    Some(RenderedDocumentation {
-        markdown: MarkupContent { kind: MarkupKind::Markdown, value: markdown },
-        plain_text,
-    })
+pub(crate) fn resolve(gcx: Gcx<'_>, item_id: hir::ItemId) -> ResolvedDocumentation {
+    ResolvedDocumentation {
+        signature: HirPrinter::display(gcx, item_id).to_string(),
+        natspec: documentation(gcx, item_id),
+    }
 }
 
-#[derive(Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 struct NatSpecDocumentation {
     notice: Vec<String>,
     dev: Vec<String>,
-    params: Vec<(Symbol, String)>,
-    returns: Vec<(Option<Symbol>, String)>,
+    params: Vec<(String, String)>,
+    returns: Vec<(Option<String>, String)>,
 }
 
 fn documentation(gcx: Gcx<'_>, item_id: hir::ItemId) -> NatSpecDocumentation {
@@ -217,13 +230,13 @@ fn item_documentation(items: &[hir::NatSpecItem]) -> NatSpecDocumentation {
     documentation
 }
 
-fn return_documentation(items: &[hir::NatSpecItem]) -> Vec<(Option<Symbol>, String)> {
+fn return_documentation(items: &[hir::NatSpecItem]) -> Vec<(Option<String>, String)> {
     items
         .iter()
         .filter_map(|item| {
             let hir::NatSpecKind::Return { name } = item.kind else { return None };
             let content = item_content(item)?;
-            Some((name.map(|name| name.name), content.to_string()))
+            Some((name.map(|name| name.name.to_string()), content.to_string()))
         })
         .collect()
 }
@@ -233,9 +246,9 @@ fn parameter_doc_at(
     id: hir::VariableId,
     index: usize,
     documentation: NatSpecView<'_>,
-) -> Option<(Symbol, String)> {
+) -> Option<(String, String)> {
     let content = join_docs(documentation.parameter(index).iter().filter_map(item_content))?;
-    let name = gcx.hir.variable(id).name?.name;
+    let name = gcx.hir.variable(id).name?.name.to_string();
     Some((name, content))
 }
 
@@ -244,9 +257,9 @@ fn return_doc_at(
     id: hir::VariableId,
     index: usize,
     documentation: NatSpecView<'_>,
-) -> Option<(Option<Symbol>, String)> {
+) -> Option<(Option<String>, String)> {
     let content = join_docs(documentation.return_(index).iter().filter_map(item_content))?;
-    let name = gcx.hir.variable(id).name.map(|name| name.name);
+    let name = gcx.hir.variable(id).name.map(|name| name.name.to_string());
     Some((name, content))
 }
 
@@ -265,7 +278,7 @@ fn join_docs<'a>(mut docs: impl Iterator<Item = &'a str>) -> Option<String> {
     Some(joined)
 }
 
-fn append_documentation(output: &mut String, documentation: &NatSpecDocumentation) {
+fn append_markdown_documentation(output: &mut String, documentation: &NatSpecDocumentation) {
     for notice in &documentation.notice {
         output.push_str("\n\n");
         output.push_str(notice);

@@ -137,7 +137,7 @@ pub(crate) struct DeclarationSymbol {
     pub(crate) parent: Option<SymbolId>,
     has_definition: bool,
     has_getter_completion: bool,
-    documentation: Option<crate::hover::RenderedDocumentation>,
+    documentation: Option<crate::documentation::ResolvedDocumentation>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -325,7 +325,7 @@ impl SymbolTables {
                         item_id,
                         ItemId::Variable(id) if gcx.hir.variable(id).getter.is_some()
                     ),
-                    documentation: crate::hover::render(gcx, item_id),
+                    documentation: Some(crate::documentation::resolve(gcx, item_id)),
                 },
             );
             item_symbols.insert(item_id, symbol_id);
@@ -1002,10 +1002,12 @@ impl SymbolTables {
         if self.rename.conflicting_contents().contains(&data.uri) {
             return;
         }
-        let Some(symbol_ids) = self.files.get(&data.uri) else { return };
-        let mut candidates = symbol_ids
-            .iter()
-            .map(|&symbol_id| &self.declarations[symbol_id])
+        let Some(declarations) = self.file_declaration_positions.get(&data.uri) else { return };
+        let mut candidates = declarations
+            .candidates_at(data.selection_range.start, |symbol_id| {
+                self.declarations[symbol_id].name_range
+            })
+            .map(|symbol_id| &self.declarations[symbol_id])
             .filter(|symbol| symbol.name_range == data.selection_range);
         let Some(symbol) = candidates.next() else { return };
         let Some(kind) = item.kind else { return };
@@ -1016,7 +1018,10 @@ impl SymbolTables {
         if candidates.any(|candidate| {
             candidate.name != symbol.name
                 || !symbol_supports_completion_kind(candidate, kind)
-                || candidate.documentation.as_ref() != Some(documentation)
+                || !candidate
+                    .documentation
+                    .as_ref()
+                    .is_some_and(|other| other.renders_identically(documentation))
         }) {
             return;
         }

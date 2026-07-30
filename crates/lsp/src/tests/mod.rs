@@ -33,6 +33,7 @@ use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 mod call_hierarchy;
 mod code_lens;
 mod completion;
+mod completion_resolve;
 mod document_highlight;
 mod document_link;
 mod file_operations;

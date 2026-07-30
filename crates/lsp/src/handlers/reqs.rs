@@ -16,14 +16,14 @@ use lsp_types::{
     DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
     DocumentFormattingParams, DocumentHighlight, DocumentHighlightParams, DocumentLink,
     DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
-    FoldingRangeParams, FullDocumentDiagnosticReport, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverParams, InlayHint, InlayHintParams, Position,
-    PrepareRenameResponse, ReferenceParams, RelatedFullDocumentDiagnosticReport,
-    RelatedUnchangedDocumentDiagnosticReport, RenameParams, SelectionRange, SelectionRangeParams,
-    SignatureHelp, SignatureHelpParams, TextDocumentPositionParams, TextEdit, TypeHierarchyItem,
-    TypeHierarchyPrepareParams, TypeHierarchySubtypesParams, TypeHierarchySupertypesParams,
-    UnchangedDocumentDiagnosticReport, Url, WorkspaceEdit, WorkspaceSymbolParams,
-    WorkspaceSymbolResponse, request::GotoImplementationParams,
+    FoldingRangeParams, FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse,
+    Hover, HoverParams, InlayHint, InlayHintParams, Position, PrepareRenameResponse,
+    ReferenceParams, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
+    RenameParams, SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
+    TextDocumentPositionParams, TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams,
+    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, UnchangedDocumentDiagnosticReport,
+    Url, WorkspaceEdit, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    request::GotoImplementationParams,
 };
 use solar_interface::data_structures::sync::RwLock;
 use solar_parse::lexer::is_ident;
