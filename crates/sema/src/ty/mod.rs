@@ -43,6 +43,8 @@ pub use print::{TyAbiPrinter, TyAbiPrinterMode};
 mod common;
 pub use common::{CommonTypes, EachDataLoc};
 
+mod call_graph;
+
 mod interner;
 use interner::Interner;
 
@@ -349,6 +351,7 @@ pub struct GlobalCtxt<'gcx> {
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
+    callgraph: OnceLock<call_graph::CallGraph>,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
 }
 
@@ -384,6 +387,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
             hir_arenas,
             interner,
             cache: Cache::default(),
+            callgraph: OnceLock::new(),
             override_index: OnceLock::new(),
         }
     }
@@ -1418,6 +1422,20 @@ macro_rules! cached {
 }
 
 cached! {
+fn interface_items(gcx: _, id: hir::ContractId) -> call_graph::InterfaceItems<'gcx> {
+    gcx.callgraph().interface_items(gcx, id)
+}
+
+/// Returns all events included in the external interface of the given contract.
+pub fn interface_events(gcx: _, id: hir::ContractId) -> &'gcx [hir::EventId] {
+    gcx.interface_items(id).events
+}
+
+/// Returns all errors included in the external interface of the given contract.
+pub fn interface_errors(gcx: _, id: hir::ContractId) -> &'gcx [hir::ErrorId] {
+    gcx.interface_items(id).errors
+}
+
 /// Returns the [ERC-165] interface ID of the given contract.
 ///
 /// This is the XOR of the selectors of all function selectors in the interface.
