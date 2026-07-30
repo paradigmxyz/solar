@@ -1,4 +1,28 @@
 //@ compile-flags: --emit=abi,hashes --pretty-json
+//@ filecheck:
+
+// CHECK-LABEL: "ROOT/tests/ui/abi/contract_special_functions.sol:A":
+// CHECK-NOT: "type": "constructor"
+// CHECK: "type": "fallback"
+// CHECK-LABEL: "ROOT/tests/ui/abi/contract_special_functions.sol:B":
+// CHECK-NOT: "type": "constructor"
+// CHECK: "type": "fallback"
+// CHECK: "type": "receive"
+// CHECK-LABEL: "ROOT/tests/ui/abi/contract_special_functions.sol:C":
+// CHECK: "type": "constructor"
+// CHECK: "type": "fallback"
+// CHECK-LABEL: "ROOT/tests/ui/abi/contract_special_functions.sol:D":
+// CHECK: "type": "constructor"
+// CHECK: "stateMutability": "payable"
+// CHECK: "type": "fallback"
+// CHECK: "type": "receive"
+// CHECK-LABEL: "ROOT/tests/ui/abi/contract_special_functions.sol:E":
+// CHECK-NOT: "type": "constructor"
+// CHECK: "type": "fallback"
+// CHECK-LABEL: "ROOT/tests/ui/abi/contract_special_functions.sol:F":
+// CHECK-NOT: "type": "constructor"
+// CHECK: "type": "fallback"
+// CHECK: "type": "receive"
 
 // Abstract contracts don't emit constructors.
 abstract contract A {

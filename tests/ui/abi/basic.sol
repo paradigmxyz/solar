@@ -1,4 +1,17 @@
 //@ compile-flags: --emit=abi,hashes --pretty-json
+//@ filecheck:
+
+// CHECK-LABEL: "ROOT/tests/ui/abi/basic.sol:C":
+// CHECK: "type": "constructor"
+// CHECK: "name": "Er"
+// CHECK: "name": "Ev"
+// CHECK: "name": "f8"
+// CHECK: "type": "receive"
+// CHECK: "hashes": {
+// CHECK-LABEL: "ROOT/tests/ui/abi/basic.sol:D":
+// CHECK: "type": "constructor"
+// CHECK: "stateMutability": "payable"
+// CHECK: "name": "f8"
 
 struct S1 {
     uint x;

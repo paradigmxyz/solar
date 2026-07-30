@@ -1,4 +1,26 @@
 //@ compile-flags: --emit=abi --pretty-json
+//@ filecheck:
+
+// CHECK-LABEL: "ROOT/tests/ui/abi/referenced_items.sol:Base":
+// CHECK: "name": "BaseError"
+// CHECK: "name": "BaseEvent"
+// CHECK-LABEL: "ROOT/tests/ui/abi/referenced_items.sol:C":
+// CHECK: "name": "InitializerError"
+// CHECK: "name": "ReferencedError"
+// CHECK-NOT: "UnusedError"
+// CHECK: "name": "BaseEvent"
+// CHECK-NOT: "ExternalEvent"
+// CHECK: "name": "ModifierEvent"
+// CHECK: "name": "ReferencedEvent"
+// CHECK-NOT: "UnusedEvent"
+// CHECK-LABEL: "ROOT/tests/ui/abi/referenced_items.sol:External":
+// CHECK: "name": "ExternalEvent"
+// CHECK-LABEL: "ROOT/tests/ui/abi/referenced_items.sol:FunctionPointer":
+// CHECK: "name": "FunctionPointerEvent"
+// CHECK-LABEL: "ROOT/tests/ui/abi/referenced_items.sol:VirtualBase":
+// CHECK: "name": "BaseHookEvent"
+// CHECK-LABEL: "ROOT/tests/ui/abi/referenced_items.sol:VirtualDerived":
+// CHECK: "name": "DerivedHookEvent"
 
 event ReferencedEvent(uint256 value);
 event ModifierEvent();
