@@ -128,9 +128,6 @@ bb7:
   mstore
   push 160
   mload
-  dup1
-  push 160
-  mstore
   dup2
   mstore
   push 32
@@ -151,9 +148,6 @@ bb7:
   add
   push 160
   mload
-  dup1
-  push 160
-  mstore
   dup2
   dup4
   calldatacopy

@@ -135,9 +135,6 @@ bb5:
   mstore
   push 320
   mload
-  dup1
-  push 320
-  mstore
   dup2
   mstore
   push 32
@@ -146,9 +143,6 @@ bb5:
   dup3
   push 416
   mload
-  dup1
-  push 416
-  mstore
   dup3
   calldatacopy
   pop
@@ -232,9 +226,6 @@ bb5:
   mstore
   push 224
   mload
-  dup1
-  push 224
-  mstore
   dup2
   mstore
   push 32
@@ -255,9 +246,6 @@ bb5:
   add
   push 224
   mload
-  dup1
-  push 224
-  mstore
   dup2
   dup4
   calldatacopy
@@ -296,9 +284,6 @@ bb5:
   add
   push 448
   mload
-  dup1
-  push 448
-  mstore
   swap1
   mstore
   push 128
@@ -307,9 +292,6 @@ bb5:
   add
   push 288
   mload
-  dup1
-  push 288
-  mstore
   swap1
   mstore
   push 192
@@ -324,10 +306,8 @@ bb5:
   push 192
   mload
   add
-  dup1
   push 544
   mstore
-  pop
   pop
   push 0
   jump bb14
@@ -379,9 +359,6 @@ bb14:
   jumpi
   push 256
   mload
-  dup1
-  push 256
-  mstore
   push 128
   mstore
   push 96
@@ -398,9 +375,6 @@ bb14:
   keccak256
   push 256
   mload
-  dup1
-  push 256
-  mstore
   swap1
   sstore
   push 32
@@ -487,9 +461,6 @@ bb18:
   jumpi
   push 512
   mload
-  dup1
-  push 512
-  mstore
   push 128
   mstore
   push 160
@@ -505,9 +476,6 @@ bb18:
   jumpi
   push 384
   mload
-  dup1
-  push 384
-  mstore
   push 160
   mstore
   pop
@@ -669,9 +637,6 @@ bb10:
   mstore
   push 224
   mload
-  dup1
-  push 224
-  mstore
   dup2
   mstore
   push 32
@@ -680,9 +645,6 @@ bb10:
   dup3
   push 288
   mload
-  dup1
-  push 288
-  mstore
   dup3
   calldatacopy
   pop
@@ -748,9 +710,6 @@ bb10:
   mstore
   push 192
   mload
-  dup1
-  push 192
-  mstore
   dup2
   mstore
   push 32
@@ -771,9 +730,6 @@ bb10:
   add
   push 192
   mload
-  dup1
-  push 192
-  mstore
   dup2
   dup4
   calldatacopy
@@ -798,9 +754,6 @@ bb10:
   add
   push 256
   mload
-  dup1
-  push 256
-  mstore
   dup2
   mstore
   push 64
@@ -880,19 +833,18 @@ bb10:
   mstore
   swap1
   pop
+  swap3
+  push 32
+  add
   push 196
   push 160
   mload
   add
-  swap4
-  push 32
-  add
-  dup2
-  dup2
-  dup7
+  dup5
+  dup3
+  dup3
   mcopy
   pop
-  swap3
   pop
   swap2
   push 192
@@ -920,14 +872,15 @@ bb10:
   mstore
   swap1
   pop
+  swap3
   push 32
   add
   swap3
   push 32
   add
   dup3
-  dup2
-  dup6
+  dup5
+  dup3
   mcopy
   pop
   swap2

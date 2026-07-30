@@ -71,10 +71,8 @@ bb17:
   lt
   push bb20
   jumpi
-  dup1
   push 384
   mstore
-  pop
   jump
 bb8:
   push 384
@@ -82,10 +80,8 @@ bb8:
   dup1
   push 256
   mstore
-  dup1
   push 352
   mstore
-  pop
   push bb9
   jump bb17
 bb11:
@@ -111,10 +107,8 @@ bb11:
   lt
   push bb20
   jumpi
-  dup1
   push 352
   mstore
-  pop
   push bb14
   jump bb17
 bb14:

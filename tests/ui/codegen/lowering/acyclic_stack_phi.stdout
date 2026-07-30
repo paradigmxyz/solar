@@ -65,14 +65,13 @@ bb4 [cold]:
   dup1
   revert
 bb9:
+  push 4
+  dup2
+  sub
   push 36
   push 4
   calldataload
   add
-  push 4
-  dup3
-  sub
-  swap1
   push 4
   add
   push 128
