@@ -45,7 +45,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         match source {
             AbiSource::Calldata => builder.calldatacopy(dst, src, len),
-            AbiSource::Memory => self.mcopy(builder, dst, src, len, None),
+            AbiSource::Memory => builder.mcopy(dst, src, len),
         }
     }
 
@@ -202,7 +202,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(ptr, len);
         let data_ptr = builder.add(ptr, word_size);
         let data_pos = builder.slice_ptr(slice);
-        self.mcopy(builder, data_ptr, data_pos, len, None);
+        builder.mcopy(data_ptr, data_pos, len);
         ptr
     }
 
@@ -867,7 +867,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(last_word, zero);
 
         let src_data = builder.memory_object_data(src, MemoryObjectKind::Bytes);
-        self.mcopy(builder, data, src_data, copy_len, None);
+        builder.mcopy(data, src_data, copy_len);
         ptr
     }
 

@@ -20,9 +20,6 @@ use solar_sema::{
     ty::{CallableParamSource, Ty, TyFn, TyKind},
 };
 
-/// Covers Homestead's call and new-account costs plus setup emitted after `GAS`.
-const PRE_TANGERINE_PRECOMPILE_CALL_GAS_RESERVE: u64 = 25_100;
-
 /// How a value travels across a linked-library delegatecall boundary.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum LinkedFieldKind {
@@ -1168,7 +1165,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // the diagnostic.
                 if self.gcx.sess.opts.evm_version.has_mcopy() {
                     let [dst, src, size] = self.lower_builtin_args(builder, builtin, call_args)?;
-                    self.mcopy(builder, dst, src, size, Some(call_args.span));
+                    builder.mcopy(dst, src, size);
                 } else {
                     return Err(self
                         .gcx
@@ -2388,7 +2385,7 @@ impl<'gcx> Lowerer<'gcx> {
             builder.mstore(dst, len);
             let dst_data = builder.add(dst, word);
             let src_data = builder.memory_object_data(src, object_kind);
-            self.mcopy(builder, dst_data, src_data, byte_len, None);
+            builder.mcopy(dst_data, src_data, byte_len);
 
             let advanced = builder.add(word, byte_len);
             tail_off = builder.add(tail_off, advanced);
@@ -2695,7 +2692,7 @@ impl<'gcx> Lowerer<'gcx> {
         let address = builder.imm_u64(if builtin == Builtin::Sha256 { 2 } else { 3 });
         let output_ptr = builder.imm_u64(0);
         let output_size = builder.imm_u64(32);
-        let gas = self.precompile_gas(builder);
+        let gas = crate::utils::precompile_gas(builder, self.gcx.sess.opts.evm_version);
         let success = self.emit_precompile_call(
             builder,
             gas,
@@ -2745,7 +2742,7 @@ impl<'gcx> Lowerer<'gcx> {
         let zero = builder.imm_u64(0);
         builder.mstore(output_ptr, zero);
 
-        let gas = self.precompile_gas(builder);
+        let gas = crate::utils::precompile_gas(builder, self.gcx.sess.opts.evm_version);
         let address = builder.imm_u64(1);
         let input_size = builder.imm_u64(128);
         let output_size = builder.imm_u64(32);
@@ -2810,16 +2807,6 @@ impl<'gcx> Lowerer<'gcx> {
         } else {
             let value = builder.imm_u64(0);
             builder.call(gas, address, value, input_ptr, input_size, output_ptr, output_size)
-        }
-    }
-
-    fn precompile_gas(&self, builder: &mut FunctionBuilder<'_>) -> ValueId {
-        let gas = builder.gas();
-        if self.gcx.sess.opts.evm_version.can_overcharge_gas_for_call() {
-            gas
-        } else {
-            let reserved = builder.imm_u64(PRE_TANGERINE_PRECOMPILE_CALL_GAS_RESERVE);
-            builder.sub(gas, reserved)
         }
     }
 

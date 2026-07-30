@@ -23,6 +23,7 @@ architecture.
 | Per-builtin arity checks and argument collection through flattening iterators | Shared borrowed slice/array extractors that reject named arguments |
 | Source-order iteration of named arguments in internal calls, libraries, structs, events, errors, and base constructors | Sema parameter sources plus one declaration-order mapper |
 | Conservative internal-call frame sizes based on a function's total MIR value count | Deferred constants resolved from exact post-emission spill sizes |
+| Target-dependent expansion of compiler-generated memory copies during HIR lowering | Semantic `mcopy` plus the required `lower-mcopy` legalization pass |
 
 The HIR inliner previously erased the callee return target for void calls.
 `return;` in an exact-base call could therefore terminate the enclosing public
@@ -83,9 +84,9 @@ These are current miscompile or target-legality risks, not cleanup preferences.
    expression. Dynamic and aggregate constructor arguments need the semantic ABI
    encoder. Creation failure now forwards revert data, but argument encoding
    remains incomplete.
-3. Try/catch does not bind return values or decode typed catch clauses. Its call
-   construction now shares selector encoding, gas/value evaluation, and
-   `CALL`/`STATICCALL` selection with ordinary calls.
+3. Try/catch shares call construction and typed ABI return decoding with
+   ordinary calls. Malformed `Error(string)` payloads currently revert during
+   decoding instead of falling through to a lower-level catch clause.
 4. Linked-library calls have a restricted, independent ABI encoder and duplicate
    return handling. Storage-slot values need to become supported inputs to the
    semantic ABI encoder.
@@ -97,15 +98,11 @@ These are current miscompile or target-legality risks, not cleanup preferences.
    access-control, validation, and reentrancy logic entirely.
 ### Target and storage representation
 
-1. Required MIR lowering emits `MCOPY` directly for memory ABI values and dynamic
-   mapping keys. On pre-Cancun targets that bypasses the HIR version check.
-   Introduce a target-legalization pass that keeps `MCOPY` on Cancun and lowers
-   it to a loop on older targets.
-2. `StorageField` classifies some dynamic fields as a word, then
+1. `StorageField` classifies some dynamic fields as a word, then
    `lower-aggregates` applies raw `sload`/`sstore`. Storage bytes/string and
    dynamic arrays need distinct storage-field shapes or must be rejected before
    semantic aggregate lowering.
-3. Fixed-bytes canonicalization is split across literal typing, packed encoding,
+2. Fixed-bytes canonicalization is split across literal typing, packed encoding,
    memory bytes operations, and ABI encoding. Value-magnitude guesses must be
    replaced by one canonical producer representation.
 
@@ -131,9 +128,10 @@ These are current miscompile or target-legality risks, not cleanup preferences.
 - Represent applied modifiers and placeholder continuations explicitly. Compose
   them in declaration order before ordinary body lowering rather than teaching
   statement lowering to splice modifier HIR into the function.
-- Add target legalization after representation lowering. `MCOPY`, shifts,
-  `STATICCALL`, returndata opcodes, `PUSH0`, and new opcodes should be selected
-  in one place from the configured EVM version.
+- Complete target legalization after representation lowering. `lower-mcopy`
+  now owns `MCOPY`; shifts, `STATICCALL`, returndata opcodes, `PUSH0`, and new
+  opcodes should likewise be selected in one place from the configured EVM
+  version.
 - Make event data and indexed-event hashing semantic MIR operations. Reuse
   `AbiLayout` for ordinary data and add the indexed aggregate rules explicitly.
 - Centralize the backend-readiness check. `lower-evm-shaped`, MIR validation, and

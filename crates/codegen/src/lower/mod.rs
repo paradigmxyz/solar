@@ -1202,7 +1202,7 @@ impl<'gcx> Lowerer<'gcx> {
                     let dst = builder.memory_object_data(array_ptr, MemoryObjectKind::DynamicArray);
                     let src = builder.add(len_pos, word);
                     if self.lowering_constructor {
-                        self.mcopy(&mut builder, dst, src, data_bytes, None);
+                        builder.mcopy(dst, src, data_bytes);
                     } else {
                         builder.calldatacopy(dst, src, data_bytes);
                     }
@@ -1246,7 +1246,7 @@ impl<'gcx> Lowerer<'gcx> {
                     let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
                     let src = builder.add(len_pos, word);
                     if self.lowering_constructor {
-                        self.mcopy(&mut builder, data_ptr, src, len, None);
+                        builder.mcopy(data_ptr, src, len);
                     } else {
                         builder.calldatacopy(data_ptr, src, len);
                     }
@@ -1739,39 +1739,6 @@ impl<'gcx> Lowerer<'gcx> {
     /// Returns the nonzero runtime discriminator for an internal function.
     fn internal_function_pointer_id(func_id: HirFunctionId) -> u64 {
         u64::try_from(func_id.index()).expect("function index does not fit in u64") + 1
-    }
-
-    pub(super) fn mcopy(
-        &self,
-        builder: &mut FunctionBuilder<'_>,
-        dest: ValueId,
-        src: ValueId,
-        len: ValueId,
-        span: Option<Span>,
-    ) {
-        let _ = span;
-        if self.gcx.sess.opts.evm_version.has_mcopy() {
-            builder.mcopy(dest, src, len);
-            return;
-        }
-        // Pre-Cancun targets have no `MCOPY`. Copy exactly `len` bytes through
-        // the identity precompile (address 0x04), which returns its input —
-        // the historical memory-copy technique solc lowers to when `MCOPY` is
-        // unavailable. It copies the exact length with no tail over-write, so
-        // it is safe for callers whose destination is not word-padded.
-        let gas = builder.gas();
-        let identity = builder.imm_u64(4);
-        let ok = builder.staticcall(gas, identity, src, len, dest, len);
-        // The identity precompile only fails on out-of-gas; surface that as a
-        // revert like solc rather than silently leaving the copy incomplete.
-        let failed = builder.iszero(ok);
-        let revert_block = builder.create_block();
-        let continue_block = builder.create_block();
-        builder.branch(failed, revert_block, continue_block);
-        builder.switch_to_block(revert_block);
-        let zero = builder.imm_u64(0);
-        builder.revert(zero, zero);
-        builder.switch_to_block(continue_block);
     }
 
     /// Lowers a type from a variable declaration.

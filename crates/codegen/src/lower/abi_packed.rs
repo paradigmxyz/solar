@@ -276,7 +276,7 @@ impl<'gcx> Lowerer<'gcx> {
                     let dest = self.offset_ptr(builder, base, offset);
                     let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
                     let src = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-                    self.mcopy(builder, dest, src, len, None);
+                    builder.mcopy(dest, src, len);
                     base = builder.add(dest, len);
                     offset = 0;
                     is_static = false;

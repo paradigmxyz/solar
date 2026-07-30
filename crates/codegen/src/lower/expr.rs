@@ -1233,7 +1233,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         builder.switch_to_block(copy_data);
         let src = builder.add(ptr, head_offset);
-        self.mcopy(builder, data_offset, src, len, None);
+        builder.mcopy(data_offset, src, len);
         let size = builder.add(data_offset, padded);
         builder.revert(zero, size);
     }
@@ -2569,7 +2569,7 @@ impl<'gcx> Lowerer<'gcx> {
         );
         builder.set_memory_object_len(ptr, arr_len, MemoryObjectKind::DynamicArray);
         let dst_data = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
-        self.mcopy(builder, dst_data, payload_src, payload_bytes, None);
+        builder.mcopy(dst_data, payload_src, payload_bytes);
 
         let needs_validation = !matches!(
             elem,
@@ -2670,7 +2670,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(last_word, zero);
 
         let src = builder.add(tail_len_addr, word);
-        self.mcopy(builder, data_ptr, src, tail_len, None);
+        builder.mcopy(data_ptr, src, tail_len);
         ptr
     }
 
@@ -3473,7 +3473,7 @@ impl<'gcx> Lowerer<'gcx> {
         let word_size = builder.imm_u64(32);
         let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let scratch = builder.fmp();
-        self.mcopy(builder, scratch, data_start, len, None);
+        builder.mcopy(scratch, data_start, len);
         let slot_addr = builder.add(scratch, len);
         builder.mstore(slot_addr, slot);
         let hash_len = builder.add(len, word_size);
