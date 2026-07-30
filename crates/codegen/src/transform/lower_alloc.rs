@@ -9,10 +9,10 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationSemantics,
-        BlockId, Function, FunctionBuilder, InstId, InstKind, MemoryRegion, Module, Terminator,
-        ValueId,
+        BlockId, Function, FunctionBuilder, InstId, InstKind, MemoryRegion, Module, ValueId,
     },
     pass::MirPass,
+    transform::utils::redirect_successor_predecessors,
 };
 use alloy_primitives::U256;
 use solar_sema::Gcx;
@@ -173,32 +173,6 @@ fn lower_checked_alloc(
     builder.mstore(four, code);
     let size = builder.imm_u64(36);
     builder.revert(zero, size);
-}
-
-fn redirect_successor_predecessors(func: &mut Function, from: BlockId, to: BlockId) {
-    let successors =
-        func.blocks[to].terminator.as_ref().map(Terminator::successors).unwrap_or_default();
-    for successor in successors {
-        for predecessor in &mut func.blocks[successor].predecessors {
-            if *predecessor == from {
-                *predecessor = to;
-            }
-        }
-        let phi_insts: Vec<_> = func.blocks[successor]
-            .instructions
-            .iter()
-            .copied()
-            .take_while(|inst| matches!(func.inst(*inst).kind, InstKind::Phi(_)))
-            .collect();
-        for phi in phi_insts {
-            let InstKind::Phi(incoming) = &mut func.inst_mut(phi).kind else { unreachable!() };
-            for (predecessor, _) in incoming {
-                if *predecessor == from {
-                    *predecessor = to;
-                }
-            }
-        }
-    }
 }
 
 fn aligned_size(

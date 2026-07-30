@@ -1,4 +1,4 @@
-//@compile-flags: --passes frame-slot-promotion,dce
+//@compile-flags: -Zmir-pipeline=frame-slot-promotion,dce
 //@filecheck:
 @module LocalSlotPromotion
 // CHECK-LABEL: {{^[ +].*}}fn @promote_loop_carried_slot{{[( ]}}

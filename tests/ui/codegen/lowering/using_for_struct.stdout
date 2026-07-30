@@ -2,34 +2,32 @@
 @module L
 fn @hashLib(arg0: memorystruct) -> bytes32 {
   bb0:
-    v0 = internal_frame_addr 128
-    mstore v0, 0 !metadata(memory=internal_frame)
-    v1 = memory_object_field_addr memorystruct<4>, arg0, 0
-    v2 = mload v1
-    v3 = memory_object_field_addr memorystruct<4>, arg0, 1
-    v4 = mload v3
-    v5 = memory_object_field_addr memorystruct<4>, arg0, 2
-    v6 = mload v5
-    v7 = memory_object_field_addr memorystruct<4>, arg0, 3
-    v8 = mload v7
-    v9 = fmp
-    mstore v9, 0x7800000000000000000000000000000000000000000000000000000000000000
-    v10 = add v9, 1
-    mstore v10, v2
-    v11 = shl 224, v4
-    v12 = add v9, 33
-    mstore v12, v11
-    v13 = add v9, 37
-    mstore v13, v6
-    v14 = add v9, 69
-    mstore v14, v8
-    v15 = keccak256 v9, 101
-    ret v15
+    v0 = memory_object_field_addr memorystruct<4>, arg0, 0
+    v1 = mload v0
+    v2 = memory_object_field_addr memorystruct<4>, arg0, 1
+    v3 = mload v2
+    v4 = memory_object_field_addr memorystruct<4>, arg0, 2
+    v5 = mload v4
+    v6 = memory_object_field_addr memorystruct<4>, arg0, 3
+    v7 = mload v6
+    v8 = fmp
+    mstore v8, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v9 = add v8, 1
+    mstore v9, v1
+    v10 = shl 224, v3
+    v11 = add v8, 33
+    mstore v11, v10
+    v12 = add v8, 37
+    mstore v12, v5
+    v13 = add v8, 69
+    mstore v13, v7
+    v14 = keccak256 v8, 101
+    ret v14
 }
 
 // === ROOT/tests/ui/codegen/lowering/using_for_struct.sol:C ===
 @module C
-fn @viaMethod(arg0: bytes32, arg1: bytes32) {
+fn @viaMethod(arg0: bytes32, arg1: bytes32) -> bytes32 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -38,7 +36,6 @@ fn @viaMethod(arg0: bytes32, arg1: bytes32) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     v4 = memory_object_field_addr memorystruct<4>, v3, 0
     mstore v4, arg0
@@ -68,7 +65,6 @@ fn @viaMethod(arg0: bytes32, arg1: bytes32) {
     v21 = add v16, 69
     mstore v21, v15
     v22 = keccak256 v16, 101
-    mstore 128, v22
-    returndata 128, 32
+    ret v22
 }
 

@@ -21,7 +21,7 @@ use solar_sema::{
     Gcx,
     hir::{self, ItemId, VariableId},
 };
-use std::{collections::hash_map::Entry, sync::Arc};
+use std::{collections::hash_map::Entry, path::PathBuf, sync::Arc};
 
 newtype_index! {
     /// A file-local import alias in the rename index.
@@ -128,6 +128,18 @@ impl RenameIndex {
             let Ok(uri) = Url::from_file_path(path) else { continue };
             self.analyzed_contents.insert(uri, file.src.clone());
         }
+    }
+
+    pub(crate) fn source_paths_under(&self, roots: &[PathBuf]) -> Vec<PathBuf> {
+        let mut paths = self
+            .analyzed_contents
+            .keys()
+            .filter_map(|uri| uri.to_file_path().ok())
+            .filter(|path| roots.iter().any(|root| path.starts_with(root)))
+            .collect::<Vec<_>>();
+        paths.sort();
+        paths.dedup();
+        paths
     }
 
     pub(crate) fn add_symbol_declaration(&mut self, symbol_id: SymbolId, location: Location) {

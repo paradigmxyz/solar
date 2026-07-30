@@ -1,7 +1,7 @@
 //@ revisions: compose bounds
-//@[compose] compile-flags: --pass lower-abi,lower-dispatch
+//@[compose] compile-flags: -Zmir-pipeline=lower-abi,lower-dispatch
 //@[compose] filecheck: --check-prefix=COMPOSE
-//@[bounds] compile-flags: --pass lower-dispatch,lower-abi,lower-dispatch,dce
+//@[bounds] compile-flags: -Zmir-pipeline=lower-dispatch,lower-abi,lower-dispatch,dce
 //@[bounds] filecheck: --check-prefix=BOUNDS
 // The two lowering phases compose: ABI first materializes self-decoding
 // wrappers, then dispatch routes a selector switch to those argument-free

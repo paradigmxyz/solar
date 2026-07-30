@@ -62,25 +62,50 @@ bb6:
   sub
   push bb5
   jumpi
-  push bb27
-  jump bb23
-bb23:
-  push 0
-  push 128
-  mstore
   push 4
   push 36
   calldataload
   add
   calldataload
   dup1
-  push 224
+  push 160
   mstore
   push 31
   dup2
   add
   dup1
   push 192
+  mstore
+  lt
+  push bb20
+  jumpi
+  push bb25
+  jump bb22
+bb22:
+  push 31
+  not
+  push 192
+  mload
+  and
+  dup1
+  iszero
+  push 32
+  swap1
+  dup3
+  dup3
+  sub
+  mul
+  swap1
+  pop
+  add
+  dup1
+  push 224
+  mstore
+  push 32
+  dup2
+  add
+  dup1
+  push 256
   mstore
   lt
   swap1
@@ -105,14 +130,31 @@ bb13:
   sub
   push bb5
   jumpi
-  push bb30
-  jump bb23
-bb25:
+  push 4
+  push 36
+  calldataload
+  add
+  calldataload
+  dup1
+  push 160
+  mstore
+  push 31
+  dup2
+  add
+  dup1
+  push 192
+  mstore
+  lt
+  push bb20
+  jumpi
+  push bb27
+  jump bb22
+bb24:
   push 32
   dup2
   add
   push 32
-  push 192
+  push 224
   mload
   sub
   dup2
@@ -124,10 +166,10 @@ bb25:
   push 36
   calldataload
   add
-  push 224
+  push 160
   mload
   dup1
-  push 224
+  push 160
   mstore
   dup2
   dup4
@@ -165,12 +207,12 @@ bb21:
   push 32
   push 128
   return
-bb26:
+bb25:
   push bb20
   jumpi
-  push bb25
-  jump bb24
-bb24:
+  push bb24
+  jump bb23
+bb23:
   push 64
   mload
   dup1
@@ -182,55 +224,21 @@ bb24:
   add
   push 64
   mstore
-  push 224
+  push 160
   mload
   dup1
-  push 224
+  push 160
   mstore
   dup2
   mstore
   swap1
   jump
-bb27:
-  push bb20
-  jumpi
-  push bb26
-  jump bb22
-bb22:
-  push 31
-  not
-  push 192
-  mload
-  and
-  dup1
-  iszero
-  push 32
-  swap1
-  dup3
-  dup3
-  sub
-  mul
-  swap1
-  pop
-  add
-  dup1
-  push 192
-  mstore
-  push 32
-  dup2
-  add
-  dup1
-  push 256
-  mstore
-  lt
-  swap1
-  jump
-bb28:
+bb26:
   push 32
   dup2
   add
   push 32
-  push 192
+  push 224
   mload
   sub
   dup2
@@ -242,10 +250,10 @@ bb28:
   push 36
   calldataload
   add
-  push 224
+  push 160
   mload
   dup1
-  push 224
+  push 160
   mstore
   dup2
   dup4
@@ -272,13 +280,8 @@ bb28:
   dup6
   delegatecall
   jump bb21
-bb29:
+bb27:
   push bb20
   jumpi
-  push bb28
-  jump bb24
-bb30:
-  push bb20
-  jumpi
-  push bb29
-  jump bb22
+  push bb26
+  jump bb23

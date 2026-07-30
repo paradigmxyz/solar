@@ -36,12 +36,17 @@ pub(crate) fn check(gcx: Gcx<'_>, contract_id: ContractId) {
     checker.check();
 }
 
-pub(crate) type InheritedFunctions<'gcx> = FxIndexMap<OverrideSignature<'gcx>, Vec<OverrideProxy>>;
+type InheritedFunctions<'gcx> = FxIndexMap<OverrideSignature<'gcx>, Vec<OverrideProxy>>;
+
+pub(crate) struct OverrideIndex<'gcx> {
+    by_signature: InheritedFunctions<'gcx>,
+    by_name: FxHashMap<Ident, Vec<OverrideProxy>>,
+    unimplemented_functions: Vec<FunctionId>,
+}
 
 struct OverrideChecker<'gcx> {
     gcx: Gcx<'gcx>,
     contract_id: ContractId,
-    inherited: &'gcx InheritedFunctions<'gcx>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -304,7 +309,7 @@ impl<'a, 'gcx> CutVertexFinder<'a, 'gcx> {
 
 impl<'gcx> OverrideChecker<'gcx> {
     fn new(gcx: Gcx<'gcx>, contract_id: ContractId) -> Self {
-        Self { gcx, contract_id, inherited: inherited_override_functions(gcx, contract_id) }
+        Self { gcx, contract_id }
     }
 
     fn dcx(&self) -> &'gcx DiagCtxt {
@@ -330,27 +335,8 @@ impl<'gcx> OverrideChecker<'gcx> {
         override_signature(self.gcx, proxy)
     }
 
-    fn inherited_functions(&self) -> &InheritedFunctions<'gcx> {
-        self.inherited
-    }
-
     fn check_illegal_overrides(&self) {
         let contract = self.contract();
-        let inherited = self.inherited_functions();
-
-        let (inherited_modifiers, inherited_functions) = inherited.keys().fold(
-            (FxHashSet::<Ident>::default(), FxHashSet::<Ident>::default()),
-            |(mut modifiers, mut functions), sig| {
-                if let Some(name) = sig.name {
-                    if sig.kind.is_modifier() {
-                        modifiers.insert(name);
-                    } else {
-                        functions.insert(name);
-                    }
-                }
-                (modifiers, functions)
-            },
-        );
 
         for f_id in contract.functions() {
             let f = self.gcx.hir.function(f_id);
@@ -362,14 +348,14 @@ impl<'gcx> OverrideChecker<'gcx> {
 
             if let Some(name) = proxy.name(self.gcx) {
                 if f.kind.is_modifier() {
-                    if inherited_functions.contains(&name) {
+                    if self.has_inherited_name_kind(name, false) {
                         self.dcx()
                             .err("override changes function or public state variable to modifier")
                             .code(error_code!(5631))
                             .span(f.span)
                             .emit();
                     }
-                } else if inherited_modifiers.contains(&name) {
+                } else if self.has_inherited_name_kind(name, true) {
                     self.dcx()
                         .err("override changes modifier to function")
                         .code(error_code!(1469))
@@ -379,8 +365,9 @@ impl<'gcx> OverrideChecker<'gcx> {
             }
 
             let sig = self.signature(proxy);
-            if let Some(bases) = inherited.get(&sig) {
-                self.check_override_list(proxy, bases);
+            let bases = inherited_override_functions(self.gcx, self.contract_id, sig);
+            if !bases.is_empty() {
+                self.check_override_list(proxy, &bases);
             } else if f.override_ {
                 self.dcx()
                     .err(format!(
@@ -410,7 +397,7 @@ impl<'gcx> OverrideChecker<'gcx> {
             let proxy = OverrideProxy::Variable(v_id);
             let name = proxy.name(self.gcx).unwrap();
 
-            if inherited_modifiers.contains(&name) {
+            if self.has_inherited_name_kind(name, true) {
                 self.dcx()
                     .err("override changes modifier to public state variable")
                     .code(error_code!(1456))
@@ -419,8 +406,9 @@ impl<'gcx> OverrideChecker<'gcx> {
             }
 
             let sig = self.signature(proxy);
-            if let Some(bases) = inherited.get(&sig) {
-                self.check_override_list(proxy, bases);
+            let bases = inherited_override_functions(self.gcx, self.contract_id, sig);
+            if !bases.is_empty() {
+                self.check_override_list(proxy, &bases);
             } else if v.override_ {
                 self.dcx()
                     .err("public state variable has override specified but does not override anything")
@@ -429,6 +417,18 @@ impl<'gcx> OverrideChecker<'gcx> {
                     .emit();
             }
         }
+    }
+
+    fn has_inherited_name_kind(&self, name: Ident, modifier: bool) -> bool {
+        let contract = self.contract();
+        override_index(self.gcx).by_name.get(&name).is_some_and(|candidates| {
+            candidates.iter().any(|&candidate| {
+                candidate.is_modifier(self.gcx) == modifier
+                    && candidate.contract(self.gcx).is_some_and(|id| {
+                        id != self.contract_id && contract.linearized_bases[1..].contains(&id)
+                    })
+            })
+        })
     }
 
     fn check_override_list(&self, overriding: OverrideProxy, bases: &[OverrideProxy]) {
@@ -792,7 +792,10 @@ impl<'gcx> OverrideChecker<'gcx> {
 
     fn check_ambiguous_overrides(&self) {
         let contract = self.contract();
-        let inherited = self.inherited_functions();
+        if contract.bases.len() <= 1 {
+            return;
+        }
+        let inherited = compute_inherited_functions(self.gcx, self.contract_id);
 
         let own_signatures: FxHashSet<OverrideSignature<'gcx>> = contract
             .functions()
@@ -812,7 +815,7 @@ impl<'gcx> OverrideChecker<'gcx> {
             }))
             .collect();
 
-        for (sig, bases) in inherited {
+        for (sig, bases) in &inherited {
             if own_signatures.contains(sig) {
                 continue;
             }
@@ -905,31 +908,30 @@ impl<'gcx> OverrideChecker<'gcx> {
 
         let mut unimplemented: Vec<(OverrideProxy, ContractId)> = Vec::new();
 
-        for &base_id in contract.linearized_bases.iter() {
-            let base = self.gcx.hir.contract(base_id);
+        for &f_id in &override_index(self.gcx).unimplemented_functions {
+            let f = self.gcx.hir.function(f_id);
+            let Some(base_id) = f.contract else { continue };
+            if f.kind.is_constructor()
+                || f.name.is_none()
+                || !contract.linearized_bases.contains(&base_id)
+            {
+                continue;
+            }
 
-            for f_id in base.functions() {
-                let f = self.gcx.hir.function(f_id);
-                if f.kind.is_constructor() || f.name.is_none() {
-                    continue;
-                }
-                if f.body.is_none() {
-                    let sig = self.signature(OverrideProxy::Function(f_id));
-                    let is_implemented = contract.linearized_bases.iter().any(|&impl_base_id| {
-                        let impl_base = self.gcx.hir.contract(impl_base_id);
-                        impl_base.functions().any(|impl_f_id| {
-                            let impl_f = self.gcx.hir.function(impl_f_id);
-                            if impl_f.body.is_none() || impl_f.name.is_none() {
-                                return false;
-                            }
-                            let impl_sig = self.signature(OverrideProxy::Function(impl_f_id));
-                            impl_sig == sig
-                        })
-                    });
-                    if !is_implemented {
-                        unimplemented.push((OverrideProxy::Function(f_id), base_id));
+            let sig = self.signature(OverrideProxy::Function(f_id));
+            let is_implemented = contract.linearized_bases.iter().any(|&impl_base_id| {
+                let impl_base = self.gcx.hir.contract(impl_base_id);
+                impl_base.functions().any(|impl_f_id| {
+                    let impl_f = self.gcx.hir.function(impl_f_id);
+                    if impl_f.body.is_none() || impl_f.name.is_none() {
+                        return false;
                     }
-                }
+                    let impl_sig = self.signature(OverrideProxy::Function(impl_f_id));
+                    impl_sig == sig
+                })
+            });
+            if !is_implemented {
+                unimplemented.push((OverrideProxy::Function(f_id), base_id));
             }
         }
 
@@ -972,70 +974,159 @@ impl<'gcx> OverrideChecker<'gcx> {
     }
 }
 
-fn inherited_override_functions<'gcx>(
-    gcx: Gcx<'gcx>,
-    contract_id: ContractId,
-) -> &'gcx InheritedFunctions<'gcx> {
-    gcx.inherited_override_functions.map_insert(
-        contract_id,
-        |&contract_id| {
-            let inherited = compute_inherited_functions(gcx, contract_id);
-            gcx.alloc(inherited)
-        },
-        |_, inherited| *inherited,
-    )
-}
+fn override_index<'gcx>(gcx: Gcx<'gcx>) -> &'gcx OverrideIndex<'gcx> {
+    gcx.override_index.get_or_init(|| {
+        let mut by_signature = InheritedFunctions::default();
+        let mut by_name = FxHashMap::default();
+        let mut unimplemented_functions = Vec::new();
 
-/// Compute inherited functions for a contract.
-///
-/// This matches solc's logic: inherited functions are added unless the direct
-/// base defines a function with the same signature.
-fn compute_inherited_functions<'gcx>(
-    gcx: Gcx<'gcx>,
-    contract_id: ContractId,
-) -> InheritedFunctions<'gcx> {
-    let contract = gcx.hir.contract(contract_id);
-    let mut result: InheritedFunctions<'gcx> = FxIndexMap::default();
-
-    for &base_id in contract.bases.iter() {
-        let base = gcx.hir.contract(base_id);
-
-        // Collect functions/variables defined directly in this base.
-        let mut defined_in_base: FxHashSet<OverrideSignature<'gcx>> = FxHashSet::default();
-
-        for f_id in base.functions() {
+        for f_id in gcx.hir.function_ids() {
             let f = gcx.hir.function(f_id);
+            if f.body.is_none() {
+                unimplemented_functions.push(f_id);
+            }
             if f.kind.is_constructor() {
                 continue;
             }
             let proxy = OverrideProxy::Function(f_id);
-            let sig = override_signature(gcx, proxy);
-
-            result.entry(sig).or_default().push(proxy);
-            defined_in_base.insert(sig);
+            by_signature.entry(override_signature(gcx, proxy)).or_insert_with(Vec::new).push(proxy);
+            if let Some(name) = proxy.name(gcx) {
+                by_name.entry(name).or_insert_with(Vec::new).push(proxy);
+            }
         }
 
-        for v_id in base.variables() {
+        for v_id in gcx.hir.variable_ids() {
             let v = gcx.hir.variable(v_id);
             if !v.is_public() {
                 continue;
             }
             let proxy = OverrideProxy::Variable(v_id);
-            let sig = override_signature(gcx, proxy);
-
-            result.entry(sig).or_default().push(proxy);
-            defined_in_base.insert(sig);
+            by_signature.entry(override_signature(gcx, proxy)).or_insert_with(Vec::new).push(proxy);
+            by_name.entry(proxy.name(gcx).unwrap()).or_insert_with(Vec::new).push(proxy);
         }
 
-        // Get inherited functions from ancestors and add those NOT defined in base.
-        let inherited = inherited_override_functions(gcx, base_id);
-        for (&sig, proxies) in inherited {
-            if !defined_in_base.contains(&sig) {
-                result.entry(sig).or_default().extend(proxies.iter().copied());
+        OverrideIndex { by_signature, by_name, unimplemented_functions }
+    })
+}
+
+/// Returns the definitions of `signature` inherited through the contract's
+/// direct bases.
+///
+/// This preserves the branch-sensitive behavior of solc's override checker: a
+/// definition in a direct base hides that base's ancestors, but definitions
+/// inherited through another direct base remain candidates.
+fn inherited_override_functions<'gcx>(
+    gcx: Gcx<'gcx>,
+    contract_id: ContractId,
+    signature: OverrideSignature<'gcx>,
+) -> Vec<OverrideProxy> {
+    let Some(candidates) = override_index(gcx).by_signature.get(&signature) else {
+        return Vec::new();
+    };
+    let contract = gcx.hir.contract(contract_id);
+    let candidates = candidates
+        .iter()
+        .copied()
+        .filter(|&candidate| {
+            candidate.contract(gcx).is_some_and(|candidate_contract| {
+                candidate_contract != contract_id
+                    && contract.linearized_bases[1..].contains(&candidate_contract)
+            })
+        })
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        return candidates;
+    }
+
+    inherited_override_functions_internal(gcx, contract_id, &candidates)
+}
+
+fn inherited_override_functions_internal(
+    gcx: Gcx<'_>,
+    contract_id: ContractId,
+    candidates: &[OverrideProxy],
+) -> Vec<OverrideProxy> {
+    let mut result = Vec::new();
+
+    for &base_id in gcx.hir.contract(contract_id).bases {
+        let directly_defined = candidates
+            .iter()
+            .copied()
+            .filter(|candidate| candidate.contract(gcx) == Some(base_id))
+            .collect::<Vec<_>>();
+        if directly_defined.is_empty() {
+            result.extend(inherited_override_functions_internal(gcx, base_id, candidates));
+        } else {
+            result.extend(directly_defined);
+        }
+    }
+
+    result
+}
+
+/// Returns the most-derived definitions visible through each direct base.
+fn visible_definitions(
+    gcx: Gcx<'_>,
+    candidates: &[OverrideProxy],
+    direct_base_ancestries: &[DenseBitSet<ContractId>],
+) -> Vec<OverrideProxy> {
+    let mut result = Vec::new();
+
+    for ancestry in direct_base_ancestries {
+        let visible = candidates.iter().copied().filter(|&candidate| {
+            let Some(candidate_contract) = candidate.contract(gcx) else { return false };
+            if !ancestry.contains(candidate_contract) {
+                return false;
+            }
+            !candidates.iter().copied().any(|other| {
+                let Some(other_contract) = other.contract(gcx) else { return false };
+                other_contract != candidate_contract
+                    && ancestry.contains(other_contract)
+                    && gcx
+                        .hir
+                        .contract(other_contract)
+                        .linearized_bases
+                        .contains(&candidate_contract)
+            })
+        });
+        for candidate in visible {
+            if !result.contains(&candidate) {
+                result.push(candidate);
             }
         }
     }
 
+    result
+}
+
+/// Computes the inherited signatures which have multiple visible definitions.
+///
+/// Only multiple-inheritance contracts need this map. Single-inheritance
+/// contracts cannot introduce a new ambiguity, so avoiding a full inherited
+/// map at every level keeps deep hierarchies linear.
+fn compute_inherited_functions<'gcx>(
+    gcx: Gcx<'gcx>,
+    contract_id: ContractId,
+) -> InheritedFunctions<'gcx> {
+    let contract = gcx.hir.contract(contract_id);
+    let direct_base_ancestries = contract
+        .bases
+        .iter()
+        .map(|&direct_base| {
+            let mut ancestry = DenseBitSet::new_empty(gcx.hir.contract_ids().len());
+            for &id in gcx.hir.contract(direct_base).linearized_bases.iter() {
+                ancestry.insert(id);
+            }
+            ancestry
+        })
+        .collect::<Vec<_>>();
+    let mut result: InheritedFunctions<'gcx> = FxIndexMap::default();
+    for (&signature, candidates) in &override_index(gcx).by_signature {
+        let definitions = visible_definitions(gcx, candidates, &direct_base_ancestries);
+        if definitions.len() > 1 {
+            result.insert(signature, definitions);
+        }
+    }
     result
 }
 
@@ -1057,10 +1148,9 @@ pub(crate) fn base_override_functions<'gcx>(
     proxy: OverrideProxy,
 ) -> &'gcx [OverrideProxy] {
     let Some(contract_id) = proxy.contract(gcx) else { return &[] };
-    let inherited = inherited_override_functions(gcx, contract_id);
     let signature = override_signature(gcx, proxy);
-    let Some(bases) = inherited.get(&signature) else { return &[] };
-    gcx.bump().alloc_from_iter(bases.iter().copied().filter(|base| !base.is_variable()))
+    let inherited = inherited_override_functions(gcx, contract_id, signature);
+    gcx.bump().alloc_from_iter(inherited.into_iter().filter(|base| !base.is_variable()))
 }
 
 fn capitalize(s: &str) -> String {

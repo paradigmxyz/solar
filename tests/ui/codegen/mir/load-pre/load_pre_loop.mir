@@ -1,4 +1,4 @@
-//@compile-flags: --pass load-pre
+//@compile-flags: -Zmir-pipeline=load-pre
 //@filecheck:
 // Loop-load PRE: with a clobber-free body, the backedge carries the previous
 // iteration's value, so the in-loop reload becomes a phi over the preheader

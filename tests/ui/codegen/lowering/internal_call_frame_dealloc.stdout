@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/internal_call_frame_dealloc.sol:InternalCallFrameDealloc (runtime) ===
 @module runtime
 bb0:
-  push 320
+  push 352
   push 64
   mstore
   callvalue
@@ -46,9 +46,6 @@ bb5:
   sgt
   push bb4
   jumpi
-  push 0
-  push 128
-  mstore
   push 64
   mload
   push 160
@@ -66,20 +63,13 @@ bb5:
   dup1
   push 160
   mstore
-  push 224
+  push 192
   add
   push 64
   mstore
   push bb7
   jump bb13
 bb13:
-  push 160
-  mload
-  push 128
-  add
-  push 0
-  swap1
-  mstore
   push 160
   mload
   push 64
@@ -101,7 +91,7 @@ bb7:
   add
   mload
   dup1
-  push 256
+  push 224
   mstore
   push bb21
   jump bb20
@@ -125,7 +115,7 @@ bb9:
   add
   mload
   dup1
-  push 288
+  push 320
   mstore
   push bb22
   jump bb20
@@ -153,7 +143,7 @@ bb15:
   dup1
   push 160
   mstore
-  push 224
+  push 192
   add
   push 64
   mstore
@@ -169,21 +159,21 @@ bb16:
   dup1
   push 160
   mload
-  push 192
+  push 160
   add
   mstore
   push bb23
   jump bb20
 bb21:
   dup1
-  push 256
+  push 224
   mstore
   push 1
   push 4
   calldataload
   add
   dup1
-  push 224
+  push 288
   mstore
   push 4
   calldataload
@@ -200,7 +190,7 @@ bb21:
   push 32
   add
   mstore
-  push 224
+  push 288
   mload
   dup2
   push 64
@@ -209,7 +199,7 @@ bb21:
   dup1
   push 160
   mstore
-  push 224
+  push 192
   add
   push 64
   mstore
@@ -217,23 +207,23 @@ bb21:
   jump bb13
 bb22:
   dup1
-  push 288
+  push 320
   mstore
-  push 256
+  push 224
   mload
   add
   dup1
-  push 224
-  mstore
   push 256
+  mstore
+  push 224
   mload
   gt
   push bb19
   jumpi
-  push 224
+  push 256
   mload
   dup1
-  push 224
+  push 256
   mstore
   push 128
   mstore
@@ -244,7 +234,7 @@ bb23:
   dup1
   push 160
   mload
-  push 192
+  push 160
   add
   mstore
   push 160
@@ -256,13 +246,13 @@ bb23:
   dup1
   push 160
   mload
-  push 160
+  push 128
   add
   mstore
   dup1
   push 160
   mload
-  push 160
+  push 128
   add
   mstore
   push 160

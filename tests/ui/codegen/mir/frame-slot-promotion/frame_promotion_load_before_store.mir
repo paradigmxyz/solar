@@ -1,4 +1,4 @@
-//@compile-flags: --passes frame-slot-promotion
+//@compile-flags: -Zmir-pipeline=frame-slot-promotion
 //@filecheck:
 @module FramePromotionLoadBeforeStore
 // CHECK-LABEL: {{^[ +].*}}fn @load_before_store{{[( ]}}

@@ -1,4 +1,4 @@
-//@compile-flags: --pass sccp
+//@compile-flags: -Zmir-pipeline=sccp
 //@filecheck:
 @module SccpEdge
 // CHECK-LABEL: {{^[ +].*}}fn @phi_ignores_unreachable_predecessor{{[( ]}}

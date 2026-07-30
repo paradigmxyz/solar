@@ -1,4 +1,4 @@
-//@compile-flags: --passes cse,memory-dse,storage-load-cse,storage-dse,dce
+//@compile-flags: -Zmir-pipeline=cse,memory-dse,storage-load-cse,storage-dse,dce
 //@filecheck:
 @module AggregateEffects
 

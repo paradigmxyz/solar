@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/branch.sol:Branch ===
 @module Branch
-fn @max(arg0: u256, arg1: u256) {
+fn @max(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -9,18 +9,15 @@ fn @max(arg0: u256, arg1: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = gt arg0, arg1
     jumpi v3, bb3, bb4
   bb3:
-    mstore 128, arg0
-    returndata 128, 32
+    ret arg0
   bb4:
-    mstore 128, arg1
-    returndata 128, 32
+    ret arg1
 }
 
-fn @abs_diff(arg0: u256, arg1: u256) {
+fn @abs_diff(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -29,7 +26,6 @@ fn @abs_diff(arg0: u256, arg1: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = lt arg0, arg1
     v4 = iszero v3
     jumpi v4, bb3, bb5
@@ -38,9 +34,7 @@ fn @abs_diff(arg0: u256, arg1: u256) {
     v6 = lt arg0, arg1
     jumpi v6, bb6, bb7
   bb4:
-    v9 = mload 128
-    mstore 128, v9
-    returndata 128, 32
+    ret 0
   bb5:
     v7 = sub arg1, arg0
     v8 = lt arg1, arg0
@@ -50,14 +44,12 @@ fn @abs_diff(arg0: u256, arg1: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb7:
-    mstore 128, v5
-    returndata 128, 32
+    ret v5
   bb8:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb9:
-    mstore 128, v7
-    returndata 128, 32
+    ret v7
 }
 

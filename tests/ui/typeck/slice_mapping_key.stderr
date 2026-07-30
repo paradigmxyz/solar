@@ -1,0 +1,14 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/slice_mapping_key.sol:LL:CC
+   │
+LL │         return bytesKeyed[nums[1:]];
+   ╰╴                          ━━━━━━━━ expected `bytes`, found `uint256[] calldata slice`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/slice_mapping_key.sol:LL:CC
+   │
+LL │         return valueKeyed[params[1:]];
+   ╰╴                          ━━━━━━━━━━ expected `uint256`, found `bytes calldata slice`
+
+error: aborting due to 2 previous errors
+

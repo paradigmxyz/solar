@@ -1,4 +1,4 @@
-//@compile-flags: --pass storage-dse
+//@compile-flags: -Zmir-pipeline=storage-dse
 //@filecheck:
 @module StorageDse
 // CHECK-LABEL: {{^[ +].*}}fn @remove_overwritten_store{{[( ]}}

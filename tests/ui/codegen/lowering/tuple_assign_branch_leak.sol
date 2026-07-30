@@ -14,34 +14,55 @@ contract TupleAssignBranchLeak {
     // CHECK: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]
     // CHECK: [[BODY]]:
-    // CHECK: iszero
-    // CHECK-NEXT: iszero
-    // CHECK-NEXT: dup2
-    // CHECK-NEXT: sub
-    // CHECK-NEXT: push {{bb[0-9]+}}
-    // CHECK-NEXT: jumpi
-    // CHECK-NEXT: dup2
+    // CHECK: push 36
+    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push 36
+    // CHECK-NEXT: calldataload
     // CHECK-NEXT: push 192
     // CHECK-NEXT: mstore
+    // CHECK-NEXT: push 4
+    // CHECK-NEXT: calldataload
     // CHECK-NEXT: push [[THEN:bb[0-9]+]]
     // CHECK-NEXT: jumpi
+    // The else arm calls `pair(off + 7)` with the pre-branch `off`.
+    // CHECK: push 192
+    // CHECK-NEXT: mload
     // CHECK: push 7
     // CHECK-NEXT: dup2
-    // CHECK-NEXT: add
-    // CHECK: push 8
     // CHECK: add
-    // CHECK: push 9
+    // CHECK: jumpi
+    // CHECK-NEXT: push [[ELSE_RET:bb[0-9]+]]
+    // CHECK-NEXT: push 512
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: jump [[PAIR:bb[0-9]+]]
+    // CHECK: [[PAIR]]:
+    // CHECK: push 1
     // CHECK: add
+    // CHECK: push 2
+    // CHECK: add
+    // CHECK: [[THEN]]:
+    // CHECK-NEXT: push [[THEN_RET:bb[0-9]+]]
+    // CHECK: jump [[PAIR]]
+    // CHECK: [[THEN_RET]]:
+    // CHECK-NEXT: push [[THEN_CONT:bb[0-9]+]]
+    // CHECK-NEXT: jump [[PICKUP:bb[0-9]+]]
+    // CHECK: [[PICKUP]]:
+    // CHECK: [[ELSE_RET]]:
+    // CHECK-NEXT: push [[ELSE_CONT:bb[0-9]+]]
+    // CHECK-NEXT: jump [[PICKUP]]
+    // CHECK: [[THEN_CONT]]:
     // CHECK: jump [[RETURN:bb[0-9]+]]
     // CHECK: [[RETURN]]:
     // CHECK: return
-    // CHECK: [[THEN]]:
-    // CHECK-NEXT: push 1
-    // CHECK-NEXT: dup2
-    // CHECK-NEXT: add
-    // CHECK: push 2
-    // CHECK-NEXT: dup2
-    // CHECK-NEXT: add
+    // The else continuation combines both call results with the original
+    // `off` slot, rather than a value assigned only in the then arm.
+    // CHECK: [[ELSE_CONT]]:
+    // CHECK: push 192
+    // CHECK-NEXT: mload
+    // CHECK: add
+    // CHECK: jump [[RETURN]]
     function run(bool takeFirst, uint256 seed) external pure returns (uint256 out) {
         uint256 a = seed;
         uint256 off = seed;

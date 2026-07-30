@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_ternary.sol:CalldataSliceTernary ===
 @module CalldataSliceTernary
-fn @pick(arg0: bool, arg1: calldataslice, arg2: calldataslice) {
+fn @pick(arg0: bool, arg1: calldataslice, arg2: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -17,7 +17,6 @@ fn @pick(arg0: bool, arg1: calldataslice, arg2: calldataslice) {
   bb3:
     revert 0, 0
   bb4:
-    mstore 128, 0
     jumpi arg0, bb5, bb6
   bb5:
     v7 = slice_ptr arg1
@@ -36,11 +35,10 @@ fn @pick(arg0: bool, arg1: calldataslice, arg2: calldataslice) {
     v12 = mload 32 !metadata(memory=scratch)
     v13 = make_calldata_slice v11, v12
     v14 = slice_len v13
-    mstore 128, v14
-    returndata 128, 32
+    ret v14
 }
 
-fn @adopt(arg0: bool, arg1: calldataslice) {
+fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -57,7 +55,6 @@ fn @adopt(arg0: bool, arg1: calldataslice) {
   bb3:
     revert 0, 0
   bb4:
-    mstore 128, 0
     v7 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v7, 2
     v8 = memory_object_data memorybytes, v7
@@ -74,8 +71,7 @@ fn @adopt(arg0: bool, arg1: calldataslice) {
     jump bb7
   bb7:
     v24 = mload 0 !metadata(memory=scratch)
-    internal_call @__ret_bytes, 0, v24
-    invalid
+    ret v24
   bb8:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -103,25 +99,5 @@ fn @adopt(arg0: bool, arg1: calldataslice) {
     calldatacopy v20, v23, v10
     mstore 0, v19 !metadata(memory=scratch)
     jump bb7
-}
-
-fn @__ret_bytes(arg0: memorybytes) {
-  bb0:
-    v0 = fmp
-    mstore v0, 32
-    v1 = memory_object_len memorybytes, arg0
-    v2 = add v0, 32
-    mstore v2, v1
-    v3 = add v1, 31
-    v4 = not 31
-    v5 = and v3, v4
-    v6 = add v2, 32
-    v7 = sub v5, 32
-    v8 = add v6, v7
-    mstore v8, 0
-    v9 = memory_object_data memorybytes, arg0
-    mcopy v6, v9, v1
-    v10 = add 64, v5
-    returndata v0, v10
 }
 

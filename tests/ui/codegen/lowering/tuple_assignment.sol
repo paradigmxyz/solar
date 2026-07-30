@@ -44,12 +44,16 @@ contract C {
     }
 
     // CHECK: [[MULTI]]:
+    // CHECK: push [[TWO_RET:bb[0-9]+]]
+    // CHECK-NEXT: push 7
+    // CHECK: mstore
     // CHECK: push 9
     // CHECK: mstore
-    // CHECK: push 7
-    // CHECK: mstore
-    // CHECK: push 9
-    // CHECK-NEXT: jump [[PAIR_RETURN]]
+    // CHECK-NEXT: jump
+    // CHECK-NEXT: [[TWO_RET]]:
+    // CHECK: push 512
+    // CHECK-NEXT: mload
+    // CHECK: jump [[PAIR_RETURN]]
     function multi() external pure returns (uint256 x, uint256 y) {
         x = 100;
         y = 200;

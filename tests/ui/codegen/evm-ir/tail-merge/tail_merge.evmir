@@ -1,4 +1,4 @@
-//@compile-flags: --pass tail-merge
+//@compile-flags: -Zevm-ir-pipeline=tail-merge
 //@filecheck:
 @module module
 

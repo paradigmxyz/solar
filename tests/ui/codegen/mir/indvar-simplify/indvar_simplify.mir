@@ -1,4 +1,4 @@
-//@compile-flags: --pass indvar-simplify
+//@compile-flags: -Zmir-pipeline=indvar-simplify
 //@filecheck:
 @module IndVarSimplify
 // CHECK-LABEL: {{^[ +].*}}fn @strength_reduce_shifted_address{{[( ]}}
