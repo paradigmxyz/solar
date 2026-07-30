@@ -166,11 +166,11 @@ impl LowerEvmShapedCx {
                 self.stats.tail_calls += 1;
                 function_changed = true;
             }
-            changed |= function_changed;
             if function_changed {
-                changed |= repair_reachability_phis(func);
-                remove_unreachable_blocks(func);
+                function_changed |= repair_reachability_phis(func);
+                function_changed |= remove_unreachable_blocks(func) != 0;
             }
+            changed |= function_changed;
         }
 
         let phase_changed = module.phase != MirPhase::EvmShaped;

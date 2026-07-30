@@ -151,6 +151,7 @@ impl CfgSimplifyStats {
     }
 }
 
+#[must_use]
 pub(super) fn remove_unreachable_blocks(func: &mut Function) -> usize {
     let cfg = CfgInfo::new(func);
     let order = func.blocks.indices().filter(|&block| cfg.is_reachable(block)).collect::<Vec<_>>();
