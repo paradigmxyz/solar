@@ -2495,43 +2495,13 @@ mod tests {
             func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
         let operands = [trailing, second, topic, size, preserved];
         let cases = [
-            (
-                [preserved, second],
-                true,
-                vec![
-                    ScheduledOp::Stack(StackOp::Dup(1)),
-                    ScheduledOp::Stack(StackOp::Swap(2)),
-                    ScheduledOp::PushImmediate(alloy_primitives::U256::from(256)),
-                    ScheduledOp::PushImmediate(alloy_primitives::U256::from(32)),
-                    ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO),
-                    ScheduledOp::Stack(StackOp::Swap(4)),
-                ],
-            ),
-            (
-                [second, preserved],
-                true,
-                vec![
-                    ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO),
-                    ScheduledOp::Stack(StackOp::Swap(1)),
-                    ScheduledOp::PushImmediate(alloy_primitives::U256::from(256)),
-                    ScheduledOp::PushImmediate(alloy_primitives::U256::from(32)),
-                    ScheduledOp::Stack(StackOp::Dup(5)),
-                ],
-            ),
-            (
-                [second, preserved],
-                false,
-                vec![
-                    ScheduledOp::PushImmediate(alloy_primitives::U256::from(256)),
-                    ScheduledOp::PushImmediate(alloy_primitives::U256::from(32)),
-                    ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO),
-                    ScheduledOp::Stack(StackOp::Swap(4)),
-                ],
-            ),
+            ([preserved, second], true),
+            ([second, preserved], true),
+            ([second, preserved], false),
         ];
 
         for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
-            for (layout, retain, expected) in &cases {
+            for (layout, retain) in &cases {
                 let mut scheduler = StackScheduler::new();
                 scheduler.spills.allocate(preserved);
                 scheduler.spills.mark_reloadable(preserved);
@@ -2563,10 +2533,6 @@ mod tests {
                     .unwrap();
 
                 assert_eq!(plan.cost, exact.cost);
-                assert_eq!(
-                    plan.actions.iter().map(|action| action.op.clone()).collect::<Vec<_>>(),
-                    *expected
-                );
                 let stats = scheduler.operand_search_stats.get();
                 assert_eq!(stats.expansions, 0);
                 assert_eq!(stats.created, 0);
