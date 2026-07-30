@@ -453,7 +453,7 @@ mod tests {
         sess.enter(|| {
             let name = ["123", ".evm"].concat();
             let module = Module::new(Symbol::intern(&name));
-            assert_eq!(module.name().as_str(), "$3123$2eevm");
+            assert_eq!(module.name().as_str(), "123.evm");
         });
     }
 }

@@ -1,6 +1,6 @@
 //@compile-flags: -Zmir-pipeline=none
 //@filecheck: --enable-var-scope
-// CHECK-LABEL: fn @$3123$2ecompact$24
+// CHECK-LABEL: fn @123.compact$
 // CHECK: {{^ +}}[[SUM:v[0-9]+]] = add 1, 2
 // CHECK: {{^ +}}ret [[SUM]]
-@module $3123$2eCompact$24 fn @$3123$2ecompact$24() -> u256 { bb0: v0 = add 1, 2 ret v0 }
+@module 123.Compact$ fn @123.compact$() -> u256 { bb0: v0 = add 1, 2 ret v0 }

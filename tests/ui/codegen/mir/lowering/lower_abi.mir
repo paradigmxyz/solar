@@ -1,5 +1,5 @@
 //@compile-flags: -Zmir-pipeline=lower-abi
-//@filecheck: --implicit-check-not=$2ebody
+//@filecheck: --implicit-check-not=.body
 // The ABI phase absorbs each external function's arguments: the wrapper
 // loses its parameter list while its `argN` values stay and denote calldata
 // head words (rematerialized per use by the backend), the function keeps its

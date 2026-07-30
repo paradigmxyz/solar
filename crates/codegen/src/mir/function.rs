@@ -541,8 +541,8 @@ mod tests {
         sess.enter(|| {
             let name = ["f", ".name"].concat();
             let func = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
-            assert_eq!(func.name.as_symbol().as_str(), "f$2ename");
-            assert_data_eq!(func.to_string(), "fn f$2ename()");
+            assert_eq!(func.name.as_symbol().as_str(), "f.name");
+            assert_data_eq!(func.to_string(), "fn f.name()");
         });
     }
 

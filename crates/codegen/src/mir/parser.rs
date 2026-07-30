@@ -193,17 +193,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         function_names: &IndexVec<FunctionId, ParsedSymbol>,
         function_refs: Vec<(FunctionId, PendingFunctionRef)>,
     ) -> PResult<'sess, ()> {
-        let mut functions = FxHashMap::<Symbol, Vec<FunctionId>>::default();
         let mut declarations = FxHashMap::<ParsedSymbol, Vec<FunctionId>>::default();
         for id in module.functions.indices() {
-            functions.entry(function_names[id].source).or_default().push(id);
             declarations.entry(function_names[id]).or_default().push(id);
         }
         for (owner, reference) in function_refs {
-            let matches = match reference.name.disambiguator {
-                Some(_) => declarations.get(&reference.name),
-                None => functions.get(&reference.name.source),
-            };
+            let matches = declarations.get(&reference.name);
             let Some(matches) = matches else {
                 return Err(self.parser.error_at(
                     reference.span,
@@ -247,7 +242,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parser.expect_keyword(sym::fn_)?;
         self.parser.expect(TokenKind::At)?;
         let name = self.parser.parse_symbol_name()?;
-        let func_ident = Ident::with_dummy_span(name.source);
+        let func_ident = Ident::with_dummy_span(name.name.as_symbol());
         let mut func = Function::new(func_ident);
         let block_remap = {
             let mut builder = FunctionBuilder::new(&mut func);

@@ -1,6 +1,6 @@
 - // === ROOT/tests/ui/codegen/evm-ir/none/compact.evmir (before none) ===
 + // === ROOT/tests/ui/codegen/evm-ir/none/compact.evmir (after none) ===
-  @module $3123$2ecompact$24
+  @module 123.compact$
   bb0:
     push 1
     push 2

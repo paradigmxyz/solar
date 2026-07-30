@@ -23,13 +23,13 @@
       ret v0
   }
   
-  fn @over$2eload$$3() -> u256 {
+  fn @over.load$3() -> u256 {
     bb0:
-      v0 = internal_call @over$2eload$$4, 1
+      v0 = internal_call @over.load$4, 1
       ret v0
   }
   
-  fn @over$2eload$$4() -> u256 {
+  fn @over.load$4() -> u256 {
     bb0:
       ret 1
   }

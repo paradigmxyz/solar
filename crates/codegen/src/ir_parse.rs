@@ -10,12 +10,10 @@ use solar_data_structures::fmt;
 use solar_interface::{Session, Span, Symbol, source_map::SourceFile};
 use solar_parse::PErr;
 
-/// A parsed codegen symbol and its source identity.
+/// A parsed codegen symbol.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct ParsedSymbol {
-    pub(crate) source: Symbol,
     pub(crate) name: SymbolName,
-    pub(crate) disambiguator: Option<usize>,
 }
 
 impl fmt::Display for ParsedSymbol {
@@ -94,26 +92,41 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     pub(crate) fn parse_symbol(&mut self) -> Result<Symbol, PErr<'sess>> {
-        let span = self.token().span;
-        let symbol = self.parse_symbol_name()?;
-        if symbol.disambiguator.is_some() {
-            return Err(
-                self.error_at(span, "symbol disambiguators are only valid for MIR functions")
-            );
-        }
-        Ok(symbol.source)
+        self.parse_stored_symbol()
     }
 
     pub(crate) fn parse_symbol_name(&mut self) -> Result<ParsedSymbol, PErr<'sess>> {
-        let span = self.token().span;
-        let name = SymbolName::from_mangled(self.parse_ident()?);
-        name.demangle()
-            .map(|(source, disambiguator)| ParsedSymbol {
-                source,
-                name: SymbolName::mangle_with_disambiguator(source, disambiguator),
-                disambiguator,
-            })
-            .map_err(|message| self.error_at(span, message))
+        Ok(ParsedSymbol { name: SymbolName::new(self.parse_stored_symbol()?) })
+    }
+
+    fn parse_stored_symbol(&mut self) -> Result<Symbol, PErr<'sess>> {
+        let mut symbol = match self.token().kind {
+            TokenKind::Ident(symbol) | TokenKind::Literal(TokenLitKind::Integer, symbol) => symbol,
+            _ => return Err(self.error("expected identifier")),
+        };
+        self.bump();
+
+        if !self.eat(TokenKind::Dot) {
+            return Ok(symbol);
+        }
+
+        let mut name = symbol.to_string();
+        loop {
+            name.push('.');
+            let part = match self.token().kind {
+                TokenKind::Ident(symbol) | TokenKind::Literal(TokenLitKind::Integer, symbol) => {
+                    symbol
+                }
+                _ => return Err(self.error("expected identifier after `.`")),
+            };
+            self.bump();
+            name.push_str(part.as_str());
+            if !self.eat(TokenKind::Dot) {
+                break;
+            }
+        }
+        symbol = Symbol::intern(&name);
+        Ok(symbol)
     }
 
     pub(crate) fn parse_uint(&mut self) -> Result<U256, PErr<'sess>> {

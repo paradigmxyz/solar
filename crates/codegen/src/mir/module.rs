@@ -273,16 +273,16 @@ mod tests {
             let module_name = ["123", ".module"].concat();
             let module_name = Ident::with_dummy_span(Symbol::intern(&module_name));
             let mut module = Module::new(module_name);
-            assert_eq!(module.name.as_symbol().as_str(), "$3123$2emodule");
+            assert_eq!(module.name.as_symbol().as_str(), "123.module");
 
             let function_name = ["over", ".load"].concat();
             let function_name = Ident::with_dummy_span(Symbol::intern(&function_name));
             let first = module.add_function(Function::new(function_name));
-            assert_eq!(module.function(first).name.as_symbol().as_str(), "over$2eload");
+            assert_eq!(module.function(first).name.as_symbol().as_str(), "over.load");
 
             let second = module.add_function(Function::new(function_name));
-            assert_eq!(module.function(first).name.as_symbol().as_str(), "over$2eload$$0");
-            assert_eq!(module.function(second).name.as_symbol().as_str(), "over$2eload$$1");
+            assert_eq!(module.function(first).name.as_symbol().as_str(), "over.load$0");
+            assert_eq!(module.function(second).name.as_symbol().as_str(), "over.load$1");
         });
     }
 }
