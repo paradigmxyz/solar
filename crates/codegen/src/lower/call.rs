@@ -606,6 +606,10 @@ impl<'gcx> Lowerer<'gcx> {
             ret_offset,
             ret_size,
         );
+        if function.returns.len() > 1 {
+            let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
+            builder.mstore(ptr_slot, ret_offset);
+        }
         (success, ret_offset)
     }
 

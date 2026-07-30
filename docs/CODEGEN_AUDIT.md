@@ -20,6 +20,7 @@ architecture.
 | Separate tuple declaration and tuple assignment result extraction | One multi-value snapshot path |
 | Name-based event signature construction and scalar-only event data stores | Sema event selectors and the shared ABI encoder |
 | Separate call-option handling in low-level, high-level, and try calls | One external-call option and opcode emitter |
+| Separate external-function-pointer opcode selection and failure forwarding | The shared mutability-aware external-call path |
 | Per-builtin arity checks and argument collection through flattening iterators | Shared borrowed slice/array extractors that reject named arguments |
 | Source-order iteration of named arguments in internal calls, libraries, structs, events, errors, and base constructors | Sema parameter sources plus one declaration-order mapper |
 | Conservative internal-call frame sizes based on a function's total MIR value count | Deferred constants resolved from exact post-emission spill sizes |
@@ -98,11 +99,18 @@ These are current miscompile or target-legality risks, not cleanup preferences.
    access-control, validation, and reentrancy logic entirely.
 ### Target and storage representation
 
-1. `StorageField` classifies some dynamic fields as a word, then
+1. Target-specific MIR is not exhaustively legalized. Pre-Constantinople
+   shifts, pre-Byzantium try/catch and explicit Yul returndata/static-call
+   operations, and later opcodes such as `CREATE2`, `EXTCODEHASH`, transient
+   storage, blob operations, and `CLZ` can still reach a target where their
+   opcode is unavailable. `lower-mcopy` is the model: keep the semantic
+   operation until one required legalization pass either rewrites or rejects
+   every unsupported instruction.
+2. `StorageField` classifies some dynamic fields as a word, then
    `lower-aggregates` applies raw `sload`/`sstore`. Storage bytes/string and
    dynamic arrays need distinct storage-field shapes or must be rejected before
    semantic aggregate lowering.
-2. Fixed-bytes canonicalization is split across literal typing, packed encoding,
+3. Fixed-bytes canonicalization is split across literal typing, packed encoding,
    memory bytes operations, and ABI encoding. Value-magnitude guesses must be
    replaced by one canonical producer representation.
 
@@ -172,8 +180,15 @@ These are current miscompile or target-legality risks, not cleanup preferences.
 | `lower::Lowerer::lower_function` | ABI entry handling, local layout, constructor work, body lowering, and return lowering in one function | Entry convention, local initialization, body, epilogue |
 | `lower::expr::lower_value_expr_unchecked` | Source expression dispatch mixed with storage, memory, and ABI representation | Syntax dispatch calling representation-specific helpers |
 | `lower::call::lower_member_call_with_opts` | Builtins, arrays, libraries, low-level calls, and high-level calls share one dispatcher | Resolve call kind, then use one builder per semantic kind |
+| Linked-library call lowering | Reimplements a restricted ABI head/tail encoder and return-area policy beside the semantic ABI encoder | Add storage-slot ABI values, then share external-call encoding and typed return decoding |
+| Try/catch lowering | Call construction, return decoding, selector dispatch, clause binding, and rethrow policy remain in one path | Semantic call results plus small success/failure policy blocks |
 | Internal-function-pointer dispatcher synthesis | Address-taken discovery, fixed-point function lowering, signature grouping, switch construction, and call lowering are coupled | Keep indirect calls semantic through target specialization, then lower them in one required pass |
+| `backend::evm::codegen::generate_function_body` | Liveness, phi elimination, stack-phi planning, block layout, spill lifetime, and terminator emission are interleaved | Prepare a scheduled function plan before physical block emission |
 | `backend::evm::codegen::generate_inst` | Opcode selection, stack effects, memory operations, and call conventions are interleaved | Instruction families plus shared operand scheduling |
+| `backend::evm::codegen::emit_value_fresh` | Repeats a large subset of opcode selection from `generate_inst` for rematerialization | Give rematerializable MIR instructions one shared target recipe |
+| Dynamic and static internal-call emitters | Duplicate argument retention, frame stores, return setup, and result recovery around two frame-address policies | One call plan parameterized by dynamic or deferred-static addressing |
+| `backend::evm::codegen::generate_terminator` | MIR termination semantics, fallthrough choice, stack preservation, and raw EVM jump layout are coupled | Emit structured EVM IR terminators, then choose layout in EVM IR |
+| `backend::evm::codegen::resolve_static_frames` | Call-graph depth, frame overlay, static allocation acceptance, spill ranking, and heap-floor resolution are one fixed-point/layout routine | Compute an immutable frame-layout plan, then resolve deferred addresses |
 | MIR inliner | Recomputes call counts, reachability, and recursion and mirrors every instruction in a large clone match | Reuse call-graph analysis and operand visitors |
 | MIR validator | Phase checks and per-instruction validation are combined | Shared phase/readiness predicates plus local instruction checks |
 

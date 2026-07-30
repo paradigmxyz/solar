@@ -6,6 +6,7 @@
 //@ run-call: Caller::libraryNamedArguments() => 12
 //@ run-call: Caller::structNamedArguments() => 12
 //@ run-call: Caller::attachedStorageReceiver() => 7
+//@ run-call: Caller::functionPointerMultiReturn() => 12
 //@ run-call-fail: Caller::failedCreation() => 0xdeadbeef
 
 interface ViewTarget {
@@ -23,6 +24,10 @@ contract CallTarget {
 
     function ordered(uint256 a, uint256 b) external pure returns (uint256) {
         return a * 10 + b;
+    }
+
+    function pair() external pure returns (uint256, uint256) {
+        return (1, 2);
     }
 
     function touch() external {
@@ -117,6 +122,12 @@ contract Caller {
     function attachedStorageReceiver() external returns (uint256) {
         data.set(7);
         return data.value;
+    }
+
+    function functionPointerMultiReturn() external view returns (uint256) {
+        function() external view returns (uint256, uint256) pointer = target.pair;
+        (uint256 a, uint256 b) = pointer();
+        return a * 10 + b;
     }
 
     function failedCreation() external {
