@@ -15,7 +15,7 @@ fn @doAdd() {
     returndata 128, 32
 }
 
-fn @add(arg0: u256, arg1: u256) -> u256 {
+fn @add(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = add arg0, arg1
     v1 = slt arg0, 0
@@ -42,7 +42,7 @@ fn @doNeg() {
     returndata 128, 32
 }
 
-fn @neg(arg0: u256) -> u256 {
+fn @neg(arg0: i256) -> i256 {
   bb0:
     v0 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     jumpi v0, bb1, bb2
