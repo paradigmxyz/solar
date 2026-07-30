@@ -128,6 +128,8 @@ def has_baseline_changes(
         test_id = str(result.get("test_id", "<unknown>"))
         base = baseline.get(test_id)
         if base is None:
+            if baseline:
+                return True
             continue
 
         solar_gas = total_gas(result, "solar")

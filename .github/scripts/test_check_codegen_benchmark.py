@@ -60,6 +60,13 @@ class ReportFormattingTests(unittest.TestCase):
             "105B (❌ +5.00%)",
         )
 
+    def test_new_test_is_a_baseline_change(self):
+        current = [result("existing", status="ok"), result("new", status="ok")]
+        baseline = [result("existing", status="ok")]
+
+        self.assertTrue(benchmark.has_baseline_changes(current, baseline))
+        self.assertFalse(benchmark.has_baseline_changes(current, []))
+
     def test_peak_rss_report_is_collapsed(self):
         report = benchmark.memory_report(
             [

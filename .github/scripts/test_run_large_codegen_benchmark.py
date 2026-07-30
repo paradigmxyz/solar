@@ -22,11 +22,13 @@ class ProjectSliceTests(unittest.TestCase):
                     "content": (
                         'import "./B.sol";\n'
                         'import {C} from "@pkg/C.sol";\n'
+                        'import "../shared/E.sol" as Shared;\n'
                     )
                 },
                 "src/B.sol": {"content": 'import "../shared/D.sol";'},
                 "vendor/pkg/C.sol": {"content": ""},
                 "shared/D.sol": {"content": ""},
+                "shared/E.sol": {"content": ""},
                 "unused.sol": {"content": ""},
             },
             "settings": {"remappings": ["@pkg/=vendor/pkg/"]},
@@ -36,7 +38,13 @@ class ProjectSliceTests(unittest.TestCase):
 
         self.assertEqual(
             list(selected),
-            ["shared/D.sol", "src/A.sol", "src/B.sol", "vendor/pkg/C.sol"],
+            [
+                "shared/D.sol",
+                "shared/E.sol",
+                "src/A.sol",
+                "src/B.sol",
+                "vendor/pkg/C.sol",
+            ],
         )
 
     def test_large_cases_resolve_from_pinned_projects(self) -> None:
@@ -114,7 +122,6 @@ class DeploymentTests(unittest.TestCase):
         sender = "0x" + "11" * 20
         transaction_hash = "0x" + "22" * 32
         contract_address = "0x" + "33" * 20
-        process = mock.Mock(returncode=0, stdout=sender + "\n", stderr="")
         receipt = {
             "status": "0x1",
             "gasUsed": "0x5208",
@@ -130,7 +137,6 @@ class DeploymentTests(unittest.TestCase):
         )
 
         with (
-            mock.patch.object(benchmark, "run", return_value=process) as run,
             mock.patch.object(
                 benchmark,
                 "rpc",
@@ -141,11 +147,10 @@ class DeploymentTests(unittest.TestCase):
                 bytecode,
                 case,
                 "http://127.0.0.1:8545",
-                "0x" + "44" * 32,
+                sender,
             )
 
         self.assertEqual((address, gas, error), (contract_address, 0x5208, ""))
-        self.assertEqual(run.call_args.args[0][:3], ["cast", "wallet", "address"])
         method, params, _ = rpc.call_args_list[0].args
         self.assertEqual(method, "eth_sendTransaction")
         self.assertEqual(params[0]["from"], sender)

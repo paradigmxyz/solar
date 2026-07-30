@@ -17,14 +17,13 @@ from pathlib import Path
 from typing import Any, Sequence
 
 
-DEFAULT_PRIVATE_KEY = (
-    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-)
+DEFAULT_SENDER = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
 DEFAULT_RPC_URL = "http://127.0.0.1:8545"
 GAS_LIMIT = "80000000"
 
 IMPORT_RE = re.compile(
-    r"""\bimport\s+(?:(?:[^;]*?)\s+from\s+)?["']([^"']+)["']\s*;"""
+    r"""\bimport\s+(?:(?:[^;]*?)\s+from\s+)?["']([^"']+)["']"""
+    r"""(?:\s+as\s+[A-Za-z_$][A-Za-z0-9_$]*)?\s*;"""
 )
 
 
@@ -378,7 +377,7 @@ def send(
     address: str,
     call: Call,
     rpc_url: str,
-    private_key: str,
+    sender: str,
 ) -> tuple[int | None, str]:
     proc = run(
         [
@@ -395,8 +394,9 @@ def send(
             "30",
             "--gas-limit",
             GAS_LIMIT,
-            "--private-key",
-            private_key,
+            "--unlocked",
+            "--from",
+            sender,
             "--json",
         ],
         timeout=45,
@@ -443,7 +443,7 @@ def deploy(
     bytecode: str,
     case: Case,
     rpc_url: str,
-    private_key: str,
+    sender: str,
 ) -> tuple[str | None, int | None, str]:
     encoded = ""
     if case.constructor_args:
@@ -462,19 +462,6 @@ def deploy(
             return None, None, (proc.stderr or proc.stdout)[:2000]
         encoded = proc.stdout.strip().removeprefix("0x")
 
-    proc = run(
-        [
-            "cast",
-            "wallet",
-            "address",
-            "--private-key",
-            private_key,
-        ],
-        timeout=30,
-    )
-    if proc.returncode != 0:
-        return None, None, (proc.stderr or proc.stdout or "address derivation failed")[:2000]
-    sender = proc.stdout.strip()
     if re.fullmatch(r"0x[0-9a-fA-F]{40}", sender) is None:
         return None, None, "invalid deployer address"
 
@@ -522,7 +509,7 @@ def run_case(
     compilers: Sequence[tuple[str, Path]],
     root: Path,
     rpc_url: str,
-    private_key: str,
+    sender: str,
 ) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "test_id": case.test_id,
@@ -551,7 +538,7 @@ def run_case(
                 compiled["bytecode"],
                 case,
                 rpc_url,
-                private_key,
+                sender,
             )
         else:
             address = None
@@ -571,7 +558,7 @@ def run_case(
         for call in case.calls:
             for index in range(call.repeat):
                 label = call.label if call.repeat == 1 else f"{call.label}#{index + 1}"
-                gas, error = send(address, call, rpc_url, private_key)
+                gas, error = send(address, call, rpc_url, sender)
                 row = {
                     "label": label,
                     "call": call.signature,
@@ -716,7 +703,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=Path(__file__).resolve().parents[2],
     )
     parser.add_argument("--rpc-url", default=DEFAULT_RPC_URL)
-    parser.add_argument("--private-key", default=DEFAULT_PRIVATE_KEY)
+    parser.add_argument(
+        "--sender",
+        default=DEFAULT_SENDER,
+        help="unlocked account used for deployments and state-changing calls",
+    )
     parser.add_argument("--start-anvil", action="store_true")
     parser.add_argument("--allow-failures", action="store_true")
     args = parser.parse_args(argv)
@@ -734,7 +725,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 compilers,
                 root,
                 args.rpc_url,
-                args.private_key,
+                args.sender,
             )
             for case in CASES
         ]

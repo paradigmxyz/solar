@@ -79,13 +79,19 @@ pub fn get_srcs() -> &'static [Source] {
 }
 
 pub fn get_src(name: &str) -> &'static Source {
-    static COMMON_SOURCES: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
-    if let Some(source) =
-        COMMON_SOURCES.get_or_init(common_sources).iter().find(|source| source.name == name)
-    {
-        return source;
-    }
-    get_srcs().iter().find(|s| s.name == name).unwrap()
+    static GUNGRAUN_SOURCES: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
+    GUNGRAUN_SOURCES
+        .get_or_init(|| {
+            // Keep the measured harness equivalent to the pre-project corpus:
+            // Gungraun does not benchmark the compressed projects, but it did
+            // initialize both the common and generated repro sources.
+            let mut sources = common_sources();
+            extend_repro_sources(&mut sources);
+            sources
+        })
+        .iter()
+        .find(|source| source.name == name)
+        .unwrap()
 }
 
 fn common_sources() -> Vec<Source> {
@@ -94,6 +100,7 @@ fn common_sources() -> Vec<Source> {
             name: Cow::Borrowed("empty"),
             files: vec![(Cow::Borrowed(""), Cow::Borrowed(""))],
             remappings: Vec::new(),
+            evm_version: solar::config::EvmVersion::default(),
             bytes: 0,
             capabilities: Capabilities::all(),
             codspeed_codegen: true,
@@ -187,12 +194,12 @@ fn ensure_contract_bytecode(
     contract_id: solar::sema::hir::ContractId,
     bytecodes: &mut FxHashMap<solar::sema::hir::ContractId, Bytes>,
 ) -> Result {
-    if bytecodes.contains_key(&contract_id) {
+    let std::collections::hash_map::Entry::Vacant(entry) = bytecodes.entry(contract_id) else {
         return Ok(());
-    }
+    };
     // Valid code cannot have recursive creation dependencies; seed the entry
     // so an unexpected cycle terminates instead of recursing forever.
-    bytecodes.insert(contract_id, Bytes::new());
+    entry.insert(Bytes::new());
     for dep in codegen::lower::contract_bytecode_dependencies(gcx, contract_id).iter() {
         ensure_contract_bytecode(gcx, dep, bytecodes)?;
     }
@@ -222,6 +229,7 @@ fn include_source(path: &str, capabilities: Capabilities) -> Source {
             name: Cow::Owned(name),
             files: vec![(Cow::Owned(path), Cow::Owned(content))],
             remappings: Vec::new(),
+            evm_version: solar::config::EvmVersion::default(),
             bytes,
             capabilities,
             codspeed_codegen: true,
@@ -232,7 +240,7 @@ fn include_source(path: &str, capabilities: Capabilities) -> Source {
         Ok(file) => file,
         Err(e) => panic!("failed to read {path}: {e}"),
     };
-    let input: serde_json::Value = match serde_json::from_reader(GzDecoder::new(file)) {
+    let input = match serde_json::from_reader::<_, serde_json::Value>(GzDecoder::new(file)) {
         Ok(input) => input,
         Err(e) => panic!("failed to parse {path}: {e}"),
     };
@@ -255,6 +263,12 @@ fn include_source(path: &str, capabilities: Capabilities) -> Source {
                 .collect()
         })
         .unwrap_or_default();
+    let evm_version = input["settings"]["evmVersion"]
+        .as_str()
+        .map(str::parse)
+        .transpose()
+        .unwrap_or_else(|error| panic!("{path}: invalid EVM version: {error}"))
+        .unwrap_or_default();
     let name = Path::new(path)
         .file_name()
         .unwrap()
@@ -267,6 +281,7 @@ fn include_source(path: &str, capabilities: Capabilities) -> Source {
         name: Cow::Owned(name),
         files,
         remappings,
+        evm_version,
         bytes,
         capabilities,
         codspeed_codegen: false,
@@ -281,6 +296,8 @@ pub struct Source {
     pub files: Vec<(Cow<'static, str>, Cow<'static, str>)>,
     /// Import remappings from the build configuration.
     pub remappings: Vec<Cow<'static, str>>,
+    /// EVM revision from the build configuration.
+    pub evm_version: solar::config::EvmVersion,
     /// Total source bytes across every file.
     pub bytes: u64,
     pub capabilities: Capabilities,
@@ -341,15 +358,21 @@ impl Capabilities {
 pub trait Compiler {
     fn name(&self) -> &'static str;
     fn capabilities(&self) -> Capabilities;
+
     fn supports(&self, source: &Source) -> bool {
         source.files.len() == 1
     }
+
     fn setup(&self, _source: &Source) -> Box<dyn Any> {
         Box::new(())
     }
+
     fn lex(&self, _source: &Source, _setup: &mut dyn Any) {}
+
     fn parse(&self, source: &Source, setup: &mut dyn Any);
+
     fn lower(&self, _source: &Source, _setup: &mut dyn Any) {}
+
     fn codegen(&self, _source: &Source, _setup: &mut dyn Any) {}
 }
 
@@ -441,6 +464,7 @@ impl Compiler for Solar {
 fn session(source: &Source) -> Session {
     let mut opts = solar::config::CompileOpts {
         threads: solar::config::Threads::resolve(1),
+        evm_version: source.evm_version,
         unstable: solar::config::UnstableOpts { codegen: true, ..Default::default() },
         ..Default::default()
     };
