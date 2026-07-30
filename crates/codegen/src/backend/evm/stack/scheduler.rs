@@ -706,7 +706,7 @@ impl StackScheduler {
         preserved: &[ValueId],
         func: &Function,
     ) -> Option<OperandPlan> {
-        let mut stack = self.stack.as_slice().to_vec();
+        let mut stack = SearchStack::from_slice(self.stack.as_slice());
         for action in &plan.actions {
             match action.op {
                 ScheduledOp::Stack(StackOp::Swap(depth)) => {
