@@ -68,15 +68,11 @@ bb8:
   push 4
   dup3
   sub
+  swap1
   push 4
-  dup3
   add
-  swap2
-  pop
-  dup2
   push 128
   mstore
-  swap2
-  pop
+  swap1
   pop
   jump bb7

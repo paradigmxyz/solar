@@ -1,15 +1,15 @@
 //! MIR functions.
 
 use super::{
-    AbiLayoutRef, ArgIdx, BasicBlock, BlockId, InstId, InstKind, Instruction, MirType,
-    StorageAlias, Value, ValueId,
+    AbiLayoutRef, ArgIdx, BasicBlock, BlockId, Immediate, InstId, InstKind, Instruction, MirType,
+    StorageAlias, Value, ValueId, utils,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
-    map::FxHashMap,
+    map::{FxHashMap, StdEntry},
 };
 use solar_interface::Ident;
 use solar_sema::hir::{StateMutability, Visibility};
@@ -205,6 +205,44 @@ impl Function {
             let terminator = block.terminator.iter().flat_map(|term| term.operands());
             instructions.chain(terminator)
         })
+    }
+
+    /// Reuses one value identity for active uses of each exactly equal immediate.
+    ///
+    /// Codegen calls this after the canonical pass pipeline and final phase check. Keep this
+    /// limited to replacing immediate uses with an equal immediate unless the caller adds
+    /// another validation boundary.
+    pub(crate) fn canonicalize_immediate_uses(&mut self) -> usize {
+        let mut canonical = FxHashMap::<Immediate, ValueId>::default();
+        let mut replacements = FxHashMap::default();
+        for value in self.live_values().collect::<Vec<_>>() {
+            let Value::Immediate(immediate) = self.value(value) else { continue };
+            match canonical.entry(immediate.clone()) {
+                StdEntry::Occupied(entry) => {
+                    let existing = *entry.get();
+                    if existing != value {
+                        replacements.insert(value, existing);
+                    }
+                }
+                StdEntry::Vacant(entry) => {
+                    entry.insert(value);
+                }
+            }
+        }
+        if replacements.is_empty() {
+            return 0;
+        }
+
+        let mut replaced = 0;
+        self.for_each_instruction_mut(|_, inst| {
+            replaced += utils::replace_inst_uses(&mut inst.kind, &replacements);
+        });
+        for block in &mut self.blocks {
+            if let Some(term) = &mut block.terminator {
+                replaced += utils::replace_terminator_uses(term, &replacements);
+            }
+        }
+        replaced
     }
 
     /// Calls `f` for every active instruction in block order.
@@ -541,5 +579,23 @@ mod tests {
         assert_eq!(arg_uses[ArgIdx::new(1)], [terminator_arg]);
         assert!(arg_uses[ArgIdx::new(2)].is_empty());
         assert!(!func.live_values().any(|value| value == unused_arg));
+    }
+
+    #[test]
+    fn canonicalizes_equal_immediate_uses() {
+        let mut func = Function::new(Ident::DUMMY);
+        let (first, second, result) = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let first = builder.imm_u64(7);
+            let second = builder.imm_u64(7);
+            let result = builder.add(first, second);
+            builder.ret([result]);
+            (first, second, result)
+        };
+
+        assert_eq!(func.canonicalize_immediate_uses(), 1);
+        let Value::Inst(inst) = func.value(result) else { panic!("expected instruction result") };
+        assert_eq!(func.inst(*inst).kind.operands().as_slice(), [first, first]);
+        assert_ne!(first, second);
     }
 }

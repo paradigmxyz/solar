@@ -708,7 +708,10 @@ mod tests {
             panic!("expected a NatSpec completion target");
         };
         let item = target
-            .completion_items(CompletionClientOptions { snippet_support: true }, None)
+            .completion_items(
+                CompletionClientOptions { snippet_support: true, ..Default::default() },
+                None,
+            )
             .into_iter()
             .next()
             .unwrap();
@@ -731,7 +734,10 @@ mod tests {
                 panic!("expected a NatSpec completion target");
             };
             let item = target
-                .completion_items(CompletionClientOptions { snippet_support: true }, None)
+                .completion_items(
+                    CompletionClientOptions { snippet_support: true, ..Default::default() },
+                    None,
+                )
                 .into_iter()
                 .next()
                 .unwrap();
@@ -748,7 +754,10 @@ mod tests {
             panic!("expected a NatSpec completion target");
         };
         let item = target
-            .completion_items(CompletionClientOptions { snippet_support: true }, None)
+            .completion_items(
+                CompletionClientOptions { snippet_support: true, ..Default::default() },
+                None,
+            )
             .into_iter()
             .next()
             .unwrap();
@@ -789,8 +798,10 @@ mod tests {
             getter_returns: Vec::new(),
             inheritdoc_contracts: vec!["$Alias".into()],
         };
-        let items = target
-            .completion_items(CompletionClientOptions { snippet_support: true }, Some(&semantics));
+        let items = target.completion_items(
+            CompletionClientOptions { snippet_support: true, ..Default::default() },
+            Some(&semantics),
+        );
 
         assert_eq!(
             completion_new_text(&items[0]),

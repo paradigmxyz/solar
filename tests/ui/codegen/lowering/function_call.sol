@@ -1,6 +1,8 @@
+//@ revisions: mir size
 //@ignore-host: windows
-//@compile-flags: -Zcodegen -O none -Zdump=mir
-//@filecheck:
+//@[mir] compile-flags: -Zcodegen -O none -Zdump=mir
+//@[mir] filecheck:
+//@[size] compile-flags: -Zcodegen -O size -Zdump=evm-ir-runtime
 
 contract FunctionCall {
     // CHECK-LABEL: fn @double{{[( ]}}

@@ -116,7 +116,7 @@ bb2 [cold]:
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:RpowEdges (runtime) ===
 @module runtime
 bb0:
-  push 224
+  push 192
   push 64
   mstore
   callvalue
@@ -161,7 +161,7 @@ bb4:
   mload
   and
   dup1
-  push 192
+  push 160
   mstore
   dup1
   push bb9
