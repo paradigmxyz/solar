@@ -8,9 +8,8 @@ use crate::{
     immutable::immutable_push_type_size,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        BlockId, Function, FunctionId as MirFunctionId, Immediate, InstId, ImmutableEncoding, InstKind,
-        Instruction,
-        MirType, Module, Terminator, Value, ValueId,
+        BlockId, Function, FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId,
+        InstKind, Instruction, MirType, Module, Terminator, Value, ValueId,
     },
     pass::MirPass,
 };
