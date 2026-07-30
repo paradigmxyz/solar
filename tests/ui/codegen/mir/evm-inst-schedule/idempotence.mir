@@ -1,4 +1,4 @@
-//@ compile-flags: --pass evm-inst-schedule,evm-inst-schedule
+//@ compile-flags: -Zmir-pipeline=evm-inst-schedule,evm-inst-schedule
 @module EvmInstScheduleIdempotence
 
 // The second run must preserve the first run's order.
