@@ -558,11 +558,19 @@ impl<'gcx> Lowerer<'gcx> {
 
         {
             let mut builder = FunctionBuilder::new(&mut mir_func);
+            let saved_locals = std::mem::take(&mut self.locals);
+            let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+            let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
+            let saved_next_local_memory_offset = self.next_local_memory_offset;
+            let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+            let saved_inline_returns = self.inline_returns.take();
+            let saved_pending_inline_returns = self.pending_inline_returns.take();
             let saved_lowering_constructor = self.lowering_constructor;
             let saved_constructor_args_base = self.constructor_args_base;
             let saved_lowering_internal_function = self.lowering_internal_function;
             let saved_in_unchecked_block = self.in_unchecked_block;
             let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
+            self.next_local_memory_offset = EvmMemoryLayout::HEAP_START;
             self.lowering_constructor = true;
             self.constructor_args_base = None;
             self.lowering_internal_function = false;
@@ -570,6 +578,15 @@ impl<'gcx> Lowerer<'gcx> {
 
             self.lower_constructor_prelude(&mut builder, contract_id);
             builder.stop();
+            builder.func_mut().internal_frame_size =
+                self.next_local_memory_offset.saturating_sub(EvmMemoryLayout::HEAP_START);
+            self.locals = saved_locals;
+            self.local_memory_slots = saved_local_memory_slots;
+            self.slice_slot_locals = saved_slice_slot_locals;
+            self.next_local_memory_offset = saved_next_local_memory_offset;
+            self.assigned_vars = saved_assigned_vars;
+            self.inline_returns = saved_inline_returns;
+            self.pending_inline_returns = saved_pending_inline_returns;
             self.lowering_constructor = saved_lowering_constructor;
             self.constructor_args_base = saved_constructor_args_base;
             self.lowering_internal_function = saved_lowering_internal_function;
