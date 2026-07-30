@@ -1,13 +1,22 @@
-//! Local peephole optimization over scheduled EVM IR.
+//! Peephole and dead terminal-stack optimization over scheduled EVM IR.
+//!
+//! Local rewrites canonicalize instruction windows. A separate backward CFG
+//! analysis removes trailing `POP`s when every continuation terminates without
+//! reading the discarded words.
 
 use super::EvmPass;
 use crate::backend::evm::{
-    ir::{Instruction, Module, PushValue, TerminatorKind},
+    ir::{
+        BlockId, Instruction, Module, PushValue, StackEffect, TerminatorKind,
+        default_instruction_stack_effect,
+    },
     op,
+    stack::MAX_STACK_DEPTH,
 };
 use alloy_primitives::U256;
+use solar_data_structures::index::{IndexVec, index_vec};
 use solar_sema::Gcx;
-use std::fmt;
+use std::{collections::VecDeque, fmt};
 use tracing::trace;
 
 pub(super) struct Peephole;
@@ -28,20 +37,231 @@ fn optimize_module(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
-        let mut rewrites = optimize(&mut block.instructions, &mut scratch, block.label);
-        // `STOP` does not observe the stack, so trailing cleanup `POP`s only spend gas.
-        if matches!(
-            block.terminator.as_ref().map(|term| &term.kind),
-            Some(TerminatorKind::Op(op::STOP))
-        ) {
-            while block.instructions.last().is_some_and(|inst| raw_opcode(inst) == Some(op::POP)) {
-                block.instructions.pop();
-                rewrites += 1;
-            }
-        }
+        let rewrites = optimize(&mut block.instructions, &mut scratch, block.label);
         changed |= rewrites != 0;
     }
-    changed
+    remove_dead_terminal_pops(module) != 0 || changed
+}
+
+#[derive(Clone, Copy)]
+struct StackSummary {
+    /// Minimum number of words read from the incoming stack.
+    required: usize,
+    /// Maximum additional stack depth reached relative to block entry.
+    max_growth: usize,
+}
+
+// Process the terminating region from exits to predecessors. Cycles never become
+// ready, which is intentional: carrying extra words around a loop could grow the
+// stack on every iteration.
+fn remove_dead_terminal_pops(module: &mut Module) -> usize {
+    let mut summaries = index_vec![None; module.blocks.len()];
+    let mut dependents = index_vec![Vec::new(); module.blocks.len()];
+    let mut unresolved = index_vec![0usize; module.blocks.len()];
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        let Some(term) = &block.terminator else { continue };
+        match &term.kind {
+            TerminatorKind::Jump(target) => {
+                dependents[*target].push(block_id);
+                unresolved[block_id] = 1;
+            }
+            TerminatorKind::JumpI { then_block, else_block } => {
+                dependents[*then_block].push(block_id);
+                unresolved[block_id] = 1;
+                if then_block != else_block {
+                    dependents[*else_block].push(block_id);
+                    unresolved[block_id] += 1;
+                }
+            }
+            TerminatorKind::Op(_) => {}
+        }
+    }
+
+    let entry_depths = max_entry_depths(module);
+    let mut pending =
+        module.blocks.indices().filter(|&block| unresolved[block] == 0).collect::<VecDeque<_>>();
+    let mut rewrites = 0;
+    while let Some(block_id) = pending.pop_front() {
+        let block = &mut module.blocks[block_id];
+        let Some(term) = &block.terminator else { continue };
+        let Some(continuation) = continuation_summary(&term.kind, &summaries) else {
+            continue;
+        };
+        if continuation.required == 0 {
+            rewrites += remove_trailing_pops(
+                &mut block.instructions,
+                continuation.max_growth,
+                entry_depths[block_id],
+            );
+        }
+        let Some(summary) = summarize_instructions(&block.instructions, continuation) else {
+            continue;
+        };
+        summaries[block_id] = Some(summary);
+        for &dependent in &dependents[block_id] {
+            unresolved[dependent] -= 1;
+            if unresolved[dependent] == 0 {
+                pending.push_back(dependent);
+            }
+        }
+    }
+    rewrites
+}
+
+fn remove_trailing_pops(
+    instructions: &mut Vec<Instruction>,
+    continuation_growth: usize,
+    entry_depth: Option<usize>,
+) -> usize {
+    let pops =
+        instructions.iter().rev().take_while(|inst| raw_opcode(inst) == Some(op::POP)).count();
+    if pops == 0 {
+        return 0;
+    }
+
+    let removable = if continuation_growth == 0 {
+        pops
+    } else if let Some(entry_depth) = entry_depth
+        && let Some(exit_depth) = apply_instructions(entry_depth, instructions)
+    {
+        let peak = exit_depth.saturating_add(continuation_growth);
+        pops.min(MAX_STACK_DEPTH.saturating_sub(peak))
+    } else {
+        0
+    };
+    instructions.truncate(instructions.len() - removable);
+    removable
+}
+
+fn continuation_summary(
+    kind: &TerminatorKind,
+    summaries: &IndexVec<BlockId, Option<StackSummary>>,
+) -> Option<StackSummary> {
+    match kind {
+        TerminatorKind::Jump(target) => summaries[*target].map(|summary| StackSummary {
+            required: summary.required,
+            max_growth: summary.max_growth.max(1),
+        }),
+        TerminatorKind::JumpI { then_block, else_block } => {
+            let then_summary = summaries[*then_block]?;
+            let else_summary = summaries[*else_block]?;
+            Some(StackSummary {
+                required: 1 + then_summary.required.max(else_summary.required),
+                max_growth: 1
+                    .max(then_summary.max_growth.max(else_summary.max_growth).saturating_sub(1)),
+            })
+        }
+        TerminatorKind::Op(opcode) => {
+            let (inputs, _) = op::stack_io(*opcode)?;
+            Some(StackSummary { required: usize::from(inputs), max_growth: 0 })
+        }
+    }
+}
+
+fn summarize_instructions(
+    instructions: &[Instruction],
+    continuation: StackSummary,
+) -> Option<StackSummary> {
+    let mut required = 0;
+    let mut delta = 0isize;
+    let mut max_growth = 0;
+    for inst in instructions {
+        let effect = instruction_stack_effect(inst)?;
+        required = required.max(positive(isize::from(effect.inputs) - delta));
+        delta += isize::from(effect.outputs) - isize::from(effect.inputs);
+        max_growth = max_growth.max(positive(delta));
+    }
+    required = required.max(positive(isize::try_from(continuation.required).ok()? - delta));
+    max_growth = max_growth.max(positive(delta + isize::try_from(continuation.max_growth).ok()?));
+    Some(StackSummary { required, max_growth })
+}
+
+fn positive(value: isize) -> usize {
+    usize::try_from(value).unwrap_or(0)
+}
+
+fn max_entry_depths(module: &Module) -> IndexVec<BlockId, Option<usize>> {
+    // Dead words remain on the physical stack, so preserve enough headroom for
+    // the largest downstream stack growth as well as an encoded jump target.
+    let mut entry_depths = index_vec![None; module.blocks.len()];
+    if module.blocks.is_empty() {
+        return entry_depths;
+    }
+    entry_depths[BlockId::ENTRY] = Some(0);
+    let mut pending = VecDeque::from([BlockId::ENTRY]);
+    while let Some(block_id) = pending.pop_front() {
+        let block = &module.blocks[block_id];
+        let Some(entry_depth) = entry_depths[block_id] else { continue };
+        let mut depth = entry_depth;
+        let mut valid = true;
+        for (index, inst) in block.instructions.iter().enumerate() {
+            let Some(next_depth) = apply_stack_effect(depth, instruction_stack_effect(inst)) else {
+                valid = false;
+                break;
+            };
+            depth = next_depth;
+            if raw_opcode(inst) == Some(op::JUMPI)
+                && let Some(target) =
+                    index.checked_sub(1).and_then(|index| block.instructions[index].pushed_block())
+            {
+                propagate_entry_depth(target, depth, &mut entry_depths, &mut pending);
+            }
+        }
+        if !valid {
+            continue;
+        }
+        let Some(term) = &block.terminator else { continue };
+        let Some(depth) = apply_stack_effect(depth, terminator_stack_effect(&term.kind)) else {
+            continue;
+        };
+        term.kind.visit_targets(|target| {
+            propagate_entry_depth(target, depth, &mut entry_depths, &mut pending);
+        });
+    }
+    entry_depths
+}
+
+fn propagate_entry_depth(
+    block: BlockId,
+    depth: usize,
+    entry_depths: &mut IndexVec<BlockId, Option<usize>>,
+    pending: &mut VecDeque<BlockId>,
+) {
+    let entry_depth = &mut entry_depths[block];
+    let next = entry_depth.map_or(depth, |current| current.max(depth));
+    if *entry_depth != Some(next) {
+        *entry_depth = Some(next);
+        pending.push_back(block);
+    }
+}
+
+fn apply_instructions(mut depth: usize, instructions: &[Instruction]) -> Option<usize> {
+    for inst in instructions {
+        depth = apply_stack_effect(depth, instruction_stack_effect(inst))?;
+    }
+    Some(depth)
+}
+
+fn apply_stack_effect(depth: usize, effect: Option<StackEffect>) -> Option<usize> {
+    let effect = effect?;
+    depth
+        .checked_sub(usize::from(effect.inputs))?
+        .checked_add(usize::from(effect.outputs))
+        .map(|depth| depth.min(MAX_STACK_DEPTH + 1))
+}
+
+fn instruction_stack_effect(inst: &Instruction) -> Option<StackEffect> {
+    inst.metadata.stack.or_else(|| default_instruction_stack_effect(inst))
+}
+
+fn terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {
+    match kind {
+        TerminatorKind::Jump(_) => Some(StackEffect::new(0, 0)),
+        TerminatorKind::JumpI { .. } => Some(StackEffect::new(1, 0)),
+        TerminatorKind::Op(opcode) => {
+            op::stack_io(*opcode).map(|(inputs, outputs)| StackEffect::new(inputs, outputs))
+        }
+    }
 }
 
 fn optimize(
