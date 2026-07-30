@@ -196,7 +196,7 @@ impl SpillManager {
         self.mandatory_store.contains(value)
     }
 
-    /// Returns a stable value whose mandatory store was not emitted.
+    /// Returns a reserved value whose mandatory store was not emitted.
     #[must_use]
     pub(crate) fn unstored_required(&self) -> Option<ValueId> {
         self.mandatory_store.iter().find(|&value| !self.stored.contains(value))

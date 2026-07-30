@@ -3421,10 +3421,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_current_internal_frame_addr(offset);
     }
 
-    /// Interns the deferred constant for absolute address `base(func_id) +
-    /// offset`. The value is set by [`Self::resolve_static_frames`] once every
-    /// body has emitted and exact spill sizes are known; the assembler then
-    /// encodes it as a minimal-width push.
     /// Computes which arguments of each static-frame callee pass on the
     /// stack. A site can deliver a stack argument through raw re-emission after
     /// the drain for immediates and position-independently reloadable caller

@@ -1,11 +1,11 @@
 //! Physical EVM stack scheduling at the MIR-to-EVM lowering boundary.
 //!
 //! MIR names SSA values and leaves their physical placement unspecified. EVM
-//! instructions instead consume an ordered stack head and can directly reach
-//! only the top 16 values with `DUP1..16` and `SWAP1..16`. This module owns the
-//! target-specific state needed to bridge those representations: the current
-//! physical layout, local operand preparation, control-flow-edge layout
-//! transitions, and memory-backed spill locations.
+//! instructions instead consume an ordered stack head. `DUP1..16` can read the
+//! top 16 words, while `SWAP1..16` can exchange the top with any of the next 16.
+//! This module owns the target-specific state needed to bridge those
+//! representations: the current physical layout, local operand preparation,
+//! control-flow-edge layout transitions, and memory-backed spill locations.
 //!
 //! ## Architecture
 //!
@@ -29,17 +29,18 @@
 //! Local instruction scheduling and CFG-edge shuffling are intentionally
 //! separate. The former optimizes a small operand head without imposing one
 //! canonical layout on every block. The latter runs only where lowering has
-//! selected a stack-resident edge; ordinary edges retain the conservative spill
-//! and reload path.
+//! selected a stack-resident edge; other edges use the existing
+//! fallthrough/single-predecessor preservation or conservative spill/reload
+//! paths.
 //!
 //! Lowering selects those edges with two narrow policies. Natural loops with one preheader and one
-//! latch may carry a canonical phi layout of up to eight words. Sufficiently large external
-//! functions may instead carry two or three repeatedly used decoded arguments through compatible
-//! joins; switch components and joins owned by the phi policy are excluded. Every incoming edge
-//! must agree on the same layout, and values outside a selected layout keep their stable spill
-//! homes. These are not independent schedulers applied in sequence: one local planner tier prepares
-//! each instruction, and an edge policy invokes the shuffler only when its complete-layout
-//! preconditions hold.
+//! latch, plus direct-jump multi-predecessor joins, may carry a canonical phi layout of up to eight
+//! words. Sufficiently large selector functions with two or three used decoded arguments may
+//! instead carry the live subset through compatible joins; switch components and joins owned by the
+//! phi policy are excluded. Every incoming edge must agree on the same layout, and values outside a
+//! selected layout keep their stable spill homes. These are not independent schedulers applied in
+//! sequence: one local planner tier prepares each instruction, and an edge policy invokes the
+//! shuffler only when its complete-layout preconditions hold.
 //!
 //! ## Design lineage
 //!
@@ -94,7 +95,7 @@
 //! shorten the stack. Gas mode may search only when an accessible surplus copy can be popped to
 //! expose the buried copy. The search stores parent links instead of cloned action histories and
 //! independently caps expansions, created states, visited states, the open frontier, and estimated
-//! retained bytes. A function-wide expansion budget bounds the sum of otherwise independent
+//! retained bytes. A function-wide expansion budget bounds the sum of otherwise independent A*
 //! searches, and repeated capped failures disable later A* calls while leaving the exact and linear
 //! tiers available. These are tiers of the same planner, not sequential optimizers: every accepted
 //! result satisfies the same exact goal and cost ordering, and a tier that cannot prove its result
@@ -117,18 +118,19 @@
 //! the search's byte cost while leaving a different live or anonymous residual
 //! layout, and that layout can cost more to arrange later. Until the cost model
 //! extends beyond the current instruction, those two fast paths stay disabled
-//! for size mode. Gas mode keeps them only when they improve its primary local
-//! cost, with whole-corpus output and compile-time benchmarks guarding the
-//! tradeoff. General `POP` exploration follows the same gas-only rule; a
-//! one-action `POP` is accepted only by the gas fast path.
+//! for size mode. Gas mode keeps their validated gas-first choices, with
+//! whole-corpus output and compile-time benchmarks guarding the tradeoff.
+//! General `POP` exploration follows the same gas-only rule; a one-action
+//! `POP` is accepted only by the gas fast path.
 //!
 //! Plans are compared lexicographically by the selected optimization mode:
 //! static gas first for `-O gas` and encoded bytes first for `-O size`, followed
 //! by the other metric and action count. Immediate width and `PUSH0`
 //! availability are included in the estimate. Direct spill and argument loads
-//! are priced as an address push plus a load; recursive internal functions use
-//! the larger frame-pointer-load, offset-add, and value-load cost. Planning does
-//! not allocate new spill slots. In gas and size modes, a reloadable live
+//! use one context-independent four-byte estimate for the address push and
+//! load; recursive internal functions use a seven-byte estimate for the
+//! frame-pointer load, offset addition, and value load. Planning does not
+//! allocate new spill slots. In gas and size modes, a reloadable live
 //! operand that is already resident remains in the preservation set: consuming
 //! it would merely move the cost into a later `MLOAD`. Values present only in
 //! memory are not duplicated preemptively. A reloadable slot may be valid before
@@ -139,8 +141,9 @@
 //! transaction/block context; constructor-staged immutable loads are memory-backed
 //! and therefore excluded. When another block must reload such a value, the
 //! arithmetic result itself receives a mandatory stable store at its definition
-//! before local planning can consume it. Values used only as preserved phi-edge
-//! sources stay stack-resident and avoid that store.
+//! before local planning can consume it. A value used only as a phi-edge source
+//! does not require that mandatory store solely for the edge; a successfully
+//! preserved phi edge carries it on the stack.
 //! `-O none` bypasses the planner and retains the straightforward emission path.
 //!
 //! Active equal immediates are canonicalized immediately before EVM lowering so `DUP` decisions
@@ -160,10 +163,12 @@
 //! model, emitted once, and followed by the instruction's declared stack effect.
 //! Anonymous words are not treated as interchangeable MIR values, and failed
 //! bounded local searches fall back to the established emitter. Complete edge
-//! shuffles require an exact final layout. Lowering checks that an edge is
-//! preparable before attempting it, and the shuffler changes the live model only
-//! after finding and validating that layout. A bounded failure therefore falls
-//! back to conservative spill/reload lowering.
+//! shuffles require an exact final layout. Phi lowering checks that an edge is
+//! preparable before mutating it, and the shuffler itself changes the live model
+//! only after finding and validating that layout. Global-edge preparation may
+//! trim or materialize a safe intermediate stack before shuffling; a bounded
+//! failure continues through conservative spill/reload lowering from that valid
+//! state.
 //! The edge shuffler stops adding states at its cap but drains states that were already queued, so
 //! reaching the cap cannot hide an already-discovered target.
 //!

@@ -23,26 +23,27 @@
 //! Gas mode also uses verified one-action and unary plans before a
 //! lower-bound-certified deterministic walk. Bounded A* is reserved for
 //! layouts where those proofs do not succeed. Size mode uses the linear proofs
-//! too, but skips the local one-action and unary ties whose different residual
-//! layouts could cost more to clean up after the instruction. The available
-//! actions are:
+//! too, but skips the local one-action and unary fast paths because byte-cost
+//! ties can leave different residual layouts that cost more to clean up after
+//! the instruction. The available actions are:
 //!
 //! - use `SWAP1..16` to consume accessible last uses in place;
 //! - use `DUP1..16` when another copy must survive or an operand repeats;
 //! - in gas mode, pop a redundant top copy when an accessible copy remains;
-//! - push an immediate with its hardfork-dependent encoded width when the displaced copy remains
-//!   live or is also consumed;
+//! - push an immediate with its hardfork-dependent encoded width when another required occurrence
+//!   is missing or rematerialization is cheaper than duplicating a live copy;
 //! - reload a spill known to hold the current runtime definition; and
 //! - reload a function argument using the active calling convention.
 //!
 //! Spill freshness follows runtime control flow, which can differ from block emission order.
 //! Non-recomputable live-ins may load a `reloadable` slot before its defining block has been
-//! emitted because that block still stores the value first at runtime. Cheap arithmetic live-ins
-//! with no emitted store are excluded unless their complete dependency tree ends in stable
-//! arguments, calldata, or transaction/block context. Constructor-staged immutable loads remain
-//! excluded because they are memory-backed until deployment finishes. Other cheap values use their
-//! own stable slot when another block must reload them; values used only on preserved phi edges
-//! remain stack-resident.
+//! emitted because that block still stores the value first at runtime. An unstored cheap arithmetic
+//! live-in is never exposed to this planner as a spill load. The fallback may recompute it when its
+//! complete dependency tree ends in stable arguments, calldata, or transaction/block context;
+//! otherwise it receives its own mandatory store when another block must reload it.
+//! Constructor-staged immutable loads remain excluded because they are memory-backed until
+//! deployment finishes. A value used only as a phi-edge source does not require a mandatory store
+//! solely for that edge; a successfully preserved phi edge carries it on the stack.
 //!
 //! Anonymous stack words remain opaque in the modeled layout. The planner never
 //! claims one as a MIR operand. It may move one by physical position while
@@ -63,13 +64,15 @@
 //! states retain parent links rather than full action histories, and separate per-search limits
 //! bound expansions, created states, visited states, the open frontier, and estimated retained
 //! bytes. Reaching a limit stops new expansion while already queued goals remain eligible. Searches
-//! also share a function-wide expansion budget, and repeated capped failures stop later A* attempts
-//! without disabling the cheaper planning tiers. Gas optimization orders plans by static gas,
-//! encoded bytes, and action count. Size optimization orders them by encoded bytes, static gas, and
-//! action count. Equal estimates prefer deeper states, then queue serials make traversal
+//! also share a function-wide A* expansion budget, and repeated capped failures stop later A*
+//! attempts without disabling the cheaper planning tiers. Gas optimization orders plans by static
+//! gas, encoded bytes, and action count. Size optimization orders them by encoded bytes, static
+//! gas, and action count. Equal estimates prefer deeper states, then queue serials make traversal
 //! deterministic. Returning `None` delegates to the existing correctness-oriented emitter.
-//! “Optimal” here means the least estimated local preparation cost within this action model, not a
-//! whole-function stack-allocation optimum.
+//! Lower-bound-certified tiers and an A* result reached before pruning are least-cost within this
+//! local action model, not whole-function stack-allocation optima. A goal already queued when a
+//! limit is reached can still be validated and returned, but does not claim optimality over pruned
+//! successors.
 //!
 //! ## Applying a plan
 //!
@@ -154,10 +157,12 @@ pub(crate) struct OperandCostModel {
 }
 
 impl OperandCostModel {
-    /// A direct address push followed by `MLOAD` or `CALLDATALOAD`.
+    /// A context-independent estimate for a direct address push followed by `MLOAD` or
+    /// `CALLDATALOAD`.
     pub(crate) const DIRECT: Self = Self { load_static_gas: 6, load_encoded_bytes: 4 };
 
-    /// A frame-pointer load, offset addition, and final value load.
+    /// A context-independent estimate for a frame-pointer load, offset addition, and final value
+    /// load.
     pub(crate) const DYNAMIC_FRAME: Self = Self { load_static_gas: 15, load_encoded_bytes: 7 };
 }
 
@@ -1693,8 +1698,10 @@ impl StackScheduler {
         &self.ops
     }
 
-    /// Checks if we can emit a value (it's an immediate, arg, on stack, or spilled).
-    /// Returns false for instruction results that aren't tracked.
+    /// Returns whether a value is directly reachable, rematerializable, or runtime-reloadable.
+    ///
+    /// Returns false for an instruction result that is absent, too deep, or has only an unstored
+    /// recomputable spill reservation.
     pub(crate) fn can_emit_value(&self, value: ValueId, func: &Function) -> bool {
         // Check if on stack and reachable by DUP.
         if let Some(depth) = self.stack.find(value) {
@@ -1724,9 +1731,10 @@ impl StackScheduler {
         debug_assert!(self.stack.depth() <= 1024, "Stack overflow: depth {}", self.stack.depth());
     }
 
-    /// Records that an instruction consumed inputs and produced an untracked output.
-    /// The output is on the EVM stack but we don't track which ValueId it corresponds to.
-    /// This is used for MLOAD where the value may become stale in loops.
+    /// Records that a backend-synthesized instruction consumed inputs and produced an anonymous
+    /// output with no MIR [`ValueId`].
+    ///
+    /// Branch inversion and switch comparisons use this for their temporary conditions.
     pub(crate) fn instruction_executed_untracked(&mut self, consumed: usize) {
         // Pop consumed values.
         for _ in 0..consumed {
@@ -1751,8 +1759,9 @@ impl StackScheduler {
         self.stack.swap(1);
     }
 
-    /// Drops dead values from the stack.
-    /// Returns operations (SWAPs and POPs) to remove dead values.
+    /// Drops reachable tracked values that are dead after an instruction.
+    ///
+    /// Returns the `SWAP` and `POP` operations used within the directly accessible window.
     pub(crate) fn drop_dead_values(
         &mut self,
         liveness: &Liveness,
