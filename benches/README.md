@@ -36,7 +36,7 @@ solc release or codegen benchmark corpus revision.
 
 The codegen runtime job also extracts the import closures for three large contracts from the pinned
 OpenZeppelin and Solady project inputs. It deploys them to Anvil with the EIP-170 limit disabled and
-runs 42 deterministic hot calls, so optimizer changes are measured on 15–197 KB runtime artifacts
+runs 42 deterministic hot calls, so optimizer changes are measured on oversized runtime artifacts
 without compiling each full project monolith.
 
 For example, this command benchmarks the `my-branch` candidate with Gungraun, compares it against

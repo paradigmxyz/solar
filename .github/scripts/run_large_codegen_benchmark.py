@@ -19,7 +19,9 @@ from typing import Any, Sequence
 
 DEFAULT_SENDER = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
 DEFAULT_RPC_URL = "http://127.0.0.1:8545"
-GAS_LIMIT = "80000000"
+ANVIL_BLOCK_GAS_LIMIT = 100_000_000
+CALL_GAS_LIMIT = 80_000_000
+DEPLOY_GAS_LIMIT = ANVIL_BLOCK_GAS_LIMIT
 
 IMPORT_RE = re.compile(
     r"""\bimport\s+(?:(?:[^;]*?)\s+from\s+)?["']([^"']+)["']"""
@@ -393,7 +395,7 @@ def send(
             "--timeout",
             "30",
             "--gas-limit",
-            GAS_LIMIT,
+            str(CALL_GAS_LIMIT),
             "--unlocked",
             "--from",
             sender,
@@ -429,7 +431,7 @@ def read(address: str, check: Check, rpc_url: str) -> tuple[str | None, str]:
             "--rpc-timeout",
             "30",
             "--gas-limit",
-            GAS_LIMIT,
+            str(CALL_GAS_LIMIT),
         ],
         timeout=30,
     )
@@ -470,7 +472,7 @@ def deploy(
         (
             {
                 "from": sender,
-                "gas": hex(int(GAS_LIMIT)),
+                "gas": hex(DEPLOY_GAS_LIMIT),
                 "data": "0x" + bytecode + encoded,
             },
         ),
@@ -634,7 +636,7 @@ def start_anvil(rpc_url: str) -> subprocess.Popen[bytes]:
             "--steps-tracing",
             "--disable-code-size-limit",
             "--gas-limit",
-            "100000000",
+            str(ANVIL_BLOCK_GAS_LIMIT),
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

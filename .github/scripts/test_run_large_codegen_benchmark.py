@@ -154,6 +154,7 @@ class DeploymentTests(unittest.TestCase):
         method, params, _ = rpc.call_args_list[0].args
         self.assertEqual(method, "eth_sendTransaction")
         self.assertEqual(params[0]["from"], sender)
+        self.assertEqual(params[0]["gas"], hex(benchmark.DEPLOY_GAS_LIMIT))
         self.assertEqual(params[0]["data"], "0x" + bytecode)
         self.assertEqual(rpc.call_args_list[0].kwargs, {"timeout": 90})
         self.assertEqual(
