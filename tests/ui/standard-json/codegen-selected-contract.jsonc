@@ -11,7 +11,7 @@
   "language": "Solidity",
   "sources": {
     "A.sol": {
-      "content": "contract Dependency { function ping() external {} } function createDependency() returns (Dependency) { return new Dependency(); } contract Selected { function create() external { createDependency(); } } contract Unselected { function create() external { new Unselected(); } }"
+      "content": "contract Dependency { function ping() external {} } contract UnusedDependency {} function createDependency() returns (Dependency) { return new Dependency(); } contract Selected { function create() external { createDependency(); } function unused() private { new UnusedDependency(); } } contract Unselected { function create() external { new Unselected(); } }"
     }
   },
   "settings": {

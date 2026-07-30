@@ -13,6 +13,13 @@ struct CallGraph {
 
 #[derive(Clone, Copy)]
 pub(super) struct InterfaceItems<'gcx> {
+    pub(super) creation: ReferencedItems<'gcx>,
+    pub(super) deployed: ReferencedItems<'gcx>,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct ReferencedItems<'gcx> {
+    pub(super) functions: &'gcx [hir::FunctionId],
     pub(super) events: &'gcx [hir::EventId],
     pub(super) errors: &'gcx [hir::ErrorId],
     pub(super) bytecode_dependencies: &'gcx [hir::ContractId],
@@ -26,6 +33,15 @@ impl CallGraph {
             used_errors: DenseBitSet::new_empty(gcx.hir.error_ids().count()),
             bytecode_dependencies: DenseBitSet::new_empty(gcx.hir.contract_ids().count()),
             internal_dispatch_targets: DenseBitSet::new_empty(gcx.hir.function_ids().count()),
+        }
+    }
+
+    fn alloc_items<'gcx>(self, gcx: Gcx<'gcx>) -> ReferencedItems<'gcx> {
+        ReferencedItems {
+            functions: gcx.bump().alloc_from_iter(self.functions.iter()),
+            events: gcx.bump().alloc_from_iter(self.emitted_events.iter()),
+            errors: gcx.bump().alloc_from_iter(self.used_errors.iter()),
+            bytecode_dependencies: gcx.bump().alloc_from_iter(self.bytecode_dependencies.iter()),
         }
     }
 }
@@ -92,30 +108,6 @@ impl<'gcx> CallGraphBuilder<'gcx> {
         }
         for function in &creation.internal_dispatch_targets {
             this.add_internal_dispatch_target(function);
-        }
-        this.finish()
-    }
-
-    fn build_lowered(gcx: Gcx<'gcx>, contract: hir::ContractId) -> CallGraph {
-        let mut this = Self::new(gcx, contract);
-        let contract = gcx.hir.contract(contract);
-        for modifier in contract.linearized_bases_args.iter().flatten() {
-            let _ = this.visit_modifier(modifier);
-        }
-        for &base in contract.linearized_bases {
-            let base = gcx.hir.contract(base);
-            for variable in base.variables() {
-                let variable = gcx.hir.variable(variable);
-                if variable.is_state_variable()
-                    && !variable.is_constant()
-                    && let Some(initializer) = variable.initializer
-                {
-                    let _ = this.visit_expr(initializer);
-                }
-            }
-            for function in base.all_functions() {
-                this.enqueue(function);
-            }
         }
         this.finish()
     }
@@ -346,28 +338,6 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx> {
 pub(super) fn interface_items<'gcx>(gcx: Gcx<'gcx>, id: hir::ContractId) -> InterfaceItems<'gcx> {
     let creation = CallGraphBuilder::build_creation(gcx, id);
     let deployed = CallGraphBuilder::build_deployed(gcx, id, &creation);
-    // Codegen still lowers every inherited function, including unreachable ones.
-    let lowered = CallGraphBuilder::build_lowered(gcx, id);
 
-    let mut events = creation.emitted_events;
-    events.union(&deployed.emitted_events);
-    let mut errors = creation.used_errors;
-    errors.union(&deployed.used_errors);
-    for item in gcx.hir.contract_item_ids(id) {
-        match item {
-            hir::ItemId::Event(event) => {
-                events.insert(event);
-            }
-            hir::ItemId::Error(error) => {
-                errors.insert(error);
-            }
-            _ => {}
-        }
-    }
-
-    InterfaceItems {
-        events: gcx.bump().alloc_from_iter(events.iter()),
-        errors: gcx.bump().alloc_from_iter(errors.iter()),
-        bytecode_dependencies: gcx.bump().alloc_from_iter(lowered.bytecode_dependencies.iter()),
-    }
+    InterfaceItems { creation: creation.alloc_items(gcx), deployed: deployed.alloc_items(gcx) }
 }
