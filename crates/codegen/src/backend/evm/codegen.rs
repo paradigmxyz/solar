@@ -100,6 +100,7 @@ struct StackPhiPlan {
 
 #[derive(Clone, Debug)]
 struct StackPhiEdge {
+    target: BlockId,
     sources: Vec<ValueId>,
     results: Vec<ValueId>,
 }
@@ -417,7 +418,10 @@ impl<'a> StackPhiPlanner<'a> {
         plan.entries.insert(loop_info.header, entry.clone());
         for (pred, sources) in edges {
             plan.edge_sources.insert(pred, sources.clone());
-            plan.edges.insert(pred, StackPhiEdge { sources, results: entry.clone() });
+            plan.edges.insert(
+                pred,
+                StackPhiEdge { target: loop_info.header, sources, results: entry.clone() },
+            );
         }
     }
 
@@ -455,7 +459,8 @@ impl<'a> StackPhiPlanner<'a> {
         plan.entries.insert(block_id, results.clone());
         for (pred, sources) in edges {
             plan.edge_sources.insert(pred, sources.clone());
-            plan.edges.insert(pred, StackPhiEdge { sources, results: results.clone() });
+            plan.edges
+                .insert(pred, StackPhiEdge { target: block_id, sources, results: results.clone() });
         }
     }
 
@@ -1410,6 +1415,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             let stack_phi_preserved = stack_phi_plan.edges.get(&block_id).is_some_and(|edge| {
                 if !self.can_prepare_stack_phi_edge(func, edge) {
                     return false;
+                }
+                // Relabeling a source as its phi result must not destroy the
+                // source when the target still uses its original identity.
+                for &source in &edge.sources {
+                    if liveness.live_in(edge.target).contains(source) {
+                        self.spill_value_if_needed(func, source);
+                    }
                 }
                 self.spill_live_out_values_except(func, liveness, block_id, &edge.sources);
                 self.pop_stack_values_not_needed_by(&edge.sources);
