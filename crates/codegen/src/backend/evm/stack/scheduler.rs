@@ -2493,7 +2493,8 @@ mod tests {
             .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(256))));
         let trailing =
             func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
-        let operands = [trailing, second, topic, size, preserved];
+        let operand_sets =
+            [vec![trailing, second, preserved], vec![trailing, second, topic, size, preserved]];
         let cases = [
             ([preserved, second], true),
             ([second, preserved], true),
@@ -2501,26 +2502,120 @@ mod tests {
         ];
 
         for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            for operands in &operand_sets {
+                for (layout, retain) in &cases {
+                    let mut scheduler = StackScheduler::new();
+                    scheduler.spills.allocate(preserved);
+                    scheduler.spills.mark_reloadable(preserved);
+                    scheduler.spills.mark_stored(preserved);
+                    for &value in layout.iter().rev() {
+                        scheduler.stack.push(value);
+                    }
+                    let retained = [preserved];
+                    let retained = if *retain { retained.as_slice() } else { &[] };
+                    let exact = exact_operand_cost(
+                        &scheduler,
+                        operands,
+                        retained,
+                        &func,
+                        optimization,
+                        EvmVersion::Shanghai,
+                    )
+                    .unwrap();
+
+                    let plan = scheduler
+                        .plan_operands(
+                            operands,
+                            retained,
+                            &func,
+                            optimization,
+                            EvmVersion::Shanghai,
+                            OperandCostModel::DIRECT,
+                        )
+                        .unwrap();
+
+                    assert_eq!(plan.cost, exact.cost);
+                    let stats = scheduler.operand_search_stats.get();
+                    assert_eq!(stats.expansions, 0);
+                    assert_eq!(stats.created, 0);
+
+                    scheduler.apply_operand_plan(plan);
+                    scheduler.instruction_executed(operands.len(), None);
+                    if *retain {
+                        assert_eq!(scheduler.stack.as_slice(), &[Some(preserved)]);
+                    } else {
+                        assert_eq!(scheduler.stack.depth(), 0);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn operand_plan_handles_max_nary_layout_in_large_function_and_block() {
+        const BIG_BLOCK_INSTRUCTIONS: usize = 4096;
+
+        let mut func = Function::new(Ident::DUMMY);
+        let (first, penultimate) = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let zero = builder.imm_u64(0);
+            let one = builder.imm_u64(1);
+            for _ in 0..BIG_BLOCK_INSTRUCTIONS {
+                builder.add(zero, one);
+            }
+            let first = builder.add(zero, one);
+            let penultimate = builder.sub(one, zero);
+            builder.stop();
+            (first, penultimate)
+        };
+        assert_eq!(func.blocks[BlockId::ENTRY].instructions.len(), BIG_BLOCK_INSTRUCTIONS + 2);
+
+        let middle = (0..MAX_STACK_ACCESS - 3)
+            .map(|i| {
+                func.alloc_value(Value::Immediate(Immediate::uint256(
+                    alloy_primitives::U256::from(1000 + i),
+                )))
+            })
+            .collect::<Vec<_>>();
+        let trailing = func
+            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(2000))));
+        let mut goal = Vec::with_capacity(MAX_STACK_ACCESS);
+        goal.push(first);
+        goal.extend(middle);
+        goal.push(penultimate);
+        goal.push(trailing);
+        assert_eq!(goal.len(), MAX_STACK_ACCESS);
+        let operands = goal.iter().rev().copied().collect::<Vec<_>>();
+
+        let tail = (0..64)
+            .map(|i| {
+                func.alloc_value(Value::Immediate(Immediate::uint256(
+                    alloy_primitives::U256::from(3000 + i),
+                )))
+            })
+            .collect::<Vec<_>>();
+        assert!(func.num_values() > BIG_BLOCK_INSTRUCTIONS);
+        let cases = [
+            ([first, penultimate], true),
+            ([penultimate, first], true),
+            ([penultimate, first], false),
+        ];
+
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
             for (layout, retain) in &cases {
                 let mut scheduler = StackScheduler::new();
-                scheduler.spills.allocate(preserved);
-                scheduler.spills.mark_reloadable(preserved);
-                scheduler.spills.mark_stored(preserved);
+                scheduler.spills.allocate(first);
+                scheduler.spills.mark_reloadable(first);
+                scheduler.spills.mark_stored(first);
+                for &value in &tail {
+                    scheduler.stack.push(value);
+                }
                 for &value in layout.iter().rev() {
                     scheduler.stack.push(value);
                 }
-                let retained = [preserved];
-                let retained = if *retain { retained.as_slice() } else { &[] };
-                let exact = exact_operand_cost(
-                    &scheduler,
-                    &operands,
-                    retained,
-                    &func,
-                    optimization,
-                    EvmVersion::Shanghai,
-                )
-                .unwrap();
 
+                let retained = [first];
+                let retained = if *retain { retained.as_slice() } else { &[] };
                 let plan = scheduler
                     .plan_operands(
                         &operands,
@@ -2532,18 +2627,18 @@ mod tests {
                     )
                     .unwrap();
 
-                assert_eq!(plan.cost, exact.cost);
                 let stats = scheduler.operand_search_stats.get();
                 assert_eq!(stats.expansions, 0);
                 assert_eq!(stats.created, 0);
 
                 scheduler.apply_operand_plan(plan);
                 scheduler.instruction_executed(operands.len(), None);
+                let mut expected =
+                    tail.iter().rev().copied().map(Some).collect::<Vec<Option<ValueId>>>();
                 if *retain {
-                    assert_eq!(scheduler.stack.as_slice(), &[Some(preserved)]);
-                } else {
-                    assert_eq!(scheduler.stack.depth(), 0);
+                    expected.insert(0, Some(first));
                 }
+                assert_eq!(scheduler.stack.as_slice(), expected);
             }
         }
     }
