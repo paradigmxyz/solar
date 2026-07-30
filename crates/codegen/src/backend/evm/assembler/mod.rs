@@ -392,7 +392,7 @@ impl<'gcx> Assembler<'gcx> {
     /// Terminates the current block with an indexed jump to one of `targets`.
     pub(crate) fn emit_indexed_jump(&mut self, targets: Vec<Label>) {
         assert!(!targets.is_empty(), "indexed jump must have at least one target");
-        let block = self.current_block();
+        let block = self.current_block.take().expect("indexed jump requires a current block");
         self.indexed_jump_relocations.push((block, targets));
     }
 
@@ -1161,6 +1161,7 @@ PUSH1 0x02
 
             asm.emit_push(U256::from(1));
             asm.emit_indexed_jump(vec![left, right]);
+            assert!(asm.current_block.is_none());
             asm.define_label(left);
             asm.emit_op(op::STOP);
             asm.define_label(right);

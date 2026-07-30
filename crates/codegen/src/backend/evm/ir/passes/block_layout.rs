@@ -13,10 +13,14 @@ use super::{
     utils::{is_evm_terminal, remap_block_order},
 };
 use crate::backend::evm::{
-    ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
+    ir::{
+        Block, BlockId, Instruction, Module, PushValue, TerminatorKind,
+        assembly::estimated_indexed_jump_terminator_size,
+    },
     op,
 };
 use alloy_primitives::U256;
+use solar_config::EvmVersion;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
 
@@ -221,7 +225,10 @@ fn estimated_block_size(
 ) -> usize {
     usize::from(addressed)
         + block.instructions.iter().map(|inst| estimated_instruction_size(gcx, inst)).sum::<usize>()
-        + block.terminator.as_ref().map_or(0, |term| estimated_terminator_size(&term.kind, next))
+        + block
+            .terminator
+            .as_ref()
+            .map_or(0, |term| estimated_terminator_size(gcx, &term.kind, next))
 }
 
 fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
@@ -240,7 +247,7 @@ fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
     }
 }
 
-fn estimated_terminator_size(kind: &TerminatorKind, next: Option<BlockId>) -> usize {
+fn estimated_terminator_size(gcx: Gcx<'_>, kind: &TerminatorKind, next: Option<BlockId>) -> usize {
     match kind {
         TerminatorKind::Jump(target) => usize::from(Some(*target) != next) * 4,
         TerminatorKind::Op(op::STOP) => usize::from(next.is_some()),
@@ -253,8 +260,15 @@ fn estimated_terminator_size(kind: &TerminatorKind, next: Option<BlockId>) -> us
                 8
             }
         }
-        // Final lowering appends table stubs after the existing block order.
-        TerminatorKind::IndexedJump(_) => 8,
+        TerminatorKind::IndexedJump(targets) => {
+            let target_width = if gcx.sess.opts.evm_version < EvmVersion::Shanghai { 3 } else { 2 };
+            estimated_indexed_jump_terminator_size(
+                targets.len(),
+                target_width,
+                gcx.sess.opts.evm_version,
+                gcx.sess.opts.optimization.is_size(),
+            )
+        }
         TerminatorKind::Op(_) => 1,
     }
 }
@@ -303,12 +317,33 @@ fn is_cold_terminal_block(block: &Block) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use solar_config::{CompileOpts, OptimizationMode};
+    use solar_interface::Session;
+    use solar_sema::Compiler;
+
+    fn opts(evm_version: EvmVersion, optimization: OptimizationMode) -> CompileOpts {
+        CompileOpts { evm_version, optimization, ..Default::default() }
+    }
 
     #[test]
-    fn indexed_jump_estimate_excludes_appended_stubs() {
+    fn indexed_jump_estimate_includes_packed_table() {
         let one = TerminatorKind::IndexedJump(vec![BlockId::ENTRY].into_boxed_slice());
-        let many = TerminatorKind::IndexedJump(vec![BlockId::ENTRY; 64].into_boxed_slice());
-        assert_eq!(estimated_terminator_size(&one, None), 8);
-        assert_eq!(estimated_terminator_size(&many, None), 8);
+        let packed = TerminatorKind::IndexedJump(vec![BlockId::ENTRY; 2].into_boxed_slice());
+        let many = TerminatorKind::IndexedJump(vec![BlockId::ENTRY; 33].into_boxed_slice());
+        let compiler = Compiler::new(
+            Session::builder().opts(opts(EvmVersion::Osaka, OptimizationMode::Size)).build(),
+        );
+        compiler.enter(|c| {
+            assert_eq!(estimated_terminator_size(c.gcx(), &one, None), 8);
+            assert_eq!(estimated_terminator_size(c.gcx(), &packed, None), 19);
+            assert_eq!(estimated_terminator_size(c.gcx(), &many, None), 61);
+        });
+
+        let compiler = Compiler::new(
+            Session::builder().opts(opts(EvmVersion::Byzantium, OptimizationMode::Size)).build(),
+        );
+        compiler.enter(|c| {
+            assert_eq!(estimated_terminator_size(c.gcx(), &many, None), 9);
+        });
     }
 }

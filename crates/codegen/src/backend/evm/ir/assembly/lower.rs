@@ -399,6 +399,44 @@ fn indexed_jump_packed_chunks(
     }
 }
 
+/// Returns the largest source-block terminator size for target widths through
+/// `max_target_width`. Outlined entry stubs are appended after the existing
+/// block order, and relative packing is only selected when smaller than the
+/// corresponding absolute encoding.
+pub(in crate::backend::evm) fn estimated_indexed_jump_terminator_size(
+    table_len: usize,
+    max_target_width: u8,
+    evm_version: EvmVersion,
+    pack_two_word_tables: bool,
+) -> usize {
+    (1..=max_target_width)
+        .map(|target_width| {
+            let outlined_len = outlined_indexed_jump_len(table_len, target_width);
+            let packed_chunks = indexed_jump_packed_chunks(
+                table_len,
+                target_width,
+                evm_version,
+                pack_two_word_tables,
+                outlined_len,
+            );
+            if packed_chunks == PackedTableChunks::None {
+                usize::from(target_width) + 6
+            } else {
+                packed_indexed_jump_len(
+                    PackedTableEstimate {
+                        len: table_len,
+                        width: target_width,
+                        chunks: packed_chunks,
+                        base_width: if pack_two_word_tables { max_target_width } else { 0 },
+                    },
+                    evm_version,
+                )
+            }
+        })
+        .max()
+        .unwrap_or(0)
+}
+
 fn indexed_jump_encoding_len(
     encoding: IndexedJumpEncoding,
     table_len: usize,
@@ -1104,5 +1142,15 @@ mod tests {
             ),
             PackedTableChunks::None
         );
+    }
+
+    #[test]
+    fn indexed_jump_terminator_estimate_includes_packed_tables() {
+        assert_eq!(estimated_indexed_jump_terminator_size(2, 2, EvmVersion::Osaka, false), 15);
+        assert!(estimated_indexed_jump_terminator_size(32, 2, EvmVersion::Osaka, true) > 32);
+        assert_eq!(estimated_indexed_jump_terminator_size(33, 2, EvmVersion::Osaka, true), 61);
+        assert_eq!(estimated_indexed_jump_terminator_size(65, 2, EvmVersion::Osaka, true), 8);
+        assert_eq!(estimated_indexed_jump_terminator_size(10, 3, EvmVersion::Osaka, false), 42);
+        assert_eq!(estimated_indexed_jump_terminator_size(10, 3, EvmVersion::Byzantium, true), 9);
     }
 }
