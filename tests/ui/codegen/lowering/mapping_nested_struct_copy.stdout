@@ -26,7 +26,7 @@ fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) {
     stop
 }
 
-fn @get(arg0: u256) {
+fn @get(arg0: u256) -> (u256, u256, u256, u256) [abi_returns=[word, word, word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -54,14 +54,7 @@ fn @get(arg0: u256) {
     v14 = mload v13
     v15 = memory_object_field_addr memorystruct<3>, v4, 2
     v16 = mload v15
-    mstore 128, v6
-    v17 = add 128, 32
-    mstore v17, v10
-    v18 = add 128, 64
-    mstore v18, v14
-    v19 = add 128, 96
-    mstore v19, v16
-    returndata 128, 128
+    ret v6, v10, v14, v16
 }
 
 fn @clear(arg0: u256) {

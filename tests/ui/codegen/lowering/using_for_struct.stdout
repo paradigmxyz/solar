@@ -27,7 +27,7 @@ fn @hashLib(arg0: memorystruct) -> bytes32 {
 
 // === ROOT/tests/ui/codegen/lowering/using_for_struct.sol:C ===
 @module C
-fn @viaMethod(arg0: bytes32, arg1: bytes32) {
+fn @viaMethod(arg0: bytes32, arg1: bytes32) -> bytes32 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -65,7 +65,6 @@ fn @viaMethod(arg0: bytes32, arg1: bytes32) {
     v21 = add v16, 69
     mstore v21, v15
     v22 = keccak256 v16, 101
-    mstore 128, v22
-    returndata 128, 32
+    ret v22
 }
 

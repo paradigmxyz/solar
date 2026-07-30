@@ -14,8 +14,11 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+alloy-primitives.workspace = true
 solar = { workspace = true, default-features = false }
 
+flate2.workspace = true
+serde_json.workspace = true
 solang-parser = "=0.3.4"
 
 slang_solidity = "=0.18.3"

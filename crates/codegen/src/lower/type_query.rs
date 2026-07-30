@@ -60,6 +60,11 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    pub(super) fn is_dynamic_array_expr(&self, expr: &hir::Expr<'_>) -> bool {
+        self.get_expr_type(expr)
+            .is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::DynArray(_)))
+    }
+
     pub(super) fn new_dynamic_memory_array_const_len(&self, expr: &hir::Expr<'_>) -> Option<u64> {
         if !self.is_dynamic_memory_array_expr(expr) {
             return None;

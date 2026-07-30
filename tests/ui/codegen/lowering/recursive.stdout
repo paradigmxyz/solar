@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/recursive.sol:Recursive ===
 @module Recursive
-fn @fact(arg0: u256) {
+fn @fact(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -13,8 +13,7 @@ fn @fact(arg0: u256) {
     v4 = iszero v3
     jumpi v4, bb3, bb4
   bb3:
-    mstore 128, 1
-    returndata 128, 32
+    ret 1
   bb4:
     v5 = sub arg0, 1
     v6 = lt arg0, 1
@@ -37,8 +36,7 @@ fn @fact(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 128, v8
-    returndata 128, 32
+    ret v8
 }
 
 fn @fact(arg0: u256) -> u256 {
@@ -73,7 +71,7 @@ fn @fact(arg0: u256) -> u256 {
     ret v5
 }
 
-fn @fib(arg0: u256) {
+fn @fib(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -86,8 +84,7 @@ fn @fib(arg0: u256) {
     v4 = iszero v3
     jumpi v4, bb3, bb4
   bb3:
-    mstore 128, arg0
-    returndata 128, 32
+    ret arg0
   bb4:
     v5 = sub arg0, 1
     v6 = lt arg0, 1
@@ -115,8 +112,7 @@ fn @fib(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    mstore 128, v11
-    returndata 128, 32
+    ret v11
 }
 
 fn @fib(arg0: u256) -> u256 {
@@ -156,7 +152,7 @@ fn @fib(arg0: u256) -> u256 {
     ret v8
 }
 
-fn @isEven(arg0: u256) {
+fn @isEven(arg0: u256) -> bool [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -168,8 +164,7 @@ fn @isEven(arg0: u256) {
     v3 = eq arg0, 0
     jumpi v3, bb3, bb4
   bb3:
-    mstore 128, 1
-    returndata 128, 32
+    ret 1
   bb4:
     v4 = sub arg0, 1
     v5 = lt arg0, 1
@@ -180,8 +175,7 @@ fn @isEven(arg0: u256) {
     revert 0, 36
   bb6:
     v6 = internal_call isOdd5, 1, v4
-    mstore 128, v6
-    returndata 128, 32
+    ret v6
 }
 
 fn @isOdd(arg0: u256) -> bool {
@@ -222,7 +216,7 @@ fn @isEven(arg0: u256) -> bool {
     ret v3
 }
 
-fn @isOdd(arg0: u256) {
+fn @isOdd(arg0: u256) -> bool [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -234,8 +228,7 @@ fn @isOdd(arg0: u256) {
     v3 = eq arg0, 0
     jumpi v3, bb3, bb4
   bb3:
-    mstore 128, 0
-    returndata 128, 32
+    ret 0
   bb4:
     v4 = sub arg0, 1
     v5 = lt arg0, 1
@@ -246,7 +239,6 @@ fn @isOdd(arg0: u256) {
     revert 0, 36
   bb6:
     v6 = internal_call isEven6, 1, v4
-    mstore 128, v6
-    returndata 128, 32
+    ret v6
 }
 

@@ -75,6 +75,11 @@ pub(crate) struct SymbolTables {
     has_merged_batches: bool,
 }
 
+#[cfg(test)]
+std::thread_local! {
+    static INLAY_HINT_COMPARISONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 #[derive(Default)]
 pub(crate) struct SymbolTablesAggregator {
     tables: Option<SymbolTables>,
@@ -422,6 +427,17 @@ impl SymbolTables {
         self.inlay_hints.hints(uri, range)
     }
 
+    pub(crate) fn inlay_hints_changed(&self, other: &Self) -> bool {
+        #[cfg(test)]
+        INLAY_HINT_COMPARISONS.with(|comparisons| comparisons.set(comparisons.get() + 1));
+        self.inlay_hints != other.inlay_hints
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_inlay_hint_comparisons() -> usize {
+        INLAY_HINT_COMPARISONS.with(|comparisons| comparisons.replace(0))
+    }
+
     pub(crate) fn code_lenses(&self, uri: &Url, options: CodeLensConfig) -> Vec<CodeLens> {
         if !options.enable {
             return Vec::new();
@@ -514,6 +530,24 @@ impl SymbolTables {
 
     pub(crate) fn document_links(&self, path: &Path) -> Vec<lsp_types::DocumentLink> {
         self.document_links.links(path)
+    }
+
+    pub(crate) fn file_operation_paths_under(&self, roots: &[PathBuf]) -> Vec<PathBuf> {
+        self.rename.source_paths_under(roots)
+    }
+
+    pub(crate) fn import_rename_edits(
+        &self,
+        moves: &crate::file_operations::FileMoveBatch,
+    ) -> crate::document_links::ImportEditPlan {
+        self.document_links.rename_edits(moves)
+    }
+
+    pub(crate) fn import_delete_edits(
+        &self,
+        deleted_paths: &[PathBuf],
+    ) -> crate::document_links::ImportEditPlan {
+        self.document_links.delete_edits(deleted_paths)
     }
 
     pub(crate) fn natspec_semantics(
@@ -2653,7 +2687,7 @@ mod tests {
     #[test]
     fn aggregator_preserves_document_links_without_declarations() {
         let source_path = PathBuf::from("/workspace/src/Imports.sol");
-        let target = parse_uri("file:///workspace/src/Dependency.sol");
+        let target = Url::from_file_path(std::env::temp_dir().join("Dependency.sol")).unwrap();
         let link_range = range(0, 8, 0, 24);
         let mut other = SymbolTables::default();
         other.document_links.insert_for_test(source_path.clone(), link_range, target.clone());

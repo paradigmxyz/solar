@@ -1,10 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/compound_assign.sol:CompoundAssign ===
 @module CompoundAssign
-fn @value() {
+fn @value() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 
 fn @add_to_value(arg0: u256) {
@@ -77,7 +76,7 @@ fn @mul_value(arg0: u256) {
     stop
 }
 
-fn @bump_post() {
+fn @bump_post() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -89,11 +88,10 @@ fn @bump_post() {
     revert 0, 36
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 
-fn @bump_pre() {
+fn @bump_pre() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -105,7 +103,6 @@ fn @bump_pre() {
     revert 0, 36
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
-    mstore 128, v1
-    returndata 128, 32
+    ret v1
 }
 

@@ -9,10 +9,9 @@ fn @constructor() {
     stop
 }
 
-fn @get() {
+fn @get() -> bytes32 [abi_returns=[word]] {
   bb0:
     v0 = loadimmutable value
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 

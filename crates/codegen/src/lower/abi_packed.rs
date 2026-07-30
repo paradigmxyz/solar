@@ -118,21 +118,16 @@ impl<'gcx> Lowerer<'gcx> {
             // Calldata `bytes`/`string` (a parameter, `msg.data`, a
             // `base[low:high]` slice, or a chained slice): copy into a
             // `[len][data]` memory buffer and pack its data like any other
-            // dynamic bytes value.
+            // dynamic bytes value. A calldata-struct member was already
+            // rebuilt as a memory object, so reuse it directly.
             if self.expr_is_calldata_dynamic_bytes(arg) {
-                if let Some((slice, _)) = self.calldata_bytes_source(builder, arg) {
-                    let ptr = self.materialize_calldata_bytes(builder, slice);
-                    packed_args.push(PackedAbiArg::DynamicBytes(ptr));
+                let value = self.lower_value_expr(builder, arg);
+                let ptr = if Self::value_is_calldata_slice(builder, value) {
+                    self.materialize_calldata_bytes(builder, value)
                 } else {
-                    return Err(self
-                        .gcx
-                        .dcx()
-                        .err(
-                            "codegen does not support packed encoding of calldata `bytes`/`string` yet",
-                        )
-                        .span(arg.span)
-                        .emit());
-                }
+                    value
+                };
+                packed_args.push(PackedAbiArg::DynamicBytes(ptr));
                 continue;
             }
 

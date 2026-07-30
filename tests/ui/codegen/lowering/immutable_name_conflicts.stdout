@@ -9,11 +9,10 @@ fn @constructor() {
     stop
 }
 
-fn @baseValue() {
+fn @baseValue() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = loadimmutable value
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 
 // === ROOT/tests/ui/codegen/lowering/immutable_name_conflicts.sol:Derived ===
@@ -31,24 +30,21 @@ fn @constructor() {
     stop
 }
 
-fn @derivedValue() {
+fn @derivedValue() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = loadimmutable value1
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 
-fn @numberedValue() {
+fn @numberedValue() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = loadimmutable value0
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 
-fn @baseValue() {
+fn @baseValue() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = loadimmutable value0_
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 

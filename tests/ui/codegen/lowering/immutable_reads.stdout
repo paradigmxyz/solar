@@ -4,18 +4,16 @@ immutables:
   start: u256
   duration: u256
 
-fn @start() {
+fn @start() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = loadimmutable start
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 
-fn @duration() {
+fn @duration() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = loadimmutable duration
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 
 fn @_anonymous(arg0: u256) {
@@ -34,7 +32,7 @@ fn @_anonymous(arg0: u256) {
     stop
 }
 
-fn @end() {
+fn @end() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = loadimmutable start
     v1 = loadimmutable duration
@@ -46,7 +44,6 @@ fn @end() {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    mstore 128, v2
-    returndata 128, 32
+    ret v2
 }
 

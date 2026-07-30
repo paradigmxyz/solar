@@ -3,11 +3,11 @@
 use super::{LoopContext, Lowerer};
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{FunctionBuilder, ValueId},
+    mir::{FunctionBuilder, MemoryObjectKind, ValueId},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_interface::{Span, diagnostics::ErrorGuaranteed, kw};
+use solar_interface::{Span, diagnostics::ErrorGuaranteed, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, ElementaryType, ExprKind, StmtKind},
@@ -94,8 +94,7 @@ impl<'gcx> Lowerer<'gcx> {
             Ok(hash) => hash,
             Err(guar) => builder.error_value(guar),
         };
-        let external = builder.func().is_public() && !self.lowering_internal_function;
-        self.finish_external_or_internal_return(builder, vec![(hash, ty)], external);
+        self.finish_return(builder, vec![(hash, ty)]);
         true
     }
 
@@ -882,7 +881,7 @@ impl<'gcx> Lowerer<'gcx> {
                 if let Some(ctx) = &self.inline_returns {
                     builder.jump(ctx.exit_block);
                 } else if builder.func().is_public() && !self.lowering_internal_function {
-                    self.emit_abi_return(builder, &[]);
+                    builder.stop();
                 } else {
                     builder.ret([]);
                 }
@@ -901,44 +900,16 @@ impl<'gcx> Lowerer<'gcx> {
         let external = builder.func().is_public() && !self.lowering_internal_function;
         if external {
             let items = self.gather_return_items(builder, value);
-            self.emit_abi_return(builder, &items);
+            if items.is_empty() {
+                builder.stop();
+            } else {
+                self.finish_return(builder, items);
+            }
             return;
         }
         if let Some(expr) = value {
-            if let hir::ExprKind::Tuple(elements) = &expr.kind {
-                let ret_vals: Vec<_> = elements
-                    .iter()
-                    .filter_map(|elem_opt| {
-                        elem_opt.as_ref().map(|elem| self.lower_value_expr(builder, elem))
-                    })
-                    .collect();
-                builder.ret(ret_vals);
-            } else if let Some(arity) = self.get_ternary_tuple_arity(expr) {
-                let first = self.lower_value_expr(builder, expr);
-                let mut ret_vals = Vec::with_capacity(arity);
-                ret_vals.push(first);
-                if arity > 1 {
-                    let base = self.multi_return_buffer_base(builder);
-                    for i in 1..arity {
-                        ret_vals.push(self.load_multi_return_value(builder, base, i));
-                    }
-                }
-                builder.ret(ret_vals);
-            } else {
-                let ret_val = self.lower_value_expr(builder, expr);
-                let n = builder.func().returns.len();
-                if n > 1 {
-                    let mut ret_vals = Vec::with_capacity(n);
-                    ret_vals.push(ret_val);
-                    let base = self.multi_return_buffer_base(builder);
-                    for i in 1..n {
-                        ret_vals.push(self.load_multi_return_value(builder, base, i));
-                    }
-                    builder.ret(ret_vals);
-                } else {
-                    builder.ret([ret_val]);
-                }
-            }
+            let items = self.gather_return_items(builder, Some(expr));
+            self.finish_return(builder, items);
         } else {
             builder.ret([]);
         }
@@ -1132,7 +1103,6 @@ impl<'gcx> Lowerer<'gcx> {
     /// 3. If success (1), jump to success block
     /// 4. If failure (0), jump to catch block
     fn lower_try(&mut self, builder: &mut FunctionBuilder<'_>, try_stmt: &hir::StmtTry<'_>) {
-        // Create blocks for success, catch, and merge
         let success_block = builder.create_block();
         let catch_block = builder.create_block();
         let merge_block = builder.create_block();
@@ -1144,53 +1114,200 @@ impl<'gcx> Lowerer<'gcx> {
         // Branch: if success (non-zero), go to success_block, else catch_block
         builder.branch(success, success_block, catch_block);
 
-        // Generate success block (returns clause - always first in clauses)
+        // Success block (the `returns` clause is always first): decode the
+        // call's returndata into the bound variables, then run the block.
         builder.switch_to_block(success_block);
         if let Some(returns_clause) = try_stmt.clauses.first() {
             if !returns_clause.args.is_empty() {
-                self.gcx
-                    .dcx()
-                    .err("codegen does not support try/catch return bindings yet")
-                    .span(try_stmt.expr.span)
-                    .emit();
+                self.bind_try_returns(builder, returns_clause.args, try_stmt.expr.span);
             }
             self.lower_block(builder, &returns_clause.block);
         }
-        builder.jump(merge_block);
-
-        // Generate catch block(s)
-        builder.switch_to_block(catch_block);
-        let catch_clauses = &try_stmt.clauses[1..];
-        if catch_clauses.len() > 1 {
-            self.gcx
-                .dcx()
-                .err("codegen does not support multiple try/catch handlers yet")
-                .span(try_stmt.expr.span)
-                .emit();
-        }
-
-        // The catch clauses are after the first (returns) clause.
-        for clause in try_stmt.clauses.iter().skip(1) {
-            if clause.name.is_some() || !clause.args.is_empty() {
-                self.gcx
-                    .dcx()
-                    .err("codegen does not support typed try/catch handlers yet")
-                    .span(try_stmt.expr.span)
-                    .emit();
-            }
-            self.lower_block(builder, &clause.block);
-        }
-        // If no catch clauses (only returns clause), this is just an empty block
-        if try_stmt.clauses.len() <= 1 {
-            // No catch clause - re-revert
-            let zero = builder.imm_u64(0);
-            builder.revert(zero, zero);
-        } else {
+        if !builder.func().block(builder.current_block()).is_terminated() {
             builder.jump(merge_block);
         }
 
+        // Catch clauses: dispatch on the revert data's selector. `Error` and
+        // `Panic` handlers match their selectors; a low-level `catch (bytes)`
+        // or bare `catch` takes everything else; with no applicable handler
+        // the revert data is rethrown.
+        builder.switch_to_block(catch_block);
+        self.lower_catch_clauses(builder, &try_stmt.clauses[1..], merge_block, try_stmt.expr.span);
+
         // Continue after try/catch
         builder.switch_to_block(merge_block);
+    }
+
+    /// Decodes the successful call's returndata into the `returns` clause
+    /// bindings. Like solc, malformed returndata reverts rather than reaching
+    /// any catch clause: the external call itself succeeded.
+    fn bind_try_returns(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        vars: &[hir::VariableId],
+        span: Span,
+    ) {
+        // Validate every binding is decodable before emitting; report the
+        // first that is not.
+        let mut tys = Vec::with_capacity(vars.len());
+        for &var_id in vars {
+            let var = self.gcx.hir.variable(var_id);
+            let ty = self.gcx.type_of_hir_ty(&var.ty);
+            if self.abi_decode_strategy(ty).is_none() {
+                self.gcx
+                    .dcx()
+                    .err("codegen does not support this try return type yet")
+                    .span(var.span)
+                    .emit();
+                return;
+            }
+            tys.push(ty);
+        }
+
+        let slice = self.returndata_slice(builder);
+        let ptr = self.materialize_returndata_slice(builder, slice);
+        let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+
+        let decoded = self.decode_abi_region(builder, data_start, len, &tys);
+        for (&var_id, value) in vars.iter().zip(decoded) {
+            self.bind_local_value(builder, var_id, value);
+        }
+        let _ = span;
+    }
+
+    fn lower_catch_clauses(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        clauses: &[hir::TryCatchClause<'_>],
+        merge_block: crate::mir::BlockId,
+        span: Span,
+    ) {
+        let mut error_clause = None;
+        let mut panic_clause = None;
+        let mut fallback_clause = None;
+        for clause in clauses {
+            match clause.name {
+                Some(name) if name.name == sym::Error => error_clause = Some(clause),
+                Some(name) if name.name == sym::Panic => panic_clause = Some(clause),
+                Some(name) => {
+                    self.gcx
+                        .dcx()
+                        .err(format!("unknown try/catch handler `{}`", name.name))
+                        .span(clause.span)
+                        .emit();
+                }
+                None => fallback_clause = Some(clause),
+            }
+        }
+
+        // Rethrow: forward the revert data unchanged.
+        let rethrow_block = builder.create_block();
+
+        // Selector of the revert data; too-short data reads as selector zero,
+        // which no handler matches. The copy size degrades to zero so the
+        // returndata access stays in bounds.
+        let rds = builder.returndatasize();
+        let four = builder.imm_u64(4);
+        let zero = builder.imm_u64(0);
+        let too_short = builder.lt(rds, four);
+        let has_selector = builder.iszero(too_short);
+        builder.mstore(zero, zero);
+        let copy_size = builder.select(has_selector, four, zero);
+        builder.returndatacopy(zero, zero, copy_size);
+        let word = builder.mload(zero);
+        let shift = builder.imm_u64(224);
+        let selector = builder.shr(shift, word);
+
+        let fallback_target = builder.create_block();
+
+        // `catch Error(string memory reason)`.
+        if let Some(clause) = error_clause {
+            let error_selector = builder.imm_u64(0x08c379a0);
+            let matches = builder.eq(selector, error_selector);
+            let matches = builder.and(matches, has_selector);
+            let body = builder.create_block();
+            let next = builder.create_block();
+            builder.branch(matches, body, next);
+
+            builder.switch_to_block(body);
+            let slice = self.returndata_slice(builder);
+            let ptr = self.materialize_returndata_slice(builder, slice);
+            let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+            let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+            let region_base = builder.add(data, four);
+            let region_len = builder.sub(len, four);
+            let head = builder.mload(region_base);
+            let word = builder.imm_u64(32);
+            // Malformed `Error(string)` data reverts; solc instead falls
+            // through to a lower-level handler, which only differs for
+            // hostile callees that revert with a mangled Error selector.
+            let reason =
+                self.lower_abi_decode_dynamic_bytes(builder, region_base, region_len, word, head);
+            if let [var_id] = clause.args {
+                self.bind_local_value(builder, *var_id, reason);
+            }
+            self.lower_block(builder, &clause.block);
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(merge_block);
+            }
+
+            builder.switch_to_block(next);
+        }
+
+        // `catch Panic(uint256 code)`.
+        if let Some(clause) = panic_clause {
+            let panic_selector = builder.imm_u64(0x4e487b71);
+            let matches = builder.eq(selector, panic_selector);
+            let matches = builder.and(matches, has_selector);
+            let thirty_six = builder.imm_u64(36);
+            let panic_short = builder.lt(rds, thirty_six);
+            let long_enough = builder.iszero(panic_short);
+            let matches = builder.and(matches, long_enough);
+            let body = builder.create_block();
+            let next = builder.create_block();
+            builder.branch(matches, body, next);
+
+            builder.switch_to_block(body);
+            let zero = builder.imm_u64(0);
+            let word = builder.imm_u64(32);
+            builder.returndatacopy(zero, four, word);
+            let code = builder.mload(zero);
+            if let [var_id] = clause.args {
+                self.bind_local_value(builder, *var_id, code);
+            }
+            self.lower_block(builder, &clause.block);
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(merge_block);
+            }
+
+            builder.switch_to_block(next);
+        }
+        builder.jump(fallback_target);
+
+        // Low-level `catch (bytes memory data)` or bare `catch`; otherwise
+        // rethrow.
+        builder.switch_to_block(fallback_target);
+        if let Some(clause) = fallback_clause {
+            if let [var_id] = clause.args {
+                let slice = self.returndata_slice(builder);
+                let ptr = self.materialize_returndata_slice(builder, slice);
+                self.bind_local_value(builder, *var_id, ptr);
+            }
+            self.lower_block(builder, &clause.block);
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(merge_block);
+            }
+        } else {
+            builder.jump(rethrow_block);
+        }
+
+        builder.switch_to_block(rethrow_block);
+        let zero = builder.imm_u64(0);
+        let rds = builder.returndatasize();
+        builder.returndatacopy(zero, zero, rds);
+        builder.revert(zero, rds);
+        let _ = span;
     }
 
     /// Lowers a call expression for try/catch, returning the success flag.
@@ -1213,6 +1330,21 @@ impl<'gcx> Lowerer<'gcx> {
                     args,
                     (*call_opts).map(|opts| opts.args),
                 );
+            }
+            if let Some(TyKind::Fn(function)) = self.get_expr_type(callee).map(|ty| ty.kind)
+                && function.is_external()
+                && function.function_id.is_none()
+                && self.gcx.resolved_function(callee).is_none()
+            {
+                return self
+                    .emit_external_function_pointer_call(
+                        builder,
+                        callee,
+                        args,
+                        (*call_opts).map(|opts| opts.args),
+                        function,
+                    )
+                    .0;
             }
         }
 

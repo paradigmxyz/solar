@@ -6,7 +6,7 @@ fn @constructor() {
     stop
 }
 
-fn @items(arg0: u256) {
+fn @items(arg0: u256) -> (address, u256, address) [abi_returns=[word, word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -24,11 +24,6 @@ fn @items(arg0: u256) {
     v6 = sload v5 !metadata(storage=offset(v3, 1))
     v7 = add v3, 2
     v8 = sload v7 !metadata(storage=offset(v3, 2))
-    mstore 128, v4
-    v9 = add 128, 32
-    mstore v9, v6
-    v10 = add 128, 64
-    mstore v10, v8
-    returndata 128, 96
+    ret v4, v6, v8
 }
 
