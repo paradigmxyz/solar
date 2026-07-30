@@ -880,19 +880,18 @@ bb10:
   mstore
   swap1
   pop
+  swap3
+  push 32
+  add
   push 196
   push 160
   mload
   add
-  swap4
-  push 32
-  add
-  dup2
-  dup2
-  dup7
+  dup5
+  dup3
+  dup3
   mcopy
   pop
-  swap3
   pop
   swap2
   push 192
@@ -920,14 +919,15 @@ bb10:
   mstore
   swap1
   pop
+  swap3
   push 32
   add
   swap3
   push 32
   add
   dup3
-  dup2
-  dup6
+  dup5
+  dup3
   mcopy
   pop
   swap2
