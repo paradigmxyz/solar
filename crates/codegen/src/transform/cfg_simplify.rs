@@ -746,7 +746,7 @@ impl DeadFunctionEliminator {
         module.functions = functions;
         module.function_name_index.clear();
         module.function_name_index.extend(
-            module.functions.iter_enumerated().map(|(id, function)| (function.unmangled_name, id)),
+            module.functions.iter_enumerated().map(|(id, function)| (function.name.symbol, id)),
         );
 
         for func in &mut module.functions {

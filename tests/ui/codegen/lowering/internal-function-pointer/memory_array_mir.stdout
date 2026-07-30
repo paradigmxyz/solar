@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/memory_array_mir.sol:FunctionPointerMemoryArray ===
 @module FunctionPointerMemoryArray
-fn @arrayA.0(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @arrayA.1(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -20,7 +20,7 @@ fn @arrayA.0(arg0: u256) -> u256 [abi_returns=[word]] {
     ret v3
 }
 
-fn @arrayB.1(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @arrayB.2(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -40,7 +40,7 @@ fn @arrayB.1(arg0: u256) -> u256 [abi_returns=[word]] {
     ret v3
 }
 
-fn @arrayC.2(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @arrayC.3(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -60,7 +60,7 @@ fn @arrayC.2(arg0: u256) -> u256 [abi_returns=[word]] {
     ret v3
 }
 
-fn @arrayD.3(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @arrayD.4(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -80,7 +80,7 @@ fn @arrayD.3(arg0: u256) -> u256 [abi_returns=[word]] {
     ret v3
 }
 
-fn @arrayE.4(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @arrayE.5(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -197,31 +197,31 @@ fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 {
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb1:
-    v1 = internal_call @arrayA.7, 1, arg1
+    v1 = internal_call @arrayA.8, 1, arg1
     ret v1
   bb2:
     v2 = eq arg0, 2
     jumpi v2, bb3, bb4
   bb3:
-    v3 = internal_call @arrayB.8, 1, arg1
+    v3 = internal_call @arrayB.9, 1, arg1
     ret v3
   bb4:
     v4 = eq arg0, 3
     jumpi v4, bb5, bb6
   bb5:
-    v5 = internal_call @arrayC.9, 1, arg1
+    v5 = internal_call @arrayC.10, 1, arg1
     ret v5
   bb6:
     v6 = eq arg0, 4
     jumpi v6, bb7, bb8
   bb7:
-    v7 = internal_call @arrayD.10, 1, arg1
+    v7 = internal_call @arrayD.11, 1, arg1
     ret v7
   bb8:
     v8 = eq arg0, 5
     jumpi v8, bb9, bb10
   bb9:
-    v9 = internal_call @arrayE.11, 1, arg1
+    v9 = internal_call @arrayE.12, 1, arg1
     ret v9
   bb10:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -229,7 +229,7 @@ fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 {
     revert 0, 36
 }
 
-fn @arrayA.7(arg0: u256) -> u256 {
+fn @arrayA.8(arg0: u256) -> u256 {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
@@ -242,7 +242,7 @@ fn @arrayA.7(arg0: u256) -> u256 {
     ret v0
 }
 
-fn @arrayB.8(arg0: u256) -> u256 {
+fn @arrayB.9(arg0: u256) -> u256 {
   bb0:
     v0 = add arg0, 2
     v1 = lt v0, arg0
@@ -255,7 +255,7 @@ fn @arrayB.8(arg0: u256) -> u256 {
     ret v0
 }
 
-fn @arrayC.9(arg0: u256) -> u256 {
+fn @arrayC.10(arg0: u256) -> u256 {
   bb0:
     v0 = add arg0, 3
     v1 = lt v0, arg0
@@ -268,7 +268,7 @@ fn @arrayC.9(arg0: u256) -> u256 {
     ret v0
 }
 
-fn @arrayD.10(arg0: u256) -> u256 {
+fn @arrayD.11(arg0: u256) -> u256 {
   bb0:
     v0 = add arg0, 5
     v1 = lt v0, arg0
@@ -281,7 +281,7 @@ fn @arrayD.10(arg0: u256) -> u256 {
     ret v0
 }
 
-fn @arrayE.11(arg0: u256) -> u256 {
+fn @arrayE.12(arg0: u256) -> u256 {
   bb0:
     v0 = add arg0, 8
     v1 = lt v0, arg0

@@ -360,7 +360,7 @@ impl<'gcx> Lowerer<'gcx> {
             .collect::<Vec<_>>();
 
         let reserved = self.module.function(dispatcher);
-        let name = Ident::new(reserved.unmangled_name, reserved.name.span);
+        let name = Ident::new(reserved.name.symbol, reserved.name_span);
         let mut dispatcher_function = Function::new(name);
         dispatcher_function.attributes.no_inline = true;
         {

@@ -26,7 +26,7 @@ fn @__internal_dispatch_0(arg0: function) -> u256 {
 
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/inheritance_mir.sol:PointerDerived ===
 @module PointerDerived
-fn @target.0() -> u256 {
+fn @target.1() -> u256 {
   bb0:
     ret 2
 }
@@ -42,13 +42,13 @@ fn @__internal_dispatch_0(arg0: function) -> u256 {
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb1:
-    v1 = internal_call @target.4, 1
+    v1 = internal_call @target.5, 1
     ret v1
   bb2:
     v2 = eq arg0, 3
     jumpi v2, bb3, bb4
   bb3:
-    v3 = internal_call @target.0, 1
+    v3 = internal_call @target.1, 1
     ret v3
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -62,7 +62,7 @@ fn @callVirtual() -> u256 [abi_returns=[word]] {
     ret v0
 }
 
-fn @target.4() -> u256 {
+fn @target.5() -> u256 {
   bb0:
     ret 1
 }

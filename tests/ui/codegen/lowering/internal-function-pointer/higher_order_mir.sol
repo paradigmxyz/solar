@@ -4,7 +4,7 @@
 // ported-from: test/libsolidity/semanticTests/functionCall/call_function_returning_function.sol
 
 contract HigherOrderFunctionPointer {
-    // CHECK-LABEL: fn @higher0.0(
+    // CHECK-LABEL: fn @higher0.1(
     // CHECK: ret 2
     function higher0() public pure returns (uint256) {
         return 2;
@@ -54,7 +54,7 @@ contract HigherOrderFunctionPointer {
     // CHECK: internal_call @higher3, 1
     // CHECK-LABEL: fn @__internal_dispatch_1(
     // CHECK: eq arg0, [[HIGHER0]]
-    // CHECK: internal_call @higher0.7, 1
+    // CHECK: internal_call @higher0.8, 1
     function callReturned() public returns (uint256) {
         function()
             internal

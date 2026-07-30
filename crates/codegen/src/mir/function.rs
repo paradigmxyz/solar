@@ -1,8 +1,8 @@
 //! MIR functions.
 
 use super::{
-    AbiLayoutRef, ArgIdx, BasicBlock, BlockId, InstId, InstKind, Instruction, MirType,
-    StorageAlias, Value, ValueId,
+    AbiLayoutRef, ArgIdx, BasicBlock, BlockId, InstId, InstKind, Instruction, MangledSymbol,
+    MirType, StorageAlias, Value, ValueId,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -11,16 +11,16 @@ use solar_data_structures::{
     index::IndexVec,
     map::FxHashMap,
 };
-use solar_interface::{Ident, Symbol};
+use solar_interface::{Ident, Span};
 use solar_sema::hir::{StateMutability, Visibility};
 
 /// A function in the MIR.
 #[derive(Clone, Debug)]
 pub(crate) struct Function {
     /// Function name used by codegen.
-    pub(crate) name: Ident,
-    /// Name before module-level disambiguation.
-    pub(crate) unmangled_name: Symbol,
+    pub(crate) name: MangledSymbol,
+    /// Source span of the function name.
+    pub(crate) name_span: Span,
     /// Function selector (4 bytes, for external functions).
     pub(crate) selector: Option<[u8; 4]>,
     /// Function attributes.
@@ -68,8 +68,8 @@ impl Function {
         debug_assert_eq!(entry, BlockId::ENTRY);
 
         Self {
-            name,
-            unmangled_name: name.name,
+            name: MangledSymbol::new(name.name),
+            name_span: name.span,
             selector: None,
             attributes: FunctionAttributes::default(),
             params: IndexVec::new(),

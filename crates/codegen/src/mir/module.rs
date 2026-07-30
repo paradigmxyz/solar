@@ -1,13 +1,15 @@
 //! MIR module (top-level container).
 
-use super::{AbiLayout, AbiLayoutRef, Function, FunctionId, StorageLayout, StorageLayoutRef};
+use super::{
+    AbiLayout, AbiLayoutRef, Function, FunctionId, MangledSymbol, StorageLayout, StorageLayoutRef,
+};
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
     map::FxHashMap,
 };
 use solar_interface::{Ident, Symbol, sym};
-use std::sync::Arc;
+use std::{num::NonZeroU32, sync::Arc};
 
 /// Current immutable staging and placeholder width.
 ///
@@ -148,16 +150,28 @@ impl Module {
 
     /// Adds a function to the module.
     pub(crate) fn add_function(&mut self, function: Function) -> FunctionId {
-        let unmangled_name = function.unmangled_name;
+        let symbol = function.name.symbol;
         let function = self.functions.push(function);
-        if let Some(duplicate) = self.function_name_index.insert(unmangled_name, function) {
+        if let Some(duplicate) = self.function_name_index.insert(symbol, function) {
             let duplicate_func = &mut self.functions[duplicate];
-            if duplicate_func.name.name == unmangled_name {
-                duplicate_func.name.name =
-                    Symbol::intern(&format!("{unmangled_name}.{}", duplicate.index()));
+            if duplicate_func.name.disambiguator.is_none() {
+                duplicate_func.name = MangledSymbol::disambiguated(
+                    symbol,
+                    NonZeroU32::new(
+                        u32::try_from(duplicate.index() + 1).expect("function ID overflow"),
+                    )
+                    .unwrap(),
+                );
             }
-            self.functions[function].name.name =
-                Symbol::intern(&format!("{unmangled_name}.{}", function.index()));
+            if self.functions[function].name.disambiguator.is_none() {
+                self.functions[function].name = MangledSymbol::disambiguated(
+                    symbol,
+                    NonZeroU32::new(
+                        u32::try_from(function.index() + 1).expect("function ID overflow"),
+                    )
+                    .unwrap(),
+                );
+            }
         }
         function
     }

@@ -26,6 +26,9 @@ pub(crate) use inst::{
 mod block;
 pub(crate) use block::{BasicBlock, Terminator};
 
+mod mangling;
+pub(crate) use mangling::MangledSymbol;
+
 mod function;
 pub(crate) use function::{Function, FunctionAttributes};
 

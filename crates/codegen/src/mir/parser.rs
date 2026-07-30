@@ -31,7 +31,7 @@
 use super::{
     AbiLayout, AbiLayoutRef, AbiType, AllocationAlignment, AllocationFailure,
     AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, EffectKind, Function,
-    FunctionBuilder, FunctionId, InstId, InstKind, Instruction, InstructionMetadata,
+    FunctionBuilder, FunctionId, InstId, InstKind, Instruction, InstructionMetadata, MangledSymbol,
     MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField,
     StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
 };
@@ -48,6 +48,7 @@ use solar_interface::{
 };
 use solar_parse::{PErr, PResult};
 use solar_sema::hir;
+use std::num::NonZeroU32;
 
 // =============================================================================
 // Public API
@@ -75,7 +76,7 @@ pub(super) fn parse_module(sess: &Session, input: &str) -> Result<Module> {
 
 struct Parser<'sess, 'ast> {
     parser: crate::ir_parse::Parser<'sess, 'ast>,
-    pending_function_ref: Option<(Symbol, Span)>,
+    pending_function_ref: Option<(MangledSymbol, Span)>,
     function_refs: Vec<PendingFunctionRef>,
     arg_values: Vec<ValueId>,
     block_labels: FxHashMap<u32, BlockLabel>,
@@ -90,7 +91,7 @@ struct Parser<'sess, 'ast> {
 }
 
 struct PendingFunctionRef {
-    name: Symbol,
+    name: MangledSymbol,
     span: Span,
     target: FunctionRefTarget,
 }
@@ -142,26 +143,25 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a function name: an identifier, optionally with `.`-joined
     /// segments (`f.body`), as minted by the ABI lowering.
-    fn parse_function_name(&mut self) -> PResult<'sess, Symbol> {
+    fn parse_function_name(&mut self) -> PResult<'sess, MangledSymbol> {
         let first = self.parser.parse_ident()?;
         let mut name = first.to_string();
-        loop {
-            if self.parser.eat(TokenKind::Dot) {
-                name.push('.');
-                name.push_str(self.parser.parse_ident()?.as_str());
-            } else if let TokenKind::Literal(TokenLitKind::Rational, symbol) =
-                self.parser.token().kind
-                && let Some(disambiguator) = symbol.as_str().strip_prefix('.')
-                && disambiguator.bytes().all(|byte| byte.is_ascii_digit())
-            {
-                name.push('.');
-                name.push_str(disambiguator);
-                self.parser.bump();
-            } else {
-                break;
-            }
+        while self.parser.eat(TokenKind::Dot) {
+            name.push('.');
+            name.push_str(self.parser.parse_ident()?.as_str());
         }
-        Ok(Symbol::intern(&name))
+        let symbol = Symbol::intern(&name);
+        let TokenKind::Literal(TokenLitKind::Rational, suffix) = self.parser.token().kind else {
+            return Ok(MangledSymbol::new(symbol));
+        };
+        let Some(disambiguator) = suffix.as_str().strip_prefix('.') else {
+            return Ok(MangledSymbol::new(symbol));
+        };
+        let disambiguator = disambiguator
+            .parse::<NonZeroU32>()
+            .map_err(|_| self.parser.error("invalid function disambiguator"))?;
+        self.parser.bump();
+        Ok(MangledSymbol::disambiguated(symbol, disambiguator))
     }
 
     // ----- module / function parsing -----
@@ -210,9 +210,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         module: &mut Module,
         function_refs: Vec<(FunctionId, PendingFunctionRef)>,
     ) -> PResult<'sess, ()> {
-        let mut declarations = FxHashMap::<Symbol, Vec<FunctionId>>::default();
+        let mut declarations = FxHashMap::<MangledSymbol, Vec<FunctionId>>::default();
         for (id, function) in module.functions.iter_enumerated() {
-            declarations.entry(function.unmangled_name).or_default().push(id);
+            declarations.entry(function.name).or_default().push(id);
         }
         for (owner, reference) in function_refs {
             let matches = declarations.get(&reference.name);
@@ -259,8 +259,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parser.expect_keyword(sym::fn_)?;
         self.parser.expect(TokenKind::At)?;
         let name = self.parse_function_name()?;
-        let func_ident = Ident::with_dummy_span(name);
+        let func_ident = Ident::with_dummy_span(name.symbol);
         let mut func = Function::new(func_ident);
+        func.name = name;
         let block_remap = {
             let mut builder = FunctionBuilder::new(&mut func);
 

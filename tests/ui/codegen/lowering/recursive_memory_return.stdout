@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/recursive_memory_return.sol:C ===
 @module C
-fn @build.0(arg0: u256) -> memorystruct [abi_returns=[tuple<word, word>]] {
+fn @build.1(arg0: u256) -> memorystruct [abi_returns=[tuple<word, word>]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -27,7 +27,7 @@ fn @build.0(arg0: u256) -> memorystruct [abi_returns=[tuple<word, word>]] {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v9 = internal_call @build.1, 1, v7
+    v9 = internal_call @build.2, 1, v7
     v10 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v11 = memory_object_field_addr memorystruct<2>, v9, 0
     v12 = mload v11
@@ -56,7 +56,7 @@ fn @build.0(arg0: u256) -> memorystruct [abi_returns=[tuple<word, word>]] {
     ret v10
 }
 
-fn @build.1(arg0: u256) -> memorystruct {
+fn @build.2(arg0: u256) -> memorystruct {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -76,7 +76,7 @@ fn @build.1(arg0: u256) -> memorystruct {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v6 = internal_call @build.1, 1, v4
+    v6 = internal_call @build.2, 1, v4
     v7 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v8 = memory_object_field_addr memorystruct<2>, v6, 0
     v9 = mload v8

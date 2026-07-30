@@ -32,11 +32,14 @@
 
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{BlockId, Function, FunctionBuilder, FunctionId, InstKind, MirPhase, Module, Terminator},
+    mir::{
+        BlockId, Function, FunctionBuilder, FunctionId, InstKind, MangledSymbol, MirPhase, Module,
+        Terminator,
+    },
     pass::MirPass,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
-use solar_interface::{Ident, Symbol};
+use solar_interface::{Span, Symbol};
 
 /// ABI phase lowering pass.
 pub(crate) struct LowerAbi;
@@ -204,9 +207,8 @@ impl LowerAbiCx {
         // internal callers keep the original function semantics.
         let body_id = needs_body.then(|| {
             let mut body = module.function(wrapper_id).clone();
-            body.name =
-                Ident::with_dummy_span(Symbol::intern(&format!("{}.body", body.unmangled_name)));
-            body.unmangled_name = body.name.name;
+            body.name = MangledSymbol::new(Symbol::intern(&format!("{}.body", body.name.symbol)));
+            body.name_span = Span::DUMMY;
             body.selector = None;
             body.abi_returns = None;
             body.attributes.visibility = solar_sema::hir::Visibility::Internal;

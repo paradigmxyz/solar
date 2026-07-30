@@ -11,7 +11,7 @@ contract FunctionPointerSignatures {
     // CHECK: internal_call @__internal_dispatch_0, 0, [[SET_FLAG]]
     // CHECK-LABEL: fn @__internal_dispatch_0(
     // CHECK: eq arg0, [[SET_FLAG]]
-    // CHECK: internal_call @setFlag.12, 0
+    // CHECK: internal_call @setFlag.13, 0
     // CHECK: mstore 4, 81
     function callVoid() public returns (bool) {
         function() internal fn = setFlag;
