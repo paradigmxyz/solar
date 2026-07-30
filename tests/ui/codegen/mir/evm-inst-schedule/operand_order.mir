@@ -1,4 +1,4 @@
-//@ compile-flags: --pass evm-inst-schedule
+//@ compile-flags: -Zmir-pipeline=evm-inst-schedule
 @module EvmInstSchedule
 fn @binary_push_order(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
   bb0:
