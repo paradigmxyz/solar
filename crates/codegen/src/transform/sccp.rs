@@ -341,166 +341,46 @@ impl SccpCx {
         kind: &InstKind,
         lattice: &IndexVec<ValueId, LatticeValue>,
     ) -> LatticeValue {
-        // Helper: get the constant value of a ValueId, or None if not constant.
-        let get_const = |v: ValueId| -> Option<U256> {
-            match &lattice[v] {
-                LatticeValue::Constant(c) => Some(*c),
-                _ => None,
-            }
+        let get_const = |value| match lattice[value] {
+            LatticeValue::Constant(value) => Some(value),
+            LatticeValue::Top | LatticeValue::Bottom => None,
         };
 
-        match kind {
-            // Arithmetic — fold if both operands are constant.
-            InstKind::Add(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(a.wrapping_add(b)),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::Sub(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(a.wrapping_sub(b)),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::Mul(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(a.wrapping_mul(b)),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            // A known-zero divisor folds to 0 even when the dividend is unknown.
-            InstKind::Div(a, b) => match (get_const(*a), get_const(*b)) {
-                (_, Some(b)) if b.is_zero() => LatticeValue::Constant(U256::ZERO),
-                (Some(a), Some(b)) => LatticeValue::Constant(a / b),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::SDiv(a, b) => match (get_const(*a), get_const(*b)) {
-                (_, Some(b)) if b.is_zero() => LatticeValue::Constant(U256::ZERO),
-                (Some(a), Some(b)) => LatticeValue::Constant(evm_word::signed_div(a, b)),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::Mod(a, b) => match (get_const(*a), get_const(*b)) {
-                (_, Some(b)) if b.is_zero() => LatticeValue::Constant(U256::ZERO),
-                (Some(a), Some(b)) => LatticeValue::Constant(a % b),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::SMod(a, b) => match (get_const(*a), get_const(*b)) {
-                (_, Some(b)) if b.is_zero() => LatticeValue::Constant(U256::ZERO),
-                (Some(a), Some(b)) => LatticeValue::Constant(evm_word::signed_mod(a, b)),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            // A known-zero modulus folds to 0 even when the operands are unknown.
-            InstKind::AddMod(a, b, n) => match (get_const(*a), get_const(*b), get_const(*n)) {
-                (_, _, Some(n)) if n.is_zero() => LatticeValue::Constant(U256::ZERO),
-                (Some(a), Some(b), Some(n)) => LatticeValue::Constant(a.add_mod(b, n)),
-                _ => self.check_any_bottom(&[*a, *b, *n], lattice),
-            },
-            InstKind::MulMod(a, b, n) => match (get_const(*a), get_const(*b), get_const(*n)) {
-                (_, _, Some(n)) if n.is_zero() => LatticeValue::Constant(U256::ZERO),
-                (Some(a), Some(b), Some(n)) => LatticeValue::Constant(a.mul_mod(b, n)),
-                _ => self.check_any_bottom(&[*a, *b, *n], lattice),
-            },
-            InstKind::Exp(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(base), Some(exp)) => {
-                    // Use wrapping exponentiation.
-                    LatticeValue::Constant(base.wrapping_pow(exp))
+        if let InstKind::Select(condition, then_value, else_value) = *kind {
+            return match lattice[condition] {
+                LatticeValue::Constant(condition) => {
+                    let chosen = if condition.is_zero() { else_value } else { then_value };
+                    lattice[chosen].clone()
                 }
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-
-            // Comparison — fold to bool (0 or 1).
-            InstKind::Lt(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(U256::from(a < b)),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::Gt(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(U256::from(a > b)),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::SLt(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(U256::from(evm_word::signed_lt(a, b))),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::SGt(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(U256::from(evm_word::signed_gt(a, b))),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::Eq(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(U256::from(a == b)),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::IsZero(a) => match get_const(*a) {
-                Some(a) => LatticeValue::Constant(U256::from(a.is_zero())),
-                None => self.check_any_bottom(&[*a], lattice),
-            },
-
-            // Bitwise.
-            InstKind::And(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(a & b),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::Or(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(a | b),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::Xor(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(a ^ b),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::Not(a) => match get_const(*a) {
-                Some(a) => LatticeValue::Constant(!a),
-                None => self.check_any_bottom(&[*a], lattice),
-            },
-            InstKind::Clz(a) => match get_const(*a) {
-                Some(a) => LatticeValue::Constant(U256::from(a.leading_zeros() as u64)),
-                None => self.check_any_bottom(&[*a], lattice),
-            },
-            InstKind::Shl(shift, val) => match (get_const(*shift), get_const(*val)) {
-                (Some(s), Some(v)) => {
-                    if s >= U256::from(256) {
-                        LatticeValue::Constant(U256::ZERO)
-                    } else {
-                        LatticeValue::Constant(v << s.to::<usize>())
+                LatticeValue::Bottom => lattice[then_value].meet(&lattice[else_value]),
+                LatticeValue::Top => match (get_const(then_value), get_const(else_value)) {
+                    (Some(then_value), Some(else_value)) if then_value == else_value => {
+                        LatticeValue::Constant(then_value)
                     }
-                }
-                _ => self.check_any_bottom(&[*shift, *val], lattice),
-            },
-            InstKind::Shr(shift, val) => match (get_const(*shift), get_const(*val)) {
-                (Some(s), Some(v)) => {
-                    if s >= U256::from(256) {
-                        LatticeValue::Constant(U256::ZERO)
-                    } else {
-                        LatticeValue::Constant(v >> s.to::<usize>())
-                    }
-                }
-                _ => self.check_any_bottom(&[*shift, *val], lattice),
-            },
-            InstKind::Sar(shift, val) => match (get_const(*shift), get_const(*val)) {
-                (Some(s), Some(v)) => LatticeValue::Constant(evm_word::sar(v, s)),
-                _ => self.check_any_bottom(&[*shift, *val], lattice),
-            },
-            InstKind::Byte(index, val) => match (get_const(*index), get_const(*val)) {
-                (Some(i), Some(v)) => LatticeValue::Constant(evm_word::byte(i, v)),
-                _ => self.check_any_bottom(&[*index, *val], lattice),
-            },
-            InstKind::SignExtend(size, val) => match (get_const(*size), get_const(*val)) {
-                (Some(s), Some(v)) => LatticeValue::Constant(evm_word::signextend(s, v)),
-                _ => self.check_any_bottom(&[*size, *val], lattice),
-            },
+                    _ => LatticeValue::Top,
+                },
+            };
+        }
 
-            InstKind::Select(condition, then_value, else_value) => {
-                match &lattice[*condition] {
-                    LatticeValue::Constant(c) => {
-                        let chosen = if c.is_zero() { *else_value } else { *then_value };
-                        lattice[chosen].clone()
-                    }
-                    // Unknown condition: the result is whatever both arms agree on.
-                    LatticeValue::Bottom => lattice[*then_value].meet(&lattice[*else_value]),
-                    LatticeValue::Top => match (get_const(*then_value), get_const(*else_value)) {
-                        (Some(t), Some(e)) if t == e => LatticeValue::Constant(t),
-                        _ => LatticeValue::Top,
-                    },
+        match evm_word::eval_inst(kind, |value| get_const(value).ok_or(())) {
+            Ok(Some(value)) => LatticeValue::Constant(value),
+            Ok(None) => LatticeValue::Bottom,
+            Err(()) => match *kind {
+                InstKind::Div(_, divisor)
+                | InstKind::SDiv(_, divisor)
+                | InstKind::Mod(_, divisor)
+                | InstKind::SMod(_, divisor)
+                    if get_const(divisor).is_some_and(|divisor| divisor.is_zero()) =>
+                {
+                    LatticeValue::Constant(U256::ZERO)
                 }
-            }
-
-            // Everything else (memory, storage, calls, environment, etc.) is
-            // conservatively overdefined — we can't evaluate them at compile time.
-            _ => LatticeValue::Bottom,
+                InstKind::AddMod(_, _, modulus) | InstKind::MulMod(_, _, modulus)
+                    if get_const(modulus).is_some_and(|modulus| modulus.is_zero()) =>
+                {
+                    LatticeValue::Constant(U256::ZERO)
+                }
+                _ => self.check_any_bottom(&kind.operands(), lattice),
+            },
         }
     }
 
