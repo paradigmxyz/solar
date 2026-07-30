@@ -1,10 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/storage.sol:Storage ===
 @module Storage
-fn @count() {
+fn @count() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 
 fn @increment() {
@@ -35,10 +34,9 @@ fn @set(arg0: u256) {
     stop
 }
 
-fn @get() {
+fn @get() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 

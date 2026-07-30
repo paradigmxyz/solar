@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
@@ -10,7 +9,7 @@ contract C {
     // CHECK: {{v[0-9]+}} = slice_len arg0
     // CHECK: [[PTR:v[0-9]+]] = slice_ptr arg0
     // CHECK: {{v[0-9]+}} = calldataload [[PTR]]
-    // CHECK: returndata 128, 64
+    // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
     function probe(uint256[] calldata a) external pure returns (uint256 len, uint256 first) {
         assembly {
             len := a.length

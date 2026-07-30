@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/checked_pow_shapes.sol:CheckedPowShapes ===
 @module CheckedPowShapes
-fn @upow(arg0: u256, arg1: u256) {
+fn @upow(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -13,8 +13,7 @@ fn @upow(arg0: u256, arg1: u256) {
     jumpi v3, bb3, bb4
   bb3:
     v31 = phi [bb2: 1], [bb4: 0], [bb5: 1], [bb10: v8], [bb11: v16], [bb19: v30]
-    mstore 128, v31
-    returndata 128, 32
+    ret v31
   bb4:
     v4 = iszero arg0
     jumpi v4, bb3, bb5
@@ -82,7 +81,7 @@ fn @upow(arg0: u256, arg1: u256) {
     jump bb3
 }
 
-fn @spow(arg0: i256, arg1: u256) {
+fn @spow(arg0: i256, arg1: u256) -> i256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -95,8 +94,7 @@ fn @spow(arg0: i256, arg1: u256) {
     jumpi v3, bb3, bb4
   bb3:
     v48 = phi [bb2: 1], [bb4: arg0], [bb5: 0], [bb7: 1], [bb14: v15], [bb17: v21], [bb29: v47]
-    mstore 128, v48
-    returndata 128, 32
+    ret v48
   bb4:
     v4 = eq arg1, 1
     jumpi v4, bb3, bb5
@@ -207,7 +205,7 @@ fn @spow(arg0: i256, arg1: u256) {
     jump bb3
 }
 
-fn @upow8(arg0: u8, arg1: u8) {
+fn @upow8(arg0: u8, arg1: u8) -> u8 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -234,8 +232,7 @@ fn @upow8(arg0: u8, arg1: u8) {
     jumpi v9, bb7, bb8
   bb7:
     v39 = phi [bb6: 1], [bb8: 0], [bb9: 1], [bb16: v14], [bb20: v23], [bb27: v38]
-    mstore 128, v39
-    returndata 128, 32
+    ret v39
   bb8:
     v10 = iszero arg0
     jumpi v10, bb7, bb9
@@ -317,7 +314,7 @@ fn @upow8(arg0: u8, arg1: u8) {
     jump bb7
 }
 
-fn @spow8(arg0: i8, arg1: u8) {
+fn @spow8(arg0: i8, arg1: u8) -> i8 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -344,8 +341,7 @@ fn @spow8(arg0: i8, arg1: u8) {
     jumpi v9, bb7, bb8
   bb7:
     v54 = phi [bb6: 1], [bb8: arg0], [bb9: 0], [bb11: 1], [bb18: v21], [bb21: v27], [bb33: v53]
-    mstore 128, v54
-    returndata 128, 32
+    ret v54
   bb8:
     v10 = eq arg1, 1
     jumpi v10, bb7, bb9
@@ -456,7 +452,7 @@ fn @spow8(arg0: i8, arg1: u8) {
     jump bb7
 }
 
-fn @const2(arg0: u256) {
+fn @const2(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -473,11 +469,10 @@ fn @const2(arg0: u256) {
     revert 0, 36
   bb4:
     v4 = shl arg0, 1
-    mstore 128, v4
-    returndata 128, 32
+    ret v4
 }
 
-fn @const10(arg0: u256) {
+fn @const10(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -494,11 +489,10 @@ fn @const10(arg0: u256) {
     revert 0, 36
   bb4:
     v4 = exp 10, arg0
-    mstore 128, v4
-    returndata 128, 32
+    ret v4
 }
 
-fn @const_neg2(arg0: u256) {
+fn @const_neg2(arg0: u256) -> i256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -519,8 +513,7 @@ fn @const_neg2(arg0: u256) {
     jumpi v5, bb5, bb6
   bb5:
     v50 = phi [bb4: 1], [bb6: v4], [bb7: 0], [bb9: 1], [bb16: v17], [bb19: v23], [bb31: v49]
-    mstore 128, v50
-    returndata 128, 32
+    ret v50
   bb6:
     v6 = eq arg0, 1
     jumpi v6, bb5, bb7
@@ -631,7 +624,7 @@ fn @const_neg2(arg0: u256) {
     jump bb5
 }
 
-fn @unchecked_pow8(arg0: u8, arg1: u8) {
+fn @unchecked_pow8(arg0: u8, arg1: u8) -> u8 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -656,7 +649,6 @@ fn @unchecked_pow8(arg0: u8, arg1: u8) {
   bb6:
     v9 = exp arg0, arg1
     v10 = and v9, 255
-    mstore 128, v10
-    returndata 128, 32
+    ret v10
 }
 

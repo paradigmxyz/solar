@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/linear.sol:Linear ===
 @module Linear
-fn @add(arg0: u256, arg1: u256) {
+fn @add(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -17,11 +17,10 @@ fn @add(arg0: u256, arg1: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @sub(arg0: u256, arg1: u256) {
+fn @sub(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -38,11 +37,10 @@ fn @sub(arg0: u256, arg1: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
-fn @add_one(arg0: u256) {
+fn @add_one(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -59,7 +57,6 @@ fn @add_one(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 

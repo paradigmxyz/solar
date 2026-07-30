@@ -2,6 +2,10 @@ name: Benchmark
 
 permissions: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main]
@@ -36,6 +40,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTC_WRAPPER: "sccache"
   SOLC_VERSION: ${{ inputs.solc_version || '0.8.36' }}
   BENCHMARK_REPOSITORY: walnuthq/solidity-compiler-benchmarks
   DEFAULT_BENCHMARK_REF: 01209d2b8ac81645b92e3ef801b5bcdfd61bfd69
@@ -49,7 +54,7 @@ jobs:
       github.event_name != 'workflow_dispatch' ||
       inputs.benchmark == 'all' ||
       inputs.benchmark == 'codegen-runtime'
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     timeout-minutes: 45
     permissions:
       actions: read
@@ -68,6 +73,8 @@ jobs:
           "$RUNNER_TEMP/schema-test/bin/pip" install jsonschema==4.25.1
           "$RUNNER_TEMP/schema-test/bin/python" -m unittest discover \
             -s .github/scripts -p 'test_check_codegen_benchmark.py'
+          "$RUNNER_TEMP/schema-test/bin/python" -m unittest discover \
+            -s .github/scripts -p 'test_run_large_codegen_benchmark.py'
 
       - name: Checkout benchmark corpus
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -84,6 +91,9 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-on-failure: true
+          cache-targets: false
+
+      - uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@b00af27efadbc7b4ca8b82abbd903b17cc874d2a # v1.9.0
@@ -180,6 +190,20 @@ jobs:
             echo "::warning::Repository codegen benchmark failed to complete"
           fi
 
+      - name: Run large-contract codegen benchmark
+        id: large-bench
+        run: |
+          set -euo pipefail
+          mkdir -p target/codegen-bench
+          timing="target/codegen-bench/large-timing.json"
+          /usr/bin/time -q -f '{"wall_time_seconds": %e}' -o "$timing.tmp" \
+            python3 .github/scripts/run_large_codegen_benchmark.py \
+            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
+            --solar target/debug/solar \
+            --start-anvil \
+            --output target/codegen-bench/large.json
+          mv "$timing.tmp" "$timing"
+
       - name: Generate runtime benchmark report
         id: runtime-report
         if: always()
@@ -192,8 +216,10 @@ jobs:
           args=(
             --micro target/codegen-bench/micro.json
             --repo target/codegen-bench/repo.json
+            --large target/codegen-bench/large.json
             --micro-timing target/codegen-bench/micro-timing.json
             --repo-timing target/codegen-bench/repo-timing.json
+            --large-timing target/codegen-bench/large-timing.json
             --common-output target/codegen-bench/common.json
           )
           if [[ -f target/codegen-bench/baseline/micro.json ]]; then
@@ -201,6 +227,9 @@ jobs:
           fi
           if [[ -f target/codegen-bench/baseline/repo.json ]]; then
             args+=(--baseline-repo target/codegen-bench/baseline/repo.json)
+          fi
+          if [[ -f target/codegen-bench/baseline/large.json ]]; then
+            args+=(--baseline-large target/codegen-bench/baseline/large.json)
           fi
           python3 .github/scripts/check_codegen_benchmark.py "${args[@]}" \
             | tee target/codegen-bench/report.md
@@ -237,6 +266,7 @@ jobs:
           path: |
             target/codegen-bench/micro.json
             target/codegen-bench/repo.json
+            target/codegen-bench/large.json
           retention-days: 90
           if-no-files-found: ignore
 
@@ -245,7 +275,7 @@ jobs:
       github.event_name != 'workflow_dispatch' ||
       inputs.benchmark == 'all' ||
       inputs.benchmark == 'codspeed'
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest-4
     permissions:
       contents: read
     steps:
@@ -260,13 +290,15 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-on-failure: true
+          cache-targets: false
+      - uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
       - name: Install cargo-codspeed
         uses: taiki-e/install-action@a6b2e2dcd845ddd7f509ce4f3ed3d922b80cc5d9 # v2.84.0
         with:
           tool: cargo-codspeed
-      - name: Build the benchmark target(s)
+      - name: Build the benchmark targets
         run: >-
-          cargo codspeed build --profile profiling
+          cargo codspeed build -m simulation --profile profiling
           -p solar-bench -p solar-lsp
           --bench criterion --bench lsp
           --features solar-lsp/bench
@@ -274,10 +306,10 @@ jobs:
         uses: CodSpeedHQ/action@f99becdce5e5d51fd556489ebef684f4ecfd6286 # v4.18.5
         with:
           run: >-
-            cargo codspeed run
+            cargo codspeed run -m simulation
             -p solar-bench -p solar-lsp
             --bench criterion --bench lsp
-          mode: instrumentation
+          mode: simulation
           token: ${{ secrets.CODSPEED_TOKEN }}
 
   gungraun:
@@ -285,7 +317,7 @@ jobs:
       github.event_name != 'workflow_dispatch' ||
       inputs.benchmark == 'all' ||
       inputs.benchmark == 'gungraun'
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest-4
     permissions:
       contents: read
     env:
@@ -323,6 +355,8 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-on-failure: true
+          cache-targets: false
+      - uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
       - name: Install benchmark runner
         run: |
           package=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name == "gungraun" or .name == "iai-callgrind").name' | head -n1)

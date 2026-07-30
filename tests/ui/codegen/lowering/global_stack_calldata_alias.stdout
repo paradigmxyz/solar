@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/global_stack_calldata_alias.sol:Test (runtime) ===
 @module runtime
 bb0:
-  push 320
+  push 192
   push 64
   mstore
   callvalue
@@ -17,27 +17,9 @@ bb0:
   shr
   dup1
   push 0xc21f7bbb
-  eq
-  push bb5
+  sub
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
-  push 0
-  dup1
-  revert
-bb12 [cold]:
-  push 0x4e487b71
-  push 224
-  shl
-  push 0
-  mstore
-  push 17
-  push 4
-  mstore
-  push 36
-  push 0
-  revert
-bb5:
   calldatasize
   push 4
   swap1
@@ -77,34 +59,25 @@ bb5:
   push bb18
   jumpi
   push 3
+  jump bb27
+bb27:
   dup3
   add
   dup1
-  push 224
+  push 160
   mstore
   swap1
   pop
-  dup1
-  push 224
-  mstore
-  dup2
-  dup2
-  lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
-  push bb12
-  jumpi
-  push 224
-  mload
-  dup1
-  push 224
   jump bb26
 bb26:
+  dup1
+  push 160
   mstore
+  lt
+  push bb12
+  jumpi
+  push 160
+  mload
   jump bb25
 bb25:
   push 128
@@ -112,62 +85,16 @@ bb25:
   push 32
   push 128
   return
+bb4 [cold]:
+  push 0
+  dup1
+  revert
 bb9:
   push 1
-  dup3
-  add
-  dup1
-  push 160
-  mstore
-  swap1
-  pop
-  dup1
-  push 160
-  mstore
-  dup2
-  dup2
-  lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
-  push bb12
-  jumpi
-  push 160
-  mload
-  dup1
-  push 160
-  jump bb26
+  jump bb27
 bb13:
   push 2
-  dup3
-  add
-  dup1
-  push 192
-  mstore
-  swap1
-  pop
-  dup1
-  push 192
-  mstore
-  dup2
-  dup2
-  lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
-  push bb12
-  jumpi
-  push 192
-  mload
-  dup1
-  push 192
-  jump bb26
+  jump bb27
 bb18:
   push 4
   dup2
@@ -175,32 +102,7 @@ bb18:
   push bb21
   jumpi
   push 4
-  dup3
-  add
-  dup1
-  push 256
-  mstore
-  swap1
-  pop
-  dup1
-  push 256
-  mstore
-  dup2
-  dup2
-  lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
-  push bb12
-  jumpi
-  push 256
-  mload
-  dup1
-  push 256
-  jump bb26
+  jump bb27
 bb21:
   push 5
   sub
@@ -209,22 +111,16 @@ bb21:
   push 5
   dup2
   add
-  dup1
-  push 288
-  mstore
-  dup2
-  dup2
-  lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
-  push bb12
-  jumpi
-  push 288
-  mload
-  dup1
-  push 288
   jump bb26
+bb12 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert

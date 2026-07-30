@@ -1,0 +1,33 @@
+//@ revisions: homestead paris
+//@[homestead] compile-flags: --evm-version homestead -Zmir-pipeline=lower-mcopy
+//@[homestead] filecheck: --check-prefix=HOMESTEAD
+//@[paris] compile-flags: --evm-version paris -Zmir-pipeline=lower-mcopy
+//@[paris] filecheck: --check-prefix=PARIS
+@module PreCancunMCopy
+
+// HOMESTEAD-LABEL: {{^[ +].*}}fn @copy{{[( ]}}
+// HOMESTEAD: - mcopy arg0, arg1, arg2
+// HOMESTEAD: + [[AVAILABLE:v[0-9]+]] = gas
+// HOMESTEAD: + [[GAS:v[0-9]+]] = sub [[AVAILABLE]], 0x620c
+// HOMESTEAD: + [[OK:v[0-9]+]] = call [[GAS]], 4, 0, arg1, arg2, arg0, arg2
+// HOMESTEAD: + [[FAILED:v[0-9]+]] = iszero [[OK]]
+// HOMESTEAD: + jumpi [[FAILED]], [[FAILURE:bb[0-9]+]], [[CONTINUE:bb[0-9]+]]
+// HOMESTEAD: + [[CONTINUE]]:
+// HOMESTEAD: {{^[ +].*}}ret arg0
+// HOMESTEAD: + [[FAILURE]]:
+// HOMESTEAD: + revert 0, 0
+// PARIS-LABEL: {{^[ +].*}}fn @copy{{[( ]}}
+// PARIS: - mcopy arg0, arg1, arg2
+// PARIS: + [[GAS:v[0-9]+]] = gas
+// PARIS: + [[OK:v[0-9]+]] = staticcall [[GAS]], 4, arg1, arg2, arg0, arg2
+// PARIS: + [[FAILED:v[0-9]+]] = iszero [[OK]]
+// PARIS: + jumpi [[FAILED]], [[FAILURE:bb[0-9]+]], [[CONTINUE:bb[0-9]+]]
+// PARIS: + [[CONTINUE]]:
+// PARIS: {{^[ +].*}}ret arg0
+// PARIS: + [[FAILURE]]:
+// PARIS: + revert 0, 0
+fn @copy(arg0: memptr, arg1: memptr, arg2: u256) -> memptr {
+  bb0:
+    mcopy arg0, arg1, arg2
+    ret arg0
+}

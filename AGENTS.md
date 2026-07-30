@@ -17,7 +17,7 @@ cargo llvm-cov nextest --workspace     # Test coverage
 cargo uitest                           # Run UI tests
 cargo uibless                          # Update UI test expectations
 cargo fmt --all                        # Format
-cargo clippy --workspace --all-targets # Lint
+cargo cl                               # Lint
 cargo run -- file.sol                  # Run compiler
 cargo run -- -Zhelp                    # Unstable flags help
 ```

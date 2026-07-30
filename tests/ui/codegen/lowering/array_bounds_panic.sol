@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
@@ -10,8 +9,9 @@
 // - storage dynamic arrays check against the length stored at the base slot;
 // - calldata dynamic arrays/bytes check against the length word at
 //   `4 + head`;
-// - constant in-range indexes emit no check at all, and constant
-//   out-of-range indexes emit an unconditional panic.
+// - constant indexes are folded inside the bounds-check helper: known in-range
+//   indexes omit the check and known out-of-range indexes emit an unconditional
+//   panic.
 // Runtime-verified differentially against solc 0.8.30 --via-ir on anvil:
 // in-range results match and out-of-range reverts are byte-identical.
 contract ArrayBoundsPanic {
@@ -29,8 +29,9 @@ contract ArrayBoundsPanic {
     }
 
     // CHECK-LABEL: fn @memFixConst{{[( ]}}
+    // CHECK-NOT: lt 2, 3
     // CHECK-NOT: mstore 4, 50
-    // CHECK: returndata
+    // CHECK: ret
     function memFixConst() public pure returns (uint256) {
         uint256[3] memory x;
         x[2] = 30;
@@ -38,6 +39,8 @@ contract ArrayBoundsPanic {
     }
 
     // CHECK-LABEL: fn @memFixConstOob{{[( ]}}
+    // CHECK-NOT: lt 5, 3
+    // CHECK: jumpi 1
     // CHECK: mstore 4, 50
     // CHECK: revert 0, 36
     function memFixConstOob() public pure returns (uint256) {

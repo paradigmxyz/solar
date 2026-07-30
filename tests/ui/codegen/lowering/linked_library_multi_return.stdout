@@ -1,0 +1,30 @@
+// === ROOT/tests/ui/codegen/lowering/linked_library_multi_return.sol:Lib ===
+@module Lib
+fn @pair() -> (u256, u256) [abi_returns=[word, word]] {
+  bb0:
+    ret 4, 5
+}
+
+// === ROOT/tests/ui/codegen/lowering/linked_library_multi_return.sol:C ===
+@module C
+fn @pair() -> (u256, u256) [abi_returns=[word, word]] {
+  bb0:
+    v0 = fmp
+    mstore v0, 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
+    v1 = add 4, 0
+    v2 = gas
+    v3 = delegatecall v2, 0x1111111111111111111111111111111111111111, v0, v1, v0, 64
+    jumpi v3, bb2, bb1
+  bb1:
+    v4 = returndatasize
+    returndatacopy 0, 0, v4 !metadata(memory=scratch)
+    revert 0, v4
+  bb2:
+    mstore 32, v0 !metadata(memory=scratch)
+    v5 = mload v0
+    v6 = mload 32 !metadata(memory=scratch)
+    v7 = add v6, 32
+    v8 = mload v7
+    ret v5, v8
+}
+

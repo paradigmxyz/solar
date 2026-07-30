@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/bytes_memory_elements.sol:BytesMemoryElements ===
 @module BytesMemoryElements
-fn @alloc() {
+fn @alloc() -> bytes32 [abi_returns=[word]] {
   bb0:
     v0 = add 96, 31
     v1 = lt v0, 96
@@ -45,11 +45,10 @@ fn @alloc() {
     v14 = add v13, 95
     mstore8 v14, 255
     v15 = keccak256_bytes v6
-    mstore 128, v15
-    returndata 128, 32
+    ret v15
 }
 
-fn @literal() {
+fn @literal() -> bytes32 [abi_returns=[word]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 10
@@ -68,11 +67,10 @@ fn @literal() {
     v6 = add v5, 5
     mstore8 v6, 170
     v7 = keccak256_bytes v0
-    mstore 128, v7
-    returndata 128, 32
+    ret v7
 }
 
-fn @allocDynamic(arg0: u256) {
+fn @allocDynamic(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -102,11 +100,10 @@ fn @allocDynamic(arg0: u256) {
     v9 = alloc memorybytes, exact, zeroed, panic, v7
     set_memory_object_len memorybytes, v9, arg0
     v10 = mload v9
-    mstore 128, v10
-    returndata 128, 32
+    ret v10
 }
 
-fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) {
+fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) -> bytes1 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -157,7 +154,6 @@ fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) {
     v23 = add v22, arg1
     v24 = mload v23
     v25 = and v24, 0xff00000000000000000000000000000000000000000000000000000000000000
-    mstore 128, v25
-    returndata 128, 32
+    ret v25
 }
 

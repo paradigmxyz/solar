@@ -1,10 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/base_constructor.sol:Base ===
 @module Base
-fn @value() {
+fn @value() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 
 fn @_anonymous(arg0: u256) {
@@ -18,13 +17,14 @@ fn @_anonymous(arg0: u256) {
 fn @_anonymous(arg0: u256) {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
     stop
 }
 
-fn @value() {
+fn @value() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    mstore 128, v0
-    returndata 128, 32
+    ret v0
 }
 

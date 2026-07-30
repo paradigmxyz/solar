@@ -31,3 +31,29 @@ bb1:
   push 32
   mload
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: {{^[ +].*}}mload
+// CHECK: - dup1
+// CHECK: - push 32
+// CHECK: - mstore
+bb2:
+  push 32
+  mload
+  dup1
+  push 32
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: {{^[ +].*}}mload
+// CHECK: {{^[ +].*}}dup1
+// CHECK: {{^[ +].*}}push 64
+// CHECK: {{^[ +].*}}mstore
+bb3:
+  push 32
+  mload
+  dup1
+  push 64
+  mstore
+  stop

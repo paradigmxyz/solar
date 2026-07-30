@@ -1,7 +1,7 @@
 //! Checked arithmetic and Solidity panic lowering helpers.
 
 use super::Lowerer;
-use crate::mir::{BlockId, FunctionBuilder, ValueId};
+use crate::mir::{BlockId, FunctionBuilder, TypeSize, ValueId};
 use alloy_primitives::U256;
 use solar_interface::{Span, diagnostics::ErrorGuaranteed};
 use solar_sema::{
@@ -12,7 +12,7 @@ use solar_sema::{
 #[derive(Clone, Copy)]
 pub(super) struct IntegerInfo {
     pub(super) signed: bool,
-    pub(super) bits: u16,
+    pub(super) size: TypeSize,
 }
 
 #[derive(Clone, Copy)]
@@ -28,6 +28,7 @@ pub(super) enum PanicCode {
     Assert,
     ArithmeticOverflowUnderflow,
     DivisionByZero,
+    EnumConversionOutOfBounds,
     PopEmptyArray,
     ArrayOutOfBounds,
     MemoryAllocationOverflow,
@@ -40,6 +41,7 @@ impl PanicCode {
             Self::Assert => 0x01,
             Self::ArithmeticOverflowUnderflow => 0x11,
             Self::DivisionByZero => 0x12,
+            Self::EnumConversionOutOfBounds => 0x21,
             Self::PopEmptyArray => 0x31,
             Self::ArrayOutOfBounds => 0x32,
             Self::MemoryAllocationOverflow => 0x41,
@@ -61,12 +63,12 @@ impl<'gcx> Lowerer<'gcx> {
     fn integer_info_for_ty(ty: Ty<'_>) -> Option<IntegerInfo> {
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Int(size)) => {
-                Some(IntegerInfo { signed: true, bits: size.bits() })
+                Some(IntegerInfo { signed: true, size: TypeSize::new_int_bits(size.bits()) })
             }
             TyKind::Elementary(ElementaryType::UInt(size)) => {
-                Some(IntegerInfo { signed: false, bits: size.bits() })
+                Some(IntegerInfo { signed: false, size: TypeSize::new_int_bits(size.bits()) })
             }
-            TyKind::IntLiteral(signed, size, _) => Some(IntegerInfo { signed, bits: size.bits() }),
+            TyKind::IntLiteral(signed, size, _) => Some(IntegerInfo { signed, size }),
             _ => None,
         }
     }
@@ -232,13 +234,13 @@ impl<'gcx> Lowerer<'gcx> {
         int_info: Option<IntegerInfo>,
     ) -> ValueId {
         let Some(info) = int_info else { return value };
-        if info.bits >= 256 {
+        if info.size.bits() >= 256 {
             return value;
         }
         if info.signed {
-            self.sign_extend_to_bits(builder, value, u32::from(info.bits))
+            self.sign_extend_to_bits(builder, value, info.size)
         } else {
-            self.mask_to_bits(builder, value, u32::from(info.bits))
+            self.mask_to_bits(builder, value, info.size)
         }
     }
 
@@ -342,7 +344,7 @@ impl<'gcx> Lowerer<'gcx> {
         // largest exponent whose power still fits the type is known at compile
         // time, so a single bound check makes native `EXP` exact. Like solc,
         // only full-width types take this path.
-        if info.bits == 256
+        if info.size.bits() == 256
             && let Some(imm) = builder.func().value(lhs).as_immediate()
             && let Some(base) = imm.as_u256()
         {
@@ -367,7 +369,7 @@ impl<'gcx> Lowerer<'gcx> {
         exponent: ValueId,
         info: IntegerInfo,
     ) -> ValueId {
-        debug_assert_eq!(info.bits, 256);
+        debug_assert_eq!(info.size.bits(), 256);
         // Bases 0, 1, and -1 (signed) can never overflow: their powers stay in
         // {-1, 0, 1}, and native `EXP` on the two's-complement representation
         // is exact mod 2^256.
@@ -394,12 +396,12 @@ impl<'gcx> Lowerer<'gcx> {
     /// bounding by `|min|` never admits a positive overflow (same argument as
     /// solc's `overflowCheckedIntLiteralExpFunction`).
     fn const_base_max_exponent(base: U256, info: IntegerInfo) -> u32 {
-        debug_assert_eq!(info.bits, 256);
+        debug_assert_eq!(info.size.bits(), 256);
         let (abs_base, limit) = if info.signed && base.bit(255) {
             // `wrapping_neg` maps MIN to 2^255, which is exactly `|min|`.
             (base.wrapping_neg(), U256::from(1) << 255)
         } else if info.signed {
-            (base, Self::signed_max(info.bits))
+            (base, Self::signed_max(info.size))
         } else {
             (base, U256::MAX)
         };
@@ -424,7 +426,7 @@ impl<'gcx> Lowerer<'gcx> {
         exponent: ValueId,
         info: IntegerInfo,
     ) -> ValueId {
-        let max = Self::unsigned_max(info.bits);
+        let max = Self::unsigned_max(info.size);
         let max_imm = builder.imm_u256(max);
         let zero = builder.imm_u64(0);
         let one = builder.imm_u64(1);
@@ -467,7 +469,7 @@ impl<'gcx> Lowerer<'gcx> {
         let shift_too_large = builder.gt(exponent, max_shift);
         self.emit_panic_if(builder, shift_too_large, PanicCode::ArithmeticOverflowUnderflow);
         let power = builder.shl(exponent, one);
-        if info.bits < 256 {
+        if info.size.bits() < 256 {
             let out_of_range = builder.gt(power, max_imm);
             self.emit_panic_if(builder, out_of_range, PanicCode::ArithmeticOverflowUnderflow);
         }
@@ -484,7 +486,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         builder.switch_to_block(native_block);
         let power = builder.exp(base, exponent);
-        if info.bits < 256 {
+        if info.size.bits() < 256 {
             let out_of_range = builder.gt(power, max_imm);
             self.emit_panic_if(builder, out_of_range, PanicCode::ArithmeticOverflowUnderflow);
         }
@@ -540,8 +542,8 @@ impl<'gcx> Lowerer<'gcx> {
         exponent: ValueId,
         info: IntegerInfo,
     ) -> ValueId {
-        let min_imm = builder.imm_u256(Self::signed_min(info.bits));
-        let max_imm = builder.imm_u256(Self::signed_max(info.bits));
+        let min_imm = builder.imm_u256(Self::signed_min(info.size));
+        let max_imm = builder.imm_u256(Self::signed_max(info.size));
         let zero = builder.imm_u64(0);
         let one = builder.imm_u64(1);
 
@@ -726,13 +728,13 @@ impl<'gcx> Lowerer<'gcx> {
         result: ValueId,
         info: IntegerInfo,
     ) -> ValueId {
-        if info.bits == 256 {
+        if info.size.bits() == 256 {
             // The add wrapped iff the result is smaller than an operand.
             return builder.lt(result, lhs);
         }
         // In-range n-bit operands cannot wrap a 256-bit add (their sum is
         // below `2 * 2^n <= 2^256`), so a range check on the result is exact.
-        let max = builder.imm_u256(Self::unsigned_max(info.bits));
+        let max = builder.imm_u256(Self::unsigned_max(info.size));
         builder.gt(result, max)
     }
 
@@ -744,10 +746,10 @@ impl<'gcx> Lowerer<'gcx> {
         result: ValueId,
         info: IntegerInfo,
     ) -> ValueId {
-        if info.bits <= 128 {
+        if info.size.bits() <= 128 {
             // The 256-bit product of in-range operands (each below `2^128`)
             // cannot wrap, so a range check on the result is exact.
-            let max = builder.imm_u256(Self::unsigned_max(info.bits));
+            let max = builder.imm_u256(Self::unsigned_max(info.size));
             return builder.gt(result, max);
         }
         // Division-inverse check: the product is exact iff `rhs == 0` or
@@ -757,12 +759,12 @@ impl<'gcx> Lowerer<'gcx> {
         let inverse_ok = builder.eq(quotient, lhs);
         let exact = builder.or(rhs_zero, inverse_ok);
         let wrapped = builder.iszero(exact);
-        if info.bits == 256 {
+        if info.size.bits() == 256 {
             return wrapped;
         }
         // Sub-word products can also stay within 256 bits while exceeding the
         // n-bit range.
-        let max = builder.imm_u256(Self::unsigned_max(info.bits));
+        let max = builder.imm_u256(Self::unsigned_max(info.size));
         let out_of_range = builder.gt(result, max);
         builder.or(wrapped, out_of_range)
     }
@@ -775,7 +777,7 @@ impl<'gcx> Lowerer<'gcx> {
         result: ValueId,
         info: IntegerInfo,
     ) -> ValueId {
-        if info.bits != 256 {
+        if info.size.bits() != 256 {
             // Sign-extended sub-word operands cannot wrap a 256-bit add, so a
             // range check on the result is exact.
             return self.signed_range_overflow(builder, result, info);
@@ -797,7 +799,7 @@ impl<'gcx> Lowerer<'gcx> {
         result: ValueId,
         info: IntegerInfo,
     ) -> ValueId {
-        if info.bits != 256 {
+        if info.size.bits() != 256 {
             // Sign-extended sub-word operands cannot wrap a 256-bit sub, so a
             // range check on the result is exact.
             return self.signed_range_overflow(builder, result, info);
@@ -820,7 +822,7 @@ impl<'gcx> Lowerer<'gcx> {
         result: ValueId,
         info: IntegerInfo,
     ) -> ValueId {
-        if info.bits <= 128 {
+        if info.size.bits() <= 128 {
             // The 256-bit product of sign-extended operands of at most 128
             // bits stays below `2^254` in magnitude, so it cannot wrap and a
             // range check on the result is exact.
@@ -833,7 +835,7 @@ impl<'gcx> Lowerer<'gcx> {
         let inverse_ok = builder.eq(quotient, lhs);
         let exact = builder.or(rhs_zero, inverse_ok);
         let wrapped = builder.iszero(exact);
-        if info.bits != 256 {
+        if info.size.bits() != 256 {
             // Sub-word products can also stay within 256 bits while exceeding
             // the n-bit range. The `sdiv(MIN, -1)` anomaly cannot fire here:
             // `result == MIN_256 && rhs == -1` requires `lhs == MIN_256`,
@@ -844,7 +846,7 @@ impl<'gcx> Lowerer<'gcx> {
         // The division check misses exactly `lhs == MIN && rhs == -1`, where
         // EVM defines `sdiv(result == MIN, -1) == MIN == lhs`. Cover it with
         // the superset `lhs == MIN && rhs < 0`, all of which truly overflow.
-        let min = builder.imm_u256(Self::signed_min(info.bits));
+        let min = builder.imm_u256(Self::signed_min(info.size));
         let lhs_min = builder.eq(lhs, min);
         let zero = builder.imm_u64(0);
         let rhs_neg = builder.slt(rhs, zero);
@@ -858,8 +860,8 @@ impl<'gcx> Lowerer<'gcx> {
         value: ValueId,
         info: IntegerInfo,
     ) -> ValueId {
-        let min = builder.imm_u256(Self::signed_min(info.bits));
-        let max = builder.imm_u256(Self::signed_max(info.bits));
+        let min = builder.imm_u256(Self::signed_min(info.size));
+        let max = builder.imm_u256(Self::signed_max(info.size));
         let below_min = builder.slt(value, min);
         let above_max = builder.sgt(value, max);
         builder.or(below_min, above_max)
@@ -872,7 +874,7 @@ impl<'gcx> Lowerer<'gcx> {
         rhs: ValueId,
         info: IntegerInfo,
     ) {
-        let min = builder.imm_u256(Self::signed_min(info.bits));
+        let min = builder.imm_u256(Self::signed_min(info.size));
         let minus_one = builder.imm_u256(U256::MAX);
         let is_min = builder.eq(lhs, min);
         let is_minus_one = builder.eq(rhs, minus_one);
@@ -881,21 +883,16 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Emits an array bounds check: `if (!(index < len)) Panic(0x32)`.
-    ///
-    /// Constant operands fold at lowering: a provably in-range constant index
-    /// emits no check at all, and a provably out-of-range constant index
-    /// emits an unconditional panic (matching solc's runtime semantics for
-    /// out-of-bounds accesses), as a constant branch that later passes fold.
     pub(super) fn emit_index_bounds_check(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         index: ValueId,
         len: ValueId,
     ) {
-        if let (Some(index_const), Some(len_const)) =
-            (Self::const_u256_of(builder, index), Self::const_u256_of(builder, len))
+        if let (Some(index), Some(len)) =
+            (builder.func().value_u256(index), builder.func().value_u256(len))
         {
-            if index_const < len_const {
+            if index < len {
                 return;
             }
             let always = builder.imm_bool(true);
@@ -906,12 +903,19 @@ impl<'gcx> Lowerer<'gcx> {
         self.emit_panic_if_zero(builder, in_range, PanicCode::ArrayOutOfBounds);
     }
 
-    /// Returns the constant value of a MIR immediate, if `value` is one.
-    fn const_u256_of(builder: &FunctionBuilder<'_>, value: ValueId) -> Option<U256> {
-        match builder.func().value(value) {
-            crate::mir::Value::Immediate(imm) => imm.as_u256(),
-            _ => None,
-        }
+    /// Emits the runtime range check required by an explicit integer-to-enum
+    /// conversion. Enum discriminants are dense from zero, so `value` must be
+    /// smaller than the number of variants or the conversion panics with
+    /// Solidity's `Panic(0x21)`.
+    pub(super) fn emit_enum_range_check(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        variant_count: usize,
+    ) {
+        let count = builder.imm_u64(variant_count as u64);
+        let in_range = builder.lt(value, count);
+        self.emit_panic_if_zero(builder, in_range, PanicCode::EnumConversionOutOfBounds);
     }
 
     pub(super) fn emit_panic_if_zero(
@@ -960,15 +964,18 @@ impl<'gcx> Lowerer<'gcx> {
         builder.revert(zero, size);
     }
 
-    pub(super) fn unsigned_max(bits: u16) -> U256 {
+    pub(super) fn unsigned_max(size: TypeSize) -> U256 {
+        let bits = size.bits();
         if bits >= 256 { U256::MAX } else { (U256::from(1) << bits) - U256::from(1) }
     }
 
-    pub(super) fn signed_min(bits: u16) -> U256 {
+    pub(super) fn signed_min(size: TypeSize) -> U256 {
+        let bits = size.bits();
         U256::MAX - (U256::from(1) << (bits - 1)) + U256::from(1)
     }
 
-    pub(super) fn signed_max(bits: u16) -> U256 {
+    pub(super) fn signed_max(size: TypeSize) -> U256 {
+        let bits = size.bits();
         (U256::from(1) << (bits - 1)) - U256::from(1)
     }
 
@@ -993,7 +1000,7 @@ impl<'gcx> Lowerer<'gcx> {
                     if let Some(info) = int_info
                         && info.signed
                     {
-                        let min = builder.imm_u256(Self::signed_min(info.bits));
+                        let min = builder.imm_u256(Self::signed_min(info.size));
                         let overflow = builder.eq(operand, min);
                         self.emit_panic_if(
                             builder,

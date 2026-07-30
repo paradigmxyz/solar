@@ -1,0 +1,29 @@
+//@ compile-flags: -Zcodegen
+//@ filecheck:
+// CHECK-LABEL: "Widths": {
+// CHECK: "deployedBytecode": {
+// CHECK-NEXT: "immutableReferences": {
+// CHECK: "length": 1
+// CHECK: "length": 20
+// CHECK-NOT: "object":
+// CHECK-LABEL: "A": {
+// CHECK: "deployedBytecode": {
+// CHECK-NEXT: "immutableReferences": {
+// CHECK: "length": 32
+// CHECK-NOT: "object":
+{
+  "language": "Solidity",
+  "sources": {},
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "Widths": [
+          "evm.deployedBytecode.immutableReferences"
+        ],
+        "A": [
+          "evm.deployedBytecode.immutableReferences"
+        ]
+      }
+    }
+  }
+}

@@ -1,16 +1,15 @@
-//@ignore-host: windows
 //@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
 contract StorageLongBytesReturn {
     // CHECK-LABEL: fn @s{{[( ]}}
     // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
-    // CHECK: internal_call @__ret_bytes, 0, [[VALUE]]
+    // CHECK: ret [[VALUE]]
     string public s;
 
     // CHECK-LABEL: fn @b{{[( ]}}
     // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 1
-    // CHECK: internal_call @__ret_bytes, 0, [[VALUE]]
+    // CHECK: ret [[VALUE]]
     bytes public b;
 
     // CHECK-LABEL: fn @_anonymous{{[( ]}}
@@ -38,14 +37,14 @@ contract StorageLongBytesReturn {
 
     // CHECK-LABEL: fn @getS{{[( ]}}
     // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
-    // CHECK: internal_call @__ret_bytes, 0, [[VALUE]]
+    // CHECK: ret [[VALUE]]
     function getS() public view returns (string memory) {
         return s;
     }
 
     // CHECK-LABEL: fn @getB{{[( ]}}
     // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 1
-    // CHECK: internal_call @__ret_bytes, 0, [[VALUE]]
+    // CHECK: ret [[VALUE]]
     function getB() public view returns (bytes memory) {
         return b;
     }

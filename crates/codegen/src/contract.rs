@@ -9,6 +9,7 @@ use crate::{
 };
 use alloy_primitives::Bytes;
 use either::Either;
+use solar_ast::TypeSize;
 use solar_config::OptimizationMode;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -17,7 +18,10 @@ use solar_data_structures::{
     sync::{self, Scope},
 };
 use solar_interface::Result;
-use solar_sema::{Gcx, hir::ContractId};
+use solar_sema::{
+    Gcx,
+    hir::{ContractId, VariableId},
+};
 use std::sync::{
     OnceLock,
     atomic::{AtomicUsize, Ordering},
@@ -30,6 +34,8 @@ pub struct ContractArtifact {
     pub deployment: Bytes,
     /// Runtime bytecode.
     pub runtime: Bytes,
+    /// Immutable placeholders in the runtime bytecode.
+    pub immutable_references: Vec<ImmutableReference>,
     /// Captured MIR, built under `-O none` when no explicit pipeline is configured and
     /// post-pipeline otherwise.
     pub mir: Option<Module>,
@@ -37,6 +43,17 @@ pub struct ContractArtifact {
     pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
     pub runtime_evm_ir: Option<ir::Module>,
+}
+
+/// An immutable placeholder in runtime bytecode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ImmutableReference {
+    /// Source variable containing the immutable declaration.
+    pub variable_id: VariableId,
+    /// Byte offset where the placeholder data begins.
+    pub start: usize,
+    /// Type width encoded by the placeholder.
+    pub type_size: TypeSize,
 }
 
 /// A contract selection.
@@ -318,11 +335,26 @@ fn generate_contract_bytecode(
         }
         Default::default()
     };
+    let immutable_references = artifact
+        .immutable_references
+        .iter()
+        .map(|reference| {
+            let immutable = module.immutable(reference.id);
+            ImmutableReference {
+                variable_id: immutable
+                    .variable_id
+                    .expect("Solidity immutable must have a variable ID"),
+                start: reference.code_offset + 1,
+                type_size: reference.type_size,
+            }
+        })
+        .collect();
     let mir = capture_mir.then(|| built_mir.unwrap_or(module));
 
     Ok(ContractArtifact {
         deployment: artifact.deployment.into(),
         runtime: artifact.runtime.into(),
+        immutable_references,
         mir,
         deployment_evm_ir: artifact.deployment_evm_ir,
         runtime_evm_ir: artifact.runtime_evm_ir,

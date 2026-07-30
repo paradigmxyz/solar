@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
@@ -36,7 +35,7 @@ contract C {
     // CHECK: internal_call @tryAdd, 2, arg0, arg1
     // CHECK: {{v[0-9]+}} = mload 32
     // CHECK: mload {{v[0-9]+}}
-    // CHECK: returndata 128, 64
+    // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
     function tryA(uint256 a, uint256 b) public pure returns (bool, uint256) {
         return Math.tryAdd(a, b);
     }

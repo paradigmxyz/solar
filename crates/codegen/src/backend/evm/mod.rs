@@ -7,11 +7,14 @@
 //! - `Assembler`: Final relocation and byte encoding
 //! - `stack`: MIR-to-EVM stack scheduling for DUP/SWAP generation
 
+/// Number of bytes in an EVM word.
+pub(super) const EVM_WORD_BYTES: usize = 32;
+
 mod codegen;
 pub use codegen::{EvmArtifact, EvmCodegen};
 
 mod disasm;
-pub use disasm::disassemble;
+pub use disasm::{disassemble, disassemble_standard_json};
 
 mod layout;
 

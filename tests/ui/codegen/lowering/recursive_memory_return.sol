@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
@@ -8,7 +7,7 @@
 // public function is lowered both as its external ABI entry and an internal
 // copy; the internal copy returns the struct pointer (it must NOT expand to
 // fields like the external entry). A public function returning a dynamic array
-// of word elements ABI-encodes it (offset + length + elements) via MCOPY.
+// of word elements is passed to the lower-abi phase as a semantic return value.
 // Runtime-verified against solc: build(3) == (6,3); squares(4) == [0,1,4,9];
 // mkArr(3) == [0,10,20].
 contract C {
@@ -18,13 +17,13 @@ contract C {
     }
 
     // recursive function returning a memory struct
-    // CHECK-LABEL: fn @build{{[( ]}}
-    // CHECK: internal_call [[BUILD:build[0-9]+]], 1,
+    // CHECK-LABEL: fn @build.0(
+    // CHECK: internal_call @build.1, 1,
     // CHECK: [[RESULT:v[0-9]+]] = alloc memorystruct<2>
     // CHECK: memory_object_field_addr memorystruct<2>, [[RESULT]], 0
-    // CHECK: returndata 128, 64
-    // CHECK-LABEL: fn @build{{[( ]}}
-    // CHECK: internal_call [[BUILD]], 1,
+    // CHECK: ret [[RESULT]]
+    // CHECK-LABEL: fn @build.1(
+    // CHECK: internal_call @build.1, 1,
     // CHECK: [[RESULT:v[0-9]+]] = alloc memorystruct<2>
     // CHECK: ret [[RESULT]]
     function build(uint256 n) public pure returns (P memory) {
@@ -37,9 +36,7 @@ contract C {
     // CHECK-LABEL: fn @mkArr{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
     // CHECK: set_memory_object_len memoryarray, [[ARRAY]], arg0
-    // CHECK: {{v[0-9]+}} = memory_object_len memoryarray, [[ARRAY]]
-    // CHECK: mcopy {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK: returndata
+    // CHECK: ret [[ARRAY]]
     function mkArr(uint256 n) public pure returns (uint256[] memory) {
         uint256[] memory r = new uint256[](n);
         for (uint256 i = 0; i < n; i++) r[i] = i * 10;
@@ -62,8 +59,7 @@ contract C {
     // CHECK-LABEL: fn @squares{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
     // CHECK: [[FILLED:v[0-9]+]] = internal_call @fillImpl, 1, [[ARRAY]], 0
-    // CHECK: memory_object_len memoryarray, [[FILLED]]
-    // CHECK: mcopy
+    // CHECK: ret [[FILLED]]
     function squares(uint256 n) public pure returns (uint256[] memory) {
         return fillImpl(new uint256[](n), 0);
     }

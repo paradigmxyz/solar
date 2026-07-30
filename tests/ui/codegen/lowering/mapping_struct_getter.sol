@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
@@ -24,6 +23,6 @@ contract C {
     // CHECK: sload [[BASE]]
     // CHECK: sload {{v[0-9]+}} !metadata(storage=offset([[BASE]], 1))
     // CHECK: sload {{v[0-9]+}} !metadata(storage=offset([[BASE]], 2))
-    // CHECK: returndata 128, 96
+    // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}
     mapping(uint256 => Item) public items; // slot 1
 }

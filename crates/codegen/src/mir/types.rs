@@ -2,6 +2,36 @@
 
 use std::fmt;
 
+pub(crate) use solar_ast::TypeSize;
+
+/// How an immutable's typed value is encoded in a `PUSH<N>` immediate.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum ImmutableEncoding {
+    /// A zero-extended, right-aligned value.
+    Unsigned(TypeSize),
+    /// A sign-extended, right-aligned value.
+    Signed(TypeSize),
+    /// A left-aligned fixed-bytes value.
+    LeftAligned(TypeSize),
+}
+
+impl ImmutableEncoding {
+    /// Returns the canonical encoded type size.
+    #[must_use]
+    pub(crate) const fn type_size(self) -> TypeSize {
+        let size = match self {
+            Self::Unsigned(size) | Self::Signed(size) | Self::LeftAligned(size) => size,
+        };
+        TypeSize::new_int_bits(size.bits())
+    }
+
+    /// Returns whether loading this encoding needs a post-`PUSH<N>` adjustment.
+    #[must_use]
+    pub(crate) const fn needs_runtime_normalization(self) -> bool {
+        self.type_size().bytes() < 32 && !matches!(self, Self::Unsigned(_))
+    }
+}
+
 /// Address space containing a dynamically-sized MIR slice.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum SliceLocation {
@@ -130,15 +160,15 @@ impl fmt::Display for SliceLocation {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum MirType {
     /// Unsigned integer with a given bit width (8, 16, 32, ..., 256).
-    UInt(u16),
+    UInt(TypeSize),
     /// Signed integer with a given bit width.
-    Int(u16),
+    Int(TypeSize),
     /// Boolean type.
     Bool,
     /// Address type (20 bytes).
     Address,
     /// Fixed-size byte array.
-    FixedBytes(u8),
+    FixedBytes(TypeSize),
     /// Memory pointer.
     MemPtr,
     /// Reference to a semantically shaped memory object.
@@ -156,6 +186,44 @@ pub(crate) enum MirType {
 }
 
 impl MirType {
+    /// Returns this value type's semantic size, or `None` for `void`.
+    #[must_use]
+    pub(crate) const fn type_size(self) -> Option<TypeSize> {
+        match self {
+            Self::Bool => Some(TypeSize::new_int_bits(8)),
+            Self::UInt(size) | Self::Int(size) | Self::FixedBytes(size) => {
+                Some(TypeSize::new_int_bits(size.bits()))
+            }
+            Self::Address => Some(TypeSize::new_int_bits(160)),
+            Self::MemPtr
+            | Self::MemoryObject(_)
+            | Self::StoragePtr
+            | Self::CalldataPtr
+            | Self::Slice(_) => Some(TypeSize::new_int_bits(256)),
+            Self::Function => Some(TypeSize::new_int_bits(192)),
+            Self::Void => None,
+        }
+    }
+
+    /// Returns the compact immutable encoding for scalar types that can be immutable.
+    #[must_use]
+    pub(crate) const fn immutable_encoding(self) -> Option<ImmutableEncoding> {
+        let Some(size) = self.type_size() else { return None };
+        Some(match self {
+            Self::Int(_) => ImmutableEncoding::Signed(size),
+            Self::FixedBytes(_) => ImmutableEncoding::LeftAligned(size),
+            // Internal function pointers do not yet have a stable narrow ABI in MIR.
+            Self::Function => ImmutableEncoding::Unsigned(TypeSize::new_int_bits(256)),
+            Self::Bool | Self::UInt(_) | Self::Address => ImmutableEncoding::Unsigned(size),
+            Self::MemPtr
+            | Self::MemoryObject(_)
+            | Self::StoragePtr
+            | Self::CalldataPtr
+            | Self::Slice(_)
+            | Self::Void => return None,
+        })
+    }
+
     /// Returns whether this is a raw address or a semantic memory-object reference.
     #[must_use]
     pub(crate) const fn is_memory_reference(self) -> bool {
@@ -165,30 +233,30 @@ impl MirType {
     /// Returns the uint256 type.
     #[must_use]
     pub(crate) const fn uint256() -> Self {
-        Self::UInt(256)
+        Self::UInt(TypeSize::new_int_bits(256))
     }
 
     /// Returns the int256 type.
     #[must_use]
     pub(crate) const fn int256() -> Self {
-        Self::Int(256)
+        Self::Int(TypeSize::new_int_bits(256))
     }
 
     /// Returns the bytes32 type.
     #[must_use]
     pub(crate) const fn bytes32() -> Self {
-        Self::FixedBytes(32)
+        Self::FixedBytes(TypeSize::new_fb_bytes(32))
     }
 }
 
 impl fmt::Display for MirType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::UInt(bits) => write!(f, "u{bits}"),
-            Self::Int(bits) => write!(f, "i{bits}"),
+            Self::UInt(size) => write!(f, "u{}", size.bits()),
+            Self::Int(size) => write!(f, "i{}", size.bits()),
             Self::Bool => write!(f, "bool"),
             Self::Address => write!(f, "address"),
-            Self::FixedBytes(n) => write!(f, "bytes{n}"),
+            Self::FixedBytes(size) => write!(f, "bytes{}", size.bytes()),
             Self::MemPtr => write!(f, "memptr"),
             Self::MemoryObject(kind) => write!(f, "{kind}"),
             Self::StoragePtr => write!(f, "storageptr"),

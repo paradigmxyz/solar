@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_encode.sol:CalldataSliceEncode ===
 @module CalldataSliceEncode
-fn @encode(arg0: calldataslice, arg1: u256) {
+fn @encode(arg0: calldataslice, arg1: u256) -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -14,9 +14,7 @@ fn @encode(arg0: calldataslice, arg1: u256) {
     v5 = lt v4, arg1
     jumpi v5, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
     v6 = sub v4, arg1
     v7 = add v3, arg1
@@ -48,28 +46,7 @@ fn @encode(arg0: calldataslice, arg1: u256) {
     v24 = add v23, 32
     v25 = add v9, v24
     set_fmp v25
-    internal_call @__ret_bytes, 0, v9
-    invalid
-}
-
-fn @__ret_bytes(arg0: memorybytes) {
-  bb0:
-    v0 = fmp
-    mstore v0, 32
-    v1 = memory_object_len memorybytes, arg0
-    v2 = add v0, 32
-    mstore v2, v1
-    v3 = add v1, 31
-    v4 = not 31
-    v5 = and v3, v4
-    v6 = add v2, 32
-    v7 = sub v5, 32
-    v8 = add v6, v7
-    mstore v8, 0
-    v9 = memory_object_data memorybytes, arg0
-    mcopy v6, v9, v1
-    v10 = add 64, v5
-    returndata v0, v10
+    ret v9
 }
 
 fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
@@ -100,9 +77,7 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     v13 = lt v12, arg1
     jumpi v13, bb5, bb6
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb6:
     v14 = sub v12, arg1
     v15 = add v11, arg1
@@ -117,18 +92,13 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     v22 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v21
     v23 = slice_ptr v22
     v24 = slice_len v22
-    mstore 0, arg2 !metadata(memory=scratch)
-    mstore 32, v23 !metadata(memory=scratch)
-    v25 = mload 0 !metadata(memory=scratch)
-    v26 = gas
-    v27 = mload 32 !metadata(memory=scratch)
-    v28 = call v26, v25, 0, v27, v24, 0, 0
-    v29 = iszero v28
-    jumpi v29, bb7, bb8
+    v25 = gas
+    v26 = call v25, arg2, 0, v23, v24, 0, 0
+    jumpi v26, bb8, bb7
   bb7:
-    v30 = returndatasize
-    returndatacopy 0, 0, v30 !metadata(memory=scratch)
-    revert 0, v30
+    v27 = returndatasize
+    returndatacopy 0, 0, v27 !metadata(memory=scratch)
+    revert 0, v27
   bb8:
     stop
 }

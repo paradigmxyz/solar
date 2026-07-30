@@ -1,22 +1,28 @@
 //! MIR module (top-level container).
 
-use super::{AbiLayout, AbiLayoutRef, Function, FunctionId, StorageLayout, StorageLayoutRef};
+use super::{
+    AbiLayout, AbiLayoutRef, Disambiguator, Function, FunctionId, ImmutableId, MangledSymbol,
+    MirType, StorageLayout, StorageLayoutRef,
+};
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
+    map::FxHashMap,
 };
 use solar_interface::{Ident, Symbol, sym};
+use solar_sema::hir::VariableId;
 use std::sync::Arc;
 
-/// Current immutable staging and placeholder width.
-///
-/// TODO: Support immutable references with byte widths `<= 32` instead of
-/// forcing every immutable through a full `PUSH32`/word patch. Solidity's
-/// standard JSON format permits shorter immutable reference lengths, and solc
-/// can emit `PUSH<N>` for small immutable types. Doing that here requires
-/// carrying the byte width through MIR, assembler immutable refs, and the
-/// constructor patch loop instead of blindly patching with `MSTORE`.
-pub(crate) const IMMUTABLE_WORD_SIZE: usize = 32;
+/// A named immutable declared by a MIR module.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Immutable {
+    /// The source-level name used by textual MIR.
+    pub(crate) name: Ident,
+    /// The immutable's MIR type.
+    pub(crate) ty: MirType,
+    /// The source variable, when this module was lowered from Solidity.
+    pub(crate) variable_id: Option<VariableId>,
+}
 
 /// The lowering phase a [`Module`] is in.
 ///
@@ -93,12 +99,14 @@ pub struct Module {
     pub(crate) name: Ident,
     /// All functions in this module.
     pub(crate) functions: IndexVec<FunctionId, Function>,
+    /// Most recently added function for each name before disambiguation.
+    pub(crate) function_name_index: FxHashMap<Symbol, FunctionId>,
     /// Canonical ABI layouts referenced by semantic encoding operations.
     pub(crate) abi_layouts: Vec<AbiLayoutRef>,
     /// Canonical storage layouts referenced by semantic aggregate operations.
     pub(crate) aggregate_layouts: Vec<StorageLayoutRef>,
-    /// Size of the constructor scratch area used to stage immutables.
-    immutable_data_len: usize,
+    /// Named immutable declarations indexed by their stable MIR identifiers.
+    immutables: IndexVec<ImmutableId, Immutable>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
     /// The lowering phase this module is in.
@@ -120,9 +128,10 @@ impl Module {
         Self {
             name,
             functions: IndexVec::new(),
+            function_name_index: FxHashMap::default(),
             abi_layouts: Vec::new(),
             aggregate_layouts: Vec::new(),
-            immutable_data_len: 0,
+            immutables: IndexVec::new(),
             is_interface: false,
             phase: MirPhase::Built,
         }
@@ -144,7 +153,20 @@ impl Module {
 
     /// Adds a function to the module.
     pub(crate) fn add_function(&mut self, function: Function) -> FunctionId {
-        self.functions.push(function)
+        let symbol = function.name.symbol;
+        let function = self.functions.push(function);
+        if let Some(duplicate) = self.function_name_index.insert(symbol, function) {
+            let duplicate_func = &mut self.functions[duplicate];
+            if duplicate_func.name.disambiguator.is_none() {
+                duplicate_func.name =
+                    MangledSymbol::disambiguated(symbol, Disambiguator::from_foreign(duplicate));
+            }
+            if self.functions[function].name.disambiguator.is_none() {
+                self.functions[function].name =
+                    MangledSymbol::disambiguated(symbol, Disambiguator::from_foreign(function));
+            }
+        }
+        function
     }
 
     /// Returns the function for the given ID.
@@ -182,16 +204,49 @@ impl Module {
         layout
     }
 
-    /// Reserves one word in the constructor's immutable staging area.
-    pub(crate) fn add_immutable(&mut self) {
-        self.immutable_data_len += IMMUTABLE_WORD_SIZE;
+    /// Adds a named immutable and returns its stable identifier.
+    pub(crate) fn add_immutable(
+        &mut self,
+        name: Ident,
+        ty: MirType,
+        variable_id: Option<VariableId>,
+    ) -> ImmutableId {
+        self.immutables.push(Immutable { name, ty, variable_id })
     }
 
-    /// Returns the size in bytes of the constructor scratch area that stages
-    /// immutable words before they are patched into the runtime code.
+    /// Returns an immutable declaration.
     #[must_use]
-    pub(crate) fn immutable_data_len(&self) -> usize {
-        self.immutable_data_len
+    pub(crate) fn immutable(&self, id: ImmutableId) -> &Immutable {
+        &self.immutables[id]
+    }
+
+    /// Returns an immutable declaration if the identifier is allocated.
+    #[must_use]
+    pub(crate) fn get_immutable(&self, id: ImmutableId) -> Option<&Immutable> {
+        self.immutables.get(id)
+    }
+
+    /// Returns an immutable's MIR type.
+    #[must_use]
+    pub(crate) fn immutable_type(&self, id: ImmutableId) -> MirType {
+        self.immutable(id).ty
+    }
+
+    /// Returns an immutable's MIR type if the identifier is allocated.
+    #[must_use]
+    pub(crate) fn get_immutable_type(&self, id: ImmutableId) -> Option<MirType> {
+        self.get_immutable(id).map(|immutable| immutable.ty)
+    }
+
+    /// Returns the number of immutable declarations.
+    #[must_use]
+    pub(crate) fn immutable_count(&self) -> usize {
+        self.immutables.len()
+    }
+
+    /// Returns an iterator over all immutable declarations.
+    pub(crate) fn iter_immutables(&self) -> impl Iterator<Item = (ImmutableId, &Immutable)> {
+        self.immutables.iter_enumerated()
     }
 
     /// Returns an iterator over all functions.
@@ -206,12 +261,24 @@ impl Module {
             if self.phase != MirPhase::default() {
                 writeln!(f, "@phase {}", self.phase.name())?;
             }
+            if !self.immutables.is_empty() {
+                writeln!(f, "immutables:")?;
+                for (id, immutable) in self.iter_immutables() {
+                    writeln!(
+                        f,
+                        "  {}: {}",
+                        super::display::display_immutable_ref(id, Some(self)),
+                        immutable.ty
+                    )?;
+                }
+                writeln!(f)?;
+            }
             write!(
                 f,
                 "{}",
                 self.functions
                     .iter()
-                    .map(|func| super::display::display_function_text(func, Some(&self.functions)))
+                    .map(|func| super::display::display_function_text(func, Some(self)))
                     .format("\n")
             )
         })
@@ -225,7 +292,7 @@ impl Module {
                 "{}",
                 self.functions
                     .iter()
-                    .map(|func| super::display::display_function_dot(func, Some(&self.functions)))
+                    .map(|func| super::display::display_function_dot(func, Some(self)))
                     .format("\n\n")
             )
         })
