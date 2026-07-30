@@ -1404,6 +1404,16 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             evm_version="osaka",
         )
 
+    def _artifact_root(self, label: str) -> Path:
+        configured = os.environ.get("FANDANGO_SYMBOLIC_ARTIFACT_DIR")
+        if configured:
+            root = Path(configured).resolve() / self._testMethodName / label
+            root.mkdir(parents=True, exist_ok=True)
+            return root
+        temporary = tempfile.TemporaryDirectory(prefix=f"solar-symbolic-{label}-")
+        self.addCleanup(temporary.cleanup)
+        return Path(temporary.name)
+
     def _run(
         self,
         solar_artifact,
@@ -1431,8 +1441,6 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             artifact["standard_input"] = materialized
             artifact["standard_input_sha256"] = materialized["sha256"]
             artifact["settings"] = materialized["settings"]
-        temporary = tempfile.TemporaryDirectory(prefix="solar-symbolic-e2e-")
-        self.addCleanup(temporary.cleanup)
         args = argparse.Namespace(
             source=source,
             contract=contract,
@@ -1450,7 +1458,7 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             symbolic_max_paths=max_paths,
             symbolic_max_depth=None,
             max_returndata_bytes=max_returndata_bytes,
-            artifact_dir=Path(temporary.name),
+            artifact_dir=self._artifact_root("runs"),
             verbose=False,
         )
         with (
@@ -1491,37 +1499,35 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         )
         if solar != "target/debug/solar":
             self.skipTest("E2E Solar binary is not the focused command default")
-        with tempfile.TemporaryDirectory(
-            prefix="solar-symbolic-wrapper-"
-        ) as artifacts:
-            result = subprocess.run(
-                [
-                    str(repository / "fuzz" / "bin" / "solsymdiff"),
-                    "--source",
-                    str(self.reference),
-                    "--contract",
-                    "ControlledDifferential",
-                    "--signature",
-                    "probe(uint256)",
-                    "--solc",
-                    self.solc,
-                    "--forge",
-                    self.forge,
-                    "--anvil",
-                    self.anvil,
-                    "--symbolic-solver",
-                    self.z3,
-                    "--artifact-dir",
-                    artifacts,
-                    "--timeout",
-                    "60",
-                ],
-                cwd=repository,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=60,
-            )
+        artifacts = self._artifact_root("focused-wrapper")
+        result = subprocess.run(
+            [
+                str(repository / "fuzz" / "bin" / "solsymdiff"),
+                "--source",
+                str(self.reference),
+                "--contract",
+                "ControlledDifferential",
+                "--signature",
+                "probe(uint256)",
+                "--solc",
+                self.solc,
+                "--forge",
+                self.forge,
+                "--anvil",
+                self.anvil,
+                "--symbolic-solver",
+                self.z3,
+                "--artifact-dir",
+                artifacts,
+                "--timeout",
+                "60",
+            ],
+            cwd=repository,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+        )
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
@@ -1704,9 +1710,7 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         )
 
     def _run_rejected_source(self, contract: str, source_text: str):
-        temporary = tempfile.TemporaryDirectory(prefix="solar-symbolic-rejected-")
-        self.addCleanup(temporary.cleanup)
-        root = Path(temporary.name)
+        root = self._artifact_root(f"rejected-{contract}")
         source = root / f"{contract}.sol"
         source.write_text(source_text)
         args = argparse.Namespace(
@@ -1737,8 +1741,6 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
 
     def test_imported_source_bundle_contains_the_exact_compiler_input(self):
         output = io.StringIO()
-        temporary = tempfile.TemporaryDirectory(prefix="solar-symbolic-imports-")
-        self.addCleanup(temporary.cleanup)
         args = argparse.Namespace(
             source=self.imported,
             contract="ImportedDifferential",
@@ -1756,7 +1758,7 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             symbolic_max_paths=512,
             symbolic_max_depth=None,
             max_returndata_bytes=256,
-            artifact_dir=Path(temporary.name),
+            artifact_dir=self._artifact_root("imports"),
             verbose=False,
         )
         with redirect_stdout(output):

@@ -6,6 +6,7 @@ workspace="${GITHUB_WORKSPACE:-$(pwd)}"
 runner_temp="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 solc_path="$runner_temp/solc/solc-$solc_version"
 solar_path="$workspace/target/debug/solar"
+artifact_dir="${FANDANGO_SYMBOLIC_ARTIFACT_DIR:-$workspace/target/symbolic-differential}"
 case "$solc_version" in
   0.8.36)
     solc_sha256="c8d35afdddc3cd2743ee88b8f25e0fecd16e2bdd5f2120f37e52cd9cc45ae0e6"
@@ -17,7 +18,7 @@ case "$solc_version" in
 esac
 
 cd "$workspace"
-mkdir -p "$runner_temp/solc"
+mkdir -p "$runner_temp/solc" "$artifact_dir"
 
 curl -fsSL \
   --retry 3 \
@@ -42,4 +43,5 @@ FANDANGO_SYMBOLIC_E2E=1 \
   FANDANGO_FORGE="$(command -v forge)" \
   FANDANGO_ANVIL="$(command -v anvil)" \
   FANDANGO_Z3="$(command -v z3)" \
+  FANDANGO_SYMBOLIC_ARTIFACT_DIR="$artifact_dir" \
   python3 -m unittest fuzz/fandango/test_symbolic_differential.py -v

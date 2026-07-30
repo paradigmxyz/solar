@@ -167,6 +167,13 @@ jobs:
           sudo apt-get install --yes --no-install-recommends z3=4.8.12-3.1build1
       - name: Solc-vs-Solar symbolic differentials
         run: .github/scripts/run_symbolic_differential_checks.sh
+      - name: Upload symbolic differential artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: symbolic-differential
+          path: target/symbolic-differential
+          if-no-files-found: ignore
 
   feature-checks:
     name: features
