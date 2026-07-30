@@ -2493,95 +2493,93 @@ mod tests {
             .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(256))));
         let trailing =
             func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
-        let mut scheduler = StackScheduler::new();
-        scheduler.spills.allocate(preserved);
-        scheduler.spills.mark_reloadable(preserved);
-        scheduler.spills.mark_stored(preserved);
-        scheduler.stack.push(second);
-        scheduler.stack.push(preserved);
+        let operands = [trailing, second, topic, size, preserved];
+        let cases = [
+            (
+                [preserved, second],
+                true,
+                vec![
+                    ScheduledOp::Stack(StackOp::Dup(1)),
+                    ScheduledOp::Stack(StackOp::Swap(2)),
+                    ScheduledOp::PushImmediate(alloy_primitives::U256::from(256)),
+                    ScheduledOp::PushImmediate(alloy_primitives::U256::from(32)),
+                    ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO),
+                    ScheduledOp::Stack(StackOp::Swap(4)),
+                ],
+            ),
+            (
+                [second, preserved],
+                true,
+                vec![
+                    ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO),
+                    ScheduledOp::Stack(StackOp::Swap(1)),
+                    ScheduledOp::PushImmediate(alloy_primitives::U256::from(256)),
+                    ScheduledOp::PushImmediate(alloy_primitives::U256::from(32)),
+                    ScheduledOp::Stack(StackOp::Dup(5)),
+                ],
+            ),
+            (
+                [second, preserved],
+                false,
+                vec![
+                    ScheduledOp::PushImmediate(alloy_primitives::U256::from(256)),
+                    ScheduledOp::PushImmediate(alloy_primitives::U256::from(32)),
+                    ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO),
+                    ScheduledOp::Stack(StackOp::Swap(4)),
+                ],
+            ),
+        ];
 
-        let plan = scheduler
-            .plan_operands(
-                &[trailing, second, topic, size, preserved],
-                &[preserved],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Shanghai,
-                OperandCostModel::DIRECT,
-            )
-            .unwrap();
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            for (layout, retain, expected) in &cases {
+                let mut scheduler = StackScheduler::new();
+                scheduler.spills.allocate(preserved);
+                scheduler.spills.mark_reloadable(preserved);
+                scheduler.spills.mark_stored(preserved);
+                for &value in layout.iter().rev() {
+                    scheduler.stack.push(value);
+                }
+                let retained = [preserved];
+                let retained = if *retain { retained.as_slice() } else { &[] };
+                let exact = exact_operand_cost(
+                    &scheduler,
+                    &operands,
+                    retained,
+                    &func,
+                    optimization,
+                    EvmVersion::Shanghai,
+                )
+                .unwrap();
 
-        assert_eq!(
-            plan.actions.iter().map(|action| action.op.clone()).collect::<Vec<_>>(),
-            [
-                ScheduledOp::Stack(StackOp::Dup(1)),
-                ScheduledOp::Stack(StackOp::Swap(2)),
-                ScheduledOp::PushImmediate(alloy_primitives::U256::from(256)),
-                ScheduledOp::PushImmediate(alloy_primitives::U256::from(32)),
-                ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO),
-                ScheduledOp::Stack(StackOp::Swap(4)),
-            ]
-        );
-        let stats = scheduler.operand_search_stats.get();
-        assert_eq!(stats.expansions, 0);
-        assert_eq!(stats.created, 0);
+                let plan = scheduler
+                    .plan_operands(
+                        &operands,
+                        retained,
+                        &func,
+                        optimization,
+                        EvmVersion::Shanghai,
+                        OperandCostModel::DIRECT,
+                    )
+                    .unwrap();
 
-        scheduler.apply_operand_plan(plan);
-        scheduler.instruction_executed(5, None);
-        assert_eq!(scheduler.stack.as_slice(), &[Some(preserved)]);
+                assert_eq!(plan.cost, exact.cost);
+                assert_eq!(
+                    plan.actions.iter().map(|action| action.op.clone()).collect::<Vec<_>>(),
+                    *expected
+                );
+                let stats = scheduler.operand_search_stats.get();
+                assert_eq!(stats.expansions, 0);
+                assert_eq!(stats.created, 0);
 
-        scheduler.stack.push(second);
-        let plan = scheduler
-            .plan_operands(
-                &[trailing, second, topic, size, preserved],
-                &[preserved],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Shanghai,
-                OperandCostModel::DIRECT,
-            )
-            .unwrap();
-        assert_eq!(
-            plan.actions.iter().map(|action| action.op.clone()).collect::<Vec<_>>(),
-            [
-                ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO),
-                ScheduledOp::Stack(StackOp::Swap(1)),
-                ScheduledOp::PushImmediate(alloy_primitives::U256::from(256)),
-                ScheduledOp::PushImmediate(alloy_primitives::U256::from(32)),
-                ScheduledOp::Stack(StackOp::Dup(5)),
-            ]
-        );
-        assert_eq!(scheduler.operand_search_stats.get().expansions, 0);
-
-        scheduler.apply_operand_plan(plan);
-        scheduler.instruction_executed(5, None);
-        assert_eq!(scheduler.stack.as_slice(), &[Some(preserved)]);
-
-        scheduler.stack.push(second);
-        let plan = scheduler
-            .plan_operands(
-                &[trailing, second, topic, size, preserved],
-                &[],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Shanghai,
-                OperandCostModel::DIRECT,
-            )
-            .unwrap();
-        assert_eq!(
-            plan.actions.iter().map(|action| action.op.clone()).collect::<Vec<_>>(),
-            [
-                ScheduledOp::PushImmediate(alloy_primitives::U256::from(256)),
-                ScheduledOp::PushImmediate(alloy_primitives::U256::from(32)),
-                ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO),
-                ScheduledOp::Stack(StackOp::Swap(4)),
-            ]
-        );
-        assert_eq!(scheduler.operand_search_stats.get().expansions, 0);
-
-        scheduler.apply_operand_plan(plan);
-        scheduler.instruction_executed(5, None);
-        assert_eq!(scheduler.stack.depth(), 0);
+                scheduler.apply_operand_plan(plan);
+                scheduler.instruction_executed(operands.len(), None);
+                if *retain {
+                    assert_eq!(scheduler.stack.as_slice(), &[Some(preserved)]);
+                } else {
+                    assert_eq!(scheduler.stack.depth(), 0);
+                }
+            }
+        }
     }
 
     #[test]
