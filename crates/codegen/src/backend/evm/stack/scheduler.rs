@@ -706,33 +706,33 @@ impl StackScheduler {
         preserved: &[ValueId],
         func: &Function,
     ) -> Option<OperandPlan> {
-        let mut stack = SearchStack::from_slice(self.stack.as_slice());
+        let mut stack = self.stack.clone();
         for action in &plan.actions {
             match action.op {
                 ScheduledOp::Stack(StackOp::Swap(depth)) => {
-                    let depth = usize::from(depth);
-                    if !(1..=MAX_STACK_ACCESS).contains(&depth) || depth >= stack.len() {
+                    if !(1..=MAX_STACK_ACCESS).contains(&usize::from(depth))
+                        || usize::from(depth) >= stack.depth()
+                    {
                         return None;
                     }
-                    stack.swap(0, depth);
+                    stack.swap(depth);
                 }
                 ScheduledOp::Stack(StackOp::Dup(depth)) => {
-                    let depth = usize::from(depth);
-                    if !(1..=MAX_STACK_ACCESS).contains(&depth) {
+                    if !(1..=MAX_STACK_ACCESS).contains(&usize::from(depth)) {
                         return None;
                     }
-                    let value = stack.get(depth - 1).copied().flatten()?;
+                    let value = stack.peek(usize::from(depth - 1))?;
                     if !goal.contains(&value) {
                         return None;
                     }
-                    stack.insert(0, Some(value));
+                    stack.dup(depth);
                 }
                 ScheduledOp::Stack(StackOp::Pop) => {
-                    let value = stack.first().copied().flatten()?;
-                    if !goal.contains(&value) && !stack[1..].contains(&Some(value)) {
+                    let value = stack.top()?;
+                    if !goal.contains(&value) && !stack.as_slice()[1..].contains(&Some(value)) {
                         return None;
                     }
-                    stack.remove(0);
+                    stack.pop();
                 }
                 ScheduledOp::PushImmediate(_)
                 | ScheduledOp::LoadSpill(_)
@@ -743,11 +743,11 @@ impl StackScheduler {
                     {
                         return None;
                     }
-                    stack.insert(0, Some(pushed));
+                    stack.push(pushed);
                 }
             }
         }
-        Self::operand_goal_reached_direct(&stack, goal, preserved).then_some(plan)
+        Self::operand_goal_reached_direct(stack.as_slice(), goal, preserved).then_some(plan)
     }
 
     fn operand_goal_reached_direct(
