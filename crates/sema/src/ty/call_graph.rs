@@ -1,6 +1,6 @@
 use super::{Gcx, TyFnKind, TyKind};
 use crate::hir::{self, Visit};
-use solar_data_structures::{Never, bit_set::DenseBitSet, index::IndexVec};
+use solar_data_structures::{BumpExt, Never, bit_set::DenseBitSet, index::IndexVec};
 use std::{collections::VecDeque, ops::ControlFlow};
 
 pub(super) struct CallGraph {
@@ -106,11 +106,9 @@ impl CallGraph {
             references.errors.union(&node.errors);
         }
 
-        let events = references.events.iter().collect::<Vec<_>>();
-        let errors = references.errors.iter().collect::<Vec<_>>();
         InterfaceItems {
-            events: gcx.bump().alloc_slice_copy(&events),
-            errors: gcx.bump().alloc_slice_copy(&errors),
+            events: gcx.bump().alloc_from_iter(references.events.iter()),
+            errors: gcx.bump().alloc_from_iter(references.errors.iter()),
         }
     }
 
