@@ -6,8 +6,9 @@ Convenience entrypoints live under `fuzz/bin/`:
 
 - `fuzz/bin/solsmith`: generates typed Solidity runtime harnesses.
 - `fuzz/bin/solreduce`: reduces a replayable runtime mismatch.
-- `fuzz/bin/solsymdiff`: searches one pure function for a bounded,
-  replay-confirmed Solc-vs-Solar runtime difference.
+- `fuzz/bin/solsymdiff`: automatically scans a contract's supported pure
+  function surface for bounded, replay-confirmed Solc-vs-Solar runtime
+  differences.
 
 See `fandango/` for the combined Fandango + Foundry fuzzing flow. Fandango
 and SolSmith generate ABI values and Solidity programs; Foundry's builtin
@@ -25,9 +26,11 @@ For the symbolic lane, start with:
 ```bash
 fuzz/bin/solsymdiff \
   --source path/to/Target.sol \
-  --contract Target \
-  --signature 'probe(uint256)'
+  --contract Target
 ```
 
 It requires `solc`, a symbolic-enabled `forge`, `anvil`, and Z3 on `PATH`.
-See `fandango/README.md` for bounds, result statuses, artifacts, and replay.
+Omit `--signature` for the automatic contract campaign; add
+`--signature 'probe(uint256)'` to focus one function. See
+`fandango/README.md` for supported scope, bounds, result statuses, artifacts,
+and replay.
