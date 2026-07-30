@@ -19,6 +19,126 @@ import evm_runtime as evm
 
 
 RESULT_SCHEMA = "solar:symbolic-differential@v1"
+CAMPAIGN_SCHEMA = "solar:symbolic-differential-campaign@v1"
+
+
+def function_inventory(
+    solc_artifact: dict[str, Any],
+    solar_artifact: dict[str, Any],
+) -> dict[str, list[dict[str, Any]]]:
+    """Inventory the shared runtime surface without silently intersecting ABIs."""
+    solc_functions, solc_errors = _collect_functions(
+        solc_artifact.get("abi"), "solc"
+    )
+    solar_functions, solar_errors = _collect_functions(
+        solar_artifact.get("abi"), "Solar"
+    )
+    solc_hashes, solc_hash_errors = _collect_method_identifiers(
+        solc_artifact.get(
+            "hashes", solc_artifact.get("method_identifiers", {})
+        ),
+        "solc",
+    )
+    solar_hashes, solar_hash_errors = _collect_method_identifiers(
+        solar_artifact.get(
+            "hashes", solar_artifact.get("method_identifiers", {})
+        ),
+        "Solar",
+    )
+    errors = solc_errors + solar_errors + solc_hash_errors + solar_hash_errors
+    eligible = []
+    excluded = []
+    for signature in sorted(set(solc_functions) | set(solar_functions)):
+        solc_entry = solc_functions.get(signature)
+        solar_entry = solar_functions.get(signature)
+        if solc_entry is None:
+            errors.append(
+                {
+                    "signature": signature,
+                    "compiler": "solc",
+                    "reason": "function is missing from the solc ABI",
+                }
+            )
+            continue
+        if solar_entry is None:
+            errors.append(
+                {
+                    "signature": signature,
+                    "compiler": "Solar",
+                    "reason": "function is missing from the Solar ABI",
+                }
+            )
+            continue
+        if _function_shape(solc_entry) != _function_shape(solar_entry):
+            errors.append(
+                {
+                    "signature": signature,
+                    "compiler": "both",
+                    "reason": "compiler ABI shapes disagree",
+                }
+            )
+            continue
+        if solc_entry.get("stateMutability") != "pure":
+            excluded.append(
+                {
+                    "signature": signature,
+                    "reason": "state mutability is not pure",
+                }
+            )
+            continue
+        if not _is_static_pure(solc_entry):
+            excluded.append(
+                {
+                    "signature": signature,
+                    "reason": "inputs or outputs are not statically sized",
+                }
+            )
+            continue
+        solc_selector = _inventory_selector(solc_hashes.get(signature))
+        solar_selector = _inventory_selector(solar_hashes.get(signature))
+        if solc_selector is None or solar_selector is None:
+            missing = []
+            if solc_selector is None:
+                missing.append("solc")
+            if solar_selector is None:
+                missing.append("Solar")
+            errors.append(
+                {
+                    "signature": signature,
+                    "compiler": " and ".join(missing),
+                    "reason": "method identifier is missing or invalid",
+                }
+            )
+            continue
+        if solc_selector != solar_selector:
+            errors.append(
+                {
+                    "signature": signature,
+                    "compiler": "both",
+                    "reason": (
+                        "compiler selectors disagree: "
+                        f"solc={solc_selector[2:]}, "
+                        f"solar={solar_selector[2:]}"
+                    ),
+                }
+            )
+            continue
+        eligible.append(
+            _selected_function(signature, solc_entry, solc_selector)
+        )
+
+    return {
+        "eligible": eligible,
+        "excluded": sorted(excluded, key=lambda item: item["signature"]),
+        "errors": sorted(
+            errors,
+            key=lambda item: (
+                item.get("signature") or "",
+                item.get("compiler") or "",
+                item["reason"],
+            ),
+        ),
+    }
 
 
 def select_function(
@@ -428,6 +548,147 @@ def solidity_parameter_declarations(types: list[str]) -> list[str]:
     return declarations
 
 
+def _collect_functions(
+    abi: Any, label: str
+) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
+    if not isinstance(abi, list):
+        return {}, [
+            {
+                "signature": None,
+                "compiler": label,
+                "reason": "ABI must be an array",
+            }
+        ]
+    functions = {}
+    errors = []
+    duplicate_signatures = set()
+    for index, entry in enumerate(abi):
+        if not isinstance(entry, dict):
+            errors.append(
+                {
+                    "signature": None,
+                    "compiler": label,
+                    "reason": f"ABI entry {index} must be an object",
+                }
+            )
+            continue
+        if entry.get("type") != "function":
+            continue
+        try:
+            _validate_function_entry(entry, label)
+            signature = _abi_signature(entry)
+        except ValueError as err:
+            errors.append(
+                {
+                    "signature": _best_effort_signature(entry),
+                    "compiler": label,
+                    "reason": f"ABI entry {index}: {err}",
+                }
+            )
+            continue
+        if signature in functions or signature in duplicate_signatures:
+            duplicate_signatures.add(signature)
+            functions.pop(signature, None)
+            errors.append(
+                {
+                    "signature": signature,
+                    "compiler": label,
+                    "reason": "ABI contains duplicate function signatures",
+                }
+            )
+            continue
+        functions[signature] = entry
+    return functions, errors
+
+
+def _collect_method_identifiers(
+    identifiers: Any, label: str
+) -> tuple[dict[str, str], list[dict[str, Any]]]:
+    if not isinstance(identifiers, dict):
+        return {}, [
+            {
+                "signature": None,
+                "compiler": label,
+                "reason": "method identifiers must be an object",
+            }
+        ]
+    valid = {}
+    errors = []
+    for signature, selector in identifiers.items():
+        if not isinstance(signature, str) or not isinstance(selector, str):
+            errors.append(
+                {
+                    "signature": signature if isinstance(signature, str) else None,
+                    "compiler": label,
+                    "reason": "method identifier must map strings to strings",
+                }
+            )
+            continue
+        valid[signature] = selector
+    return valid, errors
+
+
+def _validate_function_entry(entry: dict[str, Any], label: str) -> None:
+    if not isinstance(entry.get("name"), str) or not entry["name"]:
+        raise ValueError(f"{label} ABI function name must be non-empty text")
+    if not isinstance(entry.get("stateMutability"), str):
+        raise ValueError(f"{label} ABI function stateMutability must be text")
+    for field in ("inputs", "outputs"):
+        values = entry.get(field)
+        if not isinstance(values, list) or not all(
+            isinstance(value, dict) for value in values
+        ):
+            raise ValueError(f"{label} ABI function {field} must be an array")
+        for value in values:
+            _validate_abi_value(value, label)
+
+
+def _best_effort_signature(entry: dict[str, Any]) -> str | None:
+    name = entry.get("name")
+    inputs = entry.get("inputs")
+    if (
+        not isinstance(name, str)
+        or not name
+        or not isinstance(inputs, list)
+        or not all(
+            isinstance(value, dict) and isinstance(value.get("type"), str)
+            for value in inputs
+        )
+    ):
+        return None
+    try:
+        return _abi_signature(entry)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _inventory_selector(selector: str | None) -> str | None:
+    if not isinstance(selector, str):
+        return None
+    payload = selector.removeprefix("0x").lower()
+    if len(payload) != 8:
+        return None
+    try:
+        int(payload, 16)
+    except ValueError:
+        return None
+    return "0x" + payload
+
+
+def _selected_function(
+    signature: str, entry: dict[str, Any], selector: str
+) -> dict[str, Any]:
+    return {
+        "name": entry["name"],
+        "signature": signature,
+        "selector": selector,
+        "inputs": [item["type"] for item in entry.get("inputs", [])],
+        "outputs": [item["type"] for item in entry.get("outputs", [])],
+        "test": f"checkDiff_{selector[2:]}",
+        "abi": entry,
+    }
+
+
 def _abi_signature(entry: dict[str, Any]) -> str:
     inputs = ",".join(_canonical_type(item) for item in entry.get("inputs", []))
     return f"{entry.get('name', '')}({inputs})"
@@ -439,14 +700,7 @@ def _validate_abi(abi: Any, label: str) -> None:
     for entry in abi:
         if entry.get("type") != "function":
             continue
-        for field in ("inputs", "outputs"):
-            values = entry.get(field, [])
-            if not isinstance(values, list) or not all(
-                isinstance(value, dict) for value in values
-            ):
-                raise ValueError(f"{label} ABI function {field} must be an array")
-            for value in values:
-                _validate_abi_value(value, label)
+        _validate_function_entry(entry, label)
 
 
 def _validate_method_identifiers(identifiers: Any, label: str) -> None:

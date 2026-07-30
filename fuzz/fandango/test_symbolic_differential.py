@@ -842,6 +842,128 @@ class StaticFunctionSelectionTests(unittest.TestCase):
             symbolic.select_function(solc, solar, "missing(uint256)")
 
 
+class FunctionInventoryTests(unittest.TestCase):
+    @staticmethod
+    def _function(
+        name: str,
+        *,
+        mutability: str = "pure",
+        input_type: str = "uint256",
+        output_type: str = "uint256",
+    ) -> dict[str, object]:
+        return {
+            "type": "function",
+            "name": name,
+            "stateMutability": mutability,
+            "inputs": [{"name": "value", "type": input_type}],
+            "outputs": [{"name": "result", "type": output_type}],
+        }
+
+    def test_inventory_is_deterministic_and_lists_unsupported_functions(self):
+        functions = [
+            self._function("zeta"),
+            self._function("dynamic", input_type="bytes"),
+            self._function("observed", mutability="view"),
+            self._function("alpha"),
+        ]
+        solc = {
+            "abi": functions,
+            "hashes": {
+                "zeta(uint256)": "00000004",
+                "dynamic(bytes)": "00000002",
+                "observed(uint256)": "00000003",
+                "alpha(uint256)": "00000001",
+            },
+        }
+        solar = copy.deepcopy(solc)
+
+        inventory = symbolic.function_inventory(solc, solar)
+
+        self.assertEqual(
+            [item["signature"] for item in inventory["eligible"]],
+            ["alpha(uint256)", "zeta(uint256)"],
+        )
+        self.assertEqual(
+            [item["signature"] for item in inventory["excluded"]],
+            ["dynamic(bytes)", "observed(uint256)"],
+        )
+        self.assertEqual(inventory["errors"], [])
+
+    def test_inventory_reports_union_disagreements_without_hiding_valid_siblings(self):
+        shared = self._function("shared")
+        missing = self._function("missing")
+        shaped = self._function("shaped")
+        selector = self._function("selector")
+        solc = {
+            "abi": [shared, missing, shaped, selector],
+            "hashes": {
+                "shared(uint256)": "00000001",
+                "missing(uint256)": "00000002",
+                "shaped(uint256)": "00000003",
+                "selector(uint256)": "00000004",
+            },
+        }
+        solar = copy.deepcopy(solc)
+        solar["abi"] = [
+            copy.deepcopy(shared),
+            self._function("shaped", output_type="bytes32"),
+            copy.deepcopy(selector),
+        ]
+        solar["hashes"].pop("missing(uint256)")
+        solar["hashes"]["selector(uint256)"] = "ffffffff"
+
+        inventory = symbolic.function_inventory(solc, solar)
+
+        self.assertEqual(
+            [item["signature"] for item in inventory["eligible"]],
+            ["shared(uint256)"],
+        )
+        self.assertEqual(
+            [item["signature"] for item in inventory["errors"]],
+            [
+                "missing(uint256)",
+                "selector(uint256)",
+                "shaped(uint256)",
+            ],
+        )
+
+    def test_malformed_entries_and_identifiers_do_not_suppress_valid_siblings(self):
+        solc = {
+            "abi": [
+                self._function("shared"),
+                {
+                    "type": "function",
+                    "name": "broken",
+                    "stateMutability": "pure",
+                    "inputs": "not-an-array",
+                    "outputs": [],
+                },
+            ],
+            "hashes": {
+                "shared(uint256)": "00000001",
+                "broken(uint256)": 7,
+            },
+        }
+        solar = {
+            "abi": [self._function("shared")],
+            "hashes": {"shared(uint256)": "00000001"},
+        }
+
+        inventory = symbolic.function_inventory(solc, solar)
+
+        self.assertEqual(
+            [item["signature"] for item in inventory["eligible"]],
+            ["shared(uint256)"],
+        )
+        self.assertEqual(len(inventory["errors"]), 2)
+        self.assertTrue(
+            any("inputs" in item["reason"] for item in inventory["errors"])
+        )
+        self.assertTrue(
+            any("strings" in item["reason"] for item in inventory["errors"])
+        )
+
+
 class TargetCalldataTests(unittest.TestCase):
     def test_replaces_only_the_wrapper_selector(self):
         wrapper_calldata = (
