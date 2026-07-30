@@ -2021,6 +2021,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn preallocate_cross_block_spills(&mut self, func: &Function, liveness: &Liveness) {
         let values = Self::cross_block_spill_values(func, liveness);
 
+        // Coloring minimizes the local frame, which reduces memory expansion in gas mode. It is
+        // deliberately disabled in size mode because renumbering spill addresses disturbed
+        // downstream block sharing and regressed aggregate CI bytecode despite smaller frames.
         if self.gcx.sess.opts.optimization.is_gas() {
             let colorable = Self::cross_block_live_values(func, liveness);
             let ranges = Self::spill_live_ranges(func, liveness, &colorable);
