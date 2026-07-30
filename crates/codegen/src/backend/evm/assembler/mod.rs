@@ -362,22 +362,9 @@ impl<'gcx> Assembler<'gcx> {
 
         if self.program_is_finalized {
             self.program_is_finalized = false;
+            debug_assert!(self.indexed_jump_relocations.is_empty());
         } else {
-            Self::finalize_evm_ir(&mut module);
-        }
-        for (block, targets) in self.indexed_jump_relocations.drain(..) {
-            let targets = targets
-                .into_iter()
-                .map(|label| {
-                    self.label_blocks
-                        .get(&label)
-                        .copied()
-                        .unwrap_or_else(|| panic!("label {label:?} was never defined"))
-                })
-                .collect::<Vec<_>>()
-                .into_boxed_slice();
-            module.blocks[block].terminator =
-                Some(ir::Terminator::new(ir::TerminatorKind::IndexedJump(targets)));
+            self.finalize_evm_ir(&mut module);
         }
 
         self.label_blocks.clear();
@@ -386,7 +373,7 @@ impl<'gcx> Assembler<'gcx> {
         Some((module, std::mem::take(&mut self.block_labels)))
     }
 
-    fn finalize_evm_ir(module: &mut ir::Module) {
+    fn finalize_evm_ir(&mut self, module: &mut ir::Module) {
         for block_id in module.blocks.indices() {
             let next = (block_id.index() + 1 < module.blocks.len())
                 .then(|| ir::BlockId::from_usize(block_id.index() + 1));
@@ -413,6 +400,21 @@ impl<'gcx> Assembler<'gcx> {
             };
             block.instructions.truncate(block.instructions.len() - remove);
             block.terminator = Some(ir::Terminator::new(kind));
+        }
+
+        for (block, targets) in self.indexed_jump_relocations.drain(..) {
+            let targets = targets
+                .into_iter()
+                .map(|label| {
+                    self.label_blocks
+                        .get(&label)
+                        .copied()
+                        .unwrap_or_else(|| panic!("label {label:?} was never defined"))
+                })
+                .collect::<Vec<_>>()
+                .into_boxed_slice();
+            module.blocks[block].terminator =
+                Some(ir::Terminator::new(ir::TerminatorKind::IndexedJump(targets)));
         }
     }
 
