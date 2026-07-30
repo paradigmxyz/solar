@@ -260,7 +260,13 @@ pub(crate) fn display_function_text<'a>(
                 write!(f, "({})", func.returns.iter().format(", "))?;
             }
         }
-        if let Some(layout) = &func.abi_returns {
+        if func.attributes.is_dispatch_entry {
+            write!(f, " [entry")?;
+            if let Some(layout) = &func.abi_returns {
+                write!(f, ", abi_returns={layout}")?;
+            }
+            write!(f, "]")?;
+        } else if let Some(layout) = &func.abi_returns {
             write!(f, " [abi_returns={layout}]")?;
         }
         writeln!(f, " {{")?;

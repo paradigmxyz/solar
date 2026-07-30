@@ -1332,7 +1332,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let Some((entry_id, _)) = module
             .functions
             .iter_enumerated()
-            .find(|(_, f)| f.selector.is_none() && f.name.symbol == sym::entry)
+            .find(|(_, f)| f.attributes.is_dispatch_entry)
         else {
             assert!(
                 !module.functions.iter().any(Self::is_external_entry),

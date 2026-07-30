@@ -153,6 +153,7 @@ impl LowerDispatchCx {
         let needs_short_calldata_guard = routes.iter().any(|(selector, _)| selector & 0xff == 0);
 
         let mut entry = Function::new(Ident::with_dummy_span(sym::entry));
+        entry.attributes.is_dispatch_entry = true;
         {
             let mut builder = FunctionBuilder::new(&mut entry);
 
