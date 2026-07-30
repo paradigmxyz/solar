@@ -14,16 +14,14 @@ fn @emitArray(arg0: u256, arg1: u256) {
     mstore v4, arg0
     v5 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 1
     mstore v5, arg1
-    v6 = fmp
-    v7 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 0
-    v8 = mload v7
-    mstore v6, v8
-    v9 = add v6, 32
-    v10 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 1
-    v11 = mload v10
-    mstore v9, v11
-    v12 = add v9, 32
-    log1 v6, 64, 0x625921711aa49386aa5b640487cbc3efdcbda2656254ae2c5ad71b2ede1efcf4
+    v6 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 0
+    v7 = mload v6
+    mstore 0, v7 !metadata(memory=scratch)
+    v8 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 1
+    v9 = mload v8
+    mstore 32, v9 !metadata(memory=scratch)
+    v10 = add 32, 32
+    log1 0, 64, 0x625921711aa49386aa5b640487cbc3efdcbda2656254ae2c5ad71b2ede1efcf4
     stop
 }
 
@@ -43,9 +41,8 @@ fn @emitAnonymous(arg0: address, arg1: u256) {
   bb3:
     revert 0, 0
   bb4:
-    v6 = fmp
-    mstore v6, arg1
-    log1 v6, 32, arg0
+    mstore 0, arg1 !metadata(memory=scratch)
+    log1 0, 32, arg0
     stop
 }
 
@@ -82,11 +79,9 @@ fn @emitIndexedFixedBytes() {
 
 fn @emitNamed() {
   bb0:
-    v0 = fmp
-    mstore v0, 1
-    v1 = add v0, 32
-    mstore v1, 2
-    log1 v0, 64, 0x7d268c864ab74dc3ecd16b07321ad677da79fbcb3fd2c22d5bfe5d4b81c67d23
+    mstore 0, 1 !metadata(memory=scratch)
+    mstore 32, 2 !metadata(memory=scratch)
+    log1 0, 64, 0x7d268c864ab74dc3ecd16b07321ad677da79fbcb3fd2c22d5bfe5d4b81c67d23
     stop
 }
 
