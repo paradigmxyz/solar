@@ -156,13 +156,14 @@
 //! ## Correctness boundaries
 //!
 //! A plan never mutates the live model while it is being searched. The selected
-//! action list is replayed once, emitted once, and followed by the instruction's
-//! declared stack effect. Anonymous words are not treated as interchangeable
-//! MIR values, and failed bounded local searches fall back to the established
-//! emitter. Complete edge shuffles require an exact final layout. Lowering checks
-//! that an edge is preparable before attempting it, and the shuffler changes the
-//! live model only after finding and validating that layout. A bounded failure
-//! therefore falls back to conservative spill/reload lowering.
+//! action list is validated once on scratch state, applied once to the live
+//! model, emitted once, and followed by the instruction's declared stack effect.
+//! Anonymous words are not treated as interchangeable MIR values, and failed
+//! bounded local searches fall back to the established emitter. Complete edge
+//! shuffles require an exact final layout. Lowering checks that an edge is
+//! preparable before attempting it, and the shuffler changes the live model only
+//! after finding and validating that layout. A bounded failure therefore falls
+//! back to conservative spill/reload lowering.
 //! The edge shuffler stops adding states at its cap but drains states that were already queued, so
 //! reaching the cap cannot hide an already-discovered target.
 //!
