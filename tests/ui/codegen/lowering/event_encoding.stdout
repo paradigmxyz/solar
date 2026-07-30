@@ -80,3 +80,12 @@ fn @emitIndexedFixedBytes() {
     stop
 }
 
+fn @emitNamed() {
+  bb0:
+    v0 = fmp
+    mstore v0, 1
+    v1 = add v0, 32
+    mstore v1, 2
+    log1 v0, 64, 0x7d268c864ab74dc3ecd16b07321ad677da79fbcb3fd2c22d5bfe5d4b81c67d23
+    stop
+}

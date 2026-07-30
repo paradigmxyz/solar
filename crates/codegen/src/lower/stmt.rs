@@ -11,7 +11,7 @@ use solar_interface::{Span, diagnostics::ErrorGuaranteed, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, ElementaryType, ExprKind, StmtKind},
-    ty::{Ty, TyKind},
+    ty::{CallableParamSource, Ty, TyKind},
 };
 
 impl<'gcx> Lowerer<'gcx> {
@@ -945,6 +945,11 @@ impl<'gcx> Lowerer<'gcx> {
         };
 
         let event = self.gcx.hir.event(event_id);
+        let arg_exprs =
+            match self.ordered_args_for(args, Some(CallableParamSource::Event(event_id))) {
+                Ok(exprs) => exprs,
+                Err(_) => return,
+            };
 
         // Collect indexed parameters (additional topics) and non-indexed (data).
         let mut topics = Vec::new();
@@ -954,7 +959,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let mut data_items = Vec::new();
 
-        let mut arg_exprs = args.exprs();
+        let mut arg_exprs = arg_exprs.into_iter();
         for param_id in event.parameters {
             let param = self.gcx.hir.variable(*param_id);
             let Some(arg) = arg_exprs.next() else { continue };

@@ -2,6 +2,9 @@
 //@ run-call: Caller::highLevelGas() => true
 //@ run-call: Caller::viewUsesStaticcall() => true
 //@ run-call: Caller::namedArguments() => 12
+//@ run-call: Caller::internalNamedArguments() => 12
+//@ run-call: Caller::libraryNamedArguments() => 12
+//@ run-call: Caller::structNamedArguments() => 12
 //@ run-call: Caller::attachedStorageReceiver() => 7
 //@ run-call-fail: Caller::failedCreation() => 0xdeadbeef
 
@@ -35,6 +38,17 @@ contract FailingConstructor {
             mstore(0, shl(224, 0xdeadbeef))
             revert(0, 4)
         }
+    }
+}
+
+struct NamedPair {
+    uint256 a;
+    uint256 b;
+}
+
+library NamedCallLib {
+    function ordered(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a * 10 + b;
     }
 }
 
@@ -81,6 +95,23 @@ contract Caller {
 
     function namedArguments() external view returns (uint256) {
         return target.ordered({b: 2, a: 1});
+    }
+
+    function orderedInternal(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a * 10 + b;
+    }
+
+    function internalNamedArguments() external pure returns (uint256) {
+        return orderedInternal({b: 2, a: 1});
+    }
+
+    function libraryNamedArguments() external pure returns (uint256) {
+        return NamedCallLib.ordered({b: 2, a: 1});
+    }
+
+    function structNamedArguments() external pure returns (uint256) {
+        NamedPair memory pair = NamedPair({b: 2, a: 1});
+        return pair.a * 10 + pair.b;
     }
 
     function attachedStorageReceiver() external returns (uint256) {

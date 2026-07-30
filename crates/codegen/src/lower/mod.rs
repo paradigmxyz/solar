@@ -35,7 +35,7 @@ use solar_interface::{
 };
 use solar_sema::{
     hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId, Visit},
-    ty::{Gcx, Ty, TyKind},
+    ty::{CallableParamSource, Gcx, Ty, TyKind},
 };
 use std::{collections::hash_map::Entry, ops::ControlFlow};
 
@@ -1717,7 +1717,11 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         let mut arg_values = SmallVec::new();
-        for (&param_id, argument) in parameters.iter().zip(modifier.args.exprs()) {
+        let arguments = self.ordered_args_for(
+            &modifier.args,
+            Some(CallableParamSource::Function { id: ctor_id, skips_receiver: false }),
+        )?;
+        for (&param_id, argument) in parameters.iter().zip(arguments) {
             let param = self.gcx.hir.variable(param_id);
             let value = self.lower_constructor_arg(builder, argument, &param.ty);
             self.locals.insert(param_id, value);

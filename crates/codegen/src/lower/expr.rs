@@ -14,7 +14,7 @@ use solar_interface::{Ident, Span, diagnostics::ErrorGuaranteed, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
-    ty::{Ty, TyKind},
+    ty::{CallableParamSource, Ty, TyKind},
 };
 
 pub(super) struct MappingElementSlot {
@@ -2257,9 +2257,14 @@ impl<'gcx> Lowerer<'gcx> {
         let struct_ptr =
             self.allocate_memory_object(builder, struct_size, crate::mir::MemoryObjectKind::Struct);
         let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        let arg_exprs =
+            match self.ordered_args_for(args, Some(CallableParamSource::Struct(struct_id))) {
+                Ok(exprs) => exprs,
+                Err(guar) => return builder.error_value(guar),
+            };
 
         // Store each argument into the corresponding field
-        for (i, arg) in args.exprs().enumerate() {
+        for (i, arg) in arg_exprs.into_iter().enumerate() {
             if i >= num_fields {
                 break;
             }

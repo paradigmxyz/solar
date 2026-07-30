@@ -223,15 +223,15 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    pub(super) fn ordered_call_args<'hir>(
+    pub(super) fn ordered_args_for<'hir>(
         &self,
-        callee: &hir::Expr<'hir>,
         args: &CallArgs<'hir>,
+        source: Option<CallableParamSource>,
     ) -> Result<Vec<&'hir hir::Expr<'hir>>, ErrorGuaranteed> {
         let parameter_names = match args.kind {
             hir::CallArgsKind::Unnamed(_) => None,
             hir::CallArgsKind::Named(_) => {
-                let Some(func_id) = self.resolved_function_callee(callee) else {
+                let Some(source) = source else {
                     return Err(self
                         .gcx
                         .dcx()
@@ -239,11 +239,7 @@ impl<'gcx> Lowerer<'gcx> {
                         .span(args.span)
                         .emit());
                 };
-                let func = self.gcx.hir.function(func_id);
-                Some(self.gcx.callable_param_names(CallableParamSource::Function {
-                    id: func_id,
-                    skips_receiver: func.parameters.len() == args.len() + 1,
-                }))
+                Some(self.gcx.callable_param_names(source))
             }
         };
         (0..args.len())
@@ -256,6 +252,26 @@ impl<'gcx> Lowerer<'gcx> {
                     .span(args.span)
                     .emit()
             })
+    }
+
+    pub(super) fn ordered_call_args<'hir>(
+        &self,
+        callee: &hir::Expr<'hir>,
+        args: &CallArgs<'hir>,
+    ) -> Result<Vec<&'hir hir::Expr<'hir>>, ErrorGuaranteed> {
+        self.ordered_args_for(args, self.gcx.call_param_source(callee))
+    }
+
+    fn ordered_function_args<'hir>(
+        &self,
+        func_id: hir::FunctionId,
+        args: &CallArgs<'hir>,
+        skips_receiver: bool,
+    ) -> Result<Vec<&'hir hir::Expr<'hir>>, ErrorGuaranteed> {
+        self.ordered_args_for(
+            args,
+            Some(CallableParamSource::Function { id: func_id, skips_receiver }),
+        )
     }
 
     pub(super) fn builtin_args<'hir, const N: usize>(
@@ -336,8 +352,12 @@ impl<'gcx> Lowerer<'gcx> {
         function: &'gcx TyFn<'gcx>,
     ) -> Option<ValueId> {
         let function_value = self.lower_value_expr(builder, callee);
-        let mut arg_values = args
-            .exprs()
+        let arg_exprs = match self.ordered_call_args(callee, args) {
+            Ok(exprs) => exprs,
+            Err(guar) => return self.call_error_result(builder, callee, guar),
+        };
+        let mut arg_values = arg_exprs
+            .into_iter()
             .enumerate()
             .map(|(index, arg)| {
                 let parameter = function.parameters.get(index).copied();
@@ -533,7 +553,13 @@ impl<'gcx> Lowerer<'gcx> {
         let address_shift = builder.imm_u64(32);
         let address = builder.shr(address_shift, function_value);
 
-        let arg_exprs: Vec<_> = args.exprs().collect();
+        let arg_exprs = match self.ordered_call_args(callee, args) {
+            Ok(exprs) => exprs,
+            Err(guar) => {
+                let error = builder.error_value(guar);
+                return (error, error);
+            }
+        };
         let (calldata_start, calldata_size) = match self.abi_encode_call_payload(
             builder,
             Some(selector_word),
@@ -652,7 +678,11 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
     ) {
         let param_tys = self.gcx.item_parameter_types(hir::ItemId::Error(error_id));
-        let arg_exprs = self.ordered_custom_error_args(error_id, args);
+        let arg_exprs =
+            match self.ordered_args_for(args, Some(CallableParamSource::Error(error_id))) {
+                Ok(exprs) => exprs,
+                Err(_) => return,
+            };
         let mut items = Vec::with_capacity(param_tys.len());
         for (&ty, arg) in param_tys.iter().zip(arg_exprs) {
             let value = self.lower_return_value_for_ty(builder, arg, ty);
@@ -661,31 +691,6 @@ impl<'gcx> Lowerer<'gcx> {
 
         let selector = self.custom_error_selector(error_id);
         self.emit_abi_error_revert(builder, selector, &items);
-    }
-
-    fn ordered_custom_error_args<'a>(
-        &self,
-        error_id: hir::ErrorId,
-        args: &'a CallArgs<'a>,
-    ) -> Vec<&'a hir::Expr<'a>> {
-        match args.kind {
-            hir::CallArgsKind::Unnamed(exprs) => exprs.iter().collect(),
-            hir::CallArgsKind::Named(named_args) => {
-                let error = self.gcx.hir.error(error_id);
-                let mut ordered = Vec::with_capacity(error.parameters.len());
-                for &param_id in error.parameters {
-                    let Some(param_name) =
-                        self.gcx.hir.variable(param_id).name.map(|name| name.name)
-                    else {
-                        continue;
-                    };
-                    if let Some(arg) = named_args.iter().find(|arg| arg.name.name == param_name) {
-                        ordered.push(&arg.value);
-                    }
-                }
-                ordered
-            }
-        }
     }
 
     fn custom_error_selector(&self, error_id: hir::ErrorId) -> [u8; 4] {
@@ -788,6 +793,17 @@ impl<'gcx> Lowerer<'gcx> {
                 );
             }
         };
+        let arg_exprs = match self.ordered_args_for(
+            args,
+            self.gcx
+                .hir
+                .contract(contract_id)
+                .ctor
+                .map(|id| CallableParamSource::Function { id, skips_receiver: false }),
+        ) {
+            Ok(exprs) => exprs,
+            Err(guar) => return builder.error_value(guar),
+        };
 
         // Look up pre-compiled bytecode
         let bytecode = match self.contract_bytecodes.get(&contract_id) {
@@ -846,7 +862,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Append constructor arguments after bytecode
         let mut args_offset = bytecode_len as u64;
-        for arg in args.exprs() {
+        for arg in arg_exprs {
             let arg_val = self.lower_value_expr(builder, arg);
             let arg_offset_imm = builder.imm_u64(args_offset);
             let arg_dest = builder.add(mem_offset, arg_offset_imm);
@@ -1354,7 +1370,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         // `Base.f(...)` and `super.f(...)` are exact internal calls.
         if let Some(func_id) = self.resolved_exact_function_callee(base, callee) {
-            return self.lower_resolved_internal_call(builder, func_id, args);
+            return self.lower_resolved_internal_call(builder, func_id, func_id, args);
         }
 
         // Handle address payable transfer/send builtins
@@ -1815,14 +1831,16 @@ impl<'gcx> Lowerer<'gcx> {
         func_id: hir::FunctionId,
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
+        let argument_source = func_id;
         let func_id = self.resolve_virtual_function_target(func_id);
-        self.lower_resolved_internal_call(builder, func_id, args)
+        self.lower_resolved_internal_call(builder, func_id, argument_source, args)
     }
 
     fn lower_resolved_internal_call(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         func_id: hir::FunctionId,
+        argument_source: hir::FunctionId,
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
         let func = self.gcx.hir.function(func_id);
@@ -1832,8 +1850,14 @@ impl<'gcx> Lowerer<'gcx> {
         // its storage slot rather than as a value — lowering it as a value would
         // `sload` the slot and pass the wrong thing.
         let params = func.parameters;
-        let arg_vals: Vec<ValueId> = args
-            .exprs()
+        let arg_exprs = match self.ordered_function_args(argument_source, args, false) {
+            Ok(exprs) => exprs,
+            Err(guar) => {
+                return (!func.returns.is_empty()).then(|| builder.error_value(guar));
+            }
+        };
+        let arg_vals: Vec<ValueId> = arg_exprs
+            .into_iter()
             .enumerate()
             .map(|(i, arg)| {
                 if params.get(i).is_some_and(|&p| self.param_is_storage_ref(p))
@@ -2252,7 +2276,7 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         func_id: hir::FunctionId,
-        args: &CallArgs<'_>,
+        args: &[&hir::Expr<'_>],
         lib_addr: U256,
     ) -> Option<ValueId> {
         let func = self.gcx.hir.function(func_id);
@@ -2267,7 +2291,7 @@ impl<'gcx> Lowerer<'gcx> {
         let mut arg_vals = Vec::with_capacity(args.len());
         let mut arg_slots = Vec::with_capacity(args.len());
         let mut arg_structs = Vec::with_capacity(args.len());
-        for (i, arg) in args.exprs().enumerate() {
+        for (i, &arg) in args.iter().enumerate() {
             let is_storage_ref = params.get(i).is_some_and(|&p| self.param_is_storage_ref(p));
             if is_storage_ref {
                 let slot = self.lower_lvalue_slot(builder, arg).unwrap_or_else(|| {
@@ -2418,6 +2442,12 @@ impl<'gcx> Lowerer<'gcx> {
         bound_arg: Option<ValueId>,
     ) -> Option<ValueId> {
         let func = self.gcx.hir.function(func_id);
+        let arg_exprs = match self.ordered_function_args(func_id, args, bound_arg.is_some()) {
+            Ok(exprs) => exprs,
+            Err(guar) => {
+                return (!func.returns.is_empty()).then(|| builder.error_value(guar));
+            }
+        };
 
         // A `public`/`external` function of a library with a linked address
         // (`--libraries Name=0xADDR`) is called through DELEGATECALL, matching
@@ -2427,7 +2457,7 @@ impl<'gcx> Lowerer<'gcx> {
             && self.linked_library_args_supported(func_id)
             && let Some(lib_addr) = self.linked_library_address(func_id)
         {
-            return self.lower_linked_library_call(builder, func_id, args, lib_addr);
+            return self.lower_linked_library_call(builder, func_id, &arg_exprs, lib_addr);
         }
 
         // An unlinked library body is emitted as an internal function in the
@@ -2447,7 +2477,7 @@ impl<'gcx> Lowerer<'gcx> {
             // such an argument is lowered to its storage slot rather than as a
             // value — lowering it as a value would `sload` the slot and pass the
             // wrong thing.
-            for (i, arg) in args.exprs().enumerate() {
+            for (i, &arg) in arg_exprs.iter().enumerate() {
                 let param_idx = i + bound_offset;
                 if func.parameters.get(param_idx).is_some_and(|&p| self.param_is_storage_ref(p))
                     && let Some(slot) = self.lower_lvalue_slot(builder, arg)
