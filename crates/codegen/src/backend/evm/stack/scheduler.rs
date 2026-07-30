@@ -112,7 +112,8 @@ const MAX_OPERAND_SEARCH_RETAINED_BYTES: usize = 2 * 1024 * 1024;
 
 type PlannedActions = SmallVec<[PlannedAction; 8]>;
 // Keep the 17-word `SWAP16` window plus a ternary's three pushes inline.
-type SearchStack = SmallVec<[Option<ValueId>; 20]>;
+const SEARCH_STACK_INLINE_CAPACITY: usize = MAX_STACK_ACCESS + 4;
+type SearchStack = SmallVec<[Option<ValueId>; SEARCH_STACK_INLINE_CAPACITY]>;
 
 /// Tracks physical stack state and plans operand preparation.
 pub(crate) struct StackScheduler {
@@ -556,7 +557,7 @@ impl StackScheduler {
             state: 0,
             actions: 0,
         });
-        let mut retained_bytes = Self::operand_search_state_bytes(states[0].stack.len());
+        let mut retained_bytes = Self::operand_search_state_bytes(&states[0].stack);
         let mut max_visited = visited.len();
         let mut max_open = queue.len();
 
@@ -605,7 +606,7 @@ impl StackScheduler {
                 let _ = Self::apply_planned_stack_action(&mut next_stack, &action);
                 let next_cost = cost.with_op(&action.op, evm_version, cost_model);
                 let key = next_cost.key(optimization);
-                let state_bytes = Self::operand_search_state_bytes(next_stack.len());
+                let state_bytes = Self::operand_search_state_bytes(&next_stack);
                 let next_stack = match visited.entry(next_stack) {
                     StdEntry::Occupied(mut entry) => {
                         if *entry.get() <= key {
@@ -1314,9 +1315,12 @@ impl StackScheduler {
         OperandPlan { actions, cost }
     }
 
-    fn operand_search_state_bytes(stack_len: usize) -> usize {
-        let heap_stack_bytes =
-            stack_len.saturating_sub(24).saturating_mul(size_of::<Option<ValueId>>());
+    fn operand_search_state_bytes(stack: &SearchStack) -> usize {
+        let heap_stack_bytes = if stack.spilled() {
+            stack.capacity().saturating_mul(size_of::<Option<ValueId>>())
+        } else {
+            0
+        };
         size_of::<OperandSearchState>()
             .saturating_add(size_of::<SearchStack>())
             .saturating_add(size_of::<OperandSearchQueueEntry>())
@@ -2431,6 +2435,23 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn operand_search_byte_budget_counts_spilled_stacks() {
+        let inline = SearchStack::new();
+        let base_bytes = size_of::<OperandSearchState>()
+            + size_of::<SearchStack>()
+            + size_of::<OperandSearchQueueEntry>();
+        assert_eq!(StackScheduler::operand_search_state_bytes(&inline), base_bytes);
+
+        let mut spilled = SearchStack::new();
+        spilled.resize(SEARCH_STACK_INLINE_CAPACITY + 1, None);
+        assert!(spilled.spilled());
+        assert_eq!(
+            StackScheduler::operand_search_state_bytes(&spilled),
+            base_bytes + 2 * spilled.capacity() * size_of::<Option<ValueId>>()
+        );
     }
 
     #[test]
