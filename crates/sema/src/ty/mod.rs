@@ -1325,6 +1325,84 @@ impl<'gcx> Gcx<'gcx> {
         let loc = ty.loc().unwrap_or(DataLocation::Storage);
         using_directive_ty_matches(ty, using_ty.with_loc_if_ref(self, loc))
     }
+
+    /// Resolves a virtual function in the context of the most-derived contract.
+    pub fn resolve_virtual_function(
+        self,
+        contract: hir::ContractId,
+        function: hir::FunctionId,
+    ) -> hir::FunctionId {
+        let f = self.hir.function(function);
+        if !f.virtual_ || f.contract == Some(contract) {
+            return function;
+        }
+        self.virtual_function_target((contract, function))
+    }
+
+    /// Resolves a `super` function call in the context of the most-derived contract.
+    pub fn resolve_super_function(
+        self,
+        contract: hir::ContractId,
+        defining_contract: hir::ContractId,
+        function: hir::FunctionId,
+    ) -> hir::FunctionId {
+        self.super_function_target((contract, defining_contract, function))
+    }
+
+    /// Returns all events included in the external interface of the given contract.
+    pub fn interface_events(self, id: hir::ContractId) -> &'gcx [hir::EventId] {
+        let items = self.interface_items(id);
+        let mut events = DenseBitSet::new_empty(self.hir.event_ids().count());
+        for item in self.hir.contract_item_ids(id) {
+            if let hir::ItemId::Event(event) = item {
+                events.insert(event);
+            }
+        }
+        for &event in items.creation.events.iter().chain(items.deployed.events) {
+            events.insert(event);
+        }
+        self.bump().alloc_from_iter(events.iter())
+    }
+
+    /// Returns all errors included in the external interface of the given contract.
+    pub fn interface_errors(self, id: hir::ContractId) -> &'gcx [hir::ErrorId] {
+        let items = self.interface_items(id);
+        let mut errors = DenseBitSet::new_empty(self.hir.error_ids().count());
+        for item in self.hir.contract_item_ids(id) {
+            if let hir::ItemId::Error(error) = item {
+                errors.insert(error);
+            }
+        }
+        for &error in items.creation.errors.iter().chain(items.deployed.errors) {
+            errors.insert(error);
+        }
+        self.bump().alloc_from_iter(errors.iter())
+    }
+
+    /// Returns the functions reachable during contract creation or at runtime.
+    pub fn contract_reachable_functions(self, id: hir::ContractId) -> &'gcx [hir::FunctionId] {
+        let items = self.interface_items(id);
+        let mut functions = DenseBitSet::new_empty(self.hir.function_ids().count());
+        for &function in items.creation.functions.iter().chain(items.deployed.functions) {
+            functions.insert(function);
+        }
+        self.bump().alloc_from_iter(functions.iter())
+    }
+
+    /// Returns the contracts whose bytecode is referenced by the given contract.
+    pub fn contract_bytecode_dependencies(self, id: hir::ContractId) -> &'gcx [hir::ContractId] {
+        if self.sess.opts.unstable.codegen_all_functions {
+            return self.all_contract_bytecode_dependencies(id);
+        }
+        let items = self.interface_items(id);
+        let mut dependencies = DenseBitSet::new_empty(self.hir.contract_ids().count());
+        for &dependency in
+            items.creation.bytecode_dependencies.iter().chain(items.deployed.bytecode_dependencies)
+        {
+            dependencies.insert(dependency);
+        }
+        self.bump().alloc_from_iter(dependencies.iter())
+    }
 }
 
 fn using_directive_ty_matches(ty: Ty<'_>, using_ty: Ty<'_>) -> bool {
@@ -1424,12 +1502,15 @@ fn virtual_function_target(
     gcx: _,
     key: (hir::ContractId, hir::FunctionId)
 ) -> hir::FunctionId {
-    let (contract, function) = key;
-    let declaration = gcx.hir.function(function);
-    if !declaration.virtual_ || declaration.contract == Some(contract) {
-        return function;
+    fn function_overrides(gcx: Gcx<'_>, function: hir::FunctionId, base: hir::FunctionId) -> bool {
+        gcx.base_override_items(function.into()).iter().any(|item| {
+            let hir::ItemId::Function(overridden) = item else { return false };
+            *overridden == base || function_overrides(gcx, *overridden, base)
+        })
     }
 
+    let (contract, function) = key;
+    debug_assert!(gcx.hir.function(function).virtual_);
     for &base in gcx.hir.contract(contract).linearized_bases {
         for candidate in gcx.hir.contract(base).functions() {
             if candidate == function || function_overrides(gcx, candidate, function) {
@@ -1808,88 +1889,7 @@ pub(crate) fn eval_const_value_result(gcx: _, expr: &hir::Expr<'_>)
 
 } // cached!
 
-fn function_overrides(gcx: Gcx<'_>, function: hir::FunctionId, base: hir::FunctionId) -> bool {
-    gcx.base_override_items(function.into()).iter().any(|item| {
-        let hir::ItemId::Function(overridden) = item else { return false };
-        *overridden == base || function_overrides(gcx, *overridden, base)
-    })
-}
-
-impl<'gcx> Gcx<'gcx> {
-    /// Resolves a virtual function in the context of the most-derived contract.
-    pub fn resolve_virtual_function(
-        self,
-        contract: hir::ContractId,
-        function: hir::FunctionId,
-    ) -> hir::FunctionId {
-        self.virtual_function_target((contract, function))
-    }
-
-    /// Resolves a `super` function call in the context of the most-derived contract.
-    pub fn resolve_super_function(
-        self,
-        contract: hir::ContractId,
-        defining_contract: hir::ContractId,
-        function: hir::FunctionId,
-    ) -> hir::FunctionId {
-        self.super_function_target((contract, defining_contract, function))
-    }
-
-    /// Returns all events included in the external interface of the given contract.
-    pub fn interface_events(self, id: hir::ContractId) -> &'gcx [hir::EventId] {
-        let items = self.interface_items(id);
-        let mut events = DenseBitSet::new_empty(self.hir.event_ids().count());
-        for item in self.hir.contract_item_ids(id) {
-            if let hir::ItemId::Event(event) = item {
-                events.insert(event);
-            }
-        }
-        for &event in items.creation.events.iter().chain(items.deployed.events) {
-            events.insert(event);
-        }
-        self.bump().alloc_from_iter(events.iter())
-    }
-
-    /// Returns all errors included in the external interface of the given contract.
-    pub fn interface_errors(self, id: hir::ContractId) -> &'gcx [hir::ErrorId] {
-        let items = self.interface_items(id);
-        let mut errors = DenseBitSet::new_empty(self.hir.error_ids().count());
-        for item in self.hir.contract_item_ids(id) {
-            if let hir::ItemId::Error(error) = item {
-                errors.insert(error);
-            }
-        }
-        for &error in items.creation.errors.iter().chain(items.deployed.errors) {
-            errors.insert(error);
-        }
-        self.bump().alloc_from_iter(errors.iter())
-    }
-
-    /// Returns the functions reachable during contract creation or at runtime.
-    pub fn contract_reachable_functions(self, id: hir::ContractId) -> &'gcx [hir::FunctionId] {
-        let items = self.interface_items(id);
-        let mut functions = DenseBitSet::new_empty(self.hir.function_ids().count());
-        for &function in items.creation.functions.iter().chain(items.deployed.functions) {
-            functions.insert(function);
-        }
-        self.bump().alloc_from_iter(functions.iter())
-    }
-
-    /// Returns the contracts whose bytecode is referenced by the given contract.
-    pub fn contract_bytecode_dependencies(self, id: hir::ContractId) -> &'gcx [hir::ContractId] {
-        if self.sess.opts.unstable.codegen_all_functions {
-            return self.all_contract_bytecode_dependencies(id);
-        }
-        let items = self.interface_items(id);
-        let mut dependencies = DenseBitSet::new_empty(self.hir.contract_ids().count());
-        for &dependency in
-            items.creation.bytecode_dependencies.iter().chain(items.deployed.bytecode_dependencies)
-        {
-            dependencies.insert(dependency);
-        }
-        self.bump().alloc_from_iter(dependencies.iter())
-    }
-}
+// DO NOT ADD `impl Gcx` HERE. ADD FUNCTIONS IN THE IMPL BLOCK ABOVE.
 
 fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) -> Ty<'gcx> {
     use hir::DataLocation::*;

@@ -615,10 +615,7 @@ impl<'gcx> Lowerer<'gcx> {
         (success, ret_offset)
     }
 
-    pub(super) fn resolve_virtual_function_target(
-        &self,
-        function_id: hir::FunctionId,
-    ) -> hir::FunctionId {
+    pub(super) fn virtual_function_target(&self, function_id: hir::FunctionId) -> hir::FunctionId {
         let Some(contract_id) = self.contract_id else { return function_id };
         self.gcx.resolve_virtual_function(contract_id, function_id)
     }
@@ -1842,7 +1839,7 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
         let argument_source = func_id;
-        let func_id = self.resolve_virtual_function_target(func_id);
+        let func_id = self.virtual_function_target(func_id);
         self.lower_resolved_internal_call(builder, func_id, argument_source, args)
     }
 
