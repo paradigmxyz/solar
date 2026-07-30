@@ -29,9 +29,9 @@ use crate::{
         adce, cfg_simplify, check_elim, copy_elision, cse, dce, frame_promotion, gvn,
         indvar_simplify, inline, inst_simplify, jump_threading, load_pre, loop_canonicalize,
         loop_opt, lower_abi, lower_abi_encode, lower_aggregates, lower_alloc, lower_dispatch,
-        lower_evm_shaped, lower_mapping_slots, lower_mcopy, lower_memory_objects, lower_memory_zero,
-        lower_slices, memory_dse, outline_reverts, pre, pure_eval, sccp, sroa, static_alloc,
-        storage_dse, storage_load_cse, storage_promotion,
+        lower_evm_shaped, lower_mapping_slots, lower_mcopy, lower_memory_objects,
+        lower_memory_zero, lower_slices, memory_dse, outline_reverts, pre, pure_eval, sccp, sroa,
+        static_alloc, storage_dse, storage_load_cse, storage_promotion,
     },
 };
 use solar_data_structures::map::FxHashMap;
