@@ -601,7 +601,7 @@ impl<'gcx> Gcx<'gcx> {
     ///
     /// The selected callable type takes precedence. Syntax and builtin semantics only recover
     /// parameter names when the selected signature does not carry a declaration source.
-    pub fn call_param_source(self, callee: &hir::Expr<'gcx>) -> Option<CallableParamSource> {
+    pub fn call_param_source(self, callee: &hir::Expr<'_>) -> Option<CallableParamSource> {
         let callee = callee.peel_parens();
         if let Some(source) = self
             .type_of_expr(callee.id)

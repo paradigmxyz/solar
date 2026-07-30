@@ -60,14 +60,9 @@ fn @forward(arg0: calldataslice, arg1: address) {
     v43 = abi_encode [memory_array<memory_bytes>], selector 0x3731ba7300000000000000000000000000000000000000000000000000000000, args v12
     v44 = slice_ptr v43
     v45 = slice_len v43
-    mstore 0, arg1 !metadata(memory=scratch)
-    mstore 32, v44 !metadata(memory=scratch)
-    v46 = mload 0 !metadata(memory=scratch)
-    v47 = gas
-    v48 = mload 32 !metadata(memory=scratch)
-    v49 = call v47, v46, 0, v48, v45, 0, 0
-    v50 = iszero v49
-    jumpi v50, bb16, bb17
+    v46 = gas
+    v47 = call v46, arg1, 0, v44, v45, 0, 0
+    jumpi v47, bb17, bb16
   bb12:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -106,9 +101,9 @@ fn @forward(arg0: calldataslice, arg1: address) {
     mstore v15, v42
     jump bb9
   bb16:
-    v51 = returndatasize
-    returndatacopy 0, 0, v51 !metadata(memory=scratch)
-    revert 0, v51
+    v48 = returndatasize
+    returndatacopy 0, 0, v48 !metadata(memory=scratch)
+    revert 0, v48
   bb17:
     stop
 }
@@ -179,14 +174,9 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
     v50 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v12
     v51 = slice_ptr v50
     v52 = slice_len v50
-    mstore 0, arg1 !metadata(memory=scratch)
-    mstore 32, v51 !metadata(memory=scratch)
-    v53 = mload 0 !metadata(memory=scratch)
-    v54 = gas
-    v55 = mload 32 !metadata(memory=scratch)
-    v56 = call v54, v53, 0, v55, v52, 0, 0
-    v57 = iszero v56
-    jumpi v57, bb16, bb17
+    v53 = gas
+    v54 = call v53, arg1, 0, v51, v52, 0, 0
+    jumpi v54, bb17, bb16
   bb12:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -229,9 +219,9 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
     mstore v15, v49
     jump bb9
   bb16:
-    v58 = returndatasize
-    returndatacopy 0, 0, v58 !metadata(memory=scratch)
-    revert 0, v58
+    v55 = returndatasize
+    returndatacopy 0, 0, v55 !metadata(memory=scratch)
+    revert 0, v55
   bb17:
     stop
 }

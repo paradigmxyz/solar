@@ -1,5 +1,4 @@
 //@ revisions: mir size
-//@ignore-host: windows
 //@[mir] compile-flags: -Zcodegen -O none -Zdump=mir
 //@[mir] filecheck:
 //@[size] compile-flags: -Zcodegen -O size -Zdump=evm-ir-runtime
@@ -13,15 +12,15 @@ contract FunctionCall {
     }
 
     // CHECK-LABEL: fn @quadruple{{[( ]}}
-    // CHECK: [[DOUBLE:v[0-9]+]] = add arg0, arg0
-    // CHECK: {{v[0-9]+}} = add [[DOUBLE]], [[DOUBLE]]
+    // CHECK: [[ONCE:v[0-9]+]] = internal_call @double, 1, arg0
+    // CHECK: internal_call @double, 1, [[ONCE]]
     function quadruple(uint256 x) public pure returns (uint256) {
         return double(double(x));
     }
 
     // CHECK-LABEL: fn @sum_then_double{{[( ]}}
     // CHECK: [[SUM:v[0-9]+]] = add arg0, arg1
-    // CHECK: [[DOUBLE:v[0-9]+]] = add [[SUM]], [[SUM]]
+    // CHECK: internal_call @double, 1, [[SUM]]
     function sum_then_double(uint256 a, uint256 b) public pure returns (uint256) {
         uint256 s = a + b;
         return double(s);

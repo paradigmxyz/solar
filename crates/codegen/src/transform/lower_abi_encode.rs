@@ -3,7 +3,7 @@
 use crate::{
     mir::{
         AbiLayout, AbiType, BlockId, Function, FunctionBuilder, InstKind, MemoryObjectKind, Module,
-        SliceLocation, Terminator, Value, ValueId,
+        SliceLocation, Terminator, ValueId,
     },
     pass::MirPass,
 };
@@ -483,10 +483,7 @@ fn scratch_slot(
 fn offset_ptr(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -> ValueId {
     if offset == 0 {
         base
-    } else if matches!(
-        builder.func().value(base),
-        Value::Immediate(immediate) if immediate.as_u256().is_some_and(|value| value.is_zero())
-    ) {
+    } else if builder.func().value_u256(base).is_some_and(|base| base.is_zero()) {
         builder.imm_u64(offset)
     } else {
         let offset = builder.imm_u64(offset);

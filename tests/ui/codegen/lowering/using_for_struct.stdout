@@ -21,26 +21,32 @@ fn @viaMethod(arg0: bytes32, arg1: bytes32) -> bytes32 [abi_returns=[word]] {
     mstore v6, 0
     v7 = memory_object_field_addr memorystruct<4>, v3, 3
     mstore v7, arg1
-    v8 = memory_object_field_addr memorystruct<4>, v3, 0
-    v9 = mload v8
-    v10 = memory_object_field_addr memorystruct<4>, v3, 1
-    v11 = mload v10
-    v12 = memory_object_field_addr memorystruct<4>, v3, 2
-    v13 = mload v12
-    v14 = memory_object_field_addr memorystruct<4>, v3, 3
-    v15 = mload v14
-    v16 = fmp
-    mstore v16, 0x7800000000000000000000000000000000000000000000000000000000000000
-    v17 = add v16, 1
-    mstore v17, v9
-    v18 = shl 224, v11
-    v19 = add v16, 33
-    mstore v19, v18
-    v20 = add v16, 37
-    mstore v20, v13
-    v21 = add v16, 69
-    mstore v21, v15
-    v22 = keccak256 v16, 101
-    ret v22
+    v8 = internal_call @hashLib, 1, v3
+    ret v8
+}
+
+fn @hashLib(arg0: memorystruct) -> bytes32 {
+  bb0:
+    v0 = memory_object_field_addr memorystruct<4>, arg0, 0
+    v1 = mload v0
+    v2 = memory_object_field_addr memorystruct<4>, arg0, 1
+    v3 = mload v2
+    v4 = memory_object_field_addr memorystruct<4>, arg0, 2
+    v5 = mload v4
+    v6 = memory_object_field_addr memorystruct<4>, arg0, 3
+    v7 = mload v6
+    v8 = fmp
+    mstore v8, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v9 = add v8, 1
+    mstore v9, v1
+    v10 = shl 224, v3
+    v11 = add v8, 33
+    mstore v11, v10
+    v12 = add v8, 37
+    mstore v12, v5
+    v13 = add v8, 69
+    mstore v13, v7
+    v14 = keccak256 v8, 101
+    ret v14
 }
 

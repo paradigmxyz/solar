@@ -1,0 +1,17 @@
+- // === ROOT/tests/ui/codegen/mir/lower-mcopy/pre_cancun.mir (before lower-mcopy) ===
++ // === ROOT/tests/ui/codegen/mir/lower-mcopy/pre_cancun.mir (after lower-mcopy) ===
+  @module PreCancunMCopy
+  fn @copy(arg0: memptr, arg1: memptr, arg2: u256) -> memptr {
+    bb0:
+-     mcopy arg0, arg1, arg2
++     v0 = gas
++     v1 = sub v0, 0x620c
++     v2 = call v1, 4, 0, arg1, arg2, arg0, arg2
++     v3 = iszero v2
++     jumpi v3, bb2, bb1
++   bb1:
+      ret arg0
++   bb2:
++     revert 0, 0
+  }
+  

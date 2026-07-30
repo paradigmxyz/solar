@@ -578,15 +578,10 @@ pub struct EvmCodegen<'gcx> {
     /// Cold blocks in the function currently being emitted, including blocks
     /// that only forward control to other cold blocks.
     cold_blocks: DenseBitSet<BlockId>,
-    /// Per-function static local frame sizes for direct internal calls.
-    ///
-    /// Spill slots are allocated lazily during body emission, so the spill part
-    /// of each frame is recorded separately after the function has emitted.
-    function_static_frame_sizes: FxHashMap<FunctionId, u64>,
     /// Exact per-function spill area sizes, in bytes, recorded after emission.
     function_spill_sizes: FxHashMap<FunctionId, u64>,
     /// Internal-call frame-size constants waiting for exact callee spill sizes.
-    pending_frame_size_consts: Vec<(DeferredConst, FunctionId, u64)>,
+    pending_frame_size_consts: Vec<(DeferredConst, FunctionId)>,
     /// Per static-frame callee: which argument indices every runtime call
     /// site can re-emit after the stack drain, so they ride the stack above
     /// the return address instead of being stored to the callee frame at
@@ -673,7 +668,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             function_labels: FxHashMap::default(),
             cold_functions: DenseBitSet::new_empty(0),
             cold_blocks: DenseBitSet::new_empty(0),
-            function_static_frame_sizes: FxHashMap::default(),
             function_spill_sizes: FxHashMap::default(),
             pending_frame_size_consts: Vec::new(),
             stack_arg_masks: FxHashMap::default(),
@@ -1141,7 +1135,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 } else {
                     Self::collect_cold_functions(module)
                 };
-            self.function_static_frame_sizes.clear();
             self.function_spill_sizes.clear();
             self.pending_frame_size_consts.clear();
             self.restorable_internal_frames = DenseBitSet::new_empty(module.functions.len());
@@ -1157,7 +1150,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.stack_phi_sources.clear();
 
             for (func_id, func) in module.functions.iter_enumerated() {
-                self.function_static_frame_sizes.insert(func_id, func.internal_frame_size);
                 if !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference()) {
                     self.restorable_internal_frames.insert(func_id);
                 }
@@ -1307,7 +1299,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else {
             Self::collect_cold_functions(module)
         };
-        self.function_static_frame_sizes.clear();
         self.function_spill_sizes.clear();
         self.pending_frame_size_consts.clear();
         self.restorable_internal_frames = DenseBitSet::new_empty(module.functions.len());
@@ -1358,7 +1349,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         );
 
         for (func_id, func) in module.functions.iter_enumerated() {
-            self.function_static_frame_sizes.insert(func_id, func.internal_frame_size);
             if !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference()) {
                 self.restorable_internal_frames.insert(func_id);
             }
@@ -1440,18 +1430,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         spill_size
     }
 
+    /// Returns the exact spill area recorded for `func_id` after emission.
+    fn function_spill_size(&self, func_id: FunctionId) -> u64 {
+        self.function_spill_sizes.get(&func_id).copied().unwrap_or_else(|| {
+            panic!("spill size for emitted function {func_id:?} was not recorded")
+        })
+    }
+
     /// Resolves all pending internal-call frame-size constants.
     ///
-    /// The normal runtime path records every emitted callee's exact spill size
-    /// first. The conservative fallback covers unusual paths where a body was
-    /// not emitted by this assembler.
+    /// Every pending constant belongs to a labeled callee. Runtime and
+    /// constructor emission record all labeled bodies before reaching this
+    /// resolution point.
     fn resolve_pending_frame_size_consts(&mut self, module: &Module) {
-        for (id, callee, static_size) in std::mem::take(&mut self.pending_frame_size_consts) {
-            let spill_size =
-                self.function_spill_sizes.get(&callee).copied().unwrap_or_else(|| {
-                    Self::conservative_spill_frame_size(&module.functions[callee])
-                });
-            self.asm.set_deferred_const(id, U256::from(static_size + spill_size));
+        for (id, callee) in std::mem::take(&mut self.pending_frame_size_consts) {
+            self.asm.set_deferred_const(id, U256::from(self.emitted_frame_size(module, callee)));
         }
     }
 
@@ -3633,6 +3626,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 unreachable!("memory-object instructions must be lowered before EVM codegen")
             }
 
+            InstKind::MemoryZero(_, _) => {
+                unreachable!("memory-zero instructions must be lowered before EVM codegen")
+            }
+
             InstKind::AbiEncode { .. } => {
                 unreachable!("ABI encoding must be lowered before EVM codegen")
             }
@@ -4108,18 +4105,13 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Total frame size of `func_id`: the fixed prefix plus the exact spill
-    /// area recorded after its body emitted (conservative when unavailable).
+    /// area recorded after its body emitted.
     fn emitted_frame_size(&self, module: &Module, func_id: FunctionId) -> u64 {
         let func = &module.functions[func_id];
-        let spill = self
-            .function_spill_sizes
-            .get(&func_id)
-            .copied()
-            .unwrap_or_else(|| Self::conservative_spill_frame_size(func));
         EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
             + ((func.params.len() + func.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE
             + func.internal_frame_size
-            + spill
+            + self.function_spill_size(func_id)
     }
 
     /// Places every referenced static frame and resolves the address and
@@ -4149,23 +4141,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut entry_ends: FxHashMap<FunctionId, u64> = runtime_entries
             .iter()
             .copied()
-            .map(|func_id| {
-                let func = &module.functions[func_id];
-                let spill = self
-                    .function_spill_sizes
-                    .get(&func_id)
-                    .copied()
-                    .unwrap_or_else(|| Self::conservative_spill_frame_size(func));
-                (func_id, entry_bases[&func_id] + spill)
-            })
+            .map(|func_id| (func_id, entry_bases[&func_id] + self.function_spill_size(func_id)))
             .collect();
 
         // Longest live-chain depth below each function, over all call edges.
         // Only emitted callers count: an unemitted function (an internal
-        // `.body` clone nobody calls, unreachable dead code) stacks no
-        // real frame below its callees, and its conservative spill estimate
-        // would inflate every callee's depth — and with it the free-memory
-        // start and the width of every frame push in the runtime.
+        // `.body` clone nobody calls, unreachable dead code) stacks no real
+        // frame below its callees.
         let mut edges = Vec::new();
         for (func_id, func) in module.functions.iter_enumerated() {
             if !self.function_labels.contains_key(&func_id) {
@@ -4326,13 +4308,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    fn conservative_spill_frame_size(func: &Function) -> u64 {
-        // The scheduler may allocate spill slots lazily while exposing deep stack values, not only
-        // for values preallocated as cross-block live-ins/live-outs. Use this only when a body's
-        // exact post-emission spill size is unavailable.
-        func.num_values() as u64 * 32
-    }
-
     fn external_spill_base(func: &Function) -> u64 {
         let low_memory_start = if Self::uses_internal_frame_slot(func) {
             EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE
@@ -4466,17 +4441,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        let static_local_frame_size =
-            self.function_static_frame_sizes.get(&callee).copied().unwrap_or_default();
         // Frame layout: [reserved][saved frame ptr][args][returns][locals][spills].
         // The first slot is reserved (the return address used to live there;
         // it now travels on the EVM stack) so downstream offsets stay stable.
         // The spill suffix is only known after the callee body has emitted.
-        let static_frame_size = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-            + ((args.len() + returns) as u64) * EvmMemoryLayout::WORD_SIZE
-            + static_local_frame_size;
         let frame_size = self.asm.new_deferred_const();
-        self.pending_frame_size_consts.push((frame_size, callee, static_frame_size));
+        self.pending_frame_size_consts.push((frame_size, callee));
 
         // Spill values that are live after this call BEFORE consuming the
         // arguments. An argument that is also used later (e.g. a flag passed to

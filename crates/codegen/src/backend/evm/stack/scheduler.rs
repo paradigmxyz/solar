@@ -437,6 +437,16 @@ impl StackScheduler {
         ) {
             return self.validate_operand_plan(plan, &goal, preserved, func);
         }
+        if let Some(plan) = self.try_resident_nary_plan(
+            &goal,
+            preserved,
+            func,
+            optimization,
+            evm_version,
+            cost_model,
+        ) {
+            return self.validate_operand_plan(plan, &goal, preserved, func);
+        }
         if let Some(plan) = self.try_preserved_resident_binary_plan(
             operands,
             preserved,
@@ -706,33 +716,33 @@ impl StackScheduler {
         preserved: &[ValueId],
         func: &Function,
     ) -> Option<OperandPlan> {
-        let mut stack = self.stack.as_slice().to_vec();
+        let mut stack = self.stack.clone();
         for action in &plan.actions {
             match action.op {
                 ScheduledOp::Stack(StackOp::Swap(depth)) => {
-                    let depth = usize::from(depth);
-                    if !(1..=MAX_STACK_ACCESS).contains(&depth) || depth >= stack.len() {
+                    if !(1..=MAX_STACK_ACCESS).contains(&usize::from(depth))
+                        || usize::from(depth) >= stack.depth()
+                    {
                         return None;
                     }
-                    stack.swap(0, depth);
+                    stack.swap(depth);
                 }
                 ScheduledOp::Stack(StackOp::Dup(depth)) => {
-                    let depth = usize::from(depth);
-                    if !(1..=MAX_STACK_ACCESS).contains(&depth) {
+                    if !(1..=MAX_STACK_ACCESS).contains(&usize::from(depth)) {
                         return None;
                     }
-                    let value = stack.get(depth - 1).copied().flatten()?;
+                    let value = stack.peek(usize::from(depth - 1))?;
                     if !goal.contains(&value) {
                         return None;
                     }
-                    stack.insert(0, Some(value));
+                    stack.dup(depth);
                 }
                 ScheduledOp::Stack(StackOp::Pop) => {
-                    let value = stack.first().copied().flatten()?;
-                    if !goal.contains(&value) && !stack[1..].contains(&Some(value)) {
+                    let value = stack.top()?;
+                    if !goal.contains(&value) && !stack.as_slice()[1..].contains(&Some(value)) {
                         return None;
                     }
-                    stack.remove(0);
+                    stack.pop();
                 }
                 ScheduledOp::PushImmediate(_)
                 | ScheduledOp::LoadSpill(_)
@@ -743,11 +753,11 @@ impl StackScheduler {
                     {
                         return None;
                     }
-                    stack.insert(0, Some(pushed));
+                    stack.push(pushed);
                 }
             }
         }
-        Self::operand_goal_reached_direct(&stack, goal, preserved).then_some(plan)
+        Self::operand_goal_reached_direct(stack.as_slice(), goal, preserved).then_some(plan)
     }
 
     fn operand_goal_reached_direct(
@@ -947,6 +957,94 @@ impl StackScheduler {
             cost = cost.with_op(&op, evm_version, cost_model);
             actions.push(PlannedAction { op, pushed: Some(value) });
         }
+        Some(OperandPlan { actions, cost })
+    }
+
+    /// Builds the optimal plan when the first and penultimate goal values are the only resident
+    /// operands and every value between or after them can be materialized.
+    fn try_resident_nary_plan(
+        &self,
+        goal: &[ValueId],
+        preserved: &[ValueId],
+        func: &Function,
+        optimization: OptimizationMode,
+        evm_version: EvmVersion,
+        cost_model: OperandCostModel,
+    ) -> Option<OperandPlan> {
+        let &[Some(top), Some(second), ..] = self.stack.as_slice() else { return None };
+        let preserved = match preserved {
+            [] => None,
+            &[value] => Some(value),
+            _ => return None,
+        };
+        if goal.len() < 3
+            || goal.len() > MAX_STACK_ACCESS
+            || goal.iter().enumerate().any(|(i, &value)| goal[i + 1..].contains(&value))
+            || self.stack.as_slice()[2..]
+                .iter()
+                .any(|slot| slot.is_some_and(|value| goal.contains(&value)))
+        {
+            return None;
+        }
+
+        let first = goal[0];
+        let penultimate = goal[goal.len() - 2];
+        if self.materialize_operand(penultimate, func).is_some() {
+            return None;
+        }
+        let retain_first = preserved == Some(first);
+        if preserved.is_some() && !retain_first {
+            return None;
+        }
+        let first_op = ScheduledOp::Stack(if top == first {
+            StackOp::Dup(1)
+        } else {
+            StackOp::Swap((goal.len() - 1) as u8)
+        });
+        if self.materialize_operand(first, func).is_some_and(|materialize| {
+            let resident_cost = ScheduleCost::default().with_op(&first_op, evm_version, cost_model);
+            let materialize_cost =
+                ScheduleCost::default().with_op(&materialize, evm_version, cost_model);
+            materialize_cost.cmp_for(resident_cost, optimization).is_lt()
+        }) {
+            return None;
+        }
+
+        let mut actions = PlannedActions::new();
+        let mut cost = ScheduleCost::default();
+        let mut push = |op, pushed| {
+            cost = cost.with_op(&op, evm_version, cost_model);
+            actions.push(PlannedAction { op, pushed });
+        };
+
+        if top == first && second == penultimate && retain_first {
+            push(ScheduledOp::Stack(StackOp::Dup(1)), Some(first));
+            push(ScheduledOp::Stack(StackOp::Swap(2)), None);
+            for &value in goal[1..goal.len() - 2].iter().rev() {
+                push(self.materialize_operand(value, func)?, Some(value));
+            }
+            let trailing = goal[goal.len() - 1];
+            push(self.materialize_operand(trailing, func)?, Some(trailing));
+            push(ScheduledOp::Stack(StackOp::Swap((goal.len() - 1) as u8)), None);
+        } else if top == penultimate && second == first && retain_first {
+            let trailing = goal[goal.len() - 1];
+            push(self.materialize_operand(trailing, func)?, Some(trailing));
+            push(ScheduledOp::Stack(StackOp::Swap(1)), None);
+            for &value in goal[1..goal.len() - 2].iter().rev() {
+                push(self.materialize_operand(value, func)?, Some(value));
+            }
+            push(ScheduledOp::Stack(StackOp::Dup(goal.len() as u8)), Some(first));
+        } else if top == penultimate && second == first && preserved.is_none() {
+            for &value in goal[1..goal.len() - 2].iter().rev() {
+                push(self.materialize_operand(value, func)?, Some(value));
+            }
+            let trailing = goal[goal.len() - 1];
+            push(self.materialize_operand(trailing, func)?, Some(trailing));
+            push(ScheduledOp::Stack(StackOp::Swap((goal.len() - 1) as u8)), None);
+        } else {
+            return None;
+        }
+
         Some(OperandPlan { actions, cost })
     }
 
@@ -2378,6 +2476,171 @@ mod tests {
 
         assert_eq!(plan.cost.static_gas, 5);
         assert_eq!(plan.actions[1].op, ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO));
+    }
+
+    #[test]
+    fn operand_plan_handles_resident_nary_layouts_without_search() {
+        let mut func = make_test_func();
+        let a = ValueId::from_usize(0);
+        let b = ValueId::from_usize(1);
+        let (_, preserved) =
+            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
+        let (_, second) =
+            func.alloc_value_inst(Instruction::new(InstKind::Sub(a, b), Some(MirType::uint256())));
+        let size = func
+            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(32))));
+        let topic = func
+            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(256))));
+        let trailing =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+        let operand_sets =
+            [vec![trailing, second, preserved], vec![trailing, second, topic, size, preserved]];
+        let cases = [
+            ([preserved, second], true),
+            ([second, preserved], true),
+            ([second, preserved], false),
+        ];
+
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            for operands in &operand_sets {
+                for (layout, retain) in &cases {
+                    let mut scheduler = StackScheduler::new();
+                    scheduler.spills.allocate(preserved);
+                    scheduler.spills.mark_reloadable(preserved);
+                    scheduler.spills.mark_stored(preserved);
+                    for &value in layout.iter().rev() {
+                        scheduler.stack.push(value);
+                    }
+                    let retained = [preserved];
+                    let retained = if *retain { retained.as_slice() } else { &[] };
+                    let exact = exact_operand_cost(
+                        &scheduler,
+                        operands,
+                        retained,
+                        &func,
+                        optimization,
+                        EvmVersion::Shanghai,
+                    )
+                    .unwrap();
+
+                    let plan = scheduler
+                        .plan_operands(
+                            operands,
+                            retained,
+                            &func,
+                            optimization,
+                            EvmVersion::Shanghai,
+                            OperandCostModel::DIRECT,
+                        )
+                        .unwrap();
+
+                    assert_eq!(plan.cost, exact.cost);
+                    let stats = scheduler.operand_search_stats.get();
+                    assert_eq!(stats.expansions, 0);
+                    assert_eq!(stats.created, 0);
+
+                    scheduler.apply_operand_plan(plan);
+                    scheduler.instruction_executed(operands.len(), None);
+                    if *retain {
+                        assert_eq!(scheduler.stack.as_slice(), &[Some(preserved)]);
+                    } else {
+                        assert_eq!(scheduler.stack.depth(), 0);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn operand_plan_handles_max_nary_layout_in_large_function_and_block() {
+        const BIG_BLOCK_INSTRUCTIONS: usize = 4096;
+
+        let mut func = Function::new(Ident::DUMMY);
+        let (first, penultimate) = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let zero = builder.imm_u64(0);
+            let one = builder.imm_u64(1);
+            for _ in 0..BIG_BLOCK_INSTRUCTIONS {
+                builder.add(zero, one);
+            }
+            let first = builder.add(zero, one);
+            let penultimate = builder.sub(one, zero);
+            builder.stop();
+            (first, penultimate)
+        };
+        assert_eq!(func.blocks[BlockId::ENTRY].instructions.len(), BIG_BLOCK_INSTRUCTIONS + 2);
+
+        let middle = (0..MAX_STACK_ACCESS - 3)
+            .map(|i| {
+                func.alloc_value(Value::Immediate(Immediate::uint256(
+                    alloy_primitives::U256::from(1000 + i),
+                )))
+            })
+            .collect::<Vec<_>>();
+        let trailing = func
+            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(2000))));
+        let mut goal = Vec::with_capacity(MAX_STACK_ACCESS);
+        goal.push(first);
+        goal.extend(middle);
+        goal.push(penultimate);
+        goal.push(trailing);
+        assert_eq!(goal.len(), MAX_STACK_ACCESS);
+        let operands = goal.iter().rev().copied().collect::<Vec<_>>();
+
+        let tail = (0..64)
+            .map(|i| {
+                func.alloc_value(Value::Immediate(Immediate::uint256(
+                    alloy_primitives::U256::from(3000 + i),
+                )))
+            })
+            .collect::<Vec<_>>();
+        assert!(func.num_values() > BIG_BLOCK_INSTRUCTIONS);
+        let cases = [
+            ([first, penultimate], true),
+            ([penultimate, first], true),
+            ([penultimate, first], false),
+        ];
+
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            for (layout, retain) in &cases {
+                let mut scheduler = StackScheduler::new();
+                scheduler.spills.allocate(first);
+                scheduler.spills.mark_reloadable(first);
+                scheduler.spills.mark_stored(first);
+                for &value in &tail {
+                    scheduler.stack.push(value);
+                }
+                for &value in layout.iter().rev() {
+                    scheduler.stack.push(value);
+                }
+
+                let retained = [first];
+                let retained = if *retain { retained.as_slice() } else { &[] };
+                let plan = scheduler
+                    .plan_operands(
+                        &operands,
+                        retained,
+                        &func,
+                        optimization,
+                        EvmVersion::Shanghai,
+                        OperandCostModel::DIRECT,
+                    )
+                    .unwrap();
+
+                let stats = scheduler.operand_search_stats.get();
+                assert_eq!(stats.expansions, 0);
+                assert_eq!(stats.created, 0);
+
+                scheduler.apply_operand_plan(plan);
+                scheduler.instruction_executed(operands.len(), None);
+                let mut expected =
+                    tail.iter().rev().copied().map(Some).collect::<Vec<Option<ValueId>>>();
+                if *retain {
+                    expected.insert(0, Some(first));
+                }
+                assert_eq!(scheduler.stack.as_slice(), expected);
+            }
+        }
     }
 
     #[test]

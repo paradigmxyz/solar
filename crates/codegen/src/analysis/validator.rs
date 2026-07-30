@@ -688,6 +688,7 @@ impl<'a> Validator<'a> {
                         InstKind::Alloc { .. } if !func.inst(inst_id).metadata.deferred_alloc() => {
                             Some("abstract allocation")
                         }
+                        InstKind::MemoryZero(_, _) => Some("memory zero"),
                         InstKind::AbiEncode { .. } => Some("ABI encoding"),
                         InstKind::StorageToMemory { .. }
                         | InstKind::MemoryToStorage { .. }
