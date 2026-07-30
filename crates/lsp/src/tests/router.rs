@@ -899,6 +899,7 @@ async fn initialize_advertises_type_hierarchy_statically() {
     let response = router.call(request).await.unwrap();
 
     assert_eq!(response["capabilities"]["typeHierarchyProvider"], true);
+    assert_eq!(response["capabilities"]["completionProvider"]["resolveProvider"], true);
     assert_eq!(response["capabilities"]["codeLensProvider"]["resolveProvider"], false);
     assert_eq!(response["capabilities"]["hoverProvider"], true);
     assert_eq!(response["serverInfo"]["name"], "solar");
