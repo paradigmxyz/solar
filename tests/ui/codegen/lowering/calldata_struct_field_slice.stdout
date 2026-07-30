@@ -17,8 +17,8 @@ fn @factory(arg0: memptr) -> address {
     v11 = add v10, 64
     v12 = calldataload v11
     v13 = add v10, v12
-    v14 = calldataload v13
     v15 = add v13, 32
+    v14 = calldataload v13
     v19 = gt 20, v14
     jumpi v19, bb4, bb5
   bb3:
@@ -101,8 +101,8 @@ fn @midWord(arg0: memptr) -> bytes32 {
     v2 = add v1, 96
     v3 = calldataload v2
     v4 = add v1, v3
-    v5 = calldataload v4
     v6 = add v4, 32
+    v5 = calldataload v4
     v10 = gt 32, v5
     jumpi v10, bb1, bb2
   bb1:
@@ -259,8 +259,8 @@ fn @factory.1(arg0: memptr) -> address {
     v11 = add v10, 64
     v12 = calldataload v11
     v13 = add v10, v12
-    v14 = calldataload v13
     v15 = add v13, 32
+    v14 = calldataload v13
     v19 = gt 20, v14
     jumpi v19, bb4, bb5
   bb3:
@@ -597,8 +597,8 @@ fn @midWord.5(arg0: memptr) -> bytes32 {
     v2 = add v1, 96
     v3 = calldataload v2
     v4 = add v1, v3
-    v5 = calldataload v4
     v6 = add v4, 32
+    v5 = calldataload v4
     v10 = gt 32, v5
     jumpi v10, bb1, bb2
   bb1:

@@ -33,7 +33,7 @@ use smallvec::SmallVec;
 use solar_config::OptimizationMode;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
-    index::IndexVec,
+    index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
 use solar_interface::sym;
@@ -105,6 +105,35 @@ struct StackPhiPlan {
 struct StackPhiEdge {
     sources: Vec<ValueId>,
     results: Vec<ValueId>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SpillLiveRange {
+    start: usize,
+    end: usize,
+}
+
+#[derive(Default)]
+struct SpillColor {
+    ranges: FxHashMap<BlockId, SmallVec<[SpillLiveRange; 4]>>,
+}
+
+impl SpillColor {
+    fn accepts(&self, ranges: &FxHashMap<BlockId, SpillLiveRange>) -> bool {
+        ranges.iter().all(|(block, candidate)| {
+            self.ranges.get(block).is_none_or(|assigned| {
+                assigned
+                    .iter()
+                    .all(|range| candidate.end < range.start || range.end < candidate.start)
+            })
+        })
+    }
+
+    fn insert(&mut self, ranges: &FxHashMap<BlockId, SpillLiveRange>) {
+        for (&block, &range) in ranges {
+            self.ranges.entry(block).or_default().push(range);
+        }
+    }
 }
 
 /// Canonical argument layouts carried between MIR basic blocks.
@@ -1483,7 +1512,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 block_entry_stacks.insert(target, self.scheduler.stack.clone());
             }
             for target in preserve_branch_targets {
-                block_entry_stacks.insert(target, self.scheduler.stack.clone());
+                let mut entry_stack = self.scheduler.stack.clone();
+                // The branch has one physical exit stack, but a cold successor need not retain
+                // identities used only by its hot sibling. Keep hot layouts exact: anonymizing
+                // their dead slots can turn a loop-carried stack hit into a reload every iteration.
+                if self.block_is_cold(target) {
+                    let live_in = liveness.live_in(target);
+                    entry_stack.forget_values_not_matching(|value| live_in.contains(value));
+                }
+                block_entry_stacks.insert(target, entry_stack);
             }
         }
 
@@ -1976,11 +2013,40 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// value is actually available on the stack.
     fn preallocate_cross_block_spills(&mut self, func: &Function, liveness: &Liveness) {
         let values = Self::cross_block_spill_values(func, liveness);
-        if !values.iter().any(|value| Self::is_cross_block_recomputable_inst(func, value)) {
+
+        // Coloring minimizes the local frame, which reduces memory expansion in gas mode. It is
+        // deliberately disabled in size mode because renumbering spill addresses disturbed
+        // downstream block sharing and regressed aggregate CI bytecode despite smaller frames.
+        if self.gcx.sess.opts.optimization.is_gas() {
+            let colorable = Self::cross_block_live_values(func, liveness);
+            let ranges = Self::spill_live_ranges(func, liveness, &colorable);
+
+            let mut colors = Vec::<SpillColor>::new();
+            for value in &colorable {
+                let value_ranges = &ranges[value];
+                let color = colors
+                    .iter()
+                    .position(|color| color.accepts(value_ranges))
+                    .unwrap_or_else(|| {
+                        colors.push(SpillColor::default());
+                        colors.len() - 1
+                    });
+                colors[color].insert(value_ranges);
+                self.scheduler.spills.reserve_at(value, color as u32);
+            }
+
+            for value in &values {
+                if !colorable.contains(value) {
+                    self.scheduler.spills.reserve(value);
+                }
+            }
+        } else {
             for value in &values {
                 self.scheduler.spills.reserve(value);
             }
-        } else {
+        }
+
+        if values.iter().any(|value| Self::is_cross_block_recomputable_inst(func, value)) {
             let recomputable = Self::cross_block_recomputable_values(func);
             let reloaded = values
                 .iter()
@@ -1990,7 +2056,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 })
                 .then(|| Self::cross_block_reload_values(func));
             for val in &values {
-                self.scheduler.spills.reserve(val);
                 if recomputable.contains(val) {
                     self.scheduler.spills.mark_recomputable(val);
                 } else if reloaded.as_ref().is_some_and(|values| values.contains(val))
@@ -2018,6 +2083,85 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
+    }
+
+    fn cross_block_live_values(func: &Function, liveness: &Liveness) -> DenseBitSet<ValueId> {
+        let mut values = DenseBitSet::new_empty(func.num_values());
+        for block in func.blocks.indices() {
+            for value in liveness.live_in(block).iter().chain(liveness.live_out(block).iter()) {
+                if matches!(func.value(value), crate::mir::Value::Inst(_)) {
+                    values.insert(value);
+                }
+            }
+        }
+        values
+    }
+
+    fn spill_live_ranges(
+        func: &Function,
+        liveness: &Liveness,
+        colorable: &DenseBitSet<ValueId>,
+    ) -> IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>> {
+        let mut ranges = index_vec![FxHashMap::default(); func.num_values()];
+        let mut operands = SmallVec::<[ValueId; 8]>::new();
+
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for value in liveness.live_in(block_id) {
+                Self::extend_spill_live_range(&mut ranges, colorable, value, block_id, 0);
+            }
+            for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
+                operands.clear();
+                func.inst(inst_id).kind.collect_operands(&mut operands);
+                for &value in &operands {
+                    Self::extend_spill_live_range(
+                        &mut ranges,
+                        colorable,
+                        value,
+                        block_id,
+                        inst_idx * 2,
+                    );
+                }
+                if let Some(value) = func.inst_result_value(inst_id) {
+                    Self::extend_spill_live_range(
+                        &mut ranges,
+                        colorable,
+                        value,
+                        block_id,
+                        inst_idx * 2 + 1,
+                    );
+                }
+            }
+            if let Some(terminator) = &block.terminator {
+                let point = block.instructions.len() * 2;
+                for value in terminator.operands() {
+                    Self::extend_spill_live_range(&mut ranges, colorable, value, block_id, point);
+                }
+            }
+            let point = block.instructions.len() * 2 + 1;
+            for value in liveness.live_out(block_id) {
+                Self::extend_spill_live_range(&mut ranges, colorable, value, block_id, point);
+            }
+        }
+        ranges
+    }
+
+    fn extend_spill_live_range(
+        ranges: &mut IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>>,
+        colorable: &DenseBitSet<ValueId>,
+        value: ValueId,
+        block: BlockId,
+        point: usize,
+    ) {
+        if !colorable.contains(value) {
+            return;
+        }
+        ranges[value]
+            .entry(block)
+            .and_modify(|range| {
+                range.start = range.start.min(point);
+                range.end = range.end.max(point);
+            })
+            .or_insert(SpillLiveRange { start: point, end: point });
     }
 
     /// Returns values directly consumed outside their defining block. Phi inputs are edge uses:
@@ -2983,18 +3127,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             // Ternary operations
-            InstKind::AddMod(a, b, n) => self.emit_ternary_op(
+            InstKind::AddMod(a, b, n) => self.emit_nary_op(
                 func,
-                [*n, *b, *a],
+                &[*n, *b, *a],
                 op::ADDMOD,
                 result_value,
                 liveness,
                 block,
                 inst_idx,
             ),
-            InstKind::MulMod(a, b, n) => self.emit_ternary_op(
+            InstKind::MulMod(a, b, n) => self.emit_nary_op(
                 func,
-                [*n, *b, *a],
+                &[*n, *b, *a],
                 op::MULMOD,
                 result_value,
                 liveness,
@@ -3068,26 +3212,24 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::Phi(_) => {}
 
             // Contract creation
-            InstKind::Create(value, offset, size) => {
-                self.emit_value(func, *size);
-                self.emit_operand(func, *offset);
-                self.emit_operand(func, *value);
-                self.asm.emit_op(op::CREATE);
-                // CREATE consumes 3 values and produces 1 (new contract address)
-                self.scheduler.instruction_executed(3, result_value);
-            }
-
-            InstKind::Create2(value, offset, size, salt) => {
-                // CREATE2 expects stack (top to bottom): salt, size, offset, value
-                // So we push in reverse order: value first (goes deepest), then offset, size, salt
-                self.emit_value(func, *value);
-                self.emit_operand(func, *offset);
-                self.emit_operand(func, *size);
-                self.emit_operand(func, *salt);
-                self.asm.emit_op(op::CREATE2);
-                // CREATE2 consumes 4 values and produces 1 (new contract address)
-                self.scheduler.instruction_executed(4, result_value);
-            }
+            InstKind::Create(value, offset, size) => self.emit_nary_op(
+                func,
+                &[*size, *offset, *value],
+                op::CREATE,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::Create2(value, offset, size, salt) => self.emit_nary_op(
+                func,
+                &[*salt, *size, *offset, *value],
+                op::CREATE2,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
 
             // External calls
             //
@@ -4069,6 +4211,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_op(op::MLOAD);
     }
 
+    /// Returns the first internal-call result only when it is consumed. The call itself remains
+    /// effectful, and additional returns are staged separately in the multi-return buffer.
+    fn live_internal_call_result(
+        result: Option<ValueId>,
+        returns: usize,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) -> Option<ValueId> {
+        result.filter(|&result| returns > 0 && !liveness.is_dead_after(result, block, inst_idx))
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn emit_internal_call(
         &mut self,
@@ -4159,8 +4313,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.define_label(return_label);
         self.scheduler.clear_stack();
 
-        if let Some(result) = result
-            && returns > 0
+        if let Some(result) =
+            Self::live_internal_call_result(result, returns, liveness, block, inst_idx)
         {
             self.emit_current_internal_frame_addr(
                 EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
@@ -4331,8 +4485,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.define_label(return_label);
         self.scheduler.clear_stack();
 
-        if let Some(result) = result
-            && returns > 0
+        if let Some(result) =
+            Self::live_internal_call_result(result, returns, liveness, block, inst_idx)
         {
             let addr = self.static_frame_addr(
                 callee,
@@ -5127,22 +5281,22 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.instruction_executed(operands.len(), None);
     }
 
-    /// Emits a ternary operation with liveness awareness.
+    /// Emits an operation with liveness awareness.
     #[allow(clippy::too_many_arguments)]
-    fn emit_ternary_op(
+    fn emit_nary_op(
         &mut self,
         func: &Function,
-        operands: [ValueId; 3],
+        operands: &[ValueId],
         opcode: u8,
         result: Option<ValueId>,
         liveness: &Liveness,
         block: BlockId,
         inst_idx: usize,
     ) {
-        if let Some(plan) = self.plan_operands(func, &operands, liveness, block, inst_idx) {
+        if let Some(plan) = self.plan_operands(func, operands, liveness, block, inst_idx) {
             self.emit_operand_plan(func, plan);
             self.asm.emit_op(opcode);
-            self.scheduler.instruction_executed(3, result);
+            self.scheduler.instruction_executed(operands.len(), result);
             return;
         }
 
@@ -5158,7 +5312,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         self.asm.emit_op(opcode);
-        self.scheduler.instruction_executed(3, result);
+        self.scheduler.instruction_executed(operands.len(), result);
     }
 
     /// Generates a parallel copy.
@@ -5613,5 +5767,23 @@ mod tests {
         let reloaded = EvmCodegen::cross_block_reload_values(&function);
         assert!(!reloaded.contains(edge_value));
         assert!(reloaded.contains(direct_value));
+    }
+
+    #[test]
+    fn spill_color_accepts_only_disjoint_ranges() {
+        let block0 = BlockId::from_usize(0);
+        let block1 = BlockId::from_usize(1);
+        let mut color = SpillColor::default();
+        color.insert(&FxHashMap::from_iter([(block0, SpillLiveRange { start: 2, end: 4 })]));
+
+        assert!(
+            color.accepts(&FxHashMap::from_iter([(block0, SpillLiveRange { start: 5, end: 7 })]))
+        );
+        assert!(
+            !color.accepts(&FxHashMap::from_iter([(block0, SpillLiveRange { start: 4, end: 7 })]))
+        );
+        assert!(
+            color.accepts(&FxHashMap::from_iter([(block1, SpillLiveRange { start: 2, end: 4 })]))
+        );
     }
 }

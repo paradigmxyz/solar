@@ -25,14 +25,7 @@ use crate::{
     analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
     mir::{Function, FunctionId, InstId, MirPhase, Module},
     pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff},
-    transform::{
-        adce, cfg_simplify, check_elim, copy_elision, cse, dce, frame_promotion, gvn,
-        indvar_simplify, inline, inst_simplify, jump_threading, load_pre, loop_canonicalize,
-        loop_opt, lower_abi, lower_abi_encode, lower_aggregates, lower_alloc, lower_dispatch,
-        lower_evm_shaped, lower_mapping_slots, lower_mcopy, lower_memory_objects, lower_slices,
-        memory_dse, outline_reverts, pre, pure_eval, sccp, sroa, static_alloc, storage_dse,
-        storage_load_cse, storage_promotion,
-    },
+    transform::*,
 };
 use solar_data_structures::map::FxHashMap;
 use std::{
@@ -82,6 +75,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_memory_objects::LowerMemoryObjects,
     &lower_slices::LowerSlices,
     &lower_alloc::LowerAlloc,
+    &evm_inst_schedule::EvmInstSchedule,
 ];
 
 /// Finds a MIR pass by command-line name.
@@ -214,6 +208,10 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_alloc::LowerAlloc,
     &lower_mcopy::LowerMCopy,
     &lower_evm_shaped::LowerEvmShaped,
+    // Late lowering can leave pure address and length calculations unused.
+    // Remove their complete dependency chains before selecting physical stack order.
+    &dce::Dce,
+    &evm_inst_schedule::EvmInstSchedule,
 ];
 
 /// Runs the configured MIR pipeline, substituting it for the canonical pipeline.

@@ -78,4 +78,10 @@
 -   swap16
 -   swap16
     stop
+  bb8:
+    calldatasize
+    calldatasize
+-   pop
+-   pop
+    stop
   

@@ -13,7 +13,7 @@ bb0:
 // === runtime ===
 @module runtime
 bb0:
-  push 0x8a0
+  push 0x680
   push 64
   mstore
   callvalue
@@ -399,7 +399,7 @@ bb5:
   mload
   add
   dup1
-  push 0x680
+  push 0x640
   mstore
   push 0x660
   mload
@@ -408,213 +408,213 @@ bb5:
   jumpi
   push 0x420
   mload
-  push 0x680
+  push 0x640
   mload
   add
   dup1
-  push 0x6a0
+  push 0x660
   mstore
-  push 0x680
+  push 0x640
   mload
   gt
   push bb50
   jumpi
   push 0x440
   mload
-  push 0x6a0
+  push 0x660
   mload
   add
   dup1
-  push 0x6c0
+  push 0x640
   mstore
-  push 0x6a0
+  push 0x660
   mload
   gt
   push bb50
   jumpi
   push 0x460
   mload
-  push 0x6c0
+  push 0x640
   mload
   add
   dup1
-  push 0x6e0
+  push 0x660
   mstore
-  push 0x6c0
+  push 0x640
   mload
   gt
   push bb50
   jumpi
   push 0x480
   mload
-  push 0x6e0
+  push 0x660
   mload
   add
   dup1
-  push 0x700
+  push 0x640
   mstore
-  push 0x6e0
+  push 0x660
   mload
   gt
   push bb50
   jumpi
   push 0x4a0
   mload
-  push 0x700
+  push 0x640
   mload
   add
   dup1
-  push 0x720
+  push 0x660
   mstore
-  push 0x700
+  push 0x640
   mload
   gt
   push bb50
   jumpi
   push 0x4c0
   mload
-  push 0x720
+  push 0x660
   mload
   add
   dup1
-  push 0x740
+  push 0x640
   mstore
-  push 0x720
+  push 0x660
   mload
   gt
   push bb50
   jumpi
   push 0x4e0
   mload
-  push 0x740
+  push 0x640
   mload
   add
   dup1
-  push 0x760
+  push 0x660
   mstore
-  push 0x740
+  push 0x640
   mload
   gt
   push bb50
   jumpi
   push 0x500
   mload
-  push 0x760
+  push 0x660
   mload
   add
   dup1
-  push 0x780
+  push 0x640
   mstore
-  push 0x760
+  push 0x660
   mload
   gt
   push bb50
   jumpi
   push 0x520
   mload
-  push 0x780
+  push 0x640
   mload
   add
   dup1
-  push 0x7a0
+  push 0x660
   mstore
-  push 0x780
+  push 0x640
   mload
   gt
   push bb50
   jumpi
   push 0x540
   mload
-  push 0x7a0
+  push 0x660
   mload
   add
   dup1
-  push 0x7c0
+  push 0x640
   mstore
-  push 0x7a0
+  push 0x660
   mload
   gt
   push bb50
   jumpi
   push 0x560
   mload
-  push 0x7c0
+  push 0x640
   mload
   add
   dup1
-  push 0x7e0
+  push 0x660
   mstore
-  push 0x7c0
+  push 0x640
   mload
   gt
   push bb50
   jumpi
   push 0x580
   mload
-  push 0x7e0
+  push 0x660
   mload
   add
   dup1
-  push 0x800
+  push 0x640
   mstore
-  push 0x7e0
+  push 0x660
   mload
   gt
   push bb50
   jumpi
   push 0x5a0
   mload
-  push 0x800
+  push 0x640
   mload
   add
   dup1
-  push 0x820
+  push 0x660
   mstore
-  push 0x800
+  push 0x640
   mload
   gt
   push bb50
   jumpi
   push 0x5c0
   mload
-  push 0x820
+  push 0x660
   mload
   add
   dup1
-  push 0x840
+  push 0x640
   mstore
-  push 0x820
+  push 0x660
   mload
   gt
   push bb50
   jumpi
   push 0x5e0
   mload
-  push 0x840
+  push 0x640
   mload
   add
   dup1
-  push 0x860
+  push 0x660
   mstore
-  push 0x840
+  push 0x640
   mload
   gt
   push bb50
   jumpi
   push 0x600
   mload
-  push 0x860
+  push 0x660
   mload
   add
   dup1
-  push 0x880
+  push 0x640
   mstore
-  push 0x860
+  push 0x660
   mload
   gt
   push bb50
   jumpi
-  push 0x880
+  push 0x640
   mload
   push 0x620
   mstore

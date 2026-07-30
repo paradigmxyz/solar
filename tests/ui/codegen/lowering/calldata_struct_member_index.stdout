@@ -17,8 +17,8 @@ fn @plain() {
   bb3:
     tail_call @__revert_stub0
   bb4:
-    v27 = add arg0, 36
     v6 = shl 7, arg1
+    v27 = add arg0, 36
     v7 = add v27, v6
     v8 = alloc raw, exact, uninitialized, infallible, 128 !metadata(deferred_alloc)
     v9 = calldataload v7
@@ -504,15 +504,15 @@ fn @lengths() {
     mstore v77, v72
     v78 = add v5, 128
     mstore v78, v4
-    v79 = add v5, 32
-    v80 = mload v79
-    v85 = mload v80
     v86 = add v5, 64
     v87 = mload v86
     v92 = mload v87
     v93 = add v5, 96
     v94 = mload v93
     v99 = mload v94
+    v79 = add v5, 32
+    v80 = mload v79
+    v85 = mload v80
     mstore 128, v85
     mstore 160, v92
     mstore 192, v99

@@ -74,10 +74,10 @@ fn @pushStr() {
     jumpi v48, bb8, bb9
   bb8:
     v49 = mload v36
-    v50 = add v37, v49
     v51 = shl 5, v49
     v52 = add v10, v51
     v53 = mload v52
+    v50 = add v37, v49
     sstore v50, v53 !metadata(storage=symbolic(v50))
     v54 = add v49, 1
     mstore v36, v54
@@ -186,8 +186,8 @@ fn @blobAt() {
     mstore v21, 0
     jump bb6
   bb6:
-    v22 = add v7, 32
     v23 = add v18, v17
+    v22 = add v7, 32
     mcopy v18, v22, v14
     v24 = sub v23, v11
     v26 = add v24, 31
