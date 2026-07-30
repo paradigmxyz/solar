@@ -46,12 +46,22 @@ bb6:
   jump bb24
 bb24:
   jumpi
-  push 4
-  calldataload
-  push 128
+  push 64
+  mload
+  dup1
+  push 160
   mstore
   push 32
-  push 128
+  dup2
+  add
+  push 64
+  mstore
+  push 4
+  calldataload
+  dup2
+  mstore
+  push 32
+  dup2
   return
 bb10 [cold]:
   jump bb25

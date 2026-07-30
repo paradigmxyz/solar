@@ -52,9 +52,9 @@ contract TupleAssignBranchLeak {
     // The else continuation combines both call results with the original
     // `off` slot, rather than a value assigned only in the then arm.
     // CHECK: [[ELSE]]:
-    // CHECK: push 800
-    // CHECK-NEXT: mload
     // CHECK: push 832
+    // CHECK-NEXT: mload
+    // CHECK: push 864
     // CHECK-NEXT: mload
     // CHECK: push 192
     // CHECK-NEXT: mload

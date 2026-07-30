@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/internal_call_frame_dealloc.sol:InternalCallFrameDealloc (runtime) ===
 @module runtime
 bb0:
-  push 352
+  push 384
   push 64
   mstore
   callvalue
@@ -223,15 +223,25 @@ bb22:
   gt
   push bb19
   jumpi
+  push 64
+  mload
+  dup1
+  push 352
+  mstore
+  push 32
+  dup2
+  add
+  push 64
+  mstore
   push 256
   mload
   dup1
   push 256
   mstore
-  push 128
+  dup2
   mstore
   push 32
-  push 128
+  dup2
   return
 bb23:
   dup1

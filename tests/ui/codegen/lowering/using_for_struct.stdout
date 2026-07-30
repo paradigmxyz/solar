@@ -36,35 +36,36 @@ fn @viaMethod(arg0: bytes32, arg1: bytes32) -> bytes32 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    v4 = memory_object_field_addr memorystruct<4>, v3, 0
-    mstore v4, arg0
-    v5 = memory_object_field_addr memorystruct<4>, v3, 1
-    mstore v5, 0
-    v6 = memory_object_field_addr memorystruct<4>, v3, 2
+    v3 = calldatasize
+    v4 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    v5 = memory_object_field_addr memorystruct<4>, v4, 0
+    mstore v5, arg0
+    v6 = memory_object_field_addr memorystruct<4>, v4, 1
     mstore v6, 0
-    v7 = memory_object_field_addr memorystruct<4>, v3, 3
-    mstore v7, arg1
-    v8 = memory_object_field_addr memorystruct<4>, v3, 0
-    v9 = mload v8
-    v10 = memory_object_field_addr memorystruct<4>, v3, 1
-    v11 = mload v10
-    v12 = memory_object_field_addr memorystruct<4>, v3, 2
-    v13 = mload v12
-    v14 = memory_object_field_addr memorystruct<4>, v3, 3
-    v15 = mload v14
-    v16 = fmp
-    mstore v16, 0x7800000000000000000000000000000000000000000000000000000000000000
-    v17 = add v16, 1
-    mstore v17, v9
-    v18 = shl 224, v11
-    v19 = add v16, 33
-    mstore v19, v18
-    v20 = add v16, 37
-    mstore v20, v13
-    v21 = add v16, 69
-    mstore v21, v15
-    v22 = keccak256 v16, 101
-    ret v22
+    v7 = memory_object_field_addr memorystruct<4>, v4, 2
+    mstore v7, 0
+    v8 = memory_object_field_addr memorystruct<4>, v4, 3
+    mstore v8, arg1
+    v9 = memory_object_field_addr memorystruct<4>, v4, 0
+    v10 = mload v9
+    v11 = memory_object_field_addr memorystruct<4>, v4, 1
+    v12 = mload v11
+    v13 = memory_object_field_addr memorystruct<4>, v4, 2
+    v14 = mload v13
+    v15 = memory_object_field_addr memorystruct<4>, v4, 3
+    v16 = mload v15
+    v17 = fmp
+    mstore v17, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v18 = add v17, 1
+    mstore v18, v10
+    v19 = shl 224, v12
+    v20 = add v17, 33
+    mstore v20, v19
+    v21 = add v17, 37
+    mstore v21, v14
+    v22 = add v17, 69
+    mstore v22, v16
+    v23 = keccak256 v17, 101
+    ret v23
 }
 

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/stack_phi_loop.sol:StackPhiLoop (runtime) ===
 @module runtime
 bb0:
-  push 544
+  push 576
   push 64
   mstore
   callvalue
@@ -82,6 +82,9 @@ bb48:
   push 0
   push 128
   mstore
+  dup1
+  push 384
+  mstore
   push 0
   jump bb14
 bb14:
@@ -98,15 +101,26 @@ bb14:
   mload
   swap2
   pop
-  jump bb50
-bb50:
   pop
+  push 64
+  mload
+  dup1
+  push 480
   jump bb49
 bb49:
-  push 128
   mstore
   push 32
-  push 128
+  dup2
+  add
+  push 64
+  mstore
+  dup2
+  dup2
+  mstore
+  swap1
+  pop
+  push 32
+  dup2
   return
 bb11:
   push 7
@@ -193,6 +207,12 @@ bb16:
   push 192
   mload
   add
+  dup2
+  push 416
+  mstore
+  dup1
+  push 448
+  mstore
   swap1
   jump bb14
 bb21:
@@ -211,7 +231,7 @@ bb21:
   jump bb24
 bb24:
   dup1
-  push 480
+  push 512
   mstore
   push 4
   calldataload
@@ -287,7 +307,14 @@ bb29:
   push 128
   mload
   swap1
+  pop
   jump bb50
+bb50:
+  push 64
+  mload
+  dup1
+  push 544
+  jump bb49
 bb31:
   dup1
   push 256
@@ -362,6 +389,9 @@ bb31:
   push 256
   mload
   add
+  dup1
+  push 480
+  mstore
   jump bb29
 bb35:
   calldatasize
@@ -389,19 +419,19 @@ bb38:
   jumpi
   push 128
   mload
-  jump bb49
+  jump bb50
 bb40:
   push 1
   push 224
   mload
   add
+  dup1
+  push 416
+  mstore
   push 224
   mload
   push 0
   dup2
-  swap2
-  swap3
-  swap2
   jump bb41
 bb41:
   dup2
@@ -411,9 +441,8 @@ bb41:
   calldataload
   dup3
   lt
-  dup2
-  push 1
-  add
+  push 416
+  mload
   push 224
   mstore
   dup4
@@ -435,27 +464,27 @@ bb41:
   dup1
   push 224
   mstore
-  push 288
+  push 256
   mload
   lt
   push bb47
   jumpi
-  push 288
+  push 256
   mload
   dup1
-  push 288
-  mstore
   push 256
+  mstore
+  push 288
   mload
   lt
   push bb47
   jumpi
   push 128
   mload
-  push 256
+  push 288
   mload
   dup1
-  push 256
+  push 288
   mstore
   dup2
   dup1
@@ -498,6 +527,15 @@ bb41:
   push 288
   mload
   add
+  dup3
+  push 448
+  mstore
+  dup2
+  push 480
+  mstore
+  dup1
+  push 512
+  mstore
   push 224
   mload
   swap1

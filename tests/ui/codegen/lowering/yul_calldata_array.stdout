@@ -9,15 +9,51 @@ fn @probe(arg0: calldataslice) -> (u256, u256) [abi_returns=[word, word]] {
   bb1:
     revert 0, 0
   bb2:
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 32
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v11 = add v6, 32
+    v12 = lt v11, v6
+    v13 = gt v11, v3
+    v14 = or v12, v13
+    jumpi v14, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v15 = calldataload v6
+    v16 = add v6, 32
+    v17 = gt v15, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v17, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v18 = mul v15, 32
+    v19 = add v16, v18
+    v20 = lt v19, v16
+    v21 = gt v19, v3
+    v22 = or v20, v21
+    jumpi v22, bb9, bb10
+  bb9:
+    revert 0, 0
+  bb10:
     mstore 128, 0
     mstore 160, 0
-    v3 = slice_len arg0
-    mstore 128, v3
-    v4 = slice_ptr arg0
-    v5 = calldataload v4
-    mstore 160, v5
-    v6 = mload 128
-    v7 = mload 160
-    ret v6, v7
+    v23 = slice_len arg0
+    mstore 128, v23
+    v24 = slice_ptr arg0
+    v25 = calldataload v24
+    mstore 160, v25
+    v26 = mload 128
+    v27 = mload 160
+    ret v26, v27
 }
 

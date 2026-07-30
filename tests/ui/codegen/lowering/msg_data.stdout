@@ -3,107 +3,110 @@
 fn @len() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
-    v1 = make_calldata_slice 0, v0
-    v2 = slice_len v1
-    ret v2
+    v1 = calldatasize
+    v2 = make_calldata_slice 0, v1
+    v3 = slice_len v2
+    ret v3
 }
 
 fn @copy() -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
-    v1 = make_calldata_slice 0, v0
-    v2 = slice_len v1
-    v3 = add v2, 31
-    v4 = lt v3, v2
-    jumpi v4, bb1, bb2
+    v1 = calldatasize
+    v2 = make_calldata_slice 0, v1
+    v3 = slice_len v2
+    v4 = add v3, 31
+    v5 = lt v4, v3
+    jumpi v5, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v5 = not 31
-    v6 = and v3, v5
-    v7 = iszero v6
-    v8 = select v7, 32, v6
-    v9 = add 32, v8
-    v10 = lt v9, v8
-    jumpi v10, bb3, bb4
+    v6 = not 31
+    v7 = and v4, v6
+    v8 = iszero v7
+    v9 = select v8, 32, v7
+    v10 = add 32, v9
+    v11 = lt v10, v9
+    jumpi v11, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v9
-    set_memory_object_len memorybytes, v11, v2
-    v12 = memory_object_data memorybytes, v11
-    v13 = sub v8, 32
-    v14 = add v12, v13
-    mstore v14, 0
-    v15 = slice_ptr v1
-    calldatacopy v12, v15, v2
-    ret v11
+    v12 = alloc memorybytes, exact, uninitialized, infallible, v10
+    set_memory_object_len memorybytes, v12, v3
+    v13 = memory_object_data memorybytes, v12
+    v14 = sub v9, 32
+    v15 = add v13, v14
+    mstore v15, 0
+    v16 = slice_ptr v2
+    calldatacopy v13, v16, v3
+    ret v12
 }
 
 fn @environment() -> u256 [abi_returns=[word]] {
   bb0:
+    v0 = calldatasize
     mstore 128, 0
-    v0 = coinbase
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = coinbase
     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = mload 128
-    v4 = xor v3, v2
-    mstore 128, v4
-    v5 = timestamp
-    v6 = mload 128
-    v7 = xor v6, v5
-    mstore 128, v7
-    v8 = prevrandao
-    v9 = mload 128
-    v10 = xor v9, v8
-    mstore 128, v10
-    v11 = number
-    v12 = mload 128
-    v13 = xor v12, v11
-    mstore 128, v13
-    v14 = gaslimit
-    v15 = mload 128
-    v16 = xor v15, v14
-    mstore 128, v16
-    v17 = chainid
-    v18 = mload 128
-    v19 = xor v18, v17
-    mstore 128, v19
-    v20 = basefee
-    v21 = mload 128
-    v22 = xor v21, v20
-    mstore 128, v22
-    v23 = blobbasefee
-    v24 = mload 128
-    v25 = xor v24, v23
-    mstore 128, v25
-    v26 = calldataload 0
-    v27 = shr 224, v26
-    v28 = shl 224, v27
-    v29 = shr 224, v28
-    v30 = and v29, 0xffffffff
-    v31 = mload 128
-    v32 = xor v31, v30
-    mstore 128, v32
-    v33 = origin
-    v34 = and v33, 0xffffffffffffffffffffffffffffffffffffffff
-    v35 = mload 128
-    v36 = xor v35, v34
-    mstore 128, v36
-    v37 = gasprice
-    v38 = mload 128
-    v39 = xor v38, v37
-    mstore 128, v39
-    v40 = gas
-    v41 = mload 128
-    v42 = xor v41, v40
-    mstore 128, v42
-    v43 = mload 128
-    ret v43
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+    v4 = mload 128
+    v5 = xor v4, v3
+    mstore 128, v5
+    v6 = timestamp
+    v7 = mload 128
+    v8 = xor v7, v6
+    mstore 128, v8
+    v9 = prevrandao
+    v10 = mload 128
+    v11 = xor v10, v9
+    mstore 128, v11
+    v12 = number
+    v13 = mload 128
+    v14 = xor v13, v12
+    mstore 128, v14
+    v15 = gaslimit
+    v16 = mload 128
+    v17 = xor v16, v15
+    mstore 128, v17
+    v18 = chainid
+    v19 = mload 128
+    v20 = xor v19, v18
+    mstore 128, v20
+    v21 = basefee
+    v22 = mload 128
+    v23 = xor v22, v21
+    mstore 128, v23
+    v24 = blobbasefee
+    v25 = mload 128
+    v26 = xor v25, v24
+    mstore 128, v26
+    v27 = calldataload 0
+    v28 = shr 224, v27
+    v29 = shl 224, v28
+    v30 = shr 224, v29
+    v31 = and v30, 0xffffffff
+    v32 = mload 128
+    v33 = xor v32, v31
+    mstore 128, v33
+    v34 = origin
+    v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffff
+    v36 = mload 128
+    v37 = xor v36, v35
+    mstore 128, v37
+    v38 = gasprice
+    v39 = mload 128
+    v40 = xor v39, v38
+    mstore 128, v40
+    v41 = gas
+    v42 = mload 128
+    v43 = xor v42, v41
+    mstore 128, v43
+    v44 = mload 128
+    ret v44
 }
 
 fn @tail(arg0: u256, arg1: u256) -> memorybytes [abi_returns=[memory_bytes]] {
@@ -116,51 +119,52 @@ fn @tail(arg0: u256, arg1: u256) -> memorybytes [abi_returns=[memory_bytes]] {
     revert 0, 0
   bb2:
     v3 = calldatasize
-    v4 = make_calldata_slice 0, v3
-    v5 = slice_ptr v4
-    v6 = slice_len v4
-    v7 = gt arg1, v6
-    jumpi v7, bb3, bb4
+    v4 = calldatasize
+    v5 = make_calldata_slice 0, v4
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = gt arg1, v7
+    jumpi v8, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v8 = lt arg1, arg0
-    jumpi v8, bb5, bb6
+    v9 = lt arg1, arg0
+    jumpi v9, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
-    v9 = sub arg1, arg0
-    v10 = add v5, arg0
-    v11 = make_calldata_slice v10, v9
-    v12 = slice_len v11
-    v13 = add v12, 31
-    v14 = lt v13, v12
-    jumpi v14, bb7, bb8
+    v10 = sub arg1, arg0
+    v11 = add v6, arg0
+    v12 = make_calldata_slice v11, v10
+    v13 = slice_len v12
+    v14 = add v13, 31
+    v15 = lt v14, v13
+    jumpi v15, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = iszero v16
-    v18 = select v17, 32, v16
-    v19 = add 32, v18
-    v20 = lt v19, v18
-    jumpi v20, bb9, bb10
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = iszero v17
+    v19 = select v18, 32, v17
+    v20 = add 32, v19
+    v21 = lt v20, v19
+    jumpi v21, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    v21 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v21, v12
-    v22 = memory_object_data memorybytes, v21
-    v23 = sub v18, 32
-    v24 = add v22, v23
-    mstore v24, 0
-    v25 = slice_ptr v11
-    calldatacopy v22, v25, v12
-    ret v21
+    v22 = alloc memorybytes, exact, uninitialized, infallible, v20
+    set_memory_object_len memorybytes, v22, v13
+    v23 = memory_object_data memorybytes, v22
+    v24 = sub v19, 32
+    v25 = add v23, v24
+    mstore v25, 0
+    v26 = slice_ptr v12
+    calldatacopy v23, v26, v13
+    ret v22
 }
 

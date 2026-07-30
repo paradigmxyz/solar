@@ -9,9 +9,10 @@ fn @stored(arg0: u256) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = mapping_slot arg0, 0
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    ret v4
+    v3 = calldatasize
+    v4 = mapping_slot arg0, 0
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    ret v5
 }
 
 fn @triple(arg0: u256) -> (u256, u256, u256) {
@@ -49,28 +50,29 @@ fn @assign(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [abi_returns=[wor
   bb1:
     revert 0, 0
   bb2:
+    v3 = calldatasize
     mstore 128, 0
     mstore 160, 0
     mstore 192, 0
     mstore 224, 0
-    v3 = mload 64 !metadata(memory=scratch)
-    mstore 192, v3
-    v4 = internal_call @triple, 3, arg1
-    v5 = mload 32 !metadata(memory=scratch)
-    v6 = add v5, 32
-    v7 = mload v6
-    v8 = add v5, 64
-    v9 = mload v8
-    v10 = mapping_slot arg0, 0
-    sstore v10, v4 !metadata(storage=symbolic(v10))
-    mstore 128, v7
-    mstore 160, v9
-    v11 = mload 64 !metadata(memory=scratch)
-    mstore 224, v11
-    v12 = mload 128
-    v13 = mload 160
-    v14 = mload 192
-    v15 = mload 224
-    ret v12, v13, v14, v15
+    v4 = mload 64 !metadata(memory=scratch)
+    mstore 192, v4
+    v5 = internal_call @triple, 3, arg1
+    v6 = mload 32 !metadata(memory=scratch)
+    v7 = add v6, 32
+    v8 = mload v7
+    v9 = add v6, 64
+    v10 = mload v9
+    v11 = mapping_slot arg0, 0
+    mstore 160, v10
+    mstore 128, v8
+    sstore v11, v5 !metadata(storage=symbolic(v11))
+    v12 = mload 64 !metadata(memory=scratch)
+    mstore 224, v12
+    v13 = mload 128
+    v14 = mload 160
+    v15 = mload 192
+    v16 = mload 224
+    ret v13, v14, v15, v16
 }
 

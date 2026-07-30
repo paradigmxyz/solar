@@ -2,7 +2,7 @@
 // === ROOT/tests/ui/codegen/lowering/enum_conversion_qualified.sol:E (runtime) ===
 @module runtime
 bb0:
-  push 160
+  push 192
   push 64
   mstore
   callvalue
@@ -46,10 +46,23 @@ bb17:
   push 4
   calldataload
   iszero
-  push 128
+  push 64
+  mload
+  dup1
+  push 160
   mstore
   push 32
-  push 128
+  dup2
+  add
+  push 64
+  mstore
+  dup2
+  dup2
+  mstore
+  swap1
+  pop
+  push 32
+  dup2
   return
 bb5 [cold]:
   push 0

@@ -2,7 +2,7 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Inner (runtime) ===
 @module runtime
 bb0:
-  push 224
+  push 256
   push 64
   mstore
   callvalue
@@ -67,10 +67,23 @@ bb0:
   push 4
   calldataload
   sload
-  push 128
+  push 64
+  mload
+  dup1
+  push 224
   mstore
   push 32
-  push 128
+  dup2
+  add
+  push 64
+  mstore
+  dup2
+  dup2
+  mstore
+  swap1
+  pop
+  push 32
+  dup2
   return
 bb4 [cold]:
   push 0
@@ -91,7 +104,7 @@ bb9 [cold]:
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Outer (runtime) ===
 @module runtime
 bb0:
-  push 256
+  push 416
   push 64
   mstore
   callvalue
@@ -107,9 +120,15 @@ bb0:
   shr
   dup1
   push 0x5e0b1cef
-  sub
-  push bb4
+  eq
+  push bb5
   jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+bb5:
   calldatasize
   push 4
   swap1
@@ -122,43 +141,47 @@ bb0:
   calldataload
   push bb9
   jumpi
-  push 0
-  jump bb12
-bb12:
-  push 128
+  push 64
+  mload
+  dup1
+  push 288
   mstore
   push 32
-  push 128
-  return
-bb4 [cold]:
+  dup2
+  add
+  push 64
+  mstore
   push 0
-  dup1
-  revert
+  dup2
+  mstore
+  push 32
+  dup2
+  return
 bb9:
   push 64
   mload
   dup1
-  push 160
+  push 320
   mstore
-  push 32
+  push 96
+  dup2
+  add
+  push 64
   mstore
   push 0xfaf4836c
   push 224
   shl
-  push 160
-  mload
+  dup2
   mstore
   push 4
-  push 160
-  mload
+  dup2
   add
   push 4
   calldataload
   swap1
   mstore
   push 36
-  push 160
-  mload
+  dup2
   add
   push 36
   calldataload
@@ -166,40 +189,132 @@ bb9:
   mstore
   gas
   dup1
-  push 224
+  push 384
   mstore
-  push 32
+  push 0
   push 0
   push 68
-  push 160
-  mload
+  dup5
   push 0x1000000000000000000000000000000000000001
   dup6
   delegatecall
-  swap1
+  swap2
+  pop
   pop
   iszero
-  push bb11
+  push bb13
   jumpi
-  push 0
-  mload
-  jump bb12
-bb11 [cold]:
   returndatasize
+  push 31
+  dup2
+  add
+  push 31
+  not
+  and
+  push 32
+  add
+  push 64
+  mload
+  dup1
+  push 224
+  mstore
+  dup2
+  dup2
+  add
+  swap2
+  pop
+  dup2
+  push 64
+  mstore
+  swap1
+  pop
+  dup2
+  dup2
+  mstore
+  push 32
+  dup2
+  add
+  dup1
+  push 160
+  mstore
+  dup3
+  push 0
+  dup3
+  dup1
+  push 160
+  mstore
+  returndatacopy
+  swap2
+  pop
+  dup1
+  push 224
+  mstore
+  mload
   dup1
   push 192
+  mstore
+  push 32
+  gt
+  swap1
+  pop
+  push bb4
+  jumpi
+  push 192
+  mload
+  dup1
+  push 192
+  mstore
+  push 160
+  mload
+  add
+  push 160
+  mload
+  dup1
+  push 160
+  mstore
+  gt
+  push bb4
+  jumpi
+  push 160
+  mload
+  dup1
+  push 160
+  mstore
+  mload
+  push 64
+  mload
+  dup1
+  push 352
+  mstore
+  push 32
+  dup2
+  add
+  push 64
+  mstore
+  dup2
+  dup2
+  mstore
+  swap1
+  pop
+  push 32
+  dup2
+  return
+bb13 [cold]:
+  returndatasize
+  dup1
+  push 256
   mstore
   push 0
   dup1
   returndatacopy
-  push 192
+  push 256
   mload
   push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 256
+  push 384
   push 64
   mstore
   callvalue
@@ -229,26 +344,26 @@ bb0:
   push 64
   mload
   dup1
-  push 160
+  push 288
   mstore
-  push 32
+  push 96
+  dup2
+  add
+  push 64
   mstore
   push 0x5e0b1cef
   push 224
   shl
-  push 160
-  mload
+  dup2
   mstore
   push 4
-  push 160
-  mload
+  dup2
   add
   push 0
   swap1
   mstore
   push 36
-  push 160
-  mload
+  dup2
   add
   push 4
   calldataload
@@ -256,41 +371,129 @@ bb0:
   mstore
   gas
   dup1
-  push 224
+  push 352
   mstore
-  push 32
+  push 0
   push 0
   push 68
-  push 160
-  mload
+  dup5
   push 0x1000000000000000000000000000000000000002
   dup6
   delegatecall
-  swap1
+  swap2
+  pop
   pop
   iszero
-  push bb9
+  push bb11
   jumpi
-  push 0
+  returndatasize
+  push 31
+  dup2
+  add
+  push 31
+  not
+  and
+  push 32
+  add
+  push 64
   mload
-  push 128
+  dup1
+  push 224
+  mstore
+  dup2
+  dup2
+  add
+  swap2
+  pop
+  dup2
+  push 64
+  mstore
+  swap1
+  pop
+  dup2
+  dup2
   mstore
   push 32
-  push 128
+  dup2
+  add
+  dup1
+  push 160
+  mstore
+  dup3
+  push 0
+  dup3
+  dup1
+  push 160
+  mstore
+  returndatacopy
+  swap2
+  pop
+  dup1
+  push 224
+  mstore
+  mload
+  dup1
+  push 192
+  mstore
+  push 32
+  gt
+  swap1
+  pop
+  push bb4
+  jumpi
+  push 192
+  mload
+  dup1
+  push 192
+  mstore
+  push 160
+  mload
+  add
+  push 160
+  mload
+  dup1
+  push 160
+  mstore
+  gt
+  push bb4
+  jumpi
+  push 160
+  mload
+  dup1
+  push 160
+  mstore
+  mload
+  push 64
+  mload
+  dup1
+  push 320
+  mstore
+  push 32
+  dup2
+  add
+  push 64
+  mstore
+  dup2
+  dup2
+  mstore
+  swap1
+  pop
+  push 32
+  dup2
   return
 bb4 [cold]:
   push 0
   dup1
   revert
-bb9 [cold]:
+bb11 [cold]:
   returndatasize
   dup1
-  push 192
+  push 256
   mstore
   push 0
   dup1
   returndatacopy
-  push 192
+  push 256
   mload
   push 0
   revert

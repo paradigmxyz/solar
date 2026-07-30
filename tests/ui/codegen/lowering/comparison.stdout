@@ -9,8 +9,9 @@ fn @eq(arg0: u256, arg1: u256) -> bool [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = eq arg0, arg1
-    ret v3
+    v3 = calldatasize
+    v4 = eq arg0, arg1
+    ret v4
 }
 
 fn @lt(arg0: u256, arg1: u256) -> bool [abi_returns=[word]] {
@@ -22,8 +23,9 @@ fn @lt(arg0: u256, arg1: u256) -> bool [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = lt arg0, arg1
-    ret v3
+    v3 = calldatasize
+    v4 = lt arg0, arg1
+    ret v4
 }
 
 fn @is_zero(arg0: u256) -> bool [abi_returns=[word]] {
@@ -35,7 +37,8 @@ fn @is_zero(arg0: u256) -> bool [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = eq arg0, 0
-    ret v3
+    v3 = calldatasize
+    v4 = eq arg0, 0
+    ret v4
 }
 

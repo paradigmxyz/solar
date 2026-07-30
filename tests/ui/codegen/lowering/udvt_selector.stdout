@@ -11,7 +11,7 @@
 // === ROOT/tests/ui/codegen/lowering/udvt_selector.sol:UdvtSelector (runtime) ===
 @module runtime
 bb0:
-  push 192
+  push 224
   push 64
   mstore
   callvalue
@@ -52,13 +52,26 @@ bb0:
   lt
   push bb9
   jumpi
+  push 64
+  mload
+  dup1
+  push 192
+  mstore
+  push 32
+  dup2
+  add
+  push 64
+  mstore
+  dup2
   dup1
   push 160
   mstore
-  push 128
+  dup2
   mstore
+  swap1
+  pop
   push 32
-  push 128
+  dup2
   return
 bb4 [cold]:
   push 0

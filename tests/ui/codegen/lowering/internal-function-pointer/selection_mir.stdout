@@ -9,11 +9,12 @@ fn @choose(arg0: bool, arg1: u256) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = calldataload 4
-    v4 = iszero v3
+    v3 = calldatasize
+    v4 = calldataload 4
     v5 = iszero v4
-    v6 = eq v3, v5
-    jumpi v6, bb4, bb3
+    v6 = iszero v5
+    v7 = eq v4, v6
+    jumpi v7, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -25,9 +26,9 @@ fn @choose(arg0: bool, arg1: u256) -> u256 [abi_returns=[word]] {
     mstore 0, 3 !metadata(memory=scratch)
     jump bb7
   bb7:
-    v7 = mload 0 !metadata(memory=scratch)
-    v8 = internal_call @__internal_dispatch_0, 1, v7, arg1
-    ret v8
+    v8 = mload 0 !metadata(memory=scratch)
+    v9 = internal_call @__internal_dispatch_0, 1, v8, arg1
+    ret v9
 }
 
 fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 {
@@ -90,8 +91,9 @@ fn @callConstant(arg0: u256) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = internal_call @__internal_dispatch_0, 1, 2, arg0
-    ret v3
+    v3 = calldatasize
+    v4 = internal_call @__internal_dispatch_0, 1, 2, arg0
+    ret v4
 }
 
 fn @throughCast(arg0: u256) -> u256 [abi_returns=[word]] {
@@ -103,9 +105,10 @@ fn @throughCast(arg0: u256) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = internal_call @castViewToPure, 1, 7
-    v4 = internal_call @__internal_dispatch_0, 1, v3, arg0
-    ret v4
+    v3 = calldatasize
+    v4 = internal_call @castViewToPure, 1, 7
+    v5 = internal_call @__internal_dispatch_0, 1, v4, arg0
+    ret v5
 }
 
 fn @castViewToPure(arg0: function) -> function {

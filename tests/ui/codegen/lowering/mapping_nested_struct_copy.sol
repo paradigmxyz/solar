@@ -20,8 +20,16 @@ contract MappingNestedStructCopy {
     mapping(uint256 => Outer) internal values;
 
     // CHECK-LABEL: fn @set{{[( ]}}
-    // CHECK: = mapping_slot
-    // CHECK: memory_to_storage struct<word, struct<word, word>, word>
+    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot
+    // CHECK: sstore [[SLOT]],
+    // CHECK: [[INNER_SLOT:v[0-9]+]] = add [[SLOT]], 1
+    // CHECK: memory_object_field_addr memorystruct<2>
+    // CHECK: sstore [[INNER_SLOT]],
+    // CHECK: memory_object_field_addr memorystruct<2>
+    // CHECK: [[INNER_RIGHT_SLOT:v[0-9]+]] = add [[INNER_SLOT]], 1
+    // CHECK: sstore [[INNER_RIGHT_SLOT]],
+    // CHECK: [[TAIL_SLOT:v[0-9]+]] = add [[SLOT]], 3
+    // CHECK: sstore [[TAIL_SLOT]],
     function set(uint256 key, uint256 head, uint256 left, uint256 right, uint256 tail) external {
         values[key] = Outer(head, Inner(left, right), tail);
     }

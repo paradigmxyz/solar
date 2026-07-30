@@ -9,14 +9,15 @@ fn @hash3(arg0: u256, arg1: u256, arg2: u256) -> bytes32 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = fmp
-    mstore v3, arg0
-    v4 = add v3, 32
-    mstore v4, arg1
-    v5 = add v3, 64
-    mstore v5, arg2
-    v6 = keccak256 v3, 96
-    ret v6
+    v3 = calldatasize
+    v4 = fmp
+    mstore v4, arg0
+    v5 = add v4, 32
+    mstore v5, arg1
+    v6 = add v4, 64
+    mstore v6, arg2
+    v7 = keccak256 v4, 96
+    ret v7
 }
 
 fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [abi_returns=[memory_bytes]] {
@@ -28,21 +29,22 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [abi_returns=[mem
   bb1:
     revert 0, 0
   bb2:
-    v3 = fmp
-    v4 = memory_object_data memorybytes, v3
-    mstore v4, arg0
-    v5 = add v4, 32
-    mstore v5, arg1
-    v6 = add v4, 64
-    mstore v6, arg2
-    set_memory_object_len memorybytes, v3, 96
-    v7 = add 96, 32
-    v8 = add v3, v7
-    set_fmp v8
-    ret v3
+    v3 = calldatasize
+    v4 = fmp
+    v5 = memory_object_data memorybytes, v4
+    mstore v5, arg0
+    v6 = add v5, 32
+    mstore v6, arg1
+    v7 = add v5, 64
+    mstore v7, arg2
+    set_memory_object_len memorybytes, v4, 96
+    v8 = add 96, 32
+    v9 = add v4, v8
+    set_fmp v9
+    ret v4
 }
 
-fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [abi_returns=[memory_bytes]] {
+fn @encodeDynamic(arg0: u256, arg1: u256) -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -51,95 +53,201 @@ fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [abi_returns=[me
   bb1:
     revert 0, 0
   bb2:
-    v3 = add 4, arg1
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    v12 = fmp
-    v13 = memory_object_data memorybytes, v12
-    v14 = add v13, 64
-    mstore v13, arg0
-    v15 = add v13, 32
-    v16 = sub v14, v13
-    mstore v15, v16
-    v17 = memory_object_len memorybytes, v9
-    mstore v14, v17
-    v18 = not 31
-    v19 = add v17, 31
-    v20 = and v19, v18
-    v21 = add v14, 32
-    v22 = iszero v20
-    jumpi v22, bb4, bb3
+    v3 = calldatasize
+    v4 = add 4, 32
+    v5 = calldataload v4
+    v6 = lt v5, 64
+    v7 = add 4, v5
+    v8 = lt v7, 4
+    v9 = gt v7, v3
+    v10 = or v6, v8
+    v11 = or v10, v9
+    jumpi v11, bb3, bb4
   bb3:
-    v23 = sub v20, 32
-    v24 = add v21, v23
-    mstore v24, 0
-    jump bb4
-  bb4:
-    v25 = memory_object_data memorybytes, v9
-    v26 = add v21, v20
-    mcopy v21, v25, v17
-    v27 = sub v26, v13
-    set_memory_object_len memorybytes, v12, v27
-    v28 = add v27, 32
-    v29 = add v12, v28
-    set_fmp v29
-    ret v12
-}
-
-fn @hashDynamic(arg0: u256, arg1: memorybytes) -> bytes32 [abi_returns=[word]] {
-  bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
-  bb1:
     revert 0, 0
-  bb2:
-    v3 = add 4, arg1
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    v12 = fmp
-    v13 = add v12, 64
-    mstore v12, arg0
+  bb4:
+    v12 = add 4, arg1
+    v13 = calldatasize
     v14 = add v12, 32
-    v15 = sub v13, v12
-    mstore v14, v15
-    v16 = memory_object_len memorybytes, v9
-    mstore v13, v16
-    v17 = not 31
-    v18 = add v16, 31
-    v19 = and v18, v17
-    v20 = add v13, 32
-    v21 = iszero v19
-    jumpi v21, bb4, bb3
+    v15 = lt v14, v12
+    v16 = gt v14, v13
+    v17 = or v15, v16
+    jumpi v17, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v18 = calldataload v12
+    v19 = add v18, 31
+    v20 = lt v19, v18
+    jumpi v20, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v21 = not 31
+    v22 = and v19, v21
+    v23 = add 32, v22
+    v24 = lt v23, v22
+    jumpi v24, bb9, bb10
+  bb9:
+    revert 0, 0
+  bb10:
+    v25 = add v12, v23
+    v26 = lt v25, v12
+    v27 = gt v25, v13
+    v28 = or v26, v27
+    jumpi v28, bb11, bb12
+  bb11:
+    revert 0, 0
+  bb12:
+    v29 = iszero v22
+    v30 = select v29, 32, v22
+    v31 = add 32, v30
+    v32 = lt v31, v30
+    jumpi v32, bb13, bb14
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    v33 = alloc memorybytes, exact, uninitialized, infallible, v31
+    mstore v33, v18
+    v34 = add v33, 32
+    v35 = sub v30, 32
+    v36 = add v34, v35
+    mstore v36, 0
+    v37 = add v12, 32
+    calldatacopy v34, v37, v18
+    v38 = fmp
+    v39 = memory_object_data memorybytes, v38
+    v40 = add v39, 64
+    mstore v39, arg0
+    v41 = add v39, 32
+    v42 = sub v40, v39
+    mstore v41, v42
+    v43 = memory_object_len memorybytes, v33
+    mstore v40, v43
+    v44 = not 31
+    v45 = add v43, 31
+    v46 = and v45, v44
+    v47 = add v40, 32
+    v48 = iszero v46
+    jumpi v48, bb16, bb15
+  bb15:
+    v49 = sub v46, 32
+    v50 = add v47, v49
+    mstore v50, 0
+    jump bb16
+  bb16:
+    v51 = memory_object_data memorybytes, v33
+    v52 = add v47, v46
+    mcopy v47, v51, v43
+    v53 = sub v52, v39
+    set_memory_object_len memorybytes, v38, v53
+    v54 = add v53, 32
+    v55 = add v38, v54
+    set_fmp v55
+    ret v38
+}
+
+fn @hashDynamic(arg0: u256, arg1: u256) -> bytes32 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldatasize
+    v4 = add 4, 32
+    v5 = calldataload v4
+    v6 = lt v5, 64
+    v7 = add 4, v5
+    v8 = lt v7, 4
+    v9 = gt v7, v3
+    v10 = or v6, v8
+    v11 = or v10, v9
+    jumpi v11, bb3, bb4
   bb3:
-    v22 = sub v19, 32
-    v23 = add v20, v22
-    mstore v23, 0
-    jump bb4
+    revert 0, 0
   bb4:
-    v24 = memory_object_data memorybytes, v9
-    v25 = add v20, v19
-    mcopy v20, v24, v16
-    v26 = sub v25, v12
-    v27 = keccak256 v12, v26
-    ret v27
+    v12 = add 4, arg1
+    v13 = calldatasize
+    v14 = add v12, 32
+    v15 = lt v14, v12
+    v16 = gt v14, v13
+    v17 = or v15, v16
+    jumpi v17, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v18 = calldataload v12
+    v19 = add v18, 31
+    v20 = lt v19, v18
+    jumpi v20, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v21 = not 31
+    v22 = and v19, v21
+    v23 = add 32, v22
+    v24 = lt v23, v22
+    jumpi v24, bb9, bb10
+  bb9:
+    revert 0, 0
+  bb10:
+    v25 = add v12, v23
+    v26 = lt v25, v12
+    v27 = gt v25, v13
+    v28 = or v26, v27
+    jumpi v28, bb11, bb12
+  bb11:
+    revert 0, 0
+  bb12:
+    v29 = iszero v22
+    v30 = select v29, 32, v22
+    v31 = add 32, v30
+    v32 = lt v31, v30
+    jumpi v32, bb13, bb14
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    v33 = alloc memorybytes, exact, uninitialized, infallible, v31
+    mstore v33, v18
+    v34 = add v33, 32
+    v35 = sub v30, 32
+    v36 = add v34, v35
+    mstore v36, 0
+    v37 = add v12, 32
+    calldatacopy v34, v37, v18
+    v38 = fmp
+    v39 = add v38, 64
+    mstore v38, arg0
+    v40 = add v38, 32
+    v41 = sub v39, v38
+    mstore v40, v41
+    v42 = memory_object_len memorybytes, v33
+    mstore v39, v42
+    v43 = not 31
+    v44 = add v42, 31
+    v45 = and v44, v43
+    v46 = add v39, 32
+    v47 = iszero v45
+    jumpi v47, bb16, bb15
+  bb15:
+    v48 = sub v45, 32
+    v49 = add v46, v48
+    mstore v49, 0
+    jump bb16
+  bb16:
+    v50 = memory_object_data memorybytes, v33
+    v51 = add v46, v45
+    mcopy v46, v50, v42
+    v52 = sub v51, v38
+    v53 = keccak256 v38, v52
+    ret v53
 }
 
 fn @roundtrip(arg0: u256) -> u256 [abi_returns=[word]] {
@@ -151,21 +259,28 @@ fn @roundtrip(arg0: u256) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = fmp
-    v4 = memory_object_data memorybytes, v3
-    mstore v4, arg0
-    set_memory_object_len memorybytes, v3, 32
-    v5 = add 32, 32
-    v6 = add v3, v5
-    set_fmp v6
-    v7 = memory_object_len memorybytes, v3
-    v8 = memory_object_data memorybytes, v3
-    v9 = lt v7, 32
-    jumpi v9, bb3, bb4
+    v3 = calldatasize
+    v4 = fmp
+    v5 = memory_object_data memorybytes, v4
+    mstore v5, arg0
+    set_memory_object_len memorybytes, v4, 32
+    v6 = add 32, 32
+    v7 = add v4, v6
+    set_fmp v7
+    v8 = memory_object_len memorybytes, v4
+    v9 = memory_object_data memorybytes, v4
+    v10 = lt v8, 32
+    jumpi v10, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v10 = mload v8
-    ret v10
+    v11 = add v9, v8
+    v12 = lt v11, v9
+    jumpi v12, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v13 = mload v9
+    ret v13
 }
 

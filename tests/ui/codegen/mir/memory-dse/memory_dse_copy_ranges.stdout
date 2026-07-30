@@ -30,3 +30,13 @@
 +     ret 3
   }
   
+  fn @forward_across_zero_length_copy() -> u256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      mstore v0, 1
+      calldatacopy 0, 0, 0
+-     v1 = mload v0
+-     ret v1
++     ret 1
+  }
+  

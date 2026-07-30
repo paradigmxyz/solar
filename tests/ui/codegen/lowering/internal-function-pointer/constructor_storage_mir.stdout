@@ -2,6 +2,18 @@
 @module ConstructorStoredFunctionPointer
 fn @_anonymous() {
   bb0:
+    v0 = mload 32 !metadata(memory=scratch)
+    v1 = lt v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v2 = add 128, v0
+    v3 = lt v2, 128
+    jumpi v3, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
     sstore 0, 2 !metadata(storage=slot(0))
     stop
 }
@@ -13,9 +25,10 @@ fn @onlyStored() -> u256 {
 
 fn @callStoredOnly() -> u256 [abi_returns=[word]] {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = internal_call @__internal_dispatch_0, 1, v0
-    ret v1
+    v0 = calldatasize
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = internal_call @__internal_dispatch_0, 1, v1
+    ret v2
 }
 
 fn @__internal_dispatch_0(arg0: function) -> u256 {

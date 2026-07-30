@@ -36,7 +36,13 @@ contract C {
     // CHECK: [[RETURN]]:
     // CHECK: return
     // CHECK: [[DECL_BODY]]:
-    // CHECK: calldatacopy
+    // CHECK: calldataload
+    // CHECK: calldataload
+    // CHECK-NEXT: dup1
+    // CHECK-NEXT: push {{[0-9]+}}
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push [[DECL_COPY:bb[0-9]+]]
+    // CHECK-NEXT: jump
     // CHECK: sstore
     function viaDecl(uint256[] calldata xs) external returns (uint256) {
         uint256[] memory m = xs;
@@ -49,9 +55,13 @@ contract C {
     }
 
     // CHECK: [[ASSIGN_BODY]]:
-    // CHECK: calldatacopy
-    // CHECK: mload
-    // CHECK: jump [[RETURN]]
+    // CHECK: calldataload
+    // CHECK: calldataload
+    // CHECK-NEXT: dup1
+    // CHECK-NEXT: push {{[0-9]+}}
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push [[ASSIGN_COPY:bb[0-9]+]]
+    // CHECK-NEXT: jump
     function viaAssign(uint256[] calldata xs) external pure returns (uint256) {
         uint256[] memory m;
         m = xs;
@@ -59,11 +69,13 @@ contract C {
     }
 
     // CHECK: [[STRUCT_BODY]]:
-    // CHECK: calldatacopy
-    // CHECK: calldatacopy
-    // CHECK: mload
-    // CHECK: mload
-    // CHECK: jump [[RETURN]]
+    // CHECK: calldataload
+    // CHECK: calldataload
+    // CHECK-NEXT: dup1
+    // CHECK-NEXT: push {{[0-9]+}}
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push [[STRUCT_COPY:bb[0-9]+]]
+    // CHECK-NEXT: jump
     function viaStructLiteral(uint256 base, uint256[] calldata xs, bytes calldata tag)
         external
         pure
@@ -72,4 +84,17 @@ contract C {
         P memory p = P({base: base, xs: xs, tag: tag});
         return p.base + p.xs.length * 10 + p.tag.length * 100;
     }
+
+    // CHECK: [[DECL_COPY]]:
+    // CHECK: calldatacopy
+    // CHECK: [[ASSIGN_COPY]]:
+    // CHECK: calldatacopy
+    // CHECK: mload
+    // CHECK: jump [[RETURN]]
+    // CHECK: [[STRUCT_COPY]]:
+    // CHECK: calldatacopy
+    // CHECK: calldatacopy
+    // CHECK: mload
+    // CHECK: mload
+    // CHECK: jump {{bb[0-9]+}}
 }

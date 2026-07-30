@@ -9,31 +9,61 @@ fn @trimLen(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 32
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v11 = add v6, 32
+    v12 = lt v11, v6
+    v13 = gt v11, v3
+    v14 = or v12, v13
+    jumpi v14, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v15 = calldataload v6
+    v16 = add v6, 32
+    v17 = add v16, v15
+    v18 = lt v17, v16
+    v19 = gt v17, v3
+    v20 = or v18, v19
+    jumpi v20, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
     mstore 128, 0
     mstore 160, 0
-    v3 = slice_ptr arg0
-    v4 = slice_len arg0
-    mstore 128, v3
-    mstore 160, v4
-    v5 = slice_len arg0
-    v6 = gt v5, 8
-    jumpi v6, bb4, bb5
-  bb3:
-    v11 = mload 128
-    v12 = mload 160
-    v13 = make_calldata_slice v11, v12
-    v14 = slice_len v13
-    ret v14
-  bb4:
-    v7 = slice_ptr arg0
-    v8 = add v7, 8
-    mstore 128, v8
-    v9 = slice_len arg0
-    v10 = sub v9, 8
-    mstore 160, v10
-    jump bb5
-  bb5:
-    jump bb3
+    v21 = slice_ptr arg0
+    v22 = slice_len arg0
+    mstore 128, v21
+    mstore 160, v22
+    v23 = slice_len arg0
+    v24 = gt v23, 8
+    jumpi v24, bb10, bb11
+  bb9:
+    v29 = mload 128
+    v30 = mload 160
+    v31 = make_calldata_slice v29, v30
+    v32 = slice_len v31
+    ret v32
+  bb10:
+    v25 = slice_ptr arg0
+    v26 = add v25, 8
+    mstore 128, v26
+    v27 = slice_len arg0
+    v28 = sub v27, 8
+    mstore 160, v28
+    jump bb11
+  bb11:
+    jump bb9
 }
 
 fn @_trim(arg0: calldataslice) -> memorybytes {
@@ -79,50 +109,80 @@ fn @forward(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = make_calldata_slice 0, 0
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    mstore 128, v4
-    mstore 160, v5
-    v6 = make_calldata_slice 0, 0
-    v7 = slice_ptr v6
-    v8 = slice_len v6
-    mstore 192, v7
-    mstore 224, v8
-    mstore 224, 0
-    v9 = slice_ptr arg0
-    mstore 128, v9
-    v10 = slice_len arg0
-    mstore 160, v10
-    v11 = mload 128
-    v12 = mload 160
-    v13 = make_calldata_slice v11, v12
-    v14 = mload 192
-    v15 = mload 224
-    v16 = make_calldata_slice v14, v15
-    v17 = slice_len v13
-    v18 = mul v17, 0x3e8
-    v19 = iszero 0x3e8
-    v20 = div v18, 0x3e8
-    v21 = eq v20, v17
-    v22 = or v19, v21
-    v23 = iszero v22
-    jumpi v23, bb3, bb4
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 32
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
-    v24 = slice_len v16
-    v25 = add v18, v24
-    v26 = lt v25, v18
-    jumpi v26, bb5, bb6
+    v11 = add v6, 32
+    v12 = lt v11, v6
+    v13 = gt v11, v3
+    v14 = or v12, v13
+    jumpi v14, bb5, bb6
   bb5:
+    revert 0, 0
+  bb6:
+    v15 = calldataload v6
+    v16 = add v6, 32
+    v17 = add v16, v15
+    v18 = lt v17, v16
+    v19 = gt v17, v3
+    v20 = or v18, v19
+    jumpi v20, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v21 = make_calldata_slice 0, 0
+    v22 = slice_ptr v21
+    v23 = slice_len v21
+    mstore 128, v22
+    mstore 160, v23
+    v24 = make_calldata_slice 0, 0
+    v25 = slice_ptr v24
+    v26 = slice_len v24
+    mstore 192, v25
+    mstore 224, v26
+    mstore 224, 0
+    v27 = slice_ptr arg0
+    mstore 128, v27
+    v28 = slice_len arg0
+    mstore 160, v28
+    v29 = mload 128
+    v30 = mload 160
+    v31 = make_calldata_slice v29, v30
+    v32 = mload 192
+    v33 = mload 224
+    v34 = make_calldata_slice v32, v33
+    v35 = slice_len v31
+    v36 = mul v35, 0x3e8
+    v37 = iszero 0x3e8
+    v38 = div v36, 0x3e8
+    v39 = eq v38, v35
+    v40 = or v37, v39
+    v41 = iszero v40
+    jumpi v41, bb9, bb10
+  bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb6:
-    ret v25
+  bb10:
+    v42 = slice_len v34
+    v43 = add v36, v42
+    v44 = lt v43, v36
+    jumpi v44, bb11, bb12
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    ret v43
 }
 
 fn @_sum(arg0: calldataslice, arg1: calldataslice) -> u256 {
@@ -161,39 +221,69 @@ fn @explicitTrim(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 32
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v11 = add v6, 32
+    v12 = lt v11, v6
+    v13 = gt v11, v3
+    v14 = or v12, v13
+    jumpi v14, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v15 = calldataload v6
+    v16 = add v6, 32
+    v17 = add v16, v15
+    v18 = lt v17, v16
+    v19 = gt v17, v3
+    v20 = or v18, v19
+    jumpi v20, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
     mstore 128, 0
     mstore 160, 0
-    v3 = slice_len arg0
-    v4 = gt v3, 4
-    jumpi v4, bb4, bb5
-  bb3:
-    v15 = mload 128
-    v16 = mload 160
-    v17 = make_calldata_slice v15, v16
-    v18 = slice_len v17
-    ret v18
-  bb4:
-    v5 = slice_ptr arg0
-    v6 = slice_len arg0
-    v7 = lt v6, 4
-    jumpi v7, bb6, bb7
-  bb5:
-    v13 = slice_ptr arg0
-    v14 = slice_len arg0
-    mstore 128, v13
-    mstore 160, v14
-    jump bb3
-  bb6:
+    v21 = slice_len arg0
+    v22 = gt v21, 4
+    jumpi v22, bb10, bb11
+  bb9:
+    v33 = mload 128
+    v34 = mload 160
+    v35 = make_calldata_slice v33, v34
+    v36 = slice_len v35
+    ret v36
+  bb10:
+    v23 = slice_ptr arg0
+    v24 = slice_len arg0
+    v25 = lt v24, 4
+    jumpi v25, bb12, bb13
+  bb11:
+    v31 = slice_ptr arg0
+    v32 = slice_len arg0
+    mstore 128, v31
+    mstore 160, v32
+    jump bb9
+  bb12:
     revert 0, 0
-  bb7:
-    v8 = sub v6, 4
-    v9 = add v5, 4
-    v10 = make_calldata_slice v9, v8
-    v11 = slice_ptr v10
-    v12 = slice_len v10
-    mstore 128, v11
-    mstore 160, v12
-    jump bb3
+  bb13:
+    v26 = sub v24, 4
+    v27 = add v23, 4
+    v28 = make_calldata_slice v27, v26
+    v29 = slice_ptr v28
+    v30 = slice_len v28
+    mstore 128, v29
+    mstore 160, v30
+    jump bb9
 }
 
 fn @_explicitTrim(arg0: calldataslice) -> memorybytes {
@@ -284,58 +374,88 @@ fn @headTail(arg0: calldataslice) -> (u256, u256) [abi_returns=[word, word]] {
   bb1:
     revert 0, 0
   bb2:
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 32
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v11 = add v6, 32
+    v12 = lt v11, v6
+    v13 = gt v11, v3
+    v14 = or v12, v13
+    jumpi v14, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v15 = calldataload v6
+    v16 = add v6, 32
+    v17 = add v16, v15
+    v18 = lt v17, v16
+    v19 = gt v17, v3
+    v20 = or v18, v19
+    jumpi v20, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
     mstore 128, 0
     mstore 160, 0
     mstore 192, 0
     mstore 224, 0
     mstore 256, 0
     mstore 288, 0
-    v3 = slice_ptr arg0
-    v4 = slice_len arg0
-    mstore 192, v3
-    mstore 224, v4
-    v5 = slice_ptr arg0
-    v6 = slice_len arg0
-    v7 = slice_len arg0
-    v8 = lt v6, v7
-    jumpi v8, bb4, bb5
-  bb3:
-    v20 = mload 192
-    v21 = mload 224
-    v22 = make_calldata_slice v20, v21
-    v23 = mload 256
-    v24 = mload 288
-    v25 = make_calldata_slice v23, v24
-    v26 = slice_len v22
-    mstore 128, v26
-    v27 = slice_len v25
-    mstore 160, v27
-    v28 = mload 128
-    v29 = mload 160
-    ret v28, v29
-  bb4:
+    v21 = slice_ptr arg0
+    v22 = slice_len arg0
+    mstore 192, v21
+    mstore 224, v22
+    v23 = slice_ptr arg0
+    v24 = slice_len arg0
+    v25 = slice_len arg0
+    v26 = lt v24, v25
+    jumpi v26, bb10, bb11
+  bb9:
+    v38 = mload 192
+    v39 = mload 224
+    v40 = make_calldata_slice v38, v39
+    v41 = mload 256
+    v42 = mload 288
+    v43 = make_calldata_slice v41, v42
+    v44 = slice_len v40
+    mstore 128, v44
+    v45 = slice_len v43
+    mstore 160, v45
+    v46 = mload 128
+    v47 = mload 160
+    ret v46, v47
+  bb10:
     revert 0, 0
-  bb5:
-    v9 = sub v6, v7
-    v10 = add v5, v7
-    v11 = make_calldata_slice v10, v9
-    v12 = slice_ptr v11
-    v13 = slice_len v11
-    mstore 256, v12
-    mstore 288, v13
-    v14 = slice_len arg0
-    v15 = gt v14, 8
-    jumpi v15, bb6, bb7
-  bb6:
-    v16 = slice_ptr arg0
-    v17 = add v16, 8
-    mstore 256, v17
-    v18 = slice_len arg0
-    v19 = sub v18, 8
-    mstore 288, v19
-    jump bb7
-  bb7:
-    jump bb3
+  bb11:
+    v27 = sub v24, v25
+    v28 = add v23, v25
+    v29 = make_calldata_slice v28, v27
+    v30 = slice_ptr v29
+    v31 = slice_len v29
+    mstore 256, v30
+    mstore 288, v31
+    v32 = slice_len arg0
+    v33 = gt v32, 8
+    jumpi v33, bb12, bb13
+  bb12:
+    v34 = slice_ptr arg0
+    v35 = add v34, 8
+    mstore 256, v35
+    v36 = slice_len arg0
+    v37 = sub v36, 8
+    mstore 288, v37
+    jump bb13
+  bb13:
+    jump bb9
 }
 
 fn @_split(arg0: calldataslice) -> (memorybytes, memorybytes) {

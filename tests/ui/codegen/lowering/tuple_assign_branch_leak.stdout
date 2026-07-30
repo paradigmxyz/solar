@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/tuple_assign_branch_leak.sol:TupleAssignBranchLeak (runtime) ===
 @module runtime
 bb0:
-  push 928
+  push 960
   push 64
   mstore
   callvalue
@@ -103,39 +103,39 @@ bb5:
   mload
   jump bb19
 bb19:
-  push 768
+  push 800
   mstore
   push 1
-  push 768
+  push 800
   mload
   add
   dup1
-  push 864
+  push 896
   mstore
-  push 768
+  push 800
   mload
   gt
   push bb23
   jumpi
   push 2
-  push 768
+  push 800
   mload
   add
   dup1
-  push 896
+  push 928
   mstore
-  push 768
+  push 800
   mload
   gt
   push bb23
   jumpi
-  push 864
-  mload
-  push 800
-  mstore
   push 896
   mload
   push 832
+  mstore
+  push 928
+  mload
+  push 864
   mstore
   jump
 bb9:
@@ -144,16 +144,16 @@ bb9:
   calldataload
   jump bb19
 bb10:
-  push 800
+  push 832
   mload
   dup1
-  push 384
+  push 352
   mstore
   push 64
   mload
   push 32
   mstore
-  push 832
+  push 864
   mload
   push 32
   mload
@@ -161,46 +161,40 @@ bb10:
   add
   mstore
   dup1
-  push 384
+  push 352
   mstore
   push 32
   mload
   push 32
   add
   mload
-  dup2
-  dup1
-  push 384
-  mstore
-  push 160
-  mstore
   dup1
   push 512
   mstore
   push 192
   mstore
+  dup1
+  push 352
+  mstore
+  push 160
+  mstore
   push 512
   mload
   dup1
   push 512
   mstore
-  dup2
+  push 352
+  mload
   add
   dup1
   push 416
   mstore
-  dup2
+  push 352
+  mload
   dup1
-  push 384
+  push 352
   mstore
-  dup2
-  lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
+  gt
   push bb23
   jumpi
   push 416
@@ -214,13 +208,26 @@ bb24:
   mstore
   push 128
   mload
-  push 128
+  push 64
+  mload
+  dup1
+  push 704
   mstore
   push 32
-  push 128
+  dup2
+  add
+  push 64
+  mstore
+  dup2
+  dup2
+  mstore
+  swap1
+  pop
+  push 32
+  dup2
   return
 bb15:
-  push 800
+  push 832
   mload
   dup1
   push 448
@@ -229,7 +236,7 @@ bb15:
   mload
   push 32
   mstore
-  push 832
+  push 864
   mload
   push 32
   mload
@@ -263,7 +270,7 @@ bb15:
   dup2
   add
   dup1
-  push 352
+  push 384
   mstore
   dup2
   dup1
@@ -284,16 +291,16 @@ bb15:
   dup1
   push 672
   mstore
-  push 352
+  push 384
   mload
   add
   dup1
   push 480
   mstore
-  push 352
+  push 384
   mload
   dup1
-  push 352
+  push 384
   mstore
   gt
   push bb23

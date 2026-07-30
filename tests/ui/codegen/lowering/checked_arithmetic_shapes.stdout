@@ -9,17 +9,18 @@ fn @sadd(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = add arg0, arg1
-    v4 = slt arg0, 0
-    v5 = slt v3, arg1
-    v6 = xor v4, v5
-    jumpi v6, bb3, bb4
+    v3 = calldatasize
+    v4 = add arg0, arg1
+    v5 = slt arg0, 0
+    v6 = slt v4, arg1
+    v7 = xor v5, v6
+    jumpi v7, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    ret v3
+    ret v4
 }
 
 fn @ssub(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
@@ -31,17 +32,18 @@ fn @ssub(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = sub arg0, arg1
-    v4 = slt arg1, 0
-    v5 = sgt v3, arg0
-    v6 = xor v4, v5
-    jumpi v6, bb3, bb4
+    v3 = calldatasize
+    v4 = sub arg0, arg1
+    v5 = slt arg1, 0
+    v6 = sgt v4, arg0
+    v7 = xor v5, v6
+    jumpi v7, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    ret v3
+    ret v4
 }
 
 fn @smul(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
@@ -53,23 +55,24 @@ fn @smul(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = mul arg0, arg1
-    v4 = iszero arg1
-    v5 = sdiv v3, arg1
-    v6 = eq v5, arg0
-    v7 = or v4, v6
-    v8 = iszero v7
-    v9 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v10 = slt arg1, 0
-    v11 = and v9, v10
-    v12 = or v8, v11
-    jumpi v12, bb3, bb4
+    v3 = calldatasize
+    v4 = mul arg0, arg1
+    v5 = iszero arg1
+    v6 = sdiv v4, arg1
+    v7 = eq v6, arg0
+    v8 = or v5, v7
+    v9 = iszero v8
+    v10 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v11 = slt arg1, 0
+    v12 = and v10, v11
+    v13 = or v9, v12
+    jumpi v13, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    ret v3
+    ret v4
 }
 
 fn @sdiv(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
@@ -81,23 +84,24 @@ fn @sdiv(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
+    v3 = calldatasize
     jumpi arg1, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 18 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v3 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v4 = eq arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = and v3, v4
-    jumpi v5, bb5, bb6
+    v4 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v5 = eq arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v6 = and v4, v5
+    jumpi v6, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v6 = sdiv arg0, arg1
-    ret v6
+    v7 = sdiv arg0, arg1
+    ret v7
 }
 
 fn @smod(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
@@ -109,14 +113,15 @@ fn @smod(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
+    v3 = calldatasize
     jumpi arg1, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 18 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v3 = smod arg0, arg1
-    ret v3
+    v4 = smod arg0, arg1
+    ret v4
 }
 
 fn @neg(arg0: i256) -> i256 [abi_returns=[word]] {
@@ -128,15 +133,16 @@ fn @neg(arg0: i256) -> i256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    jumpi v3, bb3, bb4
+    v3 = calldatasize
+    v4 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    jumpi v4, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v4 = sub 0, arg0
-    ret v4
+    v5 = sub 0, arg0
+    ret v5
 }
 
 fn @inc(arg0: u256) -> u256 [abi_returns=[word]] {
@@ -148,18 +154,19 @@ fn @inc(arg0: u256) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
+    v3 = calldatasize
     mstore 128, arg0
-    v3 = mload 128
-    v4 = add v3, 1
-    v5 = lt v4, v3
-    jumpi v5, bb3, bb4
+    v4 = mload 128
+    v5 = add v4, 1
+    v6 = lt v5, v4
+    jumpi v6, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v4
-    ret v4
+    mstore 128, v5
+    ret v5
 }
 
 fn @dec(arg0: u256) -> u256 [abi_returns=[word]] {
@@ -171,18 +178,19 @@ fn @dec(arg0: u256) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
+    v3 = calldatasize
     mstore 128, arg0
-    v3 = mload 128
-    v4 = sub v3, 1
-    v5 = lt v3, 1
-    jumpi v5, bb3, bb4
+    v4 = mload 128
+    v5 = sub v4, 1
+    v6 = lt v4, 1
+    jumpi v6, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v4
-    ret v4
+    mstore 128, v5
+    ret v5
 }
 
 fn @uadd128(arg0: u128, arg1: u128) -> u128 [abi_returns=[word]] {
@@ -194,29 +202,30 @@ fn @uadd128(arg0: u128, arg1: u128) -> u128 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = and v4, 0xffffffffffffffffffffffffffffffff
+    v6 = eq v4, v5
+    jumpi v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v6 = calldataload 36
-    v7 = and v6, 0xffffffffffffffffffffffffffffffff
-    v8 = eq v6, v7
-    jumpi v8, bb6, bb5
+    v7 = calldataload 36
+    v8 = and v7, 0xffffffffffffffffffffffffffffffff
+    v9 = eq v7, v8
+    jumpi v9, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
-    v9 = add arg0, arg1
-    v10 = gt v9, 0xffffffffffffffffffffffffffffffff
-    jumpi v10, bb7, bb8
+    v10 = add arg0, arg1
+    v11 = gt v10, 0xffffffffffffffffffffffffffffffff
+    jumpi v11, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    ret v9
+    ret v10
 }
 
 fn @umul128(arg0: u128, arg1: u128) -> u128 [abi_returns=[word]] {
@@ -228,29 +237,30 @@ fn @umul128(arg0: u128, arg1: u128) -> u128 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = and v4, 0xffffffffffffffffffffffffffffffff
+    v6 = eq v4, v5
+    jumpi v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v6 = calldataload 36
-    v7 = and v6, 0xffffffffffffffffffffffffffffffff
-    v8 = eq v6, v7
-    jumpi v8, bb6, bb5
+    v7 = calldataload 36
+    v8 = and v7, 0xffffffffffffffffffffffffffffffff
+    v9 = eq v7, v8
+    jumpi v9, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
-    v9 = mul arg0, arg1
-    v10 = gt v9, 0xffffffffffffffffffffffffffffffff
-    jumpi v10, bb7, bb8
+    v10 = mul arg0, arg1
+    v11 = gt v10, 0xffffffffffffffffffffffffffffffff
+    jumpi v11, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    ret v9
+    ret v10
 }
 
 fn @smul128(arg0: i128, arg1: i128) -> i128 [abi_returns=[word]] {
@@ -262,31 +272,32 @@ fn @smul128(arg0: i128, arg1: i128) -> i128 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = calldataload 4
-    v4 = signextend 15, v3
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = signextend 15, v4
+    v6 = eq v4, v5
+    jumpi v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v6 = calldataload 36
-    v7 = signextend 15, v6
-    v8 = eq v6, v7
-    jumpi v8, bb6, bb5
+    v7 = calldataload 36
+    v8 = signextend 15, v7
+    v9 = eq v7, v8
+    jumpi v9, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
-    v9 = mul arg0, arg1
-    v10 = slt v9, 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
-    v11 = sgt v9, 0x7fffffffffffffffffffffffffffffff
-    v12 = or v10, v11
-    jumpi v12, bb7, bb8
+    v10 = mul arg0, arg1
+    v11 = slt v10, 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
+    v12 = sgt v10, 0x7fffffffffffffffffffffffffffffff
+    v13 = or v11, v12
+    jumpi v13, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    ret v9
+    ret v10
 }
 
 fn @umul192(arg0: u192, arg1: u192) -> u192 [abi_returns=[word]] {
@@ -298,34 +309,35 @@ fn @umul192(arg0: u192, arg1: u192) -> u192 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v6 = eq v4, v5
+    jumpi v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v6 = calldataload 36
-    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v8 = eq v6, v7
-    jumpi v8, bb6, bb5
+    v7 = calldataload 36
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v9 = eq v7, v8
+    jumpi v9, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
-    v9 = mul arg0, arg1
-    v10 = iszero arg1
-    v11 = div v9, arg1
-    v12 = eq v11, arg0
-    v13 = or v10, v12
-    v14 = iszero v13
-    v15 = gt v9, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v16 = or v14, v15
-    jumpi v16, bb7, bb8
+    v10 = mul arg0, arg1
+    v11 = iszero arg1
+    v12 = div v10, arg1
+    v13 = eq v12, arg0
+    v14 = or v11, v13
+    v15 = iszero v14
+    v16 = gt v10, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v17 = or v15, v16
+    jumpi v17, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    ret v9
+    ret v10
 }
 

@@ -2,27 +2,30 @@
 @module Erc7201Builtin
 fn @literal() -> u256 [abi_returns=[word]] {
   bb0:
+    v0 = calldatasize
     ret 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500
 }
 
 fn @zeroLastByteLiteral() -> u256 [abi_returns=[word]] {
   bb0:
+    v0 = calldatasize
     ret 0x6d0d983459328e82eacb1bf2d6fadfa38a6896e9d4cbfe0e1aa41c6281bab00
 }
 
 fn @memoryParam() -> u256 [abi_returns=[word]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v0, 12
-    v1 = memory_object_data memorybytes, v0
-    v2 = add v1, 0
-    mstore v2, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
-    v3 = keccak256_bytes v0
-    v4 = sub v3, 1
-    mstore 0, v4 !metadata(memory=scratch)
-    v5 = keccak256 0, 32 !metadata(memory=scratch)
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    ret v6
+    v0 = calldatasize
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v1, 12
+    v2 = memory_object_data memorybytes, v1
+    v3 = add v2, 0
+    mstore v3, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
+    v4 = keccak256_bytes v1
+    v5 = sub v4, 1
+    mstore 0, v5 !metadata(memory=scratch)
+    v6 = keccak256 0, 32 !metadata(memory=scratch)
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    ret v7
 }
 
 fn @calldataParam(arg0: calldataslice) -> u256 [abi_returns=[word]] {
@@ -34,52 +37,83 @@ fn @calldataParam(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = slice_len arg0
-    v4 = add v3, 31
-    v5 = lt v4, v3
-    jumpi v5, bb3, bb4
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 32
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
-    v6 = not 31
-    v7 = and v4, v6
-    v8 = iszero v7
-    v9 = select v8, 32, v7
-    v10 = add 32, v9
-    v11 = lt v10, v9
-    jumpi v11, bb5, bb6
+    v11 = add v6, 32
+    v12 = lt v11, v6
+    v13 = gt v11, v3
+    v14 = or v12, v13
+    jumpi v14, bb5, bb6
   bb5:
+    revert 0, 0
+  bb6:
+    v15 = calldataload v6
+    v16 = add v6, 32
+    v17 = add v16, v15
+    v18 = lt v17, v16
+    v19 = gt v17, v3
+    v20 = or v18, v19
+    jumpi v20, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v21 = slice_len arg0
+    v22 = add v21, 31
+    v23 = lt v22, v21
+    jumpi v23, bb9, bb10
+  bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb6:
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v12, v3
-    v13 = memory_object_data memorybytes, v12
-    v14 = sub v9, 32
-    v15 = add v13, v14
-    mstore v15, 0
-    v16 = slice_ptr arg0
-    calldatacopy v13, v16, v3
-    v17 = keccak256_bytes v12
-    v18 = sub v17, 1
-    mstore 0, v18 !metadata(memory=scratch)
-    v19 = keccak256 0, 32 !metadata(memory=scratch)
-    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    ret v20
+  bb10:
+    v24 = not 31
+    v25 = and v22, v24
+    v26 = iszero v25
+    v27 = select v26, 32, v25
+    v28 = add 32, v27
+    v29 = lt v28, v27
+    jumpi v29, bb11, bb12
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    v30 = alloc memorybytes, exact, uninitialized, infallible, v28
+    set_memory_object_len memorybytes, v30, v21
+    v31 = memory_object_data memorybytes, v30
+    v32 = sub v27, 32
+    v33 = add v31, v32
+    mstore v33, 0
+    v34 = slice_ptr arg0
+    calldatacopy v31, v34, v21
+    v35 = keccak256_bytes v30
+    v36 = sub v35, 1
+    mstore 0, v36 !metadata(memory=scratch)
+    v37 = keccak256 0, 32 !metadata(memory=scratch)
+    v38 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    ret v38
 }
 
 fn @storageValue() -> u256 [abi_returns=[word]] {
   bb0:
-    v0 = internal_call @__load_storage_bytes, 1, 0
-    v1 = keccak256_bytes v0
-    v2 = sub v1, 1
-    mstore 0, v2 !metadata(memory=scratch)
-    v3 = keccak256 0, 32 !metadata(memory=scratch)
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    ret v4
+    v0 = calldatasize
+    v1 = internal_call @__load_storage_bytes, 1, 0
+    v2 = keccak256_bytes v1
+    v3 = sub v2, 1
+    mstore 0, v3 !metadata(memory=scratch)
+    v4 = keccak256 0, 32 !metadata(memory=scratch)
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    ret v5
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memorybytes {

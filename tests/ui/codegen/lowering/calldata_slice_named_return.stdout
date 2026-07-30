@@ -10,19 +10,46 @@ fn @use() {
   bb1:
     revert 0, 0
   bb2:
-    v19 = add arg0, 36
-    v20 = add arg0, 4
-    v21 = calldataload v20
-    v7 = sub v21, 32
-    v8 = add v19, v7
-    v9 = calldataload v8
-    jumpi v9, bb3, bb4
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 32
+    v6 = add v4, 4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb1, bb3
   bb3:
-    jump bb4
+    v11 = add v4, 36
+    v12 = lt v11, v6
+    v13 = gt v11, v3
+    v14 = or v12, v13
+    jumpi v14, bb1, bb4
   bb4:
-    v18 = phi [bb2: v21], [bb3: v7]
-    mstore 128, v18
-    returndata 128, 32
+    v15 = calldataload v6
+    v17 = add v11, v15
+    v18 = lt v17, v11
+    v19 = gt v17, v3
+    v20 = or v18, v19
+    jumpi v20, bb1, bb5
+  bb5:
+    v42 = add arg0, 36
+    v43 = add arg0, 4
+    v44 = calldataload v43
+    mstore 128, v42
+    v25 = sub v44, 32
+    v26 = add v42, v25
+    v27 = calldataload v26
+    jumpi v27, bb6, bb7
+  bb6:
+    jump bb7
+  bb7:
+    v36 = phi [bb5: v44], [bb6: v25]
+    v40 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v45 = add v40, 32
+    mstore 64, v45 !metadata(memory=scratch)
+    mstore v40, v36
+    returndata v40, 32
 }
 
 fn @entry() {

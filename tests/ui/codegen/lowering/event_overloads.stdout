@@ -9,10 +9,11 @@ fn @emitBoth(arg0: address, arg1: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = eq v4, v5
+    jumpi v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:

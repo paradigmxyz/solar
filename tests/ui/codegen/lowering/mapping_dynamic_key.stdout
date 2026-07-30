@@ -9,12 +9,42 @@ fn @lookup(arg0: calldataslice) -> address [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = mapping_slot_calldata arg0, 0
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    ret v4
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 32
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v11 = add v6, 32
+    v12 = lt v11, v6
+    v13 = gt v11, v3
+    v14 = or v12, v13
+    jumpi v14, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v15 = calldataload v6
+    v16 = add v6, 32
+    v17 = add v16, v15
+    v18 = lt v17, v16
+    v19 = gt v17, v3
+    v20 = or v18, v19
+    jumpi v20, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v21 = mapping_slot_calldata arg0, 0
+    v22 = sload v21 !metadata(storage=symbolic(v21))
+    ret v22
 }
 
-fn @set(arg0: memorybytes, arg1: address) {
+fn @set(arg0: u256, arg1: address) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -23,30 +53,82 @@ fn @set(arg0: memorybytes, arg1: address) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = add 4, arg0
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    v12 = calldataload 36
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = eq v12, v13
-    jumpi v14, bb4, bb3
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 64
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v15 = mapping_slot_memory v9, 0
-    sstore v15, arg1 !metadata(storage=symbolic(v15))
+    v11 = add 4, arg0
+    v12 = calldatasize
+    v13 = add v11, 32
+    v14 = lt v13, v11
+    v15 = gt v13, v12
+    v16 = or v14, v15
+    jumpi v16, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v17 = calldataload v11
+    v18 = add v17, 31
+    v19 = lt v18, v17
+    jumpi v19, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v20 = not 31
+    v21 = and v18, v20
+    v22 = add 32, v21
+    v23 = lt v22, v21
+    jumpi v23, bb9, bb10
+  bb9:
+    revert 0, 0
+  bb10:
+    v24 = add v11, v22
+    v25 = lt v24, v11
+    v26 = gt v24, v12
+    v27 = or v25, v26
+    jumpi v27, bb11, bb12
+  bb11:
+    revert 0, 0
+  bb12:
+    v28 = iszero v21
+    v29 = select v28, 32, v21
+    v30 = add 32, v29
+    v31 = lt v30, v29
+    jumpi v31, bb13, bb14
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    v32 = alloc memorybytes, exact, uninitialized, infallible, v30
+    mstore v32, v17
+    v33 = add v32, 32
+    v34 = sub v29, 32
+    v35 = add v33, v34
+    mstore v35, 0
+    v36 = add v11, 32
+    calldatacopy v33, v36, v17
+    v37 = calldataload 36
+    v38 = and v37, 0xffffffffffffffffffffffffffffffffffffffff
+    v39 = eq v37, v38
+    jumpi v39, bb16, bb15
+  bb15:
+    revert 0, 0
+  bb16:
+    v40 = mapping_slot_memory v32, 0
+    sstore v40, arg1 !metadata(storage=symbolic(v40))
     stop
 }
 
-fn @get(arg0: memorybytes) -> address [abi_returns=[word]] {
+fn @get(arg0: u256) -> address [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -55,20 +137,72 @@ fn @get(arg0: memorybytes) -> address [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = add 4, arg0
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    v12 = mapping_slot_memory v9, 0
-    v13 = sload v12 !metadata(storage=symbolic(v12))
-    ret v13
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 32
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v11 = add 4, arg0
+    v12 = calldatasize
+    v13 = add v11, 32
+    v14 = lt v13, v11
+    v15 = gt v13, v12
+    v16 = or v14, v15
+    jumpi v16, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v17 = calldataload v11
+    v18 = add v17, 31
+    v19 = lt v18, v17
+    jumpi v19, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v20 = not 31
+    v21 = and v18, v20
+    v22 = add 32, v21
+    v23 = lt v22, v21
+    jumpi v23, bb9, bb10
+  bb9:
+    revert 0, 0
+  bb10:
+    v24 = add v11, v22
+    v25 = lt v24, v11
+    v26 = gt v24, v12
+    v27 = or v25, v26
+    jumpi v27, bb11, bb12
+  bb11:
+    revert 0, 0
+  bb12:
+    v28 = iszero v21
+    v29 = select v28, 32, v21
+    v30 = add 32, v29
+    v31 = lt v30, v29
+    jumpi v31, bb13, bb14
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    v32 = alloc memorybytes, exact, uninitialized, infallible, v30
+    mstore v32, v17
+    v33 = add v32, 32
+    v34 = sub v29, 32
+    v35 = add v33, v34
+    mstore v35, 0
+    v36 = add v11, 32
+    calldatacopy v33, v36, v17
+    v37 = mapping_slot_memory v32, 0
+    v38 = sload v37 !metadata(storage=symbolic(v37))
+    ret v38
 }
 
 // === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKeyPaths ===
@@ -82,9 +216,39 @@ fn @flat(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = mapping_slot_calldata arg0, 0
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    ret v4
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 32
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v11 = add v6, 32
+    v12 = lt v11, v6
+    v13 = gt v11, v3
+    v14 = or v12, v13
+    jumpi v14, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v15 = calldataload v6
+    v16 = add v6, 32
+    v17 = add v16, v15
+    v18 = lt v17, v16
+    v19 = gt v17, v3
+    v20 = or v18, v19
+    jumpi v20, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v21 = mapping_slot_calldata arg0, 0
+    v22 = sload v21 !metadata(storage=symbolic(v21))
+    ret v22
 }
 
 fn @nestedFirst(arg0: calldataslice, arg1: address) -> u256 [abi_returns=[word]] {
@@ -96,17 +260,47 @@ fn @nestedFirst(arg0: calldataslice, arg1: address) -> u256 [abi_returns=[word]]
   bb1:
     revert 0, 0
   bb2:
-    v3 = calldataload 36
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 64
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v6 = mapping_slot_calldata arg0, 1
-    v7 = mapping_slot arg1, v6
-    v8 = sload v7 !metadata(storage=symbolic(v7))
-    ret v8
+    v11 = add v6, 32
+    v12 = lt v11, v6
+    v13 = gt v11, v3
+    v14 = or v12, v13
+    jumpi v14, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v15 = calldataload v6
+    v16 = add v6, 32
+    v17 = add v16, v15
+    v18 = lt v17, v16
+    v19 = gt v17, v3
+    v20 = or v18, v19
+    jumpi v20, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v21 = calldataload 36
+    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
+    v23 = eq v21, v22
+    jumpi v23, bb10, bb9
+  bb9:
+    revert 0, 0
+  bb10:
+    v24 = mapping_slot_calldata arg0, 1
+    v25 = mapping_slot arg1, v24
+    v26 = sload v25 !metadata(storage=symbolic(v25))
+    ret v26
 }
 
 fn @nestedSecond(arg0: address, arg1: calldataslice) -> u256 [abi_returns=[word]] {
@@ -118,23 +312,55 @@ fn @nestedSecond(arg0: address, arg1: calldataslice) -> u256 [abi_returns=[word]
   bb1:
     revert 0, 0
   bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
+    v3 = calldatasize
+    v4 = add 4, 32
+    v5 = calldataload v4
+    v6 = lt v5, 64
+    v7 = add 4, v5
+    v8 = lt v7, 4
+    v9 = gt v7, v3
+    v10 = or v6, v8
+    v11 = or v10, v9
+    jumpi v11, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v6 = mapping_slot arg0, 2
-    v7 = mapping_slot_calldata arg1, v6
-    v8 = sload v7 !metadata(storage=symbolic(v7))
-    ret v8
+    v12 = add v7, 32
+    v13 = lt v12, v7
+    v14 = gt v12, v3
+    v15 = or v13, v14
+    jumpi v15, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v16 = calldataload v7
+    v17 = add v7, 32
+    v18 = add v17, v16
+    v19 = lt v18, v17
+    v20 = gt v18, v3
+    v21 = or v19, v20
+    jumpi v21, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v22 = calldataload 4
+    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
+    v24 = eq v22, v23
+    jumpi v24, bb10, bb9
+  bb9:
+    revert 0, 0
+  bb10:
+    v25 = mapping_slot arg0, 2
+    v26 = mapping_slot_calldata arg1, v25
+    v27 = sload v26 !metadata(storage=symbolic(v26))
+    ret v27
 }
 
 fn @skey() -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @__load_storage_bytes, 1, 3
-    ret v0
+    v0 = calldatasize
+    v1 = internal_call @__load_storage_bytes, 1, 3
+    ret v1
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memorybytes {
@@ -192,14 +418,15 @@ fn @setLit(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = fmp
-    v4 = add v3, 0
-    mstore v4, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v5 = add v3, 5
-    mstore v5, 0
-    v6 = add 5, 32
-    v7 = keccak256 v3, v6
-    sstore v7, arg0 !metadata(storage=symbolic(v7))
+    v3 = calldatasize
+    v4 = fmp
+    v5 = add v4, 0
+    mstore v5, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v6 = add v4, 5
+    mstore v6, 0
+    v7 = add 5, 32
+    v8 = keccak256 v4, v7
+    sstore v8, arg0 !metadata(storage=symbolic(v8))
     stop
 }
 
@@ -212,20 +439,21 @@ fn @setLitLong(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = fmp
-    v4 = add v3, 0
-    mstore v4, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
-    v5 = add v3, 32
-    mstore v5, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
-    v6 = add v3, 58
-    mstore v6, 0
-    v7 = add 58, 32
-    v8 = keccak256 v3, v7
-    sstore v8, arg0 !metadata(storage=symbolic(v8))
+    v3 = calldatasize
+    v4 = fmp
+    v5 = add v4, 0
+    mstore v5, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
+    v6 = add v4, 32
+    mstore v6, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
+    v7 = add v4, 58
+    mstore v7, 0
+    v8 = add 58, 32
+    v9 = keccak256 v4, v8
+    sstore v9, arg0 !metadata(storage=symbolic(v9))
     stop
 }
 
-fn @setNestedFirst(arg0: memorybytes, arg1: address, arg2: u256) {
+fn @setNestedFirst(arg0: u256, arg1: address, arg2: u256) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -234,31 +462,83 @@ fn @setNestedFirst(arg0: memorybytes, arg1: address, arg2: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = add 4, arg0
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    v12 = calldataload 36
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = eq v12, v13
-    jumpi v14, bb4, bb3
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 96
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v15 = mapping_slot_memory v9, 1
-    v16 = mapping_slot arg1, v15
-    sstore v16, arg2 !metadata(storage=symbolic(v16))
+    v11 = add 4, arg0
+    v12 = calldatasize
+    v13 = add v11, 32
+    v14 = lt v13, v11
+    v15 = gt v13, v12
+    v16 = or v14, v15
+    jumpi v16, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v17 = calldataload v11
+    v18 = add v17, 31
+    v19 = lt v18, v17
+    jumpi v19, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v20 = not 31
+    v21 = and v18, v20
+    v22 = add 32, v21
+    v23 = lt v22, v21
+    jumpi v23, bb9, bb10
+  bb9:
+    revert 0, 0
+  bb10:
+    v24 = add v11, v22
+    v25 = lt v24, v11
+    v26 = gt v24, v12
+    v27 = or v25, v26
+    jumpi v27, bb11, bb12
+  bb11:
+    revert 0, 0
+  bb12:
+    v28 = iszero v21
+    v29 = select v28, 32, v21
+    v30 = add 32, v29
+    v31 = lt v30, v29
+    jumpi v31, bb13, bb14
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    v32 = alloc memorybytes, exact, uninitialized, infallible, v30
+    mstore v32, v17
+    v33 = add v32, 32
+    v34 = sub v29, 32
+    v35 = add v33, v34
+    mstore v35, 0
+    v36 = add v11, 32
+    calldatacopy v33, v36, v17
+    v37 = calldataload 36
+    v38 = and v37, 0xffffffffffffffffffffffffffffffffffffffff
+    v39 = eq v37, v38
+    jumpi v39, bb16, bb15
+  bb15:
+    revert 0, 0
+  bb16:
+    v40 = mapping_slot_memory v32, 1
+    v41 = mapping_slot arg1, v40
+    sstore v41, arg2 !metadata(storage=symbolic(v41))
     stop
 }
 
-fn @getNestedFirst(arg0: memorybytes, arg1: address) -> u256 [abi_returns=[word]] {
+fn @getNestedFirst(arg0: u256, arg1: address) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -267,31 +547,83 @@ fn @getNestedFirst(arg0: memorybytes, arg1: address) -> u256 [abi_returns=[word]
   bb1:
     revert 0, 0
   bb2:
-    v3 = add 4, arg0
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    v12 = calldataload 36
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = eq v12, v13
-    jumpi v14, bb4, bb3
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 64
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v15 = mapping_slot_memory v9, 1
-    v16 = mapping_slot arg1, v15
-    v17 = sload v16 !metadata(storage=symbolic(v16))
-    ret v17
+    v11 = add 4, arg0
+    v12 = calldatasize
+    v13 = add v11, 32
+    v14 = lt v13, v11
+    v15 = gt v13, v12
+    v16 = or v14, v15
+    jumpi v16, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v17 = calldataload v11
+    v18 = add v17, 31
+    v19 = lt v18, v17
+    jumpi v19, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v20 = not 31
+    v21 = and v18, v20
+    v22 = add 32, v21
+    v23 = lt v22, v21
+    jumpi v23, bb9, bb10
+  bb9:
+    revert 0, 0
+  bb10:
+    v24 = add v11, v22
+    v25 = lt v24, v11
+    v26 = gt v24, v12
+    v27 = or v25, v26
+    jumpi v27, bb11, bb12
+  bb11:
+    revert 0, 0
+  bb12:
+    v28 = iszero v21
+    v29 = select v28, 32, v21
+    v30 = add 32, v29
+    v31 = lt v30, v29
+    jumpi v31, bb13, bb14
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    v32 = alloc memorybytes, exact, uninitialized, infallible, v30
+    mstore v32, v17
+    v33 = add v32, 32
+    v34 = sub v29, 32
+    v35 = add v33, v34
+    mstore v35, 0
+    v36 = add v11, 32
+    calldatacopy v33, v36, v17
+    v37 = calldataload 36
+    v38 = and v37, 0xffffffffffffffffffffffffffffffffffffffff
+    v39 = eq v37, v38
+    jumpi v39, bb16, bb15
+  bb15:
+    revert 0, 0
+  bb16:
+    v40 = mapping_slot_memory v32, 1
+    v41 = mapping_slot arg1, v40
+    v42 = sload v41 !metadata(storage=symbolic(v41))
+    ret v42
 }
 
-fn @setNestedSecond(arg0: address, arg1: memorybytes, arg2: u256) {
+fn @setNestedSecond(arg0: address, arg1: u256, arg2: u256) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -300,31 +632,84 @@ fn @setNestedSecond(arg0: address, arg1: memorybytes, arg2: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
+    v3 = calldatasize
+    v4 = add 4, 32
+    v5 = calldataload v4
+    v6 = lt v5, 96
+    v7 = add 4, v5
+    v8 = lt v7, 4
+    v9 = gt v7, v3
+    v10 = or v6, v8
+    v11 = or v10, v9
+    jumpi v11, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v6 = add 4, arg1
-    v7 = calldataload v6
-    v8 = add v7, 31
-    v9 = not 31
-    v10 = and v8, v9
-    v11 = add v10, 32
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
-    v13 = memory_object_data memorybytes, v12
-    v14 = add v6, 32
-    calldatacopy v13, v14, v7
-    v15 = mapping_slot arg0, 2
-    v16 = mapping_slot_memory v12, v15
-    sstore v16, arg2 !metadata(storage=symbolic(v16))
+    v12 = calldataload 4
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = eq v12, v13
+    jumpi v14, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    v15 = add 4, arg1
+    v16 = calldatasize
+    v17 = add v15, 32
+    v18 = lt v17, v15
+    v19 = gt v17, v16
+    v20 = or v18, v19
+    jumpi v20, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v21 = calldataload v15
+    v22 = add v21, 31
+    v23 = lt v22, v21
+    jumpi v23, bb9, bb10
+  bb9:
+    revert 0, 0
+  bb10:
+    v24 = not 31
+    v25 = and v22, v24
+    v26 = add 32, v25
+    v27 = lt v26, v25
+    jumpi v27, bb11, bb12
+  bb11:
+    revert 0, 0
+  bb12:
+    v28 = add v15, v26
+    v29 = lt v28, v15
+    v30 = gt v28, v16
+    v31 = or v29, v30
+    jumpi v31, bb13, bb14
+  bb13:
+    revert 0, 0
+  bb14:
+    v32 = iszero v25
+    v33 = select v32, 32, v25
+    v34 = add 32, v33
+    v35 = lt v34, v33
+    jumpi v35, bb15, bb16
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb16:
+    v36 = alloc memorybytes, exact, uninitialized, infallible, v34
+    mstore v36, v21
+    v37 = add v36, 32
+    v38 = sub v33, 32
+    v39 = add v37, v38
+    mstore v39, 0
+    v40 = add v15, 32
+    calldatacopy v37, v40, v21
+    v41 = mapping_slot arg0, 2
+    v42 = mapping_slot_memory v36, v41
+    sstore v42, arg2 !metadata(storage=symbolic(v42))
     stop
 }
 
-fn @setSkey(arg0: memorybytes) {
+fn @setSkey(arg0: u256) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -333,85 +718,137 @@ fn @setSkey(arg0: memorybytes) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = add 4, arg0
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    v12 = memory_object_len memorybytes, v9
-    v13 = memory_object_data memorybytes, v9
-    v14 = sload 3 !metadata(storage=slot(3))
-    v15 = and v14, 1
-    v16 = eq v15, 1
-    v17 = and v14, 255
-    v18 = shr 1, v17
-    v19 = shr 1, v14
-    v20 = select v16, v19, v18
-    v21 = not 31
-    v22 = add v20, 31
-    v23 = and v22, v21
-    v24 = div v23, 32
-    v25 = select v16, v24, 0
-    v26 = add v12, 31
-    v27 = and v26, v21
-    v28 = div v27, 32
-    v29 = gt v12, 31
-    v30 = select v29, v28, 0
-    v31 = alloc raw, exact, uninitialized, infallible, 32
-    mstore v31, 3
-    v32 = keccak256 v31, 32
-    jumpi v29, bb4, bb3
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 32
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
   bb3:
-    v33 = mload v13
-    v34 = mul v12, 8
-    v35 = shr v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v36 = not v35
-    v37 = and v33, v36
-    v38 = shl 1, v12
-    v39 = or v37, v38
-    sstore 3, v39 !metadata(storage=slot(3))
-    jump bb7
+    revert 0, 0
   bb4:
-    v40 = shl 1, v12
-    v41 = or v40, 1
-    sstore 3, v41 !metadata(storage=slot(3))
-    mstore v31, 0
-    jump bb5
+    v11 = add 4, arg0
+    v12 = calldatasize
+    v13 = add v11, 32
+    v14 = lt v13, v11
+    v15 = gt v13, v12
+    v16 = or v14, v15
+    jumpi v16, bb5, bb6
   bb5:
-    v42 = mload v31
-    v43 = lt v42, v30
-    jumpi v43, bb6, bb7
+    revert 0, 0
   bb6:
-    v44 = mload v31
-    v45 = add v32, v44
-    v46 = mul v44, 32
-    v47 = add v13, v46
-    v48 = mload v47
-    sstore v45, v48 !metadata(storage=symbolic(v45))
-    v49 = add v44, 1
-    mstore v31, v49
-    jump bb5
+    v17 = calldataload v11
+    v18 = add v17, 31
+    v19 = lt v18, v17
+    jumpi v19, bb7, bb8
   bb7:
-    mstore v31, v30
-    jump bb8
+    revert 0, 0
   bb8:
-    v50 = mload v31
-    v51 = lt v50, v25
-    jumpi v51, bb9, bb10
+    v20 = not 31
+    v21 = and v18, v20
+    v22 = add 32, v21
+    v23 = lt v22, v21
+    jumpi v23, bb9, bb10
   bb9:
-    v52 = mload v31
-    v53 = add v32, v52
-    sstore v53, 0 !metadata(storage=symbolic(v53))
-    v54 = add v52, 1
-    mstore v31, v54
-    jump bb8
+    revert 0, 0
   bb10:
+    v24 = add v11, v22
+    v25 = lt v24, v11
+    v26 = gt v24, v12
+    v27 = or v25, v26
+    jumpi v27, bb11, bb12
+  bb11:
+    revert 0, 0
+  bb12:
+    v28 = iszero v21
+    v29 = select v28, 32, v21
+    v30 = add 32, v29
+    v31 = lt v30, v29
+    jumpi v31, bb13, bb14
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    v32 = alloc memorybytes, exact, uninitialized, infallible, v30
+    mstore v32, v17
+    v33 = add v32, 32
+    v34 = sub v29, 32
+    v35 = add v33, v34
+    mstore v35, 0
+    v36 = add v11, 32
+    calldatacopy v33, v36, v17
+    v37 = memory_object_len memorybytes, v32
+    v38 = memory_object_data memorybytes, v32
+    v39 = sload 3 !metadata(storage=slot(3))
+    v40 = and v39, 1
+    v41 = eq v40, 1
+    v42 = and v39, 255
+    v43 = shr 1, v42
+    v44 = shr 1, v39
+    v45 = select v41, v44, v43
+    v46 = not 31
+    v47 = add v45, 31
+    v48 = and v47, v46
+    v49 = div v48, 32
+    v50 = select v41, v49, 0
+    v51 = add v37, 31
+    v52 = and v51, v46
+    v53 = div v52, 32
+    v54 = gt v37, 31
+    v55 = select v54, v53, 0
+    v56 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v56, 3
+    v57 = keccak256 v56, 32
+    jumpi v54, bb16, bb15
+  bb15:
+    v58 = mload v38
+    v59 = mul v37, 8
+    v60 = shr v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v61 = not v60
+    v62 = and v58, v61
+    v63 = shl 1, v37
+    v64 = or v62, v63
+    sstore 3, v64 !metadata(storage=slot(3))
+    jump bb19
+  bb16:
+    v65 = shl 1, v37
+    v66 = or v65, 1
+    sstore 3, v66 !metadata(storage=slot(3))
+    mstore v56, 0
+    jump bb17
+  bb17:
+    v67 = mload v56
+    v68 = lt v67, v55
+    jumpi v68, bb18, bb19
+  bb18:
+    v69 = mload v56
+    v70 = add v57, v69
+    v71 = mul v69, 32
+    v72 = add v38, v71
+    v73 = mload v72
+    sstore v70, v73 !metadata(storage=symbolic(v70))
+    v74 = add v69, 1
+    mstore v56, v74
+    jump bb17
+  bb19:
+    mstore v56, v55
+    jump bb20
+  bb20:
+    v75 = mload v56
+    v76 = lt v75, v50
+    jumpi v76, bb21, bb22
+  bb21:
+    v77 = mload v56
+    v78 = add v57, v77
+    sstore v78, 0 !metadata(storage=symbolic(v78))
+    v79 = add v77, 1
+    mstore v56, v79
+    jump bb20
+  bb22:
     stop
 }
 
@@ -424,9 +861,10 @@ fn @setViaStorageKey(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = internal_call @__load_storage_bytes, 1, 3
-    v4 = mapping_slot_memory v3, 0
-    sstore v4, arg0 !metadata(storage=symbolic(v4))
+    v3 = calldatasize
+    v4 = internal_call @__load_storage_bytes, 1, 3
+    v5 = mapping_slot_memory v4, 0
+    sstore v5, arg0 !metadata(storage=symbolic(v5))
     stop
 }
 
@@ -439,29 +877,59 @@ fn @setThenAlloc(arg0: calldataslice, arg1: u256) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = mapping_slot_calldata arg0, 0
-    sstore v3, arg1 !metadata(storage=symbolic(v3))
-    v4 = add 32, 31
-    v5 = lt v4, 32
-    jumpi v5, bb3, bb4
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 64
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
-    v6 = not 31
-    v7 = and v4, v6
-    v8 = add v7, 32
-    v9 = lt v8, v7
-    jumpi v9, bb5, bb6
+    v11 = add v6, 32
+    v12 = lt v11, v6
+    v13 = gt v11, v3
+    v14 = or v12, v13
+    jumpi v14, bb5, bb6
   bb5:
+    revert 0, 0
+  bb6:
+    v15 = calldataload v6
+    v16 = add v6, 32
+    v17 = add v16, v15
+    v18 = lt v17, v16
+    v19 = gt v17, v3
+    v20 = or v18, v19
+    jumpi v20, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v21 = mapping_slot_calldata arg0, 0
+    sstore v21, arg1 !metadata(storage=symbolic(v21))
+    v22 = add 32, 31
+    v23 = lt v22, 32
+    jumpi v23, bb9, bb10
+  bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb6:
-    v10 = alloc memorybytes, exact, zeroed, panic, v8
-    set_memory_object_len memorybytes, v10, 32
-    v11 = mload v10
-    ret v11
+  bb10:
+    v24 = not 31
+    v25 = and v22, v24
+    v26 = add v25, 32
+    v27 = lt v26, v25
+    jumpi v27, bb11, bb12
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    v28 = alloc memorybytes, exact, zeroed, panic, v26
+    set_memory_object_len memorybytes, v28, 32
+    v29 = mload v28
+    ret v29
 }
 

@@ -9,32 +9,33 @@ fn @fixedBytesArg(arg0: u256, arg1: address, arg2: bytes2) -> bytes32 [abi_retur
   bb1:
     revert 0, 0
   bb2:
-    v3 = calldataload 36
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
+    v3 = calldatasize
+    v4 = calldataload 36
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = eq v4, v5
+    jumpi v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v6 = calldataload 68
-    v7 = and v6, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v8 = eq v6, v7
-    jumpi v8, bb6, bb5
+    v7 = calldataload 68
+    v8 = and v7, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v9 = eq v7, v8
+    jumpi v9, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
-    v9 = fmp
-    mstore v9, arg0
-    v10 = shl 96, arg1
-    v11 = add v9, 32
-    mstore v11, v10
-    v12 = add v9, 52
-    mstore v12, arg2
-    v13 = keccak256 v9, 54
-    ret v13
+    v10 = fmp
+    mstore v10, arg0
+    v11 = shl 96, arg1
+    v12 = add v10, 32
+    mstore v12, v11
+    v13 = add v10, 52
+    mstore v13, arg2
+    v14 = keccak256 v10, 54
+    ret v14
 }
 
-fn @dynamicArg(arg0: bytes32, arg1: memorybytes) -> bytes32 [abi_returns=[word]] {
+fn @dynamicArg(arg0: bytes32, arg1: u256) -> bytes32 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -43,30 +44,83 @@ fn @dynamicArg(arg0: bytes32, arg1: memorybytes) -> bytes32 [abi_returns=[word]]
   bb1:
     revert 0, 0
   bb2:
-    v3 = add 4, arg1
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    v12 = fmp
-    mstore v12, arg0
-    v13 = add v12, 32
-    v14 = memory_object_len memorybytes, v9
-    v15 = memory_object_data memorybytes, v9
-    mcopy v13, v15, v14
-    v16 = add v13, v14
-    v17 = sub v16, v12
-    v18 = keccak256 v12, v17
-    ret v18
+    v3 = calldatasize
+    v4 = add 4, 32
+    v5 = calldataload v4
+    v6 = lt v5, 64
+    v7 = add 4, v5
+    v8 = lt v7, 4
+    v9 = gt v7, v3
+    v10 = or v6, v8
+    v11 = or v10, v9
+    jumpi v11, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v12 = add 4, arg1
+    v13 = calldatasize
+    v14 = add v12, 32
+    v15 = lt v14, v12
+    v16 = gt v14, v13
+    v17 = or v15, v16
+    jumpi v17, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v18 = calldataload v12
+    v19 = add v18, 31
+    v20 = lt v19, v18
+    jumpi v20, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v21 = not 31
+    v22 = and v19, v21
+    v23 = add 32, v22
+    v24 = lt v23, v22
+    jumpi v24, bb9, bb10
+  bb9:
+    revert 0, 0
+  bb10:
+    v25 = add v12, v23
+    v26 = lt v25, v12
+    v27 = gt v25, v13
+    v28 = or v26, v27
+    jumpi v28, bb11, bb12
+  bb11:
+    revert 0, 0
+  bb12:
+    v29 = iszero v22
+    v30 = select v29, 32, v22
+    v31 = add 32, v30
+    v32 = lt v31, v30
+    jumpi v32, bb13, bb14
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    v33 = alloc memorybytes, exact, uninitialized, infallible, v31
+    mstore v33, v18
+    v34 = add v33, 32
+    v35 = sub v30, 32
+    v36 = add v34, v35
+    mstore v36, 0
+    v37 = add v12, 32
+    calldatacopy v34, v37, v18
+    v38 = fmp
+    mstore v38, arg0
+    v39 = add v38, 32
+    v40 = memory_object_len memorybytes, v33
+    v41 = memory_object_data memorybytes, v33
+    mcopy v39, v41, v40
+    v42 = add v39, v40
+    v43 = sub v42, v38
+    v44 = keccak256 v38, v43
+    ret v44
 }
 
-fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) -> memorybytes [abi_returns=[memory_bytes]] {
+fn @materialized(arg0: u16, arg1: u256, arg2: bool) -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -75,52 +129,105 @@ fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) -> memorybytes [abi_r
   bb1:
     revert 0, 0
   bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
+    v3 = calldatasize
+    v4 = add 4, 32
+    v5 = calldataload v4
+    v6 = lt v5, 96
+    v7 = add 4, v5
+    v8 = lt v7, 4
+    v9 = gt v7, v3
+    v10 = or v6, v8
+    v11 = or v10, v9
+    jumpi v11, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v6 = add 4, arg1
-    v7 = calldataload v6
-    v8 = add v7, 31
-    v9 = not 31
-    v10 = and v8, v9
-    v11 = add v10, 32
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
-    v13 = memory_object_data memorybytes, v12
-    v14 = add v6, 32
-    calldatacopy v13, v14, v7
-    v15 = calldataload 68
-    v16 = iszero v15
-    v17 = iszero v16
-    v18 = eq v15, v17
-    jumpi v18, bb6, bb5
+    v12 = calldataload 4
+    v13 = and v12, 0xffff
+    v14 = eq v12, v13
+    jumpi v14, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
-    v19 = fmp
-    v20 = memory_object_data memorybytes, v19
-    v21 = shl 240, arg0
-    mstore v20, v21
-    v22 = add v20, 2
-    v23 = memory_object_len memorybytes, v12
-    v24 = memory_object_data memorybytes, v12
-    mcopy v22, v24, v23
-    v25 = add v22, v23
-    v26 = shl 248, arg2
-    mstore v25, v26
-    v27 = add v25, 1
-    v28 = sub v27, v20
-    v29 = add v28, 31
-    v30 = not 31
-    v31 = and v29, v30
-    v32 = add v31, 32
-    set_memory_object_len memorybytes, v19, v28
-    v33 = add v19, v32
-    set_fmp v33
-    ret v19
+    v15 = add 4, arg1
+    v16 = calldatasize
+    v17 = add v15, 32
+    v18 = lt v17, v15
+    v19 = gt v17, v16
+    v20 = or v18, v19
+    jumpi v20, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v21 = calldataload v15
+    v22 = add v21, 31
+    v23 = lt v22, v21
+    jumpi v23, bb9, bb10
+  bb9:
+    revert 0, 0
+  bb10:
+    v24 = not 31
+    v25 = and v22, v24
+    v26 = add 32, v25
+    v27 = lt v26, v25
+    jumpi v27, bb11, bb12
+  bb11:
+    revert 0, 0
+  bb12:
+    v28 = add v15, v26
+    v29 = lt v28, v15
+    v30 = gt v28, v16
+    v31 = or v29, v30
+    jumpi v31, bb13, bb14
+  bb13:
+    revert 0, 0
+  bb14:
+    v32 = iszero v25
+    v33 = select v32, 32, v25
+    v34 = add 32, v33
+    v35 = lt v34, v33
+    jumpi v35, bb15, bb16
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb16:
+    v36 = alloc memorybytes, exact, uninitialized, infallible, v34
+    mstore v36, v21
+    v37 = add v36, 32
+    v38 = sub v33, 32
+    v39 = add v37, v38
+    mstore v39, 0
+    v40 = add v15, 32
+    calldatacopy v37, v40, v21
+    v41 = calldataload 68
+    v42 = iszero v41
+    v43 = iszero v42
+    v44 = eq v41, v43
+    jumpi v44, bb18, bb17
+  bb17:
+    revert 0, 0
+  bb18:
+    v45 = fmp
+    v46 = memory_object_data memorybytes, v45
+    v47 = shl 240, arg0
+    mstore v46, v47
+    v48 = add v46, 2
+    v49 = memory_object_len memorybytes, v36
+    v50 = memory_object_data memorybytes, v36
+    mcopy v48, v50, v49
+    v51 = add v48, v49
+    v52 = shl 248, arg2
+    mstore v51, v52
+    v53 = add v51, 1
+    v54 = sub v53, v46
+    v55 = add v54, 31
+    v56 = not 31
+    v57 = and v55, v56
+    v58 = add v57, 32
+    set_memory_object_len memorybytes, v45, v54
+    v59 = add v45, v58
+    set_fmp v59
+    ret v45
 }
 

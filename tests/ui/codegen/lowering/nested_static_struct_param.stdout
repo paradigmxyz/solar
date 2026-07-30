@@ -9,26 +9,52 @@ fn @take(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [abi_re
   bb1:
     revert 0, 0
   bb2:
-    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    v4 = memory_object_field_addr memorystruct<3>, v3, 0
-    mstore v4, arg0
-    v5 = alloc raw, exact, uninitialized, infallible, 64
-    v6 = calldataload 36
-    mstore v5, v6
-    v7 = add 36, 32
-    v8 = calldataload v7
-    v9 = add v5, 32
-    mstore v9, v8
-    v10 = memory_object_field_addr memorystruct<3>, v3, 1
-    mstore v10, v5
-    v11 = memory_object_field_addr memorystruct<3>, v3, 2
-    mstore v11, arg3
-    v12 = memory_object_field_addr memorystruct<3>, v3, 1
-    v13 = mload v12
-    v14 = memory_object_field_addr memorystruct<2>, v13, 1
-    v15 = mload v14
-    v16 = memory_object_field_addr memorystruct<3>, v3, 2
-    v17 = mload v16
-    ret v15, v17
+    v3 = calldatasize
+    v4 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v5 = memory_object_field_addr memorystruct<3>, v4, 0
+    mstore v5, arg0
+    v6 = calldatasize
+    v7 = alloc raw, exact, uninitialized, infallible, 64
+    v8 = add 36, 64
+    v9 = lt v8, 36
+    v10 = gt v8, v6
+    v11 = or v9, v10
+    jumpi v11, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v12 = add 36, 32
+    v13 = lt v12, 36
+    v14 = gt v12, v6
+    v15 = or v13, v14
+    jumpi v15, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v16 = calldataload 36
+    mstore v7, v16
+    v17 = add 36, 32
+    v18 = add v17, 32
+    v19 = lt v18, v17
+    v20 = gt v18, v6
+    v21 = or v19, v20
+    jumpi v21, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v22 = calldataload v17
+    v23 = add v7, 32
+    mstore v23, v22
+    v24 = memory_object_field_addr memorystruct<3>, v4, 1
+    mstore v24, v7
+    v25 = memory_object_field_addr memorystruct<3>, v4, 2
+    mstore v25, arg3
+    v26 = memory_object_field_addr memorystruct<3>, v4, 1
+    v27 = mload v26
+    v28 = memory_object_field_addr memorystruct<2>, v27, 1
+    v29 = mload v28
+    v30 = memory_object_field_addr memorystruct<3>, v4, 2
+    v31 = mload v30
+    ret v29, v31
 }
 

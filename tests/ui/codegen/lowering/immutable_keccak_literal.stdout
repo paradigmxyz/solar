@@ -8,7 +8,8 @@ fn @constructor() {
 
 fn @get() -> bytes32 [abi_returns=[word]] {
   bb0:
-    v0 = loadimmutable 0
-    ret v0
+    v0 = calldatasize
+    v1 = loadimmutable 0
+    ret v1
 }
 

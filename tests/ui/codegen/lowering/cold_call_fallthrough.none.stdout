@@ -55,6 +55,8 @@ bb7 [cold]:
   dup1
   revert
 bb8:
+  calldatasize
+  pop
   push 0
   push 4
   calldataload
@@ -72,12 +74,22 @@ bb9:
   jumpi
   jump bb12
 bb10:
-  push 4
-  calldataload
-  push 128
+  push 64
+  mload
+  dup1
+  push 160
   mstore
   push 32
-  push 128
+  dup2
+  add
+  push 64
+  mstore
+  push 4
+  calldataload
+  dup2
+  mstore
+  push 32
+  dup2
   return
 bb11:
   push 4
@@ -146,6 +158,8 @@ bb18 [cold]:
   dup1
   revert
 bb19:
+  calldatasize
+  pop
   push 100
   push 4
   calldataload
@@ -163,12 +177,22 @@ bb20:
   jumpi
   jump bb23
 bb21:
-  push 4
-  calldataload
-  push 128
+  push 64
+  mload
+  dup1
+  push 160
   mstore
   push 32
-  push 128
+  dup2
+  add
+  push 64
+  mstore
+  push 4
+  calldataload
+  dup2
+  mstore
+  push 32
+  dup2
   return
 bb22:
   push 4

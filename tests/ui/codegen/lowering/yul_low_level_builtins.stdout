@@ -9,11 +9,12 @@ fn @leadingZeros(arg0: u256) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
+    v3 = calldatasize
     mstore 128, 0
-    v3 = clz arg0
-    mstore 128, v3
-    v4 = mload 128
-    ret v4
+    v4 = clz arg0
+    mstore 128, v4
+    v5 = mload 128
+    ret v5
 }
 
 fn @callCode(arg0: address) -> u256 [abi_returns=[word]] {
@@ -25,19 +26,20 @@ fn @callCode(arg0: address) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = eq v4, v5
+    jumpi v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
     mstore 128, 0
-    v6 = gas
-    v7 = callcode v6, arg0, 0, 0, 0, 0, 0
-    mstore 128, v7
-    v8 = mload 128
-    ret v8
+    v7 = gas
+    v8 = callcode v7, arg0, 0, 0, 0, 0, 0
+    mstore 128, v8
+    v9 = mload 128
+    ret v9
 }
 
 fn @safeCall(arg0: address, arg1: bytes4) -> bool [abi_returns=[word]] {
@@ -49,47 +51,48 @@ fn @safeCall(arg0: address, arg1: bytes4) -> bool [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = eq v4, v5
+    jumpi v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v6 = calldataload 36
-    v7 = and v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v8 = eq v6, v7
-    jumpi v8, bb6, bb5
+    v7 = calldataload 36
+    v8 = and v7, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v9 = eq v7, v8
+    jumpi v9, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
     mstore 128, 0
-    v9 = mload 64 !metadata(memory=scratch)
+    v10 = mload 64 !metadata(memory=scratch)
     mstore 0, arg1 !metadata(memory=scratch)
-    v10 = gas
-    v11 = call v10, arg0, 0, 0, 4, 0, 32
-    mstore 128, v11
-    v12 = mload 128
-    v13 = mload 0 !metadata(memory=scratch)
-    v14 = eq v13, 1
-    v15 = and v12, v14
-    v16 = iszero v15
-    v17 = eq v16, 0
-    v18 = iszero v17
-    jumpi v18, bb7, bb8
+    v11 = gas
+    v12 = call v11, arg0, 0, 0, 4, 0, 32
+    mstore 128, v12
+    v13 = mload 128
+    v14 = mload 0 !metadata(memory=scratch)
+    v15 = eq v14, 1
+    v16 = and v13, v15
+    v17 = iszero v16
+    v18 = eq v17, 0
+    v19 = iszero v18
+    jumpi v19, bb7, bb8
   bb7:
-    v19 = returndatasize
-    returndatacopy v9, 0, v19
     v20 = returndatasize
-    revert v9, v20
+    returndatacopy v10, 0, v20
+    v21 = returndatasize
+    revert v10, v21
   bb8:
-    v21 = mload 128
-    v22 = extcodesize arg0
-    v23 = gt v22, 0
-    v24 = and v21, v23
-    mstore 128, v24
-    mstore 64, v9 !metadata(memory=scratch)
-    v25 = mload 128
-    ret v25
+    v22 = mload 128
+    v23 = extcodesize arg0
+    v24 = gt v23, 0
+    v25 = and v22, v24
+    mstore 128, v25
+    mstore 64, v10 !metadata(memory=scratch)
+    v26 = mload 128
+    ret v26
 }
 

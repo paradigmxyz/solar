@@ -25,8 +25,6 @@ contract Test {
     // CHECK: jump [[STORE:bb[0-9]+]]
     // CHECK: [[STORE]]:
     // CHECK-NEXT: mstore
-    // CHECK: jump [[RETURN:bb[0-9]+]]
-    // CHECK: [[RETURN]]:
     // CHECK: return
     // CHECK: push 1
     // CHECK-NEXT: dup3

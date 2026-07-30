@@ -12,20 +12,18 @@ contract SF {
     // CHECK-NEXT: push [[GETTER:bb[0-9]+]]
     // CHECK: [[GETTER]]:
     // CHECK: sload
-    // CHECK: jump [[RETURN:bb[0-9]+]]
-    // CHECK: [[RETURN]]:
     // CHECK: return
     uint256 public s;
 
     // The chainA/chainB/chainC path uses static frame addresses.
     // CHECK: [[TOP]]:
-    // CHECK: push 672
-    // CHECK-NEXT: mstore
     // CHECK: push 704
+    // CHECK-NEXT: mstore
+    // CHECK: push 736
     // CHECK-NEXT: mstore
     // CHECK-NEXT: push [[CHAIN_RET:bb[0-9]+]]
     // CHECK: [[CHAIN_RET]]:
-    // CHECK-NEXT: push 736
+    // CHECK-NEXT: push 768
     // CHECK-NEXT: mload
 
     // top -> rec allocates a dynamic frame.

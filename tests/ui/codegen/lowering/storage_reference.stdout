@@ -9,8 +9,9 @@ fn @setDirect(arg0: u256, arg1: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = mapping_slot arg0, 0
-    sstore v3, arg1 !metadata(storage=symbolic(v3))
+    v3 = calldatasize
+    v4 = mapping_slot arg0, 0
+    sstore v4, arg1 !metadata(storage=symbolic(v4))
     stop
 }
 
@@ -23,9 +24,10 @@ fn @getViaRef(arg0: u256) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = mapping_slot arg0, 0
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    ret v4
+    v3 = calldatasize
+    v4 = mapping_slot arg0, 0
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    ret v5
 }
 
 fn @bump(arg0: u256) {
@@ -37,19 +39,20 @@ fn @bump(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = mapping_slot arg0, 0
-    v4 = add v3, 1
-    v5 = sload v4 !metadata(storage=offset(v3, 1))
-    v6 = add v5, 1
-    v7 = lt v6, v5
-    jumpi v7, bb3, bb4
+    v3 = calldatasize
+    v4 = mapping_slot arg0, 0
+    v5 = add v4, 1
+    v6 = sload v5 !metadata(storage=offset(v4, 1))
+    v7 = add v6, 1
+    v8 = lt v7, v6
+    jumpi v8, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v8 = add v3, 1
-    sstore v8, v6 !metadata(storage=offset(v3, 1))
+    v9 = add v4, 1
+    sstore v9, v7 !metadata(storage=offset(v4, 1))
     stop
 }
 

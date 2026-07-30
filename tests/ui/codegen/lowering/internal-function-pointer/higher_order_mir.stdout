@@ -2,6 +2,7 @@
 @module HigherOrderFunctionPointer
 fn @higher0() -> u256 [abi_returns=[word]] {
   bb0:
+    v0 = calldatasize
     ret 2
 }
 
@@ -22,11 +23,12 @@ fn @higher3() -> function {
 
 fn @callReturned() -> u256 [abi_returns=[word]] {
   bb0:
-    v0 = internal_call @__internal_dispatch_0, 1, 4
-    v1 = internal_call @__internal_dispatch_0, 1, v0
+    v0 = calldatasize
+    v1 = internal_call @__internal_dispatch_0, 1, 4
     v2 = internal_call @__internal_dispatch_0, 1, v1
-    v3 = internal_call @__internal_dispatch_1, 1, v2
-    ret v3
+    v3 = internal_call @__internal_dispatch_0, 1, v2
+    v4 = internal_call @__internal_dispatch_1, 1, v3
+    ret v4
 }
 
 fn @__internal_dispatch_0(arg0: function) -> function {

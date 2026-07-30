@@ -47,7 +47,7 @@ contract StorageStringConstructor {
     string public symbol;
 
     // CHECK-LABEL: fn @_anonymous{{[( ]}}
-    // CHECK-COUNT-2: set_memory_object_len memorybytes
+    // CHECK-COUNT-2: alloc memorybytes
     // CHECK: sstore 0,
     // CHECK: sstore 1,
     constructor(string memory name_, string memory symbol_) {

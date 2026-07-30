@@ -89,14 +89,44 @@ fn @readTwice(arg0: calldataslice) -> (u64, u64) [abi_returns=[word, word]] {
   bb1:
     revert 0, 0
   bb2:
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 32
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v11 = add v6, 32
+    v12 = lt v11, v6
+    v13 = gt v11, v3
+    v14 = or v12, v13
+    jumpi v14, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v15 = calldataload v6
+    v16 = add v6, 32
+    v17 = add v16, v15
+    v18 = lt v17, v16
+    v19 = gt v17, v3
+    v20 = or v18, v19
+    jumpi v20, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
     mstore 128, 0
     mstore 160, 0
-    v3 = internal_call @readU64, 2, arg0, 0
-    mstore 128, v3
-    v4 = internal_call @readU64, 2, arg0, 8
-    mstore 160, v4
-    v5 = mload 128
-    v6 = mload 160
-    ret v5, v6
+    v21 = internal_call @readU64, 2, arg0, 0
+    mstore 128, v21
+    v22 = internal_call @readU64, 2, arg0, 8
+    mstore 160, v22
+    v23 = mload 128
+    v24 = mload 160
+    ret v23, v24
 }
 

@@ -9,16 +9,17 @@ fn @narrowAddress(arg0: address) -> u16 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = eq v4, v5
+    jumpi v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v6 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = and v6, 0xffff
-    ret v7
+    v7 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = and v7, 0xffff
+    ret v8
 }
 
 fn @narrowUint(arg0: u256) -> u16 [abi_returns=[word]] {
@@ -30,8 +31,9 @@ fn @narrowUint(arg0: u256) -> u16 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = and arg0, 0xffff
-    ret v3
+    v3 = calldatasize
+    v4 = and arg0, 0xffff
+    ret v4
 }
 
 fn @narrowSigned(arg0: i256) -> i8 [abi_returns=[word]] {
@@ -43,8 +45,9 @@ fn @narrowSigned(arg0: i256) -> i8 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = shl 248, arg0
-    v4 = sar 248, v3
-    ret v4
+    v3 = calldatasize
+    v4 = shl 248, arg0
+    v5 = sar 248, v4
+    ret v5
 }
 

@@ -9,16 +9,17 @@ fn @fixedArray(arg0: u256) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v4 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 0
-    mstore v4, 0
-    v5 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 1
+    v3 = calldatasize
+    v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v5 = memory_object_element_addr memoryfixedarray<2, 1>, v4, 0
     mstore v5, 0
-    v6 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 0
-    mstore v6, arg0
-    v7 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 0
-    v8 = mload v7
-    ret v8
+    v6 = memory_object_element_addr memoryfixedarray<2, 1>, v4, 1
+    mstore v6, 0
+    v7 = memory_object_element_addr memoryfixedarray<2, 1>, v4, 0
+    mstore v7, arg0
+    v8 = memory_object_element_addr memoryfixedarray<2, 1>, v4, 0
+    v9 = mload v8
+    ret v9
 }
 
 fn @dynamic(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] {
@@ -30,51 +31,83 @@ fn @dynamic(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = slice_len arg0
-    v4 = add v3, 31
-    v5 = lt v4, v3
-    jumpi v5, bb3, bb4
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = lt v4, 32
+    v6 = add 4, v4
+    v7 = lt v6, 4
+    v8 = gt v6, v3
+    v9 = or v5, v7
+    v10 = or v9, v8
+    jumpi v10, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
-    v6 = not 31
-    v7 = and v4, v6
-    v8 = iszero v7
-    v9 = select v8, 32, v7
-    v10 = add 32, v9
-    v11 = lt v10, v9
-    jumpi v11, bb5, bb6
+    v11 = add v6, 32
+    v12 = lt v11, v6
+    v13 = gt v11, v3
+    v14 = or v12, v13
+    jumpi v14, bb5, bb6
   bb5:
+    revert 0, 0
+  bb6:
+    v15 = calldataload v6
+    v16 = add v6, 32
+    v17 = add v16, v15
+    v18 = lt v17, v16
+    v19 = gt v17, v3
+    v20 = or v18, v19
+    jumpi v20, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v21 = slice_len arg0
+    v22 = add v21, 31
+    v23 = lt v22, v21
+    jumpi v23, bb9, bb10
+  bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb6:
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v12, v3
-    v13 = memory_object_data memorybytes, v12
-    v14 = sub v9, 32
-    v15 = add v13, v14
-    mstore v15, 0
-    v16 = slice_ptr arg0
-    calldatacopy v13, v16, v3
-    ret v12
+  bb10:
+    v24 = not 31
+    v25 = and v22, v24
+    v26 = iszero v25
+    v27 = select v26, 32, v25
+    v28 = add 32, v27
+    v29 = lt v28, v27
+    jumpi v29, bb11, bb12
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    v30 = alloc memorybytes, exact, uninitialized, infallible, v28
+    set_memory_object_len memorybytes, v30, v21
+    v31 = memory_object_data memorybytes, v30
+    v32 = sub v27, 32
+    v33 = add v31, v32
+    mstore v33, 0
+    v34 = slice_ptr arg0
+    calldatacopy v31, v34, v21
+    ret v30
 }
 
 fn @frameShadow() -> (u256, u256, u256, u256) [abi_returns=[word, word, word, word]] {
   bb0:
+    v0 = calldatasize
     ret 1, 2, 3, 4
 }
 
 fn @rawAssembly() -> u256 [abi_returns=[word]] {
   bb0:
+    v0 = calldatasize
     mstore 128, 0
-    v0 = mload 64 !metadata(memory=scratch)
-    mstore 128, v0
-    v1 = mload 128
-    mstore 64, v1 !metadata(memory=scratch)
+    v1 = mload 64 !metadata(memory=scratch)
+    mstore 128, v1
     v2 = mload 128
-    ret v2
+    mstore 64, v2 !metadata(memory=scratch)
+    v3 = mload 128
+    ret v3
 }
 

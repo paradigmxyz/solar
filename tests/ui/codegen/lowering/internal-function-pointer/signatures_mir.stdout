@@ -8,10 +8,11 @@ fn @constructor() {
 
 fn @callVoid() -> bool [abi_returns=[word]] {
   bb0:
+    v0 = calldatasize
     internal_call @__internal_dispatch_0, 0, 2
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 255
-    ret v1
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = and v1, 255
+    ret v2
 }
 
 fn @__internal_dispatch_0(arg0: function) {
@@ -29,21 +30,23 @@ fn @__internal_dispatch_0(arg0: function) {
 
 fn @setFlag() {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v2 = and 1, 255
-    v3 = or v1, v2
-    sstore 0, v3 !metadata(storage=slot(0))
+    v0 = calldatasize
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v3 = and 1, 255
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
     stop
 }
 
 fn @callState() -> bool [abi_returns=[word]] {
   bb0:
-    v0 = sload 1 !metadata(storage=slot(1))
-    internal_call @__internal_dispatch_0, 0, v0
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = and v1, 255
-    ret v2
+    v0 = calldatasize
+    v1 = sload 1 !metadata(storage=slot(1))
+    internal_call @__internal_dispatch_0, 0, v1
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = and v2, 255
+    ret v3
 }
 
 fn @callPair(arg0: u256) -> (u256, u256) [abi_returns=[word, word]] {
@@ -55,11 +58,12 @@ fn @callPair(arg0: u256) -> (u256, u256) [abi_returns=[word, word]] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = internal_call @__internal_dispatch_1, 2, 5, arg0
-    v4 = mload 32 !metadata(memory=scratch)
-    v5 = add v4, 32
-    v6 = mload v5
-    ret v3, v6
+    v3 = calldatasize
+    v4 = internal_call @__internal_dispatch_1, 2, 5, arg0
+    v5 = mload 32 !metadata(memory=scratch)
+    v6 = add v5, 32
+    v7 = mload v6
+    ret v4, v7
 }
 
 fn @__internal_dispatch_1(arg0: function, arg1: u256) -> (u256, u256) {
@@ -93,6 +97,7 @@ fn @pair(arg0: u256) -> (u256, u256) {
 
 fn @callZero() {
   bb0:
+    v0 = calldatasize
     internal_call @__internal_dispatch_0, 0, 0
     stop
 }
@@ -112,8 +117,9 @@ fn @sum(arg0: u256, arg1: u256) -> u256 {
 
 fn @callTwoArgs() -> u256 [abi_returns=[word]] {
   bb0:
-    v0 = internal_call @__internal_dispatch_2, 1, 7, 5, 1
-    ret v0
+    v0 = calldatasize
+    v1 = internal_call @__internal_dispatch_2, 1, 7, 5, 1
+    ret v1
 }
 
 fn @__internal_dispatch_2(arg0: function, arg1: u256, arg2: u256) -> u256 {
