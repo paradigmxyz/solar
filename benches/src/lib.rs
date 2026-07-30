@@ -64,10 +64,8 @@ pub fn get_srcs() -> &'static [Source] {
                 "../testdata/projects/v4-core-4.0.0.json.gz",
                 Capabilities::no_codegen(),
             ),
-            include_source("../testdata/projects/morpho-blue-1.0.0.json.gz", Capabilities::all())
-                .with_codspeed_codegen(),
-            include_source("../testdata/projects/forge-std-1.16.1.json.gz", Capabilities::all())
-                .with_codspeed_codegen(),
+            include_source("../testdata/projects/morpho-blue-1.0.0.json.gz", Capabilities::all()),
+            include_source("../testdata/projects/forge-std-1.16.1.json.gz", Capabilities::all()),
             include_source(
                 "../testdata/projects/prb-math-4.1.1.json.gz",
                 Capabilities::no_codegen(),
