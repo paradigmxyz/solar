@@ -4240,6 +4240,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_op(op::MLOAD);
     }
 
+    /// Returns the first internal-call result only when it is consumed. The call itself remains
+    /// effectful, and additional returns are staged separately in the multi-return buffer.
+    fn live_internal_call_result(
+        result: Option<ValueId>,
+        returns: usize,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) -> Option<ValueId> {
+        result.filter(|&result| returns > 0 && !liveness.is_dead_after(result, block, inst_idx))
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn emit_internal_call(
         &mut self,
@@ -4335,8 +4347,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.define_label(return_label);
         self.scheduler.clear_stack();
 
-        if let Some(result) = result
-            && returns > 0
+        if let Some(result) =
+            Self::live_internal_call_result(result, returns, liveness, block, inst_idx)
         {
             self.emit_current_internal_frame_addr(
                 EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
@@ -4507,8 +4519,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.define_label(return_label);
         self.scheduler.clear_stack();
 
-        if let Some(result) = result
-            && returns > 0
+        if let Some(result) =
+            Self::live_internal_call_result(result, returns, liveness, block, inst_idx)
         {
             let addr = self.static_frame_addr(
                 callee,
