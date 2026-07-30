@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/recursive.sol:Recursive ===
 @module Recursive
-fn @fact.1(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @fact.0(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -23,7 +23,7 @@ fn @fact.1(arg0: u256) -> u256 [abi_returns=[word]] {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v7 = internal_call @fact.2, 1, v5
+    v7 = internal_call @fact.1, 1, v5
     v8 = mul arg0, v7
     v9 = iszero v7
     v10 = div v8, v7
@@ -39,7 +39,7 @@ fn @fact.1(arg0: u256) -> u256 [abi_returns=[word]] {
     ret v8
 }
 
-fn @fact.2(arg0: u256) -> u256 {
+fn @fact.1(arg0: u256) -> u256 {
   bb0:
     v0 = gt arg0, 1
     v1 = iszero v0
@@ -55,7 +55,7 @@ fn @fact.2(arg0: u256) -> u256 {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v4 = internal_call @fact.2, 1, v2
+    v4 = internal_call @fact.1, 1, v2
     v5 = mul arg0, v4
     v6 = iszero v4
     v7 = div v5, v4
@@ -71,7 +71,7 @@ fn @fact.2(arg0: u256) -> u256 {
     ret v5
 }
 
-fn @fib.3(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @fib.2(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -94,7 +94,7 @@ fn @fib.3(arg0: u256) -> u256 [abi_returns=[word]] {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v7 = internal_call @fib.4, 1, v5
+    v7 = internal_call @fib.3, 1, v5
     v8 = sub arg0, 2
     v9 = lt arg0, 2
     jumpi v9, bb7, bb8
@@ -103,7 +103,7 @@ fn @fib.3(arg0: u256) -> u256 [abi_returns=[word]] {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v10 = internal_call @fib.4, 1, v8
+    v10 = internal_call @fib.3, 1, v8
     v11 = add v7, v10
     v12 = lt v11, v7
     jumpi v12, bb9, bb10
@@ -115,7 +115,7 @@ fn @fib.3(arg0: u256) -> u256 [abi_returns=[word]] {
     ret v11
 }
 
-fn @fib.4(arg0: u256) -> u256 {
+fn @fib.3(arg0: u256) -> u256 {
   bb0:
     v0 = gt arg0, 1
     v1 = iszero v0
@@ -131,7 +131,7 @@ fn @fib.4(arg0: u256) -> u256 {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v4 = internal_call @fib.4, 1, v2
+    v4 = internal_call @fib.3, 1, v2
     v5 = sub arg0, 2
     v6 = lt arg0, 2
     jumpi v6, bb5, bb6
@@ -140,7 +140,7 @@ fn @fib.4(arg0: u256) -> u256 {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v7 = internal_call @fib.4, 1, v5
+    v7 = internal_call @fib.3, 1, v5
     v8 = add v4, v7
     v9 = lt v8, v4
     jumpi v9, bb7, bb8
@@ -152,7 +152,7 @@ fn @fib.4(arg0: u256) -> u256 {
     ret v8
 }
 
-fn @isEven.5(arg0: u256) -> bool [abi_returns=[word]] {
+fn @isEven.4(arg0: u256) -> bool [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -174,11 +174,11 @@ fn @isEven.5(arg0: u256) -> bool [abi_returns=[word]] {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v6 = internal_call @isOdd.6, 1, v4
+    v6 = internal_call @isOdd.5, 1, v4
     ret v6
 }
 
-fn @isOdd.6(arg0: u256) -> bool {
+fn @isOdd.5(arg0: u256) -> bool {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -193,11 +193,11 @@ fn @isOdd.6(arg0: u256) -> bool {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v3 = internal_call @isEven.7, 1, v1
+    v3 = internal_call @isEven.6, 1, v1
     ret v3
 }
 
-fn @isEven.7(arg0: u256) -> bool {
+fn @isEven.6(arg0: u256) -> bool {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -212,11 +212,11 @@ fn @isEven.7(arg0: u256) -> bool {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v3 = internal_call @isOdd.6, 1, v1
+    v3 = internal_call @isOdd.5, 1, v1
     ret v3
 }
 
-fn @isOdd.8(arg0: u256) -> bool [abi_returns=[word]] {
+fn @isOdd.7(arg0: u256) -> bool [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -238,7 +238,7 @@ fn @isOdd.8(arg0: u256) -> bool [abi_returns=[word]] {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v6 = internal_call @isEven.7, 1, v4
+    v6 = internal_call @isEven.6, 1, v4
     ret v6
 }
 

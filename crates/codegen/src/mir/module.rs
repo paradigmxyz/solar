@@ -156,16 +156,12 @@ impl Module {
         if let Some(duplicate) = self.function_name_index.insert(symbol, function) {
             let duplicate_func = &mut self.functions[duplicate];
             if duplicate_func.name.disambiguator.is_none() {
-                duplicate_func.name = MangledSymbol::disambiguated(
-                    symbol,
-                    Disambiguator::from_usize(duplicate.index() + 1),
-                );
+                duplicate_func.name =
+                    MangledSymbol::disambiguated(symbol, Disambiguator::from_foreign(duplicate));
             }
             if self.functions[function].name.disambiguator.is_none() {
-                self.functions[function].name = MangledSymbol::disambiguated(
-                    symbol,
-                    Disambiguator::from_usize(function.index() + 1),
-                );
+                self.functions[function].name =
+                    MangledSymbol::disambiguated(symbol, Disambiguator::from_foreign(function));
             }
         }
         function

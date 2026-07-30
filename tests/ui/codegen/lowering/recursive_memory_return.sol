@@ -18,13 +18,13 @@ contract C {
     }
 
     // recursive function returning a memory struct
-    // CHECK-LABEL: fn @build.1(
-    // CHECK: internal_call @build.2, 1,
+    // CHECK-LABEL: fn @build.0(
+    // CHECK: internal_call @build.1, 1,
     // CHECK: [[RESULT:v[0-9]+]] = alloc memorystruct<2>
     // CHECK: memory_object_field_addr memorystruct<2>, [[RESULT]], 0
     // CHECK: ret [[RESULT]]
-    // CHECK-LABEL: fn @build.2(
-    // CHECK: internal_call @build.2, 1,
+    // CHECK-LABEL: fn @build.1(
+    // CHECK: internal_call @build.1, 1,
     // CHECK: [[RESULT:v[0-9]+]] = alloc memorystruct<2>
     // CHECK: ret [[RESULT]]
     function build(uint256 n) public pure returns (P memory) {
