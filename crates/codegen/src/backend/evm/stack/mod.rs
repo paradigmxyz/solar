@@ -9,6 +9,15 @@
 //!
 //! ## Architecture
 //!
+//! Late MIR lowering is followed by dead-code elimination and then `evm-inst-schedule`, the final
+//! pass in the default MIR lowering pipeline. DCE removes complete unused dependency chains before
+//! they become physical operations ending in `POP`; instruction scheduling then orders movable,
+//! single-use expression trees in backend consumption order immediately before this subsystem.
+//! Effectful instructions, `gas`, `msize`, phis, and shared results constrain that order. This
+//! shortens producer-to-consumer distances without putting physical stack layouts into MIR;
+//! liveness is recomputed over the selected order and remains the scheduler's source of
+//! preservation requirements.
+//!
 //! The stack subsystem is split by responsibility:
 //!
 //! - [`model`] is the source of truth for the emitted physical stack. Slots are either a known MIR
@@ -24,7 +33,9 @@
 //!   reserve the search for failures.
 //! - [`spill`] assigns memory slots. Values visible across blocks receive function-stable
 //!   reservations, while a separate allocation list lets block-local slots be released and reused
-//!   after the block is emitted without rescanning every stable reservation. Free-memory-pointer
+//!   after the block is emitted without rescanning every stable reservation. In gas mode,
+//!   non-overlapping cross-block live ranges share reservations to reduce frame size and memory
+//!   expansion; dependency-only and size-mode reservations remain separate. Free-memory-pointer
 //!   loads are stored at their definitions because later pointer updates make them impossible to
 //!   rematerialize. Gas and unoptimized lowering reserve stable slots only for those that cross a
 //!   block; size lowering keeps all of their slots stable to avoid downstream layout growth.
@@ -41,9 +52,12 @@
 //! words. Sufficiently large selector functions with two or three used decoded arguments may
 //! instead carry the live subset through compatible joins; switch components and joins owned by the
 //! phi policy are excluded. Every incoming edge must agree on the same layout, and values outside a
-//! selected layout keep their stable spill homes. These are not independent schedulers applied in
-//! sequence: one local planner tier prepares each instruction, and an edge policy invokes the
-//! shuffler only when its complete-layout preconditions hold.
+//! selected layout keep their stable spill homes. A cold private successor keeps the physical union
+//! layout but anonymizes words used only by its hot sibling; hot successors retain exact identities
+//! to avoid replacing loop-carried stack hits with reloads. These are not independent schedulers
+//! applied in sequence: MIR ordering changes producer order, one local planner tier prepares each
+//! instruction, and an edge policy invokes the shuffler only when its complete-layout preconditions
+//! hold.
 //!
 //! ## Design lineage
 //!
@@ -56,6 +70,13 @@
 //! values and anonymous words, uses one-action and lower-bound-certified fast paths before bounded
 //! A*, and fits the existing direct MIR-to-EVM lowering and memory conventions. This is an original
 //! implementation rather than vendored Plank code.
+//!
+//! The preceding MIR ordering pass is adapted from [Venom's dependency-first traversal]. Venom
+//! expands single-use expressions before ordering data and effect dependencies, while
+//! [solx's single-use-expression pass] uses live intervals to move one-use definitions nearer their
+//! users. Our pass is deliberately smaller: it operates within barrier-delimited basic-block
+//! segments, does not introduce assignments, pins shared-result producers, and schedules the
+//! single-use islands between them.
 //!
 //! [solc's SSA stack layout generator] and [Sonatina's stackify allocator] were evaluated for
 //! control-flow layouts and spill handling. They use whole-function layout machinery, fixed-point
@@ -72,15 +93,25 @@
 //! for this direct MIR lowering. We benchmarked analogous cross-instruction retention, but it added
 //! no size win beyond equal-immediate canonicalization and regressed gas, so it is not enabled.
 //!
+//! Cross-block spill-slot coloring follows the live-range reuse principle of LLVM's
+//! [stack-slot coloring], used by the [solx LLVM EVM target]. solx also represents physical words
+//! absent from one conditional successor as [unused stack slots]; our private-successor path uses
+//! the same distinction between a physical word and a live identity, restricted to cold successors.
+//!
 //! [scheduler pipeline]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/lib.rs
 //! [Plank's intra-operation scheduler]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/greedy_intra_op_scheduler/mod.rs
 //! [greedy edge shuffler]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/greedy_shuffler/mod.rs
+//! [Venom's dependency-first traversal]: https://github.com/vyperlang/vyper/blob/730a2d36f1fca90be059c75681de5c942560ce0b/vyper/venom/passes/dft.py
+//! [solx's single-use-expression pass]: https://github.com/NomicFoundation/solx-llvm/blob/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/Target/EVM/EVMSingleUseExpression.cpp
 //! [solc's SSA stack layout generator]: https://github.com/ethereum/solidity/blob/d3ac579fe752189a9f2c365707b0f1cfc66b1437/libyul/backends/evm/ssa/StackLayoutGenerator.cpp
 //! [Sonatina's stackify allocator]: https://github.com/fe-lang/sonatina/blob/55ca888f1fc83077e5eee803c0619231e9b50998/crates/codegen/src/stackalloc/stackify/mod.rs
 //! [Sonatina's operand preparer]: https://github.com/fe-lang/sonatina/blob/55ca888f1fc83077e5eee803c0619231e9b50998/crates/codegen/src/stackalloc/stackify/planner/operand_prep.rs
 //! [normalized search]: https://github.com/fe-lang/sonatina/blob/55ca888f1fc83077e5eee803c0619231e9b50998/crates/codegen/src/stackalloc/stackify/planner/normalize_search.rs
 //! [Sonatina integration]: https://github.com/fe-lang/fe/blob/636607d1a859bb68d88460c5ee63dd9532791aa8/crates/codegen/src/sonatina/mod.rs
 //! [LLVM EVM stack solver]: https://github.com/NomicFoundation/solx-llvm/blob/c7d7ec5b23366238d6201a6672c25eeee79bdcf1/llvm/lib/Target/EVM/EVMStackSolver.cpp
+//! [stack-slot coloring]: https://github.com/NomicFoundation/solx-llvm/blob/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/CodeGen/StackSlotColoring.cpp
+//! [solx LLVM EVM target]: https://github.com/NomicFoundation/solx-llvm/tree/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/Target/EVM
+//! [unused stack slots]: https://github.com/NomicFoundation/solx-llvm/blob/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/Target/EVM/EVMStackSolver.cpp
 //!
 //! ## Operand planning
 //!

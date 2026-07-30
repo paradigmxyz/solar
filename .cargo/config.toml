@@ -1,4 +1,7 @@
 [alias]
+docs = "doc --workspace --all-features --no-deps --document-private-items"
+cl = "clippy --workspace --all-features --all-targets --keep-going"
+
 r = "run --package solar-compiler --bin solar --"
 ryul = "r --language yul -Zparse-yul"
 
