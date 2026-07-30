@@ -126,9 +126,6 @@ bb7:
   jumpi
   push 0x4a0
   mload
-  dup1
-  push 0x4a0
-  mstore
   push 0
   sstore
   push 3
@@ -293,9 +290,6 @@ bb23:
   jumpi
   push 896
   mload
-  dup1
-  push 896
-  mstore
   push 0
   sstore
   push 832
@@ -853,9 +847,6 @@ bb72:
   jumpi
   push 320
   mload
-  dup1
-  push 320
-  mstore
   push 0
   sstore
   push 480
@@ -899,9 +890,6 @@ bb72:
   jumpi
   push 416
   mload
-  dup1
-  push 416
-  mstore
   jump bb63
 bb73:
   push 160

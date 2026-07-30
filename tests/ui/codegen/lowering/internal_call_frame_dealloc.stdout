@@ -222,9 +222,6 @@ bb22:
   jumpi
   push 256
   mload
-  dup1
-  push 256
-  mstore
   push 128
   mstore
   push 32
