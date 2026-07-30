@@ -390,53 +390,46 @@ pub(super) struct EvmOutput {
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct BytecodeOutput {
-    #[serde(serialize_with = "serialize_hex_bytes")]
-    pub(super) object: Bytes,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_optional_hex_bytes"
+    )]
+    pub(super) object: Option<Bytes>,
     // Ethdebug output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // ethdebug: Option<CowValue<'static>>,
     // Function debug data is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // function_debug_data: Option<CowValue<'static>>,
-    // Opcode output is not supported yet.
-    // #[serde(default, skip_serializing_if = "String::is_empty")]
-    // opcodes: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) opcodes: Option<String>,
     // Source map output is not supported yet.
     // #[serde(default, skip_serializing_if = "String::is_empty")]
     // source_map: String,
-    // Link references are not supported yet.
-    // #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    // link_references: FxIndexMap<String, FxIndexMap<String, Vec<OffsetLength>>>,
-    // Immutable references are not supported yet.
-    // #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    // immutable_references: FxIndexMap<String, Vec<OffsetLength>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) link_references: Option<FxIndexMap<String, FxIndexMap<String, Vec<OffsetLength>>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) immutable_references: Option<FxIndexMap<String, Vec<OffsetLength>>>,
     // Generated sources are not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // generated_sources: Option<CowValue<'static>>,
 }
 
-// Link and immutable reference offsets are not supported yet.
-// #[derive(Debug, Serialize)]
-// struct OffsetLength {
-//     start: u32,
-//     length: u32,
-// }
-
-impl BytecodeOutput {
-    pub(super) fn empty() -> Self {
-        Self::default()
-    }
-
-    pub(super) fn new(object: Bytes) -> Self {
-        Self { object }
-    }
+#[derive(Debug, Serialize)]
+pub(super) struct OffsetLength {
+    pub(super) start: usize,
+    pub(super) length: usize,
 }
 
-fn serialize_hex_bytes<S>(bytes: &Bytes, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_optional_hex_bytes<S>(bytes: &Option<Bytes>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
-    serializer.serialize_str(&alloy_primitives::hex::encode(bytes))
+    if let Some(bytes) = bytes {
+        serializer.serialize_str(&alloy_primitives::hex::encode(bytes))
+    } else {
+        serializer.serialize_none()
+    }
 }
 
 impl<'input> OutputSelection<'input> {
