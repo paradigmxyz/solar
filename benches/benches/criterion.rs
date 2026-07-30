@@ -1,5 +1,5 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
-use solar_bench::{COMPILERS, Compiler, IS_CODSPEED, Source, get_src, get_srcs};
+use solar_bench::{COMPILERS, Compiler, IS_CODSPEED, Source, get_project_srcs, get_src, get_srcs};
 use std::{any::Any, hint::black_box, time::Duration};
 
 type CompilerBench = (
@@ -62,7 +62,7 @@ fn micro_benches(c: &mut Criterion) {
             |sm| {
                 sm.new_source_file(
                     solar::parse::interface::source_map::FileName::Real(name.as_ref().into()),
-                    content.to_string(),
+                    content.as_ref(),
                 )
                 .unwrap()
             },
@@ -72,13 +72,21 @@ fn micro_benches(c: &mut Criterion) {
 }
 
 fn compiler_benches(c: &mut Criterion) {
-    for s in get_srcs() {
+    run_compiler_benches(c, "compiler", get_srcs());
+}
+
+fn project_benches(c: &mut Criterion) {
+    run_compiler_benches(c, "projects", get_project_srcs());
+}
+
+fn run_compiler_benches(c: &mut Criterion, group: &str, sources: &[Source]) {
+    for s in sources {
         let lines = s.files.iter().map(|(_, content)| content.lines().count()).sum::<usize>();
         eprintln!("{}: {} files, {} LoC, {} bytes", s.name, s.files.len(), lines, s.bytes);
     }
     eprintln!();
 
-    let mut g = make_group(c, "compiler");
+    let mut g = make_group(c, group);
     let benches: [CompilerBench; 4] = [
         ("lex", can_lex, bytes, run_lex),
         ("parse", can_parse, bytes, run_parse),
@@ -86,7 +94,7 @@ fn compiler_benches(c: &mut Criterion) {
         ("codegen", can_codegen, bytes, run_codegen),
     ];
 
-    for source in get_srcs() {
+    for source in sources {
         for &compiler in COMPILERS {
             let cname = compiler.name();
 
@@ -173,5 +181,5 @@ fn make_group<'a>(
     g
 }
 
-criterion_group!(benches, micro_benches, compiler_benches);
+criterion_group!(benches, micro_benches, compiler_benches, project_benches);
 criterion_main!(benches);

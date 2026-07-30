@@ -128,6 +128,24 @@ impl<'gcx> ParsingContext<'gcx> {
         Ok(())
     }
 
+    /// Loads files with already available contents into the context.
+    pub fn load_files_with_contents<I, N, S>(&mut self, files: I) -> Result<()>
+    where
+        I: IntoIterator<Item = (N, S)>,
+        N: Into<FileName>,
+        S: Into<String>,
+    {
+        for (name, src) in files {
+            let file = self
+                .sess
+                .source_map()
+                .new_source_file(name, src)
+                .map_err(|e| self.dcx().err(format!("failed to load source: {e}")).emit())?;
+            self.add_file(file);
+        }
+        Ok(())
+    }
+
     /// Loads files with already available contents into the context in parallel.
     pub fn par_load_files_with_contents<I, N, S>(&mut self, files: I) -> Result<()>
     where

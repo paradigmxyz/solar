@@ -41,59 +41,17 @@ pub fn get_srcs() -> &'static [Source] {
     CACHE.get_or_init(|| {
         let mut sources = common_sources();
         extend_repro_sources(&mut sources);
-        sources.push(include_source(
-            "../testdata/solidity/test/benchmarks/chains.sol",
-            Capabilities::all(),
-        ));
-
-        // Whole-project inputs mirroring solc's external benchmarks
-        // (`test/benchmarks/external-setup.sh` upstream): pinned Foundry
-        // projects compiled with their full test suites.
-        //
-        // OpenZeppelin, v4-core, and PRBMath currently stop before codegen
-        // on unsupported compiler behavior. Only project codegen cases that
-        // keep the full simulated suite under ten minutes opt in below.
-        sources.extend([
-            include_source("../testdata/projects/seaport-1.6.json.gz", Capabilities::all()),
-            include_source(
-                "../testdata/projects/openzeppelin-5.6.1.json.gz",
-                Capabilities::no_codegen(),
-            ),
-            include_source("../testdata/projects/solady-0.1.26.json.gz", Capabilities::all()),
-            include_source(
-                "../testdata/projects/v4-core-4.0.0.json.gz",
-                Capabilities::no_codegen(),
-            ),
-            include_source("../testdata/projects/morpho-blue-1.0.0.json.gz", Capabilities::all()),
-            include_source("../testdata/projects/forge-std-1.16.1.json.gz", Capabilities::all()),
-            include_source(
-                "../testdata/projects/prb-math-4.1.1.json.gz",
-                Capabilities::no_codegen(),
-            ),
-            include_source("../testdata/projects/solmate-6.json.gz", Capabilities::all())
-                .with_codspeed_codegen(),
-            include_source("../testdata/projects/solarray-a547630.json.gz", Capabilities::all())
-                .with_codspeed_codegen(),
-        ]);
-
         sources
     })
 }
 
+pub fn get_project_srcs() -> &'static [Source] {
+    static CACHE: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(project_sources)
+}
+
 pub fn get_src(name: &str) -> &'static Source {
-    static GUNGRAUN_SOURCES: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
-    GUNGRAUN_SOURCES
-        .get_or_init(|| {
-            // Keep the measured harness equivalent to the pre-project corpus:
-            // Gungraun does not benchmark the compressed projects, but it did
-            // initialize both the common and generated repro sources.
-            let mut sources = common_sources();
-            extend_repro_sources(&mut sources);
-            sources
-        })
-        .iter()
-        .find(|source| source.name == name)
-        .unwrap()
+    get_srcs().iter().find(|source| source.name == name).unwrap()
 }
 
 fn common_sources() -> Vec<Source> {
@@ -113,6 +71,7 @@ fn common_sources() -> Vec<Source> {
             "../testdata/solidity/test/benchmarks/OptimizorClub.sol",
             Capabilities::all(),
         ),
+        include_source("../testdata/solidity/test/benchmarks/chains.sol", Capabilities::all()),
         // Pre-0.8 source semantics: rejected by 0.8 type rules (unary `-` on
         // unsigned, one-step sign+width conversions).
         include_source("../testdata/UniswapV3.sol", Capabilities::no_codegen()),
@@ -125,6 +84,32 @@ fn common_sources() -> Vec<Source> {
         // Multi-file concatenation: top-level redeclarations fail symbol
         // resolution in `lower_asts`, so parsing is this source's ceiling.
         include_source("../testdata/Optimism.sol", Capabilities::lex_and_parse()),
+    ]
+}
+
+fn project_sources() -> Vec<Source> {
+    // Whole-project inputs mirroring solc's external benchmarks
+    // (`test/benchmarks/external-setup.sh` upstream): pinned Foundry
+    // projects compiled with their full test suites.
+    //
+    // OpenZeppelin, v4-core, and PRBMath currently stop before codegen
+    // on unsupported compiler behavior. Only project codegen cases that
+    // keep the full simulated suite under ten minutes opt in below.
+    vec![
+        include_source("../testdata/projects/seaport-1.6.json.gz", Capabilities::all()),
+        include_source(
+            "../testdata/projects/openzeppelin-5.6.1.json.gz",
+            Capabilities::no_codegen(),
+        ),
+        include_source("../testdata/projects/solady-0.1.26.json.gz", Capabilities::all()),
+        include_source("../testdata/projects/v4-core-4.0.0.json.gz", Capabilities::no_codegen()),
+        include_source("../testdata/projects/morpho-blue-1.0.0.json.gz", Capabilities::all()),
+        include_source("../testdata/projects/forge-std-1.16.1.json.gz", Capabilities::all()),
+        include_source("../testdata/projects/prb-math-4.1.1.json.gz", Capabilities::no_codegen()),
+        include_source("../testdata/projects/solmate-6.json.gz", Capabilities::all())
+            .with_codspeed_codegen(),
+        include_source("../testdata/projects/solarray-a547630.json.gz", Capabilities::all())
+            .with_codspeed_codegen(),
     ]
 }
 
@@ -158,12 +143,11 @@ fn extend_repro_sources(sources: &mut Vec<Source>) {
 
 fn parse_source(compiler: &mut CompilerRef<'_>, source: &Source) -> Result {
     let mut pcx = compiler.parse();
-    pcx.par_load_files_with_contents(
+    pcx.load_files_with_contents(
         source
             .files
             .iter()
-            .map(|(name, content)| (PathBuf::from(name.as_ref()), content.to_string()))
-            .collect::<Vec<_>>(),
+            .map(|(name, content)| (PathBuf::from(name.as_ref()), content.to_string())),
     )?;
     pcx.parse();
     compiler.dcx().has_errors()
@@ -445,7 +429,24 @@ impl Compiler for Solar {
 
     fn parse(&self, source: &Source, compiler_any: &mut dyn Any) {
         let compiler = compiler_any.downcast_mut::<SemaCompiler>().unwrap();
-        compiler.enter_mut(|compiler| parse_source(compiler, source).unwrap());
+        compiler.enter_mut(|compiler| {
+            if source.files.len() != 1 {
+                return parse_source(compiler, source).unwrap();
+            }
+
+            let (name, content) = source.single_file();
+            let arena = solar::parse::ast::Arena::new();
+            let mut parser = solar::parse::Parser::from_source_code(
+                compiler.sess(),
+                &arena,
+                PathBuf::from(name).into(),
+                content,
+            )
+            .unwrap();
+            let result = parser.parse_file().map_err(|error| error.emit()).unwrap();
+            compiler.dcx().has_errors().unwrap();
+            black_box(result);
+        });
     }
 
     fn lower(&self, source: &Source, compiler_any: &mut dyn Any) {
