@@ -33,17 +33,22 @@ are explicit CFG edges.
 
 ## Retained local folding
 
-Lowering keeps two small folds that are confined to the helpers which emit the
-operation and inspect only MIR immediates:
+Lowering keeps a small set of constant fast paths that are encapsulated in the
+helper which emits the corresponding semantic operation:
 
 | Helper | Fold |
 | --- | --- |
 | Array index bounds checking | Skip a proven in-range check or emit the known panic without first building a comparison |
 | ABI offset pointer construction | Emit the offset directly when the base is the immediate value zero |
+| Checked exponentiation | Use the bounded constant-base algorithm when the base is already a MIR immediate |
+| Literal byte/string consumers | Materialize known payload words directly and hash literal contents without first building a temporary memory object |
 
-These folds avoid constructing short-lived instructions and control flow. They
-do not inspect HIR syntax, duplicate an evaluator, or make profitability
-decisions.
+These folds avoid constructing short-lived instructions, memory objects, and
+control flow. They do not scan surrounding statements, duplicate a general
+evaluator, or make cross-function profitability decisions. Checked
+exponentiation should eventually select its algorithm after SCCP; literal
+payload handling can move behind a constant memory/object evaluator without
+changing the source-level fast path.
 
 Static event data also uses the shared ABI encoder at the current free memory
 pointer without advancing it. `LOG` consumes the data immediately, so reserving
@@ -59,6 +64,7 @@ MIR that a required lowering pass or the backend cannot represent.
 | --- | --- | --- |
 | Base-constructor body composition | Base initialization is still built into one derived-constructor body | Give constructors an explicit MIR composition/call representation |
 | Calldata-slice return inlining | `lower-slices` expands parameters and arguments, but not return signatures | Expand slice return signatures and internal-call results |
+| Desugared `for`-loop update recovery | HIR represents a `for` loop as a synthetic loop/conditional/block shape, so codegen must recover the update block to make `continue` execute it | Preserve the update expression and continue target explicitly through HIR or a named CFG-building pass |
 | Internal-function-pointer dispatchers | MIR has a function value but no indirect call; lowering discovers address-taken HIR targets and synthesizes signature-specific switch dispatchers | Add an indirect-call operation, specialize constant targets, then lower remaining indirect calls in a required pass |
 | Multi-return scratch buffer | MIR instructions expose one result, so additional external and internal call results travel through a published memory buffer | Add first-class multi-result values and call instructions |
 | External ABI entry decoding and return encoding | `lower-abi` does not yet cover every dynamic or aggregate shape | Complete `lower-abi` and semantic return encoding |
