@@ -808,22 +808,17 @@ impl CommonSubexprEliminator {
                 Access::Location(Location::Transient(alias)) => {
                     Clobber::Transient(ClobberScope::Specific(alias))
                 }
+                Access::Location(Location::Immutable(id)) => {
+                    Clobber::Immutable(ClobberScope::Specific(id))
+                }
                 Access::Any(AddressSpace::Memory) => Clobber::Memory(ClobberScope::All),
                 Access::Any(AddressSpace::Storage) => Clobber::Storage(ClobberScope::All),
                 Access::Any(AddressSpace::Transient) => Clobber::Transient(ClobberScope::All),
+                Access::Any(AddressSpace::Immutable) => Clobber::Immutable(ClobberScope::All),
             });
         }
         if Self::may_change_account_environment(kind) {
             clobbers.push(Clobber::AccountEnvironment);
-        }
-        match *kind {
-            InstKind::StoreImmutable(id, _) => {
-                clobbers.push(Clobber::Immutable(ClobberScope::Specific(id)));
-            }
-            InstKind::InternalCall { .. } => {
-                clobbers.push(Clobber::Immutable(ClobberScope::All));
-            }
-            _ => {}
         }
     }
 

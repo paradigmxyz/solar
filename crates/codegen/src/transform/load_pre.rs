@@ -383,6 +383,7 @@ impl KillIndex {
             AddressSpace::Storage => &self.storage,
             AddressSpace::Transient => &self.transient,
             AddressSpace::Memory => &self.memory,
+            AddressSpace::Immutable => &[],
         }
     }
 }
@@ -1096,6 +1097,7 @@ impl LoadRedundancyEliminator {
                 Access::Location(Location::Memory(written)) => {
                     self.for_each_killed_memory_key(written, keys, index, &mut kill);
                 }
+                Access::Location(Location::Immutable(_)) => {}
             }
         }
     }

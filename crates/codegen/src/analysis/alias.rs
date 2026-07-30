@@ -11,8 +11,8 @@ use super::MemoryCallSummaries;
 use crate::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        AbiType, ArgIdx, BlockId, Function, InstId, InstKind, MemoryObjectKind, MemoryRegion,
-        SliceLocation, StorageAlias, Terminator, Value, ValueId,
+        AbiType, ArgIdx, BlockId, Function, ImmutableId, InstId, InstKind, MemoryObjectKind,
+        MemoryRegion, SliceLocation, StorageAlias, Terminator, Value, ValueId,
     },
 };
 use smallvec::SmallVec;
@@ -31,6 +31,8 @@ pub(crate) enum AddressSpace {
     Storage,
     /// Transaction-scoped transient storage.
     Transient,
+    /// Constructor-assigned immutable values.
+    Immutable,
 }
 
 /// The canonical base of a memory address.
@@ -162,6 +164,8 @@ pub(crate) enum Location {
     Storage(StorageAlias),
     /// One transient storage slot.
     Transient(StorageAlias),
+    /// One module immutable.
+    Immutable(ImmutableId),
 }
 
 impl Location {
@@ -172,6 +176,7 @@ impl Location {
             Self::Memory(_) => AddressSpace::Memory,
             Self::Storage(_) => AddressSpace::Storage,
             Self::Transient(_) => AddressSpace::Transient,
+            Self::Immutable(_) => AddressSpace::Immutable,
         }
     }
 }
@@ -754,6 +759,13 @@ impl AliasAnalysis {
                     AliasResult::NoAlias
                 }
             }
+            (Location::Immutable(first), Location::Immutable(second)) => {
+                if first == second {
+                    AliasResult::MustAlias
+                } else {
+                    AliasResult::NoAlias
+                }
+            }
             _ => AliasResult::NoAlias,
         }
     }
@@ -939,6 +951,12 @@ impl AliasAnalysis {
             InstKind::TStore(slot, _) => effects.write(Access::Location(Location::Transient(
                 self.storage_alias_after_replacements(func, inst_id, slot, replacements),
             ))),
+            InstKind::LoadImmutable(id) => {
+                effects.read(Access::Location(Location::Immutable(id)));
+            }
+            InstKind::StoreImmutable(id, _) => {
+                effects.write(Access::Location(Location::Immutable(id)));
+            }
             InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
@@ -956,9 +974,12 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
-                    for space in
-                        [AddressSpace::Memory, AddressSpace::Storage, AddressSpace::Transient]
-                    {
+                    for space in [
+                        AddressSpace::Memory,
+                        AddressSpace::Storage,
+                        AddressSpace::Transient,
+                        AddressSpace::Immutable,
+                    ] {
                         if summary.reads(space) {
                             effects.read_any(space);
                         }
@@ -973,6 +994,8 @@ impl AliasAnalysis {
                     effects.write_any(AddressSpace::Storage);
                     effects.read_any(AddressSpace::Transient);
                     effects.write_any(AddressSpace::Transient);
+                    effects.read_any(AddressSpace::Immutable);
+                    effects.write_any(AddressSpace::Immutable);
                 }
             }
             InstKind::Create(_, offset, size) | InstKind::Create2(_, offset, size, _) => {
@@ -1005,9 +1028,12 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
-                    for space in
-                        [AddressSpace::Memory, AddressSpace::Storage, AddressSpace::Transient]
-                    {
+                    for space in [
+                        AddressSpace::Memory,
+                        AddressSpace::Storage,
+                        AddressSpace::Transient,
+                        AddressSpace::Immutable,
+                    ] {
                         if summary.reads(space) {
                             effects.read_any(space);
                         }
@@ -1022,6 +1048,8 @@ impl AliasAnalysis {
                     effects.write_any(AddressSpace::Storage);
                     effects.read_any(AddressSpace::Transient);
                     effects.write_any(AddressSpace::Transient);
+                    effects.read_any(AddressSpace::Immutable);
+                    effects.write_any(AddressSpace::Immutable);
                 }
             }
             Terminator::Jump(_)
@@ -1607,7 +1635,7 @@ enum SizeOperand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{FunctionBuilder, MirType};
+    use crate::mir::{FunctionBuilder, MirType, TypeSize};
     use alloy_primitives::U256;
     use solar_interface::Ident;
 
@@ -1692,6 +1720,27 @@ mod tests {
             ),
             AliasResult::NoAlias
         );
+    }
+
+    #[test]
+    fn reports_precise_immutable_modref() {
+        let mut func = function();
+        let id = ImmutableId::new(3);
+        {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let value = builder.add_param(MirType::UInt(TypeSize::new_int_bits(8)));
+            builder.store_immutable(id, value);
+            let _value = builder.load_immutable(id, MirType::UInt(TypeSize::new_int_bits(8)));
+            builder.stop();
+        }
+        let [store, load] = func.blocks[BlockId::ENTRY].instructions.as_slice() else {
+            panic!("expected one immutable store and load")
+        };
+        let location = Access::Location(Location::Immutable(id));
+        let aa = AliasAnalysis::new(&func);
+
+        assert_eq!(aa.instruction_mod_ref(&func, *store).writes(), &[location]);
+        assert_eq!(aa.instruction_mod_ref(&func, *load).reads(), &[location]);
     }
 
     #[test]
