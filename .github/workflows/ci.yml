@@ -18,7 +18,7 @@ env:
 jobs:
   test:
     name: test ${{ matrix.os }} ${{ matrix.rust }}
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -27,14 +27,19 @@ jobs:
       matrix:
         include:
           - os: "ubuntu-latest"
+            runner: "depot-ubuntu-latest"
             rust: "stable"
           - os: "macos-latest"
+            runner: "macos-latest"
             rust: "stable"
           - os: "windows-latest"
+            runner: "windows-latest"
             rust: "stable"
           - os: "ubuntu-latest"
+            runner: "depot-ubuntu-latest"
             rust: "1.96" # MSRV
           - os: "ubuntu-latest"
+            runner: "depot-ubuntu-latest"
             rust: "nightly"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -89,7 +94,7 @@ jobs:
 
   fandango:
     name: fandango
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     timeout-minutes: 30
     continue-on-error: true
     permissions:
@@ -134,7 +139,7 @@ jobs:
 
   feature-checks:
     name: features
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
@@ -153,7 +158,7 @@ jobs:
         run: cargo hack check --feature-powerset --depth 1
 
   wasm:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
@@ -172,7 +177,7 @@ jobs:
         run: node crates/capi/tests/soljson.js
 
   typos:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
@@ -181,7 +186,7 @@ jobs:
       - uses: crate-ci/typos@bee27e3a4fd1ea2111cf90ab89cd076c870fce14 # v1.48.0
 
   clippy:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
@@ -199,7 +204,7 @@ jobs:
           RUSTFLAGS: -Dwarnings
 
   docs:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
@@ -217,7 +222,7 @@ jobs:
           RUSTDOCFLAGS: --cfg docsrs -D warnings -Zunstable-options --show-type-layout --generate-link-to-definition
 
   fmt:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read

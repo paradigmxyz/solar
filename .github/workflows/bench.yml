@@ -53,7 +53,7 @@ jobs:
       github.event_name != 'workflow_dispatch' ||
       inputs.benchmark == 'all' ||
       inputs.benchmark == 'codegen-runtime'
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-32
     timeout-minutes: 45
     permissions:
       actions: read
@@ -271,7 +271,7 @@ jobs:
       github.event_name != 'workflow_dispatch' ||
       inputs.benchmark == 'all' ||
       inputs.benchmark == 'codspeed'
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-32
     permissions:
       contents: read
     steps:
@@ -311,7 +311,7 @@ jobs:
       github.event_name != 'workflow_dispatch' ||
       inputs.benchmark == 'all' ||
       inputs.benchmark == 'gungraun'
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-32
     permissions:
       contents: read
     env:
