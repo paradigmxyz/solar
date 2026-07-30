@@ -276,7 +276,7 @@ impl EvmInstSchedule {
         }
 
         for &inst_id in original {
-            let Some((a, b)) = Self::reorderable_binary_operands(&func.inst(inst_id).kind) else {
+            let Some((a, b)) = func.inst(inst_id).kind.reorderable_binary_operands() else {
                 continue;
             };
             let (Value::Inst(a), Value::Inst(b)) = (func.value(a), func.value(b)) else {
@@ -294,22 +294,6 @@ impl EvmInstSchedule {
             }
         }
         true
-    }
-
-    fn reorderable_binary_operands(kind: &InstKind) -> Option<(ValueId, ValueId)> {
-        match kind {
-            InstKind::Add(a, b)
-            | InstKind::Mul(a, b)
-            | InstKind::And(a, b)
-            | InstKind::Or(a, b)
-            | InstKind::Xor(a, b)
-            | InstKind::Eq(a, b)
-            | InstKind::Lt(a, b)
-            | InstKind::Gt(a, b)
-            | InstKind::SLt(a, b)
-            | InstKind::SGt(a, b) => Some((*a, *b)),
-            _ => None,
-        }
     }
 
     fn shared_results(func: &Function) -> DenseBitSet<InstId> {
