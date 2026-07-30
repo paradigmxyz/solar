@@ -43,7 +43,8 @@ impl MirPass for LowerEvmShaped {
                         | InstKind::SlicePtr(_)
                         | InstKind::SliceLen(_)
                         | InstKind::Fmp
-                        | InstKind::SetFmp(_) => false,
+                        | InstKind::SetFmp(_)
+                        | InstKind::StoreImmutable(..) => false,
                         InstKind::Alloc { .. } => inst.metadata.deferred_alloc(),
                         _ => true,
                     }
