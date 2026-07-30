@@ -1,4 +1,4 @@
-//@compile-flags: --pass none
+//@compile-flags: -Zmir-pipeline=none
 //@filecheck: --enable-var-scope
 
 @module Display
@@ -36,4 +36,19 @@ fn @storage_ops(arg0: u256, arg1: u256) {
     sstore arg0, arg1 !metadata(storage=symbolic(arg0))
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     ret v0
+}
+
+// CHECK-LABEL: fn @over.load.4(
+// CHECK: internal_call @over.load.5, 1
+fn @over.load.4() -> u256 {
+  bb0:
+    v0 = internal_call @over.load.5, 1
+    ret v0
+}
+
+// CHECK-LABEL: fn @over.load.5(
+// CHECK: ret 1
+fn @over.load.5() -> u256 {
+  bb0:
+    ret 1
 }

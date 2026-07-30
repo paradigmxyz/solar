@@ -1,0 +1,19 @@
+//@compile-flags: --evm-version paris -Zmir-pipeline=lower-mcopy
+//@filecheck:
+@module PreCancunMCopy
+
+// CHECK-LABEL: {{^[ +].*}}fn @copy{{[( ]}}
+// CHECK: - mcopy arg0, arg1, arg2
+// CHECK: + [[GAS:v[0-9]+]] = gas
+// CHECK: + [[OK:v[0-9]+]] = staticcall [[GAS]], 4, arg1, arg2, arg0, arg2
+// CHECK: + [[FAILED:v[0-9]+]] = iszero [[OK]]
+// CHECK: + jumpi [[FAILED]], [[FAILURE:bb[0-9]+]], [[CONTINUE:bb[0-9]+]]
+// CHECK: + [[CONTINUE]]:
+// CHECK: {{^[ +].*}}ret arg0
+// CHECK: + [[FAILURE]]:
+// CHECK: + revert 0, 0
+fn @copy(arg0: memptr, arg1: memptr, arg2: u256) -> memptr {
+  bb0:
+    mcopy arg0, arg1, arg2
+    ret arg0
+}

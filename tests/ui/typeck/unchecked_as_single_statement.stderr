@@ -1,0 +1,32 @@
+error: `unchecked` blocks can only be used inside regular blocks
+   ╭▸ ROOT/tests/ui/typeck/unchecked_as_single_statement.sol:LL:CC
+   │
+LL │         while (true) unchecked {}
+   ╰╴                     ━━━━━━━━━━━━
+
+error: `unchecked` blocks can only be used inside regular blocks
+   ╭▸ ROOT/tests/ui/typeck/unchecked_as_single_statement.sol:LL:CC
+   │
+LL │         do unchecked {} while (true);
+   ╰╴           ━━━━━━━━━━━━
+
+error: `unchecked` blocks can only be used inside regular blocks
+   ╭▸ ROOT/tests/ui/typeck/unchecked_as_single_statement.sol:LL:CC
+   │
+LL │         for (;;) unchecked {}
+   ╰╴                 ━━━━━━━━━━━━
+
+error: `unchecked` blocks can only be used inside regular blocks
+   ╭▸ ROOT/tests/ui/typeck/unchecked_as_single_statement.sol:LL:CC
+   │
+LL │         if (true) unchecked {}
+   ╰╴                  ━━━━━━━━━━━━
+
+error: `unchecked` blocks can only be used inside regular blocks
+   ╭▸ ROOT/tests/ui/typeck/unchecked_as_single_statement.sol:LL:CC
+   │
+LL │         if (true) {} else unchecked {}
+   ╰╴                          ━━━━━━━━━━━━
+
+error: aborting due to 5 previous errors
+

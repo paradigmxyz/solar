@@ -1,5 +1,5 @@
 //@compile-flags: --emit=hashes
-//@filecheck: --implicit-check-not=get(
+//@filecheck:
 
 // A `library` (unlike a contract) may expose `public`/`external` functions
 // that take `storage` reference parameters and refer to structs, enums, and
@@ -69,13 +69,8 @@ library L {
         K2
     }
 
-    // `get` is dropped from the interface (and hence from `hashes`) because
-    // its mapping parameter is not considered exportable yet (see the
-    // `interfaceType` TODO in `interface_functions`), which the
-    // `--implicit-check-not` above pins. solc lists it, and this printer
-    // already produces its signature; once `interface_functions` learns
-    // mapping parameters, rename `TODO-CHECK` to `CHECK`:
-    // TODO-CHECK: "get(mapping(address => S) storage,address)":"2aed1630"
+    // Libraries may expose mapping storage parameters; solc includes them in
+    // the interface with a trailing `storage` location suffix.
     function get(mapping(address => S) storage m, address k) public view returns (uint256) {
         return m[k].a;
     }
@@ -111,6 +106,8 @@ library L {
     function fileStructMemoryArray(S[] memory s) external pure returns (uint256) {
         return s.length;
     }
+
+    // CHECK: "get(mapping(address => S) storage,address)":"2aed1630"
 
     // Struct defined inside the library itself.
     // CHECK: "inLib(L.T storage)":"b9de8475"

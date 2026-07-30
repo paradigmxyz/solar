@@ -7,7 +7,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_ast::{ElementaryType, LitKind};
-use solar_interface::{Symbol, sym};
+use solar_interface::{Symbol, diagnostics::ErrorGuaranteed, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ExprKind},
@@ -31,12 +31,12 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         args: &CallArgs<'_>,
-    ) -> ValueId {
+    ) -> Result<ValueId, ErrorGuaranteed> {
         // Arguments are fully lowered before the buffer is touched: nested
         // calls in arguments may allocate memory of their own. The writes
         // below allocate nothing, so filling the buffer past the unbumped
         // free memory pointer and reserving it afterwards is safe.
-        let packed_args = self.collect_packed_abi_args(builder, args);
+        let packed_args = self.collect_packed_abi_args(builder, args)?;
 
         let ptr = builder.fmp_object(crate::mir::MemoryObjectLayout::Bytes);
 
@@ -63,7 +63,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.set_fmp(new_free_ptr);
 
         // Return pointer to the bytes value
-        ptr
+        Ok(ptr)
     }
 
     /// Lowers `keccak256(abi.encodePacked(...))` without materializing a temporary bytes object:
@@ -72,8 +72,8 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         args: &CallArgs<'_>,
-    ) -> ValueId {
-        let packed_args = self.collect_packed_abi_args(builder, args);
+    ) -> Result<ValueId, ErrorGuaranteed> {
+        let packed_args = self.collect_packed_abi_args(builder, args)?;
 
         let data_start = if Self::static_packed_max_write(&packed_args)
             .is_some_and(|end| end <= EvmMemoryLayout::FMP_SLOT as usize)
@@ -88,17 +88,25 @@ impl<'gcx> Lowerer<'gcx> {
             Some(len) => builder.imm_u64(len),
             None => builder.sub(end, data_start),
         };
-        builder.keccak256(data_start, size)
+        Ok(builder.keccak256(data_start, size))
     }
 
     fn collect_packed_abi_args(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         args: &CallArgs<'_>,
-    ) -> Vec<PackedAbiArg> {
+    ) -> Result<Vec<PackedAbiArg>, ErrorGuaranteed> {
         let mut packed_args = Vec::with_capacity(args.len());
 
         for arg in args.exprs() {
+            let Some(ty) = self.get_expr_type(arg) else {
+                return Err(self
+                    .gcx
+                    .dcx()
+                    .err("codegen cannot determine this packed ABI argument's type")
+                    .span(arg.span)
+                    .emit());
+            };
             if let ExprKind::Lit(lit) = &arg.kind
                 && let LitKind::Str(_, bytes, _) = &lit.kind
             {
@@ -110,42 +118,36 @@ impl<'gcx> Lowerer<'gcx> {
             // Calldata `bytes`/`string` (a parameter, `msg.data`, a
             // `base[low:high]` slice, or a chained slice): copy into a
             // `[len][data]` memory buffer and pack its data like any other
-            // dynamic bytes value.
+            // dynamic bytes value. A calldata-struct member was already
+            // rebuilt as a memory object, so reuse it directly.
             if self.expr_is_calldata_dynamic_bytes(arg) {
-                if let Some((slice, _)) = self.calldata_bytes_source(builder, arg) {
-                    let ptr = self.materialize_calldata_bytes(builder, slice);
-                    packed_args.push(PackedAbiArg::DynamicBytes(ptr));
+                let value = self.lower_value_expr(builder, arg);
+                let ptr = if Self::value_is_calldata_slice(builder, value) {
+                    self.materialize_calldata_bytes(builder, value)
                 } else {
-                    self.gcx
-                        .dcx()
-                        .err(
-                            "codegen does not support packed encoding of calldata `bytes`/`string` yet",
-                        )
-                        .span(arg.span)
-                        .emit();
-                }
-                continue;
-            }
-
-            // `bytes`/`string` values: their data is packed without padding.
-            if let Some(ty) = self.get_expr_type(arg)
-                && matches!(
-                    ty.peel_refs().kind,
-                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
-                )
-            {
-                let ptr = self.lower_expr(builder, arg);
+                    value
+                };
                 packed_args.push(PackedAbiArg::DynamicBytes(ptr));
                 continue;
             }
 
-            let size = self.get_packed_size_from_expr(arg);
+            // `bytes`/`string` values: their data is packed without padding.
+            if matches!(
+                ty.peel_refs().kind,
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+            ) {
+                let ptr = self.lower_value_expr(builder, arg);
+                packed_args.push(PackedAbiArg::DynamicBytes(ptr));
+                continue;
+            }
+
+            let size = self.get_packed_size_from_expr(arg, ty);
             let left_aligned = self.expr_is_fixed_bytes(arg);
-            let value = self.lower_expr(builder, arg);
+            let value = self.lower_value_expr(builder, arg);
             packed_args.push(PackedAbiArg::Value { value, size, left_aligned });
         }
 
-        packed_args
+        Ok(packed_args)
     }
 
     pub(super) fn expr_is_fixed_bytes(&self, expr: &hir::Expr<'_>) -> bool {
@@ -176,7 +178,7 @@ impl<'gcx> Lowerer<'gcx> {
         {
             return builder.imm_u256(*n << 224);
         }
-        self.lower_expr(builder, expr)
+        self.lower_value_expr(builder, expr)
     }
 
     pub(super) fn expr_is_calldata_dynamic_bytes(&self, expr: &hir::Expr<'_>) -> bool {
@@ -459,7 +461,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Gets the packed size in bytes for an expression (used by abi.encodePacked).
-    fn get_packed_size_from_expr(&self, expr: &hir::Expr<'_>) -> usize {
+    fn get_packed_size_from_expr(&self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> usize {
         if let ExprKind::Lit(lit) = &expr.kind {
             return match &lit.kind {
                 LitKind::Str(_, bytes, _) => bytes.as_byte_str().len(),
@@ -469,7 +471,7 @@ impl<'gcx> Lowerer<'gcx> {
             };
         }
 
-        self.get_expr_type(expr).map(|ty| self.get_packed_size_from_ty(ty)).unwrap_or(32)
+        self.get_packed_size_from_ty(ty)
     }
 
     /// Gets the packed size from a sema type.

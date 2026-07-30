@@ -1,4 +1,4 @@
-//@compile-flags: --pass licm
+//@compile-flags: -Zmir-pipeline=licm
 //@filecheck: --enable-var-scope
 @module LicmMemoryAlias
 

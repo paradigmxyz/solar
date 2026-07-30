@@ -259,6 +259,10 @@ impl<'c> CompilerRef<'c> {
     /// This is not done by default in the pipeline, but it can be called after `lower_asts` to
     /// free up memory.
     pub fn drop_asts(&mut self) {
+        if !self.inner.gcx.sess.opts.language.is_source() {
+            return;
+        }
+
         // TODO: Do we want to drop all the sources instead of just the ASTs?
         let sources = std::mem::take(&mut self.inner.gcx.sources);
         // SAFETY: `sources` points into `ast_arenas`, which we move together into the closure.

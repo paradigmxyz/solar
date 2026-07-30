@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/function_call.sol:FunctionCall (runtime) ===
 @module runtime
 bb0:
-  push 480
+  push 448
   push 64
   mstore
   callvalue
@@ -51,9 +51,6 @@ bb6:
   sgt
   push bb5
   jumpi
-  push 0
-  push 128
-  mstore
   push 4
   calldataload
   push 352
@@ -66,7 +63,7 @@ bb17:
   dup1
   add
   dup1
-  push 448
+  push 416
   mstore
   push 352
   mload
@@ -74,8 +71,10 @@ bb17:
   lt
   push bb20
   jumpi
+  dup1
   push 384
   mstore
+  pop
   jump
 bb8:
   push 384
@@ -83,8 +82,10 @@ bb8:
   dup1
   push 256
   mstore
+  dup1
   push 352
   mstore
+  pop
   push bb9
   jump bb17
 bb11:
@@ -96,9 +97,6 @@ bb11:
   sgt
   push bb5
   jumpi
-  push 0
-  push 128
-  mstore
   push 36
   calldataload
   push 4
@@ -113,8 +111,10 @@ bb11:
   lt
   push bb20
   jumpi
+  dup1
   push 352
   mstore
+  pop
   push bb14
   jump bb17
 bb14:

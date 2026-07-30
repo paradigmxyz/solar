@@ -3,7 +3,7 @@
 use super::Lowerer;
 use crate::mir::{BlockId, FunctionBuilder, ValueId};
 use alloy_primitives::U256;
-use solar_interface::Span;
+use solar_interface::{Span, diagnostics::ErrorGuaranteed};
 use solar_sema::{
     hir::{self, ElementaryType},
     ty::{Ty, TyKind},
@@ -28,6 +28,7 @@ pub(super) enum PanicCode {
     Assert,
     ArithmeticOverflowUnderflow,
     DivisionByZero,
+    EnumConversionOutOfBounds,
     PopEmptyArray,
     ArrayOutOfBounds,
     MemoryAllocationOverflow,
@@ -40,6 +41,7 @@ impl PanicCode {
             Self::Assert => 0x01,
             Self::ArithmeticOverflowUnderflow => 0x11,
             Self::DivisionByZero => 0x12,
+            Self::EnumConversionOutOfBounds => 0x21,
             Self::PopEmptyArray => 0x31,
             Self::ArrayOutOfBounds => 0x32,
             Self::MemoryAllocationOverflow => 0x41,
@@ -71,13 +73,13 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    pub(super) fn emit_unsupported_udvt_operator(&self, span: Span) {
+    pub(super) fn emit_unsupported_udvt_operator(&self, span: Span) -> ErrorGuaranteed {
         self.gcx
             .dcx()
             .err("user-defined operators are not supported in codegen yet")
             .span(span)
             .help("unwrap the user-defined value type before using this operator")
-            .emit();
+            .emit()
     }
 
     fn require_checked_arithmetic_info(
@@ -109,8 +111,8 @@ impl<'gcx> Lowerer<'gcx> {
         use hir::BinOpKind;
 
         if arithmetic.unsupported_udvt_operator {
-            self.emit_unsupported_udvt_operator(arithmetic.span);
-            return builder.imm_u64(0);
+            let guar = self.emit_unsupported_udvt_operator(arithmetic.span);
+            return builder.error_value(guar);
         }
 
         match op.kind {
@@ -904,6 +906,21 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let in_range = builder.lt(index, len);
         self.emit_panic_if_zero(builder, in_range, PanicCode::ArrayOutOfBounds);
+    }
+
+    /// Emits the runtime range check required by an explicit integer-to-enum
+    /// conversion. Enum discriminants are dense from zero, so `value` must be
+    /// smaller than the number of variants or the conversion panics with
+    /// Solidity's `Panic(0x21)`.
+    pub(super) fn emit_enum_range_check(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        variant_count: usize,
+    ) {
+        let count = builder.imm_u64(variant_count as u64);
+        let in_range = builder.lt(value, count);
+        self.emit_panic_if_zero(builder, in_range, PanicCode::EnumConversionOutOfBounds);
     }
 
     /// Returns the constant value of a MIR immediate, if `value` is one.

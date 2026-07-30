@@ -1,9 +1,8 @@
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 //@ filecheck:
 
-// Static frame overlays after MIR inlining: the surviving non-recursive chain
-// uses compile-time-fixed frame addresses, while recursive and mutually
-// recursive calls share the dynamic frame allocator and epilogue.
+// Static frame overlays use compile-time-fixed frame addresses, while recursive
+// and mutually recursive calls share the dynamic frame allocator and epilogue.
 contract SF {
     // CHECK: push 0x313ae541
     // CHECK: eq
@@ -18,138 +17,163 @@ contract SF {
     // CHECK: return
     uint256 public s;
 
-    // The optimized chainA/chainB/chainC path uses fixed addresses and does
-    // not touch the dynamic frame pointer.
+    // The chainA/chainB/chainC path uses static frame addresses.
     // CHECK: [[TOP]]:
-    // CHECK: push 480
+    // CHECK: push 640
     // CHECK-NEXT: mstore
-    // CHECK: push 512
+    // CHECK: push 672
     // CHECK-NEXT: mstore
     // CHECK-NEXT: push [[CHAIN_RET:bb[0-9]+]]
-    // CHECK-NOT: push 160
-    // CHECK: push 736
-    // CHECK-NEXT: mstore
-    // CHECK-NOT: push 160
-    // CHECK: push 544
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: jump
-    // CHECK-NEXT: [[CHAIN_RET]]:
-    // CHECK-NEXT: push 544
+    // CHECK: [[CHAIN_RET]]:
+    // CHECK-NEXT: push 704
     // CHECK-NEXT: mload
-    // CHECK-NOT: push 160
 
-    // Recursive calls allocate from the free-memory pointer and install a
-    // dynamic frame pointer.
+    // top -> rec allocates a dynamic frame.
     // CHECK: push 7
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: mod
-    // CHECK: push 64
-    // CHECK-NEXT: mload
-    // CHECK: push 160
-    // CHECK-NEXT: mload
-    // CHECK: push 32
-    // CHECK-NEXT: add
-    // CHECK-NEXT: mstore
-    // CHECK: push 160
-    // CHECK-NEXT: mstore
-    // CHECK: push 64
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: pop
-    // CHECK-NEXT: push [[TOP_REC_RET:bb[0-9]+]]
-    // CHECK-NEXT: jump [[REC_ENTRY:bb[0-9]+]]
-    // CHECK: [[REC_ENTRY]]:
-
-    // Dynamic returns restore both pointers through a shared epilogue.
-    // CHECK: [[TOP_REC_RET]]:
-    // CHECK: push [[TOP_AFTER_REC:bb[0-9]+]]
-    // CHECK-NEXT: jump [[DYN_EPILOGUE:bb[0-9]+]]
-    // CHECK: [[DYN_EPILOGUE]]:
-    // CHECK-NEXT: push 160
-    // CHECK-NEXT: mload
+    // CHECK-NEXT: push [[TOP_REC_CONT:bb[0-9]+]]
+    // CHECK-NEXT: jump [[DYN_ALLOC:bb[0-9]+]]
+    // CHECK-NEXT: [[DYN_ALLOC]]:
     // CHECK-NEXT: push 64
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
     // CHECK: push 32
     // CHECK-NEXT: add
-    // CHECK-NEXT: mload
-    // CHECK-NEXT: push 160
     // CHECK-NEXT: mstore
+    // CHECK-NEXT: swap1
     // CHECK-NEXT: jump
 
-    // The mutually recursive calls also return through the shared epilogue.
-    // Their caller-owned result slots distinguish the two directions.
-    // CHECK-NEXT: [[TOP_M1_RET:bb[0-9]+]]:
-    // CHECK: push [[TOP_AFTER_M1:bb[0-9]+]]
-    // CHECK-NEXT: jump [[DYN_EPILOGUE]]
-
-    // CHECK: push 97
-    // CHECK: push [[M1_AFTER_LEAF:bb[0-9]+]]
-    // CHECK-NEXT: jump [[STATIC_EPILOGUE:bb[0-9]+]]
-    // CHECK-NEXT: [[M1_M2_RET:bb[0-9]+]]:
-    // CHECK: push 416
-    // CHECK-NEXT: add
-    // CHECK-NEXT: mstore
-    // CHECK: push [[M1_AFTER_M2:bb[0-9]+]]
-    // CHECK-NEXT: jump [[DYN_EPILOGUE]]
-    // CHECK-NEXT: [[M2_M1_RET:bb[0-9]+]]:
-    // CHECK: push 256
-    // CHECK-NEXT: add
-    // CHECK-NEXT: mstore
-    // CHECK: push [[M2_AFTER_M1:bb[0-9]+]]
-    // CHECK-NEXT: jump [[DYN_EPILOGUE]]
-
-    // CHECK: push 0x3e8
-    // CHECK: jump [[RECURSIVE_JOIN:bb[0-9]+]]
-    // CHECK-NEXT: [[RECURSIVE_JOIN]]:
-
-    // The initial m1 call installs a dynamic frame.
-    // CHECK: push 5
-    // CHECK-NEXT: push 4
-    // CHECK-NEXT: calldataload
-    // CHECK-NEXT: mod
+    // Dynamic returns restore the free-memory and previous frame pointers.
+    // CHECK-NEXT: [[TOP_REC_RET:bb[0-9]+]]:
+    // CHECK: push [[TOP_AFTER_REC:bb[0-9]+]]
+    // CHECK-NEXT: jump [[DYN_EPILOGUE:bb[0-9]+]]
+    // CHECK-NEXT: [[DYN_EPILOGUE]]:
     // CHECK: push 64
+    // CHECK-NEXT: mstore
+    // CHECK: push 32
+    // CHECK-NEXT: add
     // CHECK-NEXT: mload
     // CHECK: push 160
-    // CHECK-NEXT: mload
-    // CHECK: dup1
-    // CHECK-NEXT: push 160
     // CHECK-NEXT: mstore
-    // CHECK: push 64
+    // CHECK-NEXT: jump
+    // CHECK-NEXT: [[TOP_M1_RET:bb[0-9]+]]:
+    // CHECK: push {{bb[0-9]+}}
+    // CHECK-NEXT: jump [[DYN_EPILOGUE]]
+
+    // rec -> rec uses the same dynamic allocator and a result-aware epilogue.
+    // CHECK: push 320
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: dup1
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 320
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 96
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: gt
+    // CHECK-NEXT: swap1
+    // CHECK-NEXT: pop
+    // CHECK-NEXT: push [[PANIC:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: push [[REC_RECUR_CONT:bb[0-9]+]]
+    // CHECK-NEXT: jump [[DYN_ALLOC]]
+    // CHECK-NEXT: [[REC_RECUR_RET:bb[0-9]+]]:
+    // CHECK: push [[REC_AFTER_RECUR:bb[0-9]+]]
+    // CHECK-NEXT: jump [[REC_EPILOGUE:bb[0-9]+]]
+
+    // m1 -> m2 is also dynamically allocated.
+    // CHECK: gt
+    // CHECK-NEXT: swap2
+    // CHECK-NEXT: pop
+    // CHECK-NEXT: pop
+    // CHECK: push [[PANIC]]
+    // CHECK-NEXT: jumpi
+    // CHECK: push [[M1_M2_CONT:bb[0-9]+]]
+    // CHECK-NEXT: jump [[DYN_ALLOC]]
+    // CHECK-NEXT: [[M1_M2_RET:bb[0-9]+]]:
+    // CHECK: push [[M1_AFTER_M2:bb[0-9]+]]
+    // CHECK-NEXT: jump [[M1_EPILOGUE:bb[0-9]+]]
+    // CHECK-NEXT: [[M2_M1_RET:bb[0-9]+]]:
+    // CHECK: push [[M2_AFTER_M1:bb[0-9]+]]
+    // CHECK-NEXT: jump [[M2_EPILOGUE:bb[0-9]+]]
+
+    // Tie the top -> rec allocation to its entry and return.
+    // CHECK: [[TOP_REC_CONT]]:
+    // CHECK: push 512
+    // CHECK-NEXT: add
+    // CHECK-NEXT: push 64
+    // CHECK-NEXT: mstore
+    // CHECK: push [[TOP_REC_RET]]
+    // CHECK-NEXT: jump [[REC_ENTRY:bb[0-9]+]]
+    // CHECK-NEXT: [[REC_ENTRY]]:
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+
+    // Tie the top -> m1 allocation to its entry and return.
+    // CHECK: push 384
+    // CHECK-NEXT: add
+    // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // CHECK: push [[TOP_M1_RET]]
     // CHECK-NEXT: jump [[M1_ENTRY:bb[0-9]+]]
-
-    // m2 calls back into m1 through another dynamically allocated frame.
-    // CHECK: jump [[RECURSIVE_JOIN]]
-    // CHECK-NEXT: [[M2_ENTRY:bb[0-9]+]]:
-    // CHECK-NEXT: iszero
+    // CHECK-NEXT: [[M1_ENTRY]]:
+    // CHECK: [[TOP_AFTER_REC]]:
+    // CHECK: push 5{{$}}
+    // CHECK-NEXT: push 4
+    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: mod
     // CHECK-NEXT: push {{bb[0-9]+}}
-    // CHECK-NEXT: jumpi
-    // CHECK-NEXT: push 1
-    // CHECK: push 5
-    // CHECK: push 64
-    // CHECK-NEXT: mload
-    // CHECK: push 160
-    // CHECK-NEXT: mload
-    // CHECK: dup1
-    // CHECK-NEXT: push 160
+    // CHECK-NEXT: jump [[DYN_ALLOC]]
+
+    // Complete the recursive rec call setup.
+    // CHECK: [[REC_RECUR_CONT]]:
+    // CHECK: push 512
+    // CHECK-NEXT: add
+    // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
-    // CHECK: push 64
+    // CHECK: push [[REC_RECUR_RET]]
+    // CHECK-NEXT: jump [[REC_ENTRY]]
+    // CHECK: [[REC_AFTER_RECUR]]:
+
+    // m2 -> m1 uses the allocator too.
+    // CHECK: [[M2_M1_CONT:bb[0-9]+]]:
+    // CHECK: push 384
+    // CHECK-NEXT: add
+    // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // CHECK: push [[M2_M1_RET]]
     // CHECK-NEXT: jump [[M1_ENTRY]]
 
-    // m1 reaches m2 through the shared allocator trampoline.
-    // CHECK-NEXT: [[M1_M2_ALLOC:bb[0-9]+]]:
-    // CHECK: push [[M1_M2_RET]]
-    // CHECK-NEXT: push [[M2_ENTRY]]
-    // CHECK-NEXT: jump
-    // CHECK-NEXT: [[M1_AFTER_LEAF]]:
-    // CHECK-NEXT: push 3
-    // CHECK: push [[M1_M2_ALLOC]]
-    // CHECK-NEXT: jump
+    // Complete the m1 -> m2 call setup.
+    // CHECK-NEXT: [[M1_M2_CONT]]:
+    // CHECK: dup1
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push 288
+    // CHECK-NEXT: add
+    // CHECK-NEXT: push 64
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push [[M1_M2_RET]]
+
+    // m2 begins directly after its call setup.
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK: push 5
+    // CHECK: gt
+    // CHECK-NEXT: swap1
+    // CHECK-NEXT: pop
+    // CHECK-NEXT: push [[PANIC]]
+    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: push [[M2_M1_CONT]]
+    // CHECK-NEXT: jump [[DYN_ALLOC]]
+    // CHECK: [[M1_AFTER_M2]]:
+    // CHECK: [[M2_AFTER_M1]]:
     function top(uint256 x) external returns (uint256) {
         uint256 keep = x * 3; // live across all the calls below
         uint256 a = chainA(x);

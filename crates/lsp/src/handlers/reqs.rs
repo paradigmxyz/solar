@@ -1,9 +1,10 @@
+use super::workspace_edit::validated_rename_workspace_edit;
 use crate::{
     diagnostics::PullReport,
     formatter::{self, FormatterError},
     global_state::GlobalState,
     natspec_completion::{self, NatSpecCompletionResult},
-    symbols::{CompletionContext, SymbolTables},
+    symbols::{CompletionContext, CompletionItemData, SymbolTables},
     vfs::{Vfs, VfsPath},
 };
 use async_lsp::{ErrorCode, ResponseError};
@@ -11,22 +12,22 @@ use crop::Rope;
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
-    CodeLens, CodeLensParams, CompletionParams, CompletionResponse, DocumentChanges,
+    CodeLens, CodeLensParams, CompletionItem, CompletionParams, CompletionResponse,
     DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
     DocumentFormattingParams, DocumentHighlight, DocumentHighlightParams, DocumentLink,
     DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
     FoldingRangeParams, FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse,
-    Hover, HoverParams, InlayHint, InlayHintParams, OneOf, OptionalVersionedTextDocumentIdentifier,
-    Position, PrepareRenameResponse, ReferenceParams, RelatedFullDocumentDiagnosticReport,
-    RelatedUnchangedDocumentDiagnosticReport, RenameParams, SelectionRange, SelectionRangeParams,
-    SignatureHelp, SignatureHelpParams, TextDocumentEdit, TextDocumentPositionParams, TextEdit,
-    TypeHierarchyItem, TypeHierarchyPrepareParams, TypeHierarchySubtypesParams,
-    TypeHierarchySupertypesParams, UnchangedDocumentDiagnosticReport, Url, WorkspaceEdit,
-    WorkspaceSymbolParams, WorkspaceSymbolResponse, request::GotoImplementationParams,
+    Hover, HoverParams, InlayHint, InlayHintParams, Position, PrepareRenameResponse,
+    ReferenceParams, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
+    RenameParams, SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
+    TextDocumentPositionParams, TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams,
+    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, UnchangedDocumentDiagnosticReport,
+    Url, WorkspaceEdit, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    request::GotoImplementationParams,
 };
-use solar_interface::{data_structures::sync::RwLock, source_map::SourceMap};
+use solar_interface::data_structures::sync::RwLock;
 use solar_parse::lexer::is_ident;
-use std::{collections::HashMap, future::ready, io, path::Path, sync::Arc};
+use std::{future::ready, io, path::Path, sync::Arc};
 use tracing::warn;
 
 pub(crate) fn folding_range(
@@ -584,7 +585,7 @@ pub(crate) fn rename(
         }
 
         tokio::task::spawn_blocking(move || {
-            validated_workspace_edit(candidate, new_name, vfs, document_changes)
+            validated_rename_workspace_edit(candidate, new_name, vfs, document_changes)
         })
         .await
         .map_err(|error| {
@@ -592,111 +593,6 @@ pub(crate) fn rename(
         })?
         .map(Some)
     }
-}
-
-fn validated_workspace_edit(
-    candidate: crate::rename::RenameCandidate,
-    new_name: String,
-    vfs: std::sync::Arc<solar_interface::data_structures::sync::RwLock<crate::vfs::Vfs>>,
-    document_changes: bool,
-) -> Result<WorkspaceEdit, ResponseError> {
-    Ok(validate_rename(candidate, new_name, vfs)?.into_workspace_edit(document_changes))
-}
-
-struct ValidatedRename {
-    changes: HashMap<Url, Vec<TextEdit>>,
-    versions: HashMap<Url, Option<i32>>,
-}
-
-impl ValidatedRename {
-    fn into_workspace_edit(mut self, document_changes: bool) -> WorkspaceEdit {
-        if !document_changes {
-            return WorkspaceEdit {
-                changes: Some(self.changes),
-                document_changes: None,
-                change_annotations: None,
-            };
-        }
-
-        let edits = self
-            .changes
-            .into_iter()
-            .map(|(uri, edits)| TextDocumentEdit {
-                text_document: OptionalVersionedTextDocumentIdentifier {
-                    version: self.versions.remove(&uri).unwrap_or(None),
-                    uri,
-                },
-                edits: edits.into_iter().map(OneOf::Left).collect(),
-            })
-            .collect();
-        WorkspaceEdit {
-            changes: None,
-            document_changes: Some(DocumentChanges::Edits(edits)),
-            change_annotations: None,
-        }
-    }
-}
-
-fn validate_rename(
-    candidate: crate::rename::RenameCandidate,
-    new_name: String,
-    vfs: std::sync::Arc<solar_interface::data_structures::sync::RwLock<crate::vfs::Vfs>>,
-) -> Result<ValidatedRename, ResponseError> {
-    if candidate.conflicting_contents {
-        return Err(content_modified());
-    }
-    let mut contents = HashMap::<Url, (Rope, Option<i32>)>::new();
-    let source_map = SourceMap::empty();
-    for (uri, analyzed_contents) in &candidate.analyzed_contents {
-        let Some((file_contents, version)) = rename_file_contents(&vfs, &source_map, uri) else {
-            return Err(content_modified());
-        };
-        if file_contents.byte_slice(..) != analyzed_contents.as_str() {
-            return Err(content_modified());
-        }
-        contents.insert(uri.clone(), (file_contents, version));
-    }
-
-    for location in &candidate.locations {
-        let Some((contents, _)) = contents.get(&location.uri) else {
-            return Err(content_modified());
-        };
-        let Some(range) = crate::proto::checked_text_range(contents, location.range) else {
-            return Err(content_modified());
-        };
-        if contents.byte_slice(range) != candidate.old_name.as_str() {
-            return Err(content_modified());
-        }
-    }
-
-    let mut changes = HashMap::<Url, Vec<TextEdit>>::new();
-    for location in candidate.locations {
-        changes
-            .entry(location.uri)
-            .or_default()
-            .push(TextEdit::new(location.range, new_name.clone()));
-    }
-    let versions = contents.into_iter().map(|(uri, (_, version))| (uri, version)).collect();
-    Ok(ValidatedRename { changes, versions })
-}
-
-fn rename_file_contents(
-    vfs: &solar_interface::data_structures::sync::RwLock<crate::vfs::Vfs>,
-    source_map: &SourceMap,
-    uri: &Url,
-) -> Option<(Rope, Option<i32>)> {
-    let path = crate::proto::vfs_path(uri)?;
-    let vfs = vfs.read();
-    if let Some(contents) = vfs.get_file_contents(&path) {
-        return Some((contents.clone(), vfs.get_file_version(&path)));
-    }
-    drop(vfs);
-    let contents = source_map.file_loader().load_file(path.as_path()?).ok()?;
-    Some((Rope::from(contents), None))
-}
-
-fn content_modified() -> ResponseError {
-    ResponseError::new(ErrorCode::CONTENT_MODIFIED, "document contents changed since analysis")
 }
 
 pub(crate) fn inlay_hints(
@@ -768,12 +664,39 @@ pub(crate) fn completion(
     }
     let input = completion_input(state, &params.text_document.uri, params.position);
     let context = input.as_ref().map(CompletionInput::context).unwrap_or_default();
-    let items = state.symbol_tables.read().completion_items(
-        &params.text_document.uri,
-        params.position,
-        context,
-    );
+    let options = state.config.completion_options();
+    let symbol_tables = state.symbol_tables.read();
+    let mut items =
+        symbol_tables.completion_items(&params.text_document.uri, params.position, context);
+    if !options.resolve_documentation {
+        symbol_tables.resolve_completion_items(&mut items, options.markdown_documentation);
+    }
     ready(Ok(Some(CompletionResponse::Array(items))))
+}
+
+pub(crate) fn resolve_completion_item(
+    state: &mut GlobalState,
+    item: CompletionItem,
+) -> impl Future<Output = Result<CompletionItem, ResponseError>> + use<> {
+    let options = state.config.completion_options();
+    let request = if options.resolve_documentation {
+        CompletionItemData::from_item(&item).and_then(|data| {
+            let latest_analysis = latest_analysis_for_uri(state, data.uri())?;
+            Some((data, latest_analysis))
+        })
+    } else {
+        None
+    };
+    async move {
+        let Some((data, latest_analysis)) = request else { return Ok(item) };
+        let symbol_tables = latest_analysis.await?;
+        let resolved = symbol_tables.read().resolve_completion_item(
+            item,
+            data,
+            options.markdown_documentation,
+        );
+        Ok(resolved)
+    }
 }
 
 struct CompletionInput {

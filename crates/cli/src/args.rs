@@ -1,4 +1,3 @@
-use crate::commands::{evm_opt::EvmOptArgs, mir_opt::MirOptArgs};
 use clap::{Parser, Subcommand};
 use solar_config::CompileOpts;
 #[cfg(feature = "lsp")]
@@ -25,8 +24,4 @@ pub(crate) enum Subcommands {
     /// Start the language server.
     #[cfg(feature = "lsp")]
     Lsp(LspArgs),
-    /// Run one or more MIR passes on a Solidity or MIR file.
-    MirOpt(MirOptArgs),
-    /// Run one or more EVM IR passes on an EVM IR file.
-    EvmOpt(EvmOptArgs),
 }

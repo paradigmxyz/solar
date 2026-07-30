@@ -1,4 +1,4 @@
-//@compile-flags: --pass jump-threading
+//@compile-flags: -Zmir-pipeline=jump-threading
 //@filecheck:
 // A conditional branch whose two targets are empty forwarder blocks.
 // Jump threading should rewrite the branch to point past the forwarders.

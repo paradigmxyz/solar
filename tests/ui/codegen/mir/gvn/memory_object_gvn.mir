@@ -1,4 +1,4 @@
-//@compile-flags: --pass gvn
+//@compile-flags: -Zmir-pipeline=gvn
 //@filecheck:
 @module MemoryObjectGvn
 

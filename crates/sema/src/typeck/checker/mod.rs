@@ -219,8 +219,10 @@ impl<'gcx> TypeChecker<'gcx> {
                                 .emit(),
                         )
                     } else {
+                        // Element types are stored bare; the inferred common
+                        // type of reference elements carries a location.
                         self.gcx
-                            .mk_ty(TyKind::Array(common, U256::from(exprs.len())))
+                            .mk_ty(TyKind::Array(common.peel_refs(), U256::from(exprs.len())))
                             .with_loc(self.gcx, DataLocation::Memory)
                     }
                 } else {
@@ -244,7 +246,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     ty
                 } else if let Some(op) = op {
                     let rhs_ty = self.check_expr(rhs);
-                    let result = self.check_binop(lhs, ty, rhs, rhs_ty, op, true);
+                    let result = self.check_binop(None, lhs, ty, rhs, rhs_ty, op, true);
                     debug_assert!(
                         result.references_error() || result == ty,
                         "compound assignment should not consider custom operators: {result:?} != {ty:?}"
@@ -271,7 +273,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     return lit_ty;
                 }
 
-                self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
+                self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false)
             }
             hir::ExprKind::Call(callee, ref args, opts) => {
                 let mut callee_ty = if let hir::ExprKind::Member(receiver, ident) = callee.kind {
@@ -711,7 +713,10 @@ impl<'gcx> TypeChecker<'gcx> {
                         return self.gcx.mk_ty(TyKind::IntLiteral(!neg, size, fixed_bytes_size));
                     }
                     ty
-                } else if let Some(ty) = self.check_user_unop(expr.span, ty, op.kind) {
+                } else if let Some((ty, function)) = self.check_user_unop(expr.span, ty, op.kind) {
+                    if let Some(function) = function {
+                        self.results.user_operators.insert(expr.id, function);
+                    }
                     ty
                 } else {
                     let msg = format!(
@@ -873,8 +878,10 @@ impl<'gcx> TypeChecker<'gcx> {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn check_binop(
         &mut self,
+        expr_id: Option<hir::ExprId>,
         lhs_e: &'gcx hir::Expr<'gcx>,
         lhs: Ty<'gcx>,
         rhs_e: &'gcx hir::Expr<'gcx>,
@@ -888,7 +895,10 @@ impl<'gcx> TypeChecker<'gcx> {
         {
             return if op.kind.is_cmp() { self.gcx.types.bool } else { common };
         }
-        if !assign && let Some(ty) = self.check_user_binop(op.span, lhs, rhs, op.kind) {
+        if !assign && let Some((ty, function)) = self.check_user_binop(op.span, lhs, rhs, op.kind) {
+            if let (Some(expr_id), Some(function)) = (expr_id, function) {
+                self.results.user_operators.insert(expr_id, function);
+            }
             return ty;
         }
 
@@ -903,7 +913,12 @@ impl<'gcx> TypeChecker<'gcx> {
         self.gcx.mk_ty_err(err.emit())
     }
 
-    fn check_user_unop(&self, span: Span, ty: Ty<'gcx>, op: hir::UnOpKind) -> Option<Ty<'gcx>> {
+    fn check_user_unop(
+        &self,
+        span: Span,
+        ty: Ty<'gcx>,
+        op: hir::UnOpKind,
+    ) -> Option<(Ty<'gcx>, Option<hir::FunctionId>)> {
         let op = UserDefinableOperator::from_unop(op)?;
         let mut functions = WantOne::Zero;
         self.gcx.for_each_user_operator(
@@ -925,7 +940,7 @@ impl<'gcx> TypeChecker<'gcx> {
         lhs: Ty<'gcx>,
         rhs: Ty<'gcx>,
         op: hir::BinOpKind,
-    ) -> Option<Ty<'gcx>> {
+    ) -> Option<(Ty<'gcx>, Option<hir::FunctionId>)> {
         let op = UserDefinableOperator::from_binop(op)?;
         let mut functions = WantOne::Zero;
         self.gcx.for_each_user_operator(
@@ -950,21 +965,22 @@ impl<'gcx> TypeChecker<'gcx> {
         &self,
         span: Span,
         functions: WantOne<hir::FunctionId>,
-    ) -> Option<Ty<'gcx>> {
+    ) -> Option<(Ty<'gcx>, Option<hir::FunctionId>)> {
         match functions {
             WantOne::Zero => None,
             WantOne::One(function) => {
                 let TyKind::Fn(function_ty) = self.gcx.type_of_item(function.into()).kind else {
                     unreachable!()
                 };
-                Some(self.fn_call_return_type(function_ty.returns))
+                Some((self.fn_call_return_type(function_ty.returns), Some(function)))
             }
             WantOne::Many => {
-                Some(self.gcx.mk_ty_err(
-                    self.dcx().emit_err(
+                Some((
+                    self.gcx.mk_ty_err(self.dcx().emit_err(
                         span,
                         "user-defined operator has more than one matching definition",
-                    ),
+                    )),
+                    None,
                 ))
             }
         }
@@ -1226,7 +1242,17 @@ impl<'gcx> TypeChecker<'gcx> {
         }
 
         let hir::ExprKind::Ident(res) = callee.kind else {
+            // Error constructors behind member paths (`Lib.SomeError()`)
+            // resolve through the ordinary call path; admit them exactly like
+            // a revert statement does.
+            let prev_in_revert = std::mem::replace(&mut self.in_revert, true);
             let actual = self.check_expr_once(expr);
+            self.in_revert = prev_in_revert;
+            if let Some(callee_ty) = self.results.expr_types.get(&callee.id)
+                && matches!(callee_ty.kind, TyKind::Error(..))
+            {
+                return Ok(());
+            }
             return self.check_expected(expr, actual, self.gcx.types.string_ref.memory);
         };
         let error_res = res
@@ -2444,10 +2470,47 @@ impl<'gcx> TypeChecker<'gcx> {
         }
 
         match res.iter().filter(|res| res.as_variable().is_some()).collect::<WantOne<_>>() {
-            WantOne::Zero => Err(OverloadError::NotFound),
+            WantOne::Zero => self.resolve_override_chain(res).ok_or(OverloadError::NotFound),
             WantOne::One(var) => Ok(*var),
             WantOne::Many => Err(OverloadError::Ambiguous),
         }
+    }
+
+    /// Resolves a non-call reference to a set of functions that are all one
+    /// override chain, e.g. `onERC1155Received.selector` where the function is
+    /// declared in a base and overridden below it.
+    ///
+    /// An overridden function appears once per level of the inheritance chain
+    /// under name lookup, but overrides share the base's parameter types, so a
+    /// set with a single parameter list is a single function. Resolves to the
+    /// most derived candidate, whose type also carries the tightest state
+    /// mutability.
+    fn resolve_override_chain(&self, res: &[hir::Res]) -> Option<hir::Res> {
+        let function_id = |res: hir::Res| match res {
+            hir::Res::Item(hir::ItemId::Function(id)) => Some(id),
+            _ => None,
+        };
+        let first = function_id(res[0])?;
+        let TyKind::Fn(first_fn) = self.gcx.type_of_item(first.into()).kind else { return None };
+        let mut best = (first, self.gcx.hir.function(first).contract);
+        for &candidate in &res[1..] {
+            let id = function_id(candidate)?;
+            let TyKind::Fn(f) = self.gcx.type_of_item(id.into()).kind else { return None };
+            if f.parameters != first_fn.parameters {
+                return None;
+            }
+            let contract = self.gcx.hir.function(id).contract;
+            if let (Some(current), Some(a), Some(b)) = (self.contract, contract, best.1) {
+                let bases = self.gcx.hir.contract(current).linearized_bases;
+                let position = |c| bases.iter().position(|&base| base == c);
+                if let (Some(pos_a), Some(pos_b)) = (position(a), position(b))
+                    && pos_a < pos_b
+                {
+                    best = (id, contract);
+                }
+            }
+        }
+        Some(hir::ItemId::Function(best.0).into())
     }
 
     fn type_of_res(&self, res: hir::Res) -> Ty<'gcx> {
@@ -2627,12 +2690,21 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 // size expression of a fixed-array value type).
                 return self.visit_ty(&mapping.value);
             }
-            // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L713
-            // hir::TypeKind::Function(func) => {
-            //     if func.visibility == hir::Visibility::External {
-
-            //     }
-            // }
+            hir::TypeKind::Function(func) if func.visibility == hir::Visibility::External => {
+                for &var_id in func.parameters.iter().chain(func.returns.iter()) {
+                    let var = self.gcx.hir.variable(var_id);
+                    let ty = self.gcx.type_of_item(var_id.into());
+                    if ty.error_reported().is_err() {
+                        continue;
+                    }
+                    if !ty.can_be_exported(self.gcx) {
+                        self.dcx().emit_err(
+                            var.ty.span,
+                            "internal type cannot be used for external function type",
+                        );
+                    }
+                }
+            }
             _ => {}
         }
         self.walk_ty(hir_ty)
