@@ -41,6 +41,10 @@ pub fn get_srcs() -> &'static [Source] {
     CACHE.get_or_init(|| {
         let mut sources = common_sources();
         extend_repro_sources(&mut sources);
+        sources.push(include_source(
+            "../testdata/solidity/test/benchmarks/chains.sol",
+            Capabilities::all(),
+        ));
 
         // Whole-project inputs mirroring solc's external benchmarks
         // (`test/benchmarks/external-setup.sh` upstream): pinned Foundry
@@ -111,7 +115,6 @@ fn common_sources() -> Vec<Source> {
             "../testdata/solidity/test/benchmarks/OptimizorClub.sol",
             Capabilities::all(),
         ),
-        include_source("../testdata/solidity/test/benchmarks/chains.sol", Capabilities::all()),
         // Pre-0.8 source semantics: rejected by 0.8 type rules (unary `-` on
         // unsigned, one-step sign+width conversions).
         include_source("../testdata/UniswapV3.sol", Capabilities::no_codegen()),
