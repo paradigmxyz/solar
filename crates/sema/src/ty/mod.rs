@@ -351,7 +351,6 @@ pub struct GlobalCtxt<'gcx> {
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
-    callgraph: OnceLock<call_graph::CallGraph>,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
 }
 
@@ -387,7 +386,6 @@ impl<'gcx> GlobalCtxt<'gcx> {
             hir_arenas,
             interner,
             cache: Cache::default(),
-            callgraph: OnceLock::new(),
             override_index: OnceLock::new(),
         }
     }
@@ -1423,7 +1421,8 @@ macro_rules! cached {
 
 cached! {
 fn interface_items(gcx: _, id: hir::ContractId) -> call_graph::InterfaceItems<'gcx> {
-    gcx.callgraph().interface_items(gcx, id)
+    assert!(gcx.has_typeck_results(), "interface items require type checking");
+    call_graph::interface_items(gcx, id)
 }
 
 /// Returns all events included in the external interface of the given contract.

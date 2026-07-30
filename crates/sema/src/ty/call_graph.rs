@@ -1,14 +1,9 @@
 use super::{Gcx, TyFnKind, TyKind};
 use crate::hir::{self, Visit};
-use solar_data_structures::{BumpExt, Never, bit_set::DenseBitSet, index::IndexVec};
+use solar_data_structures::{BumpExt, Never, bit_set::DenseBitSet};
 use std::{collections::VecDeque, ops::ControlFlow};
 
 pub(super) struct CallGraph {
-    nodes: IndexVec<hir::FunctionId, References>,
-}
-
-#[derive(Clone)]
-struct References {
     functions: DenseBitSet<hir::FunctionId>,
     virtual_functions: DenseBitSet<hir::FunctionId>,
     events: DenseBitSet<hir::EventId>,
@@ -21,128 +16,14 @@ pub(super) struct InterfaceItems<'gcx> {
     pub(super) errors: &'gcx [hir::ErrorId],
 }
 
-impl<'gcx> Gcx<'gcx> {
-    pub(super) fn callgraph(self) -> &'gcx CallGraph {
-        assert!(self.has_typeck_results(), "call graph requires type checking");
-        self.callgraph.get_or_init(|| CallGraph::new(self))
-    }
-}
-
 impl CallGraph {
-    fn new(gcx: Gcx<'_>) -> Self {
-        let mut nodes = IndexVec::with_capacity(gcx.hir.function_ids().count());
-        for id in gcx.hir.function_ids() {
-            let mut collector = ReferenceCollector::new(gcx);
-            let _ = collector.visit_nested_function(id);
-            nodes.push(collector.references);
-        }
-        Self { nodes }
+    pub(super) fn new(gcx: Gcx<'_>, id: hir::FunctionId) -> Self {
+        let mut collector = ReferenceCollector::new(gcx);
+        let _ = collector.visit_nested_function(id);
+        collector.callgraph
     }
 
-    pub(super) fn interface_items<'gcx>(
-        &self,
-        gcx: Gcx<'gcx>,
-        id: hir::ContractId,
-    ) -> InterfaceItems<'gcx> {
-        let function_count = gcx.hir.function_ids().count();
-        let event_count = gcx.hir.event_ids().count();
-        let error_count = gcx.hir.error_ids().count();
-        let mut references = References::new(function_count, event_count, error_count);
-        let contract = gcx.hir.contract(id);
-
-        for item in gcx.hir.contract_item_ids(id) {
-            match item {
-                hir::ItemId::Event(id) => {
-                    references.events.insert(id);
-                }
-                hir::ItemId::Error(id) => {
-                    references.errors.insert(id);
-                }
-                _ => {}
-            }
-        }
-
-        for function in gcx.interface_functions(id) {
-            references.functions.insert(function.id);
-        }
-        if let Some(fallback) = contract.fallback {
-            references.functions.insert(fallback);
-        }
-        if let Some(receive) = contract.receive {
-            references.functions.insert(receive);
-        }
-
-        for &base in contract.linearized_bases {
-            let base = gcx.hir.contract(base);
-            if let Some(constructor) = base.ctor {
-                references.functions.insert(constructor);
-            }
-
-            let mut collector = ReferenceCollector::new(gcx);
-            for variable in base.variables() {
-                let _ = collector.visit_nested_var(variable);
-            }
-            for modifier in base.bases_args {
-                let _ = collector.visit_modifier(modifier);
-            }
-            references.union(&collector.references);
-        }
-
-        let mut worklist = VecDeque::from_iter(references.functions.iter());
-        while let Some(function) = worklist.pop_front() {
-            let node = &self.nodes[function];
-            for callee in &node.functions {
-                if references.functions.insert(callee) {
-                    worklist.push_back(callee);
-                }
-            }
-            for callee in &node.virtual_functions {
-                let callee = self.resolve_virtual_call(gcx, id, callee);
-                if references.functions.insert(callee) {
-                    worklist.push_back(callee);
-                }
-            }
-            references.events.union(&node.events);
-            references.errors.union(&node.errors);
-        }
-
-        InterfaceItems {
-            events: gcx.bump().alloc_from_iter(references.events.iter()),
-            errors: gcx.bump().alloc_from_iter(references.errors.iter()),
-        }
-    }
-
-    fn resolve_virtual_call(
-        &self,
-        gcx: Gcx<'_>,
-        contract: hir::ContractId,
-        target: hir::FunctionId,
-    ) -> hir::FunctionId {
-        let target_function = gcx.hir.function(target);
-        let Some(target_contract) = target_function.contract else { return target };
-        let target_signature = gcx.item_signature(target.into());
-
-        for &base in gcx.hir.contract(contract).linearized_bases {
-            let base_contract = gcx.hir.contract(base);
-            if !base_contract.linearized_bases.contains(&target_contract) {
-                continue;
-            }
-            for candidate in base_contract.functions() {
-                let candidate_function = gcx.hir.function(candidate);
-                if candidate_function.kind == target_function.kind
-                    && candidate_function.name == target_function.name
-                    && gcx.item_signature(candidate.into()) == target_signature
-                {
-                    return candidate;
-                }
-            }
-        }
-        target
-    }
-}
-
-impl References {
-    fn new(function_count: usize, event_count: usize, error_count: usize) -> Self {
+    fn new_empty(function_count: usize, event_count: usize, error_count: usize) -> Self {
         Self {
             functions: DenseBitSet::new_empty(function_count),
             virtual_functions: DenseBitSet::new_empty(function_count),
@@ -159,16 +40,112 @@ impl References {
     }
 }
 
+pub(super) fn interface_items<'gcx>(gcx: Gcx<'gcx>, id: hir::ContractId) -> InterfaceItems<'gcx> {
+    let function_count = gcx.hir.function_ids().count();
+    let event_count = gcx.hir.event_ids().count();
+    let error_count = gcx.hir.error_ids().count();
+    let mut references = CallGraph::new_empty(function_count, event_count, error_count);
+    let contract = gcx.hir.contract(id);
+
+    for item in gcx.hir.contract_item_ids(id) {
+        match item {
+            hir::ItemId::Event(id) => {
+                references.events.insert(id);
+            }
+            hir::ItemId::Error(id) => {
+                references.errors.insert(id);
+            }
+            _ => {}
+        }
+    }
+
+    for function in gcx.interface_functions(id) {
+        references.functions.insert(function.id);
+    }
+    if let Some(fallback) = contract.fallback {
+        references.functions.insert(fallback);
+    }
+    if let Some(receive) = contract.receive {
+        references.functions.insert(receive);
+    }
+
+    for &base in contract.linearized_bases {
+        let base = gcx.hir.contract(base);
+        if let Some(constructor) = base.ctor {
+            references.functions.insert(constructor);
+        }
+
+        let mut collector = ReferenceCollector::new(gcx);
+        for variable in base.variables() {
+            let _ = collector.visit_nested_var(variable);
+        }
+        for modifier in base.bases_args {
+            let _ = collector.visit_modifier(modifier);
+        }
+        references.union(&collector.callgraph);
+    }
+
+    let mut worklist = VecDeque::from_iter(references.functions.iter());
+    while let Some(function) = worklist.pop_front() {
+        let callgraph = CallGraph::new(gcx, function);
+        for callee in &callgraph.functions {
+            if references.functions.insert(callee) {
+                worklist.push_back(callee);
+            }
+        }
+        for callee in &callgraph.virtual_functions {
+            let callee = resolve_virtual_call(gcx, id, callee);
+            if references.functions.insert(callee) {
+                worklist.push_back(callee);
+            }
+        }
+        references.events.union(&callgraph.events);
+        references.errors.union(&callgraph.errors);
+    }
+
+    InterfaceItems {
+        events: gcx.bump().alloc_from_iter(references.events.iter()),
+        errors: gcx.bump().alloc_from_iter(references.errors.iter()),
+    }
+}
+
+fn resolve_virtual_call(
+    gcx: Gcx<'_>,
+    contract: hir::ContractId,
+    target: hir::FunctionId,
+) -> hir::FunctionId {
+    let target_function = gcx.hir.function(target);
+    let Some(target_contract) = target_function.contract else { return target };
+    let target_signature = gcx.item_signature(target.into());
+
+    for &base in gcx.hir.contract(contract).linearized_bases {
+        let base_contract = gcx.hir.contract(base);
+        if !base_contract.linearized_bases.contains(&target_contract) {
+            continue;
+        }
+        for candidate in base_contract.functions() {
+            let candidate_function = gcx.hir.function(candidate);
+            if candidate_function.kind == target_function.kind
+                && candidate_function.name == target_function.name
+                && gcx.item_signature(candidate.into()) == target_signature
+            {
+                return candidate;
+            }
+        }
+    }
+    target
+}
+
 struct ReferenceCollector<'gcx> {
     gcx: Gcx<'gcx>,
-    references: References,
+    callgraph: CallGraph,
 }
 
 impl<'gcx> ReferenceCollector<'gcx> {
     fn new(gcx: Gcx<'gcx>) -> Self {
         Self {
             gcx,
-            references: References::new(
+            callgraph: CallGraph::new_empty(
                 gcx.hir.function_ids().count(),
                 gcx.hir.event_ids().count(),
                 gcx.hir.error_ids().count(),
@@ -193,13 +170,13 @@ impl<'gcx> ReferenceCollector<'gcx> {
                     false
                 };
                 if self.gcx.hir.function(id).virtual_ && !is_super_call {
-                    self.references.virtual_functions.insert(id);
+                    self.callgraph.virtual_functions.insert(id);
                 } else {
-                    self.references.functions.insert(id);
+                    self.callgraph.functions.insert(id);
                 }
             }
             hir::Res::Item(hir::ItemId::Error(id)) => {
-                self.references.errors.insert(id);
+                self.callgraph.errors.insert(id);
             }
             _ => {}
         }
@@ -216,7 +193,7 @@ impl<'gcx> Visit<'gcx> for ReferenceCollector<'gcx> {
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         self.collect_call(expr);
         if let Some(function) = self.gcx.user_operator(expr.id) {
-            self.references.functions.insert(function);
+            self.callgraph.functions.insert(function);
         }
         self.walk_expr(expr)
     }
@@ -226,7 +203,7 @@ impl<'gcx> Visit<'gcx> for ReferenceCollector<'gcx> {
             && let hir::ExprKind::Call(callee, ..) = call.kind
             && let Some(hir::Res::Item(hir::ItemId::Event(id))) = self.gcx.resolved_expr(callee)
         {
-            self.references.events.insert(id);
+            self.callgraph.events.insert(id);
         }
         self.walk_stmt(stmt)
     }
@@ -237,9 +214,9 @@ impl<'gcx> Visit<'gcx> for ReferenceCollector<'gcx> {
     ) -> ControlFlow<Self::BreakValue> {
         if let hir::ItemId::Function(id) = modifier.id {
             if self.gcx.hir.function(id).virtual_ {
-                self.references.virtual_functions.insert(id);
+                self.callgraph.virtual_functions.insert(id);
             } else {
-                self.references.functions.insert(id);
+                self.callgraph.functions.insert(id);
             }
         }
         self.walk_modifier(modifier)
