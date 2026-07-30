@@ -38,8 +38,11 @@
 //! Spill freshness follows runtime control flow, which can differ from block emission order.
 //! Non-recomputable live-ins may load a `reloadable` slot before its defining block has been
 //! emitted because that block still stores the value first at runtime. Cheap arithmetic live-ins
-//! with no emitted store are excluded: their predecessor may never store the reserved slot, so the
-//! fallback rebuilds them from their stable operand leaves.
+//! with no emitted store are excluded unless their complete dependency tree ends in stable
+//! arguments, calldata, or transaction/block context. Constructor-staged immutable loads remain
+//! excluded because they are memory-backed until deployment finishes. Other cheap values use their
+//! own stable slot when another block must reload them; values used only on preserved phi edges
+//! remain stack-resident.
 //!
 //! Anonymous stack words remain opaque in the modeled layout. The planner never
 //! claims one as a MIR operand. It may move one by physical position while
@@ -1571,23 +1574,23 @@ impl StackScheduler {
     }
 
     /// Returns whether an unstored reserved slot must be recomputed instead of loaded.
-    pub(crate) fn should_recompute_unstored_spill(&self, value: ValueId, func: &Function) -> bool {
-        self.spills.get(value).is_some() && self.unstored_spill_requires_recompute(value, func)
+    pub(crate) fn should_recompute_unstored_spill(&self, value: ValueId) -> bool {
+        self.spills.get(value).is_some() && self.unstored_spill_requires_recompute(value)
     }
 
-    fn unstored_spill_requires_recompute(&self, value: ValueId, func: &Function) -> bool {
-        !self.spills.is_stored(value) && Self::is_cheap_recomputable_value(func, value)
+    fn unstored_spill_requires_recompute(&self, value: ValueId) -> bool {
+        !self.spills.is_stored(value) && self.spills.is_recomputable(value)
     }
 
     /// Returns the value's spill slot when it can materialize it at this program point.
-    pub(crate) fn reloadable_spill(&self, value: ValueId, func: &Function) -> Option<SpillSlot> {
+    pub(crate) fn reloadable_spill(&self, value: ValueId) -> Option<SpillSlot> {
         let slot = self.spills.get(value)?;
-        (self.spills.is_reloadable(value) && !self.unstored_spill_requires_recompute(value, func))
+        (self.spills.is_reloadable(value) && !self.unstored_spill_requires_recompute(value))
             .then_some(slot)
     }
 
     fn materialize_operand(&self, value: ValueId, func: &Function) -> Option<ScheduledOp> {
-        if let Some(slot) = self.reloadable_spill(value, func) {
+        if let Some(slot) = self.reloadable_spill(value) {
             return Some(ScheduledOp::LoadSpill(slot));
         }
 
@@ -1644,12 +1647,12 @@ impl StackScheduler {
             }
             // Value is too deep for DUP. It must either be reloadable from a spill slot or
             // re-emittable below.
-            if let Some(slot) = self.reloadable_spill(value, func) {
+            if let Some(slot) = self.reloadable_spill(value) {
                 self.ops.push(ScheduledOp::LoadSpill(slot));
                 self.stack.push(value);
                 return &self.ops;
             }
-        } else if let Some(slot) = self.reloadable_spill(value, func) {
+        } else if let Some(slot) = self.reloadable_spill(value) {
             // The value is spilled, so load it.
             self.ops.push(ScheduledOp::LoadSpill(slot));
             self.stack.push(value);
@@ -1688,10 +1691,10 @@ impl StackScheduler {
     pub(crate) fn can_emit_value(&self, value: ValueId, func: &Function) -> bool {
         // Check if on stack and reachable by DUP.
         if let Some(depth) = self.stack.find(value) {
-            return depth < MAX_STACK_ACCESS || self.reloadable_spill(value, func).is_some();
+            return depth < MAX_STACK_ACCESS || self.reloadable_spill(value).is_some();
         }
         // Check whether the value is spilled.
-        if self.reloadable_spill(value, func).is_some() {
+        if self.reloadable_spill(value).is_some() {
             return true;
         }
         // Check the value type.
@@ -1820,22 +1823,31 @@ impl StackScheduler {
 
     /// Shuffles the current stack to match the target layout.
     ///
-    /// Returns the shuffle result containing the operations to emit.
+    /// Returns the shuffle result containing the operations to emit. Failure leaves the live stack
+    /// unchanged so callers can use their spill/reload fallback.
     pub(crate) fn shuffle_to_layout(&mut self, target: &[TargetSlot]) -> Option<ShuffleResult> {
         let shuffler = StackShuffler::new(&self.stack, target);
         let result = shuffler.shuffle()?;
 
-        // Apply the operations to the stack model.
+        let mut next = self.stack.clone();
         for op in &result.ops {
             match op {
-                StackOp::Dup(n) => self.stack.dup(*n),
-                StackOp::Swap(n) => self.stack.swap(*n),
+                StackOp::Dup(n) => next.dup(*n),
+                StackOp::Swap(n) => next.swap(*n),
                 StackOp::Pop => {
-                    self.stack.pop();
+                    next.pop();
                 }
             }
         }
+        if next.depth() != target.len()
+            || !next.iter().zip(target).all(|(actual, target)| match target {
+                TargetSlot::Value(expected) => actual == Some(*expected),
+            })
+        {
+            return None;
+        }
 
+        self.stack = next;
         Some(result)
     }
 }
@@ -2002,6 +2014,20 @@ mod tests {
     }
 
     #[test]
+    fn failed_layout_shuffle_preserves_live_stack() {
+        let mut func = Function::new(Ident::DUMMY);
+        let present =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+        let missing =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(present);
+
+        assert!(scheduler.shuffle_to_layout(&[TargetSlot::Value(missing)]).is_none());
+        assert_eq!(scheduler.stack.as_slice(), &[Some(present)]);
+    }
+
+    #[test]
     fn test_ensure_on_top_dup() {
         let func = make_test_func();
         let mut scheduler = StackScheduler::new();
@@ -2045,6 +2071,7 @@ mod tests {
         assert!(!scheduler.can_emit_value(deep, &func));
 
         scheduler.spills.mark_reloadable(deep);
+        scheduler.spills.mark_recomputable(deep);
         assert!(!scheduler.can_emit_value(deep, &func));
 
         scheduler.spills.mark_stored(deep);
@@ -2946,8 +2973,9 @@ mod tests {
         let mut scheduler = StackScheduler::new();
         let slot = scheduler.spills.allocate(value);
         scheduler.spills.mark_reloadable(value);
+        scheduler.spills.mark_recomputable(value);
 
-        assert!(scheduler.should_recompute_unstored_spill(value, &func));
+        assert!(scheduler.should_recompute_unstored_spill(value));
         assert!(
             scheduler
                 .plan_operands(

@@ -20,20 +20,20 @@ contract SF {
 
     // The optimized chainA/chainB/chainC path has one surviving static call.
     // CHECK: [[TOP]]:
-    // CHECK: push 672
+    // CHECK: push 640
     // CHECK-NEXT: mstore
-    // CHECK: push 704
+    // CHECK: push 672
     // CHECK-NEXT: mstore
     // CHECK-NEXT: push [[CHAIN_RET:bb[0-9]+]]
     // CHECK-NOT: push 160
-    // CHECK: push 928
+    // CHECK: push 800
     // CHECK-NEXT: mstore
     // CHECK-NOT: push 160
-    // CHECK: push 736
+    // CHECK: push 704
     // CHECK-NEXT: mstore
     // CHECK-NEXT: jump
     // CHECK-NEXT: [[CHAIN_RET]]:
-    // CHECK-NEXT: push 736
+    // CHECK-NEXT: push 704
     // CHECK-NEXT: mload
     // CHECK-NOT: push 160
 
@@ -70,31 +70,34 @@ contract SF {
     // CHECK: push {{bb[0-9]+}}
     // CHECK-NEXT: jump [[DYN_EPILOGUE]]
 
-    // rec -> rec uses the same dynamic allocator and epilogue.
+    // rec -> rec uses the same dynamic allocator and a result-aware epilogue.
     // CHECK: push [[PANIC:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push [[REC_RECUR_CONT:bb[0-9]+]]
     // CHECK-NEXT: jump [[DYN_ALLOC]]
     // CHECK-NEXT: [[REC_RECUR_RET:bb[0-9]+]]:
     // CHECK: push [[REC_AFTER_RECUR:bb[0-9]+]]
-    // CHECK-NEXT: jump [[DYN_EPILOGUE]]
+    // CHECK-NEXT: jump [[REC_EPILOGUE:bb[0-9]+]]
 
     // m1 -> m2 is also dynamically allocated.
-    // CHECK: push 416
-    // CHECK: push [[PANIC]]
+    // CHECK: gt
+    // CHECK-NEXT: swap2
+    // CHECK-NEXT: pop
+    // CHECK-NEXT: pop
+    // CHECK-NEXT: push [[PANIC]]
     // CHECK-NEXT: jumpi
-    // CHECK: push [[M1_M2_CONT:bb[0-9]+]]
+    // CHECK-NEXT: push [[M1_M2_CONT:bb[0-9]+]]
     // CHECK-NEXT: jump [[DYN_ALLOC]]
     // CHECK-NEXT: [[M1_M2_RET:bb[0-9]+]]:
     // CHECK: push [[M1_AFTER_M2:bb[0-9]+]]
-    // CHECK-NEXT: jump [[DYN_EPILOGUE]]
+    // CHECK-NEXT: jump [[M1_EPILOGUE:bb[0-9]+]]
     // CHECK-NEXT: [[M2_M1_RET:bb[0-9]+]]:
     // CHECK: push [[M2_AFTER_M1:bb[0-9]+]]
-    // CHECK-NEXT: jump [[DYN_EPILOGUE]]
+    // CHECK-NEXT: jump [[M2_EPILOGUE:bb[0-9]+]]
 
     // Tie the top -> rec allocation to its entry and return.
     // CHECK: [[TOP_REC_CONT]]:
-    // CHECK: push 544
+    // CHECK: push 512
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
@@ -105,7 +108,7 @@ contract SF {
     // CHECK-NEXT: mload
 
     // Tie the top -> m1 allocation to its entry and return.
-    // CHECK: push 512
+    // CHECK: push 384
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
@@ -122,7 +125,7 @@ contract SF {
 
     // Complete the recursive rec call setup.
     // CHECK: [[REC_RECUR_CONT]]:
-    // CHECK: push 544
+    // CHECK: push 512
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
@@ -132,7 +135,7 @@ contract SF {
 
     // m2 -> m1 uses the allocator too.
     // CHECK: [[M2_M1_CONT:bb[0-9]+]]:
-    // CHECK: push 512
+    // CHECK: push 384
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
@@ -141,7 +144,10 @@ contract SF {
 
     // Complete the m1 -> m2 call setup.
     // CHECK-NEXT: [[M1_M2_CONT]]:
-    // CHECK: push 288
+    // CHECK: dup1
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push 288
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore

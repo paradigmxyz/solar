@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/stack_phi_loop.sol:StackPhiLoop (runtime) ===
 @module runtime
 bb0:
-  push 544
+  push 512
   push 64
   mstore
   callvalue
@@ -341,9 +341,8 @@ bb41:
   calldataload
   dup3
   lt
-  dup2
-  push 1
-  add
+  push 384
+  mload
   push 224
   mstore
   dup4
