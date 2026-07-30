@@ -1,7 +1,8 @@
 //! MIR module (top-level container).
 
 use super::{
-    AbiLayout, AbiLayoutRef, Function, FunctionId, MangledSymbol, StorageLayout, StorageLayoutRef,
+    AbiLayout, AbiLayoutRef, Disambiguator, Function, FunctionId, MangledSymbol, StorageLayout,
+    StorageLayoutRef,
 };
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
@@ -9,7 +10,7 @@ use solar_data_structures::{
     map::FxHashMap,
 };
 use solar_interface::{Ident, Symbol, sym};
-use std::{num::NonZeroU32, sync::Arc};
+use std::sync::Arc;
 
 /// Current immutable staging and placeholder width.
 ///
@@ -157,19 +158,13 @@ impl Module {
             if duplicate_func.name.disambiguator.is_none() {
                 duplicate_func.name = MangledSymbol::disambiguated(
                     symbol,
-                    NonZeroU32::new(
-                        u32::try_from(duplicate.index() + 1).expect("function ID overflow"),
-                    )
-                    .unwrap(),
+                    Disambiguator::from_usize(duplicate.index() + 1),
                 );
             }
             if self.functions[function].name.disambiguator.is_none() {
                 self.functions[function].name = MangledSymbol::disambiguated(
                     symbol,
-                    NonZeroU32::new(
-                        u32::try_from(function.index() + 1).expect("function ID overflow"),
-                    )
-                    .unwrap(),
+                    Disambiguator::from_usize(function.index() + 1),
                 );
             }
         }

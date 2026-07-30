@@ -30,10 +30,10 @@
 
 use super::{
     AbiLayout, AbiLayoutRef, AbiType, AllocationAlignment, AllocationFailure,
-    AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, EffectKind, Function,
-    FunctionBuilder, FunctionId, InstId, InstKind, Instruction, InstructionMetadata, MangledSymbol,
-    MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField,
-    StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
+    AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, Disambiguator,
+    EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
+    InstructionMetadata, MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module,
+    StorageAlias, StorageField, StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
 };
 use crate::mir::{MirType, SliceLocation};
 use alloy_primitives::U256;
@@ -48,7 +48,6 @@ use solar_interface::{
 };
 use solar_parse::{PErr, PResult};
 use solar_sema::hir;
-use std::num::NonZeroU32;
 
 // =============================================================================
 // Public API
@@ -158,8 +157,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return Ok(MangledSymbol::new(symbol));
         };
         let disambiguator = disambiguator
-            .parse::<NonZeroU32>()
+            .parse::<u32>()
             .map_err(|_| self.parser.error("invalid function disambiguator"))?;
+        if disambiguator == u32::MAX {
+            return Err(self.parser.error("invalid function disambiguator"));
+        }
+        let disambiguator = Disambiguator::new(disambiguator as usize);
         self.parser.bump();
         Ok(MangledSymbol::disambiguated(symbol, disambiguator))
     }

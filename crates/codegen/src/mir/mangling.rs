@@ -1,14 +1,18 @@
 //! MIR symbol mangling.
 
-use solar_data_structures::fmt;
+use solar_data_structures::{fmt, newtype_index};
 use solar_interface::Symbol;
-use std::num::NonZeroU32;
+
+newtype_index! {
+    /// A numeric symbol disambiguator.
+    pub(crate) struct Disambiguator;
+}
 
 /// A symbol with an optional numeric disambiguator.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct MangledSymbol {
     pub(crate) symbol: Symbol,
-    pub(crate) disambiguator: Option<NonZeroU32>,
+    pub(crate) disambiguator: Option<Disambiguator>,
 }
 
 impl MangledSymbol {
@@ -18,7 +22,7 @@ impl MangledSymbol {
     }
 
     /// Creates a symbol with a numeric disambiguator.
-    pub(crate) const fn disambiguated(symbol: Symbol, disambiguator: NonZeroU32) -> Self {
+    pub(crate) const fn disambiguated(symbol: Symbol, disambiguator: Disambiguator) -> Self {
         Self { symbol, disambiguator: Some(disambiguator) }
     }
 }
@@ -26,7 +30,7 @@ impl MangledSymbol {
 impl fmt::Display for MangledSymbol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(disambiguator) = self.disambiguator {
-            write!(f, "{}.{disambiguator}", self.symbol)
+            write!(f, "{}.{}", self.symbol, disambiguator.index())
         } else {
             self.symbol.fmt(f)
         }
