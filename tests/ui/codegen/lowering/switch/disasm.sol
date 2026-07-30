@@ -44,6 +44,12 @@ contract SwitchDisassembly {
     // BUCKETS-NEXT: PUSH9 {{.*}}
     // BUCKETS-NEXT: SWAP1
     // BUCKETS-NEXT: SHR
+    // BUCKETS: PUSH1 0xff
+    // BUCKETS-NEXT: AND
+    // BUCKETS-NEXT: JUMP
+    // BUCKETS: DUP1
+    // BUCKETS-NEXT: PUSH1 0x40
+    // BUCKETS-NEXT: SUB
 
     // DENSE-LABEL: // === {{.*}}:SwitchDisassembly (runtime) ===
     // DENSE: CALLDATALOAD
@@ -71,6 +77,12 @@ contract SwitchDisassembly {
     // PERFECT-NEXT: PUSH8 {{.*}}
     // PERFECT-NEXT: SWAP1
     // PERFECT-NEXT: SHR
+    // PERFECT: PUSH1 0xff
+    // PERFECT-NEXT: AND
+    // PERFECT-NEXT: JUMP
+    // PERFECT: DUP1
+    // PERFECT-NEXT: PUSH1 0x40
+    // PERFECT-NEXT: SUB
 
     fallback() external {
         assembly {

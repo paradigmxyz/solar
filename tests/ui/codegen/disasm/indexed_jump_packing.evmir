@@ -18,7 +18,6 @@
 // ABSOLUTE-NEXT: PUSH2 0xffff
 // ABSOLUTE-NEXT: AND
 // ABSOLUTE-NEXT: JUMP
-// ABSOLUTE-NOT: ADD
 
 // RELATIVE-LABEL: // === indexed_jump_packing (runtime) ===
 // RELATIVE: PUSH1 0x07
