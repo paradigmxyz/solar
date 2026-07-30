@@ -20,6 +20,8 @@ import tempfile
 from collections.abc import Iterable
 from typing import Any
 
+import evm_runtime as evm
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -170,11 +172,8 @@ def _compile_solar(solar: str, source: pathlib.Path, timeout: float) -> dict[str
 
 def _run(argv: list[str], timeout: float) -> dict[str, Any]:
     try:
-        result = subprocess.run(
+        result = evm.run_process_group(
             argv,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as err:

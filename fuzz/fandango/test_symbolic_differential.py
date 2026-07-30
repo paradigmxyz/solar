@@ -161,7 +161,7 @@ class DeadlineTests(unittest.TestCase):
         )
         with patch.object(evm.time, "monotonic", side_effect=[10.0, 11.1]):
             deadline = evm.Deadline(1.0)
-            with patch.object(run_foundry_target.subprocess, "Popen") as popen:
+            with patch.object(evm.subprocess, "Popen") as popen:
                 result = run_foundry_target._forge_symbolic(
                     args, Path("/unused"), "checkDiff_deadbeef(uint256)", deadline
                 )
@@ -170,7 +170,7 @@ class DeadlineTests(unittest.TestCase):
         self.assertEqual(result["status"], "timeout")
         self.assertIn("total wall timeout", result["reason"])
 
-    def test_forge_timeout_kills_the_solver_process_group(self):
+    def test_tool_timeout_kills_the_process_group(self):
         process = Mock()
         process.pid = 1234
         process.returncode = -9
@@ -179,26 +179,47 @@ class DeadlineTests(unittest.TestCase):
             ("partial stdout", "partial stderr"),
         ]
         with (
-            patch.object(run_foundry_target.subprocess, "Popen", return_value=process),
-            patch.object(run_foundry_target.evm, "kill_process_tree") as kill_tree,
+            patch.object(evm.subprocess, "Popen", return_value=process),
+            patch.object(evm, "kill_process_tree") as kill_tree,
             self.assertRaises(subprocess.TimeoutExpired),
         ):
-            run_foundry_target._run_process_group(["forge"], 1)
+            evm.run_process_group(["tool"], 1)
 
         kill_tree.assert_called_once_with(process)
 
-    def test_forge_interrupt_kills_and_reaps_the_solver_process_group(self):
+    def test_tool_interrupt_kills_and_reaps_the_process_group(self):
         process = Mock()
         process.communicate.side_effect = [KeyboardInterrupt, ("", "")]
         with (
-            patch.object(run_foundry_target.subprocess, "Popen", return_value=process),
-            patch.object(run_foundry_target.evm, "kill_process_tree") as kill_tree,
+            patch.object(evm.subprocess, "Popen", return_value=process),
+            patch.object(evm, "kill_process_tree") as kill_tree,
             self.assertRaises(KeyboardInterrupt),
         ):
-            run_foundry_target._run_process_group(["forge"], 1)
+            evm.run_process_group(["tool"], 1)
 
         kill_tree.assert_called_once_with(process)
         self.assertEqual(process.communicate.call_count, 2)
+
+    def test_tool_input_and_check_behavior_match_subprocess_run(self):
+        result = evm.run_process_group(
+            [
+                sys.executable,
+                "-c",
+                "import sys; sys.stdout.write(sys.stdin.read().upper())",
+            ],
+            5,
+            input="standard json",
+            check=True,
+        )
+        self.assertEqual(result.stdout, "STANDARD JSON")
+
+        with self.assertRaises(subprocess.CalledProcessError) as raised:
+            evm.run_process_group(
+                [sys.executable, "-c", "raise SystemExit(7)"],
+                5,
+                check=True,
+            )
+        self.assertEqual(raised.exception.returncode, 7)
 
     def test_compilation_and_version_share_the_same_deadline(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -238,8 +259,8 @@ class DeadlineTests(unittest.TestCase):
                     side_effect=[10.0, 10.2, 10.8],
                 ),
                 patch.object(
-                    evm.subprocess,
-                    "run",
+                    evm,
+                    "run_process_group",
                     side_effect=[compile_result, version_result],
                 ) as run,
             ):
@@ -259,7 +280,7 @@ class DeadlineTests(unittest.TestCase):
         self.assertAlmostEqual(run.call_args_list[1].kwargs["timeout"], 0.2)
 
     @unittest.skipUnless(os.name == "posix", "POSIX process-group regression")
-    def test_sigterm_cleans_a_real_forge_grandchild_tree(self):
+    def test_sigterm_cleans_a_real_tool_grandchild_tree(self):
         with tempfile.TemporaryDirectory() as temporary:
             pid_file = Path(temporary) / "pids"
             child_code = (
@@ -274,8 +295,8 @@ class DeadlineTests(unittest.TestCase):
             helper_code = (
                 "import sys;"
                 f"sys.path.insert(0,{module_dir!r});"
-                "import run_foundry_target;"
-                "run_foundry_target._run_process_group("
+                "import evm_runtime;"
+                "evm_runtime.run_process_group("
                 f"[sys.executable,'-c',{child_code!r}],60)"
             )
             helper = subprocess.Popen([sys.executable, "-c", helper_code])
@@ -300,6 +321,14 @@ class DeadlineTests(unittest.TestCase):
                         os.kill(pid, 9)
                     except ProcessLookupError:
                         pass
+
+    @unittest.skipUnless(os.name == "posix", "POSIX process-group regression")
+    def test_compiler_timeout_reaps_a_real_grandchild(self):
+        self._assert_wrapper_grandchild_is_reaped(timeout=0.5, wrapper_sleep=60)
+
+    @unittest.skipUnless(os.name == "posix", "POSIX process-group regression")
+    def test_successful_tool_reaps_a_real_grandchild(self):
+        self._assert_wrapper_grandchild_is_reaped(timeout=5, wrapper_sleep=0)
 
     @unittest.skipUnless(os.name == "posix", "POSIX process-group regression")
     def test_graceful_tree_cleanup_kills_a_descendant_that_ignores_sigterm(self):
@@ -355,6 +384,50 @@ class DeadlineTests(unittest.TestCase):
                 return True
             time.sleep(0.05)
         return False
+
+    def _assert_wrapper_grandchild_is_reaped(
+        self, *, timeout: float, wrapper_sleep: int
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            pid_file = root / "grandchild-pid"
+            wrapper = root / "compiler-wrapper"
+            wrapper.write_text(
+                "#!/usr/bin/env python3\n"
+                "import pathlib\n"
+                "import subprocess\n"
+                "import sys\n"
+                "import time\n"
+                "grandchild = subprocess.Popen(\n"
+                "    [sys.executable, '-c', 'import time; time.sleep(60)'],\n"
+                "    stdin=subprocess.DEVNULL,\n"
+                "    stdout=subprocess.DEVNULL,\n"
+                "    stderr=subprocess.DEVNULL,\n"
+                ")\n"
+                f"pathlib.Path({str(pid_file)!r}).write_text(str(grandchild.pid))\n"
+                "print('wrapper version', flush=True)\n"
+                f"time.sleep({wrapper_sleep})\n"
+            )
+            wrapper.chmod(0o755)
+            grandchild_pid = None
+            try:
+                if wrapper_sleep:
+                    with self.assertRaises(subprocess.TimeoutExpired):
+                        evm.compiler_version(str(wrapper), timeout)
+                else:
+                    self.assertEqual(
+                        evm.compiler_version(str(wrapper), timeout),
+                        "wrapper version",
+                    )
+                self.assertTrue(pid_file.is_file())
+                grandchild_pid = int(pid_file.read_text())
+                self.assertTrue(self._wait_for_process_exit(grandchild_pid))
+            finally:
+                if grandchild_pid is not None:
+                    try:
+                        os.kill(grandchild_pid, 9)
+                    except ProcessLookupError:
+                        pass
 
 
 class RpcOutcomeTests(unittest.TestCase):
@@ -459,7 +532,7 @@ class StandardInputMaterializationTests(unittest.TestCase):
                 ),
                 stderr="",
             )
-            with patch.object(evm.subprocess, "run", return_value=discovery):
+            with patch.object(evm, "run_process_group", return_value=discovery):
                 materialized = evm.materialize_standard_input(
                     "solc", root, 10, "osaka"
                 )
@@ -489,7 +562,7 @@ class StandardInputMaterializationTests(unittest.TestCase):
                 stderr="",
             )
             with (
-                patch.object(evm.subprocess, "run", return_value=discovery),
+                patch.object(evm, "run_process_group", return_value=discovery),
                 self.assertRaisesRegex(ValueError, "could not snapshot"),
             ):
                 evm.materialize_standard_input("solc", root, 10, "osaka")
@@ -543,7 +616,7 @@ class StandardInputMaterializationTests(unittest.TestCase):
                 )
                 with (
                     self.subTest(runtime=runtime),
-                    patch.object(evm.subprocess, "run", return_value=result),
+                    patch.object(evm, "run_process_group", return_value=result),
                     self.assertRaisesRegex(ValueError, message),
                 ):
                     evm.compile_standard_artifact(

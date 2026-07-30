@@ -13,10 +13,11 @@ import argparse
 import json
 import pathlib
 import re
-import subprocess
 import tempfile
 from dataclasses import dataclass
 from typing import Any, Self
+
+import evm_runtime as evm
 
 
 RUN_RE = re.compile(
@@ -190,7 +191,7 @@ class Reducer:
             # Resolve the runner next to this file so the reducer also works
             # through the `fuzz/bin/solreduce` wrapper regardless of cwd.
             runner = pathlib.Path(__file__).resolve().parent / "run_source_runtime.py"
-            result = subprocess.run(
+            result = evm.run_process_group(
                 [
                     "python3",
                     str(runner),
@@ -203,9 +204,6 @@ class Reducer:
                     "--timeout",
                     str(self.args.timeout),
                 ],
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
                 timeout=self.args.timeout + 5,
             )
         try:

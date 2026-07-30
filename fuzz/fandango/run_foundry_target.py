@@ -175,13 +175,10 @@ def _forge_test(
 ) -> dict[str, Any]:
     env = os.environ.copy()
     try:
-        result = subprocess.run(
+        result = evm.run_process_group(
             [forge, "test", "--fuzz-runs", str(fuzz_runs)],
             cwd=project,
             env=env,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as err:
@@ -480,7 +477,7 @@ def _forge_symbolic(
         with tempfile.TemporaryDirectory(
             prefix="solar-symbolic-forge-home-"
         ) as forge_home:
-            result = _run_process_group(
+            result = evm.run_process_group(
                 command,
                 timeout,
                 env=_forge_environment(pathlib.Path(forge_home)),
@@ -522,12 +519,9 @@ def _resolve_executable(tool: str) -> str:
 
 
 def _tool_version(tool: str, deadline: evm.Deadline) -> str:
-    result = subprocess.run(
+    result = evm.run_process_group(
         [tool, "--version"],
         check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
         timeout=deadline.remaining(f"{tool} --version"),
     )
     return (result.stdout or result.stderr).strip()
@@ -891,7 +885,7 @@ def _durable_replay(
                 replay_project
             )
             remaining = min(timeout, deadline.remaining("durable Foundry replay"))
-            result = _run_process_group(
+            result = evm.run_process_group(
                 execution_command,
                 remaining,
                 env=_forge_environment(forge_home),
@@ -963,51 +957,6 @@ def _deadline_error(deadline: evm.Deadline, operation: str) -> str | None:
     except TimeoutError as err:
         return str(err)
     return None
-
-
-def _run_process_group(
-    command: list[str],
-    timeout: float,
-    *,
-    env: dict[str, str] | None = None,
-    cwd: pathlib.Path | None = None,
-) -> subprocess.CompletedProcess[str]:
-    """Run one Forge invocation and always reap its solver process tree."""
-    process = subprocess.Popen(
-        command,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=env,
-        cwd=cwd,
-        **evm.process_group_options(),
-    )
-    try:
-        with evm.cleanup_process_on_signals(process):
-            stdout, stderr = process.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired as err:
-        evm.kill_process_tree(process)
-        stdout, stderr = process.communicate()
-        raise subprocess.TimeoutExpired(
-            command,
-            timeout,
-            output=stdout or _expired_text(err.stdout),
-            stderr=stderr or _expired_text(err.stderr),
-        ) from err
-    except BaseException:
-        evm.kill_process_tree(process)
-        try:
-            process.communicate(timeout=5)
-        except (subprocess.SubprocessError, OSError):
-            pass
-        raise
-    evm.kill_process_tree(process)
-    return subprocess.CompletedProcess(
-        command,
-        process.returncode,
-        stdout,
-        stderr,
-    )
 
 
 def _symbolic_setup_incomplete(args: argparse.Namespace, err: Exception) -> int:

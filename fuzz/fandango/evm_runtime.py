@@ -183,6 +183,65 @@ def cleanup_process_on_signals(
                 signal.signal(signum, prior)
 
 
+def run_process_group(
+    command: list[str],
+    timeout: float,
+    *,
+    input: str | None = None,
+    check: bool = False,
+    cwd: pathlib.Path | str | None = None,
+    env: dict[str, str] | None = None,
+    encoding: str = "utf-8",
+) -> subprocess.CompletedProcess[str]:
+    """Run one bounded tool invocation and always reap its process tree."""
+    process = subprocess.Popen(
+        command,
+        stdin=subprocess.PIPE if input is not None else None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding=encoding,
+        cwd=cwd,
+        env=env,
+        **process_group_options(),
+    )
+    try:
+        with cleanup_process_on_signals(process):
+            stdout, stderr = process.communicate(input=input, timeout=timeout)
+    except subprocess.TimeoutExpired as err:
+        kill_process_tree(process)
+        stdout, stderr = process.communicate()
+        raise subprocess.TimeoutExpired(
+            command,
+            timeout,
+            output=stdout or _timeout_text(err.stdout),
+            stderr=stderr or _timeout_text(err.stderr),
+        ) from err
+    except BaseException:
+        kill_process_tree(process)
+        try:
+            process.communicate(timeout=5)
+        except (subprocess.SubprocessError, OSError):
+            pass
+        raise
+    kill_process_tree(process)
+    result = subprocess.CompletedProcess(
+        command,
+        process.returncode,
+        stdout,
+        stderr,
+    )
+    if check:
+        result.check_returncode()
+    return result
+
+
+def _timeout_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    return value.decode(errors="replace") if isinstance(value, bytes) else value
+
+
 class Deadline:
     """One monotonic wall-clock budget shared by a multi-step operation."""
 
@@ -224,13 +283,9 @@ def materialize_standard_input(
     }
     command = [solc, "--base-path", str(source.parent), "--standard-json"]
     with tempfile.TemporaryDirectory(prefix="solar-import-discovery-") as compile_cwd:
-        result = subprocess.run(
+        result = run_process_group(
             command,
             input=json.dumps(discovery_input),
-            text=True,
-            encoding="utf-8",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
             timeout=_operation_timeout(timeout, deadline, "Solidity import discovery"),
             cwd=compile_cwd,
         )
@@ -306,13 +361,9 @@ def compile_standard_artifact(
     else:
         cwd_context = contextlib.nullcontext(compiler_cwd)
     with cwd_context as compile_cwd:
-        result = subprocess.run(
+        result = run_process_group(
             command,
             input=standard_input["json"],
-            text=True,
-            encoding="utf-8",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
             timeout=_operation_timeout(timeout, deadline, f"{kind} compilation"),
             cwd=compile_cwd,
         )
@@ -380,12 +431,9 @@ def compiler_version(
     *,
     deadline: Deadline | None = None,
 ) -> str:
-    result = subprocess.run(
+    result = run_process_group(
         [compiler, "--version"],
         check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
         timeout=_operation_timeout(timeout, deadline, f"{compiler} --version"),
     )
     return result.stdout.strip()
@@ -479,7 +527,7 @@ def _operation_timeout(
 
 
 def compile_solc(solc: str, source: pathlib.Path, contract: str, timeout: float) -> str:
-    result = subprocess.run(
+    result = run_process_group(
         [
             solc,
             "--via-ir",
@@ -491,21 +539,15 @@ def compile_solc(solc: str, source: pathlib.Path, contract: str, timeout: float)
             str(source),
         ],
         check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
         timeout=timeout,
     )
     return runtime_from_contracts(json.loads(result.stdout)["contracts"], contract)
 
 
 def compile_solar(solar: str, source: pathlib.Path, contract: str, timeout: float) -> str:
-    result = subprocess.run(
+    result = run_process_group(
         [solar, "-Zcodegen", "--emit=bin-runtime", "--pretty-json", str(source)],
         check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
         timeout=timeout,
     )
     return runtime_from_contracts(json.loads(result.stdout)["contracts"], contract)
