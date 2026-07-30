@@ -75,6 +75,7 @@ contract PartialTerminalDispatch {
     // SIZE: eq
     // SIZE-NEXT: push [[STOP:bb[0-9]+]]
     // SIZE-NEXT: jumpi
+    // SIZE-NOT: gt
     // SIZE: [[STOP]]:
     // SIZE-NEXT: stop
     // SIZE: gt
