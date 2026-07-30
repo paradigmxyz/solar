@@ -66,10 +66,8 @@ bb6:
   push 64
   dup3
   add
-  dup1
   push 160
   mstore
-  pop
   swap1
   pop
   iszero
@@ -101,15 +99,9 @@ bb12:
   add
   push 128
   mload
-  dup1
-  push 128
-  mstore
   dup2
   push 160
   mload
-  dup1
-  push 160
-  mstore
   mcopy
   pop
   push 224
@@ -175,10 +167,8 @@ bb14:
   push 64
   dup3
   add
-  dup1
   push 160
   mstore
-  pop
   swap1
   pop
   iszero

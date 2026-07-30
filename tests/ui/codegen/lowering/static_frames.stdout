@@ -108,10 +108,8 @@ bb7:
   dup1
   push 608
   mstore
-  dup1
   push 800
   mstore
-  pop
   push bb23
   push 0
   sload
@@ -126,9 +124,6 @@ bb7:
   jumpi
   push 896
   mload
-  dup1
-  push 896
-  mstore
   push 0
   sstore
   push 3
@@ -154,10 +149,8 @@ bb7:
   mload
   push 832
   mstore
-  dup1
   push 864
   mstore
-  pop
   jump
 bb11:
   push 512
@@ -453,9 +446,6 @@ bb23:
   jumpi
   push 704
   mload
-  dup1
-  push 704
-  mstore
   push 0
   sstore
   push 640
@@ -770,9 +760,6 @@ bb71:
   jumpi
   push 352
   mload
-  dup1
-  push 352
-  mstore
   push 0
   sstore
   push 224
@@ -816,9 +803,6 @@ bb71:
   jumpi
   push 224
   mload
-  dup1
-  push 224
-  mstore
   jump bb63
 bb72:
   push bb41
