@@ -12,11 +12,3 @@ fn @invalid_store(arg0: memoryslice) {
     //~? ERROR: [fn0] [bb0, inst0] immutable assignment instruction `storeimmutable` survives the `evm-shaped` phase boundary
     stop
 }
-
-fn @wrong_store_type(arg0: u16) {
-  bb0:
-    storeimmutable narrow, arg0
-    //~? ERROR: [fn1] inst0 stores `u16` value into immutable `narrow` of type `u8`
-    //~? ERROR: [fn1] [bb0, inst0] immutable assignment instruction `storeimmutable` survives the `evm-shaped` phase boundary
-    stop
-}

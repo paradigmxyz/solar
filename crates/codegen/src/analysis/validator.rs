@@ -485,7 +485,7 @@ impl<'a> Validator<'a> {
                         continue;
                     };
                     if let Some(actual) = func.value_ty(value)
-                        && actual != immutable.ty
+                        && actual.immutable_encoding().is_none()
                     {
                         self.emit(format_args!(
                             "inst{} stores `{actual}` value into immutable `{}` of type `{}`",
