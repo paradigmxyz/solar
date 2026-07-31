@@ -930,7 +930,11 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
         if builtin.is_yul() {
-            let returns = builtin.ty(self.gcx).returns().unwrap();
+            let Some(returns) = builtin.ty(self.gcx).returns() else {
+                let guar = self
+                    .recovery_error(None, "codegen expected Yul builtin to have a function type");
+                return Some(builder.error_value(guar));
+            };
             if returns.is_empty() {
                 let _ = self.lower_yul_unit_builtin_call(builder, builtin, args);
                 return None;
@@ -1768,15 +1772,14 @@ impl<'gcx> Lowerer<'gcx> {
         ret_size: ValueId,
     ) -> ValueId {
         match kind {
-            ExternalCallKind::Call => builder.call(
-                gas,
-                addr,
-                value.expect("CALL requires a value operand"),
-                args_offset,
-                args_size,
-                ret_offset,
-                ret_size,
-            ),
+            ExternalCallKind::Call => {
+                let value = value.unwrap_or_else(|| {
+                    let guar = self
+                        .recovery_error(None, "codegen expected `CALL` to have a value operand");
+                    builder.error_value(guar)
+                });
+                builder.call(gas, addr, value, args_offset, args_size, ret_offset, ret_size)
+            }
             ExternalCallKind::StaticCall => {
                 builder.staticcall(gas, addr, args_offset, args_size, ret_offset, ret_size)
             }
@@ -2130,10 +2133,14 @@ impl<'gcx> Lowerer<'gcx> {
         arg_vals: Vec<ValueId>,
     ) -> ValueId {
         let func = self.gcx.hir.function(func_id);
-        let result_ty = func.returns.first().map(|&ret_id| self.lower_type_from_var(ret_id));
-        let Some(result_ty) = result_ty else {
-            unreachable!("void call emitted through value-returning path")
+        let Some(&ret_id) = func.returns.first() else {
+            let guar = self.recovery_error(
+                Some(func.span),
+                "codegen expected internal call to return a value",
+            );
+            return builder.error_value(guar);
         };
+        let result_ty = self.lower_type_from_var(ret_id);
         let mir_id = self.internal_call_target(func_id);
         builder.internal_call(mir_id, arg_vals, result_ty, func.returns.len())
     }

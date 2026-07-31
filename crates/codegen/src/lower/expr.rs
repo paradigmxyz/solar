@@ -953,16 +953,15 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> Option<ValueId> {
         let var = self.gcx.hir.variable(var_id);
         let ty = self.gcx.type_of_hir_ty(&var.ty);
+        let TyKind::Struct(struct_id) = ty.peel_refs().kind else { return None };
         if var.initializer.is_some()
             || var.data_location != Some(solar_ast::DataLocation::Memory)
-            || !matches!(ty.peel_refs().kind, TyKind::Struct(_))
             || self.lowering_internal_function
             || self.current_return_tys.len() != 1
         {
             return None;
         }
 
-        let TyKind::Struct(struct_id) = ty.peel_refs().kind else { unreachable!() };
         let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
         if field_tys.len() < MIN_BULK_ZERO_STRUCT_FIELDS {
             return None;
@@ -2458,46 +2457,50 @@ impl<'gcx> Lowerer<'gcx> {
         let mut head_offset = 0u64;
         for &ty in tys {
             let head_pos = self.offset_ptr(builder, data_start, head_offset);
-            let decoded =
-                match self.abi_decode_strategy(ty).expect("callers validate every decode member") {
-                    DecodeStrategy::Word(elem) => {
-                        let word = builder.mload(head_pos);
-                        self.lower_abi_decode_word(builder, &elem, word)
-                    }
-                    DecodeStrategy::DynBytes => {
-                        let head = builder.mload(head_pos);
-                        self.lower_abi_decode_dynamic_bytes(
-                            builder,
-                            data_start,
-                            len,
-                            head_size_val,
-                            head,
-                        )
-                    }
-                    DecodeStrategy::ElementaryArray(elem) => {
-                        let head = builder.mload(head_pos);
-                        self.lower_abi_decode_dyn_array(
-                            builder, data_start, len, head_size, &elem, head,
-                        )
-                    }
-                    DecodeStrategy::General(ty) => {
-                        // Resolve the member's body position, then decode it with
-                        // the same recursive materializer that decodes calldata
-                        // struct-array parameters.
-                        let pos = if self.abi_is_dynamic(ty) {
-                            let offset = builder.mload(head_pos);
-                            builder.add(data_start, offset)
-                        } else {
-                            head_pos
-                        };
-                        self.materialize_calldata_value_at(
-                            builder,
-                            super::bytes::AbiSource::Memory,
-                            ty,
-                            pos,
-                        )
-                    }
-                };
+            let Some(strategy) = self.abi_decode_strategy(ty) else {
+                let guar = self.recovery_error(None, "codegen cannot decode this ABI member type");
+                let err = builder.error_value(guar);
+                return vec![err; tys.len()];
+            };
+            let decoded = match strategy {
+                DecodeStrategy::Word(elem) => {
+                    let word = builder.mload(head_pos);
+                    self.lower_abi_decode_word(builder, &elem, word)
+                }
+                DecodeStrategy::DynBytes => {
+                    let head = builder.mload(head_pos);
+                    self.lower_abi_decode_dynamic_bytes(
+                        builder,
+                        data_start,
+                        len,
+                        head_size_val,
+                        head,
+                    )
+                }
+                DecodeStrategy::ElementaryArray(elem) => {
+                    let head = builder.mload(head_pos);
+                    self.lower_abi_decode_dyn_array(
+                        builder, data_start, len, head_size, &elem, head,
+                    )
+                }
+                DecodeStrategy::General(ty) => {
+                    // Resolve the member's body position, then decode it with
+                    // the same recursive materializer that decodes calldata
+                    // struct-array parameters.
+                    let pos = if self.abi_is_dynamic(ty) {
+                        let offset = builder.mload(head_pos);
+                        builder.add(data_start, offset)
+                    } else {
+                        head_pos
+                    };
+                    self.materialize_calldata_value_at(
+                        builder,
+                        super::bytes::AbiSource::Memory,
+                        ty,
+                        pos,
+                    )
+                }
+            };
             out.push(decoded);
             let ty_size = match self.abi_head_size(ty) {
                 Ok(size) => size,
