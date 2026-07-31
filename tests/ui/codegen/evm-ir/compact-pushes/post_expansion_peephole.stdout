@@ -1,0 +1,5 @@
+// === ROOT/tests/ui/codegen/evm-ir/compact-pushes/post_expansion_peephole.evmir (after pipeline-default) ===
+@module PostExpansionPeephole
+bb0:
+  push 0
+  stop
