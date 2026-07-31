@@ -1,6 +1,6 @@
 use super::{Gcx, TyKind};
 use crate::hir::{self, Visit};
-use solar_data_structures::{BumpExt, Never, bit_set::DenseBitSet};
+use solar_data_structures::{Never, bit_set::DenseBitSet};
 use std::{collections::VecDeque, ops::ControlFlow};
 
 struct CallGraph {
@@ -19,10 +19,10 @@ pub(super) struct InterfaceItems<'gcx> {
 
 #[derive(Clone, Copy)]
 pub(super) struct ReferencedItems<'gcx> {
-    pub(super) functions: &'gcx [hir::FunctionId],
-    pub(super) events: &'gcx [hir::EventId],
-    pub(super) errors: &'gcx [hir::ErrorId],
-    pub(super) bytecode_dependencies: &'gcx [hir::ContractId],
+    pub(super) functions: &'gcx DenseBitSet<hir::FunctionId>,
+    pub(super) events: &'gcx DenseBitSet<hir::EventId>,
+    pub(super) errors: &'gcx DenseBitSet<hir::ErrorId>,
+    pub(super) bytecode_dependencies: &'gcx DenseBitSet<hir::ContractId>,
 }
 
 impl CallGraph {
@@ -38,10 +38,10 @@ impl CallGraph {
 
     fn alloc_items<'gcx>(self, gcx: Gcx<'gcx>) -> ReferencedItems<'gcx> {
         ReferencedItems {
-            functions: gcx.bump().alloc_from_iter(self.functions.iter()),
-            events: gcx.bump().alloc_from_iter(self.emitted_events.iter()),
-            errors: gcx.bump().alloc_from_iter(self.used_errors.iter()),
-            bytecode_dependencies: gcx.bump().alloc_from_iter(self.bytecode_dependencies.iter()),
+            functions: gcx.alloc(self.functions),
+            events: gcx.alloc(self.emitted_events),
+            errors: gcx.alloc(self.used_errors),
+            bytecode_dependencies: gcx.alloc(self.bytecode_dependencies),
         }
     }
 }
@@ -314,7 +314,7 @@ pub(super) fn interface_items<'gcx>(gcx: Gcx<'gcx>, id: hir::ContractId) -> Inte
 pub(super) fn all_bytecode_dependencies<'gcx>(
     gcx: Gcx<'gcx>,
     id: hir::ContractId,
-) -> &'gcx [hir::ContractId] {
+) -> &'gcx DenseBitSet<hir::ContractId> {
     let graph = CallGraphBuilder::build_all(gcx, id);
-    gcx.bump().alloc_from_iter(graph.bytecode_dependencies.iter())
+    gcx.alloc(graph.bytecode_dependencies)
 }

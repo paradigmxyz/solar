@@ -22,7 +22,7 @@ use crate::{
 };
 use alloy_primitives::{Bytes, U256};
 use solar_data_structures::{
-    bit_set::GrowableBitSet,
+    bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
     smallvec::SmallVec,
 };
@@ -444,16 +444,14 @@ impl<'gcx> Lowerer<'gcx> {
     fn lower_reachable_function_roots(&mut self, contract_id: ContractId) {
         let contract = self.gcx.hir.contract(contract_id);
         let reachable = self.gcx.contract_reachable_functions(contract_id);
-        let interface = self
-            .gcx
-            .interface_functions(contract_id)
-            .iter()
-            .map(|function| function.id)
-            .collect::<FxHashSet<_>>();
+        let mut interface = DenseBitSet::new_empty(self.gcx.hir.function_ids().len());
+        for function in self.gcx.interface_functions(contract_id) {
+            interface.insert(function.id);
+        }
 
         for &base_id in contract.linearized_bases {
             for function_id in self.gcx.hir.contract(base_id).all_functions() {
-                if reachable.binary_search(&function_id).is_err() {
+                if !reachable.contains(function_id) {
                     continue;
                 }
 
@@ -465,7 +463,7 @@ impl<'gcx> Lowerer<'gcx> {
                     hir::FunctionKind::Function
                         if function.visibility >= hir::Visibility::Public =>
                     {
-                        interface.contains(&function_id)
+                        interface.contains(function_id)
                     }
                     hir::FunctionKind::Function | hir::FunctionKind::Modifier => {
                         base_id == contract_id || function.visibility != hir::Visibility::Private

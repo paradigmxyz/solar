@@ -1350,58 +1350,64 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     /// Returns all events included in the external interface of the given contract.
-    pub fn interface_events(self, id: hir::ContractId) -> &'gcx [hir::EventId] {
+    pub fn interface_events(self, id: hir::ContractId) -> &'gcx DenseBitSet<hir::EventId> {
         let items = self.interface_items(id);
-        let mut events = DenseBitSet::new_empty(self.hir.event_ids().count());
+        let mut events = DenseBitSet::new_empty(self.hir.event_ids().len());
         for item in self.hir.contract_item_ids(id) {
             if let hir::ItemId::Event(event) = item {
                 events.insert(event);
             }
         }
-        for &event in items.creation.events.iter().chain(items.deployed.events) {
+        for event in items.creation.events.iter().chain(items.deployed.events) {
             events.insert(event);
         }
-        self.bump().alloc_from_iter(events.iter())
+        self.alloc(events)
     }
 
     /// Returns all errors included in the external interface of the given contract.
-    pub fn interface_errors(self, id: hir::ContractId) -> &'gcx [hir::ErrorId] {
+    pub fn interface_errors(self, id: hir::ContractId) -> &'gcx DenseBitSet<hir::ErrorId> {
         let items = self.interface_items(id);
-        let mut errors = DenseBitSet::new_empty(self.hir.error_ids().count());
+        let mut errors = DenseBitSet::new_empty(self.hir.error_ids().len());
         for item in self.hir.contract_item_ids(id) {
             if let hir::ItemId::Error(error) = item {
                 errors.insert(error);
             }
         }
-        for &error in items.creation.errors.iter().chain(items.deployed.errors) {
+        for error in items.creation.errors.iter().chain(items.deployed.errors) {
             errors.insert(error);
         }
-        self.bump().alloc_from_iter(errors.iter())
+        self.alloc(errors)
     }
 
     /// Returns the functions reachable during contract creation or at runtime.
-    pub fn contract_reachable_functions(self, id: hir::ContractId) -> &'gcx [hir::FunctionId] {
+    pub fn contract_reachable_functions(
+        self,
+        id: hir::ContractId,
+    ) -> &'gcx DenseBitSet<hir::FunctionId> {
         let items = self.interface_items(id);
-        let mut functions = DenseBitSet::new_empty(self.hir.function_ids().count());
-        for &function in items.creation.functions.iter().chain(items.deployed.functions) {
+        let mut functions = DenseBitSet::new_empty(self.hir.function_ids().len());
+        for function in items.creation.functions.iter().chain(items.deployed.functions) {
             functions.insert(function);
         }
-        self.bump().alloc_from_iter(functions.iter())
+        self.alloc(functions)
     }
 
     /// Returns the contracts whose bytecode is referenced by the given contract.
-    pub fn contract_bytecode_dependencies(self, id: hir::ContractId) -> &'gcx [hir::ContractId] {
+    pub fn contract_bytecode_dependencies(
+        self,
+        id: hir::ContractId,
+    ) -> &'gcx DenseBitSet<hir::ContractId> {
         if self.sess.opts.unstable.codegen_all_functions {
             return self.all_contract_bytecode_dependencies(id);
         }
         let items = self.interface_items(id);
-        let mut dependencies = DenseBitSet::new_empty(self.hir.contract_ids().count());
-        for &dependency in
+        let mut dependencies = DenseBitSet::new_empty(self.hir.contract_ids().len());
+        for dependency in
             items.creation.bytecode_dependencies.iter().chain(items.deployed.bytecode_dependencies)
         {
             dependencies.insert(dependency);
         }
-        self.bump().alloc_from_iter(dependencies.iter())
+        self.alloc(dependencies)
     }
 }
 
@@ -1561,7 +1567,7 @@ fn interface_items(gcx: _, id: hir::ContractId) -> call_graph::InterfaceItems<'g
 fn all_contract_bytecode_dependencies(
     gcx: _,
     id: hir::ContractId
-) -> &'gcx [hir::ContractId] {
+) -> &'gcx DenseBitSet<hir::ContractId> {
     assert!(gcx.has_typeck_results(), "contract dependencies require type checking");
     call_graph::all_bytecode_dependencies(gcx, id)
 }
