@@ -123,6 +123,18 @@ def function_inventory(
         "Solar",
     )
     errors = solc_errors + solar_errors + solc_hash_errors + solar_hash_errors
+    for compiler, functions, identifiers in (
+        ("solc", solc_functions, solc_hashes),
+        ("Solar", solar_functions, solar_hashes),
+    ):
+        errors.extend(
+            {
+                "signature": signature,
+                "compiler": compiler,
+                "reason": "method identifier has no matching function ABI entry",
+            }
+            for signature in sorted(set(identifiers) - set(functions))
+        )
     eligible = []
     excluded = []
     for signature in sorted(set(solc_functions) | set(solar_functions)):

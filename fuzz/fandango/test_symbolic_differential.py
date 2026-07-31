@@ -1165,6 +1165,48 @@ class FunctionInventoryTests(unittest.TestCase):
             any("strings" in item["reason"] for item in inventory["errors"])
         )
 
+    def test_inventory_reports_method_identifiers_without_abi_entries(self):
+        solc = {
+            "abi": [self._function("shared")],
+            "hashes": {
+                "shared(uint256)": "00000001",
+                "solcOnly(uint256)": "00000002",
+            },
+        }
+        solar = {
+            "abi": [self._function("shared")],
+            "hashes": {
+                "shared(uint256)": "00000001",
+                "solarOnly(uint256)": "00000003",
+            },
+        }
+
+        inventory = symbolic.function_inventory(solc, solar)
+
+        self.assertEqual(
+            [item["signature"] for item in inventory["eligible"]],
+            ["shared(uint256)"],
+        )
+        self.assertEqual(
+            inventory["errors"],
+            [
+                {
+                    "signature": "solarOnly(uint256)",
+                    "compiler": "Solar",
+                    "reason": (
+                        "method identifier has no matching function ABI entry"
+                    ),
+                },
+                {
+                    "signature": "solcOnly(uint256)",
+                    "compiler": "solc",
+                    "reason": (
+                        "method identifier has no matching function ABI entry"
+                    ),
+                },
+            ],
+        )
+
 
 class RuntimeScopeTests(unittest.TestCase):
     def test_detects_unsupported_opcodes_but_not_push_data(self):
