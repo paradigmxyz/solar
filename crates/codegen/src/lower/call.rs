@@ -1051,6 +1051,7 @@ impl<'gcx> Lowerer<'gcx> {
                 let a = self.lower_value_expr(builder, a);
                 let b = self.lower_value_expr(builder, b);
                 let modulus = self.lower_value_expr(builder, modulus);
+                self.emit_panic_if_zero(builder, modulus, PanicCode::DivisionByZero);
                 let value = if matches!(builtin, Builtin::AddMod) {
                     builder.addmod(a, b, modulus)
                 } else {
