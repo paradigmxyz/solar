@@ -180,16 +180,6 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &cfg_simplify::CfgSimplify,
     &inline::SpecializeFunctionPointers,
     &cfg_simplify::FunctionDce,
-    &sccp::Sccp,
-    &inst_simplify::InstSimplify,
-    &cse::Cse,
-    &gvn::Gvn,
-    &check_elim::CheckElim,
-    &jump_threading::JumpThreading,
-    &cfg_simplify::CfgSimplify,
-    &frame_promotion::FrameSlotPromotion,
-    &memory_dse::MemoryDse,
-    &adce::Adce,
     // Progressive lowering materializes ABI wrappers, selector routing, and
     // tail-call edges as MIR. Each pass bails without advancing the phase
     // when the module is outside its scope.
@@ -212,8 +202,22 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_memory_zero::LowerMemoryZero,
     &lower_mcopy::LowerMCopy,
     &lower_evm_shaped::LowerEvmShaped,
-    // Late lowering can leave pure address and length calculations unused.
-    // Remove their complete dependency chains before selecting physical stack order.
+    // Optimize the concrete operations and control flow exposed by progressive
+    // lowering before selecting physical stack order.
+    &sccp::Sccp,
+    &inst_simplify::InstSimplify,
+    &cse::Cse,
+    &gvn::Gvn,
+    &check_elim::CheckElim,
+    &jump_threading::JumpThreading,
+    &cfg_simplify::CfgSimplify,
+    &frame_promotion::FrameSlotPromotion,
+    &memory_dse::MemoryDse,
+    &adce::Adce,
+    // CSE and memory cleanup can expose one more round of local folds and
+    // dead dependency chains.
+    &inst_simplify::InstSimplify,
+    &adce::Adce,
     &dce::Dce,
     &evm_inst_schedule::EvmInstSchedule,
 ];

@@ -68,10 +68,9 @@ fn @words() {
     v43 = sub v42, v35
     v45 = add v43, 31
     v47 = and v45, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v48 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v52 = add v48, v47
+    v52 = add v35, v47
     mstore 64, v52 !metadata(memory=scratch)
-    returndata v48, v43
+    returndata v35, v43
 }
 
 fn @bools() {
@@ -154,10 +153,9 @@ fn @bools() {
     v55 = sub v54, v47
     v57 = add v55, 31
     v59 = and v57, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v60 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v64 = add v60, v59
+    v64 = add v47, v59
     mstore 64, v64 !metadata(memory=scratch)
-    returndata v60, v55
+    returndata v47, v55
   bb12:
     v41 = add v32, 1
     v43 = add v42, 32
@@ -233,13 +231,12 @@ fn @strs() {
     v69 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v116 = add v69, 160
     mstore 64, v116 !metadata(memory=scratch)
-    v70 = mload 64 !metadata(memory=scratch)
-    v71 = add v70, 32
-    v72 = sub v71, v70
-    mstore v70, v72
+    v71 = add v69, 192
+    v72 = sub v71, v116
+    mstore v116, v72
     v73 = mload v31
     mstore v71, v73
-    v74 = add v70, 64
+    v74 = add v69, 224
     v75 = shl 5, v73
     v76 = add v74, v75
     v78 = add v69, 32
@@ -316,7 +313,7 @@ fn @strs() {
     jumpi v93, bb23, bb24
   bb22:
     v106 = mload v78
-    v107 = sub v106, v70
+    v107 = sub v106, v116
     v109 = add v107, 31
     v111 = and v109, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v112 = mload 64 !metadata(memory=scratch, effect=memory_write)
@@ -371,7 +368,7 @@ fn @mixed() {
     jumpi v14, bb1, bb3
   bb3:
     v15 = mload v10
-    v16 = add v10, 32
+    v16 = add v9, 64
     v17 = mload v16
     v18 = lt v17, 96
     jumpi v18, bb1, bb4
@@ -401,7 +398,7 @@ fn @mixed() {
     mstore v32, v23
     v33 = add v32, 32
     mcopy v33, v31, v27
-    v34 = add v10, 64
+    v34 = add v9, 96
     v35 = mload v34
     v36 = lt v35, 96
     jumpi v36, bb1, bb9
@@ -447,7 +444,6 @@ fn @mixed() {
     mcopy v54, v57, v41
     v58 = mload 64 !metadata(memory=scratch)
     v59 = add v58, 32
-    mstore v59, v32
     v60 = add v58, 64
     mstore v60, v53
     mstore 32, v58 !metadata(memory=scratch)
@@ -480,10 +476,9 @@ fn @mixed() {
     v90 = sub v89, v58
     v92 = add v90, 31
     v94 = and v92, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v95 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v100 = add v95, v94
+    v100 = add v58, v94
     mstore 64, v100 !metadata(memory=scratch)
-    returndata v95, v90
+    returndata v58, v90
 }
 
 fn @__revert_stub0() {

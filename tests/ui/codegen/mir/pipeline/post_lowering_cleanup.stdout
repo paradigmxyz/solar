@@ -1,0 +1,8 @@
+// === ROOT/tests/ui/codegen/mir/pipeline/post_lowering_cleanup.mir (after pipeline-default) ===
+@module PostLoweringCleanup
+@phase evm-shaped
+fn @field_zero(arg0: memptr) {
+  bb0:
+    mstore arg0, 7
+    stop
+}

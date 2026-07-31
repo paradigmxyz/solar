@@ -192,10 +192,9 @@ fn @blobAt() {
     v24 = sub v23, v11
     v26 = add v24, 31
     v28 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v29 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v31 = add v29, v28
+    v31 = add v11, v28
     mstore 64, v31 !metadata(memory=scratch)
-    returndata v29, v24
+    returndata v11, v24
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memptr {
@@ -214,12 +213,10 @@ fn @__load_storage_bytes(arg0: u256) -> memptr {
     v12 = add v11, 32
     v13 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v27 = add v13, 32
-    mstore 64, v27 !metadata(memory=scratch)
-    v14 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v28 = add v14, v12
+    v28 = add v27, v12
     mstore 64, v28 !metadata(memory=scratch)
-    mstore v14, v6
-    v15 = add v14, 32
+    mstore v27, v6
+    v15 = add v13, 64
     jumpi v2, bb2, bb1
   bb1:
     v16 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -231,7 +228,7 @@ fn @__load_storage_bytes(arg0: u256) -> memptr {
     v18 = shr 5, v9
     jump bb4
   bb3:
-    ret v14
+    ret v27
   bb4:
     v19 = phi [bb2: v18], [bb5: v26]
     v20 = phi [bb2: v17], [bb5: v24]
