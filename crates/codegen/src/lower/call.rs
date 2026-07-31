@@ -498,23 +498,20 @@ impl<'gcx> Lowerer<'gcx> {
             Ok(exprs) => exprs,
             Err(guar) => return self.call_error_result(builder, callee, guar),
         };
-        let mut arg_values = arg_exprs
-            .into_iter()
-            .enumerate()
-            .map(|(index, arg)| {
-                let parameter = function.parameters.get(index).copied();
-                if parameter.is_some_and(|ty| {
-                    matches!(ty.kind, TyKind::Mapping(..) | TyKind::Ref(_, DataLocation::Storage))
-                }) && let Some(slot) = self.lower_lvalue_slot(builder, arg)
-                {
-                    slot
-                } else {
-                    let value = self.lower_value_expr(builder, arg);
-                    self.coerce_memory_slice_value(builder, value)
-                }
-            })
-            .collect::<Vec<_>>();
-        arg_values.insert(0, function_value);
+        let mut arg_values = Vec::with_capacity(arg_exprs.len() + 1);
+        arg_values.push(function_value);
+        arg_values.extend(arg_exprs.into_iter().enumerate().map(|(index, arg)| {
+            let parameter = function.parameters.get(index).copied();
+            if parameter.is_some_and(|ty| {
+                matches!(ty.kind, TyKind::Mapping(..) | TyKind::Ref(_, DataLocation::Storage))
+            }) && let Some(slot) = self.lower_lvalue_slot(builder, arg)
+            {
+                slot
+            } else {
+                let value = self.lower_value_expr(builder, arg);
+                self.coerce_memory_slice_value(builder, value)
+            }
+        }));
 
         let dispatcher = self.ensure_internal_function_pointer_dispatcher(function);
         let returns = function.returns.len();
