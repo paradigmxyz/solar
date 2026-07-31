@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -e
+
+# cd to the directory containing this crate's Cargo.toml so that we don't need
+# to pass --manifest-path to every `cargo` command.
+cd "$(dirname "$0")"
+
+cargo build --verbose
+(cd ctest && ./compile && LD_LIBRARY_PATH=../../../target/debug ./test)
