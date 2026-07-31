@@ -1033,13 +1033,15 @@ impl<'gcx> Lowerer<'gcx> {
         let (mem_offset, size) = self.abi_encode_event_data(builder, &data_items);
 
         // Emit the appropriate LOG instruction based on number of topics
-        match topics.len() {
-            0 => builder.log0(mem_offset, size),
-            1 => builder.log1(mem_offset, size, topics[0]),
-            2 => builder.log2(mem_offset, size, topics[0], topics[1]),
-            3 => builder.log3(mem_offset, size, topics[0], topics[1], topics[2]),
-            4 => builder.log4(mem_offset, size, topics[0], topics[1], topics[2], topics[3]),
-            _ => unreachable!("event topic count was validated"),
+        match topics.as_slice() {
+            [] => builder.log0(mem_offset, size),
+            &[a] => builder.log1(mem_offset, size, a),
+            &[a, b] => builder.log2(mem_offset, size, a, b),
+            &[a, b, c] => builder.log3(mem_offset, size, a, b, c),
+            &[a, b, c, d] => builder.log4(mem_offset, size, a, b, c, d),
+            _ => {
+                self.recovery_error(Some(args.span), "codegen cannot emit more than four topics");
+            }
         }
     }
 
