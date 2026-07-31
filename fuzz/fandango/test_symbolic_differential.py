@@ -3569,6 +3569,29 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         self.assertEqual(summary["status"], "incomplete")
         self.assertIn("path limit", manifest["reason"])
 
+    def test_late_deadlines_preserve_the_symbolic_incomplete_reason(self):
+        def expire_during_persistence(_deadline, operation):
+            if operation == "artifact persistence":
+                return "injected artifact persistence deadline expiry"
+            if operation == "final result persistence":
+                return "injected final persistence deadline expiry"
+            return None
+
+        with patch.object(
+            run_foundry_target,
+            "_deadline_error",
+            side_effect=expire_during_persistence,
+        ):
+            returncode, summary, manifest = self._run(
+                self.solar_reference, max_paths=1
+            )
+
+        self.assertEqual(returncode, 2)
+        self.assertEqual(summary["status"], "incomplete")
+        self.assertIn("path limit", manifest["reason"])
+        self.assertIn("artifact persistence deadline expiry", manifest["reason"])
+        self.assertIn("final persistence deadline expiry", manifest["reason"])
+
     def test_returndata_bound_is_an_incomplete_sentinel(self):
         returncode, summary, manifest = self._run(
             self.solar_reference, max_returndata_bytes=1

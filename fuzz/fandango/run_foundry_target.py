@@ -592,7 +592,11 @@ def _run_symbolic_function(
             manifest["reason"] = reason
         if persistence_timeout is not None:
             final_status = "incomplete"
-            reason = persistence_timeout
+            reason = (
+                f"{reason}; {persistence_timeout}"
+                if reason
+                else persistence_timeout
+            )
             manifest["status"] = final_status
             manifest["reason"] = reason
         final_timeout = _deadline_error(deadline, "final result persistence")
@@ -601,7 +605,9 @@ def _run_symbolic_function(
                 reason = f"a mismatch was confirmed, but {final_timeout}"
             else:
                 final_status = "incomplete"
-                reason = final_timeout
+                reason = (
+                    f"{reason}; {final_timeout}" if reason else final_timeout
+                )
                 manifest["status"] = final_status
             manifest["reason"] = reason
         manifest["bounds"]["elapsed_wall_seconds"] = deadline.elapsed()
