@@ -28,7 +28,10 @@ use std::{
     task::{Context, Poll, Waker},
     time::Duration,
 };
-use tokio::sync::{mpsc, oneshot};
+use tokio::{
+    io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader},
+    sync::{mpsc, oneshot},
+};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use tower::Service;
 
@@ -997,6 +1000,15 @@ impl Request for TraceBarrierRequest {
     const METHOD: &'static str = "test/traceBarrier";
 }
 
+enum TraceInitializeRequest {}
+
+impl Request for TraceInitializeRequest {
+    type Params = ();
+    type Result = ();
+
+    const METHOD: &'static str = request::Initialize::METHOD;
+}
+
 struct PendingTraceControl {
     entered: oneshot::Sender<NumberOrString>,
     release: oneshot::Receiver<()>,
@@ -1148,6 +1160,99 @@ fn protocol_trace_test_harness(pending: Option<PendingTraceControl>) -> Protocol
     protocol_trace_harness_with(move |client| new_protocol_trace_test_service(client, pending))
 }
 
+async fn write_lsp_frame(writer: &mut (impl AsyncWrite + Unpin), message: serde_json::Value) {
+    let body = serde_json::to_vec(&message).unwrap();
+    writer.write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes()).await.unwrap();
+    writer.write_all(&body).await.unwrap();
+    writer.flush().await.unwrap();
+}
+
+async fn read_lsp_frame(reader: &mut BufReader<impl AsyncRead + Unpin>) -> serde_json::Value {
+    tokio::time::timeout(Duration::from_secs(1), async {
+        let mut content_length = None;
+        loop {
+            let mut line = String::new();
+            assert_ne!(
+                reader.read_line(&mut line).await.unwrap(),
+                0,
+                "unexpected end of LSP stream"
+            );
+            if line == "\r\n" {
+                break;
+            }
+            if let Some(value) =
+                line.strip_prefix("Content-Length: ").and_then(|line| line.strip_suffix("\r\n"))
+            {
+                content_length = Some(value.parse::<usize>().unwrap());
+            }
+        }
+
+        let mut body = vec![0; content_length.expect("LSP frame should have a content length")];
+        reader.read_exact(&mut body).await.unwrap();
+        serde_json::from_slice(&body).unwrap()
+    })
+    .await
+    .expect("LSP frame should arrive")
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn request_traces_precede_the_response_on_the_wire() {
+    let (server_main, _client) = async_lsp::MainLoop::new_server(|client| {
+        let trace = crate::protocol_trace::ProtocolTrace::new(client);
+        trace.set_level(TraceValue::Messages);
+        let mut router = Router::new(());
+        router.request::<TraceInitializeRequest, _>(|_, ()| std::future::ready(Ok(())));
+        ServiceBuilder::new()
+            .layer(crate::protocol_trace::ProtocolTraceLayer::new(trace))
+            .service(router)
+    });
+    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
+    let (server_rx, server_tx) = tokio::io::split(server_stream);
+    let server_task =
+        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
+    let (client_rx, mut client_tx) = tokio::io::split(client_stream);
+    let mut client_rx = BufReader::new(client_rx);
+
+    write_lsp_frame(
+        &mut client_tx,
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": TraceInitializeRequest::METHOD,
+            "params": null,
+        }),
+    )
+    .await;
+    assert_eq!(read_lsp_frame(&mut client_rx).await["id"], 1);
+
+    write_lsp_frame(
+        &mut client_tx,
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "test/instant",
+            "params": null,
+        }),
+    )
+    .await;
+    let messages = [
+        read_lsp_frame(&mut client_rx).await,
+        read_lsp_frame(&mut client_rx).await,
+        read_lsp_frame(&mut client_rx).await,
+    ];
+
+    assert_eq!(messages[0]["method"], notif::LogTrace::METHOD);
+    assert_eq!(messages[0]["params"]["message"], "Received request `test/instant`");
+    assert_eq!(messages[1]["method"], notif::LogTrace::METHOD);
+    assert_eq!(messages[1]["params"]["message"], "Completed request `test/instant` with an error");
+    assert_eq!(messages[2]["id"], 2);
+    assert_eq!(messages[2]["error"]["code"], async_lsp::ErrorCode::METHOD_NOT_FOUND.0);
+
+    drop(client_tx);
+    drop(client_rx);
+    assert!(matches!(server_task.await.unwrap(), Err(async_lsp::Error::Eof)));
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn set_trace_updates_protocol_notification_detail() {
     let mut harness = protocol_trace_harness();
@@ -1258,7 +1363,7 @@ async fn trace_level_changes_do_not_emit_orphan_request_completions() {
     harness.initialize(None).await;
     harness.set_trace(TraceValue::Messages);
     let server = harness.server.clone();
-    let request = tokio::spawn(async move { server.request::<PendingTraceRequest>(()).await });
+    let request = start_request(server.request::<PendingTraceRequest>(()));
     tokio::time::timeout(TIMEOUT, request_entered)
         .await
         .expect("pending request should start")
@@ -1270,7 +1375,6 @@ async fn trace_level_changes_do_not_emit_orphan_request_completions() {
     tokio::time::timeout(TIMEOUT, request)
         .await
         .expect("pending request should finish")
-        .expect("pending request task should not panic")
         .expect("pending request should succeed");
     harness.probe().await;
 
@@ -1285,7 +1389,7 @@ async fn trace_level_changes_do_not_emit_orphan_request_completions() {
     let mut harness = protocol_trace_test_harness(Some(PendingTraceControl { entered, release }));
     harness.initialize(None).await;
     let server = harness.server.clone();
-    let request = tokio::spawn(async move { server.request::<PendingTraceRequest>(()).await });
+    let request = start_request(server.request::<PendingTraceRequest>(()));
     tokio::time::timeout(TIMEOUT, request_entered)
         .await
         .expect("pending request should start")
@@ -1312,7 +1416,6 @@ async fn trace_level_changes_do_not_emit_orphan_request_completions() {
     tokio::time::timeout(TIMEOUT, request)
         .await
         .expect("pending request should finish")
-        .expect("pending request task should not panic")
         .expect("pending request should succeed");
     harness.probe().await;
     assert!(harness.take_traces().is_empty());
@@ -1329,7 +1432,7 @@ async fn messages_trace_reports_cancelled_requests_as_errors_without_ids() {
     harness.initialize(None).await;
     harness.set_trace(TraceValue::Messages);
     let server = harness.server.clone();
-    let request = tokio::spawn(async move { server.request::<PendingTraceRequest>(()).await });
+    let request = start_request(server.request::<PendingTraceRequest>(()));
     let request_id = tokio::time::timeout(TIMEOUT, request_entered)
         .await
         .expect("pending request should start")
@@ -1337,10 +1440,7 @@ async fn messages_trace_reports_cancelled_requests_as_errors_without_ids() {
 
     harness.server.notify::<notif::Cancel>(CancelParams { id: request_id }).unwrap();
     assert_request_cancelled(
-        tokio::time::timeout(TIMEOUT, request)
-            .await
-            .expect("pending request should be cancelled")
-            .expect("pending request task should not panic"),
+        tokio::time::timeout(TIMEOUT, request).await.expect("pending request should be cancelled"),
     );
     harness.probe().await;
 

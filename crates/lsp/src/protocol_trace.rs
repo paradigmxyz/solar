@@ -17,6 +17,7 @@ use std::{
     task::{Context, Poll},
     time::Instant,
 };
+use tokio::sync::oneshot;
 use tower::{Layer, Service};
 
 const TRACE_OFF: u8 = 0;
@@ -82,7 +83,7 @@ impl ProtocolTrace {
         let level = self.enabled_level()?;
         let request = ActiveRequest {
             trace: self.clone(),
-            method: display_method(method),
+            method: display_method(method).to_owned(),
             sequence: self.next_request.fetch_add(1, Ordering::Relaxed),
             started: Instant::now(),
         };
@@ -107,8 +108,10 @@ struct ActiveRequest {
     started: Instant,
 }
 
+struct TraceBarrier(oneshot::Sender<()>);
+
 impl ActiveRequest {
-    fn complete(self, succeeded: bool) {
+    async fn complete(self, succeeded: bool) {
         let Some(level) = self.trace.enabled_level() else { return };
         let elapsed = self.started.elapsed().as_millis();
         let message = if succeeded {
@@ -124,24 +127,30 @@ impl ActiveRequest {
                 if succeeded { "result" } else { "error details" },
             )
         });
+
+        // The loopback event follows both traces in the queue and gates the response.
+        let (reached, barrier) = oneshot::channel();
+        if self.trace.client.emit(TraceBarrier(reached)).is_ok() {
+            let _ = barrier.await;
+        }
     }
 }
 
-fn display_method(method: &str) -> String {
+fn display_method(method: &str) -> &str {
     const MAX_METHOD_LENGTH: usize = 96;
 
     let method_body = method.strip_prefix("$/").unwrap_or(method);
-    if method.chars().count() <= MAX_METHOD_LENGTH
+    if method.len() <= MAX_METHOD_LENGTH
         && method_body.split('/').all(|segment| {
             !segment.is_empty()
-                && segment.chars().all(|character| {
-                    character.is_ascii_alphanumeric() || matches!(character, '_' | '-')
-                })
+                && segment
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
         })
     {
-        method.to_owned()
+        method
     } else {
-        "<redacted method>".into()
+        "<redacted method>"
     }
 }
 
@@ -205,7 +214,7 @@ where
                 trace.mark_initialized();
             }
             if let Some(active) = active {
-                active.complete(response.is_ok());
+                active.complete(response.is_ok()).await;
             }
             response
         })
@@ -230,6 +239,38 @@ where
     }
 
     fn emit(&mut self, event: AnyEvent) -> ControlFlow<async_lsp::Result<()>> {
-        self.service.emit(event)
+        match event.downcast::<TraceBarrier>() {
+            Ok(TraceBarrier(reached)) => {
+                let _ = reached.send(());
+                ControlFlow::Continue(())
+            }
+            Err(event) => self.service.emit(event),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::display_method;
+
+    #[test]
+    fn display_method_accepts_only_bounded_ascii_names() {
+        let cases = [
+            ("a".repeat(96), true),
+            ("a".repeat(97), false),
+            ("$/cancelRequest".into(), true),
+            ("$/".into(), false),
+            ("textDocument//hover".into(), false),
+            ("textDocument/\u{6587}\u{6863}".into(), false),
+            ("textDocument/hover?".into(), false),
+        ];
+
+        for (method, accepted) in cases {
+            assert_eq!(
+                display_method(&method),
+                if accepted { method.as_str() } else { "<redacted method>" },
+                "unexpected display form for {method:?}",
+            );
+        }
     }
 }
