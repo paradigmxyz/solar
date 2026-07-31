@@ -800,10 +800,9 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn finish_return(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        items: Vec<(ValueId, Ty<'gcx>)>,
+        items: impl IntoIterator<Item = (ValueId, Ty<'gcx>)>,
     ) {
-        let vals: Vec<ValueId> = items.into_iter().map(|(v, _)| v).collect();
-        builder.ret(vals);
+        builder.ret(items.into_iter().map(|(value, _)| value));
     }
 
     /// Gathers `(value, type)` for each declared return of an explicit `return`
