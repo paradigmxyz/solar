@@ -745,7 +745,8 @@ fn specialize_function_pointers(module: &mut Module) -> usize {
     }
 
     let mut specialized = 0;
-    for caller in module.functions.indices().collect::<Vec<_>>() {
+    for index in 0..module.functions.len() {
+        let caller = MirFunctionId::from_usize(index);
         let mut cursor = (0, 0);
         while let Some((block, inst_index, callee, selector)) =
             find_next_constant_function_call(module.function(caller), cursor)

@@ -1132,7 +1132,7 @@ impl CommonSubexprEliminator {
         let mut counts = FxHashMap::default();
         for inst_id in func.instructions() {
             for value in func.inst(inst_id).operands() {
-                *counts.entry(value).or_insert(0) += 1;
+                *counts.entry(value).or_default() += 1;
             }
         }
         for block in func.blocks.iter() {
@@ -1150,7 +1150,7 @@ impl CommonSubexprEliminator {
         use crate::mir::Terminator;
 
         let mut count = |value| {
-            *counts.entry(value).or_insert(0) += 1;
+            *counts.entry(value).or_default() += 1;
         };
 
         match term {

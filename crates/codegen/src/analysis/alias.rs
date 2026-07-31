@@ -18,6 +18,7 @@ use crate::{
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
 use std::{cell::RefCell, collections::VecDeque, sync::Arc};
@@ -351,13 +352,13 @@ impl PointerProvenance {
             return Self::default();
         }
         let cyclic = cyclic_blocks(func);
-        let block_resets: Vec<_> = func
+        let block_resets = func
             .blocks
             .iter()
             .map(|block| {
                 block.instructions.iter().any(|&inst| may_reset_fmp(func, inst, call_summaries))
             })
-            .collect();
+            .collect::<IndexVec<BlockId, _>>();
 
         // `poisoned[block]` means at least one path into the block may have
         // recycled the FMP. The monotone OR lattice handles joins and loops.
@@ -366,7 +367,7 @@ impl PointerProvenance {
         let mut worklist = VecDeque::from([BlockId::ENTRY]);
         reachable.insert(BlockId::ENTRY);
         while let Some(block) = worklist.pop_front() {
-            let out = poisoned.contains(block) || block_resets[block.index()];
+            let out = poisoned.contains(block) || block_resets[block];
             let Some(terminator) = &func.blocks[block].terminator else { continue };
             for successor in terminator.successors() {
                 let mut changed = reachable.insert(successor);
@@ -1564,19 +1565,15 @@ impl AliasAnalysis {
 }
 
 fn cyclic_blocks(func: &Function) -> DenseBitSet<BlockId> {
-    let successors: Vec<Vec<_>> =
-        func.blocks
-            .iter()
-            .map(|block| {
-                block.terminator.as_ref().map_or_else(Vec::new, |terminator| {
-                    terminator.successors().into_iter().collect()
-                })
-            })
-            .collect();
-    let mut predecessors = vec![Vec::new(); func.blocks.len()];
-    for (block, block_successors) in successors.iter().enumerate() {
+    let successors = func
+        .blocks
+        .iter()
+        .map(|block| block.terminator.as_ref().map_or_else(SmallVec::new, |t| t.successors()))
+        .collect::<IndexVec<BlockId, _>>();
+    let mut predecessors = index_vec![Vec::new(); func.blocks.len()];
+    for (block, block_successors) in successors.iter_enumerated() {
         for &successor in block_successors {
-            predecessors[successor.index()].push(BlockId::from_usize(block));
+            predecessors[successor].push(block);
         }
     }
 
@@ -1596,7 +1593,7 @@ fn cyclic_blocks(func: &Function) -> DenseBitSet<BlockId> {
                 continue;
             }
             stack.push((block, true));
-            for &successor in &successors[block.index()] {
+            for &successor in &successors[block] {
                 if visited.insert(successor) {
                     stack.push((successor, false));
                 }
@@ -1614,13 +1611,13 @@ fn cyclic_blocks(func: &Function) -> DenseBitSet<BlockId> {
         let mut stack = vec![start];
         while let Some(block) = stack.pop() {
             component.push(block);
-            for &predecessor in &predecessors[block.index()] {
+            for &predecessor in &predecessors[block] {
                 if visited.insert(predecessor) {
                     stack.push(predecessor);
                 }
             }
         }
-        let is_cycle = component.len() > 1 || successors[start.index()].contains(&start);
+        let is_cycle = component.len() > 1 || successors[start].contains(&start);
         if is_cycle {
             for block in component {
                 cyclic.insert(block);
