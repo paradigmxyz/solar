@@ -815,40 +815,45 @@ impl<'gcx> Lowerer<'gcx> {
         value: Option<&solar_sema::hir::Expr<'_>>,
     ) -> Vec<(ValueId, Ty<'gcx>)> {
         use solar_sema::hir::ExprKind;
-        let tys = self.current_return_tys.clone();
         let Some(expr) = value else {
             return Vec::new();
         };
         // A return expression with no declared return types is malformed input
         // that upstream analysis already reported; do not index an empty list.
-        if tys.is_empty() {
+        let return_count = self.current_return_tys.len();
+        if return_count == 0 {
             return Vec::new();
         }
         if let ExprKind::Tuple(elements) = &expr.kind {
-            return elements
-                .iter()
-                .flatten()
-                .zip(tys)
-                .map(|(e, ty)| (self.lower_return_value_for_ty(builder, e, ty), ty))
-                .collect();
+            let mut items = Vec::with_capacity(elements.len().min(return_count));
+            for (i, e) in elements.iter().flatten().enumerate() {
+                let Some(&ty) = self.current_return_tys.get(i) else { break };
+                items.push((self.lower_return_value_for_ty(builder, e, ty), ty));
+            }
+            return items;
         }
         if let Some(arity) = self.get_ternary_tuple_arity(expr) {
             let first = self.lower_value_expr(builder, expr);
-            let mut items = Vec::with_capacity(arity);
-            items.push((first, tys[0]));
+            let first_ty = self.current_return_tys[0];
+            let mut items = Vec::with_capacity(arity.min(return_count));
+            items.push((first, first_ty));
             if arity > 1 {
                 let base = self.multi_return_buffer_base(builder);
-                for (i, &ty) in tys.iter().enumerate().take(arity).skip(1) {
+                for i in 1..arity.min(return_count) {
+                    let ty = self.current_return_tys[i];
                     items.push((self.load_multi_return_value(builder, base, i), ty));
                 }
             }
             return items;
         }
-        let first = self.lower_return_value_for_ty(builder, expr, tys[0]);
-        let mut items = vec![(first, tys[0])];
-        if tys.len() > 1 {
+        let first_ty = self.current_return_tys[0];
+        let first = self.lower_return_value_for_ty(builder, expr, first_ty);
+        let mut items = Vec::with_capacity(return_count);
+        items.push((first, first_ty));
+        if return_count > 1 {
             let tail_base = self.multi_return_buffer_base(builder);
-            for (i, &ty) in tys.iter().enumerate().skip(1) {
+            for i in 1..return_count {
+                let ty = self.current_return_tys[i];
                 items.push((self.load_multi_return_value(builder, tail_base, i), ty));
             }
         }
