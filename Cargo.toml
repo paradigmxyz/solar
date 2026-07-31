@@ -18,21 +18,21 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [workspace.lints.clippy]
-dbg-macro = "warn"
-manual-string-new = "warn"
-uninlined-format-args = "warn"
-use-self = "warn"
-redundant-clone = "warn"
+dbg_macro = "warn"
+manual_string_new = "warn"
+uninlined_format_args = "warn"
+use_self = "warn"
+redundant_clone = "warn"
 # Files in `examples/` are present as doctests but run in `cargo test` normally too.
-test-attr-in-doctest = "allow"
+test_attr_in_doctest = "allow"
 
 [workspace.lints.rust]
-rust-2018-idioms = "warn"
-unreachable-pub = "warn"
-unused-must-use = "warn"
-redundant-lifetimes = "warn"
-unnameable-types = "warn"
-unused-crate-dependencies = "warn"
+rust_2018_idioms = "warn"
+unreachable_pub = "warn"
+unused_must_use = "warn"
+redundant_lifetimes = "warn"
+unnameable_types = "warn"
+unused_crate_dependencies = "warn"
 
 [workspace.lints.rustdoc]
 all = "warn"
