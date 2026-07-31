@@ -158,7 +158,11 @@ fn compile(
         // 200 runs is the default value if unspecified in solc.
         // Treat lower values as Size.
         opts.optimization = if enabled {
-            if runs >= Some(200) { OptimizationMode::Gas } else { OptimizationMode::Size }
+            if runs.is_none_or(|x| x >= 200) {
+                OptimizationMode::Gas
+            } else {
+                OptimizationMode::Size
+            }
         } else {
             OptimizationMode::None
         };
