@@ -1912,7 +1912,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         let sig = format!("{}()", member.name);
         let hash = alloy_primitives::keccak256(sig.as_bytes());
-        u32::from_be_bytes(hash[..4].try_into().unwrap())
+        u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]])
     }
 
     /// Gets the number of return values for a member function call.
