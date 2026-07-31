@@ -621,6 +621,27 @@ def _run_symbolic_function(
         manifest["bounds"]["elapsed_wall_seconds"] = deadline.elapsed()
         manifest["artifact_dir"] = str(bundle)
         _write_json_atomic(bundle / "manifest.json", manifest)
+        if final_timeout is None:
+            post_persistence_timeout = _deadline_error(
+                deadline, "final manifest persistence"
+            )
+            if post_persistence_timeout is not None:
+                if final_status == "replay_confirmed_mismatch":
+                    reason = (
+                        "a mismatch was confirmed, but "
+                        f"{post_persistence_timeout}"
+                    )
+                else:
+                    final_status = "incomplete"
+                    reason = (
+                        f"{reason}; {post_persistence_timeout}"
+                        if reason
+                        else post_persistence_timeout
+                    )
+                    manifest["status"] = final_status
+                manifest["reason"] = reason
+                manifest["bounds"]["elapsed_wall_seconds"] = deadline.elapsed()
+                _write_json_atomic(bundle / "manifest.json", manifest)
 
     summary = {
         "schema": symbolic.RESULT_SCHEMA,
