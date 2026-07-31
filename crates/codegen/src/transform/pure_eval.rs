@@ -8,7 +8,7 @@
 use crate::{
     mir::{BlockId, Function, Immediate, InstKind, Module, Terminator, Value, ValueId},
     pass::{MirPass, run_function_pass},
-    utils::evm_word,
+    utils::eval,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
@@ -74,6 +74,9 @@ impl PureEvaluator {
         let Some(values) = self.evaluate(func) else {
             return &self.stats;
         };
+        if values.len() != func.returns.len() {
+            return &self.stats;
+        }
         if self.is_already_folded(func, &values) {
             return &self.stats;
         }
@@ -190,57 +193,10 @@ impl PureEvaluator {
 
     fn eval_inst(&self, kind: &InstKind, env: &FxHashMap<ValueId, U256>) -> Option<U256> {
         let get = |value| self.value_const(env, value);
-        Some(match *kind {
-            InstKind::Add(a, b) => get(a)?.wrapping_add(get(b)?),
-            InstKind::Sub(a, b) => get(a)?.wrapping_sub(get(b)?),
-            InstKind::Mul(a, b) => get(a)?.wrapping_mul(get(b)?),
-            InstKind::Div(a, b) => {
-                let b = get(b)?;
-                if b.is_zero() { U256::ZERO } else { get(a)? / b }
-            }
-            InstKind::Mod(a, b) => {
-                let b = get(b)?;
-                if b.is_zero() { U256::ZERO } else { get(a)? % b }
-            }
-            InstKind::Exp(a, b) => get(a)?.wrapping_pow(get(b)?),
-            InstKind::And(a, b) => get(a)? & get(b)?,
-            InstKind::Or(a, b) => get(a)? | get(b)?,
-            InstKind::Xor(a, b) => get(a)? ^ get(b)?,
-            InstKind::Not(a) => !get(a)?,
-            InstKind::Clz(a) => U256::from(get(a)?.leading_zeros() as u64),
-            InstKind::Shl(shift, value) => {
-                let shift = get(shift)?;
-                if shift >= U256::from(256) {
-                    U256::ZERO
-                } else {
-                    get(value)? << shift.to::<usize>()
-                }
-            }
-            InstKind::Shr(shift, value) => {
-                let shift = get(shift)?;
-                if shift >= U256::from(256) {
-                    U256::ZERO
-                } else {
-                    get(value)? >> shift.to::<usize>()
-                }
-            }
-            InstKind::Sar(shift, value) => evm_word::sar(get(value)?, get(shift)?),
-            InstKind::Byte(index, value) => evm_word::byte(get(index)?, get(value)?),
-            InstKind::SignExtend(size, value) => evm_word::signextend(get(size)?, get(value)?),
-            InstKind::Lt(a, b) => U256::from(get(a)? < get(b)?),
-            InstKind::Gt(a, b) => U256::from(get(a)? > get(b)?),
-            InstKind::Eq(a, b) => U256::from(get(a)? == get(b)?),
-            InstKind::IsZero(a) => U256::from(get(a)?.is_zero()),
-            InstKind::Select(condition, then_value, else_value) => {
-                if get(condition)?.is_zero() {
-                    get(else_value)?
-                } else {
-                    get(then_value)?
-                }
-            }
-            InstKind::Phi(_) => unreachable!("phis are handled by the block interpreter"),
-            _ => return None,
-        })
+        if let InstKind::Select(condition, then_value, else_value) = *kind {
+            return if get(condition)?.is_zero() { get(else_value) } else { get(then_value) };
+        }
+        eval::eval_inst(kind, |value| get(value).ok_or(())).ok().flatten()
     }
 
     fn rewrite_to_return(&self, func: &mut Function, values: &[U256]) {
@@ -257,9 +213,13 @@ impl PureEvaluator {
             }
         }
 
+        let returns = func.returns.clone();
         let values = values
             .iter()
-            .map(|&value| func.alloc_value(Value::Immediate(Immediate::uint256(value))))
+            .zip(returns)
+            .map(|(&value, ty)| {
+                func.alloc_value(Value::Immediate(Immediate::for_type(Some(ty), value)))
+            })
             .collect();
         func.blocks[entry].terminator = Some(Terminator::Return { values });
     }

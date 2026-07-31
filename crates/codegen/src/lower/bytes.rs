@@ -443,13 +443,12 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::DynArray(elem) | TyKind::Slice(elem) => {
                 self.materialize_calldata_dynamic_array_at(builder, source, elem, pos)
             }
-            TyKind::Array(elem, len) => self.materialize_calldata_fixed_array_at(
-                builder,
-                source,
-                elem,
-                len.to::<u64>(),
-                pos,
-            ),
+            TyKind::Array(elem, len) => {
+                let Ok(len) = u64::try_from(len) else {
+                    return builder.error_value(self.abi_head_size_overflow());
+                };
+                self.materialize_calldata_fixed_array_at(builder, source, elem, len, pos)
+            }
             TyKind::Struct(id) => {
                 let fields = self.gcx.struct_field_types(id).to_vec();
                 self.materialize_calldata_fields_at(builder, source, &fields, pos)
@@ -553,7 +552,10 @@ impl<'gcx> Lowerer<'gcx> {
         let next_remaining = builder.sub(remaining, one);
         builder.mstore(remaining_slot, next_remaining);
         let head_cursor = builder.mload(source_slot);
-        let elem_head_size = builder.imm_u64(self.abi_head_size(elem));
+        let elem_head_size = match self.abi_head_size(elem) {
+            Ok(size) => builder.imm_u64(size),
+            Err(guar) => return builder.error_value(guar),
+        };
         let next_source = builder.add(head_cursor, elem_head_size);
         builder.mstore(source_slot, next_source);
         let dest = builder.mload(dest_slot);
@@ -578,7 +580,14 @@ impl<'gcx> Lowerer<'gcx> {
         // location; peel it so ABI head sizing does not mistake an inline
         // aggregate for a one-word storage slot.
         let elem = elem.peel_refs();
-        let size = len.checked_mul(32).expect("fixed array memory size overflow");
+        let elem_head_size = match self.abi_head_size(elem) {
+            Ok(size) if len.checked_mul(size).is_some() => size,
+            Ok(_) => return builder.error_value(self.abi_head_size_overflow()),
+            Err(guar) => return builder.error_value(guar),
+        };
+        let Some(size) = len.checked_mul(32) else {
+            return builder.error_value(self.abi_head_size_overflow());
+        };
         let ptr = self.allocate_memory(builder, size);
         let mut head_offset = 0;
         for i in 0..len {
@@ -587,7 +596,7 @@ impl<'gcx> Lowerer<'gcx> {
             let value = self.materialize_calldata_value_at(builder, source, elem, elem_pos);
             let dest = self.offset_ptr(builder, ptr, i * 32);
             builder.mstore(dest, value);
-            head_offset += self.abi_head_size(elem);
+            head_offset += elem_head_size;
         }
         ptr
     }
@@ -613,6 +622,9 @@ impl<'gcx> Lowerer<'gcx> {
         // See `calldata_base_of_copy`.
         let carries_base = source == AbiSource::Calldata
             && fields.iter().any(|&f| self.abi_is_dynamic(f.peel_refs()));
+        if let Err(guar) = self.abi_head_size_sum(fields.iter().map(|&field| field.peel_refs())) {
+            return builder.error_value(guar);
+        }
         let size = word_count
             .checked_add(u64::from(carries_base))
             .and_then(|words| words.checked_mul(32))
@@ -629,7 +641,11 @@ impl<'gcx> Lowerer<'gcx> {
             let value = self.materialize_calldata_value_at(builder, source, field, field_pos);
             let dest = self.offset_ptr(builder, ptr, (i as u64) * 32);
             builder.mstore(dest, value);
-            head_offset += self.abi_head_size(field);
+            let field_size = match self.abi_head_size(field) {
+                Ok(size) => size,
+                Err(guar) => return builder.error_value(guar),
+            };
+            head_offset += field_size;
         }
         if carries_base {
             let base_slot = self.offset_ptr(builder, ptr, word_count * 32);

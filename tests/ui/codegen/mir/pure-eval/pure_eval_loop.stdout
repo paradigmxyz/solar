@@ -24,6 +24,33 @@
       ret v0
   }
   
+  fn @extended_evm_ops() -> u256 {
+    bb0:
+-     v0 = sdiv 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 2
+-     v1 = smod 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 3
+-     v2 = addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3
+-     v3 = mulmod 0x100000000000000000000000000000000, 0x100000000000000000000000000000000, 7
+-     v4 = slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
+-     v5 = sgt 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     v6 = signextend 0, 255
+-     ret v6
++     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  }
+  
+  fn @signed_return() -> i256 {
+    bb0:
+-     v0 = sdiv 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 2
+-     ret v0
++     ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
+  }
+  
+  fn @bool_return() -> bool {
+    bb0:
+-     v0 = slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
+-     ret v0
++     ret 1
+  }
+  
   fn @unknown_case_precedes_match() -> u256 {
     bb0:
       v0 = address

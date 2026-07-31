@@ -1,0 +1,25 @@
+error: event cannot have more than 3 indexed parameters
+   ╭▸ ROOT/tests/ui/codegen/lowering/event_topic_limit.sol:LL:CC
+   │
+LL │ ┏     event Named(
+LL │ ┃         uint256 indexed a,
+LL │ ┃         uint256 indexed b,
+LL │ ┃         uint256 indexed c,
+LL │ ┃         uint256 indexed d
+LL │ ┃     );
+   ╰╴┗━━━━━━┛
+
+error: event cannot have more than 4 indexed parameters
+   ╭▸ ROOT/tests/ui/codegen/lowering/event_topic_limit.sol:LL:CC
+   │
+LL │ ┏     event Anonymous(
+LL │ ┃         uint256 indexed a,
+LL │ ┃         uint256 indexed b,
+LL │ ┃         uint256 indexed c,
+LL │ ┃         uint256 indexed d,
+LL │ ┃         uint256 indexed e
+LL │ ┃     ) anonymous;
+   ╰╴┗━━━━━━━━━━━━━━━━┛
+
+error: aborting due to 2 previous errors
+
