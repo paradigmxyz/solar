@@ -122,10 +122,8 @@ bb15:
   mstore
   push 1
   add
-  dup1
   push 320
   mstore
-  pop
   push 0
   jump bb20
 bb20:
@@ -220,10 +218,9 @@ bb70:
   push 32
   dup2
   add
+  dup1
   push 64
   mstore
-  push 64
-  mload
   dup1
   push 832
   mstore
@@ -240,10 +237,8 @@ bb70:
   push 32
   dup2
   add
-  dup1
   push 864
   mstore
-  pop
   pop
   pop
   pop
@@ -483,10 +478,8 @@ bb25:
   push 32
   dup2
   keccak256
-  dup1
   push 416
   mstore
-  pop
   pop
   pop
   swap2
@@ -617,10 +610,8 @@ bb37:
   dup1
   push 256
   mstore
-  dup1
   push 672
   mstore
-  pop
   push bb38
   jump bb70
 bb38:
@@ -789,10 +780,8 @@ bb38:
   push 32
   dup2
   keccak256
-  dup1
   push 352
   mstore
-  pop
   pop
   pop
   swap3
@@ -921,10 +910,8 @@ bb49:
   keccak256
   push 1
   add
-  dup1
   push 672
   mstore
-  pop
   push bb50
   jump bb70
 bb50:
@@ -961,10 +948,8 @@ bb51:
   keccak256
   push 1
   add
-  dup1
   push 672
   mstore
-  pop
   push bb53
   jump bb70
 bb53:
@@ -1064,10 +1049,8 @@ bb57:
   calldataload
   push 248
   shr
-  dup1
   push 160
   mstore
-  pop
   swap2
   pop
   pop
@@ -1149,10 +1132,8 @@ bb66:
   keccak256
   push 1
   add
-  dup1
   push 672
   mstore
-  pop
   push bb67
   jump bb70
 bb67:
@@ -1194,10 +1175,8 @@ bb67:
   push 64
   dup3
   add
-  dup1
   push 224
   mstore
-  pop
   swap2
   pop
   pop

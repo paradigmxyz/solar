@@ -71,10 +71,8 @@ bb0:
   lt
   push bb11
   jumpi
-  dup1
   push 384
   mstore
-  pop
   jump
 bb3 [cold]:
   push 0

@@ -56,10 +56,8 @@ bb0:
   push 64
   dup3
   add
-  dup1
   push 160
   mstore
-  pop
   swap1
   pop
   iszero
@@ -163,10 +161,8 @@ bb13:
   push 64
   dup3
   add
-  dup1
   push 160
   mstore
-  pop
   swap1
   pop
   iszero

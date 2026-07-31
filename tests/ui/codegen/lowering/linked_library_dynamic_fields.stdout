@@ -302,10 +302,8 @@ bb4:
   push 288
   mload
   add
-  dup1
   push 320
   mstore
-  pop
   pop
   push 0
   jump bb13

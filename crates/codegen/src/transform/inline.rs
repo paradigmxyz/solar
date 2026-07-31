@@ -8,8 +8,8 @@ use crate::{
     immutable::immutable_push_type_size,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        BlockId, Function, FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstKind,
-        Instruction, MirType, Module, Terminator, Value, ValueId,
+        BlockId, Function, FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId,
+        InstKind, Instruction, MirType, Module, Terminator, Value, ValueId,
     },
     pass::MirPass,
 };
@@ -70,8 +70,11 @@ struct MirInliner {
     /// Hard sanity limit for single-call-site callees. These bypass the normal
     /// size and block caps because function DCE removes their original body.
     max_single_call_sanity_instructions: usize,
-    /// Maximum number of blocks to clone from one callee.
+    /// Maximum number of blocks to clone from one multi-use callee.
     max_blocks: usize,
+    /// Maximum block count for a shared callee to inline at every profitable
+    /// call site. Larger shared callees inline only at their best call site.
+    max_shared_callee_blocks: usize,
     /// Whether a single call site may use the larger threshold.
     inline_single_call: bool,
     /// Maximum estimated runtime bytecode growth for a cold call site.
@@ -95,7 +98,8 @@ impl Default for MirInliner {
         Self {
             max_instructions: 96,
             max_single_call_sanity_instructions: 4096,
-            max_blocks: 10,
+            max_blocks: 16,
+            max_shared_callee_blocks: 10,
             inline_single_call: true,
             max_cold_code_growth: 256,
             max_hot_code_growth: 512,
@@ -181,6 +185,7 @@ impl MirInliner {
 
         let mut call_counts = self.call_counts(module);
         let recursive_functions = self.recursive_functions(module);
+        let preferred_large_call_sites = self.preferred_large_call_sites(module, &summaries);
 
         // Specialize dispatcher calls before helper-local inlining introduces phis.
         let mut caller_ids = module.functions.indices().collect::<Vec<_>>();
@@ -215,7 +220,13 @@ impl MirInliner {
                 if module_code_size >= self.max_module_code_size
                     || grew_too_much
                     || recursive_functions.contains(site.callee)
-                    || !self.is_inlineable(caller_id, site, summary, call_count)
+                    || !self.is_inlineable(
+                        caller_id,
+                        site,
+                        summary,
+                        call_count,
+                        preferred_large_call_sites.get(&site.callee).copied(),
+                    )
                 {
                     stats.skipped += 1;
                     continue;
@@ -279,6 +290,49 @@ impl MirInliner {
         recursive
     }
 
+    /// Picks one call site for each shared callee above the ordinary block cap.
+    ///
+    /// Prefer a call nearest the end of its block, where inlining is most
+    /// likely to expose a terminal path, then the smallest caller.
+    fn preferred_large_call_sites(
+        &self,
+        module: &Module,
+        summaries: &FxHashMap<MirFunctionId, MirInlineSummary>,
+    ) -> FxHashMap<MirFunctionId, (MirFunctionId, InstId)> {
+        let mut preferred = FxHashMap::<
+            MirFunctionId,
+            ((usize, usize, usize, usize), (MirFunctionId, InstId)),
+        >::default();
+        for (caller, func) in module.functions.iter_enumerated() {
+            let caller_size =
+                summaries.get(&caller).map(|summary| summary.instruction_count).unwrap_or_default();
+            for (block_index, block) in func.blocks.iter().enumerate() {
+                for (inst_index, &inst_id) in block.instructions.iter().enumerate() {
+                    let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind else {
+                        continue;
+                    };
+                    if !summaries
+                        .get(&function)
+                        .is_some_and(|summary| summary.block_count > self.max_shared_callee_blocks)
+                    {
+                        continue;
+                    }
+                    let instructions_after = block.instructions.len() - inst_index - 1;
+                    let score = (instructions_after, caller_size, caller.index(), block_index);
+                    preferred
+                        .entry(function)
+                        .and_modify(|current| {
+                            if score < current.0 {
+                                *current = (score, (caller, inst_id));
+                            }
+                        })
+                        .or_insert((score, (caller, inst_id)));
+                }
+            }
+        }
+        preferred.into_iter().map(|(callee, (_, site))| (callee, site)).collect()
+    }
+
     fn function_reaches(
         &self,
         module: &Module,
@@ -324,6 +378,7 @@ impl MirInliner {
                     return Some(CallSite {
                         block,
                         inst_index,
+                        inst: inst_id,
                         callee: function,
                         args_len: args.len(),
                         returns: returns as usize,
@@ -344,6 +399,7 @@ impl MirInliner {
         site: CallSite,
         summary: MirInlineSummary,
         call_count: usize,
+        preferred_large_call_site: Option<(MirFunctionId, InstId)>,
     ) -> bool {
         let single_call = self.inline_single_call && call_count == 1;
 
@@ -359,6 +415,13 @@ impl MirInliner {
             || summary.has_phi
             || summary.has_unsupported_terminator
             || summary.return_count == 0
+        {
+            return false;
+        }
+
+        if !single_call
+            && summary.block_count > self.max_shared_callee_blocks
+            && preferred_large_call_site != Some((caller, site.inst))
         {
             return false;
         }
@@ -411,6 +474,7 @@ impl MirInliner {
 struct CallSite {
     block: BlockId,
     inst_index: usize,
+    inst: InstId,
     callee: MirFunctionId,
     args_len: usize,
     returns: usize,
