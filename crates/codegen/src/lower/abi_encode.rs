@@ -773,6 +773,17 @@ impl<'gcx> Lowerer<'gcx> {
         let src_off = builder.mul(i, word_size);
         let src = builder.add(data, src_off);
         let data_word = builder.mload(src);
+        let remainder = builder.mod_(len, word_size);
+        let remainder_is_zero = builder.iszero(remainder);
+        let has_remainder = builder.iszero(remainder_is_zero);
+        let last_index = builder.sub(new_words, one);
+        let is_last = builder.eq(i, last_index);
+        let mask_last = builder.and(has_remainder, is_last);
+        let remainder_bits = builder.mul(remainder, eight);
+        let low_mask = builder.shr(remainder_bits, all_ones);
+        let partial_mask = builder.not(low_mask);
+        let masked_word = builder.and(data_word, partial_mask);
+        let data_word = builder.select(mask_last, masked_word, data_word);
         builder.sstore(dst, data_word);
         let next_i = builder.add(i, one);
         builder.mstore(scratch, next_i);

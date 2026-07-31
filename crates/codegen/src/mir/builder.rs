@@ -469,21 +469,6 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::StorageToMemory { storage, memory, layout })
     }
 
-    /// Copies a statically shaped aggregate from memory into storage.
-    pub(crate) fn memory_to_storage(
-        &mut self,
-        layout: crate::mir::StorageLayoutRef,
-        memory: ValueId,
-        storage: ValueId,
-    ) {
-        self.emit_void_inst(InstKind::MemoryToStorage { memory, storage, layout })
-    }
-
-    /// Clears every storage slot occupied by a statically shaped aggregate.
-    pub(crate) fn clear_storage(&mut self, layout: crate::mir::StorageLayoutRef, storage: ValueId) {
-        self.emit_void_inst(InstKind::ClearStorage { storage, layout })
-    }
-
     /// Emits an mcopy instruction.
     pub(crate) fn mcopy(&mut self, dest: ValueId, src: ValueId, len: ValueId) {
         self.emit_void_inst(InstKind::MCopy(dest, src, len))

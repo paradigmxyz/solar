@@ -4,19 +4,26 @@
 contract MappingDynamicKey {
     // CHECK-LABEL: fn @lookup{{[( ]}}
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_calldata arg0, 0
-    // CHECK: sload [[SLOT]]
+    // CHECK: [[WORD:v[0-9]+]] = sload [[SLOT]]
+    // CHECK: and [[WORD]], 0xffffffffffffffffffffffffffffffffffffffff
     mapping(string => address) public lookup;
 
     // CHECK-LABEL: fn @set{{[( ]}}
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_memory {{v[0-9]+}}, 0
-    // CHECK: sstore [[SLOT]], arg1
+    // CHECK: [[OWNER:v[0-9]+]] = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[OLD:v[0-9]+]] = sload [[SLOT]]
+    // CHECK: [[KEEP:v[0-9]+]] = and [[OLD]], 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    // CHECK: [[CLEAN:v[0-9]+]] = and [[OWNER]], 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[UPDATED:v[0-9]+]] = or [[KEEP]], [[CLEAN]]
+    // CHECK: sstore [[SLOT]], [[UPDATED]]
     function set(string memory name, address owner) public {
         lookup[name] = owner;
     }
 
     // CHECK-LABEL: fn @get{{[( ]}}
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_memory {{v[0-9]+}}, 0
-    // CHECK: sload [[SLOT]]
+    // CHECK: [[WORD:v[0-9]+]] = sload [[SLOT]]
+    // CHECK: and [[WORD]], 0xffffffffffffffffffffffffffffffffffffffff
     function get(string memory name) public view returns (address) {
         return lookup[name];
     }

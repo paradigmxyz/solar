@@ -30,7 +30,7 @@ contract StorageBytesPushPop {
     // CHECK: [[OLD:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
     // CHECK: [[OLD_LEN:v[0-9]+]] = memory_object_len memorybytes, [[OLD]]
     // CHECK: mcopy
-    // CHECK: mstore8 {{v[0-9]+}}, 0
+    // CHECK: mstore8
     function pushZero() external {
         data.push();
     }

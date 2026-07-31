@@ -87,16 +87,23 @@ fn @storage_struct_add(arg0: address, arg1: u128) {
   bb6:
     v9 = mapping_slot arg0, 1
     v10 = sload v9 !metadata(storage=symbolic(v9))
-    v11 = add v10, arg1
-    v12 = gt v11, 0xffffffffffffffffffffffffffffffff
-    jumpi v12, bb7, bb8
+    v11 = and v10, 0xffffffffffffffffffffffffffffffff
+    v12 = and v11, 0xffffffffffffffffffffffffffffffff
+    v13 = add v12, arg1
+    v14 = gt v13, 0xffffffffffffffffffffffffffffffff
+    jumpi v14, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v13 = mapping_slot arg0, 1
-    sstore v13, v11 !metadata(storage=symbolic(v13))
+    v15 = mapping_slot arg0, 1
+    v16 = and v13, 0xffffffffffffffffffffffffffffffff
+    v17 = sload v15 !metadata(storage=symbolic(v15))
+    v18 = and v17, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v19 = and v16, 0xffffffffffffffffffffffffffffffff
+    v20 = or v18, v19
+    sstore v15, v20 !metadata(storage=symbolic(v15))
     stop
 }
 
@@ -124,21 +131,31 @@ fn @storage_struct_signed_sub(arg0: address, arg1: i8) {
     revert 0, 0
   bb6:
     v9 = mapping_slot arg0, 1
-    v10 = add v9, 1
-    v11 = sload v10 !metadata(storage=offset(v9, 1))
-    v12 = sub v11, arg1
-    v13 = slt v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v14 = sgt v12, 127
-    v15 = or v13, v14
-    jumpi v15, bb7, bb8
+    v10 = sload v9 !metadata(storage=symbolic(v9))
+    v11 = shr 128, v10
+    v12 = and v11, 255
+    v13 = signextend 0, v12
+    v14 = shl 248, v13
+    v15 = sar 248, v14
+    v16 = sub v15, arg1
+    v17 = slt v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v18 = sgt v16, 127
+    v19 = or v17, v18
+    jumpi v19, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v16 = mapping_slot arg0, 1
-    v17 = add v16, 1
-    sstore v17, v12 !metadata(storage=offset(v16, 1))
+    v20 = mapping_slot arg0, 1
+    v21 = shl 248, v16
+    v22 = sar 248, v21
+    v23 = sload v20 !metadata(storage=symbolic(v20))
+    v24 = and v23, 0xffffffffffffffffffffffffffffff00ffffffffffffffffffffffffffffffff
+    v25 = and v22, 255
+    v26 = shl 128, v25
+    v27 = or v24, v26
+    sstore v20, v27 !metadata(storage=symbolic(v20))
     stop
 }
 

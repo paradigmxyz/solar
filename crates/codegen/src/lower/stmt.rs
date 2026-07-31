@@ -439,9 +439,15 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         let bound: SmallVec<[bool; 4]> = elements.iter().map(Option::is_some).collect();
         let Some(values) = self.lower_multi_values(builder, &bound, rhs) else { return };
-        for (&element, value) in elements.iter().zip(values) {
+        let rhs_ty = self.get_expr_type(rhs);
+        for (index, (&element, value)) in elements.iter().zip(values).enumerate() {
             if let (Some(element), Some(value)) = (element, value) {
-                self.lower_assign(builder, element, value);
+                let source_ty = rhs_ty.and_then(|ty| match ty.peel_refs().kind {
+                    TyKind::Tuple(tys) => tys.get(index).copied(),
+                    _ if index == 0 => Some(ty),
+                    _ => None,
+                });
+                self.lower_assign(builder, element, value, source_ty, None);
             }
         }
     }

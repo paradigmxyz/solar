@@ -4,7 +4,9 @@ fn @flag() -> bool [abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
-    ret v1
+    v2 = iszero v1
+    v3 = iszero v2
+    ret v3
 }
 
 fn @second() -> bool [abi_returns=[word]] {
@@ -12,7 +14,9 @@ fn @second() -> bool [abi_returns=[word]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
     v2 = and v1, 255
-    ret v2
+    v3 = iszero v2
+    v4 = iszero v3
+    ret v4
 }
 
 fn @_anonymous(arg0: bool, arg1: u256, arg2: u256) {
@@ -50,19 +54,23 @@ fn @_anonymous(arg0: bool, arg1: u256, arg2: u256) {
   bb6:
     v18 = memory_object_element_addr memoryfixedarray<2, 1>, v6, 1
     mstore v18, arg2
-    v19 = sload 0 !metadata(storage=slot(0))
-    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v21 = and arg0, 255
-    v22 = or v20, v21
-    sstore 0, v22 !metadata(storage=slot(0))
-    v23 = memory_object_element_addr memoryfixedarray<2, 1>, v6, 1
-    v24 = mload v23
-    v25 = sload 0 !metadata(storage=slot(0))
-    v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
-    v27 = and v24, 255
-    v28 = shl 8, v27
-    v29 = or v26, v28
-    sstore 0, v29 !metadata(storage=slot(0))
+    v19 = iszero arg0
+    v20 = iszero v19
+    v21 = sload 0 !metadata(storage=slot(0))
+    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v23 = and v20, 255
+    v24 = or v22, v23
+    sstore 0, v24 !metadata(storage=slot(0))
+    v25 = memory_object_element_addr memoryfixedarray<2, 1>, v6, 1
+    v26 = mload v25
+    v27 = iszero v26
+    v28 = iszero v27
+    v29 = sload 0 !metadata(storage=slot(0))
+    v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v31 = and v28, 255
+    v32 = shl 8, v31
+    v33 = or v30, v32
+    sstore 0, v33 !metadata(storage=slot(0))
     stop
 }
 
