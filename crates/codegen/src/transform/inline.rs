@@ -4,7 +4,7 @@
 //! protocol and expose further optimization opportunities.
 
 use crate::{
-    analysis::LoopAnalyzer,
+    analysis::{CallGraphInfo, LoopAnalyzer},
     immutable::immutable_push_type_size,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
@@ -180,7 +180,7 @@ impl MirInliner {
         }
 
         let mut call_counts = self.call_counts(module);
-        let recursive_functions = self.recursive_functions(module);
+        let call_graph = CallGraphInfo::new(module);
 
         // Specialize dispatcher calls before helper-local inlining introduces phis.
         let mut caller_ids = module.functions.indices().collect::<Vec<_>>();
@@ -214,7 +214,7 @@ impl MirInliner {
                 });
                 if module_code_size >= self.max_module_code_size
                     || grew_too_much
-                    || recursive_functions.contains(site.callee)
+                    || call_graph.is_recursive(site.callee)
                     || !self.is_inlineable(caller_id, site, summary, call_count)
                 {
                     stats.skipped += 1;
@@ -265,48 +265,6 @@ impl MirInliner {
             }
         }
         counts
-    }
-
-    fn recursive_functions(&self, module: &Module) -> DenseBitSet<MirFunctionId> {
-        let mut recursive = DenseBitSet::new_empty(module.functions.len());
-        let mut visiting = DenseBitSet::new_empty(module.functions.len());
-        for func_id in module.functions.indices() {
-            visiting.clear();
-            if self.function_reaches(module, func_id, func_id, &mut visiting) {
-                recursive.insert(func_id);
-            }
-        }
-        recursive
-    }
-
-    fn function_reaches(
-        &self,
-        module: &Module,
-        current: MirFunctionId,
-        target: MirFunctionId,
-        visiting: &mut DenseBitSet<MirFunctionId>,
-    ) -> bool {
-        if !visiting.insert(current) {
-            return false;
-        }
-
-        for callee in self.function_callees(module.function(current)) {
-            if callee == target || self.function_reaches(module, callee, target, visiting) {
-                return true;
-            }
-        }
-
-        false
-    }
-
-    fn function_callees(&self, func: &Function) -> Vec<MirFunctionId> {
-        let mut callees = Vec::new();
-        for inst_id in func.instructions() {
-            if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
-                callees.push(function);
-            }
-        }
-        callees
     }
 
     fn find_next_call(

@@ -26,6 +26,8 @@ architecture.
 | Conservative internal-call frame sizes based on a function's total MIR value count | Deferred constants resolved from exact post-emission spill sizes |
 | Target-dependent expansion of compiler-generated memory copies during HIR lowering | Semantic `mcopy` plus the required `lower-mcopy` legalization pass |
 | Separate EVM-word evaluators in instruction simplification, SCCP, and bounded pure evaluation | One shared MIR constant evaluator |
+| A hand-written MIR inliner match that cloned every instruction variant | `InstKind::visit_operands_mut`, with local remapping only for block and frame identities |
+| Private MIR inliner recursion analysis | Shared module call-graph analysis |
 
 The HIR inliner previously erased the callee return target for void calls.
 `return;` in an exact-base call could therefore terminate the enclosing public
@@ -77,6 +79,26 @@ values, a recursion walk, and some local-context save/restore. Once slice return
 cross calls, remove those slice-specific pieces rather than extending them.
 Constructor composition still needs its separate inline stack and context
 save/restore until constructors gain an explicit MIR representation.
+
+## Error recovery boundary
+
+HIR lowering can run after type checking has emitted errors. Source-derived
+lookup, shape, and size failures in this layer therefore emit a recovery
+diagnostic and return an error value instead of panicking. Recovery diagnostics
+reuse the existing error guarantee where possible to avoid duplicate messages.
+
+The contract pipeline stops after lowering when the diagnostic context has
+errors. MIR passes, the EVM backend, and the assembler can therefore keep
+assertions for malformed internal IR and impossible target state; failed HIR
+does not reach them. Moving that gate would require converting those internal
+assertions into fallible validation first.
+
+## Constant evaluation ownership
+
+`utils::eval` is the only evaluator for MIR EVM-word instructions.
+Instruction simplification, SCCP, and bounded pure evaluation call it. Constant
+memory hashing in memory DSE and abstract transfer functions in analyses answer
+different questions and do not execute MIR instructions.
 
 ## Correctness gaps
 
@@ -210,7 +232,6 @@ These are current miscompile or target-legality risks, not cleanup preferences.
 | Dynamic and static internal-call emitters | Duplicate argument retention, frame stores, return setup, and result recovery around two frame-address policies | One call plan parameterized by dynamic or deferred-static addressing |
 | `backend::evm::codegen::generate_terminator` | MIR termination semantics, fallthrough choice, stack preservation, and raw EVM jump layout are coupled | Emit structured EVM IR terminators, then choose layout in EVM IR |
 | `backend::evm::codegen::resolve_static_frames` | Call-graph depth, frame overlay, static allocation acceptance, spill ranking, and heap-floor resolution are one fixed-point/layout routine | Compute an immutable frame-layout plan, then resolve deferred addresses |
-| MIR inliner | Recomputes call counts, reachability, and recursion and mirrors every instruction in a large clone match | Reuse call-graph analysis and operand visitors |
 | MIR validator | Phase checks and per-instruction validation are combined | Shared phase/readiness predicates plus local instruction checks |
 
 The remaining size is not itself a reason to move code. Each split should remove
