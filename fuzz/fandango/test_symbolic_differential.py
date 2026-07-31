@@ -1574,6 +1574,53 @@ class ForgeJsonClassificationTests(unittest.TestCase):
                     symbolic.classify_forge_json(payload)
 
 
+class EffectiveBoundsTests(unittest.TestCase):
+    def _args(self) -> argparse.Namespace:
+        return argparse.Namespace(
+            symbolic_timeout=7,
+            symbolic_max_paths=512,
+            symbolic_max_depth=None,
+            symbolic_dynamic_lengths=(0, 1, 3),
+        )
+
+    def test_accepts_the_reported_bounds_that_the_runner_requested(self):
+        bounds = {
+            "timeout_seconds": 7,
+            "max_paths": 512,
+            "max_depth": 10000,
+            "default_array_lengths": [0, 1, 3],
+            "default_bytes_lengths": [0, 1, 3],
+            "max_dynamic_length": 256,
+        }
+
+        self.assertIsNone(
+            run_foundry_target._effective_bounds_error(self._args(), bounds)
+        )
+
+    def test_rejects_ignored_limits_and_truncated_dynamic_shapes(self):
+        args = self._args()
+        args.symbolic_max_depth = 64
+        bounds = {
+            "timeout_seconds": 5,
+            "max_paths": 256,
+            "max_depth": 10000,
+            "default_array_lengths": [0, 1],
+            "default_bytes_lengths": [0, 1, 3],
+            "max_dynamic_length": 2,
+        }
+
+        reason = run_foundry_target._effective_bounds_error(args, bounds)
+
+        self.assertIn("timeout_seconds=5 (expected 7)", reason)
+        self.assertIn("max_paths=256 (expected 512)", reason)
+        self.assertIn("max_depth=10000 (expected 64)", reason)
+        self.assertIn(
+            "default_array_lengths=[0, 1] (expected [0, 1, 3])",
+            reason,
+        )
+        self.assertIn("max_dynamic_length=2 (expected at least 3)", reason)
+
+
 class ConcreteOutcomeConfirmationTests(unittest.TestCase):
     def test_equal_success_or_revert_outcomes_do_not_confirm_mismatch(self):
         outcomes = [

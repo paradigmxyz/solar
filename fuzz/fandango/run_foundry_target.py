@@ -467,6 +467,9 @@ def _run_symbolic_function(
             except ValueError as err:
                 reason = str(err)
             else:
+                bounds_error = _effective_bounds_error(
+                    args, classified["bounds"]
+                )
                 if classified["test"] != expected_test:
                     reason = (
                         f"Forge ran `{classified['test']}`, expected `{expected_test}`"
@@ -486,6 +489,11 @@ def _run_symbolic_function(
                     reason = (
                         "Forge reported a non-pass symbolic result with process status 0"
                     )
+                elif (
+                    classified["status"] != "replay_confirmed_mismatch"
+                    and bounds_error is not None
+                ):
+                    reason = bounds_error
                 elif classified["status"] == "no_mismatch_within_bounds":
                     final_status = "no_mismatch_within_bounds"
                     reason = None
@@ -1490,6 +1498,41 @@ def _bounds_manifest(
         "forge_effective": classified.get("bounds") if classified else None,
         "elapsed_wall_seconds": deadline.elapsed() if deadline else None,
     }
+
+
+def _effective_bounds_error(
+    args: argparse.Namespace, bounds: dict[str, Any]
+) -> str | None:
+    dynamic_lengths = list(args.symbolic_dynamic_lengths)
+    expected = {
+        "timeout_seconds": args.symbolic_timeout,
+        "max_paths": args.symbolic_max_paths,
+        "default_array_lengths": dynamic_lengths,
+        "default_bytes_lengths": dynamic_lengths,
+    }
+    if args.symbolic_max_depth is not None:
+        expected["max_depth"] = args.symbolic_max_depth
+    disagreements = [
+        f"{name}={bounds.get(name)!r} (expected {value!r})"
+        for name, value in expected.items()
+        if bounds.get(name) != value
+    ]
+    max_dynamic_length = bounds.get("max_dynamic_length")
+    if (
+        not isinstance(max_dynamic_length, int)
+        or isinstance(max_dynamic_length, bool)
+        or max_dynamic_length < max(dynamic_lengths)
+    ):
+        disagreements.append(
+            "max_dynamic_length="
+            f"{max_dynamic_length!r} (expected at least {max(dynamic_lengths)!r})"
+        )
+    if not disagreements:
+        return None
+    return (
+        "Forge effective symbolic bounds disagree with the requested "
+        "configuration: " + ", ".join(disagreements)
+    )
 
 
 def _tools_manifest(args: argparse.Namespace) -> dict[str, Any]:
