@@ -7,13 +7,11 @@
 use solar_data_structures::index::IndexVec;
 
 mod inst;
-mod lower;
 
 pub(in crate::backend::evm) use inst::{
     AsmIndex, AsmInst, AsmInstKind, DeferredAlloc, ImmutablePushId, PackedLabelsId, PushValueId,
 };
 pub(crate) use inst::{DeferredConst, Label};
-pub(in crate::backend::evm) use lower::{estimated_indexed_jump_terminator_size, lower_evm_ir};
 
 /// Labels packed into one fixed-width immediate.
 #[derive(Clone, Debug)]

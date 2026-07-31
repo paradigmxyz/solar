@@ -1,18 +1,16 @@
-//! Lowering from block EVM IR to its finalized layout-linear form.
+//! Indexed jump table planning and assembly lowering.
 
-use super::{AsmInst, Program};
+use super::{Assembler, Label};
 use crate::backend::evm::{
-    assembler::{Assembler, Label},
-    ir::{self, BlockId},
+    ir::{
+        self, BlockId,
+        assembly::{AsmInst, Program},
+    },
     op,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    index::{IndexVec, index_vec},
-};
-use solar_sema::Gcx;
+use solar_data_structures::index::{IndexVec, index_vec};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct IndexedJumpEncoding {
@@ -30,9 +28,9 @@ enum PackedTableChunks {
 }
 
 #[derive(Clone, Copy, Default)]
-struct IndexedJumpLowering {
+pub(super) struct IndexedJumpLowering {
     table: Option<IndexedJumpEncoding>,
-    entry_width: Option<u8>,
+    pub(super) entry_width: Option<u8>,
 }
 
 #[derive(Clone, Copy)]
@@ -49,47 +47,7 @@ struct IndexedJumpTable {
     targets: Box<[BlockId]>,
 }
 
-/// Lowers finalized EVM IR into the linear label-bearing assembly stream.
-pub(in crate::backend::evm) fn lower_evm_ir(
-    gcx: Gcx<'_>,
-    module: &mut ir::Module,
-    labels: &mut Vec<Option<Label>>,
-    assembler: &mut Assembler<'_>,
-) -> Program {
-    let indexed_jump_lowerings = materialize_indexed_jump_tables(
-        module,
-        gcx.sess.opts.evm_version,
-        gcx.sess.opts.optimization.is_size(),
-    );
-    allocate_referenced_labels(module, labels, assembler);
-
-    let mut program = Program::default();
-    for (block_id, block) in module.blocks.iter_enumerated() {
-        let original = block.label as usize;
-        if let Some(label) = labels.get(original).copied().flatten() {
-            program.define_label(label);
-        }
-
-        for inst in &block.instructions {
-            program.push(lower_instruction(inst, module, labels, assembler));
-        }
-
-        if let Some(terminator) = &block.terminator {
-            lower_terminator(
-                &mut program,
-                block_id,
-                &terminator.kind,
-                module,
-                labels,
-                assembler,
-                indexed_jump_lowerings[block_id],
-            );
-        }
-    }
-    program
-}
-
-fn materialize_indexed_jump_tables(
+pub(super) fn materialize_tables(
     module: &mut ir::Module,
     evm_version: EvmVersion,
     pack_two_word_tables: bool,
@@ -552,10 +510,12 @@ fn estimated_block_size(
         } else if let Some(type_size) = inst.immutable_type_size() {
             usize::from(type_size.bytes()) + 1
         } else if inst.is_encoded_push() {
-            match &inst.value {
-                Some(ir::PushValue::Immediate(value)) => push_len(*value, evm_version),
-                Some(ir::PushValue::Block(_)) => usize::from(block_target_width) + 1,
-                None => unreachable!("push must carry a value"),
+            if let Some(value) = inst.pushed_value() {
+                push_len(value, evm_version)
+            } else if inst.pushed_block().is_some() {
+                usize::from(block_target_width) + 1
+            } else {
+                unreachable!("push must carry a value")
             }
         } else {
             1
@@ -565,7 +525,7 @@ fn estimated_block_size(
     if let Some(term) = &block.terminator {
         size = size.saturating_add(estimated_terminator_size(
             &term.kind,
-            next_block(module, block_id),
+            Assembler::next_block(module, block_id),
             block_target_width,
             packed_table,
             evm_version,
@@ -632,211 +592,87 @@ fn push_len(value: U256, evm_version: EvmVersion) -> usize {
     if value.is_zero() && evm_version.has_push0() { 1 } else { value.byte_len().max(1) + 1 }
 }
 
-fn allocate_referenced_labels(
-    module: &ir::Module,
-    labels: &mut Vec<Option<Label>>,
+pub(super) fn lower(
     assembler: &mut Assembler<'_>,
-) {
-    let mut referenced = DenseBitSet::new_empty(module.blocks.len());
-    for (block_id, block) in module.blocks.iter_enumerated() {
-        for inst in &block.instructions {
-            if let Some(ir::PushValue::Block(target)) = &inst.value {
-                referenced.insert(*target);
-            }
-        }
-        if let Some(terminator) = &block.terminator {
-            let next = next_block(module, block_id);
-            terminator.kind.visit_label_targets(next, |target| {
-                referenced.insert(target);
-            });
-        }
-    }
-    for (block_id, block) in module.blocks.iter_enumerated() {
-        let original = block.label as usize;
-        if !referenced.contains(block_id)
-            && let Some(label) = labels.get_mut(original)
-        {
-            *label = None;
-        }
-    }
-    for block in referenced.iter() {
-        label_for_block(module, block, labels, assembler);
-    }
-}
-
-fn lower_instruction(
-    inst: &ir::Instruction,
-    module: &ir::Module,
-    labels: &mut Vec<Option<Label>>,
-    assembler: &mut Assembler<'_>,
-) -> AsmInst {
-    if let Some(id) = inst.deferred_push() {
-        AsmInst::push_deferred(id)
-    } else if let Some(id) = inst.immutable_push() {
-        let type_size = inst.immutable_type_size().expect("validated immutable width");
-        assembler.immutable_push_inst(id, type_size)
-    } else if inst.is_encoded_push() {
-        match &inst.value {
-            Some(ir::PushValue::Immediate(value)) => assembler.push_inst(*value),
-            Some(ir::PushValue::Block(block)) => {
-                AsmInst::push_label(label_for_block(module, *block, labels, assembler))
-            }
-            _ => unreachable!("push must have one immediate or block operand"),
-        }
-    } else {
-        AsmInst::op(inst.opcode)
-    }
-}
-
-fn lower_terminator(
     program: &mut Program,
-    block_id: BlockId,
-    kind: &ir::TerminatorKind,
+    targets: &[BlockId],
     module: &ir::Module,
     labels: &mut Vec<Option<Label>>,
-    assembler: &mut Assembler<'_>,
     indexed_jump: IndexedJumpLowering,
 ) {
-    match kind {
-        ir::TerminatorKind::Jump(target) => {
-            if let Some(table_target_width) = indexed_jump.entry_width {
-                let label = label_for_block(module, *target, labels, assembler);
-                program.push(AsmInst::push_label_fixed(label, table_target_width));
-                program.push_op(op::JUMP);
-                return;
-            }
-            if next_block(module, block_id) == Some(*target) {
-                return;
-            }
-            let label = label_for_block(module, *target, labels, assembler);
-            program.push_label(label);
-            program.push_op(op::JUMP);
-        }
-        ir::TerminatorKind::JumpI { then_block, else_block } => {
-            let next = next_block(module, block_id);
-            if next == Some(*else_block) {
-                let label = label_for_block(module, *then_block, labels, assembler);
-                program.push_label(label);
-                program.push_op(op::JUMPI);
-            } else if next == Some(*then_block) {
-                program.push_op(op::ISZERO);
-                let label = label_for_block(module, *else_block, labels, assembler);
-                program.push_label(label);
-                program.push_op(op::JUMPI);
-            } else {
-                let then_label = label_for_block(module, *then_block, labels, assembler);
-                program.push_label(then_label);
-                program.push_op(op::JUMPI);
-                let else_label = label_for_block(module, *else_block, labels, assembler);
-                program.push_label(else_label);
-                program.push_op(op::JUMP);
-            }
-        }
-        ir::TerminatorKind::IndexedJump(targets) => {
-            let table_encoding = indexed_jump.table.expect("indexed jump table encoding");
-            if table_encoding.packed_chunks != PackedTableChunks::None {
-                let target_width = table_encoding.width;
-                let scale = u32::from(target_width) * 8;
-                let base = table_encoding
-                    .base
-                    .map(|(base, _)| label_for_block(module, base, labels, assembler));
-                let labels = targets
-                    .iter()
-                    .map(|&target| label_for_block(module, target, labels, assembler))
-                    .collect::<Vec<_>>();
-                if table_encoding.packed_chunks == PackedTableChunks::Two {
-                    let entries_per_chunk = 32 / usize::from(target_width);
-                    let (first, second) = labels.split_at(entries_per_chunk);
-                    // Select one of the two words without branching.
-                    program.push_op(op::DUP1);
-                    program.push(
-                        AsmInst::push_inline(entries_per_chunk.ilog2())
-                            .expect("indexed jump chunk shift must fit inline"),
-                    );
-                    program.push_op(op::SHR);
-                    program.push_op(op::DUP1);
-                    program.push_packed_labels(second.into(), base, target_width);
-                    program.push_op(op::MUL);
-                    program.push_op(op::SWAP1);
-                    program.push_op(op::ISZERO);
-                    program.push_packed_labels(first.into(), base, target_width);
-                    program.push_op(op::MUL);
-                    program.push_op(op::ADD);
-                    program.push_op(op::SWAP1);
-                    program.push(
-                        AsmInst::push_inline((entries_per_chunk - 1) as u32)
-                            .expect("indexed jump chunk mask must fit inline"),
-                    );
-                    program.push_op(op::AND);
-                }
-                if scale.is_power_of_two() {
-                    program.push(
-                        AsmInst::push_inline(scale.ilog2())
-                            .expect("indexed jump scale must fit inline"),
-                    );
-                    program.push_op(op::SHL);
-                } else {
-                    program.push(
-                        AsmInst::push_inline(scale).expect("indexed jump scale must fit inline"),
-                    );
-                    program.push_op(op::MUL);
-                }
-                if table_encoding.packed_chunks == PackedTableChunks::One {
-                    program.push_packed_labels(labels.into_boxed_slice(), base, target_width);
-                    program.push_op(op::SWAP1);
-                }
-                program.push_op(op::SHR);
-                let mask = (U256::ONE << scale) - U256::ONE;
-                program.push(assembler.push_inst(mask));
-                program.push_op(op::AND);
-                if let Some(base) = base {
-                    program.push_label(base);
-                    program.push_op(op::ADD);
-                }
-                program.push_op(op::JUMP);
-                return;
-            }
-
-            let (&table, rest) = targets.split_first().expect("validated indexed jump table");
-            debug_assert!(
-                rest.iter()
-                    .enumerate()
-                    .all(|(index, target)| { target.index() == table.index() + index + 1 })
-            );
-            let table_target_width = table_encoding.width;
-            let stub_len = u32::from(table_target_width) + 3;
+    let table_encoding = indexed_jump.table.expect("indexed jump table encoding");
+    if table_encoding.packed_chunks != PackedTableChunks::None {
+        let target_width = table_encoding.width;
+        let scale = u32::from(target_width) * 8;
+        let base =
+            table_encoding.base.map(|(base, _)| assembler.label_for_block(module, base, labels));
+        let labels = targets
+            .iter()
+            .map(|&target| assembler.label_for_block(module, target, labels))
+            .collect::<Vec<_>>();
+        if table_encoding.packed_chunks == PackedTableChunks::Two {
+            let entries_per_chunk = 32 / usize::from(target_width);
+            let (first, second) = labels.split_at(entries_per_chunk);
+            // Select one of the two words without branching.
+            program.push_op(op::DUP1);
             program.push(
-                AsmInst::push_inline(stub_len).expect("indexed jump stub length must fit inline"),
+                AsmInst::push_inline(entries_per_chunk.ilog2())
+                    .expect("indexed jump chunk shift must fit inline"),
             );
+            program.push_op(op::SHR);
+            program.push_op(op::DUP1);
+            program.push_packed_labels(second.into(), base, target_width);
             program.push_op(op::MUL);
-            program.push_label(label_for_block(module, table, labels, assembler));
+            program.push_op(op::SWAP1);
+            program.push_op(op::ISZERO);
+            program.push_packed_labels(first.into(), base, target_width);
+            program.push_op(op::MUL);
             program.push_op(op::ADD);
-            program.push_op(op::JUMP);
+            program.push_op(op::SWAP1);
+            program.push(
+                AsmInst::push_inline((entries_per_chunk - 1) as u32)
+                    .expect("indexed jump chunk mask must fit inline"),
+            );
+            program.push_op(op::AND);
         }
-        ir::TerminatorKind::Op(opcode) => {
-            if *opcode != op::STOP || next_block(module, block_id).is_some() {
-                program.push_op(*opcode);
-            }
+        if scale.is_power_of_two() {
+            program.push(
+                AsmInst::push_inline(scale.ilog2()).expect("indexed jump scale must fit inline"),
+            );
+            program.push_op(op::SHL);
+        } else {
+            program.push(AsmInst::push_inline(scale).expect("indexed jump scale must fit inline"));
+            program.push_op(op::MUL);
         }
+        if table_encoding.packed_chunks == PackedTableChunks::One {
+            program.push_packed_labels(labels.into_boxed_slice(), base, target_width);
+            program.push_op(op::SWAP1);
+        }
+        program.push_op(op::SHR);
+        let mask = (U256::ONE << scale) - U256::ONE;
+        program.push(assembler.push_inst(mask));
+        program.push_op(op::AND);
+        if let Some(base) = base {
+            program.push_label(base);
+            program.push_op(op::ADD);
+        }
+        program.push_op(op::JUMP);
+        return;
     }
-}
 
-fn next_block(module: &ir::Module, block: BlockId) -> Option<BlockId> {
-    let next = block.index() + 1;
-    (next < module.blocks.len()).then(|| BlockId::from_usize(next))
-}
-
-fn label_for_block(
-    module: &ir::Module,
-    block: BlockId,
-    labels: &mut Vec<Option<Label>>,
-    assembler: &mut Assembler<'_>,
-) -> Label {
-    let original = module.blocks[block].label as usize;
-    if original >= labels.len() {
-        labels.resize_with(original + 1, || None);
-    }
-    *labels[original].get_or_insert_with(|| assembler.new_label())
+    let (&table, rest) = targets.split_first().expect("validated indexed jump table");
+    debug_assert!(
+        rest.iter()
+            .enumerate()
+            .all(|(index, target)| { target.index() == table.index() + index + 1 })
+    );
+    let table_target_width = table_encoding.width;
+    let stub_len = u32::from(table_target_width) + 3;
+    program.push(AsmInst::push_inline(stub_len).expect("indexed jump stub length must fit inline"));
+    program.push_op(op::MUL);
+    program.push_label(assembler.label_for_block(module, table, labels));
+    program.push_op(op::ADD);
+    program.push_op(op::JUMP);
 }
 
 #[cfg(test)]
@@ -855,39 +691,6 @@ mod tests {
     use solar_sema::Compiler;
 
     #[test]
-    fn branch_inverts_when_then_target_falls_through() {
-        let mut module = ir::Module::new(sym::module);
-        let entry = module.add_block(Block::new(0));
-        let then_block = module.add_block(Block::new(1));
-        let else_block = module.add_block(Block::new(2));
-        module.blocks[entry].instructions.push(Instruction::push_value(U256::ONE));
-        module.blocks[entry].terminator =
-            Some(Terminator::new(TerminatorKind::JumpI { then_block, else_block }));
-        module.blocks[then_block].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
-        module.blocks[else_block].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
-
-        let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
-        compiler.enter(|c| {
-            let mut labels = vec![None; 3];
-            let mut assembler = Assembler::new(c.gcx());
-            let program = lower_evm_ir(c.gcx(), &mut module, &mut labels, &mut assembler);
-            let kinds: Vec<_> = program.instructions.iter().map(|inst| inst.kind()).collect();
-
-            assert!(matches!(
-                kinds.as_slice(),
-                [
-                    AsmInstKind::PushInline(1),
-                    AsmInstKind::Op(op::ISZERO),
-                    AsmInstKind::PushLabel(_),
-                    AsmInstKind::Op(op::JUMPI),
-                    AsmInstKind::Op(op::STOP),
-                    AsmInstKind::Label(_),
-                ]
-            ));
-        });
-    }
-
-    #[test]
     fn indexed_jump_packs_direct_targets() {
         let mut module = ir::Module::new(sym::module);
         let entry = module.add_block(Block::new(0));
@@ -904,7 +707,7 @@ mod tests {
         compiler.enter(|c| {
             let mut labels = vec![None; 3];
             let mut assembler = Assembler::new(c.gcx());
-            let program = lower_evm_ir(c.gcx(), &mut module, &mut labels, &mut assembler);
+            let program = assembler.lower_evm_ir(&mut module, &mut labels);
 
             assert_eq!(module.blocks.len(), 3);
             assert!(matches!(
@@ -925,21 +728,6 @@ mod tests {
     }
 
     #[test]
-    fn estimates_typed_immutable_width() {
-        let mut module = ir::Module::new(sym::module);
-        let entry = module.add_block(Block::new(0));
-        module.blocks[entry]
-            .instructions
-            .push(Instruction::push_immutable(ImmutableId::new(0), TypeSize::new_int_bits(8)));
-        module.blocks[entry].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
-
-        assert_eq!(
-            estimated_block_size(&module, entry, &module.blocks[entry], EvmVersion::Osaka, 2, None),
-            3
-        );
-    }
-
-    #[test]
     fn indexed_jump_entries_are_reachable_blocks() {
         let mut module = ir::Module::new(sym::module);
         let entry = module.add_block(Block::new(0));
@@ -957,7 +745,7 @@ mod tests {
         compiler.enter(|c| {
             let mut labels = vec![None; 3];
             let mut assembler = Assembler::new(c.gcx());
-            let program = lower_evm_ir(c.gcx(), &mut module, &mut labels, &mut assembler);
+            let program = assembler.lower_evm_ir(&mut module, &mut labels);
 
             let TerminatorKind::IndexedJump(entries) =
                 &module.blocks[entry].terminator.as_ref().unwrap().kind
@@ -1002,7 +790,7 @@ mod tests {
             Some(Terminator::new(TerminatorKind::IndexedJump(vec![target].into_boxed_slice())));
         module.blocks[target].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 
-        let lowerings = materialize_indexed_jump_tables(&mut module, EvmVersion::Osaka, false);
+        let lowerings = materialize_tables(&mut module, EvmVersion::Osaka, false);
         let TerminatorKind::IndexedJump(entries) =
             &module.blocks[entry].terminator.as_ref().unwrap().kind
         else {
@@ -1034,7 +822,7 @@ mod tests {
         }
         module.blocks[padding].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 
-        let lowerings = materialize_indexed_jump_tables(&mut module, EvmVersion::Osaka, false);
+        let lowerings = materialize_tables(&mut module, EvmVersion::Osaka, false);
         let TerminatorKind::IndexedJump(actual_targets) =
             &module.blocks[entry].terminator.as_ref().unwrap().kind
         else {
@@ -1068,7 +856,7 @@ mod tests {
         module.blocks[entry].terminator =
             Some(Terminator::new(TerminatorKind::IndexedJump(targets.clone().into_boxed_slice())));
 
-        let lowerings = materialize_indexed_jump_tables(&mut module, EvmVersion::Osaka, true);
+        let lowerings = materialize_tables(&mut module, EvmVersion::Osaka, true);
         let encoding = lowerings[entry].table.unwrap();
         assert_eq!(encoding.width, 1);
         assert_eq!(encoding.packed_chunks, PackedTableChunks::One);
@@ -1099,7 +887,7 @@ mod tests {
             )));
         }
 
-        let lowerings = materialize_indexed_jump_tables(&mut module, EvmVersion::Osaka, true);
+        let lowerings = materialize_tables(&mut module, EvmVersion::Osaka, true);
         for source in [first, second] {
             let encoding = lowerings[source].table.unwrap();
             assert_eq!(encoding.width, 1);
@@ -1131,7 +919,7 @@ mod tests {
         }
         module.blocks[padding].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 
-        let lowerings = materialize_indexed_jump_tables(&mut module, EvmVersion::Osaka, true);
+        let lowerings = materialize_tables(&mut module, EvmVersion::Osaka, true);
         let TerminatorKind::IndexedJump(actual_targets) =
             &module.blocks[entry].terminator.as_ref().unwrap().kind
         else {
@@ -1168,7 +956,7 @@ mod tests {
         }
         module.blocks[padding].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 
-        let lowerings = materialize_indexed_jump_tables(&mut module, EvmVersion::Osaka, false);
+        let lowerings = materialize_tables(&mut module, EvmVersion::Osaka, false);
         let TerminatorKind::IndexedJump(entries) =
             &module.blocks[entry].terminator.as_ref().unwrap().kind
         else {

@@ -1,6 +1,7 @@
-//! Primitive EVM relocation and byte encoding.
+//! Final EVM IR lowering, relocation, and byte encoding.
 //!
 //! The assembler handles:
+//! - Lowering block EVM IR into compact linear assembly.
 //! - Deferred immediate and immutable materialization.
 //! - Label relocation.
 //! - Exact PUSH-width relaxation to a least fixed point.
@@ -16,12 +17,19 @@ use crate::{
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::GrowableBitSet, index::index_vec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    index::index_vec,
+    map::FxHashMap,
+};
 use solar_interface::{diagnostics::DiagCtxt, sym};
 use solar_sema::Gcx;
 
 mod id_counter;
 pub(in crate::backend::evm) use id_counter::IdCounter;
+
+mod indexed_jump;
+pub(in crate::backend::evm) use indexed_jump::estimated_indexed_jump_terminator_size;
 
 pub(super) use assembly::{AsmInst, AsmInstKind, DeferredAlloc, ImmutablePushId, PushValueId};
 pub(crate) use assembly::{DeferredConst, Label};
@@ -643,8 +651,7 @@ impl<'gcx> Assembler<'gcx> {
         let _changed = ir::run_pipeline(self.gcx, &mut ir_program, None);
         debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
 
-        let gcx = self.gcx;
-        let program = assembly::lower_evm_ir(gcx, &mut ir_program, &mut labels, self);
+        let program = self.lower_evm_ir(&mut ir_program, &mut labels);
         let evm_ir = capture_evm_ir.then_some(ir_program);
         PreparedAssembly {
             evm_ir,
@@ -654,6 +661,170 @@ impl<'gcx> Assembler<'gcx> {
             next_label: std::mem::take(&mut self.next_label),
             deferred_values: std::mem::take(&mut self.deferred_values),
         }
+    }
+
+    /// Lowers finalized EVM IR into the linear label-bearing assembly stream.
+    fn lower_evm_ir(
+        &mut self,
+        module: &mut ir::Module,
+        labels: &mut Vec<Option<Label>>,
+    ) -> AssemblyProgram {
+        let indexed_jump_lowerings = indexed_jump::materialize_tables(
+            module,
+            self.gcx.sess.opts.evm_version,
+            self.gcx.sess.opts.optimization.is_size(),
+        );
+        self.allocate_referenced_labels(module, labels);
+
+        let mut program = AssemblyProgram::default();
+        for (block_id, block) in module.blocks.iter_enumerated() {
+            let original = block.label as usize;
+            if let Some(label) = labels.get(original).copied().flatten() {
+                program.define_label(label);
+            }
+
+            for inst in &block.instructions {
+                let inst = self.lower_instruction(inst, module, labels);
+                program.push(inst);
+            }
+
+            if let Some(terminator) = &block.terminator {
+                self.lower_terminator(
+                    &mut program,
+                    block_id,
+                    &terminator.kind,
+                    module,
+                    labels,
+                    indexed_jump_lowerings[block_id],
+                );
+            }
+        }
+        program
+    }
+
+    fn allocate_referenced_labels(&mut self, module: &ir::Module, labels: &mut Vec<Option<Label>>) {
+        let mut referenced = DenseBitSet::new_empty(module.blocks.len());
+        for (block_id, block) in module.blocks.iter_enumerated() {
+            for inst in &block.instructions {
+                if let Some(target) = inst.pushed_block() {
+                    referenced.insert(target);
+                }
+            }
+            if let Some(terminator) = &block.terminator {
+                let next = Self::next_block(module, block_id);
+                terminator.kind.visit_label_targets(next, |target| {
+                    referenced.insert(target);
+                });
+            }
+        }
+        for (block_id, block) in module.blocks.iter_enumerated() {
+            let original = block.label as usize;
+            if !referenced.contains(block_id)
+                && let Some(label) = labels.get_mut(original)
+            {
+                *label = None;
+            }
+        }
+        for block in referenced.iter() {
+            self.label_for_block(module, block, labels);
+        }
+    }
+
+    fn lower_instruction(
+        &mut self,
+        inst: &ir::Instruction,
+        module: &ir::Module,
+        labels: &mut Vec<Option<Label>>,
+    ) -> AsmInst {
+        if let Some(id) = inst.deferred_push() {
+            AsmInst::push_deferred(id)
+        } else if let Some(id) = inst.immutable_push() {
+            let type_size = inst.immutable_type_size().expect("validated immutable width");
+            self.immutable_push_inst(id, type_size)
+        } else if inst.is_encoded_push() {
+            if let Some(value) = inst.pushed_value() {
+                self.push_inst(value)
+            } else if let Some(block) = inst.pushed_block() {
+                AsmInst::push_label(self.label_for_block(module, block, labels))
+            } else {
+                unreachable!("push must have one immediate or block operand")
+            }
+        } else {
+            AsmInst::op(inst.opcode)
+        }
+    }
+
+    fn lower_terminator(
+        &mut self,
+        program: &mut AssemblyProgram,
+        block_id: ir::BlockId,
+        kind: &ir::TerminatorKind,
+        module: &ir::Module,
+        labels: &mut Vec<Option<Label>>,
+        indexed_jump: indexed_jump::IndexedJumpLowering,
+    ) {
+        match kind {
+            ir::TerminatorKind::Jump(target) => {
+                if let Some(table_target_width) = indexed_jump.entry_width {
+                    let label = self.label_for_block(module, *target, labels);
+                    program.push(AsmInst::push_label_fixed(label, table_target_width));
+                    program.push_op(op::JUMP);
+                    return;
+                }
+                if Self::next_block(module, block_id) == Some(*target) {
+                    return;
+                }
+                let label = self.label_for_block(module, *target, labels);
+                program.push_label(label);
+                program.push_op(op::JUMP);
+            }
+            ir::TerminatorKind::JumpI { then_block, else_block } => {
+                let next = Self::next_block(module, block_id);
+                if next == Some(*else_block) {
+                    let label = self.label_for_block(module, *then_block, labels);
+                    program.push_label(label);
+                    program.push_op(op::JUMPI);
+                } else if next == Some(*then_block) {
+                    program.push_op(op::ISZERO);
+                    let label = self.label_for_block(module, *else_block, labels);
+                    program.push_label(label);
+                    program.push_op(op::JUMPI);
+                } else {
+                    let then_label = self.label_for_block(module, *then_block, labels);
+                    program.push_label(then_label);
+                    program.push_op(op::JUMPI);
+                    let else_label = self.label_for_block(module, *else_block, labels);
+                    program.push_label(else_label);
+                    program.push_op(op::JUMP);
+                }
+            }
+            ir::TerminatorKind::IndexedJump(targets) => {
+                indexed_jump::lower(self, program, targets, module, labels, indexed_jump)
+            }
+            ir::TerminatorKind::Op(opcode) => {
+                if *opcode != op::STOP || Self::next_block(module, block_id).is_some() {
+                    program.push_op(*opcode);
+                }
+            }
+        }
+    }
+
+    fn next_block(module: &ir::Module, block: ir::BlockId) -> Option<ir::BlockId> {
+        let next = block.index() + 1;
+        (next < module.blocks.len()).then(|| ir::BlockId::from_usize(next))
+    }
+
+    fn label_for_block(
+        &mut self,
+        module: &ir::Module,
+        block: ir::BlockId,
+        labels: &mut Vec<Option<Label>>,
+    ) -> Label {
+        let original = module.blocks[block].label as usize;
+        if original >= labels.len() {
+            labels.resize_with(original + 1, || None);
+        }
+        *labels[original].get_or_insert_with(|| self.new_label())
     }
 
     fn resolve_known_deferred_constants(
