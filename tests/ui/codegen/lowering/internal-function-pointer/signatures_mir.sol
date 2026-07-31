@@ -2,9 +2,10 @@
 //@ filecheck:
 
 // CHECK-LABEL: fn @constructor(
+// CHECK: [[INIT:v[0-9]+]] = and [[SET_FLAG:[0-9]+]], 0xffffffffffffffff
 // CHECK: [[WORD:v[0-9]+]] = sload 0
 // CHECK: [[CLEARED:v[0-9]+]] = and [[WORD]], 0xffffffffffffffffffffffffffffffffffffffffffffff0000000000000000ff
-// CHECK: [[MASKED:v[0-9]+]] = and [[SET_FLAG:[0-9]+]], 0xffffffffffffffff
+// CHECK: [[MASKED:v[0-9]+]] = and [[INIT]], 0xffffffffffffffff
 // CHECK: [[SHIFTED:v[0-9]+]] = shl 8, [[MASKED]]
 // CHECK: [[UPDATED:v[0-9]+]] = or [[CLEARED]], [[SHIFTED]]
 // CHECK: sstore 0, [[UPDATED]]
@@ -32,7 +33,8 @@ contract FunctionPointerSignatures {
     // CHECK: [[WORD:v[0-9]+]] = sload 0
     // CHECK: [[SHIFTED:v[0-9]+]] = shr 8, [[WORD]]
     // CHECK: [[STORED:v[0-9]+]] = and [[SHIFTED]], 0xffffffffffffffff
-    // CHECK: internal_call @__internal_dispatch_0, 0, [[STORED]]
+    // CHECK: [[CLEAN:v[0-9]+]] = and [[STORED]], 0xffffffffffffffff
+    // CHECK: internal_call @__internal_dispatch_0, 0, [[CLEAN]]
     function callState() public returns (bool) {
         stateFn();
         return flag;

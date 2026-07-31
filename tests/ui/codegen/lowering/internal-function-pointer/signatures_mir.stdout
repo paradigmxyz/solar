@@ -2,12 +2,13 @@
 @module FunctionPointerSignatures
 fn @constructor() {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffff0000000000000000ff
-    v2 = and 2, 0xffffffffffffffff
-    v3 = shl 8, v2
-    v4 = or v1, v3
-    sstore 0, v4 !metadata(storage=slot(0))
+    v0 = and 2, 0xffffffffffffffff
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffff0000000000000000ff
+    v3 = and v0, 0xffffffffffffffff
+    v4 = shl 8, v3
+    v5 = or v2, v4
+    sstore 0, v5 !metadata(storage=slot(0))
     stop
 }
 
@@ -16,7 +17,9 @@ fn @callVoid() -> bool [abi_returns=[word]] {
     internal_call @__internal_dispatch_0, 0, 2
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
-    ret v1
+    v2 = iszero v1
+    v3 = iszero v2
+    ret v3
 }
 
 fn @__internal_dispatch_0(arg0: function) {
@@ -34,11 +37,13 @@ fn @__internal_dispatch_0(arg0: function) {
 
 fn @setFlag.3() {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v2 = and 1, 255
-    v3 = or v1, v2
-    sstore 0, v3 !metadata(storage=slot(0))
+    v0 = iszero 1
+    v1 = iszero v0
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = and v1, 255
+    v5 = or v3, v4
+    sstore 0, v5 !metadata(storage=slot(0))
     stop
 }
 
@@ -47,10 +52,13 @@ fn @callState() -> bool [abi_returns=[word]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
     v2 = and v1, 0xffffffffffffffff
-    internal_call @__internal_dispatch_0, 0, v2
-    v3 = sload 0 !metadata(storage=slot(0))
-    v4 = and v3, 255
-    ret v4
+    v3 = and v2, 0xffffffffffffffff
+    internal_call @__internal_dispatch_0, 0, v3
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = and v4, 255
+    v6 = iszero v5
+    v7 = iszero v6
+    ret v7
 }
 
 fn @callPair(arg0: u256) -> (u256, u256) [abi_returns=[word, word]] {
@@ -138,11 +146,13 @@ fn @__internal_dispatch_2(arg0: function, arg1: u256, arg2: u256) -> u256 {
 
 fn @setFlag.12() {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v2 = and 1, 255
-    v3 = or v1, v2
-    sstore 0, v3 !metadata(storage=slot(0))
+    v0 = iszero 1
+    v1 = iszero v0
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = and v1, 255
+    v5 = or v3, v4
+    sstore 0, v5 !metadata(storage=slot(0))
     stop
 }
 

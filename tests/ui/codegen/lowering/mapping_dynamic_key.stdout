@@ -12,7 +12,8 @@ fn @lookup(arg0: calldataslice) -> address [abi_returns=[word]] {
     v3 = mapping_slot_calldata arg0, 0
     v4 = sload v3 !metadata(storage=symbolic(v3))
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
-    ret v5
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v6
 }
 
 fn @set(arg0: memorybytes, arg1: address) {
@@ -43,11 +44,12 @@ fn @set(arg0: memorybytes, arg1: address) {
     revert 0, 0
   bb4:
     v15 = mapping_slot_memory v9, 0
-    v16 = sload v15 !metadata(storage=symbolic(v15))
-    v17 = and v16, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v18 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
-    v19 = or v17, v18
-    sstore v15, v19 !metadata(storage=symbolic(v15))
+    v16 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v17 = sload v15 !metadata(storage=symbolic(v15))
+    v18 = and v17, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v19 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
+    v20 = or v18, v19
+    sstore v15, v20 !metadata(storage=symbolic(v15))
     stop
 }
 
@@ -74,7 +76,8 @@ fn @get(arg0: memorybytes) -> address [abi_returns=[word]] {
     v12 = mapping_slot_memory v9, 0
     v13 = sload v12 !metadata(storage=symbolic(v12))
     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
-    ret v14
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v15
 }
 
 // === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKeyPaths ===
@@ -399,23 +402,34 @@ fn @setSkey(arg0: memorybytes) {
     v46 = mul v44, 32
     v47 = add v13, v46
     v48 = mload v47
-    sstore v45, v48 !metadata(storage=symbolic(v45))
-    v49 = add v44, 1
-    mstore v31, v49
+    v49 = mod v12, 32
+    v50 = iszero v49
+    v51 = iszero v50
+    v52 = sub v30, 1
+    v53 = eq v44, v52
+    v54 = and v51, v53
+    v55 = mul v49, 8
+    v56 = shr v55, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v57 = not v56
+    v58 = and v48, v57
+    v59 = select v54, v58, v48
+    sstore v45, v59 !metadata(storage=symbolic(v45))
+    v60 = add v44, 1
+    mstore v31, v60
     jump bb5
   bb7:
     mstore v31, v30
     jump bb8
   bb8:
-    v50 = mload v31
-    v51 = lt v50, v25
-    jumpi v51, bb9, bb10
+    v61 = mload v31
+    v62 = lt v61, v25
+    jumpi v62, bb9, bb10
   bb9:
-    v52 = mload v31
-    v53 = add v32, v52
-    sstore v53, 0 !metadata(storage=symbolic(v53))
-    v54 = add v52, 1
-    mstore v31, v54
+    v63 = mload v31
+    v64 = add v32, v63
+    sstore v64, 0 !metadata(storage=symbolic(v64))
+    v65 = add v63, 1
+    mstore v31, v65
     jump bb8
   bb10:
     stop

@@ -2,11 +2,12 @@
 @module ConstructorStoredFunctionPointer
 fn @_anonymous() {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v2 = and 2, 0xffffffffffffffff
-    v3 = or v1, v2
-    sstore 0, v3 !metadata(storage=slot(0))
+    v0 = and 2, 0xffffffffffffffff
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v3 = and v0, 0xffffffffffffffff
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
     stop
 }
 
@@ -19,8 +20,9 @@ fn @callStoredOnly() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffff
-    v2 = internal_call @__internal_dispatch_0, 1, v1
-    ret v2
+    v2 = and v1, 0xffffffffffffffff
+    v3 = internal_call @__internal_dispatch_0, 1, v2
+    ret v3
 }
 
 fn @__internal_dispatch_0(arg0: function) -> u256 {

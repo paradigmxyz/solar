@@ -223,7 +223,7 @@ impl<'gcx> Lowerer<'gcx> {
                             _ => unreachable!(),
                         };
                         // Store the new value back
-                        self.lower_assign(builder, operand, new_val);
+                        self.lower_assign(builder, operand, new_val, None, None);
                         // Return old value for post, new value for pre
                         match op.kind {
                             UnOpKind::PostInc | UnOpKind::PostDec => operand_val,
@@ -451,7 +451,16 @@ impl<'gcx> Lowerer<'gcx> {
                             field_index,
                         )
                 {
-                    return self.load_storage_location_at_slot(builder, location, slot);
+                    if location.field.is_some() {
+                        let value = self.load_storage_location_at_slot(builder, location, slot);
+                        if let Some(ty) = self.get_expr_type(expr) {
+                            return self.clean_storage_value(builder, ty, value);
+                        }
+                        return value;
+                    }
+                    if let Some(ty) = self.get_expr_type(expr) {
+                        return self.materialize_storage_value(builder, ty, slot);
+                    }
                 }
 
                 if let Some((base_slot, struct_id, field_index)) =
@@ -460,7 +469,16 @@ impl<'gcx> Lowerer<'gcx> {
                     let location = self.get_struct_field_storage_location(struct_id, field_index);
                     let slot = base_slot + location.slot;
                     let slot_val = builder.imm_u256(slot);
-                    return self.load_storage_location_at_slot(builder, location, slot_val);
+                    if location.field.is_some() {
+                        let value = self.load_storage_location_at_slot(builder, location, slot_val);
+                        if let Some(ty) = self.get_expr_type(expr) {
+                            return self.clean_storage_value(builder, ty, value);
+                        }
+                        return value;
+                    }
+                    if let Some(ty) = self.get_expr_type(expr) {
+                        return self.materialize_storage_value(builder, ty, slot_val);
+                    }
                 }
 
                 // Check if this is a nested storage struct access (e.g., storedNested.point.x)
@@ -472,8 +490,10 @@ impl<'gcx> Lowerer<'gcx> {
                 // Storage struct field access where the base is itself a storage
                 // location: a storage reference (`Item storage r = items[k]; r.a`)
                 // or an indexed element (`items[k].a`, `arr[i].a`).
-                if let Some(slot) = self.lower_storage_struct_field_slot(builder, base, *member) {
-                    return builder.sload(slot);
+                if let Some(slot) = self.lower_storage_struct_field_slot(builder, base, *member)
+                    && let Some(ty) = self.get_expr_type(expr)
+                {
+                    return self.materialize_storage_value(builder, ty, slot);
                 }
 
                 // Regular memory struct member access
@@ -522,6 +542,27 @@ impl<'gcx> Lowerer<'gcx> {
                         "tuple assignment does not produce a single value",
                     );
                 }
+                let source_ty = self.get_expr_type(rhs);
+                let source_slot = if op.is_none()
+                    && source_ty.is_some_and(|ty| {
+                        matches!(
+                            ty.kind,
+                            TyKind::Ref(inner, solar_ast::DataLocation::Storage)
+                                if matches!(
+                                    inner.kind,
+                                    TyKind::Struct(_)
+                                        | TyKind::Array(..)
+                                        | TyKind::DynArray(_)
+                                        | TyKind::Elementary(
+                                            ElementaryType::Bytes | ElementaryType::String
+                                        )
+                                )
+                        )
+                    }) {
+                    self.lower_lvalue_slot(builder, rhs)
+                } else {
+                    None
+                };
                 let rhs_val = if op.is_none()
                     && self
                         .gcx
@@ -535,6 +576,12 @@ impl<'gcx> Lowerer<'gcx> {
                             "unsupported storage reference assignment",
                         )
                     })
+                } else if let Some(source_slot) = source_slot {
+                    self.materialize_storage_value_for_assignment(
+                        builder,
+                        source_ty.unwrap(),
+                        source_slot,
+                    )
                 } else if op.is_none() && self.lhs_expects_memory_bytes_value(lhs) {
                     self.lower_expr_as_memory_bytes(builder, rhs)
                 } else if op.is_none() && self.lhs_expects_memory_dyn_array_value(lhs) {
@@ -565,7 +612,7 @@ impl<'gcx> Lowerer<'gcx> {
                 } else {
                     rhs_val
                 };
-                self.lower_assign(builder, lhs, final_val);
+                self.lower_assign(builder, lhs, final_val, source_ty, source_slot);
                 final_val
             }
 
@@ -752,13 +799,7 @@ impl<'gcx> Lowerer<'gcx> {
             && ty.peel_refs().is_reference_type()
             && let Some(slot) = self.lower_lvalue_slot(builder, target)
         {
-            if let TyKind::Struct(struct_id) = ty.peel_refs().kind
-                && !self.struct_needs_recursive_storage_clear(struct_id)
-            {
-                self.clear_storage_struct_at(builder, struct_id, slot);
-            } else {
-                self.clear_storage_value_at(builder, ty, slot);
-            }
+            self.clear_storage_value_at(builder, ty, slot);
             return;
         }
 
@@ -797,7 +838,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         let zero = builder.imm_u256(U256::ZERO);
-        self.lower_assign(builder, target, zero);
+        self.lower_assign(builder, target, zero, None, None);
     }
 
     fn lower_unit_ternary(
@@ -942,8 +983,13 @@ impl<'gcx> Lowerer<'gcx> {
                         ) {
                             return self.materialize_storage_bytes(builder, slot_val);
                         }
+                        let ty = self.gcx.type_of_item((*var_id).into());
+                        if matches!(ty.peel_refs().kind, TyKind::Array(..) | TyKind::DynArray(_)) {
+                            return self.materialize_storage_value(builder, ty, slot_val);
+                        }
 
-                        return self.load_storage_location_at_slot(builder, location, slot_val);
+                        let value = self.load_storage_location_at_slot(builder, location, slot_val);
+                        return self.clean_storage_value(builder, ty, value);
                     }
 
                     if let Some(value) = self.lower_default_variable_value(builder, *var_id) {
@@ -1729,6 +1775,8 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         lhs: &hir::Expr<'_>,
         rhs: ValueId,
+        source_ty: Option<Ty<'gcx>>,
+        source_slot: Option<ValueId>,
     ) {
         match &lhs.kind {
             ExprKind::Ident(_) => {
@@ -1752,36 +1800,25 @@ impl<'gcx> Lowerer<'gcx> {
                         let base_slot = location.slot;
                         let ty = self.gcx.type_of_hir_ty(&var.ty).peel_refs();
                         match ty.kind {
-                            TyKind::Struct(struct_id) => {
-                                // Recursively copy all fields (handles nested structs).
-                                self.copy_memory_to_storage(builder, struct_id, base_slot, rhs, 0);
-                            }
-                            TyKind::Elementary(
+                            TyKind::Struct(_)
+                            | TyKind::Elementary(
                                 hir::ElementaryType::String | hir::ElementaryType::Bytes,
-                            ) => {
-                                // `string`/`bytes` state variable: `rhs` is a memory
-                                // `[length][data...]` pointer; encode it into the
-                                // short/long storage form instead of storing the
-                                // pointer word.
+                            )
+                            | TyKind::DynArray(_)
+                            | TyKind::Array(..) => {
                                 let slot = builder.imm_u256(base_slot);
-                                self.copy_memory_bytes_to_storage(builder, slot, rhs);
-                            }
-                            TyKind::DynArray(elem) => {
-                                let slot = builder.imm_u256(base_slot);
-                                self.copy_memory_dyn_array_to_storage(builder, slot, rhs, elem);
-                            }
-                            TyKind::Array(elem, len) => {
-                                let slot = builder.imm_u256(base_slot);
-                                self.copy_memory_fixed_array_to_storage(
+                                self.store_storage_value_at(
                                     builder,
+                                    ty,
                                     slot,
                                     rhs,
-                                    elem,
-                                    len.to(),
+                                    source_ty,
+                                    source_slot,
                                 );
                             }
                             _ => {
                                 // Simple scalar storage assignment.
+                                let rhs = self.clean_storage_value(builder, ty, rhs);
                                 self.store_storage_location(builder, location, rhs);
                             }
                         }
@@ -1789,7 +1826,14 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
             ExprKind::Index(base, index) => {
-                self.lower_index_assign(builder, lhs, base, index.as_deref(), rhs);
+                self.lower_index_assign(
+                    builder,
+                    lhs,
+                    base,
+                    index.as_deref(),
+                    rhs,
+                    super::storage::StorageValueSource { ty: source_ty, slot: source_slot },
+                );
             }
             ExprKind::Member(base, member) => {
                 // Check if this is a storage struct member assignment (e.g., storedPoint.x = value)
@@ -1802,7 +1846,14 @@ impl<'gcx> Lowerer<'gcx> {
                             field_index,
                         )
                 {
-                    self.store_storage_location_at_slot(builder, location, slot, rhs);
+                    if location.field.is_some() {
+                        let rhs = self
+                            .get_expr_type(lhs)
+                            .map_or(rhs, |ty| self.clean_storage_value(builder, ty, rhs));
+                        self.store_storage_location_at_slot(builder, location, slot, rhs);
+                    } else if let Some(ty) = self.get_expr_type(lhs) {
+                        self.store_storage_value_at(builder, ty, slot, rhs, source_ty, source_slot);
+                    }
                     return;
                 }
 
@@ -1812,7 +1863,21 @@ impl<'gcx> Lowerer<'gcx> {
                     let location = self.get_struct_field_storage_location(struct_id, field_index);
                     let slot = base_slot + location.slot;
                     let slot_val = builder.imm_u256(slot);
-                    self.store_storage_location_at_slot(builder, location, slot_val, rhs);
+                    if location.field.is_some() {
+                        let rhs = self
+                            .get_expr_type(lhs)
+                            .map_or(rhs, |ty| self.clean_storage_value(builder, ty, rhs));
+                        self.store_storage_location_at_slot(builder, location, slot_val, rhs);
+                    } else if let Some(ty) = self.get_expr_type(lhs) {
+                        self.store_storage_value_at(
+                            builder,
+                            ty,
+                            slot_val,
+                            rhs,
+                            source_ty,
+                            source_slot,
+                        );
+                    }
                     return;
                 }
 
@@ -1883,16 +1948,17 @@ impl<'gcx> Lowerer<'gcx> {
                     element_slots,
                 );
                 if access.field.is_some() {
+                    let rhs = self.clean_storage_value(builder, element_ty, rhs);
                     self.store_storage_access(builder, access, rhs);
                 } else {
-                    self.store_storage_value_at(builder, element_ty, access.slot, rhs);
+                    self.store_storage_value_at(builder, element_ty, access.slot, rhs, None, None);
                 }
             }
             ExprKind::Call(..) => {
                 if let Some(slot) = self.lower_lvalue_slot(builder, lhs)
                     && let Some(ty) = self.get_expr_type(lhs)
                 {
-                    self.store_storage_value_at(builder, ty, slot, rhs);
+                    self.store_storage_value_at(builder, ty, slot, rhs, source_ty, source_slot);
                 }
             }
             ExprKind::YulMember(base, member) => {
@@ -2734,16 +2800,28 @@ impl<'gcx> Lowerer<'gcx> {
         len: ValueId,
         body: impl FnOnce(&mut Self, &mut FunctionBuilder<'_>, ValueId) + Copy,
     ) {
+        let zero = builder.imm_u64(0);
+        self.emit_elements_loop(builder, zero, len, body);
+    }
+
+    /// Emits a `for index in start..end` loop around `body`; the builder ends
+    /// up in the exit block.
+    pub(super) fn emit_elements_loop(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        start: ValueId,
+        end: ValueId,
+        body: impl FnOnce(&mut Self, &mut FunctionBuilder<'_>, ValueId) + Copy,
+    ) {
         let preheader = builder.current_block();
         let header = builder.create_block();
         let body_block = builder.create_block();
         let exit = builder.create_block();
-        let zero = builder.imm_u64(0);
         builder.jump(header);
 
         builder.switch_to_block(header);
-        let index_phi = builder.phi(vec![(preheader, zero)]);
-        let has_more = builder.lt(index_phi, len);
+        let index_phi = builder.phi(vec![(preheader, start)]);
+        let has_more = builder.lt(index_phi, end);
         builder.branch(has_more, body_block, exit);
 
         builder.switch_to_block(body_block);
@@ -3113,12 +3191,6 @@ impl<'gcx> Lowerer<'gcx> {
                     element_ty,
                     element_slots,
                 );
-                if access.field.is_some() {
-                    let zero = builder.imm_u64(0);
-                    self.store_storage_access(builder, access, zero);
-                } else {
-                    self.clear_storage_value_at(builder, element_ty, access.slot);
-                }
                 Some(access.slot)
             }
             // A call to a function returning a storage reference (e.g. the
@@ -3337,8 +3409,6 @@ impl<'gcx> Lowerer<'gcx> {
         let length = builder.sload(slot);
         let one = builder.imm_u64(1);
         let new_length = builder.add(length, one);
-        let overflow = builder.lt(new_length, length);
-        self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
 
         let scratch = builder.imm_u64(0);
         builder.mstore(scratch, slot);
@@ -3385,21 +3455,16 @@ impl<'gcx> Lowerer<'gcx> {
                     element_ty,
                     element_slots,
                 );
-                if access.field.is_some() {
-                    let zero = builder.imm_u64(0);
-                    self.store_storage_access(builder, access, zero);
-                } else {
-                    self.clear_storage_value_at(builder, element_ty, access.slot);
-                }
                 if element_ty.is_reference_type() {
                     Some(access.slot)
+                } else if access.field.is_some() {
+                    Some(self.load_storage_access(builder, access))
                 } else {
-                    // The storage reference returned by `push()` reads as the
-                    // newly zero-initialized scalar when used as an rvalue.
-                    Some(builder.imm_u64(0))
+                    Some(builder.sload(access.slot))
                 }
             }
             (Builtin::ArrayPush, Some(arg)) => {
+                let source_ty = self.get_expr_type(arg);
                 let value = match element_ty.peel_refs().kind {
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                         self.lower_expr_as_memory_bytes(builder, arg)
@@ -3414,9 +3479,17 @@ impl<'gcx> Lowerer<'gcx> {
                     element_slots,
                 );
                 if access.field.is_some() {
+                    let value = self.clean_storage_value(builder, element_ty, value);
                     self.store_storage_access(builder, access, value);
                 } else {
-                    self.store_storage_value_at(builder, element_ty, access.slot, value);
+                    self.store_storage_value_at(
+                        builder,
+                        element_ty,
+                        access.slot,
+                        value,
+                        source_ty,
+                        None,
+                    );
                 }
                 None
             }

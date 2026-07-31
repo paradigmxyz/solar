@@ -70,23 +70,34 @@ fn @set(arg0: u256, arg1: memorybytes) {
     v47 = mul v45, 32
     v48 = add v14, v47
     v49 = mload v48
-    sstore v46, v49 !metadata(storage=symbolic(v46))
-    v50 = add v45, 1
-    mstore v32, v50
+    v50 = mod v13, 32
+    v51 = iszero v50
+    v52 = iszero v51
+    v53 = sub v31, 1
+    v54 = eq v45, v53
+    v55 = and v52, v54
+    v56 = mul v50, 8
+    v57 = shr v56, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v58 = not v57
+    v59 = and v49, v58
+    v60 = select v55, v59, v49
+    sstore v46, v60 !metadata(storage=symbolic(v46))
+    v61 = add v45, 1
+    mstore v32, v61
     jump bb5
   bb7:
     mstore v32, v31
     jump bb8
   bb8:
-    v51 = mload v32
-    v52 = lt v51, v26
-    jumpi v52, bb9, bb10
+    v62 = mload v32
+    v63 = lt v62, v26
+    jumpi v63, bb9, bb10
   bb9:
-    v53 = mload v32
-    v54 = add v33, v53
-    sstore v54, 0 !metadata(storage=symbolic(v54))
-    v55 = add v53, 1
-    mstore v32, v55
+    v64 = mload v32
+    v65 = add v33, v64
+    sstore v65, 0 !metadata(storage=symbolic(v65))
+    v66 = add v64, 1
+    mstore v32, v66
     jump bb8
   bb10:
     stop
@@ -163,23 +174,34 @@ fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) {
     v48 = mul v46, 32
     v49 = add v15, v48
     v50 = mload v49
-    sstore v47, v50 !metadata(storage=symbolic(v47))
-    v51 = add v46, 1
-    mstore v33, v51
+    v51 = mod v14, 32
+    v52 = iszero v51
+    v53 = iszero v52
+    v54 = sub v32, 1
+    v55 = eq v46, v54
+    v56 = and v53, v55
+    v57 = mul v51, 8
+    v58 = shr v57, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v59 = not v58
+    v60 = and v50, v59
+    v61 = select v56, v60, v50
+    sstore v47, v61 !metadata(storage=symbolic(v47))
+    v62 = add v46, 1
+    mstore v33, v62
     jump bb5
   bb7:
     mstore v33, v32
     jump bb8
   bb8:
-    v52 = mload v33
-    v53 = lt v52, v27
-    jumpi v53, bb9, bb10
+    v63 = mload v33
+    v64 = lt v63, v27
+    jumpi v64, bb9, bb10
   bb9:
-    v54 = mload v33
-    v55 = add v34, v54
-    sstore v55, 0 !metadata(storage=symbolic(v55))
-    v56 = add v54, 1
-    mstore v33, v56
+    v65 = mload v33
+    v66 = add v34, v65
+    sstore v66, 0 !metadata(storage=symbolic(v66))
+    v67 = add v65, 1
+    mstore v33, v67
     jump bb8
   bb10:
     stop

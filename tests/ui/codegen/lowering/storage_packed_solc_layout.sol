@@ -346,7 +346,8 @@ contract PackedSolcLayout {
             tail := sload(add(withMapping.slot, 2))
         }
         return withMapping.beforeMapping == 0 && withMapping.afterMapping == 0
-            && head == 0 && mappingSlot == 0xabcdef && tail == 0;
+            && head == (type(uint256).max << 8) && mappingSlot == 0xabcdef
+            && tail == (type(uint256).max << 8);
     }
 
     function memoryStructCopyPacking() external returns (bool) {

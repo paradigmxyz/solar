@@ -36,7 +36,13 @@ impl<'gcx> Lowerer<'gcx> {
             if self.expr_has_bytes_or_string_type(expr) {
                 return self.materialize_storage_bytes(builder, element_slot);
             }
-            return self.load_storage_access(builder, access);
+            if let Some(ty) = self.get_expr_type(expr)
+                && matches!(ty.peel_refs().kind, TyKind::Array(..) | TyKind::DynArray(_))
+            {
+                return self.materialize_storage_value(builder, ty, element_slot);
+            }
+            let value = self.load_storage_access(builder, access);
+            return self.clean_storage_value(builder, element_ty, value);
         }
 
         if let Some(mapping) = self.lower_mapping_element_slot(builder, base, index) {
@@ -59,9 +65,14 @@ impl<'gcx> Lowerer<'gcx> {
                 return self.materialize_storage_bytes(builder, mapping.slot);
             }
             if let Some(ty) = self.get_expr_type(expr)
+                && matches!(ty.peel_refs().kind, TyKind::Array(..) | TyKind::DynArray(_))
+            {
+                return self.materialize_storage_value(builder, ty, mapping.slot);
+            }
+            if let Some(ty) = self.get_expr_type(expr)
                 && let Some(field) = self.packed_storage_field(ty)
             {
-                return self.load_storage_location_at_slot(
+                let value = self.load_storage_location_at_slot(
                     builder,
                     super::storage::StorageLocation {
                         slot: U256::ZERO,
@@ -70,6 +81,7 @@ impl<'gcx> Lowerer<'gcx> {
                     },
                     mapping.slot,
                 );
+                return self.clean_storage_value(builder, ty, value);
             }
             return builder.sload(mapping.slot);
         }
@@ -193,7 +205,9 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
         rhs: ValueId,
+        source: super::storage::StorageValueSource<'gcx>,
     ) {
+        let super::storage::StorageValueSource { ty: source_ty, slot: source_slot } = source;
         if let Some((slot_val, fixed_len, element_ty, elem_slots)) =
             self.storage_array_slot_of_base(builder, base)
         {
@@ -202,35 +216,24 @@ impl<'gcx> Lowerer<'gcx> {
                 builder, slot_val, fixed_len, index_val, element_ty, elem_slots,
             );
             if access.field.is_some() {
+                let rhs = self.clean_storage_value(builder, element_ty, rhs);
                 self.store_storage_access(builder, access, rhs);
             } else {
-                self.store_storage_value_at(builder, element_ty, access.slot, rhs);
+                self.store_storage_value_at(
+                    builder,
+                    element_ty,
+                    access.slot,
+                    rhs,
+                    source_ty,
+                    source_slot,
+                );
             }
             return;
         }
 
         if let Some(mapping) = self.lower_mapping_element_slot(builder, base, index) {
-            if let Some(ty) = self.get_expr_type(lhs)
-                && let TyKind::Struct(struct_id) = ty.peel_refs().kind
-            {
-                self.copy_memory_to_storage_at(builder, struct_id, mapping.slot, rhs, 0);
-            } else if self.expr_has_bytes_or_string_type(lhs) {
-                self.copy_memory_bytes_to_storage(builder, mapping.slot, rhs);
-            } else if let Some(ty) = self.get_expr_type(lhs)
-                && let Some(field) = self.packed_storage_field(ty)
-            {
-                self.store_storage_location_at_slot(
-                    builder,
-                    super::storage::StorageLocation {
-                        slot: U256::ZERO,
-                        offset: 0,
-                        field: Some(field),
-                    },
-                    mapping.slot,
-                    rhs,
-                );
-            } else {
-                builder.sstore(mapping.slot, rhs);
+            if let Some(ty) = self.get_expr_type(lhs) {
+                self.store_storage_value_at(builder, ty, mapping.slot, rhs, source_ty, source_slot);
             }
             return;
         }

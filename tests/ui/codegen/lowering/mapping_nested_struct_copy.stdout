@@ -22,7 +22,23 @@ fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) {
     v9 = memory_object_field_addr memorystruct<3>, v3, 2
     mstore v9, arg4
     v10 = mapping_slot arg0, 0
-    memory_to_storage struct<word, struct<word, word>, word>, v3, v10
+    v11 = memory_object_field_addr memorystruct<3>, v3, 0
+    v12 = mload v11
+    sstore v10, v12 !metadata(storage=symbolic(v10))
+    v13 = memory_object_field_addr memorystruct<3>, v3, 1
+    v14 = mload v13
+    v15 = add v10, 1
+    v16 = memory_object_field_addr memorystruct<2>, v14, 0
+    v17 = mload v16
+    sstore v15, v17 !metadata(storage=offset(v10, 1))
+    v18 = memory_object_field_addr memorystruct<2>, v14, 1
+    v19 = mload v18
+    v20 = add v15, 1
+    sstore v20, v19 !metadata(storage=offset(v10, 2))
+    v21 = memory_object_field_addr memorystruct<3>, v3, 2
+    v22 = mload v21
+    v23 = add v10, 3
+    sstore v23, v22 !metadata(storage=offset(v10, 3))
     stop
 }
 
@@ -67,7 +83,13 @@ fn @clear(arg0: u256) {
     revert 0, 0
   bb2:
     v3 = mapping_slot arg0, 0
-    clear_storage struct<word, struct<word, word>, word>, v3
+    sstore v3, 0 !metadata(storage=symbolic(v3))
+    v4 = add v3, 1
+    sstore v4, 0 !metadata(storage=offset(v3, 1))
+    v5 = add v4, 1
+    sstore v5, 0 !metadata(storage=offset(v3, 2))
+    v6 = add v3, 3
+    sstore v6, 0 !metadata(storage=offset(v3, 3))
     stop
 }
 

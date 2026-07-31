@@ -4,9 +4,10 @@
 // ported-from: test/libsolidity/semanticTests/constructor/store_internal_unused_function_in_constructor.sol
 
 // CHECK-LABEL: fn @_anonymous(
+// CHECK: [[INIT:v[0-9]+]] = and [[ONLY_STORED:[0-9]+]], 0xffffffffffffffff
 // CHECK: [[WORD:v[0-9]+]] = sload 0
 // CHECK: [[CLEARED:v[0-9]+]] = and [[WORD]], 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-// CHECK: [[MASKED:v[0-9]+]] = and [[ONLY_STORED:[0-9]+]], 0xffffffffffffffff
+// CHECK: [[MASKED:v[0-9]+]] = and [[INIT]], 0xffffffffffffffff
 // CHECK: [[UPDATED:v[0-9]+]] = or [[CLEARED]], [[MASKED]]
 // CHECK: sstore 0, [[UPDATED]]
 contract ConstructorStoredFunctionPointer {
@@ -23,7 +24,8 @@ contract ConstructorStoredFunctionPointer {
     // CHECK-LABEL: fn @callStoredOnly(
     // CHECK: [[WORD:v[0-9]+]] = sload 0
     // CHECK: [[STORED_ONLY:v[0-9]+]] = and [[WORD]], 0xffffffffffffffff
-    // CHECK: internal_call @__internal_dispatch_0, 1, [[STORED_ONLY]]
+    // CHECK: [[CLEAN:v[0-9]+]] = and [[STORED_ONLY]], 0xffffffffffffffff
+    // CHECK: internal_call @__internal_dispatch_0, 1, [[CLEAN]]
     // CHECK-LABEL: fn @__internal_dispatch_0(
     // CHECK: eq arg0, [[ONLY_STORED]]
     // CHECK: internal_call @onlyStored, 1

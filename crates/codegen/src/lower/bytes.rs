@@ -319,14 +319,17 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(var_id) = self.gcx.resolved_variable(lhs) {
             let var = self.gcx.hir.variable(var_id);
             if !var.is_struct_member() {
+                if self.storage_locations.contains_key(&var_id) {
+                    return matches!(&var.ty.kind, hir::TypeKind::Array(arr) if arr.size.is_none());
+                }
                 return self.var_expects_memory_dyn_array_value(var);
             }
         }
         // A member or element target names no variable of its own; its type
-        // says where it lives. A memory struct's array field assigned from a
-        // `calldata` one needs the copy just as a local would.
+        // says where it lives. Memory and storage targets both consume the
+        // materialized calldata value.
         self.get_expr_type(lhs).is_some_and(|ty| {
-            matches!(ty.kind, TyKind::Ref(inner, solar_ast::DataLocation::Memory)
+            matches!(ty.kind, TyKind::Ref(inner, solar_ast::DataLocation::Memory | solar_ast::DataLocation::Storage)
                 if matches!(inner.kind, TyKind::DynArray(_)))
         })
     }
@@ -820,15 +823,21 @@ impl<'gcx> Lowerer<'gcx> {
                         let value = self.lower_value_expr(builder, arg);
                         self.bytes1_store_byte(builder, value)
                     })
-                    .unwrap_or_else(|| builder.imm_u64(0));
+                    .unwrap_or_else(|| {
+                        let byte = self.load_storage_bytes_element_unchecked(builder, slot, len);
+                        let short_boundary = builder.imm_u64(31);
+                        let is_short_boundary = builder.eq(len, short_boundary);
+                        let zero = builder.imm_u64(0);
+                        builder.select(is_short_boundary, zero, byte)
+                    });
                 let data = builder.memory_object_data(resized, MemoryObjectKind::Bytes);
                 let dst = builder.add(data, len);
                 builder.mstore8(dst, byte);
                 self.copy_memory_bytes_to_storage(builder, slot, resized);
-                // The storage reference returned by `push()` reads as the
-                // newly zero-initialized byte when the call is used as an
-                // rvalue. Reuse the value written above.
-                return (builtin == Builtin::ArrayPush0).then_some(byte);
+                return (builtin == Builtin::ArrayPush0).then(|| {
+                    let shift = builder.imm_u64(248);
+                    builder.shl(shift, byte)
+                });
             }
             kw::Pop => {
                 self.emit_panic_if_zero(builder, len, PanicCode::PopEmptyArray);
@@ -840,6 +849,48 @@ impl<'gcx> Lowerer<'gcx> {
             _ => {}
         }
         None
+    }
+
+    fn load_storage_bytes_element_unchecked(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slot: ValueId,
+        index: ValueId,
+    ) -> ValueId {
+        let head = builder.sload(slot);
+        let one = builder.imm_u64(1);
+        let long_bit = builder.and(head, one);
+        let is_long = builder.eq(long_bit, one);
+        let short_block = builder.create_block();
+        let long_block = builder.create_block();
+        let done_block = builder.create_block();
+        builder.branch(is_long, long_block, short_block);
+
+        builder.switch_to_block(short_block);
+        let short_shift = self.storage_byte_shift(builder, index);
+        let short_byte = builder.shr(short_shift, head);
+        let byte_mask = builder.imm_u64(0xff);
+        let short_byte = builder.and(short_byte, byte_mask);
+        let short_end = builder.current_block();
+        builder.jump(done_block);
+
+        builder.switch_to_block(long_block);
+        let word_size = builder.imm_u64(32);
+        let scratch = builder.imm_u64(0);
+        builder.mstore(scratch, slot);
+        let data_slot = builder.keccak256(scratch, word_size);
+        let word_index = builder.div(index, word_size);
+        let element_slot = builder.add(data_slot, word_index);
+        let data_word = builder.sload(element_slot);
+        let byte_index = builder.mod_(index, word_size);
+        let long_shift = self.storage_byte_shift(builder, byte_index);
+        let long_byte = builder.shr(long_shift, data_word);
+        let long_byte = builder.and(long_byte, byte_mask);
+        let long_end = builder.current_block();
+        builder.jump(done_block);
+
+        builder.switch_to_block(done_block);
+        builder.phi(vec![(short_end, short_byte), (long_end, long_byte)])
     }
 
     pub(super) fn resize_memory_bytes(

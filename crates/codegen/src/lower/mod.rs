@@ -599,6 +599,10 @@ impl<'gcx> Lowerer<'gcx> {
     fn allocate_storage(&mut self, contract_id: ContractId) {
         let contract = self.gcx.hir.contract(contract_id);
         let linearized_bases = contract.linearized_bases;
+        self.next_storage_slot = contract.layout.map_or(U256::ZERO, |layout| {
+            self.gcx.eval_const(layout).ok().and_then(|value| value.as_u256()).unwrap_or_default()
+        });
+        self.next_storage_offset = 0;
 
         // Iterate in reverse order (most base first) to get correct storage layout.
         // Skip index 0 since that's the contract itself - we handle it last.
@@ -1597,11 +1601,31 @@ impl<'gcx> Lowerer<'gcx> {
                     && !var.is_constant()
                     && let Some(init) = var.initializer
                 {
-                    let init_val = self.lower_value_expr(builder, init);
+                    let ty = self.gcx.type_of_item(var_id.into()).peel_refs();
+                    let init_val = match ty.kind {
+                        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                            self.lower_expr_as_memory_bytes(builder, init)
+                        }
+                        TyKind::DynArray(_) => self.lower_expr_as_memory_dyn_array(builder, init),
+                        _ => self.lower_value_expr(builder, init),
+                    };
                     if let Some(&id) = self.immutable_ids.get(&var_id) {
                         builder.store_immutable(id, init_val);
                     } else if let Some(&location) = self.storage_locations.get(&var_id) {
-                        self.store_storage_location(builder, location, init_val);
+                        if ty.is_reference_type() {
+                            let slot = builder.imm_u256(location.slot);
+                            self.store_storage_value_at(
+                                builder,
+                                ty,
+                                slot,
+                                init_val,
+                                self.get_expr_type(init),
+                                None,
+                            );
+                        } else {
+                            let init_val = self.clean_storage_value(builder, ty, init_val);
+                            self.store_storage_location(builder, location, init_val);
+                        }
                     }
                 }
             }

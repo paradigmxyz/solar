@@ -4,7 +4,9 @@ fn @a() -> bool [abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
-    ret v1
+    v2 = iszero v1
+    v3 = iszero v2
+    ret v3
 }
 
 fn @b() -> bool [abi_returns=[word]] {
@@ -12,7 +14,9 @@ fn @b() -> bool [abi_returns=[word]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
     v2 = and v1, 255
-    ret v2
+    v3 = iszero v2
+    v4 = iszero v3
+    ret v4
 }
 
 fn @set(arg0: bool, arg1: bool) {
@@ -40,17 +44,21 @@ fn @set(arg0: bool, arg1: bool) {
   bb5:
     revert 0, 0
   bb6:
-    v11 = sload 0 !metadata(storage=slot(0))
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v13 = and arg0, 255
-    v14 = or v12, v13
-    sstore 0, v14 !metadata(storage=slot(0))
-    v15 = sload 0 !metadata(storage=slot(0))
-    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
-    v17 = and arg1, 255
-    v18 = shl 8, v17
-    v19 = or v16, v18
-    sstore 0, v19 !metadata(storage=slot(0))
+    v11 = iszero arg0
+    v12 = iszero v11
+    v13 = sload 0 !metadata(storage=slot(0))
+    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v15 = and v12, 255
+    v16 = or v14, v15
+    sstore 0, v16 !metadata(storage=slot(0))
+    v17 = iszero arg1
+    v18 = iszero v17
+    v19 = sload 0 !metadata(storage=slot(0))
+    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v21 = and v18, 255
+    v22 = shl 8, v21
+    v23 = or v20, v22
+    sstore 0, v23 !metadata(storage=slot(0))
     stop
 }
 
@@ -58,14 +66,18 @@ fn @both() -> bool [abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
-    jumpi v1, bb1, bb2
+    v2 = iszero v1
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
   bb1:
-    v2 = sload 0 !metadata(storage=slot(0))
-    v3 = shr 8, v2
-    v4 = and v3, 255
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = shr 8, v4
+    v6 = and v5, 255
+    v7 = iszero v6
+    v8 = iszero v7
     jump bb2
   bb2:
-    v5 = phi [bb0: 0], [bb1: v4]
-    ret v5
+    v9 = phi [bb0: 0], [bb1: v8]
+    ret v9
 }
 

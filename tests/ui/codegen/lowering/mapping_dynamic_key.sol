@@ -10,10 +10,11 @@ contract MappingDynamicKey {
 
     // CHECK-LABEL: fn @set{{[( ]}}
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_memory {{v[0-9]+}}, 0
+    // CHECK: [[OWNER:v[0-9]+]] = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
     // CHECK: [[OLD:v[0-9]+]] = sload [[SLOT]]
     // CHECK: [[KEEP:v[0-9]+]] = and [[OLD]], 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    // CHECK: [[OWNER:v[0-9]+]] = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
-    // CHECK: [[UPDATED:v[0-9]+]] = or [[KEEP]], [[OWNER]]
+    // CHECK: [[CLEAN:v[0-9]+]] = and [[OWNER]], 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[UPDATED:v[0-9]+]] = or [[KEEP]], [[CLEAN]]
     // CHECK: sstore [[SLOT]], [[UPDATED]]
     function set(string memory name, address owner) public {
         lookup[name] = owner;
