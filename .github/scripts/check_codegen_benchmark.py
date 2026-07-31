@@ -445,25 +445,24 @@ def branch_is_behind_main() -> bool:
 def format_report(markdown: str, has_changes: bool, behind_main: bool) -> str:
     if has_changes and not behind_main:
         return markdown
+    notices = ""
+    if behind_main:
+        notices += (
+            "> [!WARNING]\n"
+            "> This branch is behind `main`, so these benchmark results may be incorrect.\n\n"
+        )
     if not has_changes:
-        markdown = (
+        notices += (
             "> [!NOTE]\n"
             "> Codegen benchmark output is unchanged from `main`.\n\n"
-            f"{markdown}"
         )
     details = (
         "<details>\n"
         "<summary>Codegen benchmark output</summary>\n\n"
         f"{markdown}\n\n"
-        "</details>"
+        "</details>\n"
     )
-    if behind_main:
-        return (
-            "> [!WARNING]\n"
-            "> This branch is behind `main`, so these benchmark results may be incorrect.\n\n"
-            f"{details}"
-        )
-    return details
+    return notices + details
 
 
 def metric(value: int | float, unit: str, statistic: str) -> dict[str, Any]:
