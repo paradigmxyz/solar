@@ -2133,7 +2133,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn value_counts(values: impl IntoIterator<Item = ValueId>) -> FxHashMap<ValueId, usize> {
         let mut counts = FxHashMap::default();
         for value in values {
-            *counts.entry(value).or_insert(0) += 1;
+            *counts.entry(value).or_default() += 1;
         }
         counts
     }

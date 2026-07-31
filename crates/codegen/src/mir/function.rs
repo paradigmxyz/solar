@@ -218,7 +218,7 @@ impl Function {
     pub(crate) fn canonicalize_immediate_uses(&mut self) -> usize {
         let mut canonical = FxHashMap::<Immediate, ValueId>::default();
         let mut replacements = FxHashMap::default();
-        for value in self.live_values().collect::<Vec<_>>() {
+        for value in self.live_values() {
             let Value::Immediate(immediate) = self.value(value) else { continue };
             match canonical.entry(immediate.clone()) {
                 StdEntry::Occupied(entry) => {

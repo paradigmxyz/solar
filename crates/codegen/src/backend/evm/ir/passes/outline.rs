@@ -9,6 +9,7 @@ use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
+    index::IndexVec,
     map::{FxHashMap, FxHasher},
 };
 use solar_sema::Gcx;
@@ -290,8 +291,8 @@ impl InstKey {
 /// sequences always produce equal hashes, which is all the map needs: equality
 /// still compares the instructions themselves.
 struct InstHashes {
-    prefixes: Vec<Vec<u64>>,
-    repeats: Vec<DenseBitSet<usize>>,
+    prefixes: IndexVec<BlockId, Vec<u64>>,
+    repeats: IndexVec<BlockId, DenseBitSet<usize>>,
     powers: Vec<u64>,
 }
 
@@ -302,13 +303,13 @@ impl InstHashes {
         let mut counts = FxHashMap::<InstKey, u32>::default();
         for block in module.blocks.iter() {
             for inst in &block.instructions {
-                *counts.entry(InstKey::new(inst)).or_insert(0) += 1;
+                *counts.entry(InstKey::new(inst)).or_default() += 1;
             }
         }
 
         let mut longest = 0;
-        let mut prefixes = Vec::with_capacity(module.blocks.len());
-        let mut repeats = Vec::with_capacity(module.blocks.len());
+        let mut prefixes = IndexVec::with_capacity(module.blocks.len());
+        let mut repeats = IndexVec::with_capacity(module.blocks.len());
         for block in module.blocks.iter() {
             longest = longest.max(block.instructions.len());
             let mut prefix = Vec::with_capacity(block.instructions.len() + 1);
@@ -340,11 +341,11 @@ impl InstHashes {
     /// contains an instruction occurring exactly once can never occur twice, so
     /// it can never be outlined.
     fn repeats(&self, block: BlockId, index: usize) -> bool {
-        self.repeats[block.index()].contains(index)
+        self.repeats[block].contains(index)
     }
 
     fn range(&self, block: BlockId, start: usize, end: usize) -> u64 {
-        let prefix = &self.prefixes[block.index()];
+        let prefix = &self.prefixes[block];
         prefix[end + 1].wrapping_sub(prefix[start].wrapping_mul(self.powers[end + 1 - start]))
     }
 }

@@ -33,10 +33,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     pub(super) fn abi_type_error(&self) -> ErrorGuaranteed {
-        match self.gcx.dcx().has_errors() {
-            Err(guar) => guar,
-            Ok(()) => self.gcx.dcx().err("codegen cannot materialize this ABI type").emit(),
-        }
+        self.recovery_error(None, "codegen cannot materialize this ABI type")
     }
 
     fn abi_type_inner(
@@ -161,10 +158,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     pub(super) fn abi_head_size_overflow(&self) -> ErrorGuaranteed {
-        match self.gcx.dcx().has_errors() {
-            Err(guar) => guar,
-            Ok(()) => self.gcx.dcx().err("ABI head size exceeds codegen limits").emit(),
-        }
+        self.recovery_error(None, "ABI head size exceeds codegen limits")
     }
 
     /// Returns `base + off`, avoiding a redundant add for the first item.
@@ -834,8 +828,8 @@ impl<'gcx> Lowerer<'gcx> {
             return elements
                 .iter()
                 .flatten()
-                .enumerate()
-                .map(|(i, e)| (self.lower_return_value_for_ty(builder, e, tys[i]), tys[i]))
+                .zip(tys)
+                .map(|(e, ty)| (self.lower_return_value_for_ty(builder, e, ty), ty))
                 .collect();
         }
         if let Some(arity) = self.get_ternary_tuple_arity(expr) {
@@ -852,16 +846,11 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let first = self.lower_return_value_for_ty(builder, expr, tys[0]);
         let mut items = vec![(first, tys[0])];
-        let tail_base = (tys.len() > 1).then(|| self.multi_return_buffer_base(builder));
-        for (i, &ty) in tys.iter().enumerate().skip(1) {
-            items.push((
-                self.load_multi_return_value(
-                    builder,
-                    tail_base.expect("tail base is available"),
-                    i,
-                ),
-                ty,
-            ));
+        if tys.len() > 1 {
+            let tail_base = self.multi_return_buffer_base(builder);
+            for (i, &ty) in tys.iter().enumerate().skip(1) {
+                items.push((self.load_multi_return_value(builder, tail_base, i), ty));
+            }
         }
         items
     }
