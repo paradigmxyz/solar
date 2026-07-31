@@ -568,11 +568,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
 
-        let dispatchers = self
-            .internal_function_pointer_dispatchers
-            .iter()
-            .map(|(shape, &function_id)| (shape.clone(), function_id))
-            .collect::<Vec<_>>();
+        let dispatchers = std::mem::take(&mut self.internal_function_pointer_dispatchers);
         for (shape, dispatcher) in dispatchers {
             self.generate_internal_function_pointer_dispatcher(shape, dispatcher);
         }
