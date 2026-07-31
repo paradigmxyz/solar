@@ -2717,6 +2717,59 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         self.assertEqual(manifest["counts"]["excluded"], 5)
         self.assertEqual(manifest["counts"]["no_mismatch"], 6)
 
+    def test_public_command_checks_real_modular_zero_semantics(self):
+        repository = Path(__file__).resolve().parents[2]
+        artifacts = self._artifact_root("modular-zero-campaign")
+        result = subprocess.run(
+            [
+                str(repository / "fuzz" / "bin" / "solsymdiff"),
+                "--source",
+                str(
+                    repository
+                    / "tests"
+                    / "ui"
+                    / "codegen"
+                    / "lowering"
+                    / "builtin_addmod_mulmod.sol"
+                ),
+                "--contract",
+                "AddmodMulmod",
+                "--solc",
+                self.solc,
+                "--solar",
+                self.solar,
+                "--forge",
+                self.forge,
+                "--anvil",
+                self.anvil,
+                "--symbolic-solver",
+                self.z3,
+                "--artifact-dir",
+                artifacts,
+                "--timeout",
+                "60",
+                "--symbolic-timeout",
+                "5",
+            ],
+            cwd=repository,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        summary = json.loads(result.stdout)
+        manifest = json.loads(
+            (
+                Path(summary["artifact_dir"]) / "manifest.json"
+            ).read_text()
+        )
+        self.assertEqual(summary["status"], "no_mismatch_within_bounds")
+        self.assertTrue(summary["campaign_complete"])
+        self.assertEqual(manifest["counts"]["eligible"], 2)
+        self.assertEqual(manifest["counts"]["no_mismatch"], 2)
+
     def test_public_command_compares_dynamic_return_data(self):
         repository = Path(__file__).resolve().parents[2]
         artifacts = self._artifact_root("abi-dynamic-return-campaign")
