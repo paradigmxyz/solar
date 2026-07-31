@@ -316,7 +316,8 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Exits inlining for a function.
     fn exit_inline(&mut self) {
-        debug_assert!(self.inline_stack.pop().is_some());
+        let popped = self.inline_stack.pop();
+        debug_assert!(popped.is_some());
         self.check_expr_errors = self.inline_expr_error_checks & 1 != 0;
         self.inline_expr_error_checks >>= 1;
     }
