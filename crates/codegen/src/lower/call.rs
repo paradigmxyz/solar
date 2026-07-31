@@ -672,9 +672,8 @@ impl<'gcx> Lowerer<'gcx> {
 
         if let Some(ty) = self.get_expr_type(callee)
             && let TyKind::Error(_, error_id) = ty.kind
-            && self.gcx.dcx().has_errors().is_ok()
         {
-            panic!("typeck did not record resolved custom-error callee {error_id:?}");
+            return Some(error_id);
         }
 
         None

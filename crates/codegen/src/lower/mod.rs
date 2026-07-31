@@ -196,6 +196,15 @@ pub(crate) struct Lowerer<'gcx> {
 }
 
 impl<'gcx> Lowerer<'gcx> {
+    /// Returns an existing error guarantee or emits a codegen diagnostic when
+    /// lowering encounters invalid HIR without a prior error.
+    pub(super) fn recovery_error(&self, span: Span, msg: impl Into<DiagMsg>) -> ErrorGuaranteed {
+        match self.gcx.dcx().has_errors() {
+            Err(guar) => guar,
+            Ok(()) => self.gcx.dcx().err(msg).span(span).emit(),
+        }
+    }
+
     /// Reports a lowering error and returns the error sentinel value carrying
     /// the emitted diagnostic's guarantee, mirroring HIR's error types.
     pub(super) fn err_value(
@@ -617,8 +626,11 @@ impl<'gcx> Lowerer<'gcx> {
                 // Constants are inlined. Immutables are patched into typed
                 // runtime-code `PUSH<N>` placeholders at deploy time.
                 if var.is_state_variable() && var.is_immutable() {
+                    let Some(name) = var.name else {
+                        self.recovery_error(var.span, "state immutable must be named");
+                        continue;
+                    };
                     let ty = self.lower_type_from_var(var_id);
-                    let name = var.name.expect("state immutable must be named");
                     let id = self.module.add_immutable(name, ty, Some(var_id));
                     self.immutable_ids.insert(var_id, id);
                 } else if var.is_state_variable() && !var.is_constant() {
@@ -1739,12 +1751,12 @@ impl<'gcx> Lowerer<'gcx> {
             self.lower_base_constructor_arguments(builder, contract_id, declaring_id, values)?;
         }
 
-        let ctor_id = self
-            .gcx
-            .hir
-            .contract(base_id)
-            .ctor
-            .expect("base constructor argument provider without constructor");
+        let Some(ctor_id) = self.gcx.hir.contract(base_id).ctor else {
+            return Err(self.recovery_error(
+                modifier.span,
+                "base constructor arguments require a constructor",
+            ));
+        };
         let parameters = self.gcx.hir.function(ctor_id).parameters;
         if modifier.args.len() != parameters.len() {
             return Err(self
