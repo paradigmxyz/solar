@@ -394,6 +394,11 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub codegen: bool,
 
+    /// Lower all contract functions instead of only reachable ones. This is intended for
+    /// benchmarks and compiler debugging.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub codegen_all_functions: bool,
+
     /// Force a switch lowering strategy for benchmarking (default: `auto`; values: `auto`,
     /// `linear`, `binary`, `buckets`, `dense`, or `perfect`).
     #[cfg_attr(
@@ -415,11 +420,6 @@ pub struct UnstableOpts {
     /// Override the per-switch bit-slice table growth limit for benchmarking.
     #[cfg_attr(feature = "clap", arg(long))]
     pub switch_max_bit_slice_gas_code_growth: Option<usize>,
-
-    /// Lower all contract functions instead of only reachable ones. This is intended for
-    /// benchmarks and compiler debugging.
-    #[cfg_attr(feature = "clap", arg(long))]
-    pub codegen_all_functions: bool,
 
     // ----------------------------------------
     // Please add new options above this point!

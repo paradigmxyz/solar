@@ -62,6 +62,9 @@ Options:
           
           Off by default: MIR, EVM IR, disassembly, and bytecode output are only produced when this is set. Codegen is a work in progress and not yet part of the compiler's stable, solc-compatible behavior.
 
+      -Zcodegen-all-functions
+          Lower all contract functions instead of only reachable ones. This is intended for benchmarks and compiler debugging
+
       -Zswitch-lowering <SWITCH_LOWERING>
           Force a switch lowering strategy for benchmarking (default: `auto`; values: `auto`, `linear`, `binary`, `buckets`, `dense`, or `perfect`)
 
@@ -70,9 +73,6 @@ Options:
 
       -Zswitch-max-bit-slice-gas-code-growth <SWITCH_MAX_BIT_SLICE_GAS_CODE_GROWTH>
           Override the per-switch bit-slice table growth limit for benchmarking
-
-      -Zcodegen-all-functions
-          Lower all contract functions instead of only reachable ones. This is intended for benchmarks and compiler debugging
 
       -Zhelp
           Print help
