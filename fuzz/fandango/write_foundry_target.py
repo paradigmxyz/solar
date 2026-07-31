@@ -53,10 +53,26 @@ def write_symbolic_target(
     function: dict[str, object],
     max_returndata_bytes: int,
     evm_version: str,
+    dynamic_lengths: tuple[int, ...] = symbolic.DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS,
 ) -> None:
     """Write a single bounded pure-function symbolic differential target."""
     if max_returndata_bytes <= 0:
         raise ValueError("max returndata bytes must be positive")
+    if (
+        not dynamic_lengths
+        or any(
+            not isinstance(length, int)
+            or isinstance(length, bool)
+            or length < 0
+            or length > symbolic.MAX_SYMBOLIC_DYNAMIC_LENGTH
+            for length in dynamic_lengths
+        )
+        or len(set(dynamic_lengths)) != len(dynamic_lengths)
+    ):
+        raise ValueError(
+            "dynamic lengths must be unique integers from 0 through "
+            f"{symbolic.MAX_SYMBOLIC_DYNAMIC_LENGTH}"
+        )
     src_dir = out_dir / "src"
     test_dir = out_dir / "test"
     src_dir.mkdir(parents=True, exist_ok=True)
@@ -87,7 +103,10 @@ def write_symbolic_target(
     )
     (test_dir / "SymbolicDifferential.t.sol").write_text(test_source)
     (out_dir / "foundry.toml").write_text(
-        _SYMBOLIC_FOUNDRY_TOML.format(evm_version=evm_version)
+        _SYMBOLIC_FOUNDRY_TOML.format(
+            evm_version=evm_version,
+            dynamic_lengths=", ".join(str(length) for length in dynamic_lengths),
+        )
     )
 
 
@@ -119,6 +138,10 @@ optimizer_runs = 200
 via_ir = true
 evm_version = "{evm_version}"
 code_size_limit = 1000000
+
+[symbolic]
+default_array_lengths = [{dynamic_lengths}]
+default_bytes_lengths = [{dynamic_lengths}]
 """
 
 

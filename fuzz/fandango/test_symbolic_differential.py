@@ -162,6 +162,42 @@ class FocusedCommandTests(unittest.TestCase):
 
         self.assertEqual(run.call_args.args[0].contract, "FandangoRuntime")
 
+    def test_dynamic_length_override_is_parsed_once_for_the_campaign(self):
+        with (
+            patch.object(
+                sys,
+                "argv",
+                [
+                    "solsymdiff",
+                    "--source",
+                    "Target.sol",
+                    "--contract",
+                    "Target",
+                    "--symbolic-dynamic-lengths",
+                    "0,2,4",
+                ],
+            ),
+            patch.object(
+                run_foundry_target,
+                "_run_symbolic_or_incomplete",
+                return_value=0,
+            ) as run,
+        ):
+            self.assertEqual(run_foundry_target.symbolic_main(), 0)
+
+        self.assertEqual(
+            run.call_args.args[0].symbolic_dynamic_lengths,
+            (0, 2, 4),
+        )
+
+    def test_dynamic_length_override_rejects_invalid_or_duplicate_values(self):
+        for value in ("", "-1", "257", "1,1", "one"):
+            with (
+                self.subTest(value=value),
+                self.assertRaises(argparse.ArgumentTypeError),
+            ):
+                run_foundry_target._parse_symbolic_dynamic_lengths(value)
+
 
 class DeadlineTests(unittest.TestCase):
     def test_remaining_decreases_and_expiration_is_explicit(self):
@@ -856,20 +892,27 @@ class SymbolicFunctionSelectionTests(unittest.TestCase):
             ["bytes", "string", "uint256[]", "(uint256,address)[]"],
         )
 
-    def test_rejects_dynamic_inputs(self):
+    def test_accepts_dynamic_inputs_supported_by_foundry(self):
         dynamic_cases = [
             [{"name": "value", "type": "bytes"}],
             [{"name": "value", "type": "string"}],
             [{"name": "value", "type": "uint256[]"}],
             [{"name": "value", "type": "bytes[2]"}],
+            [{"name": "value", "type": "bytes[][2]"}],
         ]
         for inputs in dynamic_cases:
             with self.subTest(inputs=inputs):
                 solc = artifact(inputs=inputs)
                 solar = copy.deepcopy(solc)
                 signature = next(iter(solc["hashes"]))
-                with self.assertRaisesRegex(ValueError, "dynamic|static"):
-                    symbolic.select_function(solc, solar, signature)
+                selected = symbolic.select_function(solc, solar, signature)
+                self.assertEqual(selected["inputs"], [inputs[0]["type"]])
+                self.assertEqual(
+                    symbolic.solidity_parameter_declarations(
+                        selected["inputs"]
+                    ),
+                    [f"{inputs[0]['type']} calldata arg0"],
+                )
 
     def test_rejects_tuple_input_even_when_its_components_are_static(self):
         inputs = [
@@ -959,6 +1002,7 @@ class FunctionInventoryTests(unittest.TestCase):
             self._function("zeta"),
             self._function("dynamic", input_type="bytes"),
             self._function("dynamicOutput", output_type="bytes"),
+            self._function("unsupported", input_type="function"),
             self._function("observed", mutability="view"),
             self._function("alpha"),
         ]
@@ -968,6 +1012,7 @@ class FunctionInventoryTests(unittest.TestCase):
                 "zeta(uint256)": "00000004",
                 "dynamic(bytes)": "00000002",
                 "dynamicOutput(uint256)": "00000005",
+                "unsupported(function)": "00000006",
                 "observed(uint256)": "00000003",
                 "alpha(uint256)": "00000001",
             },
@@ -980,13 +1025,14 @@ class FunctionInventoryTests(unittest.TestCase):
             [item["signature"] for item in inventory["eligible"]],
             [
                 "alpha(uint256)",
+                "dynamic(bytes)",
                 "dynamicOutput(uint256)",
                 "zeta(uint256)",
             ],
         )
         self.assertEqual(
             [item["signature"] for item in inventory["excluded"]],
-            ["dynamic(bytes)", "observed(uint256)"],
+            ["observed(uint256)", "unsupported(function)"],
         )
         self.assertEqual(inventory["errors"], [])
 
@@ -1143,6 +1189,7 @@ class SymbolicTargetGenerationTests(unittest.TestCase):
             source = (
                 project / "test" / "SymbolicDifferential.t.sol"
             ).read_text()
+            foundry_config = (project / "foundry.toml").read_text()
 
         property_body = source.split("function checkDiff_01020304", 1)[1]
         router_body = source.split("contract RuntimeRouter", 1)[1].split(
@@ -1158,6 +1205,14 @@ class SymbolicTargetGenerationTests(unittest.TestCase):
         self.assertIn(
             "_routedStaticCall(SOLAR_IMPLEMENTATION, callData)",
             source,
+        )
+        self.assertIn(
+            "default_array_lengths = [0, 1, 2, 3]",
+            foundry_config,
+        )
+        self.assertIn(
+            "default_bytes_lengths = [0, 1, 2, 3]",
+            foundry_config,
         )
         self.assertLess(
             property_body.index("_warmRouter();"),
@@ -2005,6 +2060,12 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             fixture_dir / "CalldataContextMutant.sol"
         ).resolve()
         cls.imported = (fixture_dir / "imported" / "ImportedReference.sol").resolve()
+        cls.dynamic_input_reference = (
+            fixture_dir / "DynamicInputReference.sol"
+        ).resolve()
+        cls.dynamic_input_mutant = (
+            fixture_dir / "DynamicInputMutant.sol"
+        ).resolve()
         cls.reference_input = evm.materialize_standard_input(
             cls.solc,
             cls.reference,
@@ -2043,6 +2104,36 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             kind="solar",
             evm_version="osaka",
             standard_input=mutant_input,
+        )
+        cls.dynamic_input_reference_input = evm.materialize_standard_input(
+            cls.solc,
+            cls.dynamic_input_reference,
+            30,
+            "osaka",
+        )
+        cls.solc_dynamic_input_reference = evm.compile_standard_artifact(
+            cls.solc,
+            cls.dynamic_input_reference,
+            "DynamicInputDifferential",
+            30,
+            kind="solc",
+            evm_version="osaka",
+            standard_input=cls.dynamic_input_reference_input,
+        )
+        dynamic_input_mutant = evm.materialize_standard_input(
+            cls.solc,
+            cls.dynamic_input_mutant,
+            30,
+            "osaka",
+        )
+        cls.solar_dynamic_input_mutant = evm.compile_standard_artifact(
+            cls.solar,
+            cls.dynamic_input_mutant,
+            "DynamicInputDifferential",
+            30,
+            kind="solar",
+            evm_version="osaka",
+            standard_input=dynamic_input_mutant,
         )
         cls.address_context_input = evm.materialize_standard_input(
             cls.solc,
@@ -2119,6 +2210,7 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         contract="ControlledDifferential",
         solc_artifact=None,
         materialized=None,
+        dynamic_lengths=symbolic.DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS,
         catch_setup_errors=False,
     ):
         output = io.StringIO()
@@ -2152,6 +2244,7 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             symbolic_timeout=5,
             symbolic_max_paths=max_paths,
             symbolic_max_depth=None,
+            symbolic_dynamic_lengths=dynamic_lengths,
             max_returndata_bytes=max_returndata_bytes,
             artifact_dir=self._artifact_root("runs"),
             verbose=False,
@@ -2518,9 +2611,9 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(summary["schema"], symbolic.CAMPAIGN_SCHEMA)
         self.assertEqual(summary["status"], "no_mismatch_within_bounds")
-        self.assertEqual(manifest["counts"]["eligible"], 3)
-        self.assertEqual(manifest["counts"]["excluded"], 8)
-        self.assertEqual(manifest["counts"]["no_mismatch"], 3)
+        self.assertEqual(manifest["counts"]["eligible"], 6)
+        self.assertEqual(manifest["counts"]["excluded"], 5)
+        self.assertEqual(manifest["counts"]["no_mismatch"], 6)
 
     def test_public_command_compares_dynamic_return_data(self):
         repository = Path(__file__).resolve().parents[2]
@@ -2572,9 +2665,9 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(summary["status"], "no_mismatch_within_bounds")
         self.assertTrue(summary["campaign_complete"])
-        self.assertEqual(manifest["counts"]["eligible"], 3)
-        self.assertEqual(manifest["counts"]["excluded"], 2)
-        self.assertEqual(manifest["counts"]["no_mismatch"], 3)
+        self.assertEqual(manifest["counts"]["eligible"], 5)
+        self.assertEqual(manifest["counts"]["excluded"], 0)
+        self.assertEqual(manifest["counts"]["no_mismatch"], 5)
         encode3 = next(
             item
             for item in manifest["inventory"]["eligible"]
@@ -2673,6 +2766,75 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         self.assertEqual(returncode, 0)
         self.assertEqual(summary["status"], "no_mismatch_within_bounds")
         self.assertEqual(manifest["function"]["inputs"], ["uint256[2]"])
+
+    def test_dynamic_bytes_shape_and_contents_find_a_durable_mismatch(self):
+        returncode, summary, manifest = self._run(
+            self.solar_dynamic_input_mutant,
+            signature="probeBytes(bytes)",
+            source=self.dynamic_input_reference,
+            contract="DynamicInputDifferential",
+            solc_artifact=self.solc_dynamic_input_reference,
+            materialized=self.dynamic_input_reference_input,
+        )
+
+        self.assertEqual(returncode, 1)
+        self.assertEqual(summary["status"], "replay_confirmed_mismatch")
+        calldata = bytes.fromhex(
+            manifest["replay"]["target_calldata"].removeprefix("0x")
+        )
+        self.assertEqual(int.from_bytes(calldata[4:36]), 32)
+        self.assertEqual(int.from_bytes(calldata[36:68]), 3)
+        self.assertEqual(calldata[68:71], b"abc")
+        self.assertEqual(
+            manifest["bounds"]["dynamic_input_lengths"],
+            [0, 1, 2, 3],
+        )
+        self.assertEqual(
+            manifest["bounds"]["forge_effective"]["default_bytes_lengths"],
+            [0, 1, 2, 3],
+        )
+
+    def test_dynamic_array_shape_and_elements_find_a_durable_mismatch(self):
+        returncode, summary, manifest = self._run(
+            self.solar_dynamic_input_mutant,
+            signature="probeArray(uint256[])",
+            source=self.dynamic_input_reference,
+            contract="DynamicInputDifferential",
+            solc_artifact=self.solc_dynamic_input_reference,
+            materialized=self.dynamic_input_reference_input,
+        )
+
+        self.assertEqual(returncode, 1)
+        self.assertEqual(summary["status"], "replay_confirmed_mismatch")
+        calldata = bytes.fromhex(
+            manifest["replay"]["target_calldata"].removeprefix("0x")
+        )
+        self.assertEqual(int.from_bytes(calldata[4:36]), 32)
+        self.assertEqual(int.from_bytes(calldata[36:68]), 2)
+        self.assertEqual(int.from_bytes(calldata[68:100]), 42)
+        self.assertEqual(int.from_bytes(calldata[100:132]), 99)
+        self.assertEqual(
+            manifest["bounds"]["forge_effective"]["default_array_lengths"],
+            [0, 1, 2, 3],
+        )
+
+    def test_dynamic_length_override_changes_the_explored_shapes(self):
+        returncode, summary, manifest = self._run(
+            self.solar_dynamic_input_mutant,
+            signature="probeBytes(bytes)",
+            source=self.dynamic_input_reference,
+            contract="DynamicInputDifferential",
+            solc_artifact=self.solc_dynamic_input_reference,
+            materialized=self.dynamic_input_reference_input,
+            dynamic_lengths=(0, 2),
+        )
+
+        self.assertEqual(returncode, 0)
+        self.assertEqual(summary["status"], "no_mismatch_within_bounds")
+        self.assertEqual(
+            manifest["bounds"]["forge_effective"]["default_bytes_lengths"],
+            [0, 2],
+        )
 
     def test_controlled_cold_branch_mismatch_is_independently_replayed(self):
         returncode, summary, manifest = self._run(self.solar_mutant)

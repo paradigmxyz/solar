@@ -20,6 +20,12 @@ import evm_runtime as evm
 
 RESULT_SCHEMA = "solar:symbolic-differential@v1"
 CAMPAIGN_SCHEMA = "solar:symbolic-differential-campaign@v1"
+# Keep automatic dynamic-shape expansion small enough for multi-argument cross
+# products while covering empty, singleton, and short multi-element encodings.
+DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS = (0, 1, 2, 3)
+# Match Foundry's default hard bound so this wrapper cannot silently request a
+# shape that the pinned symbolic engine must reject.
+MAX_SYMBOLIC_DYNAMIC_LENGTH = 256
 UNSUPPORTED_RUNTIME_OPCODES = {
     # The symbolic router and independent Anvil replay intentionally use
     # different callers and fresh execution environments. Reject opcodes that
@@ -161,7 +167,7 @@ def function_inventory(
             excluded.append(
                 {
                     "signature": signature,
-                    "reason": "inputs are not statically sized",
+                    "reason": "inputs use an unsupported ABI shape",
                 }
             )
             continue
@@ -248,7 +254,7 @@ def select_function(
             solc_entry
         ) or not _has_supported_symbolic_inputs(solar_entry):
             raise ValueError(
-                f"function `{signature}` must use only statically sized ABI inputs"
+                f"function `{signature}` uses an unsupported symbolic ABI input"
             )
 
     solc_hashes = solc_artifact.get("hashes", solc_artifact.get("method_identifiers", {}))
@@ -324,7 +330,7 @@ def select_symbolic_pure_function(
         if len(candidates) != 1:
             available = ", ".join(sorted(candidates)) or "none"
             raise ValueError(
-                "select a pure function with statically sized inputs using "
+                "select a pure function with supported symbolic inputs using "
                 "--signature; "
                 f"eligible functions: {available}"
             )
@@ -334,7 +340,7 @@ def select_symbolic_pure_function(
     if signature not in candidates:
         raise ValueError(
             f"function `{signature}` is not a shared pure function with "
-            "statically sized ABI inputs"
+            "supported symbolic ABI inputs"
         )
 
     entry = solc_functions[signature]
@@ -617,7 +623,11 @@ def counterexample_artifact_matches(
 def solidity_parameter_declarations(types: list[str]) -> list[str]:
     declarations = []
     for index, abi_type in enumerate(types):
-        location = " calldata" if "[" in abi_type else ""
+        location = (
+            " calldata"
+            if abi_type in {"bytes", "string"} or "[" in abi_type
+            else ""
+        )
         declarations.append(f"{abi_type}{location} arg{index}")
     return declarations
 
@@ -827,20 +837,23 @@ def _function_shape(entry: dict[str, Any]) -> tuple[Any, ...]:
 def _has_supported_symbolic_inputs(entry: dict[str, Any]) -> bool:
     return (
         entry.get("stateMutability") == "pure"
-        and all(_is_static_type(item.get("type", "")) for item in entry.get("inputs", []))
+        and all(
+            _is_supported_symbolic_input_type(item.get("type", ""))
+            for item in entry.get("inputs", [])
+        )
     )
 
 
-def _is_static_type(abi_type: str) -> bool:
+def _is_supported_symbolic_input_type(abi_type: str) -> bool:
     while abi_type.endswith("]"):
         start = abi_type.rfind("[")
         if start < 0:
             return False
         length = abi_type[start + 1 : -1]
-        if not length.isdigit() or int(length) <= 0:
+        if length and (not length.isdigit() or int(length) <= 0):
             return False
         abi_type = abi_type[:start]
-    if abi_type in {"address", "bool"}:
+    if abi_type in {"address", "bool", "bytes", "string"}:
         return True
     if abi_type.startswith("uint") or abi_type.startswith("int"):
         width = abi_type[4:] if abi_type.startswith("uint") else abi_type[3:]

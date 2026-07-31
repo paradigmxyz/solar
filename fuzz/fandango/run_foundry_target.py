@@ -30,7 +30,7 @@ def main() -> int:
     parser.add_argument(
         "--symbolic",
         action="store_true",
-        help="symbolically compare pure functions with statically sized inputs",
+        help="symbolically compare pure functions with supported ABI inputs",
     )
     _add_symbolic_arguments(parser)
     args = parser.parse_args()
@@ -158,6 +158,15 @@ def _add_symbolic_arguments(parser: argparse.ArgumentParser) -> None:
         help="optional maximum symbolic execution depth per function",
     )
     parser.add_argument(
+        "--symbolic-dynamic-lengths",
+        type=_parse_symbolic_dynamic_lengths,
+        default=symbolic.DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS,
+        help=(
+            "comma-separated lengths explored for each dynamic array, bytes, "
+            "or string input"
+        ),
+    )
+    parser.add_argument(
         "--max-returndata-bytes",
         type=int,
         default=256,
@@ -169,6 +178,31 @@ def _add_symbolic_arguments(parser: argparse.ArgumentParser) -> None:
         default=pathlib.Path("fuzz/fandango/out/symbolic-differentials"),
         help="directory for durable focused or campaign result bundles",
     )
+
+
+def _parse_symbolic_dynamic_lengths(value: str) -> tuple[int, ...]:
+    parts = value.split(",")
+    try:
+        lengths = tuple(int(part) for part in parts)
+    except ValueError as err:
+        raise argparse.ArgumentTypeError(
+            "dynamic lengths must be comma-separated integers"
+        ) from err
+    if (
+        not lengths
+        or any(
+            not part
+            or length < 0
+            or length > symbolic.MAX_SYMBOLIC_DYNAMIC_LENGTH
+            for part, length in zip(parts, lengths, strict=True)
+        )
+        or len(set(lengths)) != len(lengths)
+    ):
+        raise argparse.ArgumentTypeError(
+            "dynamic lengths must be unique integers from "
+            f"0 through {symbolic.MAX_SYMBOLIC_DYNAMIC_LENGTH}"
+        )
+    return lengths
 
 
 def _run_symbolic_or_incomplete(args: argparse.Namespace) -> int:
@@ -217,6 +251,28 @@ def _run_symbolic(args: argparse.Namespace) -> int:
         raise ValueError("--symbolic-max-paths must be positive")
     if args.symbolic_max_depth is not None and args.symbolic_max_depth <= 0:
         raise ValueError("--symbolic-max-depth must be positive")
+    dynamic_lengths = getattr(
+        args,
+        "symbolic_dynamic_lengths",
+        symbolic.DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS,
+    )
+    if (
+        not isinstance(dynamic_lengths, (list, tuple))
+        or not dynamic_lengths
+        or any(
+            not isinstance(length, int)
+            or isinstance(length, bool)
+            or length < 0
+            or length > symbolic.MAX_SYMBOLIC_DYNAMIC_LENGTH
+            for length in dynamic_lengths
+        )
+        or len(set(dynamic_lengths)) != len(dynamic_lengths)
+    ):
+        raise ValueError(
+            "--symbolic-dynamic-lengths must contain unique integers from "
+            f"0 through {symbolic.MAX_SYMBOLIC_DYNAMIC_LENGTH}"
+        )
+    args.symbolic_dynamic_lengths = tuple(dynamic_lengths)
     if args.max_returndata_bytes <= 0:
         raise ValueError("--max-returndata-bytes must be positive")
 
@@ -332,6 +388,7 @@ def _run_symbolic_function(
             function,
             args.max_returndata_bytes,
             args.evm_version,
+            args.symbolic_dynamic_lengths,
         )
         forge_run = _forge_symbolic(args, project, expected_test, deadline)
         classified = None
@@ -874,6 +931,7 @@ def _create_campaign_bundle(
             "solver_query_timeout_seconds_per_function": args.symbolic_timeout,
             "max_paths_per_function": args.symbolic_max_paths,
             "max_depth_per_function": args.symbolic_max_depth,
+            "dynamic_input_lengths": list(args.symbolic_dynamic_lengths),
             "max_returndata_bytes_per_function": args.max_returndata_bytes,
             "elapsed_wall_seconds": deadline.elapsed(),
         },
@@ -1351,6 +1409,13 @@ def _bounds_manifest(
         "solver_query_timeout_seconds": args.symbolic_timeout,
         "max_paths": args.symbolic_max_paths,
         "max_depth": args.symbolic_max_depth,
+        "dynamic_input_lengths": list(
+            getattr(
+                args,
+                "symbolic_dynamic_lengths",
+                symbolic.DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS,
+            )
+        ),
         "max_returndata_bytes": args.max_returndata_bytes,
         "forge_effective": classified.get("bounds") if classified else None,
         "elapsed_wall_seconds": deadline.elapsed() if deadline else None,
@@ -1867,6 +1932,13 @@ def _campaign_setup_incomplete(args: argparse.Namespace, err: Exception) -> int:
             "solver_query_timeout_seconds_per_function": args.symbolic_timeout,
             "max_paths_per_function": args.symbolic_max_paths,
             "max_depth_per_function": args.symbolic_max_depth,
+            "dynamic_input_lengths": list(
+                getattr(
+                    args,
+                    "symbolic_dynamic_lengths",
+                    symbolic.DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS,
+                )
+            ),
             "max_returndata_bytes_per_function": args.max_returndata_bytes,
             "elapsed_wall_seconds": deadline.elapsed() if deadline else None,
         },

@@ -31,9 +31,8 @@ diffs.
   cheatcodes.
 - `fuzz/bin/solsymdiff` is the bounded symbolic differential lane. With one
   command it inventories a contract and sequentially compares every supported
-  `pure` function with statically sized inputs; `--signature` narrows the same
-  workflow to one function. It reports a mismatch only after two concrete
-  replays.
+  `pure` function; `--signature` narrows the same workflow to one function. It
+  reports a mismatch only after two concrete replays.
 
 Generated artifacts belong under `fuzz/fandango/out/`, which is ignored.
 Promote only minimized, stable failures into `corpus.jsonl` or `tests/ui/`.
@@ -337,11 +336,27 @@ fuzz/bin/solsymdiff \
 ```
 
 Eligible inputs are `bool`, `address`, integer widths, `bytes1` through
-`bytes32`, and nested fixed arrays of those types. Outputs may use dynamic ABI
-shapes because the oracle compares raw encoded returndata rather than decoding
-it; `--max-returndata-bytes` remains a fail-closed bound. Dynamic inputs,
-tuples as inputs, storage/stateful behavior, and multi-call sequences are
-outside this lane.
+`bytes32`, `bytes`, `string`, and fixed or dynamic arrays of those types.
+Outputs may use dynamic ABI shapes because the oracle compares raw encoded
+returndata rather than decoding it; `--max-returndata-bytes` remains a
+fail-closed bound. Tuple inputs, storage/stateful behavior, and multi-call
+sequences are outside this lane.
+
+Dynamic inputs are not unbounded. By default the command separately explores
+lengths 0, 1, 2, and 3 for every array, `bytes`, and `string` leaf. This covers
+empty, singleton, and short multi-element encoding boundaries without making
+the default cross product unmanageable. Override the finite set for a target:
+
+```bash
+fuzz/bin/solsymdiff \
+  --source path/to/Target.sol \
+  --contract Target \
+  --symbolic-dynamic-lengths 0,1,2,4,8
+```
+
+The selected lengths are limited to 256, recorded in the result bounds, and
+expanded by Foundry subject to the same path and total-wall-time limits as the
+rest of the campaign.
 
 The command:
 
