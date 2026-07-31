@@ -1,6 +1,6 @@
 //! Statement lowering.
 
-use super::{LoopContext, Lowerer, MIN_BULK_ZERO_MEMORY_WORDS, call::ExternalCallKind};
+use super::{LoopContext, Lowerer, MIN_BULK_ZERO_MEMORY_WORDS};
 use crate::{
     memory::EvmMemoryLayout,
     mir::{FunctionBuilder, MemoryObjectKind, ValueId},
@@ -1340,7 +1340,7 @@ impl<'gcx> Lowerer<'gcx> {
         let ret_size = builder.imm_u64(0);
         let kind = self.external_function_call_kind(resolved_func);
         let (gas, value) =
-            self.lower_external_call_options(builder, call_opts, kind == ExternalCallKind::Call);
+            self.lower_external_call_options(builder, call_opts, kind.accepts_value());
 
         self.emit_external_call(
             builder,

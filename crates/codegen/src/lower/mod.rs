@@ -64,6 +64,33 @@ enum AbiWordValidator {
     EnumRange(u64),
 }
 
+impl AbiWordValidator {
+    /// Builds the condition that accepts a canonical ABI word.
+    fn condition(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
+        match self {
+            Self::Mask(mask) => {
+                let mask = builder.imm_u256(mask);
+                let canonical = builder.and(word, mask);
+                builder.eq(word, canonical)
+            }
+            Self::SignExtend(byte_index) => {
+                let byte_index = builder.imm_u64(byte_index);
+                let canonical = builder.signextend(byte_index, word);
+                builder.eq(word, canonical)
+            }
+            Self::Bool => {
+                let is_zero = builder.iszero(word);
+                let canonical = builder.iszero(is_zero);
+                builder.eq(word, canonical)
+            }
+            Self::EnumRange(count) => {
+                let count = builder.imm_u64(count);
+                builder.lt(word, count)
+            }
+        }
+    }
+}
+
 enum ConstructorArguments {
     Resolving,
     Resolved(SmallVec<[ValueId; 4]>),
@@ -73,6 +100,29 @@ enum ConstructorArguments {
 enum AbiParamSource {
     ExternalCalldata,
     ConstructorMemory,
+}
+
+impl AbiParamSource {
+    fn load(
+        self,
+        lowerer: &mut Lowerer<'_>,
+        builder: &mut FunctionBuilder<'_>,
+        arg_index: u64,
+    ) -> ValueId {
+        match self {
+            Self::ExternalCalldata => {
+                // Runtime ABI encoding: selector (4 bytes) + one head word per parameter.
+                let offset = builder.imm_u64(4 + arg_index * EvmMemoryLayout::WORD_SIZE);
+                builder.calldataload(offset)
+            }
+            Self::ConstructorMemory => {
+                let base = lowerer.constructor_args_base(builder);
+                let offset = builder.imm_u64(arg_index * EvmMemoryLayout::WORD_SIZE);
+                let address = builder.add(base, offset);
+                builder.mload(address)
+            }
+        }
+    }
 }
 
 /// Where an inlined callee's `return` statements deliver their values: each
@@ -1192,22 +1242,9 @@ impl<'gcx> Lowerer<'gcx> {
                                 let pos = builder.add(four, field_val);
                                 let len = builder.calldataload(pos);
                                 let word = builder.imm_u64(32);
-                                let byte_len = if kind == call::LinkedFieldKind::DynBytes {
-                                    let thirty_one = builder.imm_u64(31);
-                                    let padded = builder.add(len, thirty_one);
-                                    let mask = builder.imm_u256(U256::MAX - U256::from(31));
-                                    builder.and(padded, mask)
-                                } else {
-                                    builder.mul(len, word)
-                                };
+                                let byte_len = kind.data_size(&mut builder, len, word);
                                 let alloc = builder.add(word, byte_len);
-                                let object_layout = if kind == call::LinkedFieldKind::DynBytes {
-                                    crate::mir::MemoryObjectLayout::Bytes
-                                } else {
-                                    crate::mir::MemoryObjectLayout::DynamicArray {
-                                        element_words: 1,
-                                    }
-                                };
+                                let object_layout = kind.memory_object_layout();
                                 let ptr = builder.alloc_object(
                                     alloc,
                                     object_layout,
@@ -1564,27 +1601,7 @@ impl<'gcx> Lowerer<'gcx> {
         word: ValueId,
         validator: AbiWordValidator,
     ) {
-        let ok = match validator {
-            AbiWordValidator::Mask(mask) => {
-                let mask = builder.imm_u256(mask);
-                let canonical = builder.and(word, mask);
-                builder.eq(word, canonical)
-            }
-            AbiWordValidator::SignExtend(byte_index) => {
-                let byte_index = builder.imm_u64(byte_index);
-                let canonical = builder.signextend(byte_index, word);
-                builder.eq(word, canonical)
-            }
-            AbiWordValidator::Bool => {
-                let is_zero = builder.iszero(word);
-                let canonical = builder.iszero(is_zero);
-                builder.eq(word, canonical)
-            }
-            AbiWordValidator::EnumRange(count) => {
-                let count = builder.imm_u64(count);
-                builder.lt(word, count)
-            }
-        };
+        let ok = validator.condition(builder, word);
         Self::emit_revert_unless(builder, ok);
     }
 
@@ -1610,19 +1627,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         let Some(validator) = self.abi_word_validator(ty) else { return };
 
-        let word = match source {
-            AbiParamSource::ExternalCalldata => {
-                // Runtime ABI encoding: selector (4 bytes) + one head word per parameter.
-                let offset = builder.imm_u64(4 + arg_index * EvmMemoryLayout::WORD_SIZE);
-                builder.calldataload(offset)
-            }
-            AbiParamSource::ConstructorMemory => {
-                let base = self.constructor_args_base(builder);
-                let offset = builder.imm_u64(arg_index * EvmMemoryLayout::WORD_SIZE);
-                let address = builder.add(base, offset);
-                builder.mload(address)
-            }
-        };
+        let word = source.load(self, builder, arg_index);
         self.emit_abi_word_clean_check(builder, word, validator);
     }
 

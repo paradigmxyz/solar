@@ -3,7 +3,10 @@
 use super::{InternalFunctionPointerShape, Lowerer, checked_arith::PanicCode};
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{Function, FunctionBuilder, FunctionId, MirType, ValueId},
+    mir::{
+        Function, FunctionBuilder, FunctionId, MemoryObjectKind, MemoryObjectLayout, MirType,
+        ValueId,
+    },
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{DataLocation, LitKind, Span};
@@ -33,11 +36,71 @@ pub(super) enum LinkedFieldKind {
     DynBytes,
 }
 
+impl LinkedFieldKind {
+    pub(super) fn memory_object_layout(self) -> MemoryObjectLayout {
+        match self {
+            Self::DynBytes => MemoryObjectLayout::Bytes,
+            Self::DynArray => MemoryObjectLayout::WORD_ARRAY,
+            Self::Value => unreachable!(),
+        }
+    }
+
+    fn memory_object_kind(self) -> MemoryObjectKind {
+        self.memory_object_layout().kind()
+    }
+
+    pub(super) fn data_size(
+        self,
+        builder: &mut FunctionBuilder<'_>,
+        len: ValueId,
+        word: ValueId,
+    ) -> ValueId {
+        match self {
+            Self::DynBytes => {
+                let thirty_one = builder.imm_u64(31);
+                let padded = builder.add(len, thirty_one);
+                let mask = builder.imm_u256(U256::MAX - U256::from(31));
+                builder.and(padded, mask)
+            }
+            Self::DynArray => builder.mul(len, word),
+            Self::Value => unreachable!(),
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum ExternalCallKind {
     Call,
     StaticCall,
     DelegateCall,
+}
+
+impl ExternalCallKind {
+    fn from_low_level_builtin(builtin: Builtin) -> Option<Self> {
+        match builtin {
+            Builtin::AddressCall => Some(Self::Call),
+            Builtin::AddressStaticcall => Some(Self::StaticCall),
+            Builtin::AddressDelegatecall => Some(Self::DelegateCall),
+            _ => None,
+        }
+    }
+
+    fn from_state_mutability(
+        state_mutability: hir::StateMutability,
+        has_static_call: bool,
+    ) -> Self {
+        if has_static_call
+            && matches!(state_mutability, hir::StateMutability::Pure | hir::StateMutability::View)
+        {
+            Self::StaticCall
+        } else {
+            Self::Call
+        }
+    }
+
+    pub(super) fn accepts_value(self) -> bool {
+        matches!(self, Self::Call)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -47,11 +110,34 @@ enum BuiltinArgCount {
     Between(usize, usize),
 }
 
+impl BuiltinArgCount {
+    fn description(self) -> String {
+        match self {
+            Self::Exact(count) => count.to_string(),
+            Self::AtLeast(count) => format!("at least {count}"),
+            Self::Between(min, max) => format!("{min} to {max}"),
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(super) enum StorageArrayMethod<'hir> {
     PushDefault,
     Push(&'hir hir::Expr<'hir>),
     Pop,
+}
+
+impl<'hir> StorageArrayMethod<'hir> {
+    pub(super) fn argument(&self) -> Option<&'hir hir::Expr<'hir>> {
+        match self {
+            Self::Push(arg) => Some(*arg),
+            Self::PushDefault | Self::Pop => None,
+        }
+    }
+
+    pub(super) fn is_push_default(&self) -> bool {
+        matches!(self, Self::PushDefault)
+    }
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -194,11 +280,7 @@ impl<'gcx> Lowerer<'gcx> {
         expected: BuiltinArgCount,
         actual: usize,
     ) -> ErrorGuaranteed {
-        let expected = match expected {
-            BuiltinArgCount::Exact(count) => count.to_string(),
-            BuiltinArgCount::AtLeast(count) => format!("at least {count}"),
-            BuiltinArgCount::Between(min, max) => format!("{min} to {max}"),
-        };
+        let expected = expected.description();
         let kind = if builtin.is_yul() { "Yul builtin" } else { "builtin" };
         self.gcx
             .dcx()
@@ -626,9 +708,12 @@ impl<'gcx> Lowerer<'gcx> {
         let ret_offset =
             if function.returns.len() > 1 { calldata_start } else { builder.imm_u64(0) };
         let ret_size = builder.imm_u64((function.returns.len() * 32) as u64);
-        let kind = self.external_call_kind(function.state_mutability);
+        let kind = ExternalCallKind::from_state_mutability(
+            function.state_mutability,
+            self.gcx.sess.opts.evm_version.has_static_call(),
+        );
         let (gas, value) =
-            self.lower_external_call_options(builder, call_opts, kind == ExternalCallKind::Call);
+            self.lower_external_call_options(builder, call_opts, kind.accepts_value());
         let success = self.emit_external_call(
             builder,
             kind,
@@ -1464,7 +1549,7 @@ impl<'gcx> Lowerer<'gcx> {
         // addr.staticcall(data) returns (bool success, bytes memory returndata)
         // addr.delegatecall(data) returns (bool success, bytes memory returndata)
         if let Some(builtin) = builtin
-            && let Some(kind) = Self::low_level_call_kind(builtin)
+            && let Some(kind) = ExternalCallKind::from_low_level_builtin(builtin)
         {
             if builtin == Builtin::AddressStaticcall
                 && !self.gcx.sess.opts.evm_version.has_static_call()
@@ -1491,11 +1576,8 @@ impl<'gcx> Lowerer<'gcx> {
                     Err(guar) => return self.call_error_result(builder, callee, guar),
                 };
 
-            let (gas, value) = self.lower_external_call_options(
-                builder,
-                call_opts,
-                kind == ExternalCallKind::Call,
-            );
+            let (gas, value) =
+                self.lower_external_call_options(builder, call_opts, kind.accepts_value());
 
             // The call itself yields the success flag. Tuple consumers copy
             // the second `bytes` result from returndata immediately afterward.
@@ -1638,7 +1720,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         let kind = self.external_function_call_kind(resolved_func);
         let (gas, value) =
-            self.lower_external_call_options(builder, call_opts, kind == ExternalCallKind::Call);
+            self.lower_external_call_options(builder, call_opts, kind.accepts_value());
         let success = self.emit_external_call(
             builder,
             kind,
@@ -1686,15 +1768,6 @@ impl<'gcx> Lowerer<'gcx> {
         let TyKind::Type(ty) = ty.kind else { return false };
         let TyKind::Contract(contract_id) = ty.kind else { return false };
         self.gcx.hir.contract(contract_id).kind.is_library()
-    }
-
-    fn low_level_call_kind(builtin: Builtin) -> Option<ExternalCallKind> {
-        match builtin {
-            Builtin::AddressCall => Some(ExternalCallKind::Call),
-            Builtin::AddressStaticcall => Some(ExternalCallKind::StaticCall),
-            Builtin::AddressDelegatecall => Some(ExternalCallKind::DelegateCall),
-            _ => None,
-        }
     }
 
     fn function_return_slot_count(&self, func_id: hir::FunctionId) -> usize {
@@ -1760,17 +1833,10 @@ impl<'gcx> Lowerer<'gcx> {
         let state_mutability = func_id
             .map(|func_id| self.gcx.hir.function(func_id).state_mutability)
             .unwrap_or(hir::StateMutability::NonPayable);
-        self.external_call_kind(state_mutability)
-    }
-
-    fn external_call_kind(&self, state_mutability: hir::StateMutability) -> ExternalCallKind {
-        if self.gcx.sess.opts.evm_version.has_static_call()
-            && matches!(state_mutability, hir::StateMutability::Pure | hir::StateMutability::View)
-        {
-            ExternalCallKind::StaticCall
-        } else {
-            ExternalCallKind::Call
-        }
+        ExternalCallKind::from_state_mutability(
+            state_mutability,
+            self.gcx.sess.opts.evm_version.has_static_call(),
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2428,25 +2494,13 @@ impl<'gcx> Lowerer<'gcx> {
         let mut tail_off = builder.imm_u64((head_size_bytes - 4) as u64);
         let word = builder.imm_u64(32);
         for (head_off, src, kind) in pending_tails {
-            let object_kind = match kind {
-                LinkedFieldKind::DynBytes => crate::mir::MemoryObjectKind::Bytes,
-                LinkedFieldKind::DynArray => crate::mir::MemoryObjectKind::DynamicArray,
-                LinkedFieldKind::Value => unreachable!(),
-            };
+            let object_kind = kind.memory_object_kind();
             let head_addr_off = builder.imm_u64(head_off);
             let head_addr = builder.add(calldata_start, head_addr_off);
             builder.mstore(head_addr, tail_off);
 
             let len = builder.memory_object_len(src, object_kind);
-            let byte_len = match kind {
-                LinkedFieldKind::DynBytes => {
-                    let thirty_one = builder.imm_u64(31);
-                    let padded = builder.add(len, thirty_one);
-                    let mask = builder.imm_u256(U256::MAX - U256::from(31));
-                    builder.and(padded, mask)
-                }
-                _ => builder.mul(len, word),
-            };
+            let byte_len = kind.data_size(builder, len, word);
 
             let four = builder.imm_u64(4);
             let args_base = builder.add(calldata_start, four);
