@@ -3309,6 +3309,29 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             [0, 1, 2, 3],
         )
 
+    def test_dynamic_string_shape_and_contents_find_a_durable_mismatch(self):
+        returncode, summary, manifest = self._run(
+            self.solar_dynamic_input_mutant,
+            signature="probeString(string)",
+            source=self.dynamic_input_reference,
+            contract="DynamicInputDifferential",
+            solc_artifact=self.solc_dynamic_input_reference,
+            materialized=self.dynamic_input_reference_input,
+        )
+
+        self.assertEqual(returncode, 1)
+        self.assertEqual(summary["status"], "replay_confirmed_mismatch")
+        calldata = bytes.fromhex(
+            manifest["replay"]["target_calldata"].removeprefix("0x")
+        )
+        self.assertEqual(int.from_bytes(calldata[4:36]), 32)
+        self.assertEqual(int.from_bytes(calldata[36:68]), 3)
+        self.assertEqual(calldata[68:71], b"abc")
+        self.assertEqual(
+            manifest["bounds"]["forge_effective"]["default_bytes_lengths"],
+            [0, 1, 2, 3],
+        )
+
     def test_dynamic_array_shape_and_elements_find_a_durable_mismatch(self):
         returncode, summary, manifest = self._run(
             self.solar_dynamic_input_mutant,

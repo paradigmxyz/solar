@@ -21,6 +21,19 @@ contract DynamicInputDifferential {
         return data.length;
     }
 
+    function probeString(string calldata text) external pure returns (uint256) {
+        bytes calldata data = bytes(text);
+        if (
+            data.length == 3
+                && data[0] == 0x61
+                && data[1] == 0x62
+                && data[2] == 0x63
+        ) {
+            return 2;
+        }
+        return data.length;
+    }
+
     function probeArray(uint256[] calldata values) external pure returns (uint256) {
         if (
             values.length == 2
