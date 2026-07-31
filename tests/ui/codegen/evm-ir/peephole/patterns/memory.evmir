@@ -57,3 +57,28 @@ bb3:
   push 64
   mstore
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: {{^[ +].*}}push 7
+// CHECK: -   dup1
+// CHECK: {{^[ +].*}}push 32
+// CHECK: {{^[ +].*}}mstore
+// CHECK: -   pop
+bb4:
+  push 7
+  dup1
+  push 32
+  mstore
+  pop
+  stop
+
+// Keep the copy when it remains live after the store.
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK: {{^[ +].*}}dup1
+// CHECK: {{^[ +].*}}mstore
+bb5:
+  push 7
+  dup1
+  push 32
+  mstore
+  stop
