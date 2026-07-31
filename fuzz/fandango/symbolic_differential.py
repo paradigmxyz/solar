@@ -34,11 +34,6 @@ UNSUPPORTED_RUNTIME_OPCODES = {
     0x31: "BALANCE",
     0x32: "ORIGIN",
     0x33: "CALLER",
-    # These expose compiler-specific code or memory layout and can therefore
-    # turn an intentional representation difference into a false semantic
-    # finding.
-    0x38: "CODESIZE",
-    0x39: "CODECOPY",
     0x3A: "GASPRICE",
     0x3B: "EXTCODESIZE",
     0x3C: "EXTCODECOPY",
@@ -69,10 +64,27 @@ UNSUPPORTED_RUNTIME_OPCODES = {
 }
 
 
-def runtime_scope_opcodes(runtime: str) -> list[dict[str, Any]]:
-    """Return fail-closed opcodes in legacy EVM bytecode, excluding PUSH data."""
+def runtime_source_map_instructions(source_map: str | None) -> int | None:
+    """Return the executable instruction count encoded by a source map."""
+    if source_map is None or source_map == "":
+        return None
+    if not isinstance(source_map, str):
+        raise ValueError("runtime source map must be text")
+    return source_map.count(";") + 1
+
+
+def runtime_scope_opcodes(
+    runtime: str, *, instruction_count: int | None = None
+) -> list[dict[str, Any]]:
+    """Return fail-closed opcodes in the executable legacy EVM bytecode."""
     if not isinstance(runtime, str):
         raise ValueError("runtime bytecode must be text")
+    if instruction_count is not None and (
+        not isinstance(instruction_count, int)
+        or isinstance(instruction_count, bool)
+        or instruction_count <= 0
+    ):
+        raise ValueError("runtime instruction count must be a positive integer")
     payload = runtime.removeprefix("0x")
     if len(payload) % 2:
         raise ValueError("runtime bytecode must be byte-aligned hex")
@@ -84,7 +96,10 @@ def runtime_scope_opcodes(runtime: str) -> list[dict[str, Any]]:
         return [{"offset": 0, "opcode": "EF_PREFIXED_NON_LEGACY_RUNTIME"}]
     found = []
     offset = 0
-    while offset < len(code):
+    instructions = 0
+    while offset < len(code) and (
+        instruction_count is None or instructions < instruction_count
+    ):
         opcode = code[offset]
         if opcode in UNSUPPORTED_RUNTIME_OPCODES:
             found.append(
@@ -96,6 +111,9 @@ def runtime_scope_opcodes(runtime: str) -> list[dict[str, Any]]:
         offset += 1
         if 0x60 <= opcode <= 0x7F:
             offset += opcode - 0x5F
+        instructions += 1
+    if instruction_count is not None and instructions != instruction_count:
+        raise ValueError("runtime source map exceeds deployed bytecode")
     return found
 
 

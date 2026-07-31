@@ -419,6 +419,12 @@ def compile_standard_artifact(
                 "which cannot be safely etched without deployment"
             )
     runtime = deployed.get("object")
+    runtime_source_map = deployed.get("sourceMap")
+    if runtime_source_map is not None and not isinstance(runtime_source_map, str):
+        raise ValueError(
+            f"contract {source_name}:{contract} has malformed {kind} runtime "
+            "source map"
+        )
     if not isinstance(runtime, str) or not runtime:
         raise ValueError(f"contract {source_name}:{contract} has no runtime bytecode")
     runtime_payload = runtime.removeprefix("0x")
@@ -446,6 +452,7 @@ def compile_standard_artifact(
     return {
         "abi": abi,
         "runtime": "0x" + runtime_payload,
+        "runtime_source_map": runtime_source_map,
         "method_identifiers": identifiers,
         "settings": settings,
         "version": compiler_version(compiler, timeout, deadline=deadline),
@@ -485,6 +492,7 @@ def _standard_settings(evm_version: str) -> dict[str, Any]:
                     "evm.deployedBytecode.immutableReferences",
                     "evm.deployedBytecode.linkReferences",
                     "evm.deployedBytecode.object",
+                    "evm.deployedBytecode.sourceMap",
                     "evm.methodIdentifiers",
                 ]
             }

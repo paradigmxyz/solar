@@ -704,6 +704,7 @@ class StandardInputMaterializationTests(unittest.TestCase):
         selection = standard_input["settings"]["outputSelection"]["*"]["*"]
         self.assertIn("evm.deployedBytecode.immutableReferences", selection)
         self.assertIn("evm.deployedBytecode.linkReferences", selection)
+        self.assertIn("evm.deployedBytecode.sourceMap", selection)
         self.assertEqual(
             standard_input["settings"]["outputSelection"]["*"][""],
             ["ast"],
@@ -879,6 +880,15 @@ class StandardInputMaterializationTests(unittest.TestCase):
                         "linkReferences": [],
                     },
                     "malformed solc unresolved library links",
+                ),
+                (
+                    {
+                        "object": "6000",
+                        "sourceMap": [],
+                        "immutableReferences": {},
+                        "linkReferences": {},
+                    },
+                    "malformed solc runtime source map",
                 ),
                 (
                     {"object": "6000", "linkReferences": {}},
@@ -1278,8 +1288,6 @@ class RuntimeScopeTests(unittest.TestCase):
         self.assertEqual(
             symbolic.runtime_scope_opcodes("0x383958595a"),
             [
-                {"offset": 0, "opcode": "CODESIZE"},
-                {"offset": 1, "opcode": "CODECOPY"},
                 {"offset": 2, "opcode": "PC"},
                 {"offset": 3, "opcode": "MSIZE"},
                 {"offset": 4, "opcode": "GAS"},
@@ -1301,6 +1309,37 @@ class RuntimeScopeTests(unittest.TestCase):
             symbolic.runtime_scope_opcodes("0x00a1fa0002"),
             [{"offset": 2, "opcode": "STATICCALL"}],
         )
+
+    def test_authoritative_source_map_excludes_compiler_literal_data(self):
+        runtime = "0x600000fe43fa"
+
+        self.assertEqual(
+            symbolic.runtime_scope_opcodes(runtime, instruction_count=3),
+            [],
+        )
+        self.assertEqual(
+            symbolic.runtime_scope_opcodes(runtime),
+            [
+                {"offset": 4, "opcode": "NUMBER"},
+                {"offset": 5, "opcode": "STATICCALL"},
+            ],
+        )
+        self.assertEqual(
+            symbolic.runtime_source_map_instructions("1:2:3;;"),
+            3,
+        )
+
+    def test_rejects_invalid_source_map_instruction_bounds(self):
+        for count in (True, 0, -1, 4):
+            with (
+                self.subTest(count=count),
+                self.assertRaisesRegex(ValueError, "instruction count|exceeds"),
+            ):
+                symbolic.runtime_scope_opcodes(
+                    "0x600000", instruction_count=count
+                )
+        with self.assertRaisesRegex(ValueError, "source map must be text"):
+            symbolic.runtime_source_map_instructions(1)
 
     def test_rejects_reserved_ef_prefixed_runtime_formats(self):
         for runtime in ("0xef00", "0xef0100" + "11" * 20):
@@ -2549,6 +2588,9 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         cls.calldata_mutant = (
             fixture_dir / "CalldataContextMutant.sol"
         ).resolve()
+        cls.literal_data_reference = (
+            fixture_dir / "LiteralDataReference.sol"
+        ).resolve()
         cls.imported = (fixture_dir / "imported" / "ImportedReference.sol").resolve()
         cls.dynamic_input_reference = (
             fixture_dir / "DynamicInputReference.sol"
@@ -2706,6 +2748,30 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             evm_version="osaka",
             standard_input=calldata_mutant_input,
         )
+        cls.literal_data_input = evm.materialize_standard_input(
+            cls.solc,
+            cls.literal_data_reference,
+            30,
+            "osaka",
+        )
+        cls.solc_literal_data_reference = evm.compile_standard_artifact(
+            cls.solc,
+            cls.literal_data_reference,
+            "LiteralDataDifferential",
+            30,
+            kind="solc",
+            evm_version="osaka",
+            standard_input=cls.literal_data_input,
+        )
+        cls.solar_literal_data_reference = evm.compile_standard_artifact(
+            cls.solar,
+            cls.literal_data_reference,
+            "LiteralDataDifferential",
+            30,
+            kind="solar",
+            evm_version="osaka",
+            standard_input=cls.literal_data_input,
+        )
         cls.static_proxy = evm.compile_standard_artifact(
             cls.solc,
             (Path(__file__).parent / "StaticCallProxy.sol").resolve(),
@@ -2809,6 +2875,43 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         self.assertEqual(set(manifest), MANIFEST_KEYS)
         self.assertTrue(manifest["tools"]["forge"])
         self.assertEqual(manifest["forge"]["command"][3], "project")
+
+    def test_compiler_generated_codecopy_and_literal_data_are_in_scope(self):
+        instruction_count = symbolic.runtime_source_map_instructions(
+            self.solc_literal_data_reference["runtime_source_map"]
+        )
+        with patch.dict(
+            symbolic.UNSUPPORTED_RUNTIME_OPCODES, {0x39: "CODECOPY"}
+        ):
+            mapped_opcodes = symbolic.runtime_scope_opcodes(
+                self.solc_literal_data_reference["runtime"],
+                instruction_count=instruction_count,
+            )
+        self.assertIn(
+            "CODECOPY",
+            {match["opcode"] for match in mapped_opcodes},
+        )
+        self.assertIsNone(
+            run_foundry_target._runtime_scope_error(
+                self.solc_literal_data_reference,
+                self.solar_literal_data_reference,
+            )
+        )
+
+        returncode, summary, manifest = self._run(
+            self.solar_literal_data_reference,
+            source=self.literal_data_reference,
+            contract="LiteralDataDifferential",
+            solc_artifact=self.solc_literal_data_reference,
+            materialized=self.literal_data_input,
+        )
+
+        self.assertEqual(returncode, 0)
+        self.assertEqual(summary["status"], "no_mismatch_within_bounds")
+        self.assertGreater(
+            manifest["compilers"]["solc"]["runtime_source_map_instructions"],
+            0,
+        )
 
     def test_unreviewed_symbolic_context_prevents_a_clean_result(self):
         with patch.object(
@@ -3464,7 +3567,7 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
                     "}"
                     "}"
                 ),
-                "CODESIZE",
+                "user inline assembly",
             ),
             (
                 "MemoryLayoutIntrospection",

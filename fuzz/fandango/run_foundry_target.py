@@ -940,8 +940,19 @@ def _runtime_scope_error(
             "the materialized source closure contains user inline assembly "
             f"({locations})"
         )
+    # Solc's deployed source map ends at the executable section, before
+    # compiler-emitted literal/metadata data. Solar does not currently emit a
+    # deployed source map, so keep its scan conservative over the whole
+    # runtime. User assembly is rejected above; compiler-generated CODESIZE and
+    # CODECOPY are therefore implementation details whose observable results
+    # the oracle should compare, not ambient inputs that need exclusion.
+    solc_instructions = symbolic.runtime_source_map_instructions(
+        solc_artifact.get("runtime_source_map")
+    )
     compiler_opcodes = {
-        "solc": symbolic.runtime_scope_opcodes(solc_artifact["runtime"]),
+        "solc": symbolic.runtime_scope_opcodes(
+            solc_artifact["runtime"], instruction_count=solc_instructions
+        ),
         "Solar": symbolic.runtime_scope_opcodes(solar_artifact["runtime"]),
     }
     found = []
@@ -1460,12 +1471,16 @@ def _manifest(
 
 def _compiler_manifest(artifact: dict[str, Any]) -> dict[str, Any]:
     runtime = bytes.fromhex(artifact["runtime"].removeprefix("0x"))
+    source_map_instructions = symbolic.runtime_source_map_instructions(
+        artifact.get("runtime_source_map")
+    )
     return {
         "version": artifact["version"],
         "command": artifact["command"],
         "standard_input_sha256": artifact["standard_input_sha256"],
         "runtime_bytecode_sha256": hashlib.sha256(runtime).hexdigest(),
         "runtime_bytecode_bytes": len(runtime),
+        "runtime_source_map_instructions": source_map_instructions,
         "inline_assembly": artifact.get("inline_assembly"),
         "environment": {
             "filesystem_import_fallback": artifact.get(
