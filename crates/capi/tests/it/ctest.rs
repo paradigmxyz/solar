@@ -19,7 +19,8 @@ fn c_api_smoke_test() {
     };
     let lib_path = dynamic_library().unwrap_or_else(|| {
         panic!(
-            "failed to find solar_capi dynamic library beside the test binary or in {}",
+            "failed to find solar_capi dynamic library in the Cargo target directory, \
+             beside the test binary, or in {}",
             dynamic_library_path_env()
         )
     });
@@ -104,6 +105,21 @@ fn dynamic_library() -> Option<PathBuf> {
         paths.push(deps_dir.to_path_buf());
         if let Some(profile_dir) = deps_dir.parent() {
             paths.push(profile_dir.to_path_buf());
+        }
+    }
+    if let Some(target_dir) = Path::new(env!("CARGO_TARGET_TMPDIR")).parent() {
+        let default_profile =
+            target_dir.join(if cfg!(debug_assertions) { "debug" } else { "release" });
+        paths.push(default_profile.join("deps"));
+        paths.push(default_profile.clone());
+        if let Ok(entries) = fs::read_dir(target_dir) {
+            for entry in entries.flatten() {
+                let profile_dir = entry.path();
+                if profile_dir != default_profile && profile_dir.is_dir() {
+                    paths.push(profile_dir.join("deps"));
+                    paths.push(profile_dir);
+                }
+            }
         }
     }
     find_existing(&paths, &[name.as_str()])
