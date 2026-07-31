@@ -1016,7 +1016,12 @@ impl<'gcx> Lowerer<'gcx> {
                     builder.revert(zero, zero);
                 }
             }
-            _ => unreachable!("{builtin:?}"),
+            _ => {
+                return Err(self.recovery_error(
+                    Some(args.span),
+                    "codegen routed a value builtin through unit lowering",
+                ));
+            }
         }
         Ok(())
     }
@@ -1071,7 +1076,10 @@ impl<'gcx> Lowerer<'gcx> {
             | Builtin::Require
             | Builtin::Assert
             | Builtin::Revert
-            | Builtin::RevertMsg => unreachable!("unit builtin lowered in value context"),
+            | Builtin::RevertMsg => Err(self.recovery_error(
+                Some(args.span),
+                "codegen routed a unit builtin through value lowering",
+            )),
             Builtin::AddressBalance => {
                 let [addr] = self.builtin_args(builtin, args)?;
                 let addr = self.lower_value_expr(builder, addr);
@@ -1137,9 +1145,10 @@ impl<'gcx> Lowerer<'gcx> {
                 let [data, types] = self.builtin_args(builtin, args)?;
                 self.lower_abi_decode(builder, data, types, args.span)
             }
-            builtin if builtin.is_yul() => {
-                unreachable!("Yul builtin bypassed call result lowering")
-            }
+            builtin if builtin.is_yul() => Err(self.recovery_error(
+                Some(args.span),
+                "codegen routed a Yul builtin through Solidity lowering",
+            )),
             _ => Err(self
                 .gcx
                 .dcx()
@@ -1234,7 +1243,12 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::YulPop => {
                 let [_value] = self.lower_builtin_args(builder, builtin, call_args)?;
             }
-            _ => unreachable!("value-returning Yul builtin passed to unit lowering"),
+            _ => {
+                return Err(self.recovery_error(
+                    Some(call_args.span),
+                    "codegen routed a value Yul builtin through unit lowering",
+                ));
+            }
         }
         Ok(())
     }
@@ -1344,7 +1358,12 @@ impl<'gcx> Lowerer<'gcx> {
                     self.lower_builtin_args(builder, builtin, call_args)?;
                 return Err(self.unsupported_yul_builtin(builtin, call_args.span));
             }
-            _ => unreachable!("unit Yul builtin passed to value lowering"),
+            _ => {
+                return Err(self.recovery_error(
+                    Some(call_args.span),
+                    "codegen routed a unit Yul builtin through value lowering",
+                ));
+            }
         };
         Ok(value)
     }
