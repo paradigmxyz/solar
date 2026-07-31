@@ -1,10 +1,10 @@
 //! Bytes and string lowering helpers.
 
-use super::{Lowerer, checked_arith::PanicCode};
+use super::{Lowerer, call::StorageArrayMethod, checked_arith::PanicCode};
 use crate::mir::{FunctionBuilder, MemoryObjectKind, SliceLocation, ValueId};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::LitKind;
-use solar_interface::{Symbol, diagnostics::ErrorGuaranteed, kw, sym};
+use solar_interface::{diagnostics::ErrorGuaranteed, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
@@ -20,35 +20,23 @@ pub(super) enum AbiSource {
     Memory,
 }
 
+impl AbiSource {
+    fn load(self, builder: &mut FunctionBuilder<'_>, pos: ValueId) -> ValueId {
+        match self {
+            Self::Calldata => builder.calldataload(pos),
+            Self::Memory => builder.mload(pos),
+        }
+    }
+
+    fn copy(self, builder: &mut FunctionBuilder<'_>, dst: ValueId, src: ValueId, len: ValueId) {
+        match self {
+            Self::Calldata => builder.calldatacopy(dst, src, len),
+            Self::Memory => builder.mcopy(dst, src, len),
+        }
+    }
+}
+
 impl<'gcx> Lowerer<'gcx> {
-    /// Loads one ABI word from `pos` in the selected source region.
-    fn abi_load(
-        &self,
-        builder: &mut FunctionBuilder<'_>,
-        source: AbiSource,
-        pos: ValueId,
-    ) -> ValueId {
-        match source {
-            AbiSource::Calldata => builder.calldataload(pos),
-            AbiSource::Memory => builder.mload(pos),
-        }
-    }
-
-    /// Copies `len` bytes from `src` in the selected source region to memory.
-    fn abi_copy(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        source: AbiSource,
-        dst: ValueId,
-        src: ValueId,
-        len: ValueId,
-    ) {
-        match source {
-            AbiSource::Calldata => builder.calldatacopy(dst, src, len),
-            AbiSource::Memory => builder.mcopy(dst, src, len),
-        }
-    }
-
     /// Lowers a string/bytes literal to Solidity's memory layout
     /// `[length][data...]` and returns the memory pointer. General literal
     /// lowering still returns a word; ABI return encoding needs a real pointer.
@@ -265,7 +253,7 @@ impl<'gcx> Lowerer<'gcx> {
         source: AbiSource,
         len_pos: ValueId,
     ) -> ValueId {
-        let len = self.abi_load(builder, source, len_pos);
+        let len = source.load(builder, len_pos);
 
         let word_size = builder.imm_u64(32);
         let thirty_one = builder.imm_u64(31);
@@ -290,7 +278,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(last_word, zero);
 
         let data_pos = builder.add(len_pos, word_size);
-        self.abi_copy(builder, source, data_ptr, data_pos, len);
+        source.copy(builder, data_ptr, data_pos, len);
         ptr
     }
 
@@ -356,7 +344,7 @@ impl<'gcx> Lowerer<'gcx> {
         source: AbiSource,
         len_pos: ValueId,
     ) -> ValueId {
-        let len = self.abi_load(builder, source, len_pos);
+        let len = source.load(builder, len_pos);
         let word_size = builder.imm_u64(32);
         let data_pos = builder.add(len_pos, word_size);
         self.copy_calldata_word_array(builder, source, data_pos, len)
@@ -422,7 +410,7 @@ impl<'gcx> Lowerer<'gcx> {
         );
         builder.set_memory_object_len(ptr, len, MemoryObjectKind::DynamicArray);
         let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
-        self.abi_copy(builder, source, data_ptr, data_pos, byte_len);
+        source.copy(builder, data_ptr, data_pos, byte_len);
         ptr
     }
 
@@ -443,13 +431,12 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::DynArray(elem) | TyKind::Slice(elem) => {
                 self.materialize_calldata_dynamic_array_at(builder, source, elem, pos)
             }
-            TyKind::Array(elem, len) => self.materialize_calldata_fixed_array_at(
-                builder,
-                source,
-                elem,
-                len.to::<u64>(),
-                pos,
-            ),
+            TyKind::Array(elem, len) => {
+                let Ok(len) = u64::try_from(len) else {
+                    return builder.error_value(self.abi_head_size_overflow());
+                };
+                self.materialize_calldata_fixed_array_at(builder, source, elem, len, pos)
+            }
             TyKind::Struct(id) => {
                 let fields = self.gcx.struct_field_types(id).to_vec();
                 self.materialize_calldata_fields_at(builder, source, &fields, pos)
@@ -463,7 +450,7 @@ impl<'gcx> Lowerer<'gcx> {
             _ => {
                 // A value-typed leaf: solc reverts on a dirty narrow value
                 // decoded from calldata, so validate before storing it.
-                let word = self.abi_load(builder, source, pos);
+                let word = source.load(builder, pos);
                 self.emit_abi_field_clean_check(builder, ty, word);
                 word
             }
@@ -484,7 +471,7 @@ impl<'gcx> Lowerer<'gcx> {
             return self.materialize_calldata_word_array_at(builder, source, len_pos);
         }
 
-        let len = self.abi_load(builder, source, len_pos);
+        let len = source.load(builder, len_pos);
         let word = builder.imm_u64(32);
         let data_pos = builder.add(len_pos, word);
         self.materialize_calldata_nested_array(builder, source, elem, data_pos, len)
@@ -553,7 +540,10 @@ impl<'gcx> Lowerer<'gcx> {
         let next_remaining = builder.sub(remaining, one);
         builder.mstore(remaining_slot, next_remaining);
         let head_cursor = builder.mload(source_slot);
-        let elem_head_size = builder.imm_u64(self.abi_head_size(elem));
+        let elem_head_size = match self.abi_head_size(elem) {
+            Ok(size) => builder.imm_u64(size),
+            Err(guar) => return builder.error_value(guar),
+        };
         let next_source = builder.add(head_cursor, elem_head_size);
         builder.mstore(source_slot, next_source);
         let dest = builder.mload(dest_slot);
@@ -578,7 +568,14 @@ impl<'gcx> Lowerer<'gcx> {
         // location; peel it so ABI head sizing does not mistake an inline
         // aggregate for a one-word storage slot.
         let elem = elem.peel_refs();
-        let size = len.checked_mul(32).expect("fixed array memory size overflow");
+        let elem_head_size = match self.abi_head_size(elem) {
+            Ok(size) if len.checked_mul(size).is_some() => size,
+            Ok(_) => return builder.error_value(self.abi_head_size_overflow()),
+            Err(guar) => return builder.error_value(guar),
+        };
+        let Some(size) = len.checked_mul(32) else {
+            return builder.error_value(self.abi_head_size_overflow());
+        };
         let ptr = self.allocate_memory(builder, size);
         let mut head_offset = 0;
         for i in 0..len {
@@ -587,7 +584,7 @@ impl<'gcx> Lowerer<'gcx> {
             let value = self.materialize_calldata_value_at(builder, source, elem, elem_pos);
             let dest = self.offset_ptr(builder, ptr, i * 32);
             builder.mstore(dest, value);
-            head_offset += self.abi_head_size(elem);
+            head_offset += elem_head_size;
         }
         ptr
     }
@@ -613,10 +610,14 @@ impl<'gcx> Lowerer<'gcx> {
         // See `calldata_base_of_copy`.
         let carries_base = source == AbiSource::Calldata
             && fields.iter().any(|&f| self.abi_is_dynamic(f.peel_refs()));
-        let size = word_count
-            .checked_add(u64::from(carries_base))
-            .and_then(|words| words.checked_mul(32))
-            .expect("aggregate memory size overflow");
+        if let Err(guar) = self.abi_head_size_sum(fields.iter().map(|&field| field.peel_refs())) {
+            return builder.error_value(guar);
+        }
+        let Some(size) =
+            word_count.checked_add(u64::from(carries_base)).and_then(|words| words.checked_mul(32))
+        else {
+            return builder.error_value(self.abi_head_size_overflow());
+        };
         let ptr = self.allocate_memory(builder, size);
         let mut head_offset = 0;
         for (i, &field) in fields.iter().enumerate() {
@@ -629,7 +630,11 @@ impl<'gcx> Lowerer<'gcx> {
             let value = self.materialize_calldata_value_at(builder, source, field, field_pos);
             let dest = self.offset_ptr(builder, ptr, (i as u64) * 32);
             builder.mstore(dest, value);
-            head_offset += self.abi_head_size(field);
+            let field_size = match self.abi_head_size(field) {
+                Ok(size) => size,
+                Err(guar) => return builder.error_value(guar),
+            };
+            head_offset += field_size;
         }
         if carries_base {
             let base_slot = self.offset_ptr(builder, ptr, word_count * 32);
@@ -665,7 +670,7 @@ impl<'gcx> Lowerer<'gcx> {
         tuple_base: ValueId,
     ) -> ValueId {
         if self.abi_is_dynamic(ty) {
-            let offset = self.abi_load(builder, source, head_pos);
+            let offset = source.load(builder, head_pos);
             builder.add(tuple_base, offset)
         } else {
             head_pos
@@ -790,17 +795,10 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         slot: ValueId,
         builtin: Builtin,
-        method: Symbol,
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
-        let arg = match builtin {
-            Builtin::ArrayPush0 => self.builtin_args(builtin, args).map(|[]| None),
-            Builtin::ArrayPush => self.builtin_args(builtin, args).map(|[arg]| Some(arg)),
-            Builtin::ArrayPop => self.builtin_args(builtin, args).map(|[]| None),
-            _ => unreachable!(),
-        };
-        let arg = match arg {
-            Ok(arg) => arg,
+        let method = match self.storage_array_method(builtin, args) {
+            Ok(method) => method,
             Err(guar) => {
                 return (builtin == Builtin::ArrayPush0).then(|| builder.error_value(guar));
             }
@@ -808,14 +806,15 @@ impl<'gcx> Lowerer<'gcx> {
         let current = self.materialize_storage_bytes(builder, slot);
         let len = builder.memory_object_len(current, MemoryObjectKind::Bytes);
         match method {
-            sym::push => {
+            StorageArrayMethod::PushDefault | StorageArrayMethod::Push(_) => {
                 let one = builder.imm_u64(1);
                 let new_len = builder.add(len, one);
                 let overflow = builder.lt(new_len, len);
                 self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
 
                 let resized = self.resize_memory_bytes(builder, current, len, new_len);
-                let byte = arg
+                let byte = method
+                    .argument()
                     .map(|arg| {
                         let value = self.lower_value_expr(builder, arg);
                         self.bytes1_store_byte(builder, value)
@@ -828,16 +827,15 @@ impl<'gcx> Lowerer<'gcx> {
                 // The storage reference returned by `push()` reads as the
                 // newly zero-initialized byte when the call is used as an
                 // rvalue. Reuse the value written above.
-                return (builtin == Builtin::ArrayPush0).then_some(byte);
+                return method.is_push_default().then_some(byte);
             }
-            kw::Pop => {
+            StorageArrayMethod::Pop => {
                 self.emit_panic_if_zero(builder, len, PanicCode::PopEmptyArray);
                 let one = builder.imm_u64(1);
                 let new_len = builder.sub(len, one);
                 let resized = self.resize_memory_bytes(builder, current, new_len, new_len);
                 self.copy_memory_bytes_to_storage(builder, slot, resized);
             }
-            _ => {}
         }
         None
     }

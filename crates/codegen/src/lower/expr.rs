@@ -2,6 +2,7 @@
 
 use super::{
     Lowerer, MIN_BULK_ZERO_MEMORY_WORDS,
+    call::StorageArrayMethod,
     checked_arith::{ArithmeticInfo, PanicCode},
 };
 use crate::{
@@ -953,16 +954,15 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> Option<ValueId> {
         let var = self.gcx.hir.variable(var_id);
         let ty = self.gcx.type_of_hir_ty(&var.ty);
+        let TyKind::Struct(struct_id) = ty.peel_refs().kind else { return None };
         if var.initializer.is_some()
             || var.data_location != Some(solar_ast::DataLocation::Memory)
-            || !matches!(ty.peel_refs().kind, TyKind::Struct(_))
             || self.lowering_internal_function
             || self.current_return_tys.len() != 1
         {
             return None;
         }
 
-        let TyKind::Struct(struct_id) = ty.peel_refs().kind else { unreachable!() };
         let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
         if field_tys.len() < MIN_BULK_ZERO_STRUCT_FIELDS {
             return None;
@@ -2311,14 +2311,11 @@ impl<'gcx> Lowerer<'gcx> {
             };
 
         // Store each argument into the corresponding field
-        for (i, arg) in arg_exprs.into_iter().enumerate() {
-            if i >= num_fields {
-                break;
-            }
+        for (i, (arg, &field_ty)) in arg_exprs.into_iter().zip(&field_tys).enumerate() {
             // Memory struct fields hold memory values. Calldata reference
             // values therefore materialize recursively before storing their
             // pointer in the field slot.
-            let field_val = self.lower_return_value_for_ty(builder, arg, field_tys[i]);
+            let field_val = self.lower_return_value_for_ty(builder, arg, field_ty);
             let field_addr = builder.memory_object_field_addr(
                 struct_ptr,
                 crate::mir::MemoryObjectLayout::structure(num_fields as u64),
@@ -2445,7 +2442,13 @@ impl<'gcx> Lowerer<'gcx> {
         len: ValueId,
         tys: &[Ty<'gcx>],
     ) -> Vec<ValueId> {
-        let head_size: u64 = tys.iter().map(|&ty| self.abi_head_size(ty)).sum();
+        let head_size = match self.abi_head_size_sum(tys.iter().copied()) {
+            Ok(size) => size,
+            Err(guar) => {
+                let err = builder.error_value(guar);
+                return vec![err; tys.len()];
+            }
+        };
         let required = builder.imm_u64(head_size);
         let is_short = builder.lt(len, required);
         self.emit_abi_decode_revert_if(builder, is_short);
@@ -2455,48 +2458,59 @@ impl<'gcx> Lowerer<'gcx> {
         let mut head_offset = 0u64;
         for &ty in tys {
             let head_pos = self.offset_ptr(builder, data_start, head_offset);
-            let decoded =
-                match self.abi_decode_strategy(ty).expect("callers validate every decode member") {
-                    DecodeStrategy::Word(elem) => {
-                        let word = builder.mload(head_pos);
-                        self.lower_abi_decode_word(builder, &elem, word)
-                    }
-                    DecodeStrategy::DynBytes => {
-                        let head = builder.mload(head_pos);
-                        self.lower_abi_decode_dynamic_bytes(
-                            builder,
-                            data_start,
-                            len,
-                            head_size_val,
-                            head,
-                        )
-                    }
-                    DecodeStrategy::ElementaryArray(elem) => {
-                        let head = builder.mload(head_pos);
-                        self.lower_abi_decode_dyn_array(
-                            builder, data_start, len, head_size, &elem, head,
-                        )
-                    }
-                    DecodeStrategy::General(ty) => {
-                        // Resolve the member's body position, then decode it with
-                        // the same recursive materializer that decodes calldata
-                        // struct-array parameters.
-                        let pos = if self.abi_is_dynamic(ty) {
-                            let offset = builder.mload(head_pos);
-                            builder.add(data_start, offset)
-                        } else {
-                            head_pos
-                        };
-                        self.materialize_calldata_value_at(
-                            builder,
-                            super::bytes::AbiSource::Memory,
-                            ty,
-                            pos,
-                        )
-                    }
-                };
+            let Some(strategy) = self.abi_decode_strategy(ty) else {
+                let guar = self.recovery_error(None, "codegen cannot decode this ABI member type");
+                let err = builder.error_value(guar);
+                return vec![err; tys.len()];
+            };
+            let decoded = match strategy {
+                DecodeStrategy::Word(elem) => {
+                    let word = builder.mload(head_pos);
+                    self.lower_abi_decode_word(builder, &elem, word)
+                }
+                DecodeStrategy::DynBytes => {
+                    let head = builder.mload(head_pos);
+                    self.lower_abi_decode_dynamic_bytes(
+                        builder,
+                        data_start,
+                        len,
+                        head_size_val,
+                        head,
+                    )
+                }
+                DecodeStrategy::ElementaryArray(elem) => {
+                    let head = builder.mload(head_pos);
+                    self.lower_abi_decode_dyn_array(
+                        builder, data_start, len, head_size, &elem, head,
+                    )
+                }
+                DecodeStrategy::General(ty) => {
+                    // Resolve the member's body position, then decode it with
+                    // the same recursive materializer that decodes calldata
+                    // struct-array parameters.
+                    let pos = if self.abi_is_dynamic(ty) {
+                        let offset = builder.mload(head_pos);
+                        builder.add(data_start, offset)
+                    } else {
+                        head_pos
+                    };
+                    self.materialize_calldata_value_at(
+                        builder,
+                        super::bytes::AbiSource::Memory,
+                        ty,
+                        pos,
+                    )
+                }
+            };
             out.push(decoded);
-            head_offset += self.abi_head_size(ty);
+            let ty_size = match self.abi_head_size(ty) {
+                Ok(size) => size,
+                Err(guar) => {
+                    let err = builder.error_value(guar);
+                    return vec![err; tys.len()];
+                }
+            };
+            head_offset += ty_size;
         }
         out
     }
@@ -3272,21 +3286,15 @@ impl<'gcx> Lowerer<'gcx> {
         builtin: Builtin,
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
-        let arg = match builtin {
-            Builtin::ArrayPush0 => self.builtin_args(builtin, args).map(|[]| None),
-            Builtin::ArrayPush => self.builtin_args(builtin, args).map(|[arg]| Some(arg)),
-            Builtin::ArrayPop => self.builtin_args(builtin, args).map(|[]| None),
-            _ => unreachable!(),
-        };
-        let arg = match arg {
-            Ok(arg) => arg,
+        let method = match self.storage_array_method(builtin, args) {
+            Ok(method) => method,
             Err(guar) => {
                 return (builtin == Builtin::ArrayPush0).then(|| builder.error_value(guar));
             }
         };
         let (slot, element_ty, element_slots) = array;
-        match (builtin, arg) {
-            (Builtin::ArrayPush0, None) => {
+        match method {
+            StorageArrayMethod::PushDefault => {
                 let element_slot =
                     self.lower_storage_array_push_slot(builder, slot, element_ty, element_slots);
                 if element_ty.is_reference_type() {
@@ -3297,7 +3305,7 @@ impl<'gcx> Lowerer<'gcx> {
                     Some(builder.imm_u64(0))
                 }
             }
-            (Builtin::ArrayPush, Some(arg)) => {
+            StorageArrayMethod::Push(arg) => {
                 let value = match element_ty.peel_refs().kind {
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                         self.lower_expr_as_memory_bytes(builder, arg)
@@ -3322,7 +3330,7 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.sstore(slot, new_length);
                 None
             }
-            (Builtin::ArrayPop, None) => {
+            StorageArrayMethod::Pop => {
                 let length = builder.sload(slot);
                 self.emit_panic_if_zero(builder, length, PanicCode::PopEmptyArray);
                 let one = builder.imm_u64(1);
@@ -3339,7 +3347,6 @@ impl<'gcx> Lowerer<'gcx> {
 
                 None
             }
-            _ => unreachable!("{builtin:?}"),
         }
     }
 

@@ -198,19 +198,17 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool
                 && let Some(result) = func.inst_result_value(inst_id)
                 && !derived.contains_key(&result)
             {
-                let (base, offset) = if derived.contains_key(&a) {
-                    (a, b)
-                } else if derived.contains_key(&b) {
-                    (b, a)
+                let (base_offset, offset) = if let Some(&base_offset) = derived.get(&a) {
+                    (base_offset, b)
+                } else if let Some(&base_offset) = derived.get(&b) {
+                    (base_offset, a)
                 } else {
                     continue;
                 };
-                let (Some(base_off), Some(off)) =
-                    (derived.get(&base).copied(), func.value_u64(offset))
-                else {
+                let Some(offset) = func.value_u64(offset) else {
                     return false;
                 };
-                let Some(total) = base_off.checked_add(off) else { return false };
+                let Some(total) = base_offset.checked_add(offset) else { return false };
                 if total >= cand.size {
                     return false;
                 }

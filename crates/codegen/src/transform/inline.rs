@@ -4,7 +4,7 @@
 //! protocol and expose further optimization opportunities.
 
 use crate::{
-    analysis::LoopAnalyzer,
+    analysis::{CallGraphInfo, LoopAnalyzer},
     immutable::immutable_push_type_size,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
@@ -15,7 +15,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
 /// Module pass for metadata-backed MIR inlining.
@@ -184,7 +184,7 @@ impl MirInliner {
         }
 
         let mut call_counts = self.call_counts(module);
-        let recursive_functions = self.recursive_functions(module);
+        let call_graph = CallGraphInfo::new(module);
         let preferred_large_call_sites = self.preferred_large_call_sites(module, &summaries);
 
         // Specialize dispatcher calls before helper-local inlining introduces phis.
@@ -219,7 +219,7 @@ impl MirInliner {
                 });
                 if module_code_size >= self.max_module_code_size
                     || grew_too_much
-                    || recursive_functions.contains(site.callee)
+                    || call_graph.is_recursive(site.callee)
                     || !self.is_inlineable(
                         caller_id,
                         site,
@@ -278,18 +278,6 @@ impl MirInliner {
         counts
     }
 
-    fn recursive_functions(&self, module: &Module) -> DenseBitSet<MirFunctionId> {
-        let mut recursive = DenseBitSet::new_empty(module.functions.len());
-        let mut visiting = DenseBitSet::new_empty(module.functions.len());
-        for func_id in module.functions.indices() {
-            visiting.clear();
-            if self.function_reaches(module, func_id, func_id, &mut visiting) {
-                recursive.insert(func_id);
-            }
-        }
-        recursive
-    }
-
     /// Picks one call site for each shared callee above the ordinary block cap.
     ///
     /// Prefer a call nearest the end of its block, where inlining is most
@@ -331,36 +319,6 @@ impl MirInliner {
             }
         }
         preferred.into_iter().map(|(callee, (_, site))| (callee, site)).collect()
-    }
-
-    fn function_reaches(
-        &self,
-        module: &Module,
-        current: MirFunctionId,
-        target: MirFunctionId,
-        visiting: &mut DenseBitSet<MirFunctionId>,
-    ) -> bool {
-        if !visiting.insert(current) {
-            return false;
-        }
-
-        for callee in self.function_callees(module.function(current)) {
-            if callee == target || self.function_reaches(module, callee, target, visiting) {
-                return true;
-            }
-        }
-
-        false
-    }
-
-    fn function_callees(&self, func: &Function) -> Vec<MirFunctionId> {
-        let mut callees = Vec::new();
-        for inst_id in func.instructions() {
-            if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
-                callees.push(function);
-            }
-        }
-        callees
     }
 
     fn find_next_call(
@@ -809,7 +767,8 @@ fn specialize_function_pointers(module: &mut Module) -> usize {
     }
 
     let mut specialized = 0;
-    for caller in module.functions.indices().collect::<Vec<_>>() {
+    for index in 0..module.functions.len() {
+        let caller = MirFunctionId::from_usize(index);
         let mut cursor = (0, 0);
         while let Some((block, inst_index, callee, selector)) =
             find_next_constant_function_call(module.function(caller), cursor)
@@ -1019,7 +978,7 @@ fn inline_call_impl(
         + ((callee.params.len() + callee.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE;
     caller.internal_frame_size += callee.internal_frame_size;
 
-    let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, &args);
+    let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, args);
     let cloned_entry = cloner.clone_blocks(continuation)?;
     cloner.caller.blocks[call_block].terminator = Some(Terminator::Jump(cloned_entry));
 
@@ -1046,9 +1005,9 @@ struct InlineCloner<'a> {
     callee: &'a Function,
     frame_base: u64,
     callee_frame_prefix: u64,
-    args: Vec<ValueId>,
+    args: Box<[ValueId]>,
     value_map: FxHashMap<ValueId, ValueId>,
-    block_map: FxHashMap<BlockId, BlockId>,
+    block_map: IndexVec<BlockId, BlockId>,
     return_edges: Vec<(BlockId, SmallVec<[ValueId; 2]>)>,
 }
 
@@ -1058,27 +1017,27 @@ impl<'a> InlineCloner<'a> {
         callee: &'a Function,
         frame_base: u64,
         callee_frame_prefix: u64,
-        args: &[ValueId],
+        args: Box<[ValueId]>,
     ) -> Self {
         Self {
             caller,
             callee,
             frame_base,
             callee_frame_prefix,
-            args: args.to_vec(),
+            args,
             value_map: FxHashMap::default(),
-            block_map: FxHashMap::default(),
+            block_map: IndexVec::with_capacity(callee.blocks.len()),
             return_edges: Vec::new(),
         }
     }
 
     fn clone_blocks(&mut self, continuation: BlockId) -> Option<BlockId> {
-        for block_id in self.callee.blocks.indices() {
-            self.block_map.insert(block_id, self.caller.alloc_block());
+        for _ in self.callee.blocks.indices() {
+            self.block_map.push(self.caller.alloc_block());
         }
 
         for (callee_block, block) in self.callee.blocks.iter_enumerated() {
-            let caller_block = self.block_map[&callee_block];
+            let caller_block = self.block_map[callee_block];
             let mut instructions = Vec::with_capacity(block.instructions.len());
             for &inst_id in &block.instructions {
                 let inst = self.callee.inst(inst_id).clone();
@@ -1096,7 +1055,7 @@ impl<'a> InlineCloner<'a> {
         }
 
         for (callee_block, block) in self.callee.blocks.iter_enumerated() {
-            let caller_block = self.block_map[&callee_block];
+            let caller_block = self.block_map[callee_block];
             for (index, &inst_id) in block.instructions.iter().enumerate() {
                 let kind = self.clone_inst_kind(self.callee.inst(inst_id).kind.clone())?;
                 let new_inst = self.caller.blocks[caller_block].instructions[index];
@@ -1105,13 +1064,13 @@ impl<'a> InlineCloner<'a> {
         }
 
         for (callee_block, block) in self.callee.blocks.iter_enumerated() {
-            let caller_block = self.block_map[&callee_block];
+            let caller_block = self.block_map[callee_block];
             let term =
                 self.clone_terminator(block.terminator.as_ref()?, caller_block, continuation)?;
             self.caller.blocks[caller_block].terminator = Some(term);
         }
 
-        Some(self.block_map[&BlockId::ENTRY])
+        Some(self.block_map[BlockId::ENTRY])
     }
 
     fn clone_value(&mut self, value: ValueId) -> Option<ValueId> {
@@ -1131,286 +1090,32 @@ impl<'a> InlineCloner<'a> {
     }
 
     fn clone_block(&self, block: BlockId) -> Option<BlockId> {
-        self.block_map.get(&block).copied()
+        self.block_map.get(block).copied()
     }
 
-    #[allow(clippy::too_many_lines)]
-    fn clone_inst_kind(&mut self, kind: InstKind) -> Option<InstKind> {
-        Some(match kind {
-            InstKind::MakeSlice { ptr, len, location } => InstKind::MakeSlice {
-                ptr: self.clone_value(ptr)?,
-                len: self.clone_value(len)?,
-                location,
-            },
-            InstKind::SlicePtr(slice) => InstKind::SlicePtr(self.clone_value(slice)?),
-            InstKind::SliceLen(slice) => InstKind::SliceLen(self.clone_value(slice)?),
-            InstKind::MemoryObjectLen(object, kind) => {
-                InstKind::MemoryObjectLen(self.clone_value(object)?, kind)
+    fn clone_inst_kind(&mut self, mut kind: InstKind) -> Option<InstKind> {
+        if let InstKind::InternalFrameAddr(offset) = &mut kind {
+            let local_offset = offset.checked_sub(self.callee_frame_prefix)?;
+            *offset = self.frame_base + local_offset;
+        }
+        if let InstKind::Phi(incoming) = &mut kind {
+            for (block, _) in incoming {
+                *block = self.clone_block(*block)?;
             }
-            InstKind::SetMemoryObjectLen(object, len, kind) => InstKind::SetMemoryObjectLen(
-                self.clone_value(object)?,
-                self.clone_value(len)?,
-                kind,
-            ),
-            InstKind::MemoryObjectData(object, kind) => {
-                InstKind::MemoryObjectData(self.clone_value(object)?, kind)
+        }
+
+        let mut failed = false;
+        kind.visit_operands_mut(|value| {
+            if failed {
+                return;
             }
-            InstKind::MemoryObjectFieldAddr { object, layout, field } => {
-                InstKind::MemoryObjectFieldAddr { object: self.clone_value(object)?, layout, field }
+            if let Some(cloned) = self.clone_value(*value) {
+                *value = cloned;
+            } else {
+                failed = true;
             }
-            InstKind::MemoryObjectElementAddr { object, layout, index } => {
-                InstKind::MemoryObjectElementAddr {
-                    object: self.clone_value(object)?,
-                    layout,
-                    index: self.clone_value(index)?,
-                }
-            }
-            InstKind::StorageToMemory { storage, memory, layout } => InstKind::StorageToMemory {
-                storage: self.clone_value(storage)?,
-                memory: self.clone_value(memory)?,
-                layout,
-            },
-            InstKind::MemoryToStorage { memory, storage, layout } => InstKind::MemoryToStorage {
-                memory: self.clone_value(memory)?,
-                storage: self.clone_value(storage)?,
-                layout,
-            },
-            InstKind::ClearStorage { storage, layout } => {
-                InstKind::ClearStorage { storage: self.clone_value(storage)?, layout }
-            }
-            InstKind::Add(a, b) => InstKind::Add(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::Sub(a, b) => InstKind::Sub(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::Mul(a, b) => InstKind::Mul(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::Div(a, b) => InstKind::Div(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::SDiv(a, b) => InstKind::SDiv(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::Mod(a, b) => InstKind::Mod(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::SMod(a, b) => InstKind::SMod(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::Exp(a, b) => InstKind::Exp(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::AddMod(a, b, c) => {
-                InstKind::AddMod(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
-            }
-            InstKind::MulMod(a, b, c) => {
-                InstKind::MulMod(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
-            }
-            InstKind::And(a, b) => InstKind::And(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::Or(a, b) => InstKind::Or(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::Xor(a, b) => InstKind::Xor(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::Not(a) => InstKind::Not(self.clone_value(a)?),
-            InstKind::Clz(a) => InstKind::Clz(self.clone_value(a)?),
-            InstKind::Shl(a, b) => InstKind::Shl(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::Shr(a, b) => InstKind::Shr(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::Sar(a, b) => InstKind::Sar(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::Byte(a, b) => InstKind::Byte(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::Lt(a, b) => InstKind::Lt(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::Gt(a, b) => InstKind::Gt(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::SLt(a, b) => InstKind::SLt(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::SGt(a, b) => InstKind::SGt(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::Eq(a, b) => InstKind::Eq(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::IsZero(a) => InstKind::IsZero(self.clone_value(a)?),
-            InstKind::MLoad(a) => InstKind::MLoad(self.clone_value(a)?),
-            InstKind::MStore(a, b) => InstKind::MStore(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::MStore8(a, b) => {
-                InstKind::MStore8(self.clone_value(a)?, self.clone_value(b)?)
-            }
-            InstKind::MemoryZero(a, b) => {
-                InstKind::MemoryZero(self.clone_value(a)?, self.clone_value(b)?)
-            }
-            InstKind::MSize => InstKind::MSize,
-            InstKind::Fmp => InstKind::Fmp,
-            InstKind::SetFmp(ptr) => InstKind::SetFmp(self.clone_value(ptr)?),
-            InstKind::Alloc { size, kind, semantics } => {
-                InstKind::Alloc { size: self.clone_value(size)?, kind, semantics }
-            }
-            InstKind::AbiEncode { selector, args, layout } => InstKind::AbiEncode {
-                selector: match selector {
-                    Some(selector) => Some(self.clone_value(selector)?),
-                    None => None,
-                },
-                args: args
-                    .iter()
-                    .map(|&arg| self.clone_value(arg))
-                    .collect::<Option<Vec<_>>>()?
-                    .into(),
-                layout,
-            },
-            InstKind::MCopy(a, b, c) => {
-                InstKind::MCopy(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
-            }
-            InstKind::SLoad(a) => InstKind::SLoad(self.clone_value(a)?),
-            InstKind::SStore(a, b) => InstKind::SStore(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::TLoad(a) => InstKind::TLoad(self.clone_value(a)?),
-            InstKind::TStore(a, b) => InstKind::TStore(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::CalldataLoad(a) => InstKind::CalldataLoad(self.clone_value(a)?),
-            InstKind::CalldataCopy(a, b, c) => InstKind::CalldataCopy(
-                self.clone_value(a)?,
-                self.clone_value(b)?,
-                self.clone_value(c)?,
-            ),
-            InstKind::CalldataSize => InstKind::CalldataSize,
-            InstKind::InternalFrameAddr(offset) => {
-                let local_offset = offset.checked_sub(self.callee_frame_prefix)?;
-                InstKind::InternalFrameAddr(self.frame_base + local_offset)
-            }
-            InstKind::ConstructorArgsBase => InstKind::ConstructorArgsBase,
-            InstKind::CodeSize => InstKind::CodeSize,
-            InstKind::StoreImmutable(id, value) => {
-                InstKind::StoreImmutable(id, self.clone_value(value)?)
-            }
-            InstKind::LoadImmutable(id) => InstKind::LoadImmutable(id),
-            InstKind::CodeCopy(a, b, c) => {
-                InstKind::CodeCopy(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
-            }
-            InstKind::ExtCodeSize(a) => InstKind::ExtCodeSize(self.clone_value(a)?),
-            InstKind::ExtCodeCopy(a, b, c, d) => InstKind::ExtCodeCopy(
-                self.clone_value(a)?,
-                self.clone_value(b)?,
-                self.clone_value(c)?,
-                self.clone_value(d)?,
-            ),
-            InstKind::ExtCodeHash(a) => InstKind::ExtCodeHash(self.clone_value(a)?),
-            InstKind::ReturnDataSize => InstKind::ReturnDataSize,
-            InstKind::ReturnDataCopy(a, b, c) => InstKind::ReturnDataCopy(
-                self.clone_value(a)?,
-                self.clone_value(b)?,
-                self.clone_value(c)?,
-            ),
-            InstKind::Caller => InstKind::Caller,
-            InstKind::CallValue => InstKind::CallValue,
-            InstKind::Origin => InstKind::Origin,
-            InstKind::GasPrice => InstKind::GasPrice,
-            InstKind::BlockHash(a) => InstKind::BlockHash(self.clone_value(a)?),
-            InstKind::Coinbase => InstKind::Coinbase,
-            InstKind::Timestamp => InstKind::Timestamp,
-            InstKind::BlockNumber => InstKind::BlockNumber,
-            InstKind::PrevRandao => InstKind::PrevRandao,
-            InstKind::GasLimit => InstKind::GasLimit,
-            InstKind::ChainId => InstKind::ChainId,
-            InstKind::Address => InstKind::Address,
-            InstKind::Balance(a) => InstKind::Balance(self.clone_value(a)?),
-            InstKind::SelfBalance => InstKind::SelfBalance,
-            InstKind::Gas => InstKind::Gas,
-            InstKind::BaseFee => InstKind::BaseFee,
-            InstKind::BlobBaseFee => InstKind::BlobBaseFee,
-            InstKind::BlobHash(a) => InstKind::BlobHash(self.clone_value(a)?),
-            InstKind::Keccak256Bytes(object) => InstKind::Keccak256Bytes(self.clone_value(object)?),
-            InstKind::Keccak256(a, b) => {
-                InstKind::Keccak256(self.clone_value(a)?, self.clone_value(b)?)
-            }
-            InstKind::MappingSlot(a, b) => {
-                InstKind::MappingSlot(self.clone_value(a)?, self.clone_value(b)?)
-            }
-            InstKind::MappingSlotMemory(a, b) => {
-                InstKind::MappingSlotMemory(self.clone_value(a)?, self.clone_value(b)?)
-            }
-            InstKind::MappingSlotCalldata(a, b) => {
-                InstKind::MappingSlotCalldata(self.clone_value(a)?, self.clone_value(b)?)
-            }
-            InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
-                InstKind::Call {
-                    gas: self.clone_value(gas)?,
-                    addr: self.clone_value(addr)?,
-                    value: self.clone_value(value)?,
-                    args_offset: self.clone_value(args_offset)?,
-                    args_size: self.clone_value(args_size)?,
-                    ret_offset: self.clone_value(ret_offset)?,
-                    ret_size: self.clone_value(ret_size)?,
-                }
-            }
-            InstKind::CallCode {
-                gas,
-                addr,
-                value,
-                args_offset,
-                args_size,
-                ret_offset,
-                ret_size,
-            } => InstKind::CallCode {
-                gas: self.clone_value(gas)?,
-                addr: self.clone_value(addr)?,
-                value: self.clone_value(value)?,
-                args_offset: self.clone_value(args_offset)?,
-                args_size: self.clone_value(args_size)?,
-                ret_offset: self.clone_value(ret_offset)?,
-                ret_size: self.clone_value(ret_size)?,
-            },
-            InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                InstKind::StaticCall {
-                    gas: self.clone_value(gas)?,
-                    addr: self.clone_value(addr)?,
-                    args_offset: self.clone_value(args_offset)?,
-                    args_size: self.clone_value(args_size)?,
-                    ret_offset: self.clone_value(ret_offset)?,
-                    ret_size: self.clone_value(ret_size)?,
-                }
-            }
-            InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                InstKind::DelegateCall {
-                    gas: self.clone_value(gas)?,
-                    addr: self.clone_value(addr)?,
-                    args_offset: self.clone_value(args_offset)?,
-                    args_size: self.clone_value(args_size)?,
-                    ret_offset: self.clone_value(ret_offset)?,
-                    ret_size: self.clone_value(ret_size)?,
-                }
-            }
-            InstKind::InternalCall { function, args, returns } => InstKind::InternalCall {
-                function,
-                args: args
-                    .into_iter()
-                    .map(|arg| self.clone_value(arg))
-                    .collect::<Option<Vec<_>>>()?
-                    .into(),
-                returns,
-            },
-            InstKind::Create(a, b, c) => {
-                InstKind::Create(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
-            }
-            InstKind::Create2(a, b, c, d) => InstKind::Create2(
-                self.clone_value(a)?,
-                self.clone_value(b)?,
-                self.clone_value(c)?,
-                self.clone_value(d)?,
-            ),
-            InstKind::Log0(a, b) => InstKind::Log0(self.clone_value(a)?, self.clone_value(b)?),
-            InstKind::Log1(a, b, c) => {
-                InstKind::Log1(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
-            }
-            InstKind::Log2(a, b, c, d) => InstKind::Log2(
-                self.clone_value(a)?,
-                self.clone_value(b)?,
-                self.clone_value(c)?,
-                self.clone_value(d)?,
-            ),
-            InstKind::Log3(a, b, c, d, e) => InstKind::Log3(
-                self.clone_value(a)?,
-                self.clone_value(b)?,
-                self.clone_value(c)?,
-                self.clone_value(d)?,
-                self.clone_value(e)?,
-            ),
-            InstKind::Log4(a, b, c, d, e, f) => InstKind::Log4(
-                self.clone_value(a)?,
-                self.clone_value(b)?,
-                self.clone_value(c)?,
-                self.clone_value(d)?,
-                self.clone_value(e)?,
-                self.clone_value(f)?,
-            ),
-            InstKind::Phi(incoming) => InstKind::Phi(
-                incoming
-                    .into_iter()
-                    .map(|(block, value)| {
-                        Some((self.clone_block(block)?, self.clone_value(value)?))
-                    })
-                    .collect::<Option<Vec<_>>>()?,
-            ),
-            InstKind::Select(a, b, c) => {
-                InstKind::Select(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
-            }
-            InstKind::SignExtend(a, b) => {
-                InstKind::SignExtend(self.clone_value(a)?, self.clone_value(b)?)
-            }
-        })
+        });
+        (!failed).then_some(kind)
     }
 
     fn clone_terminator(

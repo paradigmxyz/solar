@@ -67,7 +67,7 @@ impl<'a> StackShuffler<'a> {
         let mut multiplicities = FxHashMap::default();
         for slot in target {
             let TargetSlot::Value(v) = slot;
-            *multiplicities.entry(*v).or_insert(0) += 1;
+            *multiplicities.entry(*v).or_default() += 1;
         }
 
         Self { source: source_stack, target, ops: Vec::new(), multiplicities }
@@ -301,7 +301,7 @@ impl<'a> StackShuffler<'a> {
         let mut still_needed: FxHashMap<ValueId, usize> = FxHashMap::default();
         for slot in self.target.iter() {
             let TargetSlot::Value(v) = slot;
-            *still_needed.entry(*v).or_insert(0) += 1;
+            *still_needed.entry(*v).or_default() += 1;
         }
 
         // Pop values from the top that are no longer needed.

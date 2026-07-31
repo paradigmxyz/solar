@@ -1,6 +1,6 @@
 //! Statement lowering.
 
-use super::{LoopContext, Lowerer, MIN_BULK_ZERO_MEMORY_WORDS, call::ExternalCallKind};
+use super::{LoopContext, Lowerer, MIN_BULK_ZERO_MEMORY_WORDS};
 use crate::{
     memory::EvmMemoryLayout,
     mir::{FunctionBuilder, MemoryObjectKind, ValueId},
@@ -508,10 +508,17 @@ impl<'gcx> Lowerer<'gcx> {
         }
         self.pending_inline_returns = None;
 
-        let tail_base = bound.iter().skip(1).any(|&bound| bound).then(|| {
-            let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-            builder.mload(ptr_slot)
-        });
+        if !bound.iter().skip(1).any(|&bound| bound) {
+            return Some(
+                bound
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &bound)| (bound && i == 0).then_some(first))
+                    .collect(),
+            );
+        }
+        let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
+        let tail_base = builder.mload(ptr_slot);
         Some(
             bound
                 .iter()
@@ -522,8 +529,7 @@ impl<'gcx> Lowerer<'gcx> {
                             first
                         } else {
                             let offset = builder.imm_u64(i as u64 * 32);
-                            let addr =
-                                builder.add(tail_base.expect("tail base is available"), offset);
+                            let addr = builder.add(tail_base, offset);
                             builder.mload(addr)
                         }
                     })
@@ -949,6 +955,23 @@ impl<'gcx> Lowerer<'gcx> {
         };
 
         let event = self.gcx.hir.event(event_id);
+        let max_indexed = if event.anonymous { 4 } else { 3 };
+        let indexed = event
+            .parameters
+            .iter()
+            .filter(|&&param_id| self.gcx.hir.variable(param_id).indexed)
+            .count();
+        if indexed > max_indexed {
+            if self.invalid_event_topics.insert(event_id) {
+                self.gcx
+                    .dcx()
+                    .err(format!("event cannot have more than {max_indexed} indexed parameters"))
+                    .span(event.span)
+                    .emit();
+            }
+            return;
+        }
+
         let arg_exprs =
             match self.ordered_args_for(args, Some(CallableParamSource::Event(event_id))) {
                 Ok(exprs) => exprs,
@@ -956,7 +979,7 @@ impl<'gcx> Lowerer<'gcx> {
             };
 
         // Collect indexed parameters (additional topics) and non-indexed (data).
-        let mut topics = Vec::new();
+        let mut topics = SmallVec::<[ValueId; 4]>::new();
         if !event.anonymous {
             let selector = self.gcx.event_selector(event_id);
             topics.push(builder.imm_u256(U256::from_be_bytes(selector.0)));
@@ -1010,13 +1033,15 @@ impl<'gcx> Lowerer<'gcx> {
         let (mem_offset, size) = self.abi_encode_event_data(builder, &data_items);
 
         // Emit the appropriate LOG instruction based on number of topics
-        match topics.len() {
-            0 => builder.log0(mem_offset, size),
-            1 => builder.log1(mem_offset, size, topics[0]),
-            2 => builder.log2(mem_offset, size, topics[0], topics[1]),
-            3 => builder.log3(mem_offset, size, topics[0], topics[1], topics[2]),
-            4 => builder.log4(mem_offset, size, topics[0], topics[1], topics[2], topics[3]),
-            _ => unreachable!("type checking limits events to four EVM topics"),
+        match topics.as_slice() {
+            [] => builder.log0(mem_offset, size),
+            &[a] => builder.log1(mem_offset, size, a),
+            &[a, b] => builder.log2(mem_offset, size, a, b),
+            &[a, b, c] => builder.log3(mem_offset, size, a, b, c),
+            &[a, b, c, d] => builder.log4(mem_offset, size, a, b, c, d),
+            _ => {
+                self.recovery_error(Some(args.span), "codegen cannot emit more than four topics");
+            }
         }
     }
 
@@ -1315,7 +1340,7 @@ impl<'gcx> Lowerer<'gcx> {
         let ret_size = builder.imm_u64(0);
         let kind = self.external_function_call_kind(resolved_func);
         let (gas, value) =
-            self.lower_external_call_options(builder, call_opts, kind == ExternalCallKind::Call);
+            self.lower_external_call_options(builder, call_opts, kind.accepts_value());
 
         self.emit_external_call(
             builder,

@@ -1,4 +1,17 @@
 //! Target-aware switch lowering selection.
+//!
+//! Constant switches start as MIR `switch` terminators. This module compares
+//! several EVM shapes for the same sorted case values: a source-ordered linear
+//! scan, a balanced binary tree, modulo buckets, a bounds-checked dense table,
+//! and collision-free bit-slice or affine hashes. Each candidate models both
+//! hit and miss paths, including the default cleanup sequence and the later
+//! block-layout effects that change label widths.
+//!
+//! Gas mode limits extra code and ranks candidates by the modeled runtime cost.
+//! Size mode uses conservative label widths while selecting a plan and lets the
+//! EVM IR layout pass recover safe local-width and fallthrough wins. The emitter
+//! keeps the original case order for linear scans and uses sorted values only
+//! for shapes whose dispatch arithmetic requires it.
 
 use super::ir::immediate_materialization_cost;
 use alloy_primitives::U256;

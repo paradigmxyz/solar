@@ -54,10 +54,9 @@ bb9 [cold]:
 bb24 [cold]:
   push 4
   calldataload
+  dup1
   push 256
   mstore
-  push 256
-  mload
   push bb17
   jumpi
   push 4

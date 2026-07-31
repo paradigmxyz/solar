@@ -67,10 +67,9 @@ bb6:
   push 11
   jump bb47
 bb47:
+  dup1
   push 0
   mstore
-  push 0
-  mload
   push 0
   push 128
   mstore

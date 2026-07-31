@@ -10,7 +10,8 @@ use crate::backend::evm::{
 };
 use solar_data_structures::index::{IndexVec, index_vec};
 
-pub(super) fn is_evm_terminal(kind: &TerminatorKind) -> bool {
+/// Returns whether a terminator ends the current physical fallthrough trace.
+pub(super) fn is_terminal_boundary(kind: &TerminatorKind) -> bool {
     matches!(kind, TerminatorKind::IndexedJump(_))
         || matches!(kind, TerminatorKind::Op(opcode) if op::is_terminal(*opcode))
 }

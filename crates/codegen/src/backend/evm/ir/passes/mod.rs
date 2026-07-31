@@ -61,6 +61,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
     &peephole::Peephole,
     &compact_pushes::CompactPushes,
+    &peephole::Peephole,
     &cfg_simplify::CfgSimplify,
     &block_layout::BlockLayout,
     &share_reverts::ShareReverts,
@@ -74,6 +75,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &outline::Outline,
     &cfg_simplify::CfgSimplify,
     &compact_pushes::CompactPushes,
+    &peephole::Peephole,
     // Pack address-sensitive terminal blocks, then clean up any adjacent
     // revert branch that remains profitable in the final layout.
     &block_layout::BlockLayout,

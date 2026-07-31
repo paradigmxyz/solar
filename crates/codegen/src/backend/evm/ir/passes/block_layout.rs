@@ -10,7 +10,7 @@
 
 use super::{
     EvmPass,
-    utils::{is_evm_terminal, remap_block_order},
+    utils::{is_terminal_boundary, remap_block_order},
 };
 use crate::backend::evm::{
     ir::{
@@ -279,12 +279,12 @@ fn push_len(gcx: Gcx<'_>, value: U256) -> usize {
 }
 
 fn is_terminal_block(block: &Block) -> bool {
-    block.terminator.as_ref().is_some_and(|term| is_evm_terminal(&term.kind))
+    block.terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
 }
 
 fn is_physical_terminal_boundary(block: &Block, next: Option<BlockId>) -> bool {
     block.terminator.as_ref().is_some_and(|term| {
-        is_evm_terminal(&term.kind)
+        is_terminal_boundary(&term.kind)
             || matches!(term.kind, TerminatorKind::Jump(target) if Some(target) != next)
     })
 }
@@ -311,7 +311,7 @@ fn layout_successor(block: &Block) -> Option<BlockId> {
 
 fn is_cold_terminal_block(block: &Block) -> bool {
     block.metadata.hotness.is_cold()
-        && block.terminator.as_ref().is_some_and(|term| is_evm_terminal(&term.kind))
+        && block.terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
 }
 
 #[cfg(test)]

@@ -32,6 +32,10 @@ impl<'gcx> Lowerer<'gcx> {
         self.abi_type_inner(ty, calldata, &mut visiting)
     }
 
+    pub(super) fn abi_type_error(&self) -> ErrorGuaranteed {
+        self.recovery_error(None, "codegen cannot materialize this ABI type")
+    }
+
     fn abi_type_inner(
         &self,
         ty: Ty<'gcx>,
@@ -52,10 +56,21 @@ impl<'gcx> Lowerer<'gcx> {
                 location,
             },
             TyKind::Slice(inner) => self.abi_type_inner(inner, calldata, visiting)?,
-            TyKind::Array(element, len) => AbiType::FixedArray {
-                element: Box::new(self.abi_type_inner(element, false, visiting)?),
-                len: len.to::<u64>(),
-            },
+            TyKind::Array(element, len) => {
+                let len = match u64::try_from(len) {
+                    Ok(len) => len,
+                    Err(_) => {
+                        self.abi_head_size_overflow();
+                        return None;
+                    }
+                };
+                let element = Box::new(self.abi_type_inner(element, false, visiting)?);
+                if len.checked_mul(element.head_size()).is_none() {
+                    self.abi_head_size_overflow();
+                    return None;
+                }
+                AbiType::FixedArray { element, len }
+            }
             TyKind::Struct(id) => {
                 if !visiting.insert(id) {
                     return None;
@@ -107,24 +122,43 @@ impl<'gcx> Lowerer<'gcx> {
     /// Static ABI head size, in bytes, of one top-level item: 32 for any dynamic
     /// type (an offset slot), the recursive sum for a static struct, `N *
     /// head(T)` for a static `T[N]`, and 32 for every value type.
-    pub(super) fn abi_head_size(&self, ty: Ty<'gcx>) -> u64 {
+    ///
+    /// Returns the existing diagnostic guarantee when the size exceeds `u64`.
+    pub(super) fn abi_head_size(&self, ty: Ty<'gcx>) -> Result<u64, ErrorGuaranteed> {
         // A storage reference (a mapping, or a struct/array in storage — legal
         // for library function parameters) travels as its slot: one word.
         if matches!(ty.kind, TyKind::Mapping(..) | TyKind::Ref(_, solar_ast::DataLocation::Storage))
         {
-            return 32;
+            return Ok(32);
         }
         let ty = ty.peel_refs();
         if self.abi_is_dynamic(ty) {
-            return 32;
+            return Ok(32);
         }
         match ty.kind {
-            TyKind::Array(elem, n) => n.to::<u64>() * self.abi_head_size(elem),
-            TyKind::Struct(id) => {
-                self.gcx.struct_field_types(id).iter().map(|&f| self.abi_head_size(f)).sum()
+            TyKind::Array(elem, n) => {
+                let len = u64::try_from(n).map_err(|_| self.abi_head_size_overflow())?;
+                len.checked_mul(self.abi_head_size(elem)?)
+                    .ok_or_else(|| self.abi_head_size_overflow())
             }
-            _ => 32,
+            TyKind::Struct(id) => {
+                self.abi_head_size_sum(self.gcx.struct_field_types(id).iter().copied())
+            }
+            _ => Ok(32),
         }
+    }
+
+    pub(super) fn abi_head_size_sum(
+        &self,
+        tys: impl IntoIterator<Item = Ty<'gcx>>,
+    ) -> Result<u64, ErrorGuaranteed> {
+        tys.into_iter().try_fold(0u64, |size, ty| {
+            size.checked_add(self.abi_head_size(ty)?).ok_or_else(|| self.abi_head_size_overflow())
+        })
+    }
+
+    pub(super) fn abi_head_size_overflow(&self) -> ErrorGuaranteed {
+        self.recovery_error(None, "ABI head size exceeds codegen limits")
     }
 
     /// Returns `base + off`, avoiding a redundant add for the first item.
@@ -158,11 +192,11 @@ impl<'gcx> Lowerer<'gcx> {
         let values: Vec<_> = items.iter().map(|&(value, _)| value).collect();
         let types = items
             .iter()
-            .map(|&(value, ty)| {
-                self.abi_type(ty, calldata_slices.contains(&value))
-                    .expect("recursive ABI values cannot be materialized")
-            })
-            .collect::<Vec<_>>();
+            .map(|&(value, ty)| self.abi_type(ty, calldata_slices.contains(&value)))
+            .collect::<Option<Vec<_>>>();
+        let Some(types) = types else {
+            return builder.error_value(self.abi_type_error());
+        };
         lower_abi_encode::encode_tuple(builder, &values, &types, dest, scratch)
     }
 
@@ -173,7 +207,14 @@ impl<'gcx> Lowerer<'gcx> {
         selector: [u8; 4],
         items: &[(ValueId, Ty<'gcx>)],
     ) {
-        let head_size: u64 = items.iter().map(|&(_, ty)| self.abi_head_size(ty)).sum();
+        let head_size = match self.abi_head_size_sum(items.iter().map(|&(_, ty)| ty)) {
+            Ok(size) => size,
+            Err(guar) => {
+                let err = builder.error_value(guar);
+                builder.revert(err, err);
+                return;
+            }
+        };
         let scratch_words = self.abi_scratch_words(items);
         let scratch_base =
             (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
@@ -787,8 +828,8 @@ impl<'gcx> Lowerer<'gcx> {
             return elements
                 .iter()
                 .flatten()
-                .enumerate()
-                .map(|(i, e)| (self.lower_return_value_for_ty(builder, e, tys[i]), tys[i]))
+                .zip(tys)
+                .map(|(e, ty)| (self.lower_return_value_for_ty(builder, e, ty), ty))
                 .collect();
         }
         if let Some(arity) = self.get_ternary_tuple_arity(expr) {
@@ -805,16 +846,11 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let first = self.lower_return_value_for_ty(builder, expr, tys[0]);
         let mut items = vec![(first, tys[0])];
-        let tail_base = (tys.len() > 1).then(|| self.multi_return_buffer_base(builder));
-        for (i, &ty) in tys.iter().enumerate().skip(1) {
-            items.push((
-                self.load_multi_return_value(
-                    builder,
-                    tail_base.expect("tail base is available"),
-                    i,
-                ),
-                ty,
-            ));
+        if tys.len() > 1 {
+            let tail_base = self.multi_return_buffer_base(builder);
+            for (i, &ty) in tys.iter().enumerate().skip(1) {
+                items.push((self.load_multi_return_value(builder, tail_base, i), ty));
+            }
         }
         items
     }

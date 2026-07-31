@@ -123,27 +123,48 @@ impl CallGraphInfo {
         function_count: usize,
     ) -> DenseBitSet<FunctionId> {
         let mut recursive = DenseBitSet::new_empty(function_count);
-        for &func_id in callees.keys() {
-            if Self::has_cycle_from(func_id, callees, &mut DenseBitSet::new_empty(function_count)) {
+        for func_id in (0..function_count).map(FunctionId::from_usize) {
+            let mut visited = DenseBitSet::new_empty(function_count);
+            visited.insert(func_id);
+            if Self::reaches(func_id, func_id, callees, &mut visited) {
                 recursive.insert(func_id);
             }
         }
         recursive
     }
 
-    fn has_cycle_from(
-        func_id: FunctionId,
+    fn reaches(
+        current: FunctionId,
+        target: FunctionId,
         callees: &FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
-        visiting: &mut DenseBitSet<FunctionId>,
+        visited: &mut DenseBitSet<FunctionId>,
     ) -> bool {
-        if !visiting.insert(func_id) {
-            return true;
+        callees.get(&current).is_some_and(|direct_callees| {
+            direct_callees.iter().any(|callee| {
+                callee == target
+                    || (visited.insert(callee) && Self::reaches(callee, target, callees, visited))
+            })
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn recursion_excludes_callers_outside_the_cycle() {
+        let mut callees = FxHashMap::default();
+        for (caller, callee) in [(0, 1), (1, 2), (2, 1)] {
+            callees
+                .entry(FunctionId::from_usize(caller))
+                .or_insert_with(|| DenseBitSet::new_empty(3))
+                .insert(FunctionId::from_usize(callee));
         }
 
-        let recursive = callees.get(&func_id).is_some_and(|direct_callees| {
-            direct_callees.iter().any(|callee| Self::has_cycle_from(callee, callees, visiting))
-        });
-        visiting.remove(func_id);
-        recursive
+        let recursive = CallGraphInfo::recursive_functions_in_graph(&callees, 3);
+        assert!(!recursive.contains(FunctionId::from_usize(0)));
+        assert!(recursive.contains(FunctionId::from_usize(1)));
+        assert!(recursive.contains(FunctionId::from_usize(2)));
     }
 }
