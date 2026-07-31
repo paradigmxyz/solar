@@ -371,11 +371,12 @@ impl<'gcx> Lowerer<'gcx> {
             return Arc::clone(layout);
         }
 
-        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
-        let fields = field_tys
-            .into_iter()
-            .map(|field_ty| self.storage_field_for_ty(field_ty))
-            .collect::<Vec<_>>();
+        let field_ids = self.gcx.hir.strukt(struct_id).fields;
+        let mut fields = Vec::with_capacity(field_ids.len());
+        for &field_id in field_ids {
+            let field_ty = self.gcx.type_of_item(field_id.into());
+            fields.push(self.storage_field_for_ty(field_ty));
+        }
         let layout = self.module.intern_storage_layout(StorageLayout::Struct(fields.into()));
         self.struct_storage_layouts.insert(struct_id, Arc::clone(&layout));
         layout
