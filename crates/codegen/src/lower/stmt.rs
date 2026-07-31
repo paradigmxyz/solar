@@ -508,10 +508,17 @@ impl<'gcx> Lowerer<'gcx> {
         }
         self.pending_inline_returns = None;
 
-        let tail_base = bound.iter().skip(1).any(|&bound| bound).then(|| {
-            let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-            builder.mload(ptr_slot)
-        });
+        if !bound.iter().skip(1).any(|&bound| bound) {
+            return Some(
+                bound
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &bound)| (bound && i == 0).then_some(first))
+                    .collect(),
+            );
+        }
+        let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
+        let tail_base = builder.mload(ptr_slot);
         Some(
             bound
                 .iter()
@@ -522,8 +529,7 @@ impl<'gcx> Lowerer<'gcx> {
                             first
                         } else {
                             let offset = builder.imm_u64(i as u64 * 32);
-                            let addr =
-                                builder.add(tail_base.expect("tail base is available"), offset);
+                            let addr = builder.add(tail_base, offset);
                             builder.mload(addr)
                         }
                     })

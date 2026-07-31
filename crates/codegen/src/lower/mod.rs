@@ -153,7 +153,7 @@ pub(crate) struct Lowerer<'gcx> {
     /// Stack of function IDs currently being inlined (for cycle detection).
     inline_stack: Vec<HirFunctionId>,
     /// Expression error-checking states suspended at inline function boundaries.
-    inline_expr_error_checks: Vec<bool>,
+    inline_expr_error_checks: u32,
     /// HIR functions already lowered into this MIR module.
     hir_to_mir_functions: FxHashMap<HirFunctionId, FunctionId>,
     /// Internal-convention copies of public functions, lowered on demand so that
@@ -250,7 +250,7 @@ impl<'gcx> Lowerer<'gcx> {
             hir_has_errors,
             storage_ref_locals: GrowableBitSet::new_empty(),
             inline_stack: Vec::new(),
-            inline_expr_error_checks: Vec::new(),
+            inline_expr_error_checks: 0,
             hir_to_mir_functions: FxHashMap::default(),
             hir_to_internal_mir_functions: FxHashMap::default(),
             recursive_functions: FxHashMap::default(),
@@ -301,16 +301,17 @@ impl<'gcx> Lowerer<'gcx> {
             return false;
         }
         self.inline_stack.push(func_id);
-        self.inline_expr_error_checks
-            .push(std::mem::replace(&mut self.check_expr_errors, self.hir_has_errors));
+        self.inline_expr_error_checks <<= 1;
+        self.inline_expr_error_checks |=
+            u32::from(std::mem::replace(&mut self.check_expr_errors, self.hir_has_errors));
         true
     }
 
     /// Exits inlining for a function.
     fn exit_inline(&mut self) {
-        self.inline_stack.pop();
-        self.check_expr_errors =
-            self.inline_expr_error_checks.pop().expect("inline expression state stack underflow");
+        debug_assert!(self.inline_stack.pop().is_some());
+        self.check_expr_errors = self.inline_expr_error_checks & 1 != 0;
+        self.inline_expr_error_checks >>= 1;
     }
 
     /// Allocates a memory slot for a local variable.
