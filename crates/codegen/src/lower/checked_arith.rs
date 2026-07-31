@@ -883,21 +883,16 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Emits an array bounds check: `if (!(index < len)) Panic(0x32)`.
-    ///
-    /// Constant operands fold at lowering: a provably in-range constant index
-    /// emits no check at all, and a provably out-of-range constant index
-    /// emits an unconditional panic (matching solc's runtime semantics for
-    /// out-of-bounds accesses), as a constant branch that later passes fold.
     pub(super) fn emit_index_bounds_check(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         index: ValueId,
         len: ValueId,
     ) {
-        if let (Some(index_const), Some(len_const)) =
-            (Self::const_u256_of(builder, index), Self::const_u256_of(builder, len))
+        if let (Some(index), Some(len)) =
+            (builder.func().value_u256(index), builder.func().value_u256(len))
         {
-            if index_const < len_const {
+            if index < len {
                 return;
             }
             let always = builder.imm_bool(true);
@@ -921,14 +916,6 @@ impl<'gcx> Lowerer<'gcx> {
         let count = builder.imm_u64(variant_count as u64);
         let in_range = builder.lt(value, count);
         self.emit_panic_if_zero(builder, in_range, PanicCode::EnumConversionOutOfBounds);
-    }
-
-    /// Returns the constant value of a MIR immediate, if `value` is one.
-    fn const_u256_of(builder: &FunctionBuilder<'_>, value: ValueId) -> Option<U256> {
-        match builder.func().value(value) {
-            crate::mir::Value::Immediate(imm) => imm.as_u256(),
-            _ => None,
-        }
     }
 
     pub(super) fn emit_panic_if_zero(

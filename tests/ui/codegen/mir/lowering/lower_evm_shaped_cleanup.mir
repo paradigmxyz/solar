@@ -1,0 +1,26 @@
+//@compile-flags: -Zmir-pipeline=lower-evm-shaped
+//@filecheck:
+// `lower-evm-shaped` makes the old continuation unreachable and must clean it
+// up before handing the module to the backend.
+// CHECK-LABEL: fn @caller
+// CHECK: tail_call @fused
+// CHECK-NOT: bb1:
+@module LowerEvmShapedCleanup
+@phase memory-lowered
+fn @entry() {
+  bb0:
+    tail_call fn1
+}
+fn @caller() {
+  bb0:
+    internal_call fn2, 0
+    jump bb1
+  bb1:
+    v0 = add 1, 2
+    mstore 128, v0
+    returndata 128, 32
+}
+fn @fused() {
+  bb0:
+    returndata 0, 0
+}

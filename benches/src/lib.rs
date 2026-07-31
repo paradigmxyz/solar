@@ -193,7 +193,7 @@ fn ensure_contract_bytecode(
     // Valid code cannot have recursive creation dependencies; seed the entry
     // so an unexpected cycle terminates instead of recursing forever.
     bytecodes.insert(contract_id, Bytes::new());
-    for dep in codegen::lower::contract_bytecode_dependencies(gcx, contract_id).iter() {
+    for dep in gcx.contract_bytecode_dependencies(contract_id) {
         ensure_contract_bytecode(gcx, dep, bytecodes)?;
     }
     let mut module = codegen::lower::lower_contract_with_bytecodes(gcx, contract_id, bytecodes);
@@ -441,7 +441,11 @@ impl Compiler for Solar {
 fn session(source: &Source) -> Session {
     let mut opts = solar::config::CompileOpts {
         threads: solar::config::Threads::resolve(1),
-        unstable: solar::config::UnstableOpts { codegen: true, ..Default::default() },
+        unstable: solar::config::UnstableOpts {
+            codegen: true,
+            codegen_all_functions: true,
+            ..Default::default()
+        },
         ..Default::default()
     };
     opts.import_remappings =

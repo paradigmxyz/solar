@@ -4,9 +4,8 @@
 // A calldata slice built or trimmed under control flow, then read back or passed
 // on. An internal helper that returns a calldata slice through implicit named
 // returns — even with branches — is inlined, its return merging through its
-// slot, so no `internal_call` survives and the slice folds away. An
-// uninitialized calldata slice local filled in assembly and forwarded to
-// another internal call folds the same way. Verified byte-identical to solc.
+// slot. An uninitialized calldata slice local filled in assembly can be
+// forwarded to an ordinary internal call. Verified byte-identical to solc.
 contract CalldataSliceControlFlow {
     // A single calldata slice trimmed under a branch and returned through an
     // implicit named return: the helper inlines, so no `internal_call` is left.
@@ -27,10 +26,10 @@ contract CalldataSliceControlFlow {
         }
     }
 
-    // Uninitialized calldata slices filled in assembly and forwarded to an
-    // internal call fold to compact head reads.
+    // Uninitialized calldata slices filled in assembly are forwarded to an
+    // ordinary internal call.
     // CHECK-LABEL: fn @forward{{[( ]}}
-    // CHECK-NOT: internal_call
+    // CHECK: internal_call @_sum
     function forward(bytes calldata x) external pure returns (uint256) {
         bytes calldata a;
         bytes calldata b;

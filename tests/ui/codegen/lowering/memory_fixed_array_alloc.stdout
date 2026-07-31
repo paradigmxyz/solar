@@ -186,6 +186,29 @@ fn @literal() -> u256 [abi_returns=[word]] {
     ret v5
 }
 
+fn @bulkDefault(arg0: u256) -> u256 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
+    memory_zero v3, 128
+    v4 = lt arg0, 4
+    jumpi v4, bb4, bb3
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v5 = memory_object_element_addr memoryfixedarray<4, 1>, v3, arg0
+    v6 = mload v5
+    ret v6
+}
+
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
 @module NamedReturnAndDelete
 fn @namedReturn() -> (memoryfixedarray, u256) [abi_returns=[array<3, word>, word]] {
@@ -321,7 +344,8 @@ fn @emptyNamedReturns() -> (memoryarray, memorybytes) [abi_returns=[memory_array
 
 fn @emptyWideNamedStruct() -> memorystruct [abi_returns=[tuple<word, memory_bytes, word, word>]] {
   bb0:
-    v0 = alloc memorystruct<4>, exact, zeroed, infallible, 128
+    v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    memory_zero v0, 128
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v1, 0
     v2 = memory_object_field_addr memorystruct<4>, v0, 1
@@ -334,54 +358,62 @@ fn @emptyWideNamedStruct() -> memorystruct [abi_returns=[tuple<word, memory_byte
 fn @fullyInitializedNamedStruct() -> memorystruct [abi_returns=[tuple<memory_array<word>, memory_bytes>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v1 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v1, 0
+    v2 = memory_object_field_addr memorystruct<2>, v0, 0
+    mstore v2, v1
+    v3 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v3, 0
+    v4 = memory_object_field_addr memorystruct<2>, v0, 1
+    mstore v4, v3
     mstore 128, v0
-    v1 = mul 1, 32
-    v2 = div v1, 32
-    v3 = eq v2, 1
-    jumpi v3, bb2, bb1
+    v5 = mul 1, 32
+    v6 = div v5, 32
+    v7 = eq v6, 1
+    jumpi v7, bb2, bb1
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v4 = add v1, 32
-    v5 = lt v4, v1
-    jumpi v5, bb3, bb4
+    v8 = add v5, 32
+    v9 = lt v8, v5
+    jumpi v9, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v6 = alloc memoryarray<1>, exact, zeroed, panic, v4
-    set_memory_object_len memoryarray, v6, 1
-    v7 = mload 128
-    v8 = memory_object_field_addr memorystruct<2>, v7, 0
-    mstore v8, v6
-    v9 = add 1, 31
-    v10 = lt v9, 1
-    jumpi v10, bb5, bb6
+    v10 = alloc memoryarray<1>, exact, zeroed, panic, v8
+    set_memory_object_len memoryarray, v10, 1
+    v11 = mload 128
+    v12 = memory_object_field_addr memorystruct<2>, v11, 0
+    mstore v12, v10
+    v13 = add 1, 31
+    v14 = lt v13, 1
+    jumpi v14, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v11 = not 31
-    v12 = and v9, v11
-    v13 = add v12, 32
-    v14 = lt v13, v12
-    jumpi v14, bb7, bb8
+    v15 = not 31
+    v16 = and v13, v15
+    v17 = add v16, 32
+    v18 = lt v17, v16
+    jumpi v18, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v15 = alloc memorybytes, exact, zeroed, panic, v13
-    set_memory_object_len memorybytes, v15, 1
-    v16 = mload 128
-    v17 = memory_object_field_addr memorystruct<2>, v16, 1
-    mstore v17, v15
-    v18 = mload 128
-    ret v18
+    v19 = alloc memorybytes, exact, zeroed, panic, v17
+    set_memory_object_len memorybytes, v19, 1
+    v20 = mload 128
+    v21 = memory_object_field_addr memorystruct<2>, v20, 1
+    mstore v21, v19
+    v22 = mload 128
+    ret v22
 }
 
 fn @deleteInPlace() -> (u256, u256) [abi_returns=[word, word]] {
@@ -411,5 +443,23 @@ fn @deleteInPlace() -> (u256, u256) [abi_returns=[word, word]] {
     v12 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
     v13 = mload v12
     ret v11, v13
+}
+
+fn @bulkDeleteInPlace() -> (u256, u256) [abi_returns=[word, word]] {
+  bb0:
+    v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
+    memory_zero v0, 128
+    v1 = memory_object_element_addr memoryfixedarray<4, 1>, v0, 0
+    mstore v1, 5
+    v2 = memory_object_element_addr memoryfixedarray<4, 1>, v0, 3
+    mstore v2, 7
+    memory_zero v0, 128
+    v3 = memory_object_element_addr memoryfixedarray<4, 1>, v0, 3
+    mstore v3, 9
+    v4 = memory_object_element_addr memoryfixedarray<4, 1>, v0, 0
+    v5 = mload v4
+    v6 = memory_object_element_addr memoryfixedarray<4, 1>, v0, 3
+    v7 = mload v6
+    ret v5, v7
 }
 

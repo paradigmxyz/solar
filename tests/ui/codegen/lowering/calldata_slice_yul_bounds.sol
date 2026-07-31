@@ -14,11 +14,11 @@ contract CalldataSliceYulBounds {
         }
     }
 
-    // The helpers inline, so the empty slice is a `make_calldata_slice` at the
-    // call site (later folded away) with no `internal_call` left behind.
+    // `_empty` inlines because it returns a slice; `_sink` remains an ordinary
+    // MIR call.
     // CHECK-LABEL: fn @emptyLen{{[( ]}}
-    // CHECK: make_calldata_slice 0, 0
-    // CHECK-NOT: internal_call
+    // CHECK: make_calldata_slice
+    // CHECK: internal_call @_sink
     function emptyLen() external pure returns (uint256) {
         return _sink(_empty());
     }

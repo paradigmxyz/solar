@@ -1,7 +1,7 @@
 //! Expression lowering.
 
 use super::{
-    Lowerer,
+    Lowerer, MIN_BULK_ZERO_MEMORY_WORDS,
     checked_arith::{ArithmeticInfo, PanicCode},
 };
 use crate::{
@@ -14,7 +14,7 @@ use solar_interface::{Ident, Span, diagnostics::ErrorGuaranteed, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
-    ty::{Ty, TyKind},
+    ty::{CallableParamSource, Ty, TyKind},
 };
 
 /// Small structs are cheaper to initialize with individual zero stores.
@@ -760,6 +760,11 @@ impl<'gcx> Lowerer<'gcx> {
                 && let Ok(len) = u64::try_from(len)
             {
                 let ptr = self.lower_value_expr(builder, target);
+                if len >= MIN_BULK_ZERO_MEMORY_WORDS && element_ty.peel_refs().is_value_type() {
+                    let size = builder.imm_u64(len * EvmMemoryLayout::WORD_SIZE);
+                    builder.memory_zero(ptr, size);
+                    return;
+                }
                 for i in 0..len {
                     let value = self.zero_memory_field_value_ty(builder, element_ty, var.ty.span);
                     if i == 0 {
@@ -848,7 +853,7 @@ impl<'gcx> Lowerer<'gcx> {
         match res {
             hir::Res::Item(item_id) => {
                 if let hir::ItemId::Function(function_id) = item_id {
-                    let function_id = self.resolve_virtual_function_target(*function_id);
+                    let function_id = self.virtual_function_target(*function_id);
                     self.internal_function_pointer_targets.insert(function_id);
                     return builder.imm_u64(Self::internal_function_pointer_id(function_id));
                 }
@@ -1276,7 +1281,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         builder.switch_to_block(copy_data);
         let src = builder.add(ptr, head_offset);
-        self.mcopy(builder, data_offset, src, len, None);
+        builder.mcopy(data_offset, src, len);
         let size = builder.add(data_offset, padded);
         builder.revert(zero, size);
     }
@@ -2299,9 +2304,14 @@ impl<'gcx> Lowerer<'gcx> {
         let struct_ptr =
             self.allocate_memory_object(builder, struct_size, crate::mir::MemoryObjectKind::Struct);
         let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        let arg_exprs =
+            match self.ordered_args_for(args, Some(CallableParamSource::Struct(struct_id))) {
+                Ok(exprs) => exprs,
+                Err(guar) => return builder.error_value(guar),
+            };
 
         // Store each argument into the corresponding field
-        for (i, arg) in args.exprs().enumerate() {
+        for (i, arg) in arg_exprs.into_iter().enumerate() {
             if i >= num_fields {
                 break;
             }
@@ -2353,12 +2363,10 @@ impl<'gcx> Lowerer<'gcx> {
         size: u64,
         kind: crate::mir::MemoryObjectKind,
     ) -> ValueId {
-        self.allocate_memory_object_with_semantics(
-            builder,
-            size,
-            kind,
-            crate::mir::AllocationSemantics::INTERNAL_ZEROED,
-        )
+        let ptr = self.allocate_memory_object(builder, size, kind);
+        let size = builder.imm_u64(size);
+        builder.memory_zero(ptr, size);
+        ptr
     }
 
     fn allocate_memory_object_with_semantics(
@@ -2636,7 +2644,7 @@ impl<'gcx> Lowerer<'gcx> {
         );
         builder.set_memory_object_len(ptr, arr_len, MemoryObjectKind::DynamicArray);
         let dst_data = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
-        self.mcopy(builder, dst_data, payload_src, payload_bytes, None);
+        builder.mcopy(dst_data, payload_src, payload_bytes);
 
         let needs_validation = !matches!(
             elem,
@@ -2737,7 +2745,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(last_word, zero);
 
         let src = builder.add(tail_len_addr, word);
-        self.mcopy(builder, data_ptr, src, tail_len, None);
+        builder.mcopy(data_ptr, src, tail_len);
         ptr
     }
 
@@ -3016,8 +3024,9 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::Call(callee, args, _)
                 if self.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0) =>
             {
-                if let Err(guar) = self.collect_builtin_args(Builtin::ArrayPush0, args) {
-                    return Some(builder.error_value(guar));
+                match self.builtin_args(Builtin::ArrayPush0, args) {
+                    Ok([]) => {}
+                    Err(guar) => return Some(builder.error_value(guar)),
                 }
                 let ExprKind::Member(base, _) = &callee.kind else { return None };
                 let (slot, element_ty, element_slots) =
@@ -3263,15 +3272,21 @@ impl<'gcx> Lowerer<'gcx> {
         builtin: Builtin,
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
-        let exprs = match self.collect_builtin_args(builtin, args) {
-            Ok(exprs) => exprs,
+        let arg = match builtin {
+            Builtin::ArrayPush0 => self.builtin_args(builtin, args).map(|[]| None),
+            Builtin::ArrayPush => self.builtin_args(builtin, args).map(|[arg]| Some(arg)),
+            Builtin::ArrayPop => self.builtin_args(builtin, args).map(|[]| None),
+            _ => unreachable!(),
+        };
+        let arg = match arg {
+            Ok(arg) => arg,
             Err(guar) => {
                 return (builtin == Builtin::ArrayPush0).then(|| builder.error_value(guar));
             }
         };
         let (slot, element_ty, element_slots) = array;
-        match builtin {
-            Builtin::ArrayPush0 => {
+        match (builtin, arg) {
+            (Builtin::ArrayPush0, None) => {
                 let element_slot =
                     self.lower_storage_array_push_slot(builder, slot, element_ty, element_slots);
                 if element_ty.is_reference_type() {
@@ -3282,8 +3297,7 @@ impl<'gcx> Lowerer<'gcx> {
                     Some(builder.imm_u64(0))
                 }
             }
-            Builtin::ArrayPush => {
-                let arg = exprs[0];
+            (Builtin::ArrayPush, Some(arg)) => {
                 let value = match element_ty.peel_refs().kind {
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                         self.lower_expr_as_memory_bytes(builder, arg)
@@ -3308,7 +3322,7 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.sstore(slot, new_length);
                 None
             }
-            Builtin::ArrayPop => {
+            (Builtin::ArrayPop, None) => {
                 let length = builder.sload(slot);
                 self.emit_panic_if_zero(builder, length, PanicCode::PopEmptyArray);
                 let one = builder.imm_u64(1);
@@ -3532,7 +3546,7 @@ impl<'gcx> Lowerer<'gcx> {
         let word_size = builder.imm_u64(32);
         let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let scratch = builder.fmp();
-        self.mcopy(builder, scratch, data_start, len, None);
+        builder.mcopy(scratch, data_start, len);
         let slot_addr = builder.add(scratch, len);
         builder.mstore(slot_addr, slot);
         let hash_len = builder.add(len, word_size);

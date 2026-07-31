@@ -481,6 +481,27 @@ fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
         return rewrite(instructions, 6, Edit::Keep(3), block);
     }
 
+    // `PUSH x MSTORE PUSH x MLOAD -> DUP1 PUSH x MSTORE`.
+    if let [.., store_addr, store, load_addr, load] = instructions.as_slice()
+        && let Some(a) = push_value(store_addr)
+        && raw_opcode(store) == Some(op::MSTORE)
+        && let Some(b) = push_value(load_addr)
+        && raw_opcode(load) == Some(op::MLOAD)
+        && a == b
+    {
+        return rewrite(instructions, 4, Edit::ReloadStoredValue, block);
+    }
+
+    // `DUP1 PUSH x MSTORE POP -> PUSH x MSTORE`.
+    if let [.., dup, pushed, store, pop] = instructions.as_slice()
+        && raw_opcode(dup) == Some(op::DUP1)
+        && pushed.is_encoded_push()
+        && raw_opcode(store) == Some(op::MSTORE)
+        && raw_opcode(pop) == Some(op::POP)
+    {
+        return rewrite(instructions, 4, Edit::RemoveFirstKeepTwo, block);
+    }
+
     // `ISZERO ISZERO PUSH_REF JUMPI -> PUSH_REF JUMPI`.
     if let [.., first, second, target, jump] = instructions.as_slice()
         && raw_opcode(first) == Some(op::ISZERO)
@@ -527,11 +548,13 @@ fn rewrite(instructions: &mut Vec<Instruction>, skip: usize, edit: Edit, block: 
 enum Edit {
     Keep(u8),
     RemoveFirstKeepOne,
+    RemoveFirstKeepTwo,
     RemoveFirstOverwrite(u8),
     SwapOverwrite(u8),
     OverwriteOne(u8),
     OverwriteTwo(u8),
     MergeSwapPop(u8),
+    ReloadStoredValue,
     DropDoubleIszero,
     EqIszeroJumpi,
 }
@@ -543,6 +566,10 @@ impl Edit {
             Self::RemoveFirstKeepOne => {
                 instructions.remove(start);
                 instructions.truncate(start + 1);
+            }
+            Self::RemoveFirstKeepTwo => {
+                instructions.remove(start);
+                instructions.truncate(start + 2);
             }
             Self::RemoveFirstOverwrite(opcode) => {
                 instructions.remove(start);
@@ -566,6 +593,12 @@ impl Edit {
                 overwrite_raw(&mut instructions[start], op::swap(depth));
                 overwrite_raw(&mut instructions[end - 2], op::POP);
                 instructions.truncate(end - 1);
+            }
+            Self::ReloadStoredValue => {
+                instructions.swap(start, start + 3);
+                instructions.swap(start + 1, start + 2);
+                overwrite_raw(&mut instructions[start], op::DUP1);
+                instructions.truncate(start + 3);
             }
             Self::DropDoubleIszero => {
                 instructions.drain(start..start + 2);

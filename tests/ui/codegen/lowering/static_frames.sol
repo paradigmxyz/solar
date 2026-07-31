@@ -20,20 +20,21 @@ contract SF {
     // CHECK: [[TOP]]:
     // CHECK: push 448
     // CHECK-NEXT: mstore
-    // CHECK: push 480
-    // CHECK-NEXT: mstore
     // CHECK-NEXT: push [[CHAIN_RET:bb[0-9]+]]
+    // CHECK: push 512
+    // CHECK-NEXT: mstore
     // CHECK: [[CHAIN_RET]]:
-    // CHECK-NEXT: push 512
+    // CHECK-NEXT: push 480
     // CHECK-NEXT: mload
     // CHECK: push 7
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: mod
-    // CHECK: push 256
+    // CHECK: push 288
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
+    // CHECK-NEXT: pop
     // CHECK-NEXT: pop
     // CHECK-NEXT: push [[TOP_REC_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[REC_ENTRY:bb[0-9]+]]
