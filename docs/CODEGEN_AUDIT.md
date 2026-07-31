@@ -28,6 +28,7 @@ architecture.
 | Separate EVM-word evaluators in instruction simplification, SCCP, and bounded pure evaluation | One shared MIR constant evaluator |
 | A hand-written MIR inliner match that cloned every instruction variant | `InstKind::visit_operands_mut`, with local remapping only for block and frame identities |
 | Private MIR inliner recursion analysis | Shared module call-graph analysis |
+| Separate storage-array and storage-`bytes` builtin argument decoding | One typed `push`/`pop` method decoder |
 
 The HIR inliner previously erased the callee return target for void calls.
 `return;` in an exact-base call could therefore terminate the enclosing public
