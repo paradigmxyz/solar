@@ -1577,7 +1577,7 @@ def _tree_sha256(root: pathlib.Path) -> str:
     return digest.hexdigest()
 
 
-def _write_json_atomic(path: pathlib.Path, value: dict[str, Any]) -> None:
+def _write_json_atomic(path: pathlib.Path, value: Any) -> None:
     temporary = path.with_name(path.name + ".tmp")
     temporary.write_text(
         json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -1675,9 +1675,16 @@ def _durable_replay(
         report = None
         reproduced = False
         reason = str(err)
-    (bundle / "foundry-replay.json").write_text(
-        json.dumps(report, indent=2, sort_keys=True) + "\n"
-    )
+    try:
+        _write_json_atomic(bundle / "foundry-replay.json", report)
+    except (OSError, TypeError, ValueError) as err:
+        return {
+            "required": True,
+            "reproduced": False,
+            "command": _durable_replay_command(command),
+            "returncode": result.returncode,
+            "reason": f"durable replay report persistence failed: {err}",
+        }
     return {
         "required": True,
         "reproduced": reproduced,

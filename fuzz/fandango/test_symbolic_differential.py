@@ -1664,6 +1664,63 @@ class DurableArtifactValidationTests(unittest.TestCase):
                     )
                 )
 
+    def test_durable_replay_report_persistence_fails_closed(self):
+        calldata = "0xdeadbeef" + "00" * 32
+        classified = {
+            "status": "replay_confirmed_mismatch",
+            "test": "check_diff_probe(uint256)",
+            "counterexample": {"calldata": calldata},
+        }
+        report = {
+            "suite": {
+                "test_results": {
+                    classified["test"]: {
+                        "status": "Failure",
+                        "kind": {"Unit": {}},
+                        "counterexample": {
+                            "Single": {"calldata": calldata}
+                        },
+                    }
+                }
+            }
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = Path(tmp)
+            (bundle / "project").mkdir()
+            (bundle / "foundry-counterexample.json").write_text("{}")
+            result = subprocess.CompletedProcess(
+                ["forge"],
+                returncode=1,
+                stdout=json.dumps(report),
+                stderr="",
+            )
+            with (
+                patch.object(
+                    run_foundry_target.evm,
+                    "run_process_group",
+                    return_value=result,
+                ),
+                patch.object(
+                    run_foundry_target,
+                    "_write_json_atomic",
+                    side_effect=OSError("injected replay persistence failure"),
+                ),
+            ):
+                replay = run_foundry_target._durable_replay(
+                    "forge",
+                    "solc",
+                    bundle,
+                    classified,
+                    30.0,
+                    evm.Deadline(30.0),
+                    "osaka",
+                    required=True,
+                )
+
+        self.assertTrue(replay["required"])
+        self.assertFalse(replay["reproduced"])
+        self.assertIn("report persistence failed", replay["reason"])
+
 
 class ManifestPersistenceTests(unittest.TestCase):
     def _args(self, source: Path, artifact_dir: Path) -> argparse.Namespace:
