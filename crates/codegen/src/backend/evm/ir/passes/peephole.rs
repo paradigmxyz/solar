@@ -261,6 +261,16 @@ fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
         return rewrite(instructions, 6, Edit::Keep(3), block);
     }
 
+    // `DUP1 PUSH x MSTORE POP -> PUSH x MSTORE`.
+    if let [.., dup, pushed, store, pop] = instructions.as_slice()
+        && raw_opcode(dup) == Some(op::DUP1)
+        && pushed.is_encoded_push()
+        && raw_opcode(store) == Some(op::MSTORE)
+        && raw_opcode(pop) == Some(op::POP)
+    {
+        return rewrite(instructions, 4, Edit::RemoveFirstKeepTwo, block);
+    }
+
     // `ISZERO ISZERO PUSH_REF JUMPI -> PUSH_REF JUMPI`.
     if let [.., first, second, target, jump] = instructions.as_slice()
         && raw_opcode(first) == Some(op::ISZERO)
@@ -307,6 +317,7 @@ fn rewrite(instructions: &mut Vec<Instruction>, skip: usize, edit: Edit, block: 
 enum Edit {
     Keep(u8),
     RemoveFirstKeepOne,
+    RemoveFirstKeepTwo,
     RemoveFirstOverwrite(u8),
     SwapOverwrite(u8),
     OverwriteOne(u8),
@@ -323,6 +334,10 @@ impl Edit {
             Self::RemoveFirstKeepOne => {
                 instructions.remove(start);
                 instructions.truncate(start + 1);
+            }
+            Self::RemoveFirstKeepTwo => {
+                instructions.remove(start);
+                instructions.truncate(start + 2);
             }
             Self::RemoveFirstOverwrite(opcode) => {
                 instructions.remove(start);

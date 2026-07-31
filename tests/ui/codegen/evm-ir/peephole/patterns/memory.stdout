@@ -12,12 +12,12 @@
     stop
   bb1:
     push 1
-    dup1
+-   dup1
     push 32
     mstore
 -   pop
--   push 32
--   mload
+    push 32
+    mload
     stop
   bb2:
     push 32
@@ -31,6 +31,19 @@
     mload
     dup1
     push 64
+    mstore
+    stop
+  bb4:
+    push 7
+-   dup1
+    push 32
+    mstore
+-   pop
+    stop
+  bb5:
+    push 7
+    dup1
+    push 32
     mstore
     stop
   
