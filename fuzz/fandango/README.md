@@ -130,6 +130,7 @@ Use these from the repository root:
 ```bash
 fuzz/bin/solsmith --help
 fuzz/bin/solreduce --help
+fuzz/bin/solsymdiff --help
 ```
 
 They are committed thin wrappers around the implementation scripts in this
@@ -490,18 +491,19 @@ much narrower sound target class, consumes a separate bounded budget, and can
 legitimately end `incomplete`.
 
 The supported scope does not include storage or stateful sequences, logs,
-constructors or immutables, linked libraries, proxies, dynamic ABI values
-(`bytes`, `string`, or dynamic arrays), tuples, user inline assembly anywhere
-in the source closure, EF/EOF runtimes, external calls in the deployed runtime,
-or protocol/invariant testing. Context-sensitive opcodes whose context cannot
-be equalized are rejected across the entire deployed object; equalized opcodes
-such as `ADDRESS`, `CALLVALUE`, and `CALLDATA*` remain in scope. A non-eligible
-sibling can therefore exclude an otherwise simple function. Imports must
-resolve beneath the source file's parent;
-remapping and include-path flags are not accepted. The fixed compiler settings,
-clean storage, call context, solver bounds, and wall deadline are part of every
-claim. Use the concrete runtime lanes for broader or stateful behavior; use
-this lane for small, replayable, high-confidence pure compiler witnesses.
+constructors or immutables, linked libraries, proxies, mappings, function
+types, user inline assembly anywhere in the source closure, EF/EOF runtimes,
+external calls in the deployed runtime, or protocol/invariant testing.
+Dynamic ABI inputs and tuples are supported only through the finite shapes
+described above. Context-sensitive opcodes whose context cannot be equalized
+are rejected across the entire deployed object; equalized opcodes such as
+`ADDRESS`, `CALLVALUE`, and `CALLDATA*` remain in scope. A non-eligible sibling
+can therefore exclude an otherwise simple function. Imports must resolve
+beneath the source file's parent; remapping and include-path flags are not
+accepted. The fixed compiler settings, clean storage, call context, solver
+bounds, and wall deadline are part of every claim. Use the concrete runtime
+lanes for broader or stateful behavior; use this lane for small, replayable,
+high-confidence pure compiler witnesses.
 
 ## Scaling
 
