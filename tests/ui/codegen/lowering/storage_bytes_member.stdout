@@ -207,10 +207,9 @@ bb65:
   push 32
   dup2
   add
+  dup1
   push 64
   mstore
-  push 64
-  mload
   dup1
   push 832
   mstore
