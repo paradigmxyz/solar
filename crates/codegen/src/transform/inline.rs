@@ -15,7 +15,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
 /// Module pass for metadata-backed MIR inlining.
@@ -956,7 +956,7 @@ fn inline_call_impl(
         + ((callee.params.len() + callee.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE;
     caller.internal_frame_size += callee.internal_frame_size;
 
-    let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, &args);
+    let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, args);
     let cloned_entry = cloner.clone_blocks(continuation)?;
     cloner.caller.blocks[call_block].terminator = Some(Terminator::Jump(cloned_entry));
 
@@ -983,9 +983,9 @@ struct InlineCloner<'a> {
     callee: &'a Function,
     frame_base: u64,
     callee_frame_prefix: u64,
-    args: Vec<ValueId>,
+    args: Box<[ValueId]>,
     value_map: FxHashMap<ValueId, ValueId>,
-    block_map: FxHashMap<BlockId, BlockId>,
+    block_map: IndexVec<BlockId, BlockId>,
     return_edges: Vec<(BlockId, SmallVec<[ValueId; 2]>)>,
 }
 
@@ -995,27 +995,27 @@ impl<'a> InlineCloner<'a> {
         callee: &'a Function,
         frame_base: u64,
         callee_frame_prefix: u64,
-        args: &[ValueId],
+        args: Box<[ValueId]>,
     ) -> Self {
         Self {
             caller,
             callee,
             frame_base,
             callee_frame_prefix,
-            args: args.to_vec(),
+            args,
             value_map: FxHashMap::default(),
-            block_map: FxHashMap::default(),
+            block_map: IndexVec::with_capacity(callee.blocks.len()),
             return_edges: Vec::new(),
         }
     }
 
     fn clone_blocks(&mut self, continuation: BlockId) -> Option<BlockId> {
-        for block_id in self.callee.blocks.indices() {
-            self.block_map.insert(block_id, self.caller.alloc_block());
+        for _ in self.callee.blocks.indices() {
+            self.block_map.push(self.caller.alloc_block());
         }
 
         for (callee_block, block) in self.callee.blocks.iter_enumerated() {
-            let caller_block = self.block_map[&callee_block];
+            let caller_block = self.block_map[callee_block];
             let mut instructions = Vec::with_capacity(block.instructions.len());
             for &inst_id in &block.instructions {
                 let inst = self.callee.inst(inst_id).clone();
@@ -1033,7 +1033,7 @@ impl<'a> InlineCloner<'a> {
         }
 
         for (callee_block, block) in self.callee.blocks.iter_enumerated() {
-            let caller_block = self.block_map[&callee_block];
+            let caller_block = self.block_map[callee_block];
             for (index, &inst_id) in block.instructions.iter().enumerate() {
                 let kind = self.clone_inst_kind(self.callee.inst(inst_id).kind.clone())?;
                 let new_inst = self.caller.blocks[caller_block].instructions[index];
@@ -1042,13 +1042,13 @@ impl<'a> InlineCloner<'a> {
         }
 
         for (callee_block, block) in self.callee.blocks.iter_enumerated() {
-            let caller_block = self.block_map[&callee_block];
+            let caller_block = self.block_map[callee_block];
             let term =
                 self.clone_terminator(block.terminator.as_ref()?, caller_block, continuation)?;
             self.caller.blocks[caller_block].terminator = Some(term);
         }
 
-        Some(self.block_map[&BlockId::ENTRY])
+        Some(self.block_map[BlockId::ENTRY])
     }
 
     fn clone_value(&mut self, value: ValueId) -> Option<ValueId> {
@@ -1068,7 +1068,7 @@ impl<'a> InlineCloner<'a> {
     }
 
     fn clone_block(&self, block: BlockId) -> Option<BlockId> {
-        self.block_map.get(&block).copied()
+        self.block_map.get(block).copied()
     }
 
     fn clone_inst_kind(&mut self, mut kind: InstKind) -> Option<InstKind> {
