@@ -336,11 +336,13 @@ fuzz/bin/solsymdiff \
 ```
 
 Eligible inputs are `bool`, `address`, integer widths, `bytes1` through
-`bytes32`, `bytes`, `string`, and fixed or dynamic arrays of those types.
-Outputs may use dynamic ABI shapes because the oracle compares raw encoded
-returndata rather than decoding it; `--max-returndata-bytes` remains a
-fail-closed bound. Tuple inputs, storage/stateful behavior, and multi-call
-sequences are outside this lane.
+`bytes32`, `bytes`, `string`, tuples/structs composed from supported inputs,
+and fixed or dynamic arrays of those types. The generated property recreates
+ABI tuples as deterministic local structs, so its canonical calldata layout
+stays identical to the compiler target. Outputs may use dynamic ABI shapes
+because the oracle compares raw encoded returndata rather than decoding it;
+`--max-returndata-bytes` remains a fail-closed bound. Storage/stateful
+behavior and multi-call sequences are outside this lane.
 
 Dynamic inputs are not unbounded. By default the command separately explores
 lengths 0, 1, 2, and 3 for every array, `bytes`, and `string` leaf. This covers

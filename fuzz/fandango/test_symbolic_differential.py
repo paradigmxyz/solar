@@ -914,7 +914,7 @@ class SymbolicFunctionSelectionTests(unittest.TestCase):
                     [f"{inputs[0]['type']} calldata arg0"],
                 )
 
-    def test_rejects_tuple_input_even_when_its_components_are_static(self):
+    def test_accepts_tuple_input_and_preserves_its_canonical_shape(self):
         inputs = [
             {
                 "name": "value",
@@ -929,10 +929,28 @@ class SymbolicFunctionSelectionTests(unittest.TestCase):
         solc["hashes"] = {"probe((uint256,address))": "01020304"}
         solar = copy.deepcopy(solc)
 
-        with self.assertRaises(ValueError):
-            symbolic.select_function(
-                solc, solar, "probe((uint256,address))"
-            )
+        selected = symbolic.select_function(
+            solc, solar, "probe((uint256,address))"
+        )
+
+        self.assertEqual(selected["inputs"], ["(uint256,address)"])
+
+    def test_rejects_an_unsupported_type_nested_inside_a_tuple(self):
+        inputs = [
+            {
+                "name": "value",
+                "type": "tuple",
+                "components": [
+                    {"name": "callback", "type": "function"},
+                ],
+            }
+        ]
+        solc = artifact(inputs=inputs)
+        solc["hashes"] = {"probe((function))": "01020304"}
+        solar = copy.deepcopy(solc)
+
+        with self.assertRaisesRegex(ValueError, "unsupported"):
+            symbolic.select_function(solc, solar, "probe((function))")
 
     def test_rejects_non_pure_function(self):
         solc = artifact(mutability="view")
@@ -1221,6 +1239,54 @@ class SymbolicTargetGenerationTests(unittest.TestCase):
             ),
         )
         self.assertIn("delegatecall", source)
+
+    def test_nested_tuple_inputs_generate_canonical_struct_parameters(self):
+        tuple_input = {
+            "name": "value",
+            "type": "tuple[]",
+            "components": [
+                {"name": "owner", "type": "address"},
+                {
+                    "name": "inner",
+                    "type": "tuple",
+                    "components": [
+                        {"name": "amount", "type": "uint256"},
+                        {"name": "tag", "type": "bytes"},
+                    ],
+                },
+            ],
+        }
+        function = {
+            "signature": "probe((address,(uint256,bytes))[])",
+            "selector": "0x01020304",
+            "inputs": ["(address,(uint256,bytes))[]"],
+            "outputs": ["uint256"],
+            "test": "checkDiff_01020304",
+            "abi": {"inputs": [tuple_input]},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary)
+            run_foundry_target.write_foundry_target.write_symbolic_target(
+                project,
+                "0x6000",
+                "0x6001",
+                function,
+                64,
+                "osaka",
+            )
+            source = (
+                project / "test" / "SymbolicDifferential.t.sol"
+            ).read_text()
+
+        self.assertIn("struct SymbolicInput0_1", source)
+        self.assertIn("uint256 field0;", source)
+        self.assertIn("bytes field1;", source)
+        self.assertIn("SymbolicInput0_1 field1;", source)
+        self.assertIn(
+            "function checkDiff_01020304("
+            "SymbolicInput0[] calldata arg0)",
+            source,
+        )
 
 
 class TargetCalldataTests(unittest.TestCase):
@@ -2066,6 +2132,12 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         cls.dynamic_input_mutant = (
             fixture_dir / "DynamicInputMutant.sol"
         ).resolve()
+        cls.tuple_input_reference = (
+            fixture_dir / "TupleInputReference.sol"
+        ).resolve()
+        cls.tuple_input_mutant = (
+            fixture_dir / "TupleInputMutant.sol"
+        ).resolve()
         cls.reference_input = evm.materialize_standard_input(
             cls.solc,
             cls.reference,
@@ -2134,6 +2206,36 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             kind="solar",
             evm_version="osaka",
             standard_input=dynamic_input_mutant,
+        )
+        cls.tuple_input_reference_input = evm.materialize_standard_input(
+            cls.solc,
+            cls.tuple_input_reference,
+            30,
+            "osaka",
+        )
+        cls.solc_tuple_input_reference = evm.compile_standard_artifact(
+            cls.solc,
+            cls.tuple_input_reference,
+            "TupleInputDifferential",
+            30,
+            kind="solc",
+            evm_version="osaka",
+            standard_input=cls.tuple_input_reference_input,
+        )
+        tuple_input_mutant = evm.materialize_standard_input(
+            cls.solc,
+            cls.tuple_input_mutant,
+            30,
+            "osaka",
+        )
+        cls.solar_tuple_input_mutant = evm.compile_standard_artifact(
+            cls.solar,
+            cls.tuple_input_mutant,
+            "TupleInputDifferential",
+            30,
+            kind="solar",
+            evm_version="osaka",
+            standard_input=tuple_input_mutant,
         )
         cls.address_context_input = evm.materialize_standard_input(
             cls.solc,
@@ -2675,6 +2777,63 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(encode3["outputs"], ["bytes"])
 
+    def test_public_command_compares_a_real_nested_struct_input(self):
+        repository = Path(__file__).resolve().parents[2]
+        artifacts = self._artifact_root("abi-nested-struct-campaign")
+        result = subprocess.run(
+            [
+                str(repository / "fuzz" / "bin" / "solsymdiff"),
+                "--source",
+                str(
+                    repository
+                    / "tests"
+                    / "ui"
+                    / "codegen"
+                    / "lowering"
+                    / "nested_static_struct_param.sol"
+                ),
+                "--contract",
+                "NestedStaticStructParam",
+                "--solc",
+                self.solc,
+                "--solar",
+                self.solar,
+                "--forge",
+                self.forge,
+                "--anvil",
+                self.anvil,
+                "--symbolic-solver",
+                self.z3,
+                "--artifact-dir",
+                artifacts,
+                "--timeout",
+                "60",
+                "--symbolic-timeout",
+                "5",
+            ],
+            cwd=repository,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        summary = json.loads(result.stdout)
+        manifest = json.loads(
+            (
+                Path(summary["artifact_dir"]) / "manifest.json"
+            ).read_text()
+        )
+        self.assertEqual(summary["status"], "no_mismatch_within_bounds")
+        self.assertTrue(summary["campaign_complete"])
+        self.assertEqual(manifest["counts"]["eligible"], 1)
+        self.assertEqual(manifest["counts"]["no_mismatch"], 1)
+        self.assertEqual(
+            manifest["inventory"]["eligible"][0]["inputs"],
+            ["(uint256,(uint256,uint256),uint256)"],
+        )
+
     def test_unsupported_contract_scopes_are_incomplete_before_forge(self):
         cases = [
             (
@@ -2834,6 +2993,30 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         self.assertEqual(
             manifest["bounds"]["forge_effective"]["default_bytes_lengths"],
             [0, 2],
+        )
+
+    def test_nested_tuple_values_find_a_durable_mismatch(self):
+        returncode, summary, manifest = self._run(
+            self.solar_tuple_input_mutant,
+            signature="probe((address,(uint256,uint256)))",
+            source=self.tuple_input_reference,
+            contract="TupleInputDifferential",
+            solc_artifact=self.solc_tuple_input_reference,
+            materialized=self.tuple_input_reference_input,
+        )
+
+        self.assertEqual(returncode, 1)
+        self.assertEqual(summary["status"], "replay_confirmed_mismatch")
+        calldata = bytes.fromhex(
+            manifest["replay"]["target_calldata"].removeprefix("0x")
+        )
+        self.assertEqual(len(calldata), 100)
+        self.assertEqual(int.from_bytes(calldata[4:36]), 0x1234)
+        self.assertEqual(int.from_bytes(calldata[36:68]), 42)
+        self.assertEqual(int.from_bytes(calldata[68:100]), 99)
+        self.assertEqual(
+            manifest["function"]["inputs"],
+            ["(address,(uint256,uint256))"],
         )
 
     def test_controlled_cold_branch_mismatch_is_independently_replayed(self):

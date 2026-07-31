@@ -79,7 +79,16 @@ def write_symbolic_target(
     test_dir.mkdir(parents=True, exist_ok=True)
 
     input_types = list(function["inputs"])
-    declarations = ", ".join(symbolic.solidity_parameter_declarations(input_types))
+    abi = function.get("abi")
+    abi_inputs = (
+        abi.get("inputs")
+        if isinstance(abi, dict) and isinstance(abi.get("inputs"), list)
+        else [{"type": abi_type} for abi_type in input_types]
+    )
+    struct_declarations, parameter_declarations = (
+        symbolic.solidity_symbolic_parameters(abi_inputs)
+    )
+    declarations = ", ".join(parameter_declarations)
     arguments = ", ".join(f"arg{index}" for index in range(len(input_types)))
     encode = f"abi.encodeWithSelector(TARGET_SELECTOR{', ' if arguments else ''}{arguments})"
     word_checks = "\n".join(
@@ -93,6 +102,7 @@ def write_symbolic_target(
         solar_runtime=_hex_literal(solar_runtime),
         selector=function["selector"],
         test_name=function["test"],
+        struct_declarations=struct_declarations,
         declarations=declarations,
         encode=encode,
         max_returndata_bytes=max_returndata_bytes,
@@ -469,6 +479,7 @@ contract RuntimeRouter {{
 }}
 
 contract SymbolicDifferentialTest {{
+{struct_declarations}
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
 
     RuntimeRouter internal constant ROUTER =

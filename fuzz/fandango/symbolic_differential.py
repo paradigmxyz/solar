@@ -352,7 +352,7 @@ def select_symbolic_pure_function(
         "name": entry["name"],
         "signature": signature,
         "selector": "0x" + selector,
-        "inputs": [item["type"] for item in entry.get("inputs", [])],
+        "inputs": [_canonical_type(item) for item in entry.get("inputs", [])],
         "outputs": [_canonical_type(item) for item in entry.get("outputs", [])],
         "test": f"checkDiff_{selector}",
     }
@@ -632,6 +632,65 @@ def solidity_parameter_declarations(types: list[str]) -> list[str]:
     return declarations
 
 
+def solidity_symbolic_parameters(
+    inputs: list[dict[str, Any]],
+) -> tuple[str, list[str]]:
+    """Render ABI inputs as Solidity parameters, synthesizing tuple structs."""
+    if not isinstance(inputs, list) or not all(
+        isinstance(item, dict) for item in inputs
+    ):
+        raise ValueError("symbolic ABI inputs must be an array")
+    definitions = []
+    declarations = []
+    for index, item in enumerate(inputs):
+        _validate_abi_value(item, "symbolic")
+        if not _is_supported_symbolic_input(item):
+            raise ValueError("symbolic ABI input uses an unsupported shape")
+        type_name = _solidity_symbolic_input_type(
+            item,
+            f"SymbolicInput{index}",
+            definitions,
+        )
+        location = (
+            " calldata"
+            if item["type"].startswith("tuple")
+            or item["type"] in {"bytes", "string"}
+            or "[" in item["type"]
+            else ""
+        )
+        declarations.append(f"{type_name}{location} arg{index}")
+    return "\n\n".join(definitions), declarations
+
+
+def _solidity_symbolic_input_type(
+    item: dict[str, Any],
+    name: str,
+    definitions: list[str],
+) -> str:
+    abi_type = item["type"]
+    if not abi_type.startswith("tuple"):
+        return abi_type
+    components = item["components"]
+    fields = []
+    for index, component in enumerate(components):
+        field_type = _solidity_symbolic_input_type(
+            component,
+            f"{name}_{index}",
+            definitions,
+        )
+        fields.append(f"        {field_type} field{index};")
+    definitions.append(
+        "\n".join(
+            [
+                f"    struct {name} {{",
+                *fields,
+                "    }",
+            ]
+        )
+    )
+    return name + abi_type[len("tuple") :]
+
+
 def _collect_functions(
     abi: Any, label: str
 ) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
@@ -766,7 +825,7 @@ def _selected_function(
         "name": entry["name"],
         "signature": signature,
         "selector": selector,
-        "inputs": [item["type"] for item in entry.get("inputs", [])],
+        "inputs": [_canonical_type(item) for item in entry.get("inputs", [])],
         "outputs": [_canonical_type(item) for item in entry.get("outputs", [])],
         "test": f"checkDiff_{selector[2:]}",
         "abi": entry,
@@ -838,8 +897,27 @@ def _has_supported_symbolic_inputs(entry: dict[str, Any]) -> bool:
     return (
         entry.get("stateMutability") == "pure"
         and all(
-            _is_supported_symbolic_input_type(item.get("type", ""))
+            _is_supported_symbolic_input(item)
             for item in entry.get("inputs", [])
+        )
+    )
+
+
+def _is_supported_symbolic_input(item: dict[str, Any]) -> bool:
+    abi_type = item.get("type", "")
+    if not abi_type.startswith("tuple"):
+        return _is_supported_symbolic_input_type(abi_type)
+    components = item.get("components")
+    return (
+        _is_supported_symbolic_input_type(
+            "uint256" + abi_type[len("tuple") :]
+        )
+        and isinstance(components, list)
+        and bool(components)
+        and all(
+            isinstance(component, dict)
+            and _is_supported_symbolic_input(component)
+            for component in components
         )
     )
 
