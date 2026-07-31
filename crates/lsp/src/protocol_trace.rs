@@ -1,0 +1,235 @@
+//! LSP protocol trace state and middleware.
+
+use async_lsp::{AnyEvent, AnyNotification, AnyRequest, ClientSocket, LspService};
+use lsp_types::{
+    LogTraceParams, TraceValue,
+    notification::{self, Notification},
+    request::Request,
+};
+use std::{
+    future::Future,
+    ops::ControlFlow,
+    pin::Pin,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering},
+    },
+    task::{Context, Poll},
+    time::Instant,
+};
+use tower::{Layer, Service};
+
+const TRACE_OFF: u8 = 0;
+const TRACE_MESSAGES: u8 = 1;
+const TRACE_VERBOSE: u8 = 2;
+
+#[derive(Clone)]
+pub(crate) struct ProtocolTrace {
+    client: ClientSocket,
+    level: Arc<AtomicU8>,
+    initialized: Arc<AtomicBool>,
+    next_request: Arc<AtomicU64>,
+}
+
+impl ProtocolTrace {
+    pub(crate) fn new(client: ClientSocket) -> Self {
+        Self {
+            client,
+            level: Arc::new(AtomicU8::new(TRACE_OFF)),
+            initialized: Arc::new(AtomicBool::new(false)),
+            next_request: Arc::new(AtomicU64::new(1)),
+        }
+    }
+
+    pub(crate) fn set_level(&self, level: TraceValue) {
+        self.level.store(encode_level(level), Ordering::Release);
+    }
+
+    pub(crate) fn update_level(&self, level: TraceValue) {
+        if self.initialized.load(Ordering::Acquire) {
+            self.set_level(level);
+        }
+    }
+
+    fn mark_initialized(&self) {
+        self.initialized.store(true, Ordering::Release);
+    }
+
+    fn enabled_level(&self) -> Option<TraceValue> {
+        if !self.initialized.load(Ordering::Acquire) {
+            return None;
+        }
+        match self.level.load(Ordering::Acquire) {
+            TRACE_MESSAGES => Some(TraceValue::Messages),
+            TRACE_VERBOSE => Some(TraceValue::Verbose),
+            _ => None,
+        }
+    }
+
+    fn notification(&self, method: &str) {
+        let Some(level) = self.enabled_level() else { return };
+        let method = display_method(method);
+        self.emit_at(level, format!("Received notification `{method}`"), || {
+            "Notification parameters omitted".into()
+        });
+    }
+
+    fn request_started(&self, method: &str) -> Option<ActiveRequest> {
+        // LSP does not allow arbitrary server notifications before initialize completes.
+        if method == lsp_types::request::Initialize::METHOD {
+            return None;
+        }
+        let level = self.enabled_level()?;
+        let request = ActiveRequest {
+            trace: self.clone(),
+            method: display_method(method),
+            sequence: self.next_request.fetch_add(1, Ordering::Relaxed),
+            started: Instant::now(),
+        };
+        self.emit_at(level, format!("Received request `{}`", request.method), move || {
+            format!("Request #{} started; parameters omitted", request.sequence)
+        });
+        Some(request)
+    }
+
+    fn emit_at(&self, level: TraceValue, message: String, verbose: impl FnOnce() -> String) {
+        let _ = self.client.notify::<notification::LogTrace>(LogTraceParams {
+            message,
+            verbose: (level == TraceValue::Verbose).then(verbose),
+        });
+    }
+}
+
+struct ActiveRequest {
+    trace: ProtocolTrace,
+    method: String,
+    sequence: u64,
+    started: Instant,
+}
+
+impl ActiveRequest {
+    fn complete(self, succeeded: bool) {
+        let Some(level) = self.trace.enabled_level() else { return };
+        let elapsed = self.started.elapsed().as_millis();
+        let message = if succeeded {
+            format!("Completed request `{}` successfully", self.method)
+        } else {
+            format!("Completed request `{}` with an error", self.method)
+        };
+        let outcome = if succeeded { "succeeded" } else { "failed" };
+        self.trace.emit_at(level, message, move || {
+            format!(
+                "Request #{} {outcome} in {elapsed} ms; {} omitted",
+                self.sequence,
+                if succeeded { "result" } else { "error details" },
+            )
+        });
+    }
+}
+
+fn display_method(method: &str) -> String {
+    const MAX_METHOD_LENGTH: usize = 96;
+
+    let method_body = method.strip_prefix("$/").unwrap_or(method);
+    if method.chars().count() <= MAX_METHOD_LENGTH
+        && method_body.split('/').all(|segment| {
+            !segment.is_empty()
+                && segment.chars().all(|character| {
+                    character.is_ascii_alphanumeric() || matches!(character, '_' | '-')
+                })
+        })
+    {
+        method.to_owned()
+    } else {
+        "<redacted method>".into()
+    }
+}
+
+fn encode_level(level: TraceValue) -> u8 {
+    match level {
+        TraceValue::Off => TRACE_OFF,
+        TraceValue::Messages => TRACE_MESSAGES,
+        TraceValue::Verbose => TRACE_VERBOSE,
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct ProtocolTraceLayer {
+    trace: ProtocolTrace,
+}
+
+impl ProtocolTraceLayer {
+    pub(crate) fn new(trace: ProtocolTrace) -> Self {
+        Self { trace }
+    }
+}
+
+impl<S> Layer<S> for ProtocolTraceLayer {
+    type Service = ProtocolTraceService<S>;
+
+    fn layer(&self, service: S) -> Self::Service {
+        ProtocolTraceService { service, trace: self.trace.clone() }
+    }
+}
+
+pub(crate) struct ProtocolTraceService<S> {
+    service: S,
+    trace: ProtocolTrace,
+}
+
+impl<S> Service<AnyRequest> for ProtocolTraceService<S>
+where
+    S: LspService,
+    S::Future: Send + 'static,
+    S::Response: Send + 'static,
+    S::Error: Send + 'static,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = Pin<Box<dyn Future<Output = Result<S::Response, S::Error>> + Send>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
+    }
+
+    fn call(&mut self, request: AnyRequest) -> Self::Future {
+        let initializes =
+            (request.method == lsp_types::request::Initialize::METHOD).then(|| self.trace.clone());
+        let active = self.trace.request_started(&request.method);
+        let response = self.service.call(request);
+        Box::pin(async move {
+            let response = response.await;
+            if let Some(trace) = initializes
+                && response.is_ok()
+            {
+                trace.mark_initialized();
+            }
+            if let Some(active) = active {
+                active.complete(response.is_ok());
+            }
+            response
+        })
+    }
+}
+
+impl<S> LspService for ProtocolTraceService<S>
+where
+    S: LspService,
+    S::Future: Send + 'static,
+    S::Response: Send + 'static,
+    S::Error: Send + 'static,
+{
+    fn notify(&mut self, notification: AnyNotification) -> ControlFlow<async_lsp::Result<()>> {
+        if !matches!(
+            &*notification.method,
+            notification::SetTrace::METHOD | notification::Exit::METHOD
+        ) {
+            self.trace.notification(&notification.method);
+        }
+        self.service.notify(notification)
+    }
+
+    fn emit(&mut self, event: AnyEvent) -> ControlFlow<async_lsp::Result<()>> {
+        self.service.emit(event)
+    }
+}

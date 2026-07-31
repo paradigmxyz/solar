@@ -11,13 +11,13 @@ use lsp_types::{
     DidSaveTextDocumentParams, DocumentFormattingParams, DocumentHighlightParams,
     DocumentLinkParams, DocumentSymbolParams, ExecuteCommandParams, FileChangeType, FileEvent,
     FoldingRangeParams, FormattingOptions, HoverParams, InitializeParams, InitializedParams,
-    NumberOrString, PartialResultParams, Position, ProgressParams, ProgressParamsValue,
-    PublishDiagnosticsParams, Range, SelectionRangeParams, SignatureHelpParams, SymbolKind,
-    TextDocumentIdentifier, TextDocumentPositionParams, TextDocumentSaveReason,
-    WillSaveTextDocumentParams, WindowClientCapabilities, WorkDoneProgress,
-    WorkDoneProgressCancelParams, WorkDoneProgressCreateParams, WorkDoneProgressParams,
-    WorkspaceClientCapabilities, WorkspaceSymbolParams, notification as notif,
-    notification::Notification, request, request::Request,
+    LogTraceParams, NumberOrString, PartialResultParams, Position, ProgressParams,
+    ProgressParamsValue, PublishDiagnosticsParams, Range, SelectionRangeParams, SetTraceParams,
+    SignatureHelpParams, SymbolKind, TextDocumentIdentifier, TextDocumentPositionParams,
+    TextDocumentSaveReason, TraceValue, WillSaveTextDocumentParams, WindowClientCapabilities,
+    WorkDoneProgress, WorkDoneProgressCancelParams, WorkDoneProgressCreateParams,
+    WorkDoneProgressParams, WorkspaceClientCapabilities, WorkspaceSymbolParams,
+    notification as notif, notification::Notification, request, request::Request,
 };
 use solar_interface::data_structures::sync::RwLock;
 use std::{
@@ -951,4 +951,574 @@ async fn initialized_registers_watched_files_when_client_supports_dynamic_regist
     server.exit(()).unwrap();
     assert!(server_main.await.unwrap().is_ok());
     assert!(matches!(client_main.await.unwrap(), Err(async_lsp::Error::Eof)));
+}
+
+struct ProtocolTraceHarness {
+    client: ClientSocket,
+    server: async_lsp::ServerSocket,
+    traces: mpsc::UnboundedReceiver<LogTraceParams>,
+    server_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
+    client_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
+}
+
+enum SensitiveTraceRequest {}
+
+impl Request for SensitiveTraceRequest {
+    type Params = serde_json::Value;
+    type Result = serde_json::Value;
+
+    const METHOD: &'static str = "/workspace/Secret.sol";
+}
+
+enum SensitiveTraceResultRequest {}
+
+impl Request for SensitiveTraceResultRequest {
+    type Params = serde_json::Value;
+    type Result = serde_json::Value;
+
+    const METHOD: &'static str = "test/sensitiveResult";
+}
+
+enum PendingTraceRequest {}
+
+impl Request for PendingTraceRequest {
+    type Params = ();
+    type Result = ();
+
+    const METHOD: &'static str = "test/pendingTrace";
+}
+
+enum TraceBarrierRequest {}
+
+impl Request for TraceBarrierRequest {
+    type Params = ();
+    type Result = ();
+
+    const METHOD: &'static str = "test/traceBarrier";
+}
+
+struct PendingTraceControl {
+    entered: oneshot::Sender<NumberOrString>,
+    release: oneshot::Receiver<()>,
+}
+
+struct ProtocolTraceTestRouter {
+    inner: Router<GlobalState>,
+    pending: Option<PendingTraceControl>,
+}
+
+impl Service<AnyRequest> for ProtocolTraceTestRouter {
+    type Response = serde_json::Value;
+    type Error = ResponseError;
+    type Future =
+        Pin<Box<dyn Future<Output = Result<serde_json::Value, ResponseError>> + Send + 'static>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, request: AnyRequest) -> Self::Future {
+        match &*request.method {
+            SensitiveTraceRequest::METHOD => {
+                Box::pin(std::future::ready(Err(ResponseError::new_with_data(
+                    async_lsp::ErrorCode::REQUEST_FAILED,
+                    "error-message-secret",
+                    serde_json::json!({ "token": "error-data-secret" }),
+                ))))
+            }
+            SensitiveTraceResultRequest::METHOD => {
+                Box::pin(std::future::ready(Ok(serde_json::json!({
+                    "uri": "file:///workspace/ResultSecret.sol",
+                    "text": "contract ResultSecret {}",
+                    "token": "result-token-secret",
+                }))))
+            }
+            PendingTraceRequest::METHOD => {
+                let request_id = request.id.clone();
+                let PendingTraceControl { entered, release } =
+                    self.pending.take().expect("pending trace request should run once");
+                Box::pin(async move {
+                    entered.send(request_id).expect("pending trace receiver should be open");
+                    release.await.expect("pending trace request should be released");
+                    Ok(serde_json::Value::Null)
+                })
+            }
+            TraceBarrierRequest::METHOD => {
+                Box::pin(std::future::ready(Ok(serde_json::Value::Null)))
+            }
+            _ => self.inner.call(request),
+        }
+    }
+}
+
+impl LspService for ProtocolTraceTestRouter {
+    fn notify(&mut self, notification: AnyNotification) -> ControlFlow<async_lsp::Result<()>> {
+        self.inner.notify(notification)
+    }
+
+    fn emit(&mut self, event: AnyEvent) -> ControlFlow<async_lsp::Result<()>> {
+        self.inner.emit(event)
+    }
+}
+
+fn new_protocol_trace_test_service(
+    client: ClientSocket,
+    pending: Option<PendingTraceControl>,
+) -> impl LspService<Response = serde_json::Value, Error = ResponseError, Future: Send + 'static> + Send
+{
+    let state = GlobalState::new(client.clone());
+    let protocol_trace = state.protocol_trace();
+    let router = ProtocolTraceTestRouter { inner: new_router_with_state(state), pending };
+    ServiceBuilder::new()
+        .layer(TracingLayer::default())
+        .layer(LifecycleLayer::default())
+        .layer(crate::protocol_trace::ProtocolTraceLayer::new(protocol_trace))
+        .layer(request_layer())
+        .layer(ClientProcessMonitorLayer::new(client))
+        .service(router)
+}
+
+impl ProtocolTraceHarness {
+    async fn initialize(&mut self, trace: Option<TraceValue>) {
+        let params = InitializeParams { trace, ..Default::default() };
+        self.server.initialize(params).await.unwrap();
+        self.server.initialized(InitializedParams {}).unwrap();
+    }
+
+    fn set_trace(&self, value: TraceValue) {
+        self.server.notify::<notif::SetTrace>(SetTraceParams { value }).unwrap();
+    }
+
+    async fn probe(&self) {
+        self.client.request::<request::Shutdown>(()).await.unwrap();
+    }
+
+    fn take_traces(&mut self) -> Vec<LogTraceParams> {
+        let mut traces = Vec::new();
+        while let Ok(trace) = self.traces.try_recv() {
+            traces.push(trace);
+        }
+        traces
+    }
+
+    async fn shutdown(mut self) {
+        self.set_trace(TraceValue::Off);
+        self.server.shutdown(()).await.unwrap();
+        self.server.exit(()).unwrap();
+        assert!(self.server_task.await.unwrap().is_ok());
+        assert!(matches!(self.client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
+    }
+}
+
+fn protocol_trace_harness_with<S>(server: impl FnOnce(ClientSocket) -> S) -> ProtocolTraceHarness
+where
+    S: LspService<Response = serde_json::Value, Error = ResponseError> + Send + 'static,
+    S::Future: Send + 'static,
+{
+    let (server_main, client) = async_lsp::MainLoop::new_server(server);
+    let (trace_tx, traces) = mpsc::unbounded_channel::<LogTraceParams>();
+    let (client_main, server) = async_lsp::MainLoop::new_client(move |_| {
+        let mut router = Router::new(trace_tx);
+        router.request::<request::Shutdown, _>(|_, ()| std::future::ready(Ok(())));
+        router.notification::<notif::LogTrace>(|traces, params| {
+            traces.send(params).unwrap();
+            ControlFlow::Continue(())
+        });
+        router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
+        router.notification::<notif::PublishDiagnostics>(|_, _| ControlFlow::Continue(()));
+        router
+    });
+
+    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
+    let (server_rx, server_tx) = tokio::io::split(server_stream);
+    let server_task =
+        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
+    let (client_rx, client_tx) = tokio::io::split(client_stream);
+    let client_task =
+        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+
+    ProtocolTraceHarness { client, server, traces, server_task, client_task }
+}
+
+fn protocol_trace_harness() -> ProtocolTraceHarness {
+    protocol_trace_harness_with(new_server_service)
+}
+
+fn protocol_trace_test_harness(pending: Option<PendingTraceControl>) -> ProtocolTraceHarness {
+    protocol_trace_harness_with(move |client| new_protocol_trace_test_service(client, pending))
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn set_trace_updates_protocol_notification_detail() {
+    let mut harness = protocol_trace_harness();
+    harness.initialize(None).await;
+    let params = WillSaveTextDocumentParams {
+        text_document: TextDocumentIdentifier {
+            uri: lsp_types::Url::parse("file:///workspace/Secret.sol").unwrap(),
+        },
+        reason: TextDocumentSaveReason::MANUAL,
+    };
+
+    harness.server.notify::<notif::WillSaveTextDocument>(params.clone()).unwrap();
+    harness.set_trace(TraceValue::Messages);
+    harness.server.notify::<notif::WillSaveTextDocument>(params.clone()).unwrap();
+    harness.set_trace(TraceValue::Verbose);
+    harness.server.notify::<notif::WillSaveTextDocument>(params.clone()).unwrap();
+    harness.set_trace(TraceValue::Messages);
+    harness.server.notify::<notif::WillSaveTextDocument>(params.clone()).unwrap();
+    harness.set_trace(TraceValue::Off);
+    harness.server.notify::<notif::WillSaveTextDocument>(params).unwrap();
+    harness
+        .server
+        .request::<request::WorkspaceSymbolRequest>(WorkspaceSymbolParams {
+            query: "trace barrier".into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    harness.probe().await;
+
+    assert_eq!(
+        harness.take_traces(),
+        [
+            LogTraceParams {
+                message: "Received notification `textDocument/willSave`".into(),
+                verbose: None,
+            },
+            LogTraceParams {
+                message: "Received notification `textDocument/willSave`".into(),
+                verbose: Some("Notification parameters omitted".into()),
+            },
+            LogTraceParams {
+                message: "Received notification `textDocument/willSave`".into(),
+                verbose: None,
+            },
+        ]
+    );
+    harness.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn set_trace_before_initialize_does_not_emit_protocol_traces() {
+    let mut harness = protocol_trace_harness();
+    harness.set_trace(TraceValue::Messages);
+    harness
+        .server
+        .notify::<notif::WillSaveTextDocument>(WillSaveTextDocumentParams {
+            text_document: TextDocumentIdentifier {
+                uri: lsp_types::Url::parse("file:///workspace/Secret.sol").unwrap(),
+            },
+            reason: TextDocumentSaveReason::MANUAL,
+        })
+        .unwrap();
+
+    harness.initialize(None).await;
+    harness.probe().await;
+
+    assert!(harness.take_traces().is_empty());
+    harness.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn messages_trace_successful_request_lifecycle_without_payloads() {
+    let mut harness = protocol_trace_harness();
+    harness.initialize(None).await;
+    harness.set_trace(TraceValue::Messages);
+
+    harness
+        .server
+        .request::<request::WorkspaceSymbolRequest>(WorkspaceSymbolParams {
+            query: "workspace-query-secret".into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    harness.probe().await;
+
+    assert_eq!(
+        harness.take_traces(),
+        [
+            LogTraceParams { message: "Received request `workspace/symbol`".into(), verbose: None },
+            LogTraceParams {
+                message: "Completed request `workspace/symbol` successfully".into(),
+                verbose: None,
+            },
+        ]
+    );
+    harness.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn trace_level_changes_do_not_emit_orphan_request_completions() {
+    const TIMEOUT: Duration = Duration::from_secs(1);
+
+    let (entered, request_entered) = oneshot::channel();
+    let (release_request, release) = oneshot::channel();
+    let mut harness = protocol_trace_test_harness(Some(PendingTraceControl { entered, release }));
+    harness.initialize(None).await;
+    harness.set_trace(TraceValue::Messages);
+    let server = harness.server.clone();
+    let request = tokio::spawn(async move { server.request::<PendingTraceRequest>(()).await });
+    tokio::time::timeout(TIMEOUT, request_entered)
+        .await
+        .expect("pending request should start")
+        .expect("pending request should signal entry");
+
+    harness.set_trace(TraceValue::Off);
+    harness.server.request::<TraceBarrierRequest>(()).await.unwrap();
+    release_request.send(()).expect("pending request should still be running");
+    tokio::time::timeout(TIMEOUT, request)
+        .await
+        .expect("pending request should finish")
+        .expect("pending request task should not panic")
+        .expect("pending request should succeed");
+    harness.probe().await;
+
+    assert_eq!(
+        harness.take_traces(),
+        [LogTraceParams { message: "Received request `test/pendingTrace`".into(), verbose: None }]
+    );
+    harness.shutdown().await;
+
+    let (entered, request_entered) = oneshot::channel();
+    let (release_request, release) = oneshot::channel();
+    let mut harness = protocol_trace_test_harness(Some(PendingTraceControl { entered, release }));
+    harness.initialize(None).await;
+    let server = harness.server.clone();
+    let request = tokio::spawn(async move { server.request::<PendingTraceRequest>(()).await });
+    tokio::time::timeout(TIMEOUT, request_entered)
+        .await
+        .expect("pending request should start")
+        .expect("pending request should signal entry");
+
+    harness.set_trace(TraceValue::Messages);
+    harness.server.request::<TraceBarrierRequest>(()).await.unwrap();
+    harness.probe().await;
+    assert_eq!(
+        harness.take_traces(),
+        [
+            LogTraceParams {
+                message: "Received request `test/traceBarrier`".into(),
+                verbose: None,
+            },
+            LogTraceParams {
+                message: "Completed request `test/traceBarrier` successfully".into(),
+                verbose: None,
+            },
+        ]
+    );
+
+    release_request.send(()).expect("pending request should still be running");
+    tokio::time::timeout(TIMEOUT, request)
+        .await
+        .expect("pending request should finish")
+        .expect("pending request task should not panic")
+        .expect("pending request should succeed");
+    harness.probe().await;
+    assert!(harness.take_traces().is_empty());
+    harness.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn messages_trace_reports_cancelled_requests_as_errors_without_ids() {
+    const TIMEOUT: Duration = Duration::from_secs(1);
+
+    let (entered, request_entered) = oneshot::channel();
+    let (_release_request, release) = oneshot::channel();
+    let mut harness = protocol_trace_test_harness(Some(PendingTraceControl { entered, release }));
+    harness.initialize(None).await;
+    harness.set_trace(TraceValue::Messages);
+    let server = harness.server.clone();
+    let request = tokio::spawn(async move { server.request::<PendingTraceRequest>(()).await });
+    let request_id = tokio::time::timeout(TIMEOUT, request_entered)
+        .await
+        .expect("pending request should start")
+        .expect("pending request should signal entry");
+
+    harness.server.notify::<notif::Cancel>(CancelParams { id: request_id }).unwrap();
+    assert_request_cancelled(
+        tokio::time::timeout(TIMEOUT, request)
+            .await
+            .expect("pending request should be cancelled")
+            .expect("pending request task should not panic"),
+    );
+    harness.probe().await;
+
+    assert_eq!(
+        harness.take_traces(),
+        [
+            LogTraceParams {
+                message: "Received request `test/pendingTrace`".into(),
+                verbose: None,
+            },
+            LogTraceParams {
+                message: "Received notification `$/cancelRequest`".into(),
+                verbose: None,
+            },
+            LogTraceParams {
+                message: "Completed request `test/pendingTrace` with an error".into(),
+                verbose: None,
+            },
+        ]
+    );
+    harness.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn initialize_trace_level_applies_after_the_initialize_response() {
+    let params = WillSaveTextDocumentParams {
+        text_document: TextDocumentIdentifier {
+            uri: lsp_types::Url::parse("file:///workspace/InitializeSecret.sol").unwrap(),
+        },
+        reason: TextDocumentSaveReason::MANUAL,
+    };
+
+    for (level, verbose) in [
+        (TraceValue::Messages, None),
+        (TraceValue::Verbose, Some("Notification parameters omitted")),
+    ] {
+        let mut harness = protocol_trace_harness();
+        harness.initialize(Some(level)).await;
+        harness.server.notify::<notif::WillSaveTextDocument>(params.clone()).unwrap();
+        harness.set_trace(TraceValue::Off);
+        harness
+            .server
+            .request::<request::WorkspaceSymbolRequest>(WorkspaceSymbolParams {
+                query: "trace barrier".into(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        harness.probe().await;
+
+        let traces = harness.take_traces();
+        assert_eq!(traces.len(), 2, "initialize itself must not emit protocol trace messages");
+        assert_eq!(traces[0].message, "Received notification `initialized`");
+        assert_eq!(traces[0].verbose.as_deref(), verbose);
+        assert_eq!(traces[1].message, "Received notification `textDocument/willSave`");
+        assert_eq!(traces[1].verbose.as_deref(), verbose);
+        harness.shutdown().await;
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn verbose_request_trace_reports_timing_and_redacts_sensitive_data() {
+    const SOURCE_SECRET: &str = "contract TraceSecret {}";
+    const ENV_SECRET: &str = "environment-value-secret";
+    const QUERY_SECRET: &str = "workspace-query-secret";
+    const ERROR_MESSAGE_SECRET: &str = "error-message-secret";
+    const ERROR_DATA_SECRET: &str = "error-data-secret";
+
+    let mut harness = protocol_trace_test_harness(None);
+    harness.initialize(None).await;
+    harness.set_trace(TraceValue::Verbose);
+
+    let error = harness
+        .server
+        .request::<SensitiveTraceRequest>(serde_json::json!({
+            "uri": "file:///workspace/Secret.sol",
+            "text": SOURCE_SECRET,
+            "environment": { "API_TOKEN": ENV_SECRET },
+            "query": QUERY_SECRET,
+        }))
+        .await
+        .unwrap_err();
+    let async_lsp::Error::Response(error) = error else {
+        panic!("expected a request-failed response, got {error:?}");
+    };
+    assert_eq!(error.code, async_lsp::ErrorCode::REQUEST_FAILED);
+    assert_eq!(error.message, ERROR_MESSAGE_SECRET);
+    assert_eq!(error.data, Some(serde_json::json!({ "token": ERROR_DATA_SECRET })));
+    harness.probe().await;
+
+    let traces = harness.take_traces();
+    let [started, completed] = traces.as_slice() else {
+        panic!("expected request start and completion traces, got {traces:?}");
+    };
+    assert_eq!(started.message, "Received request `<redacted method>`");
+    let started_verbose = started.verbose.as_deref().expect("verbose start detail");
+    let sequence = started_verbose
+        .strip_prefix("Request #")
+        .and_then(|detail| detail.strip_suffix(" started; parameters omitted"))
+        .expect("request start detail should contain a server sequence")
+        .parse::<u64>()
+        .expect("request sequence should be numeric");
+
+    assert_eq!(completed.message, "Completed request `<redacted method>` with an error");
+    let completed_verbose = completed.verbose.as_deref().expect("verbose completion detail");
+    let elapsed = completed_verbose
+        .strip_prefix(&format!("Request #{sequence} failed in "))
+        .and_then(|detail| detail.strip_suffix(" ms; error details omitted"))
+        .expect("request completion detail should contain elapsed milliseconds")
+        .parse::<u128>()
+        .expect("elapsed milliseconds should be numeric");
+    let _ = elapsed;
+
+    let trace_json = serde_json::to_string(&traces).unwrap();
+    for secret in [
+        SensitiveTraceRequest::METHOD,
+        "file:///workspace/Secret.sol",
+        SOURCE_SECRET,
+        ENV_SECRET,
+        QUERY_SECRET,
+        ERROR_MESSAGE_SECRET,
+        ERROR_DATA_SECRET,
+    ] {
+        assert!(!trace_json.contains(secret), "protocol trace leaked `{secret}`");
+    }
+    harness.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn verbose_request_trace_reports_success_without_the_result_payload() {
+    const PARAM_SECRET: &str = "request-parameter-secret";
+    const RESULT_URI_SECRET: &str = "file:///workspace/ResultSecret.sol";
+    const RESULT_SOURCE_SECRET: &str = "contract ResultSecret {}";
+    const RESULT_TOKEN_SECRET: &str = "result-token-secret";
+
+    let mut harness = protocol_trace_test_harness(None);
+    harness.initialize(None).await;
+    harness.set_trace(TraceValue::Verbose);
+
+    let result = harness
+        .server
+        .request::<SensitiveTraceResultRequest>(serde_json::json!({ "query": PARAM_SECRET }))
+        .await
+        .unwrap();
+    assert_eq!(
+        result,
+        serde_json::json!({
+            "uri": RESULT_URI_SECRET,
+            "text": RESULT_SOURCE_SECRET,
+            "token": RESULT_TOKEN_SECRET,
+        })
+    );
+    harness.probe().await;
+
+    let traces = harness.take_traces();
+    let [started, completed] = traces.as_slice() else {
+        panic!("expected request start and completion traces, got {traces:?}");
+    };
+    assert_eq!(started.message, "Received request `test/sensitiveResult`");
+    let sequence = started
+        .verbose
+        .as_deref()
+        .and_then(|detail| detail.strip_prefix("Request #"))
+        .and_then(|detail| detail.strip_suffix(" started; parameters omitted"))
+        .expect("request start detail should contain a server sequence")
+        .parse::<u64>()
+        .expect("request sequence should be numeric");
+    assert_eq!(completed.message, "Completed request `test/sensitiveResult` successfully");
+    let detail = completed.verbose.as_deref().expect("verbose completion detail");
+    detail
+        .strip_prefix(&format!("Request #{sequence} succeeded in "))
+        .and_then(|detail| detail.strip_suffix(" ms; result omitted"))
+        .expect("success detail should contain elapsed milliseconds")
+        .parse::<u128>()
+        .expect("elapsed milliseconds should be numeric");
+    let trace_json = serde_json::to_string(&traces).unwrap();
+    for secret in [PARAM_SECRET, RESULT_URI_SECRET, RESULT_SOURCE_SECRET, RESULT_TOKEN_SECRET] {
+        assert!(!trace_json.contains(secret), "protocol trace leaked `{secret}`");
+    }
+    harness.shutdown().await;
 }
