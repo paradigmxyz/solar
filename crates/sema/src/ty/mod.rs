@@ -1358,7 +1358,7 @@ impl<'gcx> Gcx<'gcx> {
                 events.insert(event);
             }
         }
-        for event in items.creation.events.iter().chain(items.deployed.events) {
+        for event in items.creation.events.iter().chain(items.deployed.events.iter()) {
             events.insert(event);
         }
         self.alloc(events)
@@ -1373,7 +1373,7 @@ impl<'gcx> Gcx<'gcx> {
                 errors.insert(error);
             }
         }
-        for error in items.creation.errors.iter().chain(items.deployed.errors) {
+        for error in items.creation.errors.iter().chain(items.deployed.errors.iter()) {
             errors.insert(error);
         }
         self.alloc(errors)
@@ -1386,7 +1386,7 @@ impl<'gcx> Gcx<'gcx> {
     ) -> &'gcx DenseBitSet<hir::FunctionId> {
         let items = self.interface_items(id);
         let mut functions = DenseBitSet::new_empty(self.hir.function_ids().len());
-        for function in items.creation.functions.iter().chain(items.deployed.functions) {
+        for function in items.creation.functions.iter().chain(items.deployed.functions.iter()) {
             functions.insert(function);
         }
         self.alloc(functions)
@@ -1402,8 +1402,11 @@ impl<'gcx> Gcx<'gcx> {
         }
         let items = self.interface_items(id);
         let mut dependencies = DenseBitSet::new_empty(self.hir.contract_ids().len());
-        for dependency in
-            items.creation.bytecode_dependencies.iter().chain(items.deployed.bytecode_dependencies)
+        for dependency in items
+            .creation
+            .bytecode_dependencies
+            .iter()
+            .chain(items.deployed.bytecode_dependencies.iter())
         {
             dependencies.insert(dependency);
         }
@@ -1559,9 +1562,9 @@ fn super_function_target(
     function
 }
 
-fn interface_items(gcx: _, id: hir::ContractId) -> call_graph::InterfaceItems<'gcx> {
+fn interface_items(gcx: _, id: hir::ContractId) -> &'gcx call_graph::InterfaceItems {
     assert!(gcx.has_typeck_results(), "interface items require type checking");
-    call_graph::interface_items(gcx, id)
+    gcx.alloc(call_graph::interface_items(gcx, id))
 }
 
 fn all_contract_bytecode_dependencies(

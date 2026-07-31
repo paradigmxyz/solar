@@ -3,45 +3,27 @@ use crate::hir::{self, Visit};
 use solar_data_structures::{Never, bit_set::DenseBitSet};
 use std::{collections::VecDeque, ops::ControlFlow};
 
-struct CallGraph {
-    functions: DenseBitSet<hir::FunctionId>,
-    emitted_events: DenseBitSet<hir::EventId>,
-    used_errors: DenseBitSet<hir::ErrorId>,
-    bytecode_dependencies: DenseBitSet<hir::ContractId>,
+pub(super) struct ReferencedItems {
+    pub(super) functions: DenseBitSet<hir::FunctionId>,
+    pub(super) events: DenseBitSet<hir::EventId>,
+    pub(super) errors: DenseBitSet<hir::ErrorId>,
+    pub(super) bytecode_dependencies: DenseBitSet<hir::ContractId>,
     internal_dispatch_targets: DenseBitSet<hir::FunctionId>,
 }
 
-#[derive(Clone, Copy)]
-pub(super) struct InterfaceItems<'gcx> {
-    pub(super) creation: ReferencedItems<'gcx>,
-    pub(super) deployed: ReferencedItems<'gcx>,
+pub(super) struct InterfaceItems {
+    pub(super) creation: ReferencedItems,
+    pub(super) deployed: ReferencedItems,
 }
 
-#[derive(Clone, Copy)]
-pub(super) struct ReferencedItems<'gcx> {
-    pub(super) functions: &'gcx DenseBitSet<hir::FunctionId>,
-    pub(super) events: &'gcx DenseBitSet<hir::EventId>,
-    pub(super) errors: &'gcx DenseBitSet<hir::ErrorId>,
-    pub(super) bytecode_dependencies: &'gcx DenseBitSet<hir::ContractId>,
-}
-
-impl CallGraph {
+impl ReferencedItems {
     fn new(gcx: Gcx<'_>) -> Self {
         Self {
             functions: DenseBitSet::new_empty(gcx.hir.function_ids().count()),
-            emitted_events: DenseBitSet::new_empty(gcx.hir.event_ids().count()),
-            used_errors: DenseBitSet::new_empty(gcx.hir.error_ids().count()),
+            events: DenseBitSet::new_empty(gcx.hir.event_ids().count()),
+            errors: DenseBitSet::new_empty(gcx.hir.error_ids().count()),
             bytecode_dependencies: DenseBitSet::new_empty(gcx.hir.contract_ids().count()),
             internal_dispatch_targets: DenseBitSet::new_empty(gcx.hir.function_ids().count()),
-        }
-    }
-
-    fn alloc_items<'gcx>(self, gcx: Gcx<'gcx>) -> ReferencedItems<'gcx> {
-        ReferencedItems {
-            functions: gcx.alloc(self.functions),
-            events: gcx.alloc(self.emitted_events),
-            errors: gcx.alloc(self.used_errors),
-            bytecode_dependencies: gcx.alloc(self.bytecode_dependencies),
         }
     }
 }
@@ -49,7 +31,7 @@ impl CallGraph {
 struct CallGraphBuilder<'gcx> {
     gcx: Gcx<'gcx>,
     contract: hir::ContractId,
-    graph: CallGraph,
+    graph: ReferencedItems,
     worklist: VecDeque<hir::FunctionId>,
     visited_constants: DenseBitSet<hir::VariableId>,
     direct_callee: Option<hir::ExprId>,
@@ -60,14 +42,14 @@ impl<'gcx> CallGraphBuilder<'gcx> {
         Self {
             gcx,
             contract,
-            graph: CallGraph::new(gcx),
+            graph: ReferencedItems::new(gcx),
             worklist: VecDeque::new(),
             visited_constants: DenseBitSet::new_empty(gcx.hir.variable_ids().count()),
             direct_callee: None,
         }
     }
 
-    fn build_creation(gcx: Gcx<'gcx>, contract: hir::ContractId) -> CallGraph {
+    fn build_creation(gcx: Gcx<'gcx>, contract: hir::ContractId) -> ReferencedItems {
         let mut this = Self::new(gcx, contract);
         for &base in gcx.hir.contract(contract).linearized_bases.iter().rev() {
             let base = gcx.hir.contract(base);
@@ -93,8 +75,8 @@ impl<'gcx> CallGraphBuilder<'gcx> {
     fn build_deployed(
         gcx: Gcx<'gcx>,
         contract: hir::ContractId,
-        creation: &CallGraph,
-    ) -> CallGraph {
+        creation: &ReferencedItems,
+    ) -> ReferencedItems {
         let mut this = Self::new(gcx, contract);
         for function in gcx.interface_functions(contract) {
             this.enqueue(function.id);
@@ -112,7 +94,7 @@ impl<'gcx> CallGraphBuilder<'gcx> {
         this.finish()
     }
 
-    fn build_all(gcx: Gcx<'gcx>, contract: hir::ContractId) -> CallGraph {
+    fn build_all(gcx: Gcx<'gcx>, contract: hir::ContractId) -> ReferencedItems {
         let mut this = Self::new(gcx, contract);
         let contract = gcx.hir.contract(contract);
         for modifier in contract.linearized_bases_args.iter().flatten() {
@@ -136,7 +118,7 @@ impl<'gcx> CallGraphBuilder<'gcx> {
         this.finish()
     }
 
-    fn finish(mut self) -> CallGraph {
+    fn finish(mut self) -> ReferencedItems {
         while let Some(function) = self.worklist.pop_front() {
             let _ = self.visit_nested_function(function);
         }
@@ -169,7 +151,7 @@ impl<'gcx> CallGraphBuilder<'gcx> {
                 }
             }
             TyKind::Error(_, error) => {
-                self.graph.used_errors.insert(error);
+                self.graph.errors.insert(error);
                 false
             }
             _ => false,
@@ -287,7 +269,7 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx> {
             && let Some(TyKind::Event(_, event)) =
                 self.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
         {
-            self.graph.emitted_events.insert(event);
+            self.graph.events.insert(event);
         }
         self.walk_stmt(stmt)
     }
@@ -304,11 +286,11 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx> {
     }
 }
 
-pub(super) fn interface_items<'gcx>(gcx: Gcx<'gcx>, id: hir::ContractId) -> InterfaceItems<'gcx> {
+pub(super) fn interface_items(gcx: Gcx<'_>, id: hir::ContractId) -> InterfaceItems {
     let creation = CallGraphBuilder::build_creation(gcx, id);
     let deployed = CallGraphBuilder::build_deployed(gcx, id, &creation);
 
-    InterfaceItems { creation: creation.alloc_items(gcx), deployed: deployed.alloc_items(gcx) }
+    InterfaceItems { creation, deployed }
 }
 
 pub(super) fn all_bytecode_dependencies<'gcx>(
