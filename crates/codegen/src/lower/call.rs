@@ -2107,7 +2107,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn inline_slice_return_body(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        func: &hir::Function<'_>,
+        func: &'gcx hir::Function<'gcx>,
         body: &hir::Block<'_>,
         arg_vals: &[ValueId],
     ) -> Vec<ValueId> {
@@ -2140,7 +2140,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         let exit_block = builder.create_block();
         self.inline_returns =
-            Some(crate::lower::InlineReturnCtx { exit_block, return_vars: func.returns.to_vec() });
+            Some(crate::lower::InlineReturnCtx { exit_block, return_vars: func.returns });
 
         let saved_in_unchecked_block = self.in_unchecked_block;
         self.in_unchecked_block = false;
@@ -2280,7 +2280,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(body) = body {
             let exit_block = builder.create_block();
             self.inline_returns =
-                Some(crate::lower::InlineReturnCtx { exit_block, return_vars: Vec::new() });
+                Some(crate::lower::InlineReturnCtx { exit_block, return_vars: &[] });
             let saved_in_unchecked_block = self.in_unchecked_block;
             self.in_unchecked_block = false;
             self.lower_block(builder, &body);

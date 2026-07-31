@@ -128,13 +128,13 @@ impl AbiParamSource {
 /// Where an inlined callee's `return` statements deliver their values: each
 /// value is stored into the matching return variable's local slot, then control
 /// jumps to `exit_block`, where the call site reads the slots back.
-#[derive(Clone)]
-struct InlineReturnCtx {
+#[derive(Clone, Copy)]
+struct InlineReturnCtx<'gcx> {
     /// Join block the call site continues from after the inlined body.
     exit_block: BlockId,
     /// The callee's return variables, in declaration order. Each has a local
     /// slot allocated before the body is lowered.
-    return_vars: Vec<VariableId>,
+    return_vars: &'gcx [VariableId],
 }
 
 type InternalFunctionPointerShape = (Vec<MirType>, Vec<MirType>);
@@ -174,7 +174,7 @@ pub(crate) struct Lowerer<'gcx> {
     /// call site, an explicit `return` stores its values into the callee's
     /// return-variable slots and jumps here, instead of terminating the
     /// enclosing MIR function.
-    inline_returns: Option<InlineReturnCtx>,
+    inline_returns: Option<InlineReturnCtx<'gcx>>,
     /// Return values of the most recently inlined multi-return callee whose
     /// returns cannot ride the one-word-per-value multi-return buffer
     /// (calldata slices). Destructuring consumes them directly.
