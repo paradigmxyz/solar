@@ -8,6 +8,7 @@ import copy
 import datetime
 import hashlib
 import json
+import math
 import os
 import pathlib
 import re
@@ -106,7 +107,7 @@ def _add_shared_arguments(
     parser.add_argument("--anvil", default="anvil", help="Anvil executable")
     parser.add_argument(
         "--timeout",
-        type=float,
+        type=_parse_positive_finite_seconds,
         default=60.0,
         help=(
             "total wall-clock deadline across materialization, both compilers, "
@@ -203,6 +204,16 @@ def _parse_symbolic_dynamic_lengths(value: str) -> tuple[int, ...]:
             f"0 through {symbolic.MAX_SYMBOLIC_DYNAMIC_LENGTH}"
         )
     return lengths
+
+
+def _parse_positive_finite_seconds(value: str) -> float:
+    try:
+        seconds = float(value)
+    except ValueError as err:
+        raise argparse.ArgumentTypeError("timeout must be a number") from err
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise argparse.ArgumentTypeError("timeout must be finite and positive")
+    return seconds
 
 
 def _run_symbolic_or_incomplete(args: argparse.Namespace) -> int:

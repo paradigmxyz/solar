@@ -198,6 +198,18 @@ class FocusedCommandTests(unittest.TestCase):
             ):
                 run_foundry_target._parse_symbolic_dynamic_lengths(value)
 
+    def test_timeout_parser_rejects_nonfinite_or_nonpositive_values(self):
+        for value in ("-inf", "-1", "0", "inf", "nan", "not-a-number"):
+            with (
+                self.subTest(value=value),
+                self.assertRaises(argparse.ArgumentTypeError),
+            ):
+                run_foundry_target._parse_positive_finite_seconds(value)
+        self.assertEqual(
+            run_foundry_target._parse_positive_finite_seconds("0.5"),
+            0.5,
+        )
+
 
 class DeadlineTests(unittest.TestCase):
     def test_deadline_rejects_nonfinite_or_nonpositive_budgets(self):
