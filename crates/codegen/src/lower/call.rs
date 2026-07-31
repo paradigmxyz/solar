@@ -324,16 +324,15 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'hir>,
     ) -> Result<(&'hir [hir::Expr<'hir>; N], &'hir [hir::Expr<'hir>]), ErrorGuaranteed> {
         let exprs = self.builtin_arg_exprs(builtin, args)?;
-        if exprs.len() < N {
+        let Some((prefix, rest)) = exprs.split_first_chunk() else {
             return Err(self.emit_wrong_builtin_arg_count(
                 builtin,
                 args.span,
                 BuiltinArgCount::AtLeast(N),
                 exprs.len(),
             ));
-        }
-        let (prefix, rest) = exprs.split_at(N);
-        Ok((prefix.try_into().unwrap(), rest))
+        };
+        Ok((prefix, rest))
     }
 
     pub(super) fn variadic_builtin_args<'hir>(
@@ -350,16 +349,17 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'hir>,
     ) -> Result<(&'hir [hir::Expr<'hir>; N], Option<&'hir hir::Expr<'hir>>), ErrorGuaranteed> {
         let exprs = self.builtin_arg_exprs(builtin, args)?;
-        if !(N..=N + 1).contains(&exprs.len()) {
-            return Err(self.emit_wrong_builtin_arg_count(
-                builtin,
-                args.span,
-                BuiltinArgCount::Between(N, N + 1),
-                exprs.len(),
-            ));
+        if let Some((required, optional)) = exprs.split_first_chunk()
+            && optional.len() <= 1
+        {
+            return Ok((required, optional.first()));
         }
-        let (required, optional) = exprs.split_at(N);
-        Ok((required.try_into().unwrap(), optional.first()))
+        Err(self.emit_wrong_builtin_arg_count(
+            builtin,
+            args.span,
+            BuiltinArgCount::Between(N, N + 1),
+            exprs.len(),
+        ))
     }
 
     fn lower_builtin_args<const N: usize>(
@@ -1407,8 +1407,9 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         // Handle address payable transfer/send builtins
-        if matches!(builtin, Some(Builtin::AddressPayableTransfer | Builtin::AddressPayableSend)) {
-            let builtin = builtin.unwrap();
+        if let Some(builtin @ (Builtin::AddressPayableTransfer | Builtin::AddressPayableSend)) =
+            builtin
+        {
             let [amount] = match self.builtin_args(builtin, args) {
                 Ok(exprs) => exprs,
                 Err(guar) => return self.call_error_result(builder, callee, guar),
@@ -1436,11 +1437,12 @@ impl<'gcx> Lowerer<'gcx> {
         // addr.call{value: X}(data) returns (bool success, bytes memory returndata)
         // addr.staticcall(data) returns (bool success, bytes memory returndata)
         // addr.delegatecall(data) returns (bool success, bytes memory returndata)
-        if matches!(
-            builtin,
-            Some(Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall)
-        ) {
-            let builtin = builtin.unwrap();
+        if let Some(
+            builtin @ (Builtin::AddressCall
+            | Builtin::AddressStaticcall
+            | Builtin::AddressDelegatecall),
+        ) = builtin
+        {
             if builtin == Builtin::AddressStaticcall
                 && !self.gcx.sess.opts.evm_version.has_static_call()
             {
@@ -1501,25 +1503,18 @@ impl<'gcx> Lowerer<'gcx> {
             return Some(success);
         }
 
-        let array_method = builtin.and_then(Self::array_builtin_method_name);
-
         // Handle storage `bytes`/`string` methods before the generic member
         // call path. Their storage layout is Solidity's packed short/long
         // bytes form, not the generic dynamic-array layout. The receiver may be
         // a state variable, a storage-reference local, or a `bytes` field
         // reached through one (`state.part.push(b)`); `lower_lvalue_slot`
         // resolves the slot for all of these.
-        if self.expr_is_storage_bytes_lvalue(base)
-            && let Some(method) = array_method
+        if let Some(builtin) = builtin
+            && let Some(method) = Self::array_builtin_method_name(builtin)
+            && self.expr_is_storage_bytes_lvalue(base)
             && let Some(slot) = self.lower_lvalue_slot(builder, base)
         {
-            return self.lower_storage_bytes_method_call(
-                builder,
-                slot,
-                builtin.unwrap(),
-                method,
-                args,
-            );
+            return self.lower_storage_bytes_method_call(builder, slot, builtin, method, args);
         }
 
         // Resolve the receiver's slot at runtime so storage dynamic-array methods
