@@ -625,10 +625,11 @@ impl<'gcx> Lowerer<'gcx> {
         if let Err(guar) = self.abi_head_size_sum(fields.iter().map(|&field| field.peel_refs())) {
             return builder.error_value(guar);
         }
-        let size = word_count
-            .checked_add(u64::from(carries_base))
-            .and_then(|words| words.checked_mul(32))
-            .expect("aggregate memory size overflow");
+        let Some(size) =
+            word_count.checked_add(u64::from(carries_base)).and_then(|words| words.checked_mul(32))
+        else {
+            return builder.error_value(self.abi_head_size_overflow());
+        };
         let ptr = self.allocate_memory(builder, size);
         let mut head_offset = 0;
         for (i, &field) in fields.iter().enumerate() {

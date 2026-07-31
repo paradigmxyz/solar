@@ -2370,8 +2370,8 @@ impl<'gcx> Lowerer<'gcx> {
         // filled by the tail pass below with the tail's args-relative offset.
         let mut pending_tails: Vec<(u64, ValueId, LinkedFieldKind)> = Vec::new();
         let mut arg_offset = 4u64;
-        for (i, (arg_val, slots)) in arg_vals.iter().zip(&arg_slots).enumerate() {
-            if let Some(struct_id) = arg_structs[i] {
+        for ((arg_val, slots), &struct_id) in arg_vals.iter().zip(&arg_slots).zip(&arg_structs) {
+            if let Some(struct_id) = struct_id {
                 let field_tys = self.gcx.struct_field_types(struct_id);
                 let layout = crate::mir::MemoryObjectLayout::structure(*slots as u64);
                 for field_idx in 0..*slots {

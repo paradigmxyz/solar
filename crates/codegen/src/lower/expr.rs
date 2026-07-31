@@ -2311,14 +2311,11 @@ impl<'gcx> Lowerer<'gcx> {
             };
 
         // Store each argument into the corresponding field
-        for (i, arg) in arg_exprs.into_iter().enumerate() {
-            if i >= num_fields {
-                break;
-            }
+        for (i, (arg, &field_ty)) in arg_exprs.into_iter().zip(&field_tys).enumerate() {
             // Memory struct fields hold memory values. Calldata reference
             // values therefore materialize recursively before storing their
             // pointer in the field slot.
-            let field_val = self.lower_return_value_for_ty(builder, arg, field_tys[i]);
+            let field_val = self.lower_return_value_for_ty(builder, arg, field_ty);
             let field_addr = builder.memory_object_field_addr(
                 struct_ptr,
                 crate::mir::MemoryObjectLayout::structure(num_fields as u64),

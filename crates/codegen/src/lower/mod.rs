@@ -1074,24 +1074,28 @@ impl<'gcx> Lowerer<'gcx> {
                     );
 
                     // Add MIR params for each struct field (they come from calldata)
-                    for field_idx in 0..field_ids.len() {
-                        let sema_field_ty = field_tys.get(field_idx).copied();
+                    for (field_idx, &field_id) in field_ids.iter().enumerate() {
+                        let Some(&sema_field_ty) = field_tys.get(field_idx) else {
+                            self.recovery_error(
+                                self.gcx.hir.variable(field_id).span,
+                                "codegen cannot determine this struct field's type",
+                            );
+                            continue;
+                        };
 
                         // A nested static aggregate (struct or fixed array)
                         // occupies several inline head words and is stored as a
                         // pointer to its own allocation. Consume its head words
                         // so following fields slot correctly and rebuild it
                         // recursively from the head region.
-                        if let Some(field_ty) = sema_field_ty
-                            && matches!(
-                                field_ty.peel_refs().kind,
-                                TyKind::Struct(_) | TyKind::Array(..) | TyKind::Tuple(_)
-                            )
-                        {
+                        if matches!(
+                            sema_field_ty.peel_refs().kind,
+                            TyKind::Struct(_) | TyKind::Array(..) | TyKind::Tuple(_)
+                        ) {
                             // Struct field types carry a storage location ref;
                             // peel it so head sizing sees the value type
                             // instead of collapsing to one slot.
-                            let field_ty = field_ty.peel_refs();
+                            let field_ty = sema_field_ty.peel_refs();
                             let first_word = builder.func().params.len() as u64;
                             let head_words = match self.abi_head_size(field_ty) {
                                 Ok(size) => size / EvmMemoryLayout::WORD_SIZE,
@@ -1131,7 +1135,7 @@ impl<'gcx> Lowerer<'gcx> {
                         self.emit_abi_param_validation(
                             &mut builder,
                             arg_index,
-                            field_tys[field_idx],
+                            sema_field_ty,
                             abi_param_source,
                         );
 
@@ -1140,46 +1144,44 @@ impl<'gcx> Lowerer<'gcx> {
                         // `[len][data...]` tail into fresh memory so the body
                         // sees an ordinary memory array/bytes. (A raw word
                         // would be a caller-memory pointer, meaningless here.)
-                        let stored_val =
-                            match field_tys.get(field_idx).and_then(|&f| self.linked_field_kind(f))
-                            {
-                                Some(
-                                    kind @ (call::LinkedFieldKind::DynArray
-                                    | call::LinkedFieldKind::DynBytes),
-                                ) => {
-                                    let four = builder.imm_u64(4);
-                                    let pos = builder.add(four, field_val);
-                                    let len = builder.calldataload(pos);
-                                    let word = builder.imm_u64(32);
-                                    let byte_len = if kind == call::LinkedFieldKind::DynBytes {
-                                        let thirty_one = builder.imm_u64(31);
-                                        let padded = builder.add(len, thirty_one);
-                                        let mask = builder.imm_u256(U256::MAX - U256::from(31));
-                                        builder.and(padded, mask)
-                                    } else {
-                                        builder.mul(len, word)
-                                    };
-                                    let alloc = builder.add(word, byte_len);
-                                    let object_layout = if kind == call::LinkedFieldKind::DynBytes {
-                                        crate::mir::MemoryObjectLayout::Bytes
-                                    } else {
-                                        crate::mir::MemoryObjectLayout::DynamicArray {
-                                            element_words: 1,
-                                        }
-                                    };
-                                    let ptr = builder.alloc_object(
-                                        alloc,
-                                        object_layout,
-                                        crate::mir::AllocationSemantics::INTERNAL,
-                                    );
-                                    builder.set_memory_object_len(ptr, len, object_layout.kind());
-                                    let dst = builder.memory_object_data(ptr, object_layout.kind());
-                                    let src = builder.add(pos, word);
-                                    builder.calldatacopy(dst, src, byte_len);
-                                    ptr
-                                }
-                                _ => field_val,
-                            };
+                        let stored_val = match self.linked_field_kind(sema_field_ty) {
+                            Some(
+                                kind @ (call::LinkedFieldKind::DynArray
+                                | call::LinkedFieldKind::DynBytes),
+                            ) => {
+                                let four = builder.imm_u64(4);
+                                let pos = builder.add(four, field_val);
+                                let len = builder.calldataload(pos);
+                                let word = builder.imm_u64(32);
+                                let byte_len = if kind == call::LinkedFieldKind::DynBytes {
+                                    let thirty_one = builder.imm_u64(31);
+                                    let padded = builder.add(len, thirty_one);
+                                    let mask = builder.imm_u256(U256::MAX - U256::from(31));
+                                    builder.and(padded, mask)
+                                } else {
+                                    builder.mul(len, word)
+                                };
+                                let alloc = builder.add(word, byte_len);
+                                let object_layout = if kind == call::LinkedFieldKind::DynBytes {
+                                    crate::mir::MemoryObjectLayout::Bytes
+                                } else {
+                                    crate::mir::MemoryObjectLayout::DynamicArray {
+                                        element_words: 1,
+                                    }
+                                };
+                                let ptr = builder.alloc_object(
+                                    alloc,
+                                    object_layout,
+                                    crate::mir::AllocationSemantics::INTERNAL,
+                                );
+                                builder.set_memory_object_len(ptr, len, object_layout.kind());
+                                let dst = builder.memory_object_data(ptr, object_layout.kind());
+                                let src = builder.add(pos, word);
+                                builder.calldatacopy(dst, src, byte_len);
+                                ptr
+                            }
+                            _ => field_val,
+                        };
 
                         // Store the field value into the struct memory
                         let field_addr = builder.memory_object_field_addr(
@@ -1681,7 +1683,11 @@ impl<'gcx> Lowerer<'gcx> {
                 let Some(ConstructorArguments::Resolved(arg_values)) =
                     constructor_args.get(&base_id)
                 else {
-                    unreachable!("base constructor arguments were not resolved")
+                    self.recovery_error(
+                        self.gcx.hir.contract(base_id).span,
+                        "base constructor arguments were not resolved",
+                    );
+                    return;
                 };
                 self.lower_base_constructor_call(builder, ctor_id, arg_values);
             }
