@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Report Solar codegen benchmark JSON emitted by solar_bench.py.
+"""Report codegen benchmark JSON emitted by the in-repository runners.
 
 This script is intentionally non-gating: runtime benchmarks are useful CI
 signals, but benchmark deltas should be reviewed rather than fail PRs.

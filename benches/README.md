@@ -32,12 +32,14 @@ updates to `main`. CodSpeed simulates the single-file and whole-project benchmar
 codegen for selected projects. The workflow can also be dispatched for all benchmark families or
 one selected family: codegen runtime comparisons, CodSpeed, or Gungraun instruction counts.
 Dispatch inputs can select another Solar Git ref as the Gungraun baseline and override the pinned
-solc release or codegen benchmark corpus revision.
+solc release.
 
-The codegen runtime job also extracts the import closures for three large contracts from the pinned
-OpenZeppelin and Solady project inputs. It deploys them to Anvil with the EIP-170 limit disabled and
-runs 42 deterministic hot calls, so optimizer changes are measured on 15–197 KB runtime artifacts
-without compiling each full project monolith.
+The codegen runtime job compiles a vendored corpus with both compilers, deploys both artifacts to
+Anvil, executes ordered stateful workloads, and requires normalized return values and cold-path
+observations to match. The corpus contains four micro contracts, nine minimal import closures from
+real repositories, and three large contracts extracted from the pinned OpenZeppelin and Solady
+project inputs. Its sources, upstream commits, and licenses are documented in
+[`testdata/codegen-runtime/`](../testdata/codegen-runtime/README.md).
 
 For example, this command benchmarks the `my-branch` candidate with Gungraun, compares it against
 `main`, and skips the codegen runtime and CodSpeed jobs:

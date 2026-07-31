@@ -32,20 +32,11 @@ on:
         required: true
         default: 0.8.36
         type: string
-      benchmark_ref:
-        description: solidity-compiler-benchmarks Git ref
-        required: true
-        default: 01209d2b8ac81645b92e3ef801b5bcdfd61bfd69
-        type: string
 
 env:
   CARGO_TERM_COLOR: always
   RUSTC_WRAPPER: "sccache"
   SOLC_VERSION: ${{ inputs.solc_version || '0.8.36' }}
-  BENCHMARK_REPOSITORY: walnuthq/solidity-compiler-benchmarks
-  DEFAULT_BENCHMARK_REF: 01209d2b8ac81645b92e3ef801b5bcdfd61bfd69
-  BENCHMARK_REF: ${{ inputs.benchmark_ref || '01209d2b8ac81645b92e3ef801b5bcdfd61bfd69' }}
-  BENCHMARK_PATH: solidity-compiler-benchmarks
 
 jobs:
   codegen-runtime:
@@ -67,7 +58,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Test common benchmark result adapter
+      - name: Test benchmark scripts
         run: |
           python3 -m venv "$RUNNER_TEMP/schema-test"
           "$RUNNER_TEMP/schema-test/bin/pip" install jsonschema==4.25.1
@@ -75,14 +66,8 @@ jobs:
             -s .github/scripts -p 'test_check_codegen_benchmark.py'
           "$RUNNER_TEMP/schema-test/bin/python" -m unittest discover \
             -s .github/scripts -p 'test_run_large_codegen_benchmark.py'
-
-      - name: Checkout benchmark corpus
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: ${{ env.BENCHMARK_REPOSITORY }}
-          ref: ${{ env.BENCHMARK_REF }}
-          path: ${{ env.BENCHMARK_PATH }}
-          submodules: recursive
+          "$RUNNER_TEMP/schema-test/bin/python" -m unittest discover \
+            -s .github/scripts -p 'test_run_codegen_benchmark.py'
 
       - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
@@ -115,7 +100,6 @@ jobs:
 
       - name: Download baseline (main branch)
         id: baseline
-        if: inputs.benchmark_ref == '' || inputs.benchmark_ref == env.DEFAULT_BENCHMARK_REF
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -146,21 +130,20 @@ jobs:
 
       - name: Run micro codegen benchmark
         id: micro-bench
-        working-directory: ${{ env.BENCHMARK_PATH }}
         run: |
           set -euo pipefail
-          mkdir -p "$GITHUB_WORKSPACE/target/codegen-bench"
-          timing="$GITHUB_WORKSPACE/target/codegen-bench/micro-timing.json"
+          mkdir -p target/codegen-bench
+          timing="target/codegen-bench/micro-timing.json"
           if /usr/bin/time -q -f '{"wall_time_seconds": %e}' -o "$timing.tmp" \
-            python3 ./solar_bench.py --verbose \
+            python3 .github/scripts/run_codegen_benchmark.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
-            --solar "$GITHUB_WORKSPACE/target/debug/solar" \
+            --solar target/debug/solar \
             --suite micro \
             --gas \
             --gas-profile hot \
             --start-anvil \
             --allow-failures \
-            --output "$GITHUB_WORKSPACE/target/codegen-bench/micro.json"; then
+            --output target/codegen-bench/micro.json; then
             mv "$timing.tmp" "$timing"
           else
             rm -f "$timing.tmp"
@@ -169,21 +152,20 @@ jobs:
 
       - name: Run repository codegen benchmark
         id: repo-bench
-        working-directory: ${{ env.BENCHMARK_PATH }}
         run: |
           set -euo pipefail
-          mkdir -p "$GITHUB_WORKSPACE/target/codegen-bench"
-          timing="$GITHUB_WORKSPACE/target/codegen-bench/repo-timing.json"
+          mkdir -p target/codegen-bench
+          timing="target/codegen-bench/repo-timing.json"
           if /usr/bin/time -q -f '{"wall_time_seconds": %e}' -o "$timing.tmp" \
-            python3 ./solar_bench.py --verbose \
+            python3 .github/scripts/run_codegen_benchmark.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
-            --solar "$GITHUB_WORKSPACE/target/debug/solar" \
+            --solar target/debug/solar \
             --suite repo \
             --gas \
             --gas-profile hot \
             --start-anvil \
             --allow-failures \
-            --output "$GITHUB_WORKSPACE/target/codegen-bench/repo.json"; then
+            --output target/codegen-bench/repo.json; then
             mv "$timing.tmp" "$timing"
           else
             rm -f "$timing.tmp"
