@@ -14,9 +14,6 @@ use std::{
     ptr,
 };
 
-#[cfg(test)]
-use cc as _;
-
 mod alloc;
 
 type CStyleReadFileCallback = unsafe extern "C" fn(
