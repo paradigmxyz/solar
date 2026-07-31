@@ -9,7 +9,7 @@ use alloy_primitives::{U256, keccak256};
 use solar_ast::{DataLocation, LitKind, Span};
 use solar_data_structures::{bit_set::GrowableBitSet, map::StdEntry};
 use solar_interface::{
-    Ident, Symbol,
+    Ident,
     diagnostics::{DiagMsg, ErrorGuaranteed},
     kw, sym,
 };
@@ -45,6 +45,13 @@ enum BuiltinArgCount {
     Exact(usize),
     AtLeast(usize),
     Between(usize, usize),
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum StorageArrayMethod<'hir> {
+    PushDefault,
+    Push(&'hir hir::Expr<'hir>),
+    Pop,
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -316,6 +323,31 @@ impl<'gcx> Lowerer<'gcx> {
                 exprs.len(),
             )
         })
+    }
+
+    pub(super) fn storage_array_method<'hir>(
+        &self,
+        builtin: Builtin,
+        args: &CallArgs<'hir>,
+    ) -> Result<StorageArrayMethod<'hir>, ErrorGuaranteed> {
+        match builtin {
+            Builtin::ArrayPush0 => {
+                let [] = self.builtin_args(builtin, args)?;
+                Ok(StorageArrayMethod::PushDefault)
+            }
+            Builtin::ArrayPush => {
+                let [arg] = self.builtin_args(builtin, args)?;
+                Ok(StorageArrayMethod::Push(arg))
+            }
+            Builtin::ArrayPop => {
+                let [] = self.builtin_args(builtin, args)?;
+                Ok(StorageArrayMethod::Pop)
+            }
+            _ => Err(self.recovery_error(
+                Some(args.span),
+                "codegen routed a non-array builtin through array method lowering",
+            )),
+        }
     }
 
     pub(super) fn builtin_args_with_rest<'hir, const N: usize>(
@@ -1459,11 +1491,8 @@ impl<'gcx> Lowerer<'gcx> {
         // addr.call{value: X}(data) returns (bool success, bytes memory returndata)
         // addr.staticcall(data) returns (bool success, bytes memory returndata)
         // addr.delegatecall(data) returns (bool success, bytes memory returndata)
-        if let Some(
-            builtin @ (Builtin::AddressCall
-            | Builtin::AddressStaticcall
-            | Builtin::AddressDelegatecall),
-        ) = builtin
+        if let Some(builtin) = builtin
+            && let Some(kind) = Self::low_level_call_kind(builtin)
         {
             if builtin == Builtin::AddressStaticcall
                 && !self.gcx.sess.opts.evm_version.has_static_call()
@@ -1490,12 +1519,6 @@ impl<'gcx> Lowerer<'gcx> {
                     Err(guar) => return self.call_error_result(builder, callee, guar),
                 };
 
-            let kind = match builtin {
-                Builtin::AddressCall => ExternalCallKind::Call,
-                Builtin::AddressStaticcall => ExternalCallKind::StaticCall,
-                Builtin::AddressDelegatecall => ExternalCallKind::DelegateCall,
-                _ => unreachable!(),
-            };
             let (gas, value) = self.lower_external_call_options(
                 builder,
                 call_opts,
@@ -1531,12 +1554,12 @@ impl<'gcx> Lowerer<'gcx> {
         // a state variable, a storage-reference local, or a `bytes` field
         // reached through one (`state.part.push(b)`); `lower_lvalue_slot`
         // resolves the slot for all of these.
-        if let Some(builtin) = builtin
-            && let Some(method) = Self::array_builtin_method_name(builtin)
+        if let Some(builtin @ (Builtin::ArrayPush0 | Builtin::ArrayPush | Builtin::ArrayPop)) =
+            builtin
             && self.expr_is_storage_bytes_lvalue(base)
             && let Some(slot) = self.lower_lvalue_slot(builder, base)
         {
-            return self.lower_storage_bytes_method_call(builder, slot, builtin, method, args);
+            return self.lower_storage_bytes_method_call(builder, slot, builtin, args);
         }
 
         // Resolve the receiver's slot at runtime so storage dynamic-array methods
@@ -1693,10 +1716,11 @@ impl<'gcx> Lowerer<'gcx> {
         self.gcx.hir.contract(contract_id).kind.is_library()
     }
 
-    fn array_builtin_method_name(builtin: Builtin) -> Option<Symbol> {
+    fn low_level_call_kind(builtin: Builtin) -> Option<ExternalCallKind> {
         match builtin {
-            Builtin::ArrayPush0 | Builtin::ArrayPush => Some(sym::push),
-            Builtin::ArrayPop => Some(kw::Pop),
+            Builtin::AddressCall => Some(ExternalCallKind::Call),
+            Builtin::AddressStaticcall => Some(ExternalCallKind::StaticCall),
+            Builtin::AddressDelegatecall => Some(ExternalCallKind::DelegateCall),
             _ => None,
         }
     }

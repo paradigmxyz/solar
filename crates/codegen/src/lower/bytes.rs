@@ -1,10 +1,10 @@
 //! Bytes and string lowering helpers.
 
-use super::{Lowerer, checked_arith::PanicCode};
+use super::{Lowerer, call::StorageArrayMethod, checked_arith::PanicCode};
 use crate::mir::{FunctionBuilder, MemoryObjectKind, SliceLocation, ValueId};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::LitKind;
-use solar_interface::{Symbol, diagnostics::ErrorGuaranteed, kw, sym};
+use solar_interface::{diagnostics::ErrorGuaranteed, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
@@ -807,17 +807,10 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         slot: ValueId,
         builtin: Builtin,
-        method: Symbol,
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
-        let arg = match builtin {
-            Builtin::ArrayPush0 => self.builtin_args(builtin, args).map(|[]| None),
-            Builtin::ArrayPush => self.builtin_args(builtin, args).map(|[arg]| Some(arg)),
-            Builtin::ArrayPop => self.builtin_args(builtin, args).map(|[]| None),
-            _ => unreachable!(),
-        };
-        let arg = match arg {
-            Ok(arg) => arg,
+        let method = match self.storage_array_method(builtin, args) {
+            Ok(method) => method,
             Err(guar) => {
                 return (builtin == Builtin::ArrayPush0).then(|| builder.error_value(guar));
             }
@@ -825,13 +818,17 @@ impl<'gcx> Lowerer<'gcx> {
         let current = self.materialize_storage_bytes(builder, slot);
         let len = builder.memory_object_len(current, MemoryObjectKind::Bytes);
         match method {
-            sym::push => {
+            StorageArrayMethod::PushDefault | StorageArrayMethod::Push(_) => {
                 let one = builder.imm_u64(1);
                 let new_len = builder.add(len, one);
                 let overflow = builder.lt(new_len, len);
                 self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
 
                 let resized = self.resize_memory_bytes(builder, current, len, new_len);
+                let arg = match method {
+                    StorageArrayMethod::Push(arg) => Some(arg),
+                    StorageArrayMethod::PushDefault | StorageArrayMethod::Pop => None,
+                };
                 let byte = arg
                     .map(|arg| {
                         let value = self.lower_value_expr(builder, arg);
@@ -845,16 +842,15 @@ impl<'gcx> Lowerer<'gcx> {
                 // The storage reference returned by `push()` reads as the
                 // newly zero-initialized byte when the call is used as an
                 // rvalue. Reuse the value written above.
-                return (builtin == Builtin::ArrayPush0).then_some(byte);
+                return matches!(method, StorageArrayMethod::PushDefault).then_some(byte);
             }
-            kw::Pop => {
+            StorageArrayMethod::Pop => {
                 self.emit_panic_if_zero(builder, len, PanicCode::PopEmptyArray);
                 let one = builder.imm_u64(1);
                 let new_len = builder.sub(len, one);
                 let resized = self.resize_memory_bytes(builder, current, new_len, new_len);
                 self.copy_memory_bytes_to_storage(builder, slot, resized);
             }
-            _ => {}
         }
         None
     }

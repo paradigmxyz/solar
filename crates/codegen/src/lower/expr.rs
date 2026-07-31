@@ -2,6 +2,7 @@
 
 use super::{
     Lowerer, MIN_BULK_ZERO_MEMORY_WORDS,
+    call::StorageArrayMethod,
     checked_arith::{ArithmeticInfo, PanicCode},
 };
 use crate::{
@@ -3285,21 +3286,15 @@ impl<'gcx> Lowerer<'gcx> {
         builtin: Builtin,
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
-        let arg = match builtin {
-            Builtin::ArrayPush0 => self.builtin_args(builtin, args).map(|[]| None),
-            Builtin::ArrayPush => self.builtin_args(builtin, args).map(|[arg]| Some(arg)),
-            Builtin::ArrayPop => self.builtin_args(builtin, args).map(|[]| None),
-            _ => unreachable!(),
-        };
-        let arg = match arg {
-            Ok(arg) => arg,
+        let method = match self.storage_array_method(builtin, args) {
+            Ok(method) => method,
             Err(guar) => {
                 return (builtin == Builtin::ArrayPush0).then(|| builder.error_value(guar));
             }
         };
         let (slot, element_ty, element_slots) = array;
-        match (builtin, arg) {
-            (Builtin::ArrayPush0, None) => {
+        match method {
+            StorageArrayMethod::PushDefault => {
                 let element_slot =
                     self.lower_storage_array_push_slot(builder, slot, element_ty, element_slots);
                 if element_ty.is_reference_type() {
@@ -3310,7 +3305,7 @@ impl<'gcx> Lowerer<'gcx> {
                     Some(builder.imm_u64(0))
                 }
             }
-            (Builtin::ArrayPush, Some(arg)) => {
+            StorageArrayMethod::Push(arg) => {
                 let value = match element_ty.peel_refs().kind {
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                         self.lower_expr_as_memory_bytes(builder, arg)
@@ -3335,7 +3330,7 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.sstore(slot, new_length);
                 None
             }
-            (Builtin::ArrayPop, None) => {
+            StorageArrayMethod::Pop => {
                 let length = builder.sload(slot);
                 self.emit_panic_if_zero(builder, length, PanicCode::PopEmptyArray);
                 let one = builder.imm_u64(1);
@@ -3352,7 +3347,6 @@ impl<'gcx> Lowerer<'gcx> {
 
                 None
             }
-            _ => unreachable!("{builtin:?}"),
         }
     }
 
