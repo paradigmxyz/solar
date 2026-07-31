@@ -25,14 +25,7 @@ use crate::{
     analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
     mir::{Function, FunctionId, InstId, MirPhase, Module},
     pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff},
-    transform::{
-        adce, cfg_simplify, check_elim, copy_elision, cse, dce, frame_promotion, gvn,
-        indvar_simplify, inline, inst_simplify, jump_threading, load_pre, loop_canonicalize,
-        loop_opt, lower_abi, lower_abi_encode, lower_aggregates, lower_alloc, lower_dispatch,
-        lower_evm_shaped, lower_mapping_slots, lower_memory_objects, lower_slices, memory_dse,
-        outline_reverts, pre, pure_eval, sccp, sroa, static_alloc, storage_dse, storage_load_cse,
-        storage_promotion,
-    },
+    transform::*,
 };
 use solar_data_structures::map::FxHashMap;
 use std::{
@@ -75,12 +68,16 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_abi::LowerAbi,
     &lower_dispatch::LowerDispatch,
     &lower_evm_shaped::LowerEvmShaped,
+    &lower_immutables::LowerImmutables,
     &lower_mapping_slots::LowerMappingSlots,
+    &lower_mcopy::LowerMCopy,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
     &lower_memory_objects::LowerMemoryObjects,
     &lower_slices::LowerSlices,
     &lower_alloc::LowerAlloc,
+    &lower_memory_zero::LowerMemoryZero,
+    &evm_inst_schedule::EvmInstSchedule,
 ];
 
 /// Finds a MIR pass by command-line name.
@@ -140,7 +137,8 @@ impl<P: MirPass> MirPass for GasOnly<P> {
 
 /// The canonical MIR pipeline used by EVM codegen.
 pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
-    &inline::Inline,
+    // MIR inlining remains available as an ad-hoc pass, but static internal
+    // frames make calls cheap enough that the measured candidates regress gas.
     &cfg_simplify::FunctionDce,
     // Early frame scalarization improves size but can increase hot-path gas.
     &SizeOnly(cfg_simplify::CfgSimplify),
@@ -209,8 +207,15 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_slices::LowerSlices,
     &lower_dispatch::LowerDispatch,
     &lower_memory_objects::LowerMemoryObjects,
+    &lower_immutables::LowerImmutables,
     &lower_alloc::LowerAlloc,
+    &lower_memory_zero::LowerMemoryZero,
+    &lower_mcopy::LowerMCopy,
     &lower_evm_shaped::LowerEvmShaped,
+    // Late lowering can leave pure address and length calculations unused.
+    // Remove their complete dependency chains before selecting physical stack order.
+    &dce::Dce,
+    &evm_inst_schedule::EvmInstSchedule,
 ];
 
 /// Runs the configured MIR pipeline, substituting it for the canonical pipeline.

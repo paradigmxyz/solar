@@ -16,12 +16,11 @@
 
 use crate::{
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, MirType, Module, Terminator, Value,
-        ValueId,
+        BlockId, Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId,
         utils::{self as mir_utils, repair_reachability_phis},
     },
     pass::{MirPass, run_function_pass},
-    utils::evm_word,
+    utils::eval,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -341,166 +340,46 @@ impl SccpCx {
         kind: &InstKind,
         lattice: &IndexVec<ValueId, LatticeValue>,
     ) -> LatticeValue {
-        // Helper: get the constant value of a ValueId, or None if not constant.
-        let get_const = |v: ValueId| -> Option<U256> {
-            match &lattice[v] {
-                LatticeValue::Constant(c) => Some(*c),
-                _ => None,
-            }
+        let get_const = |value| match lattice[value] {
+            LatticeValue::Constant(value) => Some(value),
+            LatticeValue::Top | LatticeValue::Bottom => None,
         };
 
-        match kind {
-            // Arithmetic — fold if both operands are constant.
-            InstKind::Add(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(a.wrapping_add(b)),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::Sub(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(a.wrapping_sub(b)),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::Mul(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(a.wrapping_mul(b)),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            // A known-zero divisor folds to 0 even when the dividend is unknown.
-            InstKind::Div(a, b) => match (get_const(*a), get_const(*b)) {
-                (_, Some(b)) if b.is_zero() => LatticeValue::Constant(U256::ZERO),
-                (Some(a), Some(b)) => LatticeValue::Constant(a / b),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::SDiv(a, b) => match (get_const(*a), get_const(*b)) {
-                (_, Some(b)) if b.is_zero() => LatticeValue::Constant(U256::ZERO),
-                (Some(a), Some(b)) => LatticeValue::Constant(evm_word::signed_div(a, b)),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::Mod(a, b) => match (get_const(*a), get_const(*b)) {
-                (_, Some(b)) if b.is_zero() => LatticeValue::Constant(U256::ZERO),
-                (Some(a), Some(b)) => LatticeValue::Constant(a % b),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::SMod(a, b) => match (get_const(*a), get_const(*b)) {
-                (_, Some(b)) if b.is_zero() => LatticeValue::Constant(U256::ZERO),
-                (Some(a), Some(b)) => LatticeValue::Constant(evm_word::signed_mod(a, b)),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            // A known-zero modulus folds to 0 even when the operands are unknown.
-            InstKind::AddMod(a, b, n) => match (get_const(*a), get_const(*b), get_const(*n)) {
-                (_, _, Some(n)) if n.is_zero() => LatticeValue::Constant(U256::ZERO),
-                (Some(a), Some(b), Some(n)) => LatticeValue::Constant(a.add_mod(b, n)),
-                _ => self.check_any_bottom(&[*a, *b, *n], lattice),
-            },
-            InstKind::MulMod(a, b, n) => match (get_const(*a), get_const(*b), get_const(*n)) {
-                (_, _, Some(n)) if n.is_zero() => LatticeValue::Constant(U256::ZERO),
-                (Some(a), Some(b), Some(n)) => LatticeValue::Constant(a.mul_mod(b, n)),
-                _ => self.check_any_bottom(&[*a, *b, *n], lattice),
-            },
-            InstKind::Exp(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(base), Some(exp)) => {
-                    // Use wrapping exponentiation.
-                    LatticeValue::Constant(base.wrapping_pow(exp))
+        if let InstKind::Select(condition, then_value, else_value) = *kind {
+            return match lattice[condition] {
+                LatticeValue::Constant(condition) => {
+                    let chosen = if condition.is_zero() { else_value } else { then_value };
+                    lattice[chosen].clone()
                 }
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-
-            // Comparison — fold to bool (0 or 1).
-            InstKind::Lt(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(U256::from(a < b)),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::Gt(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(U256::from(a > b)),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::SLt(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(U256::from(evm_word::signed_lt(a, b))),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::SGt(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(U256::from(evm_word::signed_gt(a, b))),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::Eq(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(U256::from(a == b)),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::IsZero(a) => match get_const(*a) {
-                Some(a) => LatticeValue::Constant(U256::from(a.is_zero())),
-                None => self.check_any_bottom(&[*a], lattice),
-            },
-
-            // Bitwise.
-            InstKind::And(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(a & b),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::Or(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(a | b),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::Xor(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => LatticeValue::Constant(a ^ b),
-                _ => self.check_any_bottom(&[*a, *b], lattice),
-            },
-            InstKind::Not(a) => match get_const(*a) {
-                Some(a) => LatticeValue::Constant(!a),
-                None => self.check_any_bottom(&[*a], lattice),
-            },
-            InstKind::Clz(a) => match get_const(*a) {
-                Some(a) => LatticeValue::Constant(U256::from(a.leading_zeros() as u64)),
-                None => self.check_any_bottom(&[*a], lattice),
-            },
-            InstKind::Shl(shift, val) => match (get_const(*shift), get_const(*val)) {
-                (Some(s), Some(v)) => {
-                    if s >= U256::from(256) {
-                        LatticeValue::Constant(U256::ZERO)
-                    } else {
-                        LatticeValue::Constant(v << s.to::<usize>())
+                LatticeValue::Bottom => lattice[then_value].meet(&lattice[else_value]),
+                LatticeValue::Top => match (get_const(then_value), get_const(else_value)) {
+                    (Some(then_value), Some(else_value)) if then_value == else_value => {
+                        LatticeValue::Constant(then_value)
                     }
-                }
-                _ => self.check_any_bottom(&[*shift, *val], lattice),
-            },
-            InstKind::Shr(shift, val) => match (get_const(*shift), get_const(*val)) {
-                (Some(s), Some(v)) => {
-                    if s >= U256::from(256) {
-                        LatticeValue::Constant(U256::ZERO)
-                    } else {
-                        LatticeValue::Constant(v >> s.to::<usize>())
-                    }
-                }
-                _ => self.check_any_bottom(&[*shift, *val], lattice),
-            },
-            InstKind::Sar(shift, val) => match (get_const(*shift), get_const(*val)) {
-                (Some(s), Some(v)) => LatticeValue::Constant(evm_word::sar(v, s)),
-                _ => self.check_any_bottom(&[*shift, *val], lattice),
-            },
-            InstKind::Byte(index, val) => match (get_const(*index), get_const(*val)) {
-                (Some(i), Some(v)) => LatticeValue::Constant(evm_word::byte(i, v)),
-                _ => self.check_any_bottom(&[*index, *val], lattice),
-            },
-            InstKind::SignExtend(size, val) => match (get_const(*size), get_const(*val)) {
-                (Some(s), Some(v)) => LatticeValue::Constant(evm_word::signextend(s, v)),
-                _ => self.check_any_bottom(&[*size, *val], lattice),
-            },
+                    _ => LatticeValue::Top,
+                },
+            };
+        }
 
-            InstKind::Select(condition, then_value, else_value) => {
-                match &lattice[*condition] {
-                    LatticeValue::Constant(c) => {
-                        let chosen = if c.is_zero() { *else_value } else { *then_value };
-                        lattice[chosen].clone()
-                    }
-                    // Unknown condition: the result is whatever both arms agree on.
-                    LatticeValue::Bottom => lattice[*then_value].meet(&lattice[*else_value]),
-                    LatticeValue::Top => match (get_const(*then_value), get_const(*else_value)) {
-                        (Some(t), Some(e)) if t == e => LatticeValue::Constant(t),
-                        _ => LatticeValue::Top,
-                    },
+        match eval::eval_inst(kind, |value| get_const(value).ok_or(())) {
+            Ok(Some(value)) => LatticeValue::Constant(value),
+            Ok(None) => LatticeValue::Bottom,
+            Err(()) => match *kind {
+                InstKind::Div(_, divisor)
+                | InstKind::SDiv(_, divisor)
+                | InstKind::Mod(_, divisor)
+                | InstKind::SMod(_, divisor)
+                    if get_const(divisor).is_some_and(|divisor| divisor.is_zero()) =>
+                {
+                    LatticeValue::Constant(U256::ZERO)
                 }
-            }
-
-            // Everything else (memory, storage, calls, environment, etc.) is
-            // conservatively overdefined — we can't evaluate them at compile time.
-            _ => LatticeValue::Bottom,
+                InstKind::AddMod(_, _, modulus) | InstKind::MulMod(_, _, modulus)
+                    if get_const(modulus).is_some_and(|modulus| modulus.is_zero()) =>
+                {
+                    LatticeValue::Constant(U256::ZERO)
+                }
+                _ => self.check_any_bottom(&kind.operands(), lattice),
+            },
         }
     }
 
@@ -672,7 +551,7 @@ impl SccpCx {
                     continue;
                 }
                 // Create an immediate replacement of the instruction's result type.
-                let imm = immediate_for_type(func.inst(inst_id).result_ty, *c);
+                let imm = Immediate::for_type(func.inst(inst_id).result_ty, *c);
                 let imm_vid = func.alloc_value(Value::Immediate(imm));
                 const_values.insert(vid, imm_vid);
                 dead_insts.insert(inst_id);
@@ -781,66 +660,42 @@ impl SccpCx {
     }
 }
 
-/// Builds an immediate carrying `value` with the type the folded instruction
-/// produced, falling back to `uint256` for types whose payload is not a plain
-/// integer or whose range cannot represent the folded value (the lattice folds
-/// at 256 bits, so a narrow-typed op can produce an out-of-range word). The
-/// numeric value is identical in all cases.
-fn immediate_for_type(ty: Option<MirType>, value: U256) -> Immediate {
-    match ty {
-        Some(MirType::Bool) if value <= U256::from(1) => Immediate::Bool(!value.is_zero()),
-        Some(MirType::UInt(bits)) if fits_unsigned(value, bits) => Immediate::UInt(value, bits),
-        Some(MirType::Int(bits)) if fits_signed(value, bits) => Immediate::Int(value, bits),
-        _ => Immediate::uint256(value),
-    }
-}
-
-fn fits_unsigned(value: U256, bits: u16) -> bool {
-    bits >= 256 || value.bit_len() <= usize::from(bits)
-}
-
-fn fits_signed(value: U256, bits: u16) -> bool {
-    if bits >= 256 || bits == 0 {
-        return bits >= 256;
-    }
-    let bits = usize::from(bits);
-    // Representable iff bits 255..=bits-1 of the 256-bit two's-complement word
-    // all equal the sign bit.
-    if value.bit(bits - 1) { (!value).bit_len() < bits } else { value.bit_len() < bits }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mir::{MirType, TypeSize};
 
     #[test]
     fn immediate_for_type_preserves_result_types() {
         let one = U256::from(1);
-        assert_eq!(immediate_for_type(Some(MirType::Bool), one), Immediate::Bool(true));
-        assert_eq!(immediate_for_type(Some(MirType::Bool), U256::ZERO), Immediate::Bool(false));
-        assert_eq!(immediate_for_type(Some(MirType::Int(256)), one), Immediate::Int(one, 256));
-        assert_eq!(immediate_for_type(Some(MirType::UInt(64)), one), Immediate::UInt(one, 64));
+        let i256 = TypeSize::new_int_bits(256);
+        let i64 = TypeSize::new_int_bits(64);
+        let i8 = TypeSize::new_int_bits(8);
+        assert_eq!(Immediate::for_type(Some(MirType::Bool), one), Immediate::Bool(true));
+        assert_eq!(Immediate::for_type(Some(MirType::Bool), U256::ZERO), Immediate::Bool(false));
+        assert_eq!(Immediate::for_type(Some(MirType::Int(i256)), one), Immediate::Int(one, i256));
+        assert_eq!(Immediate::for_type(Some(MirType::UInt(i64)), one), Immediate::UInt(one, i64));
         // Non-integer payloads and missing types fall back to uint256.
-        assert_eq!(immediate_for_type(Some(MirType::Address), one), Immediate::uint256(one));
-        assert_eq!(immediate_for_type(None, one), Immediate::uint256(one));
+        assert_eq!(Immediate::for_type(Some(MirType::Address), one), Immediate::uint256(one));
+        assert_eq!(Immediate::for_type(None, one), Immediate::uint256(one));
         // A bool-typed result that is not 0/1 keeps its numeric value.
         let two = U256::from(2);
-        assert_eq!(immediate_for_type(Some(MirType::Bool), two), Immediate::uint256(two));
+        assert_eq!(Immediate::for_type(Some(MirType::Bool), two), Immediate::uint256(two));
         // Out-of-range values fall back to uint256 instead of lying about the width.
         let wide = U256::from(0x1ff);
-        assert_eq!(immediate_for_type(Some(MirType::UInt(8)), wide), Immediate::uint256(wide));
-        assert_eq!(immediate_for_type(Some(MirType::Int(8)), wide), Immediate::uint256(wide));
+        assert_eq!(Immediate::for_type(Some(MirType::UInt(i8)), wide), Immediate::uint256(wide));
+        assert_eq!(Immediate::for_type(Some(MirType::Int(i8)), wide), Immediate::uint256(wide));
         // Negative values are representable when the upper bits match the sign bit.
         let minus_one = U256::MAX;
         assert_eq!(
-            immediate_for_type(Some(MirType::Int(8)), minus_one),
-            Immediate::Int(minus_one, 8)
+            Immediate::for_type(Some(MirType::Int(i8)), minus_one),
+            Immediate::Int(minus_one, i8)
         );
         let i8_min = U256::MAX - U256::from(0x7f);
-        assert_eq!(immediate_for_type(Some(MirType::Int(8)), i8_min), Immediate::Int(i8_min, 8));
+        assert_eq!(Immediate::for_type(Some(MirType::Int(i8)), i8_min), Immediate::Int(i8_min, i8));
         let i8_under = i8_min - U256::from(1);
         assert_eq!(
-            immediate_for_type(Some(MirType::Int(8)), i8_under),
+            Immediate::for_type(Some(MirType::Int(i8)), i8_under),
             Immediate::uint256(i8_under)
         );
     }

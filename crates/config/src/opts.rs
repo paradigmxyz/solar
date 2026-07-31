@@ -101,7 +101,7 @@ pub struct CompileOpts {
 
     /// Library addresses for linking, as `LibraryName=0xADDRESS`.
     ///
-    /// An optional `path.sol:` prefix on the name is accepted and ignored. A
+    /// An optional `path.sol:` prefix restricts the address to that source. A
     /// `public`/`external` library function whose library has a linked address
     /// is called through `DELEGATECALL` at that address instead of being
     /// inlined into the caller.
@@ -393,6 +393,11 @@ pub struct UnstableOpts {
     /// of the compiler's stable, solc-compatible behavior.
     #[cfg_attr(feature = "clap", arg(long))]
     pub codegen: bool,
+
+    /// Lower all contract functions instead of only reachable ones. This is intended for
+    /// benchmarks and compiler debugging.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub codegen_all_functions: bool,
 
     // ----------------------------------------
     // Please add new options above this point!

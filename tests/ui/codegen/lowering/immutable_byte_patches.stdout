@@ -1,0 +1,146 @@
+// === ROOT/tests/ui/codegen/lowering/immutable_byte_patches.sol:ImmutableBytePatches (creation) ===
+// === deployment ===
+@module deployment
+bb0:
+  push 203
+  codesize
+  sub
+  dup1
+  push 203
+  push 320
+  codecopy
+  push 320
+  add
+  push 31
+  add
+  push 31
+  not
+  and
+  push 64
+  mstore
+  push 320
+  dup1
+  push 288
+  mstore
+  dup1
+  mload
+  push 255
+  dup2
+  and
+  eq
+  swap1
+  pop
+  iszero
+  push bb4
+  jumpi
+  push 32
+  push 288
+  mload
+  add
+  mload
+  dup1
+  push 0
+  signextend
+  sub
+  push bb4
+  jumpi
+  push 64
+  push 288
+  mload
+  add
+  mload
+  push 255
+  push 248
+  shl
+  dup2
+  and
+  sub
+  push bb4
+  jumpi
+  push 320
+  mload
+  push 192
+  mstore
+  push 320
+  push 32
+  add
+  mload
+  push 224
+  mstore
+  push 320
+  push 64
+  add
+  mload
+  push 256
+  mstore
+  push 61
+  dup1
+  push 142
+  push 0
+  codecopy
+  push 192
+  mload
+  push 30
+  mstore8
+  push 224
+  mload
+  push 32
+  mstore8
+  push 256
+  mload
+  push 0
+  byte
+  push 36
+  mstore8
+  push 0
+  return
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+
+// === runtime ===
+@module runtime
+bb0:
+  push 224
+  push 64
+  mstore
+  callvalue
+  push bb4
+  jumpi
+  calldatasize
+  iszero
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x57de26a4
+  sub
+  push bb4
+  jumpi
+  push_immutable 0, 1
+  push_immutable 1, 1
+  push 0
+  signextend
+  push_immutable 2, 1
+  push 248
+  shl
+  dup3
+  push 128
+  mstore
+  swap2
+  pop
+  push 160
+  mstore
+  push 192
+  mstore
+  push 96
+  push 128
+  return
+bb4 [cold]:
+  push 0
+  dup1
+  revert

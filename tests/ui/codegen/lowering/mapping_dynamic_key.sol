@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
@@ -43,7 +42,7 @@ contract MappingDynamicKeyPaths {
 
     // CHECK-LABEL: fn @skey{{[( ]}}
     // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 3
-    // CHECK: internal_call @__ret_bytes, 0, [[VALUE]]
+    // CHECK: ret [[VALUE]]
     string public skey;
 
     // Literal keys hash exactly the literal's bytes, hitting the same slot

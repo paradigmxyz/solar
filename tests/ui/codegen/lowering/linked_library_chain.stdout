@@ -2,7 +2,7 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Inner (runtime) ===
 @module runtime
 bb0:
-  push 224
+  push 192
   push 64
   mstore
   callvalue
@@ -35,29 +35,15 @@ bb0:
   push 36
   calldataload
   dup2
-  dup1
-  push 192
-  mstore
   add
   dup1
   push 160
   mstore
-  dup2
-  dup1
-  push 192
-  mstore
+  swap1
   dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
   push bb9
   jumpi
-  push 160
-  mload
   dup1
   push 160
   mstore
@@ -91,7 +77,7 @@ bb9 [cold]:
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Outer (runtime) ===
 @module runtime
 bb0:
-  push 256
+  push 224
   push 64
   mstore
   callvalue
@@ -140,25 +126,20 @@ bb9:
   dup1
   push 160
   mstore
-  push 32
-  mstore
   push 0xfaf4836c
   push 224
   shl
-  push 160
-  mload
+  dup2
   mstore
   push 4
-  push 160
-  mload
+  dup2
   add
   push 4
   calldataload
   swap1
   mstore
   push 36
-  push 160
-  mload
+  dup2
   add
   push 36
   calldataload
@@ -166,17 +147,17 @@ bb9:
   mstore
   gas
   dup1
-  push 224
+  push 192
   mstore
   push 32
   push 0
   push 68
-  push 160
-  mload
+  dup5
   push 0x1000000000000000000000000000000000000001
   dup6
   delegatecall
-  swap1
+  swap2
+  pop
   pop
   iszero
   push bb11
@@ -187,19 +168,19 @@ bb9:
 bb11 [cold]:
   returndatasize
   dup1
-  push 192
+  push 160
   mstore
   push 0
   dup1
   returndatacopy
-  push 192
+  push 160
   mload
   push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 256
+  push 224
   push 64
   mstore
   callvalue
@@ -231,24 +212,19 @@ bb0:
   dup1
   push 160
   mstore
-  push 32
-  mstore
   push 0x5e0b1cef
   push 224
   shl
-  push 160
-  mload
+  dup2
   mstore
   push 4
-  push 160
-  mload
+  dup2
   add
   push 0
   swap1
   mstore
   push 36
-  push 160
-  mload
+  dup2
   add
   push 4
   calldataload
@@ -256,17 +232,17 @@ bb0:
   mstore
   gas
   dup1
-  push 224
+  push 192
   mstore
   push 32
   push 0
   push 68
-  push 160
-  mload
+  dup5
   push 0x1000000000000000000000000000000000000002
   dup6
   delegatecall
-  swap1
+  swap2
+  pop
   pop
   iszero
   push bb9
@@ -285,12 +261,12 @@ bb4 [cold]:
 bb9 [cold]:
   returndatasize
   dup1
-  push 192
+  push 160
   mstore
   push 0
   dup1
   returndatacopy
-  push 192
+  push 160
   mload
   push 0
   revert

@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
@@ -36,7 +35,7 @@ contract LowLevelCallReturndata {
     // CHECK: {{v[0-9]+}} = call {{v[0-9]+}}, arg0, 0,
     // CHECK: {{v[0-9]+}} = make_returndata_slice 0,
     // CHECK: returndatacopy
-    // CHECK: internal_call @__ret_bytes
+    // CHECK: ret {{v[0-9]+}}
     function forward(address target, bytes memory payload) public returns (bytes memory) {
         (bool success, bytes memory result) = target.call(payload);
         require(success);

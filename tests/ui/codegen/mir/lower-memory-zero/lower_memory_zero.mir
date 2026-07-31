@@ -1,0 +1,13 @@
+//@ compile-flags: -Zmir-pipeline=lower-memory-zero
+//@ filecheck:
+@module LowerMemoryZero
+
+// CHECK-LABEL: {{^[ +].*}}fn @zero{{[( ]}}
+// CHECK: - memory_zero arg0, arg1
+// CHECK: + [[END:v[0-9]+]] = calldatasize
+// CHECK: + calldatacopy arg0, [[END]], arg1
+fn @zero(arg0: memptr, arg1: u256) {
+  bb0:
+    memory_zero arg0, arg1
+    stop
+}

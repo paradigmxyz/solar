@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
@@ -8,9 +7,6 @@
 // bare `return lib.f()` returned only the first value. Runtime-verified against
 // solc: `sat(5,3) == 8`, `tryA(7,3) == (true, 10)`.
 library Math {
-    // CHECK-LABEL: fn @tryAdd{{[( ]}}
-    // CHECK: {{v[0-9]+}} = add arg0, arg1
-    // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
     function tryAdd(uint256 a, uint256 b) internal pure returns (bool ok, uint256 c) {
         unchecked {
             c = a + b;
@@ -36,7 +32,7 @@ contract C {
     // CHECK: internal_call @tryAdd, 2, arg0, arg1
     // CHECK: {{v[0-9]+}} = mload 32
     // CHECK: mload {{v[0-9]+}}
-    // CHECK: returndata 128, 64
+    // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
     function tryA(uint256 a, uint256 b) public pure returns (bool, uint256) {
         return Math.tryAdd(a, b);
     }

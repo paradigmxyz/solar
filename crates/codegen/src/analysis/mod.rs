@@ -8,7 +8,7 @@
 mod alias;
 pub(crate) use alias::{
     Access, AddressSpace, AliasAnalysis, AliasResult, Location, LocationSize, MemoryAddress,
-    MemoryLocation, ModRef,
+    MemoryBase, MemoryLocation, ModRef,
 };
 
 mod memory_summary;

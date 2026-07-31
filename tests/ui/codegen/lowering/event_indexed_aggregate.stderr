@@ -1,0 +1,8 @@
+error: codegen does not support indexed event aggregate encoding yet
+   ╭▸ ROOT/tests/ui/codegen/lowering/event_indexed_aggregate.sol:LL:CC
+   │
+LL │         emit IndexedArray(values);
+   ╰╴                          ━━━━━━
+
+error: aborting due to 1 previous error
+

@@ -1,0 +1,81 @@
+// === ROOT/tests/ui/codegen/lowering/user_defined_operators.sol:UserDefinedOperators ===
+@module UserDefinedOperators
+@phase evm-shaped
+fn @doAdd() {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = internal_call @add, 1, arg0, arg1
+    mstore 128, v3
+    returndata 128, 32
+}
+
+fn @add(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = slt arg0, 0
+    v2 = slt v0, arg1
+    v3 = xor v1, v2
+    jumpi v3, bb1, bb2
+  bb1:
+    tail_call @__revert_stub0
+  bb2:
+    ret v0
+}
+
+fn @doNeg() {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = internal_call @neg, 1, arg0
+    mstore 128, v3
+    returndata 128, 32
+}
+
+fn @neg(arg0: i256) -> i256 {
+  bb0:
+    v0 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    jumpi v0, bb1, bb2
+  bb1:
+    tail_call @__revert_stub0
+  bb2:
+    v1 = sub 0, arg0
+    ret v1
+}
+
+fn @__revert_stub0() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @entry() {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb5, bb1
+  bb1:
+    v1 = calldatasize
+    jumpi v1, bb2, bb5
+  bb2:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb5, [0x8fa81b4e => bb3, 0xe9148a2a => bb4]
+  bb3:
+    tail_call @doNeg
+  bb4:
+    tail_call @doAdd
+  bb5:
+    revert 0, 0
+}
+

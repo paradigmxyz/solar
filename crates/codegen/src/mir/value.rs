@@ -1,6 +1,6 @@
 //! MIR values.
 
-use super::{ArgIdx, InstId, MirType};
+use super::{ArgIdx, InstId, MirType, TypeSize};
 use alloy_primitives::U256;
 use solar_interface::diagnostics::ErrorGuaranteed;
 use std::fmt;
@@ -42,12 +42,26 @@ pub(crate) enum Immediate {
     /// Boolean constant.
     Bool(bool),
     /// Unsigned integer constant.
-    UInt(U256, u16),
+    UInt(U256, TypeSize),
     /// Signed integer constant.
-    Int(U256, u16),
+    Int(U256, TypeSize),
 }
 
 impl Immediate {
+    /// Creates an immediate carrying `value` with the given integer type.
+    ///
+    /// Falls back to `uint256` when the type has no plain integer payload or
+    /// cannot represent the value.
+    #[must_use]
+    pub(crate) fn for_type(ty: Option<MirType>, value: U256) -> Self {
+        match ty {
+            Some(MirType::Bool) if value <= U256::from(1) => Self::Bool(!value.is_zero()),
+            Some(MirType::UInt(size)) if fits_unsigned(value, size) => Self::UInt(value, size),
+            Some(MirType::Int(size)) if fits_signed(value, size) => Self::Int(value, size),
+            _ => Self::uint256(value),
+        }
+    }
+
     /// Returns the type of this immediate.
     #[must_use]
     pub(crate) const fn ty(&self) -> MirType {
@@ -61,7 +75,7 @@ impl Immediate {
     /// Creates a new uint256 immediate from a U256 value.
     #[must_use]
     pub(crate) const fn uint256(value: U256) -> Self {
-        Self::UInt(value, 256)
+        Self::UInt(value, TypeSize::new_int_bits(256))
     }
 
     /// Creates a new boolean immediate.
@@ -78,6 +92,20 @@ impl Immediate {
             Self::UInt(v, _) | Self::Int(v, _) => Some(*v),
         }
     }
+}
+
+fn fits_unsigned(value: U256, size: TypeSize) -> bool {
+    let bits = size.bits();
+    bits >= 256 || value.bit_len() <= usize::from(bits)
+}
+
+fn fits_signed(value: U256, size: TypeSize) -> bool {
+    let bits = size.bits();
+    if bits >= 256 || bits == 0 {
+        return bits >= 256;
+    }
+    let bits = usize::from(bits);
+    if value.bit(bits - 1) { (!value).bit_len() < bits } else { value.bit_len() < bits }
 }
 
 impl fmt::Display for Immediate {

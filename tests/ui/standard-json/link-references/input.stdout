@@ -1,0 +1,21 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "Links": {
+        "evm": {
+          "bytecode": {
+            "linkReferences": {}
+          },
+          "deployedBytecode": {
+            "linkReferences": {}
+          }
+        }
+      }
+    }
+  }
+}

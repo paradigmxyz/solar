@@ -240,6 +240,7 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool
                     }
                     InstKind::Keccak256(addr, size)
                     | InstKind::Log0(addr, size)
+                    | InstKind::MemoryZero(addr, size)
                     | InstKind::CalldataCopy(addr, _, size)
                     | InstKind::ReturnDataCopy(addr, _, size)
                     | InstKind::CodeCopy(addr, _, size) => {

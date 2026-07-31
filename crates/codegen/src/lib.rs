@@ -15,12 +15,15 @@ pub mod mir;
 pub(crate) mod memory;
 
 mod analysis;
+mod immutable;
 
 pub mod backend;
 pub use backend::{Backend, evm::EvmCodegen};
 
 mod contract;
-pub use contract::{ContractArtifact, ContractSelection, generate_contract_bytecodes};
+pub use contract::{
+    ContractArtifact, ContractSelection, ImmutableReference, generate_contract_bytecodes,
+};
 
 mod ir_parse;
 

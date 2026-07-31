@@ -1003,5 +1003,5 @@ modifier m996(uint v){require(v>996,"m996");_;}
 modifier m997(uint v){require(v>997,"m997");_;}
 modifier m998(uint v){require(v>998,"m998");_;}
 modifier m999(uint v){require(v>999,"m999");_;}
-function f(uint x)public m0(x) m1(x) m2(x) m3(x) m4(x) m5(x) m6(x) m7(x) m8(x) m9(x) m10(x) m11(x) m12(x) m13(x) m14(x) m15(x) m16(x) m17(x) m18(x) m19(x) returns(uint r){r=x;}
+function f(uint x)public pure m0(x) m1(x) m2(x) m3(x) m4(x) m5(x) m6(x) m7(x) m8(x) m9(x) m10(x) m11(x) m12(x) m13(x) m14(x) m15(x) m16(x) m17(x) m18(x) m19(x) returns(uint r){r=x;}
 }

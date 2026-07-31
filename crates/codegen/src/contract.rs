@@ -1,14 +1,9 @@
 //! Contract bytecode generation and dependency orchestration.
 
-use crate::{
-    Backend, EvmCodegen,
-    backend::evm::ir,
-    lower::{self, contract_bytecode_dependencies},
-    mir::Module,
-    pass::run_pipeline,
-};
+use crate::{Backend, EvmCodegen, backend::evm::ir, lower, mir::Module, pass::run_pipeline};
 use alloy_primitives::Bytes;
 use either::Either;
+use solar_ast::TypeSize;
 use solar_config::OptimizationMode;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -17,7 +12,10 @@ use solar_data_structures::{
     sync::{self, Scope},
 };
 use solar_interface::Result;
-use solar_sema::{Gcx, hir::ContractId};
+use solar_sema::{
+    Gcx,
+    hir::{ContractId, VariableId},
+};
 use std::sync::{
     OnceLock,
     atomic::{AtomicUsize, Ordering},
@@ -30,6 +28,8 @@ pub struct ContractArtifact {
     pub deployment: Bytes,
     /// Runtime bytecode.
     pub runtime: Bytes,
+    /// Immutable placeholders in the runtime bytecode.
+    pub immutable_references: Vec<ImmutableReference>,
     /// Captured MIR, built under `-O none` when no explicit pipeline is configured and
     /// post-pipeline otherwise.
     pub mir: Option<Module>,
@@ -37,6 +37,17 @@ pub struct ContractArtifact {
     pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
     pub runtime_evm_ir: Option<ir::Module>,
+}
+
+/// An immutable placeholder in runtime bytecode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ImmutableReference {
+    /// Source variable containing the immutable declaration.
+    pub variable_id: VariableId,
+    /// Byte offset where the placeholder data begins.
+    pub start: usize,
+    /// Type width encoded by the placeholder.
+    pub type_size: TypeSize,
 }
 
 /// A contract selection.
@@ -226,12 +237,14 @@ impl ContractGraph {
                 .emit());
         }
 
-        let dependencies = contract_bytecode_dependencies(gcx, contract_id);
-        for dependency in dependencies.iter() {
+        let dependencies = gcx.contract_bytecode_dependencies(contract_id);
+        for dependency in dependencies {
             self.dependents[dependency].push(contract_id);
             self.discover_contract(gcx, dependency, visiting)?;
         }
-        self.dependencies[contract_id] = dependencies;
+        for dependency in dependencies {
+            self.dependencies[contract_id].insert(dependency);
+        }
         self.reachable.insert(contract_id);
         visiting.remove(contract_id);
         Ok(())
@@ -318,11 +331,26 @@ fn generate_contract_bytecode(
         }
         Default::default()
     };
+    let immutable_references = artifact
+        .immutable_references
+        .iter()
+        .map(|reference| {
+            let immutable = module.immutable(reference.id);
+            ImmutableReference {
+                variable_id: immutable
+                    .variable_id
+                    .expect("Solidity immutable must have a variable ID"),
+                start: reference.code_offset + 1,
+                type_size: reference.type_size,
+            }
+        })
+        .collect();
     let mir = capture_mir.then(|| built_mir.unwrap_or(module));
 
     Ok(ContractArtifact {
         deployment: artifact.deployment.into(),
         runtime: artifact.runtime.into(),
+        immutable_references,
         mir,
         deployment_evm_ir: artifact.deployment_evm_ir,
         runtime_evm_ir: artifact.runtime_evm_ir,

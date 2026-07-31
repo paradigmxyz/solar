@@ -1,0 +1,22 @@
+//@ compile-flags: -Zcodegen
+//@ filecheck:
+// CHECK-LABEL: "bytecode": {
+// CHECK-NEXT: "linkReferences": {}
+// CHECK-NOT: "object":
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK-NEXT: "linkReferences": {}
+// CHECK-NOT: "object":
+{
+  "language": "Solidity",
+  "sources": {},
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.bytecode.linkReferences",
+          "evm.deployedBytecode.linkReferences"
+        ]
+      }
+    }
+  }
+}

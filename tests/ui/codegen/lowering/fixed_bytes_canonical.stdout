@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/fixed_bytes_canonical.sol:FixedBytesCanonical ===
 @module FixedBytesCanonical
-fn @fromUint(arg0: u8) {
+fn @fromUint(arg0: u8) -> bytes1 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -18,17 +18,15 @@ fn @fromUint(arg0: u8) {
   bb4:
     v6 = shl 248, arg0
     v7 = and v6, 0xff00000000000000000000000000000000000000000000000000000000000000
-    mstore 128, v7
-    returndata 128, 32
+    ret v7
 }
 
-fn @fromHex() {
+fn @fromHex() -> bytes1 [abi_returns=[word]] {
   bb0:
-    mstore 128, 0x100000000000000000000000000000000000000000000000000000000000000
-    returndata 128, 32
+    ret 0x100000000000000000000000000000000000000000000000000000000000000
 }
 
-fn @compareElement(arg0: memorybytes) {
+fn @compareElement(arg0: memorybytes) -> bool [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -64,11 +62,10 @@ fn @compareElement(arg0: memorybytes) {
     v19 = shl 248, v18
     v20 = and v19, 0xff00000000000000000000000000000000000000000000000000000000000000
     v21 = eq v17, v20
-    mstore 128, v21
-    returndata 128, 32
+    ret v21
 }
 
-fn @narrow(arg0: bytes4) {
+fn @narrow(arg0: bytes4) -> bytes2 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -85,7 +82,6 @@ fn @narrow(arg0: bytes4) {
     revert 0, 0
   bb4:
     v6 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
-    mstore 128, v6
-    returndata 128, 32
+    ret v6
 }
 

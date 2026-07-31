@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
@@ -6,8 +5,8 @@ contract Branch {
     // CHECK-LABEL: fn @max{{[( ]}}
     // CHECK: [[GT:v[0-9]+]] = gt arg0, arg1
     // CHECK: jumpi [[GT]],
-    // CHECK: returndata
-    // CHECK: returndata
+    // CHECK: ret arg0
+    // CHECK: ret arg1
     function max(uint256 a, uint256 b) public pure returns (uint256) {
         if (a > b) {
             return a;

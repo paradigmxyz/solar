@@ -383,6 +383,7 @@ impl KillIndex {
             AddressSpace::Storage => &self.storage,
             AddressSpace::Transient => &self.transient,
             AddressSpace::Memory => &self.memory,
+            AddressSpace::Immutable => &[],
         }
     }
 }
@@ -468,12 +469,24 @@ impl LoadRedundancyEliminator {
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
         let rpo = cfg.rpo();
 
-        // The key universe: every key genned in a reachable block.
+        // The key universe: only keys a rewrite could ever name. A candidate is
+        // always a load in a block with at least two reachable predecessors
+        // (the join whose redundancy dominance cannot see), so a key never
+        // loaded at such a join can produce no candidate. Every key's
+        // gen/kill/availability is computed independently of the others, so
+        // narrowing the universe leaves the retained keys' dataflow unchanged
+        // while dropping the summaries that no rewrite could consult. This is
+        // what keeps the pass off straight-line code, where the key universe
+        // would otherwise scale with the whole function.
         let mut keys = Vec::new();
         let mut key_index: FxHashMap<LoadKey, usize> = FxHashMap::default();
         for &block in rpo {
+            let predecessors = func.unique_predecessors(block);
+            if predecessors.len() < 2 || predecessors.iter().any(|&pred| !cfg.is_reachable(pred)) {
+                continue;
+            }
             for &inst_id in &func.blocks[block].instructions {
-                if let Some((key, _)) = self.gen_key_value(func, inst_id) {
+                if let Some((key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id) {
                     key_index.entry(key).or_insert_with(|| {
                         keys.push(key);
                         keys.len() - 1
@@ -1096,6 +1109,7 @@ impl LoadRedundancyEliminator {
                 Access::Location(Location::Memory(written)) => {
                     self.for_each_killed_memory_key(written, keys, index, &mut kill);
                 }
+                Access::Location(Location::Immutable(_)) => {}
             }
         }
     }

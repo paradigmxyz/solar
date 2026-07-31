@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:Lib (runtime) ===
 @module runtime
 bb0:
-  push 352
+  push 224
   push 64
   mstore
   callvalue
@@ -69,77 +69,43 @@ bb5:
   push 0
   keccak256
   dup1
-  push 160
+  push 192
   mstore
+  dup1
   sload
   push 68
   calldataload
   dup2
-  dup1
-  push 256
-  mstore
   add
   dup1
-  push 192
+  push 160
   mstore
-  dup2
-  dup1
-  push 256
-  mstore
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
+  swap1
   pop
   push bb11
   jumpi
-  push 192
-  mload
-  dup1
-  push 192
-  mstore
   push 160
+  mload
+  push 192
   mload
   sstore
-  push 160
+  push 192
   mload
-  dup1
-  push 160
-  mstore
   sload
   caller
   push 255
   and
   dup2
-  dup1
-  push 288
-  mstore
   add
   dup1
-  push 224
+  push 160
   mstore
-  dup2
-  dup1
-  push 288
-  mstore
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
   push bb11
   jumpi
-  push 224
+  push 160
   mload
-  dup1
-  push 224
-  mstore
   push 128
   mstore
   push 32
@@ -148,7 +114,7 @@ bb5:
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 256
+  push 224
   push 64
   mstore
   callvalue
@@ -191,32 +157,26 @@ bb0:
   dup1
   push 160
   mstore
-  push 32
-  mstore
   push 0xed2f0bb8
   push 224
   shl
-  push 160
-  mload
+  dup2
   mstore
   push 4
-  push 160
-  mload
+  dup2
   add
   push 0
   swap1
   mstore
   push 36
-  push 160
-  mload
+  dup2
   add
   push 4
   calldataload
   swap1
   mstore
   push 68
-  push 160
-  mload
+  dup2
   add
   push 36
   calldataload
@@ -224,17 +184,17 @@ bb0:
   mstore
   gas
   dup1
-  push 224
+  push 192
   mstore
   push 32
   push 0
   push 100
-  push 160
-  mload
+  dup5
   push 0x1111111111111111111111111111111111111111
   dup6
   delegatecall
-  swap1
+  swap2
+  pop
   pop
   iszero
   push bb10
@@ -253,12 +213,12 @@ bb4 [cold]:
 bb10 [cold]:
   returndatasize
   dup1
-  push 192
+  push 160
   mstore
   push 0
   dup1
   returndatacopy
-  push 192
+  push 160
   mload
   push 0
   revert

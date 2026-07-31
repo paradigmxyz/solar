@@ -5,30 +5,26 @@
 //! implicitly in the backend. This pass makes that explicit, moving the ABI
 //! boundary into MIR itself (the ABI phase of the sketch in [`MirPhase`]).
 //!
-//! For each external entry `f(x0: T0, .., xn: Tn)` whose body hands no MIR
-//! return values back to a caller, it:
+//! For each external entry `f(x0: T0, .., xn: Tn)`, it:
 //!
 //! 1. copies the original into a fresh internal function `f.body` with its parameter list preserved
 //!    when there are internal callers, and
 //! 2. strips `f`'s MIR parameter list, keeping its selector and its `Value::Arg` entries. Scalar
 //!    arguments remain lazy ABI head words; dynamic calldata arguments remain logical slices until
-//!    `lower-slices` projects their pointer and length. The body keeps its fused external
-//!    termination (`RETURN`/`REVERT`/`STOP`).
+//!    `lower-slices` projects their pointer and length. Value-carrying returns are ABI-encoded
+//!    according to the function's return layout and terminate with `returndata`.
 //!
 //! The wrapper keeps argument materialization lazy so values used after a
-//! branch can still be rematerialized instead of spilled. Returns are
-//! different: the wrappers do not implement returndata encoding at all,
-//! so they rely on the external lowering having fused the encode into the
-//! body (every value-carrying `ret` already rewritten to `returndata`). A
-//! function whose body still carries a live value-`Return` terminator makes
-//! the whole pass bail. Internal call sites that targeted a wrapped function
-//! are retargeted to its extracted body, so internal calls to public
-//! functions keep their semantics.
+//! branch can still be rematerialized instead of spilled. Dynamic return
+//! encoding becomes a semantic `abi_encode` operation here and lowers later;
+//! static returns use the fixed low-memory return buffer directly. Internal
+//! call sites that targeted a wrapped function are retargeted to its extracted
+//! raw-return body, so internal calls to public functions keep their convention.
 //!
-//! The phase transition is all-or-nothing: if any bodied external function
-//! still returns MIR values, the module is left untouched and does not
-//! advance, so an `abi`-phase module always means every external function is
-//! a wrapper.
+//! The phase transition is all-or-nothing: if any value-returning external
+//! function lacks a matching ABI return layout, the module is left untouched
+//! and does not advance, so an `abi`-phase module always means every external
+//! function is a complete wrapper.
 //!
 //! Together with [`super::lower_dispatch::LowerDispatch`], which routes a selector switch
 //! to these argument-free wrappers, this materializes the ABI boundary before
@@ -37,13 +33,13 @@
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        BlockId, Function, FunctionBuilder, FunctionId, InstKind, MirPhase, MirType, Module,
+        BlockId, Function, FunctionBuilder, FunctionId, InstKind, MangledSymbol, MirPhase, Module,
         Terminator,
     },
     pass::MirPass,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
-use solar_interface::{Ident, Symbol};
+use solar_interface::{Span, Symbol};
 
 /// ABI phase lowering pass.
 pub(crate) struct LowerAbi;
@@ -76,12 +72,11 @@ impl MirPass for LowerAbi {
 struct LowerAbiStats {
     /// Number of external functions wrapped.
     wrapped: usize,
-    /// Number of value-carrying returns fused into `returndata` encoding.
-    fused_returns: usize,
-    /// Number of external functions with returns, which the wrappers cannot
-    /// encode yet. Any non-zero count makes the whole pass bail: the phase
-    /// transition is all-or-nothing.
-    skipped_dynamic: usize,
+    /// Number of value-carrying returns rewritten to ABI returndata encoding.
+    encoded_returns: usize,
+    /// Number of external functions whose live returns lack a matching ABI
+    /// layout. Any non-zero count makes the whole pass bail.
+    skipped_returns: usize,
     /// Number of internal call sites retargeted from a wrapped function to its
     /// extracted body.
     retargeted_calls: usize,
@@ -105,24 +100,30 @@ impl LowerAbiCx {
             return false;
         }
 
-        // Snapshot the ids to wrap first; wrapping appends new functions, and we
-        // must not revisit them. Preflight return fusion on clones so an
-        // unsupported dynamic return cannot leave earlier functions partially
-        // mutated when this all-or-nothing phase transition bails.
-        let wrappable: Vec<FunctionId> = module
-            .functions
-            .iter_enumerated()
-            .filter_map(|(id, func)| is_wrappable_external(func).then_some(id))
-            .collect();
-        for &id in &wrappable {
-            let mut preflight = module.function(id).clone();
-            fuse_static_word_returns(&mut preflight);
-            self.stats.skipped_dynamic += usize::from(has_live_value_return(&preflight));
+        let mut targets = Vec::new();
+        let mut internally_called = DenseBitSet::new_empty(module.functions.len());
+        let mut callvalue = super::utils::DispatchCallvalue::default();
+        for (id, func) in module.functions.iter_enumerated() {
+            callvalue.observe(func);
+            if is_wrappable_external(func) {
+                targets.push(id);
+                self.stats.skipped_returns += usize::from(!can_encode_live_returns(func));
+            }
+            for inst_id in func.instructions() {
+                if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
+                    internally_called.insert(function);
+                }
+            }
         }
-        if self.stats.skipped_dynamic != 0 {
+
+        // All-or-nothing: `abi` means *every* bodied external function is a
+        // wrapper. If any return lacks the semantic layout required to encode
+        // it, leave the module untouched instead of advancing to a phase the
+        // content does not satisfy.
+        if self.stats.skipped_returns != 0 {
             return false;
         }
-        if wrappable.is_empty() {
+        if targets.is_empty() {
             let has_selectorless_entry = module.functions.iter().any(|func| {
                 func.attributes.is_constructor
                     || func.attributes.is_receive
@@ -133,33 +134,6 @@ impl LowerAbiCx {
             }
             module.advance_phase(MirPhase::Abi);
             return true;
-        }
-        for &id in &wrappable {
-            self.stats.fused_returns +=
-                usize::from(fuse_static_word_returns(module.function_mut(id)));
-        }
-
-        let mut targets = Vec::new();
-        let mut internally_called = DenseBitSet::new_empty(module.functions.len());
-        let mut callvalue = super::utils::DispatchCallvalue::default();
-        for (id, func) in module.functions.iter_enumerated() {
-            callvalue.observe(func);
-            if is_wrappable_external(func) {
-                targets.push(id);
-            }
-            for inst_id in func.instructions() {
-                if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
-                    internally_called.insert(function);
-                }
-            }
-        }
-
-        // All-or-nothing: `abi` means *every* bodied external function is a
-        // wrapper. If any signature is outside the static-word scope, leave the
-        // module untouched instead of advancing to a phase the content does not
-        // satisfy.
-        if targets.is_empty() {
-            return false;
         }
 
         // Most external functions are never called internally. Only those
@@ -210,7 +184,7 @@ impl LowerAbiCx {
     /// pristine copy for internal callers.
     ///
     /// The original function keeps its selector and loses its MIR parameter
-    /// list, but its `Value::Arg` entries stay in place. Scalar arguments
+    /// and return lists, but its `Value::Arg` entries stay in place. Scalar arguments
     /// continue to denote ABI head words, while logical calldata slices are
     /// projected by `lower-slices`; both forms preserve lazy per-use
     /// rematerialization, so wrapper arguments do not spill.
@@ -219,10 +193,10 @@ impl LowerAbiCx {
     /// every multi-use or cross-block argument bought spill traffic the
     /// `Arg` form avoids. The explicit-decode representation returns when
     /// slices provide explicit high-level decode semantics without changing
-    /// that backend property. The fused encode and `RETURN` stay intact, and no internal call is
-    /// introduced on the external path. When the function has internal
-    /// callers, a pristine `.body` copy with parameters preserved is appended
-    /// and those callers are retargeted to it.
+    /// that backend property. Return values are ABI-encoded in place, and no
+    /// internal call is introduced on the external path. When the function has
+    /// internal callers, a pristine `.body` copy with raw returns and parameters
+    /// preserved is appended and those callers are retargeted to it.
     fn wrap_function(
         &mut self,
         module: &mut Module,
@@ -233,15 +207,22 @@ impl LowerAbiCx {
         // internal callers keep the original function semantics.
         let body_id = needs_body.then(|| {
             let mut body = module.function(wrapper_id).clone();
-            body.name = Ident::with_dummy_span(Symbol::intern(&format!("{}.body", body.name)));
+            body.name = MangledSymbol::new(Symbol::intern(&format!("{}.body", body.name.symbol)));
+            body.name_span = Span::DUMMY;
             body.selector = None;
+            body.abi_returns = None;
             body.attributes.visibility = solar_sema::hir::Visibility::Internal;
             module.add_function(body)
         });
 
+        self.stats.encoded_returns += encode_live_returns(module.function_mut(wrapper_id));
+
         // The wrapper takes no MIR arguments; its `Arg` values now read the
         // calldata head words directly.
-        module.function_mut(wrapper_id).params.clear();
+        let wrapper = module.function_mut(wrapper_id);
+        wrapper.params.clear();
+        wrapper.returns.clear();
+        wrapper.abi_returns = None;
         body_id
     }
 
@@ -275,63 +256,50 @@ fn is_wrappable_external(func: &Function) -> bool {
     func.selector.is_some() && !func.attributes.is_constructor
 }
 
-/// Absorption relies on the fused encode: the body must produce its own
-/// returndata, so a function that would hand MIR return values back to a
-/// caller (which would then need to encode them) makes the whole pass bail.
-/// The signature's `returns` list is not the test: external lowering fuses
-/// the encode and rewrites every value-carrying `ret` into `returndata`,
-/// leaving the signature stale. What matters is whether any value-carrying
-/// `Return` terminator is still live in the body. Parameters of any type and
-/// any count are fine: each stays an `Arg` head word the backend
-/// rematerializes lazily.
-fn has_live_value_return(func: &Function) -> bool {
-    func.blocks.iter().any(|block| {
-        matches!(&block.terminator, Some(Terminator::Return { values }) if !values.is_empty())
+/// Whether every value-carrying return has a matching semantic ABI layout.
+fn can_encode_live_returns(func: &Function) -> bool {
+    func.blocks.iter().all(|block| {
+        let Some(Terminator::Return { values }) = &block.terminator else {
+            return true;
+        };
+        values.is_empty()
+            || func.abi_returns.as_ref().is_some_and(|layout| layout.types.len() == values.len())
     })
 }
 
-/// Whether a return value is a plain ABI word — an inline value type rather
-/// than a pointer to dynamically encoded memory. Only these can be encoded by
-/// the fused-return sequence.
-fn is_static_word_return(func: &Function, value: crate::mir::ValueId) -> bool {
-    match func.value_ty(value) {
-        Some(
-            MirType::MemPtr
-            | MirType::MemoryObject(_)
-            | MirType::Slice(_)
-            | MirType::StoragePtr
-            | MirType::CalldataPtr,
-        ) => false,
-        Some(_) => true,
-        None => false,
-    }
-}
-
-/// Rewrites each value-carrying `Return` whose values are all plain words into
-/// the fused `returndata` encoding the backend expects: consecutive head words
-/// from the return buffer, then `RETURN`. Returns whether anything changed.
-fn fuse_static_word_returns(func: &mut Function) -> bool {
+/// Rewrites value-carrying returns into a semantic ABI encode followed by
+/// `returndata(slice_ptr(encoded), slice_len(encoded))`.
+fn encode_live_returns(func: &mut Function) -> usize {
+    let Some(layout) = func.abi_returns.clone() else { return 0 };
     let block_ids: Vec<_> = func.blocks.indices().collect();
-    let mut changed = false;
+    let mut encoded_returns = 0;
     for block_id in block_ids {
         let Some(Terminator::Return { values }) = &func.blocks[block_id].terminator else {
             continue;
         };
-        if values.is_empty() || !values.iter().all(|&v| is_static_word_return(func, v)) {
+        if values.is_empty() {
             continue;
         }
-        let values = values.clone();
-        let base = EvmMemoryLayout::HEAP_START;
+        let values = values.clone().into_vec().into_boxed_slice();
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block_id);
-        for (index, &value) in values.iter().enumerate() {
-            let addr = builder.imm_u64(base + (index as u64) * EvmMemoryLayout::WORD_SIZE);
-            builder.mstore(addr, value);
+        if layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
+            let encoded = builder.abi_encode(layout.clone(), None, values);
+            let offset = builder.slice_ptr(encoded);
+            let size = builder.slice_len(encoded);
+            builder.ret_data(offset, size);
+        } else {
+            let offset = builder.imm_u64(EvmMemoryLayout::HEAP_START);
+            let size = super::lower_abi_encode::encode_tuple(
+                &mut builder,
+                &values,
+                &layout.types,
+                offset,
+                super::lower_abi_encode::AbiScratch { base: None, depth: 0 },
+            );
+            builder.ret_data(offset, size);
         }
-        let offset = builder.imm_u64(base);
-        let size = builder.imm_u64((values.len() as u64) * EvmMemoryLayout::WORD_SIZE);
-        builder.ret_data(offset, size);
-        changed = true;
+        encoded_returns += 1;
     }
-    changed
+    encoded_returns
 }

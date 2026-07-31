@@ -1,6 +1,6 @@
 //! Standard JSON data structures, serialization, selection parsing, and statistics.
 
-use alloy_primitives::Bytes;
+use alloy_primitives::{Address, Bytes};
 use indexmap::IndexMap;
 use serde::{
     Deserialize, Serialize,
@@ -18,6 +18,23 @@ use std::{
 
 pub(super) type FxIndexMap<K, V> = IndexMap<K, V, FxBuildHasher>;
 
+/// Result returned by a Standard JSON read callback.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ReadCallbackResult {
+    /// The requested data was found.
+    Success(String),
+    /// The callback handled the request and returned an error.
+    Error(String),
+    /// The callback does not support this request kind.
+    Unsupported,
+}
+
+/// Callback used by Standard JSON compilation to retrieve extra input.
+pub trait StandardJsonReadCallback: Send + Sync + 'static {
+    /// Reads data for `kind`.
+    fn read(&self, kind: &str, data: &str) -> ReadCallbackResult;
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct CompilerInput<'a> {
@@ -27,7 +44,8 @@ pub(super) struct CompilerInput<'a> {
     pub(super) sources: FxIndexMap<CowStr<'a>, SourceInput<'a>>,
     #[serde(borrow, default)]
     pub(super) settings: Settings<'a>,
-    // `auxiliaryInput` is only used by solc's SMT checker, which we do not support.
+    //
+    // Not supported.
     // #[serde(borrow, default)]
     // auxiliary_input: Option<CowValue<'a>>,
 }
@@ -39,13 +57,12 @@ pub(super) struct SourceInput<'a> {
     pub(super) content: Option<CowStr<'a>>,
     #[serde(borrow, default)]
     pub(super) urls: Vec<CowStr<'a>>,
-    // `keccak256` validation is not supported yet.
+    //
+    // Not supported.
     // #[serde(borrow)]
     // keccak256: Option<CowValue<'a>>,
-    // AST inputs are not supported yet.
     // #[serde(borrow)]
     // ast: Option<CowValue<'a>>,
-    // EVM assembly inputs are not supported yet.
     // #[serde(borrow)]
     // assembly_json: Option<CowValue<'a>>,
 }
@@ -62,52 +79,202 @@ pub(super) struct Settings<'a> {
     pub(super) stop_after: Option<CowStr<'a>>,
     #[serde(borrow)]
     pub(super) evm_version: Option<CowStr<'a>>,
-    /// Optimizer settings. Only `enabled` is currently honored.
     #[serde(default)]
     pub(super) optimizer: Option<Optimizer>,
-    // Metadata settings are ignored because bytecode metadata is not emitted.
+    // Metadata output is not supported yet.
     // #[serde(borrow, default)]
     // metadata: Option<CowValue<'a>>,
-    // Library addresses are ignored because linking is not supported.
-    // #[serde(borrow, default)]
-    // libraries: Option<CowValue<'a>>,
-    // Debug settings are ignored because we do not emit debug output.
+    #[serde(borrow, default)]
+    pub(super) libraries: Libraries<'a>,
+    // Debug output is not supported yet.
     // #[serde(borrow, default)]
     // debug: Option<CowValue<'a>>,
-    // Experimental features are ignored because we do not support solc's experimental mode.
+    //
+    // Not supported.
     // #[serde(borrow, default)]
     // experimental: Option<CowValue<'a>>,
-    // Model checker settings are ignored because we do not run an SMT checker.
     // #[serde(borrow, default)]
     // model_checker: Option<CowValue<'a>>,
-    // The IR pipeline is ignored because we have a single compilation pipeline.
     // #[serde(default)]
     // via_ir: Option<bool>,
-    // The SSA CFG pipeline is ignored because we have a single compilation pipeline.
     // #[serde(default)]
     // via_ssa_cfg: Option<bool>,
 }
 
-/// The solc Standard JSON `settings.optimizer` object.
+/// The supported subset of solc's Standard JSON `settings.optimizer` object.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct Optimizer {
-    /// Whether the optimizer is enabled. Mapped onto
-    /// [`solar_config::OptimizationMode::None`] when disabled.
+    /// Whether the optimizer is enabled.
     #[serde(default)]
     pub(super) enabled: bool,
     /// Number of optimizer runs. The MIR optimizer has no runs parameter yet.
     #[serde(default)]
     pub(super) runs: Option<u64>,
-    // Fine-grained optimizer settings are not supported yet.
-    // #[serde(borrow, default)]
-    // details: Option<CowValue<'a>>,
+}
+
+/// The solc Standard JSON `settings.libraries` object.
+#[derive(Debug, Default, Deserialize)]
+pub(super) struct Libraries<'a>(
+    #[serde(borrow)] pub(super) FxIndexMap<CowStr<'a>, FxIndexMap<CowStr<'a>, Address>>,
+);
+
+impl Libraries<'_> {
+    pub(super) fn len(&self) -> usize {
+        self.0.values().map(FxIndexMap::len).sum()
+    }
+}
+
+#[derive(Debug, Default, Serialize)]
+pub(super) struct CompilerOutput<'a> {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(super) errors: Vec<SolcDiagnostic<'a>>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    pub(super) sources: FxIndexMap<String, SourceOutput>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    pub(super) contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput<'a>>>,
+    // `ethdebug` output is not supported yet.
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // ethdebug: Option<CowValue<'a>>,
+}
+
+#[derive(Debug, Serialize)]
+pub(super) struct SourceOutput {
+    pub(super) id: u32,
+    //
+    // Not supported.
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // ast: Option<CowValue<'a>>,
+}
+
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ContractOutput<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) abi: Option<Vec<alloy_json_abi::AbiItem<'a>>>,
+    // Metadata output is not supported yet.
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // metadata: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) userdoc: Option<Documentation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) devdoc: Option<Documentation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) storage_layout: Option<StorageLayoutOutput>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) transient_storage_layout: Option<StorageLayoutOutput>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) evm: Option<EvmOutput>,
+    //
+    // Not supported.
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // ir: Option<CowValue<'a>>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // ir_ast: Option<CowValue<'a>>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // ir_optimized: Option<CowValue<'a>>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // ir_optimized_ast: Option<CowValue<'a>>,
+    // #[serde(rename = "yulCFGJson", skip_serializing_if = "Option::is_none")]
+    // yul_cfg_json: Option<CowValue<'a>>,
+}
+
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct EvmOutput {
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    pub(super) method_identifiers: FxIndexMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) bytecode: Option<BytecodeOutput>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) deployed_bytecode: Option<BytecodeOutput>,
+    //
+    // Not supported.
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // assembly: Option<CowValue<'a>>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // legacy_assembly: Option<CowValue<'a>>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // gas_estimates: Option<CowValue<'a>>,
+}
+
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct BytecodeOutput {
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_optional_hex_bytes"
+    )]
+    pub(super) object: Option<Bytes>,
+    // Ethdebug output is not supported yet.
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // ethdebug: Option<CowValue<'a>>,
+    // Function debug data is not supported yet.
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // function_debug_data: Option<CowValue<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) opcodes: Option<String>,
+    // Source map output is not supported yet.
+    // #[serde(default, skip_serializing_if = "String::is_empty")]
+    // source_map: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) link_references: Option<FxIndexMap<String, FxIndexMap<String, Vec<OffsetLength>>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) immutable_references: Option<FxIndexMap<String, Vec<OffsetLength>>>,
+    //
+    // Not supported.
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // generated_sources: Option<CowValue<'a>>,
+}
+
+#[derive(Debug, Serialize)]
+pub(super) struct OffsetLength {
+    pub(super) start: usize,
+    pub(super) length: usize,
 }
 
 #[derive(Debug, Default, Deserialize)]
 pub(super) struct OutputSelection<'a>(
     #[serde(borrow)] FxIndexMap<CowStr<'a>, FxIndexMap<CowStr<'a>, OutputSelectionFlags>>,
 );
+
+impl<'a> OutputSelection<'a> {
+    pub(super) fn all(&self) -> OutputSelectionFlags {
+        self.source("*")
+    }
+
+    pub(super) fn source(&self, source: &str) -> OutputSelectionFlags {
+        self.contract(source, "*")
+    }
+
+    pub(super) fn contract(&self, source: &str, contract: &str) -> OutputSelectionFlags {
+        fn contract_flags(
+            contracts: &FxIndexMap<CowStr<'_>, OutputSelectionFlags>,
+            contract: &str,
+        ) -> OutputSelectionFlags {
+            contracts.get(contract).copied().unwrap_or_default()
+        }
+
+        let mut flags = OutputSelectionFlags::default();
+        if let Some(c) = self.0.get(source) {
+            flags |= contract_flags(c, contract);
+            if contract != "*" {
+                flags |= contract_flags(c, "*");
+            }
+        }
+
+        if source != "*"
+            && let Some(c) = self.0.get("*")
+        {
+            flags |= contract_flags(c, contract);
+            if contract != "*" {
+                flags |= contract_flags(c, "*");
+            }
+        }
+
+        flags & OutputSelectionFlags::CONTRACT
+    }
+}
 
 bitflags::bitflags! {
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -200,36 +367,85 @@ bitflags::bitflags! {
     }
 }
 
-#[derive(Debug, Default, Serialize)]
-pub(super) struct CompilerOutput<'a> {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub(super) errors: Vec<SolcDiagnostic<'a>>,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub(super) sources: FxIndexMap<String, SourceOutput>,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub(super) contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput>>,
-    // Global `ethdebug` output is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // ethdebug: Option<CowValue<'static>>,
+impl OutputSelectionFlags {
+    fn from_key(key: &str) -> Self {
+        match key {
+            "*" => Self::WILDCARD,
+            "ast" => Self::AST,
+            "abi" => Self::ABI,
+            "metadata" => Self::METADATA,
+            "userdoc" => Self::USERDOC,
+            "devdoc" => Self::DEVDOC,
+            "storageLayout" => Self::STORAGE_LAYOUT,
+            "transientStorageLayout" => Self::TRANSIENT_STORAGE_LAYOUT,
+            "ir" => Self::IR,
+            "irAst" => Self::IR_AST,
+            "irOptimized" => Self::IR_OPTIMIZED,
+            "irOptimizedAst" => Self::IR_OPTIMIZED_AST,
+            "yulCFGJson" => Self::YUL_CFG_JSON,
+            "evm" => Self::EVM,
+            "evm.assembly" => Self::ASSEMBLY,
+            "evm.legacyAssembly" => Self::LEGACY_ASSEMBLY,
+            "evm.methodIdentifiers" => Self::METHOD_IDENTIFIERS,
+            "evm.gasEstimates" => Self::GAS_ESTIMATES,
+            "evm.bytecode" => Self::BYTECODE,
+            "evm.bytecode.object" => Self::BYTECODE_OBJECT,
+            "evm.bytecode.opcodes" => Self::BYTECODE_OPCODES,
+            "evm.bytecode.sourceMap" => Self::BYTECODE_SOURCE_MAP,
+            "evm.bytecode.functionDebugData" => Self::BYTECODE_FUNCTION_DEBUG_DATA,
+            "evm.bytecode.generatedSources" => Self::BYTECODE_GENERATED_SOURCES,
+            "evm.bytecode.linkReferences" => Self::BYTECODE_LINK_REFERENCES,
+            "evm.bytecode.ethdebug" => Self::BYTECODE_ETHDEBUG,
+            "evm.deployedBytecode" => Self::DEPLOYED_BYTECODE,
+            "evm.deployedBytecode.object" => Self::DEPLOYED_BYTECODE_OBJECT,
+            "evm.deployedBytecode.opcodes" => Self::DEPLOYED_BYTECODE_OPCODES,
+            "evm.deployedBytecode.sourceMap" => Self::DEPLOYED_BYTECODE_SOURCE_MAP,
+            "evm.deployedBytecode.functionDebugData" => Self::DEPLOYED_BYTECODE_FUNCTION_DEBUG_DATA,
+            "evm.deployedBytecode.generatedSources" => Self::DEPLOYED_BYTECODE_GENERATED_SOURCES,
+            "evm.deployedBytecode.linkReferences" => Self::DEPLOYED_BYTECODE_LINK_REFERENCES,
+            "evm.deployedBytecode.immutableReferences" => {
+                Self::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES
+            }
+            "evm.deployedBytecode.ethdebug" => Self::DEPLOYED_BYTECODE_ETHDEBUG,
+            "ethdebug.resources" => Self::ETHDEBUG_RESOURCES,
+            "ethdebug.compilation" => Self::ETHDEBUG_COMPILATION,
+            _ => Self::empty(),
+        }
+    }
 }
 
-/// Result returned by a Standard JSON read callback.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ReadCallbackResult {
-    /// The requested data was found.
-    Success(String),
-    /// The callback handled the request and returned an error.
-    Error(String),
-    /// The callback does not support this request kind.
-    Unsupported,
-}
+impl<'de> Deserialize<'de> for OutputSelectionFlags {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct OutputSelectionFlagsVisitor;
 
-/// Callback used by Standard JSON compilation to retrieve extra input.
-pub trait StandardJsonReadCallback: Send + Sync + 'static {
-    /// Reads data for `kind`.
-    ///
-    /// The modern soljson API currently uses `source` for import resolution.
-    fn read(&self, kind: &str, data: &str) -> ReadCallbackResult;
+        impl<'de> Visitor<'de> for OutputSelectionFlagsVisitor {
+            type Value = OutputSelectionFlags;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("an array of output selection strings")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut flags = OutputSelectionFlags::empty();
+                while let Some(key) = seq.next_element::<CowStr<'de>>()? {
+                    flags |= OutputSelectionFlags::from_key(&key);
+                    if flags.is_all() {
+                        while seq.next_element::<CowStr<'de>>()?.is_some() {}
+                        break;
+                    }
+                }
+                Ok(flags)
+            }
+        }
+
+        deserializer.deserialize_seq(OutputSelectionFlagsVisitor)
+    }
 }
 
 /// JSON string wrapper that borrows from the standard-json input when possible.
@@ -324,218 +540,14 @@ impl<'de: 'a, 'a> Deserialize<'de> for CowStr<'a> {
     }
 }
 
-#[derive(Debug, Serialize)]
-pub(super) struct SourceOutput {
-    pub(super) id: u32,
-    // AST output is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // ast: Option<CowValue<'static>>,
-}
-
-#[derive(Debug, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct ContractOutput {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) abi: Option<Vec<alloy_json_abi::AbiItem<'static>>>,
-    // Metadata output is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // metadata: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) userdoc: Option<Documentation>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) devdoc: Option<Documentation>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) storage_layout: Option<StorageLayoutOutput>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) transient_storage_layout: Option<StorageLayoutOutput>,
-    // Yul IR output is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // ir: Option<CowValue<'static>>,
-    // Yul IR AST output is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // ir_ast: Option<CowValue<'static>>,
-    // Optimized Yul IR output is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // ir_optimized: Option<CowValue<'static>>,
-    // Optimized Yul IR AST output is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // ir_optimized_ast: Option<CowValue<'static>>,
-    // Yul CFG output is not supported yet.
-    // #[serde(rename = "yulCFGJson", skip_serializing_if = "Option::is_none")]
-    // yul_cfg_json: Option<CowValue<'static>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) evm: Option<EvmOutput>,
-}
-
-#[derive(Debug, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct EvmOutput {
-    // Assembly output is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // assembly: Option<CowValue<'static>>,
-    // Legacy assembly output is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // legacy_assembly: Option<CowValue<'static>>,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub(super) method_identifiers: FxIndexMap<String, String>,
-    // Gas estimates are not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // gas_estimates: Option<CowValue<'static>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) bytecode: Option<BytecodeOutput>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) deployed_bytecode: Option<BytecodeOutput>,
-}
-
-#[derive(Debug, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct BytecodeOutput {
-    #[serde(serialize_with = "serialize_hex_bytes")]
-    pub(super) object: Bytes,
-    // Ethdebug output is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // ethdebug: Option<CowValue<'static>>,
-    // Function debug data is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // function_debug_data: Option<CowValue<'static>>,
-    // Opcode output is not supported yet.
-    // #[serde(default, skip_serializing_if = "String::is_empty")]
-    // opcodes: String,
-    // Source map output is not supported yet.
-    // #[serde(default, skip_serializing_if = "String::is_empty")]
-    // source_map: String,
-    // Link references are not supported yet.
-    // #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    // link_references: FxIndexMap<String, FxIndexMap<String, Vec<OffsetLength>>>,
-    // Immutable references are not supported yet.
-    // #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    // immutable_references: FxIndexMap<String, Vec<OffsetLength>>,
-    // Generated sources are not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // generated_sources: Option<CowValue<'static>>,
-}
-
-// Link and immutable reference offsets are not supported yet.
-// #[derive(Debug, Serialize)]
-// struct OffsetLength {
-//     start: u32,
-//     length: u32,
-// }
-
-impl BytecodeOutput {
-    pub(super) fn empty() -> Self {
-        Self::default()
-    }
-
-    pub(super) fn new(object: Bytes) -> Self {
-        Self { object }
-    }
-}
-
-fn serialize_hex_bytes<S>(bytes: &Bytes, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_optional_hex_bytes<S>(bytes: &Option<Bytes>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
-    serializer.serialize_str(&alloy_primitives::hex::encode(bytes))
-}
-
-impl<'input> OutputSelection<'input> {
-    pub(super) fn contract(&self, source: &str, contract: &str) -> OutputSelectionFlags {
-        fn contract_flags(
-            contracts: Option<&FxIndexMap<CowStr<'_>, OutputSelectionFlags>>,
-            contract: &str,
-        ) -> OutputSelectionFlags {
-            contracts.and_then(|contracts| contracts.get(contract)).copied().unwrap_or_default()
-        }
-
-        let source_contracts = self.0.get(source);
-        let wildcard_contracts = self.0.get("*");
-        (contract_flags(source_contracts, contract)
-            | contract_flags(source_contracts, "*")
-            | contract_flags(wildcard_contracts, contract)
-            | contract_flags(wildcard_contracts, "*"))
-            & OutputSelectionFlags::CONTRACT
-    }
-}
-
-impl OutputSelectionFlags {
-    fn from_key(key: &str) -> Self {
-        match key {
-            "*" => Self::WILDCARD,
-            "ast" => Self::AST,
-            "abi" => Self::ABI,
-            "metadata" => Self::METADATA,
-            "userdoc" => Self::USERDOC,
-            "devdoc" => Self::DEVDOC,
-            "storageLayout" => Self::STORAGE_LAYOUT,
-            "transientStorageLayout" => Self::TRANSIENT_STORAGE_LAYOUT,
-            "ir" => Self::IR,
-            "irAst" => Self::IR_AST,
-            "irOptimized" => Self::IR_OPTIMIZED,
-            "irOptimizedAst" => Self::IR_OPTIMIZED_AST,
-            "yulCFGJson" => Self::YUL_CFG_JSON,
-            "evm" => Self::EVM,
-            "evm.assembly" => Self::ASSEMBLY,
-            "evm.legacyAssembly" => Self::LEGACY_ASSEMBLY,
-            "evm.methodIdentifiers" => Self::METHOD_IDENTIFIERS,
-            "evm.gasEstimates" => Self::GAS_ESTIMATES,
-            "evm.bytecode" => Self::BYTECODE,
-            "evm.bytecode.object" => Self::BYTECODE_OBJECT,
-            "evm.bytecode.opcodes" => Self::BYTECODE_OPCODES,
-            "evm.bytecode.sourceMap" => Self::BYTECODE_SOURCE_MAP,
-            "evm.bytecode.functionDebugData" => Self::BYTECODE_FUNCTION_DEBUG_DATA,
-            "evm.bytecode.generatedSources" => Self::BYTECODE_GENERATED_SOURCES,
-            "evm.bytecode.linkReferences" => Self::BYTECODE_LINK_REFERENCES,
-            "evm.bytecode.ethdebug" => Self::BYTECODE_ETHDEBUG,
-            "evm.deployedBytecode" => Self::DEPLOYED_BYTECODE,
-            "evm.deployedBytecode.object" => Self::DEPLOYED_BYTECODE_OBJECT,
-            "evm.deployedBytecode.opcodes" => Self::DEPLOYED_BYTECODE_OPCODES,
-            "evm.deployedBytecode.sourceMap" => Self::DEPLOYED_BYTECODE_SOURCE_MAP,
-            "evm.deployedBytecode.functionDebugData" => Self::DEPLOYED_BYTECODE_FUNCTION_DEBUG_DATA,
-            "evm.deployedBytecode.generatedSources" => Self::DEPLOYED_BYTECODE_GENERATED_SOURCES,
-            "evm.deployedBytecode.linkReferences" => Self::DEPLOYED_BYTECODE_LINK_REFERENCES,
-            "evm.deployedBytecode.immutableReferences" => {
-                Self::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES
-            }
-            "evm.deployedBytecode.ethdebug" => Self::DEPLOYED_BYTECODE_ETHDEBUG,
-            "ethdebug.resources" => Self::ETHDEBUG_RESOURCES,
-            "ethdebug.compilation" => Self::ETHDEBUG_COMPILATION,
-            _ => Self::empty(),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for OutputSelectionFlags {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        struct OutputSelectionFlagsVisitor;
-
-        impl<'de> Visitor<'de> for OutputSelectionFlagsVisitor {
-            type Value = OutputSelectionFlags;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("an array of output selection strings")
-            }
-
-            fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
-            where
-                A: SeqAccess<'de>,
-            {
-                let mut flags = OutputSelectionFlags::empty();
-                while let Some(key) = seq.next_element::<CowStr<'de>>()? {
-                    flags |= OutputSelectionFlags::from_key(&key);
-                    if flags.is_all() {
-                        while seq.next_element::<CowStr<'de>>()?.is_some() {}
-                        break;
-                    }
-                }
-                Ok(flags)
-            }
-        }
-
-        deserializer.deserialize_seq(OutputSelectionFlagsVisitor)
+    if let Some(bytes) = bytes {
+        serializer.serialize_str(&alloy_primitives::hex::encode(bytes))
+    } else {
+        serializer.serialize_none()
     }
 }
 
@@ -686,6 +698,12 @@ fn count_input_cows(input: &CompilerInput<'_>, stats: &mut InputCowStats) {
     if let Some(evm_version) = &input.settings.evm_version {
         stats.add(evm_version);
     }
+    for (source, libraries) in &input.settings.libraries.0 {
+        stats.add(source);
+        for library in libraries.keys() {
+            stats.add(library);
+        }
+    }
     for (source, contracts) in &input.settings.output_selection.0 {
         stats.add(source);
         for contract in contracts.keys() {
@@ -694,7 +712,7 @@ fn count_input_cows(input: &CompilerInput<'_>, stats: &mut InputCowStats) {
     }
 }
 
-impl ContractOutput {
+impl ContractOutput<'_> {
     pub(super) fn is_empty(&self) -> bool {
         self.abi.is_none()
             && self.userdoc.is_none()

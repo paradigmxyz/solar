@@ -7,12 +7,14 @@
 //! - EVM IR optimization, relocation, and byte encoding
 
 use super::{
+    EVM_WORD_BYTES,
     assembler::{Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label, PreparedAssembly},
     ir,
     layout::{RelayoutAddress, preserves_push_width},
     op,
     stack::{
-        MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
+        MAX_STACK_ACCESS, OperandCostModel, OperandPlan, ScheduledOp, SpillSlot, StackModel,
+        StackOp, StackScheduler, TargetSlot,
     },
 };
 use crate::{
@@ -20,17 +22,23 @@ use crate::{
         CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, Loop, LoopAnalyzer, ParallelCopy,
         PhiEliminator,
     },
+    immutable::{
+        immutable_push_type_size, immutable_staging_addr, immutable_staging_base,
+        immutable_staging_end,
+    },
     memory::EvmMemoryLayout,
     mir::{
-        ArgIdx, BlockId, Function, FunctionId, InstId, InstKind, MirPhase, Module, Terminator,
-        ValueId,
+        ArgIdx, BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind,
+        MirPhase, Module, Terminator, ValueId,
     },
     pass::run_pipeline,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_config::OptimizationMode;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
+    index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
 use solar_interface::sym;
@@ -102,6 +110,35 @@ struct StackPhiPlan {
 struct StackPhiEdge {
     sources: Vec<ValueId>,
     results: Vec<ValueId>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SpillLiveRange {
+    start: usize,
+    end: usize,
+}
+
+#[derive(Default)]
+struct SpillColor {
+    ranges: FxHashMap<BlockId, SmallVec<[SpillLiveRange; 4]>>,
+}
+
+impl SpillColor {
+    fn accepts(&self, ranges: &FxHashMap<BlockId, SpillLiveRange>) -> bool {
+        ranges.iter().all(|(block, candidate)| {
+            self.ranges.get(block).is_none_or(|assigned| {
+                assigned
+                    .iter()
+                    .all(|range| candidate.end < range.start || range.end < candidate.start)
+            })
+        })
+    }
+
+    fn insert(&mut self, ranges: &FxHashMap<BlockId, SpillLiveRange>) {
+        for (&block, &range) in ranges {
+            self.ranges.entry(block).or_default().push(range);
+        }
+    }
 }
 
 /// Canonical argument layouts carried between MIR basic blocks.
@@ -541,15 +578,10 @@ pub struct EvmCodegen<'gcx> {
     /// Cold blocks in the function currently being emitted, including blocks
     /// that only forward control to other cold blocks.
     cold_blocks: DenseBitSet<BlockId>,
-    /// Per-function static local frame sizes for direct internal calls.
-    ///
-    /// Spill slots are allocated lazily during body emission, so the spill part
-    /// of each frame is recorded separately after the function has emitted.
-    function_static_frame_sizes: FxHashMap<FunctionId, u64>,
     /// Exact per-function spill area sizes, in bytes, recorded after emission.
     function_spill_sizes: FxHashMap<FunctionId, u64>,
     /// Internal-call frame-size constants waiting for exact callee spill sizes.
-    pending_frame_size_consts: Vec<(DeferredConst, FunctionId, u64)>,
+    pending_frame_size_consts: Vec<(DeferredConst, FunctionId)>,
     /// Per static-frame callee: which argument indices every runtime call
     /// site can re-emit after the stack drain, so they ride the stack above
     /// the return address instead of being stored to the callee frame at
@@ -597,10 +629,16 @@ pub struct EvmCodegen<'gcx> {
     /// Calldata words physically identical to arguments in the active global
     /// layout, adopted after their final validation use.
     global_stack_aliases: FxHashMap<ValueId, ValueId>,
-    /// Immutable `PUSH32` placeholders in the last assembled runtime code.
+    /// Immutable `PUSH<N>` placeholders in the last assembled runtime code.
     runtime_immutable_refs: Vec<ImmutableRef>,
+    /// Backend encodings derived from the current module's immutable declarations.
+    immutable_encodings: IndexVec<ImmutableId, ImmutableEncoding>,
+    /// First constructor-memory word reserved for immutable staging.
+    immutable_staging_base: u64,
+    /// Deferred absolute base of the copied constructor ABI argument blob.
+    constructor_args_base_const: Option<DeferredConst>,
     /// Whether we're currently generating constructor code.
-    /// When true, LoadArg uses CODECOPY from the end of code instead of CALLDATALOAD.
+    /// When true, arguments load from the copied deployment ABI blob.
     in_constructor: bool,
     /// Shared constructor completion reached by ordinary `stop` terminators.
     constructor_exit: Option<Label>,
@@ -630,7 +668,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             function_labels: FxHashMap::default(),
             cold_functions: DenseBitSet::new_empty(0),
             cold_blocks: DenseBitSet::new_empty(0),
-            function_static_frame_sizes: FxHashMap::default(),
             function_spill_sizes: FxHashMap::default(),
             pending_frame_size_consts: Vec::new(),
             stack_arg_masks: FxHashMap::default(),
@@ -649,6 +686,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
             runtime_immutable_refs: Vec::new(),
+            immutable_encodings: IndexVec::new(),
+            immutable_staging_base: EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT
+                + EvmMemoryLayout::WORD_SIZE,
+            constructor_args_base_const: None,
             in_constructor: false,
             constructor_exit: None,
             constructor_param_count: 0,
@@ -698,6 +739,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let message = match inst.kind {
                     InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => {
                         "codegen does not support this calldata-slice usage yet"
+                    }
+                    InstKind::StoreImmutable(..) => {
+                        "immutable assignments must be lowered before EVM codegen"
                     }
                     _ => continue,
                 };
@@ -833,6 +877,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .emit();
             return EvmArtifact::default();
         }
+        self.immutable_staging_base = immutable_staging_base(module);
+        self.immutable_encodings.clear();
+        for (id, immutable) in module.iter_immutables() {
+            let encoding =
+                immutable.ty.immutable_encoding().expect("validated immutable declaration");
+            let allocated = self.immutable_encodings.push(encoding);
+            debug_assert_eq!(allocated, id);
+        }
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size) {
+            for func in &mut module.functions {
+                func.canonicalize_immediate_uses();
+            }
+        }
         // First generate the runtime code
         let mut runtime_code = self.generate_runtime_code(module);
         if let Some(evm_ir) = &mut runtime_code.evm_ir {
@@ -842,16 +899,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         let immutable_refs = std::mem::take(&mut self.runtime_immutable_refs);
 
         // The constructor copies the runtime code to memory and patches the
-        // immutable placeholders with the staged scratch words before
-        // returning. Copy to offset 0 unless that would overwrite the scratch
-        // words before the patch loop reads them.
-        let copy_base = if !immutable_refs.is_empty()
-            && runtime_len as u64 > EvmMemoryLayout::IMMUTABLE_SCRATCH_BASE
-        {
-            EvmMemoryLayout::IMMUTABLE_SCRATCH_BASE + module.immutable_data_len() as u64
-        } else {
-            0
-        };
+        // immutable placeholders with the staged words before
+        // returning. Copy to offset 0 unless that would overwrite the immutable
+        // staging area before the patch loop reads it.
+        let copy_base = Self::runtime_copy_base(module, runtime_len, &immutable_refs);
 
         // Generate constructor initialization and the deployment postlude as
         // one control-flow graph and optimize it once. Constructor arguments
@@ -890,7 +941,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // PUSH<n> offset        ; where runtime starts
         // PUSH<n> copy_base     ; memory destination
         // CODECOPY              ; copy runtime to memory
-        // [immutable patches]   ; patch staged words into the PUSH32 placeholders
+        // [immutable patches]   ; patch staged words into the PUSH<N> placeholders
         // PUSH<n> copy_base     ; memory offset
         // RETURN                ; return the runtime code
         if let Some(evm_ir) = &mut deploy_code.evm_ir {
@@ -905,13 +956,37 @@ impl<'gcx> EvmCodegen<'gcx> {
         EvmArtifact {
             deployment: deploy_bytecode,
             runtime: runtime_code.bytecode,
+            immutable_references: immutable_refs,
             deployment_evm_ir: deploy_code.evm_ir,
             runtime_evm_ir: runtime_code.evm_ir,
         }
     }
 
+    fn runtime_copy_base(
+        module: &Module,
+        runtime_len: usize,
+        immutable_refs: &[ImmutableRef],
+    ) -> u64 {
+        let patched_end = immutable_refs.iter().fold(runtime_len, |end, immutable_ref| {
+            let patch_size = if immutable_ref.type_size.bytes() == 1 { 1 } else { EVM_WORD_BYTES };
+            end.max(
+                immutable_ref
+                    .code_offset
+                    .checked_add(1 + patch_size)
+                    .expect("immutable patch offset overflow"),
+            )
+        });
+        let staging_base = immutable_staging_base(module);
+        if !immutable_refs.is_empty() && patched_end as u64 > staging_base {
+            immutable_staging_end(staging_base, module.immutable_count())
+        } else {
+            0
+        }
+    }
+
     fn emit_deployment_postlude(
         &mut self,
+        module: &Module,
         runtime_offset: DeferredConst,
         runtime_len: usize,
         copy_base: u64,
@@ -924,19 +999,109 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_push(U256::from(copy_base));
         self.asm.emit_op(op::CODECOPY);
 
-        // Patch each `PUSH32` placeholder with its staged immutable word.
-        // The placeholder data starts one byte after the PUSH32 opcode.
+        // Patch each `PUSH<N>` placeholder with its staged immutable value.
         for r in immutable_refs {
-            self.asm
-                .emit_push(U256::from(EvmMemoryLayout::IMMUTABLE_SCRATCH_BASE + u64::from(r.id)));
-            self.asm.emit_op(op::MLOAD);
-            self.asm.emit_push(U256::from(copy_base + r.code_offset as u64 + 1));
-            self.asm.emit_op(op::MSTORE);
+            let encoding = module
+                .immutable_type(r.id)
+                .immutable_encoding()
+                .expect("validated immutable declaration");
+            debug_assert_eq!(
+                immutable_push_type_size(
+                    encoding,
+                    self.gcx.sess.opts.optimization,
+                    self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
+                ),
+                r.type_size
+            );
+            self.emit_immutable_patch(copy_base, *r, encoding);
         }
 
         // Return the patched runtime code; the DUP'd length is still on the stack.
         self.asm.emit_push(U256::from(copy_base));
         self.asm.emit_op(op::RETURN);
+    }
+
+    fn emit_immutable_patch(
+        &mut self,
+        copy_base: u64,
+        immutable_ref: ImmutableRef,
+        encoding: ImmutableEncoding,
+    ) {
+        let byte_width = immutable_ref.type_size.bytes();
+        let destination = copy_base + immutable_ref.code_offset as u64 + 1;
+
+        self.asm.emit_push(U256::from(immutable_staging_addr(
+            self.immutable_staging_base,
+            immutable_ref.id,
+        )));
+        self.asm.emit_op(op::MLOAD);
+
+        if byte_width == 1 {
+            if matches!(encoding, ImmutableEncoding::LeftAligned(_)) {
+                self.asm.emit_push(U256::ZERO);
+                self.asm.emit_op(op::BYTE);
+            }
+            self.asm.emit_push(U256::from(destination));
+            self.asm.emit_op(op::MSTORE8);
+            return;
+        }
+
+        if byte_width < 32 {
+            let trailing_bits = usize::from(32 - byte_width) * 8;
+            match encoding {
+                ImmutableEncoding::LeftAligned(_) => {
+                    self.asm.emit_push(U256::MAX << trailing_bits);
+                    self.asm.emit_op(op::AND);
+                }
+                ImmutableEncoding::Unsigned(_) | ImmutableEncoding::Signed(_) => {
+                    self.asm.emit_push(U256::from(trailing_bits));
+                    self.asm.emit_op(op::SHL);
+                }
+            }
+
+            // Preserve the runtime bytes following the short placeholder. An
+            // unaligned MLOAD/MSTORE pair works even across word boundaries.
+            self.asm.emit_push(U256::from(destination));
+            self.asm.emit_op(op::MLOAD);
+            self.asm.emit_push(U256::MAX >> (usize::from(byte_width) * 8));
+            self.asm.emit_op(op::AND);
+            self.asm.emit_op(op::OR);
+        }
+
+        self.asm.emit_push(U256::from(destination));
+        self.asm.emit_op(op::MSTORE);
+    }
+
+    fn emit_load_immutable(&mut self, id: ImmutableId) {
+        if self.in_constructor {
+            // The running constructor's own placeholders are never patched.
+            self.asm.emit_push(U256::from(immutable_staging_addr(self.immutable_staging_base, id)));
+            self.asm.emit_op(op::MLOAD);
+            return;
+        }
+
+        let encoding = self.immutable_encodings[id];
+        let type_size = immutable_push_type_size(
+            encoding,
+            self.gcx.sess.opts.optimization,
+            self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
+        );
+        let byte_width = type_size.bytes();
+        self.asm.emit_push_immutable(id, type_size);
+        if byte_width == 32 {
+            return;
+        }
+        match encoding {
+            ImmutableEncoding::Unsigned(_) => {}
+            ImmutableEncoding::Signed(_) => {
+                self.asm.emit_push(U256::from(byte_width - 1));
+                self.asm.emit_op(op::SIGNEXTEND);
+            }
+            ImmutableEncoding::LeftAligned(_) => {
+                self.asm.emit_push(U256::from((32 - byte_width) * 8));
+                self.asm.emit_op(op::SHL);
+            }
+        }
     }
 
     /// Generates constructor code that runs during deployment.
@@ -970,7 +1135,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 } else {
                     Self::collect_cold_functions(module)
                 };
-            self.function_static_frame_sizes.clear();
             self.function_spill_sizes.clear();
             self.pending_frame_size_consts.clear();
             self.restorable_internal_frames = DenseBitSet::new_empty(module.functions.len());
@@ -986,7 +1150,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.stack_phi_sources.clear();
 
             for (func_id, func) in module.functions.iter_enumerated() {
-                self.function_static_frame_sizes.insert(func_id, func.internal_frame_size);
                 if !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference()) {
                     self.restorable_internal_frames.insert(func_id);
                 }
@@ -999,31 +1162,42 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.function_labels.insert(func_id, label);
             }
 
-            // Constructor spill slots are absolute addresses starting at
-            // 0x1000. Keep the historical 0x4000 heap start as a floor, but
-            // patch it upward after emission if the lazily allocated spill area
-            // needs more room.
-            let constructor_free_memory_start = self.asm.new_deferred_const();
+            // Constructor locals, immutable staging, and spills occupy fixed
+            // compiler-owned regions. The ABI blob starts after their exact
+            // post-emission end, and dynamic allocations start after the blob.
+            let constructor_fixed_memory_end = self.asm.new_deferred_const();
             let constructor_arg_offset =
                 (!ctor.params.is_empty()).then(|| self.asm.new_deferred_const());
-            self.asm.emit_push_deferred(constructor_free_memory_start);
-            self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-            self.asm.emit_op(op::MSTORE);
 
             // Set constructor context for LoadArg handling
             self.in_constructor = true;
             self.constructor_param_count = ctor.params.len() as u32;
 
-            // If constructor has parameters, copy the full ABI-encoded argument blob to memory.
-            // Constructor args are appended after generated deployment bytecode, so the copy size
-            // is `CODESIZE - constructor_arg_offset`.
+            // Constructor args are appended after generated deployment bytecode.
+            // Copy the complete blob above every fixed compiler-owned region,
+            // then place the free-memory pointer after its word-aligned end.
             if let Some(arg_offset) = constructor_arg_offset {
+                self.constructor_args_base_const = Some(constructor_fixed_memory_end);
                 self.asm.emit_push_deferred(arg_offset);
                 self.asm.emit_op(op::CODESIZE);
                 self.asm.emit_op(op::SUB); // size = CODESIZE - arg_offset
+                self.asm.emit_op(op::dup(1));
                 self.asm.emit_push_deferred(arg_offset); // code offset
-                self.asm.emit_push(U256::from(EvmMemoryLayout::HEAP_START)); // destOffset in memory
+                self.asm.emit_push_deferred(constructor_fixed_memory_end);
                 self.asm.emit_op(op::CODECOPY);
+
+                self.asm.emit_push_deferred(constructor_fixed_memory_end);
+                self.asm.emit_op(op::ADD);
+                self.asm.emit_push(U256::from(EvmMemoryLayout::WORD_SIZE - 1));
+                self.asm.emit_op(op::ADD);
+                self.asm.emit_push(U256::MAX - U256::from(EvmMemoryLayout::WORD_SIZE - 1));
+                self.asm.emit_op(op::AND);
+                self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
+                self.asm.emit_op(op::MSTORE);
+            } else {
+                self.asm.emit_push_deferred(constructor_fixed_memory_end);
+                self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
+                self.asm.emit_op(op::MSTORE);
             }
 
             if !internal_targets.is_empty() {
@@ -1055,14 +1229,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.generate_function_body(ctor_id, ctor);
             let constructor_spill_size = self.record_function_spill_size(ctor_id);
             self.asm.set_deferred_const(
-                constructor_free_memory_start,
-                U256::from(Self::constructor_free_memory_start(constructor_spill_size)),
+                constructor_fixed_memory_end,
+                U256::from(self.constructor_fixed_memory_end(
+                    module.immutable_count(),
+                    constructor_spill_size,
+                )),
             );
 
             self.resolve_pending_frame_size_consts(module);
 
             // Reset constructor context
             self.in_constructor = false;
+            self.constructor_args_base_const = None;
             self.constructor_exit = None;
             self.constructor_param_count = 0;
 
@@ -1072,7 +1250,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             None
         };
 
-        self.emit_deployment_postlude(runtime_offset, runtime_len, copy_base, immutable_refs);
+        self.emit_deployment_postlude(
+            module,
+            runtime_offset,
+            runtime_len,
+            copy_base,
+            immutable_refs,
+        );
         PreparedDeploymentPrefix {
             assembly: self.asm.prepare(self.capture_evm_ir),
             constructor_arg_offset,
@@ -1115,7 +1299,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else {
             Self::collect_cold_functions(module)
         };
-        self.function_static_frame_sizes.clear();
         self.function_spill_sizes.clear();
         self.pending_frame_size_consts.clear();
         self.restorable_internal_frames = DenseBitSet::new_empty(module.functions.len());
@@ -1149,7 +1332,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let Some((entry_id, _)) = module
             .functions
             .iter_enumerated()
-            .find(|(_, f)| f.selector.is_none() && f.name.name == sym::entry)
+            .find(|(_, f)| f.selector.is_none() && f.name.symbol == sym::entry)
         else {
             assert!(
                 !module.functions.iter().any(Self::is_external_entry),
@@ -1166,7 +1349,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         );
 
         for (func_id, func) in module.functions.iter_enumerated() {
-            self.function_static_frame_sizes.insert(func_id, func.internal_frame_size);
             if !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference()) {
                 self.restorable_internal_frames.insert(func_id);
             }
@@ -1248,18 +1430,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         spill_size
     }
 
+    /// Returns the exact spill area recorded for `func_id` after emission.
+    fn function_spill_size(&self, func_id: FunctionId) -> u64 {
+        self.function_spill_sizes.get(&func_id).copied().unwrap_or_else(|| {
+            panic!("spill size for emitted function {func_id:?} was not recorded")
+        })
+    }
+
     /// Resolves all pending internal-call frame-size constants.
     ///
-    /// The normal runtime path records every emitted callee's exact spill size
-    /// first. The conservative fallback covers unusual paths where a body was
-    /// not emitted by this assembler.
+    /// Every pending constant belongs to a labeled callee. Runtime and
+    /// constructor emission record all labeled bodies before reaching this
+    /// resolution point.
     fn resolve_pending_frame_size_consts(&mut self, module: &Module) {
-        for (id, callee, static_size) in std::mem::take(&mut self.pending_frame_size_consts) {
-            let spill_size =
-                self.function_spill_sizes.get(&callee).copied().unwrap_or_else(|| {
-                    Self::conservative_spill_frame_size(&module.functions[callee])
-                });
-            self.asm.set_deferred_const(id, U256::from(static_size + spill_size));
+        for (id, callee) in std::mem::take(&mut self.pending_frame_size_consts) {
+            self.asm.set_deferred_const(id, U256::from(self.emitted_frame_size(module, callee)));
         }
     }
 
@@ -1284,6 +1469,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let liveness = &liveness;
 
         // Eliminate phis.
+        self.block_copies.clear();
         let phi_result = PhiEliminator::analyze(func);
         let has_phis = !phi_result.phis_to_remove.is_empty();
         for (block_id, copies) in phi_result.block_copies {
@@ -1474,16 +1660,31 @@ impl<'gcx> EvmCodegen<'gcx> {
             if let Some(term) = &block.terminator {
                 self.generate_terminator(func, term, fallthrough, preserve_stack);
             }
+            self.scheduler.spills.release_block_locals();
             if preserve_stack_to_fallthrough {
                 preserved_fallthrough = fallthrough;
             } else if let Some(target) = preserve_jump_target {
                 block_entry_stacks.insert(target, self.scheduler.stack.clone());
             }
             for target in preserve_branch_targets {
-                block_entry_stacks.insert(target, self.scheduler.stack.clone());
+                let mut entry_stack = self.scheduler.stack.clone();
+                // The branch has one physical exit stack, but a cold successor need not retain
+                // identities used only by its hot sibling. Keep hot layouts exact: anonymizing
+                // their dead slots can turn a loop-carried stack hit into a reload every iteration.
+                if self.block_is_cold(target) {
+                    let live_in = liveness.live_in(target);
+                    entry_stack.forget_values_not_matching(|value| live_in.contains(value));
+                }
+                block_entry_stacks.insert(target, entry_stack);
             }
         }
 
+        if let Some(value) = self.scheduler.spills.unstored_required() {
+            panic!(
+                "mandatory cross-block spill store for {value:?} was not emitted in `{}`",
+                func.name
+            );
+        }
         self.assign_ranked_spill_addrs(func_id);
     }
 
@@ -1796,13 +1997,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let target: Vec<_> = needed.iter().copied().map(TargetSlot::Value).collect();
-        let shuffle = self.scheduler.shuffle_to_layout(&target);
+        let Some(shuffle) = self.scheduler.shuffle_to_layout(&target) else { return false };
+        assert_eq!(self.scheduler.depth(), needed.len(), "global-stack edge depth mismatch");
+        assert!(
+            self.scheduler.stack.iter().eq(needed.iter().copied().map(Some)),
+            "global-stack edge layout mismatch"
+        );
         for op in shuffle.ops {
             self.asm.emit_op(op.opcode());
         }
 
-        self.scheduler.depth() == needed.len()
-            && self.scheduler.stack.iter().eq(needed.iter().copied().map(Some))
+        true
     }
 
     fn try_emit_stack_phi_edge(&mut self, func: &Function, edge: &StackPhiEdge) -> bool {
@@ -1823,19 +2028,22 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             self.emit_operand(func, source);
         }
-        if !self.stack_contains_only_phi_sources(&edge.sources) {
-            return false;
-        }
+        assert!(
+            self.stack_contains_only_phi_sources(&edge.sources),
+            "prepared stack-phi edge contains unexpected values"
+        );
 
         let target: Vec<_> = edge.sources.iter().copied().map(TargetSlot::Value).collect();
-        let shuffle = self.scheduler.shuffle_to_layout(&target);
+        let Some(shuffle) = self.scheduler.shuffle_to_layout(&target) else { return false };
+        assert_eq!(self.scheduler.depth(), edge.sources.len(), "stack-phi edge depth mismatch");
+        assert!(
+            self.scheduler.stack.iter().eq(edge.sources.iter().copied().map(Some)),
+            "stack-phi edge layout mismatch"
+        );
         for op in shuffle.ops {
             self.asm.emit_op(op.opcode());
         }
 
-        if self.scheduler.depth() != edge.sources.len() {
-            return false;
-        }
         self.set_stack_to_values(&edge.results);
         true
     }
@@ -1959,16 +2167,216 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// front lets the later load use a stable memory location; stores still happen only when the
     /// value is actually available on the stack.
     fn preallocate_cross_block_spills(&mut self, func: &Function, liveness: &Liveness) {
-        for val in &Self::cross_block_spill_values(func, liveness) {
-            self.scheduler.spills.allocate(val);
+        let values = Self::cross_block_spill_values(func, liveness);
+
+        // Coloring minimizes the local frame, which reduces memory expansion in gas mode. It is
+        // deliberately disabled in size mode because renumbering spill addresses disturbed
+        // downstream block sharing and regressed aggregate CI bytecode despite smaller frames.
+        if self.gcx.sess.opts.optimization.is_gas() {
+            let colorable = Self::cross_block_live_values(func, liveness);
+            let ranges = Self::spill_live_ranges(func, liveness, &colorable);
+
+            let mut colors = Vec::<SpillColor>::new();
+            for value in &colorable {
+                let value_ranges = &ranges[value];
+                let color = colors
+                    .iter()
+                    .position(|color| color.accepts(value_ranges))
+                    .unwrap_or_else(|| {
+                        colors.push(SpillColor::default());
+                        colors.len() - 1
+                    });
+                colors[color].insert(value_ranges);
+                self.scheduler.spills.reserve_at(value, color as u32);
+            }
+
+            for value in &values {
+                if !colorable.contains(value) {
+                    self.scheduler.spills.reserve(value);
+                }
+            }
+        } else {
+            for value in &values {
+                self.scheduler.spills.reserve(value);
+            }
         }
+
+        if values.iter().any(|value| Self::is_cross_block_recomputable_inst(func, value)) {
+            let recomputable = Self::cross_block_recomputable_values(func);
+            let reloaded = values
+                .iter()
+                .any(|value| {
+                    !recomputable.contains(value)
+                        && StackScheduler::is_cheap_recomputable_value(func, value)
+                })
+                .then(|| Self::cross_block_reload_values(func));
+            for val in &values {
+                if recomputable.contains(val) {
+                    self.scheduler.spills.mark_recomputable(val);
+                } else if reloaded.as_ref().is_some_and(|values| values.contains(val))
+                    && StackScheduler::is_cheap_recomputable_value(func, val)
+                {
+                    self.scheduler.spills.require_store(val);
+                }
+            }
+        }
+
+        // A free-memory-pointer load cannot be recomputed after the pointer moves. Reserve stable
+        // slots for cross-block values, including direct uses that liveness does not carry. Size
+        // mode keeps every FMP slot stable because block-local reuse can increase output size.
+        let fmp_values = Self::fmp_load_values(func);
+        if !fmp_values.is_empty() {
+            let reserve_all = matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size);
+            let reloaded = (!reserve_all).then(|| Self::cross_block_reload_values(func));
+            for val in fmp_values {
+                if reserve_all
+                    || values.contains(val)
+                    || reloaded.as_ref().is_some_and(|values| values.contains(val))
+                {
+                    self.scheduler.spills.reserve(val);
+                    self.scheduler.spills.mark_reloadable(val);
+                }
+            }
+        }
+    }
+
+    fn cross_block_live_values(func: &Function, liveness: &Liveness) -> DenseBitSet<ValueId> {
+        let mut values = DenseBitSet::new_empty(func.num_values());
+        for block in func.blocks.indices() {
+            for value in liveness.live_in(block).iter().chain(liveness.live_out(block).iter()) {
+                if matches!(func.value(value), crate::mir::Value::Inst(_)) {
+                    values.insert(value);
+                }
+            }
+        }
+        values
+    }
+
+    fn spill_live_ranges(
+        func: &Function,
+        liveness: &Liveness,
+        colorable: &DenseBitSet<ValueId>,
+    ) -> IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>> {
+        let mut ranges = index_vec![FxHashMap::default(); func.num_values()];
+        let mut operands = SmallVec::<[ValueId; 8]>::new();
+
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for value in liveness.live_in(block_id) {
+                Self::extend_spill_live_range(&mut ranges, colorable, value, block_id, 0);
+            }
+            for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
+                operands.clear();
+                func.inst(inst_id).kind.collect_operands(&mut operands);
+                for &value in &operands {
+                    Self::extend_spill_live_range(
+                        &mut ranges,
+                        colorable,
+                        value,
+                        block_id,
+                        inst_idx * 2,
+                    );
+                }
+                if let Some(value) = func.inst_result_value(inst_id) {
+                    Self::extend_spill_live_range(
+                        &mut ranges,
+                        colorable,
+                        value,
+                        block_id,
+                        inst_idx * 2 + 1,
+                    );
+                }
+            }
+            if let Some(terminator) = &block.terminator {
+                let point = block.instructions.len() * 2;
+                for value in terminator.operands() {
+                    Self::extend_spill_live_range(&mut ranges, colorable, value, block_id, point);
+                }
+            }
+            let point = block.instructions.len() * 2 + 1;
+            for value in liveness.live_out(block_id) {
+                Self::extend_spill_live_range(&mut ranges, colorable, value, block_id, point);
+            }
+        }
+        ranges
+    }
+
+    fn extend_spill_live_range(
+        ranges: &mut IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>>,
+        colorable: &DenseBitSet<ValueId>,
+        value: ValueId,
+        block: BlockId,
+        point: usize,
+    ) {
+        if !colorable.contains(value) {
+            return;
+        }
+        ranges[value]
+            .entry(block)
+            .and_modify(|range| {
+                range.start = range.start.min(point);
+                range.end = range.end.max(point);
+            })
+            .or_insert(SpillLiveRange { start: point, end: point });
+    }
+
+    /// Returns values directly consumed outside their defining block. Phi inputs are edge uses:
+    /// codegen consumes them in the predecessor or carries them on the edge, so they do not need a
+    /// reload route under the source value's identity.
+    fn cross_block_reload_values(func: &Function) -> DenseBitSet<ValueId> {
+        let mut definitions =
+            IndexVec::<ValueId, Option<BlockId>>::from_vec(vec![None; func.num_values()]);
+        for block_id in func.blocks.indices() {
+            for &inst_id in &func.blocks[block_id].instructions {
+                if let Some(result) = func.inst_result_value(inst_id) {
+                    definitions[result] = Some(block_id);
+                }
+            }
+        }
+
+        let mut reloaded = DenseBitSet::new_empty(func.num_values());
+        for block_id in func.blocks.indices() {
+            for &inst_id in &func.blocks[block_id].instructions {
+                if matches!(func.inst(inst_id).kind, InstKind::Phi(_)) {
+                    continue;
+                }
+                for operand in func.inst(inst_id).kind.operands() {
+                    if definitions[operand].is_some_and(|definition| definition != block_id) {
+                        reloaded.insert(operand);
+                    }
+                }
+            }
+            if let Some(terminator) = &func.blocks[block_id].terminator {
+                for operand in terminator.operands() {
+                    if definitions[operand].is_some_and(|definition| definition != block_id) {
+                        reloaded.insert(operand);
+                    }
+                }
+            }
+        }
+        reloaded
+    }
+
+    /// Every live free-memory-pointer load result in the function.
+    fn fmp_load_values(func: &Function) -> Vec<ValueId> {
+        let mut values = Vec::new();
+        for inst_id in func.instructions() {
+            if matches!(
+                func.inst(inst_id).kind,
+                InstKind::MLoad(addr)
+                    if func.value_u64(addr) == Some(EvmMemoryLayout::FMP_SLOT)
+            ) && let Some(val) = func.inst_result_value(inst_id)
+            {
+                values.push(val);
+            }
+        }
+        values
     }
 
     fn cross_block_spill_values(func: &Function, liveness: &Liveness) -> DenseBitSet<ValueId> {
         let mut values = DenseBitSet::new_empty(func.num_values());
         for block_id in func.blocks.indices() {
             for val in liveness.live_in(block_id).iter().chain(liveness.live_out(block_id).iter()) {
-                if matches!(func.value(val), crate::mir::Value::Inst(_)) {
+                if Self::can_own_spill_slot(func, val) {
                     values.insert(val);
                 }
             }
@@ -1980,37 +2388,69 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
-        // A cheap-recomputable value that is live-out is re-executed in the
-        // successor block instead of spilled. That recomputation needs its
-        // non-rematerializable operand leaves, which may be live only within the
-        // defining block; spill those leaves too, or the recomputation reads a
-        // value that is neither on the stack nor stored.
-        let seeds: Vec<ValueId> = values.iter().collect();
-        for val in seeds {
-            if Self::is_cheap_recomputable_value(func, val) {
-                Self::collect_recompute_leaves(func, val, &mut values);
-            }
-        }
         values
     }
 
-    /// Adds the non-rematerializable values that recomputing `val` depends on:
-    /// operands are followed through further cheap-recomputable values, and
-    /// every other non-rematerializable operand is a leaf that must be spilled.
-    fn collect_recompute_leaves(func: &Function, val: ValueId, out: &mut DenseBitSet<ValueId>) {
-        let crate::mir::Value::Inst(inst_id) = func.value(val) else {
-            return;
-        };
-        for op in func.inst(*inst_id).kind.operands() {
-            if Self::is_rematerializable_value(func, op) {
-                continue;
-            }
-            if Self::is_cheap_recomputable_value(func, op) {
-                Self::collect_recompute_leaves(func, op, out);
-            } else {
-                out.insert(op);
+    /// Returns cheap values whose complete dependency tree can be rematerialized without reading
+    /// mutable machine state. A reverse-use worklist handles long expression chains linearly.
+    fn cross_block_recomputable_values(func: &Function) -> DenseBitSet<ValueId> {
+        let mut users =
+            IndexVec::<ValueId, SmallVec<[ValueId; 2]>>::with_capacity(func.num_values());
+        let mut remaining = IndexVec::<ValueId, usize>::with_capacity(func.num_values());
+        for _ in 0..func.num_values() {
+            users.push(SmallVec::new());
+            remaining.push(usize::MAX);
+        }
+
+        let mut recomputable = DenseBitSet::new_empty(func.num_values());
+        let mut worklist = Vec::new();
+        for value in func.live_values() {
+            if Self::is_rematerializable_value(func, value) && recomputable.insert(value) {
+                worklist.push(value);
             }
         }
+        for inst_id in func.instructions() {
+            let Some(result) = func.inst_result_value(inst_id) else { continue };
+            if !Self::is_cross_block_recomputable_inst(func, result) {
+                continue;
+            }
+            let operands = func.inst(inst_id).kind.operands();
+            remaining[result] = operands.len();
+            if operands.is_empty() && recomputable.insert(result) {
+                worklist.push(result);
+            }
+            for operand in operands {
+                users[operand].push(result);
+            }
+        }
+
+        while let Some(value) = worklist.pop() {
+            for &user in &users[value] {
+                remaining[user] -= 1;
+                if remaining[user] == 0 && recomputable.insert(user) {
+                    worklist.push(user);
+                }
+            }
+        }
+        recomputable
+    }
+
+    fn is_cross_block_recomputable_inst(func: &Function, value: ValueId) -> bool {
+        if StackScheduler::is_cheap_recomputable_value(func, value) {
+            return true;
+        }
+        let crate::mir::Value::Inst(inst_id) = func.value(value) else { return false };
+        matches!(
+            func.inst(*inst_id).kind,
+            InstKind::CallValue
+                | InstKind::Caller
+                | InstKind::Origin
+                | InstKind::CalldataSize
+                | InstKind::CalldataLoad(_)
+                | InstKind::InternalFrameAddr(_)
+                | InstKind::Timestamp
+                | InstKind::BlockNumber
+        )
     }
 
     /// Spills all live-out values that are currently on the stack to memory.
@@ -2123,13 +2563,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Spills a single value to memory if it's on the stack and not already stored.
-    /// Skips immediates and args since they can be re-emitted without spilling.
+    /// Spills an instruction result if it is on the stack and not already stored.
     fn spill_value_if_needed(&mut self, func: &Function, val: ValueId) {
-        // Skip immediates and args - they can be re-emitted without spilling
-        match func.value(val) {
-            crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_) => return,
-            _ => {}
+        if !Self::can_own_spill_slot(func, val) {
+            return;
         }
 
         if self.scheduler.spills.is_stored(val) {
@@ -2221,7 +2658,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 panic!("cannot spill deep stack value {val:?}: untracked stack entry above it");
             };
             let top_slot = self.scheduler.spills.allocate(top);
-            if self.scheduler.spills.is_reloadable(top) {
+            if self.scheduler.reloadable_spill(top).is_some() {
                 self.emit_stack_op(StackOp::Pop);
             } else {
                 self.store_stack_top_to_spill(func, top, top_slot);
@@ -2286,22 +2723,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_))
     }
 
-    fn is_cheap_recomputable_value(func: &Function, value: ValueId) -> bool {
-        let crate::mir::Value::Inst(inst_id) = func.value(value) else {
-            return false;
-        };
-        matches!(
-            func.inst(*inst_id).kind,
-            InstKind::Add(_, _)
-                | InstKind::Sub(_, _)
-                | InstKind::Mul(_, _)
-                | InstKind::And(_, _)
-                | InstKind::Or(_, _)
-                | InstKind::Xor(_, _)
-                | InstKind::Shl(_, _)
-                | InstKind::Shr(_, _)
-                | InstKind::Sar(_, _)
-        )
+    fn can_own_spill_slot(func: &Function, value: ValueId) -> bool {
+        matches!(func.value(value), crate::mir::Value::Inst(_))
     }
 
     /// Returns true when `value` needs no spill before the instruction that
@@ -2343,6 +2766,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         debug_assert_eq!(self.scheduler.stack.top(), Some(value));
         if !self.spill_value_to_reserved_slot(func, value) {
             self.spill_value_if_needed(func, value);
+        }
+        if has_reserved_cross_block_slot {
+            assert!(
+                self.scheduler.reloadable_spill(value).is_some(),
+                "reserved operand {value:?} was not stored before consumption in `{}`",
+                func.name
+            );
         }
     }
 
@@ -2833,17 +3263,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::CODESIZE);
                 self.scheduler.instruction_executed(0, result_value);
             }
-            InstKind::LoadImmutable(offset) => {
-                if self.in_constructor {
-                    // The running constructor's own placeholders are never
-                    // patched; read the staged scratch word instead.
-                    self.asm.emit_push(U256::from(
-                        EvmMemoryLayout::IMMUTABLE_SCRATCH_BASE + u64::from(*offset),
-                    ));
-                    self.asm.emit_op(op::MLOAD);
-                } else {
-                    self.asm.emit_push_immutable(*offset);
-                }
+            InstKind::StoreImmutable(..) => {
+                unreachable!("immutable stores must be lowered before EVM codegen")
+            }
+            InstKind::LoadImmutable(id) => {
+                self.emit_load_immutable(*id);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::ReturnDataSize => {
@@ -2852,18 +3276,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             // Ternary operations
-            InstKind::AddMod(a, b, n) => self.emit_ternary_op(
+            InstKind::AddMod(a, b, n) => self.emit_nary_op(
                 func,
-                [*n, *b, *a],
+                &[*n, *b, *a],
                 op::ADDMOD,
                 result_value,
                 liveness,
                 block,
                 inst_idx,
             ),
-            InstKind::MulMod(a, b, n) => self.emit_ternary_op(
+            InstKind::MulMod(a, b, n) => self.emit_nary_op(
                 func,
-                [*n, *b, *a],
+                &[*n, *b, *a],
                 op::MULMOD,
                 result_value,
                 liveness,
@@ -2879,9 +3303,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // Stack notation: rightmost = top (depth 0).
                 // Stack after emit_value calls: [f, t, cond] with cond on top.
 
-                self.emit_value(func, *false_val); // Stack: [f]
-                self.emit_operand(func, *true_val); // Stack: [f, t]
-                self.emit_operand(func, *cond); // Stack: [f, t, cond]
+                if let Some(plan) = self.plan_operands(
+                    func,
+                    &[*false_val, *true_val, *cond],
+                    liveness,
+                    block,
+                    inst_idx,
+                ) {
+                    self.emit_operand_plan(func, plan);
+                } else {
+                    self.emit_value(func, *false_val); // Stack: [f]
+                    self.emit_operand(func, *true_val); // Stack: [f, t]
+                    self.emit_operand(func, *cond); // Stack: [f, t, cond]
+                }
 
                 // Now compute: f + cond * (t - f)
                 // Stack is [f, t, cond] with cond on top (depth 0), t at depth 1, f at depth 2
@@ -2927,26 +3361,24 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::Phi(_) => {}
 
             // Contract creation
-            InstKind::Create(value, offset, size) => {
-                self.emit_value(func, *size);
-                self.emit_operand(func, *offset);
-                self.emit_operand(func, *value);
-                self.asm.emit_op(op::CREATE);
-                // CREATE consumes 3 values and produces 1 (new contract address)
-                self.scheduler.instruction_executed(3, result_value);
-            }
-
-            InstKind::Create2(value, offset, size, salt) => {
-                // CREATE2 expects stack (top to bottom): salt, size, offset, value
-                // So we push in reverse order: value first (goes deepest), then offset, size, salt
-                self.emit_value(func, *value);
-                self.emit_operand(func, *offset);
-                self.emit_operand(func, *size);
-                self.emit_operand(func, *salt);
-                self.asm.emit_op(op::CREATE2);
-                // CREATE2 consumes 4 values and produces 1 (new contract address)
-                self.scheduler.instruction_executed(4, result_value);
-            }
+            InstKind::Create(value, offset, size) => self.emit_nary_op(
+                func,
+                &[*size, *offset, *value],
+                op::CREATE,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::Create2(value, offset, size, salt) => self.emit_nary_op(
+                func,
+                &[*salt, *size, *offset, *value],
+                op::CREATE2,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
 
             // External calls
             //
@@ -3055,6 +3487,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if let Some(result) = result_value {
                     self.scheduler.stack.push(result);
                 }
+            }
+            InstKind::ConstructorArgsBase => {
+                self.emit_constructor_args_base();
+                self.scheduler.instruction_executed(0, result_value);
             }
 
             // Log operations
@@ -3190,6 +3626,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 unreachable!("memory-object instructions must be lowered before EVM codegen")
             }
 
+            InstKind::MemoryZero(_, _) => {
+                unreachable!("memory-zero instructions must be lowered before EVM codegen")
+            }
+
             InstKind::AbiEncode { .. } => {
                 unreachable!("ABI encoding must be lowered before EVM codegen")
             }
@@ -3202,8 +3642,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         if let Some(result) = result_value
-            && liveness.live_out(block).contains(result)
-            && !self.is_stack_phi_source(block, result)
+            && ((liveness.live_out(block).contains(result)
+                && !self.is_stack_phi_source(block, result))
+                || (self.scheduler.spills.requires_store(result)
+                    && !self.scheduler.spills.is_stored(result)))
         {
             self.spill_value_if_needed(func, result);
         }
@@ -3287,6 +3729,23 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    fn emit_constructor_args_base(&mut self) {
+        let id = self
+            .constructor_args_base_const
+            .expect("constructor argument base used outside constructor codegen");
+        self.asm.emit_push_deferred(id);
+    }
+
+    fn emit_constructor_arg_load(&mut self, index: ArgIdx) {
+        self.emit_constructor_args_base();
+        let offset = index.index() as u64 * EvmMemoryLayout::WORD_SIZE;
+        if offset != 0 {
+            self.asm.emit_push(U256::from(offset));
+            self.asm.emit_op(op::ADD);
+        }
+        self.asm.emit_op(op::MLOAD);
+    }
+
     /// Address of `offset` within the current function's own frame: a single
     /// absolute push for static-frame functions, the frame-pointer indirection
     /// otherwise.
@@ -3305,15 +3764,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_current_internal_frame_addr(offset);
     }
 
-    /// Interns the deferred constant for absolute address `base(func_id) +
-    /// offset`. The value is set by [`Self::resolve_static_frames`] once every
-    /// body has emitted and exact spill sizes are known; the assembler then
-    /// encodes it as a minimal-width push.
     /// Computes which arguments of each static-frame callee pass on the
-    /// stack. A site can always deliver a stack argument: raw re-emission
-    /// after the drain for immediates and position-independently reloadable
-    /// caller arguments, or a spill-slot reload for computed values. The
-    /// per-argument choice is scored across all sites — raw and
+    /// stack. A site can deliver a stack argument through raw re-emission after
+    /// the drain for immediates and position-independently reloadable caller
+    /// arguments, or through a freshness-validated spill reload for computed
+    /// values. The per-argument choice is scored across all sites — raw and
     /// already-stored (cross-block) values save the four-byte frame store,
     /// while a fresh block-local value must first pay its own spill — and an
     /// argument passes on the stack when the sites' savings outweigh the
@@ -3450,7 +3905,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Emits a mask-qualified argument without touching the scheduler model:
     /// the value lands on the physical stack for the callee prologue, below
     /// everything the caller's model describes.
-    fn emit_raw_stack_arg(&mut self, func: &Function, val: ValueId) {
+    fn emit_raw_stack_arg(&mut self, func: &Function, val: ValueId, spill_slot: Option<SpillSlot>) {
         match func.value(val) {
             crate::mir::Value::Immediate(imm) => {
                 self.asm.emit_push(imm.as_u256().expect("mask requires a word immediate"));
@@ -3473,11 +3928,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             crate::mir::Value::Inst(_) => {
-                let slot = self
-                    .scheduler
-                    .spills
-                    .get(val)
-                    .expect("computed stack argument has a spill slot");
+                let slot = spill_slot.expect("computed stack argument has a validated spill slot");
                 self.emit_spill_slot_addr(func, slot);
                 self.asm.emit_op(op::MLOAD);
             }
@@ -3654,18 +4105,13 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Total frame size of `func_id`: the fixed prefix plus the exact spill
-    /// area recorded after its body emitted (conservative when unavailable).
+    /// area recorded after its body emitted.
     fn emitted_frame_size(&self, module: &Module, func_id: FunctionId) -> u64 {
         let func = &module.functions[func_id];
-        let spill = self
-            .function_spill_sizes
-            .get(&func_id)
-            .copied()
-            .unwrap_or_else(|| Self::conservative_spill_frame_size(func));
         EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
             + ((func.params.len() + func.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE
             + func.internal_frame_size
-            + spill
+            + self.function_spill_size(func_id)
     }
 
     /// Places every referenced static frame and resolves the address and
@@ -3695,23 +4141,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut entry_ends: FxHashMap<FunctionId, u64> = runtime_entries
             .iter()
             .copied()
-            .map(|func_id| {
-                let func = &module.functions[func_id];
-                let spill = self
-                    .function_spill_sizes
-                    .get(&func_id)
-                    .copied()
-                    .unwrap_or_else(|| Self::conservative_spill_frame_size(func));
-                (func_id, entry_bases[&func_id] + spill)
-            })
+            .map(|func_id| (func_id, entry_bases[&func_id] + self.function_spill_size(func_id)))
             .collect();
 
         // Longest live-chain depth below each function, over all call edges.
         // Only emitted callers count: an unemitted function (an internal
-        // `.body` clone nobody calls, unreachable dead code) stacks no
-        // real frame below its callees, and its conservative spill estimate
-        // would inflate every callee's depth — and with it the free-memory
-        // start and the width of every frame push in the runtime.
+        // `.body` clone nobody calls, unreachable dead code) stacks no real
+        // frame below its callees.
         let mut edges = Vec::new();
         for (func_id, func) in module.functions.iter_enumerated() {
             if !self.function_labels.contains_key(&func_id) {
@@ -3872,13 +4308,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    fn conservative_spill_frame_size(func: &Function) -> u64 {
-        // The scheduler may allocate spill slots lazily while exposing deep stack values, not only
-        // for values preallocated as cross-block live-ins/live-outs. Use this only when a body's
-        // exact post-emission spill size is unavailable.
-        func.num_values() as u64 * 32
-    }
-
     fn external_spill_base(func: &Function) -> u64 {
         let low_memory_start = if Self::uses_internal_frame_slot(func) {
             EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE
@@ -3888,8 +4317,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         low_memory_start + func.internal_frame_size.max(func.external_static_return_size)
     }
 
-    fn constructor_free_memory_start(spill_size: u64) -> u64 {
-        EvmMemoryLayout::CONSTRUCTOR_HEAP_FLOOR.max(EvmMemoryLayout::SPILL_BASE + spill_size)
+    fn constructor_spill_base(&self, immutable_count: usize) -> u64 {
+        immutable_staging_end(self.immutable_staging_base, immutable_count)
+    }
+
+    fn constructor_fixed_memory_end(&self, immutable_count: usize, spill_size: u64) -> u64 {
+        self.constructor_spill_base(immutable_count)
+            .checked_add(spill_size)
+            .expect("constructor spill area overflow")
     }
 
     fn uses_internal_frame_slot(func: &Function) -> bool {
@@ -3914,7 +4349,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 spill_base + func.internal_frame_size + u64::from(slot.offset) * 32,
             );
         } else if self.in_constructor {
-            self.asm.emit_push(U256::from(slot.byte_offset()));
+            let spill_addr = self.constructor_spill_base(self.immutable_encodings.len())
+                + u64::from(slot.offset) * EvmMemoryLayout::WORD_SIZE;
+            self.asm.emit_push(U256::from(spill_addr));
         } else {
             // Route the address through a deferred constant and count the
             // reference; `assign_ranked_spill_addrs` renumbers the body's
@@ -3956,6 +4393,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_op(op::MLOAD);
     }
 
+    /// Returns the first internal-call result only when it is consumed. The call itself remains
+    /// effectful, and additional returns are staged separately in the multi-return buffer.
+    fn live_internal_call_result(
+        result: Option<ValueId>,
+        returns: usize,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) -> Option<ValueId> {
+        result.filter(|&result| returns > 0 && !liveness.is_dead_after(result, block, inst_idx))
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn emit_internal_call(
         &mut self,
@@ -3992,17 +4441,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        let static_local_frame_size =
-            self.function_static_frame_sizes.get(&callee).copied().unwrap_or_default();
         // Frame layout: [reserved][saved frame ptr][args][returns][locals][spills].
         // The first slot is reserved (the return address used to live there;
         // it now travels on the EVM stack) so downstream offsets stay stable.
         // The spill suffix is only known after the callee body has emitted.
-        let static_frame_size = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-            + ((args.len() + returns) as u64) * EvmMemoryLayout::WORD_SIZE
-            + static_local_frame_size;
         let frame_size = self.asm.new_deferred_const();
-        self.pending_frame_size_consts.push((frame_size, callee, static_frame_size));
+        self.pending_frame_size_consts.push((frame_size, callee));
 
         // Spill values that are live after this call BEFORE consuming the
         // arguments. An argument that is also used later (e.g. a flag passed to
@@ -4051,8 +4495,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.define_label(return_label);
         self.scheduler.clear_stack();
 
-        if let Some(result) = result
-            && returns > 0
+        if let Some(result) =
+            Self::live_internal_call_result(result, returns, liveness, block, inst_idx)
         {
             self.emit_current_internal_frame_addr(
                 EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
@@ -4160,20 +4604,30 @@ impl<'gcx> EvmCodegen<'gcx> {
             stack_mask.as_ref().and_then(|mask| self.plan_retained_stack_args(func, args, mask));
 
         // A computed argument not retained physically survives the drain in
-        // its spill slot and is reloaded raw after it; make sure the slot is
-        // reloadable on this path or write it while the value is still reachable.
+        // its spill slot and is reloaded raw after it. Validate and retain the
+        // exact slot before clearing the stack; failure is an invariant error
+        // in every build instead of an unchecked MLOAD in release builds.
+        let mut raw_spill_slots = vec![None; args.len()];
         if let Some(mask) = &stack_mask {
             for (i, &arg) in args.iter().enumerate() {
                 if mask.contains(i)
                     && !retention_plan.as_ref().is_some_and(|plan| plan.retained.contains(i))
                     && matches!(func.value(arg), crate::mir::Value::Inst(_))
-                    && !self.scheduler.spills.is_reloadable(arg)
                 {
-                    self.spill_value_if_needed(func, arg);
-                    debug_assert!(
-                        self.scheduler.spills.is_reloadable(arg),
-                        "stack argument neither on the stack nor reloadable"
-                    );
+                    let slot = if let Some(slot) = self.scheduler.reloadable_spill(arg) {
+                        slot
+                    } else {
+                        self.emit_value(func, arg);
+                        self.spill_value_if_needed(func, arg);
+                        self.scheduler.reloadable_spill(arg).unwrap_or_else(|| {
+                            panic!(
+                                "computed stack argument {arg:?} is neither resident nor \
+                                 runtime-reloadable in `{}`",
+                                func.name
+                            )
+                        })
+                    };
+                    raw_spill_slots[i] = Some(slot);
                 }
             }
         }
@@ -4197,7 +4651,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if mask.contains(i)
                     && !retention_plan.as_ref().is_some_and(|plan| plan.retained.contains(i))
                 {
-                    self.emit_raw_stack_arg(func, arg);
+                    self.emit_raw_stack_arg(func, arg, raw_spill_slots[i]);
                 }
             }
         }
@@ -4213,8 +4667,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.define_label(return_label);
         self.scheduler.clear_stack();
 
-        if let Some(result) = result
-            && returns > 0
+        if let Some(result) =
+            Self::live_internal_call_result(result, returns, liveness, block, inst_idx)
         {
             let addr = self.static_frame_addr(
                 callee,
@@ -4276,34 +4730,64 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_value_impl(func, val, false);
     }
 
-    fn emit_value_impl(&mut self, func: &Function, val: ValueId, claim_top: bool) {
-        if let Some(depth) = self.scheduler.stack.find(val)
-            && depth >= MAX_STACK_ACCESS
-            && !self.scheduler.spills.is_reloadable(val)
-            && !matches!(
-                func.value(val),
-                crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_)
-            )
+    /// Returns materialization costs for the active argument and spill addressing convention.
+    fn operand_cost_model(&self) -> OperandCostModel {
+        if self.in_internal_function
+            && self
+                .current_internal_function
+                .is_none_or(|func_id| !self.static_frame_functions.contains(func_id))
         {
-            let slot = self.scheduler.spills.allocate(val);
-            self.spill_deep_stack_value(func, val, slot, depth);
-        }
-
-        if self.scheduler.stack.find(val).is_none()
-            && self.scheduler.spills.get(val).is_some()
-            && !self.scheduler.spills.is_stored(val)
-            && Self::is_cheap_recomputable_value(func, val)
-        {
-            self.emit_value_fresh(func, val);
-            return;
-        }
-
-        let ops = if claim_top {
-            self.scheduler.ensure_on_top(val, func)
+            OperandCostModel::DYNAMIC_FRAME
         } else {
-            self.scheduler.ensure_operand_on_top(val, func)
+            OperandCostModel::DIRECT
         }
-        .to_vec();
+    }
+
+    /// Plans operand preparation for operations whose inputs remain valid while
+    /// they are rearranged. Memory-mutating stores/copies and calls keep their
+    /// freshness-aware emitters until the stack model represents value epochs.
+    fn plan_operands(
+        &self,
+        func: &Function,
+        operands: &[ValueId],
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) -> Option<OperandPlan> {
+        let mut preserved = SmallVec::<[ValueId; 8]>::new();
+        for &value in operands {
+            let alias_is_live = self
+                .global_stack_aliases
+                .get(&value)
+                .is_some_and(|&alias| !liveness.is_dead_after(alias, block, inst_idx));
+            let carried_arg_is_live = self.global_stack_active
+                && matches!(func.value(value), crate::mir::Value::Arg(_))
+                && !liveness.is_dead_after(value, block, inst_idx);
+            if !preserved.contains(&value)
+                && (!liveness.is_dead_after(value, block, inst_idx) || alias_is_live)
+                && (!Self::is_rematerializable_value(func, value) || carried_arg_is_live)
+                && (self.scheduler.reloadable_spill(value).is_none()
+                    || self.scheduler.stack.contains(value))
+            {
+                preserved.push(value);
+            }
+        }
+        self.scheduler.plan_operands(
+            operands,
+            &preserved,
+            func,
+            self.gcx.sess.opts.optimization,
+            self.gcx.sess.opts.evm_version,
+            self.operand_cost_model(),
+        )
+    }
+
+    fn emit_operand_plan(&mut self, func: &Function, plan: OperandPlan) {
+        let ops = self.scheduler.apply_operand_plan(plan);
+        self.emit_scheduled_ops(func, ops);
+    }
+
+    fn emit_scheduled_ops(&mut self, func: &Function, ops: Vec<ScheduledOp>) {
         for op in ops {
             match op {
                 ScheduledOp::Stack(stack_op) => {
@@ -4321,12 +4805,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if self.in_internal_function {
                         self.emit_internal_arg_load(index);
                     } else if self.in_constructor {
-                        // Constructor args were copied to memory at 0x80
-                        // Load from memory: 0x80 + index * 32
-                        let offset = EvmMemoryLayout::HEAP_START
-                            + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE;
-                        self.asm.emit_push(U256::from(offset));
-                        self.asm.emit_op(op::MLOAD);
+                        self.emit_constructor_arg_load(index);
                     } else {
                         // Runtime function: load from calldata
                         // ABI encoding: selector (4 bytes) + args (32 bytes each)
@@ -4338,6 +4817,35 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
+    }
+
+    fn emit_value_impl(&mut self, func: &Function, val: ValueId, claim_top: bool) {
+        if let Some(depth) = self.scheduler.stack.find(val)
+            && depth >= MAX_STACK_ACCESS
+            && self.scheduler.reloadable_spill(val).is_none()
+            && !matches!(
+                func.value(val),
+                crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_)
+            )
+        {
+            let slot = self.scheduler.spills.allocate(val);
+            self.spill_deep_stack_value(func, val, slot, depth);
+        }
+
+        if self.scheduler.stack.find(val).is_none()
+            && self.scheduler.should_recompute_unstored_spill(val)
+        {
+            self.emit_value_fresh(func, val);
+            return;
+        }
+
+        let ops = if claim_top {
+            self.scheduler.ensure_on_top(val, func)
+        } else {
+            self.scheduler.ensure_operand_on_top(val, func)
+        }
+        .to_vec();
+        self.emit_scheduled_ops(func, ops);
     }
 
     /// Emits a value fresh, without trying to DUP from the stack.
@@ -4355,10 +4863,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if self.in_internal_function {
                     self.emit_internal_arg_load(*index);
                 } else if self.in_constructor {
-                    let offset = EvmMemoryLayout::HEAP_START
-                        + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE;
-                    self.asm.emit_push(U256::from(offset));
-                    self.asm.emit_op(op::MLOAD);
+                    self.emit_constructor_arg_load(*index);
                 } else {
                     let offset = 4 + (index.index() as u64) * 32;
                     self.asm.emit_push(U256::from(offset));
@@ -4399,18 +4904,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                             self.asm.emit_op(op::GAS);
                             self.scheduler.stack.push(val);
                         }
-                        crate::mir::InstKind::LoadImmutable(offset) => {
-                            // Same emission as the scheduled path: a patched
-                            // placeholder at runtime, the staged scratch word
-                            // inside the running constructor.
-                            if self.in_constructor {
-                                self.asm.emit_push(U256::from(
-                                    EvmMemoryLayout::IMMUTABLE_SCRATCH_BASE + u64::from(*offset),
-                                ));
-                                self.asm.emit_op(op::MLOAD);
-                            } else {
-                                self.asm.emit_push_immutable(*offset);
-                            }
+                        crate::mir::InstKind::LoadImmutable(id) if !self.in_constructor => {
+                            self.emit_load_immutable(*id);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::CallValue => {
@@ -4433,6 +4928,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                             self.emit_own_frame_addr(*offset);
                             self.scheduler.stack.push(val);
                         }
+                        crate::mir::InstKind::ConstructorArgsBase => {
+                            self.emit_constructor_args_base();
+                            self.scheduler.stack.push(val);
+                        }
                         crate::mir::InstKind::Timestamp => {
                             self.asm.emit_op(op::TIMESTAMP);
                             self.scheduler.stack.push(val);
@@ -4449,9 +4948,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             // belongs to a defining block emitted after this point
                             // that still executes first at runtime.
                             if func.value_u64(*offset) == Some(EvmMemoryLayout::FMP_SLOT) {
-                                if let Some(slot) = self.scheduler.spills.get(val)
-                                    && self.scheduler.spills.is_reloadable(val)
-                                {
+                                if let Some(slot) = self.scheduler.reloadable_spill(val) {
                                     self.emit_spill_slot_addr(func, slot);
                                     self.asm.emit_op(op::MLOAD);
                                     self.scheduler.stack.push(val);
@@ -4571,9 +5068,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                                     self.asm.emit_op(op::MLOAD);
                                     self.scheduler.stack.push(val);
                                 }
-                            } else if let Some(slot) = self.scheduler.spills.get(val) {
-                                // Tracked in a spill slot even though not flagged
-                                // stored; reloading its address is still correct.
+                            } else if let Some(slot) = self.scheduler.reloadable_spill(val) {
+                                // A defining block emitted later still stores
+                                // this slot before the load executes at runtime.
                                 self.emit_spill_slot_addr(func, slot);
                                 self.asm.emit_op(op::MLOAD);
                                 self.scheduler.stack.push(val);
@@ -4626,6 +5123,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.stack.push(result);
     }
 
+    fn swapped_binary_opcode(opcode: u8) -> Option<u8> {
+        Some(match opcode {
+            op::ADD | op::MUL | op::AND | op::OR | op::XOR | op::EQ => opcode,
+            op::LT => op::GT,
+            op::GT => op::LT,
+            op::SLT => op::SGT,
+            op::SGT => op::SLT,
+            _ => return None,
+        })
+    }
+
     /// Emits a binary operation with result tracking and liveness awareness.
     /// If an operand is still live after this instruction, we DUP it before it gets consumed.
     #[allow(clippy::too_many_arguments)]
@@ -4640,7 +5148,26 @@ impl<'gcx> EvmCodegen<'gcx> {
         block: BlockId,
         inst_idx: usize,
     ) {
-        // Check if operands are still live after this instruction
+        let mut selected =
+            self.plan_operands(func, &[b, a], liveness, block, inst_idx).map(|plan| (opcode, plan));
+        if a != b
+            && selected.as_ref().is_none_or(|(_, plan)| !plan.is_free())
+            && let Some(swapped_opcode) = Self::swapped_binary_opcode(opcode)
+            && let Some(swapped) = self.plan_operands(func, &[a, b], liveness, block, inst_idx)
+            && selected.as_ref().is_none_or(|(_, current)| {
+                swapped.cost().cmp_for(current.cost(), self.gcx.sess.opts.optimization).is_lt()
+            })
+        {
+            selected = Some((swapped_opcode, swapped));
+        }
+        if let Some((opcode, plan)) = selected {
+            self.emit_operand_plan(func, plan);
+            self.asm.emit_op(opcode);
+            self.scheduler.instruction_executed(2, result);
+            return;
+        }
+
+        // Check if operands are still live after this instruction.
         let a_is_live = !liveness.is_dead_after(a, block, inst_idx);
 
         // Special case: same operand used twice (e.g., a + a, a - a)
@@ -4724,7 +5251,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else if a_can_emit && !b_can_emit && has_untracked {
             // b is an untracked value on top of stack, emit a on top
             self.emit_value(func, a);
-            // Spill a if live-after (it's now at depth 0)
+            // Spill a if live-after (it's now at depth 0).
             if a_is_live
                 && !Self::is_rematerializable_value(func, a)
                 && !self.block_local_copy_survives(liveness, block, a, 1)
@@ -4743,7 +5270,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.spill_top_value_if_live(func, liveness, block, inst_idx, b);
             }
             self.emit_value(func, a);
-            // Spill a if live-after (it's now at depth 0)
+            // Spill a if live-after (it's now at depth 0).
             if a_is_live
                 && !Self::is_rematerializable_value(func, a)
                 && !self.block_local_copy_survives(liveness, block, a, 1)
@@ -4769,6 +5296,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         block: BlockId,
         inst_idx: usize,
     ) {
+        if let Some(plan) = self.plan_operands(func, &[a], liveness, block, inst_idx) {
+            self.emit_operand_plan(func, plan);
+            self.asm.emit_op(opcode);
+            self.scheduler.instruction_executed(1, result);
+            return;
+        }
+
         self.emit_value(func, a);
         if !self.block_local_copy_survives(liveness, block, a, 1) {
             self.spill_top_value_if_live(func, liveness, block, inst_idx, a);
@@ -4794,6 +5328,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         block: BlockId,
         inst_idx: usize,
     ) {
+        if let Some(plan) = self.plan_operands(func, operands, liveness, block, inst_idx) {
+            self.emit_operand_plan(func, plan);
+            self.asm.emit_op(opcode);
+            self.scheduler.instruction_executed(operands.len(), None);
+            return;
+        }
+
         for (i, &operand) in operands.iter().enumerate() {
             if i == 0 {
                 self.emit_value(func, operand);
@@ -4827,7 +5368,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         block: BlockId,
         inst_idx: usize,
     ) {
-        // Check if addr is still live after this instruction
+        // Check if addr is still live after this instruction.
         let addr_is_live = !liveness.is_dead_after(addr, block, inst_idx);
 
         // Operands already sitting on top of the tracked stack are consumed
@@ -4864,7 +5405,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // Emit addr
         self.emit_operand(func, addr);
-        // Spill addr if live-after (it's now at depth 0)
+        // Spill addr if live-after (it's now at depth 0).
         let addr_consumed = if addr == val { 2 } else { 1 };
         if addr_is_live
             && !Self::is_rematerializable_value(func, addr)
@@ -4908,18 +5449,25 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.instruction_executed(operands.len(), None);
     }
 
-    /// Emits a ternary operation with liveness awareness.
+    /// Emits an operation with liveness awareness.
     #[allow(clippy::too_many_arguments)]
-    fn emit_ternary_op(
+    fn emit_nary_op(
         &mut self,
         func: &Function,
-        operands: [ValueId; 3],
+        operands: &[ValueId],
         opcode: u8,
         result: Option<ValueId>,
         liveness: &Liveness,
         block: BlockId,
         inst_idx: usize,
     ) {
+        if let Some(plan) = self.plan_operands(func, operands, liveness, block, inst_idx) {
+            self.emit_operand_plan(func, plan);
+            self.asm.emit_op(opcode);
+            self.scheduler.instruction_executed(operands.len(), result);
+            return;
+        }
+
         for (i, &operand) in operands.iter().enumerate() {
             if i == 0 {
                 self.emit_value(func, operand);
@@ -4932,7 +5480,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         self.asm.emit_op(opcode);
-        self.scheduler.instruction_executed(3, result);
+        self.scheduler.instruction_executed(operands.len(), result);
     }
 
     /// Generates a parallel copy.
@@ -4969,7 +5517,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             CopyDest::Value(dst_val) => {
                 // Spill the value on top of stack to the destination's spill slot
                 // This allows the successor block to reload it
-                let slot = self.scheduler.spills.allocate(*dst_val);
+                let slot = self.scheduler.spills.reserve(*dst_val);
                 self.emit_spill_slot_addr(func, slot);
                 self.scheduler.stack.push_unknown();
                 self.asm.emit_op(op::MSTORE);
@@ -5081,21 +5629,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             Terminator::Branch { condition, then_block, else_block } => {
-                // Emit the condition first (it's still on the stack)
-                self.emit_value(func, *condition);
-
-                // Now pop all OTHER values (condition is on top, keep it)
-                // We do this by tracking that condition was just pushed and emitting POPs for
-                // everything else. When this edge preserves its stack into the hot arm, the
-                // values beneath the condition are the carried layout: leave them in place.
-                if !preserve_stack {
-                    while self.scheduler.depth() > 1 {
-                        // SWAP to get unwanted value to top, then POP
-                        self.asm.emit_op(op::SWAP1);
-                        self.scheduler.stack_swapped();
-                        self.asm.emit_op(op::POP);
-                        self.scheduler.stack.pop();
-                    }
+                if preserve_stack {
+                    self.emit_value(func, *condition);
+                } else {
+                    // Retain a resident condition while draining the rest. Materializing it first
+                    // can duplicate an accessible copy only to swap and pop the original.
+                    self.pop_stack_values_not_needed_by(&[*condition]);
+                    self.emit_value(func, *condition);
                 }
 
                 match fallthrough {
@@ -5242,6 +5782,8 @@ pub struct EvmArtifact {
     pub deployment: Vec<u8>,
     /// Runtime bytecode, i.e. the code stored on-chain.
     pub runtime: Vec<u8>,
+    /// Immutable placeholders in the runtime bytecode.
+    pub(crate) immutable_references: Vec<ImmutableRef>,
     /// Final deployment-prefix EVM IR immediately before byte emission.
     pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
@@ -5259,10 +5801,62 @@ impl crate::backend::Backend for EvmCodegen<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::FunctionBuilder;
+    use crate::mir::{FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value};
     use solar_config::CompileOpts;
     use solar_interface::{Ident, Session, sym};
     use solar_sema::{Compiler, hir::Visibility};
+
+    #[test]
+    fn constructor_memory_regions_do_not_overlap() {
+        let mut module = Module::new(Ident::with_dummy_span(sym::Test));
+        let mut constructor = Function::new(Ident::with_dummy_span(sym::Test));
+        constructor.attributes.is_constructor = true;
+        constructor.internal_frame_size = 0x3000;
+        module.add_function(constructor);
+        let id = module.add_immutable(
+            Ident::with_dummy_span(sym::x),
+            MirType::UInt(TypeSize::new_int_bits(8)),
+            None,
+        );
+        let staging_base = immutable_staging_base(&module);
+        assert_eq!(staging_base, 0x3080);
+        let runtime_len = staging_base as usize;
+
+        let full_word = ImmutableRef {
+            id,
+            code_offset: runtime_len - 33,
+            type_size: TypeSize::new_int_bits(256),
+        };
+        assert_eq!(EvmCodegen::runtime_copy_base(&module, runtime_len, &[full_word]), 0);
+
+        let short =
+            ImmutableRef { id, code_offset: runtime_len - 2, type_size: TypeSize::new_int_bits(8) };
+        assert_eq!(EvmCodegen::runtime_copy_base(&module, runtime_len, &[short]), 0);
+
+        let short = ImmutableRef {
+            id,
+            code_offset: runtime_len - 3,
+            type_size: TypeSize::new_int_bits(16),
+        };
+        assert_eq!(
+            EvmCodegen::runtime_copy_base(&module, runtime_len, &[short]),
+            immutable_staging_end(staging_base, 1)
+        );
+
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            codegen.immutable_staging_base = staging_base;
+            assert_eq!(codegen.constructor_spill_base(0), staging_base);
+            assert_eq!(codegen.constructor_spill_base(1), immutable_staging_end(staging_base, 1));
+            assert_eq!(
+                codegen.constructor_fixed_memory_end(257, 0),
+                immutable_staging_end(staging_base, 257)
+            );
+            assert_eq!(
+                codegen.constructor_fixed_memory_end(1, 0x2000),
+                immutable_staging_end(staging_base, 1) + 0x2000
+            );
+        });
+    }
 
     fn with_codegen<T: Send>(opts: CompileOpts, f: impl FnOnce(EvmCodegen<'_>) -> T + Send) -> T {
         let compiler = Compiler::new(Session::builder().opts(opts).build());
@@ -5279,5 +5873,139 @@ mod tests {
 
             assert!(codegen.asm.assemble().bytecode.is_empty());
         });
+    }
+
+    #[test]
+    fn unreachable_phi_copies_do_not_leak_between_functions() {
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            let mut first = Function::new(Ident::with_dummy_span(sym::Test));
+            let mut builder = FunctionBuilder::new(&mut first);
+            let unreachable_pred = builder.create_block();
+            let unreachable_merge = builder.create_block();
+            builder.stop();
+            builder.switch_to_block(unreachable_pred);
+            let value = builder.imm_u64(1);
+            builder.jump(unreachable_merge);
+            builder.switch_to_block(unreachable_merge);
+            let value = builder.phi(vec![(unreachable_pred, value)]);
+            builder.ret([value]);
+
+            codegen.generate_function_body(FunctionId::from_usize(0), &first);
+            assert!(codegen.block_copies.contains_key(&unreachable_pred));
+
+            let mut second = Function::new(Ident::with_dummy_span(sym::Test));
+            FunctionBuilder::new(&mut second).stop();
+            codegen.generate_function_body(FunctionId::from_usize(1), &second);
+
+            assert!(codegen.block_copies.is_empty());
+        });
+    }
+
+    #[test]
+    fn cross_block_recomputation_requires_stable_leaves() {
+        let mut function = Function::new(Ident::DUMMY);
+        let argument = function.alloc_param(MirType::uint256());
+        let immediate = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
+        let (safe_inst, safe) = function.alloc_value_inst(Instruction::new(
+            InstKind::Add(argument, immediate),
+            Some(MirType::uint256()),
+        ));
+        let (nested_safe_inst, nested_safe) = function.alloc_value_inst(Instruction::new(
+            InstKind::Mul(safe, argument),
+            Some(MirType::uint256()),
+        ));
+        let (calldata_inst, calldata) = function.alloc_value_inst(Instruction::new(
+            InstKind::CalldataLoad(safe),
+            Some(MirType::uint256()),
+        ));
+        let (calldata_safe_inst, calldata_safe) = function.alloc_value_inst(Instruction::new(
+            InstKind::Add(calldata, immediate),
+            Some(MirType::uint256()),
+        ));
+        let (context_inst, context) = function
+            .alloc_value_inst(Instruction::new(InstKind::CallValue, Some(MirType::uint256())));
+        let (immutable_inst, immutable) = function.alloc_value_inst(Instruction::new(
+            InstKind::LoadImmutable(ImmutableId::from_usize(0)),
+            Some(MirType::uint256()),
+        ));
+        let (mutable_inst, mutable) = function.alloc_value_inst(Instruction::new(
+            InstKind::SLoad(immediate),
+            Some(MirType::uint256()),
+        ));
+        let (unsafe_inst, unsafe_value) = function.alloc_value_inst(Instruction::new(
+            InstKind::Add(mutable, immediate),
+            Some(MirType::uint256()),
+        ));
+        function.blocks[BlockId::ENTRY].instructions.extend([
+            safe_inst,
+            nested_safe_inst,
+            calldata_inst,
+            calldata_safe_inst,
+            context_inst,
+            immutable_inst,
+            mutable_inst,
+            unsafe_inst,
+        ]);
+        let recomputable = EvmCodegen::cross_block_recomputable_values(&function);
+
+        assert!(recomputable.contains(safe));
+        assert!(recomputable.contains(nested_safe));
+        assert!(recomputable.contains(calldata));
+        assert!(recomputable.contains(calldata_safe));
+        assert!(recomputable.contains(context));
+        assert!(!recomputable.contains(immutable));
+        assert!(!recomputable.contains(mutable));
+        assert!(!recomputable.contains(unsafe_value));
+    }
+
+    #[test]
+    fn cross_block_reload_excludes_phi_edge_uses() {
+        let mut function = Function::new(Ident::DUMMY);
+        let immediate = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
+        let (edge_inst, edge_value) = function.alloc_value_inst(Instruction::new(
+            InstKind::Add(immediate, immediate),
+            Some(MirType::uint256()),
+        ));
+        let (direct_inst, direct_value) = function.alloc_value_inst(Instruction::new(
+            InstKind::Mul(immediate, immediate),
+            Some(MirType::uint256()),
+        ));
+        function.blocks[BlockId::ENTRY].instructions.extend([edge_inst, direct_inst]);
+
+        let phi_block = function.alloc_block();
+        let (phi_inst, _) = function.alloc_value_inst(Instruction::new(
+            InstKind::Phi(vec![(BlockId::ENTRY, edge_value)]),
+            Some(MirType::uint256()),
+        ));
+        function.blocks[phi_block].instructions.push(phi_inst);
+
+        let direct_block = function.alloc_block();
+        let (use_inst, _) = function.alloc_value_inst(Instruction::new(
+            InstKind::Add(direct_value, immediate),
+            Some(MirType::uint256()),
+        ));
+        function.blocks[direct_block].instructions.push(use_inst);
+
+        let reloaded = EvmCodegen::cross_block_reload_values(&function);
+        assert!(!reloaded.contains(edge_value));
+        assert!(reloaded.contains(direct_value));
+    }
+
+    #[test]
+    fn spill_color_accepts_only_disjoint_ranges() {
+        let block0 = BlockId::from_usize(0);
+        let block1 = BlockId::from_usize(1);
+        let mut color = SpillColor::default();
+        color.insert(&FxHashMap::from_iter([(block0, SpillLiveRange { start: 2, end: 4 })]));
+
+        assert!(
+            color.accepts(&FxHashMap::from_iter([(block0, SpillLiveRange { start: 5, end: 7 })]))
+        );
+        assert!(
+            !color.accepts(&FxHashMap::from_iter([(block0, SpillLiveRange { start: 4, end: 7 })]))
+        );
+        assert!(
+            color.accepts(&FxHashMap::from_iter([(block1, SpillLiveRange { start: 2, end: 4 })]))
+        );
     }
 }

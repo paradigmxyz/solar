@@ -1,11 +1,10 @@
-//@ignore-host: windows
 //@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
 contract StorageBytesElements {
     // CHECK-LABEL: fn @b{{[( ]}}
     // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
-    // CHECK: internal_call @__ret_bytes, 0, [[VALUE]]
+    // CHECK: ret [[VALUE]]
     bytes public b;
 
     // CHECK-LABEL: fn @init{{[( ]}}

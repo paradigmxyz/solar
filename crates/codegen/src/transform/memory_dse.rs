@@ -9,21 +9,26 @@
 use crate::{
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryAddress,
-        MemoryLocation,
+        MemoryBase, MemoryLocation,
     },
     memory::EvmMemoryLayout,
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, MemoryObjectKind, Module, Terminator,
-        Value, ValueId, utils as mir_utils,
+        BlockId, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryRegion, Module,
+        Terminator, Value, ValueId, utils as mir_utils,
     },
     pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::{U256, keccak256};
+use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
-use std::rc::Rc;
+use std::{
+    collections::{BTreeMap, VecDeque},
+    rc::Rc,
+};
 
 /// Function pass for local dead memory-store elimination.
 pub(crate) struct MemoryDse;
@@ -65,6 +70,12 @@ struct MemAddrKey(MemoryAddress);
 /// treats all memory as live. Keeps the lattice height (and cost) bounded.
 const MEM_LIVE_CAP: usize = 64;
 
+/// Live slot set, kept sorted ascending. `MEM_LIVE_CAP` bounds the length, so a
+/// sorted vector beats hashing on every operation the dataflow performs:
+/// membership and insertion are binary searches, and the join is a linear merge
+/// instead of a rehash of the smaller side.
+type LiveSlots = SmallVec<[u64; 16]>;
+
 /// Backward memory-liveness lattice over constant word-aligned slots.
 ///
 /// `All` is the conservative top: any address may be observed. `Only` names the
@@ -73,29 +84,38 @@ const MEM_LIVE_CAP: usize = 64;
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum MemLive {
     All,
-    Only(FxHashSet<u64>),
+    Only(LiveSlots),
 }
 
 impl MemLive {
+    fn empty() -> Self {
+        Self::Only(LiveSlots::new())
+    }
+
     fn contains(&self, addr: u64) -> bool {
         match self {
             Self::All => true,
-            Self::Only(set) => set.contains(&addr),
+            Self::Only(slots) => slots.binary_search(&addr).is_ok(),
         }
     }
 
     fn add_addr(&mut self, addr: u64) {
-        if let Self::Only(set) = self {
-            set.insert(addr);
-            if set.len() > MEM_LIVE_CAP {
+        if let Self::Only(slots) = self
+            && let Err(index) = slots.binary_search(&addr)
+        {
+            if slots.len() >= MEM_LIVE_CAP {
                 *self = Self::All;
+                return;
             }
+            slots.insert(index, addr);
         }
     }
 
     fn kill(&mut self, addr: u64) {
-        if let Self::Only(set) = self {
-            set.remove(&addr);
+        if let Self::Only(slots) = self
+            && let Ok(index) = slots.binary_search(&addr)
+        {
+            slots.remove(index);
         }
     }
 
@@ -104,12 +124,221 @@ impl MemLive {
             (Self::All, _) => {}
             (this, Self::All) => *this = Self::All,
             (Self::Only(a), Self::Only(b)) => {
-                a.extend(b.iter().copied());
-                if a.len() > MEM_LIVE_CAP {
+                if b.is_empty() {
+                    return;
+                }
+                if a.is_empty() {
+                    a.clone_from(b);
+                    return;
+                }
+                // Merge two ascending runs. The result stays sorted, so the
+                // lattice value has one canonical representation and equality
+                // is a plain slice comparison.
+                let mut merged = LiveSlots::with_capacity(a.len() + b.len());
+                let (mut i, mut j) = (0, 0);
+                while i < a.len() && j < b.len() {
+                    match a[i].cmp(&b[j]) {
+                        std::cmp::Ordering::Less => {
+                            merged.push(a[i]);
+                            i += 1;
+                        }
+                        std::cmp::Ordering::Greater => {
+                            merged.push(b[j]);
+                            j += 1;
+                        }
+                        std::cmp::Ordering::Equal => {
+                            merged.push(a[i]);
+                            i += 1;
+                            j += 1;
+                        }
+                    }
+                }
+                merged.extend_from_slice(&a[i..]);
+                merged.extend_from_slice(&b[j..]);
+                if merged.len() > MEM_LIVE_CAP {
                     *self = Self::All;
+                } else {
+                    *a = merged;
                 }
             }
         }
+    }
+}
+
+/// One `(region, base)` group of 32-byte slots, ordered by offset.
+#[derive(Debug)]
+struct SlotBucket<T> {
+    region: MemoryRegion,
+    base: MemoryBase,
+    slots: BTreeMap<u64, T>,
+}
+
+/// A map from 32-byte memory slots to values that invalidates by alias, without
+/// rescanning every live entry on each write.
+///
+/// [`AliasAnalysis::memory_alias_locations`] settles most pairs from region and
+/// base alone: two distinct allocation sites never overlap, two distinct
+/// non-`Unknown` regions never overlap, and the offsets are compared only when
+/// the bases are equal. Grouping entries by `(region, base)` therefore lets a
+/// single test retire or drop a whole group, and ordering each group by offset
+/// narrows the equal-base case to the window the write actually covers. A flat
+/// map has to run the alias test against every entry for every store, which is
+/// quadratic in the number of live slots — the shape that dominated this pass on
+/// large functions.
+#[derive(Debug)]
+struct SlotMap<T> {
+    /// Groups whose base is an allocation site, indexed by that site. Writes to
+    /// one site can never invalidate another, so a write with an allocation
+    /// base skips every other site outright.
+    by_alloc: FxHashMap<InstId, SmallVec<[SlotBucket<T>; 1]>>,
+    /// Groups whose base is not an allocation site. Every write has to consider
+    /// these, but a write to a non-allocation base also invalidates nearly
+    /// everything, so they stay few.
+    unindexed: Vec<SlotBucket<T>>,
+}
+
+impl<T> Default for SlotMap<T> {
+    fn default() -> Self {
+        Self { by_alloc: FxHashMap::default(), unindexed: Vec::new() }
+    }
+}
+
+impl<T> SlotMap<T> {
+    fn clear(&mut self) {
+        self.by_alloc.clear();
+        self.unindexed.clear();
+    }
+
+    /// The allocation site of `base`, if it has one. Mirrors the private
+    /// `AliasAnalysis::allocation_base`.
+    fn alloc_site(base: MemoryBase) -> Option<InstId> {
+        match base {
+            MemoryBase::Allocation(id) | MemoryBase::DynamicAllocation(id) => Some(id),
+            _ => None,
+        }
+    }
+
+    fn bucket_mut(&mut self, key: MemAddrKey) -> &mut SlotBucket<T> {
+        let (region, base) = (key.0.region, key.0.base);
+        let buckets = match Self::alloc_site(base) {
+            Some(site) => self.by_alloc.entry(site).or_default().as_mut_slice(),
+            None => self.unindexed.as_mut_slice(),
+        };
+        // Borrow-checker dance: find the index first, then re-borrow to insert.
+        if let Some(index) = buckets.iter().position(|b| b.region == region && b.base == base) {
+            return match Self::alloc_site(base) {
+                Some(site) => &mut self.by_alloc.get_mut(&site).unwrap()[index],
+                None => &mut self.unindexed[index],
+            };
+        }
+        let bucket = SlotBucket { region, base, slots: BTreeMap::new() };
+        match Self::alloc_site(base) {
+            Some(site) => {
+                let group = self.by_alloc.entry(site).or_default();
+                group.push(bucket);
+                group.last_mut().unwrap()
+            }
+            None => {
+                self.unindexed.push(bucket);
+                self.unindexed.last_mut().unwrap()
+            }
+        }
+    }
+
+    fn get(&self, key: MemAddrKey) -> Option<&T> {
+        let (region, base) = (key.0.region, key.0.base);
+        let buckets = match Self::alloc_site(base) {
+            Some(site) => self.by_alloc.get(&site)?.as_slice(),
+            None => self.unindexed.as_slice(),
+        };
+        buckets.iter().find(|b| b.region == region && b.base == base)?.slots.get(&key.0.offset)
+    }
+
+    fn insert(&mut self, key: MemAddrKey, value: T) {
+        self.bucket_mut(key).slots.insert(key.0.offset, value);
+    }
+
+    /// Drops every entry a `size`-byte write at `write` may alias.
+    ///
+    /// Stored entries are 32 bytes wide, matching the `mstore` slots this map
+    /// tracks.
+    fn invalidate(&mut self, write: MemAddrKey, size: u64) {
+        let write_site = Self::alloc_site(write.0.base);
+        if let Some(site) = write_site {
+            // A write into one allocation site cannot reach another, so only
+            // this site's groups and the non-allocation groups can be affected.
+            if let Some(group) = self.by_alloc.get_mut(&site) {
+                group.retain(|bucket| Self::invalidate_bucket(bucket, write, size));
+                if group.is_empty() {
+                    self.by_alloc.remove(&site);
+                }
+            }
+        } else {
+            self.by_alloc.retain(|_, group| {
+                group.retain(|bucket| Self::invalidate_bucket(bucket, write, size));
+                !group.is_empty()
+            });
+        }
+        self.unindexed.retain_mut(|bucket| Self::invalidate_bucket(bucket, write, size));
+    }
+
+    /// Applies a write to one group, returning whether the group survives.
+    ///
+    /// The group shares a region and base, so the region and base rules of
+    /// [`AliasAnalysis::memory_alias_locations`] settle the whole group at once;
+    /// only a write onto that same base reaches the offset comparison.
+    fn invalidate_bucket(bucket: &mut SlotBucket<T>, write: MemAddrKey, size: u64) -> bool {
+        // Distinct known regions never overlap.
+        if bucket.region != MemoryRegion::Unknown
+            && write.0.region != MemoryRegion::Unknown
+            && bucket.region != write.0.region
+        {
+            return true;
+        }
+
+        let bucket_site = Self::alloc_site(bucket.base);
+        let write_site = Self::alloc_site(write.0.base);
+        if let (Some(bucket_site), Some(write_site)) = (bucket_site, write_site) {
+            // Distinct allocation sites are disjoint; the same site is only
+            // separable by offset when neither access is a loop instance.
+            if bucket_site != write_site {
+                return true;
+            }
+            if matches!(bucket.base, MemoryBase::DynamicAllocation(_))
+                || matches!(write.0.base, MemoryBase::DynamicAllocation(_))
+            {
+                bucket.slots.clear();
+                return false;
+            }
+        } else if bucket_site.is_some() || write_site.is_some() {
+            // A loop-instance allocation may alias any other base.
+            if matches!(bucket.base, MemoryBase::DynamicAllocation(_))
+                || matches!(write.0.base, MemoryBase::DynamicAllocation(_))
+            {
+                bucket.slots.clear();
+                return false;
+            }
+        }
+
+        // Different bases that neither rule separated may alias at any offset.
+        if bucket.base != write.0.base {
+            bucket.slots.clear();
+            return false;
+        }
+
+        // A stored slot `[offset, offset + 32)` overlaps `[write, write + size)`
+        // exactly when `write - 32 < offset < write + size`.
+        let Some(write_end) = write.0.offset.checked_add(size) else {
+            bucket.slots.clear();
+            return false;
+        };
+        let first = write.0.offset.saturating_sub(31);
+        let doomed: SmallVec<[u64; 8]> =
+            bucket.slots.range(first..write_end).map(|(&offset, _)| offset).collect();
+        for offset in doomed {
+            bucket.slots.remove(&offset);
+        }
+        !bucket.slots.is_empty()
     }
 }
 
@@ -128,8 +357,8 @@ struct CachedImmutableCopy {
 
 struct BlockScratch {
     overwritten: FxHashSet<MemAddrKey>,
-    stored_values: FxHashMap<MemAddrKey, ValueId>,
-    stored_words: FxHashMap<MemAddrKey, U256>,
+    stored_values: SlotMap<ValueId>,
+    stored_words: SlotMap<U256>,
     replacements: FxHashMap<ValueId, ValueId>,
     dead: DenseBitSet<InstId>,
 }
@@ -138,8 +367,8 @@ impl BlockScratch {
     fn new(func: &Function) -> Self {
         Self {
             overwritten: FxHashSet::default(),
-            stored_values: FxHashMap::default(),
-            stored_words: FxHashMap::default(),
+            stored_values: SlotMap::default(),
+            stored_words: SlotMap::default(),
             replacements: FxHashMap::default(),
             dead: DenseBitSet::new_empty(func.num_insts()),
         }
@@ -163,6 +392,7 @@ impl MemoryStoreEliminator {
                 func.inst(inst_id).kind,
                 InstKind::MStore(_, _)
                     | InstKind::MStore8(_, _)
+                    | InstKind::MemoryZero(_, _)
                     | InstKind::MCopy(_, _, _)
                     | InstKind::CalldataCopy(_, _, _)
                     | InstKind::CodeCopy(_, _, _)
@@ -244,28 +474,32 @@ impl MemoryStoreEliminator {
         }
 
         // Backward fixpoint: live_in[b] = transfer(b, ∪ live_in[succ(b)]).
-        // Liveness only grows, so stopping early would under-approximate it and
-        // could mark a live store dead; require real convergence, else bail.
-        let mut live_in: FxHashMap<BlockId, MemLive> =
-            block_ids.iter().map(|&b| (b, MemLive::Only(FxHashSet::default()))).collect();
-        let mut converged = false;
-        for _ in 0..(block_ids.len() * 4 + 16) {
-            let mut changed = false;
-            for &block_id in block_ids.iter().rev() {
-                let out = Self::live_out(func, block_id, &live_in);
-                let new_in = self.transfer_block(func, block_id, out, &mut None);
-                if live_in.get(&block_id) != Some(&new_in) {
-                    live_in.insert(block_id, new_in);
-                    changed = true;
+        //
+        // The transfer is monotone over a lattice of bounded height
+        // (`MEM_LIVE_CAP` slots, topped by `All`), so a worklist seeded in
+        // postorder reaches the same least fixpoint as a full round-robin sweep
+        // while touching each block only when one of its successors actually
+        // moved. Postorder puts successors before predecessors, which is the
+        // direction information flows here.
+        let (predecessors, order) = Self::block_order(func);
+        let mut live_in = index_vec![MemLive::empty(); func.blocks.len()];
+        let mut worklist: VecDeque<BlockId> = order.into();
+        let mut queued = DenseBitSet::new_empty(func.blocks.len());
+        for &block_id in &worklist {
+            queued.insert(block_id);
+        }
+        while let Some(block_id) = worklist.pop_front() {
+            queued.remove(block_id);
+            let out = Self::live_out(func, block_id, &live_in);
+            let new_in = self.transfer_block(func, block_id, out, &mut None);
+            if live_in[block_id] != new_in {
+                live_in[block_id] = new_in;
+                for &pred in &predecessors[block_id] {
+                    if queued.insert(pred) {
+                        worklist.push_back(pred);
+                    }
                 }
             }
-            if !changed {
-                converged = true;
-                break;
-            }
-        }
-        if !converged {
-            return;
         }
 
         // Collect dead stores using the stabilized live-out of each block.
@@ -285,16 +519,61 @@ impl MemoryStoreEliminator {
         }
     }
 
-    fn live_out(func: &Function, block: BlockId, live_in: &FxHashMap<BlockId, MemLive>) -> MemLive {
-        let mut out = MemLive::Only(FxHashSet::default());
+    fn live_out(func: &Function, block: BlockId, live_in: &IndexVec<BlockId, MemLive>) -> MemLive {
+        let mut out = MemLive::empty();
         if let Some(term) = func.blocks[block].terminator.as_ref() {
             for succ in term.successors() {
-                if let Some(in_set) = live_in.get(&succ) {
-                    out.join(in_set);
-                }
+                out.join(&live_in[succ]);
             }
         }
         out
+    }
+
+    /// Successor and predecessor lists for every block, plus a postorder over
+    /// all of them.
+    ///
+    /// The shared [`CfgInfo`] snapshot only exposes successors, and the backward
+    /// worklist needs to re-queue a block when one of its successors moves.
+    /// Postorder settles successors before their predecessors, which is the
+    /// direction a backward analysis propagates, so seeding the worklist with it
+    /// converges most functions in a single drain. Unreachable blocks are
+    /// included so their liveness converges too.
+    fn block_order(func: &Function) -> (IndexVec<BlockId, SmallVec<[BlockId; 2]>>, Vec<BlockId>) {
+        let successors: IndexVec<BlockId, SmallVec<[BlockId; 2]>> = func
+            .blocks
+            .iter()
+            .map(|block| {
+                block.terminator.as_ref().map(|term| term.successors()).unwrap_or_default()
+            })
+            .collect();
+
+        let mut predecessors = index_vec![SmallVec::new(); func.blocks.len()];
+        for (block_id, succs) in successors.iter_enumerated() {
+            for &succ in succs {
+                predecessors[succ].push(block_id);
+            }
+        }
+
+        let mut order = Vec::with_capacity(func.blocks.len());
+        let mut visited = DenseBitSet::new_empty(func.blocks.len());
+        for root in func.blocks.indices() {
+            if !visited.insert(root) {
+                continue;
+            }
+            let mut stack = vec![(root, 0usize)];
+            while let Some((block, next)) = stack.last_mut() {
+                if let Some(&succ) = successors[*block].get(*next) {
+                    *next += 1;
+                    if visited.insert(succ) {
+                        stack.push((succ, 0));
+                    }
+                } else {
+                    order.push(*block);
+                    stack.pop();
+                }
+            }
+        }
+        (predecessors, order)
     }
 
     /// Runs the backward transfer over one block's terminator and instructions,
@@ -566,7 +845,8 @@ impl MemoryStoreEliminator {
                     mstores += 1;
                     memory_writes += 1;
                 }
-                InstKind::CalldataCopy(_, _, _)
+                InstKind::MemoryZero(_, _)
+                | InstKind::CalldataCopy(_, _, _)
                 | InstKind::CodeCopy(_, _, _)
                 | InstKind::ReturnDataCopy(_, _, _)
                 | InstKind::ExtCodeCopy(_, _, _, _) => memory_writes += 1,
@@ -654,7 +934,8 @@ impl MemoryStoreEliminator {
                 InstKind::SetFmp(_) => {
                     scratch.overwritten.insert(MemAddrKey(AliasAnalysis::fmp_location().address));
                 }
-                InstKind::CalldataCopy(dest, _, size)
+                InstKind::MemoryZero(dest, size)
+                | InstKind::CalldataCopy(dest, _, size)
                 | InstKind::CodeCopy(dest, _, size)
                 | InstKind::ReturnDataCopy(dest, _, size) => {
                     self.insert_or_clear_full_word_overwritten_range(
@@ -978,7 +1259,7 @@ impl MemoryStoreEliminator {
                         scratch.stored_words.clear();
                         continue;
                     };
-                    Self::remove_overlapping_map(&mut scratch.stored_words, key);
+                    scratch.stored_words.invalidate(key, 32);
                     if let Some(value) = func.value_u256(*value) {
                         scratch.stored_words.insert(key, value);
                     }
@@ -1033,13 +1314,13 @@ impl MemoryStoreEliminator {
                         continue;
                     };
 
-                    if scratch.stored_values.get(&key).is_some_and(|&stored| stored == *value) {
+                    if scratch.stored_values.get(key).is_some_and(|&stored| stored == *value) {
                         scratch.dead.insert(inst_id);
                         self.eliminated_count += 1;
                         continue;
                     }
 
-                    Self::remove_overlapping_map(&mut scratch.stored_values, key);
+                    scratch.stored_values.invalidate(key, 32);
                     scratch.stored_values.insert(key, *value);
                 }
                 _ if self.can_mutate_memory(func, inst_id) => {
@@ -1094,7 +1375,7 @@ impl MemoryStoreEliminator {
                         scratch.stored_values.clear();
                         continue;
                     };
-                    Self::remove_overlapping_map(&mut scratch.stored_values, key);
+                    scratch.stored_values.invalidate(key, 32);
                     scratch
                         .stored_values
                         .insert(key, mir_utils::resolve_replacement(*value, &scratch.replacements));
@@ -1103,7 +1384,7 @@ impl MemoryStoreEliminator {
                     let Some(key) = self.mem_addr_key(func, *addr) else {
                         continue;
                     };
-                    let Some(&stored_value) = scratch.stored_values.get(&key) else {
+                    let Some(&stored_value) = scratch.stored_values.get(key) else {
                         continue;
                     };
                     if let Some(loaded_value) = func.inst_result_value(inst_id) {
@@ -1116,7 +1397,7 @@ impl MemoryStoreEliminator {
                     else {
                         continue;
                     };
-                    let Some(&stored_value) = scratch.stored_values.get(&key) else {
+                    let Some(&stored_value) = scratch.stored_values.get(key) else {
                         continue;
                     };
                     if let Some(loaded_value) = func.inst_result_value(inst_id) {
@@ -1134,7 +1415,8 @@ impl MemoryStoreEliminator {
                 {
                     scratch.stored_values.clear();
                 }
-                InstKind::CalldataCopy(dest, _, size)
+                InstKind::MemoryZero(dest, size)
+                | InstKind::CalldataCopy(dest, _, size)
                 | InstKind::CodeCopy(dest, _, size)
                 | InstKind::ReturnDataCopy(dest, _, size) => {
                     let Some(size) = func.value_u64(*size) else {
@@ -1240,7 +1522,7 @@ impl MemoryStoreEliminator {
 
     fn constant_memory_bytes(
         func: &Function,
-        stored_words: &FxHashMap<MemAddrKey, U256>,
+        stored_words: &SlotMap<U256>,
         offset: ValueId,
         size: ValueId,
     ) -> Option<Vec<u8>> {
@@ -1253,7 +1535,7 @@ impl MemoryStoreEliminator {
         let mut bytes = Vec::with_capacity(size as usize);
         for word_offset in (0..size).step_by(32) {
             let addr = offset.checked_add(word_offset)?;
-            let word = stored_words.get(&MemAddrKey(MemoryAddress::absolute(addr)))?;
+            let word = stored_words.get(MemAddrKey(MemoryAddress::absolute(addr)))?;
             bytes.extend_from_slice(&word.to_be_bytes::<32>());
         }
         Some(bytes)
@@ -1267,10 +1549,6 @@ impl MemoryStoreEliminator {
         .may_alias()
     }
 
-    fn remove_overlapping_map<T>(map: &mut FxHashMap<MemAddrKey, T>, key: MemAddrKey) {
-        map.retain(|&stored, _| !Self::overlaps(stored, key));
-    }
-
     fn remove_overlapping_set(set: &mut FxHashSet<MemAddrKey>, key: MemAddrKey) {
         set.retain(|&stored| !Self::overlaps(stored, key));
     }
@@ -1278,14 +1556,14 @@ impl MemoryStoreEliminator {
     fn remove_overlapping_write_range<T>(
         &self,
         func: &Function,
-        map: &mut FxHashMap<MemAddrKey, T>,
+        map: &mut SlotMap<T>,
         dest: ValueId,
         size: u64,
     ) -> bool {
         let Some(write) = self.mem_addr_key(func, dest) else {
             return false;
         };
-        map.retain(|&stored, _| !Self::ranges_overlap_mem_keys(func, stored, 32, write, size));
+        map.invalidate(write, size);
         true
     }
 
@@ -1329,20 +1607,6 @@ impl MemoryStoreEliminator {
 
     fn offset_mem_addr_key(key: MemAddrKey, add: u64) -> Option<MemAddrKey> {
         key.0.checked_add(add).map(MemAddrKey)
-    }
-
-    fn ranges_overlap_mem_keys(
-        _func: &Function,
-        read: MemAddrKey,
-        read_size: u64,
-        write: MemAddrKey,
-        write_size: u64,
-    ) -> bool {
-        AliasAnalysis::memory_alias_locations(
-            MemoryLocation::new(read.0, LocationSize::Const(read_size)),
-            MemoryLocation::new(write.0, LocationSize::Const(write_size)),
-        )
-        .may_alias()
     }
 
     fn is_memory_or_gas_observer(&self, func: &Function, inst_id: InstId) -> bool {
@@ -1395,8 +1659,10 @@ impl MemoryStoreEliminator {
                 }
                 Access::Location(Location::Storage(_))
                 | Access::Location(Location::Transient(_))
+                | Access::Location(Location::Immutable(_))
                 | Access::Any(AddressSpace::Storage)
-                | Access::Any(AddressSpace::Transient) => {}
+                | Access::Any(AddressSpace::Transient)
+                | Access::Any(AddressSpace::Immutable) => {}
             }
         }
         Some(())

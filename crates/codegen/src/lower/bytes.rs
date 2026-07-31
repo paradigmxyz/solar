@@ -45,7 +45,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         match source {
             AbiSource::Calldata => builder.calldatacopy(dst, src, len),
-            AbiSource::Memory => self.mcopy(builder, dst, src, len, None),
+            AbiSource::Memory => builder.mcopy(dst, src, len),
         }
     }
 
@@ -162,6 +162,21 @@ impl<'gcx> Lowerer<'gcx> {
         matches!(builder.func().value_ty(value), Some(MirType::Slice(SliceLocation::Calldata)))
     }
 
+    /// Whether a lowered value is a `[length][data...]` dynamic-array memory
+    /// object. A calldata-located dynamic array can lower to one — an element of
+    /// a calldata array of arrays is rebuilt in memory — so the declared type
+    /// does not settle whether the length header is there to skip.
+    pub(super) fn value_is_dynamic_array_object(
+        builder: &FunctionBuilder<'_>,
+        value: ValueId,
+    ) -> bool {
+        use crate::mir::{MemoryObjectKind, MirType};
+        matches!(
+            builder.func().value_ty(value),
+            Some(MirType::MemoryObject(MemoryObjectKind::DynamicArray))
+        )
+    }
+
     /// Adapts a logical memory slice to Solidity's `[length][data...]` memory
     /// bytes layout. ABI-encode payloads are memory slices; a `bytes memory`
     /// consumer needs a real length-prefixed object.
@@ -187,7 +202,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(ptr, len);
         let data_ptr = builder.add(ptr, word_size);
         let data_pos = builder.slice_ptr(slice);
-        self.mcopy(builder, data_ptr, data_pos, len, None);
+        builder.mcopy(data_ptr, data_pos, len);
         ptr
     }
 
@@ -203,6 +218,43 @@ impl<'gcx> Lowerer<'gcx> {
             return self.materialize_memory_slice_bytes(builder, value);
         }
         value
+    }
+
+    /// Coerces an argument to what the callee's parameter expects.
+    ///
+    /// A parameter declared `calldata` takes the slice as it is. Anything else
+    /// wants a `[length][data...]` memory object, so a calldata slice — a
+    /// `bytes calldata` value reaching a `bytes memory` parameter, which
+    /// Solidity converts implicitly — is copied into memory here. Leaving it a
+    /// slice makes it an aggregate use that slice lowering cannot fold, and the
+    /// backend cannot emit.
+    pub(super) fn coerce_arg_for_param(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        param_id: hir::VariableId,
+        arg: &hir::Expr<'_>,
+        value: ValueId,
+    ) -> ValueId {
+        let param = self.gcx.hir.variable(param_id);
+        if Self::calldata_dynamic_var_kind(param).is_some() {
+            // The callee's signature says slice. A `calldata` struct member
+            // lowered to the rebuilt copy instead, which cannot serve one, so
+            // read the member at its own calldata position.
+            if !Self::value_is_calldata_slice(builder, value)
+                && let Some(slice) = self.calldata_member_slice(builder, arg)
+            {
+                return slice;
+            }
+            return value;
+        }
+        if Self::value_is_calldata_slice(builder, value) {
+            let ty = self.gcx.type_of_item(param_id.into());
+            if matches!(ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Slice(_)) {
+                return self.materialize_calldata_dyn_array_for_ty(builder, ty, value);
+            }
+            return self.materialize_calldata_bytes(builder, value);
+        }
+        self.coerce_memory_slice_value(builder, value)
     }
 
     /// Copies calldata bytes whose absolute length-word position is `len_pos`
@@ -264,11 +316,19 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Whether an assignment target wants a MEMORY dynamic-array value.
     pub(super) fn lhs_expects_memory_dyn_array_value(&self, lhs: &hir::Expr<'_>) -> bool {
-        let Some(var_id) = self.gcx.resolved_variable(lhs) else {
-            return false;
-        };
-        let var = self.gcx.hir.variable(var_id);
-        !var.is_struct_member() && self.var_expects_memory_dyn_array_value(var)
+        if let Some(var_id) = self.gcx.resolved_variable(lhs) {
+            let var = self.gcx.hir.variable(var_id);
+            if !var.is_struct_member() {
+                return self.var_expects_memory_dyn_array_value(var);
+            }
+        }
+        // A member or element target names no variable of its own; its type
+        // says where it lives. A memory struct's array field assigned from a
+        // `calldata` one needs the copy just as a local would.
+        self.get_expr_type(lhs).is_some_and(|ty| {
+            matches!(ty.kind, TyKind::Ref(inner, solar_ast::DataLocation::Memory)
+                if matches!(inner.kind, TyKind::DynArray(_)))
+        })
     }
 
     /// Lowers an expression whose consumer needs a MEMORY dynamic array: a
@@ -383,13 +443,12 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::DynArray(elem) | TyKind::Slice(elem) => {
                 self.materialize_calldata_dynamic_array_at(builder, source, elem, pos)
             }
-            TyKind::Array(elem, len) => self.materialize_calldata_fixed_array_at(
-                builder,
-                source,
-                elem,
-                len.to::<u64>(),
-                pos,
-            ),
+            TyKind::Array(elem, len) => {
+                let Ok(len) = u64::try_from(len) else {
+                    return builder.error_value(self.abi_head_size_overflow());
+                };
+                self.materialize_calldata_fixed_array_at(builder, source, elem, len, pos)
+            }
             TyKind::Struct(id) => {
                 let fields = self.gcx.struct_field_types(id).to_vec();
                 self.materialize_calldata_fields_at(builder, source, &fields, pos)
@@ -493,7 +552,10 @@ impl<'gcx> Lowerer<'gcx> {
         let next_remaining = builder.sub(remaining, one);
         builder.mstore(remaining_slot, next_remaining);
         let head_cursor = builder.mload(source_slot);
-        let elem_head_size = builder.imm_u64(self.abi_head_size(elem));
+        let elem_head_size = match self.abi_head_size(elem) {
+            Ok(size) => builder.imm_u64(size),
+            Err(guar) => return builder.error_value(guar),
+        };
         let next_source = builder.add(head_cursor, elem_head_size);
         builder.mstore(source_slot, next_source);
         let dest = builder.mload(dest_slot);
@@ -514,7 +576,18 @@ impl<'gcx> Lowerer<'gcx> {
         len: u64,
         pos: ValueId,
     ) -> ValueId {
-        let size = len.checked_mul(32).expect("fixed array memory size overflow");
+        // A field/element sema type carries the canonical `Ref(_, Storage)`
+        // location; peel it so ABI head sizing does not mistake an inline
+        // aggregate for a one-word storage slot.
+        let elem = elem.peel_refs();
+        let elem_head_size = match self.abi_head_size(elem) {
+            Ok(size) if len.checked_mul(size).is_some() => size,
+            Ok(_) => return builder.error_value(self.abi_head_size_overflow()),
+            Err(guar) => return builder.error_value(guar),
+        };
+        let Some(size) = len.checked_mul(32) else {
+            return builder.error_value(self.abi_head_size_overflow());
+        };
         let ptr = self.allocate_memory(builder, size);
         let mut head_offset = 0;
         for i in 0..len {
@@ -523,7 +596,7 @@ impl<'gcx> Lowerer<'gcx> {
             let value = self.materialize_calldata_value_at(builder, source, elem, elem_pos);
             let dest = self.offset_ptr(builder, ptr, i * 32);
             builder.mstore(dest, value);
-            head_offset += self.abi_head_size(elem);
+            head_offset += elem_head_size;
         }
         ptr
     }
@@ -537,18 +610,64 @@ impl<'gcx> Lowerer<'gcx> {
         fields: &[Ty<'gcx>],
         pos: ValueId,
     ) -> ValueId {
-        let size = (fields.len() as u64).checked_mul(32).expect("aggregate memory size overflow");
+        let word_count = fields.len() as u64;
+        // A copy built from calldata keeps its source position in a trailing
+        // word. Reads go through the copy, which is why it is rebuilt at all;
+        // the position is only needed where the copy cannot stand in — a
+        // `calldata`-located member reaching a `calldata` parameter, which
+        // expects a slice and not an object. Keeping it in the copy means it
+        // survives assignment, indexing and internal calls without any of them
+        // knowing, where tracking it beside the value only ever covered the
+        // expression forms someone remembered to enumerate.
+        // See `calldata_base_of_copy`.
+        let carries_base = source == AbiSource::Calldata
+            && fields.iter().any(|&f| self.abi_is_dynamic(f.peel_refs()));
+        if let Err(guar) = self.abi_head_size_sum(fields.iter().map(|&field| field.peel_refs())) {
+            return builder.error_value(guar);
+        }
+        let size = word_count
+            .checked_add(u64::from(carries_base))
+            .and_then(|words| words.checked_mul(32))
+            .expect("aggregate memory size overflow");
         let ptr = self.allocate_memory(builder, size);
         let mut head_offset = 0;
         for (i, &field) in fields.iter().enumerate() {
+            // A field sema type carries the canonical `Ref(_, Storage)`
+            // location; peel it so ABI head sizing does not mistake an inline
+            // aggregate field for a one-word storage slot.
+            let field = field.peel_refs();
             let head_pos = self.offset_ptr(builder, pos, head_offset);
             let field_pos = self.calldata_abi_value_pos(builder, source, field, head_pos, pos);
             let value = self.materialize_calldata_value_at(builder, source, field, field_pos);
             let dest = self.offset_ptr(builder, ptr, (i as u64) * 32);
             builder.mstore(dest, value);
-            head_offset += self.abi_head_size(field);
+            let field_size = match self.abi_head_size(field) {
+                Ok(size) => size,
+                Err(guar) => return builder.error_value(guar),
+            };
+            head_offset += field_size;
+        }
+        if carries_base {
+            let base_slot = self.offset_ptr(builder, ptr, word_count * 32);
+            builder.mstore(base_slot, pos);
         }
         ptr
+    }
+
+    /// Loads the calldata position a struct copy was built from.
+    ///
+    /// Valid only for a copy of a `calldata` aggregate with a dynamic member,
+    /// which [`Self::materialize_calldata_fields_at`] gives a trailing word
+    /// holding the position. A `calldata`-located type is the proof: no other
+    /// way of producing one exists in the language.
+    pub(super) fn calldata_base_of_copy(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ptr: ValueId,
+        field_count: u64,
+    ) -> ValueId {
+        let base_slot = self.offset_ptr(builder, ptr, field_count * 32);
+        builder.mload(base_slot)
     }
 
     /// Resolves an ABI head position to the corresponding value body. Dynamic
@@ -690,8 +809,14 @@ impl<'gcx> Lowerer<'gcx> {
         method: Symbol,
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
-        let exprs = match self.collect_builtin_args(builtin, args) {
-            Ok(exprs) => exprs,
+        let arg = match builtin {
+            Builtin::ArrayPush0 => self.builtin_args(builtin, args).map(|[]| None),
+            Builtin::ArrayPush => self.builtin_args(builtin, args).map(|[arg]| Some(arg)),
+            Builtin::ArrayPop => self.builtin_args(builtin, args).map(|[]| None),
+            _ => unreachable!(),
+        };
+        let arg = match arg {
+            Ok(arg) => arg,
             Err(guar) => {
                 return (builtin == Builtin::ArrayPush0).then(|| builder.error_value(guar));
             }
@@ -706,8 +831,7 @@ impl<'gcx> Lowerer<'gcx> {
                 self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
 
                 let resized = self.resize_memory_bytes(builder, current, len, new_len);
-                let byte = exprs
-                    .first()
+                let byte = arg
                     .map(|arg| {
                         let value = self.lower_value_expr(builder, arg);
                         self.bytes1_store_byte(builder, value)
@@ -759,7 +883,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(last_word, zero);
 
         let src_data = builder.memory_object_data(src, MemoryObjectKind::Bytes);
-        self.mcopy(builder, data, src_data, copy_len, None);
+        builder.mcopy(data, src_data, copy_len);
         ptr
     }
 
@@ -915,34 +1039,31 @@ impl<'gcx> Lowerer<'gcx> {
         {
             match member.name {
                 sym::encodePacked => {
-                    self.collect_builtin_args(Builtin::AbiEncodePacked, args)?;
                     // Returns a `bytes memory` pointer: `[length][data...]`.
-                    let ptr = self.lower_abi_encode_packed(builder, args)?;
+                    let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, args)?;
+                    let ptr = self.lower_abi_encode_packed(builder, exprs)?;
                     let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
                     let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
                     return Ok((data, len));
                 }
                 sym::encode => {
-                    let arg_exprs = self.collect_builtin_args(Builtin::AbiEncode, args)?;
-                    return self.abi_encode_call_payload(builder, None, &arg_exprs);
+                    let arg_exprs = self.variadic_builtin_args(Builtin::AbiEncode, args)?;
+                    return self.abi_encode_call_payload(builder, None, arg_exprs.iter());
                 }
                 sym::encodeWithSelector => {
-                    let exprs = self.collect_builtin_args(Builtin::AbiEncodeWithSelector, args)?;
-                    let selector = self.lower_selector_word(builder, exprs[0]);
-                    return self.abi_encode_call_payload(builder, Some(selector), &exprs[1..]);
+                    let ([selector], exprs) =
+                        self.builtin_args_with_rest(Builtin::AbiEncodeWithSelector, args)?;
+                    let selector = self.lower_selector_word(builder, selector);
+                    return self.abi_encode_call_payload(builder, Some(selector), exprs.iter());
                 }
                 sym::encodeWithSignature => {
-                    let exprs = self.collect_builtin_args(Builtin::AbiEncodeWithSignature, args)?;
-                    if let ExprKind::Lit(lit) = &exprs[0].kind
-                        && let LitKind::Str(_, sig, _) = &lit.kind
-                    {
-                        let hash = keccak256(sig.as_byte_str());
-                        let selector =
-                            U256::from(u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]]))
-                                << 224;
-                        let selector = builder.imm_u256(selector);
-                        return self.abi_encode_call_payload(builder, Some(selector), &exprs[1..]);
-                    }
+                    let ([signature], exprs) =
+                        self.builtin_args_with_rest(Builtin::AbiEncodeWithSignature, args)?;
+                    let selector = self.lower_signature_selector(builder, signature);
+                    return self.abi_encode_call_payload(builder, Some(selector), exprs.iter());
+                }
+                sym::encodeCall => {
+                    return self.abi_encode_call_from_args(builder, args);
                 }
                 _ => {}
             }
@@ -971,8 +1092,26 @@ impl<'gcx> Lowerer<'gcx> {
         // call reads its input from memory), then use that region. This arises in
         // proxy fallbacks such as `impl.delegatecall(data)` with `bytes calldata`.
         if self.expr_is_calldata_dynamic_bytes(expr) {
-            let slice = self.lower_value_expr(builder, expr);
-            let ptr = self.materialize_calldata_bytes(builder, slice);
+            let value = self.lower_value_expr(builder, expr);
+            // A decoded calldata-struct member is already a memory bytes
+            // pointer despite its calldata-located type.
+            let ptr = if Self::value_is_calldata_slice(builder, value) {
+                self.materialize_calldata_bytes(builder, value)
+            } else {
+                value
+            };
+            let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+            let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+            return Ok((data, len));
+        }
+
+        // A storage `bytes`/`string`: decode its short/long form into memory,
+        // which a low-level call reads its input from. This arises in reentrancy
+        // harnesses that stash the payload in storage and replay it.
+        if self.is_storage_bytes_expr(expr)
+            && let Some(slot) = self.lower_lvalue_slot(builder, expr)
+        {
+            let ptr = self.materialize_storage_bytes(builder, slot);
             let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
             let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
             return Ok((data, len));
@@ -987,6 +1126,49 @@ impl<'gcx> Lowerer<'gcx> {
         Err(guar)
     }
 
+    /// The left-aligned selector word for an `abi.encodeWithSignature`
+    /// signature.
+    ///
+    /// A string literal hashes at compile time. A conditional between
+    /// signatures resolves each side and selects between the two constants,
+    /// which keeps the common `cond ? "f(uint256)" : "g(uint256)"` free of a
+    /// runtime hash. Any other string is hashed at runtime and truncated to its
+    /// leading four bytes.
+    pub(super) fn lower_signature_selector(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        sig_expr: &hir::Expr<'_>,
+    ) -> ValueId {
+        if let ExprKind::Lit(lit) = &sig_expr.kind
+            && let LitKind::Str(_, sig, _) = &lit.kind
+        {
+            let hash = keccak256(sig.as_byte_str());
+            let selector =
+                U256::from(u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]])) << 224;
+            return builder.imm_u256(selector);
+        }
+
+        if let ExprKind::Ternary(cond, then_expr, else_expr) = &sig_expr.kind {
+            let cond = self.lower_value_expr(builder, cond);
+            let then_selector = self.lower_signature_selector(builder, then_expr);
+            let else_selector = self.lower_signature_selector(builder, else_expr);
+            return builder.select(cond, then_selector, else_selector);
+        }
+
+        // A signature only known at runtime: hash the string's bytes and keep
+        // the leading four, which occupy the word's high bytes.
+        let hash = match self.keccak_dynamic_bytes(builder, sig_expr) {
+            Some(hash) => hash,
+            None => {
+                let ptr = self.lower_expr_as_memory_bytes(builder, sig_expr);
+                builder.keccak256_bytes(ptr)
+            }
+        };
+        let shift = builder.imm_u64(224);
+        let truncated = builder.shr(shift, hash);
+        builder.shl(shift, truncated)
+    }
+
     /// Looks through a `bytes(x)` / `string(x)` conversion to the underlying
     /// value; returns `expr` unchanged otherwise.
     pub(super) fn peel_bytes_conversion<'b>(&self, expr: &'b hir::Expr<'b>) -> &'b hir::Expr<'b> {
@@ -996,7 +1178,7 @@ impl<'gcx> Lowerer<'gcx> {
                 ty.kind,
                 hir::TypeKind::Elementary(hir::ElementaryType::Bytes | hir::ElementaryType::String)
             )
-            && let Some(inner) = args.exprs().next()
+            && let hir::CallArgsKind::Unnamed([inner]) = args.kind
         {
             return inner;
         }
@@ -1023,16 +1205,32 @@ impl<'gcx> Lowerer<'gcx> {
             return Some(builder.imm_u256(U256::from_be_bytes(hash.0)));
         }
 
-        if !self.expr_has_bytes_or_string_type(inner) {
-            return None;
-        }
-
+        // Checked before the `bytes`/`string` type guard below, which does not
+        // recognize a slice type (`b[a:c]`).
+        //
         // Calldata `bytes`/`string`: copy the data into memory, then hash it
         // (`keccak256` only reads memory).
         if self.expr_is_calldata_dynamic_bytes(inner) {
             let slice = self.lower_value_expr(builder, inner);
+            // Slicing a calldata struct's field yields a memory slice, because
+            // the struct is decoded to memory in the prologue. Hash it where it
+            // already is: copying it as calldata would read the wrong region.
+            if Self::value_is_memory_slice(builder, slice) {
+                let ptr = builder.slice_ptr(slice);
+                let len = builder.slice_len(slice);
+                return Some(builder.keccak256(ptr, len));
+            }
+            // The member itself, unsliced, is that memory copy: a bytes object,
+            // not a slice at all. Hash it through the object reference.
+            if !Self::value_is_calldata_slice(builder, slice) {
+                return Some(builder.keccak256_bytes(slice));
+            }
             let ptr = self.materialize_calldata_bytes(builder, slice);
             return Some(builder.keccak256_bytes(ptr));
+        }
+
+        if !self.expr_has_bytes_or_string_type(inner) {
+            return None;
         }
 
         // Memory and storage values lower to a memory `[length][data...]`

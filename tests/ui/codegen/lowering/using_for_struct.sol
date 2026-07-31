@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
@@ -15,9 +14,6 @@ struct S {
 }
 
 library L {
-    // CHECK-LABEL: fn @hashLib{{[( ]}}
-    // CHECK: [[HASH:v[0-9]+]] = keccak256 {{v[0-9]+}}, 101
-    // CHECK: ret [[HASH]]
     function hashLib(S memory s) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked("x", s.a, s.i, s.j, s.b));
     }

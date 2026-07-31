@@ -97,7 +97,10 @@ class ReportFormattingTests(unittest.TestCase):
     def test_codegen_report_combines_all_benches(self):
         micro = result("micro", status="ok", total_gas=10, runtime_size=20)
         repo = result("repository", status="ok", total_gas=30, runtime_size=40)
-        report = benchmark.codegen_report([micro], [repo], [micro], [repo])
+        large = result("large", status="ok", total_gas=50, runtime_size=60)
+        report = benchmark.codegen_report(
+            [micro], [repo], [micro], [repo], [large], [large]
+        )
         self.assertEqual(
             report,
             "## Codegen benchmark\n"
@@ -105,14 +108,25 @@ class ReportFormattingTests(unittest.TestCase):
             "| bench | gas (vs main) | solc | size (vs main) | solc |\n"
             "| ----- | ------------- | ---- | -------------- | ---- |\n"
             "| micro | 10 (~0%) | n/a (n/a) | 20B (~0%) | n/a (n/a) |\n"
-            "| repository | 30 (~0%) | n/a (n/a) | 40B (~0%) | n/a (n/a) |\n",
+            "| repository | 30 (~0%) | n/a (n/a) | 40B (~0%) | n/a (n/a) |\n"
+            "| large | 50 (~0%) | n/a (n/a) | 60B (~0%) | n/a (n/a) |\n"
         )
 
 
 class CommonBenchmarkResultTests(unittest.TestCase):
-    def write_result(self, micro, repo=None, micro_timing=DEFAULT_TIMING, repo_timing=None):
+    def write_result(
+        self,
+        micro,
+        repo=None,
+        micro_timing=DEFAULT_TIMING,
+        repo_timing=None,
+        large=None,
+        large_timing=None,
+    ):
         if repo is None:
             repo = []
+        if large is None:
+            large = []
         if micro_timing is DEFAULT_TIMING:
             micro_timing = {"wall_time_seconds": 1.25}
         with tempfile.TemporaryDirectory() as directory, patch.dict(
@@ -134,6 +148,8 @@ class CommonBenchmarkResultTests(unittest.TestCase):
                 repo,
                 micro_timing,
                 repo_timing,
+                large,
+                large_timing,
             )
             document = json.loads(output.read_text())
         Draft202012Validator(SCHEMA).validate(document)
@@ -259,6 +275,28 @@ class CommonBenchmarkResultTests(unittest.TestCase):
         self.assertEqual(
             [entry["name"] for entry in document["benchmarks"]],
             ["codegen_runtime_suite/repo"],
+        )
+
+    def test_writes_large_contract_suite(self):
+        results = [
+            result(
+                "large",
+                status="ok",
+                total_gas=10,
+                deploy_gas=20,
+                bytecode_size=30,
+                runtime_size=40,
+            )
+        ]
+        document = self.write_result(
+            [],
+            micro_timing=None,
+            large=results,
+            large_timing={"wall_time_seconds": 3.5},
+        )
+        self.assertEqual(
+            [entry["name"] for entry in document["benchmarks"]],
+            ["codegen_runtime_suite/large"],
         )
 
 

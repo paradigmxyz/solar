@@ -1,4 +1,16 @@
 //@ compile-flags: --emit=abi,hashes --pretty-json
+//@ filecheck:
+
+// CHECK-LABEL: "ROOT/tests/ui/abi/getters.sol:C":
+// CHECK: "name": "array"
+// CHECK: "name": "arrayOfMaps"
+// CHECK: "name": "mapOfArraysRecMap"
+// CHECK: "name": "simple"
+// CHECK: "name": "simpleRecMap"
+// CHECK: "name": "simpleTwo"
+// CHECK: "hashes": {
+// CHECK: "array(uint256)": "38d94193"
+// CHECK: "simpleTwo()": "8980a582"
 
 contract C {
     int public simple;

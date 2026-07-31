@@ -5,10 +5,11 @@
 
 use crate::{
     analysis::LoopAnalyzer,
+    immutable::immutable_push_type_size,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        BlockId, Function, FunctionId as MirFunctionId, Immediate, InstKind, Instruction, MirType,
-        Module, Terminator, Value, ValueId,
+        BlockId, Function, FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId,
+        InstKind, Instruction, MirType, Module, Terminator, Value, ValueId,
     },
     pass::MirPass,
 };
@@ -36,7 +37,7 @@ impl MirPass for Inline {
         } else {
             MirInliner::default()
         };
-        inliner.run(module).inlined != 0
+        inliner.run(gcx, module).inlined != 0
     }
 }
 
@@ -69,8 +70,11 @@ struct MirInliner {
     /// Hard sanity limit for single-call-site callees. These bypass the normal
     /// size and block caps because function DCE removes their original body.
     max_single_call_sanity_instructions: usize,
-    /// Maximum number of blocks to clone from one callee.
+    /// Maximum number of blocks to clone from one multi-use callee.
     max_blocks: usize,
+    /// Maximum block count for a shared callee to inline at every profitable
+    /// call site. Larger shared callees inline only at their best call site.
+    max_shared_callee_blocks: usize,
     /// Whether a single call site may use the larger threshold.
     inline_single_call: bool,
     /// Maximum estimated runtime bytecode growth for a cold call site.
@@ -94,19 +98,18 @@ impl Default for MirInliner {
         Self {
             max_instructions: 96,
             max_single_call_sanity_instructions: 4096,
-            max_blocks: 10,
+            max_blocks: 16,
+            max_shared_callee_blocks: 10,
             inline_single_call: true,
             max_cold_code_growth: 256,
             max_hot_code_growth: 512,
             max_caller_inlined_instructions: 64,
             min_call_savings: 120,
-            // Budget in `estimated_code_size` units (a per-instruction proxy that
-            // runs well below final bytecode because it does not model stack
-            // scheduling/spills). Calibrated as a conservative backstop: a module
-            // already this large has little headroom under the EIP-170 24576-byte
-            // limit, so further (growth-only) inlining is skipped to keep it
-            // deployable. Ordinary contracts are far smaller and inline normally.
-            max_module_code_size: 7450,
+            // The estimator runs below final bytecode because it does not model
+            // stack scheduling or spills. Nitro's 7,885-unit OneStepProofEntry
+            // emits 15,225 bytes, so 12,000 units leave a conservative margin
+            // below EIP-170's 24,576-byte limit.
+            max_module_code_size: 12_000,
         }
     }
 }
@@ -147,6 +150,7 @@ struct MirInlineSummary {
     has_phi: bool,
     has_external_call: bool,
     has_storage_write: bool,
+    has_immutable_write: bool,
     has_log: bool,
     has_control_flow: bool,
     has_unsupported_terminator: bool,
@@ -158,7 +162,7 @@ struct MirInlineSummary {
 
 impl MirInliner {
     /// Runs the inliner over the whole module.
-    fn run(&mut self, module: &mut Module) -> MirInlineStats {
+    fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) -> MirInlineStats {
         let mut stats = MirInlineStats::default();
 
         // A zero budget is an explicit off switch (used by `-O size`). Avoid
@@ -168,7 +172,7 @@ impl MirInliner {
             return stats;
         }
 
-        let mut summaries = self.summarize_module(module);
+        let mut summaries = self.summarize_module(gcx, module);
 
         // Size-aware backstop: inlining grows emitted code, so track the module's
         // estimated runtime bytecode and stop inlining once it reaches the budget,
@@ -181,6 +185,7 @@ impl MirInliner {
 
         let mut call_counts = self.call_counts(module);
         let recursive_functions = self.recursive_functions(module);
+        let preferred_large_call_sites = self.preferred_large_call_sites(module, &summaries);
 
         // Specialize dispatcher calls before helper-local inlining introduces phis.
         let mut caller_ids = module.functions.indices().collect::<Vec<_>>();
@@ -215,7 +220,13 @@ impl MirInliner {
                 if module_code_size >= self.max_module_code_size
                     || grew_too_much
                     || recursive_functions.contains(site.callee)
-                    || !self.is_inlineable(caller_id, site, summary, call_count)
+                    || !self.is_inlineable(
+                        caller_id,
+                        site,
+                        summary,
+                        call_count,
+                        preferred_large_call_sites.get(&site.callee).copied(),
+                    )
                 {
                     stats.skipped += 1;
                     continue;
@@ -227,7 +238,7 @@ impl MirInliner {
                 let caller = module.function_mut(caller_id);
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
-                    let new_summary = summarize_function(module.function(caller_id));
+                    let new_summary = summarize_function(gcx, module, module.function(caller_id));
                     module_code_size = module_code_size
                         .saturating_sub(old_size)
                         .saturating_add(new_summary.estimated_code_size);
@@ -243,11 +254,15 @@ impl MirInliner {
         stats
     }
 
-    fn summarize_module(&self, module: &Module) -> FxHashMap<MirFunctionId, MirInlineSummary> {
+    fn summarize_module(
+        &self,
+        gcx: Gcx<'_>,
+        module: &Module,
+    ) -> FxHashMap<MirFunctionId, MirInlineSummary> {
         module
             .functions
             .iter_enumerated()
-            .map(|(id, func)| (id, summarize_function(func)))
+            .map(|(id, func)| (id, summarize_function(gcx, module, func)))
             .collect()
     }
 
@@ -273,6 +288,49 @@ impl MirInliner {
             }
         }
         recursive
+    }
+
+    /// Picks one call site for each shared callee above the ordinary block cap.
+    ///
+    /// Prefer a call nearest the end of its block, where inlining is most
+    /// likely to expose a terminal path, then the smallest caller.
+    fn preferred_large_call_sites(
+        &self,
+        module: &Module,
+        summaries: &FxHashMap<MirFunctionId, MirInlineSummary>,
+    ) -> FxHashMap<MirFunctionId, (MirFunctionId, InstId)> {
+        let mut preferred = FxHashMap::<
+            MirFunctionId,
+            ((usize, usize, usize, usize), (MirFunctionId, InstId)),
+        >::default();
+        for (caller, func) in module.functions.iter_enumerated() {
+            let caller_size =
+                summaries.get(&caller).map(|summary| summary.instruction_count).unwrap_or_default();
+            for (block_index, block) in func.blocks.iter().enumerate() {
+                for (inst_index, &inst_id) in block.instructions.iter().enumerate() {
+                    let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind else {
+                        continue;
+                    };
+                    if !summaries
+                        .get(&function)
+                        .is_some_and(|summary| summary.block_count > self.max_shared_callee_blocks)
+                    {
+                        continue;
+                    }
+                    let instructions_after = block.instructions.len() - inst_index - 1;
+                    let score = (instructions_after, caller_size, caller.index(), block_index);
+                    preferred
+                        .entry(function)
+                        .and_modify(|current| {
+                            if score < current.0 {
+                                *current = (score, (caller, inst_id));
+                            }
+                        })
+                        .or_insert((score, (caller, inst_id)));
+                }
+            }
+        }
+        preferred.into_iter().map(|(callee, (_, site))| (callee, site)).collect()
     }
 
     fn function_reaches(
@@ -320,6 +378,7 @@ impl MirInliner {
                     return Some(CallSite {
                         block,
                         inst_index,
+                        inst: inst_id,
                         callee: function,
                         args_len: args.len(),
                         returns: returns as usize,
@@ -340,6 +399,7 @@ impl MirInliner {
         site: CallSite,
         summary: MirInlineSummary,
         call_count: usize,
+        preferred_large_call_site: Option<(MirFunctionId, InstId)>,
     ) -> bool {
         let single_call = self.inline_single_call && call_count == 1;
 
@@ -355,6 +415,13 @@ impl MirInliner {
             || summary.has_phi
             || summary.has_unsupported_terminator
             || summary.return_count == 0
+        {
+            return false;
+        }
+
+        if !single_call
+            && summary.block_count > self.max_shared_callee_blocks
+            && preferred_large_call_site != Some((caller, site.inst))
         {
             return false;
         }
@@ -380,7 +447,10 @@ impl MirInliner {
         // code-growth check below.
         if !single_call
             && site.loop_depth == 0
-            && (summary.has_storage_write || summary.has_external_call || summary.has_log)
+            && (summary.has_storage_write
+                || summary.has_immutable_write
+                || summary.has_external_call
+                || summary.has_log)
             && summary.estimated_code_size
                 > estimated_internal_call_code_size(site)
                     + estimated_internal_return_code_size(summary, site)
@@ -404,6 +474,7 @@ impl MirInliner {
 struct CallSite {
     block: BlockId,
     inst_index: usize,
+    inst: InstId,
     callee: MirFunctionId,
     args_len: usize,
     returns: usize,
@@ -411,7 +482,7 @@ struct CallSite {
     has_constant_function_selector: bool,
 }
 
-fn summarize_function(func: &Function) -> MirInlineSummary {
+fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInlineSummary {
     let mut summary = MirInlineSummary {
         block_count: func.blocks.len(),
         param_count: func.params.len(),
@@ -435,7 +506,7 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
                 InstKind::MappingSlotCalldata(..) => 9,
                 _ => 1,
             };
-            let inst_cost = estimate_inst_cost(kind);
+            let inst_cost = estimate_inst_cost(gcx, module, kind);
             summary.estimated_code_size += inst_cost.code_size;
             summary.estimated_runtime_gas += inst_cost.runtime_gas;
             match kind {
@@ -450,6 +521,7 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
                     summary.has_external_call = true;
                 }
                 InstKind::SStore(..) | InstKind::TStore(..) => summary.has_storage_write = true,
+                InstKind::StoreImmutable(..) => summary.has_immutable_write = true,
                 InstKind::Log0(..)
                 | InstKind::Log1(..)
                 | InstKind::Log2(..)
@@ -523,7 +595,7 @@ struct MirCost {
     code_size: usize,
 }
 
-fn estimate_inst_cost(kind: &InstKind) -> MirCost {
+fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost {
     let (runtime_gas, code_size) = match kind {
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
         InstKind::MemoryObjectData(_, kind) => {
@@ -602,15 +674,36 @@ fn estimate_inst_cost(kind: &InstKind) -> MirCost {
         InstKind::AddMod(..) | InstKind::MulMod(..) => (8, 1),
         InstKind::SLoad(..) | InstKind::TLoad(..) => (100, 1),
         InstKind::SStore(..) | InstKind::TStore(..) => (5_000, 1),
+        InstKind::StoreImmutable(..) => (6, 4),
         InstKind::MCopy(..)
         | InstKind::CalldataCopy(..)
         | InstKind::CodeCopy(..)
         | InstKind::ExtCodeCopy(..)
         | InstKind::ReturnDataCopy(..) => (12, 1),
+        InstKind::MemoryZero(..) => (15, 2),
         InstKind::MSize | InstKind::CodeSize | InstKind::ReturnDataSize => (2, 1),
+        InstKind::ConstructorArgsBase => (3, 3),
         InstKind::InternalFrameAddr(_) => (6, 3),
-        // PUSH32 placeholder patched at deploy time.
-        InstKind::LoadImmutable(_) => (3, 33),
+        // Typed PUSH<N> placeholder patched at deploy time.
+        InstKind::LoadImmutable(id) => {
+            let ty = module.immutable_type(*id);
+            let encoding = ty.immutable_encoding().expect("validated immutable declaration");
+            let type_size = immutable_push_type_size(
+                encoding,
+                gcx.sess.opts.optimization,
+                gcx.sess.opts.evm_version.has_bitwise_shifting(),
+            );
+            let width = usize::from(type_size.bytes());
+            if width == 32 {
+                (3, 33)
+            } else {
+                match encoding {
+                    ImmutableEncoding::Unsigned(_) => (3, width + 1),
+                    ImmutableEncoding::Signed(_) => (11, width + 4),
+                    ImmutableEncoding::LeftAligned(_) => (9, width + 4),
+                }
+            }
+        }
         InstKind::ExtCodeSize(..)
         | InstKind::ExtCodeHash(..)
         | InstKind::Balance(..)
@@ -1119,6 +1212,9 @@ impl<'a> InlineCloner<'a> {
             InstKind::MStore8(a, b) => {
                 InstKind::MStore8(self.clone_value(a)?, self.clone_value(b)?)
             }
+            InstKind::MemoryZero(a, b) => {
+                InstKind::MemoryZero(self.clone_value(a)?, self.clone_value(b)?)
+            }
             InstKind::MSize => InstKind::MSize,
             InstKind::Fmp => InstKind::Fmp,
             InstKind::SetFmp(ptr) => InstKind::SetFmp(self.clone_value(ptr)?),
@@ -1155,8 +1251,12 @@ impl<'a> InlineCloner<'a> {
                 let local_offset = offset.checked_sub(self.callee_frame_prefix)?;
                 InstKind::InternalFrameAddr(self.frame_base + local_offset)
             }
+            InstKind::ConstructorArgsBase => InstKind::ConstructorArgsBase,
             InstKind::CodeSize => InstKind::CodeSize,
-            InstKind::LoadImmutable(offset) => InstKind::LoadImmutable(offset),
+            InstKind::StoreImmutable(id, value) => {
+                InstKind::StoreImmutable(id, self.clone_value(value)?)
+            }
+            InstKind::LoadImmutable(id) => InstKind::LoadImmutable(id),
             InstKind::CodeCopy(a, b, c) => {
                 InstKind::CodeCopy(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
             }

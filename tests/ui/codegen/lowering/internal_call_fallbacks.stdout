@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal_call_fallbacks.sol:InternalCallFallbacks ===
 @module InternalCallFallbacks
-fn @recurse(arg0: u256) {
+fn @recurse(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -10,8 +10,7 @@ fn @recurse(arg0: u256) {
     revert 0, 0
   bb2:
     v3 = internal_call @a, 1, arg0
-    mstore 128, v3
-    returndata 128, 32
+    ret v3
 }
 
 fn @a(arg0: u256) -> u256 {
@@ -62,7 +61,7 @@ fn @b(arg0: u256) -> u256 {
     jump bb3
 }
 
-fn @multi(arg0: u256) {
+fn @multi(arg0: u256) -> (u256, u256) [abi_returns=[word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -75,10 +74,7 @@ fn @multi(arg0: u256) {
     v4 = mload 32 !metadata(memory=scratch)
     v5 = add v4, 32
     v6 = mload v5
-    mstore 128, v3
-    v7 = add 128, 32
-    mstore v7, v6
-    returndata 128, 64
+    ret v3, v6
 }
 
 fn @pair(arg0: u256) -> (u256, u256) {

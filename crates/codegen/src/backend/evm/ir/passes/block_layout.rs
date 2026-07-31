@@ -225,8 +225,8 @@ fn estimated_block_size(
 }
 
 fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
-    if inst.immutable_push().is_some() {
-        33
+    if let Some(size) = inst.immutable_type_size() {
+        1 + usize::from(size.bytes())
     } else if inst.deferred_push().is_some() {
         3
     } else if inst.is_encoded_push() {

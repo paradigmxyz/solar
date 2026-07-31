@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/static_frames.sol:SF (runtime) ===
 @module runtime
 bb0:
-  push 0x4e0
+  push 0x440
   push 64
   mstore
   callvalue
@@ -30,7 +30,7 @@ bb5 [cold]:
   push 0
   dup1
   revert
-bb59 [cold]:
+bb71 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -45,8 +45,8 @@ bb59 [cold]:
 bb6:
   push 0
   sload
-  jump bb60
-bb60:
+  jump bb73
+bb73:
   push 128
   mstore
   push 32
@@ -66,7 +66,7 @@ bb7:
   calldataload
   mul
   dup1
-  push 224
+  push 256
   mstore
   push 3
   dup2
@@ -77,286 +77,96 @@ bb7:
   swap1
   pop
   iszero
-  push bb59
+  push bb71
   jumpi
-  push 1
   push 4
   calldataload
+  push 448
+  mstore
+  push bb10
+  push 1
+  push 448
+  mload
   add
   dup1
-  push 256
+  push 512
   mstore
-  push 4
-  calldataload
+  push 448
+  mload
   gt
-  push bb59
+  push bb71
   jumpi
-  push 256
+  push 512
   mload
   push 672
   mstore
-  push 4
-  calldataload
+  push 448
+  mload
   push 704
   mstore
-  push bb11
+  push bb21
   push 704
   mload
   push 672
   mload
   xor
   dup1
-  push 832
+  push 768
   mstore
+  push 960
+  mstore
+  push bb26
   push 0
   sload
   push 1
   dup2
-  dup1
-  push 0x400
-  mstore
   add
   dup1
   push 0x420
   mstore
-  dup2
-  dup1
-  push 0x400
-  mstore
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap3
-  pop
-  pop
-  pop
-  push bb59
+  push bb71
   jumpi
   push 0x420
   mload
-  dup1
-  push 0x420
-  mstore
   push 0
   sstore
   push 3
-  push 832
+  push 960
   mload
   div
   push 1
   dup2
-  dup1
-  push 0x440
-  mstore
   add
   dup1
-  push 0x460
+  push 0x420
   mstore
-  dup2
-  dup1
-  push 0x440
-  mstore
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
-  push bb59
+  push bb71
   jumpi
   push 5
-  push 832
+  push 960
   mload
   mod
   push 2
-  dup2
   add
-  dup1
-  push 0x4a0
-  mstore
-  swap1
-  pop
-  dup1
-  push 0x4a0
-  mstore
-  push 64
+  push 0x420
   mload
-  dup1
-  push 0x4c0
-  mstore
-  push 32
-  dup2
-  add
-  dup3
-  dup1
-  push 0x4a0
-  mstore
-  swap1
-  mstore
-  dup1
-  push 0x4c0
-  mstore
-  push 32
-  mstore
-  push 0
-  sload
-  push 0x460
-  mload
-  dup1
-  push 0x460
-  mstore
-  dup2
-  dup1
-  push 864
-  mstore
-  add
-  dup1
-  push 896
-  mstore
-  dup2
-  dup1
-  push 864
-  mstore
-  dup2
-  lt
-  swap2
-  pop
-  dup2
-  swap3
-  pop
-  pop
-  pop
-  push bb59
-  jumpi
-  push 896
-  mload
-  dup1
-  push 896
-  mstore
-  push 0
-  sstore
-  push 0x460
-  mload
-  dup1
-  push 0x460
-  mstore
-  push 1
-  shl
-  dup1
-  push 928
-  mstore
-  push 1
-  shr
-  push 0x460
-  mload
-  dup1
-  push 0x460
-  mstore
-  sub
-  push bb59
-  jumpi
-  push 928
-  mload
-  dup1
-  push 928
-  mstore
-  push 832
-  mload
-  add
-  dup1
-  push 960
-  mstore
-  push 832
-  mload
-  dup1
-  push 832
-  mstore
-  gt
-  push bb59
-  jumpi
-  push 0x4a0
-  mload
-  dup1
-  push 0x4a0
-  mstore
-  push 960
-  mload
-  add
-  dup1
   push 992
   mstore
-  push 960
-  mload
-  dup1
-  push 960
-  mstore
-  gt
-  push bb59
-  jumpi
-  push 992
-  mload
-  push 736
+  push 0x400
   mstore
   jump
-bb11:
-  push 736
+bb10:
+  push 480
   mload
   dup1
-  push 384
+  push 224
   mstore
-  push 256
-  mload
-  dup1
-  push 256
-  mstore
-  push 1
-  shl
-  dup1
-  push 288
-  mstore
-  push 1
-  shr
-  push 256
-  mload
-  dup1
-  push 256
-  mstore
-  eq
-  swap1
-  pop
-  iszero
-  push bb59
-  jumpi
-  push 384
-  mload
-  dup1
-  push 384
-  mstore
-  push 288
-  mload
-  add
-  dup1
-  push 416
-  mstore
-  push 288
-  mload
-  dup1
-  push 288
-  mstore
-  gt
-  push bb59
-  jumpi
   push 7
   push 4
   calldataload
   mod
-  push bb67
-  jump bb66
-bb66:
   push 64
   mload
   push 160
@@ -365,20 +175,128 @@ bb66:
   push 32
   add
   mstore
+  dup2
+  dup2
+  push 64
+  add
+  mstore
+  push 4
+  calldataload
+  dup2
+  push 96
+  add
+  mstore
+  dup1
+  push 160
+  mstore
+  push 288
+  add
+  push 64
+  mstore
+  pop
+  pop
+  push bb11
+  jump bb36
+bb36:
+  push 160
+  mload
+  push 64
+  add
+  mload
+  push 160
+  mload
+  push 96
+  add
+  mload
+  add
+  dup1
+  push 160
+  mload
+  push 160
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 160
+  add
+  mstore
+  push 160
+  mload
+  push 96
+  add
+  mload
+  gt
+  push bb71
+  jumpi
+  push 160
+  mload
+  push 160
+  add
+  mload
+  push 448
+  mstore
+  push bb38
+  jump bb47
+bb47:
+  push 448
+  mload
+  push 1
+  shl
+  dup1
+  push 512
+  mstore
+  dup1
+  push 1
+  shr
+  push 448
+  mload
+  eq
   swap1
+  pop
+  iszero
+  push bb71
+  jumpi
+  push 1
+  push 512
+  mload
+  add
+  dup1
+  push 544
+  mstore
+  push 512
+  mload
+  gt
+  push bb71
+  jumpi
+  push 0
+  sload
+  push 544
+  mload
+  xor
+  push 0
+  sstore
+  push 0x3e8
+  push 544
+  jump bb72
+bb72:
+  mload
+  mod
+  push 480
+  mstore
   jump
-bb14:
+bb11:
   push 160
   mload
   push 128
   add
   mload
   dup1
-  push 448
+  push 320
   mstore
-  push bb69
-  jump bb64
-bb64:
+  push bb80
+  jump bb79
+bb79:
   push 160
   mload
   push 64
@@ -391,18 +309,197 @@ bb64:
   push 160
   mstore
   jump
-bb15:
+bb12:
   push 160
   mload
   push 128
   add
   mload
   dup1
+  push 352
+  mstore
+  push bb81
+  jump bb79
+bb21:
+  push 736
+  mload
+  dup1
+  push 544
+  mstore
+  push 512
+  mload
+  push 1
+  shl
+  dup1
+  push 576
+  mstore
+  dup1
+  push 1
+  shr
+  push 512
+  mload
+  eq
+  swap2
+  pop
+  pop
+  iszero
+  push bb71
+  jumpi
+  push 544
+  mload
+  push 576
+  mload
+  add
+  dup1
+  push 512
+  mstore
+  push 576
+  mload
+  gt
+  push bb71
+  jumpi
+  push 512
+  mload
   push 480
   mstore
-  push bb70
-  jump bb64
-bb36:
+  jump
+bb26:
+  push 992
+  mload
+  dup1
+  push 800
+  mstore
+  push 64
+  mload
+  push 32
+  mstore
+  push 0x400
+  mload
+  push 32
+  mload
+  push 32
+  add
+  mstore
+  dup1
+  push 800
+  mstore
+  push 32
+  mload
+  push 32
+  add
+  mload
+  dup1
+  push 832
+  mstore
+  push 0
+  sload
+  dup3
+  dup2
+  add
+  dup1
+  push 864
+  mstore
+  lt
+  swap2
+  pop
+  pop
+  push bb71
+  jumpi
+  push 864
+  mload
+  push 0
+  sstore
+  push 800
+  mload
+  push 1
+  shl
+  dup1
+  push 864
+  mstore
+  dup1
+  push 1
+  shr
+  push 800
+  mload
+  eq
+  swap1
+  pop
+  iszero
+  push bb71
+  jumpi
+  push 864
+  mload
+  push 768
+  mload
+  add
+  dup1
+  push 800
+  mstore
+  push 768
+  mload
+  gt
+  push bb71
+  jumpi
+  push 832
+  mload
+  push 800
+  mload
+  add
+  dup1
+  push 768
+  mstore
+  push 800
+  mload
+  gt
+  push bb71
+  jumpi
+  push 768
+  mload
+  push 736
+  mstore
+  jump
+bb38:
+  push 480
+  mload
+  dup1
+  push 160
+  mload
+  push 160
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 160
+  add
+  mstore
+  pop
+  push 160
+  mload
+  push 64
+  add
+  mload
+  push bb41
+  jump bb75
+bb75:
+  jumpi
+  push 160
+  mload
+  push 160
+  jump bb74
+bb74:
+  add
+  mload
+  push 160
+  mload
+  push 128
+  add
+  mstore
+  jump
+bb41:
+  push bb83
+  jump bb78
+bb78:
   push 1
   push 160
   mload
@@ -413,47 +510,18 @@ bb36:
   dup1
   push 160
   mload
-  push 288
+  push 192
   add
   mstore
   dup1
   push 160
   mload
-  push 288
+  push 192
   add
   mstore
-  push 1
-  push 160
-  mload
-  push 96
-  add
-  mload
-  add
-  dup1
-  push 160
-  mload
-  push 320
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 320
-  add
-  mstore
-  push 160
-  mload
-  push 96
-  add
-  mload
-  gt
   swap1
-  pop
-  push bb59
-  jumpi
-  push bb71
-  jump bb66
-bb38:
+  jump
+bb43:
   push 160
   mload
   push 128
@@ -462,143 +530,141 @@ bb38:
   dup1
   push 160
   mload
-  push 352
+  push 192
   add
   mstore
-  push bb74
-  jump bb64
-bb47:
-  push 3
-  push 160
+  push bb84
+  jump bb79
+bb45:
+  push 480
   mload
-  push 96
-  add
-  mload
-  mod
-  push 0
-  sload
-  dup2
   dup1
   push 160
   mload
   push 256
   add
   mstore
-  dup2
   dup1
   push 160
   mload
-  push 288
+  push 256
   add
   mstore
+  push 160
+  mload
+  push 224
+  add
+  mload
   add
   dup1
   push 160
   mload
-  push 320
-  add
-  mstore
-  swap2
-  pop
-  dup2
   push 160
-  mload
-  push 320
   add
   mstore
   dup1
   push 160
   mload
-  push 288
+  push 160
   add
   mstore
+  push 160
+  mload
+  push 224
+  add
+  mload
   gt
-  push bb59
-  jumpi
-  push 160
-  mload
-  push 320
-  add
+  push bb71
+  jump bb75
+bb53:
+  push 480
   mload
   dup1
   push 160
   mload
-  push 320
+  push 256
   add
+  mstore
+  dup1
+  push 160
+  mload
+  push 256
+  add
+  mstore
+  push 7
+  jump bb76
+bb76:
+  dup2
+  add
+  dup1
+  push 160
+  mload
+  push 160
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 160
+  add
+  mstore
+  lt
+  push bb71
+  jump bb75
+bb55:
+  push 160
+  mload
+  push 96
+  add
+  mload
+  push 448
+  mstore
+  push bb56
+  jump bb61
+bb61:
+  push 3
+  push 448
+  mload
+  mod
+  push 0
+  sload
+  swap1
+  dup2
+  add
+  dup1
+  push 512
+  mstore
+  swap1
+  dup2
+  lt
+  push bb71
+  jumpi
+  dup1
+  push 512
   mstore
   push 0
   sstore
   push 97
-  push 160
+  push 448
+  jump bb72
+bb56:
+  push 480
   mload
-  push 96
-  add
-  mload
-  mod
   dup1
   push 160
   mload
-  push 352
+  push 160
   add
   mstore
   dup1
   push 160
   mload
-  push 352
+  push 160
   add
   mstore
-  push 1
-  push 160
-  mload
-  push 64
-  add
-  mload
-  sub
-  dup1
-  push 160
-  mload
-  push 384
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 384
-  add
-  mstore
-  push 3
-  push 160
-  mload
-  push 96
-  add
-  mload
-  add
-  dup1
-  push 160
-  mload
-  push 416
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 416
-  add
-  mstore
-  push 160
-  mload
-  push 96
-  add
-  mload
-  gt
-  swap2
-  pop
-  pop
-  push bb59
-  jumpi
-  push bb76
-  jump bb66
-bb50:
+  push bb86
+  jump bb78
+bb58:
   push 160
   mload
   push 128
@@ -607,12 +673,12 @@ bb50:
   dup1
   push 160
   mload
-  push 448
+  push 256
   add
   mstore
-  push bb78
-  jump bb64
-bb55:
+  push bb87
+  jump bb79
+bb67:
   push 160
   mload
   push 128
@@ -624,9 +690,9 @@ bb55:
   push 224
   add
   mstore
-  push bb79
-  jump bb64
-bb57:
+  push bb88
+  jump bb79
+bb69:
   push 13
   push 160
   mload
@@ -634,8 +700,6 @@ bb57:
   add
   mload
   mod
-  jump bb63
-bb63:
   dup1
   push 160
   mload
@@ -644,429 +708,29 @@ bb63:
   mstore
   pop
   jump
-bb67:
-  dup2
-  dup2
-  push 64
-  add
-  mstore
-  push 4
-  calldataload
-  dup2
-  push 96
-  add
-  mstore
+bb80:
   dup1
-  push 160
-  mstore
-  push 544
-  add
-  push 64
-  mstore
-  pop
-  push bb14
-  jump bb30
-bb30:
-  push 160
-  mload
-  push 64
-  add
-  mload
-  push 160
-  mload
-  push 96
-  add
-  mload
-  add
-  dup1
-  push 160
-  mload
-  push 160
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 160
-  add
-  mstore
-  push 160
-  mload
-  push 96
-  add
-  mload
-  gt
-  push bb59
-  jumpi
-  push 160
-  mload
-  push 160
-  add
-  mload
-  dup1
-  push 160
-  mload
-  push 160
-  add
-  mstore
-  push 1
-  shl
-  dup1
-  push 160
-  mload
-  push 192
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 192
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 192
-  add
-  mstore
-  push 1
-  shr
-  push 160
-  mload
-  push 160
-  add
-  mload
-  dup1
-  push 160
-  mload
-  push 160
-  add
-  mstore
-  sub
-  push bb59
-  jumpi
-  push 1
-  push 160
-  mload
-  push 192
-  add
-  mload
-  add
-  dup1
-  push 160
-  mload
-  push 224
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 224
-  add
-  mstore
-  push 160
-  mload
-  push 192
-  add
-  mload
-  dup1
-  push 160
-  mload
-  push 192
-  add
-  mstore
-  gt
-  push bb59
-  jumpi
-  push 0
-  sload
-  push 160
-  mload
-  push 224
-  add
-  mload
-  dup1
-  push 160
-  mload
-  push 224
-  add
-  mstore
-  xor
-  push 0
-  sstore
-  push 0x3e8
-  push 160
-  mload
-  push 224
-  add
-  mload
-  mod
-  dup1
-  push 160
-  mload
-  push 256
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 256
-  add
-  mstore
-  push 160
-  mload
-  push 64
-  add
-  mload
-  swap1
-  pop
-  push bb36
-  jump bb62
-bb62:
-  jumpi
-  push 160
-  mload
-  push 256
-  jump bb61
-bb61:
-  add
-  mload
-  push 160
-  mload
-  push 128
-  add
-  mstore
-  jump
-bb68:
-  dup2
-  dup2
-  push 64
-  add
-  mstore
-  push 4
-  calldataload
-  dup2
-  push 96
-  add
-  mstore
-  dup1
-  push 160
-  mstore
-  push 512
-  add
-  push 64
-  mstore
-  pop
-  pop
-  push bb15
-  jump bb43
-bb43:
-  push 160
-  mload
-  push 64
-  add
-  mload
-  push bb47
-  jumpi
-  push 3
-  push 160
-  mload
-  push 96
-  add
-  mload
-  mod
-  push 0
-  sload
-  dup2
-  dup1
-  push 160
-  mload
-  push 160
-  add
-  mstore
-  dup2
-  dup1
-  push 160
-  mload
-  push 192
-  add
-  mstore
-  add
-  dup1
-  push 160
-  mload
-  push 224
-  add
-  mstore
-  swap2
-  pop
-  dup2
-  push 160
-  mload
-  push 224
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 192
-  add
-  mstore
-  gt
-  push bb59
-  jumpi
-  push 160
-  mload
-  push 224
-  add
-  mload
-  dup1
-  push 160
-  mload
-  push 224
-  add
-  mstore
-  push 0
-  sstore
-  push 97
-  push 160
-  mload
-  push 96
-  add
-  mload
-  mod
-  push 7
-  add
-  jump bb63
-bb69:
-  dup1
-  push 448
+  push 320
   mstore
   push 5
   push 4
   calldataload
   mod
-  push bb68
-  jump bb66
-bb70:
-  dup1
-  push 480
-  mstore
-  push 0
-  sload
-  push 224
+  push 64
   mload
-  dup1
-  push 224
-  mstore
-  dup2
-  dup1
-  push 576
-  mstore
-  add
-  dup1
-  push 512
-  mstore
-  dup2
-  dup1
-  push 576
-  mstore
-  dup2
-  lt
-  swap2
-  pop
-  dup2
-  swap3
-  pop
-  pop
-  pop
-  push bb59
-  jumpi
-  push 512
-  mload
-  dup1
-  push 512
-  mstore
-  push 0
-  sstore
-  push 416
-  mload
-  dup1
-  push 416
-  mstore
-  push 224
-  mload
-  add
-  dup1
-  push 320
-  mstore
-  push 224
-  mload
-  dup1
-  push 224
-  mstore
-  gt
-  push bb59
-  jumpi
-  push 448
-  mload
-  dup1
-  push 448
-  mstore
-  push 320
-  mload
-  add
-  dup1
-  push 352
-  mstore
-  push 320
-  mload
-  dup1
-  push 320
-  mstore
-  gt
-  push bb59
-  jumpi
-  push 480
-  mload
-  dup1
-  push 480
-  mstore
-  push 352
-  mload
-  add
-  dup1
-  push 544
-  mstore
-  push 352
-  mload
-  dup1
-  push 352
-  mstore
-  gt
-  push bb59
-  jumpi
-  push 544
-  mload
-  dup1
-  push 544
-  mstore
-  jump bb60
-bb71:
   push 160
   mload
-  push 288
+  dup2
+  push 32
   add
-  mload
+  mstore
+  dup2
   dup2
   push 64
   add
   mstore
-  push 160
-  mload
-  push 320
-  add
-  mload
+  push 4
+  calldataload
   dup2
   push 96
   add
@@ -1074,208 +738,141 @@ bb71:
   dup1
   push 160
   mstore
-  push 544
+  push 288
   add
   push 64
   mstore
-  push bb38
-  jump bb30
-bb72:
-  sub
-  push bb59
+  pop
+  pop
+  push bb12
+  jump bb51
+bb51:
+  push 160
+  mload
+  push 64
+  add
+  mload
+  push bb55
   jumpi
-  push 1
   push 160
   mload
-  push 416
+  push 96
   add
-  mload
-  add
-  dup1
-  push 160
   mload
   push 448
-  add
   mstore
+  push bb53
+  jump bb61
+bb81:
   dup1
-  push 160
-  mload
-  push 448
-  add
+  push 352
   mstore
-  push 160
-  mload
-  push 416
-  add
-  mload
-  dup1
-  push 160
-  mload
-  push 416
-  add
-  mstore
-  gt
-  push bb59
-  jumpi
   push 0
   sload
-  push 160
-  mload
-  push 448
-  add
-  mload
-  dup1
-  push 160
-  mload
-  push 448
-  add
-  mstore
-  xor
-  push 0
-  sstore
-  push 0x3e8
-  push 160
-  mload
-  push 448
-  add
-  mload
-  mod
-  dup1
-  push 160
-  mload
-  push 480
-  add
-  mstore
-  push 160
-  mload
-  push 384
-  add
-  mload
-  add
-  dup1
-  push 160
-  mload
-  push 512
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 512
-  add
-  mstore
-  push 160
-  mload
-  push 384
-  add
-  mload
-  dup1
-  push 160
-  mload
-  push 384
-  add
-  mstore
-  gt
-  push bb59
-  jumpi
-  push 160
-  mload
-  push 512
-  jump bb61
-bb73:
-  push 1
-  shl
-  dup1
-  push 160
-  mload
-  push 416
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 416
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 416
-  add
-  mstore
-  push 1
-  shr
-  push bb72
-  jump bb65
-bb65:
-  push 160
-  mload
-  push 352
-  add
-  mload
-  dup1
-  push 160
-  mload
-  push 352
-  add
-  mstore
-  swap1
-  jump
-bb74:
-  dup1
-  push 160
-  mload
-  push 352
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 352
-  add
-  mstore
-  push 160
-  mload
   push 256
-  add
-  mload
-  add
-  dup1
-  push 160
-  mload
-  push 384
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 384
-  add
-  mstore
-  push 160
-  mload
-  push 256
-  add
-  mload
-  dup1
-  push 160
-  mload
-  push 256
-  add
-  mstore
-  gt
-  push bb59
-  jumpi
-  push bb73
-  jump bb65
-bb75:
-  push 160
-  mload
-  push 160
-  add
   mload
   dup2
+  add
+  dup1
+  push 288
+  mstore
+  lt
+  swap1
+  pop
+  push bb71
+  jumpi
+  push 288
+  mload
+  push 0
+  sstore
+  push 224
+  mload
+  push 256
+  mload
+  add
+  dup1
+  push 224
+  mstore
+  push 256
+  mload
+  gt
+  push bb71
+  jumpi
+  push 320
+  mload
+  push 224
+  mload
+  add
+  dup1
+  push 256
+  mstore
+  push 224
+  mload
+  gt
+  push bb71
+  jumpi
+  push 352
+  mload
+  push 256
+  mload
+  add
+  dup1
+  push 224
+  mstore
+  push 256
+  mload
+  gt
+  push bb71
+  jumpi
+  push 224
+  mload
+  jump bb73
+bb82:
+  push 288
+  add
   push 64
+  mstore
+  push bb43
+  jump bb36
+bb83:
+  push 1
+  push 160
+  mload
+  push 96
+  add
+  mload
+  add
+  dup1
+  push 160
+  mload
+  push 224
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 224
+  add
+  mstore
+  push 160
+  mload
+  push 96
+  add
+  mload
+  gt
+  swap1
+  pop
+  push bb71
+  jumpi
+  push bb82
+  jump bb77
+bb77:
+  push 64
+  mload
+  push 160
+  mload
+  dup2
+  push 32
   add
   mstore
   push 160
@@ -1284,31 +881,12 @@ bb75:
   add
   mload
   dup2
-  push 96
-  add
-  mstore
-  dup1
-  push 160
-  mstore
-  push 512
-  add
-  push 64
-  mstore
-  push bb55
-  jump bb43
-bb76:
-  push 160
-  mload
-  push 384
-  add
-  mload
-  dup2
   push 64
   add
   mstore
   push 160
   mload
-  push 416
+  push 224
   add
   mload
   dup2
@@ -1318,18 +896,66 @@ bb76:
   dup1
   push 160
   mstore
-  push 288
+  swap1
+  jump
+bb84:
+  dup1
+  push 160
+  mload
+  push 192
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 160
+  add
+  mload
+  add
+  dup1
+  push 160
+  mload
+  push 224
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 224
+  add
+  mstore
+  push 160
+  mload
+  push 160
+  add
+  mload
+  gt
+  swap1
+  pop
+  push bb71
+  jumpi
+  push 160
+  mload
+  push 192
+  add
+  mload
+  push 448
+  mstore
+  push bb45
+  jump bb47
+bb85:
+  push 256
   add
   push 64
   mstore
-  push bb50
+  push bb58
   push 160
   mload
   push 64
   add
   mload
   iszero
-  push bb57
+  push bb69
   jumpi
   push 1
   push 160
@@ -1377,52 +1003,114 @@ bb76:
   gt
   swap1
   pop
-  push bb59
+  push bb71
   jumpi
-  push bb75
-  jump bb66
-bb77:
+  push 64
+  mload
+  push 160
+  mload
+  dup2
+  push 32
+  add
+  mstore
+  push 160
+  mload
+  push 160
+  add
+  mload
+  dup2
+  push 64
+  add
+  mstore
+  push 160
+  mload
+  push 192
+  add
+  mload
+  dup2
+  push 96
+  add
+  mstore
+  dup1
+  push 160
+  mstore
+  push 288
+  add
+  push 64
+  mstore
+  push bb67
+  jump bb51
+bb86:
+  push 3
+  push 160
+  mload
+  push 96
+  add
+  mload
+  add
+  dup1
+  push 160
+  mload
+  push 224
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 224
+  add
+  mstore
+  push 160
+  mload
+  push 96
+  add
+  mload
   gt
-  push bb59
+  swap2
+  pop
+  pop
+  push bb71
+  jumpi
+  push bb85
+  jump bb77
+bb87:
+  dup1
+  push 160
+  mload
+  push 256
+  add
+  mstore
+  push 160
+  mload
+  push 160
+  add
+  mload
+  add
+  dup1
+  push 160
+  mload
+  push 192
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 192
+  add
+  mstore
+  push 160
+  mload
+  push 160
+  add
+  mload
+  gt
+  push bb71
   jumpi
   push 160
   mload
-  push 480
-  jump bb61
-bb78:
-  dup1
-  push 160
-  mload
-  push 448
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 448
-  add
-  mstore
-  push 160
-  mload
-  push 352
-  add
-  mload
-  add
-  dup1
-  push 160
-  mload
-  push 480
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 480
-  add
-  mstore
-  push bb77
-  jump bb65
-bb79:
+  push 192
+  jump bb74
+bb88:
   dup1
   push 160
   mload
@@ -1430,34 +1118,4 @@ bb79:
   add
   mstore
   push 1
-  dup2
-  add
-  dup1
-  push 160
-  mload
-  push 256
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 256
-  add
-  mstore
-  dup2
-  dup1
-  push 160
-  mload
-  push 224
-  add
-  mstore
-  dup2
-  lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
-  push bb59
-  jump bb62
+  jump bb76

@@ -1,8 +1,8 @@
 //! MIR instructions.
 
 use super::{
-    AbiLayoutRef, BlockId, Function, FunctionId, MemoryObjectKind, MemoryObjectLayout, MirType,
-    SliceLocation, StorageLayoutRef, Value, ValueId,
+    AbiLayoutRef, BlockId, Function, FunctionId, ImmutableId, MemoryObjectKind, MemoryObjectLayout,
+    MirType, SliceLocation, StorageLayoutRef, Value, ValueId,
 };
 use alloy_primitives::U256;
 use smallvec::{Array, SmallVec};
@@ -183,6 +183,8 @@ impl MetadataFlags {
             10 => Some(EffectKind::InternalCall),
             11 => Some(EffectKind::Create),
             12 => Some(EffectKind::Log),
+            13 => Some(EffectKind::ImmutableRead),
+            14 => Some(EffectKind::ImmutableWrite),
             _ => unreachable!("invalid packed effect kind"),
         }
     }
@@ -202,6 +204,8 @@ impl MetadataFlags {
             Some(EffectKind::InternalCall) => 10,
             Some(EffectKind::Create) => 11,
             Some(EffectKind::Log) => 12,
+            Some(EffectKind::ImmutableRead) => 13,
+            Some(EffectKind::ImmutableWrite) => 14,
         } << Self::EFFECT_SHIFT;
         self.0 = (self.0 & !Self::EFFECT_MASK) | bits;
     }
@@ -363,6 +367,10 @@ pub(crate) enum EffectKind {
     Create,
     /// Event emission.
     Log,
+    /// Read from an immutable.
+    ImmutableRead,
+    /// Constructor assignment to an immutable.
+    ImmutableWrite,
 }
 
 impl EffectKind {
@@ -382,6 +390,8 @@ impl EffectKind {
             Self::InternalCall => "internal_call",
             Self::Create => "create",
             Self::Log => "log",
+            Self::ImmutableRead => "immutable_read",
+            Self::ImmutableWrite => "immutable_write",
         }
     }
 }
@@ -571,6 +581,8 @@ pub(crate) enum InstKind {
     MStore(ValueId, ValueId),
     /// Store a single byte: `mstore8(offset, value)`
     MStore8(ValueId, ValueId),
+    /// Set a contiguous memory range to zero: `memory_zero(offset, size)`
+    MemoryZero(ValueId, ValueId),
     /// Get memory size: `msize()`
     MSize,
     /// Read the free-memory pointer.
@@ -679,6 +691,8 @@ pub(crate) enum InstKind {
     SliceLen(ValueId),
     /// Address inside the current internal-call frame.
     InternalFrameAddr(u64),
+    /// Base address of the constructor's copied ABI argument blob.
+    ConstructorArgsBase,
 
     // Code operations
     /// Get code size: `codesize()`
@@ -691,12 +705,15 @@ pub(crate) enum InstKind {
     ExtCodeCopy(ValueId, ValueId, ValueId, ValueId),
     /// Get external code hash: `extcodehash(addr)`
     ExtCodeHash(ValueId),
-    /// Read an immutable word identified by its byte offset: `loadimmutable <offset>`
+    /// Assign an immutable during construction: `storeimmutable <name>, value`.
+    /// Lowered to constructor staging memory after MIR optimization.
+    StoreImmutable(ImmutableId, ValueId),
+    /// Read an immutable declared by the module: `loadimmutable <name>`.
     ///
-    /// In runtime code this assembles to a `PUSH32` placeholder that the
+    /// In runtime code this assembles to a typed `PUSH<N>` placeholder that the
     /// constructor patches with the staged value before returning the runtime
-    /// code. In constructor code it reads the staged scratch word instead.
-    LoadImmutable(u32),
+    /// code. In constructor code it reads the staging word instead.
+    LoadImmutable(ImmutableId),
 
     // Return data operations
     /// Get return data size: `returndatasize()`
@@ -841,6 +858,26 @@ pub(crate) enum InstKind {
 }
 
 impl InstKind {
+    /// Returns binary operands whose evaluation order may be exchanged during EVM lowering.
+    ///
+    /// This includes commutative instructions and comparisons whose opcode can be reversed with
+    /// their operands.
+    pub(crate) const fn reorderable_binary_operands(&self) -> Option<(ValueId, ValueId)> {
+        match self {
+            Self::Add(a, b)
+            | Self::Mul(a, b)
+            | Self::And(a, b)
+            | Self::Or(a, b)
+            | Self::Xor(a, b)
+            | Self::Eq(a, b)
+            | Self::Lt(a, b)
+            | Self::Gt(a, b)
+            | Self::SLt(a, b)
+            | Self::SGt(a, b) => Some((*a, *b)),
+            _ => None,
+        }
+    }
+
     /// Collects all operands of this instruction into the provided vector.
     /// This is the canonical way to get all operands for liveness analysis.
     pub(crate) fn collect_operands<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
@@ -868,6 +905,7 @@ impl InstKind {
             | Self::Eq(a, b)
             | Self::MStore(a, b)
             | Self::MStore8(a, b)
+            | Self::MemoryZero(a, b)
             | Self::SStore(a, b)
             | Self::TStore(a, b)
             | Self::Keccak256(a, b)
@@ -915,6 +953,7 @@ impl InstKind {
             | Self::Balance(a)
             | Self::BlockHash(a)
             | Self::BlobHash(a)
+            | Self::StoreImmutable(_, a)
             | Self::Keccak256Bytes(a)
             | Self::MemoryObjectLen(a, _)
             | Self::MemoryObjectData(a, _)
@@ -1013,6 +1052,7 @@ impl InstKind {
             | Self::Fmp
             | Self::CalldataSize
             | Self::InternalFrameAddr(_)
+            | Self::ConstructorArgsBase
             | Self::CodeSize
             | Self::LoadImmutable(_)
             | Self::ReturnDataSize
@@ -1067,6 +1107,7 @@ impl InstKind {
             | Self::Eq(a, b)
             | Self::MStore(a, b)
             | Self::MStore8(a, b)
+            | Self::MemoryZero(a, b)
             | Self::SStore(a, b)
             | Self::TStore(a, b)
             | Self::Keccak256(a, b)
@@ -1118,6 +1159,7 @@ impl InstKind {
             | Self::Balance(a)
             | Self::BlockHash(a)
             | Self::BlobHash(a)
+            | Self::StoreImmutable(_, a)
             | Self::SlicePtr(a)
             | Self::Keccak256Bytes(a)
             | Self::SliceLen(a)
@@ -1202,6 +1244,7 @@ impl InstKind {
             | Self::Fmp
             | Self::CalldataSize
             | Self::InternalFrameAddr(_)
+            | Self::ConstructorArgsBase
             | Self::CodeSize
             | Self::LoadImmutable(_)
             | Self::ReturnDataSize
@@ -1255,6 +1298,7 @@ impl InstKind {
             Self::MLoad(_) => "mload",
             Self::MStore(_, _) => "mstore",
             Self::MStore8(_, _) => "mstore8",
+            Self::MemoryZero(_, _) => "memory_zero",
             Self::MSize => "msize",
             Self::Fmp => "fmp",
             Self::SetFmp(_) => "set_fmp",
@@ -1281,8 +1325,10 @@ impl InstKind {
             Self::MakeSlice { location: SliceLocation::Returndata, .. } => "make_returndata_slice",
             Self::SlicePtr(_) => "slice_ptr",
             Self::SliceLen(_) => "slice_len",
+            Self::ConstructorArgsBase => "constructor_args_base",
             Self::CodeSize => "codesize",
             Self::CodeCopy(_, _, _) => "codecopy",
+            Self::StoreImmutable(..) => "storeimmutable",
             Self::LoadImmutable(_) => "loadimmutable",
             Self::ExtCodeSize(_) => "extcodesize",
             Self::ExtCodeCopy(_, _, _, _) => "extcodecopy",
@@ -1345,6 +1391,7 @@ impl InstKind {
             // Memory writes (may affect external calls)
             | Self::MStore(_, _)
             | Self::MStore8(_, _)
+            | Self::MemoryZero(_, _)
             | Self::SetFmp(_)
             | Self::Alloc { .. }
             | Self::SetMemoryObjectLen(_, _, _)
@@ -1371,6 +1418,8 @@ impl InstKind {
             | Self::CodeCopy(_, _, _)
             | Self::ExtCodeCopy(_, _, _, _)
             | Self::ReturnDataCopy(_, _, _)
+            // Immutable assignment.
+            | Self::StoreImmutable(..)
         )
     }
 
@@ -1380,6 +1429,7 @@ impl InstKind {
         match self {
             Self::MStore(_, _)
             | Self::MStore8(_, _)
+            | Self::MemoryZero(_, _)
             | Self::SetFmp(_)
             | Self::Alloc { .. }
             | Self::SetMemoryObjectLen(_, _, _)
@@ -1390,6 +1440,7 @@ impl InstKind {
             | Self::CodeCopy(_, _, _)
             | Self::ExtCodeCopy(_, _, _, _)
             | Self::ReturnDataCopy(_, _, _) => EffectKind::MemoryWrite,
+            Self::StoreImmutable(..) => EffectKind::ImmutableWrite,
             Self::MLoad(_)
             | Self::MemoryObjectLen(_, _)
             | Self::Fmp
@@ -1417,8 +1468,8 @@ impl InstKind {
             Self::CalldataLoad(_)
             | Self::MappingSlotCalldata(_, _)
             | Self::CalldataSize
+            | Self::ConstructorArgsBase
             | Self::CodeSize
-            | Self::LoadImmutable(_)
             | Self::ExtCodeSize(_)
             | Self::ExtCodeHash(_)
             | Self::ReturnDataSize
@@ -1440,6 +1491,7 @@ impl InstKind {
             | Self::BaseFee
             | Self::BlobBaseFee
             | Self::BlobHash(_) => EffectKind::EnvironmentRead,
+            Self::LoadImmutable(_) => EffectKind::ImmutableRead,
             Self::Add(_, _)
             | Self::MappingSlot(_, _)
             | Self::Sub(_, _)

@@ -106,3 +106,12 @@ bb7:
   swap16
   swap16
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb8:
+// CHECK-COUNT-2: - pop
+bb8:
+  calldatasize
+  calldatasize
+  pop
+  pop
+  stop
