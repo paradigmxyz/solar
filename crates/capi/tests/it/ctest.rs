@@ -18,7 +18,10 @@ fn c_api_smoke_test() {
         return;
     };
     let lib_path = dynamic_library().unwrap_or_else(|| {
-        panic!("failed to find solar_capi dynamic library in {}", dynamic_library_path_env())
+        panic!(
+            "failed to find solar_capi dynamic library beside the test binary or in {}",
+            dynamic_library_path_env()
+        )
     });
     let lib_dir = lib_path.parent().unwrap();
 
@@ -92,7 +95,17 @@ fn prepend_dynamic_library_path(command: &mut Command, lib_dir: &Path) {
 
 fn dynamic_library() -> Option<PathBuf> {
     let name = format!("{}solar_capi{}", env::consts::DLL_PREFIX, env::consts::DLL_SUFFIX);
-    let paths = env::split_paths(&env::var_os(dynamic_library_path_env())?).collect::<Vec<_>>();
+    let mut paths = env::var_os(dynamic_library_path_env())
+        .map(|value| env::split_paths(&value).collect::<Vec<_>>())
+        .unwrap_or_default();
+    if let Ok(exe) = env::current_exe()
+        && let Some(deps_dir) = exe.parent()
+    {
+        paths.push(deps_dir.to_path_buf());
+        if let Some(profile_dir) = deps_dir.parent() {
+            paths.push(profile_dir.to_path_buf());
+        }
+    }
     find_existing(&paths, &[name.as_str()])
 }
 
