@@ -4,17 +4,28 @@
 //@ run-call: PackedSolcLayout::aggregatePacking => true
 //@ run-call: PackedSolcLayout::dynamicArrayPacking => 1, 254, 3, 2
 //@ run-call: PackedSolcLayout::mappingPacking => 0xabcdef, -7, 0xabcdef, 249
+//@ run-call: PackedSolcLayout::mappingAssignmentPreservesPadding => true
 //@ run-call: PackedSolcLayout::memoryDynamicCopyPacking => true
+//@ run-call: PackedSolcLayout::memoryDynamicCopyShrinkClears => true
+//@ run-call: PackedSolcLayout::dynamicArrayDeleteClears => true
+//@ run-call: PackedSolcLayout::nestedDynamicArrayDeleteClears => true
+//@ run-call: PackedSolcLayout::nestedDynamicArrayElementDeleteClears => true
+//@ run-call: PackedSolcLayout::mappingArrayDeleteOnlyClearsLength => true
+//@ run-call: PackedSolcLayout::structDeletePreservesMappingSlot => true
 //@ run-call: PackedSolcLayout::memoryStructCopyPacking => true
+//@ run-call: PackedSolcLayout::dynamicStructDeleteClears => true
 //@ run-call: PackedSolcLayout::memoryFixedCopyPacking => true
 //@ run-call: NestedPackedLayout::layout => 0, 5
 //@ run-call: NestedPackedLayout::packing => true
 //@ run-call: PackedArrayWidths::layout => 0, 2, 3
 //@ run-call: PackedArrayWidths::fixedPacking => true
 //@ run-call: PackedArrayWidths::dynamicBytesPacking => true
+//@ run-call: PackedArrayWidths::memoryDynamicCopyClearsPadding => true
 //@ run-call: PackedArrayWidths::signedPacking => -1, -8388608, 8388607, 0x7fffff800000ffffff
 //@ run-call: PackedDerived::layout => 0, 0, 1, 0, 1, 16, 2, 0
 //@ run-call: PackedDerived::packing => true
+//@ run-call: PackedScalarKinds::packing => true
+//@ run-call: LargeStorageLayout::layout => 0x18000000000000000
 
 contract PackedSolcLayout {
     bytes3 private smallBytes;
@@ -46,6 +57,16 @@ contract PackedSolcLayout {
     uint8[] private copiedDynamic;
     DeepPacked private copiedStruct;
     uint8[4] private copiedFixed;
+    uint8[][] private nestedItems;
+    mapping(uint256 => uint256)[] private mappingItems;
+
+    struct WithMapping {
+        uint8 beforeMapping;
+        mapping(uint256 => uint256) items;
+        uint8 afterMapping;
+    }
+
+    WithMapping private withMapping;
 
     function target() external pure returns (uint256) {
         return 77;
@@ -169,12 +190,43 @@ contract PackedSolcLayout {
         return (mappedBytes[42], mappedSigned[42], bytesWord, signedWord);
     }
 
+    function mappingAssignmentPreservesPadding() external returns (bool) {
+        uint256 bytesSlot;
+        uint256 signedSlot;
+        assembly {
+            mstore(0, 7)
+            mstore(32, mappedBytes.slot)
+            bytesSlot := keccak256(0, 64)
+            sstore(bytesSlot, not(0))
+            mstore(32, mappedSigned.slot)
+            signedSlot := keccak256(0, 64)
+            sstore(signedSlot, not(0))
+        }
+        mappedBytes[7] = hex"abcdef";
+        mappedSigned[7] = -7;
+
+        uint256 bytesWord;
+        uint256 signedWord;
+        assembly {
+            bytesWord := sload(bytesSlot)
+            signedWord := sload(signedSlot)
+        }
+        return bytesWord == ((type(uint256).max << 24) | uint256(0xabcdef))
+            && signedWord == ((type(uint256).max << 8) | uint256(0xf9));
+    }
+
     function memoryDynamicCopyPacking() external returns (bool) {
         uint8[] memory items = new uint8[](35);
         items[0] = 1;
         items[31] = 32;
         items[32] = 33;
         items[34] = 35;
+        assembly {
+            mstore(0, copiedDynamic.slot)
+            let data := keccak256(0, 32)
+            sstore(data, not(0))
+            sstore(add(data, 1), not(0))
+        }
         copiedDynamic = items;
 
         uint256 dynamicFirst;
@@ -189,6 +241,112 @@ contract PackedSolcLayout {
             && copiedDynamic[31] == 32 && copiedDynamic[32] == 33
             && copiedDynamic[34] == 35
             && dynamicFirst == ((uint256(32) << 248) | 1) && dynamicSecond == 0x230021;
+    }
+
+    function memoryDynamicCopyShrinkClears() external returns (bool) {
+        uint8[] memory large = new uint8[](35);
+        large[0] = 1;
+        large[1] = 2;
+        large[31] = 32;
+        large[32] = 33;
+        large[34] = 35;
+        copiedDynamic = large;
+
+        uint8[] memory smallItems = new uint8[](1);
+        smallItems[0] = 9;
+        copiedDynamic = smallItems;
+
+        uint256 firstWord;
+        uint256 secondWord;
+        assembly {
+            mstore(0, copiedDynamic.slot)
+            let data := keccak256(0, 32)
+            firstWord := sload(data)
+            secondWord := sload(add(data, 1))
+        }
+        return copiedDynamic.length == 1 && copiedDynamic[0] == 9
+            && firstWord == 9 && secondWord == 0;
+    }
+
+    function dynamicArrayDeleteClears() external returns (bool) {
+        dynamicItems.push(1);
+        dynamicItems.push(2);
+        dynamicItems.push(3);
+        delete dynamicItems;
+
+        uint256 dataWord;
+        assembly {
+            mstore(0, dynamicItems.slot)
+            dataWord := sload(keccak256(0, 32))
+        }
+        return dynamicItems.length == 0 && dataWord == 0;
+    }
+
+    function nestedDynamicArrayDeleteClears() external returns (bool) {
+        nestedItems.push();
+        nestedItems[0].push(7);
+        delete nestedItems;
+
+        uint256 innerLength;
+        uint256 innerDataWord;
+        assembly {
+            mstore(0, nestedItems.slot)
+            let outerData := keccak256(0, 32)
+            innerLength := sload(outerData)
+            mstore(0, outerData)
+            innerDataWord := sload(keccak256(0, 32))
+        }
+        return nestedItems.length == 0 && innerLength == 0 && innerDataWord == 0;
+    }
+
+    function nestedDynamicArrayElementDeleteClears() external returns (bool) {
+        nestedItems.push();
+        nestedItems[0].push(7);
+        delete nestedItems[0];
+
+        uint256 innerLength;
+        uint256 innerDataWord;
+        assembly {
+            mstore(0, nestedItems.slot)
+            let outerData := keccak256(0, 32)
+            innerLength := sload(outerData)
+            mstore(0, outerData)
+            innerDataWord := sload(keccak256(0, 32))
+        }
+        return nestedItems.length == 1 && nestedItems[0].length == 0
+            && innerLength == 0 && innerDataWord == 0;
+    }
+
+    function mappingArrayDeleteOnlyClearsLength() external returns (bool) {
+        assembly {
+            sstore(mappingItems.slot, not(0))
+        }
+        delete mappingItems;
+        return mappingItems.length == 0;
+    }
+
+    function structDeletePreservesMappingSlot() external returns (bool) {
+        assembly {
+            sstore(withMapping.slot, not(0))
+            sstore(add(withMapping.slot, 2), not(0))
+        }
+        withMapping.beforeMapping = 1;
+        withMapping.afterMapping = 2;
+        assembly {
+            sstore(add(withMapping.slot, 1), 0xabcdef)
+        }
+        delete withMapping;
+
+        uint256 mappingSlot;
+        uint256 head;
+        uint256 tail;
+        assembly {
+            head := sload(withMapping.slot)
+            mappingSlot := sload(add(withMapping.slot, 1))
+            tail := sload(add(withMapping.slot, 2))
+        }
+        return withMapping.beforeMapping == 0 && withMapping.afterMapping == 0
+            && head == 0 && mappingSlot == 0xabcdef && tail == 0;
     }
 
     function memoryStructCopyPacking() external returns (bool) {
@@ -219,7 +377,32 @@ contract PackedSolcLayout {
             && structSecond == 0x230021 && structTail == 9;
     }
 
+    function dynamicStructDeleteClears() external returns (bool) {
+        uint8[] memory items = new uint8[](35);
+        items[0] = 1;
+        items[34] = 35;
+        copiedStruct = DeepPacked(7, 8, items, 9);
+        delete copiedStruct;
+
+        uint256 head;
+        uint256 firstData;
+        uint256 secondData;
+        uint256 tail;
+        assembly {
+            head := sload(copiedStruct.slot)
+            mstore(0, add(copiedStruct.slot, 1))
+            let data := keccak256(0, 32)
+            firstData := sload(data)
+            secondData := sload(add(data, 1))
+            tail := sload(add(copiedStruct.slot, 2))
+        }
+        return head == 0 && firstData == 0 && secondData == 0 && tail == 0;
+    }
+
     function memoryFixedCopyPacking() external returns (bool) {
+        assembly {
+            sstore(copiedFixed.slot, not(0))
+        }
         copiedFixed = [uint8(1), 2, 3, 4];
 
         uint256 fixedWord;
@@ -332,6 +515,33 @@ contract PackedArrayWidths {
             && uint24(firstWord >> 216) == 10 && secondWord == 0xabcdef;
     }
 
+    function memoryDynamicCopyClearsPadding() external returns (bool) {
+        bytes3[] memory items = new bytes3[](11);
+        items[0] = hex"010203";
+        items[9] = hex"abcdef";
+        items[10] = hex"123456";
+        assembly {
+            mstore(0, dynamicBytes.slot)
+            let data := keccak256(0, 32)
+            sstore(data, not(0))
+            sstore(add(data, 1), not(0))
+        }
+        dynamicBytes = items;
+
+        uint256 firstWord;
+        uint256 secondWord;
+        assembly {
+            mstore(0, dynamicBytes.slot)
+            let data := keccak256(0, 32)
+            firstWord := sload(data)
+            secondWord := sload(add(data, 1))
+        }
+        return dynamicBytes.length == 11 && dynamicBytes[0] == hex"010203"
+            && dynamicBytes[9] == hex"abcdef" && dynamicBytes[10] == hex"123456"
+            && firstWord == ((uint256(0xabcdef) << 216) | uint256(0x010203))
+            && secondWord == 0x123456;
+    }
+
     function signedPacking() external returns (int24, int24, int24, uint256) {
         signedItems.push(-1);
         signedItems.push(-8388608);
@@ -343,6 +553,41 @@ contract PackedArrayWidths {
             word := sload(keccak256(0, 32))
         }
         return (signedItems[0], signedItems[1], signedItems[2], word);
+    }
+}
+
+contract PackedScalarKinds {
+    enum Kind {
+        Zero,
+        One,
+        Two
+    }
+
+    Kind private kind;
+    PackedScalarKinds private peer;
+    function(uint256) internal pure returns (uint256) private operation;
+    uint8 private sentinel;
+
+    function increment(uint256 value) internal pure returns (uint256) {
+        return value + 1;
+    }
+
+    function packing() external returns (bool) {
+        kind = Kind.Two;
+        peer = this;
+        operation = increment;
+        sentinel = 0x5a;
+
+        uint256 raw;
+        assembly {
+            raw := sload(kind.slot)
+        }
+        uint256 internalMask = type(uint64).max;
+        return kind == Kind.Two && address(peer) == address(this)
+            && operation(41) == 42 && sentinel == 0x5a && uint8(raw) == 2
+            && address(uint160(raw >> 8)) == address(this)
+            && ((raw >> 168) & internalMask) != 0 && uint8(raw >> 232) == 0x5a
+            && raw >> 240 == 0;
     }
 }
 
@@ -393,5 +638,16 @@ contract PackedDerived is PackedBase {
             && derivedSmall == 0x12345678
             && uint128(packed) == 0x112233445566778899aabbccddeeff00
             && uint32(packed >> 128) == 0x12345678 && packed >> 160 == 0;
+    }
+}
+
+contract LargeStorageLayout {
+    uint256[9223372036854775808][3] private huge;
+    uint256 private afterHuge;
+
+    function layout() external pure returns (uint256 slot) {
+        assembly {
+            slot := afterHuge.slot
+        }
     }
 }

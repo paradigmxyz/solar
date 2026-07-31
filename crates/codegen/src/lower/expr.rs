@@ -749,10 +749,16 @@ impl<'gcx> Lowerer<'gcx> {
 
     fn lower_delete(&mut self, builder: &mut FunctionBuilder<'_>, target: &hir::Expr<'_>) {
         if let Some(ty) = self.get_expr_type(target)
-            && let TyKind::Struct(struct_id) = ty.peel_refs().kind
+            && ty.peel_refs().is_reference_type()
             && let Some(slot) = self.lower_lvalue_slot(builder, target)
         {
-            self.clear_storage_struct_at(builder, struct_id, slot);
+            if let TyKind::Struct(struct_id) = ty.peel_refs().kind
+                && !self.struct_needs_recursive_storage_clear(struct_id)
+            {
+                self.clear_storage_struct_at(builder, struct_id, slot);
+            } else {
+                self.clear_storage_value_at(builder, ty, slot);
+            }
             return;
         }
 

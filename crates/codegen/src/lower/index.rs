@@ -219,7 +219,16 @@ impl<'gcx> Lowerer<'gcx> {
             } else if let Some(ty) = self.get_expr_type(lhs)
                 && let Some(field) = self.packed_storage_field(ty)
             {
-                self.store_storage_field_at_slot(builder, field, mapping.slot, rhs);
+                self.store_storage_location_at_slot(
+                    builder,
+                    super::storage::StorageLocation {
+                        slot: U256::ZERO,
+                        offset: 0,
+                        field: Some(field),
+                    },
+                    mapping.slot,
+                    rhs,
+                );
             } else {
                 builder.sstore(mapping.slot, rhs);
             }

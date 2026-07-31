@@ -80,6 +80,14 @@ impl<'gcx> Lowerer<'gcx> {
                     return;
                 };
                 let element = self.storage_field_for_ty(element_ty);
+                if let StorageField::Packed(field) = element {
+                    let per_slot = u64::from(32 / field.size);
+                    for slot_offset in 0..len.div_ceil(per_slot) {
+                        let element_slot = self.offset_storage_slot(builder, slot, slot_offset);
+                        let zero = builder.imm_u64(0);
+                        builder.sstore(element_slot, zero);
+                    }
+                }
                 let mut cursor = StorageCursor::default();
                 for index in 0..len {
                     let index_value = builder.imm_u64(index);
@@ -141,33 +149,40 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::Struct(struct_id) => {
                 let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
                 let mut cursor = StorageCursor::default();
+                let mut cleared_packed_slot = None;
                 for field_ty in field_tys {
                     let field = self.storage_field_for_ty(field_ty);
                     let position = cursor.allocate(&field);
                     let field_slot = self.offset_storage_slot(builder, slot, position.slot);
-                    if let StorageField::Packed(field) = field {
-                        let zero = builder.imm_u64(0);
-                        self.store_storage_location_at_slot(
-                            builder,
-                            StorageLocation {
-                                slot: U256::ZERO,
-                                offset: position.offset,
-                                field: Some(field),
-                            },
-                            field_slot,
-                            zero,
-                        );
+                    if matches!(field, StorageField::Packed(_)) {
+                        if cleared_packed_slot != Some(position.slot) {
+                            let zero = builder.imm_u64(0);
+                            builder.sstore(field_slot, zero);
+                            cleared_packed_slot = Some(position.slot);
+                        }
                     } else {
                         self.clear_storage_value_at(builder, field_ty, field_slot);
                     }
                 }
             }
             TyKind::Array(element_ty, len) => {
+                if matches!(element_ty.peel_refs().kind, TyKind::Mapping(..)) {
+                    return;
+                }
                 let Ok(len) = u64::try_from(len) else {
                     self.gcx.dcx().err("fixed-size storage array is too large for codegen").emit();
                     return;
                 };
                 let element = self.storage_field_for_ty(element_ty);
+                if let StorageField::Packed(field) = element {
+                    let per_slot = u64::from(32 / field.size);
+                    for slot_offset in 0..len.div_ceil(per_slot) {
+                        let element_slot = self.offset_storage_slot(builder, slot, slot_offset);
+                        let zero = builder.imm_u64(0);
+                        builder.sstore(element_slot, zero);
+                    }
+                    return;
+                }
                 let mut cursor = StorageCursor::default();
                 for _ in 0..len {
                     let position = cursor.allocate(&element);
@@ -189,6 +204,53 @@ impl<'gcx> Lowerer<'gcx> {
                     }
                 }
             }
+            TyKind::DynArray(element_ty) => {
+                let old_len = builder.sload(slot);
+                let zero = builder.imm_u64(0);
+                builder.sstore(slot, zero);
+                if matches!(element_ty.peel_refs().kind, TyKind::Mapping(..)) {
+                    return;
+                }
+                builder.mstore(zero, slot);
+                let word = builder.imm_u64(32);
+                let data_slot = builder.keccak256(zero, word);
+                let element_slots = self.calculate_storage_slots_for_ty(element_ty, Span::DUMMY);
+                let element_ty = element_ty.peel_refs();
+                if let Some(field) = self.packed_storage_field(element_ty) {
+                    let old_slots = Self::packed_array_slot_count(builder, old_len, field);
+                    self.emit_storage_elements_loop(
+                        builder,
+                        zero,
+                        old_slots,
+                        move |_, builder, index| {
+                            let element_slot = builder.add(data_slot, index);
+                            let zero = builder.imm_u64(0);
+                            builder.sstore(element_slot, zero);
+                        },
+                    );
+                    return;
+                }
+                self.emit_storage_elements_loop(
+                    builder,
+                    zero,
+                    old_len,
+                    move |this, builder, index| {
+                        let access = this.storage_array_element_access_unchecked(
+                            builder,
+                            data_slot,
+                            index,
+                            element_ty,
+                            element_slots,
+                        );
+                        if access.field.is_some() {
+                            let zero = builder.imm_u64(0);
+                            this.store_storage_access(builder, access, zero);
+                        } else {
+                            this.clear_storage_value_at(builder, element_ty, access.slot);
+                        }
+                    },
+                );
+            }
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 let empty = self.allocate_memory_object(builder, 32, MemoryObjectKind::Bytes);
                 let zero = builder.imm_u64(0);
@@ -197,7 +259,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
             TyKind::Mapping(..) => {}
             TyKind::Err(_) => {}
-            _ if matches!(ty.kind, TyKind::DynArray(_)) || ty.is_value_type() => {
+            _ if ty.is_value_type() => {
                 let zero = builder.imm_u64(0);
                 if let Some(field) = self.packed_storage_field(ty) {
                     self.store_storage_field_at_slot(builder, field, slot, zero);
@@ -233,7 +295,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> StorageLocation {
         if let Some(field) = self.packed_storage_field(ty) {
             if self.next_storage_offset + field.size > 32 {
-                self.next_storage_slot += U256::from(1);
+                self.advance_next_storage_slot(span);
                 self.next_storage_offset = 0;
             }
             let location = StorageLocation {
@@ -243,22 +305,22 @@ impl<'gcx> Lowerer<'gcx> {
             };
             self.next_storage_offset += field.size;
             if self.next_storage_offset == 32 {
-                self.next_storage_slot += U256::from(1);
+                self.advance_next_storage_slot(span);
                 self.next_storage_offset = 0;
             }
             return location;
         }
 
         if self.next_storage_offset != 0 {
-            self.next_storage_slot += U256::from(1);
+            self.advance_next_storage_slot(span);
             self.next_storage_offset = 0;
         }
 
         let slot = self.next_storage_slot;
-        let num_slots = self.calculate_storage_slots_for_ty(ty, span);
+        let num_slots = self.calculate_storage_slots_for_ty_u256(ty, span);
         // Storage slots span the EVM's full 2^256 space; a layout that walks
         // past its end wraps back onto earlier variables, so reject it.
-        match self.next_storage_slot.checked_add(U256::from(num_slots)) {
+        match self.next_storage_slot.checked_add(num_slots) {
             Some(next) => self.next_storage_slot = next,
             None => {
                 self.gcx
@@ -269,6 +331,14 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
         StorageLocation::full_word(slot)
+    }
+
+    fn advance_next_storage_slot(&mut self, span: Span) {
+        if let Some(next) = self.next_storage_slot.checked_add(U256::from(1)) {
+            self.next_storage_slot = next;
+        } else {
+            self.storage_layout_overflow(span);
+        }
     }
 
     /// Returns the packed storage representation of a sub-word scalar.
@@ -304,8 +374,87 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Calculates the number of storage slots needed for a type.
-    pub(super) fn calculate_storage_slots_for_ty(&mut self, ty: Ty<'gcx>, _span: Span) -> u64 {
-        self.storage_layout_for_ty(ty).map_or(1, |layout| layout.storage_slots())
+    pub(super) fn calculate_storage_slots_for_ty(&mut self, ty: Ty<'gcx>, span: Span) -> u64 {
+        let slots = self.calculate_storage_slots_for_ty_u256(ty, span);
+        match u64::try_from(slots) {
+            Ok(slots) => slots,
+            Err(_) => {
+                self.gcx.dcx().err("storage layout is too large for codegen").span(span).emit();
+                1
+            }
+        }
+    }
+
+    fn calculate_storage_slots_for_ty_u256(&mut self, ty: Ty<'gcx>, span: Span) -> U256 {
+        let ty = ty.peel_refs();
+        let slots = match ty.kind {
+            TyKind::Struct(struct_id) => {
+                let mut slots = U256::ZERO;
+                let mut offset = 0u8;
+                for &field_ty in self.gcx.struct_field_types(struct_id) {
+                    if let Some(field) = self.packed_storage_field(field_ty) {
+                        if offset + field.size > 32 {
+                            let Some(next) = slots.checked_add(U256::from(1)) else {
+                                return self.storage_layout_overflow(span);
+                            };
+                            slots = next;
+                            offset = 0;
+                        }
+                        offset += field.size;
+                        if offset == 32 {
+                            let Some(next) = slots.checked_add(U256::from(1)) else {
+                                return self.storage_layout_overflow(span);
+                            };
+                            slots = next;
+                            offset = 0;
+                        }
+                    } else {
+                        if offset != 0 {
+                            let Some(next) = slots.checked_add(U256::from(1)) else {
+                                return self.storage_layout_overflow(span);
+                            };
+                            slots = next;
+                            offset = 0;
+                        }
+                        let field_slots = self.calculate_storage_slots_for_ty_u256(field_ty, span);
+                        let Some(next) = slots.checked_add(field_slots) else {
+                            return self.storage_layout_overflow(span);
+                        };
+                        slots = next;
+                    }
+                }
+                if offset != 0 {
+                    let Some(next) = slots.checked_add(U256::from(1)) else {
+                        return self.storage_layout_overflow(span);
+                    };
+                    slots = next;
+                }
+                slots
+            }
+            TyKind::Array(element, len) => {
+                if let Some(field) = self.packed_storage_field(element) {
+                    let per_slot = U256::from(32 / field.size);
+                    len / per_slot + U256::from(u8::from(len % per_slot != U256::ZERO))
+                } else {
+                    let element_slots = self.calculate_storage_slots_for_ty_u256(element, span);
+                    let Some(slots) = len.checked_mul(element_slots) else {
+                        return self.storage_layout_overflow(span);
+                    };
+                    slots
+                }
+            }
+            _ => U256::from(1),
+        };
+        slots.max(U256::from(1))
+    }
+
+    fn storage_layout_overflow(&self, span: Span) -> U256 {
+        self.gcx
+            .dcx()
+            .err("contract storage layout exceeds the addressable storage space")
+            .span(span)
+            .emit();
+        U256::ZERO
     }
 
     pub(super) fn load_storage_location_at_slot(
@@ -646,8 +795,28 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Whether a struct (recursively) has a `bytes`/`string`/dynamic-array
     /// field, which the flat layout copy cannot represent.
-    fn struct_needs_deep_storage_copy(&self, struct_id: hir::StructId) -> bool {
+    pub(super) fn struct_needs_deep_storage_copy(&self, struct_id: hir::StructId) -> bool {
         self.gcx.struct_field_types(struct_id).iter().any(|&f| self.ty_needs_deep_storage_copy(f))
+    }
+
+    pub(super) fn struct_needs_recursive_storage_clear(&self, struct_id: hir::StructId) -> bool {
+        self.gcx
+            .struct_field_types(struct_id)
+            .iter()
+            .any(|&field| self.ty_needs_recursive_storage_clear(field))
+    }
+
+    fn ty_needs_recursive_storage_clear(&self, ty: Ty<'gcx>) -> bool {
+        match ty.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+            | TyKind::DynArray(_)
+            | TyKind::Mapping(..)
+            | TyKind::Slice(_) => true,
+            TyKind::Struct(id) => self.struct_needs_recursive_storage_clear(id),
+            TyKind::Array(element, _) => self.ty_needs_recursive_storage_clear(element),
+            TyKind::Udvt(inner, _) => self.ty_needs_recursive_storage_clear(inner),
+            _ => false,
+        }
     }
 
     fn ty_needs_deep_storage_copy(&self, ty: Ty<'gcx>) -> bool {
@@ -741,6 +910,7 @@ impl<'gcx> Lowerer<'gcx> {
         mem_ptr: ValueId,
         elem: Ty<'gcx>,
     ) {
+        let old_len = builder.sload(slot);
         let len = builder.memory_object_len(mem_ptr, MemoryObjectKind::DynamicArray);
         builder.sstore(slot, len);
         let zero = builder.imm_u64(0);
@@ -750,6 +920,18 @@ impl<'gcx> Lowerer<'gcx> {
         let data_ptr = builder.memory_object_data(mem_ptr, MemoryObjectKind::DynamicArray);
         let elem_slots = self.calculate_storage_slots_for_ty(elem, Span::DUMMY);
         let elem = elem.peel_refs();
+        let packed = self.packed_storage_field(elem);
+        if let Some(field) = packed {
+            let old_slots = Self::packed_array_slot_count(builder, old_len, field);
+            let new_slots = Self::packed_array_slot_count(builder, len, field);
+            let old_is_larger = builder.gt(old_slots, new_slots);
+            let slots = builder.select(old_is_larger, old_slots, new_slots);
+            self.emit_storage_elements_loop(builder, zero, slots, move |_, builder, index| {
+                let element_slot = builder.add(data_slot, index);
+                let zero = builder.imm_u64(0);
+                builder.sstore(element_slot, zero);
+            });
+        }
         self.emit_decode_elements_loop(builder, len, move |this, builder, index| {
             let mem_off = builder.mul(index, word);
             let mem_word_addr = builder.add(data_ptr, mem_off);
@@ -763,6 +945,63 @@ impl<'gcx> Lowerer<'gcx> {
                 this.copy_memory_field_to_storage(builder, elem, access.slot, mem_word);
             }
         });
+        if packed.is_some() {
+            return;
+        }
+        self.emit_storage_elements_loop(builder, len, old_len, move |this, builder, index| {
+            let access = this.storage_array_element_access_unchecked(
+                builder, data_slot, index, elem, elem_slots,
+            );
+            if access.field.is_some() {
+                let zero = builder.imm_u64(0);
+                this.store_storage_access(builder, access, zero);
+            } else {
+                this.clear_storage_value_at(builder, elem, access.slot);
+            }
+        });
+    }
+
+    fn emit_storage_elements_loop(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        start: ValueId,
+        end: ValueId,
+        body: impl FnOnce(&mut Self, &mut FunctionBuilder<'_>, ValueId) + Copy,
+    ) {
+        let preheader = builder.current_block();
+        let header = builder.create_block();
+        let body_block = builder.create_block();
+        let exit = builder.create_block();
+        builder.jump(header);
+
+        builder.switch_to_block(header);
+        let index = builder.phi(vec![(preheader, start)]);
+        let has_more = builder.lt(index, end);
+        builder.branch(has_more, body_block, exit);
+
+        builder.switch_to_block(body_block);
+        body(self, builder, index);
+        let one = builder.imm_u64(1);
+        let next = builder.add(index, one);
+        let latch = builder.current_block();
+        builder.jump(header);
+        builder.add_phi_incoming(index, latch, next);
+
+        builder.switch_to_block(exit);
+    }
+
+    fn packed_array_slot_count(
+        builder: &mut FunctionBuilder<'_>,
+        len: ValueId,
+        field: PackedStorageField,
+    ) -> ValueId {
+        let per_slot = builder.imm_u64(u64::from(32 / field.size));
+        let slots = builder.div(len, per_slot);
+        let remainder = builder.mod_(len, per_slot);
+        let is_exact = builder.iszero(remainder);
+        let one = builder.imm_u64(1);
+        let rounded = builder.add(slots, one);
+        builder.select(is_exact, slots, rounded)
     }
 
     /// Copies a memory fixed-size array to consecutive storage slots.
@@ -776,6 +1015,14 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         let elem = elem.peel_refs();
         let field = self.storage_field_for_ty(elem);
+        if let StorageField::Packed(field) = field {
+            let per_slot = u64::from(32 / field.size);
+            for slot_offset in 0..len.div_ceil(per_slot) {
+                let element_slot = self.offset_storage_slot(builder, slot, slot_offset);
+                let zero = builder.imm_u64(0);
+                builder.sstore(element_slot, zero);
+            }
+        }
         let mut cursor = StorageCursor::default();
         for i in 0..len {
             let mem_word_addr = if i == 0 {

@@ -43,8 +43,11 @@ fn @set(arg0: memorybytes, arg1: address) {
     revert 0, 0
   bb4:
     v15 = mapping_slot_memory v9, 0
-    v16 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
-    sstore v15, v16 !metadata(storage=symbolic(v15))
+    v16 = sload v15 !metadata(storage=symbolic(v15))
+    v17 = and v16, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v18 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v19 = or v17, v18
+    sstore v15, v19 !metadata(storage=symbolic(v15))
     stop
 }
 

@@ -193,6 +193,14 @@ fn lower_memory_to_storage(
             }
         }
         StorageLayout::Array { element, len } => {
+            if let StorageField::Packed(field) = element {
+                let elements_per_slot = u64::from(32 / field.size);
+                let zero = builder.imm_u64(0);
+                for offset in 0..len.div_ceil(elements_per_slot) {
+                    let slot = offset_value(builder, storage, offset);
+                    builder.sstore(slot, zero);
+                }
+            }
             let mut cursor = StorageCursor::default();
             for index in 0..*len {
                 let index_value = builder.imm_u64(index);
