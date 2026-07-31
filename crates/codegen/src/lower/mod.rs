@@ -198,10 +198,17 @@ pub(crate) struct Lowerer<'gcx> {
 impl<'gcx> Lowerer<'gcx> {
     /// Returns an existing error guarantee or emits a codegen diagnostic when
     /// lowering encounters invalid HIR without a prior error.
-    pub(super) fn recovery_error(&self, span: Span, msg: impl Into<DiagMsg>) -> ErrorGuaranteed {
+    pub(super) fn recovery_error(
+        &self,
+        span: Option<Span>,
+        msg: impl Into<DiagMsg>,
+    ) -> ErrorGuaranteed {
         match self.gcx.dcx().has_errors() {
             Err(guar) => guar,
-            Ok(()) => self.gcx.dcx().err(msg).span(span).emit(),
+            Ok(()) => {
+                let diag = self.gcx.dcx().err(msg);
+                if let Some(span) = span { diag.span(span).emit() } else { diag.emit() }
+            }
         }
     }
 
@@ -628,7 +635,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // runtime-code `PUSH<N>` placeholders at deploy time.
                 if var.is_state_variable() && var.is_immutable() {
                     let Some(name) = var.name else {
-                        self.recovery_error(var.span, "state immutable must be named");
+                        self.recovery_error(Some(var.span), "state immutable must be named");
                         continue;
                     };
                     let ty = self.lower_type_from_var(var_id);
@@ -1078,7 +1085,7 @@ impl<'gcx> Lowerer<'gcx> {
                     for (field_idx, &field_id) in field_ids.iter().enumerate() {
                         let Some(&sema_field_ty) = field_tys.get(field_idx) else {
                             self.recovery_error(
-                                self.gcx.hir.variable(field_id).span,
+                                Some(self.gcx.hir.variable(field_id).span),
                                 "codegen cannot determine this struct field's type",
                             );
                             continue;
@@ -1685,7 +1692,7 @@ impl<'gcx> Lowerer<'gcx> {
                     constructor_args.get(&base_id)
                 else {
                     self.recovery_error(
-                        self.gcx.hir.contract(base_id).span,
+                        Some(self.gcx.hir.contract(base_id).span),
                         "base constructor arguments were not resolved",
                     );
                     return;
@@ -1760,7 +1767,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         let Some(ctor_id) = self.gcx.hir.contract(base_id).ctor else {
             return Err(self.recovery_error(
-                modifier.span,
+                Some(modifier.span),
                 "base constructor arguments require a constructor",
             ));
         };
