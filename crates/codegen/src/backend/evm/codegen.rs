@@ -1329,10 +1329,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Selector matching, receive/fallback routing, and callvalue checks all
     /// live in the MIR `entry`, whose `tail_call`s jump to the ABI wrappers.
     fn emit_runtime(&mut self, module: &Module) {
-        let Some((entry_id, _)) = module
-            .functions
-            .iter_enumerated()
-            .find(|(_, f)| f.attributes.is_dispatch_entry)
+        let Some((entry_id, _)) =
+            module.functions.iter_enumerated().find(|(_, f)| f.attributes.is_dispatch_entry)
         else {
             assert!(
                 !module.functions.iter().any(Self::is_external_entry),
