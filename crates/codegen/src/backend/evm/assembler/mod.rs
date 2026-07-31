@@ -643,13 +643,8 @@ impl<'gcx> Assembler<'gcx> {
         let _changed = ir::run_pipeline(self.gcx, &mut ir_program, None);
         debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
 
-        let program = assembly::lower_evm_ir(
-            &mut ir_program,
-            &mut labels,
-            self,
-            self.gcx.sess.opts.evm_version,
-            self.gcx.sess.opts.optimization.is_size(),
-        );
+        let gcx = self.gcx;
+        let program = assembly::lower_evm_ir(gcx, &mut ir_program, &mut labels, self);
         let evm_ir = capture_evm_ir.then_some(ir_program);
         PreparedAssembly {
             evm_ir,

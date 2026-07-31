@@ -12,6 +12,7 @@ use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
 };
+use solar_sema::Gcx;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct IndexedJumpEncoding {
@@ -50,14 +51,16 @@ struct IndexedJumpTable {
 
 /// Lowers finalized EVM IR into the linear label-bearing assembly stream.
 pub(in crate::backend::evm) fn lower_evm_ir(
+    gcx: Gcx<'_>,
     module: &mut ir::Module,
     labels: &mut Vec<Option<Label>>,
     assembler: &mut Assembler<'_>,
-    evm_version: EvmVersion,
-    pack_two_word_tables: bool,
 ) -> Program {
-    let indexed_jump_lowerings =
-        materialize_indexed_jump_tables(module, evm_version, pack_two_word_tables);
+    let indexed_jump_lowerings = materialize_indexed_jump_tables(
+        module,
+        gcx.sess.opts.evm_version,
+        gcx.sess.opts.optimization.is_size(),
+    );
     allocate_referenced_labels(module, labels, assembler);
 
     let mut program = Program::default();
@@ -847,6 +850,7 @@ mod tests {
         mir::{ImmutableId, TypeSize},
     };
     use alloy_primitives::U256;
+    use solar_config::CompileOpts;
     use solar_interface::{Session, sym};
     use solar_sema::Compiler;
 
@@ -866,8 +870,7 @@ mod tests {
         compiler.enter(|c| {
             let mut labels = vec![None; 3];
             let mut assembler = Assembler::new(c.gcx());
-            let program =
-                lower_evm_ir(&mut module, &mut labels, &mut assembler, EvmVersion::Osaka, false);
+            let program = lower_evm_ir(c.gcx(), &mut module, &mut labels, &mut assembler);
             let kinds: Vec<_> = program.instructions.iter().map(|inst| inst.kind()).collect();
 
             assert!(matches!(
@@ -901,8 +904,7 @@ mod tests {
         compiler.enter(|c| {
             let mut labels = vec![None; 3];
             let mut assembler = Assembler::new(c.gcx());
-            let program =
-                lower_evm_ir(&mut module, &mut labels, &mut assembler, EvmVersion::Osaka, false);
+            let program = lower_evm_ir(c.gcx(), &mut module, &mut labels, &mut assembler);
 
             assert_eq!(module.blocks.len(), 3);
             assert!(matches!(
@@ -950,17 +952,12 @@ mod tests {
         module.blocks[left].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
         module.blocks[right].terminator = Some(Terminator::new(TerminatorKind::Op(op::INVALID)));
 
-        let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
+        let opts = CompileOpts { evm_version: EvmVersion::Byzantium, ..Default::default() };
+        let compiler = Compiler::new(Session::builder().opts(opts).build());
         compiler.enter(|c| {
             let mut labels = vec![None; 3];
             let mut assembler = Assembler::new(c.gcx());
-            let program = lower_evm_ir(
-                &mut module,
-                &mut labels,
-                &mut assembler,
-                EvmVersion::Byzantium,
-                false,
-            );
+            let program = lower_evm_ir(c.gcx(), &mut module, &mut labels, &mut assembler);
 
             let TerminatorKind::IndexedJump(entries) =
                 &module.blocks[entry].terminator.as_ref().unwrap().kind
