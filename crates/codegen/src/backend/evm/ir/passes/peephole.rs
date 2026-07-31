@@ -261,6 +261,17 @@ fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
         return rewrite(instructions, 6, Edit::Keep(3), block);
     }
 
+    // `PUSH x MSTORE PUSH x MLOAD -> DUP1 PUSH x MSTORE`.
+    if let [.., store_addr, store, load_addr, load] = instructions.as_slice()
+        && let Some(a) = push_value(store_addr)
+        && raw_opcode(store) == Some(op::MSTORE)
+        && let Some(b) = push_value(load_addr)
+        && raw_opcode(load) == Some(op::MLOAD)
+        && a == b
+    {
+        return rewrite(instructions, 4, Edit::ReloadStoredValue, block);
+    }
+
     // `DUP1 PUSH x MSTORE POP -> PUSH x MSTORE`.
     if let [.., dup, pushed, store, pop] = instructions.as_slice()
         && raw_opcode(dup) == Some(op::DUP1)
@@ -323,6 +334,7 @@ enum Edit {
     OverwriteOne(u8),
     OverwriteTwo(u8),
     MergeSwapPop(u8),
+    ReloadStoredValue,
     DropDoubleIszero,
     EqIszeroJumpi,
 }
@@ -361,6 +373,12 @@ impl Edit {
                 overwrite_raw(&mut instructions[start], op::swap(depth));
                 overwrite_raw(&mut instructions[end - 2], op::POP);
                 instructions.truncate(end - 1);
+            }
+            Self::ReloadStoredValue => {
+                instructions.swap(start, start + 3);
+                instructions.swap(start + 1, start + 2);
+                overwrite_raw(&mut instructions[start], op::DUP1);
+                instructions.truncate(start + 3);
             }
             Self::DropDoubleIszero => {
                 instructions.drain(start..start + 2);

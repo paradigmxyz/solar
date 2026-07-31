@@ -20,8 +20,8 @@ bb0:
 // CHECK-LABEL: {{^[ +].*}}bb1:
 // CHECK: {{^[ +].*}}mstore
 // CHECK: - pop
-// CHECK: {{^[ +].*}}push 32
-// CHECK: {{^[ +].*}}mload
+// CHECK: - push 32
+// CHECK: - mload
 bb1:
   push 1
   dup1
