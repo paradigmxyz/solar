@@ -401,7 +401,13 @@ The command:
    on normal completion, timeout, or interruption.
 
 Use `--symbolic-timeout`, `--symbolic-max-paths`, and
-`--symbolic-max-depth` to tune per-function solver bounds.
+`--symbolic-max-depth` to tune per-function solver bounds. A clean result also
+requires Forge to report the exact requested solver and the reviewed
+`bounded_exploration` and `hash_model` assumption kinds. Those assumptions and
+their descriptions remain explicit in each child manifest: bounded-clean means
+no difference was found under the finite search limits and the symbolic hash
+model, not that the compilers are unconditionally equivalent. A concrete
+replay-confirmed mismatch does not depend on those symbolic assumptions.
 
 ### Results and campaign completeness
 

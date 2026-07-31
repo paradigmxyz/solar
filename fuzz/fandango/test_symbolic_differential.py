@@ -1645,6 +1645,97 @@ class EffectiveBoundsTests(unittest.TestCase):
         self.assertIn("max_dynamic_length=True (expected at least 1)", reason)
 
 
+class EffectiveSymbolicContextTests(unittest.TestCase):
+    @staticmethod
+    def _args() -> argparse.Namespace:
+        return argparse.Namespace(
+            symbolic_solver="z3",
+            _solver_executable="/opt/solver/z3",
+        )
+
+    @staticmethod
+    def _classified() -> dict[str, object]:
+        return {
+            "solver": {"name": "/opt/solver/z3"},
+            "assumptions": [
+                {
+                    "kind": "bounded_exploration",
+                    "description": "bounded",
+                },
+                {
+                    "kind": "hash_model",
+                    "description": "collision resistance",
+                },
+            ],
+        }
+
+    def test_accepts_the_reviewed_solver_and_assumption_model(self):
+        self.assertIsNone(
+            run_foundry_target._effective_symbolic_context_error(
+                self._args(), self._classified()
+            )
+        )
+
+    def test_rejects_a_different_effective_solver(self):
+        classified = self._classified()
+        classified["solver"]["name"] = "/other/z3"
+
+        reason = run_foundry_target._effective_symbolic_context_error(
+            self._args(), classified
+        )
+
+        self.assertIn(
+            "solver='/other/z3' (expected '/opt/solver/z3')", reason
+        )
+
+    def test_rejects_missing_unknown_duplicate_or_malformed_assumptions(self):
+        cases = [
+            [],
+            [
+                {
+                    "kind": "bounded_exploration",
+                    "description": "bounded",
+                }
+            ],
+            [
+                {
+                    "kind": "bounded_exploration",
+                    "description": "bounded",
+                },
+                {
+                    "kind": "future_havoc",
+                    "description": "new model",
+                },
+            ],
+            [
+                {
+                    "kind": "hash_model",
+                    "description": "collision resistance",
+                },
+                {
+                    "kind": "hash_model",
+                    "description": "duplicate",
+                },
+            ],
+            [
+                {
+                    "kind": "bounded_exploration",
+                    "description": "bounded",
+                },
+                {"kind": "hash_model", "description": ""},
+            ],
+        ]
+        for assumptions in cases:
+            with self.subTest(assumptions=assumptions):
+                classified = self._classified()
+                classified["assumptions"] = assumptions
+                self.assertIsNotNone(
+                    run_foundry_target._effective_symbolic_context_error(
+                        self._args(), classified
+                    )
+                )
+
+
 class ConcreteOutcomeConfirmationTests(unittest.TestCase):
     def test_equal_success_or_revert_outcomes_do_not_confirm_mismatch(self):
         outcomes = [
@@ -2689,6 +2780,37 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         self.assertEqual(set(manifest), MANIFEST_KEYS)
         self.assertTrue(manifest["tools"]["forge"])
         self.assertEqual(manifest["forge"]["command"][3], "project")
+
+    def test_unreviewed_symbolic_context_prevents_a_clean_result(self):
+        with patch.object(
+            run_foundry_target,
+            "_effective_symbolic_context_error",
+            return_value="injected unreviewed symbolic context",
+        ):
+            returncode, summary, manifest = self._run(
+                self.solar_reference
+            )
+
+        self.assertEqual(returncode, 2)
+        self.assertEqual(summary["status"], "incomplete")
+        self.assertEqual(
+            manifest["reason"], "injected unreviewed symbolic context"
+        )
+
+    def test_concrete_mismatch_does_not_depend_on_symbolic_context(self):
+        with patch.object(
+            run_foundry_target,
+            "_effective_symbolic_context_error",
+            return_value="injected unreviewed symbolic context",
+        ):
+            returncode, summary, manifest = self._run(self.solar_mutant)
+
+        self.assertEqual(returncode, 1)
+        self.assertEqual(summary["status"], "replay_confirmed_mismatch")
+        self.assertEqual(manifest["status"], "replay_confirmed_mismatch")
+        self.assertTrue(
+            manifest["replay"]["durable_foundry_artifact"]["reproduced"]
+        )
 
     def test_campaign_scans_every_eligible_function(self):
         returncode, summary, manifest = self._run(

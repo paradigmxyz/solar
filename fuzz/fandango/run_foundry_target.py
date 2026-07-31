@@ -470,6 +470,9 @@ def _run_symbolic_function(
                 bounds_error = _effective_bounds_error(
                     args, classified["bounds"]
                 )
+                context_error = _effective_symbolic_context_error(
+                    args, classified
+                )
                 if classified["test"] != expected_test:
                     reason = (
                         f"Forge ran `{classified['test']}`, expected `{expected_test}`"
@@ -494,6 +497,11 @@ def _run_symbolic_function(
                     and bounds_error is not None
                 ):
                     reason = bounds_error
+                elif (
+                    classified["status"] != "replay_confirmed_mismatch"
+                    and context_error is not None
+                ):
+                    reason = context_error
                 elif classified["status"] == "no_mismatch_within_bounds":
                     final_status = "no_mismatch_within_bounds"
                     reason = None
@@ -1553,6 +1561,53 @@ def _same_json_bound(actual: Any, expected: int | list[int]) -> bool:
             )
         )
     return actual == expected
+
+
+def _effective_symbolic_context_error(
+    args: argparse.Namespace, classified: dict[str, Any]
+) -> str | None:
+    disagreements = []
+    solver = classified["solver"]
+    requested_solver = getattr(
+        args, "_solver_executable", args.symbolic_solver
+    )
+    if solver.get("name") != requested_solver:
+        disagreements.append(
+            f"solver={solver.get('name')!r} (expected {requested_solver!r})"
+        )
+
+    expected_assumptions = {"bounded_exploration", "hash_model"}
+    assumptions = classified["assumptions"]
+    assumption_kinds = []
+    for assumption in assumptions:
+        kind = assumption.get("kind")
+        description = assumption.get("description")
+        if (
+            not isinstance(kind, str)
+            or not kind
+            or not isinstance(description, str)
+            or not description
+        ):
+            disagreements.append(
+                f"malformed symbolic assumption {assumption!r}"
+            )
+            continue
+        assumption_kinds.append(kind)
+    if (
+        len(assumption_kinds) != len(expected_assumptions)
+        or set(assumption_kinds) != expected_assumptions
+    ):
+        disagreements.append(
+            f"assumptions={assumption_kinds!r} "
+            f"(expected {sorted(expected_assumptions)!r})"
+        )
+
+    if not disagreements:
+        return None
+    return (
+        "Forge symbolic execution context disagrees with the reviewed "
+        "configuration: " + ", ".join(disagreements)
+    )
 
 
 def _tools_manifest(args: argparse.Namespace) -> dict[str, Any]:
