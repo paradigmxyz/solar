@@ -114,6 +114,15 @@ def runtime_scope_opcodes(
         instructions += 1
     if instruction_count is not None and instructions != instruction_count:
         raise ValueError("runtime source map exceeds deployed bytecode")
+    if (
+        instruction_count is not None
+        and offset < len(code)
+        and code[offset] != 0xFE
+    ):
+        raise ValueError(
+            "runtime source map boundary is not followed by an INVALID data "
+            "separator"
+        )
     return found
 
 

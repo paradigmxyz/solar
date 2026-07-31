@@ -1471,8 +1471,9 @@ def _manifest(
 
 def _compiler_manifest(artifact: dict[str, Any]) -> dict[str, Any]:
     runtime = bytes.fromhex(artifact["runtime"].removeprefix("0x"))
+    source_map = artifact.get("runtime_source_map")
     source_map_instructions = symbolic.runtime_source_map_instructions(
-        artifact.get("runtime_source_map")
+        source_map
     )
     return {
         "version": artifact["version"],
@@ -1480,6 +1481,11 @@ def _compiler_manifest(artifact: dict[str, Any]) -> dict[str, Any]:
         "standard_input_sha256": artifact["standard_input_sha256"],
         "runtime_bytecode_sha256": hashlib.sha256(runtime).hexdigest(),
         "runtime_bytecode_bytes": len(runtime),
+        "runtime_source_map_sha256": (
+            hashlib.sha256(source_map.encode()).hexdigest()
+            if isinstance(source_map, str) and source_map
+            else None
+        ),
         "runtime_source_map_instructions": source_map_instructions,
         "inline_assembly": artifact.get("inline_assembly"),
         "environment": {

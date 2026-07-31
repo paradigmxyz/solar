@@ -1314,7 +1314,7 @@ class RuntimeScopeTests(unittest.TestCase):
         runtime = "0x600000fe43fa"
 
         self.assertEqual(
-            symbolic.runtime_scope_opcodes(runtime, instruction_count=3),
+            symbolic.runtime_scope_opcodes(runtime, instruction_count=2),
             [],
         )
         self.assertEqual(
@@ -1325,8 +1325,8 @@ class RuntimeScopeTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            symbolic.runtime_source_map_instructions("1:2:3;;"),
-            3,
+            symbolic.runtime_source_map_instructions("1:2:3;"),
+            2,
         )
 
     def test_rejects_invalid_source_map_instruction_bounds(self):
@@ -1338,6 +1338,10 @@ class RuntimeScopeTests(unittest.TestCase):
                 symbolic.runtime_scope_opcodes(
                     "0x600000", instruction_count=count
                 )
+        with self.assertRaisesRegex(ValueError, "INVALID data separator"):
+            symbolic.runtime_scope_opcodes(
+                "0x600043", instruction_count=1
+            )
         with self.assertRaisesRegex(ValueError, "source map must be text"):
             symbolic.runtime_source_map_instructions(1)
 
@@ -2911,6 +2915,10 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         self.assertGreater(
             manifest["compilers"]["solc"]["runtime_source_map_instructions"],
             0,
+        )
+        self.assertRegex(
+            manifest["compilers"]["solc"]["runtime_source_map_sha256"],
+            r"^[0-9a-f]{64}$",
         )
 
     def test_unreviewed_symbolic_context_prevents_a_clean_result(self):
