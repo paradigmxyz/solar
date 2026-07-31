@@ -9,6 +9,7 @@
 use std::{
     collections::HashMap,
     fs,
+    panic::{AssertUnwindSafe, catch_unwind},
     path::{Path, PathBuf},
     process::Command,
     sync::OnceLock,
@@ -112,23 +113,6 @@ impl ForgeCompiler {
 
 static SOLAR_BINARY: OnceLock<PathBuf> = OnceLock::new();
 
-// Keep the default suite limited to projects that are supported in CI.
-const DEFAULT_PROJECTS: &[&str] = &[
-    "arithmetic",
-    "control-flow",
-    "storage",
-    "events",
-    "calls",
-    "interfaces",
-    "libraries",
-    "constructor-args",
-    "multi-return",
-    "correctness",
-    "receive-fallback",
-    "inheritance",
-    "stack-deep",
-];
-
 fn foundry_root() -> PathBuf {
     workspace_root().join("tests/foundry")
 }
@@ -136,6 +120,7 @@ fn foundry_root() -> PathBuf {
 fn discover_projects() -> Vec<TestConfig> {
     let root = foundry_root();
     assert!(root.is_dir(), "Foundry test root does not exist: {}", root.display());
+    let selected = std::env::var_os("SOLAR_FOUNDRY_PROJECT");
 
     let mut paths = Vec::new();
     discover_project_paths(&root, &mut paths);
@@ -146,7 +131,7 @@ fn discover_projects() -> Vec<TestConfig> {
         .filter_map(|path| {
             let relative = path.strip_prefix(&root).expect("Foundry project outside root");
             let name = relative.to_string_lossy().replace('\\', "/");
-            if !DEFAULT_PROJECTS.contains(&name.as_str()) {
+            if selected.as_deref().is_some_and(|selected| selected != name.as_str()) {
                 return None;
             }
             let solar_only = relative == Path::new("stack-deep");
@@ -787,37 +772,17 @@ fn run_test_with_comparison(config: &TestConfig) {
 /// Runs the default Foundry suite.
 pub(super) fn run_default_suite(solar: &Path) {
     let _ = SOLAR_BINARY.set(solar.to_path_buf());
-    for config in discover_projects() {
-        config.run();
+    let projects = discover_projects();
+    assert!(!projects.is_empty(), "No Foundry projects found");
+
+    let mut failures = Vec::new();
+    for config in projects {
+        let name = config.name.clone();
+        if catch_unwind(AssertUnwindSafe(|| config.run())).is_err() {
+            failures.push(name);
+        }
     }
-    run_compilation_smoke();
-}
-
-fn run_compilation_smoke() {
-    if !forge_available() {
-        eprintln!("Skipping: forge not found");
-        return;
-    }
-
-    let solar_binary = get_solar_binary();
-    if !solar_binary.exists() {
-        eprintln!("Skipping: Solar binary not found");
-        return;
-    }
-
-    let config = discover_projects()
-        .into_iter()
-        .find(|config| config.name == "arithmetic")
-        .expect("arithmetic Foundry project not found");
-    let project_dir = &config.path;
-    let (test_time, tests, sizes) =
-        run_forge_test(project_dir, "compilation-test", &config, ForgeCompiler::Solar);
-
-    println!("Test time: {:?}", test_time);
-    println!("Tests: {:?}", tests.iter().map(|t| &t.name).collect::<Vec<_>>());
-    println!("Bytecode sizes: {:?}", sizes);
-
-    assert!(!tests.is_empty(), "No tests ran");
+    assert!(failures.is_empty(), "Foundry projects failed: {}", failures.join(", "));
 }
 
 #[cfg(test)]
