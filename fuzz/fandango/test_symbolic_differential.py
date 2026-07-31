@@ -1953,6 +1953,37 @@ class ManifestPersistenceTests(unittest.TestCase):
                         summary["reason"],
                     )
 
+    def test_unexpected_failures_never_use_the_mismatch_exit_code(self):
+        failures = [
+            KeyError("malformed compiler field"),
+            TypeError("unexpected tool payload"),
+            AssertionError("internal invariant"),
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "Root.sol"
+            source.write_text("contract Root {}", encoding="utf-8")
+            for index, failure in enumerate(failures):
+                args = self._args(source, root / f"artifacts-{index}")
+                output = io.StringIO()
+                with (
+                    self.subTest(failure=failure),
+                    patch.object(
+                        run_foundry_target,
+                        "_run_symbolic",
+                        side_effect=failure,
+                    ),
+                    redirect_stdout(output),
+                ):
+                    returncode = run_foundry_target._run_symbolic_or_incomplete(
+                        args
+                    )
+
+                summary = json.loads(output.getvalue())
+                self.assertEqual(returncode, 2)
+                self.assertEqual(summary["status"], "incomplete")
+                self.assertNotEqual(returncode, 1)
+
     def test_provisional_bundle_never_claims_a_mismatch(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

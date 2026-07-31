@@ -219,7 +219,7 @@ def _parse_positive_finite_seconds(value: str) -> float:
 def _run_symbolic_or_incomplete(args: argparse.Namespace) -> int:
     try:
         return _run_symbolic(args)
-    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as err:
+    except Exception as err:
         try:
             return _symbolic_setup_incomplete(args, err)
         except Exception as persistence_err:
