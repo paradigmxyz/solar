@@ -3227,6 +3227,57 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             [0, 1, 2, 3],
         )
 
+    def test_nested_dynamic_arrays_find_a_durable_mismatch(self):
+        returncode, summary, manifest = self._run(
+            self.solar_dynamic_input_mutant,
+            signature="probeNested(uint256[][])",
+            source=self.dynamic_input_reference,
+            contract="DynamicInputDifferential",
+            solc_artifact=self.solc_dynamic_input_reference,
+            materialized=self.dynamic_input_reference_input,
+        )
+
+        self.assertEqual(returncode, 1)
+        self.assertEqual(summary["status"], "replay_confirmed_mismatch")
+        self.assertEqual(manifest["function"]["inputs"], ["uint256[][]"])
+        self.assertEqual(
+            manifest["replay"]["solc"],
+            {"status": "ok", "data": "0x" + "00" * 31 + "01"},
+        )
+        self.assertEqual(
+            manifest["replay"]["solar"],
+            {"status": "ok", "data": "0x" + "00" * 31 + "02"},
+        )
+        self.assertEqual(
+            manifest["bounds"]["forge_effective"]["default_array_lengths"],
+            [0, 1, 2, 3],
+        )
+
+    def test_dynamic_struct_arrays_find_a_durable_mismatch(self):
+        returncode, summary, manifest = self._run(
+            self.solar_dynamic_input_mutant,
+            signature="probeStructArray((uint256,address)[])",
+            source=self.dynamic_input_reference,
+            contract="DynamicInputDifferential",
+            solc_artifact=self.solc_dynamic_input_reference,
+            materialized=self.dynamic_input_reference_input,
+        )
+
+        self.assertEqual(returncode, 1)
+        self.assertEqual(summary["status"], "replay_confirmed_mismatch")
+        self.assertEqual(
+            manifest["function"]["inputs"],
+            ["(uint256,address)[]"],
+        )
+        self.assertEqual(
+            manifest["replay"]["solc"],
+            {"status": "ok", "data": "0x" + "00" * 31 + "01"},
+        )
+        self.assertEqual(
+            manifest["replay"]["solar"],
+            {"status": "ok", "data": "0x" + "00" * 31 + "02"},
+        )
+
     def test_dynamic_length_override_changes_the_explored_shapes(self):
         returncode, summary, manifest = self._run(
             self.solar_dynamic_input_mutant,
