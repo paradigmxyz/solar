@@ -1,0 +1,258 @@
+name: Codegen benchmark
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      solc_version:
+        description: solc release used by the codegen runtime benchmark
+        required: true
+        default: 0.8.36
+        type: string
+      benchmark_ref:
+        description: solidity-compiler-benchmarks Git ref
+        required: true
+        default: 01209d2b8ac81645b92e3ef801b5bcdfd61bfd69
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTC_WRAPPER: "sccache"
+  SOLC_VERSION: ${{ inputs.solc_version || '0.8.36' }}
+  BENCHMARK_REPOSITORY: walnuthq/solidity-compiler-benchmarks
+  DEFAULT_BENCHMARK_REF: 01209d2b8ac81645b92e3ef801b5bcdfd61bfd69
+  BENCHMARK_REF: ${{ inputs.benchmark_ref || '01209d2b8ac81645b92e3ef801b5bcdfd61bfd69' }}
+  BENCHMARK_PATH: solidity-compiler-benchmarks
+
+jobs:
+  codegen-runtime:
+    name: codegen runtime benchmark
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout Solar
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Test common benchmark result adapter
+        run: |
+          python3 -m venv "$RUNNER_TEMP/schema-test"
+          "$RUNNER_TEMP/schema-test/bin/pip" install jsonschema==4.25.1
+          "$RUNNER_TEMP/schema-test/bin/python" -m unittest discover \
+            -s .github/scripts -p 'test_check_codegen_benchmark.py'
+          "$RUNNER_TEMP/schema-test/bin/python" -m unittest discover \
+            -s .github/scripts -p 'test_run_large_codegen_benchmark.py'
+
+      - name: Checkout benchmark corpus
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ env.BENCHMARK_REPOSITORY }}
+          ref: ${{ env.BENCHMARK_REF }}
+          path: ${{ env.BENCHMARK_PATH }}
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          cache-on-failure: true
+          cache-targets: false
+
+      - uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@b00af27efadbc7b4ca8b82abbd903b17cc874d2a # v1.9.0
+        with:
+          version: stable
+
+      - name: Install solc
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/solc"
+          curl -fsSL \
+            "https://github.com/ethereum/solidity/releases/download/v${SOLC_VERSION}/solc-static-linux" \
+            -o "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}"
+          chmod +x "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}"
+          "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" --version
+
+      - name: Build Solar
+        run: cargo build -p solar-compiler --bin solar
+
+      - name: Download baseline (main branch)
+        id: baseline
+        if: inputs.benchmark_ref == '' || inputs.benchmark_ref == env.DEFAULT_BENCHMARK_REF
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p target/codegen-bench/baseline
+
+          run_id="$(
+            gh run list \
+              --workflow codegen-bench.yml \
+              --branch main \
+              --event push \
+              --status success \
+              --limit 1 \
+              --json databaseId \
+              --jq '.[0].databaseId // ""' \
+              2>/dev/null || true
+          )"
+          if [[ -z "$run_id" ]]; then
+            echo "::warning::No successful main benchmark run was found for baseline comparison"
+            exit 0
+          fi
+
+          if ! gh run download "$run_id" \
+            --name codegen-runtime-baseline \
+            --dir target/codegen-bench/baseline; then
+            echo "::warning::No main baseline artifact was available for comparison"
+          fi
+
+      - name: Run micro codegen benchmark
+        id: micro-bench
+        working-directory: ${{ env.BENCHMARK_PATH }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/target/codegen-bench"
+          timing="$GITHUB_WORKSPACE/target/codegen-bench/micro-timing.json"
+          if /usr/bin/time -q -f '{"wall_time_seconds": %e}' -o "$timing.tmp" \
+            python3 ./solar_bench.py --verbose \
+            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
+            --solar "$GITHUB_WORKSPACE/target/debug/solar" \
+            --suite micro \
+            --gas \
+            --gas-profile hot \
+            --start-anvil \
+            --allow-failures \
+            --output "$GITHUB_WORKSPACE/target/codegen-bench/micro.json"; then
+            mv "$timing.tmp" "$timing"
+          else
+            rm -f "$timing.tmp"
+            echo "::warning::Micro codegen benchmark failed to complete"
+          fi
+
+      - name: Run repository codegen benchmark
+        id: repo-bench
+        working-directory: ${{ env.BENCHMARK_PATH }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/target/codegen-bench"
+          timing="$GITHUB_WORKSPACE/target/codegen-bench/repo-timing.json"
+          if /usr/bin/time -q -f '{"wall_time_seconds": %e}' -o "$timing.tmp" \
+            python3 ./solar_bench.py --verbose \
+            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
+            --solar "$GITHUB_WORKSPACE/target/debug/solar" \
+            --suite repo \
+            --gas \
+            --gas-profile hot \
+            --start-anvil \
+            --allow-failures \
+            --output "$GITHUB_WORKSPACE/target/codegen-bench/repo.json"; then
+            mv "$timing.tmp" "$timing"
+          else
+            rm -f "$timing.tmp"
+            echo "::warning::Repository codegen benchmark failed to complete"
+          fi
+
+      - name: Run large-contract codegen benchmark
+        id: large-bench
+        run: |
+          set -euo pipefail
+          mkdir -p target/codegen-bench
+          timing="target/codegen-bench/large-timing.json"
+          /usr/bin/time -q -f '{"wall_time_seconds": %e}' -o "$timing.tmp" \
+            python3 .github/scripts/run_large_codegen_benchmark.py \
+            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
+            --solar target/debug/solar \
+            --start-anvil \
+            --output target/codegen-bench/large.json
+          mv "$timing.tmp" "$timing"
+
+      - name: Generate runtime benchmark report
+        id: runtime-report
+        if: always()
+        env:
+          BENCHMARK_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BENCHMARK_PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          mkdir -p target/codegen-bench
+          args=(
+            --micro target/codegen-bench/micro.json
+            --repo target/codegen-bench/repo.json
+            --large target/codegen-bench/large.json
+            --micro-timing target/codegen-bench/micro-timing.json
+            --repo-timing target/codegen-bench/repo-timing.json
+            --large-timing target/codegen-bench/large-timing.json
+            --common-output target/codegen-bench/common.json
+          )
+          if [[ -f target/codegen-bench/baseline/micro.json ]]; then
+            args+=(--baseline-micro target/codegen-bench/baseline/micro.json)
+          fi
+          if [[ -f target/codegen-bench/baseline/repo.json ]]; then
+            args+=(--baseline-repo target/codegen-bench/baseline/repo.json)
+          fi
+          if [[ -f target/codegen-bench/baseline/large.json ]]; then
+            args+=(--baseline-large target/codegen-bench/baseline/large.json)
+          fi
+          python3 .github/scripts/check_codegen_benchmark.py "${args[@]}" \
+            | tee target/codegen-bench/report.md
+          {
+            echo 'report<<EOF'
+            cat target/codegen-bench/report.md
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Comment on PR
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: codegen-runtime-bench
+          message: ${{ steps.runtime-report.outputs.report }}
+          only_update: ${{ steps.runtime-report.outputs.should_comment != 'true' }}
+
+      - name: Save comment metadata
+        if: always() && github.event_name == 'pull_request'
+        env:
+          SHOULD_COMMENT: ${{ steps.runtime-report.outputs.should_comment }}
+        run: echo "$SHOULD_COMMENT" > target/codegen-bench/should-comment
+
+      - name: Upload results as artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: codegen-runtime-results
+          path: target/codegen-bench/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Save baseline (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: codegen-runtime-baseline
+          path: |
+            target/codegen-bench/micro.json
+            target/codegen-bench/repo.json
+            target/codegen-bench/large.json
+          retention-days: 90
+          if-no-files-found: ignore

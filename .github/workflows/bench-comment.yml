@@ -4,7 +4,7 @@ permissions: {}
 
 on:
   workflow_run:
-    workflows: [Benchmark]
+    workflows: [Codegen benchmark]
     types: [completed]
 
 jobs:
