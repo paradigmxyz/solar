@@ -87,6 +87,9 @@ jobs:
         run: cargo build
       - name: test
         run: cargo nextest run --profile ci --workspace
+      - name: test C API
+        if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
+        run: ./crates/capi/test
       - name: test --features nightly
         if: matrix.rust == 'nightly'
         run: cargo nextest run --profile ci --workspace --features nightly
