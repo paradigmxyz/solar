@@ -367,11 +367,7 @@ class DeadlineTests(unittest.TestCase):
             helper = subprocess.Popen([sys.executable, "-c", helper_code])
             pids: list[int] = []
             try:
-                deadline = time.monotonic() + 5
-                while not pid_file.is_file() and time.monotonic() < deadline:
-                    time.sleep(0.05)
-                self.assertTrue(pid_file.is_file())
-                pids = [int(value) for value in pid_file.read_text().split()]
+                pids = self._wait_for_pids(pid_file, expected_count=2)
 
                 helper.terminate()
                 helper.wait(timeout=5)
@@ -416,14 +412,9 @@ class DeadlineTests(unittest.TestCase):
             )
             child_pid = None
             try:
-                deadline = time.monotonic() + 5
-                while (
-                    not child_pid_file.is_file()
-                    and time.monotonic() < deadline
-                ):
-                    time.sleep(0.05)
-                self.assertTrue(child_pid_file.is_file())
-                child_pid = int(child_pid_file.read_text())
+                child_pid = self._wait_for_pids(
+                    child_pid_file, expected_count=1
+                )[0]
 
                 evm.terminate_process_tree(leader, grace_seconds=0.2)
 
@@ -438,6 +429,25 @@ class DeadlineTests(unittest.TestCase):
                         os.kill(child_pid, 9)
                     except ProcessLookupError:
                         pass
+
+    def _wait_for_pids(
+        self, path: Path, *, expected_count: int
+    ) -> list[int]:
+        deadline = time.monotonic() + 5
+        contents = ""
+        while time.monotonic() < deadline:
+            try:
+                contents = path.read_text()
+                pids = [int(value) for value in contents.split()]
+            except (OSError, ValueError):
+                pass
+            else:
+                if len(pids) == expected_count and all(pid > 0 for pid in pids):
+                    return pids
+            time.sleep(0.05)
+        self.fail(
+            f"expected {expected_count} PIDs in {path}, found {contents!r}"
+        )
 
     @staticmethod
     def _wait_for_process_exit(pid: int) -> bool:
@@ -478,8 +488,9 @@ class DeadlineTests(unittest.TestCase):
                         evm.run_process_group(command, timeout).stdout.strip(),
                         "wrapper version",
                     )
-                self.assertTrue(pid_file.is_file())
-                grandchild_pid = int(pid_file.read_text())
+                grandchild_pid = self._wait_for_pids(
+                    pid_file, expected_count=1
+                )[0]
                 self.assertTrue(self._wait_for_process_exit(grandchild_pid))
             finally:
                 if grandchild_pid is not None:
