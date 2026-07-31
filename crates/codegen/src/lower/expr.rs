@@ -911,7 +911,7 @@ impl<'gcx> Lowerer<'gcx> {
         match res {
             hir::Res::Item(item_id) => {
                 if let hir::ItemId::Function(function_id) = item_id {
-                    let function_id = self.resolve_virtual_function_target(*function_id);
+                    let function_id = self.virtual_function_target(*function_id);
                     self.internal_function_pointer_targets.insert(function_id);
                     return builder.imm_u64(Self::internal_function_pointer_id(function_id));
                 }
@@ -2574,7 +2574,13 @@ impl<'gcx> Lowerer<'gcx> {
         len: ValueId,
         tys: &[Ty<'gcx>],
     ) -> Vec<ValueId> {
-        let head_size: u64 = tys.iter().map(|&ty| self.abi_head_size(ty)).sum();
+        let head_size = match self.abi_head_size_sum(tys.iter().copied()) {
+            Ok(size) => size,
+            Err(guar) => {
+                let err = builder.error_value(guar);
+                return vec![err; tys.len()];
+            }
+        };
         let required = builder.imm_u64(head_size);
         let is_short = builder.lt(len, required);
         self.emit_abi_decode_revert_if(builder, is_short);
@@ -2625,7 +2631,14 @@ impl<'gcx> Lowerer<'gcx> {
                     }
                 };
             out.push(decoded);
-            head_offset += self.abi_head_size(ty);
+            let ty_size = match self.abi_head_size(ty) {
+                Ok(size) => size,
+                Err(guar) => {
+                    let err = builder.error_value(guar);
+                    return vec![err; tys.len()];
+                }
+            };
+            head_offset += ty_size;
         }
         out
     }

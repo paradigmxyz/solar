@@ -117,7 +117,10 @@ impl<'gcx> Lowerer<'gcx> {
                     let tail_offset = builder.calldataload(slot_pos);
                     builder.add(data_pos, tail_offset)
                 } else {
-                    let stride = builder.imm_u64(self.abi_head_size(elem_ty));
+                    let stride = match self.abi_head_size(elem_ty) {
+                        Ok(size) => builder.imm_u64(size),
+                        Err(guar) => return builder.error_value(guar),
+                    };
                     let byte_offset = builder.mul(index_val, stride);
                     builder.add(data_pos, byte_offset)
                 };

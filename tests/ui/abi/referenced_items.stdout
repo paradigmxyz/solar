@@ -1,0 +1,163 @@
+{
+  "contracts": {
+    "ROOT/tests/ui/abi/referenced_items.sol:Base": {
+      "abi": [
+        {
+          "type": "error",
+          "name": "BaseError",
+          "inputs": []
+        },
+        {
+          "type": "event",
+          "name": "BaseEvent",
+          "inputs": [],
+          "anonymous": false
+        }
+      ]
+    },
+    "ROOT/tests/ui/abi/referenced_items.sol:C": {
+      "abi": [
+        {
+          "type": "constructor",
+          "inputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "error",
+          "name": "BaseError",
+          "inputs": []
+        },
+        {
+          "type": "error",
+          "name": "InitializerError",
+          "inputs": []
+        },
+        {
+          "type": "error",
+          "name": "ReferencedError",
+          "inputs": []
+        },
+        {
+          "type": "event",
+          "name": "BaseEvent",
+          "inputs": [],
+          "anonymous": false
+        },
+        {
+          "type": "event",
+          "name": "ModifierEvent",
+          "inputs": [],
+          "anonymous": false
+        },
+        {
+          "type": "event",
+          "name": "ReferencedEvent",
+          "inputs": [
+            {
+              "name": "value",
+              "type": "uint256",
+              "indexed": false,
+              "internalType": "uint256"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "function",
+          "name": "callExternal",
+          "inputs": [
+            {
+              "name": "externalContract",
+              "type": "address",
+              "internalType": "contract External"
+            }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "run",
+          "inputs": [
+            {
+              "name": "newValue",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        }
+      ]
+    },
+    "ROOT/tests/ui/abi/referenced_items.sol:External": {
+      "abi": [
+        {
+          "type": "event",
+          "name": "ExternalEvent",
+          "inputs": [],
+          "anonymous": false
+        },
+        {
+          "type": "function",
+          "name": "emitExternal",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        }
+      ]
+    },
+    "ROOT/tests/ui/abi/referenced_items.sol:FunctionPointer": {
+      "abi": [
+        {
+          "type": "event",
+          "name": "FunctionPointerEvent",
+          "inputs": [],
+          "anonymous": false
+        },
+        {
+          "type": "function",
+          "name": "run",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        }
+      ]
+    },
+    "ROOT/tests/ui/abi/referenced_items.sol:VirtualBase": {
+      "abi": [
+        {
+          "type": "event",
+          "name": "BaseHookEvent",
+          "inputs": [],
+          "anonymous": false
+        },
+        {
+          "type": "function",
+          "name": "execute",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        }
+      ]
+    },
+    "ROOT/tests/ui/abi/referenced_items.sol:VirtualDerived": {
+      "abi": [
+        {
+          "type": "event",
+          "name": "DerivedHookEvent",
+          "inputs": [],
+          "anonymous": false
+        },
+        {
+          "type": "function",
+          "name": "execute",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        }
+      ]
+    }
+  },
+  "version": "VERSION"
+}

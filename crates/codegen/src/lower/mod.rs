@@ -22,8 +22,7 @@ use crate::{
 };
 use alloy_primitives::{Bytes, U256};
 use solar_data_structures::{
-    Never,
-    bit_set::GrowableBitSet,
+    bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
     smallvec::SmallVec,
 };
@@ -33,10 +32,10 @@ use solar_interface::{
     kw, sym,
 };
 use solar_sema::{
-    hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId, Visit},
+    hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId},
     ty::{CallableParamSource, Gcx, Ty, TyKind},
 };
-use std::{collections::hash_map::Entry, ops::ControlFlow};
+use std::collections::hash_map::Entry;
 
 use self::storage::StorageLocation;
 
@@ -139,6 +138,8 @@ pub(crate) struct Lowerer<'gcx> {
     /// Variables that are assigned after declaration (need memory storage).
     /// Variables not in this set can be kept as SSA values.
     assigned_vars: GrowableBitSet<VariableId>,
+    /// Invalid event declarations whose topic-count error has already been emitted.
+    invalid_event_topics: GrowableBitSet<hir::EventId>,
     /// Whether the next expression is an error-checking boundary.
     check_expr_errors: bool,
     /// Whether HIR contained errors before codegen started.
@@ -234,6 +235,7 @@ impl<'gcx> Lowerer<'gcx> {
             contract_bytecodes: FxHashMap::default(),
             loop_stack: Vec::new(),
             assigned_vars: GrowableBitSet::new_empty(),
+            invalid_event_topics: GrowableBitSet::new_empty(),
             check_expr_errors: hir_has_errors,
             hir_has_errors,
             storage_ref_locals: GrowableBitSet::new_empty(),
@@ -424,30 +426,61 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.allocate_storage(contract_id);
 
-        // Collect all functions from the inheritance chain, handling overrides.
-        // Functions are collected from most-derived to most-base, so if a function
-        // with the same selector already exists, we skip the base version.
-        let functions = self.collect_inherited_functions(contract_id);
-
         // Generate a constructor for inherited construction/state-variable
         // initialization when the current contract does not declare one.
         if contract.ctor.is_none() {
             self.generate_synthetic_constructor(contract_id);
         }
 
-        for func_id in functions {
-            self.ensure_function_lowered(func_id);
+        if self.gcx.sess.opts.unstable.codegen_all_functions || self.hir_has_errors {
+            for function in self.collect_unpruned_functions(contract_id) {
+                self.ensure_function_lowered(function);
+            }
+        } else {
+            self.lower_reachable_function_roots(contract_id);
         }
 
         self.current_contract_id = None;
     }
 
-    /// Collects all functions from the inheritance chain, handling overrides.
-    ///
-    /// Functions from more-derived contracts take precedence over base contracts.
-    /// For regular functions, we use the selector to determine uniqueness.
-    /// For constructor/fallback/receive, we use the function kind.
-    fn collect_inherited_functions(&self, contract_id: ContractId) -> Vec<HirFunctionId> {
+    /// Lowers reachable function roots in inheritance order.
+    fn lower_reachable_function_roots(&mut self, contract_id: ContractId) {
+        let contract = self.gcx.hir.contract(contract_id);
+        let reachable = self.gcx.contract_reachable_functions(contract_id);
+        let mut interface = DenseBitSet::new_empty(self.gcx.hir.function_ids().len());
+        for function in self.gcx.interface_functions(contract_id) {
+            interface.insert(function.id);
+        }
+
+        for &base_id in contract.linearized_bases {
+            for function_id in self.gcx.hir.contract(base_id).all_functions() {
+                if !reachable.contains(function_id) {
+                    continue;
+                }
+
+                let function = self.gcx.hir.function(function_id);
+                let selected = match function.kind {
+                    hir::FunctionKind::Constructor => contract.ctor == Some(function_id),
+                    hir::FunctionKind::Fallback => contract.fallback == Some(function_id),
+                    hir::FunctionKind::Receive => contract.receive == Some(function_id),
+                    hir::FunctionKind::Function
+                        if function.visibility >= hir::Visibility::Public =>
+                    {
+                        interface.contains(function_id)
+                    }
+                    hir::FunctionKind::Function | hir::FunctionKind::Modifier => {
+                        base_id == contract_id || function.visibility != hir::Visibility::Private
+                    }
+                };
+                if selected {
+                    self.ensure_function_lowered(function_id);
+                }
+            }
+        }
+    }
+
+    /// Collects function roots without callgraph reachability filtering.
+    fn collect_unpruned_functions(&self, contract_id: ContractId) -> Vec<HirFunctionId> {
         let contract = self.gcx.hir.contract(contract_id);
         let linearized_bases = contract.linearized_bases;
 
@@ -678,8 +711,12 @@ impl<'gcx> Lowerer<'gcx> {
 
         let ptr = self.lower_value_expr(builder, base);
         let struct_base = self.calldata_base_of_copy(builder, ptr, field_tys.len() as u64);
-        let head_offset: u64 =
-            field_tys[..index].iter().map(|&f| self.abi_head_size(f.peel_refs())).sum();
+        let head_offset = match self
+            .abi_head_size_sum(field_tys[..index].iter().map(|&field| field.peel_refs()))
+        {
+            Ok(size) => size,
+            Err(guar) => return Some(builder.error_value(guar)),
+        };
         let head_pos = self.offset_ptr(builder, struct_base, head_offset);
         let tail_offset = builder.calldataload(head_pos);
         let len_pos = builder.add(struct_base, tail_offset);
@@ -908,6 +945,43 @@ impl<'gcx> Lowerer<'gcx> {
             mir_func.selector = Some(self.function_selector(func_id));
         }
         let uses_internal_frame = !uses_external_abi && !is_special;
+        let current_return_tys =
+            hir_func.returns.iter().map(|&id| self.gcx.type_of_item(id.into())).collect::<Vec<_>>();
+
+        let external_arg_head_size = if uses_external_abi {
+            self.abi_head_size_sum(
+                hir_func.parameters.iter().map(|&id| self.gcx.type_of_item(id.into())),
+            )
+        } else {
+            Ok(0)
+        };
+        let external_static_return_size =
+            if uses_external_abi && !current_return_tys.iter().any(|&ty| self.abi_is_dynamic(ty)) {
+                self.abi_head_size_sum(current_return_tys.iter().copied())
+            } else {
+                Ok(0)
+            };
+        let abi_return_types = if uses_external_abi {
+            current_return_tys
+                .iter()
+                .map(|&ty| self.abi_type(ty, false).ok_or_else(|| self.abi_type_error()))
+                .collect::<Result<Vec<_>, _>>()
+        } else {
+            Ok(Vec::new())
+        };
+        let (external_arg_head_size, external_static_return_size, abi_return_types) =
+            match (external_arg_head_size, external_static_return_size, abi_return_types) {
+                (Ok(arg_size), Ok(return_size), Ok(types)) => (arg_size, return_size, types),
+                (Err(guar), _, _) | (_, Err(guar), _) | (_, _, Err(guar)) => {
+                    let mut builder = FunctionBuilder::new(&mut mir_func);
+                    builder.error_value(guar);
+                    builder.invalid();
+                    mir_func.name = self.module.function(mir_id).name;
+                    *self.module.function_mut(mir_id) = mir_func;
+                    self.check_expr_errors = check_expr_errors;
+                    return mir_id;
+                }
+            };
 
         self.locals.clear();
         self.local_memory_slots.clear();
@@ -918,18 +992,10 @@ impl<'gcx> Lowerer<'gcx> {
         self.constructor_args_base = None;
         self.lowering_internal_function = uses_internal_frame;
         self.in_unchecked_block = false;
-        self.current_return_tys =
-            hir_func.returns.iter().map(|&id| self.gcx.type_of_item(id.into())).collect();
-        if uses_external_abi && !self.current_return_tys.is_empty() {
-            let types = self
-                .current_return_tys
-                .iter()
-                .map(|&ty| {
-                    self.abi_type(ty, false)
-                        .expect("recursive ABI return values cannot be materialized")
-                })
-                .collect::<Vec<_>>();
-            mir_func.abi_returns = Some(self.module.intern_abi_layout(AbiLayout::new(types)));
+        self.current_return_tys = current_return_tys;
+        if !abi_return_types.is_empty() {
+            mir_func.abi_returns =
+                Some(self.module.intern_abi_layout(AbiLayout::new(abi_return_types)));
         }
 
         // Pre-analyze function body to find variables that are assigned after declaration.
@@ -937,19 +1003,6 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(body) = &hir_func.body {
             self.collect_assigned_vars_block(body);
         }
-
-        let external_arg_head_size = if uses_external_abi {
-            hir_func
-                .parameters
-                .iter()
-                .map(|&id| {
-                    let ty = self.gcx.type_of_item(id.into());
-                    self.abi_head_size(ty)
-                })
-                .sum()
-        } else {
-            0
-        };
 
         {
             let mut builder = FunctionBuilder::new(&mut mir_func);
@@ -1062,8 +1115,13 @@ impl<'gcx> Lowerer<'gcx> {
                             // instead of collapsing to one slot.
                             let field_ty = field_ty.peel_refs();
                             let first_word = builder.func().params.len() as u64;
-                            let head_words =
-                                self.abi_head_size(field_ty) / EvmMemoryLayout::WORD_SIZE;
+                            let head_words = match self.abi_head_size(field_ty) {
+                                Ok(size) => size / EvmMemoryLayout::WORD_SIZE,
+                                Err(guar) => {
+                                    builder.error_value(guar);
+                                    continue;
+                                }
+                            };
                             for _ in 0..head_words {
                                 builder.add_param(MirType::uint256());
                             }
@@ -1392,10 +1450,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.lowering_internal_function = false;
         mir_func.internal_frame_size =
             self.next_local_memory_offset.saturating_sub(EvmMemoryLayout::HEAP_START);
-        if uses_external_abi && !self.current_return_tys.iter().any(|&ty| self.abi_is_dynamic(ty)) {
-            mir_func.external_static_return_size =
-                self.current_return_tys.iter().map(|&ty| self.abi_head_size(ty)).sum();
-        }
+        mir_func.external_static_return_size = external_static_return_size;
 
         mir_func.name = self.module.function(mir_id).name;
         *self.module.function_mut(mir_id) = mir_func;
@@ -2111,83 +2166,6 @@ impl<'gcx> Lowerer<'gcx> {
 /// Lowers a contract from HIR to MIR.
 pub fn lower_contract(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     lower_contract_with_bytecodes(gcx, contract_id, &FxHashMap::default())
-}
-
-/// Returns contracts whose creation bytecode is referenced by `contract_id`.
-pub fn contract_bytecode_dependencies(
-    gcx: Gcx<'_>,
-    contract_id: ContractId,
-) -> GrowableBitSet<ContractId> {
-    let mut deps = GrowableBitSet::new_empty();
-    BytecodeDependencyCollector { gcx, deps: &mut deps }.collect_contract(contract_id);
-    deps
-}
-
-struct BytecodeDependencyCollector<'a, 'gcx> {
-    gcx: Gcx<'gcx>,
-    deps: &'a mut GrowableBitSet<ContractId>,
-}
-
-impl<'a, 'gcx> BytecodeDependencyCollector<'a, 'gcx> {
-    fn collect_contract(&mut self, contract_id: ContractId) {
-        let contract = self.gcx.hir.contract(contract_id);
-
-        for modifier in contract.linearized_bases_args.iter().flatten() {
-            let ControlFlow::Continue(()) = self.visit_modifier(modifier);
-        }
-
-        for &base_id in contract.linearized_bases {
-            let base = self.gcx.hir.contract(base_id);
-
-            for var_id in base.variables() {
-                let ControlFlow::Continue(()) = self.visit_nested_var(var_id);
-            }
-
-            for func_id in base.all_functions() {
-                let func = self.gcx.hir.function(func_id);
-
-                for modifier in func.modifiers {
-                    let ControlFlow::Continue(()) = self.visit_modifier(modifier);
-                }
-
-                if let Some(body) = func.body {
-                    for stmt in body.stmts {
-                        let ControlFlow::Continue(()) = self.visit_stmt(stmt);
-                    }
-                }
-            }
-        }
-    }
-
-    fn collect_type(&mut self, ty: &hir::Type<'gcx>) {
-        if let hir::TypeKind::Custom(hir::ItemId::Contract(contract_id)) = &ty.kind {
-            self.deps.insert(*contract_id);
-        }
-    }
-}
-
-impl<'gcx> Visit<'gcx> for BytecodeDependencyCollector<'_, 'gcx> {
-    type BreakValue = Never;
-
-    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
-        &self.gcx.hir
-    }
-
-    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
-        match &expr.kind {
-            hir::ExprKind::New(ty) => self.collect_type(ty),
-            hir::ExprKind::Member(base, member)
-                if matches!(member.name, sym::creationCode | sym::runtimeCode) =>
-            {
-                if let hir::ExprKind::TypeCall(ty) = &base.kind {
-                    self.collect_type(ty);
-                }
-            }
-            _ => {}
-        }
-
-        self.walk_expr(expr)
-    }
 }
 
 /// Lowers a contract from HIR to MIR with pre-compiled bytecodes available for `new` expressions.

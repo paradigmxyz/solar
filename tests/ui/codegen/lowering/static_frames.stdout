@@ -113,10 +113,8 @@ bb7:
   dup1
   push 768
   mstore
-  dup1
   push 960
   mstore
-  pop
   push bb26
   push 0
   sload
@@ -156,10 +154,8 @@ bb7:
   mload
   push 992
   mstore
-  dup1
   push 0x400
   mstore
-  pop
   jump
 bb10:
   push 480
@@ -286,10 +282,8 @@ bb47:
 bb72:
   mload
   mod
-  dup1
   push 480
   mstore
-  pop
   jump
 bb11:
   push 160

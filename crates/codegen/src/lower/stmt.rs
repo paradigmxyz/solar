@@ -955,6 +955,23 @@ impl<'gcx> Lowerer<'gcx> {
         };
 
         let event = self.gcx.hir.event(event_id);
+        let max_indexed = if event.anonymous { 4 } else { 3 };
+        let indexed = event
+            .parameters
+            .iter()
+            .filter(|&&param_id| self.gcx.hir.variable(param_id).indexed)
+            .count();
+        if indexed > max_indexed {
+            if self.invalid_event_topics.insert(event_id) {
+                self.gcx
+                    .dcx()
+                    .err(format!("event cannot have more than {max_indexed} indexed parameters"))
+                    .span(event.span)
+                    .emit();
+            }
+            return;
+        }
+
         let arg_exprs =
             match self.ordered_args_for(args, Some(CallableParamSource::Event(event_id))) {
                 Ok(exprs) => exprs,
@@ -962,7 +979,7 @@ impl<'gcx> Lowerer<'gcx> {
             };
 
         // Collect indexed parameters (additional topics) and non-indexed (data).
-        let mut topics = Vec::new();
+        let mut topics = SmallVec::<[ValueId; 4]>::new();
         if !event.anonymous {
             let selector = self.gcx.event_selector(event_id);
             topics.push(builder.imm_u256(U256::from_be_bytes(selector.0)));
@@ -1022,7 +1039,7 @@ impl<'gcx> Lowerer<'gcx> {
             2 => builder.log2(mem_offset, size, topics[0], topics[1]),
             3 => builder.log3(mem_offset, size, topics[0], topics[1], topics[2]),
             4 => builder.log4(mem_offset, size, topics[0], topics[1], topics[2], topics[3]),
-            _ => unreachable!("type checking limits events to four EVM topics"),
+            _ => unreachable!("event topic count was validated"),
         }
     }
 

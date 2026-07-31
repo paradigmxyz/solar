@@ -3,7 +3,7 @@
 use crate::mir::{FunctionBuilder, ValueId};
 use solar_config::EvmVersion;
 
-pub(crate) mod evm_word;
+pub(crate) mod eval;
 
 /// Covers Homestead's call and new-account costs plus setup emitted after `GAS`.
 const PRE_TANGERINE_PRECOMPILE_GAS_RESERVE: u64 = 25_100;
