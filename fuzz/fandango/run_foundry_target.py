@@ -1521,7 +1521,7 @@ def _effective_bounds_error(
     disagreements = [
         f"{name}={bounds.get(name)!r} (expected {value!r})"
         for name, value in expected.items()
-        if bounds.get(name) != value
+        if not _same_json_bound(bounds.get(name), value)
     ]
     max_dynamic_length = bounds.get("max_dynamic_length")
     if (
@@ -1539,6 +1539,20 @@ def _effective_bounds_error(
         "Forge effective symbolic bounds disagree with the requested "
         "configuration: " + ", ".join(disagreements)
     )
+
+
+def _same_json_bound(actual: Any, expected: int | list[int]) -> bool:
+    if type(actual) is not type(expected):
+        return False
+    if isinstance(expected, list):
+        return len(actual) == len(expected) and all(
+            type(actual_item) is type(expected_item)
+            and actual_item == expected_item
+            for actual_item, expected_item in zip(
+                actual, expected, strict=True
+            )
+        )
+    return actual == expected
 
 
 def _tools_manifest(args: argparse.Namespace) -> dict[str, Any]:

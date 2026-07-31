@@ -1620,6 +1620,30 @@ class EffectiveBoundsTests(unittest.TestCase):
         )
         self.assertIn("max_dynamic_length=2 (expected at least 3)", reason)
 
+    def test_rejects_booleans_masquerading_as_integer_bounds(self):
+        args = self._args()
+        args.symbolic_timeout = 1
+        args.symbolic_max_paths = 1
+        args.symbolic_dynamic_lengths = (0, 1)
+        bounds = {
+            "timeout_seconds": True,
+            "max_paths": True,
+            "max_depth": 10000,
+            "default_array_lengths": [False, True],
+            "default_bytes_lengths": [0, 1],
+            "max_dynamic_length": True,
+        }
+
+        reason = run_foundry_target._effective_bounds_error(args, bounds)
+
+        self.assertIn("timeout_seconds=True (expected 1)", reason)
+        self.assertIn("max_paths=True (expected 1)", reason)
+        self.assertIn(
+            "default_array_lengths=[False, True] (expected [0, 1])",
+            reason,
+        )
+        self.assertIn("max_dynamic_length=True (expected at least 1)", reason)
+
 
 class ConcreteOutcomeConfirmationTests(unittest.TestCase):
     def test_equal_success_or_revert_outcomes_do_not_confirm_mismatch(self):
