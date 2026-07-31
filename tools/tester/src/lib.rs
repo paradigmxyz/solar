@@ -4,6 +4,9 @@
 
 #![allow(unreachable_pub)]
 
+#[cfg(test)]
+use cfg_if as _;
+
 use eyre::{Result, eyre};
 use std::{
     ffi::OsString,
@@ -22,6 +25,7 @@ use ui_test::{
 };
 
 mod errors;
+#[cfg(test)]
 mod foundry;
 mod run_call;
 mod solc;
@@ -32,14 +36,6 @@ mod utils;
 ///
 /// `cmd` is the path to the `solar` binary used by all modes.
 pub fn run_tests(cmd: &'static Path) -> Result<()> {
-    if runs_foundry_mode() {
-        if std::env::args_os().any(|arg| arg == "--list") {
-            return Ok(());
-        }
-        foundry::run_default_suite(cmd);
-        return Ok(());
-    }
-
     ui_test::color_eyre::install()?;
 
     let mut args = ui_test::Args::test()?;
@@ -104,15 +100,7 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
         status_emitter,
     )?;
 
-    if std::env::var_os("TESTER_MODE").is_none() {
-        foundry::run_default_suite(cmd);
-    }
-
     Ok(())
-}
-
-fn runs_foundry_mode() -> bool {
-    std::env::var("TESTER_MODE").is_ok_and(|mode| mode.trim() == "foundry")
 }
 
 fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Config {
