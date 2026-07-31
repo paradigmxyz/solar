@@ -403,8 +403,8 @@ bb18:
   push 32
   add
   swap1
-  push 5
-  shl
+  push 32
+  mul
   add
   mload
   dup1
@@ -625,7 +625,7 @@ bb10:
   push 64
   mload
   dup1
-  push 224
+  push 256
   mstore
   swap1
   dup2
@@ -653,7 +653,7 @@ bb10:
   add
   calldataload
   dup1
-  push 256
+  push 224
   mstore
   push 31
   dup2
@@ -705,7 +705,7 @@ bb10:
   add
   push 64
   mstore
-  push 256
+  push 224
   mload
   dup2
   mstore
@@ -725,7 +725,7 @@ bb10:
   push 68
   calldataload
   add
-  push 256
+  push 224
   mload
   dup2
   dup4
@@ -735,14 +735,11 @@ bb10:
   push 64
   mload
   dup1
-  push 352
+  push 320
   mstore
   push 128
   dup2
   add
-  dup1
-  push 320
-  mstore
   push 64
   mstore
   push 4
@@ -752,65 +749,72 @@ bb10:
   push 32
   dup2
   add
-  push 224
+  push 256
   mload
-  swap1
+  dup2
   mstore
   push 64
-  dup2
-  add
   dup3
+  add
+  dup4
   dup1
   push 288
   mstore
-  swap1
-  mstore
-  push 96
   dup2
+  mstore
+  swap3
+  pop
+  push 96
+  dup3
   add
   push 100
   calldataload
-  swap1
+  dup2
+  mstore
+  push 64
+  mload
+  dup1
+  push 352
   mstore
   push 0xfa06cb96
   push 224
   shl
-  push 320
-  mload
+  dup2
   mstore
-  push 132
+  push 4
   dup2
   add
   push 0
   dup2
   mstore
-  push 164
+  swap4
+  mload
+  push 36
   dup3
   add
-  push 4
-  calldataload
-  swap1
   mstore
-  push 260
-  dup3
+  swap2
+  mload
+  swap4
+  mload
+  swap1
+  mload
+  push 132
+  dup4
   add
-  push 100
-  calldataload
-  swap1
   mstore
-  push 196
+  push 68
   dup3
   add
   push 160
   swap1
   mstore
-  push 224
-  mload
+  dup4
   mload
   dup1
   push 5
   shl
-  push 292
+  push 164
   dup5
   add
   dup3
@@ -818,28 +822,28 @@ bb10:
   mstore
   swap1
   pop
+  swap4
   push 32
-  push 224
-  mload
   add
-  push 324
-  dup5
+  push 196
+  dup4
   add
-  dup3
+  dup6
   dup3
   dup3
   mcopy
   pop
   pop
+  swap3
   push 192
   add
-  swap2
-  push 228
-  add
+  push 100
   dup3
+  add
+  dup2
   swap1
   mstore
-  dup3
+  dup4
   mload
   push 31
   dup2
@@ -847,30 +851,32 @@ bb10:
   push 31
   not
   and
-  swap2
-  dup4
+  swap4
+  dup3
   add
   dup2
   dup2
   mstore
   swap1
   pop
-  swap3
+  swap4
   push 32
   add
-  swap3
+  swap4
   push 32
   add
-  dup2
-  dup5
+  dup4
+  dup6
   dup3
   mcopy
   pop
-  swap2
+  swap3
   pop
   swap1
   push 32
   add
+  swap1
+  swap2
   add
   push 4
   add
@@ -884,12 +890,12 @@ bb10:
   push 32
   push 0
   dup4
-  push 320
-  mload
+  dup6
   push 0x1000000000000000000000000000000000000001
   dup6
   delegatecall
-  swap2
+  swap3
+  pop
   pop
   pop
   iszero

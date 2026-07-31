@@ -312,6 +312,7 @@ fn @tailHash.3(arg0: memptr) -> bytes32 {
     v11 = calldataload v10
     v12 = add v9, v11
     v13 = calldataload v12
+    v14 = add v12, 32
     v18 = lt v13, 20
     jumpi v18, bb4, bb5
   bb3:
@@ -321,8 +322,8 @@ fn @tailHash.3(arg0: memptr) -> bytes32 {
     revert 0, 0
   bb5:
     v19 = sub v13, 20
-    v20 = add v12, 52
-    v23 = add v13, 11
+    v20 = add v14, 20
+    v23 = add v19, 31
     v24 = lt v23, v19
     jumpi v24, bb6, bb7
   bb6:

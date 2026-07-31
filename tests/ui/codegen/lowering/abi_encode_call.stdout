@@ -23,16 +23,21 @@ fn @asValue() {
     mstore v24, arg0
     v25 = add v23, 36
     mstore v25, arg1
-    jumpi 0, bb4, bb5
+    v11 = add 68, 31
+    v12 = lt v11, 68
+    jumpi v12, bb4, bb5
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb5:
-    jumpi 0, bb4, bb6
+    v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = add v14, 32
+    v16 = lt v15, v14
+    jumpi v16, bb4, bb6
   bb6:
     v17 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v48 = add v17, 128
+    v48 = add v17, v15
     mstore 64, v48 !metadata(memory=scratch)
     mstore v17, 68
     v18 = add v17, 32

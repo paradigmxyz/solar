@@ -10,6 +10,7 @@ fn @endPastLength() {
   bb1:
     revert 0, 0
   bb2:
+    v47 = add arg0, 36
     v48 = add arg0, 4
     v49 = calldataload v48
     v5 = gt arg1, v49
@@ -18,8 +19,8 @@ fn @endPastLength() {
     jumpi arg1, bb4, bb1
   bb4:
     v7 = sub arg1, 1
-    v8 = add arg0, 37
-    v11 = add arg1, 30
+    v8 = add v47, 1
+    v11 = add v7, 31
     v12 = lt v11, v7
     jumpi v12, bb5, bb6
   bb5:

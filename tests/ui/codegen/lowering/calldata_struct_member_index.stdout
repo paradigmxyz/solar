@@ -197,7 +197,7 @@ fn @member() {
     tail_call @__revert_stub0
   bb17:
     v90 = add v80, 32
-    v91 = shl 5, arg1
+    v91 = mul arg1, 32
     v85 = add v90, v91
     v86 = mload v85
     v87 = add v86, 96
@@ -356,7 +356,7 @@ fn @word() {
     tail_call @__revert_stub0
   bb17:
     v88 = add v80, 32
-    v89 = shl 5, arg1
+    v89 = mul arg1, 32
     v85 = add v88, v89
     v86 = mload v85
     mstore 128, v86
@@ -507,7 +507,9 @@ fn @lengths() {
     v86 = add v5, 64
     v87 = mload v86
     v92 = mload v87
-    v99 = mload v72
+    v93 = add v5, 96
+    v94 = mload v93
+    v99 = mload v94
     v79 = add v5, 32
     v80 = mload v79
     v85 = mload v80

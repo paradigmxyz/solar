@@ -180,6 +180,16 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &cfg_simplify::CfgSimplify,
     &inline::SpecializeFunctionPointers,
     &cfg_simplify::FunctionDce,
+    &sccp::Sccp,
+    &inst_simplify::InstSimplify,
+    &cse::Cse,
+    &gvn::Gvn,
+    &check_elim::CheckElim,
+    &jump_threading::JumpThreading,
+    &cfg_simplify::CfgSimplify,
+    &frame_promotion::FrameSlotPromotion,
+    &memory_dse::MemoryDse,
+    &adce::Adce,
     // Progressive lowering materializes ABI wrappers, selector routing, and
     // tail-call edges as MIR. Each pass bails without advancing the phase
     // when the module is outside its scope.
@@ -190,14 +200,9 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &inst_simplify::InstSimplify,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
-    // CSE after aggregate lowering improves stack shape and runtime gas, but
-    // can grow bytecode through longer live ranges, so keep it out of `-Osize`.
+    // Late CSE reduces runtime gas after aggregate lowering, but can grow
+    // bytecode through longer live ranges, so keep it out of `-Osize`.
     &GasOnly(cse::Cse),
-    // Analyze wrappers and deferred frames before dispatch and physical memory
-    // lowering expand the module.
-    &gvn::Gvn,
-    &check_elim::CheckElim,
-    &frame_promotion::FrameSlotPromotion,
     &dce::Dce,
     &lower_slices::LowerSlices,
     &lower_dispatch::LowerDispatch,
@@ -207,13 +212,8 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_memory_zero::LowerMemoryZero,
     &lower_mcopy::LowerMCopy,
     &lower_evm_shaped::LowerEvmShaped,
-    // Optimize the concrete operations and control flow exposed by progressive
-    // lowering before selecting physical stack order.
-    &inst_simplify::InstSimplify,
-    &cfg_simplify::CfgSimplify,
-    &memory_dse::MemoryDse,
-    &adce::Adce,
-    &inst_simplify::InstSimplify,
+    // Late lowering can leave pure address and length calculations unused.
+    // Remove their complete dependency chains before selecting physical stack order.
     &dce::Dce,
     &evm_inst_schedule::EvmInstSchedule,
 ];

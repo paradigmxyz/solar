@@ -41,8 +41,7 @@ contract StackPhiLoop {
     // CHECK: jump [[SECOND_HEADER:bb[0-9]+]]
     // CHECK: [[SECOND_HEADER]]:
     // CHECK: push {{bb[0-9]+}}
-    // The branch instruction may be shared with another loop header.
-    // CHECK: jumpi
+    // CHECK-NEXT: jumpi
     // CHECK: jump [[SECOND_HEADER]]
     function sequential(uint256 a, uint256 b) public pure returns (uint256) {
         uint256 acc = 0;
@@ -59,12 +58,11 @@ contract StackPhiLoop {
     // CHECK: jump [[OUTER_HEADER:bb[0-9]+]]
     // CHECK: [[OUTER_HEADER]]:
     // CHECK: push [[OUTER_BODY:bb[0-9]+]]
-    // The conditional branch may be direct or use a shared trampoline.
-    // CHECK-NEXT: jump{{(i| bb[0-9]+)}}
+    // CHECK-NEXT: jumpi
     // CHECK: [[OUTER_BODY]]:
     // CHECK: jump [[INNER_HEADER:bb[0-9]+]]
     // CHECK: [[INNER_HEADER]]:
-    // CHECK: push {{bb[0-9]+}}
+    // CHECK: push [[OUTER_HEADER]]
     // CHECK-NEXT: jumpi
     // CHECK: jump [[INNER_HEADER]]
     function nested(uint256 outer, uint256 inner) public pure returns (uint256) {

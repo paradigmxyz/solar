@@ -183,8 +183,8 @@ bb16:
   mload
   add
   swap1
-  push 5
-  shl
+  push 32
+  mul
   add
   mload
   push 128
