@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:Errors (runtime) ===
 @module runtime
 bb0:
-  push 256
+  push 288
   push 64
   mstore
   callvalue
@@ -28,7 +28,7 @@ bb0:
   push 64
   mload
   dup1
-  push 192
+  push 224
   mstore
   push 32
   dup2
@@ -55,7 +55,7 @@ bb0:
   not
   and
   dup1
-  push 224
+  push 192
   mstore
   push 64
   dup3
@@ -68,7 +68,7 @@ bb0:
   push bb8
   jumpi
   push 32
-  push 224
+  push 192
   mload
   sub
   push 160
@@ -79,7 +79,7 @@ bb0:
   mstore
   jump bb8
 bb8:
-  push 224
+  push 192
   mload
   push 160
   mload
@@ -92,7 +92,7 @@ bb12:
   push 160
   mload
   mcopy
-  push 192
+  push 224
   mload
   swap1
   sub
@@ -102,13 +102,18 @@ bb12:
   push 31
   not
   and
-  push 192
+  push 64
   mload
+  dup1
+  push 256
+  mstore
+  swap1
+  dup2
   add
   push 64
   mstore
-  push 192
-  mload
+  dup2
+  dup2
   return
 bb5 [cold]:
   push 0
@@ -118,7 +123,7 @@ bb9:
   push 64
   mload
   dup1
-  push 192
+  push 224
   mstore
   push 32
   dup2
@@ -143,7 +148,7 @@ bb9:
   not
   and
   dup1
-  push 224
+  push 192
   mstore
   push 64
   dup3
@@ -156,7 +161,7 @@ bb9:
   push bb11
   jumpi
   push 32
-  push 224
+  push 192
   mload
   sub
   push 160
@@ -167,7 +172,7 @@ bb9:
   mstore
   jump bb11
 bb11:
-  push 224
+  push 192
   mload
   push 160
   mload
@@ -381,10 +386,10 @@ bb28 [cold]:
   dup2
   add
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
-  dup2
-  mstore
   swap1
+  mstore
   push 64
+  dup2
   add
   push 33
   push 248
@@ -405,6 +410,8 @@ bb28 [cold]:
   push 0
   push 100
   mstore
+  push 32
+  add
   push 33
   dup2
   push 68

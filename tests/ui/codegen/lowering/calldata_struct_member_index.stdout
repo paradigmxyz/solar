@@ -188,7 +188,8 @@ fn @member() {
     mstore v77, v72
     v78 = add v5, 128
     mstore v78, v4
-    v80 = mload v48
+    v79 = add v5, 32
+    v80 = mload v79
     v83 = mload v80
     v84 = lt arg1, v83
     jumpi v84, bb17, bb16
@@ -346,7 +347,8 @@ fn @word() {
     mstore v77, v72
     v78 = add v5, 128
     mstore v78, v4
-    v80 = mload v59
+    v79 = add v5, 64
+    v80 = mload v79
     v83 = mload v80
     v84 = lt arg1, v83
     jumpi v84, bb17, bb16
@@ -502,10 +504,12 @@ fn @lengths() {
     mstore v77, v72
     v78 = add v5, 128
     mstore v78, v4
-    v87 = mload v59
+    v86 = add v5, 64
+    v87 = mload v86
     v92 = mload v87
     v99 = mload v72
-    v80 = mload v48
+    v79 = add v5, 32
+    v80 = mload v79
     v85 = mload v80
     mstore 128, v85
     mstore 160, v92

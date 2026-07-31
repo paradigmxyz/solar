@@ -345,7 +345,8 @@ fn @tailHash.3(arg0: memptr) -> bytes32 {
     mstore v34, 0
     calldatacopy v32, v20, v19
     v38 = mload v31
-    v36 = keccak256 v32, v38
+    v39 = add v31, 32
+    v36 = keccak256 v39, v38
     mstore 0, v36 !metadata(memory=scratch)
     jump bb3
 }

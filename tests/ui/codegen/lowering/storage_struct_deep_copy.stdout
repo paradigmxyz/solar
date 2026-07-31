@@ -29,7 +29,7 @@ fn @assign() {
   bb5:
     v28 = phi [bb8: 0], [bb6: v34]
     v35 = phi [bb8: 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6], [bb6: v36]
-    v37 = phi [bb8: v39], [bb6: v38]
+    v37 = phi [bb8: v27], [bb6: v38]
     jumpi v28, bb7, bb6
   bb6:
     v32 = mload v37
@@ -54,6 +54,7 @@ fn @assign() {
     sstore 0, arg0 !metadata(storage=slot(0))
     sstore 1, 1 !metadata(storage=slot(1))
     mstore 0, 1 !metadata(memory=scratch)
+    v27 = add v14, 32
     jump bb5
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

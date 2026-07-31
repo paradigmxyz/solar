@@ -192,9 +192,10 @@ fn @blobAt() {
     v24 = sub v23, v11
     v26 = add v24, 31
     v28 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v31 = add v11, v28
+    v29 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v31 = add v29, v28
     mstore 64, v31 !metadata(memory=scratch)
-    returndata v11, v24
+    returndata v29, v24
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memptr {

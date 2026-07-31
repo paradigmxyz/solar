@@ -17,40 +17,52 @@ fn @asValue() {
   bb3:
     v23 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v47 = add v23, 96
+    mstore 64, v47 !metadata(memory=scratch)
     mstore v23, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v24 = add v23, 4
     mstore v24, arg0
     v25 = add v23, 36
     mstore v25, arg1
-    v48 = add v23, 224
+    jumpi 0, bb4, bb5
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    jumpi 0, bb4, bb6
+  bb6:
+    v17 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v48 = add v17, 128
     mstore 64, v48 !metadata(memory=scratch)
-    mstore v47, 68
-    v18 = add v23, 128
+    mstore v17, 68
+    v18 = add v17, 32
     mcopy v18, v23, 68
     v27 = mload 64 !metadata(memory=scratch)
     v28 = add v27, 32
     v29 = sub v28, v27
     mstore v27, v29
-    v30 = mload v47
+    v30 = mload v17
     mstore v28, v30
     v32 = add v30, 31
     v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v34 = add v27, 64
-    jumpi v33, bb4, bb5
-  bb4:
+    jumpi v33, bb7, bb8
+  bb7:
     v36 = sub v33, 32
     v37 = add v34, v36
     mstore v37, 0
-    jump bb5
-  bb5:
+    jump bb8
+  bb8:
     v39 = add v34, v33
-    mcopy v34, v18, v30
+    v38 = add v17, 32
+    mcopy v34, v38, v30
     v40 = sub v39, v27
     v42 = add v40, 31
     v44 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v49 = add v27, v44
+    v45 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v49 = add v45, v44
     mstore 64, v49 !metadata(memory=scratch)
-    returndata v27, v40
+    returndata v45, v40
 }
 
 fn @viaCall() {

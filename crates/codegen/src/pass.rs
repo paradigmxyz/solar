@@ -190,9 +190,14 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &inst_simplify::InstSimplify,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
-    // Late CSE reduces runtime gas after aggregate lowering, but can grow
-    // bytecode through longer live ranges, so keep it out of `-Osize`.
+    // CSE after aggregate lowering improves stack shape and runtime gas, but
+    // can grow bytecode through longer live ranges, so keep it out of `-Osize`.
     &GasOnly(cse::Cse),
+    // Analyze wrappers and deferred frames before dispatch and physical memory
+    // lowering expand the module.
+    &gvn::Gvn,
+    &check_elim::CheckElim,
+    &frame_promotion::FrameSlotPromotion,
     &dce::Dce,
     &lower_slices::LowerSlices,
     &lower_dispatch::LowerDispatch,
@@ -204,20 +209,11 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_evm_shaped::LowerEvmShaped,
     // Optimize the concrete operations and control flow exposed by progressive
     // lowering before selecting physical stack order.
-    &sccp::Sccp,
     &inst_simplify::InstSimplify,
-    &cse::Cse,
-    &gvn::Gvn,
-    &check_elim::CheckElim,
-    &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
-    &frame_promotion::FrameSlotPromotion,
     &memory_dse::MemoryDse,
     &adce::Adce,
-    // CSE and memory cleanup can expose one more round of local folds and
-    // dead dependency chains.
     &inst_simplify::InstSimplify,
-    &adce::Adce,
     &dce::Dce,
     &evm_inst_schedule::EvmInstSchedule,
 ];

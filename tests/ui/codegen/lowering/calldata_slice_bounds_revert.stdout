@@ -62,9 +62,10 @@ fn @endPastLength() {
     v40 = sub v39, v27
     v42 = add v40, 31
     v44 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v51 = add v27, v44
+    v45 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v51 = add v45, v44
     mstore 64, v51 !metadata(memory=scratch)
-    returndata v27, v40
+    returndata v45, v40
 }
 
 fn @startAfterEnd() {
@@ -130,9 +131,10 @@ fn @startAfterEnd() {
     v40 = sub v39, v27
     v42 = add v40, 31
     v44 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v51 = add v27, v44
+    v45 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v51 = add v45, v44
     mstore 64, v51 !metadata(memory=scratch)
-    returndata v27, v40
+    returndata v45, v40
 }
 
 fn @__revert_stub0() {

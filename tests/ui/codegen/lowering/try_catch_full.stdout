@@ -233,9 +233,10 @@ fn @full() {
     v145 = sub v144, v131
     v147 = add v145, 31
     v149 = and v147, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v222 = add v131, v149
+    v150 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v222 = add v150, v149
     mstore 64, v222 !metadata(memory=scratch)
-    returndata v131, v145
+    returndata v150, v145
   bb27:
     v162 = sub v159, 32
     v163 = add v160, v162
@@ -247,9 +248,10 @@ fn @full() {
     v166 = sub v165, v152
     v168 = add v166, 31
     v170 = and v168, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v223 = add v152, v170
+    v171 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v223 = add v171, v170
     mstore 64, v223 !metadata(memory=scratch)
-    returndata v152, v166
+    returndata v171, v166
   bb29:
     v183 = sub v180, 32
     v184 = add v181, v183
@@ -261,9 +263,10 @@ fn @full() {
     v187 = sub v186, v173
     v189 = add v187, 31
     v191 = and v189, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v224 = add v173, v191
+    v192 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v224 = add v192, v191
     mstore 64, v224 !metadata(memory=scratch)
-    returndata v173, v187
+    returndata v192, v187
   bb31:
     mstore v202, 0
     jump bb32
@@ -273,9 +276,10 @@ fn @full() {
     v208 = sub v207, v102
     v210 = add v208, 31
     v212 = and v210, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v225 = add v102, v212
+    v213 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v225 = add v213, v212
     mstore 64, v225 !metadata(memory=scratch)
-    returndata v102, v208
+    returndata v213, v208
 }
 
 fn @rethrows() {

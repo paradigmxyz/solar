@@ -48,7 +48,8 @@ fn @dFlat() {
   bb5:
     v27 = add v15, 64
     mstore v27, v23
-    v31 = mload v21
+    v30 = add v15, 32
+    v31 = mload v30
     v29 = mload v15
     mstore 128, v29
     mstore 160, v31
@@ -193,7 +194,8 @@ fn @dNested() {
     mstore v83, v78
     v85 = mload v17
     v87 = mload v85
-    v89 = mload v65
+    v88 = add v17, 32
+    v89 = mload v88
     v90 = add v89, 32
     v91 = mload v90
     v94 = mload v78
@@ -223,9 +225,10 @@ fn @dNested() {
     v113 = sub v111, v98
     v115 = add v113, 31
     v117 = and v115, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v127 = add v98, v117
+    v118 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v127 = add v118, v117
     mstore 64, v127 !metadata(memory=scratch)
-    returndata v98, v113
+    returndata v118, v113
 }
 
 fn @dDynArr() {

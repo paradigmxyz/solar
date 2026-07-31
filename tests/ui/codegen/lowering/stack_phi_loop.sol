@@ -59,7 +59,8 @@ contract StackPhiLoop {
     // CHECK: jump [[OUTER_HEADER:bb[0-9]+]]
     // CHECK: [[OUTER_HEADER]]:
     // CHECK: push [[OUTER_BODY:bb[0-9]+]]
-    // CHECK-NEXT: jump {{bb[0-9]+}}
+    // The conditional branch may be direct or use a shared trampoline.
+    // CHECK-NEXT: jump{{(i| bb[0-9]+)}}
     // CHECK: [[OUTER_BODY]]:
     // CHECK: jump [[INNER_HEADER:bb[0-9]+]]
     // CHECK: [[INNER_HEADER]]:

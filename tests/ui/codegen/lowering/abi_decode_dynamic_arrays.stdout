@@ -68,9 +68,10 @@ fn @words() {
     v43 = sub v42, v35
     v45 = add v43, 31
     v47 = and v45, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v52 = add v35, v47
+    v48 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v52 = add v48, v47
     mstore 64, v52 !metadata(memory=scratch)
-    returndata v35, v43
+    returndata v48, v43
 }
 
 fn @bools() {
@@ -153,9 +154,10 @@ fn @bools() {
     v55 = sub v54, v47
     v57 = add v55, 31
     v59 = and v57, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v64 = add v47, v59
+    v60 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v64 = add v60, v59
     mstore 64, v64 !metadata(memory=scratch)
-    returndata v47, v55
+    returndata v60, v55
   bb12:
     v41 = add v32, 1
     v43 = add v42, 32
@@ -476,9 +478,10 @@ fn @mixed() {
     v90 = sub v89, v58
     v92 = add v90, 31
     v94 = and v92, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v100 = add v58, v94
+    v95 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v100 = add v95, v94
     mstore 64, v100 !metadata(memory=scratch)
-    returndata v58, v90
+    returndata v95, v90
 }
 
 fn @__revert_stub0() {
