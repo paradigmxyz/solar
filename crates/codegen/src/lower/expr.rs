@@ -854,7 +854,7 @@ impl<'gcx> Lowerer<'gcx> {
         match res {
             hir::Res::Item(item_id) => {
                 if let hir::ItemId::Function(function_id) = item_id {
-                    let function_id = self.resolve_virtual_function_target(*function_id);
+                    let function_id = self.virtual_function_target(*function_id);
                     self.internal_function_pointer_targets.insert(function_id);
                     return builder.imm_u64(Self::internal_function_pointer_id(function_id));
                 }

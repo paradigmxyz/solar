@@ -22,8 +22,7 @@ use crate::{
 };
 use alloy_primitives::{Bytes, U256};
 use solar_data_structures::{
-    Never,
-    bit_set::GrowableBitSet,
+    bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
     smallvec::SmallVec,
 };
@@ -33,10 +32,10 @@ use solar_interface::{
     kw, sym,
 };
 use solar_sema::{
-    hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId, Visit},
+    hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId},
     ty::{CallableParamSource, Gcx, Ty, TyKind},
 };
-use std::{collections::hash_map::Entry, ops::ControlFlow};
+use std::collections::hash_map::Entry;
 
 use self::storage::StorageLocation;
 
@@ -445,30 +444,61 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.allocate_storage(contract_id);
 
-        // Collect all functions from the inheritance chain, handling overrides.
-        // Functions are collected from most-derived to most-base, so if a function
-        // with the same selector already exists, we skip the base version.
-        let functions = self.collect_inherited_functions(contract_id);
-
         // Generate a constructor for inherited construction/state-variable
         // initialization when the current contract does not declare one.
         if contract.ctor.is_none() {
             self.generate_synthetic_constructor(contract_id);
         }
 
-        for func_id in functions {
-            self.ensure_function_lowered(func_id);
+        if self.gcx.sess.opts.unstable.codegen_all_functions || self.hir_has_errors {
+            for function in self.collect_unpruned_functions(contract_id) {
+                self.ensure_function_lowered(function);
+            }
+        } else {
+            self.lower_reachable_function_roots(contract_id);
         }
 
         self.current_contract_id = None;
     }
 
-    /// Collects all functions from the inheritance chain, handling overrides.
-    ///
-    /// Functions from more-derived contracts take precedence over base contracts.
-    /// For regular functions, we use the selector to determine uniqueness.
-    /// For constructor/fallback/receive, we use the function kind.
-    fn collect_inherited_functions(&self, contract_id: ContractId) -> Vec<HirFunctionId> {
+    /// Lowers reachable function roots in inheritance order.
+    fn lower_reachable_function_roots(&mut self, contract_id: ContractId) {
+        let contract = self.gcx.hir.contract(contract_id);
+        let reachable = self.gcx.contract_reachable_functions(contract_id);
+        let mut interface = DenseBitSet::new_empty(self.gcx.hir.function_ids().len());
+        for function in self.gcx.interface_functions(contract_id) {
+            interface.insert(function.id);
+        }
+
+        for &base_id in contract.linearized_bases {
+            for function_id in self.gcx.hir.contract(base_id).all_functions() {
+                if !reachable.contains(function_id) {
+                    continue;
+                }
+
+                let function = self.gcx.hir.function(function_id);
+                let selected = match function.kind {
+                    hir::FunctionKind::Constructor => contract.ctor == Some(function_id),
+                    hir::FunctionKind::Fallback => contract.fallback == Some(function_id),
+                    hir::FunctionKind::Receive => contract.receive == Some(function_id),
+                    hir::FunctionKind::Function
+                        if function.visibility >= hir::Visibility::Public =>
+                    {
+                        interface.contains(function_id)
+                    }
+                    hir::FunctionKind::Function | hir::FunctionKind::Modifier => {
+                        base_id == contract_id || function.visibility != hir::Visibility::Private
+                    }
+                };
+                if selected {
+                    self.ensure_function_lowered(function_id);
+                }
+            }
+        }
+    }
+
+    /// Collects function roots without callgraph reachability filtering.
+    fn collect_unpruned_functions(&self, contract_id: ContractId) -> Vec<HirFunctionId> {
         let contract = self.gcx.hir.contract(contract_id);
         let linearized_bases = contract.linearized_bases;
 
@@ -2139,83 +2169,6 @@ impl<'gcx> Lowerer<'gcx> {
 /// Lowers a contract from HIR to MIR.
 pub fn lower_contract(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     lower_contract_with_bytecodes(gcx, contract_id, &FxHashMap::default())
-}
-
-/// Returns contracts whose creation bytecode is referenced by `contract_id`.
-pub fn contract_bytecode_dependencies(
-    gcx: Gcx<'_>,
-    contract_id: ContractId,
-) -> GrowableBitSet<ContractId> {
-    let mut deps = GrowableBitSet::new_empty();
-    BytecodeDependencyCollector { gcx, deps: &mut deps }.collect_contract(contract_id);
-    deps
-}
-
-struct BytecodeDependencyCollector<'a, 'gcx> {
-    gcx: Gcx<'gcx>,
-    deps: &'a mut GrowableBitSet<ContractId>,
-}
-
-impl<'a, 'gcx> BytecodeDependencyCollector<'a, 'gcx> {
-    fn collect_contract(&mut self, contract_id: ContractId) {
-        let contract = self.gcx.hir.contract(contract_id);
-
-        for modifier in contract.linearized_bases_args.iter().flatten() {
-            let ControlFlow::Continue(()) = self.visit_modifier(modifier);
-        }
-
-        for &base_id in contract.linearized_bases {
-            let base = self.gcx.hir.contract(base_id);
-
-            for var_id in base.variables() {
-                let ControlFlow::Continue(()) = self.visit_nested_var(var_id);
-            }
-
-            for func_id in base.all_functions() {
-                let func = self.gcx.hir.function(func_id);
-
-                for modifier in func.modifiers {
-                    let ControlFlow::Continue(()) = self.visit_modifier(modifier);
-                }
-
-                if let Some(body) = func.body {
-                    for stmt in body.stmts {
-                        let ControlFlow::Continue(()) = self.visit_stmt(stmt);
-                    }
-                }
-            }
-        }
-    }
-
-    fn collect_type(&mut self, ty: &hir::Type<'gcx>) {
-        if let hir::TypeKind::Custom(hir::ItemId::Contract(contract_id)) = &ty.kind {
-            self.deps.insert(*contract_id);
-        }
-    }
-}
-
-impl<'gcx> Visit<'gcx> for BytecodeDependencyCollector<'_, 'gcx> {
-    type BreakValue = Never;
-
-    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
-        &self.gcx.hir
-    }
-
-    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
-        match &expr.kind {
-            hir::ExprKind::New(ty) => self.collect_type(ty),
-            hir::ExprKind::Member(base, member)
-                if matches!(member.name, sym::creationCode | sym::runtimeCode) =>
-            {
-                if let hir::ExprKind::TypeCall(ty) = &base.kind {
-                    self.collect_type(ty);
-                }
-            }
-            _ => {}
-        }
-
-        self.walk_expr(expr)
-    }
 }
 
 /// Lowers a contract from HIR to MIR with pre-compiled bytecodes available for `new` expressions.

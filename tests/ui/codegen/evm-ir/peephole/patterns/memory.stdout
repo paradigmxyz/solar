@@ -33,4 +33,17 @@
     push 64
     mstore
     stop
+  bb4:
+    push 7
+-   dup1
+    push 32
+    mstore
+-   pop
+    stop
+  bb5:
+    push 7
+    dup1
+    push 32
+    mstore
+    stop
   
