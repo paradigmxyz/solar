@@ -220,7 +220,62 @@ def _run_symbolic_or_incomplete(args: argparse.Namespace) -> int:
     try:
         return _run_symbolic(args)
     except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as err:
-        return _symbolic_setup_incomplete(args, err)
+        try:
+            return _symbolic_setup_incomplete(args, err)
+        except Exception as persistence_err:
+            # Exit 1 is reserved for a replay-confirmed compiler mismatch.
+            # Even a broken artifact destination must therefore fail closed.
+            return _report_unpersisted_incomplete(args, err, persistence_err)
+
+
+def _report_unpersisted_incomplete(
+    args: argparse.Namespace,
+    setup_error: Exception,
+    persistence_error: Exception,
+) -> int:
+    signature = getattr(args, "signature", None)
+    summary = {
+        "schema": (
+            symbolic.CAMPAIGN_SCHEMA
+            if signature is None
+            else symbolic.RESULT_SCHEMA
+        ),
+        "status": "incomplete",
+        "reason": (
+            f"{setup_error}; artifact persistence failed: "
+            f"{persistence_error}"
+        ),
+        "source": str(args.source),
+        "contract": args.contract,
+        "artifact_dir": None,
+    }
+    if signature is None:
+        summary.update(
+            {
+                "counts": {
+                    "eligible": 0,
+                    "excluded": 0,
+                    "selection_errors": 1,
+                    "attempted": 0,
+                    "completed": 0,
+                    "in_progress": 0,
+                    "no_mismatch": 0,
+                    "mismatches": 0,
+                    "incomplete": 0,
+                    "not_run": 0,
+                },
+                "all_eligible_completed": False,
+                "campaign_complete": False,
+                "findings": [],
+            }
+        )
+    else:
+        summary["function"] = {
+            "signature": signature,
+            "selector": None,
+        }
+    print(json.dumps(summary, indent=2 if args.verbose else None, sort_keys=True))
+    return 2
 
 
 def _forge_test(

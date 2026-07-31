@@ -434,9 +434,11 @@ errors and no final deadline failure.
 
 ### Artifacts, replay, and triage
 
-Every invocation writes a timestamped bundle under `--artifact-dir`; setup
-failures still write the matching schema and an explanation. An automatic
-bundle has this shape:
+Every invocation normally writes a timestamped bundle under `--artifact-dir`;
+setup failures still write the matching schema and an explanation. If the
+artifact destination itself is unavailable, the command instead returns exit
+2 with `artifact_dir: null` so persistence trouble can never be confused with
+a confirmed mismatch. An automatic bundle has this shape:
 
 ```text
 Target-all-<timestamp>/

@@ -1798,6 +1798,44 @@ class ManifestPersistenceTests(unittest.TestCase):
         self.assertEqual(manifest["counts"]["selection_errors"], 1)
         self.assertFalse(manifest["campaign_complete"])
 
+    def test_unwritable_artifacts_never_use_the_mismatch_exit_code(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            args = self._args(root / "Missing.sol", root / "artifacts")
+            for signature, schema in (
+                ("probe(uint256)", symbolic.RESULT_SCHEMA),
+                (None, symbolic.CAMPAIGN_SCHEMA),
+            ):
+                with self.subTest(signature=signature):
+                    args.signature = signature
+                    output = io.StringIO()
+                    with (
+                        patch.object(
+                            run_foundry_target,
+                            "_run_symbolic",
+                            side_effect=OSError("missing source"),
+                        ),
+                        patch.object(
+                            run_foundry_target,
+                            "_symbolic_setup_incomplete",
+                            side_effect=OSError("read-only artifact directory"),
+                        ),
+                        redirect_stdout(output),
+                    ):
+                        returncode = (
+                            run_foundry_target._run_symbolic_or_incomplete(args)
+                        )
+
+                    summary = json.loads(output.getvalue())
+                    self.assertEqual(returncode, 2)
+                    self.assertEqual(summary["schema"], schema)
+                    self.assertEqual(summary["status"], "incomplete")
+                    self.assertIsNone(summary["artifact_dir"])
+                    self.assertIn(
+                        "artifact persistence failed",
+                        summary["reason"],
+                    )
+
     def test_provisional_bundle_never_claims_a_mismatch(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
