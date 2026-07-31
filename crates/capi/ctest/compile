@@ -1,6 +1,0 @@
-#!/bin/sh
-
-set -ex
-
-cargo build --manifest-path ../Cargo.toml
-gcc -o test solidity_capi_test.c -ansi -Wall -I../include -L../../../target/debug -lsolar_capi
