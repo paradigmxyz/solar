@@ -371,9 +371,9 @@ impl<'gcx> Lowerer<'gcx> {
         ptr: ValueId,
         span: Span,
     ) {
-        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        let field_tys = self.gcx.struct_field_types(struct_id);
         let layout = crate::mir::MemoryObjectLayout::structure(field_tys.len() as u64);
-        for (i, field_ty) in field_tys.into_iter().enumerate() {
+        for (i, &field_ty) in field_tys.iter().enumerate() {
             let value = self.zero_memory_field_value_ty(builder, field_ty, span);
             let field_addr = builder.memory_object_field_addr(ptr, layout, i as u64);
             builder.mstore(field_addr, value);
