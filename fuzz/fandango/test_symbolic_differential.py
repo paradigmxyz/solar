@@ -796,7 +796,7 @@ class StandardInputMaterializationTests(unittest.TestCase):
                     )
 
 
-class StaticFunctionSelectionTests(unittest.TestCase):
+class SymbolicFunctionSelectionTests(unittest.TestCase):
     def test_selects_matching_pure_function_and_normalizes_selector(self):
         solc = artifact(selector="A1B2C3D4")
         solar = copy.deepcopy(solc)
@@ -830,17 +830,42 @@ class StaticFunctionSelectionTests(unittest.TestCase):
         self.assertEqual(selected["selector"], "0x01020304")
         self.assertEqual(selected["abi"]["inputs"], inputs)
 
-    def test_rejects_dynamic_inputs_and_outputs(self):
-        dynamic_cases = [
-            ([{"name": "value", "type": "bytes"}], None),
-            ([{"name": "value", "type": "string"}], None),
-            ([{"name": "value", "type": "uint256[]"}], None),
-            ([{"name": "value", "type": "bytes[2]"}], None),
-            (None, [{"name": "value", "type": "uint256[]"}]),
+    def test_accepts_dynamic_outputs(self):
+        outputs = [
+            {"name": "data", "type": "bytes"},
+            {"name": "text", "type": "string"},
+            {"name": "values", "type": "uint256[]"},
+            {
+                "name": "pairs",
+                "type": "tuple[]",
+                "components": [
+                    {"name": "amount", "type": "uint256"},
+                    {"name": "recipient", "type": "address"},
+                ],
+            },
         ]
-        for inputs, outputs in dynamic_cases:
-            with self.subTest(inputs=inputs, outputs=outputs):
-                solc = artifact(inputs=inputs, outputs=outputs)
+        solc = artifact(outputs=outputs)
+        solar = copy.deepcopy(solc)
+
+        selected = symbolic.select_function(
+            solc, solar, "probe(uint256,address)"
+        )
+
+        self.assertEqual(
+            selected["outputs"],
+            ["bytes", "string", "uint256[]", "(uint256,address)[]"],
+        )
+
+    def test_rejects_dynamic_inputs(self):
+        dynamic_cases = [
+            [{"name": "value", "type": "bytes"}],
+            [{"name": "value", "type": "string"}],
+            [{"name": "value", "type": "uint256[]"}],
+            [{"name": "value", "type": "bytes[2]"}],
+        ]
+        for inputs in dynamic_cases:
+            with self.subTest(inputs=inputs):
+                solc = artifact(inputs=inputs)
                 solar = copy.deepcopy(solc)
                 signature = next(iter(solc["hashes"]))
                 with self.assertRaisesRegex(ValueError, "dynamic|static"):
@@ -933,6 +958,7 @@ class FunctionInventoryTests(unittest.TestCase):
         functions = [
             self._function("zeta"),
             self._function("dynamic", input_type="bytes"),
+            self._function("dynamicOutput", output_type="bytes"),
             self._function("observed", mutability="view"),
             self._function("alpha"),
         ]
@@ -941,6 +967,7 @@ class FunctionInventoryTests(unittest.TestCase):
             "hashes": {
                 "zeta(uint256)": "00000004",
                 "dynamic(bytes)": "00000002",
+                "dynamicOutput(uint256)": "00000005",
                 "observed(uint256)": "00000003",
                 "alpha(uint256)": "00000001",
             },
@@ -951,7 +978,11 @@ class FunctionInventoryTests(unittest.TestCase):
 
         self.assertEqual(
             [item["signature"] for item in inventory["eligible"]],
-            ["alpha(uint256)", "zeta(uint256)"],
+            [
+                "alpha(uint256)",
+                "dynamicOutput(uint256)",
+                "zeta(uint256)",
+            ],
         )
         self.assertEqual(
             [item["signature"] for item in inventory["excluded"]],
@@ -2490,6 +2521,66 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         self.assertEqual(manifest["counts"]["eligible"], 3)
         self.assertEqual(manifest["counts"]["excluded"], 8)
         self.assertEqual(manifest["counts"]["no_mismatch"], 3)
+
+    def test_public_command_compares_dynamic_return_data(self):
+        repository = Path(__file__).resolve().parents[2]
+        artifacts = self._artifact_root("abi-dynamic-return-campaign")
+        result = subprocess.run(
+            [
+                str(repository / "fuzz" / "bin" / "solsymdiff"),
+                "--source",
+                str(
+                    repository
+                    / "tests"
+                    / "ui"
+                    / "codegen"
+                    / "lowering"
+                    / "abi_encode_bytes.sol"
+                ),
+                "--contract",
+                "AbiEncodeBytes",
+                "--solc",
+                self.solc,
+                "--solar",
+                self.solar,
+                "--forge",
+                self.forge,
+                "--anvil",
+                self.anvil,
+                "--symbolic-solver",
+                self.z3,
+                "--artifact-dir",
+                artifacts,
+                "--timeout",
+                "60",
+                "--symbolic-timeout",
+                "5",
+            ],
+            cwd=repository,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        summary = json.loads(result.stdout)
+        manifest = json.loads(
+            (
+                Path(summary["artifact_dir"]) / "manifest.json"
+            ).read_text()
+        )
+        self.assertEqual(summary["status"], "no_mismatch_within_bounds")
+        self.assertTrue(summary["campaign_complete"])
+        self.assertEqual(manifest["counts"]["eligible"], 3)
+        self.assertEqual(manifest["counts"]["excluded"], 2)
+        self.assertEqual(manifest["counts"]["no_mismatch"], 3)
+        encode3 = next(
+            item
+            for item in manifest["inventory"]["eligible"]
+            if item["signature"] == "encode3(uint256,uint256,uint256)"
+        )
+        self.assertEqual(encode3["outputs"], ["bytes"])
 
     def test_unsupported_contract_scopes_are_incomplete_before_forge(self):
         cases = [

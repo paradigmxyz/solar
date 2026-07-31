@@ -157,11 +157,11 @@ def function_inventory(
                 }
             )
             continue
-        if not _is_static_pure(solc_entry):
+        if not _has_supported_symbolic_inputs(solc_entry):
             excluded.append(
                 {
                     "signature": signature,
-                    "reason": "inputs or outputs are not statically sized",
+                    "reason": "inputs are not statically sized",
                 }
             )
             continue
@@ -217,7 +217,7 @@ def select_function(
     solar_artifact: dict[str, Any],
     signature: str | None,
 ) -> dict[str, Any]:
-    """Validate compiler agreement and select one Phase-0-compatible function."""
+    """Validate compiler agreement and select one supported pure function."""
     solc_abi = solc_artifact.get("abi")
     solar_abi = solar_artifact.get("abi")
     _validate_abi(solc_abi, "solc")
@@ -244,9 +244,11 @@ def select_function(
             or solar_entry.get("stateMutability") != "pure"
         ):
             raise ValueError(f"function `{signature}` must be pure")
-        if not _is_static_pure(solc_entry) or not _is_static_pure(solar_entry):
+        if not _has_supported_symbolic_inputs(
+            solc_entry
+        ) or not _has_supported_symbolic_inputs(solar_entry):
             raise ValueError(
-                f"function `{signature}` must use only statically sized ABI inputs and outputs"
+                f"function `{signature}` must use only statically sized ABI inputs"
             )
 
     solc_hashes = solc_artifact.get("hashes", solc_artifact.get("method_identifiers", {}))
@@ -255,7 +257,7 @@ def select_function(
     )
     _validate_method_identifiers(solc_hashes, "solc")
     _validate_method_identifiers(solar_hashes, "Solar")
-    selected = select_static_pure_function(
+    selected = select_symbolic_pure_function(
         solc_abi,
         solar_abi,
         solc_hashes,
@@ -286,13 +288,13 @@ def select_function(
     return selected
 
 
-def select_static_pure_function(
+def select_symbolic_pure_function(
     solc_abi: list[dict[str, Any]],
     solar_abi: list[dict[str, Any]],
     hashes: dict[str, str],
     signature: str | None,
 ) -> dict[str, Any]:
-    """Select one Phase-0-compatible function shared by both compiler ABIs."""
+    """Select one supported pure function shared by both compiler ABIs."""
     _validate_abi(solc_abi, "solc")
     _validate_abi(solar_abi, "Solar")
     _validate_method_identifiers(hashes, "solc")
@@ -311,8 +313,8 @@ def select_static_pure_function(
         solar_entry = solar_functions.get(candidate)
         if (
             solar_entry is not None
-            and _is_static_pure(solc_entry)
-            and _is_static_pure(solar_entry)
+            and _has_supported_symbolic_inputs(solc_entry)
+            and _has_supported_symbolic_inputs(solar_entry)
             and _function_shape(solc_entry) == _function_shape(solar_entry)
             and candidate in hashes
         ):
@@ -322,7 +324,8 @@ def select_static_pure_function(
         if len(candidates) != 1:
             available = ", ".join(sorted(candidates)) or "none"
             raise ValueError(
-                "select a statically sized pure function with --signature; "
+                "select a pure function with statically sized inputs using "
+                "--signature; "
                 f"eligible functions: {available}"
             )
         signature = candidates[0]
@@ -330,8 +333,8 @@ def select_static_pure_function(
         raise ValueError(f"function `{signature}` is not present in both compiler ABIs")
     if signature not in candidates:
         raise ValueError(
-            f"function `{signature}` is not a shared pure function with only "
-            "statically sized ABI inputs and outputs"
+            f"function `{signature}` is not a shared pure function with "
+            "statically sized ABI inputs"
         )
 
     entry = solc_functions[signature]
@@ -344,7 +347,7 @@ def select_static_pure_function(
         "signature": signature,
         "selector": "0x" + selector,
         "inputs": [item["type"] for item in entry.get("inputs", [])],
-        "outputs": [item["type"] for item in entry.get("outputs", [])],
+        "outputs": [_canonical_type(item) for item in entry.get("outputs", [])],
         "test": f"checkDiff_{selector}",
     }
 
@@ -754,7 +757,7 @@ def _selected_function(
         "signature": signature,
         "selector": selector,
         "inputs": [item["type"] for item in entry.get("inputs", [])],
-        "outputs": [item["type"] for item in entry.get("outputs", [])],
+        "outputs": [_canonical_type(item) for item in entry.get("outputs", [])],
         "test": f"checkDiff_{selector[2:]}",
         "abi": entry,
     }
@@ -821,11 +824,10 @@ def _function_shape(entry: dict[str, Any]) -> tuple[Any, ...]:
     )
 
 
-def _is_static_pure(entry: dict[str, Any]) -> bool:
+def _has_supported_symbolic_inputs(entry: dict[str, Any]) -> bool:
     return (
         entry.get("stateMutability") == "pure"
         and all(_is_static_type(item.get("type", "")) for item in entry.get("inputs", []))
-        and all(_is_static_type(item.get("type", "")) for item in entry.get("outputs", []))
     )
 
 

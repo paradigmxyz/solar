@@ -31,8 +31,9 @@ diffs.
   cheatcodes.
 - `fuzz/bin/solsymdiff` is the bounded symbolic differential lane. With one
   command it inventories a contract and sequentially compares every supported
-  statically sized `pure` function; `--signature` narrows the same workflow to
-  one function. It reports a mismatch only after two concrete replays.
+  `pure` function with statically sized inputs; `--signature` narrows the same
+  workflow to one function. It reports a mismatch only after two concrete
+  replays.
 
 Generated artifacts belong under `fuzz/fandango/out/`, which is ignored.
 Promote only minimized, stable failures into `corpus.jsonl` or `tests/ui/`.
@@ -335,10 +336,12 @@ fuzz/bin/solsymdiff \
   --signature 'probe(uint256)'
 ```
 
-Eligible inputs and outputs are `bool`, `address`, integer widths, `bytes1`
-through `bytes32`, and nested fixed arrays of those types. Dynamic values,
-tuples, storage/stateful behavior, and multi-call sequences are outside this
-lane.
+Eligible inputs are `bool`, `address`, integer widths, `bytes1` through
+`bytes32`, and nested fixed arrays of those types. Outputs may use dynamic ABI
+shapes because the oracle compares raw encoded returndata rather than decoding
+it; `--max-returndata-bytes` remains a fail-closed bound. Dynamic inputs,
+tuples as inputs, storage/stateful behavior, and multi-call sequences are
+outside this lane.
 
 The command:
 

@@ -30,7 +30,7 @@ def main() -> int:
     parser.add_argument(
         "--symbolic",
         action="store_true",
-        help="symbolically compare one statically sized pure function",
+        help="symbolically compare pure functions with statically sized inputs",
     )
     _add_symbolic_arguments(parser)
     args = parser.parse_args()
