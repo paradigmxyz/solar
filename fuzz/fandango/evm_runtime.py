@@ -6,6 +6,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import math
 import os
 import pathlib
 import signal
@@ -249,9 +250,9 @@ class Deadline:
     """One monotonic wall-clock budget shared by a multi-step operation."""
 
     def __init__(self, total_seconds: float):
-        if total_seconds <= 0:
-            raise ValueError("deadline must be positive")
         self.total_seconds = float(total_seconds)
+        if not math.isfinite(self.total_seconds) or self.total_seconds <= 0:
+            raise ValueError("deadline must be finite and positive")
         self.started_at = time.monotonic()
         self.expires_at = self.started_at + self.total_seconds
 

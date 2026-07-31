@@ -200,6 +200,20 @@ class FocusedCommandTests(unittest.TestCase):
 
 
 class DeadlineTests(unittest.TestCase):
+    def test_deadline_rejects_nonfinite_or_nonpositive_budgets(self):
+        for total_seconds in (
+            float("-inf"),
+            -1.0,
+            0.0,
+            float("inf"),
+            float("nan"),
+        ):
+            with (
+                self.subTest(total_seconds=total_seconds),
+                self.assertRaisesRegex(ValueError, "finite and positive"),
+            ):
+                evm.Deadline(total_seconds)
+
     def test_remaining_decreases_and_expiration_is_explicit(self):
         with patch.object(
             evm.time, "monotonic", side_effect=[10.0, 10.5, 11.1]
