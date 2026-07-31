@@ -279,7 +279,7 @@ impl LowerSlicesCx {
             return false;
         }
 
-        let old_params = func.params.clone();
+        let old_params = std::mem::take(&mut func.params);
         let mut physical_indices = IndexVec::<ArgIdx, ArgIdx>::with_capacity(old_params.len());
         let mut new_params = IndexVec::<ArgIdx, MirType>::with_capacity(old_params.len() + 1);
         for (index, &ty) in old_params.iter_enumerated() {
