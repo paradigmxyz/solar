@@ -90,6 +90,9 @@ jobs:
         run: python3 -m unittest fuzz/fandango/test_symbolic_differential.py -v
       - name: test
         run: cargo nextest run --profile ci --workspace
+      - name: test C API
+        if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
+        run: ./crates/capi/test
       - name: test --features nightly
         if: matrix.rust == 'nightly'
         run: cargo nextest run --profile ci --workspace --features nightly
