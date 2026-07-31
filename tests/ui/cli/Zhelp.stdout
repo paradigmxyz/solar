@@ -71,6 +71,9 @@ Options:
       -Zswitch-max-bit-slice-gas-code-growth <SWITCH_MAX_BIT_SLICE_GAS_CODE_GROWTH>
           Override the per-switch bit-slice table growth limit for benchmarking
 
+      -Zcodegen-all-functions
+          Lower all contract functions instead of only reachable ones. This is intended for benchmarks and compiler debugging
+
       -Zhelp
           Print help
 

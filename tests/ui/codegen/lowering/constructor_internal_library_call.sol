@@ -2,9 +2,6 @@
 //@filecheck:
 
 library ConstructorLibrary {
-    // CHECK-LABEL: fn @helper{{[( ]}}
-    // CHECK: [[NEXT:v[0-9]+]] = sub arg0, 1
-    // CHECK: internal_call @helper, 1, [[NEXT]]
     function helper(uint256 n) internal pure returns (uint256) {
         if (n == 0) {
             return 1;
