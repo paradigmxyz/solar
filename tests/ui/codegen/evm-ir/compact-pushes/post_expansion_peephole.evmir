@@ -1,0 +1,13 @@
+//@compile-flags: -Zevm-ir-pipeline=default
+//@filecheck:
+@module PostExpansionPeephole
+
+// Compacting the all-ones push produces `push 0; not`, which must feed a
+// subsequent peephole pass so the two `not` instructions cancel.
+// CHECK-LABEL: bb0:
+// CHECK-NEXT: push 0
+// CHECK-NEXT: stop
+bb0:
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  not
+  stop

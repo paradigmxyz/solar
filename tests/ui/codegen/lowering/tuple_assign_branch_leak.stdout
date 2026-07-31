@@ -184,10 +184,9 @@ bb26:
   jump bb24
 bb24:
   mload
+  dup1
   push 128
   mstore
-  push 128
-  mload
   push 128
   mstore
   push 32
