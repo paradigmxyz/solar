@@ -394,7 +394,8 @@ The command:
    sequentially at the same address, in a fresh Anvil process. This second
    replay intentionally does not reuse the router; that architectural
    independence catches router- or context-only candidates, which become
-   `incomplete`.
+   `incomplete`. Every proxy or compiler runtime installed with
+   `anvil_setCode` is read back with `eth_getCode` before execution.
 7. Isolates Forge and Anvil configuration and working directories. Local
    Anvil JSON-RPC explicitly bypasses ambient HTTP proxy configuration. Every
    compiler, Forge, Anvil, solver, and replay process tree is owned and reaped

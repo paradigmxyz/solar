@@ -626,7 +626,11 @@ class RpcOutcomeTests(unittest.TestCase):
                 evm.eth_call("http://unused", evm.SOLC_ADDRESS, "0x", 1)
 
     def test_set_code_requires_an_explicit_json_rpc_result(self):
-        with patch.object(evm, "rpc", return_value={"result": None}):
+        with patch.object(
+            evm,
+            "rpc",
+            side_effect=[{"result": None}, {"result": "0x6000"}],
+        ):
             evm.set_code("http://unused", evm.SOLC_ADDRESS, "0x6000", 1)
         for response in (
             {},
@@ -639,6 +643,31 @@ class RpcOutcomeTests(unittest.TestCase):
                 self.assertRaises(evm.InfraError),
             ):
                 evm.set_code("http://unused", evm.SOLC_ADDRESS, "0x6000", 1)
+
+    def test_set_code_verifies_the_exact_installed_runtime(self):
+        failures = [
+            {"error": {"code": -32603, "message": "failed"}},
+            {},
+            {"result": "0x6001"},
+            {"result": "not-hex"},
+            {
+                "result": "0x6000",
+                "error": {"code": -32603, "message": "failed"},
+            },
+        ]
+        for verification in failures:
+            with (
+                self.subTest(verification=verification),
+                patch.object(
+                    evm,
+                    "rpc",
+                    side_effect=[{"result": None}, verification],
+                ),
+                self.assertRaises(evm.InfraError),
+            ):
+                evm.set_code(
+                    "http://unused", evm.SOLC_ADDRESS, "0x6000", 1
+                )
 
 
 class StandardInputMaterializationTests(unittest.TestCase):

@@ -719,6 +719,30 @@ def set_code(
         raise InfraError(
             f"anvil_setCode for {address} returned no result: {response!r}"
         )
+    verification = rpc(
+        url,
+        "eth_getCode",
+        [address, "latest"],
+        timeout,
+        deadline=deadline,
+    )
+    if "result" in verification and "error" in verification:
+        raise InfraError(
+            f"eth_getCode for {address} returned both result and error"
+        )
+    if "result" not in verification:
+        raise InfraError(
+            f"eth_getCode for {address} returned no result: {verification!r}"
+        )
+    expected = _strict_rpc_hex(runtime, "anvil_setCode runtime")
+    installed = _strict_rpc_hex(
+        verification["result"], f"eth_getCode for {address}"
+    )
+    if installed != expected:
+        raise InfraError(
+            f"anvil_setCode for {address} installed {installed}, "
+            f"expected {expected}"
+        )
 
 
 def eth_call(
