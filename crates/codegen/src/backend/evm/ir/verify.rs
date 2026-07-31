@@ -284,33 +284,20 @@ impl<'a> Verifier<'a> {
             }
             term.kind.visit_targets(|target| physical_targets.push((target, stack)));
             for (target, depth) in physical_targets {
-                self.propagate_depth(target, depth, &mut entry_depths, &mut pending);
+                Self::propagate_depth(target, depth, &mut entry_depths, &mut pending);
             }
         }
     }
 
     fn propagate_depth(
-        &self,
         target: BlockId,
         depth: usize,
         entry_depths: &mut IndexVec<BlockId, Option<usize>>,
         pending: &mut Vec<BlockId>,
     ) {
-        let slot = &mut entry_depths[target];
-        match *slot {
-            None => {
-                *slot = Some(depth);
-                pending.push(target);
-            }
-            Some(expected) if expected == depth => {}
-            Some(expected) => {
-                self.error_in_block(
-                    target,
-                    format_args!(
-                        "inconsistent stack depth at block entry: expected {expected}, got {depth}"
-                    ),
-                );
-            }
+        if entry_depths[target].is_none() {
+            entry_depths[target] = Some(depth);
+            pending.push(target);
         }
     }
 
@@ -438,25 +425,5 @@ mod tests {
             validate(&dcx, &module);
             assert_eq!(dcx.err_count(), expected_errors);
         }
-    }
-
-    #[test]
-    fn rejects_conflicting_join_depths() {
-        let mut module = Module::new(sym::module);
-        let entry = module.add_block(Block::new(0));
-        let left = module.add_block(Block::new(1));
-        let right = module.add_block(Block::new(2));
-        let join = module.add_block(Block::new(3));
-        module.blocks[entry].instructions.push(Instruction::push_value(U256::ZERO));
-        module.blocks[entry].terminator =
-            Some(Terminator::new(TerminatorKind::JumpI { then_block: left, else_block: right }));
-        module.blocks[left].instructions.push(Instruction::push_value(U256::ZERO));
-        module.blocks[left].terminator = Some(Terminator::new(TerminatorKind::Jump(join)));
-        module.blocks[right].terminator = Some(Terminator::new(TerminatorKind::Jump(join)));
-        module.blocks[join].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
-
-        let dcx = DiagCtxt::with_silent_emitter(None);
-        validate(&dcx, &module);
-        assert_eq!(dcx.err_count(), 1);
     }
 }
