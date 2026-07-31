@@ -190,7 +190,19 @@ impl<'gcx> Lowerer<'gcx> {
             let element_slot = self.lower_storage_array_element_slot(
                 builder, slot_val, fixed_len, index_val, elem_slots,
             );
-            builder.sstore(element_slot, rhs);
+            if let Some(ty) = self.get_expr_type(lhs) {
+                match ty.peel_refs().kind {
+                    TyKind::Struct(_)
+                    | TyKind::Array(..)
+                    | TyKind::DynArray(_)
+                    | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                        self.store_storage_value_at(builder, ty, element_slot, rhs)
+                    }
+                    _ => builder.sstore(element_slot, rhs),
+                }
+            } else {
+                builder.sstore(element_slot, rhs);
+            }
             return;
         }
 
