@@ -2661,6 +2661,29 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         self.assertFalse(summary["campaign_complete"])
         self.assertIn("deadline expiry", manifest["reason"])
 
+    def test_final_deadline_does_not_hide_a_durable_focused_finding(self):
+        def expire_after_replay(_deadline, operation):
+            if operation == "final result persistence":
+                return "injected final persistence deadline expiry"
+            return None
+
+        with patch.object(
+            run_foundry_target,
+            "_deadline_error",
+            side_effect=expire_after_replay,
+        ):
+            returncode, summary, manifest = self._run(
+                self.solar_mutant
+            )
+
+        self.assertEqual(returncode, 1)
+        self.assertEqual(summary["status"], "replay_confirmed_mismatch")
+        self.assertEqual(manifest["status"], "replay_confirmed_mismatch")
+        self.assertTrue(
+            manifest["replay"]["durable_foundry_artifact"]["reproduced"]
+        )
+        self.assertIn("deadline expiry", manifest["reason"])
+
     def test_campaign_runs_valid_siblings_but_inventory_errors_prevent_a_pass(self):
         solar = copy.deepcopy(self.solar_reference)
         solar["abi"] = [

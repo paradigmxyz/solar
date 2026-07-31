@@ -534,9 +534,12 @@ def _run_symbolic_function(
             manifest["reason"] = reason
         final_timeout = _deadline_error(deadline, "final result persistence")
         if final_timeout is not None:
-            final_status = "incomplete"
-            reason = final_timeout
-            manifest["status"] = final_status
+            if final_status == "replay_confirmed_mismatch":
+                reason = f"a mismatch was confirmed, but {final_timeout}"
+            else:
+                final_status = "incomplete"
+                reason = final_timeout
+                manifest["status"] = final_status
             manifest["reason"] = reason
         manifest["bounds"]["elapsed_wall_seconds"] = deadline.elapsed()
         manifest["artifact_dir"] = str(bundle)
