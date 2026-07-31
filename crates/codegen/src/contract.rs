@@ -1,12 +1,6 @@
 //! Contract bytecode generation and dependency orchestration.
 
-use crate::{
-    Backend, EvmCodegen,
-    backend::evm::ir,
-    lower::{self, contract_bytecode_dependencies},
-    mir::Module,
-    pass::run_pipeline,
-};
+use crate::{Backend, EvmCodegen, backend::evm::ir, lower, mir::Module, pass::run_pipeline};
 use alloy_primitives::Bytes;
 use either::Either;
 use solar_ast::TypeSize;
@@ -243,12 +237,14 @@ impl ContractGraph {
                 .emit());
         }
 
-        let dependencies = contract_bytecode_dependencies(gcx, contract_id);
-        for dependency in dependencies.iter() {
+        let dependencies = gcx.contract_bytecode_dependencies(contract_id);
+        for dependency in dependencies {
             self.dependents[dependency].push(contract_id);
             self.discover_contract(gcx, dependency, visiting)?;
         }
-        self.dependencies[contract_id] = dependencies;
+        for dependency in dependencies {
+            self.dependencies[contract_id].insert(dependency);
+        }
         self.reachable.insert(contract_id);
         visiting.remove(contract_id);
         Ok(())
