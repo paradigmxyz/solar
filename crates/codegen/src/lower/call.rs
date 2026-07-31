@@ -2582,9 +2582,8 @@ impl<'gcx> Lowerer<'gcx> {
         // matching the delegatecall execution model without requiring a
         // separately deployed library.
         if func.body.is_some() {
-            let mut arg_vals: Vec<ValueId> = Vec::new();
-
             let bound_offset = bound_arg.is_some() as usize;
+            let mut arg_vals = Vec::with_capacity(arg_exprs.len() + bound_offset);
             if let Some(bound_val) = bound_arg {
                 arg_vals.push(bound_val);
             }

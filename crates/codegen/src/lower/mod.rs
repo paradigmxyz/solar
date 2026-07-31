@@ -1473,7 +1473,7 @@ impl<'gcx> Lowerer<'gcx> {
                 } else {
                     // Load each return variable's word (the value for value types,
                     // a memory pointer for reference types).
-                    let mut items: Vec<(ValueId, Ty<'gcx>)> = Vec::new();
+                    let mut items = Vec::with_capacity(hir_func.returns.len());
                     for &ret_id in hir_func.returns {
                         let ret_var = self.gcx.hir.variable(ret_id);
                         let ret_val = if let Some(offset) = self.get_local_memory_offset(&ret_id) {
