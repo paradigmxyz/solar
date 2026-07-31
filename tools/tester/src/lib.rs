@@ -104,6 +104,10 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
         status_emitter,
     )?;
 
+    if std::env::var_os("TESTER_MODE").is_none() {
+        foundry::run_default_suite(cmd);
+    }
+
     Ok(())
 }
 
