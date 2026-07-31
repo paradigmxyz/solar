@@ -87,6 +87,9 @@ jobs:
         run: cargo build
       - name: test
         run: cargo nextest run --profile ci --workspace
+      - name: Foundry tests
+        if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
+        run: cargo tq foundry
       - name: test C API
         if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
         run: ./crates/capi/test

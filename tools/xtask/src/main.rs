@@ -19,8 +19,10 @@ fn main() -> anyhow::Result<()> {
         flags::XtaskCmd::Test(flags::Test { bless, test_name, rest }) => {
             let sh = Shell::new()?;
 
+            let use_cargo_test = bless
+                || test_name.as_deref().is_some_and(|name| matches!(name, "foundry" | "runtime"));
             let mut cmd =
-                if bless { cmd!(sh, "cargo test") } else { cmd!(sh, "cargo nextest run") };
+                if use_cargo_test { cmd!(sh, "cargo test") } else { cmd!(sh, "cargo nextest run") };
             if bless && test_name.is_none() {
                 cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", "ui");
             }
