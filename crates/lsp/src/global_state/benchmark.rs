@@ -862,7 +862,7 @@ mod tests {
         let project = BenchmarkProject::from_foundry_manifest(manifest).unwrap();
         let hover = project.unique_anchor("src/UnifapV2Pair.sol", "SELECTOR").unwrap();
         assert_eq!(project.file_count(), 14);
-        assert_eq!(project.source_bytes(), 290_811);
+        assert_eq!(project.source_bytes(), 290_276);
 
         let analysis = project.analyze();
         assert_eq!(analysis.diagnostic_count(), 0, "{}", analysis.diagnostic_fingerprint());

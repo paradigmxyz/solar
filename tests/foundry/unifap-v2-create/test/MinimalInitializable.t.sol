@@ -55,7 +55,7 @@ contract MinimalInitializableTest is Test {
     MinimalInitializable pair;
 
     function setUp() public {
-        pair = MinimalInitializable(deployCode("MinimalInitializable.t.sol:MinimalInitializable"));
+        pair = new MinimalInitializable();
     }
 
     function testInitialize() public {
