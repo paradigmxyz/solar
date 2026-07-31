@@ -673,12 +673,13 @@ def rpc(
     request = urllib.request.Request(
         url, data=payload.encode(), headers={"Content-Type": "application/json"}
     )
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     for attempt in range(retries + 1):
         try:
             request_timeout = _operation_timeout(
                 timeout, deadline, f"JSON-RPC {method}"
             )
-            with urllib.request.urlopen(request, timeout=request_timeout) as response:
+            with opener.open(request, timeout=request_timeout) as response:
                 try:
                     decoded = json.loads(response.read().decode())
                 except (json.JSONDecodeError, UnicodeDecodeError) as err:

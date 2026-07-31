@@ -527,6 +527,34 @@ class DeadlineTests(unittest.TestCase):
 
 
 class RpcOutcomeTests(unittest.TestCase):
+    def test_rpc_bypasses_ambient_http_proxies(self):
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = (
+            b'{"jsonrpc":"2.0","id":1,"result":"0x1"}'
+        )
+        opener = MagicMock()
+        opener.open.return_value = response
+        with (
+            patch.object(
+                evm.urllib.request, "build_opener", return_value=opener
+            ) as build_opener,
+            patch.dict(
+                os.environ,
+                {
+                    "HTTP_PROXY": "http://127.0.0.1:1",
+                    "HTTPS_PROXY": "http://127.0.0.1:1",
+                    "NO_PROXY": "",
+                },
+            ),
+        ):
+            result = evm.rpc("http://127.0.0.1:8545", "eth_chainId", [], 1)
+
+        self.assertEqual(result["result"], "0x1")
+        handler = build_opener.call_args.args[0]
+        self.assertIsInstance(handler, evm.urllib.request.ProxyHandler)
+        self.assertEqual(handler.proxies, {})
+        opener.open.assert_called_once()
+
     def test_eth_call_accepts_only_recognized_evm_execution_errors(self):
         recognized = [
             (

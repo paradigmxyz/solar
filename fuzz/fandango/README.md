@@ -395,7 +395,8 @@ The command:
    replay intentionally does not reuse the router; that architectural
    independence catches router- or context-only candidates, which become
    `incomplete`.
-7. Isolates Forge and Anvil configuration and working directories. Every
+7. Isolates Forge and Anvil configuration and working directories. Local
+   Anvil JSON-RPC explicitly bypasses ambient HTTP proxy configuration. Every
    compiler, Forge, Anvil, solver, and replay process tree is owned and reaped
    on normal completion, timeout, or interruption.
 

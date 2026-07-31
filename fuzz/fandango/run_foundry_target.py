@@ -1386,6 +1386,7 @@ def _manifest(
             "rpc_block": direct.get("rpc_block") if direct else None,
             "rpc_transaction": direct.get("rpc_transaction") if direct else None,
             "rpc_environment": {
+                "ambient_http_proxy": "disabled",
                 "cleared_prefixes": ["ANVIL_", "FOUNDRY_"],
                 "host_from_cli": "127.0.0.1",
                 "hardfork_from_cli": args.evm_version,
@@ -1861,6 +1862,7 @@ def _symbolic_setup_incomplete(args: argparse.Namespace, err: Exception) -> int:
             "rpc_block": None,
             "rpc_transaction": None,
             "rpc_environment": {
+                "ambient_http_proxy": "disabled",
                 "cleared_prefixes": ["ANVIL_", "FOUNDRY_"],
                 "host_from_cli": "127.0.0.1",
                 "hardfork_from_cli": args.evm_version,
