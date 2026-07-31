@@ -760,8 +760,9 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let TyKind::Struct(struct_id) = ty.peel_refs().kind else { return None };
         let (_, index) = self.get_memory_struct_field_info(base, *member)?;
-        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
-        let field_ty = field_tys.get(index)?.peel_refs();
+        let field_ids = self.gcx.hir.strukt(struct_id).fields;
+        let field_id = *field_ids.get(index)?;
+        let field_ty = self.gcx.type_of_item(field_id.into()).peel_refs();
         // Only a member that *is* a slice: an array, or `bytes`/`string`. A
         // nested struct member is dynamic too, but it is its own copy, which
         // carries its own base and answers its own members.
@@ -777,10 +778,12 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         let ptr = self.lower_value_expr(builder, base);
-        let struct_base = self.calldata_base_of_copy(builder, ptr, field_tys.len() as u64);
-        let head_offset = match self
-            .abi_head_size_sum(field_tys[..index].iter().map(|&field| field.peel_refs()))
-        {
+        let struct_base = self.calldata_base_of_copy(builder, ptr, field_ids.len() as u64);
+        let head_offset = match self.abi_head_size_sum(
+            field_ids[..index]
+                .iter()
+                .map(|&field_id| self.gcx.type_of_item(field_id.into()).peel_refs()),
+        ) {
             Ok(size) => size,
             Err(guar) => return Some(builder.error_value(guar)),
         };
