@@ -160,7 +160,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
 
-            StmtKind::Placeholder => {}
+            StmtKind::Placeholder => self.lower_modifier_step(builder),
 
             StmtKind::UncheckedBlock(block) => self.lower_unchecked_block(builder, block),
 
@@ -177,6 +177,85 @@ impl<'gcx> Lowerer<'gcx> {
         self.in_unchecked_block = true;
         self.lower_block(builder, block);
         self.in_unchecked_block = prev;
+    }
+
+    /// Lowers the next layer of the active modifier chain at a `_;` placeholder.
+    pub(super) fn lower_modifier_step(&mut self, builder: &mut FunctionBuilder<'_>) {
+        let Some(frame) = self.modifier_stack.last_mut() else { return };
+        if frame.in_body {
+            return;
+        }
+
+        let index = frame.next;
+        frame.next += 1;
+        if let Some(modifier) = frame.modifiers.get(index).copied() {
+            let hir::ItemId::Function(modifier_id) = modifier.id else {
+                self.recovery_error(Some(modifier.span), "modifier does not name a function");
+                return;
+            };
+            let modifier_fn = self.gcx.hir.function(modifier_id);
+            let parameters = modifier_fn.parameters;
+            let arguments = match self.ordered_args_for(
+                &modifier.args,
+                Some(CallableParamSource::Function { id: modifier_id, skips_receiver: false }),
+            ) {
+                Ok(arguments) => arguments,
+                Err(guar) => {
+                    builder.error_value(guar);
+                    return;
+                }
+            };
+
+            let mut previous = Vec::with_capacity(parameters.len());
+            for (&param_id, argument) in parameters.iter().zip(arguments) {
+                let value = self.lower_value_expr(builder, argument);
+                previous.push((param_id, self.locals.insert(param_id, value)));
+            }
+
+            if let Some(body) = modifier_fn.body {
+                self.lower_block(builder, &body);
+            } else {
+                self.recovery_error(Some(modifier.span), "modifier has no body");
+            }
+
+            for (param_id, value) in previous {
+                if let Some(value) = value {
+                    self.locals.insert(param_id, value);
+                } else {
+                    self.locals.remove(&param_id);
+                }
+            }
+        } else {
+            let body = frame.body;
+            frame.in_body = true;
+            if let Some(body) = body {
+                self.lower_block(builder, &body);
+            }
+        }
+    }
+
+    /// Lowers a function body through its modifiers, preserving Solidity's
+    /// nesting order: the first modifier runs first and last on the way out.
+    pub(super) fn lower_function_body_with_modifiers(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        function: &'gcx hir::Function<'gcx>,
+    ) {
+        if function.kind != hir::FunctionKind::Function || function.modifiers.is_empty() {
+            if let Some(body) = function.body {
+                self.lower_block(builder, &body);
+            }
+            return;
+        }
+
+        self.modifier_stack.push(super::ModifierFrame {
+            modifiers: function.modifiers,
+            body: function.body,
+            next: 0,
+            in_body: false,
+        });
+        self.lower_modifier_step(builder);
+        self.modifier_stack.pop();
     }
     /// Lowers a single variable declaration.
     /// Variables that are never assigned after declaration and don't involve external calls

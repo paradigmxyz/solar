@@ -746,6 +746,19 @@ impl<'gcx> Lowerer<'gcx> {
             return;
         }
 
+        if let Some(ty) = self.get_expr_type(target)
+            && let Some(slot) = self.lower_lvalue_slot(builder, target)
+            && matches!(
+                ty.peel_refs().kind,
+                TyKind::Array(..)
+                    | TyKind::DynArray(_)
+                    | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
+            )
+        {
+            self.clear_storage_value_at(builder, ty, slot);
+            return;
+        }
+
         // Deleting a memory fixed-size array zeroes its elements in place;
         // nulling the pointer would alias scratch memory on the next access.
         // Storage targets keep the assignment path.

@@ -137,6 +137,14 @@ struct InlineReturnCtx {
     return_vars: Vec<VariableId>,
 }
 
+/// The active modifier chain while lowering a function body.
+struct ModifierFrame<'gcx> {
+    modifiers: &'gcx [hir::Modifier<'gcx>],
+    body: Option<hir::Block<'gcx>>,
+    next: usize,
+    in_body: bool,
+}
+
 type InternalFunctionPointerShape = (Vec<MirType>, Vec<MirType>);
 
 /// Lowering context for converting HIR to MIR.
@@ -218,6 +226,9 @@ pub(crate) struct Lowerer<'gcx> {
     internal_function_pointer_dispatchers: FxHashMap<InternalFunctionPointerShape, FunctionId>,
     /// Whether the current function body is constructor code.
     lowering_constructor: bool,
+    /// Active modifier chains. A modifier placeholder advances the innermost
+    /// chain into the next modifier or the wrapped function body.
+    modifier_stack: Vec<ModifierFrame<'gcx>>,
     /// Shared base value for constructor ABI argument accesses.
     constructor_args_base: Option<ValueId>,
     /// Whether local memory slots should be addressed through the internal-call frame.
@@ -314,6 +325,7 @@ impl<'gcx> Lowerer<'gcx> {
             internal_function_pointer_targets: GrowableBitSet::new_empty(),
             internal_function_pointer_dispatchers: FxHashMap::default(),
             lowering_constructor: false,
+            modifier_stack: Vec::new(),
             constructor_args_base: None,
             lowering_internal_function: false,
             revert_error_helper: None,
@@ -843,6 +855,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_lowering_internal_function = self.lowering_internal_function;
         let saved_in_unchecked_block = self.in_unchecked_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
+        let saved_modifier_stack = std::mem::take(&mut self.modifier_stack);
 
         self.lowering_functions.insert(func_id);
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
@@ -863,6 +876,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
+        self.modifier_stack = saved_modifier_stack;
         mir_id
     }
 
@@ -950,6 +964,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_lowering_internal_function = self.lowering_internal_function;
         let saved_in_unchecked_block = self.in_unchecked_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
+        let saved_modifier_stack = std::mem::take(&mut self.modifier_stack);
 
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
         self.in_unchecked_block = false;
@@ -968,6 +983,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
+        self.modifier_stack = saved_modifier_stack;
         mir_id
     }
 
@@ -1460,8 +1476,8 @@ impl<'gcx> Lowerer<'gcx> {
                 self.lower_constructor_prelude(&mut builder, contract_id);
             }
 
-            if let Some(body) = &hir_func.body {
-                self.lower_block(&mut builder, body);
+            if hir_func.body.is_some() {
+                self.lower_function_body_with_modifiers(&mut builder, hir_func);
             }
 
             if !builder.func().block(builder.current_block()).is_terminated() {
