@@ -6,8 +6,11 @@
 
 use solar_data_structures::index::IndexVec;
 
+mod indexed_jump;
 mod inst;
+mod lower;
 
+pub(in crate::backend::evm) use indexed_jump::estimated_indexed_jump_terminator_size;
 pub(in crate::backend::evm) use inst::{
     AsmIndex, AsmInst, AsmInstKind, DeferredAlloc, ImmutablePushId, PackedLabelsId, PushValueId,
 };

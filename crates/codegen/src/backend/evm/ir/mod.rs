@@ -16,6 +16,7 @@ use alloy_primitives::U256;
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
 use solar_interface::Symbol;
 
+pub(in crate::backend::evm) mod builder;
 mod display;
 mod parse;
 mod passes;

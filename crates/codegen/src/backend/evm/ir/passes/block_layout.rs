@@ -13,8 +13,10 @@ use super::{
     utils::{is_evm_terminal, remap_block_order},
 };
 use crate::backend::evm::{
-    assembler::estimated_indexed_jump_terminator_size,
-    ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
+    ir::{
+        Block, BlockId, Instruction, Module, PushValue, TerminatorKind,
+        assembly::estimated_indexed_jump_terminator_size,
+    },
     op,
 };
 use alloy_primitives::U256;

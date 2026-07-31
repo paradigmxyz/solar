@@ -1,11 +1,9 @@
 //! Indexed jump table planning and assembly lowering.
 
-use super::{Assembler, Label};
+use super::{AsmInst, Program, lower};
 use crate::backend::evm::{
-    ir::{
-        self, BlockId,
-        assembly::{AsmInst, Program},
-    },
+    assembler::{Assembler, Label},
+    ir::{self, BlockId},
     op,
 };
 use alloy_primitives::U256;
@@ -525,7 +523,7 @@ fn estimated_block_size(
     if let Some(term) = &block.terminator {
         size = size.saturating_add(estimated_terminator_size(
             &term.kind,
-            Assembler::next_block(module, block_id),
+            lower::next_block(module, block_id),
             block_target_width,
             packed_table,
             evm_version,
@@ -604,11 +602,12 @@ pub(super) fn lower(
     if table_encoding.packed_chunks != PackedTableChunks::None {
         let target_width = table_encoding.width;
         let scale = u32::from(target_width) * 8;
-        let base =
-            table_encoding.base.map(|(base, _)| assembler.label_for_block(module, base, labels));
+        let base = table_encoding
+            .base
+            .map(|(base, _)| lower::label_for_block(assembler, module, base, labels));
         let labels = targets
             .iter()
-            .map(|&target| assembler.label_for_block(module, target, labels))
+            .map(|&target| lower::label_for_block(assembler, module, target, labels))
             .collect::<Vec<_>>();
         if table_encoding.packed_chunks == PackedTableChunks::Two {
             let entries_per_chunk = 32 / usize::from(target_width);
@@ -670,7 +669,7 @@ pub(super) fn lower(
     let stub_len = u32::from(table_target_width) + 3;
     program.push(AsmInst::push_inline(stub_len).expect("indexed jump stub length must fit inline"));
     program.push_op(op::MUL);
-    program.push_label(assembler.label_for_block(module, table, labels));
+    program.push_label(lower::label_for_block(assembler, module, table, labels));
     program.push_op(op::ADD);
     program.push_op(op::JUMP);
 }
@@ -707,7 +706,8 @@ mod tests {
         compiler.enter(|c| {
             let mut labels = vec![None; 3];
             let mut assembler = Assembler::new(c.gcx());
-            let program = assembler.lower_evm_ir(&mut module, &mut labels);
+            let program =
+                super::super::lower::lower_evm_ir(&mut assembler, &mut module, &mut labels);
 
             assert_eq!(module.blocks.len(), 3);
             assert!(matches!(
@@ -745,7 +745,8 @@ mod tests {
         compiler.enter(|c| {
             let mut labels = vec![None; 3];
             let mut assembler = Assembler::new(c.gcx());
-            let program = assembler.lower_evm_ir(&mut module, &mut labels);
+            let program =
+                super::super::lower::lower_evm_ir(&mut assembler, &mut module, &mut labels);
 
             let TerminatorKind::IndexedJump(entries) =
                 &module.blocks[entry].terminator.as_ref().unwrap().kind
