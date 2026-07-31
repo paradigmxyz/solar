@@ -2,13 +2,14 @@
 
 use super::data::{
     BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, EvmOutput, FxIndexMap,
-    Optimizer, OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings, SourceOutput,
-    StandardJsonReadCallback, print_standard_json_stats, strip_json_comments,
+    OffsetLength, Optimizer, OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings,
+    SourceOutput, StandardJsonReadCallback, print_standard_json_stats, strip_json_comments,
 };
 use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection};
 use solar_config::{
-    CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, OptimizationMode,
+    CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
+    OptimizationMode,
 };
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{
@@ -122,7 +123,8 @@ fn compile(
     // fields we don't act on yet are bound with a leading underscore and a note.
     // Adding a field to `Settings` then forces a decision here instead of it
     // being silently ignored.
-    let Settings { remappings, output_selection, stop_after, evm_version, optimizer } = settings;
+    let Settings { remappings, output_selection, stop_after, evm_version, optimizer, libraries } =
+        settings;
 
     let mut parsed_remappings = Vec::with_capacity(remappings.len());
     for remapping in &remappings {
@@ -152,14 +154,24 @@ fn compile(
     };
     opts.stop_after = stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
 
-    // Map the solc optimizer toggle onto our MIR optimization objective. We only
-    // override when the input explicitly disables the optimizer, leaving the
-    // CLI-driven default otherwise. `runs` and `details` have no analogue in the
-    // MIR optimizer yet, so they're parsed but unused.
-    if let Some(Optimizer { enabled: false, runs: _runs }) = optimizer {
-        opts.optimization = OptimizationMode::None;
+    if let Some(Optimizer { enabled, runs }) = optimizer {
+        // 200 runs is the default value if unspecified in solc.
+        // Treat lower values as Size.
+        opts.optimization = if enabled {
+            if runs >= Some(200) { OptimizationMode::Gas } else { OptimizationMode::Size }
+        } else {
+            OptimizationMode::None
+        };
     }
 
+    opts.libraries = Vec::with_capacity(libraries.len());
+    for (source, libraries) in libraries.0 {
+        opts.libraries.extend(libraries.into_iter().map(|(name, address)| LibraryAddress {
+            source: (!source.is_empty()).then(|| source.to_string()),
+            name: name.into(),
+            address,
+        }));
+    }
     opts.input = sources.keys().map(ToString::to_string).collect();
 
     let sess = solar_interface::Session::builder()
@@ -323,7 +335,7 @@ fn make_contract_output(
     contract_id: solar_sema::hir::ContractId,
     output_selection: OutputSelectionFlags,
     bytecodes: Option<&FxHashMap<ContractId, ContractArtifact>>,
-) -> ContractOutput {
+) -> ContractOutput<'static> {
     let mut output = ContractOutput::default();
 
     if output_selection.contains(OutputSelectionFlags::ABI) {
@@ -351,28 +363,19 @@ fn make_contract_output(
             );
         }
     }
-    // In solc's output selection `evm.bytecode` is the full bytecode object
-    // (`object`, `opcodes`, `sourceMap`, `linkReferences`, ...) and
-    // `evm.bytecode.object` selects only the `object` hex sub-field. We match
-    // either selector and emit a `BytecodeOutput`; since we only populate
-    // `object` for now, the two selectors currently produce identical output.
-    // Honoring the finer-grained `.object`/`.opcodes`/`.sourceMap` selectors is
-    // part of the larger effort to match solc's input->output key mapping.
-    if output_selection.contains(OutputSelectionFlags::BYTECODE_OBJECT) {
-        evm.bytecode = Some(
-            bytecodes
-                .and_then(|bytecodes| bytecodes.get(&contract_id))
-                .map(|bytecodes| BytecodeOutput::new(bytecodes.deployment.clone()))
-                .unwrap_or_else(BytecodeOutput::empty),
-        );
+    let artifact = bytecodes.and_then(|bytecodes| bytecodes.get(&contract_id));
+    let bytecode_outputs = OutputSelectionFlags::BYTECODE_OBJECT
+        | OutputSelectionFlags::BYTECODE_OPCODES
+        | OutputSelectionFlags::BYTECODE_LINK_REFERENCES;
+    if output_selection.intersects(bytecode_outputs) {
+        evm.bytecode = Some(make_bytecode_output(gcx, artifact, output_selection, false));
     }
-    if output_selection.contains(OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT) {
-        evm.deployed_bytecode = Some(
-            bytecodes
-                .and_then(|bytecodes| bytecodes.get(&contract_id))
-                .map(|bytecodes| BytecodeOutput::new(bytecodes.runtime.clone()))
-                .unwrap_or_else(BytecodeOutput::empty),
-        );
+    let deployed_bytecode_outputs = OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_OPCODES
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_LINK_REFERENCES
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES;
+    if output_selection.intersects(deployed_bytecode_outputs) {
+        evm.deployed_bytecode = Some(make_bytecode_output(gcx, artifact, output_selection, true));
     }
     if !evm.is_empty() {
         output.evm = Some(evm);
@@ -381,13 +384,71 @@ fn make_contract_output(
     output
 }
 
+fn make_bytecode_output(
+    gcx: Gcx<'_>,
+    artifact: Option<&ContractArtifact>,
+    output_selection: OutputSelectionFlags,
+    deployed: bool,
+) -> BytecodeOutput {
+    let object_flag = if deployed {
+        OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT
+    } else {
+        OutputSelectionFlags::BYTECODE_OBJECT
+    };
+    let opcodes_flag = if deployed {
+        OutputSelectionFlags::DEPLOYED_BYTECODE_OPCODES
+    } else {
+        OutputSelectionFlags::BYTECODE_OPCODES
+    };
+    let link_references_flag = if deployed {
+        OutputSelectionFlags::DEPLOYED_BYTECODE_LINK_REFERENCES
+    } else {
+        OutputSelectionFlags::BYTECODE_LINK_REFERENCES
+    };
+    let bytecode =
+        artifact.map(|artifact| if deployed { &artifact.runtime } else { &artifact.deployment });
+
+    let mut output = BytecodeOutput::default();
+    if output_selection.contains(object_flag) {
+        output.object = Some(bytecode.cloned().unwrap_or_default());
+    }
+    if output_selection.contains(opcodes_flag) {
+        output.opcodes = Some(solar_codegen::backend::evm::disassemble_standard_json(
+            bytecode.map_or(&[], |bytecode| bytecode.as_ref()),
+            gcx.sess.opts.evm_version,
+        ));
+    }
+    if output_selection.contains(link_references_flag) {
+        output.link_references = Some(FxIndexMap::default());
+    }
+    if deployed
+        && output_selection.contains(OutputSelectionFlags::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES)
+    {
+        let mut references = artifact
+            .into_iter()
+            .flat_map(|artifact| artifact.immutable_references.iter())
+            .map(|reference| (gcx.hir.global_item_id(reference.variable_id) as u64, reference))
+            .collect::<Vec<_>>();
+        references.sort_unstable_by_key(|(ast_id, reference)| (*ast_id, reference.start));
+
+        let mut by_ast_id = FxIndexMap::<String, Vec<OffsetLength>>::default();
+        for (ast_id, reference) in references {
+            by_ast_id.entry(ast_id.to_string()).or_default().push(OffsetLength {
+                start: reference.start,
+                length: usize::from(reference.type_size.bytes()),
+            });
+        }
+        output.immutable_references = Some(by_ast_id);
+    }
+    output
+}
+
 fn requested_bytecode_contracts(
     gcx: solar_sema::Gcx<'_>,
     output_selection: &OutputSelection<'_>,
 ) -> ContractSelection {
-    let bytecode_outputs =
-        OutputSelectionFlags::BYTECODE_OBJECT | OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT;
-    if output_selection.contract("*", "*").intersects(bytecode_outputs) {
+    let bytecode_outputs = OutputSelectionFlags::BYTECODE | OutputSelectionFlags::DEPLOYED_BYTECODE;
+    if output_selection.all().intersects(bytecode_outputs) {
         return ContractSelection::All;
     }
 

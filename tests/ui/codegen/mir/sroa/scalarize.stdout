@@ -19,6 +19,16 @@
       ret v9
   }
   
+  fn @zeroed_array() -> u256 {
+    bb0:
+      v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
+-     memory_zero v0, 128
+-     v1 = memory_object_element_addr memoryfixedarray<4, 1>, v0, 3
+-     v2 = mload v1
+-     ret v2
++     ret 0
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (after dce) ===
   @module Sroa
@@ -29,5 +39,11 @@
       v8 = fmp
       v9 = add v7, v8
       ret v9
+  }
+  
+  fn @zeroed_array() -> u256 {
+    bb0:
+      v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
+      ret 0
   }
   

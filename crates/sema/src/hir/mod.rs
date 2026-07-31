@@ -1933,7 +1933,7 @@ impl<'hir> CallArgs<'hir> {
     /// Returns the source argument bound to the parameter at `index`.
     ///
     /// `parameter_names` is only required for named arguments and must be in declaration order.
-    pub(crate) fn argument_for_parameter(
+    pub fn argument_for_parameter(
         &self,
         index: usize,
         parameter_names: Option<&[Option<Symbol>]>,

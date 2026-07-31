@@ -45,7 +45,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         match source {
             AbiSource::Calldata => builder.calldatacopy(dst, src, len),
-            AbiSource::Memory => self.mcopy(builder, dst, src, len, None),
+            AbiSource::Memory => builder.mcopy(dst, src, len),
         }
     }
 
@@ -202,7 +202,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(ptr, len);
         let data_ptr = builder.add(ptr, word_size);
         let data_pos = builder.slice_ptr(slice);
-        self.mcopy(builder, data_ptr, data_pos, len, None);
+        builder.mcopy(data_ptr, data_pos, len);
         ptr
     }
 
@@ -793,8 +793,14 @@ impl<'gcx> Lowerer<'gcx> {
         method: Symbol,
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
-        let exprs = match self.collect_builtin_args(builtin, args) {
-            Ok(exprs) => exprs,
+        let arg = match builtin {
+            Builtin::ArrayPush0 => self.builtin_args(builtin, args).map(|[]| None),
+            Builtin::ArrayPush => self.builtin_args(builtin, args).map(|[arg]| Some(arg)),
+            Builtin::ArrayPop => self.builtin_args(builtin, args).map(|[]| None),
+            _ => unreachable!(),
+        };
+        let arg = match arg {
+            Ok(arg) => arg,
             Err(guar) => {
                 return (builtin == Builtin::ArrayPush0).then(|| builder.error_value(guar));
             }
@@ -809,8 +815,7 @@ impl<'gcx> Lowerer<'gcx> {
                 self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
 
                 let resized = self.resize_memory_bytes(builder, current, len, new_len);
-                let byte = exprs
-                    .first()
+                let byte = arg
                     .map(|arg| {
                         let value = self.lower_value_expr(builder, arg);
                         self.bytes1_store_byte(builder, value)
@@ -862,7 +867,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(last_word, zero);
 
         let src_data = builder.memory_object_data(src, MemoryObjectKind::Bytes);
-        self.mcopy(builder, data, src_data, copy_len, None);
+        builder.mcopy(data, src_data, copy_len);
         ptr
     }
 
@@ -1018,26 +1023,28 @@ impl<'gcx> Lowerer<'gcx> {
         {
             match member.name {
                 sym::encodePacked => {
-                    self.collect_builtin_args(Builtin::AbiEncodePacked, args)?;
                     // Returns a `bytes memory` pointer: `[length][data...]`.
-                    let ptr = self.lower_abi_encode_packed(builder, args)?;
+                    let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, args)?;
+                    let ptr = self.lower_abi_encode_packed(builder, exprs)?;
                     let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
                     let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
                     return Ok((data, len));
                 }
                 sym::encode => {
-                    let arg_exprs = self.collect_builtin_args(Builtin::AbiEncode, args)?;
-                    return self.abi_encode_call_payload(builder, None, &arg_exprs);
+                    let arg_exprs = self.variadic_builtin_args(Builtin::AbiEncode, args)?;
+                    return self.abi_encode_call_payload(builder, None, arg_exprs.iter());
                 }
                 sym::encodeWithSelector => {
-                    let exprs = self.collect_builtin_args(Builtin::AbiEncodeWithSelector, args)?;
-                    let selector = self.lower_selector_word(builder, exprs[0]);
-                    return self.abi_encode_call_payload(builder, Some(selector), &exprs[1..]);
+                    let ([selector], exprs) =
+                        self.builtin_args_with_rest(Builtin::AbiEncodeWithSelector, args)?;
+                    let selector = self.lower_selector_word(builder, selector);
+                    return self.abi_encode_call_payload(builder, Some(selector), exprs.iter());
                 }
                 sym::encodeWithSignature => {
-                    let exprs = self.collect_builtin_args(Builtin::AbiEncodeWithSignature, args)?;
-                    let selector = self.lower_signature_selector(builder, exprs[0]);
-                    return self.abi_encode_call_payload(builder, Some(selector), &exprs[1..]);
+                    let ([signature], exprs) =
+                        self.builtin_args_with_rest(Builtin::AbiEncodeWithSignature, args)?;
+                    let selector = self.lower_signature_selector(builder, signature);
+                    return self.abi_encode_call_payload(builder, Some(selector), exprs.iter());
                 }
                 sym::encodeCall => {
                     return self.abi_encode_call_from_args(builder, args);
@@ -1155,7 +1162,7 @@ impl<'gcx> Lowerer<'gcx> {
                 ty.kind,
                 hir::TypeKind::Elementary(hir::ElementaryType::Bytes | hir::ElementaryType::String)
             )
-            && let Some(inner) = args.exprs().next()
+            && let hir::CallArgsKind::Unnamed([inner]) = args.kind
         {
             return inner;
         }

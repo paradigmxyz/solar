@@ -1,0 +1,24 @@
+//@ compile-flags: -Zcodegen
+//@ filecheck:
+// CHECK-LABEL: "bytecode": {
+// CHECK-NEXT: "opcodes":
+// CHECK-NOT: "object":
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK-NEXT: "opcodes":
+// CHECK: DIFFICULTY
+// CHECK-NOT: "object":
+{
+  "language": "Solidity",
+  "sources": {},
+  "settings": {
+    "evmVersion": "petersburg",
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.bytecode.opcodes",
+          "evm.deployedBytecode.opcodes"
+        ]
+      }
+    }
+  }
+}

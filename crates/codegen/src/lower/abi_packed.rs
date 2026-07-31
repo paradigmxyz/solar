@@ -30,7 +30,7 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn lower_abi_encode_packed(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        args: &CallArgs<'_>,
+        args: &[hir::Expr<'_>],
     ) -> Result<ValueId, ErrorGuaranteed> {
         // Arguments are fully lowered before the buffer is touched: nested
         // calls in arguments may allocate memory of their own. The writes
@@ -71,7 +71,7 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn lower_keccak_abi_encode_packed(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        args: &CallArgs<'_>,
+        args: &[hir::Expr<'_>],
     ) -> Result<ValueId, ErrorGuaranteed> {
         let packed_args = self.collect_packed_abi_args(builder, args)?;
 
@@ -94,11 +94,11 @@ impl<'gcx> Lowerer<'gcx> {
     fn collect_packed_abi_args(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        args: &CallArgs<'_>,
+        args: &[hir::Expr<'_>],
     ) -> Result<Vec<PackedAbiArg>, ErrorGuaranteed> {
         let mut packed_args = Vec::with_capacity(args.len());
 
-        for arg in args.exprs() {
+        for arg in args {
             let Some(ty) = self.get_expr_type(arg) else {
                 return Err(self
                     .gcx
@@ -276,7 +276,7 @@ impl<'gcx> Lowerer<'gcx> {
                     let dest = self.offset_ptr(builder, base, offset);
                     let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
                     let src = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-                    self.mcopy(builder, dest, src, len, None);
+                    builder.mcopy(dest, src, len);
                     base = builder.add(dest, len);
                     offset = 0;
                     is_static = false;

@@ -18,9 +18,16 @@ fn @_empty() -> memorybytes {
 
 fn @emptyLen() -> u256 [abi_returns=[word]] {
   bb0:
-    v0 = make_calldata_slice 0, 0
-    v1 = slice_len v0
-    ret v1
+    mstore 128, 0
+    mstore 160, 0
+    mstore 160, 0
+    jump bb1
+  bb1:
+    v0 = mload 128
+    v1 = mload 160
+    v2 = make_calldata_slice v0, v1
+    v3 = internal_call @_sink, 1, v2
+    ret v3
 }
 
 fn @_sink(arg0: calldataslice) -> u256 {
