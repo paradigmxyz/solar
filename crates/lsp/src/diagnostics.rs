@@ -155,42 +155,43 @@ impl DiagnosticStore {
         &self,
         previous_result_ids: Vec<PreviousResultId>,
     ) -> Vec<WorkspacePullReport> {
-        let mut previous = previous_result_ids
-            .into_iter()
-            .map(|previous| (normalize_file_uri(previous.uri), previous.value))
-            .collect::<FxHashMap<_, _>>();
-        let capacity = self.analyzed_documents.len() + self.reports.len() + previous.len();
-        let mut uris = FxHashSet::with_capacity_and_hasher(capacity, Default::default());
-        uris.extend(self.analyzed_documents.keys());
-        uris.extend(self.reports.keys());
-        uris.extend(previous.keys());
+        let capacity =
+            previous_result_ids.len().max(self.analyzed_documents.len() + self.reports.len());
+        let mut documents = FxHashMap::with_capacity_and_hasher(capacity, Default::default());
+        for PreviousResultId { uri, value } in previous_result_ids {
+            documents.insert(normalize_file_uri(uri), Some(value));
+        }
+        for uri in self.analyzed_documents.keys().chain(self.reports.keys()) {
+            if !documents.contains_key(uri) {
+                documents.insert(uri.clone(), None);
+            }
+        }
 
-        let mut uris = uris.into_iter().cloned().collect::<Vec<_>>();
-        uris.sort_by(|lhs, rhs| lhs.as_str().cmp(rhs.as_str()));
-        uris.into_iter()
-            .filter_map(|uri| {
-                let previous_result_id = previous.remove(&uri);
-                let version = self.analyzed_documents.get(&uri).copied();
-                let cached_report = self.reports.get(&uri);
-                let is_current = version.is_some() || cached_report.is_some();
-                if !is_current
-                    && previous_result_id.as_deref().is_none_or(|result_id| {
-                        result_id.is_empty() || result_id == EMPTY_RESULT_ID
-                    })
-                {
-                    return None;
-                }
-                Some(WorkspacePullReport {
-                    version: version.flatten(),
-                    report: Self::make_pull_report(
-                        cached_report,
-                        previous_result_id.map(Cow::Owned),
-                    ),
-                    uri,
-                    is_stale: !is_current,
-                })
-            })
-            .collect()
+        let mut documents = documents.into_iter().collect::<Vec<_>>();
+        documents.sort_unstable_by(|(lhs, _), (rhs, _)| lhs.as_str().cmp(rhs.as_str()));
+
+        let report_capacity =
+            documents.len().min(self.analyzed_documents.len() + self.reports.len());
+        let mut reports = Vec::with_capacity(report_capacity);
+        for (uri, previous_result_id) in documents {
+            let version = self.analyzed_documents.get(&uri).copied();
+            let cached_report = self.reports.get(&uri);
+            let is_current = version.is_some() || cached_report.is_some();
+            if !is_current
+                && previous_result_id
+                    .as_deref()
+                    .is_none_or(|result_id| result_id.is_empty() || result_id == EMPTY_RESULT_ID)
+            {
+                continue;
+            }
+            reports.push(WorkspacePullReport {
+                version: version.flatten(),
+                report: Self::make_pull_report(cached_report, previous_result_id.map(Cow::Owned)),
+                uri,
+                is_stale: !is_current,
+            });
+        }
+        reports
     }
 
     pub(crate) fn update_analyzed_document_version(&mut self, uri: Url, version: i64) {
@@ -275,6 +276,24 @@ impl DiagnosticStore {
 }
 
 fn normalize_file_uri(uri: Url) -> Url {
+    let path = uri.path();
+    let is_windows_drive_root = cfg!(windows)
+        && path.len() == 4
+        && path.as_bytes()[0] == b'/'
+        && path.as_bytes()[1].is_ascii_alphabetic()
+        && path.as_bytes()[2] == b':'
+        && path.as_bytes()[3] == b'/';
+    if uri.scheme() == "file"
+        && uri.host_str().is_none()
+        && uri.query().is_none()
+        && uri.fragment().is_none()
+        && path.starts_with('/')
+        && !path.as_bytes().contains(&b'%')
+        && !path.as_bytes().windows(2).any(|bytes| bytes == b"//")
+        && (!path.ends_with('/') || path == "/" || is_windows_drive_root)
+    {
+        return uri;
+    }
     uri.to_file_path().ok().and_then(|path| Url::from_file_path(path).ok()).unwrap_or(uri)
 }
 
@@ -295,6 +314,38 @@ mod tests {
 
     fn uri(path: &str) -> Url {
         Url::from_file_path(std::env::temp_dir().join("solar-lsp-diagnostics").join(path)).unwrap()
+    }
+
+    fn round_trip_file_uri(uri: Url) -> Url {
+        uri.to_file_path().ok().and_then(|path| Url::from_file_path(path).ok()).unwrap_or(uri)
+    }
+
+    #[test]
+    fn file_uri_fast_path_matches_round_trip_normalization() {
+        let mut uris = vec![
+            uri("src/Canonical.sol"),
+            Url::parse("file:///").unwrap(),
+            Url::parse("file:///tmp/Encoded%20Name.sol").unwrap(),
+            Url::parse("file:///tmp//Repeated.sol").unwrap(),
+            Url::parse("file:///tmp/directory/").unwrap(),
+            Url::parse("file://localhost/tmp/Hosted.sol").unwrap(),
+            Url::parse("file:///tmp/Query.sol?version=1").unwrap(),
+            Url::parse("file:///tmp/Fragment.sol#source").unwrap(),
+            Url::parse("untitled:/tmp/Virtual.sol").unwrap(),
+        ];
+        if cfg!(windows) {
+            uris.extend([
+                Url::parse("file:///C:/tmp/Canonical.sol").unwrap(),
+                Url::parse("file:///C:/").unwrap(),
+                Url::parse("file:///tmp/NoDrive.sol").unwrap(),
+                Url::parse("file:///C%3A/tmp/EncodedDrive.sol").unwrap(),
+                Url::parse("file://server/share/Hosted.sol").unwrap(),
+            ]);
+        }
+
+        for uri in uris {
+            assert_eq!(normalize_file_uri(uri.clone()), round_trip_file_uri(uri.clone()), "{uri}");
+        }
     }
 
     #[test]
