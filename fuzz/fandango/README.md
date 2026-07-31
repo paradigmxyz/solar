@@ -371,10 +371,16 @@ The command:
 2. Uses the authoritative Solc AST from that exact input to reject any user
    inline assembly in the complete source closure. It also rejects constructor-
    materialized runtimes (immutables or unresolved links), EF-prefixed
-   non-legacy formats, and deployed runtime objects containing context,
-   self-introspection, external-call, or creation opcodes outside the recorded
-   oracle. These are whole-source and whole-runtime checks: an unrelated sibling
-   can conservatively exclude the contract.
+   non-legacy formats, and deployed runtime objects containing unsupported
+   ambient-context, external-call, or creation opcodes outside the recorded
+   oracle. Solc's authoritative deployed source map separates executable
+   instructions from appended literal and metadata bytes; Solar remains
+   conservatively scanned over its complete runtime until it emits that map.
+   Compiler-generated `CODESIZE` and `CODECOPY` remain in scope because both
+   comparison paths execute the exact recorded runtime, while user code
+   introspection remains excluded with inline assembly. These are whole-source
+   and whole-runtime checks: an unrelated sibling can conservatively exclude
+   the contract.
 3. Generates one property per eligible function. Concrete `setUp()` installs a
    stateless router and both runtimes once. The router is pre-warmed, strips a
    20-byte implementation prefix, and `DELEGATECALL`s only the exact target
@@ -410,6 +416,13 @@ no difference was found under the finite search limits and the symbolic hash
 model, not that the compilers are unconditionally equivalent. A concrete
 replay-confirmed mismatch does not depend on those symbolic assumptions.
 
+These are search bounds, not peak-memory guarantees. Solver state can grow
+nonlinearly when path, depth, or dynamic-shape limits are raised, and the total
+wall timeout only limits elapsed time. Keep large campaigns sequential, scale
+one bound at a time, and use `--signature` to isolate a loop-, recursion-, or
+calldata-heavy function. An exhausted budget is an expected `incomplete`
+result; increasing every limit at once does not make it an equivalence proof.
+
 ### Results and campaign completeness
 
 An automatic scan prints `solar:symbolic-differential-campaign@v1`. A focused
@@ -431,6 +444,12 @@ contract:
   rejection, compiler or solver setup failure, exhausted symbolic budget, total
   timeout, over-limit returndata, persistence failure, or a Foundry candidate
   that did not differ under independent replay.
+
+A replay-confirmed mismatch proves that the two recorded runtimes differ for
+the saved call; it does not by itself prove which compiler violates Solidity.
+Minimization and specification review still matter, including for behavior
+whose ordering the language leaves unspecified, such as competing reverts
+during subexpression evaluation.
 
 Campaign JSON distinguishes `all_eligible_completed` from
 `campaign_complete`. `counts.attempted` includes an active checkpoint;
