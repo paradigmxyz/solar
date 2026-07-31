@@ -8,7 +8,7 @@
 use crate::{
     mir::{BlockId, Function, Immediate, InstKind, Module, Terminator, Value, ValueId},
     pass::{MirPass, run_function_pass},
-    utils::evm_word,
+    utils::eval,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
@@ -196,7 +196,7 @@ impl PureEvaluator {
         if let InstKind::Select(condition, then_value, else_value) = *kind {
             return if get(condition)?.is_zero() { get(else_value) } else { get(then_value) };
         }
-        evm_word::eval_inst(kind, |value| get(value).ok_or(())).ok().flatten()
+        eval::eval_inst(kind, |value| get(value).ok_or(())).ok().flatten()
     }
 
     fn rewrite_to_return(&self, func: &mut Function, values: &[U256]) {

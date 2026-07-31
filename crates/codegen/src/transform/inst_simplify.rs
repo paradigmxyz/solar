@@ -17,7 +17,7 @@ use crate::{
         utils as mir_utils,
     },
     pass::{MirPass, run_function_pass},
-    utils::evm_word,
+    utils::eval,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
@@ -659,7 +659,7 @@ impl InstSimplifier {
             });
         }
 
-        let value = evm_word::eval_inst(kind, |value| func.value_u256(resolve(value)).ok_or(()))
+        let value = eval::eval_inst(kind, |value| func.value_u256(resolve(value)).ok_or(()))
             .ok()
             .flatten()?;
         match kind {

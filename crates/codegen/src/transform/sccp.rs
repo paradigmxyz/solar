@@ -20,7 +20,7 @@ use crate::{
         utils::{self as mir_utils, repair_reachability_phis},
     },
     pass::{MirPass, run_function_pass},
-    utils::evm_word,
+    utils::eval,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -361,7 +361,7 @@ impl SccpCx {
             };
         }
 
-        match evm_word::eval_inst(kind, |value| get_const(value).ok_or(())) {
+        match eval::eval_inst(kind, |value| get_const(value).ok_or(())) {
             Ok(Some(value)) => LatticeValue::Constant(value),
             Ok(None) => LatticeValue::Bottom,
             Err(()) => match *kind {
