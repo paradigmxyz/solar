@@ -17,9 +17,7 @@ fn c_api_smoke_test() {
         eprintln!("skipping C API smoke test because no C compiler was found");
         return;
     };
-    let lib_path = dynamic_library().unwrap_or_else(|| {
-        panic!("failed to find solar_capi dynamic library in {}", dynamic_library_path_env())
-    });
+    let lib_path = dynamic_library().unwrap_or_else(|| build_dynamic_library(&manifest_dir));
     let lib_dir = lib_path.parent().unwrap();
 
     let source = manifest_dir.join("ctest/solidity_capi_test.c");
@@ -92,8 +90,35 @@ fn prepend_dynamic_library_path(command: &mut Command, lib_dir: &Path) {
 
 fn dynamic_library() -> Option<PathBuf> {
     let name = format!("{}solar_capi{}", env::consts::DLL_PREFIX, env::consts::DLL_SUFFIX);
-    let paths = env::split_paths(&env::var_os(dynamic_library_path_env())?).collect::<Vec<_>>();
+    let target_dir = Path::new(env!("CARGO_TARGET_TMPDIR")).parent()?;
+    let paths = env::split_paths(&env::var_os(dynamic_library_path_env())?)
+        .filter(|path| path.starts_with(target_dir))
+        .collect::<Vec<_>>();
     find_existing(&paths, &[name.as_str()])
+}
+
+fn build_dynamic_library(manifest_dir: &Path) -> PathBuf {
+    let target_dir = Path::new(env!("CARGO_TARGET_TMPDIR")).parent().unwrap();
+    let lib_dir = target_dir.join("debug");
+    let mut build = Command::new(env::var_os("CARGO").unwrap_or_else(|| OsString::from("cargo")));
+    build.current_dir(manifest_dir).args(["build", "--lib", "--target-dir"]).arg(target_dir);
+
+    let mut features = Vec::new();
+    if cfg!(feature = "nightly") {
+        features.push("nightly");
+    }
+    if cfg!(feature = "asm") {
+        features.push("asm");
+    }
+    if !features.is_empty() {
+        build.arg("--features").arg(features.join(","));
+    }
+    crate::assert_command(build, "build solar-capi cdylib");
+
+    let name = format!("{}solar_capi{}", env::consts::DLL_PREFIX, env::consts::DLL_SUFFIX);
+    find_existing(&library_search_dirs(&lib_dir), &[name.as_str()]).unwrap_or_else(|| {
+        panic!("failed to find built solar_capi dynamic library in {}", lib_dir.display())
+    })
 }
 
 fn dynamic_library_path_env() -> &'static str {
