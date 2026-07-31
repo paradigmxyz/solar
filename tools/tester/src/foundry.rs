@@ -112,6 +112,7 @@ impl ForgeCompiler {
 
 static SOLAR_BINARY: OnceLock<PathBuf> = OnceLock::new();
 
+// Keep the default suite limited to projects that are supported in CI.
 const DEFAULT_PROJECTS: &[&str] = &[
     "arithmetic",
     "control-flow",
