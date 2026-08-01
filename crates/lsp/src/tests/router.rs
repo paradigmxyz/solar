@@ -367,6 +367,23 @@ async fn router_handles_document_diagnostic_requests() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn router_handles_workspace_diagnostic_requests() {
+    let mut router = new_router(ClientSocket::new_closed());
+    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+        "id": 1,
+        "method": request::WorkspaceDiagnosticRequest::METHOD,
+        "params": {
+            "previousResultIds": [],
+        },
+    }))
+    .unwrap();
+
+    let response = router.call(request).await.unwrap();
+
+    assert_eq!(response, serde_json::json!({ "items": [] }));
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn router_handles_document_highlight_requests() {
     let mut router = new_router(ClientSocket::new_closed());
     let params = DocumentHighlightParams {
@@ -621,12 +638,13 @@ async fn pending_analysis_requests_do_not_block_completion_or_cancellation() {
     let (accepted_tx, mut accepted_rx) = mpsc::unbounded_channel();
 
     let (server_main, _client) = async_lsp::MainLoop::new_server(move |client| {
+        let request_client = client.clone();
         let mut state = GlobalState::new(client);
         state.vfs = Arc::new(RwLock::new(vfs));
         state.config = Arc::new(config);
         state.mark_analysis_pending_for_test();
         let router = ObservedRouter { inner: new_router_with_state(state), accepted: accepted_tx };
-        ServiceBuilder::new().layer(request_layer()).service(router)
+        ServiceBuilder::new().layer(request_layer(request_client)).service(router)
     });
     let (client_main, mut server) = async_lsp::MainLoop::new_client(|_| Router::new(()));
 
