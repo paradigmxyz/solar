@@ -98,6 +98,59 @@ impl<'gcx> Lowerer<'gcx> {
         self.coerce_memory_slice_value(builder, value)
     }
 
+    /// Lowers an expression into the memory representation required by its
+    /// semantic type. Calldata slices stay lazy until a memory value is
+    /// required; literals and dynamic references become length-prefixed
+    /// memory objects.
+    pub(super) fn coerce_value_for_type(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+    ) -> ValueId {
+        if self.expr_is_calldata_dynamic_bytes(expr) {
+            let value = self.lower_value_expr(builder, expr);
+            if Self::value_is_calldata_slice(builder, value) {
+                return self.materialize_calldata_bytes(builder, value);
+            }
+            // A decoded calldata-struct member is already a memory bytes
+            // pointer despite its calldata-located type.
+            return value;
+        }
+        if let Some((slice, is_bytes)) = self.calldata_bytes_source(builder, expr) {
+            return if is_bytes {
+                self.materialize_calldata_bytes(builder, slice)
+            } else {
+                self.materialize_calldata_dyn_array_for_ty(builder, ty, slice)
+            };
+        }
+        if matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Calldata)) {
+            let value = self.lower_value_expr(builder, expr);
+            if !Self::value_is_calldata_slice(builder, value) {
+                return value;
+            }
+            return match ty.peel_refs().kind {
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                    self.materialize_calldata_bytes(builder, value)
+                }
+                TyKind::DynArray(_) | TyKind::Slice(_) => {
+                    self.materialize_calldata_dyn_array_for_ty(builder, ty, value)
+                }
+                _ => value,
+            };
+        }
+        if matches!(
+            ty.peel_refs().kind,
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+        ) && let hir::ExprKind::Lit(lit) = &expr.kind
+            && let Some(ptr) = self.lower_string_literal_to_memory(builder, lit)
+        {
+            return ptr;
+        }
+        let value = self.lower_value_expr(builder, expr);
+        self.coerce_memory_slice_value(builder, value)
+    }
+
     /// Copies a calldata `bytes`/`string` parameter into Solidity's memory
     /// bytes layout (`[length][data...]`).
     pub(super) fn materialize_calldata_bytes(

@@ -87,8 +87,6 @@ struct Parser<'sess, 'ast> {
     immutable_names: FxHashMap<Symbol, (ImmutableId, MirType)>,
     /// ABI layouts interned while parsing instructions.
     abi_layouts: Vec<AbiLayoutRef>,
-    /// Aggregate storage layouts interned while parsing instructions.
-    storage_layouts: Vec<StorageLayoutRef>,
     /// Number of `>` closers still owed after splitting a `>>`/`>>>` token.
     pending_gt: u32,
 }
@@ -123,7 +121,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             value_labels: FxHashMap::default(),
             immutable_names: FxHashMap::default(),
             abi_layouts: Vec::new(),
-            storage_layouts: Vec::new(),
             pending_gt: 0,
         }
     }
@@ -212,8 +209,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.resolve_function_refs(&mut module, function_refs)?;
 
         module.abi_layouts = std::mem::take(&mut self.abi_layouts);
-        module.aggregate_layouts = std::mem::take(&mut self.storage_layouts);
-
         Ok(module)
     }
 
@@ -740,7 +735,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses a storage layout: `struct<field, ...>` or `array<len, field>`.
-    /// Structurally identical layouts are interned.
     fn parse_storage_layout(&mut self) -> PResult<'sess, StorageLayoutRef> {
         let name = self.parser.parse_ident()?;
         let layout = match name {
@@ -771,12 +765,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             _ => return Err(self.parser.error(format!("unknown storage layout `{name}`"))),
         };
-        if let Some(existing) = self.storage_layouts.iter().find(|item| item.as_ref() == &layout) {
-            return Ok(std::sync::Arc::clone(existing));
-        }
-        let layout = std::sync::Arc::new(layout);
-        self.storage_layouts.push(std::sync::Arc::clone(&layout));
-        Ok(layout)
+        Ok(std::sync::Arc::new(layout))
     }
 
     fn parse_storage_field(&mut self) -> PResult<'sess, StorageField> {
@@ -1410,7 +1399,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Some(MirType::Slice(SliceLocation::Memory)),
                 )
             }
-            // Aggregate storage/memory copies with interned layouts.
+            // Aggregate storage/memory copies with recursive layouts.
             sym::storage_to_memory => {
                 let layout = self.parse_storage_layout()?;
                 self.parser.expect(TokenKind::Comma)?;

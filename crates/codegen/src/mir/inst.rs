@@ -637,7 +637,7 @@ pub(crate) enum InstKind {
         storage: ValueId,
         /// Destination memory pointer.
         memory: ValueId,
-        /// Interned aggregate layout.
+        /// Aggregate layout.
         layout: StorageLayoutRef,
     },
     /// Copy a statically shaped aggregate from memory into storage.
@@ -646,14 +646,14 @@ pub(crate) enum InstKind {
         memory: ValueId,
         /// Base storage slot.
         storage: ValueId,
-        /// Interned aggregate layout.
+        /// Aggregate layout.
         layout: StorageLayoutRef,
     },
     /// Clear every storage slot occupied by a statically shaped aggregate.
     ClearStorage {
         /// Base storage slot.
         storage: ValueId,
-        /// Interned aggregate layout.
+        /// Aggregate layout.
         layout: StorageLayoutRef,
     },
     /// Copy memory: `mcopy(dest, src, len)`

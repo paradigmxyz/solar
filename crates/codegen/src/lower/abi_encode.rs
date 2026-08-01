@@ -1,14 +1,8 @@
-//! ABI encoding of external function return values.
-//!
-//! Driven by the cached sema [`Ty`] of each return,
-//! this lays out the Solidity ABI tuple encoding (head slots + dynamic tail) for
-//! a function's return values into a memory buffer and terminates the function
-//! with [`crate::mir::Terminator::ReturnData`]. Internal-frame functions do NOT
-//! use this — they return raw words/pointers through the internal frame.
+//! ABI encoding helpers for source-level encodes, calls, errors, and events.
 
 use super::Lowerer;
 use crate::{
-    mir::{AbiLayout, AbiType, FunctionBuilder, MemoryObjectKind, MirType, SliceLocation, ValueId},
+    mir::{AbiLayout, FunctionBuilder, MemoryObjectKind, MirType, ValueId},
     transform::lower_abi_encode,
 };
 use alloy_primitives::U256;
@@ -27,140 +21,6 @@ struct LoweredAbiItems<'gcx> {
 }
 
 impl<'gcx> Lowerer<'gcx> {
-    pub(super) fn abi_type(&self, ty: Ty<'gcx>, calldata: bool) -> Option<AbiType> {
-        let mut visiting = FxHashSet::default();
-        self.abi_type_inner(ty, calldata, &mut visiting)
-    }
-
-    pub(super) fn abi_type_error(&self) -> ErrorGuaranteed {
-        self.recovery_error(None, "codegen cannot materialize this ABI type")
-    }
-
-    fn abi_type_inner(
-        &self,
-        ty: Ty<'gcx>,
-        calldata: bool,
-        visiting: &mut FxHashSet<solar_sema::hir::StructId>,
-    ) -> Option<AbiType> {
-        if matches!(ty.kind, TyKind::Mapping(..) | TyKind::Ref(_, solar_ast::DataLocation::Storage))
-        {
-            return Some(AbiType::Word);
-        }
-        let location = if calldata { SliceLocation::Calldata } else { SliceLocation::Memory };
-        Some(match ty.peel_refs().kind {
-            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                AbiType::Bytes(location)
-            }
-            TyKind::DynArray(element) => AbiType::DynamicArray {
-                element: Box::new(self.abi_type_inner(element, false, visiting)?),
-                location,
-            },
-            TyKind::Slice(inner) => self.abi_type_inner(inner, calldata, visiting)?,
-            TyKind::Array(element, len) => {
-                let len = match u64::try_from(len) {
-                    Ok(len) => len,
-                    Err(_) => {
-                        self.abi_head_size_overflow();
-                        return None;
-                    }
-                };
-                let element = Box::new(self.abi_type_inner(element, false, visiting)?);
-                if len.checked_mul(element.head_size()).is_none() {
-                    self.abi_head_size_overflow();
-                    return None;
-                }
-                AbiType::FixedArray { element, len }
-            }
-            TyKind::Struct(id) => {
-                if !visiting.insert(id) {
-                    return None;
-                }
-                // A field's sema type may carry a storage location ref, but a
-                // field of a memory/calldata aggregate is a value, never a
-                // storage pointer: peel it so the top-level library
-                // storage-parameter guard cannot collapse it to one word.
-                let fields = self
-                    .gcx
-                    .struct_field_types(id)
-                    .iter()
-                    .map(|&field| self.abi_type_inner(field.peel_refs(), false, visiting))
-                    .collect::<Option<Vec<_>>>()?;
-                visiting.remove(&id);
-                AbiType::Tuple(fields.into())
-            }
-            TyKind::Tuple(fields) => AbiType::Tuple(
-                fields
-                    .iter()
-                    .map(|&field| self.abi_type_inner(field.peel_refs(), false, visiting))
-                    .collect::<Option<Vec<_>>>()?
-                    .into(),
-            ),
-            TyKind::Udvt(inner, _) => self.abi_type_inner(inner, calldata, visiting)?,
-            _ => AbiType::Word,
-        })
-    }
-
-    /// Whether `ty` is encoded dynamically (offset slot in the head + data in the
-    /// tail): `bytes`/`string`, dynamic arrays, and any aggregate containing one.
-    pub(super) fn abi_is_dynamic(&self, ty: Ty<'gcx>) -> bool {
-        let ty = ty.peel_refs();
-        match ty.kind {
-            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
-            | TyKind::DynArray(_)
-            | TyKind::Slice(_) => true,
-            TyKind::Struct(id) => {
-                ty.is_recursive(self.gcx)
-                    || self.gcx.struct_field_types(id).iter().any(|&f| self.abi_is_dynamic(f))
-            }
-            TyKind::Array(elem, _) => self.abi_is_dynamic(elem),
-            TyKind::Tuple(fields) => fields.iter().any(|&f| self.abi_is_dynamic(f)),
-            TyKind::Udvt(inner, _) => self.abi_is_dynamic(inner),
-            _ => false,
-        }
-    }
-
-    /// Static ABI head size, in bytes, of one top-level item: 32 for any dynamic
-    /// type (an offset slot), the recursive sum for a static struct, `N *
-    /// head(T)` for a static `T[N]`, and 32 for every value type.
-    ///
-    /// Returns the existing diagnostic guarantee when the size exceeds `u64`.
-    pub(super) fn abi_head_size(&self, ty: Ty<'gcx>) -> Result<u64, ErrorGuaranteed> {
-        // A storage reference (a mapping, or a struct/array in storage — legal
-        // for library function parameters) travels as its slot: one word.
-        if matches!(ty.kind, TyKind::Mapping(..) | TyKind::Ref(_, solar_ast::DataLocation::Storage))
-        {
-            return Ok(32);
-        }
-        let ty = ty.peel_refs();
-        if self.abi_is_dynamic(ty) {
-            return Ok(32);
-        }
-        match ty.kind {
-            TyKind::Array(elem, n) => {
-                let len = u64::try_from(n).map_err(|_| self.abi_head_size_overflow())?;
-                len.checked_mul(self.abi_head_size(elem)?)
-                    .ok_or_else(|| self.abi_head_size_overflow())
-            }
-            TyKind::Struct(id) => {
-                self.abi_head_size_sum(self.gcx.struct_field_types(id).iter().copied())
-            }
-            _ => Ok(32),
-        }
-    }
-
-    pub(super) fn abi_head_size_sum(
-        &self,
-        tys: impl IntoIterator<Item = Ty<'gcx>>,
-    ) -> Result<u64, ErrorGuaranteed> {
-        tys.into_iter().try_fold(0u64, |size, ty| {
-            size.checked_add(self.abi_head_size(ty)?).ok_or_else(|| self.abi_head_size_overflow())
-        })
-    }
-
-    pub(super) fn abi_head_size_overflow(&self) -> ErrorGuaranteed {
-        self.recovery_error(None, "ABI head size exceeds codegen limits")
-    }
-
     /// Returns `base + off`, avoiding a redundant add for the first item.
     pub(super) fn offset_ptr(
         &self,
@@ -325,7 +185,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 value
             } else {
-                self.lower_return_value_for_ty(builder, arg, ty)
+                self.coerce_value_for_type(builder, arg, ty)
             };
             items.push((value, ty));
         }
@@ -520,55 +380,6 @@ impl<'gcx> Lowerer<'gcx> {
         let ptr = builder.slice_ptr(payload);
         let len = builder.slice_len(payload);
         Ok((ptr, len))
-    }
-
-    pub(super) fn lower_return_value_for_ty(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        expr: &solar_sema::hir::Expr<'_>,
-        ty: Ty<'gcx>,
-    ) -> ValueId {
-        if self.expr_is_calldata_dynamic_bytes(expr) {
-            let value = self.lower_value_expr(builder, expr);
-            if Self::value_is_calldata_slice(builder, value) {
-                return self.materialize_calldata_bytes(builder, value);
-            }
-            // A decoded calldata-struct member is already a memory bytes
-            // pointer despite its calldata-located type.
-            return value;
-        }
-        if let Some((slice, is_bytes)) = self.calldata_bytes_source(builder, expr) {
-            return if is_bytes {
-                self.materialize_calldata_bytes(builder, slice)
-            } else {
-                self.materialize_calldata_dyn_array_for_ty(builder, ty, slice)
-            };
-        }
-        if matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Calldata)) {
-            let value = self.lower_value_expr(builder, expr);
-            if !Self::value_is_calldata_slice(builder, value) {
-                return value;
-            }
-            return match ty.peel_refs().kind {
-                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                    self.materialize_calldata_bytes(builder, value)
-                }
-                TyKind::DynArray(_) | TyKind::Slice(_) => {
-                    self.materialize_calldata_dyn_array_for_ty(builder, ty, value)
-                }
-                _ => value,
-            };
-        }
-        if matches!(
-            ty.peel_refs().kind,
-            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
-        ) && let solar_sema::hir::ExprKind::Lit(lit) = &expr.kind
-            && let Some(ptr) = self.lower_string_literal_to_memory(builder, lit)
-        {
-            return ptr;
-        }
-        let value = self.lower_value_expr(builder, expr);
-        self.coerce_memory_slice_value(builder, value)
     }
 
     /// Decodes a storage `bytes`/`string` slot into the memory layout the ABI
@@ -792,66 +603,5 @@ impl<'gcx> Lowerer<'gcx> {
         builder.jump(clear_cond);
 
         builder.switch_to_block(done_block);
-    }
-
-    /// Terminates the current function with the raw values gathered for its
-    /// declared returns. `lower-abi` turns returns from external entries into
-    /// ABI-encoded returndata; internal functions keep this convention.
-    pub(super) fn finish_return(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        items: Vec<(ValueId, Ty<'gcx>)>,
-    ) {
-        let vals: Vec<ValueId> = items.into_iter().map(|(v, _)| v).collect();
-        builder.ret(vals);
-    }
-
-    /// Gathers `(value, type)` for each declared return of an explicit `return`
-    /// expression (tuple / ternary-tuple / single / multi-value call), pairing
-    /// values with the function's declared return types.
-    pub(super) fn gather_return_items(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        value: Option<&solar_sema::hir::Expr<'_>>,
-    ) -> Vec<(ValueId, Ty<'gcx>)> {
-        use solar_sema::hir::ExprKind;
-        let tys = self.current_return_tys.clone();
-        let Some(expr) = value else {
-            return Vec::new();
-        };
-        // A return expression with no declared return types is malformed input
-        // that upstream analysis already reported; do not index an empty list.
-        if tys.is_empty() {
-            return Vec::new();
-        }
-        if let ExprKind::Tuple(elements) = &expr.kind {
-            return elements
-                .iter()
-                .flatten()
-                .zip(tys)
-                .map(|(e, ty)| (self.lower_return_value_for_ty(builder, e, ty), ty))
-                .collect();
-        }
-        if let Some(arity) = self.get_ternary_tuple_arity(expr) {
-            let first = self.lower_value_expr(builder, expr);
-            let mut items = Vec::with_capacity(arity);
-            items.push((first, tys[0]));
-            if arity > 1 {
-                let base = self.multi_return_buffer_base(builder);
-                for (i, &ty) in tys.iter().enumerate().take(arity).skip(1) {
-                    items.push((self.load_multi_return_value(builder, base, i), ty));
-                }
-            }
-            return items;
-        }
-        let first = self.lower_return_value_for_ty(builder, expr, tys[0]);
-        let mut items = vec![(first, tys[0])];
-        if tys.len() > 1 {
-            let tail_base = self.multi_return_buffer_base(builder);
-            for (i, &ty) in tys.iter().enumerate().skip(1) {
-                items.push((self.load_multi_return_value(builder, tail_base, i), ty));
-            }
-        }
-        items
     }
 }

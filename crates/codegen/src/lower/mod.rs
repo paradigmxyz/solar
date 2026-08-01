@@ -2,6 +2,7 @@
 //!
 //! This module transforms the high-level IR from solar-sema into MIR.
 
+mod abi;
 mod abi_encode;
 mod abi_packed;
 mod bytes;
@@ -16,7 +17,7 @@ mod type_query;
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        AbiLayout, BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, ImmutableId,
+        BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, ImmutableId,
         MemoryObjectKind, MirType, Module, SliceLocation, StorageLayoutRef, TypeSize, ValueId,
     },
 };
@@ -240,8 +241,8 @@ pub(crate) struct Lowerer<'gcx> {
     pub(crate) struct_storage_base_slots: FxHashMap<VariableId, U256>,
     /// Cached struct field slot offsets: (struct_type_id, field_index) -> slot offset from base.
     pub(crate) struct_field_offsets: FxHashMap<(hir::StructId, usize), u64>,
-    /// Interned semantic memory/storage layout for each lowered struct type.
-    struct_storage_layouts: FxHashMap<hir::StructId, StorageLayoutRef>,
+    /// Cached semantic storage layout for each lowered struct type.
+    struct_layouts: FxHashMap<hir::StructId, StorageLayoutRef>,
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -323,7 +324,7 @@ impl<'gcx> Lowerer<'gcx> {
             current_return_tys: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
             struct_field_offsets: FxHashMap::default(),
-            struct_storage_layouts: FxHashMap::default(),
+            struct_layouts: FxHashMap::default(),
         }
     }
 
@@ -1014,43 +1015,24 @@ impl<'gcx> Lowerer<'gcx> {
             mir_func.selector = Some(self.function_selector(func_id));
         }
         let uses_internal_frame = !uses_external_abi && !is_special;
-        let current_return_tys =
-            hir_func.returns.iter().map(|&id| self.gcx.type_of_item(id.into())).collect::<Vec<_>>();
-
-        let external_arg_head_size = if uses_external_abi {
-            self.abi_head_size_sum(
-                hir_func.parameters.iter().map(|&id| self.gcx.type_of_item(id.into())),
-            )
-        } else {
-            Ok(0)
+        let function_abi = match self.lower_function_abi(func_id, uses_external_abi) {
+            Ok(abi) => abi,
+            Err(guar) => {
+                let mut builder = FunctionBuilder::new(&mut mir_func);
+                builder.error_value(guar);
+                builder.invalid();
+                mir_func.name = self.module.function(mir_id).name;
+                *self.module.function_mut(mir_id) = mir_func;
+                self.check_expr_errors = check_expr_errors;
+                return mir_id;
+            }
         };
-        let external_static_return_size =
-            if uses_external_abi && !current_return_tys.iter().any(|&ty| self.abi_is_dynamic(ty)) {
-                self.abi_head_size_sum(current_return_tys.iter().copied())
-            } else {
-                Ok(0)
-            };
-        let abi_return_types = if uses_external_abi {
-            current_return_tys
-                .iter()
-                .map(|&ty| self.abi_type(ty, false).ok_or_else(|| self.abi_type_error()))
-                .collect::<Result<Vec<_>, _>>()
-        } else {
-            Ok(Vec::new())
-        };
-        let (external_arg_head_size, external_static_return_size, abi_return_types) =
-            match (external_arg_head_size, external_static_return_size, abi_return_types) {
-                (Ok(arg_size), Ok(return_size), Ok(types)) => (arg_size, return_size, types),
-                (Err(guar), _, _) | (_, Err(guar), _) | (_, _, Err(guar)) => {
-                    let mut builder = FunctionBuilder::new(&mut mir_func);
-                    builder.error_value(guar);
-                    builder.invalid();
-                    mir_func.name = self.module.function(mir_id).name;
-                    *self.module.function_mut(mir_id) = mir_func;
-                    self.check_expr_errors = check_expr_errors;
-                    return mir_id;
-                }
-            };
+        let crate::lower::abi::FunctionAbi {
+            return_types: current_return_tys,
+            external_arg_head_size,
+            external_static_return_size,
+            return_layout,
+        } = function_abi;
 
         self.locals.clear();
         self.local_memory_slots.clear();
@@ -1062,10 +1044,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.lowering_internal_function = uses_internal_frame;
         self.in_unchecked_block = false;
         self.current_return_tys = current_return_tys;
-        if !abi_return_types.is_empty() {
-            mir_func.abi_returns =
-                Some(self.module.intern_abi_layout(AbiLayout::new(abi_return_types)));
-        }
+        mir_func.abi_returns = return_layout;
 
         // Pre-analyze function body to find variables that are assigned after declaration.
         // Variables that are only initialized (never reassigned) can stay as SSA values.
@@ -1472,7 +1451,7 @@ impl<'gcx> Lowerer<'gcx> {
                 } else {
                     // Load each return variable's word (the value for value types,
                     // a memory pointer for reference types).
-                    let mut items: Vec<(ValueId, Ty<'gcx>)> = Vec::new();
+                    let mut values = Vec::with_capacity(hir_func.returns.len());
                     for &ret_id in hir_func.returns {
                         let ret_var = self.gcx.hir.variable(ret_id);
                         let ret_val = if let Some(offset) = self.get_local_memory_offset(&ret_id) {
@@ -1497,9 +1476,9 @@ impl<'gcx> Lowerer<'gcx> {
                                 "codegen is missing a return variable slot",
                             )
                         };
-                        items.push((ret_val, self.gcx.type_of_item(ret_id.into())));
+                        values.push(ret_val);
                     }
-                    self.finish_return(&mut builder, items);
+                    Self::finish_return(&mut builder, values);
                 }
             }
         }

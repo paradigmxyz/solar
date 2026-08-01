@@ -85,7 +85,6 @@ impl<'gcx> Lowerer<'gcx> {
         if self.current_return_tys.len() != 1 {
             return false;
         }
-        let ty = self.current_return_tys[0];
         let hash = match self
             .variadic_builtin_args(Builtin::AbiEncodePacked, args)
             .and_then(|exprs| self.lower_keccak_abi_encode_packed(builder, exprs))
@@ -93,7 +92,7 @@ impl<'gcx> Lowerer<'gcx> {
             Ok(hash) => hash,
             Err(guar) => builder.error_value(guar),
         };
-        self.finish_return(builder, vec![(hash, ty)]);
+        Self::finish_return(builder, [hash]);
         true
     }
 
@@ -851,20 +850,78 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let external = builder.func().is_public() && !self.lowering_internal_function;
         if external {
-            let items = self.gather_return_items(builder, value);
-            if items.is_empty() {
+            let values = self.gather_return_values(builder, value);
+            if values.is_empty() {
                 builder.stop();
             } else {
-                self.finish_return(builder, items);
+                Self::finish_return(builder, values);
             }
             return;
         }
         if let Some(expr) = value {
-            let items = self.gather_return_items(builder, Some(expr));
-            self.finish_return(builder, items);
+            let values = self.gather_return_values(builder, Some(expr));
+            Self::finish_return(builder, values);
         } else {
             builder.ret([]);
         }
+    }
+
+    /// Terminates the current function with raw return values. `lower-abi`
+    /// turns returns from external entries into ABI-encoded returndata;
+    /// internal functions keep this convention.
+    pub(super) fn finish_return(
+        builder: &mut FunctionBuilder<'_>,
+        values: impl IntoIterator<Item = ValueId>,
+    ) {
+        builder.ret(values);
+    }
+
+    /// Lowers each value in an explicit `return` expression (tuple /
+    /// ternary-tuple / single / multi-value call) using the declared return
+    /// types.
+    fn gather_return_values(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: Option<&hir::Expr<'_>>,
+    ) -> Vec<ValueId> {
+        let Some(expr) = value else {
+            return Vec::new();
+        };
+        // A return expression with no declared return types is malformed input
+        // that upstream analysis already reported; do not index an empty list.
+        let return_count = self.current_return_tys.len();
+        if return_count == 0 {
+            return Vec::new();
+        }
+        if let ExprKind::Tuple(elements) = &expr.kind {
+            let mut values = Vec::with_capacity(elements.len().min(return_count));
+            for (i, elem) in elements.iter().flatten().enumerate() {
+                let Some(&ty) = self.current_return_tys.get(i) else { break };
+                values.push(self.coerce_value_for_type(builder, elem, ty));
+            }
+            return values;
+        }
+        if let Some(arity) = self.get_ternary_tuple_arity(expr) {
+            let mut values = Vec::with_capacity(arity.min(return_count));
+            values.push(self.lower_value_expr(builder, expr));
+            if arity > 1 {
+                let base = self.multi_return_buffer_base(builder);
+                for i in 1..arity.min(return_count) {
+                    values.push(self.load_multi_return_value(builder, base, i));
+                }
+            }
+            return values;
+        }
+        let first_ty = self.current_return_tys[0];
+        let mut values = Vec::with_capacity(return_count);
+        values.push(self.coerce_value_for_type(builder, expr, first_ty));
+        if return_count > 1 {
+            let tail_base = self.multi_return_buffer_base(builder);
+            for i in 1..return_count {
+                values.push(self.load_multi_return_value(builder, tail_base, i));
+            }
+        }
+        values
     }
 
     /// Delivers an inlined body's `return` values to its call site: each value
@@ -1022,10 +1079,10 @@ impl<'gcx> Lowerer<'gcx> {
                         "codegen does not support indexed event aggregate encoding yet",
                     ));
                 } else {
-                    topics.push(self.lower_return_value_for_ty(builder, arg, ty));
+                    topics.push(self.coerce_value_for_type(builder, arg, ty));
                 }
             } else {
-                let arg_val = self.lower_return_value_for_ty(builder, arg, ty);
+                let arg_val = self.coerce_value_for_type(builder, arg, ty);
                 data_items.push((arg_val, ty));
             }
         }
@@ -1320,11 +1377,14 @@ impl<'gcx> Lowerer<'gcx> {
         args: &hir::CallArgs<'_>,
         call_opts: Option<&[hir::NamedArg<'_>]>,
     ) -> crate::mir::ValueId {
-        let resolved_func = self.resolved_function_callee(callee);
-        let selector = resolved_func.map_or_else(
-            || self.compute_member_selector(base, member),
-            |func_id| u32::from_be_bytes(self.gcx.function_selector(func_id).0),
-        );
+        let Some(resolved_func) = self.resolved_function_callee(callee) else {
+            return self.err_value(
+                builder,
+                member.span,
+                format!("cannot resolve member function `.{member}`"),
+            );
+        };
+        let selector = u32::from_be_bytes(self.gcx.function_selector(resolved_func).0);
         let arg_exprs = match self.ordered_call_args(callee, args) {
             Ok(exprs) => exprs,
             Err(guar) => return builder.error_value(guar),
@@ -1338,7 +1398,7 @@ impl<'gcx> Lowerer<'gcx> {
         let addr = self.lower_value_expr(builder, base);
         let ret_offset = builder.imm_u64(0);
         let ret_size = builder.imm_u64(0);
-        let kind = self.external_function_call_kind(resolved_func);
+        let kind = self.external_function_call_kind(Some(resolved_func));
         let (gas, value) =
             self.lower_external_call_options(builder, call_opts, kind.accepts_value());
 
