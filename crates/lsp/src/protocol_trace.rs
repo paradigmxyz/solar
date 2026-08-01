@@ -1,18 +1,15 @@
-//! LSP protocol trace state and middleware.
+//! LSP server execution trace state and middleware.
 
 use async_lsp::{AnyEvent, AnyNotification, AnyRequest, ClientSocket, LspService};
-use lsp_types::{
-    LogTraceParams, TraceValue,
-    notification::{self, Notification},
-    request::Request,
-};
+use either::Either;
+use lsp_types::{LogTraceParams, TraceValue, notification, request::Request};
 use std::{
     future::Future,
     ops::ControlFlow,
     pin::Pin,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU8, Ordering},
     },
     task::{Context, Poll},
     time::Instant,
@@ -29,7 +26,6 @@ pub(crate) struct ProtocolTrace {
     client: ClientSocket,
     level: Arc<AtomicU8>,
     initialized: Arc<AtomicBool>,
-    next_request: Arc<AtomicU64>,
 }
 
 impl ProtocolTrace {
@@ -38,7 +34,6 @@ impl ProtocolTrace {
             client,
             level: Arc::new(AtomicU8::new(TRACE_OFF)),
             initialized: Arc::new(AtomicBool::new(false)),
-            next_request: Arc::new(AtomicU64::new(1)),
         }
     }
 
@@ -67,44 +62,28 @@ impl ProtocolTrace {
         }
     }
 
-    fn notification(&self, method: &str) {
-        let Some(level) = self.enabled_level() else { return };
-        let method = display_method(method);
-        self.emit_at(level, format!("Received notification `{method}`"), || {
-            "Notification parameters omitted".into()
-        });
-    }
-
-    fn request_started(&self, method: &str) -> Option<ActiveRequest> {
+    fn track_request(&self, method: &str) -> Option<ActiveRequest> {
         // LSP does not allow arbitrary server notifications before initialize completes.
         if method == lsp_types::request::Initialize::METHOD {
             return None;
         }
-        let level = self.enabled_level()?;
+        self.enabled_level()?;
         let request = ActiveRequest {
             trace: self.clone(),
             method: display_method(method).to_owned(),
-            sequence: self.next_request.fetch_add(1, Ordering::Relaxed),
             started: Instant::now(),
         };
-        self.emit_at(level, format!("Received request `{}`", request.method), move || {
-            format!("Request #{} started; parameters omitted", request.sequence)
-        });
         Some(request)
     }
 
-    fn emit_at(&self, level: TraceValue, message: String, verbose: impl FnOnce() -> String) {
-        let _ = self.client.notify::<notification::LogTrace>(LogTraceParams {
-            message,
-            verbose: (level == TraceValue::Verbose).then(verbose),
-        });
+    fn emit(&self, message: String, verbose: Option<String>) {
+        let _ = self.client.notify::<notification::LogTrace>(LogTraceParams { message, verbose });
     }
 }
 
 struct ActiveRequest {
     trace: ProtocolTrace,
     method: String,
-    sequence: u64,
     started: Instant,
 }
 
@@ -115,20 +94,15 @@ impl ActiveRequest {
         let Some(level) = self.trace.enabled_level() else { return };
         let elapsed = self.started.elapsed().as_millis();
         let message = if succeeded {
-            format!("Completed request `{}` successfully", self.method)
+            format!("Server completed request `{}` successfully", self.method)
         } else {
-            format!("Completed request `{}` with an error", self.method)
+            format!("Server completed request `{}` with an error", self.method)
         };
-        let outcome = if succeeded { "succeeded" } else { "failed" };
-        self.trace.emit_at(level, message, move || {
-            format!(
-                "Request #{} {outcome} in {elapsed} ms; {} omitted",
-                self.sequence,
-                if succeeded { "result" } else { "error details" },
-            )
-        });
+        let verbose =
+            (level == TraceValue::Verbose).then(|| format!("Server processing took {elapsed} ms"));
+        self.trace.emit(message, verbose);
 
-        // The loopback event follows both traces in the queue and gates the response.
+        // The loopback event follows the completion trace in the queue and gates the response.
         let (reached, barrier) = oneshot::channel();
         if self.trace.client.emit(TraceBarrier(reached)).is_ok() {
             let _ = barrier.await;
@@ -195,7 +169,8 @@ where
 {
     type Response = S::Response;
     type Error = S::Error;
-    type Future = Pin<Box<dyn Future<Output = Result<S::Response, S::Error>> + Send>>;
+    type Future =
+        Either<S::Future, Pin<Box<dyn Future<Output = Result<S::Response, S::Error>> + Send>>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
@@ -204,9 +179,12 @@ where
     fn call(&mut self, request: AnyRequest) -> Self::Future {
         let initializes =
             (request.method == lsp_types::request::Initialize::METHOD).then(|| self.trace.clone());
-        let active = self.trace.request_started(&request.method);
+        let active = self.trace.track_request(&request.method);
         let response = self.service.call(request);
-        Box::pin(async move {
+        if initializes.is_none() && active.is_none() {
+            return Either::Left(response);
+        }
+        Either::Right(Box::pin(async move {
             let response = response.await;
             if let Some(trace) = initializes
                 && response.is_ok()
@@ -217,7 +195,7 @@ where
                 active.complete(response.is_ok()).await;
             }
             response
-        })
+        }))
     }
 }
 
@@ -229,12 +207,6 @@ where
     S::Error: Send + 'static,
 {
     fn notify(&mut self, notification: AnyNotification) -> ControlFlow<async_lsp::Result<()>> {
-        if !matches!(
-            &*notification.method,
-            notification::SetTrace::METHOD | notification::Exit::METHOD
-        ) {
-            self.trace.notification(&notification.method);
-        }
         self.service.notify(notification)
     }
 

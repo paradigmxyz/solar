@@ -4490,6 +4490,7 @@ dependencies = [
  "async-lsp",
  "codspeed-criterion-compat",
  "crop",
+ "either",
  "glob",
  "lsp-types",
  "normalize-path",
