@@ -42,7 +42,7 @@ fn @lastWord2() {
     jumpi v18, bb3, bb1
   bb3:
     v7 = sub v18, 1
-    v8 = add v16, 1
+    v8 = add arg0, 37
     v10 = internal_call @_last, 1, v8, v7
     v11 = xor v3, v10
     mstore 128, v11

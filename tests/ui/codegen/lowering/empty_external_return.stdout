@@ -5,21 +5,15 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb5
+  push bb4
   jumpi
   calldatasize
-  push bb3
+  push bb5
   jumpi
-  jump bb6
-bb6:
+  jump bb5
+bb5:
   stop
-bb3:
-  push 0
-  calldataload
-  push 224
-  shr
-  jump bb6
-bb5 [cold]:
+bb4 [cold]:
   push 0
   dup1
   revert

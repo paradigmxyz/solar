@@ -35,7 +35,7 @@ contract CalldataStructMemberIndex {
 
     // The member uses the dynamic-memory-array layout and loads a struct pointer.
     // CDSMI-LABEL: fn @member
-    // CDSMI: mul arg1, 32
+    // CDSMI: shl 5, arg1
     // CDSMI: mload
     function member(Params calldata p, uint256 i) external pure returns (uint256) {
         return p.items[i].amount;

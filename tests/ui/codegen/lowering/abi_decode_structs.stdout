@@ -31,7 +31,7 @@ fn @dFlat() {
     mstore 64, v37 !metadata(memory=scratch)
     v16 = mload v10
     mstore v15, v16
-    v17 = add v10, 32
+    v17 = add v9, 64
     v18 = mload v17
     v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
     v20 = eq v18, v19
@@ -39,7 +39,7 @@ fn @dFlat() {
   bb4:
     v21 = add v15, 32
     mstore v21, v18
-    v22 = add v10, 64
+    v22 = add v9, 96
     v23 = mload v22
     v24 = iszero v23
     v25 = iszero v24
@@ -48,8 +48,7 @@ fn @dFlat() {
   bb5:
     v27 = add v15, 64
     mstore v27, v23
-    v30 = add v15, 32
-    v31 = mload v30
+    v31 = mload v21
     v29 = mload v15
     mstore 128, v29
     mstore 160, v31
@@ -196,8 +195,7 @@ fn @dNested() {
     mstore v83, v78
     v85 = mload v17
     v87 = mload v85
-    v88 = add v17, 32
-    v89 = mload v88
+    v89 = mload v65
     v90 = add v89, 32
     v91 = mload v90
     v94 = mload v78

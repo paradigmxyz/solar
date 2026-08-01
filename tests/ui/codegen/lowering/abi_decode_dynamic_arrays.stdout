@@ -371,7 +371,7 @@ fn @mixed() {
     jumpi v14, bb1, bb3
   bb3:
     v15 = mload v10
-    v16 = add v10, 32
+    v16 = add v9, 64
     v17 = mload v16
     v18 = lt v17, 96
     jumpi v18, bb1, bb4
@@ -401,7 +401,7 @@ fn @mixed() {
     mstore v32, v23
     v33 = add v32, 32
     mcopy v33, v31, v27
-    v34 = add v10, 64
+    v34 = add v9, 96
     v35 = mload v34
     v36 = lt v35, 96
     jumpi v36, bb1, bb9

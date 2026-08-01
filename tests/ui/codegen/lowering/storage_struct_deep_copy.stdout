@@ -29,7 +29,7 @@ fn @assign() {
   bb5:
     v28 = phi [bb8: 0], [bb6: v34]
     v35 = phi [bb8: 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6], [bb6: v36]
-    v37 = phi [bb8: v27], [bb6: v38]
+    v37 = phi [bb8: v39], [bb6: v38]
     v29 = lt v28, v25
     jumpi v29, bb6, bb7
   bb6:
@@ -47,9 +47,7 @@ fn @assign() {
     calldatacopy v14, v46, 64
     mstore v14, 1
     v39 = add v14, 32
-    v40 = mul 0, 32
-    v17 = add v39, v40
-    mstore v17, arg1
+    mstore v39, arg1
     v18 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v45 = add v18, 64
     mstore 64, v45 !metadata(memory=scratch)
@@ -60,7 +58,6 @@ fn @assign() {
     v25 = mload v14
     sstore 1, v25 !metadata(storage=slot(1))
     mstore 0, 1 !metadata(memory=scratch)
-    v27 = add v14, 32
     jump bb5
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -133,9 +130,7 @@ fn @push() {
     calldatacopy v14, v53, 64
     mstore v14, 1
     v46 = add v14, 32
-    v47 = mul 0, 32
-    v17 = add v46, v47
-    mstore v17, arg1
+    mstore v46, arg1
     v18 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v52 = add v18, 64
     mstore 64, v52 !metadata(memory=scratch)
