@@ -963,7 +963,7 @@ impl<'gcx> Lowerer<'gcx> {
             return None;
         }
 
-        let field_tys = self.gcx.struct_field_types(struct_id);
+        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
         if field_tys.len() < MIN_BULK_ZERO_STRUCT_FIELDS {
             return None;
         }
@@ -2303,7 +2303,7 @@ impl<'gcx> Lowerer<'gcx> {
         let struct_size = (num_fields as u64) * 32;
         let struct_ptr =
             self.allocate_memory_object(builder, struct_size, crate::mir::MemoryObjectKind::Struct);
-        let field_tys = self.gcx.struct_field_types(struct_id);
+        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
         let arg_exprs =
             match self.ordered_args_for(args, Some(CallableParamSource::Struct(struct_id))) {
                 Ok(exprs) => exprs,
@@ -2311,7 +2311,7 @@ impl<'gcx> Lowerer<'gcx> {
             };
 
         // Store each argument into the corresponding field
-        for (i, (arg, &field_ty)) in arg_exprs.into_iter().zip(field_tys).enumerate() {
+        for (i, (arg, &field_ty)) in arg_exprs.into_iter().zip(&field_tys).enumerate() {
             // Memory struct fields hold memory values. Calldata reference
             // values therefore materialize recursively before storing their
             // pointer in the field slot.
