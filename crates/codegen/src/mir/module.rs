@@ -2,7 +2,7 @@
 
 use super::{
     AbiLayout, AbiLayoutRef, Disambiguator, Function, FunctionId, ImmutableId, MangledSymbol,
-    MirType, StorageLayout, StorageLayoutRef,
+    MirType,
 };
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
@@ -103,8 +103,6 @@ pub struct Module {
     pub(crate) function_name_index: FxHashMap<Symbol, FunctionId>,
     /// Canonical ABI layouts referenced by semantic encoding operations.
     pub(crate) abi_layouts: Vec<AbiLayoutRef>,
-    /// Canonical storage layouts referenced by semantic aggregate operations.
-    pub(crate) aggregate_layouts: Vec<StorageLayoutRef>,
     /// Named immutable declarations indexed by their stable MIR identifiers.
     immutables: IndexVec<ImmutableId, Immutable>,
     /// Whether this is an interface (no bytecode generation).
@@ -130,7 +128,6 @@ impl Module {
             functions: IndexVec::new(),
             function_name_index: FxHashMap::default(),
             abi_layouts: Vec::new(),
-            aggregate_layouts: Vec::new(),
             immutables: IndexVec::new(),
             is_interface: false,
             phase: MirPhase::Built,
@@ -189,18 +186,6 @@ impl Module {
         }
         let layout = Arc::new(layout);
         self.abi_layouts.push(Arc::clone(&layout));
-        layout
-    }
-
-    /// Interns a storage layout and returns its canonical shared reference.
-    pub(crate) fn intern_storage_layout(&mut self, layout: StorageLayout) -> StorageLayoutRef {
-        if let Some(existing) =
-            self.aggregate_layouts.iter().find(|existing| existing.as_ref() == &layout)
-        {
-            return Arc::clone(existing);
-        }
-        let layout = Arc::new(layout);
-        self.aggregate_layouts.push(Arc::clone(&layout));
         layout
     }
 

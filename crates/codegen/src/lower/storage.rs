@@ -360,14 +360,14 @@ impl<'gcx> Lowerer<'gcx> {
                     return None;
                 };
                 let element = self.storage_field_for_ty(element);
-                Some(self.module.intern_storage_layout(StorageLayout::Array { element, len }))
+                Some(Arc::new(StorageLayout::Array { element, len }))
             }
             _ => None,
         }
     }
 
     fn storage_layout_for_struct(&mut self, struct_id: hir::StructId) -> StorageLayoutRef {
-        if let Some(layout) = self.struct_storage_layouts.get(&struct_id) {
+        if let Some(layout) = self.struct_layouts.get(&struct_id) {
             return Arc::clone(layout);
         }
 
@@ -377,8 +377,8 @@ impl<'gcx> Lowerer<'gcx> {
             let field_ty = self.gcx.type_of_item(field_id.into());
             fields.push(self.storage_field_for_ty(field_ty));
         }
-        let layout = self.module.intern_storage_layout(StorageLayout::Struct(fields.into()));
-        self.struct_storage_layouts.insert(struct_id, Arc::clone(&layout));
+        let layout = Arc::new(StorageLayout::Struct(fields.into()));
+        self.struct_layouts.insert(struct_id, Arc::clone(&layout));
         layout
     }
 

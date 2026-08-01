@@ -799,7 +799,7 @@ impl<'gcx> Lowerer<'gcx> {
             };
         let mut items = Vec::with_capacity(param_tys.len());
         for (&ty, arg) in param_tys.iter().zip(arg_exprs) {
-            let value = self.lower_return_value_for_ty(builder, arg, ty);
+            let value = self.coerce_value_for_type(builder, arg, ty);
             items.push((value, ty));
         }
 
@@ -1645,33 +1645,19 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_library_call(builder, func_id, args, Some(bound_arg));
         }
 
-        // Look up the function being called to get its selector and return count.
-        let resolved_func = self.resolved_function_callee(callee);
-        if resolved_func.is_none() && self.gcx.has_typeck_results() {
-            // The callee is unresolved: either a prior error left the receiver
-            // untyped, or it is a member call on a receiver shape codegen does
-            // not handle yet (e.g. `push`/`pop` on a nested or mapping-nested
-            // array). Report it instead of asserting the typeck invariant.
+        // A member call must resolve to a concrete function. Never make up a
+        // selector from the member name when resolution failed.
+        let Some(resolved_func) = self.resolved_function_callee(callee) else {
             return self.err_call_result(
                 builder,
                 callee,
                 member.span,
-                format!("codegen does not support this `.{member}` member call yet"),
+                format!("cannot resolve member function `.{member}`"),
             );
-        }
-        let (selector, num_returns, struct_return_info) = if let Some(func_id) = resolved_func {
-            (
-                u32::from_be_bytes(self.gcx.function_selector(func_id).0),
-                self.function_return_slot_count(func_id),
-                self.function_struct_return(func_id),
-            )
-        } else {
-            (
-                self.compute_member_selector(base, member),
-                self.get_member_function_return_count(base, member),
-                None,
-            )
         };
+        let selector = u32::from_be_bytes(self.gcx.function_selector(resolved_func).0);
+        let num_returns = self.function_return_slot_count(resolved_func);
+        let struct_return_info = self.function_struct_return(resolved_func);
         // Use the recursive ABI encoder for every high-level call. The former
         // shallow struct loop copied nested memory pointers as calldata words
         // and treated dynamic bytes pointers as their encoded value.
@@ -1711,7 +1697,7 @@ impl<'gcx> Lowerer<'gcx> {
                 (ret_offset, ret_size, None)
             };
 
-        let kind = self.external_function_call_kind(resolved_func);
+        let kind = self.external_function_call_kind(Some(resolved_func));
         let (gas, value) =
             self.lower_external_call_options(builder, call_opts, kind.accepts_value());
         let success = self.emit_external_call(
@@ -1861,64 +1847,6 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.delegatecall(gas, addr, args_offset, args_size, ret_offset, ret_size)
             }
         }
-    }
-
-    fn member_contract(&self, base: &hir::Expr<'_>) -> Option<hir::ContractId> {
-        if let Some(var_id) = self.gcx.resolved_variable(base) {
-            let ty = self.gcx.type_of_item(var_id.into());
-            if let TyKind::Contract(contract_id) = ty.kind {
-                return Some(contract_id);
-            }
-        }
-
-        if let ExprKind::Call(callee, _args, _named) = &base.kind
-            && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) =
-                self.gcx.resolved_expr(callee)
-        {
-            return Some(contract_id);
-        }
-
-        if let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) =
-            self.gcx.resolved_expr(base)
-        {
-            return Some(contract_id);
-        }
-
-        if self.gcx.resolved_builtin(base) == Some(Builtin::This) {
-            return self.current_contract_id;
-        }
-
-        None
-    }
-
-    fn find_member_function(&self, base: &hir::Expr<'_>, member: Ident) -> Option<hir::FunctionId> {
-        let contract = self.gcx.hir.contract(self.member_contract(base)?);
-        contract.linearized_bases.iter().find_map(|&base_id| {
-            self.gcx.hir.contract(base_id).all_functions().find(|&func_id| {
-                self.gcx.hir.function(func_id).name.is_some_and(|name| name.name == member.name)
-            })
-        })
-    }
-
-    /// Computes the function selector for a member call.
-    pub(super) fn compute_member_selector(&self, base: &hir::Expr<'_>, member: Ident) -> u32 {
-        if let Some(func_id) = self.find_member_function(base, member) {
-            return u32::from_be_bytes(self.gcx.function_selector(func_id).0);
-        }
-
-        let sig = format!("{}()", member.name);
-        let hash = alloy_primitives::keccak256(sig.as_bytes());
-        u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]])
-    }
-
-    /// Gets the number of return values for a member function call.
-    pub(super) fn get_member_function_return_count(
-        &self,
-        base: &hir::Expr<'_>,
-        member: Ident,
-    ) -> usize {
-        self.find_member_function(base, member)
-            .map_or(1, |func_id| self.function_return_slot_count(func_id))
     }
 
     /// Whether a parameter is a storage reference — a `mapping` (always storage)
