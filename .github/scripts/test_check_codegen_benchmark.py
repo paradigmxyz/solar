@@ -27,12 +27,12 @@ class ReportFormattingTests(unittest.TestCase):
         report = benchmark.format_report("## Results", False, False)
         self.assertEqual(
             report,
-            "<details>\n"
-            "<summary>Codegen benchmark output</summary>\n\n"
             "> [!NOTE]\n"
             "> Codegen benchmark output is unchanged from `main`.\n\n"
+            "<details>\n"
+            "<summary>Codegen benchmark output</summary>\n\n"
             "## Results\n\n"
-            "</details>",
+            "</details>\n",
         )
 
     def test_changed_report_has_no_details(self):
@@ -47,7 +47,21 @@ class ReportFormattingTests(unittest.TestCase):
             "<details>\n"
             "<summary>Codegen benchmark output</summary>\n\n"
             "## Results\n\n"
-            "</details>",
+            "</details>\n",
+        )
+
+    def test_unchanged_behind_main_report_has_note_and_warning(self):
+        report = benchmark.format_report("## Results", False, True)
+        self.assertEqual(
+            report,
+            "> [!WARNING]\n"
+            "> This branch is behind `main`, so these benchmark results may be incorrect.\n\n"
+            "> [!NOTE]\n"
+            "> Codegen benchmark output is unchanged from `main`.\n\n"
+            "<details>\n"
+            "<summary>Codegen benchmark output</summary>\n\n"
+            "## Results\n\n"
+            "</details>\n",
         )
 
     def test_lower_is_better_delta_uses_conventional_sign(self):

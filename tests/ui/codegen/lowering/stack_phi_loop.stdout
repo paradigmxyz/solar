@@ -71,10 +71,9 @@ bb7:
   push 11
   jump bb48
 bb48:
+  dup1
   push 0
   mstore
-  push 0
-  mload
   push 0
   push 128
   mstore

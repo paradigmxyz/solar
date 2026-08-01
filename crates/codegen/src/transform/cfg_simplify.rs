@@ -23,7 +23,11 @@ use crate::{
     },
     pass::{MirPass, run_function_pass},
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+    map::FxHashMap,
+};
 
 /// Function pass for CFG simplification.
 pub(crate) struct CfgSimplify;
@@ -733,15 +737,16 @@ impl DeadFunctionEliminator {
             return 0;
         }
 
-        let mut remap = vec![None; module.functions.len()];
-        let mut old_functions: Vec<_> =
-            std::mem::take(&mut module.functions).into_iter().map(Some).collect();
+        let mut remap = index_vec![None; module.functions.len()];
+        let mut old_functions = std::mem::take(&mut module.functions)
+            .into_iter()
+            .map(Some)
+            .collect::<IndexVec<FunctionId, _>>();
         let mut functions = IndexVec::with_capacity(reachable.count());
         for old_id in reachable {
-            let function =
-                old_functions[old_id.index()].take().expect("reachable function must exist");
+            let function = old_functions[old_id].take().expect("reachable function must exist");
             let new_id = functions.push(function);
-            remap[old_id.index()] = Some(new_id);
+            remap[old_id] = Some(new_id);
         }
         module.functions = functions;
         module.function_name_index.clear();
@@ -752,13 +757,13 @@ impl DeadFunctionEliminator {
         for func in &mut module.functions {
             func.for_each_instruction_mut(|_, inst| {
                 if let InstKind::InternalCall { function, .. } = &mut inst.kind {
-                    *function = remap[function.index()]
+                    *function = remap[*function]
                         .expect("reachable function cannot call an eliminated function");
                 }
             });
             for block in &mut func.blocks {
                 if let Some(Terminator::TailCall { function, .. }) = &mut block.terminator {
-                    *function = remap[function.index()]
+                    *function = remap[*function]
                         .expect("reachable function cannot tail-call an eliminated function");
                 }
             }
