@@ -74,11 +74,6 @@ mod test_support;
 
 pub(crate) type NotifyResult = ControlFlow<async_lsp::Result<()>>;
 
-#[cfg(test)]
-fn new_router(client: ClientSocket) -> Router<GlobalState> {
-    new_router_with_state(GlobalState::new(client))
-}
-
 fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
     let mut router = Router::new(this);
 
