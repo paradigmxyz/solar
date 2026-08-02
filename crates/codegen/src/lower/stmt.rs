@@ -248,7 +248,16 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         let initial_value = if let Some(init) = var.initializer {
-            if self.var_expects_memory_bytes_value(var) {
+            if let TyKind::Struct(struct_id) = var_ty.peel_refs().kind
+                && self
+                    .gcx
+                    .resolved_variable(init)
+                    .is_some_and(|id| self.storage_ref_locals.contains(id))
+            {
+                self.materialize_storage_struct_ref(builder, init, struct_id).unwrap_or_else(|| {
+                    self.err_value(builder, init.span, "codegen cannot read storage struct")
+                })
+            } else if self.var_expects_memory_bytes_value(var) {
                 self.lower_expr_as_memory_bytes(builder, init)
             } else if self.var_expects_memory_dyn_array_value(var) {
                 self.lower_expr_as_memory_dyn_array(builder, init)

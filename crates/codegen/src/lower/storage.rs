@@ -758,6 +758,20 @@ impl<'gcx> Lowerer<'gcx> {
         mem_offset + layout.memory_words() * 32
     }
 
+    /// Materializes a struct value held by a storage reference into memory.
+    pub(super) fn materialize_storage_struct_ref(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+        struct_id: hir::StructId,
+    ) -> Option<ValueId> {
+        let slot = self.lower_lvalue_slot(builder, expr)?;
+        let fields = self.gcx.struct_field_types(struct_id).len().max(1) as u64;
+        let ptr = self.allocate_memory_object(builder, fields * 32, MemoryObjectKind::Struct);
+        self.copy_storage_to_memory_at(builder, struct_id, slot, ptr, 0);
+        Some(ptr)
+    }
+
     fn struct_needs_packed_storage_copy(&self, struct_id: hir::StructId) -> bool {
         self.gcx
             .struct_field_types(struct_id)

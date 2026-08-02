@@ -14,7 +14,8 @@ contract StorageStructCopy {
     }
 
     function readCopy() external view returns (address, bytes4) {
-        Value memory result = value;
+        Value storage source = value;
+        Value memory result = source;
         return (result.owner, result.selectors[0]);
     }
 }
