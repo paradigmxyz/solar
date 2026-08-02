@@ -1,5 +1,6 @@
 //@ run-call: copyState => 1, 3
 //@ run-call: copyReference => 4, 2
+//@ run-call: copyAggregate => 7, 9, 1
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_storage_to_memory.sol
 
 contract C {
@@ -19,5 +20,22 @@ contract C {
         uint[] storage r = a;
         uint[] memory b = r;
         return (b[0], b.length);
+    }
+}
+
+contract AggregateStorageCopy {
+    struct Pair {
+        uint x;
+        uint y;
+    }
+
+    Pair[] pairs;
+
+    function copyAggregate() public returns (uint, uint, uint) {
+        pairs.push();
+        pairs[0].x = 7;
+        pairs[0].y = 9;
+        Pair[] memory copied = pairs;
+        return (copied[0].x, copied[0].y, copied.length);
     }
 }

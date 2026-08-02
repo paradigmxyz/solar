@@ -381,16 +381,9 @@ impl<'gcx> Lowerer<'gcx> {
             }
             return self.materialize_calldata_dyn_array(builder, slice);
         }
-        if let Some((slot, element, element_slots)) = self.storage_dynamic_array_info(builder, expr)
+        if let Some((slot, element, _)) = self.storage_dynamic_array_info(builder, expr)
         {
-            if element_slots == 1 {
-                return self.copy_storage_dyn_array_to_memory(builder, slot, element);
-            }
-            return self.err_value(
-                builder,
-                expr.span,
-                "codegen cannot copy this storage array to memory",
-            );
+            return self.copy_storage_dyn_array_to_memory(builder, slot, element);
         }
         self.lower_value_expr(builder, expr)
     }
