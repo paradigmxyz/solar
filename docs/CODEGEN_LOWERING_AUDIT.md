@@ -123,6 +123,8 @@ describes observable structure in the current tree, not an intended design.
   payload copies still use a physical `mcopy` destination.
 * Scalar and calldata-slice ternary merges use typed frame slots instead of
   fixed low-memory scratch words.
+* Constructor ABI validation and aggregate decoding read words through typed
+  memory slices; calldata wrappers retain direct calldata loads.
 * Storage-to-memory and memory-to-storage aggregate copies use the same typed
   field and element operations. Packed and nested copies no longer expose a
   destination address to HIR lowering.

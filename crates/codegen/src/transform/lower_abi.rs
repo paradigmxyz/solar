@@ -34,7 +34,7 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         AbiParamLayout, AbiParamType, ArgIdx, BlockId, Function, FunctionBuilder, FunctionId,
-        InstKind, MangledSymbol, MirPhase, MirType, Module, Terminator, ValueId,
+        InstKind, MangledSymbol, MirPhase, MirType, Module, SliceLocation, Terminator, ValueId,
     },
     pass::MirPass,
 };
@@ -565,11 +565,7 @@ impl LowerAbiCx {
                     } else {
                         builder.imm_u64(4 + head_offset - 32)
                     };
-                    let word = if constructor {
-                        builder.mload(offset)
-                    } else {
-                        builder.calldataload(offset)
-                    };
+                    let word = Self::load_input_word(&mut builder, offset, input_end, constructor);
                     let valid = validator.condition(&mut builder, word);
                     let next = builder.create_block();
                     builder.branch(valid, next, revert);
@@ -651,7 +647,7 @@ impl LowerAbiCx {
         builder.switch_to_block(*current);
         let base = if ty.is_dynamic() {
             Self::guard_source_range(builder, head, 32, input_end, constructor, current);
-            let offset = Self::load_input_word(builder, head, constructor);
+            let offset = Self::load_input_word(builder, head, input_end, constructor);
             Self::guard_source_offset(builder, tuple_base, offset, input_end, constructor, current)
         } else {
             head
@@ -728,7 +724,7 @@ impl LowerAbiCx {
                     && matches!(arg_type, MirType::Slice(_)) =>
             {
                 Self::guard_source_range(builder, base, 32, input_end, constructor, current);
-                let len = Self::load_input_word(builder, base, constructor);
+                let len = Self::load_input_word(builder, base, input_end, constructor);
                 let word = builder.imm_u64(32);
                 let bytes = Self::checked_mul(builder, len, word, current);
                 let data = builder.add(base, word);
@@ -751,7 +747,7 @@ impl LowerAbiCx {
                 if Self::is_full_word_scalar(element) =>
             {
                 Self::guard_source_range(builder, base, 32, input_end, constructor, current);
-                let len = Self::load_input_word(builder, base, constructor);
+                let len = Self::load_input_word(builder, base, input_end, constructor);
                 let word = builder.imm_u64(32);
                 let bytes = Self::checked_mul(builder, len, word, current);
                 let total = Self::checked_add(builder, bytes, word, current);
@@ -783,7 +779,7 @@ impl LowerAbiCx {
                 if matches!(arg_type, MirType::MemoryObject(_)) =>
             {
                 Self::guard_source_range(builder, base, 32, input_end, constructor, current);
-                let len = Self::load_input_word(builder, base, constructor);
+                let len = Self::load_input_word(builder, base, input_end, constructor);
                 let word = builder.imm_u64(32);
                 let element_head_size = builder.imm_u64(element.head_size());
                 let head_bytes = Self::checked_mul(builder, len, element_head_size, current);
@@ -867,7 +863,7 @@ impl LowerAbiCx {
             }
             crate::mir::AbiParamType::Bytes if matches!(arg_type, MirType::Slice(_)) => {
                 Self::guard_source_range(builder, base, 32, input_end, constructor, current);
-                let len = Self::load_input_word(builder, base, constructor);
+                let len = Self::load_input_word(builder, base, input_end, constructor);
                 let word = builder.imm_u64(32);
                 let data = builder.add(base, word);
                 let padding = builder.imm_u64(31);
@@ -891,7 +887,7 @@ impl LowerAbiCx {
             }
             crate::mir::AbiParamType::Bytes => {
                 Self::guard_source_range(builder, base, 32, input_end, constructor, current);
-                let len = Self::load_input_word(builder, base, constructor);
+                let len = Self::load_input_word(builder, base, input_end, constructor);
                 let word = builder.imm_u64(32);
                 let thirty_one = builder.imm_u64(31);
                 let rounded = Self::checked_add(builder, len, thirty_one, current);
@@ -1013,9 +1009,17 @@ impl LowerAbiCx {
     fn load_input_word(
         builder: &mut FunctionBuilder<'_>,
         position: ValueId,
+        input_end: ValueId,
         constructor: bool,
     ) -> ValueId {
-        if constructor { builder.mload(position) } else { builder.calldataload(position) }
+        if constructor {
+            let length = builder.sub(input_end, position);
+            let slice = builder.make_slice(position, length, SliceLocation::Memory);
+            let zero = builder.imm_u64(0);
+            builder.memory_slice_load_word(slice, zero)
+        } else {
+            builder.calldataload(position)
+        }
     }
 
     fn decode_input_scalar(
@@ -1027,7 +1031,10 @@ impl LowerAbiCx {
     ) -> ValueId {
         builder.switch_to_block(*current);
         Self::guard_input_range(builder, position, 32, input_end, current);
-        let value = builder.mload(position);
+        let length = builder.sub(input_end, position);
+        let slice = builder.make_slice(position, length, SliceLocation::Memory);
+        let zero = builder.imm_u64(0);
+        let value = builder.memory_slice_load_word(slice, zero);
         if let Some(validator) = AbiWordValidator::from_mir_type(scalar) {
             let valid = validator.condition(builder, value);
             let next = builder.create_block();
@@ -1051,7 +1058,10 @@ impl LowerAbiCx {
     ) -> ValueId {
         builder.switch_to_block(*current);
         Self::guard_input_range(builder, position, 32, input_end, current);
-        let value = builder.mload(position);
+        let length = builder.sub(input_end, position);
+        let slice = builder.make_slice(position, length, SliceLocation::Memory);
+        let zero = builder.imm_u64(0);
+        let value = builder.memory_slice_load_word(slice, zero);
         let valid = AbiWordValidator::EnumRange(variants).condition(builder, value);
         let next = builder.create_block();
         let revert = builder.create_block();
