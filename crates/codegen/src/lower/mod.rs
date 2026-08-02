@@ -1248,7 +1248,7 @@ impl<'gcx> Lowerer<'gcx> {
                     self.lower_type_from_var(param_id)
                 };
                 let defer_aggregate_abi =
-                    uses_external_abi && self.can_defer_external_abi_param(param_id);
+                    has_deferred_aggregate_params && self.can_defer_external_abi_param(param_id);
 
                 // Check if this is a struct parameter that needs special handling
                 let abi_param_source = if self.lowering_constructor {
