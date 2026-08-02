@@ -14,6 +14,7 @@ use solar_sema::{
     builtins::Builtin,
     eval::ConstValue,
     hir::{self, ExprKind, LoopSource, StmtKind, VariableId},
+    ty::CallableParamSource,
 };
 
 /// Lowers one HIR function into a typed MIR function.
@@ -55,7 +56,18 @@ pub(super) fn lower(
     let mut lowerer = FunctionLowerer::new(gcx, storage, function_ids, &mut mir);
     lowerer.bind_signature(hir_function);
     if let Some(body) = hir_function.body {
-        lowerer.lower_block(body)?;
+        if hir_function.modifiers.is_empty() {
+            lowerer.lower_block(body)?;
+        } else {
+            let return_block = lowerer.builder.create_block();
+            lowerer.return_targets.push(return_block);
+            lowerer.lower_modifier_chain(hir_function.modifiers, body)?;
+            lowerer.return_targets.pop();
+            if !lowerer.is_terminated() {
+                lowerer.builder.jump(return_block);
+            }
+            lowerer.builder.switch_to_block(return_block);
+        }
     }
     if !lowerer.is_terminated() {
         lowerer.finish(hir_function.returns);
@@ -77,12 +89,21 @@ struct FunctionLowerer<'gcx, 'mir, 'ids> {
     values: FxHashMap<VariableId, ValueId>,
     returns: Vec<VariableId>,
     loops: Vec<LoopTargets>,
+    modifiers: Vec<ModifierContext<'gcx>>,
+    return_targets: Vec<BlockId>,
 }
 
 #[derive(Clone, Copy)]
 struct LoopTargets {
     break_block: BlockId,
     continue_block: BlockId,
+}
+
+#[derive(Clone, Copy)]
+struct ModifierContext<'gcx> {
+    modifiers: &'gcx [hir::Modifier<'gcx>],
+    body: hir::Block<'gcx>,
+    next: usize,
 }
 
 impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
@@ -101,6 +122,8 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             values: FxHashMap::default(),
             returns: Vec::new(),
             loops: Vec::new(),
+            modifiers: Vec::new(),
+            return_targets: Vec::new(),
         }
     }
 
@@ -186,7 +209,17 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             StmtKind::Return(expr) => {
                 let values =
                     expr.map_or_else(|| Some(Vec::new()), |expr| self.lower_values(expr))?;
-                if !self.is_terminated() {
+                if let Some(&target) = self.return_targets.last() {
+                    if !values.is_empty() {
+                        if values.len() != self.returns.len() {
+                            return report_unsupported(self.gcx, stmt.span, "return value count");
+                        }
+                        for (&id, value) in self.returns.iter().zip(values) {
+                            self.values.insert(id, value);
+                        }
+                    }
+                    self.builder.jump(target);
+                } else if !self.is_terminated() {
                     if values.is_empty() {
                         self.builder.stop();
                     } else {
@@ -200,12 +233,86 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             }
             StmtKind::AssemblyBlock(block) => self.lower_block(*block)?,
             StmtKind::Placeholder => {
-                return report_unsupported(self.gcx, stmt.span, "modifier placeholder");
+                self.lower_modifier_placeholder(stmt.span)?;
             }
             StmtKind::Emit(_) | StmtKind::Switch(_) | StmtKind::Try(_) | StmtKind::Err(_) => {
                 return report_unsupported(self.gcx, stmt.span, "statement");
             }
         }
+        Some(())
+    }
+
+    fn lower_modifier_chain(
+        &mut self,
+        modifiers: &'gcx [hir::Modifier<'gcx>],
+        body: hir::Block<'gcx>,
+    ) -> Option<()> {
+        self.lower_modifier_at(modifiers, body, 0)
+    }
+
+    fn lower_modifier_at(
+        &mut self,
+        modifiers: &'gcx [hir::Modifier<'gcx>],
+        body: hir::Block<'gcx>,
+        index: usize,
+    ) -> Option<()> {
+        let Some(modifier) = modifiers.get(index) else {
+            return self.lower_block(body);
+        };
+        let hir::ItemId::Function(modifier_id) = modifier.id else {
+            return report_unsupported(self.gcx, modifier.span, "base constructor modifier");
+        };
+        let modifier_function = self.gcx.hir.function(modifier_id);
+        if !modifier_function.kind.is_modifier() {
+            return report_unsupported(self.gcx, modifier.span, "modifier target");
+        }
+        let Some(modifier_body) = modifier_function.body else {
+            return report_unsupported(self.gcx, modifier.span, "modifier body");
+        };
+        if modifier.args.len() != modifier_function.parameters.len() {
+            return report_unsupported(self.gcx, modifier.span, "modifier argument list");
+        }
+        let parameter_names = self.gcx.callable_param_names(CallableParamSource::Function {
+            id: modifier_id,
+            skips_receiver: false,
+        });
+        let mut saved_parameters = Vec::with_capacity(modifier_function.parameters.len());
+        for (index, &parameter) in modifier_function.parameters.iter().enumerate() {
+            let Some(argument) =
+                modifier.args.argument_for_parameter(index, Some(parameter_names.as_slice()))
+            else {
+                return report_unsupported(self.gcx, modifier.span, "named modifier argument");
+            };
+            let value = self.lower_expr(argument)?;
+            saved_parameters.push((parameter, self.values.insert(parameter, value)));
+        }
+
+        self.modifiers.push(ModifierContext { modifiers, body, next: index + 1 });
+        let result = self.lower_block(modifier_body);
+        self.modifiers.pop();
+        for (parameter, previous) in saved_parameters {
+            if let Some(value) = previous {
+                self.values.insert(parameter, value);
+            } else {
+                self.values.remove(&parameter);
+            }
+        }
+        result
+    }
+
+    fn lower_modifier_placeholder(&mut self, span: Span) -> Option<()> {
+        let Some(context) = self.modifiers.last().copied() else {
+            return report_unsupported(self.gcx, span, "modifier placeholder");
+        };
+        let continuation = self.builder.create_block();
+        self.return_targets.push(continuation);
+        let result = self.lower_modifier_at(context.modifiers, context.body, context.next);
+        self.return_targets.pop();
+        result?;
+        if !self.is_terminated() {
+            self.builder.jump(continuation);
+        }
+        self.builder.switch_to_block(continuation);
         Some(())
     }
 
