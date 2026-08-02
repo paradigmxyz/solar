@@ -152,26 +152,180 @@ fn lower_encode(
         Some(builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL))
     };
 
-    let buf = builder.fmp();
+    let encoded_size =
+        measure_tuple(builder, args, &layout.types, AbiScratch { base: scratch_base, depth: 0 });
+    let selector_size_value = builder.imm_u64(selector_size);
+    let total = builder.add(encoded_size, selector_size_value);
+    let thirty_one = builder.imm_u64(31);
+    let rounded = builder.add(total, thirty_one);
+    let mask = builder.not(thirty_one);
+    let aligned = builder.and(rounded, mask);
+    let buf = builder.alloc(aligned, crate::mir::AllocationSemantics::INTERNAL);
     if let Some(selector) = selector {
         builder.mstore(buf, selector);
     }
     let dest = offset_ptr(builder, buf, selector_size);
-    let size = encode_tuple(
+    let _encoded_size = encode_tuple(
         builder,
         args,
         &layout.types,
         dest,
         AbiScratch { base: scratch_base, depth: 0 },
     );
-    let selector_size = builder.imm_u64(selector_size);
-    let total = builder.add(size, selector_size);
+    builder.make_slice(buf, total, SliceLocation::Memory)
+}
+
+fn measure_tuple(
+    builder: &mut FunctionBuilder<'_>,
+    values: &[ValueId],
+    types: &[AbiType],
+    scratch: AbiScratch,
+) -> ValueId {
+    let head_size = builder.imm_u64(types.iter().map(AbiType::head_size).sum());
+    if !types.iter().any(AbiType::is_dynamic) {
+        return head_size;
+    }
+
+    let mut size = head_size;
+    for (&value, ty) in values.iter().zip(types) {
+        if ty.is_dynamic() {
+            let body = measure_dynamic_body(builder, ty, value, scratch);
+            size = builder.add(size, body);
+        }
+    }
+    size
+}
+
+fn measure_dynamic_body(
+    builder: &mut FunctionBuilder<'_>,
+    ty: &AbiType,
+    value: ValueId,
+    scratch: AbiScratch,
+) -> ValueId {
+    match ty {
+        AbiType::Bytes(location) => {
+            let len = match location {
+                SliceLocation::Memory => builder.memory_object_len(value, MemoryObjectKind::Bytes),
+                SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
+            };
+            padded_bytes_size(builder, len)
+        }
+        AbiType::DynamicArray { element, location }
+            if matches!(element.as_ref(), AbiType::Word) =>
+        {
+            let len = match location {
+                SliceLocation::Memory => {
+                    builder.memory_object_len(value, MemoryObjectKind::DynamicArray)
+                }
+                SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
+            };
+            let word = builder.imm_u64(32);
+            let data_size = builder.mul(len, word);
+            builder.add(word, data_size)
+        }
+        AbiType::DynamicArray { element, location: SliceLocation::Memory } => {
+            measure_dynamic_array(builder, element, value, scratch)
+        }
+        AbiType::DynamicArray {
+            location: SliceLocation::Calldata | SliceLocation::Returndata,
+            ..
+        } => unreachable!("non-word calldata arrays are materialized before ABI encoding"),
+        AbiType::FixedArray { element, len } => {
+            let mut values = Vec::with_capacity(*len as usize);
+            for index in 0..*len {
+                let index_value = builder.imm_u64(index);
+                let element_value = builder.memory_object_load_element(
+                    value,
+                    crate::mir::MemoryObjectLayout::word_fixed_array(*len),
+                    index_value,
+                );
+                values.push(element_value);
+            }
+            let types = vec![element.as_ref().clone(); *len as usize];
+            measure_tuple(builder, &values, &types, scratch)
+        }
+        AbiType::Tuple(fields) => {
+            let mut values = Vec::with_capacity(fields.len());
+            for index in 0..fields.len() {
+                let field_value = builder.memory_object_load_field(
+                    value,
+                    crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
+                    index as u64,
+                );
+                values.push(field_value);
+            }
+            measure_tuple(builder, &values, fields, scratch)
+        }
+        AbiType::Word => unreachable!("word ABI values are static"),
+    }
+}
+
+fn measure_dynamic_array(
+    builder: &mut FunctionBuilder<'_>,
+    element: &AbiType,
+    value: ValueId,
+    scratch: AbiScratch,
+) -> ValueId {
+    let scratch_base = scratch.base.expect("dynamic ABI array sizing requires scratch memory");
+    let len = builder.memory_object_len(value, MemoryObjectKind::DynamicArray);
+    let word = builder.imm_u64(32);
+    let element_head_size = builder.imm_u64(element.head_size());
+    let head_bytes = builder.mul(len, element_head_size);
+    let initial_size = builder.add(word, head_bytes);
+    let source_cursor = builder.memory_object_data(value, MemoryObjectKind::DynamicArray);
+
+    let remaining_slot = scratch_slot(builder, scratch_base, scratch.depth, 0);
+    let size_slot = scratch_slot(builder, scratch_base, scratch.depth, 1);
+    let source_slot = scratch_slot(builder, scratch_base, scratch.depth, 2);
+    builder.mstore(remaining_slot, len);
+    builder.mstore(size_slot, initial_size);
+    builder.mstore(source_slot, source_cursor);
+
+    let cond = builder.create_block();
+    let body = builder.create_block();
+    let done = builder.create_block();
+    builder.jump(cond);
+
+    builder.switch_to_block(cond);
+    let remaining = builder.mload(remaining_slot);
+    let zero = builder.imm_u64(0);
+    let has_next = builder.gt(remaining, zero);
+    builder.branch(has_next, body, done);
+
+    builder.switch_to_block(body);
+    let source = builder.mload(source_slot);
+    let element_value = builder.mload(source);
+    if element.is_dynamic() {
+        let size = measure_dynamic_body(
+            builder,
+            element,
+            element_value,
+            AbiScratch { base: Some(scratch_base), depth: scratch.depth + 1 },
+        );
+        let total = builder.mload(size_slot);
+        let next_size = builder.add(total, size);
+        builder.mstore(size_slot, next_size);
+    }
+    let remaining = builder.mload(remaining_slot);
+    let one = builder.imm_u64(1);
+    let next_remaining = builder.sub(remaining, one);
+    builder.mstore(remaining_slot, next_remaining);
+    let source = builder.mload(source_slot);
+    let next_source = builder.add(source, word);
+    builder.mstore(source_slot, next_source);
+    builder.jump(cond);
+
+    builder.switch_to_block(done);
+    builder.mload(size_slot)
+}
+
+fn padded_bytes_size(builder: &mut FunctionBuilder<'_>, len: ValueId) -> ValueId {
+    let word = builder.imm_u64(32);
     let thirty_one = builder.imm_u64(31);
-    let rounded = builder.add(total, thirty_one);
+    let rounded = builder.add(len, thirty_one);
     let mask = builder.not(thirty_one);
-    let aligned = builder.and(rounded, mask);
-    let allocated = builder.alloc(aligned, crate::mir::AllocationSemantics::INTERNAL);
-    builder.make_slice(allocated, total, SliceLocation::Memory)
+    let padded = builder.and(rounded, mask);
+    builder.add(word, padded)
 }
 
 pub(crate) fn encode_tuple(

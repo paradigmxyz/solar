@@ -360,11 +360,6 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::MSize, Some(MirType::uint256()))
     }
 
-    /// Reads the free-memory pointer.
-    pub(crate) fn fmp(&mut self) -> ValueId {
-        self.emit_inst(InstKind::Fmp, Some(MirType::MemPtr))
-    }
-
     /// Sets the free-memory pointer.
     #[cfg(test)]
     pub(crate) fn set_fmp(&mut self, ptr: ValueId) {

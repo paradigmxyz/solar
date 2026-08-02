@@ -31,10 +31,36 @@ bb5 [cold]:
   dup1
   revert
 bb6:
+  push 0x3339
+  push 240
+  shl
+  mload
+  push 31
+  add
+  push 31
+  not
+  and
+  push 64
+  dup2
+  add
+  dup1
+  push 192
+  mstore
+  swap1
+  push 95
+  add
+  push 31
+  not
+  and
   push 64
   mload
   dup1
   push 224
+  mstore
+  swap1
+  dup2
+  add
+  push 64
   mstore
   push 32
   dup2
@@ -61,20 +87,21 @@ bb6:
   not
   and
   dup1
-  push 192
+  push 256
   mstore
   push 64
   dup3
   add
   push 160
   mstore
-  swap1
+  swap2
+  pop
   pop
   iszero
   push bb8
   jumpi
   push 32
-  push 192
+  push 256
   mload
   sub
   push 160
@@ -85,11 +112,6 @@ bb6:
   mstore
   jump bb8
 bb8:
-  push 192
-  mload
-  push 160
-  mload
-  add
   push 32
   push 0x3339
   push 240
@@ -104,44 +126,13 @@ bb12:
   mload
   mcopy
   pop
+  push 192
+  mload
   push 224
   mload
-  swap1
-  sub
-  push 31
-  dup2
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
-  dup1
-  push 256
-  mstore
-  swap1
-  dup2
-  add
-  push 64
-  mstore
-  dup2
-  dup2
   return
 bb9:
-  push 64
-  mload
-  dup1
-  push 224
-  mstore
-  push 32
-  dup2
-  add
-  dup2
-  dup2
-  sub
-  dup3
-  mstore
-  push bb14
+  push bb15
   jump bb13
 bb13:
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
@@ -162,20 +153,21 @@ bb14:
   not
   and
   dup1
-  push 192
+  push 256
   mstore
   push 64
   dup3
   add
   push 160
   mstore
-  swap1
+  swap2
+  pop
   pop
   iszero
   push bb11
   jumpi
   push 32
-  push 192
+  push 256
   mload
   sub
   push 160
@@ -186,15 +178,49 @@ bb14:
   mstore
   jump bb11
 bb11:
-  push 192
-  mload
-  push 160
-  mload
-  add
   push 32
-  push bb15
+  push bb16
   jump bb13
 bb15:
+  mload
+  push 31
+  add
+  push 31
+  not
+  and
+  push 64
+  dup2
+  add
+  dup1
+  push 192
+  mstore
+  swap1
+  push 95
+  add
+  push 31
+  not
+  and
+  push 64
+  mload
+  dup1
+  push 224
+  mstore
+  swap1
+  dup2
+  add
+  push 64
+  mstore
+  push 32
+  dup2
+  add
+  dup2
+  dup2
+  sub
+  dup3
+  mstore
+  push bb14
+  jump bb13
+bb16:
   jump bb12
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:R (runtime) ===
 @module runtime
@@ -352,7 +378,7 @@ bb27 [cold]:
   push 64
   mload
   dup1
-  push 256
+  push 224
   mstore
   push 96
   dup2
@@ -378,10 +404,41 @@ bb27 [cold]:
   shl
   swap1
   mstore
+  dup1
+  mload
+  dup1
+  push 160
+  mstore
+  push 31
+  dup2
+  add
+  push 31
+  not
+  and
+  dup1
+  push 256
+  mstore
+  push 68
+  dup2
+  add
+  dup1
+  push 288
+  mstore
+  push 99
+  dup3
+  add
+  push 31
+  not
+  and
   push 64
   mload
   dup1
   push 320
+  mstore
+  swap1
+  dup2
+  add
+  push 64
   mstore
   push 0x8c379a0
   push 224
@@ -391,9 +448,6 @@ bb27 [cold]:
   push 4
   dup2
   add
-  dup1
-  push 288
-  mstore
   push 36
   dup3
   add
@@ -402,42 +456,30 @@ bb27 [cold]:
   sub
   dup3
   mstore
-  dup4
-  mload
+  swap1
+  pop
+  dup5
   dup1
   push 160
   mstore
   swap1
   mstore
-  push 31
-  push 160
-  mload
-  add
-  push 31
-  not
-  and
-  dup1
-  push 224
-  mstore
-  swap2
   push 68
+  dup2
   add
   push 192
   mstore
   pop
-  swap1
+  pop
+  swap2
+  pop
   pop
   push bb29
   jumpi
   jump bb30
 bb30 [cold]:
-  push 224
-  mload
-  push 192
-  mload
-  add
   push 32
-  push 256
+  push 224
   mload
   add
   push 160
@@ -449,33 +491,12 @@ bb30 [cold]:
   pop
   push 288
   mload
-  swap1
-  sub
-  push 4
-  dup2
-  add
-  swap1
-  push 35
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
-  dup1
   push 320
-  mstore
-  swap1
-  dup2
-  add
-  push 64
-  mstore
-  dup2
-  dup2
+  mload
   revert
 bb29 [cold]:
   push 32
-  push 224
+  push 256
   mload
   sub
   push 192

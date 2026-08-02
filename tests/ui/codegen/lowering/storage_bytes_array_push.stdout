@@ -214,21 +214,29 @@ fn @blobAt() {
   bb1:
     tail_call @__panic_32
   bb2:
-    v29 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
-    mstore v29, 2
-    v30 = keccak256 v29, 32
-    v31 = add v30, arg0
-    v3 = internal_call @__load_storage_bytes, 1, v31
-    v9 = mload 64 !metadata(memory=scratch)
-    v10 = add v9, 32
-    v11 = sub v10, v9
-    mstore v9, v11
-    v12 = mload v3
-    mstore v10, v12
-    v14 = add v12, 31
-    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v9, 64
-    jumpi v15, bb5, bb6
+    v34 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
+    mstore v34, 2
+    v35 = keccak256 v34, 32
+    v36 = add v35, arg0
+    v3 = internal_call @__load_storage_bytes, 1, v36
+    v9 = mload v3
+    v10 = add v9, 31
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = add v12, 64
+    v16 = add v12, 95
+    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v37 = add v19, v18
+    mstore 64, v37 !metadata(memory=scratch)
+    v20 = add v19, 32
+    v21 = sub v20, v19
+    mstore v19, v21
+    v22 = mload v3
+    mstore v20, v22
+    v24 = add v22, 31
+    v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v26 = add v19, 64
+    jumpi v25, bb5, bb6
   bb3:
     revert 0, 0
   bb4:
@@ -236,21 +244,14 @@ fn @blobAt() {
     v1 = lt arg0, v0
     jumpi v1, bb2, bb1
   bb5:
-    v18 = sub v15, 32
-    v19 = add v16, v18
-    mstore v19, 0
+    v28 = sub v25, 32
+    v29 = add v26, v28
+    mstore v29, 0
     jump bb6
   bb6:
-    v21 = add v16, v15
-    v20 = add v3, 32
-    mcopy v16, v20, v12
-    v22 = sub v21, v9
-    v24 = add v22, 31
-    v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v27 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v32 = add v27, v26
-    mstore 64, v32 !metadata(memory=scratch)
-    returndata v27, v22
+    v30 = add v3, 32
+    mcopy v26, v30, v22
+    returndata v19, v14
 }
 
 fn @__panic_32() {

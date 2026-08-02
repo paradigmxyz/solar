@@ -109,6 +109,9 @@ describes observable structure in the current tree, not an intended design.
 * The ABI encoder reads tuple fields and fixed-array elements through typed
   memory-object loads. Address formation and the final `mload` happen only in
   `lower-memory-objects`.
+* Dynamic ABI encodes measure their tails before reserving the output through
+  `alloc`. The encoder no longer writes into an unbumped free-memory pointer;
+  the measurement and write phases share the same typed ABI shape.
 * Panic, short-error, and storage-bytes helpers use one lazy registry keyed by
   semantic operation. Repeated uses share one helper, while synthesis guards
   keep recursive helper construction finite.
@@ -150,9 +153,9 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
 * **Physical memory still leaks through a few aggregate helpers.** Mutable
   locals, direct object accesses, object-to-object and typed slice-to-object
   copies, storage aggregate copies, and ABI payload copies into objects now
-  stay semantic. Memory-object allocation, ABI tail assembly, Yul copies,
-  returndata staging, and some loop scratch state still emit raw memory
-  operations before the semantic memory passes. Mapping slot hashing is no
+  stay semantic. ABI tail assembly, Yul copies, returndata staging, and some
+  loop scratch state still emit raw memory operations before the semantic
+  memory passes. Mapping slot hashing is no
   longer one of those early scratch users: it stays semantic through
   optimization and allocates its hash input at the memory boundary. The
   remaining work is to keep the other policies in typed MIR until that

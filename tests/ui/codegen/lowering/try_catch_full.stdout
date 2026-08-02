@@ -12,11 +12,11 @@ fn @full() {
     v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v14 = add v13, 32
     v15 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v240 = add v15, v14
-    mstore 64, v240 !metadata(memory=scratch)
+    v260 = add v15, v14
+    mstore 64, v260 !metadata(memory=scratch)
     mstore v15, v8
-    v216 = add v15, 32
-    returndatacopy v216, 0, v8
+    v236 = add v15, 32
+    returndatacopy v236, 0, v8
     v16 = mload v15
     v17 = add v15, 32
     v18 = lt v16, 64
@@ -72,64 +72,77 @@ fn @full() {
     tail_call @__panic_41
   bb12:
     v39 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v241 = add v39, v37
-    mstore 64, v241 !metadata(memory=scratch)
+    v261 = add v39, v37
+    mstore 64, v261 !metadata(memory=scratch)
     mstore v39, v27
     v40 = sub v36, 32
     v41 = shr 5, v40
-    v219 = add v39, 32
-    v220 = mul v41, 32
-    v221 = add v219, v220
-    mstore v221, 0
+    v239 = add v39, 32
+    v240 = mul v41, 32
+    v241 = add v239, v240
+    mstore v241, 0
     v42 = add v26, 32
-    v222 = add v39, 32
-    mcopy v222, v42, v27
-    v130 = mload 64 !metadata(memory=scratch)
-    v131 = add v130, 64
-    mstore v130, v19
-    v133 = sub v131, v130
-    v132 = add v130, 32
-    mstore v132, v133
-    v134 = mload v39
-    mstore v131, v134
-    v136 = add v134, 31
-    v137 = and v136, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v138 = add v130, 96
-    jumpi v137, bb27, bb28
+    v242 = add v39, 32
+    mcopy v242, v42, v27
+    v130 = mload v39
+    v131 = add v130, 31
+    v133 = and v131, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v135 = add v133, 96
+    v137 = add v133, 127
+    v139 = and v137, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v140 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v262 = add v140, v139
+    mstore 64, v262 !metadata(memory=scratch)
+    v141 = add v140, 64
+    mstore v140, v19
+    v143 = sub v141, v140
+    v142 = add v140, 32
+    mstore v142, v143
+    mstore v141, v130
+    v148 = add v140, 96
+    jumpi v133, bb27, bb28
   bb13:
     v102 = returndatasize
     v105 = add v102, 31
     v107 = and v105, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v108 = add v107, 32
     v109 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v242 = add v109, v108
-    mstore 64, v242 !metadata(memory=scratch)
+    v263 = add v109, v108
+    mstore 64, v263 !metadata(memory=scratch)
     mstore v109, v102
-    v225 = add v109, 32
-    returndatacopy v225, 0, v102
-    v151 = mload 64 !metadata(memory=scratch)
-    v152 = add v151, 64
-    mstore v151, 3
-    v154 = sub v152, v151
-    v153 = add v151, 32
-    mstore v153, v154
-    v155 = mload v109
-    mstore v152, v155
-    v157 = add v155, 31
-    v158 = and v157, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v159 = add v151, 96
-    jumpi v158, bb29, bb30
+    v245 = add v109, 32
+    returndatacopy v245, 0, v102
+    v156 = mload v109
+    v157 = add v156, 31
+    v159 = and v157, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v161 = add v159, 96
+    v163 = add v159, 127
+    v165 = and v163, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v166 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v264 = add v166, v165
+    mstore 64, v264 !metadata(memory=scratch)
+    v167 = add v166, 64
+    mstore v166, 3
+    v169 = sub v167, v166
+    v168 = add v166, 32
+    mstore v168, v169
+    v170 = mload v109
+    mstore v167, v170
+    v172 = add v170, 31
+    v173 = and v172, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v174 = add v166, 96
+    jumpi v173, bb29, bb30
   bb14:
     v52 = returndatasize
     v55 = add v52, 31
     v57 = and v55, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v58 = add v57, 32
     v59 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v243 = add v59, v58
-    mstore 64, v243 !metadata(memory=scratch)
+    v265 = add v59, v58
+    mstore 64, v265 !metadata(memory=scratch)
     mstore v59, v52
-    v228 = add v59, 32
-    returndatacopy v228, 0, v52
+    v248 = add v59, 32
+    returndatacopy v248, 0, v52
     v60 = mload v59
     v61 = add v59, 32
     v62 = add v61, 4
@@ -173,37 +186,45 @@ fn @full() {
     jumpi v81, bb11, bb22
   bb22:
     v82 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v244 = add v82, v80
-    mstore 64, v244 !metadata(memory=scratch)
+    v266 = add v82, v80
+    mstore 64, v266 !metadata(memory=scratch)
     mstore v82, v70
     v83 = sub v79, 32
     v84 = shr 5, v83
-    v231 = add v82, 32
-    v232 = mul v84, 32
-    v233 = add v231, v232
-    mstore v233, 0
+    v251 = add v82, 32
+    v252 = mul v84, 32
+    v253 = add v251, v252
+    mstore v253, 0
     v85 = add v69, 32
-    v234 = add v82, 32
-    mcopy v234, v85, v70
-    v172 = mload 64 !metadata(memory=scratch)
-    v173 = add v172, 64
-    mstore v172, 1
-    v175 = sub v173, v172
-    v174 = add v172, 32
-    mstore v174, v175
-    v176 = mload v82
-    mstore v173, v176
-    v178 = add v176, 31
-    v179 = and v178, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v180 = add v172, 96
-    jumpi v179, bb31, bb32
+    v254 = add v82, 32
+    mcopy v254, v85, v70
+    v182 = mload v82
+    v183 = add v182, 31
+    v185 = and v183, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v187 = add v185, 96
+    v189 = add v185, 127
+    v191 = and v189, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v192 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v267 = add v192, v191
+    mstore 64, v267 !metadata(memory=scratch)
+    v193 = add v192, 64
+    mstore v192, 1
+    v195 = sub v193, v192
+    v194 = add v192, 32
+    mstore v194, v195
+    v196 = mload v82
+    mstore v193, v196
+    v198 = add v196, 31
+    v199 = and v198, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v200 = add v192, 96
+    jumpi v199, bb31, bb32
   bb23:
     returndatacopy 0, 4, 32 !metadata(memory=scratch)
     v92 = mload 0 !metadata(memory=scratch)
-    v193 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v245 = add v193, 32
-    mstore 64, v245 !metadata(memory=scratch)
-    mstore v193, v92
+    v208 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v268 = add v208, 32
+    mstore 64, v268 !metadata(memory=scratch)
+    mstore v208, v92
     v95 = add 32, 31
     v96 = lt v95, 32
     jumpi v96, bb11, bb24
@@ -214,33 +235,41 @@ fn @full() {
     jumpi v100, bb11, bb25
   bb25:
     v101 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v246 = add v101, v99
-    mstore 64, v246 !metadata(memory=scratch)
+    v269 = add v101, v99
+    mstore 64, v269 !metadata(memory=scratch)
     mstore v101, 32
-    v237 = add v101, 32
-    mcopy v237, v193, 32
-    v195 = mload 64 !metadata(memory=scratch)
-    v196 = add v195, 64
-    mstore v195, 2
-    v198 = sub v196, v195
-    v197 = add v195, 32
-    mstore v197, v198
-    v199 = mload v101
-    mstore v196, v199
-    v201 = add v199, 31
-    v202 = and v201, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v203 = add v195, 96
-    jumpi v202, bb33, bb34
+    v257 = add v101, 32
+    mcopy v257, v208, 32
+    v210 = mload v101
+    v211 = add v210, 31
+    v213 = and v211, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v215 = add v213, 96
+    v217 = add v213, 127
+    v219 = and v217, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v220 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v270 = add v220, v219
+    mstore 64, v270 !metadata(memory=scratch)
+    v221 = add v220, 64
+    mstore v220, 2
+    v223 = sub v221, v220
+    v222 = add v220, 32
+    mstore v222, v223
+    v224 = mload v101
+    mstore v221, v224
+    v226 = add v224, 31
+    v227 = and v226, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v228 = add v220, 96
+    jumpi v227, bb33, bb34
   bb26:
     mstore 128, 0
     v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v247 = add v0, 32
-    mstore 64, v247 !metadata(memory=scratch)
+    v271 = add v0, 32
+    mstore 64, v271 !metadata(memory=scratch)
     mstore v0, 0
     mstore 160, v0
     v127 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v248 = add v127, 64
-    mstore 64, v248 !metadata(memory=scratch)
+    v272 = add v127, 64
+    mstore 64, v272 !metadata(memory=scratch)
     mstore v127, 0xb3de648b00000000000000000000000000000000000000000000000000000000
     v128 = add v127, 4
     mstore v128, arg0
@@ -250,69 +279,41 @@ fn @full() {
     v7 = staticcall v6, v5, v127, 36, 0, 0
     jumpi v7, bb1, bb2
   bb27:
-    v140 = sub v137, 32
-    v141 = add v138, v140
-    mstore v141, 0
+    v150 = sub v133, 32
+    v151 = add v148, v150
+    mstore v151, 0
     jump bb28
   bb28:
-    v143 = add v138, v137
-    v142 = add v39, 32
-    mcopy v138, v142, v134
-    v144 = sub v143, v130
-    v146 = add v144, 31
-    v148 = and v146, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v149 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v249 = add v149, v148
-    mstore 64, v249 !metadata(memory=scratch)
-    returndata v149, v144
+    v152 = add v39, 32
+    mcopy v148, v152, v130
+    returndata v140, v135
   bb29:
-    v161 = sub v158, 32
-    v162 = add v159, v161
-    mstore v162, 0
+    v176 = sub v173, 32
+    v177 = add v174, v176
+    mstore v177, 0
     jump bb30
   bb30:
-    v164 = add v159, v158
-    v163 = add v109, 32
-    mcopy v159, v163, v155
-    v165 = sub v164, v151
-    v167 = add v165, 31
-    v169 = and v167, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v170 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v250 = add v170, v169
-    mstore 64, v250 !metadata(memory=scratch)
-    returndata v170, v165
+    v178 = add v109, 32
+    mcopy v174, v178, v170
+    returndata v166, v161
   bb31:
-    v182 = sub v179, 32
-    v183 = add v180, v182
-    mstore v183, 0
+    v202 = sub v199, 32
+    v203 = add v200, v202
+    mstore v203, 0
     jump bb32
   bb32:
-    v185 = add v180, v179
-    v184 = add v82, 32
-    mcopy v180, v184, v176
-    v186 = sub v185, v172
-    v188 = add v186, 31
-    v190 = and v188, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v191 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v251 = add v191, v190
-    mstore 64, v251 !metadata(memory=scratch)
-    returndata v191, v186
+    v204 = add v82, 32
+    mcopy v200, v204, v196
+    returndata v192, v187
   bb33:
-    v205 = sub v202, 32
-    v206 = add v203, v205
-    mstore v206, 0
+    v230 = sub v227, 32
+    v231 = add v228, v230
+    mstore v231, 0
     jump bb34
   bb34:
-    v208 = add v203, v202
-    v207 = add v101, 32
-    mcopy v203, v207, v199
-    v209 = sub v208, v195
-    v211 = add v209, 31
-    v213 = and v211, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v214 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v252 = add v214, v213
-    mstore 64, v252 !metadata(memory=scratch)
-    returndata v214, v209
+    v232 = add v101, 32
+    mcopy v228, v232, v224
+    returndata v220, v215
 }
 
 fn @__panic_41() {

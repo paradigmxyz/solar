@@ -1152,12 +1152,36 @@ bb62:
   push 608
   mload
   dup1
+  push 256
+  mstore
+  dup1
+  mload
+  push 31
+  add
+  push 31
+  not
+  and
+  push 64
+  dup2
+  add
+  dup1
   push 288
   mstore
+  swap1
+  push 95
+  add
+  push 31
+  not
+  and
   push 64
   mload
   dup1
   push 320
+  mstore
+  swap1
+  dup2
+  add
+  push 64
   mstore
   push 32
   dup2
@@ -1167,7 +1191,7 @@ bb62:
   sub
   dup3
   mstore
-  dup3
+  dup4
   mload
   dup1
   push 192
@@ -1182,21 +1206,22 @@ bb62:
   not
   and
   dup1
-  push 256
+  push 352
   mstore
   push 64
   dup3
   add
   push 224
   mstore
-  swap2
+  swap3
+  pop
   pop
   pop
   iszero
   push bb64
   jumpi
   push 32
-  push 256
+  push 352
   mload
   sub
   push 224
@@ -1207,13 +1232,8 @@ bb62:
   mstore
   jump bb64
 bb64:
-  push 256
-  mload
-  push 224
-  mload
-  add
   push 32
-  push 288
+  push 256
   mload
   add
   push 192
@@ -1223,28 +1243,10 @@ bb64:
   mload
   mcopy
   pop
+  push 288
+  mload
   push 320
   mload
-  swap1
-  sub
-  push 31
-  dup2
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
-  dup1
-  push 352
-  mstore
-  swap1
-  dup2
-  add
-  push 64
-  mstore
-  dup2
-  dup2
   return
 bb67:
   push 672
