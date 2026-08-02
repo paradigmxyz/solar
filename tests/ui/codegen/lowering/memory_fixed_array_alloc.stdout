@@ -122,14 +122,11 @@ fn @__panic_41() {
 fn @literal() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v1 = add v0, 0
-    mstore v1, 1
-    v2 = add v0, 32
-    mstore v2, 2
-    v3 = add v0, 64
-    mstore v3, 3
-    v4 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
-    ret v4
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 1
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 1, 2
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 3
+    v1 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
+    ret v1
 }
 
 fn @bulkDefault(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {

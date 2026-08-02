@@ -53,10 +53,9 @@ contract MemoryFixedArrayAlloc {
 
     // CHECK-LABEL: fn @literal{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<3, 1>
-    // CHECK: [[FIRST:v[0-9]+]] = add [[ARRAY]], 0
-    // CHECK: mstore [[FIRST]], 1
-    // CHECK: mstore {{v[0-9]+}}, 2
-    // CHECK: mstore {{v[0-9]+}}, 3
+    // CHECK: memory_object_store_element memoryfixedarray<3, 1>, [[ARRAY]], 0, 1
+    // CHECK: memory_object_store_element memoryfixedarray<3, 1>, [[ARRAY]], 1, 2
+    // CHECK: memory_object_store_element memoryfixedarray<3, 1>, [[ARRAY]], 2, 3
     function literal() public pure returns (uint256) {
         uint256[3] memory x = [uint256(1), uint256(2), uint256(3)];
         return x[2];

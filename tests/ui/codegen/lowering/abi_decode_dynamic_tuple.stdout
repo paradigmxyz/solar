@@ -68,8 +68,8 @@ fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [abi_params=[b
     set_memory_object_len memorybytes, v25, v13
     v26 = memory_object_data memorybytes, v25
     v27 = sub v22, 32
-    v28 = add v26, v27
-    mstore v28, 0
+    v28 = div v27, 32
+    memory_object_store_element memorybytes, v25, v28, 0
     v29 = add v12, 32
     mcopy v26, v29, v13
     v30 = add v3, 64
@@ -123,8 +123,8 @@ fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [abi_params=[b
     set_memory_object_len memorybytes, v49, v37
     v50 = memory_object_data memorybytes, v49
     v51 = sub v46, 32
-    v52 = add v50, v51
-    mstore v52, 0
+    v52 = div v51, 32
+    memory_object_store_element memorybytes, v49, v52, 0
     v53 = add v36, 32
     mcopy v50, v53, v37
     v54 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
@@ -231,8 +231,8 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memory
     set_memory_object_len memorybytes, v34, v22
     v35 = memory_object_data memorybytes, v34
     v36 = sub v31, 32
-    v37 = add v35, v36
-    mstore v37, 0
+    v37 = div v36, 32
+    memory_object_store_element memorybytes, v34, v37, 0
     v38 = add v21, 32
     mcopy v35, v38, v22
     v39 = add v12, 64
@@ -286,8 +286,8 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memory
     set_memory_object_len memorybytes, v58, v46
     v59 = memory_object_data memorybytes, v58
     v60 = sub v55, 32
-    v61 = add v59, v60
-    mstore v61, 0
+    v61 = div v60, 32
+    memory_object_store_element memorybytes, v58, v61, 0
     v62 = add v45, 32
     mcopy v59, v62, v46
     v63 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
@@ -364,8 +364,8 @@ fn @decodeBytes(arg0: memorybytes) -> memorybytes [abi_params=[bytes], abi_retur
     set_memory_object_len memorybytes, v21, v9
     v22 = memory_object_data memorybytes, v21
     v23 = sub v18, 32
-    v24 = add v22, v23
-    mstore v24, 0
+    v24 = div v23, 32
+    memory_object_store_element memorybytes, v21, v24, 0
     v25 = add v8, 32
     mcopy v22, v25, v9
     ret v21

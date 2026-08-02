@@ -54,6 +54,9 @@ describes observable structure in the current tree, not an intended design.
 * Calldata fixed arrays and aggregate field copies allocate typed memory
   objects and write through their element or field operations. Byte-object
   literal materialization and zero-padding use word-chunk object stores.
+* ABI decoding stores dynamic-array element pointers and validates copied words
+  through typed object accesses. Fixed-array literals use the same element
+  store path, leaving only bulk payload copies as raw memory operations.
 * Dynamic mapping keys stay as `mapping_slot_memory` or
   `mapping_slot_calldata` until the mapping-slot pass. Target-specific memory
   copies are selected after that semantic operation is lowered.

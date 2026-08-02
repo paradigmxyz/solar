@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{FunctionBuilder, MemoryObjectKind, TypeSize, ValueId},
+    mir::{FunctionBuilder, MemoryObjectKind, MemoryObjectLayout, TypeSize, ValueId},
 };
 use alloy_primitives::U256;
 use solar_ast::{LitKind, StrKind};
@@ -600,11 +600,12 @@ impl<'gcx> Lowerer<'gcx> {
                     alloc_size,
                     crate::mir::MemoryObjectKind::FixedArray,
                 );
+                let layout =
+                    crate::mir::MemoryObjectLayout::word_fixed_array(elements.len() as u64);
                 for (i, elem) in elements.iter().enumerate() {
                     let elem_val = self.lower_value_expr(builder, elem);
-                    let offset_const = builder.imm_u64(i as u64 * 32);
-                    let addr = builder.add(ptr, offset_const);
-                    builder.mstore(addr, elem_val);
+                    let index = builder.imm_u64(i as u64);
+                    builder.memory_object_store_element(ptr, layout, index, elem_val);
                 }
                 ptr
             }
@@ -2690,7 +2691,6 @@ impl<'gcx> Lowerer<'gcx> {
                 MemoryObjectKind::DynamicArray,
             );
             builder.set_memory_object_len(ptr, arr_len, MemoryObjectKind::DynamicArray);
-            let dst_data = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
             self.emit_decode_elements_loop(builder, arr_len, |this, builder, index| {
                 let offset = builder.mul(index, word);
                 let head_addr = builder.add(region_base, offset);
@@ -2702,8 +2702,12 @@ impl<'gcx> Lowerer<'gcx> {
                     payload_bytes,
                     elem_head,
                 );
-                let dst_addr = builder.add(dst_data, offset);
-                builder.mstore(dst_addr, elem_ptr);
+                builder.memory_object_store_element(
+                    ptr,
+                    MemoryObjectLayout::WORD_ARRAY,
+                    index,
+                    elem_ptr,
+                );
             });
             return ptr;
         }
@@ -2727,9 +2731,8 @@ impl<'gcx> Lowerer<'gcx> {
         if needs_validation {
             let elem = *elem;
             self.emit_decode_elements_loop(builder, arr_len, |this, builder, index| {
-                let offset = builder.mul(index, word);
-                let addr = builder.add(dst_data, offset);
-                let value = builder.mload(addr);
+                let value =
+                    builder.memory_object_load_element(ptr, MemoryObjectLayout::WORD_ARRAY, index);
                 let _ = this.lower_abi_decode_word(builder, &elem, value);
             });
         }
@@ -2814,8 +2817,8 @@ impl<'gcx> Lowerer<'gcx> {
         let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let zero = builder.imm_u64(0);
         let last_word_offset = builder.sub(data_size, word);
-        let last_word = builder.add(data_ptr, last_word_offset);
-        builder.mstore(last_word, zero);
+        let last_word_index = builder.div(last_word_offset, word);
+        builder.memory_object_store_element(ptr, MemoryObjectLayout::Bytes, last_word_index, zero);
 
         let src = builder.add(tail_len_addr, word);
         builder.mcopy(data_ptr, src, tail_len);
