@@ -902,14 +902,53 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    fn can_defer_external_abi_scalar_ty(&self, ty: Ty<'gcx>) -> bool {
+        let ty = ty.peel_refs();
+        match ty.kind {
+            TyKind::Udvt(inner, _) => self.can_defer_external_abi_scalar_ty(inner),
+            TyKind::Elementary(
+                ElementaryType::Bool
+                | ElementaryType::Address(_)
+                | ElementaryType::Int(_)
+                | ElementaryType::UInt(_)
+                | ElementaryType::FixedBytes(_),
+            )
+            | TyKind::Contract(_) => true,
+            _ => false,
+        }
+    }
+
     /// Returns whether an aggregate parameter can stay typed until `lower-abi`.
     ///
     /// The first aggregate slice uses the existing word-array representation;
     /// nested aggregates still use the legacy HIR-aware decoder.
     fn can_defer_external_abi_param(&self, param_id: VariableId) -> bool {
-        !self.param_is_storage_ref(param_id)
-            && (self.fixed_word_array_param(param_id).is_some()
-                || self.is_dyn_word_array_memory_param(param_id))
+        if self.param_is_storage_ref(param_id) {
+            return false;
+        }
+        let param = self.gcx.hir.variable(param_id);
+        let ty = self.gcx.type_of_item(param_id.into()).peel_refs();
+        if self.fixed_word_array_param(param_id).is_some()
+            || self.is_dyn_word_array_memory_param(param_id)
+        {
+            return true;
+        }
+        if matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)) {
+            return !matches!(
+                param.data_location,
+                Some(solar_ast::DataLocation::Calldata | solar_ast::DataLocation::Storage)
+            );
+        }
+        if let TyKind::Struct(id) = ty.kind
+            && !self.abi_is_dynamic(ty)
+        {
+            return self
+                .gcx
+                .struct_field_types(id)
+                .iter()
+                .all(|&field| self.can_defer_external_abi_scalar_ty(field));
+        }
+        false
     }
 
     /// Lowers a function to MIR.

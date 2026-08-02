@@ -30,8 +30,7 @@ contract AbiDecodeDynamicTuple {
     }
 
     // CHECK-LABEL: fn @decodeBytes{{[( ]}}
-    // CHECK: [[INPUT:v[0-9]+]] = alloc memorybytes
-    // CHECK: set_memory_object_len memorybytes, [[INPUT]],
+    // CHECK: memory_object_len memorybytes, arg0
     // CHECK: [[RESULT:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, {{v[0-9]+}}
     // CHECK: set_memory_object_len memorybytes, [[RESULT]],
     // CHECK: ret [[RESULT]]

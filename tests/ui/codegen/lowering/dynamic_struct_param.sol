@@ -28,10 +28,10 @@ contract DynamicStructParam {
         return input.decimals + uint160(sink);
     }
 
-    // A static struct stays inlined in the head, one slot per field.
+    // A static scalar struct stays typed until the ABI phase.
     // CHECK-LABEL: fn @flat{{[( ]}}
-    // CHECK: mstore v{{[0-9]+}}, arg0
-    // CHECK: mstore v{{[0-9]+}}, arg1
+    // CHECK: memory_object_field_addr memorystruct<2>, arg0, 0
+    // CHECK: mload
     function flat(StaticPair calldata pair) external pure returns (uint256) {
         return pair.x;
     }

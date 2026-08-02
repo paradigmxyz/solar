@@ -441,20 +441,10 @@ impl LowerAbiCx {
                 for index in 0..*len {
                     let offset = builder.imm_u64(index * 32);
                     let word_pos = builder.add(base, offset);
-                    let value = builder.calldataload(word_pos);
-                    if let crate::mir::AbiParamType::Scalar(scalar) = element.as_ref()
-                        && let Some(validator) = AbiWordValidator::from_mir_type(*scalar)
-                    {
-                        let valid = validator.condition(builder, value);
-                        let next = builder.create_block();
-                        let revert = builder.create_block();
-                        builder.branch(valid, next, revert);
-                        builder.switch_to_block(revert);
-                        let zero = builder.imm_u64(0);
-                        builder.revert(zero, zero);
-                        builder.switch_to_block(next);
-                        *current = next;
-                    }
+                    let crate::mir::AbiParamType::Scalar(scalar) = element.as_ref() else {
+                        unreachable!()
+                    };
+                    let value = Self::decode_scalar(builder, *scalar, word_pos, current);
                     let elem_index = builder.imm_u64(index);
                     let slot = builder.memory_object_element_addr(
                         ptr,
@@ -484,8 +474,76 @@ impl LowerAbiCx {
                 builder.calldatacopy(dst, src, bytes);
                 ptr
             }
+            crate::mir::AbiParamType::Bytes => {
+                let len = builder.calldataload(base);
+                let word = builder.imm_u64(32);
+                let thirty_one = builder.imm_u64(31);
+                let rounded = builder.add(len, thirty_one);
+                let mask = builder.not(thirty_one);
+                let data_size = builder.and(rounded, mask);
+                let total = builder.add(data_size, word);
+                let ptr = builder.alloc_object(
+                    total,
+                    crate::mir::MemoryObjectLayout::Bytes,
+                    crate::mir::AllocationSemantics::INTERNAL,
+                );
+                builder.set_memory_object_len(ptr, len, crate::mir::MemoryObjectKind::Bytes);
+                let dst = builder.memory_object_data(ptr, crate::mir::MemoryObjectKind::Bytes);
+                let src = builder.add(base, word);
+                builder.calldatacopy(dst, src, len);
+                ptr
+            }
+            crate::mir::AbiParamType::Tuple(fields)
+                if fields
+                    .iter()
+                    .all(|field| matches!(field, crate::mir::AbiParamType::Scalar(_))) =>
+            {
+                let size = builder.imm_u64((fields.len() as u64).saturating_mul(32));
+                let ptr = builder.alloc_object(
+                    size,
+                    crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
+                    crate::mir::AllocationSemantics::INTERNAL,
+                );
+                let mut offset = 0;
+                for (index, field) in fields.iter().enumerate() {
+                    let crate::mir::AbiParamType::Scalar(scalar) = field else { unreachable!() };
+                    let field_offset = builder.imm_u64(offset);
+                    let position = builder.add(base, field_offset);
+                    let value = Self::decode_scalar(builder, *scalar, position, current);
+                    let slot = builder.memory_object_field_addr(
+                        ptr,
+                        crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
+                        index as u64,
+                    );
+                    builder.mstore(slot, value);
+                    offset += 32;
+                }
+                ptr
+            }
             _ => builder.undef(MirType::MemoryObject(crate::mir::MemoryObjectKind::FixedArray)),
         }
+    }
+
+    fn decode_scalar(
+        builder: &mut FunctionBuilder<'_>,
+        scalar: MirType,
+        position: ValueId,
+        current: &mut BlockId,
+    ) -> ValueId {
+        builder.switch_to_block(*current);
+        let value = builder.calldataload(position);
+        if let Some(validator) = AbiWordValidator::from_mir_type(scalar) {
+            let valid = validator.condition(builder, value);
+            let next = builder.create_block();
+            let revert = builder.create_block();
+            builder.branch(valid, next, revert);
+            builder.switch_to_block(revert);
+            let zero = builder.imm_u64(0);
+            builder.revert(zero, zero);
+            builder.switch_to_block(next);
+            *current = next;
+        }
+        value
     }
 
     fn is_supported_aggregate(ty: &crate::mir::AbiParamType) -> bool {
@@ -497,7 +555,14 @@ impl LowerAbiCx {
             ty,
             crate::mir::AbiParamType::DynamicArray(element)
                 if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(_))
-        )
+        ) || matches!(ty, crate::mir::AbiParamType::Bytes)
+            || matches!(
+                ty,
+                crate::mir::AbiParamType::Tuple(fields)
+                    if fields
+                        .iter()
+                        .all(|field| matches!(field, crate::mir::AbiParamType::Scalar(_)))
+            )
     }
 
     /// Prepends `if callvalue() != 0 { revert(0, 0) }` to a wrapper.

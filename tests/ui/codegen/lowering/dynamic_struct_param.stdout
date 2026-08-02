@@ -125,29 +125,10 @@ fn @init(arg0: u256, arg1: address) -> u256 [abi_returns=[word]] {
     ret v57
 }
 
-fn @flat(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
+fn @flat(arg0: memorystruct) -> u256 [abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v4 = memory_object_field_addr memorystruct<2>, v3, 0
-    mstore v4, arg0
-    v5 = calldataload 36
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = eq v5, v6
-    jumpi v7, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v8 = memory_object_field_addr memorystruct<2>, v3, 1
-    mstore v8, arg1
-    v9 = memory_object_field_addr memorystruct<2>, v3, 0
-    v10 = mload v9
-    ret v10
+    v0 = memory_object_field_addr memorystruct<2>, arg0, 0
+    v1 = mload v0
+    ret v1
 }
 

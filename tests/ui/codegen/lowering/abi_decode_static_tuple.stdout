@@ -2,65 +2,47 @@
 @module AbiDecodeStaticTuple
 fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_returns=[word, word, word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
+    mstore 128, 0
+    mstore 160, 0
+    mstore 192, 0
+    v0 = memory_object_len memorybytes, arg0
+    v1 = memory_object_data memorybytes, arg0
+    v2 = lt v0, 96
     jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v3 = add 4, arg0
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    mstore 128, 0
-    mstore 160, 0
-    mstore 192, 0
-    v12 = memory_object_len memorybytes, v9
-    v13 = memory_object_data memorybytes, v9
-    v14 = lt v12, 96
-    jumpi v14, bb3, bb4
+    v3 = mload v1
+    v4 = add v1, 32
+    v5 = mload v4
+    v6 = iszero v5
+    v7 = iszero v6
+    v8 = eq v5, v7
+    v9 = iszero v8
+    jumpi v9, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v15 = mload v13
-    v16 = add v13, 32
-    v17 = mload v16
-    v18 = iszero v17
-    v19 = iszero v18
-    v20 = eq v17, v19
-    v21 = iszero v20
-    jumpi v21, bb5, bb6
+    v10 = add v1, 64
+    v11 = mload v10
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
+    v13 = eq v11, v12
+    v14 = iszero v13
+    jumpi v14, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
-    v22 = add v13, 64
-    v23 = mload v22
-    v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
-    v25 = eq v23, v24
-    v26 = iszero v25
-    jumpi v26, bb7, bb8
-  bb7:
-    revert 0, 0
-  bb8:
-    v27 = fmp
-    v28 = add v27, 32
-    mstore v28, v19
-    v29 = add v27, 64
-    mstore v29, v24
-    mstore 32, v27 !metadata(memory=scratch)
-    v30 = mload 32 !metadata(memory=scratch)
-    v31 = add v30, 32
-    v32 = mload v31
-    v33 = add v30, 64
-    v34 = mload v33
-    ret v15, v32, v34
+    v15 = fmp
+    v16 = add v15, 32
+    mstore v16, v7
+    v17 = add v15, 64
+    mstore v17, v12
+    mstore 32, v15 !metadata(memory=scratch)
+    v18 = mload 32 !metadata(memory=scratch)
+    v19 = add v18, 32
+    v20 = mload v19
+    v21 = add v18, 64
+    v22 = mload v21
+    ret v3, v20, v22
 }
 

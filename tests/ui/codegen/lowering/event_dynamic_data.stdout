@@ -2,54 +2,36 @@
 @module EventDynamicData
 fn @text(arg0: memorybytes) {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
+    v0 = fmp
+    v1 = add v0, 64
+    v2 = sub v1, v0
+    mstore v0, v2
+    v3 = memory_object_len memorybytes, arg0
+    mstore v1, v3
+    v4 = not 31
+    v5 = add v3, 31
+    v6 = and v5, v4
+    v7 = add v1, 32
+    v8 = iszero v6
+    jumpi v8, bb2, bb1
   bb1:
-    revert 0, 0
+    v9 = sub v6, 32
+    v10 = add v7, v9
+    mstore v10, 0
+    jump bb2
   bb2:
-    v3 = add 4, arg0
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    v12 = fmp
-    v13 = add v12, 64
-    v14 = sub v13, v12
-    mstore v12, v14
-    v15 = memory_object_len memorybytes, v9
-    mstore v13, v15
+    v11 = memory_object_data memorybytes, arg0
+    v12 = add v7, v6
+    mcopy v7, v11, v3
+    v13 = add v0, 32
+    mstore v13, 7
+    v14 = sub v12, v0
+    v15 = add v14, 31
     v16 = not 31
-    v17 = add v15, 31
-    v18 = and v17, v16
-    v19 = add v13, 32
-    v20 = iszero v18
-    jumpi v20, bb4, bb3
-  bb3:
-    v21 = sub v18, 32
-    v22 = add v19, v21
-    mstore v22, 0
-    jump bb4
-  bb4:
-    v23 = memory_object_data memorybytes, v9
-    v24 = add v19, v18
-    mcopy v19, v23, v15
-    v25 = add v12, 32
-    mstore v25, 7
-    v26 = sub v24, v12
-    v27 = add v26, 31
-    v28 = not 31
-    v29 = and v27, v28
-    v30 = add v12, v29
-    set_fmp v30
-    log2 v12, v26, 0x1ec47f6be8a8bf4aa7aa1659aceb7cef3b607892101a00e4afd57e2ae4fbf3c4, 1
+    v17 = and v15, v16
+    v18 = add v0, v17
+    set_fmp v18
+    log2 v0, v14, 0x1ec47f6be8a8bf4aa7aa1659aceb7cef3b607892101a00e4afd57e2ae4fbf3c4, 1
     stop
 }
 
@@ -95,52 +77,34 @@ fn @literal() [abi_args=lazy] {
 
 fn @blob(arg0: memorybytes) {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
+    v0 = fmp
+    v1 = add v0, 32
+    v2 = sub v1, v0
+    mstore v0, v2
+    v3 = memory_object_len memorybytes, arg0
+    mstore v1, v3
+    v4 = not 31
+    v5 = add v3, 31
+    v6 = and v5, v4
+    v7 = add v1, 32
+    v8 = iszero v6
+    jumpi v8, bb2, bb1
   bb1:
-    revert 0, 0
+    v9 = sub v6, 32
+    v10 = add v7, v9
+    mstore v10, 0
+    jump bb2
   bb2:
-    v3 = add 4, arg0
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    v12 = fmp
-    v13 = add v12, 32
-    v14 = sub v13, v12
-    mstore v12, v14
-    v15 = memory_object_len memorybytes, v9
-    mstore v13, v15
-    v16 = not 31
-    v17 = add v15, 31
-    v18 = and v17, v16
-    v19 = add v13, 32
-    v20 = iszero v18
-    jumpi v20, bb4, bb3
-  bb3:
-    v21 = sub v18, 32
-    v22 = add v19, v21
-    mstore v22, 0
-    jump bb4
-  bb4:
-    v23 = memory_object_data memorybytes, v9
-    v24 = add v19, v18
-    mcopy v19, v23, v15
-    v25 = sub v24, v12
-    v26 = add v25, 31
-    v27 = not 31
-    v28 = and v26, v27
-    v29 = add v12, v28
-    set_fmp v29
-    log1 v12, v25, 0xd05ce3dc4caf4a4b252e3323bde615dc3b9d54623e1859c892f0b4ecf5e45164
+    v11 = memory_object_data memorybytes, arg0
+    v12 = add v7, v6
+    mcopy v7, v11, v3
+    v13 = sub v12, v0
+    v14 = add v13, 31
+    v15 = not 31
+    v16 = and v14, v15
+    v17 = add v0, v16
+    set_fmp v17
+    log1 v0, v13, 0xd05ce3dc4caf4a4b252e3323bde615dc3b9d54623e1859c892f0b4ecf5e45164
     stop
 }
 

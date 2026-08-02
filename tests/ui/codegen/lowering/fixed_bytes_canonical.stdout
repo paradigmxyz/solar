@@ -14,41 +14,23 @@ fn @fromHex() -> bytes1 [abi_args=lazy, abi_returns=[word]] {
 
 fn @compareElement(arg0: memorybytes) -> bool [abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
+    v0 = memory_object_len memorybytes, arg0
+    v1 = lt 0, v0
+    jumpi v1, bb2, bb1
   bb1:
-    revert 0, 0
-  bb2:
-    v3 = add 4, arg0
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    v12 = memory_object_len memorybytes, v9
-    v13 = lt 0, v12
-    jumpi v13, bb4, bb3
-  bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    v14 = memory_object_data memorybytes, v9
-    v15 = add v14, 0
-    v16 = mload v15
-    v17 = and v16, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v18 = and 1, 255
-    v19 = shl 248, v18
-    v20 = and v19, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v21 = eq v17, v20
-    ret v21
+  bb2:
+    v2 = memory_object_data memorybytes, arg0
+    v3 = add v2, 0
+    v4 = mload v3
+    v5 = and v4, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v6 = and 1, 255
+    v7 = shl 248, v6
+    v8 = and v7, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v9 = eq v5, v8
+    ret v9
 }
 
 fn @narrow(arg0: bytes4) -> bytes2 [abi_args=lazy, abi_returns=[word]] {

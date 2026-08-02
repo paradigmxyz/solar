@@ -8,14 +8,14 @@ contract MappingDynamicKey {
     mapping(string => address) public lookup;
 
     // CHECK-LABEL: fn @set{{[( ]}}
-    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_memory {{v[0-9]+}}, 0
+    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_memory arg0, 0
     // CHECK: sstore [[SLOT]], arg1
     function set(string memory name, address owner) public {
         lookup[name] = owner;
     }
 
     // CHECK-LABEL: fn @get{{[( ]}}
-    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_memory {{v[0-9]+}}, 0
+    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_memory arg0, 0
     // CHECK: sload [[SLOT]]
     function get(string memory name) public view returns (address) {
         return lookup[name];
@@ -64,7 +64,7 @@ contract MappingDynamicKeyPaths {
 
     // Nested mappings dispatch on the key type at every level.
     // CHECK-LABEL: fn @setNestedFirst{{[( ]}}
-    // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_memory {{v[0-9]+}}, 1
+    // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_memory arg0, 1
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot arg1, [[OUTER]]
     // CHECK: sstore [[INNER]], arg2
     function setNestedFirst(string memory k, address a, uint256 v) public {
@@ -72,7 +72,7 @@ contract MappingDynamicKeyPaths {
     }
 
     // CHECK-LABEL: fn @getNestedFirst{{[( ]}}
-    // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_memory {{v[0-9]+}}, 1
+    // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_memory arg0, 1
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot arg1, [[OUTER]]
     // CHECK: sload [[INNER]]
     function getNestedFirst(string memory k, address a) public view returns (uint256) {
@@ -81,7 +81,7 @@ contract MappingDynamicKeyPaths {
 
     // CHECK-LABEL: fn @setNestedSecond{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot arg0, 2
-    // CHECK: [[INNER:v[0-9]+]] = mapping_slot_memory {{v[0-9]+}}, [[OUTER]]
+    // CHECK: [[INNER:v[0-9]+]] = mapping_slot_memory arg1, [[OUTER]]
     // CHECK: sstore [[INNER]], arg2
     function setNestedSecond(address a, string memory k, uint256 v) public {
         nestedSecond[a][k] = v;

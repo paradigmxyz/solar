@@ -15,91 +15,55 @@ fn @fixedBytesArg(arg0: u256, arg1: address, arg2: bytes2) -> bytes32 [abi_args=
 
 fn @dynamicArg(arg0: bytes32, arg1: memorybytes) -> bytes32 [abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = add 4, arg1
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    v12 = fmp
-    mstore v12, arg0
-    v13 = add v12, 32
-    v14 = memory_object_len memorybytes, v9
-    v15 = memory_object_data memorybytes, v9
-    mcopy v13, v15, v14
-    v16 = add v13, v14
-    v17 = sub v16, v12
-    v18 = keccak256 v12, v17
-    ret v18
+    v0 = fmp
+    mstore v0, arg0
+    v1 = add v0, 32
+    v2 = memory_object_len memorybytes, arg1
+    v3 = memory_object_data memorybytes, arg1
+    mcopy v1, v3, v2
+    v4 = add v1, v2
+    v5 = sub v4, v0
+    v6 = keccak256 v0, v5
+    ret v6
 }
 
 fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 96
-    jumpi v2, bb1, bb2
+    v0 = calldataload 4
+    v1 = and v0, 0xffff
+    v2 = eq v0, v1
+    jumpi v2, bb2, bb1
   bb1:
     revert 0, 0
   bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
+    v3 = calldataload 68
+    v4 = iszero v3
+    v5 = iszero v4
+    v6 = eq v3, v5
+    jumpi v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v6 = add 4, arg1
-    v7 = calldataload v6
-    v8 = add v7, 31
-    v9 = not 31
-    v10 = and v8, v9
-    v11 = add v10, 32
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
-    v13 = memory_object_data memorybytes, v12
-    v14 = add v6, 32
-    calldatacopy v13, v14, v7
-    v15 = calldataload 68
-    v16 = iszero v15
-    v17 = iszero v16
-    v18 = eq v15, v17
-    jumpi v18, bb6, bb5
-  bb5:
-    revert 0, 0
-  bb6:
-    v19 = fmp
-    v20 = memory_object_data memorybytes, v19
-    v21 = shl 240, arg0
-    mstore v20, v21
-    v22 = add v20, 2
-    v23 = memory_object_len memorybytes, v12
-    v24 = memory_object_data memorybytes, v12
-    mcopy v22, v24, v23
-    v25 = add v22, v23
-    v26 = shl 248, arg2
-    mstore v25, v26
-    v27 = add v25, 1
-    v28 = sub v27, v20
-    v29 = add v28, 31
-    v30 = not 31
-    v31 = and v29, v30
-    v32 = add v31, 32
-    set_memory_object_len memorybytes, v19, v28
-    v33 = add v19, v32
-    set_fmp v33
-    ret v19
+    v7 = fmp
+    v8 = memory_object_data memorybytes, v7
+    v9 = shl 240, arg0
+    mstore v8, v9
+    v10 = add v8, 2
+    v11 = memory_object_len memorybytes, arg1
+    v12 = memory_object_data memorybytes, arg1
+    mcopy v10, v12, v11
+    v13 = add v10, v11
+    v14 = shl 248, arg2
+    mstore v13, v14
+    v15 = add v13, 1
+    v16 = sub v15, v8
+    v17 = add v16, 31
+    v18 = not 31
+    v19 = and v17, v18
+    v20 = add v19, 32
+    set_memory_object_len memorybytes, v7, v16
+    v21 = add v7, v20
+    set_fmp v21
+    ret v7
 }
 
