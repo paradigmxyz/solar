@@ -15,7 +15,7 @@ use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
 pub(super) fn lower(
     gcx: Gcx<'_>,
     contract_id: ContractId,
-    _child_bytecodes: &FxHashMap<ContractId, Bytes>,
+    child_bytecodes: &FxHashMap<ContractId, Bytes>,
 ) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
@@ -105,6 +105,7 @@ pub(super) fn lower(
             function_id,
             expose_selector,
             &mir_ids,
+            child_bytecodes,
         ) else {
             FunctionBuilder::new(module.function_mut(mir_id)).invalid();
             continue;
@@ -123,9 +124,13 @@ pub(super) fn lower(
         let mir_id = module.add_function(Function::new(solar_interface::Ident::with_dummy_span(
             solar_interface::kw::Constructor,
         )));
-        let Some(mut mir) =
-            function::lower_synthetic_constructor(gcx, &storage, contract_id, &mir_ids)
-        else {
+        let Some(mut mir) = function::lower_synthetic_constructor(
+            gcx,
+            &storage,
+            contract_id,
+            &mir_ids,
+            child_bytecodes,
+        ) else {
             FunctionBuilder::new(module.function_mut(mir_id)).invalid();
             return module;
         };

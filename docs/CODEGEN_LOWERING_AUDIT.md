@@ -45,8 +45,7 @@ production callers.
 
 The first is used by MIR tests. The second is used by contract compilation and
 the benchmark harness. Child bytecodes are deployment bytecode and remain part
-of that boundary; creation lowering will consume them after the creation
-operation is implemented.
+of that boundary for semantic contract creation.
 
 ## Replacement shape
 
@@ -67,10 +66,13 @@ The replacement is split into stateful, private components:
   selectors, and assembles the module.
 
 HIR lowering emits typed scalar MIR and semantic storage operations. External
-  functions retain typed parameters, ABI parameter shapes, and ABI return
-  layouts in built MIR. The existing `lower-abi` pass remains responsible for
-  calldata wrappers, decoding, and external termination. No new lowering code
-  reads or updates the free-memory pointer.
+functions retain typed parameters, ABI parameter shapes, and ABI return
+layouts in built MIR. The existing `lower-abi` pass remains responsible for
+calldata wrappers, decoding, and external termination. No new lowering code
+reads or updates the free-memory pointer. Contract creation receives compiled
+child deployment bytecode through the public lowering boundary and appends
+semantic ABI-encoded constructor arguments before emitting `create` or
+`create2`.
 
 ## Verified replacement slice
 
@@ -108,6 +110,9 @@ existing scalar and packed-storage MIR fixtures. It supports:
   discarded tuple values for their side effects;
 * low-level and typed external calls, including returndata capture and EVM-version
   checks;
+* contract creation with compiled child deployment bytecode, semantic
+  constructor ABI encoding, `value`/`salt` options, and forwarding of failed
+  creation returndata;
 * `abi.decode` scalar, tuple, dynamic-array, and calldata-slice paths through
   semantic memory slices and object copies; struct targets still fail closed;
 * `ecrecover`, `sha256`, and `ripemd160` through version-aware precompile
@@ -133,7 +138,7 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    constructor arguments, and cover the remaining constructor modifier edge
    cases with Solc-backed runtime tests.
 3. Add the remaining call and language features: events, Yul statements,
-   contract creation, immutables, and function-pointer dispatch.
+   immutables, and function-pointer dispatch.
 4. Finish storage-reference CFG merging for every aggregate shape and audit
    checked arithmetic and allocation guards against the corresponding Solc
    behavior.

@@ -13,7 +13,7 @@ use crate::{
         SliceLocation, ValueId,
     },
 };
-use alloy_primitives::{U256, keccak256};
+use alloy_primitives::{Bytes, U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, UnOpKind};
 use solar_data_structures::map::{FxHashMap, StdEntry};
 use solar_interface::{Span, sym};
@@ -35,6 +35,7 @@ pub(super) fn lower(
     id: hir::FunctionId,
     expose_selector: bool,
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
+    child_bytecodes: &FxHashMap<hir::ContractId, Bytes>,
 ) -> Option<Function> {
     let hir_function = gcx.hir.function(id);
     let mut mir = contract::declaration(gcx, id, hir_function);
@@ -67,7 +68,8 @@ pub(super) fn lower(
         mir.abi_args_lazy = true;
     }
 
-    let mut lowerer = FunctionLowerer::new(gcx, storage, contract_id, function_ids, &mut mir);
+    let mut lowerer =
+        FunctionLowerer::new(gcx, storage, contract_id, function_ids, child_bytecodes, &mut mir);
     lowerer.bind_signature(hir_function);
     if hir_function.kind == hir::FunctionKind::Constructor {
         let Some(contract_id) = hir_function.contract else {
@@ -92,11 +94,13 @@ pub(super) fn lower_synthetic_constructor(
     storage: &StorageLayout,
     contract_id: hir::ContractId,
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
+    child_bytecodes: &FxHashMap<hir::ContractId, Bytes>,
 ) -> Option<Function> {
     let mut mir =
         Function::new(solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor));
     mir.attributes.is_constructor = true;
-    let mut lowerer = FunctionLowerer::new(gcx, storage, contract_id, function_ids, &mut mir);
+    let mut lowerer =
+        FunctionLowerer::new(gcx, storage, contract_id, function_ids, child_bytecodes, &mut mir);
     lowerer.lower_state_initializers(contract_id)?;
     lowerer.lower_implicit_base_constructors(contract_id)?;
     if !lowerer.is_terminated() {
@@ -110,11 +114,12 @@ pub(super) fn lower_synthetic_constructor(
 /// Keeping the HIR context, variable environment, loop targets, and builder in
 /// one object makes scope changes explicit. Child lowering methods do not need
 /// to pass a growing collection of loosely related maps and flags.
-struct FunctionLowerer<'gcx, 'mir, 'ids> {
+struct FunctionLowerer<'gcx, 'mir, 'ids, 'bytes> {
     gcx: Gcx<'gcx>,
     storage: &'mir StorageLayout,
     contract_id: hir::ContractId,
     function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
+    child_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
     builder: FunctionBuilder<'mir>,
     types: types::TypeLowerer<'gcx>,
     values: FxHashMap<VariableId, ValueId>,
@@ -175,12 +180,13 @@ impl BuiltinArgCount {
     }
 }
 
-impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
+impl<'gcx, 'mir, 'ids, 'bytes> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes> {
     fn new(
         gcx: Gcx<'gcx>,
         storage: &'mir StorageLayout,
         contract_id: hir::ContractId,
         function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
+        child_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
         function: &'mir mut Function,
     ) -> Self {
         Self {
@@ -188,6 +194,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             storage,
             contract_id,
             function_ids,
+            child_bytecodes,
             builder: FunctionBuilder::new(function),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
@@ -1092,7 +1099,9 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                 let rhs = self.lower_expr(rhs)?;
                 Some(self.binary(op.kind, lhs, rhs))
             }
-            ExprKind::Call(callee, args, _) => self.lower_call(expr, callee, *args),
+            ExprKind::Call(callee, args, call_opts) => {
+                self.lower_call(expr, callee, *args, *call_opts)
+            }
             ExprKind::Delete(value) => {
                 self.delete_lvalue(value)?;
                 Some(self.builder.imm_u256(U256::ZERO))
@@ -1780,6 +1789,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         expr: &hir::Expr<'_>,
         callee: &hir::Expr<'_>,
         args: hir::CallArgs<'_>,
+        call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
         let arguments = args.exprs().collect::<Vec<_>>();
         if let Some(struct_id) = self.gcx.resolved_expr(callee).and_then(|res| match res {
@@ -1799,7 +1809,10 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                 self.gcx.type_of_expr(expr.id)?,
             ));
         }
-        if matches!(callee.kind, ExprKind::New(_)) {
+        if let ExprKind::New(ty) = &callee.kind {
+            if let TyKind::Contract(contract_id) = self.gcx.type_of_hir_ty(ty).kind {
+                return self.lower_new_contract(expr, ty, contract_id, args, call_opts);
+            }
             let [arg] = arguments.as_slice() else {
                 return report_unsupported(self.gcx, expr.span, "dynamic allocation");
             };
@@ -1853,6 +1866,118 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             return Some(self.builder.imm_u256(U256::ZERO));
         }
         report_unsupported(self.gcx, expr.span, "function call")
+    }
+
+    fn lower_new_contract(
+        &mut self,
+        _expr: &hir::Expr<'_>,
+        ty: &hir::Type<'_>,
+        contract_id: hir::ContractId,
+        args: hir::CallArgs<'_>,
+        call_opts: Option<&hir::CallOptions<'_>>,
+    ) -> Option<ValueId> {
+        let contract = self.gcx.hir.contract(contract_id);
+        let bytecode = self.child_bytecodes.get(&contract_id).ok_or_else(|| {
+            self.gcx
+                .dcx()
+                .err(format!("codegen is missing creation bytecode for `new {}`", contract.name))
+                .span(ty.span)
+                .note("the deployed contract did not compile or was not lowered first")
+                .emit()
+        });
+        let Ok(bytecode) = bytecode else { return None };
+
+        let mut call_value = self.builder.imm_u256(U256::ZERO);
+        let mut salt = None;
+        if let Some(options) = call_opts {
+            for option in options.args {
+                let value = self.lower_expr(&option.value)?;
+                match option.name.name {
+                    sym::value => call_value = value,
+                    sym::salt => salt = Some(value),
+                    _ => return report_unsupported(self.gcx, option.name.span, "creation option"),
+                }
+            }
+        }
+
+        let (parameters, parameter_names) = contract
+            .ctor
+            .map(|id| {
+                let constructor = self.gcx.hir.function(id);
+                (
+                    constructor.parameters,
+                    self.gcx.callable_param_names(CallableParamSource::Function {
+                        id,
+                        skips_receiver: false,
+                    }),
+                )
+            })
+            .unwrap_or((&[], Vec::new().into()));
+        if args.len() != parameters.len() {
+            return report_unsupported(self.gcx, args.span, "constructor arguments");
+        }
+
+        let mut values = Vec::with_capacity(parameters.len());
+        let mut types = Vec::with_capacity(parameters.len());
+        for (index, &parameter) in parameters.iter().enumerate() {
+            let Some(argument) =
+                args.argument_for_parameter(index, Some(parameter_names.as_slice()))
+            else {
+                return report_unsupported(self.gcx, args.span, "constructor argument");
+            };
+            let parameter_ty = self.gcx.type_of_item(parameter.into());
+            let mut value = self.lower_expr(argument)?;
+            let mut abi_type = self.types.abi_type(parameter_ty)?;
+            if self.needs_calldata_materialization(value, &abi_type) {
+                value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
+                abi_type = Self::memory_abi_type(abi_type);
+            }
+            values.push(value);
+            types.push(abi_type);
+        }
+        let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+        let encoded = self.builder.abi_encode(layout, None, values.into_boxed_slice());
+        let encoded_len = self.builder.slice_len(encoded);
+
+        let bytecode_len = u64::try_from(bytecode.len()).ok()?;
+        let bytecode_len_value = self.builder.imm_u64(bytecode_len);
+        let total_len = self.checked_add(bytecode_len_value, encoded_len);
+        let thirty_one = self.builder.imm_u64(31);
+        let rounded = self.checked_add(total_len, thirty_one);
+        let word_size = self.builder.imm_u64(32);
+        let words = self.builder.div(rounded, word_size);
+        let one = self.builder.imm_u64(1);
+        let object_words = self.checked_add(words, one);
+        let size = self.checked_mul(object_words, word_size);
+        let object = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::INTERNAL,
+        );
+        self.builder.set_memory_object_len(object, total_len, MemoryObjectKind::Bytes);
+
+        for (index, chunk) in bytecode.chunks(32).enumerate() {
+            let mut padded = [0u8; 32];
+            padded[..chunk.len()].copy_from_slice(chunk);
+            let offset = self.builder.imm_u64(u64::try_from(index).ok()?.saturating_mul(32));
+            let value = self.builder.imm_u256(U256::from_be_bytes(padded));
+            self.builder.memory_object_store_word(object, offset, value);
+        }
+        self.builder.memory_object_copy_from_slice_at(
+            object,
+            MemoryObjectKind::Bytes,
+            bytecode_len_value,
+            encoded,
+        );
+
+        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        let created = if let Some(salt) = salt {
+            self.builder.create2(call_value, data, total_len, salt)
+        } else {
+            self.builder.create(call_value, data, total_len)
+        };
+        self.revert_external_call(created);
+        Some(created)
     }
 
     fn lower_external_function_pointer_call(
