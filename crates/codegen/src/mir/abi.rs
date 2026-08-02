@@ -23,6 +23,12 @@ impl AbiLayout {
         self.types.iter().map(AbiType::head_size).sum()
     }
 
+    /// Returns the tuple head size, or `None` when it exceeds the ABI layout range.
+    #[must_use]
+    pub(crate) fn checked_head_size(&self) -> Option<u64> {
+        self.types.iter().try_fold(0u64, |size, ty| size.checked_add(ty.checked_head_size()?))
+    }
+
     /// Returns the number of scratch words required by the encoder.
     #[must_use]
     pub(crate) fn scratch_words(&self) -> u64 {
@@ -54,6 +60,12 @@ impl AbiParamLayout {
     #[must_use]
     pub(crate) fn head_size(&self) -> u64 {
         self.types.iter().map(AbiParamType::head_size).sum()
+    }
+
+    /// Returns the tuple head size, or `None` when it exceeds the ABI layout range.
+    #[must_use]
+    pub(crate) fn checked_head_size(&self) -> Option<u64> {
+        self.types.iter().try_fold(0u64, |size, ty| size.checked_add(ty.checked_head_size()?))
     }
 }
 
@@ -156,6 +168,22 @@ impl AbiParamType {
             _ => 32,
         }
     }
+
+    /// Returns the static head size, or `None` when the shape exceeds the
+    /// representable ABI layout range.
+    #[must_use]
+    pub(crate) fn checked_head_size(&self) -> Option<u64> {
+        if self.is_dynamic() {
+            return Some(32);
+        }
+        match self {
+            Self::FixedArray { element, len } => element.checked_head_size()?.checked_mul(*len),
+            Self::Tuple(fields) => fields
+                .iter()
+                .try_fold(0u64, |size, field| size.checked_add(field.checked_head_size()?)),
+            _ => Some(32),
+        }
+    }
 }
 
 /// The ABI-relevant shape and source representation of one value.
@@ -205,6 +233,22 @@ impl AbiType {
             Self::FixedArray { element, len } => element.head_size() * len,
             Self::Tuple(fields) => fields.iter().map(Self::head_size).sum(),
             _ => 32,
+        }
+    }
+
+    /// Returns the static head size, or `None` when the shape exceeds the
+    /// representable ABI layout range.
+    #[must_use]
+    pub(crate) fn checked_head_size(&self) -> Option<u64> {
+        if self.is_dynamic() {
+            return Some(32);
+        }
+        match self {
+            Self::FixedArray { element, len } => element.checked_head_size()?.checked_mul(*len),
+            Self::Tuple(fields) => fields
+                .iter()
+                .try_fold(0u64, |size, field| size.checked_add(field.checked_head_size()?)),
+            _ => Some(32),
         }
     }
 

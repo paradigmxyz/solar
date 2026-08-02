@@ -35,17 +35,17 @@ impl<'gcx> Lowerer<'gcx> {
         let return_types =
             returns.iter().map(|&id| self.gcx.type_of_item(id.into())).collect::<Vec<_>>();
 
-        let external_arg_head_size = if has_abi_inputs {
-            self.abi_head_size_sum(parameters.iter().map(|&id| self.gcx.type_of_item(id.into())))?
+        let param_layout = if has_abi_inputs {
+            let types = parameters
+                .iter()
+                .map(|&id| self.abi_param_type(self.gcx.type_of_item(id.into())))
+                .collect::<Option<Vec<_>>>()
+                .ok_or_else(|| self.abi_type_error())?;
+            Some(AbiParamLayout::new(types))
         } else {
-            0
+            None
         };
-        let external_static_return_size =
-            if uses_external_abi && !return_types.iter().any(|&ty| self.abi_is_dynamic(ty)) {
-                self.abi_head_size_sum(return_types.iter().copied())?
-            } else {
-                0
-            };
+
         let return_layout = if uses_external_abi && !return_types.is_empty() {
             let types = return_types
                 .iter()
@@ -56,15 +56,23 @@ impl<'gcx> Lowerer<'gcx> {
             None
         };
 
-        let param_layout = if has_abi_inputs {
-            let types = parameters
-                .iter()
-                .map(|&id| self.abi_param_type(self.gcx.type_of_item(id.into())))
-                .collect::<Option<Vec<_>>>()
-                .ok_or_else(|| self.abi_type_error())?;
-            Some(AbiParamLayout::new(types))
+        let external_arg_head_size = if has_abi_inputs {
+            param_layout
+                .as_ref()
+                .and_then(AbiParamLayout::checked_head_size)
+                .ok_or_else(|| self.abi_head_size_overflow())?
         } else {
-            None
+            0
+        };
+        let external_static_return_size = if uses_external_abi && !return_types.is_empty() {
+            let layout = return_layout.as_ref().expect("return layout exists for ABI returns");
+            if layout.types.iter().any(AbiType::is_dynamic) {
+                0
+            } else {
+                layout.checked_head_size().ok_or_else(|| self.abi_head_size_overflow())?
+            }
+        } else {
+            0
         };
 
         Ok(FunctionAbi {
@@ -168,7 +176,7 @@ impl<'gcx> Lowerer<'gcx> {
                     }
                 };
                 let element = Box::new(self.abi_type_inner(element, false, visiting)?);
-                if len.checked_mul(element.head_size()).is_none() {
+                if len.checked_mul(element.checked_head_size()?).is_none() {
                     self.abi_head_size_overflow();
                     return None;
                 }
@@ -206,45 +214,13 @@ impl<'gcx> Lowerer<'gcx> {
     /// Whether `ty` is encoded dynamically (offset slot in the head + data in the
     /// tail): `bytes`/`string`, dynamic arrays, and any aggregate containing one.
     pub(super) fn abi_is_dynamic(&self, ty: Ty<'gcx>) -> bool {
-        let ty = ty.peel_refs();
-        match ty.kind {
-            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
-            | TyKind::DynArray(_)
-            | TyKind::Slice(_) => true,
-            TyKind::Struct(id) => {
-                ty.is_recursive(self.gcx)
-                    || self.gcx.struct_field_types(id).iter().any(|&f| self.abi_is_dynamic(f))
-            }
-            TyKind::Array(elem, _) => self.abi_is_dynamic(elem),
-            TyKind::Tuple(fields) => fields.iter().any(|&f| self.abi_is_dynamic(f)),
-            TyKind::Udvt(inner, _) => self.abi_is_dynamic(inner),
-            _ => false,
-        }
+        self.abi_type(ty, false).is_none_or(|abi| abi.is_dynamic())
     }
 
     /// Static ABI head size, in bytes, of one top-level item.
     pub(super) fn abi_head_size(&self, ty: Ty<'gcx>) -> Result<u64, ErrorGuaranteed> {
-        // A storage reference (a mapping, or a struct/array in storage — legal
-        // for library function parameters) travels as its slot: one word.
-        if matches!(ty.kind, TyKind::Mapping(..) | TyKind::Ref(_, solar_ast::DataLocation::Storage))
-        {
-            return Ok(32);
-        }
-        let ty = ty.peel_refs();
-        if self.abi_is_dynamic(ty) {
-            return Ok(32);
-        }
-        match ty.kind {
-            TyKind::Array(elem, n) => {
-                let len = u64::try_from(n).map_err(|_| self.abi_head_size_overflow())?;
-                len.checked_mul(self.abi_head_size(elem)?)
-                    .ok_or_else(|| self.abi_head_size_overflow())
-            }
-            TyKind::Struct(id) => {
-                self.abi_head_size_sum(self.gcx.struct_field_types(id).iter().copied())
-            }
-            _ => Ok(32),
-        }
+        let abi = self.abi_type(ty, false).ok_or_else(|| self.abi_type_error())?;
+        abi.checked_head_size().ok_or_else(|| self.abi_head_size_overflow())
     }
 
     pub(super) fn abi_head_size_sum(
