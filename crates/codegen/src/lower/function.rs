@@ -29,6 +29,7 @@ pub(super) fn lower(
     gcx: Gcx<'_>,
     module: &mut Module,
     storage: &StorageLayout,
+    contract_id: hir::ContractId,
     id: hir::FunctionId,
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
 ) -> Option<Function> {
@@ -60,7 +61,7 @@ pub(super) fn lower(
         mir.abi_args_lazy = true;
     }
 
-    let mut lowerer = FunctionLowerer::new(gcx, storage, function_ids, &mut mir);
+    let mut lowerer = FunctionLowerer::new(gcx, storage, contract_id, function_ids, &mut mir);
     lowerer.bind_signature(hir_function);
     if hir_function.kind == hir::FunctionKind::Constructor {
         let Some(contract_id) = hir_function.contract else {
@@ -89,7 +90,7 @@ pub(super) fn lower_synthetic_constructor(
     let mut mir =
         Function::new(solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor));
     mir.attributes.is_constructor = true;
-    let mut lowerer = FunctionLowerer::new(gcx, storage, function_ids, &mut mir);
+    let mut lowerer = FunctionLowerer::new(gcx, storage, contract_id, function_ids, &mut mir);
     lowerer.lower_state_initializers(contract_id)?;
     lowerer.lower_implicit_base_constructors(contract_id)?;
     if !lowerer.is_terminated() {
@@ -106,6 +107,7 @@ pub(super) fn lower_synthetic_constructor(
 struct FunctionLowerer<'gcx, 'mir, 'ids> {
     gcx: Gcx<'gcx>,
     storage: &'mir StorageLayout,
+    contract_id: hir::ContractId,
     function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
     builder: FunctionBuilder<'mir>,
     types: types::TypeLowerer<'gcx>,
@@ -165,12 +167,14 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
     fn new(
         gcx: Gcx<'gcx>,
         storage: &'mir StorageLayout,
+        contract_id: hir::ContractId,
         function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
         function: &'mir mut Function,
     ) -> Self {
         Self {
             gcx,
             storage,
+            contract_id,
             function_ids,
             builder: FunctionBuilder::new(function),
             types: types::TypeLowerer::new(gcx),
@@ -425,6 +429,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         let hir::ItemId::Function(modifier_id) = modifier.id else {
             return report_unsupported(self.gcx, modifier.span, "base constructor modifier");
         };
+        let modifier_id = self.gcx.resolve_virtual_function(self.contract_id, modifier_id);
         let modifier_function = self.gcx.hir.function(modifier_id);
         if modifier_function.kind == hir::FunctionKind::Constructor {
             return self.lower_modifier_at(modifiers, body, index + 1);
@@ -2029,6 +2034,15 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                 let _ = self.builtin_args::<0>(builtin, &args)?;
                 Some(self.builder.gas())
             }
+            Builtin::Blockhash | Builtin::Blobhash => {
+                let value = &self.builtin_args::<1>(builtin, &args)?[0];
+                let value = self.lower_expr(value)?;
+                Some(if builtin == Builtin::Blockhash {
+                    self.builder.blockhash(value)
+                } else {
+                    self.builder.blobhash(value)
+                })
+            }
             Builtin::AbiEncode => {
                 let _ = self.variadic_builtin_args(builtin, &args)?;
                 self.unsupported_builtin(builtin, args.span)
@@ -2322,6 +2336,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         function_id: hir::FunctionId,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
+        let function_id = self.resolve_call_target(callee, function_id);
         let function = self.gcx.hir.function(function_id);
         if args.len() != function.parameters.len() {
             return report_unsupported(self.gcx, expr.span, "function argument list");
@@ -2347,6 +2362,25 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             self.gcx.type_of_item((*function.returns.first()?).into()),
         );
         Some(self.builder.internal_call(mir_id, values, result_ty, function.returns.len()))
+    }
+
+    fn resolve_call_target(
+        &self,
+        callee: &hir::Expr<'_>,
+        function: hir::FunctionId,
+    ) -> hir::FunctionId {
+        if let ExprKind::Member(base, _) = callee.kind
+            && let Some(TyKind::Type(ty)) = self.gcx.type_of_expr(base.id).map(|ty| ty.kind)
+        {
+            return match ty.kind {
+                TyKind::Contract(_) => function,
+                TyKind::Super(defining_contract) => {
+                    self.gcx.resolve_super_function(self.contract_id, defining_contract, function)
+                }
+                _ => self.gcx.resolve_virtual_function(self.contract_id, function),
+            };
+        }
+        self.gcx.resolve_virtual_function(self.contract_id, function)
     }
 
     fn lower_tuple(
@@ -2453,6 +2487,9 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         receiver: &hir::Expr<'_>,
         name: solar_interface::Ident,
     ) -> Option<ValueId> {
+        if let Some(builtin) = self.gcx.resolved_builtin(expr) {
+            return self.lower_environment_builtin(expr, builtin);
+        }
         if let Some(access) = self.storage_access(expr) {
             return self.load_storage_access(expr, access);
         }
@@ -2499,6 +2536,67 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
         let layout = self.types.memory_layout(receiver_ty)?;
         Some(self.builder.memory_object_load_field(object, layout, field as u64))
+    }
+
+    fn lower_environment_builtin(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        builtin: Builtin,
+    ) -> Option<ValueId> {
+        if matches!(builtin, Builtin::TypeMin | Builtin::TypeMax) {
+            let ExprKind::Member(receiver, _) = &expr.kind else {
+                return report_unsupported(self.gcx, expr.span, "type limit");
+            };
+            let value = self.type_limit(receiver, expr.span, builtin == Builtin::TypeMax)?;
+            return Some(self.builder.imm_u256(value));
+        }
+        Some(match builtin {
+            Builtin::BlockCoinbase => self.builder.coinbase(),
+            Builtin::BlockTimestamp => self.builder.timestamp(),
+            Builtin::BlockDifficulty | Builtin::BlockPrevrandao => self.builder.prevrandao(),
+            Builtin::BlockNumber => self.builder.number(),
+            Builtin::BlockGaslimit => self.builder.gaslimit(),
+            Builtin::BlockChainid => self.builder.chainid(),
+            Builtin::BlockBasefee => self.builder.basefee(),
+            Builtin::BlockBlobbasefee => self.builder.blobbasefee(),
+            Builtin::MsgSender => self.builder.caller(),
+            Builtin::MsgGas => self.builder.gas(),
+            Builtin::MsgValue => self.builder.callvalue(),
+            Builtin::MsgSig => {
+                let offset = self.builder.imm_u64(0);
+                let word = self.builder.calldataload(offset);
+                let shift = self.builder.imm_u64(224);
+                self.builder.shr(shift, word)
+            }
+            Builtin::TxOrigin => self.builder.origin(),
+            Builtin::TxGasPrice => self.builder.gasprice(),
+            _ => return report_unsupported(self.gcx, expr.span, "environment builtin"),
+        })
+    }
+
+    fn type_limit(&self, receiver: &hir::Expr<'_>, span: Span, maximum: bool) -> Option<U256> {
+        let TyKind::Meta(ty) = self.gcx.type_of_expr(receiver.id)?.kind else {
+            return report_unsupported(self.gcx, span, "type limit");
+        };
+        match ty.peel_refs().kind {
+            TyKind::Enum(id) => {
+                let max = self.gcx.hir.enumm(id).variants.len().saturating_sub(1);
+                Some(U256::from(if maximum { max } else { 0 }))
+            }
+            TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(size)) => {
+                let max = (U256::from(1) << size.bits()) - U256::from(1);
+                Some(if maximum { max } else { U256::ZERO })
+            }
+            TyKind::Elementary(solar_sema::hir::ElementaryType::Int(size)) => {
+                let magnitude = U256::from(1) << (size.bits() - 1);
+                Some(if maximum {
+                    magnitude - U256::from(1)
+                } else {
+                    U256::MAX - magnitude + U256::from(1)
+                })
+            }
+            _ => report_unsupported(self.gcx, span, "type limit"),
+        }
     }
 
     fn lower_index(
