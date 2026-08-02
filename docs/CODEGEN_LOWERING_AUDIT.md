@@ -129,6 +129,8 @@ describes observable structure in the current tree, not an intended design.
   to the revert boundary.
 * SHA-256 and RIPEMD-160 precompile results write into a typed bytes object and
   load the result through its semantic element operation.
+* High-level external-call value returns use a typed fixed-array output object;
+  only the call boundary receives its lowered data pointer.
 * Object-backed constructor and linked-library payload assembly uses
   `memory_object_store_word`; only memory lowering forms payload addresses.
 * ABI tail lengths and nested dynamic-array heads read through

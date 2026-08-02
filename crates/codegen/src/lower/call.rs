@@ -1679,8 +1679,8 @@ impl<'gcx> Lowerer<'gcx> {
 
         let addr = self.lower_value_expr(builder, base);
 
-        // Determine where to store return data and whether it's a struct
-        let (ret_offset, ret_size, struct_ptr_opt) =
+        // Determine where to store return data and whether it's a struct.
+        let (ret_offset, ret_size, struct_ptr_opt, value_return_object) =
             if let Some((_struct_id, field_count)) = struct_return_info {
                 // For struct returns, reserve a separate output allocation.
                 let struct_size = (field_count as u64) * 32;
@@ -1692,13 +1692,18 @@ impl<'gcx> Lowerer<'gcx> {
                 );
 
                 let ret_size = builder.imm_u64(struct_size);
-                (struct_ptr, ret_size, Some(struct_ptr))
+                (struct_ptr, ret_size, Some(struct_ptr), None)
+            } else if num_returns != 0 {
+                let len = num_returns as u64;
+                let layout = MemoryObjectLayout::FixedArray { len, element_words: 1 };
+                let size = builder.imm_u64(len * 32);
+                let object =
+                    builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL);
+                let ret_offset = builder.memory_object_data(object, MemoryObjectKind::FixedArray);
+                (ret_offset, size, None, Some(object))
             } else {
-                // Reuse the unbumped calldata allocation for return data. CALL
-                // has consumed the input before writing output.
-                let ret_offset = if num_returns > 1 { calldata_start } else { builder.imm_u64(0) };
-                let ret_size = builder.imm_u64((num_returns * 32) as u64);
-                (ret_offset, ret_size, None)
+                let zero = builder.imm_u64(0);
+                (zero, zero, None, None)
             };
 
         let kind = self.external_function_call_kind(Some(resolved_func));
@@ -1731,6 +1736,15 @@ impl<'gcx> Lowerer<'gcx> {
         // Just return the pointer.
         if let Some(struct_ptr) = struct_ptr_opt {
             return Some(struct_ptr);
+        }
+
+        if let Some(object) = value_return_object {
+            let index = builder.imm_u64(0);
+            return Some(builder.memory_object_load_element(
+                object,
+                MemoryObjectLayout::FixedArray { len: num_returns as u64, element_words: 1 },
+                index,
+            ));
         }
 
         // Load first return value from memory
