@@ -390,8 +390,8 @@ impl<'gcx> Lowerer<'gcx> {
         builder.jump(done_block);
 
         builder.switch_to_block(long_block);
-        let data_slot = builder.storage_array_data_slot(slot);
         let remaining = builder.div(padded, word_size);
+        let zero = builder.imm_u64(0);
 
         let cond_block = builder.create_block();
         let body_block = builder.create_block();
@@ -400,23 +400,23 @@ impl<'gcx> Lowerer<'gcx> {
 
         builder.switch_to_block(cond_block);
         let remaining_phi = builder.phi(vec![(preheader, remaining)]);
-        let storage_slot_phi = builder.phi(vec![(preheader, data_slot)]);
+        let index_phi = builder.phi(vec![(preheader, zero)]);
         let dst_phi = builder.phi(vec![(preheader, data_ptr)]);
-        let zero = builder.imm_u64(0);
         let has_remaining = builder.gt(remaining_phi, zero);
         builder.branch(has_remaining, body_block, done_block);
 
         builder.switch_to_block(body_block);
-        let data_word = builder.sload(storage_slot_phi);
+        let storage_slot = builder.storage_array_element_slot(slot, index_phi, 1);
+        let data_word = builder.sload(storage_slot);
         builder.mstore(dst_phi, data_word);
-        let next_storage_slot = builder.add(storage_slot_phi, one);
         let word_size = builder.imm_u64(32);
         let next_dst = builder.add(dst_phi, word_size);
         let next_remaining = builder.sub(remaining_phi, one);
+        let next_index = builder.add(index_phi, one);
         let latch = builder.current_block();
         builder.jump(cond_block);
         builder.add_phi_incoming(remaining_phi, latch, next_remaining);
-        builder.add_phi_incoming(storage_slot_phi, latch, next_storage_slot);
+        builder.add_phi_incoming(index_phi, latch, next_index);
         builder.add_phi_incoming(dst_phi, latch, next_dst);
 
         builder.switch_to_block(done_block);
@@ -465,7 +465,6 @@ impl<'gcx> Lowerer<'gcx> {
         // Loop counters remain in a typed frame slot while storage words are
         // copied and cleared.
         let scratch = self.alloc_temp_frame_word();
-        let data_slot = builder.storage_array_data_slot(slot);
 
         let short_block = builder.create_block();
         let long_block = builder.create_block();
@@ -510,7 +509,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         builder.switch_to_block(copy_body);
         let i = self.load_temp_frame_word(builder, scratch);
-        let dst = builder.add(data_slot, i);
+        let dst = builder.storage_array_element_slot(slot, i, 1);
         let src_off = builder.mul(i, word_size);
         let src = builder.add(data, src_off);
         let data_word = builder.mload(src);
@@ -532,7 +531,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         builder.switch_to_block(clear_body);
         let j = self.load_temp_frame_word(builder, scratch);
-        let clear_dst = builder.add(data_slot, j);
+        let clear_dst = builder.storage_array_element_slot(slot, j, 1);
         builder.sstore(clear_dst, zero);
         let next_j = builder.add(j, one);
         self.store_temp_frame_word(builder, scratch, next_j);

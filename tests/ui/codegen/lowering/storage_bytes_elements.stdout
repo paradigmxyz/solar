@@ -30,23 +30,23 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     mstore v14, v15
     jump bb3
   bb2:
-    v16 = storage_array_data_slot arg0
-    v17 = div v9, 32
+    v16 = div v9, 32
     jump bb4
   bb3:
     ret v13
   bb4:
-    v18 = phi [bb2: v17], [bb5: v25]
-    v19 = phi [bb2: v16], [bb5: v23]
-    v20 = phi [bb2: v14], [bb5: v24]
-    v21 = gt v18, 0
-    jumpi v21, bb5, bb3
+    v17 = phi [bb2: v16], [bb5: v24]
+    v18 = phi [bb2: 0], [bb5: v25]
+    v19 = phi [bb2: v14], [bb5: v23]
+    v20 = gt v17, 0
+    jumpi v20, bb5, bb3
   bb5:
-    v22 = sload v19 !metadata(storage=symbolic(v19))
-    mstore v20, v22
-    v23 = add v19, 1
-    v24 = add v20, 32
-    v25 = sub v18, 1
+    v21 = storage_array_element_slot arg0, v18, 1
+    v22 = sload v21 !metadata(storage=symbolic(v21))
+    mstore v19, v22
+    v23 = add v19, 32
+    v24 = sub v17, 1
+    v25 = add v18, 1
     jump bb4
 }
 
@@ -71,51 +71,50 @@ fn @init(arg0: memorybytes) {
     v16 = div v15, 32
     v17 = gt v0, 31
     v18 = select v17, v16, 0
-    v19 = storage_array_data_slot 0
     jumpi v17, bb2, bb1
   bb1:
-    v20 = mload v1
-    v21 = mul v0, 8
-    v22 = shr v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v23 = not v22
-    v24 = and v20, v23
-    v25 = shl 1, v0
-    v26 = or v24, v25
-    sstore 0, v26 !metadata(storage=slot(0))
+    v19 = mload v1
+    v20 = mul v0, 8
+    v21 = shr v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v22 = not v21
+    v23 = and v19, v22
+    v24 = shl 1, v0
+    v25 = or v23, v24
+    sstore 0, v25 !metadata(storage=slot(0))
     jump bb5
   bb2:
-    v27 = shl 1, v0
-    v28 = or v27, 1
-    sstore 0, v28 !metadata(storage=slot(0))
+    v26 = shl 1, v0
+    v27 = or v26, 1
+    sstore 0, v27 !metadata(storage=slot(0))
     frame_store scratch, word, 0, 0 !metadata(memory=scratch)
     jump bb3
   bb3:
-    v29 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v30 = lt v29, v18
-    jumpi v30, bb4, bb5
+    v28 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v29 = lt v28, v18
+    jumpi v29, bb4, bb5
   bb4:
-    v31 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v32 = add v19, v31
-    v33 = mul v31, 32
-    v34 = add v1, v33
-    v35 = mload v34
-    sstore v32, v35 !metadata(storage=symbolic(v32))
-    v36 = add v31, 1
-    frame_store scratch, word, 0, v36 !metadata(memory=scratch)
+    v30 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v31 = storage_array_element_slot 0, v30, 1
+    v32 = mul v30, 32
+    v33 = add v1, v32
+    v34 = mload v33
+    sstore v31, v34 !metadata(storage=symbolic(v31))
+    v35 = add v30, 1
+    frame_store scratch, word, 0, v35 !metadata(memory=scratch)
     jump bb3
   bb5:
     frame_store scratch, word, 0, v18 !metadata(memory=scratch)
     jump bb6
   bb6:
-    v37 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v38 = lt v37, v13
-    jumpi v38, bb7, bb8
+    v36 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v37 = lt v36, v13
+    jumpi v37, bb7, bb8
   bb7:
-    v39 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v40 = add v19, v39
-    sstore v40, 0 !metadata(storage=symbolic(v40))
-    v41 = add v39, 1
-    frame_store scratch, word, 0, v41 !metadata(memory=scratch)
+    v38 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v39 = storage_array_element_slot 0, v38, 1
+    sstore v39, 0 !metadata(storage=symbolic(v39))
+    v40 = add v38, 1
+    frame_store scratch, word, 0, v40 !metadata(memory=scratch)
     jump bb6
   bb8:
     stop
@@ -212,23 +211,23 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     mstore v14, v15
     jump bb3
   bb2:
-    v16 = storage_array_data_slot arg0
-    v17 = div v9, 32
+    v16 = div v9, 32
     jump bb4
   bb3:
     ret v13
   bb4:
-    v18 = phi [bb2: v17], [bb5: v25]
-    v19 = phi [bb2: v16], [bb5: v23]
-    v20 = phi [bb2: v14], [bb5: v24]
-    v21 = gt v18, 0
-    jumpi v21, bb5, bb3
+    v17 = phi [bb2: v16], [bb5: v24]
+    v18 = phi [bb2: 0], [bb5: v25]
+    v19 = phi [bb2: v14], [bb5: v23]
+    v20 = gt v17, 0
+    jumpi v20, bb5, bb3
   bb5:
-    v22 = sload v19 !metadata(storage=symbolic(v19))
-    mstore v20, v22
-    v23 = add v19, 1
-    v24 = add v20, 32
-    v25 = sub v18, 1
+    v21 = storage_array_element_slot arg0, v18, 1
+    v22 = sload v21 !metadata(storage=symbolic(v21))
+    mstore v19, v22
+    v23 = add v19, 32
+    v24 = sub v17, 1
+    v25 = add v18, 1
     jump bb4
 }
 
@@ -282,117 +281,115 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v35 = div v34, 32
     v36 = gt v19, 31
     v37 = select v36, v35, 0
-    v38 = storage_array_data_slot 0
     jumpi v36, bb2, bb1
   bb1:
-    v39 = mload v20
-    v40 = mul v19, 8
-    v41 = shr v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v42 = not v41
-    v43 = and v39, v42
-    v44 = shl 1, v19
-    v45 = or v43, v44
-    sstore 0, v45 !metadata(storage=slot(0))
+    v38 = mload v20
+    v39 = mul v19, 8
+    v40 = shr v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v41 = not v40
+    v42 = and v38, v41
+    v43 = shl 1, v19
+    v44 = or v42, v43
+    sstore 0, v44 !metadata(storage=slot(0))
     jump bb5
   bb2:
-    v46 = shl 1, v19
-    v47 = or v46, 1
-    sstore 0, v47 !metadata(storage=slot(0))
+    v45 = shl 1, v19
+    v46 = or v45, 1
+    sstore 0, v46 !metadata(storage=slot(0))
     frame_store scratch, word, 0, 0 !metadata(memory=scratch)
     jump bb3
   bb3:
-    v48 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v49 = lt v48, v37
-    jumpi v49, bb4, bb5
+    v47 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v48 = lt v47, v37
+    jumpi v48, bb4, bb5
   bb4:
-    v50 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v51 = add v38, v50
-    v52 = mul v50, 32
-    v53 = add v20, v52
-    v54 = mload v53
-    sstore v51, v54 !metadata(storage=symbolic(v51))
-    v55 = add v50, 1
-    frame_store scratch, word, 0, v55 !metadata(memory=scratch)
+    v49 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v50 = storage_array_element_slot 0, v49, 1
+    v51 = mul v49, 32
+    v52 = add v20, v51
+    v53 = mload v52
+    sstore v50, v53 !metadata(storage=symbolic(v50))
+    v54 = add v49, 1
+    frame_store scratch, word, 0, v54 !metadata(memory=scratch)
     jump bb3
   bb5:
     frame_store scratch, word, 0, v37 !metadata(memory=scratch)
     jump bb6
   bb6:
-    v56 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v57 = lt v56, v32
-    jumpi v57, bb7, bb8
+    v55 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v56 = lt v55, v32
+    jumpi v56, bb7, bb8
   bb7:
-    v58 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v59 = add v38, v58
-    sstore v59, 0 !metadata(storage=symbolic(v59))
-    v60 = add v58, 1
-    frame_store scratch, word, 0, v60 !metadata(memory=scratch)
+    v57 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v58 = storage_array_element_slot 0, v57, 1
+    sstore v58, 0 !metadata(storage=symbolic(v58))
+    v59 = add v57, 1
+    frame_store scratch, word, 0, v59 !metadata(memory=scratch)
     jump bb6
   bb8:
-    v61 = memory_object_len memorybytes, v16
-    v62 = memory_object_data memorybytes, v16
-    v63 = sload 1 !metadata(storage=slot(1))
-    v64 = and v63, 1
-    v65 = eq v64, 1
-    v66 = and v63, 255
-    v67 = shr 1, v66
-    v68 = shr 1, v63
-    v69 = select v65, v68, v67
-    v70 = not 31
-    v71 = add v69, 31
-    v72 = and v71, v70
-    v73 = div v72, 32
-    v74 = select v65, v73, 0
-    v75 = add v61, 31
-    v76 = and v75, v70
-    v77 = div v76, 32
-    v78 = gt v61, 31
-    v79 = select v78, v77, 0
-    v80 = storage_array_data_slot 1
-    jumpi v78, bb10, bb9
+    v60 = memory_object_len memorybytes, v16
+    v61 = memory_object_data memorybytes, v16
+    v62 = sload 1 !metadata(storage=slot(1))
+    v63 = and v62, 1
+    v64 = eq v63, 1
+    v65 = and v62, 255
+    v66 = shr 1, v65
+    v67 = shr 1, v62
+    v68 = select v64, v67, v66
+    v69 = not 31
+    v70 = add v68, 31
+    v71 = and v70, v69
+    v72 = div v71, 32
+    v73 = select v64, v72, 0
+    v74 = add v60, 31
+    v75 = and v74, v69
+    v76 = div v75, 32
+    v77 = gt v60, 31
+    v78 = select v77, v76, 0
+    jumpi v77, bb10, bb9
   bb9:
-    v81 = mload v62
-    v82 = mul v61, 8
-    v83 = shr v82, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v84 = not v83
-    v85 = and v81, v84
-    v86 = shl 1, v61
-    v87 = or v85, v86
-    sstore 1, v87 !metadata(storage=slot(1))
+    v79 = mload v61
+    v80 = mul v60, 8
+    v81 = shr v80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v82 = not v81
+    v83 = and v79, v82
+    v84 = shl 1, v60
+    v85 = or v83, v84
+    sstore 1, v85 !metadata(storage=slot(1))
     jump bb13
   bb10:
-    v88 = shl 1, v61
-    v89 = or v88, 1
-    sstore 1, v89 !metadata(storage=slot(1))
+    v86 = shl 1, v60
+    v87 = or v86, 1
+    sstore 1, v87 !metadata(storage=slot(1))
     frame_store scratch, word, 32, 0 !metadata(memory=scratch)
     jump bb11
   bb11:
-    v90 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    v91 = lt v90, v79
-    jumpi v91, bb12, bb13
+    v88 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v89 = lt v88, v78
+    jumpi v89, bb12, bb13
   bb12:
-    v92 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    v93 = add v80, v92
-    v94 = mul v92, 32
-    v95 = add v62, v94
-    v96 = mload v95
-    sstore v93, v96 !metadata(storage=symbolic(v93))
-    v97 = add v92, 1
-    frame_store scratch, word, 32, v97 !metadata(memory=scratch)
+    v90 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v91 = storage_array_element_slot 1, v90, 1
+    v92 = mul v90, 32
+    v93 = add v61, v92
+    v94 = mload v93
+    sstore v91, v94 !metadata(storage=symbolic(v91))
+    v95 = add v90, 1
+    frame_store scratch, word, 32, v95 !metadata(memory=scratch)
     jump bb11
   bb13:
-    frame_store scratch, word, 32, v79 !metadata(memory=scratch)
+    frame_store scratch, word, 32, v78 !metadata(memory=scratch)
     jump bb14
   bb14:
-    v98 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    v99 = lt v98, v74
-    jumpi v99, bb15, bb16
+    v96 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v97 = lt v96, v73
+    jumpi v97, bb15, bb16
   bb15:
-    v100 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    v101 = add v80, v100
-    sstore v101, 0 !metadata(storage=symbolic(v101))
-    v102 = add v100, 1
-    frame_store scratch, word, 32, v102 !metadata(memory=scratch)
+    v98 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v99 = storage_array_element_slot 1, v98, 1
+    sstore v99, 0 !metadata(storage=symbolic(v99))
+    v100 = add v98, 1
+    frame_store scratch, word, 32, v100 !metadata(memory=scratch)
     jump bb14
   bb16:
     stop
@@ -430,23 +427,23 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     mstore v14, v15
     jump bb3
   bb2:
-    v16 = storage_array_data_slot arg0
-    v17 = div v9, 32
+    v16 = div v9, 32
     jump bb4
   bb3:
     ret v13
   bb4:
-    v18 = phi [bb2: v17], [bb5: v25]
-    v19 = phi [bb2: v16], [bb5: v23]
-    v20 = phi [bb2: v14], [bb5: v24]
-    v21 = gt v18, 0
-    jumpi v21, bb5, bb3
+    v17 = phi [bb2: v16], [bb5: v24]
+    v18 = phi [bb2: 0], [bb5: v25]
+    v19 = phi [bb2: v14], [bb5: v23]
+    v20 = gt v17, 0
+    jumpi v20, bb5, bb3
   bb5:
-    v22 = sload v19 !metadata(storage=symbolic(v19))
-    mstore v20, v22
-    v23 = add v19, 1
-    v24 = add v20, 32
-    v25 = sub v18, 1
+    v21 = storage_array_element_slot arg0, v18, 1
+    v22 = sload v21 !metadata(storage=symbolic(v21))
+    mstore v19, v22
+    v23 = add v19, 32
+    v24 = sub v17, 1
+    v25 = add v18, 1
     jump bb4
 }
 
@@ -500,117 +497,115 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v35 = div v34, 32
     v36 = gt v19, 31
     v37 = select v36, v35, 0
-    v38 = storage_array_data_slot 0
     jumpi v36, bb2, bb1
   bb1:
-    v39 = mload v20
-    v40 = mul v19, 8
-    v41 = shr v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v42 = not v41
-    v43 = and v39, v42
-    v44 = shl 1, v19
-    v45 = or v43, v44
-    sstore 0, v45 !metadata(storage=slot(0))
+    v38 = mload v20
+    v39 = mul v19, 8
+    v40 = shr v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v41 = not v40
+    v42 = and v38, v41
+    v43 = shl 1, v19
+    v44 = or v42, v43
+    sstore 0, v44 !metadata(storage=slot(0))
     jump bb5
   bb2:
-    v46 = shl 1, v19
-    v47 = or v46, 1
-    sstore 0, v47 !metadata(storage=slot(0))
+    v45 = shl 1, v19
+    v46 = or v45, 1
+    sstore 0, v46 !metadata(storage=slot(0))
     frame_store scratch, word, 0, 0 !metadata(memory=scratch)
     jump bb3
   bb3:
-    v48 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v49 = lt v48, v37
-    jumpi v49, bb4, bb5
+    v47 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v48 = lt v47, v37
+    jumpi v48, bb4, bb5
   bb4:
-    v50 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v51 = add v38, v50
-    v52 = mul v50, 32
-    v53 = add v20, v52
-    v54 = mload v53
-    sstore v51, v54 !metadata(storage=symbolic(v51))
-    v55 = add v50, 1
-    frame_store scratch, word, 0, v55 !metadata(memory=scratch)
+    v49 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v50 = storage_array_element_slot 0, v49, 1
+    v51 = mul v49, 32
+    v52 = add v20, v51
+    v53 = mload v52
+    sstore v50, v53 !metadata(storage=symbolic(v50))
+    v54 = add v49, 1
+    frame_store scratch, word, 0, v54 !metadata(memory=scratch)
     jump bb3
   bb5:
     frame_store scratch, word, 0, v37 !metadata(memory=scratch)
     jump bb6
   bb6:
-    v56 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v57 = lt v56, v32
-    jumpi v57, bb7, bb8
+    v55 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v56 = lt v55, v32
+    jumpi v56, bb7, bb8
   bb7:
-    v58 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v59 = add v38, v58
-    sstore v59, 0 !metadata(storage=symbolic(v59))
-    v60 = add v58, 1
-    frame_store scratch, word, 0, v60 !metadata(memory=scratch)
+    v57 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v58 = storage_array_element_slot 0, v57, 1
+    sstore v58, 0 !metadata(storage=symbolic(v58))
+    v59 = add v57, 1
+    frame_store scratch, word, 0, v59 !metadata(memory=scratch)
     jump bb6
   bb8:
-    v61 = memory_object_len memorybytes, v16
-    v62 = memory_object_data memorybytes, v16
-    v63 = sload 1 !metadata(storage=slot(1))
-    v64 = and v63, 1
-    v65 = eq v64, 1
-    v66 = and v63, 255
-    v67 = shr 1, v66
-    v68 = shr 1, v63
-    v69 = select v65, v68, v67
-    v70 = not 31
-    v71 = add v69, 31
-    v72 = and v71, v70
-    v73 = div v72, 32
-    v74 = select v65, v73, 0
-    v75 = add v61, 31
-    v76 = and v75, v70
-    v77 = div v76, 32
-    v78 = gt v61, 31
-    v79 = select v78, v77, 0
-    v80 = storage_array_data_slot 1
-    jumpi v78, bb10, bb9
+    v60 = memory_object_len memorybytes, v16
+    v61 = memory_object_data memorybytes, v16
+    v62 = sload 1 !metadata(storage=slot(1))
+    v63 = and v62, 1
+    v64 = eq v63, 1
+    v65 = and v62, 255
+    v66 = shr 1, v65
+    v67 = shr 1, v62
+    v68 = select v64, v67, v66
+    v69 = not 31
+    v70 = add v68, 31
+    v71 = and v70, v69
+    v72 = div v71, 32
+    v73 = select v64, v72, 0
+    v74 = add v60, 31
+    v75 = and v74, v69
+    v76 = div v75, 32
+    v77 = gt v60, 31
+    v78 = select v77, v76, 0
+    jumpi v77, bb10, bb9
   bb9:
-    v81 = mload v62
-    v82 = mul v61, 8
-    v83 = shr v82, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v84 = not v83
-    v85 = and v81, v84
-    v86 = shl 1, v61
-    v87 = or v85, v86
-    sstore 1, v87 !metadata(storage=slot(1))
+    v79 = mload v61
+    v80 = mul v60, 8
+    v81 = shr v80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v82 = not v81
+    v83 = and v79, v82
+    v84 = shl 1, v60
+    v85 = or v83, v84
+    sstore 1, v85 !metadata(storage=slot(1))
     jump bb13
   bb10:
-    v88 = shl 1, v61
-    v89 = or v88, 1
-    sstore 1, v89 !metadata(storage=slot(1))
+    v86 = shl 1, v60
+    v87 = or v86, 1
+    sstore 1, v87 !metadata(storage=slot(1))
     frame_store scratch, word, 32, 0 !metadata(memory=scratch)
     jump bb11
   bb11:
-    v90 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    v91 = lt v90, v79
-    jumpi v91, bb12, bb13
+    v88 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v89 = lt v88, v78
+    jumpi v89, bb12, bb13
   bb12:
-    v92 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    v93 = add v80, v92
-    v94 = mul v92, 32
-    v95 = add v62, v94
-    v96 = mload v95
-    sstore v93, v96 !metadata(storage=symbolic(v93))
-    v97 = add v92, 1
-    frame_store scratch, word, 32, v97 !metadata(memory=scratch)
+    v90 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v91 = storage_array_element_slot 1, v90, 1
+    v92 = mul v90, 32
+    v93 = add v61, v92
+    v94 = mload v93
+    sstore v91, v94 !metadata(storage=symbolic(v91))
+    v95 = add v90, 1
+    frame_store scratch, word, 32, v95 !metadata(memory=scratch)
     jump bb11
   bb13:
-    frame_store scratch, word, 32, v79 !metadata(memory=scratch)
+    frame_store scratch, word, 32, v78 !metadata(memory=scratch)
     jump bb14
   bb14:
-    v98 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    v99 = lt v98, v74
-    jumpi v99, bb15, bb16
+    v96 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v97 = lt v96, v73
+    jumpi v97, bb15, bb16
   bb15:
-    v100 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    v101 = add v80, v100
-    sstore v101, 0 !metadata(storage=symbolic(v101))
-    v102 = add v100, 1
-    frame_store scratch, word, 32, v102 !metadata(memory=scratch)
+    v98 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v99 = storage_array_element_slot 1, v98, 1
+    sstore v99, 0 !metadata(storage=symbolic(v99))
+    v100 = add v98, 1
+    frame_store scratch, word, 32, v100 !metadata(memory=scratch)
     jump bb14
   bb16:
     stop
@@ -649,119 +644,117 @@ fn @_anonymous() {
     v22 = div v21, 32
     v23 = gt v6, 31
     v24 = select v23, v22, 0
-    v25 = storage_array_data_slot 0
     jumpi v23, bb3, bb2
   bb1:
     stop
   bb2:
-    v26 = mload v7
-    v27 = mul v6, 8
-    v28 = shr v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v29 = not v28
-    v30 = and v26, v29
-    v31 = shl 1, v6
-    v32 = or v30, v31
-    sstore 0, v32 !metadata(storage=slot(0))
+    v25 = mload v7
+    v26 = mul v6, 8
+    v27 = shr v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v28 = not v27
+    v29 = and v25, v28
+    v30 = shl 1, v6
+    v31 = or v29, v30
+    sstore 0, v31 !metadata(storage=slot(0))
     jump bb6
   bb3:
-    v33 = shl 1, v6
-    v34 = or v33, 1
-    sstore 0, v34 !metadata(storage=slot(0))
+    v32 = shl 1, v6
+    v33 = or v32, 1
+    sstore 0, v33 !metadata(storage=slot(0))
     frame_store scratch, word, 0, 0 !metadata(memory=scratch)
     jump bb4
   bb4:
-    v35 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v36 = lt v35, v24
-    jumpi v36, bb5, bb6
+    v34 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v35 = lt v34, v24
+    jumpi v35, bb5, bb6
   bb5:
-    v37 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v38 = add v25, v37
-    v39 = mul v37, 32
-    v40 = add v7, v39
-    v41 = mload v40
-    sstore v38, v41 !metadata(storage=symbolic(v38))
-    v42 = add v37, 1
-    frame_store scratch, word, 0, v42 !metadata(memory=scratch)
+    v36 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v37 = storage_array_element_slot 0, v36, 1
+    v38 = mul v36, 32
+    v39 = add v7, v38
+    v40 = mload v39
+    sstore v37, v40 !metadata(storage=symbolic(v37))
+    v41 = add v36, 1
+    frame_store scratch, word, 0, v41 !metadata(memory=scratch)
     jump bb4
   bb6:
     frame_store scratch, word, 0, v24 !metadata(memory=scratch)
     jump bb7
   bb7:
-    v43 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v44 = lt v43, v19
-    jumpi v44, bb8, bb9
+    v42 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v43 = lt v42, v19
+    jumpi v43, bb8, bb9
   bb8:
-    v45 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v46 = add v25, v45
-    sstore v46, 0 !metadata(storage=symbolic(v46))
-    v47 = add v45, 1
-    frame_store scratch, word, 0, v47 !metadata(memory=scratch)
+    v44 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v45 = storage_array_element_slot 0, v44, 1
+    sstore v45, 0 !metadata(storage=symbolic(v45))
+    v46 = add v44, 1
+    frame_store scratch, word, 0, v46 !metadata(memory=scratch)
     jump bb7
   bb9:
-    v48 = memory_object_len memorybytes, v3
-    v49 = memory_object_data memorybytes, v3
-    v50 = sload 1 !metadata(storage=slot(1))
-    v51 = and v50, 1
-    v52 = eq v51, 1
-    v53 = and v50, 255
-    v54 = shr 1, v53
-    v55 = shr 1, v50
-    v56 = select v52, v55, v54
-    v57 = not 31
-    v58 = add v56, 31
-    v59 = and v58, v57
-    v60 = div v59, 32
-    v61 = select v52, v60, 0
-    v62 = add v48, 31
-    v63 = and v62, v57
-    v64 = div v63, 32
-    v65 = gt v48, 31
-    v66 = select v65, v64, 0
-    v67 = storage_array_data_slot 1
-    jumpi v65, bb11, bb10
+    v47 = memory_object_len memorybytes, v3
+    v48 = memory_object_data memorybytes, v3
+    v49 = sload 1 !metadata(storage=slot(1))
+    v50 = and v49, 1
+    v51 = eq v50, 1
+    v52 = and v49, 255
+    v53 = shr 1, v52
+    v54 = shr 1, v49
+    v55 = select v51, v54, v53
+    v56 = not 31
+    v57 = add v55, 31
+    v58 = and v57, v56
+    v59 = div v58, 32
+    v60 = select v51, v59, 0
+    v61 = add v47, 31
+    v62 = and v61, v56
+    v63 = div v62, 32
+    v64 = gt v47, 31
+    v65 = select v64, v63, 0
+    jumpi v64, bb11, bb10
   bb10:
-    v68 = mload v49
-    v69 = mul v48, 8
-    v70 = shr v69, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v71 = not v70
-    v72 = and v68, v71
-    v73 = shl 1, v48
-    v74 = or v72, v73
-    sstore 1, v74 !metadata(storage=slot(1))
+    v66 = mload v48
+    v67 = mul v47, 8
+    v68 = shr v67, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v69 = not v68
+    v70 = and v66, v69
+    v71 = shl 1, v47
+    v72 = or v70, v71
+    sstore 1, v72 !metadata(storage=slot(1))
     jump bb14
   bb11:
-    v75 = shl 1, v48
-    v76 = or v75, 1
-    sstore 1, v76 !metadata(storage=slot(1))
+    v73 = shl 1, v47
+    v74 = or v73, 1
+    sstore 1, v74 !metadata(storage=slot(1))
     frame_store scratch, word, 32, 0 !metadata(memory=scratch)
     jump bb12
   bb12:
-    v77 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    v78 = lt v77, v66
-    jumpi v78, bb13, bb14
+    v75 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v76 = lt v75, v65
+    jumpi v76, bb13, bb14
   bb13:
-    v79 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    v80 = add v67, v79
-    v81 = mul v79, 32
-    v82 = add v49, v81
-    v83 = mload v82
-    sstore v80, v83 !metadata(storage=symbolic(v80))
-    v84 = add v79, 1
-    frame_store scratch, word, 32, v84 !metadata(memory=scratch)
+    v77 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v78 = storage_array_element_slot 1, v77, 1
+    v79 = mul v77, 32
+    v80 = add v48, v79
+    v81 = mload v80
+    sstore v78, v81 !metadata(storage=symbolic(v78))
+    v82 = add v77, 1
+    frame_store scratch, word, 32, v82 !metadata(memory=scratch)
     jump bb12
   bb14:
-    frame_store scratch, word, 32, v66 !metadata(memory=scratch)
+    frame_store scratch, word, 32, v65 !metadata(memory=scratch)
     jump bb15
   bb15:
-    v85 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    v86 = lt v85, v61
-    jumpi v86, bb16, bb17
+    v83 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v84 = lt v83, v60
+    jumpi v84, bb16, bb17
   bb16:
-    v87 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    v88 = add v67, v87
-    sstore v88, 0 !metadata(storage=symbolic(v88))
-    v89 = add v87, 1
-    frame_store scratch, word, 32, v89 !metadata(memory=scratch)
+    v85 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v86 = storage_array_element_slot 1, v85, 1
+    sstore v86, 0 !metadata(storage=symbolic(v86))
+    v87 = add v85, 1
+    frame_store scratch, word, 32, v87 !metadata(memory=scratch)
     jump bb15
   bb17:
     jump bb1
@@ -797,23 +790,23 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     mstore v14, v15
     jump bb3
   bb2:
-    v16 = storage_array_data_slot arg0
-    v17 = div v9, 32
+    v16 = div v9, 32
     jump bb4
   bb3:
     ret v13
   bb4:
-    v18 = phi [bb2: v17], [bb5: v25]
-    v19 = phi [bb2: v16], [bb5: v23]
-    v20 = phi [bb2: v14], [bb5: v24]
-    v21 = gt v18, 0
-    jumpi v21, bb5, bb3
+    v17 = phi [bb2: v16], [bb5: v24]
+    v18 = phi [bb2: 0], [bb5: v25]
+    v19 = phi [bb2: v14], [bb5: v23]
+    v20 = gt v17, 0
+    jumpi v20, bb5, bb3
   bb5:
-    v22 = sload v19 !metadata(storage=symbolic(v19))
-    mstore v20, v22
-    v23 = add v19, 1
-    v24 = add v20, 32
-    v25 = sub v18, 1
+    v21 = storage_array_element_slot arg0, v18, 1
+    v22 = sload v21 !metadata(storage=symbolic(v21))
+    mstore v19, v22
+    v23 = add v19, 32
+    v24 = sub v17, 1
+    v25 = add v18, 1
     jump bb4
 }
 
@@ -856,119 +849,117 @@ fn @constructor() {
     v22 = div v21, 32
     v23 = gt v6, 31
     v24 = select v23, v22, 0
-    v25 = storage_array_data_slot 0
     jumpi v23, bb3, bb2
   bb1:
     stop
   bb2:
-    v26 = mload v7
-    v27 = mul v6, 8
-    v28 = shr v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v29 = not v28
-    v30 = and v26, v29
-    v31 = shl 1, v6
-    v32 = or v30, v31
-    sstore 0, v32 !metadata(storage=slot(0))
+    v25 = mload v7
+    v26 = mul v6, 8
+    v27 = shr v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v28 = not v27
+    v29 = and v25, v28
+    v30 = shl 1, v6
+    v31 = or v29, v30
+    sstore 0, v31 !metadata(storage=slot(0))
     jump bb6
   bb3:
-    v33 = shl 1, v6
-    v34 = or v33, 1
-    sstore 0, v34 !metadata(storage=slot(0))
+    v32 = shl 1, v6
+    v33 = or v32, 1
+    sstore 0, v33 !metadata(storage=slot(0))
     frame_store scratch, word, 0, 0 !metadata(memory=scratch)
     jump bb4
   bb4:
-    v35 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v36 = lt v35, v24
-    jumpi v36, bb5, bb6
+    v34 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v35 = lt v34, v24
+    jumpi v35, bb5, bb6
   bb5:
-    v37 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v38 = add v25, v37
-    v39 = mul v37, 32
-    v40 = add v7, v39
-    v41 = mload v40
-    sstore v38, v41 !metadata(storage=symbolic(v38))
-    v42 = add v37, 1
-    frame_store scratch, word, 0, v42 !metadata(memory=scratch)
+    v36 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v37 = storage_array_element_slot 0, v36, 1
+    v38 = mul v36, 32
+    v39 = add v7, v38
+    v40 = mload v39
+    sstore v37, v40 !metadata(storage=symbolic(v37))
+    v41 = add v36, 1
+    frame_store scratch, word, 0, v41 !metadata(memory=scratch)
     jump bb4
   bb6:
     frame_store scratch, word, 0, v24 !metadata(memory=scratch)
     jump bb7
   bb7:
-    v43 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v44 = lt v43, v19
-    jumpi v44, bb8, bb9
+    v42 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v43 = lt v42, v19
+    jumpi v43, bb8, bb9
   bb8:
-    v45 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v46 = add v25, v45
-    sstore v46, 0 !metadata(storage=symbolic(v46))
-    v47 = add v45, 1
-    frame_store scratch, word, 0, v47 !metadata(memory=scratch)
+    v44 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v45 = storage_array_element_slot 0, v44, 1
+    sstore v45, 0 !metadata(storage=symbolic(v45))
+    v46 = add v44, 1
+    frame_store scratch, word, 0, v46 !metadata(memory=scratch)
     jump bb7
   bb9:
-    v48 = memory_object_len memorybytes, v3
-    v49 = memory_object_data memorybytes, v3
-    v50 = sload 1 !metadata(storage=slot(1))
-    v51 = and v50, 1
-    v52 = eq v51, 1
-    v53 = and v50, 255
-    v54 = shr 1, v53
-    v55 = shr 1, v50
-    v56 = select v52, v55, v54
-    v57 = not 31
-    v58 = add v56, 31
-    v59 = and v58, v57
-    v60 = div v59, 32
-    v61 = select v52, v60, 0
-    v62 = add v48, 31
-    v63 = and v62, v57
-    v64 = div v63, 32
-    v65 = gt v48, 31
-    v66 = select v65, v64, 0
-    v67 = storage_array_data_slot 1
-    jumpi v65, bb11, bb10
+    v47 = memory_object_len memorybytes, v3
+    v48 = memory_object_data memorybytes, v3
+    v49 = sload 1 !metadata(storage=slot(1))
+    v50 = and v49, 1
+    v51 = eq v50, 1
+    v52 = and v49, 255
+    v53 = shr 1, v52
+    v54 = shr 1, v49
+    v55 = select v51, v54, v53
+    v56 = not 31
+    v57 = add v55, 31
+    v58 = and v57, v56
+    v59 = div v58, 32
+    v60 = select v51, v59, 0
+    v61 = add v47, 31
+    v62 = and v61, v56
+    v63 = div v62, 32
+    v64 = gt v47, 31
+    v65 = select v64, v63, 0
+    jumpi v64, bb11, bb10
   bb10:
-    v68 = mload v49
-    v69 = mul v48, 8
-    v70 = shr v69, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v71 = not v70
-    v72 = and v68, v71
-    v73 = shl 1, v48
-    v74 = or v72, v73
-    sstore 1, v74 !metadata(storage=slot(1))
+    v66 = mload v48
+    v67 = mul v47, 8
+    v68 = shr v67, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v69 = not v68
+    v70 = and v66, v69
+    v71 = shl 1, v47
+    v72 = or v70, v71
+    sstore 1, v72 !metadata(storage=slot(1))
     jump bb14
   bb11:
-    v75 = shl 1, v48
-    v76 = or v75, 1
-    sstore 1, v76 !metadata(storage=slot(1))
+    v73 = shl 1, v47
+    v74 = or v73, 1
+    sstore 1, v74 !metadata(storage=slot(1))
     frame_store scratch, word, 32, 0 !metadata(memory=scratch)
     jump bb12
   bb12:
-    v77 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    v78 = lt v77, v66
-    jumpi v78, bb13, bb14
+    v75 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v76 = lt v75, v65
+    jumpi v76, bb13, bb14
   bb13:
-    v79 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    v80 = add v67, v79
-    v81 = mul v79, 32
-    v82 = add v49, v81
-    v83 = mload v82
-    sstore v80, v83 !metadata(storage=symbolic(v80))
-    v84 = add v79, 1
-    frame_store scratch, word, 32, v84 !metadata(memory=scratch)
+    v77 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v78 = storage_array_element_slot 1, v77, 1
+    v79 = mul v77, 32
+    v80 = add v48, v79
+    v81 = mload v80
+    sstore v78, v81 !metadata(storage=symbolic(v78))
+    v82 = add v77, 1
+    frame_store scratch, word, 32, v82 !metadata(memory=scratch)
     jump bb12
   bb14:
-    frame_store scratch, word, 32, v66 !metadata(memory=scratch)
+    frame_store scratch, word, 32, v65 !metadata(memory=scratch)
     jump bb15
   bb15:
-    v85 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    v86 = lt v85, v61
-    jumpi v86, bb16, bb17
+    v83 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v84 = lt v83, v60
+    jumpi v84, bb16, bb17
   bb16:
-    v87 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    v88 = add v67, v87
-    sstore v88, 0 !metadata(storage=symbolic(v88))
-    v89 = add v87, 1
-    frame_store scratch, word, 32, v89 !metadata(memory=scratch)
+    v85 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v86 = storage_array_element_slot 1, v85, 1
+    sstore v86, 0 !metadata(storage=symbolic(v86))
+    v87 = add v85, 1
+    frame_store scratch, word, 32, v87 !metadata(memory=scratch)
     jump bb15
   bb17:
     jump bb1
@@ -1004,23 +995,23 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     mstore v14, v15
     jump bb3
   bb2:
-    v16 = storage_array_data_slot arg0
-    v17 = div v9, 32
+    v16 = div v9, 32
     jump bb4
   bb3:
     ret v13
   bb4:
-    v18 = phi [bb2: v17], [bb5: v25]
-    v19 = phi [bb2: v16], [bb5: v23]
-    v20 = phi [bb2: v14], [bb5: v24]
-    v21 = gt v18, 0
-    jumpi v21, bb5, bb3
+    v17 = phi [bb2: v16], [bb5: v24]
+    v18 = phi [bb2: 0], [bb5: v25]
+    v19 = phi [bb2: v14], [bb5: v23]
+    v20 = gt v17, 0
+    jumpi v20, bb5, bb3
   bb5:
-    v22 = sload v19 !metadata(storage=symbolic(v19))
-    mstore v20, v22
-    v23 = add v19, 1
-    v24 = add v20, 32
-    v25 = sub v18, 1
+    v21 = storage_array_element_slot arg0, v18, 1
+    v22 = sload v21 !metadata(storage=symbolic(v21))
+    mstore v19, v22
+    v23 = add v19, 32
+    v24 = sub v17, 1
+    v25 = add v18, 1
     jump bb4
 }
 

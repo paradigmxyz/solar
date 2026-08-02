@@ -62,6 +62,10 @@ describes observable structure in the current tree, not an intended design.
   `storage_array_element_slot` with their type-directed stride. The mapping
   pass alone expands the hash and offset arithmetic, including long bytes
   element access.
+* Storage bytes ABI copies keep their loop index separate from the physical
+  slot. Each load, store, and stale-slot clear requests a typed
+  `storage_array_element_slot`, so long-form byte encoding and decoding defer
+  storage hashing to the mapping-slot pass.
 * Mutable locals and storage-reference values use typed `frame_load` and
   `frame_store` operations. `lower-frame-slots` selects the external scratch
   region or the internal-call frame and lowers those operations to physical
@@ -126,10 +130,9 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
 * **Storage semantics are still split between incompatible paths.** Static
   state variables, direct struct fields, and fixed arrays now share
   `StorageLocation` and its encoding for packed reads and read-modify-write
-  stores. Runtime storage references, nested aggregate copies, and dynamic
-  array and bytes element strides still mix that layout with independent slot
-  arithmetic. The replacement should make one type-directed location query the
-  only source of storage addresses.
+  stores. Runtime storage references and some nested aggregate paths still mix
+  that layout with independent slot arithmetic. The replacement should make
+  one type-directed location query the only source of storage addresses.
 * **Legacy compatibility surface is broad.** The top-level module exposes many
   `pub(crate)` and `pub(super)` methods because sibling files reach through the
   context. Their callers are not grouped by phase, so removing one helper

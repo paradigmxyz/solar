@@ -30,23 +30,23 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     mstore v14, v15
     jump bb3
   bb2:
-    v16 = storage_array_data_slot arg0
-    v17 = div v9, 32
+    v16 = div v9, 32
     jump bb4
   bb3:
     ret v13
   bb4:
-    v18 = phi [bb2: v17], [bb5: v25]
-    v19 = phi [bb2: v16], [bb5: v23]
-    v20 = phi [bb2: v14], [bb5: v24]
-    v21 = gt v18, 0
-    jumpi v21, bb5, bb3
+    v17 = phi [bb2: v16], [bb5: v24]
+    v18 = phi [bb2: 0], [bb5: v25]
+    v19 = phi [bb2: v14], [bb5: v23]
+    v20 = gt v17, 0
+    jumpi v20, bb5, bb3
   bb5:
-    v22 = sload v19 !metadata(storage=symbolic(v19))
-    mstore v20, v22
-    v23 = add v19, 1
-    v24 = add v20, 32
-    v25 = sub v18, 1
+    v21 = storage_array_element_slot arg0, v18, 1
+    v22 = sload v21 !metadata(storage=symbolic(v21))
+    mstore v19, v22
+    v23 = add v19, 32
+    v24 = sub v17, 1
+    v25 = add v18, 1
     jump bb4
 }
 

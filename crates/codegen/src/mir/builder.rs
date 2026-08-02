@@ -800,11 +800,6 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::MappingSlotCalldata(key, slot), Some(MirType::bytes32()))
     }
 
-    /// Emits a dynamic storage-array data-slot hash.
-    pub(crate) fn storage_array_data_slot(&mut self, slot: ValueId) -> ValueId {
-        self.emit_inst(InstKind::StorageArrayDataSlot(slot), Some(MirType::bytes32()))
-    }
-
     /// Resolves one element slot in a dynamic storage array.
     pub(crate) fn storage_array_element_slot(
         &mut self,
