@@ -1,9 +1,9 @@
-//! Lower mapping-slot hash builtins to ordinary memory operations.
+//! Lower mapping-slot hash builtins to semantic memory operations.
 //!
 //! Keeping mapping-slot computation as one MIR instruction lets dominator-tree
 //! CSE reuse repeated accesses without teaching HIR lowering about control-flow
 //! scopes or memory invalidation. This pass expands the builtin immediately
-//! after CSE so the remaining pipeline can optimize the concrete memory ops.
+//! after CSE so the remaining pipeline can optimize the semantic memory ops.
 
 use crate::{
     mir::{BlockId, FunctionBuilder, InstKind, Module},
@@ -97,11 +97,11 @@ fn lower_memory_mapping_slot(
     ptr: crate::mir::ValueId,
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
-    let len = builder.mload(ptr);
-    let word_size = builder.imm_u64(32);
-    let data_start = builder.add(ptr, word_size);
+    let len = builder.memory_object_len(ptr, crate::mir::MemoryObjectKind::Bytes);
+    let data_start = builder.memory_object_data(ptr, crate::mir::MemoryObjectKind::Bytes);
     let scratch = builder.fmp();
     builder.mcopy(scratch, data_start, len);
+    let word_size = builder.imm_u64(32);
     let slot_addr = builder.add(scratch, len);
     builder.mstore(slot_addr, slot);
     let hash_len = builder.add(len, word_size);

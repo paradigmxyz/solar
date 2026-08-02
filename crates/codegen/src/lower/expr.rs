@@ -3657,19 +3657,7 @@ impl<'gcx> Lowerer<'gcx> {
         ptr: ValueId,
         slot: ValueId,
     ) -> ValueId {
-        if self.gcx.sess.opts.evm_version.has_mcopy() {
-            return builder.mapping_slot_memory(ptr, slot);
-        }
-
-        let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
-        let word_size = builder.imm_u64(32);
-        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        let scratch = builder.fmp();
-        builder.mcopy(scratch, data_start, len);
-        let slot_addr = builder.add(scratch, len);
-        builder.mstore(slot_addr, slot);
-        let hash_len = builder.add(len, word_size);
-        builder.keccak256(scratch, hash_len)
+        builder.mapping_slot_memory(ptr, slot)
     }
 
     fn compute_dynamic_calldata_mapping_slot(

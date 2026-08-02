@@ -471,7 +471,7 @@ impl LowerAbiCx {
                 Self::decode_enum(builder, *variants, base, current)
             }
             crate::mir::AbiParamType::FixedArray { element, len }
-                if Self::is_supported_word_element(element) =>
+                if Self::is_supported_tuple_field(element) =>
             {
                 let size = builder.imm_u64(len.saturating_mul(32));
                 let ptr = builder.alloc_object(
@@ -479,9 +479,10 @@ impl LowerAbiCx {
                     crate::mir::MemoryObjectLayout::word_fixed_array(*len),
                     crate::mir::AllocationSemantics::INTERNAL,
                 );
+                let mut offset = 0;
                 for index in 0..*len {
-                    let offset = builder.imm_u64(index * 32);
-                    let word_pos = builder.add(base, offset);
+                    let offset_value = builder.imm_u64(offset);
+                    let word_pos = builder.add(base, offset_value);
                     let value = match element.as_ref() {
                         crate::mir::AbiParamType::Scalar(scalar) => {
                             Self::decode_scalar(builder, *scalar, word_pos, current)
@@ -489,7 +490,14 @@ impl LowerAbiCx {
                         crate::mir::AbiParamType::Enum { variants, .. } => {
                             Self::decode_enum(builder, *variants, word_pos, current)
                         }
-                        _ => unreachable!(),
+                        element => Self::decode_aggregate_argument(
+                            builder,
+                            element,
+                            element.mir_type(),
+                            word_pos,
+                            base,
+                            current,
+                        ),
                     };
                     let elem_index = builder.imm_u64(index);
                     let slot = builder.memory_object_element_addr(
@@ -498,6 +506,7 @@ impl LowerAbiCx {
                         elem_index,
                     );
                     builder.mstore(slot, value);
+                    offset += element.head_size();
                 }
                 ptr
             }
@@ -636,7 +645,7 @@ impl LowerAbiCx {
         matches!(
             ty,
             crate::mir::AbiParamType::FixedArray { element, .. }
-                if Self::is_supported_word_element(element)
+                if Self::is_supported_tuple_field(element)
         ) || matches!(
             ty,
             crate::mir::AbiParamType::DynamicArray(element)
@@ -649,16 +658,16 @@ impl LowerAbiCx {
             )
     }
 
-    fn is_supported_word_element(ty: &crate::mir::AbiParamType) -> bool {
-        matches!(ty, crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. })
-    }
-
     fn is_supported_tuple_field(ty: &crate::mir::AbiParamType) -> bool {
         matches!(
             ty,
             crate::mir::AbiParamType::Scalar(_)
                 | crate::mir::AbiParamType::Enum { .. }
                 | crate::mir::AbiParamType::Bytes
+        ) || matches!(
+            ty,
+            crate::mir::AbiParamType::FixedArray { element, .. }
+                if Self::is_supported_tuple_field(element)
         ) || matches!(ty, crate::mir::AbiParamType::Tuple(fields) if fields.iter().all(Self::is_supported_tuple_field))
     }
 

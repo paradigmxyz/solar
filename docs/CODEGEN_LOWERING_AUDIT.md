@@ -11,10 +11,11 @@ describes observable structure in the current tree, not an intended design.
   forms the wrapper. Raw words are loaded for validation so MIR simplification
   cannot assume the check already passed.
 * Supported aggregate external arguments stay typed until `lower-abi`. Fixed
-  and dynamic word arrays, byte strings, and nested scalar/byte tuples carry an
-  ABI shape in MIR; the ABI phase remaps physical head words, validates scalar
-  fields, and builds either memory objects or calldata slices. Dynamic structs
-  carry one trailing source-base word when their fields need calldata slices.
+  arrays (including nested static arrays), dynamic word arrays, byte strings,
+  and nested scalar/byte/enum tuples carry an ABI shape in MIR; the ABI phase
+  remaps physical head words, validates scalar fields, and builds either
+  memory objects or calldata slices. Dynamic structs carry one trailing
+  source-base word when their fields need calldata slices.
 * ABI parameter shapes print and parse with MIR text, so the boundary metadata
   survives phase dumps and round trips.
 * Packed storage locations carry their semantic encoding. Signed values are
@@ -23,6 +24,9 @@ describes observable structure in the current tree, not an intended design.
   fixed arrays.
 * Nested calldata arrays use semantic memory-object length and data operations;
   the memory-layout pass selects their physical header offsets.
+* Dynamic mapping keys stay as `mapping_slot_memory` or
+  `mapping_slot_calldata` until the mapping-slot pass. Target-specific memory
+  copies are selected after that semantic operation is lowered.
 * Modifier placeholders expand the modifier chain in source order. Return
   values pass through the suffix, and constructor base calls stay in the
   constructor prelude.
@@ -44,10 +48,10 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
 ## Concrete shortcomings
 
 * **The ABI boundary is still split for complex aggregates.**
-  `Lowerer::lower_function` still decodes nested arrays and unsupported
-  aggregate shapes. Supported arrays, byte strings, and scalar/byte/enum
-  structs now defer to `lower-abi`, but the pass still has a second
-  representation for unsupported aggregate shapes.
+  `Lowerer::lower_function` still decodes dynamic nested arrays and
+  unsupported aggregate shapes. Supported fixed arrays, byte strings, and
+  scalar/byte/enum structs now defer to `lower-abi`, but the pass still has a
+  second representation for unsupported aggregate shapes.
 * **Raw memory is used as a language-level value model.** Mutable locals are
   assigned fixed offsets beginning at `EvmMemoryLayout::HEAP_START`, and many
   lowering paths manually pair pointer and length words. `abi_encode.rs` and

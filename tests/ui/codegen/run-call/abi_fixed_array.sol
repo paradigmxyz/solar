@@ -14,6 +14,8 @@
 //@ run-call-fail: readEnumArray(uint8[2]) [2, 0]
 //@ run-call: readMode(uint8) 1 => 1
 //@ run-call-fail: readMode(uint8) 2
+//@ run-call: readNestedArray((uint256[2],uint8)) ([7, 8], 1) => 9
+//@ run-call: readNestedBytes((bytes[2])) ([0x0102, 0x030405]) => 5
 //@ run-call: readMixed(uint8,bytes) 1, 0x010203 => 4
 
 contract AbiFixedArray {
@@ -35,6 +37,15 @@ contract AbiFixedArray {
     struct EnumPair {
         Mode mode;
         uint256 value;
+    }
+
+    struct NestedArray {
+        uint256[2] values;
+        uint8 marker;
+    }
+
+    struct NestedBytes {
+        bytes[2] values;
     }
 
     function read(uint256[3] calldata values, uint256 index) external pure returns (uint256) {
@@ -75,6 +86,14 @@ contract AbiFixedArray {
 
     function readMode(Mode mode) external pure returns (uint256) {
         return uint256(mode);
+    }
+
+    function readNestedArray(NestedArray memory value) external pure returns (uint256) {
+        return value.values[1] + value.marker;
+    }
+
+    function readNestedBytes(NestedBytes memory value) external pure returns (uint256) {
+        return value.values[0].length + value.values[1].length;
     }
 
     function readMixed(Mode mode, bytes memory data) external pure returns (uint256) {

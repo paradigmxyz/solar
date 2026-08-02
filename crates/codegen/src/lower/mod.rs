@@ -927,6 +927,7 @@ impl<'gcx> Lowerer<'gcx> {
                     .iter()
                     .all(|&field| self.can_defer_external_abi_aggregate_ty(field))
             }
+            TyKind::Array(element, _) => self.can_defer_external_abi_aggregate_ty(element),
             TyKind::Enum(_) => true,
             _ => self.can_defer_external_abi_scalar_ty(ty),
         }
@@ -934,7 +935,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Returns whether an aggregate parameter can stay typed until `lower-abi`.
     ///
-    /// Word arrays, byte slices, and supported tuples use their typed MIR
+    /// Supported fixed arrays, byte slices, and tuples use their typed MIR
     /// representation; unsupported aggregate shapes stay on the legacy
     /// HIR-aware decoder.
     fn can_defer_external_abi_param(&self, param_id: VariableId) -> bool {
@@ -947,6 +948,9 @@ impl<'gcx> Lowerer<'gcx> {
             || self.is_dyn_word_array_memory_param(param_id)
         {
             return true;
+        }
+        if matches!(ty.kind, TyKind::Array(..)) {
+            return self.can_defer_external_abi_aggregate_ty(ty);
         }
         if matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)) {
             return !matches!(param.data_location, Some(solar_ast::DataLocation::Storage));
