@@ -232,42 +232,6 @@ impl<'gcx> Lowerer<'gcx> {
         Ok(builder.keccak256(data, size))
     }
 
-    /// ABI-encodes already-lowered tuple items into a fresh allocation from
-    /// the free memory pointer and returns `(offset, size)`.
-    pub(super) fn abi_encode_items_to_memory(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        items: &[(ValueId, Ty<'gcx>)],
-    ) -> (ValueId, ValueId) {
-        if items.is_empty() {
-            let zero = builder.imm_u64(0);
-            return (zero, zero);
-        }
-
-        let scratch_words = self.abi_scratch_words(items);
-        let scratch_base =
-            (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
-
-        let data = builder.fmp();
-        let calldata_slices = FxHashSet::default();
-        let size = self.abi_encode_tuple(
-            builder,
-            items,
-            data,
-            &calldata_slices,
-            lower_abi_encode::AbiScratch { base: scratch_base, depth: 0 },
-        );
-
-        let thirty_one = builder.imm_u64(31);
-        let rounded = builder.add(size, thirty_one);
-        let mask = builder.not(thirty_one);
-        let aligned = builder.and(rounded, mask);
-        let new_free_ptr = builder.add(data, aligned);
-        builder.set_fmp(new_free_ptr);
-
-        (data, size)
-    }
-
     /// ABI-encodes event data through the typed ABI operation.
     pub(super) fn abi_encode_event_data(
         &mut self,
@@ -281,8 +245,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Events use the same tuple ABI as source `abi.encode`. Keep the
         // payload as a typed MIR slice so allocation and layout stay in the
-        // ABI phase. A legacy fallback remains for recursive or otherwise
-        // unsupported semantic types.
+        // ABI phase.
         if let Some(types) = items
             .iter()
             .map(|&(value, ty)| self.abi_type(ty, Self::value_is_calldata_slice(builder, value)))
@@ -294,19 +257,11 @@ impl<'gcx> Lowerer<'gcx> {
             return (builder.slice_ptr(payload), builder.slice_len(payload));
         }
 
-        if items.iter().any(|&(_, ty)| self.abi_is_dynamic(ty)) {
-            return self.abi_encode_items_to_memory(builder, items);
-        }
-
-        let data = builder.imm_u64(0);
-        let calldata_slices = FxHashSet::default();
-        let size = self.abi_encode_tuple(
-            builder,
-            items,
-            data,
-            &calldata_slices,
-            lower_abi_encode::AbiScratch { base: None, depth: 0 },
-        );
+        // Recursive or otherwise unsupported ABI shapes must not be encoded
+        // through a HIR-level scratch buffer. Bail at the phase boundary and
+        // let the caller continue with an error sentinel.
+        let data = builder.error_value(self.abi_type_error());
+        let size = builder.imm_u64(0);
         (data, size)
     }
 

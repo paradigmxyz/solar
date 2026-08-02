@@ -40,8 +40,8 @@ describes observable structure in the current tree, not an intended design.
   dynamic tails before writing selector, heads, and tails; struct return space
   shares that allocation.
 * Event payloads with representable ABI types use the same typed ABI operation;
-  only recursive or otherwise unsupported event types use the compatibility
-  fallback.
+  recursive or otherwise unsupported event types stop at the ABI boundary with
+  a codegen diagnostic instead of using a HIR scratch buffer.
 * Packed storage locations carry their semantic encoding. Signed values are
   sign-extended on load, fixed bytes are aligned at the MIR boundary, and both
   forms share the same read-modify-write path for state variables, fields, and
@@ -83,11 +83,9 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   aggregate shapes.
 * **Raw memory is used as a language-level value model.** Mutable locals are
   assigned fixed offsets beginning at `EvmMemoryLayout::HEAP_START`, and many
-  lowering paths manually pair pointer and length words. The compatibility
-  path for recursive or unsupported event types still stages temporary data at
-  the unbumped free-memory pointer. This couples HIR lowering to the physical
-  EVM memory policy and makes alias reasoning depend on undocumented
-  scratch-space conventions.
+  lowering paths manually pair pointer and length words. This couples HIR
+  lowering to the physical EVM memory policy and makes alias reasoning depend
+  on undocumented scratch-space conventions.
 * **Helper generation is ad hoc.** `Lowerer` has separate option fields for
   `Error(string)` and storage-bytes helpers, a recursion guard, and helper
   builders embedded in the main lowering context. Other nontrivial operations
