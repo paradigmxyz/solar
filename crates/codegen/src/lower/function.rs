@@ -967,7 +967,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
             return report_unsupported(self.gcx, returns_clause.span, "try return bindings");
         }
         let catch_error = catch_clause.name.is_some_and(|name| name.name == sym::Error);
-        if catch_clause.name.is_some() && !catch_error {
+        let catch_panic = catch_clause.name.is_some_and(|name| name.name == sym::Panic);
+        if catch_clause.name.is_some() && !catch_error && !catch_panic {
             return report_unsupported(self.gcx, catch_clause.span, "try catch clause");
         }
         if catch_clause.args.len() > 1 {
@@ -977,6 +978,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
             let ty = self.gcx.type_of_item(binding.into());
             let expected = if catch_error {
                 TyKind::Elementary(solar_sema::hir::ElementaryType::String)
+            } else if catch_panic {
+                TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(
+                    solar_ast::TypeSize::new_int_bits(256),
+                ))
             } else {
                 TyKind::Elementary(solar_sema::hir::ElementaryType::Bytes)
             };
@@ -1082,6 +1087,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
         if let Some(binding) = catch_binding {
             let value = if catch_error {
                 self.lower_error_catch_string(try_stmt.expr.span)?
+            } else if catch_panic {
+                self.lower_panic_catch_word(try_stmt.expr.span)?
             } else {
                 self.materialize_returndata_bytes()
             };
@@ -3717,6 +3724,35 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
         let relative = self.abi_decode_word(payload_ptr);
         self.lower_abi_decode_dynamic_bytes(payload_ptr, payload_len, head_size, relative)
             .or_else(|| report_unsupported(self.gcx, span, "Error catch payload"))
+    }
+
+    fn lower_panic_catch_word(&mut self, _span: Span) -> Option<ValueId> {
+        let data = self.materialize_returndata_bytes();
+        let data_ptr = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+        let data_len = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let selector_slice = self.builder.make_slice(data_ptr, data_len, SliceLocation::Memory);
+        let selector_word = self.builder.memory_slice_load_word(selector_slice, zero);
+        let four = self.builder.imm_u64(4);
+        let payload_size = self.builder.imm_u64(36);
+        let short = self.builder.lt(data_len, payload_size);
+        let has_payload = self.builder.iszero(short);
+        let selector_shift = self.builder.imm_u64(224);
+        let selector = self.builder.shr(selector_shift, selector_word);
+        let expected = self.builder.imm_u256(U256::from(0x4e48_7b71_u64));
+        let selector_matches = self.builder.eq(selector, expected);
+        let matched = self.builder.and(has_payload, selector_matches);
+        let decode_block = self.builder.create_block();
+        let rethrow_block = self.builder.create_block();
+        self.builder.branch(matched, decode_block, rethrow_block);
+        self.builder.switch_to_block(rethrow_block);
+        self.builder.revert(data_ptr, data_len);
+        self.builder.switch_to_block(decode_block);
+
+        let payload_ptr = self.builder.add(data_ptr, four);
+        let word_size = self.builder.imm_u64(32);
+        let payload = self.builder.make_slice(payload_ptr, word_size, SliceLocation::Memory);
+        Some(self.builder.memory_slice_load_word(payload, zero))
     }
 
     fn lower_abi_encode_packed(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
