@@ -15,14 +15,11 @@ struct Outer {
 contract NestedStaticStructParam {
     // A static struct with a nested static struct is fully inlined in the ABI
     // head: `x`, `inner.a`, `inner.b`, `y` occupy four consecutive head words.
-    // The nested struct rebuilds into its own allocation stored as a pointer,
-    // and the field after it slots at the correct head word.
-    // The nested struct is a separate allocation, and its second field reads at
-    // a +32 offset rather than the enclosing struct's base.
+    // The typed MIR keeps the nested layout until the ABI phase rebuilds it.
     // CHECK-LABEL: fn @take{{[( ]}}
-    // CHECK: alloc memorystruct<3>
-    // CHECK: alloc raw, exact, uninitialized, infallible, 64
-    // CHECK: mstore {{.*}}, arg3
+    // CHECK: abi_params=[tuple<u256, tuple<u256, u256>, u256>]
+    // CHECK: memory_object_field_addr memorystruct<3>, arg0, 1
+    // CHECK: memory_object_field_addr memorystruct<2>, v1, 1
     function take(Outer calldata o) external pure returns (uint256, uint256) {
         return (o.inner.b, o.y);
     }

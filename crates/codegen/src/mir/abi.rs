@@ -112,6 +112,18 @@ impl fmt::Display for AbiParamType {
 }
 
 impl AbiParamType {
+    /// Returns the memory representation used for an aggregate child.
+    #[must_use]
+    pub(crate) fn mir_type(&self) -> MirType {
+        match self {
+            Self::Scalar(ty) => *ty,
+            Self::Bytes => MirType::MemoryObject(super::MemoryObjectKind::Bytes),
+            Self::DynamicArray(_) => MirType::MemoryObject(super::MemoryObjectKind::DynamicArray),
+            Self::FixedArray { .. } => MirType::MemoryObject(super::MemoryObjectKind::FixedArray),
+            Self::Tuple(_) => MirType::MemoryObject(super::MemoryObjectKind::Struct),
+        }
+    }
+
     /// Returns whether the ABI value occupies an offset in its containing head.
     #[must_use]
     pub(crate) fn is_dynamic(&self) -> bool {

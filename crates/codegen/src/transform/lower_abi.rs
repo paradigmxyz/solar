@@ -393,8 +393,15 @@ impl LowerAbiCx {
                     continue;
                 }
                 let head = builder.imm_u64(4 + head_offset);
-                let value =
-                    Self::decode_aggregate_argument(&mut builder, ty, arg_type, head, &mut current);
+                let tuple_base = builder.imm_u64(4);
+                let value = Self::decode_aggregate_argument(
+                    &mut builder,
+                    ty,
+                    arg_type,
+                    head,
+                    tuple_base,
+                    &mut current,
+                );
                 for &use_value in uses {
                     replacements.insert(use_value, value);
                 }
@@ -422,17 +429,20 @@ impl LowerAbiCx {
         ty: &crate::mir::AbiParamType,
         arg_type: MirType,
         head: ValueId,
+        tuple_base: ValueId,
         current: &mut BlockId,
     ) -> ValueId {
         builder.switch_to_block(*current);
         let base = if ty.is_dynamic() {
             let offset = builder.calldataload(head);
-            let args_base = builder.imm_u64(4);
-            builder.add(args_base, offset)
+            builder.add(tuple_base, offset)
         } else {
             head
         };
         match ty {
+            crate::mir::AbiParamType::Scalar(scalar) => {
+                Self::decode_scalar(builder, *scalar, base, current)
+            }
             crate::mir::AbiParamType::FixedArray { element, len }
                 if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(_)) =>
             {
@@ -512,11 +522,7 @@ impl LowerAbiCx {
                 builder.calldatacopy(dst, src, len);
                 ptr
             }
-            crate::mir::AbiParamType::Tuple(fields)
-                if fields
-                    .iter()
-                    .all(|field| matches!(field, crate::mir::AbiParamType::Scalar(_))) =>
-            {
+            crate::mir::AbiParamType::Tuple(fields) if Self::is_supported_aggregate(ty) => {
                 let size = builder.imm_u64((fields.len() as u64).saturating_mul(32));
                 let ptr = builder.alloc_object(
                     size,
@@ -525,21 +531,27 @@ impl LowerAbiCx {
                 );
                 let mut offset = 0;
                 for (index, field) in fields.iter().enumerate() {
-                    let crate::mir::AbiParamType::Scalar(scalar) = field else { unreachable!() };
                     let field_offset = builder.imm_u64(offset);
-                    let position = builder.add(base, field_offset);
-                    let value = Self::decode_scalar(builder, *scalar, position, current);
+                    let field_head = builder.add(base, field_offset);
+                    let value = Self::decode_aggregate_argument(
+                        builder,
+                        field,
+                        field.mir_type(),
+                        field_head,
+                        base,
+                        current,
+                    );
                     let slot = builder.memory_object_field_addr(
                         ptr,
                         crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
                         index as u64,
                     );
                     builder.mstore(slot, value);
-                    offset += 32;
+                    offset += field.head_size();
                 }
                 ptr
             }
-            _ => builder.undef(MirType::MemoryObject(crate::mir::MemoryObjectKind::FixedArray)),
+            _ => builder.undef(arg_type),
         }
     }
 
@@ -578,10 +590,13 @@ impl LowerAbiCx {
             || matches!(
                 ty,
                 crate::mir::AbiParamType::Tuple(fields)
-                    if fields
-                        .iter()
-                        .all(|field| matches!(field, crate::mir::AbiParamType::Scalar(_)))
+                    if fields.iter().all(Self::is_supported_tuple_field)
             )
+    }
+
+    fn is_supported_tuple_field(ty: &crate::mir::AbiParamType) -> bool {
+        matches!(ty, crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Bytes)
+            || matches!(ty, crate::mir::AbiParamType::Tuple(fields) if fields.iter().all(Self::is_supported_tuple_field))
     }
 
     /// Prepends `if callvalue() != 0 { revert(0, 0) }` to a wrapper.

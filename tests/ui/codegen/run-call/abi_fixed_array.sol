@@ -7,11 +7,17 @@
 //@ run-call: readDynamicCalldata(uint256[],uint256) [1, 2, 3], 1 => 2
 //@ run-call-fail: readDynamicCalldata(uint256[],uint256) [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call: readBytesCalldata(bytes) 0x010203 => 0x02
+//@ run-call: readDynamicPair((uint256,bytes)) (7, 0x010203) => 10
 
 contract AbiFixedArray {
     struct Pair {
         uint8 first;
         uint8 second;
+    }
+
+    struct DynamicPair {
+        uint256 value;
+        bytes data;
     }
 
     function read(uint256[3] calldata values, uint256 index) external pure returns (uint256) {
@@ -36,5 +42,9 @@ contract AbiFixedArray {
 
     function readPair(Pair memory value) external pure returns (uint256) {
         return value.first;
+    }
+
+    function readDynamicPair(DynamicPair memory value) external pure returns (uint256) {
+        return value.value + value.data.length;
     }
 }

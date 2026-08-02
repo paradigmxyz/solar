@@ -918,10 +918,29 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    fn can_defer_external_abi_aggregate_ty(&self, ty: Ty<'gcx>) -> bool {
+        let ty = ty.peel_refs();
+        match ty.kind {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => true,
+            TyKind::Udvt(inner, _) => self.can_defer_external_abi_aggregate_ty(inner),
+            TyKind::Struct(id) => {
+                if ty.is_recursive(self.gcx) {
+                    return false;
+                }
+                self.gcx
+                    .struct_field_types(id)
+                    .iter()
+                    .all(|&field| self.can_defer_external_abi_aggregate_ty(field))
+            }
+            _ => self.can_defer_external_abi_scalar_ty(ty),
+        }
+    }
+
     /// Returns whether an aggregate parameter can stay typed until `lower-abi`.
     ///
-    /// Word arrays and byte slices use their typed MIR representation;
-    /// nested aggregates still use the legacy HIR-aware decoder.
+    /// Word arrays, byte slices, and supported tuples use their typed MIR
+    /// representation; unsupported aggregate shapes stay on the legacy
+    /// HIR-aware decoder.
     fn can_defer_external_abi_param(&self, param_id: VariableId) -> bool {
         if self.param_is_storage_ref(param_id) {
             return false;
@@ -936,14 +955,16 @@ impl<'gcx> Lowerer<'gcx> {
         if matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)) {
             return !matches!(param.data_location, Some(solar_ast::DataLocation::Storage));
         }
-        if let TyKind::Struct(id) = ty.kind
-            && !self.abi_is_dynamic(ty)
-        {
-            return self
-                .gcx
-                .struct_field_types(id)
-                .iter()
-                .all(|&field| self.can_defer_external_abi_scalar_ty(field));
+        if matches!(ty.kind, TyKind::Struct(_)) {
+            // Calldata structs with dynamic fields need to retain the original
+            // calldata base for slice expressions. The ABI phase cannot rebuild
+            // that trailing source position in a plain memory object yet.
+            if matches!(param.data_location, Some(solar_ast::DataLocation::Calldata))
+                && self.abi_is_dynamic(ty)
+            {
+                return false;
+            }
+            return self.can_defer_external_abi_aggregate_ty(ty);
         }
         false
     }
