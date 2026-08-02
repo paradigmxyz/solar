@@ -1049,19 +1049,13 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    fn is_constructor_abi_full_word_ty(&self, ty: Ty<'gcx>) -> bool {
+    fn is_constructor_abi_word_ty(&self, ty: Ty<'gcx>) -> bool {
         self.can_defer_external_abi_scalar_ty(ty)
-            && matches!(
-                self.lower_type_from_ty(ty),
-                ty if ty == MirType::uint256()
-                    || ty == MirType::int256()
-                    || ty == MirType::bytes32()
-            )
     }
 
     fn can_defer_constructor_abi_array_element(&self, ty: Ty<'gcx>) -> bool {
         let ty = ty.peel_refs();
-        if self.is_constructor_abi_full_word_ty(ty) {
+        if self.is_constructor_abi_word_ty(ty) {
             return true;
         }
         matches!(
@@ -1075,7 +1069,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn can_defer_constructor_abi_param(&self, param_id: VariableId) -> bool {
         let param = self.gcx.hir.variable(param_id);
         let ty = self.gcx.type_of_item(param_id.into()).peel_refs();
-        if self.is_constructor_abi_full_word_ty(ty) {
+        if self.is_constructor_abi_word_ty(ty) {
             return true;
         }
         matches!(

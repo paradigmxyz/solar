@@ -273,7 +273,7 @@ impl LowerAbiCx {
     }
 
     fn is_constructor_param_type(ty: &AbiParamType) -> bool {
-        Self::is_full_word_scalar(ty)
+        Self::is_constructor_word(ty)
             || matches!(
                 ty,
                 AbiParamType::FixedArray { element, len }
@@ -283,7 +283,7 @@ impl LowerAbiCx {
     }
 
     fn is_constructor_array_element(ty: &AbiParamType) -> bool {
-        Self::is_full_word_scalar(ty)
+        Self::is_constructor_word(ty)
             || matches!(
                 ty,
                 AbiParamType::FixedArray { element, len }
@@ -293,7 +293,7 @@ impl LowerAbiCx {
     }
 
     fn constructor_param_words(ty: &AbiParamType) -> Option<u64> {
-        if Self::is_full_word_scalar(ty) {
+        if Self::is_constructor_word(ty) {
             return Some(1);
         }
         let AbiParamType::FixedArray { element, len } = ty else { return None };
@@ -313,8 +313,8 @@ impl LowerAbiCx {
             .try_fold(0_u64, |words, next| words.checked_add(next?))
             .expect("checked constructor ABI word count");
         let mut params = IndexVec::with_capacity(physical_words as usize);
-        for _ in 0..physical_words {
-            params.push(MirType::uint256());
+        for ty in &layout.types {
+            Self::push_constructor_param_types(&mut params, ty);
         }
         func.set_params(params);
         let physical_indices = func.params.indices().collect::<Vec<_>>();
@@ -357,10 +357,15 @@ impl LowerAbiCx {
         physical_args: &[ValueId],
         physical_index: &mut usize,
     ) -> ValueId {
-        if Self::is_full_word_scalar(ty) {
+        if let AbiParamType::Scalar(scalar) = ty {
             let value = physical_args[*physical_index];
             *physical_index += 1;
-            return value;
+            return Self::validate_constructor_word(builder, value, *scalar);
+        }
+        if let AbiParamType::Enum { variants, .. } = ty {
+            let value = physical_args[*physical_index];
+            *physical_index += 1;
+            return Self::validate_constructor_enum(builder, value, *variants);
         }
 
         let AbiParamType::FixedArray { element, len } = ty else {
@@ -1004,6 +1009,10 @@ impl LowerAbiCx {
         ) || matches!(ty, crate::mir::AbiParamType::Tuple(fields) if fields.iter().all(Self::is_supported_tuple_field))
     }
 
+    fn is_constructor_word(ty: &crate::mir::AbiParamType) -> bool {
+        matches!(ty, crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. })
+    }
+
     fn is_full_word_scalar(ty: &crate::mir::AbiParamType) -> bool {
         matches!(
             ty,
@@ -1012,6 +1021,59 @@ impl LowerAbiCx {
                     || *scalar == MirType::int256()
                     || *scalar == MirType::bytes32()
         )
+    }
+
+    fn push_constructor_param_types(
+        params: &mut IndexVec<ArgIdx, MirType>,
+        ty: &crate::mir::AbiParamType,
+    ) {
+        match ty {
+            crate::mir::AbiParamType::Scalar(scalar) => {
+                params.push(*scalar);
+            }
+            crate::mir::AbiParamType::Enum { ty, .. } => {
+                params.push(*ty);
+            }
+            crate::mir::AbiParamType::FixedArray { element, len } => {
+                for _ in 0..*len {
+                    Self::push_constructor_param_types(params, element);
+                }
+            }
+            _ => unreachable!("checked constructor ABI parameter"),
+        }
+    }
+
+    fn validate_constructor_word(
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        ty: MirType,
+    ) -> ValueId {
+        let Some(validator) = AbiWordValidator::from_mir_type(ty) else { return value };
+        Self::validate_constructor_value(builder, value, validator)
+    }
+
+    fn validate_constructor_enum(
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        variants: u64,
+    ) -> ValueId {
+        Self::validate_constructor_value(builder, value, AbiWordValidator::EnumRange(variants))
+    }
+
+    fn validate_constructor_value(
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        validator: AbiWordValidator,
+    ) -> ValueId {
+        let valid = validator.condition(builder, value);
+        let next = builder.create_block();
+        let revert = builder.create_block();
+        builder.branch(valid, next, revert);
+        builder.switch_to_block(revert);
+        let zero = builder.imm_u64(0);
+        builder.revert(zero, zero);
+        builder.switch_to_block(next);
+        value
     }
 
     /// Prepends `if callvalue() != 0 { revert(0, 0) }` to a wrapper.
