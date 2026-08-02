@@ -51,7 +51,7 @@ contract C {
     // CHECK: mstore
     // CHECK-NEXT: jump
     // CHECK-NEXT: [[TWO_RET]]:
-    // CHECK: push 448
+    // CHECK: push 480
     // CHECK-NEXT: mload
     // CHECK: jump [[PAIR_RETURN]]
     function multi() external pure returns (uint256 x, uint256 y) {

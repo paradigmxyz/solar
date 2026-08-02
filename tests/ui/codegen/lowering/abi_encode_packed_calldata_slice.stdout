@@ -44,39 +44,31 @@ bb21 [cold]:
   revert
 bb6:
   calldatasize
-  push 4
-  swap1
-  sub
-  push 96
-  sgt
+  push 100
+  gt
   push 36
   calldataload
   push 68
   calldataload
-  push 4
-  calldataload
-  swap3
-  swap1
   swap2
-  swap1
   push bb5
   jumpi
+  push 4
+  calldataload
   push 36
-  dup4
+  dup2
   add
   dup1
   push 160
   mstore
-  swap3
+  swap1
   push 4
   add
   calldataload
-  dup3
+  dup4
   gt
-  swap3
-  pop
   swap1
-  swap2
+  pop
   push bb5
   jumpi
   dup1
@@ -143,32 +135,31 @@ bb23:
   jump
 bb14:
   calldatasize
-  push 4
-  swap1
-  sub
-  push 64
-  sgt
+  push 68
+  gt
   push bb5
   jumpi
-  push 36
   push 4
   calldataload
-  add
-  dup1
-  push 192
-  mstore
   push 4
-  push 4
-  calldataload
+  dup2
   add
   calldataload
   dup1
   push 160
   mstore
+  swap1
+  push 36
+  add
+  dup1
+  push 192
+  mstore
   push 36
   calldataload
-  gt
-  swap1
+  dup3
+  lt
+  swap2
+  pop
   pop
   push bb5
   jumpi

@@ -16,43 +16,36 @@ fn @fixedArray(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
 
 fn @dynamic(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
+    v0 = slice_len arg0
+    v1 = add v0, 31
+    v2 = lt v1, v0
     jumpi v2, bb1, bb2
   bb1:
-    revert 0, 0
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
-    v3 = slice_len arg0
-    v4 = add v3, 31
-    v5 = lt v4, v3
-    jumpi v5, bb3, bb4
+    v3 = not 31
+    v4 = and v1, v3
+    v5 = iszero v4
+    v6 = select v5, 32, v4
+    v7 = add 32, v6
+    v8 = lt v7, v6
+    jumpi v8, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v6 = not 31
-    v7 = and v4, v6
-    v8 = iszero v7
-    v9 = select v8, 32, v7
-    v10 = add 32, v9
-    v11 = lt v10, v9
-    jumpi v11, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v12, v3
-    v13 = memory_object_data memorybytes, v12
-    v14 = sub v9, 32
-    v15 = add v13, v14
-    mstore v15, 0
-    v16 = slice_ptr arg0
-    calldatacopy v13, v16, v3
-    ret v12
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v7
+    set_memory_object_len memorybytes, v9, v0
+    v10 = memory_object_data memorybytes, v9
+    v11 = sub v6, 32
+    v12 = add v10, v11
+    mstore v12, 0
+    v13 = slice_ptr arg0
+    calldatacopy v10, v13, v0
+    ret v9
 }
 
 fn @frameShadow() -> (u256, u256, u256, u256) [abi_args=lazy, abi_returns=[word, word, word, word]] {

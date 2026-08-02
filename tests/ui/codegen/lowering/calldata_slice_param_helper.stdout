@@ -3,18 +3,18 @@
 @phase evm-shaped
 fn @lastWord() {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
+    v1 = calldatasize
+    v2 = lt v1, 36
     jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v7 = add arg0, 4
-    v8 = calldataload v7
-    v6 = add arg0, 36
-    v3 = internal_call @_last, 1, v6, v8
-    mstore 128, v3
+    v3 = calldataload 4
+    v4 = add v3, 4
+    v5 = calldataload v4
+    v6 = add v3, 36
+    v0 = internal_call @_last, 1, v6, v5
+    mstore 128, v0
     returndata 128, 32
 }
 
@@ -28,25 +28,25 @@ fn @_last(arg0: calldataptr, arg1: u256) -> u256 {
 
 fn @lastWord2() {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
+    v9 = calldatasize
+    v10 = lt v9, 36
+    jumpi v10, bb1, bb3
   bb1:
     revert 0, 0
   bb2:
-    v16 = add arg0, 36
-    v17 = add arg0, 4
-    v18 = calldataload v17
-    v3 = internal_call @_last, 1, v16, v18
-    jumpi v18, bb3, bb1
-  bb3:
-    v7 = sub v18, 1
-    v8 = add v16, 1
-    v10 = internal_call @_last, 1, v8, v7
-    v11 = xor v3, v10
-    mstore 128, v11
+    v4 = sub v13, 1
+    v5 = add v14, 1
+    v7 = internal_call @_last, 1, v5, v4
+    v8 = xor v0, v7
+    mstore 128, v8
     returndata 128, 32
+  bb3:
+    v11 = calldataload 4
+    v12 = add v11, 4
+    v13 = calldataload v12
+    v14 = add v11, 36
+    v0 = internal_call @_last, 1, v14, v13
+    jumpi v13, bb2, bb1
 }
 
 fn @entry() [entry] {

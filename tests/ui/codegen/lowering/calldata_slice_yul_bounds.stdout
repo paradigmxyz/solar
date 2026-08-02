@@ -38,54 +38,40 @@ fn @_sink(arg0: calldataslice) -> u256 {
 
 fn @trimLen(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = slice_ptr arg0
-    v4 = slice_len arg0
+    v0 = slice_ptr arg0
+    v1 = slice_len arg0
+    mstore 128, v0
+    mstore 160, v1
+    v2 = slice_ptr arg0
+    v3 = add v2, 4
     mstore 128, v3
-    mstore 160, v4
-    v5 = slice_ptr arg0
-    v6 = add v5, 4
-    mstore 128, v6
-    v7 = slice_len arg0
-    v8 = sub v7, 4
-    mstore 160, v8
-    v9 = mload 128
-    v10 = mload 160
-    v11 = make_calldata_slice v9, v10
-    v12 = slice_len v11
-    ret v12
+    v4 = slice_len arg0
+    v5 = sub v4, 4
+    mstore 160, v5
+    v6 = mload 128
+    v7 = mload 160
+    v8 = make_calldata_slice v6, v7
+    v9 = slice_len v8
+    ret v9
 }
 
 fn @conditional(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
+    v0 = slice_ptr arg0
+    v1 = slice_len arg0
+    mstore 128, v0
+    mstore 160, v1
+    v2 = slice_len arg0
+    v3 = gt v2, 32
+    jumpi v3, bb1, bb2
   bb1:
-    revert 0, 0
-  bb2:
-    v3 = slice_ptr arg0
-    v4 = slice_len arg0
-    mstore 128, v3
-    mstore 160, v4
-    v5 = slice_len arg0
-    v6 = gt v5, 32
-    jumpi v6, bb3, bb4
-  bb3:
     mstore 160, 32
-    jump bb4
-  bb4:
-    v7 = mload 128
-    v8 = mload 160
-    v9 = make_calldata_slice v7, v8
-    v10 = slice_len v9
-    ret v10
+    jump bb2
+  bb2:
+    v4 = mload 128
+    v5 = mload 160
+    v6 = make_calldata_slice v4, v5
+    v7 = slice_len v6
+    ret v7
 }
 

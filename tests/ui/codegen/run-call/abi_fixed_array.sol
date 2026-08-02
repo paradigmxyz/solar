@@ -4,6 +4,9 @@
 //@ run-call-fail: readDynamic(uint256[],uint256) [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call: readBytes(bytes) 0x010203 => 0x02
 //@ run-call: readPair((uint8,uint8)) (7, 9) => 7
+//@ run-call: readDynamicCalldata(uint256[],uint256) [1, 2, 3], 1 => 2
+//@ run-call-fail: readDynamicCalldata(uint256[],uint256) [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: readBytesCalldata(bytes) 0x010203 => 0x02
 
 contract AbiFixedArray {
     struct Pair {
@@ -19,7 +22,15 @@ contract AbiFixedArray {
         return values[index];
     }
 
+    function readDynamicCalldata(uint256[] calldata values, uint256 index) external pure returns (uint256) {
+        return values[index];
+    }
+
     function readBytes(bytes memory values) external pure returns (bytes1) {
+        return values[1];
+    }
+
+    function readBytesCalldata(bytes calldata values) external pure returns (bytes1) {
         return values[1];
     }
 

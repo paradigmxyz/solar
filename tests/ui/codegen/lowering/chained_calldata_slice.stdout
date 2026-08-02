@@ -2,63 +2,56 @@
 @module ChainedCalldataSlice
 fn @bytesChain(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
+    v0 = slice_ptr arg0
+    v1 = slice_len arg0
+    v2 = lt v1, 1
     jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v3 = slice_ptr arg0
-    v4 = slice_len arg0
-    v5 = lt v4, 1
-    jumpi v5, bb3, bb4
+    v3 = sub v1, 1
+    v4 = add v0, 1
+    v5 = make_calldata_slice v4, v3
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = lt v7, 1
+    jumpi v8, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v6 = sub v4, 1
-    v7 = add v3, 1
-    v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = lt v10, 1
-    jumpi v11, bb5, bb6
+    v9 = sub v7, 1
+    v10 = add v6, 1
+    v11 = make_calldata_slice v10, v9
+    v12 = slice_len v11
+    v13 = add v12, 31
+    v14 = lt v13, v12
+    jumpi v14, bb5, bb6
   bb5:
-    revert 0, 0
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb6:
-    v12 = sub v10, 1
-    v13 = add v9, 1
-    v14 = make_calldata_slice v13, v12
-    v15 = slice_len v14
-    v16 = add v15, 31
-    v17 = lt v16, v15
-    jumpi v17, bb7, bb8
+    v15 = not 31
+    v16 = and v13, v15
+    v17 = iszero v16
+    v18 = select v17, 32, v16
+    v19 = add 32, v18
+    v20 = lt v19, v18
+    jumpi v20, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = iszero v19
-    v21 = select v20, 32, v19
-    v22 = add 32, v21
-    v23 = lt v22, v21
-    jumpi v23, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    v24 = alloc memorybytes, exact, uninitialized, infallible, v22
-    set_memory_object_len memorybytes, v24, v15
-    v25 = memory_object_data memorybytes, v24
-    v26 = sub v21, 32
-    v27 = add v25, v26
-    mstore v27, 0
-    v28 = slice_ptr v14
-    calldatacopy v25, v28, v15
-    ret v24
+    v21 = alloc memorybytes, exact, uninitialized, infallible, v19
+    set_memory_object_len memorybytes, v21, v12
+    v22 = memory_object_data memorybytes, v21
+    v23 = sub v18, 32
+    v24 = add v22, v23
+    mstore v24, 0
+    v25 = slice_ptr v11
+    calldatacopy v22, v25, v12
+    ret v21
 }
 
 fn @arrChain(arg0: calldataslice) -> u256 [abi_returns=[word]] {

@@ -920,7 +920,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Returns whether an aggregate parameter can stay typed until `lower-abi`.
     ///
-    /// The first aggregate slice uses the existing word-array representation;
+    /// Word arrays and byte slices use their typed MIR representation;
     /// nested aggregates still use the legacy HIR-aware decoder.
     fn can_defer_external_abi_param(&self, param_id: VariableId) -> bool {
         if self.param_is_storage_ref(param_id) {
@@ -934,10 +934,7 @@ impl<'gcx> Lowerer<'gcx> {
             return true;
         }
         if matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)) {
-            return !matches!(
-                param.data_location,
-                Some(solar_ast::DataLocation::Calldata | solar_ast::DataLocation::Storage)
-            );
+            return !matches!(param.data_location, Some(solar_ast::DataLocation::Storage));
         }
         if let TyKind::Struct(id) = ty.kind
             && !self.abi_is_dynamic(ty)

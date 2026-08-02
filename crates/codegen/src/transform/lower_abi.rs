@@ -384,14 +384,17 @@ impl LowerAbiCx {
                     head_offset += ty.head_size();
                     continue;
                 }
-                let MirType::MemoryObject(_) =
-                    arg_types.get(index).copied().unwrap_or(MirType::Void)
-                else {
+                let Some(arg_type) = arg_types.get(index).copied() else {
                     head_offset += ty.head_size();
                     continue;
                 };
+                if !matches!(arg_type, MirType::MemoryObject(_) | MirType::Slice(_)) {
+                    head_offset += ty.head_size();
+                    continue;
+                }
                 let head = builder.imm_u64(4 + head_offset);
-                let value = Self::decode_aggregate_argument(&mut builder, ty, head, &mut current);
+                let value =
+                    Self::decode_aggregate_argument(&mut builder, ty, arg_type, head, &mut current);
                 for &use_value in uses {
                     replacements.insert(use_value, value);
                 }
@@ -417,6 +420,7 @@ impl LowerAbiCx {
     fn decode_aggregate_argument(
         builder: &mut FunctionBuilder<'_>,
         ty: &crate::mir::AbiParamType,
+        arg_type: MirType,
         head: ValueId,
         current: &mut BlockId,
     ) -> ValueId {
@@ -456,6 +460,15 @@ impl LowerAbiCx {
                 ptr
             }
             crate::mir::AbiParamType::DynamicArray(element)
+                if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(_))
+                    && matches!(arg_type, MirType::Slice(_)) =>
+            {
+                let len = builder.calldataload(base);
+                let word = builder.imm_u64(32);
+                let data = builder.add(base, word);
+                return builder.make_slice(data, len, crate::mir::SliceLocation::Calldata);
+            }
+            crate::mir::AbiParamType::DynamicArray(element)
                 if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(_)) =>
             {
                 let len = builder.calldataload(base);
@@ -473,6 +486,12 @@ impl LowerAbiCx {
                 let src = builder.add(base, word);
                 builder.calldatacopy(dst, src, bytes);
                 ptr
+            }
+            crate::mir::AbiParamType::Bytes if matches!(arg_type, MirType::Slice(_)) => {
+                let len = builder.calldataload(base);
+                let word = builder.imm_u64(32);
+                let data = builder.add(base, word);
+                return builder.make_slice(data, len, crate::mir::SliceLocation::Calldata);
             }
             crate::mir::AbiParamType::Bytes => {
                 let len = builder.calldataload(base);
