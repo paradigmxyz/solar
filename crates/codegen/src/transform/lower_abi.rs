@@ -1415,8 +1415,10 @@ impl LowerAbiCx {
     ) -> ValueId {
         builder.switch_to_block(*current);
         let result = builder.mul(lhs, rhs);
+        let rhs_zero = builder.iszero(rhs);
         let quotient = builder.div(result, rhs);
-        let valid = builder.eq(quotient, lhs);
+        let exact = builder.eq(quotient, lhs);
+        let valid = builder.or(rhs_zero, exact);
         let overflow = builder.iszero(valid);
         let next = builder.create_block();
         let revert = builder.create_block();

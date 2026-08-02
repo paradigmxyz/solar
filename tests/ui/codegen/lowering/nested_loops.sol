@@ -3,13 +3,9 @@
 
 contract NestedLoops {
     // CHECK-LABEL: fn @sum_grid{{[( ]}}
-    // CHECK: [[I:v[0-9]+]] = frame_load scratch, word, 32
-    // CHECK: lt [[I]], arg0
-    // CHECK: [[J:v[0-9]+]] = frame_load scratch, word, 64
-    // CHECK: lt [[J]], arg1
-    // CHECK: [[BODY_I:v[0-9]+]] = frame_load scratch, word, 32
-    // CHECK: [[BODY_J:v[0-9]+]] = frame_load scratch, word, 64
-    // CHECK: {{v[0-9]+}} = mul [[BODY_I]], [[BODY_J]]
+    // CHECK: {{v[0-9]+}} = phi
+    // CHECK: lt {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: {{v[0-9]+}} = mul {{v[0-9]+}}, {{v[0-9]+}}
     function sum_grid(uint256 n, uint256 m) public pure returns (uint256) {
         uint256 total = 0;
         for (uint256 i = 0; i < n; i++) {
@@ -21,12 +17,10 @@ contract NestedLoops {
     }
 
     // CHECK-LABEL: fn @find_first{{[( ]}}
-    // CHECK: [[I:v[0-9]+]] = frame_load scratch, word, 0
-    // CHECK: lt [[I]], arg0
-    // CHECK: [[J:v[0-9]+]] = frame_load scratch, word, 32
-    // CHECK: lt [[J]], arg0
+    // CHECK: {{v[0-9]+}} = phi
+    // CHECK: lt {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: add {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK: eq {{v[0-9]+}}, arg1
+    // CHECK: eq {{v[0-9]+}}, {{v[0-9]+}}
     function find_first(uint256 n, uint256 target) public pure returns (uint256) {
         for (uint256 i = 0; i < n; i++) {
             for (uint256 j = 0; j < n; j++) {

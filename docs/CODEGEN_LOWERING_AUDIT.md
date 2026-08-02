@@ -59,6 +59,10 @@ The replacement is split into stateful, private components:
 * `StorageBuilder` computes one base-to-derived layout. `StorageLayout` owns
   packed-field reads and read-modify-write stores, including signed and
   fixed-bytes normalization.
+* `LowerAbiCx` owns ABI wrapper construction and a lazy cleanup-helper registry.
+  `OutlineRevertsCx` owns the corresponding registry for shared revert paths.
+  Both registries key helpers by their semantic shape and leave trivial `u256`
+  operations inline.
 * `contract` only discovers functions, assigns function attributes and
   selectors, and assembles the module.
 
@@ -79,36 +83,39 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * typed external ABI metadata for scalar, enum, byte, array, and tuple shapes;
 * state-variable reads and writes through the shared storage-location object;
 * packed unsigned, signed, address, enum, and fixed-bytes storage fields;
-* basic conditional and loop CFG construction with scoped environments;
-* constructor and fallback/function attributes needed by the backend.
+* nested structs, mappings, dynamic arrays, and short and long storage bytes;
+* explicit state-variable initializers, including a synthetic constructor when
+  the contract has no explicit constructor;
+* loop-carried scalar and storage-reference environments, including `break` and
+  `continue` exits;
+* constructor and fallback/function attributes needed by the backend;
+* lazy, deduplicated ABI cleanup helpers and outlined revert helpers.
 
 The generated MIR for `tests/ui/codegen/lowering/compound_assign.sol` contains
 the expected `sload`, arithmetic, and `sstore` sequence, and does not contain a
 free-memory-pointer allocation. `cargo check --workspace` and `cargo fmt --all`
-pass for this slice.
+pass for this slice. The storage-array runtime fixture also matches Solc 0.8.35
+for direct, push, lvalue, nested-lvalue, bytes, and mapping cases.
 
 ## Remaining work
 
-The slice is not full codegen. The following are explicit next stages, each to
-be backed by solc comparisons and existing UI or runtime infrastructure:
+The rewrite is not full codegen. The following are explicit next stages, each
+to be backed by Solc comparisons and existing UI or runtime infrastructure:
 
-1. Lower memory objects, slices, arrays, bytes, structs, and aggregate copies
-   through semantic MIR operations. Physical memory selection belongs to the
-   existing memory-lowering boundary.
-2. Add storage aggregate locations for nested structs, arrays, mappings, dynamic
-   arrays, and storage bytes, including dynamic slot addressing.
-3. Expand modifiers as source-order chains with explicit return continuations;
-   lower base-constructor calls and state initializers in constructor order.
-4. Add internal and external calls, multi-return values, builtins, events,
-   reverts, Yul, contract creation, immutables, and function-pointer dispatch.
-5. Add a lazy helper registry keyed by semantic operation. Trivial `u256`
-   cleanup stays inline; nontrivial checked conversions and shared error paths
-   are named, deduplicated helpers without forced `NO_INLINE`.
-6. Add and run differential/UI/runtime tests for every new semantic slice, then
-   run the complete existing test and solc suites before declaring the rewrite
-   complete.
+1. Complete dynamic aggregate ABI decoding and encoding, including the
+   remaining nested arrays, bytes, tuples, and aggregate returns.
+2. Lower base-constructor calls in linearized order and finish constructor
+   argument forwarding. Modifiers now expand through explicit continuations,
+   but base-constructor modifiers still fail closed.
+3. Add the remaining call and language features: external calls, events, Yul
+   statements, contract creation, immutables, and function-pointer dispatch.
+4. Finish storage-reference CFG merging for every aggregate shape and audit
+   checked arithmetic and allocation guards against the corresponding Solc
+   behavior.
+5. Add and run differential, UI, and runtime tests for every new semantic
+   slice, then run the complete existing test and Solc suites before declaring
+   the rewrite complete.
 
-Unsupported HIR currently emits a diagnostic and omits that function from the
-returned module. This is a deliberate fail-closed boundary while the stages
-above are implemented; it must not be replaced with zero values or silent
-miscompilation.
+Unsupported HIR emits a diagnostic and leaves an `invalid` MIR terminator in the
+rejected function. This is a deliberate fail-closed boundary; it must not be
+replaced with a stop, zero values, or silent miscompilation.

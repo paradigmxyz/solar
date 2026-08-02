@@ -49,10 +49,28 @@ pub(super) fn lower(
         let name = module.function(mir_id).name;
         let Some(mut mir) = function::lower(gcx, &mut module, &storage, function_id, &mir_ids)
         else {
-            FunctionBuilder::new(module.function_mut(mir_id)).stop();
+            FunctionBuilder::new(module.function_mut(mir_id)).invalid();
             continue;
         };
         mir.name = name;
+        *module.function_mut(mir_id) = mir;
+    }
+
+    if contract.ctor.is_none()
+        && contract.linearized_bases.iter().rev().any(|&base| {
+            gcx.hir.contract(base).variables().any(|id| gcx.hir.variable(id).initializer.is_some())
+        })
+    {
+        let mir_id = module.add_function(Function::new(solar_interface::Ident::with_dummy_span(
+            solar_interface::kw::Constructor,
+        )));
+        let Some(mut mir) =
+            function::lower_synthetic_constructor(gcx, &storage, contract_id, &mir_ids)
+        else {
+            FunctionBuilder::new(module.function_mut(mir_id)).invalid();
+            return module;
+        };
+        mir.name = module.function(mir_id).name;
         *module.function_mut(mir_id) = mir;
     }
 

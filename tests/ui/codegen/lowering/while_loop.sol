@@ -3,11 +3,10 @@
 
 contract WhileLoop {
     // CHECK-LABEL: fn @count_down{{[( ]}}
-    // CHECK: [[I:v[0-9]+]] = frame_load scratch, word, 0
-    // CHECK: gt [[I]], 0
-    // CHECK: ret
-    // CHECK: [[BODY_I:v[0-9]+]] = frame_load scratch, word, 0
-    // CHECK: sub [[BODY_I]], 1
+    // CHECK: {{v[0-9]+}} = phi
+    // CHECK: gt {{v[0-9]+}}, 0
+    // CHECK: ret {{v[0-9]+}}
+    // CHECK: {{v[0-9]+}} = sub {{v[0-9]+}}, 1
     function count_down(uint256 n) public pure returns (uint256) {
         uint256 i = n;
         while (i > 0) {
@@ -17,11 +16,10 @@ contract WhileLoop {
     }
 
     // CHECK-LABEL: fn @do_at_least_once{{[( ]}}
-    // CHECK: [[I:v[0-9]+]] = frame_load scratch, word, 0
-    // CHECK: {{v[0-9]+}} = add [[I]], 1
-    // CHECK: ret
-    // CHECK: [[LOOP_I:v[0-9]+]] = frame_load scratch, word, 0
-    // CHECK: lt [[LOOP_I]], arg0
+    // CHECK: {{v[0-9]+}} = phi
+    // CHECK: {{v[0-9]+}} = add {{v[0-9]+}}, 1
+    // CHECK: lt {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: ret {{v[0-9]+}}
     function do_at_least_once(uint256 n) public pure returns (uint256) {
         uint256 i = 0;
         do {
@@ -31,12 +29,10 @@ contract WhileLoop {
     }
 
     // CHECK-LABEL: fn @break_when_found{{[( ]}}
-    // CHECK: [[I:v[0-9]+]] = frame_load scratch, word, 0
-    // CHECK: lt [[I]], arg0
-    // CHECK: ret
-    // CHECK: [[BODY_I:v[0-9]+]] = frame_load scratch, word, 0
-    // CHECK: eq [[BODY_I]], arg1
-    // CHECK: add {{v[0-9]+}}, 1
+    // CHECK: {{v[0-9]+}} = phi
+    // CHECK: lt {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: eq {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: {{v[0-9]+}} = add {{v[0-9]+}}, 1
     function break_when_found(uint256 n, uint256 target) public pure returns (uint256) {
         uint256 i = 0;
         while (i < n) {

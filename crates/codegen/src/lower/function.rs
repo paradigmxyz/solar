@@ -62,6 +62,12 @@ pub(super) fn lower(
 
     let mut lowerer = FunctionLowerer::new(gcx, storage, function_ids, &mut mir);
     lowerer.bind_signature(hir_function);
+    if hir_function.kind == hir::FunctionKind::Constructor {
+        let Some(contract_id) = hir_function.contract else {
+            return report_unsupported(gcx, hir_function.span, "free constructor");
+        };
+        lowerer.lower_state_initializers(contract_id)?;
+    }
     if let Some(body) = hir_function.body {
         if hir_function.modifiers.is_empty() {
             lowerer.lower_block(body)?;
@@ -78,6 +84,25 @@ pub(super) fn lower(
     }
     if !lowerer.is_terminated() {
         lowerer.finish(hir_function.returns);
+    }
+    Some(mir)
+}
+
+/// Lowers the synthetic constructor used when state initializers exist without
+/// an explicit constructor body.
+pub(super) fn lower_synthetic_constructor(
+    gcx: Gcx<'_>,
+    storage: &StorageLayout,
+    contract_id: hir::ContractId,
+    function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
+) -> Option<Function> {
+    let mut mir =
+        Function::new(solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor));
+    mir.attributes.is_constructor = true;
+    let mut lowerer = FunctionLowerer::new(gcx, storage, function_ids, &mut mir);
+    lowerer.lower_state_initializers(contract_id)?;
+    if !lowerer.is_terminated() {
+        lowerer.finish(&[]);
     }
     Some(mir)
 }
@@ -101,10 +126,17 @@ struct FunctionLowerer<'gcx, 'mir, 'ids> {
     return_targets: Vec<BlockId>,
 }
 
-#[derive(Clone, Copy)]
 struct LoopTargets {
     break_block: BlockId,
     continue_block: BlockId,
+    break_states: Vec<LoopState>,
+    continue_states: Vec<LoopState>,
+}
+
+struct LoopState {
+    block: BlockId,
+    values: FxHashMap<VariableId, ValueId>,
+    storage_refs: FxHashMap<VariableId, StorageAccess>,
 }
 
 #[derive(Clone, Copy)]
@@ -172,6 +204,25 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         self.returns.extend_from_slice(function.returns);
     }
 
+    fn lower_state_initializers(&mut self, contract_id: hir::ContractId) -> Option<()> {
+        let contract = self.gcx.hir.contract(contract_id);
+        for &base in contract.linearized_bases.iter().rev() {
+            for id in self.gcx.hir.contract(base).variables() {
+                let variable = self.gcx.hir.variable(id);
+                if !variable.is_state_variable()
+                    || variable.is_constant()
+                    || variable.is_immutable()
+                {
+                    continue;
+                }
+                let Some(initializer) = variable.initializer else { continue };
+                let value = self.lower_expr(initializer)?;
+                self.store_state_variable(id, value, initializer.span)?;
+            }
+        }
+        Some(())
+    }
+
     fn finish(&mut self, returns: &[VariableId]) {
         if returns.is_empty() {
             self.builder.stop();
@@ -231,16 +282,28 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             }
             StmtKind::Loop(block, source) => self.lower_loop(*block, *source)?,
             StmtKind::Break => {
-                let Some(targets) = self.loops.last().copied() else {
+                let Some(target) = self.loops.last().map(|targets| targets.break_block) else {
                     return report_unsupported(self.gcx, stmt.span, "break outside loop");
                 };
-                self.builder.jump(targets.break_block);
+                let state = LoopState {
+                    block: self.builder.current_block(),
+                    values: self.values.clone(),
+                    storage_refs: self.storage_refs.clone(),
+                };
+                self.loops.last_mut().expect("loop target exists").break_states.push(state);
+                self.builder.jump(target);
             }
             StmtKind::Continue => {
-                let Some(targets) = self.loops.last().copied() else {
+                let Some(target) = self.loops.last().map(|targets| targets.continue_block) else {
                     return report_unsupported(self.gcx, stmt.span, "continue outside loop");
                 };
-                self.builder.jump(targets.continue_block);
+                let state = LoopState {
+                    block: self.builder.current_block(),
+                    values: self.values.clone(),
+                    storage_refs: self.storage_refs.clone(),
+                };
+                self.loops.last_mut().expect("loop target exists").continue_states.push(state);
+                self.builder.jump(target);
             }
             StmtKind::Return(expr) => {
                 let values =
@@ -508,18 +571,151 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
     }
 
     fn lower_loop(&mut self, block: hir::Block<'_>, _source: LoopSource) -> Option<()> {
+        let preheader = self.builder.current_block();
         let header = self.builder.create_block();
         let exit = self.builder.create_block();
         self.builder.jump(header);
         self.builder.switch_to_block(header);
-        self.loops.push(LoopTargets { break_block: exit, continue_block: header });
+        let before_values = self.values.clone();
+        let before_storage_refs = self.storage_refs.clone();
+        let mut header_values = before_values.clone();
+        let mut header_phis = FxHashMap::default();
+        for (&id, &value) in &before_values {
+            let phi = self.builder.phi(vec![(preheader, value)]);
+            header_values.insert(id, phi);
+            header_phis.insert(id, phi);
+        }
+        self.values = header_values;
+        let mut header_storage_refs = before_storage_refs.clone();
+        for (&id, &access) in &before_storage_refs {
+            let slot = self.builder.phi(vec![(preheader, access.slot)]);
+            let offset = access.offset.map(|offset| self.builder.phi(vec![(preheader, offset)]));
+            header_storage_refs.insert(id, StorageAccess { slot, offset, ..access });
+        }
+        self.storage_refs = header_storage_refs.clone();
+        self.loops.push(LoopTargets {
+            break_block: exit,
+            continue_block: header,
+            break_states: Vec::new(),
+            continue_states: Vec::new(),
+        });
         self.lower_block(block)?;
-        self.loops.pop();
-        if !self.is_terminated() {
+        let normal_state = (!self.is_terminated()).then(|| LoopState {
+            block: self.builder.current_block(),
+            values: self.values.clone(),
+            storage_refs: self.storage_refs.clone(),
+        });
+        if normal_state.is_some() {
             self.builder.jump(header);
         }
+        let loop_targets = self.loops.pop().expect("loop target exists");
+        if let Some(state) = &normal_state {
+            self.add_loop_phi_incoming(&header_phis, state);
+            self.add_loop_storage_phi_incoming(&header_storage_refs, state);
+        }
+        for state in &loop_targets.continue_states {
+            self.add_loop_phi_incoming(&header_phis, state);
+            self.add_loop_storage_phi_incoming(&header_storage_refs, state);
+        }
         self.builder.switch_to_block(exit);
+        self.values =
+            self.merge_loop_values(before_values, &loop_targets.break_states, &header_phis);
+        self.storage_refs =
+            self.merge_loop_storage_refs(header_storage_refs, &loop_targets.break_states);
         Some(())
+    }
+
+    fn add_loop_phi_incoming(
+        &mut self,
+        header_phis: &FxHashMap<VariableId, ValueId>,
+        state: &LoopState,
+    ) {
+        for (&id, &phi) in header_phis {
+            let value = state.values.get(&id).copied().unwrap_or(phi);
+            self.builder.add_phi_incoming(phi, state.block, value);
+        }
+    }
+
+    fn add_loop_storage_phi_incoming(
+        &mut self,
+        header_refs: &FxHashMap<VariableId, StorageAccess>,
+        state: &LoopState,
+    ) {
+        for (&id, &header) in header_refs {
+            let access = state.storage_refs.get(&id).copied().unwrap_or(header);
+            self.builder.add_phi_incoming(header.slot, state.block, access.slot);
+            if let Some(offset) = header.offset {
+                self.builder.add_phi_incoming(offset, state.block, access.offset.unwrap_or(offset));
+            }
+        }
+    }
+
+    fn merge_loop_values(
+        &mut self,
+        before: FxHashMap<VariableId, ValueId>,
+        exits: &[LoopState],
+        header_phis: &FxHashMap<VariableId, ValueId>,
+    ) -> FxHashMap<VariableId, ValueId> {
+        let mut merged = before.clone();
+        for &id in before.keys() {
+            let incoming =
+                exits.iter().filter_map(|state| state.values.get(&id).copied()).collect::<Vec<_>>();
+            let value = match incoming.as_slice() {
+                [] => header_phis.get(&id).copied().or_else(|| before.get(&id).copied()),
+                [value] => Some(*value),
+                [first, rest @ ..] if rest.iter().all(|value| value == first) => Some(*first),
+                _ => Some(
+                    self.builder.phi(
+                        exits
+                            .iter()
+                            .filter_map(|state| {
+                                state.values.get(&id).copied().map(|value| (state.block, value))
+                            })
+                            .collect(),
+                    ),
+                ),
+            };
+            if let Some(value) = value {
+                merged.insert(id, value);
+            }
+        }
+        merged
+    }
+
+    fn merge_loop_storage_refs(
+        &mut self,
+        mut before: FxHashMap<VariableId, StorageAccess>,
+        exits: &[LoopState],
+    ) -> FxHashMap<VariableId, StorageAccess> {
+        let ids = before
+            .keys()
+            .chain(exits.iter().flat_map(|state| state.storage_refs.keys()))
+            .copied()
+            .collect::<solar_data_structures::map::FxHashSet<_>>();
+        for id in ids {
+            let incoming = exits
+                .iter()
+                .filter_map(|state| state.storage_refs.get(&id).copied())
+                .collect::<Vec<_>>();
+            let Some(first) = incoming.first().copied().or_else(|| before.get(&id).copied()) else {
+                continue;
+            };
+            if incoming.iter().all(|access| *access == first) {
+                before.insert(id, first);
+                continue;
+            }
+            let slot = self.builder.phi(
+                exits
+                    .iter()
+                    .filter_map(|state| {
+                        state.storage_refs.get(&id).map(|access| (state.block, access.slot))
+                    })
+                    .collect(),
+            );
+            let offset = first.offset;
+            before.insert(id, StorageAccess { slot, location: first.location, offset });
+        }
+        before
     }
 
     fn lower_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
@@ -1715,9 +1911,11 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
 
     fn checked_mul(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
         let result = self.builder.mul(lhs, rhs);
+        let rhs_zero = self.builder.iszero(rhs);
         let quotient = self.builder.div(result, rhs);
         let exact = self.builder.eq(quotient, lhs);
-        let overflow = self.builder.iszero(exact);
+        let valid = self.builder.or(rhs_zero, exact);
+        let overflow = self.builder.iszero(valid);
         self.panic_if(overflow, 0x41);
         result
     }
@@ -2025,6 +2223,20 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             return Some(());
         }
         report_unsupported(self.gcx, span, "assignment target")
+    }
+
+    fn store_state_variable(&mut self, id: VariableId, value: ValueId, span: Span) -> Option<()> {
+        let ty = self.gcx.type_of_item(id.into());
+        let Some(location) = self.storage.get(id) else {
+            return report_unsupported(self.gcx, span, "state initializer target");
+        };
+        if self.types.memory_layout(ty).is_some() {
+            let slot = self.builder.imm_u256(location.slot);
+            self.store_storage_object(ty, slot, value, span)
+        } else {
+            self.storage.store(&mut self.builder, location, value);
+            Some(())
+        }
     }
 
     fn store_lvalue(&mut self, expr: &hir::Expr<'_>, value: ValueId) -> Option<()> {
