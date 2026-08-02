@@ -1,11 +1,19 @@
-use crate::{document_links::ImportEditPlan, proto, rename::RenameCandidate, vfs::Vfs};
+use crate::{
+    code_actions::{CodeActionPlan, ranges_overlap, rope_source_fingerprint},
+    document_links::ImportEditPlan,
+    proto,
+    rename::RenameCandidate,
+    vfs::Vfs,
+};
 use async_lsp::{ErrorCode, ResponseError};
 use crop::Rope;
 use lsp_types::{
-    DocumentChanges, OneOf, OptionalVersionedTextDocumentIdentifier, TextDocumentEdit, TextEdit,
-    Url, WorkspaceEdit,
+    CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, DocumentChanges, OneOf,
+    OptionalVersionedTextDocumentIdentifier, TextDocumentEdit, TextEdit, Url, WorkspaceEdit,
 };
-use solar_interface::{data_structures::sync::RwLock, source_map::SourceMap};
+use solar_interface::{
+    data_structures::sync::RwLock, diagnostics::Applicability, source_map::SourceMap,
+};
 use std::{collections::HashMap, sync::Arc};
 
 pub(super) fn validated_rename_workspace_edit(
@@ -23,6 +31,88 @@ pub(super) fn validated_import_workspace_edit(
     document_changes: bool,
 ) -> Result<WorkspaceEdit, ResponseError> {
     Ok(validate_import_edits(plan, vfs)?.into_workspace_edit(document_changes))
+}
+
+pub(super) fn validated_code_actions(
+    params: CodeActionParams,
+    diagnostics: Vec<lsp_types::Diagnostic>,
+    vfs: Arc<RwLock<Vfs>>,
+    document_changes: bool,
+    is_preferred: bool,
+    diagnostic_data: bool,
+) -> Vec<CodeActionOrCommand> {
+    let uri = params.text_document.uri.clone();
+    let source_map = SourceMap::empty();
+    let Some((contents, version)) = current_file_contents(&vfs, &source_map, &uri) else {
+        return Vec::new();
+    };
+    let fingerprint = rope_source_fingerprint(&contents);
+    crate::code_actions::plans(&params, &diagnostics, &contents)
+        .into_iter()
+        .filter_map(|plan| {
+            validated_code_action(
+                plan,
+                &contents,
+                version,
+                &fingerprint,
+                document_changes,
+                is_preferred,
+                diagnostic_data,
+            )
+        })
+        .collect()
+}
+
+fn validated_code_action(
+    plan: CodeActionPlan,
+    contents: &Rope,
+    version: Option<i32>,
+    fingerprint: &str,
+    document_changes: bool,
+    supports_is_preferred: bool,
+    supports_diagnostic_data: bool,
+) -> Option<CodeActionOrCommand> {
+    if plan.source_fingerprint != fingerprint {
+        return None;
+    }
+    let edits = validate_code_action_edits(contents, plan.edits)?;
+    let changes = HashMap::from([(plan.uri.clone(), edits)]);
+    let versions = HashMap::from([(plan.uri, version)]);
+    let edit = ValidatedWorkspaceEdit { changes, versions }.into_workspace_edit(document_changes);
+    let mut diagnostic = plan.diagnostic;
+    if !supports_diagnostic_data {
+        diagnostic.data = None;
+    }
+    Some(
+        CodeAction {
+            title: plan.title,
+            kind: Some(CodeActionKind::QUICKFIX),
+            diagnostics: Some(vec![diagnostic]),
+            edit: Some(edit),
+            is_preferred: supports_is_preferred
+                .then_some(plan.applicability == Applicability::MachineApplicable),
+            ..Default::default()
+        }
+        .into(),
+    )
+}
+
+fn validate_code_action_edits(contents: &Rope, edits: Vec<TextEdit>) -> Option<Vec<TextEdit>> {
+    if edits.is_empty() {
+        return None;
+    }
+    let index = proto::LspPositionIndex::new(contents);
+    let mut byte_ranges = Vec::with_capacity(edits.len());
+    for edit in &edits {
+        let range = index.checked_text_range(edit.range)?;
+        if index.position_at_byte(range.start) != Some(edit.range.start)
+            || index.position_at_byte(range.end) != Some(edit.range.end)
+        {
+            return None;
+        }
+        byte_ranges.push(range);
+    }
+    (!ranges_overlap(&mut byte_ranges)).then_some(edits)
 }
 
 struct ValidatedWorkspaceEdit {
@@ -140,4 +230,57 @@ fn current_file_contents(
 
 fn content_modified() -> ResponseError {
     ResponseError::new(ErrorCode::CONTENT_MODIFIED, "document contents changed since analysis")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lsp_types::{Position, Range};
+
+    #[test]
+    fn code_action_edit_validation_accepts_adjacent_utf16_ranges() {
+        let contents = Rope::from("😀value");
+        let edits = vec![
+            TextEdit::new(Range::new(Position::new(0, 0), Position::new(0, 2)), "x".into()),
+            TextEdit::new(Range::new(Position::new(0, 2), Position::new(0, 7)), "y".into()),
+        ];
+
+        assert_eq!(validate_code_action_edits(&contents, edits.clone()), Some(edits));
+    }
+
+    #[test]
+    fn code_action_edit_validation_rejects_untrusted_ranges() {
+        let contents = Rope::from("😀value");
+        let invalid = [
+            vec![TextEdit::new(
+                Range::new(Position::new(0, 1), Position::new(0, 2)),
+                "split surrogate".into(),
+            )],
+            vec![TextEdit::new(
+                Range::new(Position::new(0, 99), Position::new(0, 99)),
+                "past line end".into(),
+            )],
+            vec![
+                TextEdit::new(
+                    Range::new(Position::new(0, 2), Position::new(0, 5)),
+                    "overlap one".into(),
+                ),
+                TextEdit::new(
+                    Range::new(Position::new(0, 4), Position::new(0, 7)),
+                    "overlap two".into(),
+                ),
+            ],
+            vec![
+                TextEdit::new(Range::new(Position::new(0, 2), Position::new(0, 2)), "first".into()),
+                TextEdit::new(
+                    Range::new(Position::new(0, 2), Position::new(0, 2)),
+                    "second".into(),
+                ),
+            ],
+        ];
+
+        for edits in invalid {
+            assert_eq!(validate_code_action_edits(&contents, edits), None);
+        }
+    }
 }

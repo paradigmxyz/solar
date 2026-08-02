@@ -275,7 +275,7 @@ impl DiagnosticStore {
     }
 }
 
-fn normalize_file_uri(uri: Url) -> Url {
+pub(crate) fn normalize_file_uri(uri: Url) -> Url {
     let path = uri.path();
     let is_windows_drive_root = cfg!(windows)
         && path.len() == 4

@@ -1,25 +1,51 @@
-use crate::{diagnostics::DiagnosticMap, flycheck::config::FlycheckOutput};
+use crate::{
+    code_actions::{DiagnosticData, DiagnosticSuggestion, ranges_overlap},
+    diagnostics::DiagnosticMap,
+    flycheck::config::FlycheckOutput,
+};
 use crop::Rope;
 use lsp_types::{
     Diagnostic as LspDiagnostic, DiagnosticSeverity, NumberOrString, Position, Range, Url,
 };
+use normalize_path::NormalizePath;
 use serde::Deserialize;
 use solar_interface::{
     data_structures::map::FxHashMap,
     diagnostics::{
-        JsonDiagnostic, JsonDiagnosticMessage, JsonDiagnosticSpan, Severity, SolcDiagnostic,
+        Applicability, JsonDiagnostic, JsonDiagnosticMessage, JsonDiagnosticSpan, Severity,
+        SolcDiagnostic,
     },
     source_map::SourceMap,
 };
 use std::path::{Path, PathBuf};
+
+pub(crate) type SourceSnapshot = FxHashMap<PathBuf, Rope>;
 
 pub(super) fn parse(
     output: &[u8],
     cwd: &Path,
     format: FlycheckOutput,
 ) -> Result<DiagnosticMap, ParseError> {
+    parse_with_snapshot(output, cwd, format, None)
+}
+
+pub(super) fn parse_from_snapshot(
+    output: &[u8],
+    cwd: &Path,
+    format: FlycheckOutput,
+    source_snapshot: &SourceSnapshot,
+) -> Result<DiagnosticMap, ParseError> {
+    parse_with_snapshot(output, cwd, format, Some(source_snapshot))
+}
+
+fn parse_with_snapshot(
+    output: &[u8],
+    cwd: &Path,
+    format: FlycheckOutput,
+    source_snapshot: Option<&SourceSnapshot>,
+) -> Result<DiagnosticMap, ParseError> {
     let mut diagnostics = DiagnosticMap::default();
-    let mut range_cache = ByteRangeCache::default();
+    let mut range_cache = ByteRangeCache::new(source_snapshot);
     let source = source(format);
 
     match format {
@@ -96,7 +122,7 @@ fn collect_solc_json(
     cwd: &Path,
     source: &'static str,
     diagnostics: &mut DiagnosticMap,
-    range_cache: &mut ByteRangeCache,
+    range_cache: &mut ByteRangeCache<'_>,
 ) {
     match record {
         SolcJsonRecord::Diagnostic(diagnostic) => {
@@ -116,7 +142,7 @@ fn collect_json_emitter(
     cwd: &Path,
     source: &'static str,
     diagnostics: &mut DiagnosticMap,
-    range_cache: &mut ByteRangeCache,
+    range_cache: &mut ByteRangeCache<'_>,
 ) {
     match record {
         JsonEmitterRecord::Rustc(JsonDiagnosticMessage::Diagnostic(diagnostic)) => {
@@ -138,12 +164,18 @@ fn solc_diagnostic(
     diagnostic: SolcDiagnostic<'_>,
     cwd: &Path,
     source: &'static str,
-    range_cache: &mut ByteRangeCache,
+    range_cache: &mut ByteRangeCache<'_>,
 ) -> Option<(Url, LspDiagnostic)> {
     let location = diagnostic.source_location?;
     let path = resolve_path(cwd, location.file.as_ref());
     let uri = Url::from_file_path(&path).ok()?;
-    let range = range_cache.range(&path, location.start as usize, location.end as usize)?;
+    let (start, end) = if location.start == -1 && location.end == -1 {
+        (0, 0)
+    } else {
+        (usize::try_from(location.start).ok()?, usize::try_from(location.end).ok()?)
+    };
+    let range = range_cache.checked_range(&path, start, end)?;
+    let data = diagnostic_data(range_cache, &path, uri.clone(), Vec::new());
 
     Some((
         uri,
@@ -156,7 +188,7 @@ fn solc_diagnostic(
             message: diagnostic.message.into_owned(),
             related_information: None,
             tags: None,
-            data: None,
+            data,
         },
     ))
 }
@@ -165,7 +197,7 @@ fn json_diagnostic(
     diagnostic: JsonDiagnostic<'_>,
     cwd: &Path,
     source: &'static str,
-    range_cache: &mut ByteRangeCache,
+    range_cache: &mut ByteRangeCache<'_>,
 ) -> Option<(Url, LspDiagnostic)> {
     let (path, byte_start, byte_end) = {
         let span = primary_span(&diagnostic)?;
@@ -177,7 +209,9 @@ fn json_diagnostic(
     };
 
     let uri = Url::from_file_path(&path).ok()?;
-    let range = range_cache.range(&path, byte_start, byte_end)?;
+    let range = range_cache.checked_range(&path, byte_start, byte_end)?;
+    let suggestions = json_suggestions(&diagnostic, cwd, &uri, range_cache);
+    let data = diagnostic_data(range_cache, &path, uri.clone(), suggestions);
 
     Some((
         uri,
@@ -190,9 +224,80 @@ fn json_diagnostic(
             message: diagnostic.message.into_owned(),
             related_information: None,
             tags: None,
-            data: None,
+            data,
         },
     ))
+}
+
+fn json_suggestions(
+    diagnostic: &JsonDiagnostic<'_>,
+    cwd: &Path,
+    uri: &Url,
+    range_cache: &mut ByteRangeCache<'_>,
+) -> Vec<DiagnosticSuggestion> {
+    let mut suggestions = Vec::<DiagnosticSuggestion>::new();
+    for child in &diagnostic.children {
+        let Some(suggestion) = json_suggestion(child, cwd, uri, range_cache) else {
+            continue;
+        };
+        if suggestions.iter_mut().any(|existing| existing.merge_alternatives(suggestion.clone())) {
+            continue;
+        }
+        suggestions.push(suggestion);
+    }
+    suggestions
+}
+
+fn json_suggestion(
+    diagnostic: &JsonDiagnostic<'_>,
+    cwd: &Path,
+    uri: &Url,
+    range_cache: &mut ByteRangeCache<'_>,
+) -> Option<DiagnosticSuggestion> {
+    let mut applicability = None;
+    let mut edits = Vec::with_capacity(diagnostic.spans.len());
+    let mut byte_ranges = Vec::with_capacity(diagnostic.spans.len());
+    for span in &diagnostic.spans {
+        let replacement = span.suggested_replacement.as_ref()?;
+        let span_applicability = span.suggestion_applicability.unwrap_or_default();
+        match applicability {
+            Some(applicability) if applicability != span_applicability => return None,
+            None => applicability = Some(span_applicability),
+            Some(_) => {}
+        }
+
+        let path = resolve_path(cwd, span.file_name.as_ref());
+        if Url::from_file_path(&path).ok().as_ref() != Some(uri) {
+            return None;
+        }
+        let start = span.byte_start as usize;
+        let end = span.byte_end as usize;
+        let range = range_cache.checked_range(&path, start, end)?;
+        byte_ranges.push(start..end);
+        edits.push(lsp_types::TextEdit::new(range, replacement.clone().into_owned()));
+    }
+    if edits.is_empty() || ranges_overlap(&mut byte_ranges) {
+        return None;
+    }
+
+    Some(DiagnosticSuggestion::new(
+        diagnostic.message.to_string(),
+        applicability.unwrap_or(Applicability::Unspecified),
+        vec![edits],
+    ))
+}
+
+fn diagnostic_data(
+    range_cache: &mut ByteRangeCache<'_>,
+    path: &Path,
+    uri: Url,
+    suggestions: Vec<DiagnosticSuggestion>,
+) -> Option<serde_json::Value> {
+    if !range_cache.is_trusted(path) {
+        return None;
+    }
+    let file = range_cache.file(path)?;
+    Some(DiagnosticData::from_rope(uri, file, suggestions).to_value())
 }
 
 fn primary_span<'a, 'b>(diagnostic: &'a JsonDiagnostic<'b>) -> Option<&'a JsonDiagnosticSpan<'b>> {
@@ -226,23 +331,44 @@ fn source(format: FlycheckOutput) -> &'static str {
 
 fn resolve_path(cwd: &Path, path: &str) -> PathBuf {
     let path = Path::new(path);
-    if path.is_absolute() { path.to_path_buf() } else { cwd.join(path) }
+    if path.is_absolute() { path.normalize() } else { cwd.join(path).normalize() }
 }
 
-#[derive(Default)]
-struct ByteRangeCache {
+struct ByteRangeCache<'a> {
     source_map: SourceMap,
+    source_snapshot: Option<&'a SourceSnapshot>,
     files: FxHashMap<PathBuf, Rope>,
 }
 
-impl ByteRangeCache {
-    fn range(&mut self, path: &Path, start: usize, end: usize) -> Option<Range> {
+impl<'a> ByteRangeCache<'a> {
+    fn new(source_snapshot: Option<&'a SourceSnapshot>) -> Self {
+        Self { source_map: SourceMap::empty(), source_snapshot, files: FxHashMap::default() }
+    }
+
+    fn is_trusted(&self, path: &Path) -> bool {
+        self.source_snapshot.is_none_or(|snapshot| snapshot.contains_key(path))
+    }
+
+    fn file(&mut self, path: &Path) -> Option<&Rope> {
+        if let Some(file) = self.source_snapshot.and_then(|snapshot| snapshot.get(path)) {
+            return Some(file);
+        }
         if !self.files.contains_key(path) {
             let contents = self.source_map.file_loader().load_file(path).ok()?;
             self.files.insert(path.to_path_buf(), Rope::from(contents));
         }
+        self.files.get(path)
+    }
 
-        let file = self.files.get(path)?;
+    fn checked_range(&mut self, path: &Path, start: usize, end: usize) -> Option<Range> {
+        let file = self.file(path)?;
+        if start > end
+            || end > file.byte_len()
+            || !file.is_char_boundary(start)
+            || !file.is_char_boundary(end)
+        {
+            return None;
+        }
         Some(Range { start: position_at_byte(file, start), end: position_at_byte(file, end) })
     }
 }
@@ -262,7 +388,7 @@ mod tests {
     use crate::test_support::TestProject;
     use lsp_types::DiagnosticSeverity;
     use solar_interface::diagnostics::{
-        JsonDiagnosticCode, JsonDiagnosticSpanLine, SourceLocation,
+        Applicability, JsonDiagnosticCode, JsonDiagnosticSpanLine, SourceLocation,
     };
     use std::borrow::Cow;
 
@@ -329,6 +455,120 @@ mod tests {
     }
 
     #[test]
+    fn maps_solc_file_level_diagnostics_to_document_start() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /src/Test.sol
+            contract Test {}
+            "#,
+        );
+        let json = serde_json::json!([{
+            "sourceLocation": {
+                "file": "src/Test.sol",
+                "start": -1,
+                "end": -1
+            },
+            "type": "Warning",
+            "component": "general",
+            "severity": "warning",
+            "errorCode": "1878",
+            "message": "SPDX license identifier not provided in source file."
+        }]);
+
+        let diagnostics =
+            parse(json.to_string().as_bytes(), project.root(), FlycheckOutput::SolcJson).unwrap();
+
+        let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
+        let diagnostic = &diagnostics[&uri][0];
+        assert_eq!(diagnostic.range, Range::default());
+        assert!(diagnostic.data.is_some());
+    }
+
+    #[test]
+    fn quick_fix_metadata_uses_the_flycheck_start_snapshot() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /src/Test.sol
+            contract Test { uint256 old_name; }
+            "#,
+        );
+        let file = project.path("/src/Test.sol");
+        let source_at_start = project.read_file("/src/Test.sol");
+        let start = source_at_start.find("old_name").unwrap();
+        let json = serde_json::to_string(&[solc_diagnostic_fixture(
+            Cow::Owned(file.to_string_lossy().into_owned()),
+            start,
+            start + "old_name".len(),
+            Severity::Warning,
+            Some("2018"),
+            "mutable variables should use mixedCase",
+        )])
+        .unwrap();
+        let mut snapshot = SourceSnapshot::default();
+        snapshot.insert(file.clone(), Rope::from(source_at_start.as_str()));
+        project.write_file("/src/Test.sol", "contract Test { uint256 new_name; }\n");
+
+        let diagnostics = parse_from_snapshot(
+            json.as_bytes(),
+            project.root(),
+            FlycheckOutput::SolcJson,
+            &snapshot,
+        )
+        .unwrap();
+        let uri = Url::from_file_path(file).unwrap();
+        let data = diagnostics[&uri][0].data.as_ref().expect("snapshot should carry metadata");
+        assert_eq!(
+            data["sourceFingerprint"],
+            crate::code_actions::source_fingerprint(&source_at_start)
+        );
+
+        let diagnostics = parse_from_snapshot(
+            json.as_bytes(),
+            project.root(),
+            FlycheckOutput::SolcJson,
+            &SourceSnapshot::default(),
+        )
+        .unwrap();
+        assert!(diagnostics[&uri][0].data.is_none());
+    }
+
+    #[test]
+    fn quick_fix_metadata_normalizes_equivalent_diagnostic_paths() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /src/Test.sol
+            contract Test { uint256 value; }
+            //- /tools/config
+            config
+            "#,
+        );
+        let file = project.path("/src/Test.sol");
+        let contents = project.read_file("/src/Test.sol");
+        let start = contents.find("value").unwrap();
+        let json = serde_json::to_string(&[solc_diagnostic_fixture(
+            Cow::Borrowed("../src/Test.sol"),
+            start,
+            start + "value".len(),
+            Severity::Warning,
+            Some("2018"),
+            "diagnostic",
+        )])
+        .unwrap();
+        let snapshot = SourceSnapshot::from_iter([(file.clone(), Rope::from(contents))]);
+
+        let diagnostics = parse_from_snapshot(
+            json.as_bytes(),
+            &project.path("/tools"),
+            FlycheckOutput::SolcJson,
+            &snapshot,
+        )
+        .unwrap();
+
+        let uri = Url::from_file_path(file).unwrap();
+        assert!(diagnostics[&uri][0].data.is_some());
+    }
+
+    #[test]
     fn parses_rustc_style_forge_lint_diagnostics() {
         let project = TestProject::from_fixture(
             r#"
@@ -373,6 +613,84 @@ mod tests {
         assert_eq!(diagnostics[0].code, Some(NumberOrString::String("mixed-case-variable".into())));
         assert_eq!(diagnostics[1].message, "function names should use mixedCase");
         assert_eq!(diagnostics[1].code, Some(NumberOrString::String("mixed-case-function".into())));
+    }
+
+    #[test]
+    fn preserves_forge_lint_suggestion_alternatives_in_diagnostic_data() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /src/Test.sol
+            contract Test {
+                uint256 bad_name;
+            }
+            "#,
+        );
+        let contents = project.read_file("/src/Test.sol");
+        let start = contents.find("bad_name").unwrap();
+        let end = start + "bad_name".len();
+        let mut diagnostic = json_diagnostic_fixture(
+            start,
+            end,
+            "mixed-case-variable",
+            "mutable variables should use mixedCase",
+        );
+        let JsonDiagnosticMessage::Diagnostic(record) = &mut diagnostic;
+        let suggestion = |replacement| JsonDiagnostic {
+            message: Cow::Borrowed("convert the name to mixedCase"),
+            code: None,
+            level: Cow::Borrowed("help"),
+            spans: vec![JsonDiagnosticSpan {
+                file_name: Cow::Borrowed("src/Test.sol"),
+                byte_start: start as u32,
+                byte_end: end as u32,
+                line_start: 1,
+                line_end: 1,
+                column_start: 1,
+                column_end: 1,
+                is_primary: true,
+                text: Vec::new(),
+                label: None,
+                suggested_replacement: Some(Cow::Borrowed(replacement)),
+                suggestion_applicability: Some(Applicability::MachineApplicable),
+                expansion: None,
+            }],
+            children: Vec::new(),
+            rendered: None,
+        };
+        record.children.extend([suggestion("badName"), suggestion("goodName")]);
+        let json = serde_json::to_string(&diagnostic).unwrap();
+
+        let diagnostics =
+            parse(json.as_bytes(), project.root(), FlycheckOutput::ForgeLintJson).unwrap();
+
+        let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
+        let data =
+            diagnostics[&uri][0].data.as_ref().expect("Forge suggestions should be preserved");
+        assert_eq!(data["version"], serde_json::json!(1));
+        assert_eq!(data["sourceFingerprint"], crate::code_actions::source_fingerprint(&contents));
+        assert_eq!(
+            data["suggestions"],
+            serde_json::json!([{
+                "title": "convert the name to mixedCase",
+                "applicability": "MachineApplicable",
+                "alternatives": [
+                    [{
+                        "range": {
+                            "start": { "line": 1, "character": 12 },
+                            "end": { "line": 1, "character": 20 }
+                        },
+                        "newText": "badName"
+                    }],
+                    [{
+                        "range": {
+                            "start": { "line": 1, "character": 12 },
+                            "end": { "line": 1, "character": 20 }
+                        },
+                        "newText": "goodName"
+                    }]
+                ]
+            }])
+        );
     }
 
     #[test]
@@ -475,6 +793,36 @@ mod tests {
     }
 
     #[test]
+    fn rejects_invalid_forge_primary_byte_ranges() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /src/Test.sol
+            contract Test { string value = "🚀"; }
+            "#,
+        );
+        let contents = project.read_file("/src/Test.sol");
+        let rocket = contents.find('🚀').unwrap();
+        let invalid_ranges = [
+            (contents.len() + 1, contents.len() + 2),
+            (rocket + "🚀".len(), rocket),
+            (rocket + 1, rocket + 2),
+        ];
+
+        for (start, end) in invalid_ranges {
+            let json = serde_json::to_string(&json_diagnostic_fixture(
+                start,
+                end,
+                "invalid-range",
+                "invalid range",
+            ))
+            .unwrap();
+            let diagnostics =
+                parse(json.as_bytes(), project.root(), FlycheckOutput::ForgeLintJson).unwrap();
+            assert!(diagnostics.is_empty(), "accepted invalid range {start}..{end}");
+        }
+    }
+
+    #[test]
     fn position_at_byte_handles_utf16_and_line_endings() {
         for (text, expected) in [
             ("", Position::new(0, 0)),
@@ -500,8 +848,8 @@ mod tests {
         SolcDiagnostic {
             source_location: Some(SourceLocation {
                 file,
-                start: start as u32,
-                end: end as u32,
+                start: start as i64,
+                end: end as i64,
                 message: None,
             }),
             secondary_source_locations: Vec::new(),
