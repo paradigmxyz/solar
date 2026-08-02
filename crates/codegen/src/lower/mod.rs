@@ -826,6 +826,50 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    /// Runs one function lowering with an isolated function-local context.
+    /// Contract-wide state stays on `Lowerer`, while all maps and flags that
+    /// describe the active function are restored when the body finishes.
+    fn with_function_context<R>(
+        &mut self,
+        func_id: hir::FunctionId,
+        f: impl FnOnce(&mut Self) -> R,
+    ) -> R {
+        let saved_locals = std::mem::take(&mut self.locals);
+        let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+        let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
+        let saved_next_local_memory_offset = self.next_local_memory_offset;
+        let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+        let saved_inline_returns = self.inline_returns.take();
+        let saved_modifier_chains = std::mem::take(&mut self.modifier_chains);
+        let saved_pending_inline_returns = self.pending_inline_returns.take();
+        let saved_current_contract_id = self.current_contract_id;
+        let saved_lowering_constructor = self.lowering_constructor;
+        let saved_constructor_args_base = self.constructor_args_base;
+        let saved_lowering_internal_function = self.lowering_internal_function;
+        let saved_in_unchecked_block = self.in_unchecked_block;
+        let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
+
+        self.current_contract_id = self.gcx.hir.function(func_id).contract;
+        self.in_unchecked_block = false;
+        let result = f(self);
+
+        self.locals = saved_locals;
+        self.local_memory_slots = saved_local_memory_slots;
+        self.slice_slot_locals = saved_slice_slot_locals;
+        self.next_local_memory_offset = saved_next_local_memory_offset;
+        self.assigned_vars = saved_assigned_vars;
+        self.inline_returns = saved_inline_returns;
+        self.modifier_chains = saved_modifier_chains;
+        self.pending_inline_returns = saved_pending_inline_returns;
+        self.current_contract_id = saved_current_contract_id;
+        self.lowering_constructor = saved_lowering_constructor;
+        self.constructor_args_base = saved_constructor_args_base;
+        self.lowering_internal_function = saved_lowering_internal_function;
+        self.in_unchecked_block = saved_in_unchecked_block;
+        self.current_return_tys = saved_current_return_tys;
+        result
+    }
+
     /// Lowers a function to MIR.
     pub(super) fn ensure_function_lowered(&mut self, func_id: hir::FunctionId) -> FunctionId {
         if let Some(&mir_id) = self.hir_to_mir_functions.get(&func_id) {
@@ -838,41 +882,10 @@ impl<'gcx> Lowerer<'gcx> {
                 .add_function(Function::new(Ident::new(sym::_recursive_internal, Span::DUMMY)));
         }
 
-        let saved_locals = std::mem::take(&mut self.locals);
-        let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
-        let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
-        let saved_next_local_memory_offset = self.next_local_memory_offset;
-        let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
-        let saved_inline_returns = self.inline_returns.take();
-        let saved_modifier_chains = std::mem::take(&mut self.modifier_chains);
-        let saved_pending_inline_returns = self.pending_inline_returns.take();
-        let saved_current_contract_id = self.current_contract_id;
-        let saved_lowering_constructor = self.lowering_constructor;
-        let saved_constructor_args_base = self.constructor_args_base;
-        let saved_lowering_internal_function = self.lowering_internal_function;
-        let saved_in_unchecked_block = self.in_unchecked_block;
-        let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
-
         self.lowering_functions.insert(func_id);
-        self.current_contract_id = self.gcx.hir.function(func_id).contract;
-        self.in_unchecked_block = false;
-        let mir_id = self.lower_function(func_id, false);
+        let mir_id =
+            self.with_function_context(func_id, |this| this.lower_function(func_id, false));
         self.lowering_functions.remove(func_id);
-
-        self.locals = saved_locals;
-        self.local_memory_slots = saved_local_memory_slots;
-        self.slice_slot_locals = saved_slice_slot_locals;
-        self.next_local_memory_offset = saved_next_local_memory_offset;
-        self.assigned_vars = saved_assigned_vars;
-        self.inline_returns = saved_inline_returns;
-        self.modifier_chains = saved_modifier_chains;
-        self.pending_inline_returns = saved_pending_inline_returns;
-        self.current_contract_id = saved_current_contract_id;
-        self.lowering_constructor = saved_lowering_constructor;
-        self.constructor_args_base = saved_constructor_args_base;
-        self.lowering_internal_function = saved_lowering_internal_function;
-        self.in_unchecked_block = saved_in_unchecked_block;
-        self.current_return_tys = saved_current_return_tys;
         mir_id
     }
 
@@ -885,40 +898,7 @@ impl<'gcx> Lowerer<'gcx> {
             return mir_id;
         }
 
-        let saved_locals = std::mem::take(&mut self.locals);
-        let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
-        let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
-        let saved_next_local_memory_offset = self.next_local_memory_offset;
-        let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
-        let saved_inline_returns = self.inline_returns.take();
-        let saved_modifier_chains = std::mem::take(&mut self.modifier_chains);
-        let saved_pending_inline_returns = self.pending_inline_returns.take();
-        let saved_current_contract_id = self.current_contract_id;
-        let saved_lowering_constructor = self.lowering_constructor;
-        let saved_constructor_args_base = self.constructor_args_base;
-        let saved_lowering_internal_function = self.lowering_internal_function;
-        let saved_in_unchecked_block = self.in_unchecked_block;
-        let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
-
-        self.current_contract_id = self.gcx.hir.function(func_id).contract;
-        self.in_unchecked_block = false;
-        let mir_id = self.lower_function(func_id, true);
-
-        self.locals = saved_locals;
-        self.local_memory_slots = saved_local_memory_slots;
-        self.slice_slot_locals = saved_slice_slot_locals;
-        self.next_local_memory_offset = saved_next_local_memory_offset;
-        self.assigned_vars = saved_assigned_vars;
-        self.inline_returns = saved_inline_returns;
-        self.modifier_chains = saved_modifier_chains;
-        self.pending_inline_returns = saved_pending_inline_returns;
-        self.current_contract_id = saved_current_contract_id;
-        self.lowering_constructor = saved_lowering_constructor;
-        self.constructor_args_base = saved_constructor_args_base;
-        self.lowering_internal_function = saved_lowering_internal_function;
-        self.in_unchecked_block = saved_in_unchecked_block;
-        self.current_return_tys = saved_current_return_tys;
-        mir_id
+        self.with_function_context(func_id, |this| this.lower_function(func_id, true))
     }
 
     /// Lowers a function body with its modifiers expanded around it.
