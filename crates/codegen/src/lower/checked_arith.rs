@@ -23,7 +23,7 @@ pub(super) struct ArithmeticInfo {
     pub(super) unsupported_udvt_operator: bool,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum PanicCode {
     Assert,
     ArithmeticOverflowUnderflow,
@@ -36,7 +36,7 @@ pub(super) enum PanicCode {
 }
 
 impl PanicCode {
-    fn as_u64(self) -> u64 {
+    pub(super) fn as_u64(self) -> u64 {
         match self {
             Self::Assert => 0x01,
             Self::ArithmeticOverflowUnderflow => 0x11,
@@ -952,7 +952,11 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(continue_block);
     }
 
-    pub(super) fn emit_panic_revert(&mut self, builder: &mut FunctionBuilder<'_>, code: PanicCode) {
+    pub(super) fn emit_panic_revert_inline(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        code: PanicCode,
+    ) {
         let selector = U256::from(0x4e48_7b71u64) << 224;
         let selector = builder.imm_u256(selector);
         let zero = builder.imm_u64(0);
@@ -962,6 +966,16 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(code_offset, code);
         let size = builder.imm_u64(36);
         builder.revert(zero, size);
+    }
+
+    pub(super) fn emit_panic_revert(&mut self, builder: &mut FunctionBuilder<'_>, code: PanicCode) {
+        let key = super::helpers::HelperKey::Panic(code);
+        if self.outlined_helpers.is_synthesizing(key) {
+            self.emit_panic_revert_inline(builder, code);
+            return;
+        }
+        let helper = self.ensure_panic_helper(code);
+        builder.tail_call(helper, Vec::new());
     }
 
     pub(super) fn unsigned_max(size: TypeSize) -> U256 {

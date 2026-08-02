@@ -5,7 +5,7 @@ contract CheckedArithmeticPanic {
     // CHECK-LABEL: fn @add{{[( ]}}
     // CHECK: [[SUM:v[0-9]+]] = add arg0, arg1
     // CHECK: lt [[SUM]], arg0
-    // CHECK: mstore 4, 17
+    // CHECK: tail_call @__panic_11
     function add(uint256 a, uint256 b) public pure returns (uint256) {
         return a + b;
     }
@@ -13,7 +13,7 @@ contract CheckedArithmeticPanic {
     // CHECK-LABEL: fn @sub{{[( ]}}
     // CHECK: {{v[0-9]+}} = sub arg0, arg1
     // CHECK: lt arg0, arg1
-    // CHECK: mstore 4, 17
+    // CHECK: tail_call @__panic_11
     function sub(uint256 a, uint256 b) public pure returns (uint256) {
         return a - b;
     }
@@ -22,14 +22,14 @@ contract CheckedArithmeticPanic {
     // CHECK: [[PRODUCT:v[0-9]+]] = mul arg0, arg1
     // CHECK: iszero arg1
     // CHECK: div [[PRODUCT]], arg1
-    // CHECK: mstore 4, 17
+    // CHECK: tail_call @__panic_11
     function mul(uint256 a, uint256 b) public pure returns (uint256) {
         return a * b;
     }
 
     // CHECK-LABEL: fn @div_zero{{[( ]}}
     // CHECK: jumpi arg1,
-    // CHECK: mstore 4, 18
+    // CHECK: tail_call @__panic_12
     // CHECK: div arg0, arg1
     function div_zero(uint256 a, uint256 b) public pure returns (uint256) {
         return a / b;
@@ -39,7 +39,7 @@ contract CheckedArithmeticPanic {
     // CHECK: iszero arg1
     // CHECK: shl arg1, 1
     // CHECK: exp arg0, arg1
-    // CHECK: mstore 4, 17
+    // CHECK: tail_call @__panic_11
     function pow(uint256 a, uint256 b) public pure returns (uint256) {
         return a ** b;
     }
@@ -55,7 +55,7 @@ contract CheckedArithmeticPanic {
 
     // CHECK-LABEL: fn @signed_neg{{[( ]}}
     // CHECK: eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    // CHECK: mstore 4, 17
+    // CHECK: tail_call @__panic_11
     // CHECK: sub 0, arg0
     function signed_neg(int256 a) public pure returns (int256) {
         return -a;
@@ -64,7 +64,7 @@ contract CheckedArithmeticPanic {
     // CHECK-LABEL: fn @narrow_add{{[( ]}}
     // CHECK: [[SUM:v[0-9]+]] = add arg0, arg1
     // CHECK: gt [[SUM]], 255
-    // CHECK: mstore 4, 17
+    // CHECK: tail_call @__panic_11
     function narrow_add(uint8 a, uint8 b) public pure returns (uint8) {
         return a + b;
     }

@@ -1,14 +1,16 @@
 //! Lazily outlined lowering helpers.
 
-use super::Lowerer;
+use super::{Lowerer, checked_arith::PanicCode};
 use crate::mir::{Function, FunctionBuilder, FunctionId, MemoryObjectKind, MirType};
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashMap;
-use solar_interface::{Ident, Span, sym};
+use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_interface::{Ident, Span, Symbol, sym};
 
 /// Semantic operations that have a shared MIR implementation in a module.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum HelperKey {
+    /// Revert with a Solidity `Panic(uint256)` payload.
+    Panic(PanicCode),
     /// Revert with a short `Error(string)` payload.
     RevertError,
     /// Decode one storage `bytes`/`string` value into a memory object.
@@ -19,7 +21,7 @@ pub(super) enum HelperKey {
 #[derive(Default)]
 pub(super) struct OutlinedHelpers {
     functions: FxHashMap<HelperKey, FunctionId>,
-    synthesizing: Option<HelperKey>,
+    synthesizing: FxHashSet<HelperKey>,
 }
 
 impl OutlinedHelpers {
@@ -32,21 +34,39 @@ impl OutlinedHelpers {
     }
 
     pub(super) fn is_synthesizing(&self, key: HelperKey) -> bool {
-        self.synthesizing == Some(key)
+        self.synthesizing.contains(&key)
     }
 
     fn begin(&mut self, key: HelperKey) {
-        debug_assert!(self.synthesizing.is_none());
-        self.synthesizing = Some(key);
+        debug_assert!(self.synthesizing.insert(key));
     }
 
     fn end(&mut self, key: HelperKey) {
-        debug_assert_eq!(self.synthesizing, Some(key));
-        self.synthesizing = None;
+        debug_assert!(self.synthesizing.remove(&key));
     }
 }
 
 impl<'gcx> Lowerer<'gcx> {
+    /// Returns the shared `Panic(uint256)` helper for `code`, creating it on demand.
+    pub(super) fn ensure_panic_helper(&mut self, code: PanicCode) -> FunctionId {
+        let key = HelperKey::Panic(code);
+        if let Some(id) = self.outlined_helpers.get(key) {
+            return id;
+        }
+
+        let name = format!("__panic_{:x}", code.as_u64());
+        let mut func = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+        {
+            let mut builder = FunctionBuilder::new(&mut func);
+            self.outlined_helpers.begin(key);
+            self.emit_panic_revert_inline(&mut builder, code);
+            self.outlined_helpers.end(key);
+        }
+        let id = self.module.add_function(func);
+        self.outlined_helpers.insert(key, id);
+        id
+    }
+
     /// Returns the shared short `Error(string)` helper, creating it on demand.
     pub(super) fn ensure_revert_error_helper(&mut self) -> FunctionId {
         let key = HelperKey::RevertError;

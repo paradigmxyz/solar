@@ -6,11 +6,16 @@ fn @add(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
   bb1:
+    tail_call @__panic_11
+  bb2:
+    ret v0
+}
+
+fn @__panic_11() {
+  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    ret v0
 }
 
 fn @sub(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
@@ -19,9 +24,7 @@ fn @sub(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v1 = lt arg0, arg1
     jumpi v1, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb2:
     ret v0
 }
@@ -36,9 +39,7 @@ fn @mul(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v5 = iszero v4
     jumpi v5, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb2:
     ret v0
 }
@@ -47,12 +48,17 @@ fn @div_zero(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]]
   bb0:
     jumpi arg1, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 18 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_12
   bb2:
     v0 = div arg0, arg1
     ret v0
+}
+
+fn @__panic_12() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @pow(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
@@ -84,9 +90,7 @@ fn @pow(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v12 = or v8, v11
     jumpi v12, bb9, bb10
   bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb8:
     v5 = shl arg1, 1
     jump bb1
@@ -110,9 +114,7 @@ fn @pow(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v26 = gt v14, v25
     jumpi v26, bb16, bb17
   bb14:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb15:
     v20 = and v16, 1
     v21 = mul v14, v15
@@ -121,9 +123,7 @@ fn @pow(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v24 = shr 1, v16
     jump bb11
   bb16:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb17:
     v27 = mul v14, v15
     jump bb1
@@ -137,9 +137,7 @@ fn @signed_add(arg0: i256, arg1: i256) -> i256 [abi_args=lazy, abi_returns=[word
     v3 = xor v1, v2
     jumpi v3, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb2:
     ret v0
 }
@@ -149,9 +147,7 @@ fn @signed_neg(arg0: i256) -> i256 [abi_args=lazy, abi_returns=[word]] {
     v0 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     jumpi v0, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb2:
     v1 = sub 0, arg0
     ret v1
@@ -163,9 +159,7 @@ fn @narrow_add(arg0: u8, arg1: u8) -> u8 [abi_args=lazy, abi_returns=[word]] {
     v1 = gt v0, 255
     jumpi v1, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb2:
     ret v0
 }
@@ -200,10 +194,7 @@ fn @checked_inner(arg0: u256, arg1: u256) -> u256 {
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb2:
     ret v0
 }
-
