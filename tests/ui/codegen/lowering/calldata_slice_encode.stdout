@@ -12,34 +12,32 @@ fn @encode(arg0: calldataslice, arg1: u256) -> memorybytes [abi_params=[bytes, u
     v3 = sub v1, arg1
     v4 = add v0, arg1
     v5 = make_calldata_slice v4, v3
-    v6 = fmp
-    v7 = memory_object_data memorybytes, v6
-    v8 = add v7, 32
-    v9 = sub v8, v7
-    mstore v7, v9
-    v10 = slice_len v5
-    mstore v8, v10
-    v11 = not 31
-    v12 = add v10, 31
-    v13 = and v12, v11
-    v14 = add v8, 32
-    v15 = iszero v13
-    jumpi v15, bb4, bb3
+    v6 = abi_encode [calldata_bytes], args v5
+    v7 = slice_len v6
+    v8 = add v7, 31
+    v9 = lt v8, v7
+    jumpi v9, bb3, bb4
   bb3:
-    v16 = sub v13, 32
-    v17 = add v14, v16
-    mstore v17, 0
-    jump bb4
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb4:
-    v18 = slice_ptr v5
-    v19 = add v14, v13
-    calldatacopy v14, v18, v10
-    v20 = sub v19, v7
-    set_memory_object_len memorybytes, v6, v20
-    v21 = add v20, 32
-    v22 = add v6, v21
-    set_fmp v22
-    ret v6
+    v10 = not 31
+    v11 = and v8, v10
+    v12 = add 32, v11
+    v13 = lt v12, v11
+    jumpi v13, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v14, v7
+    v15 = add v14, 32
+    v16 = slice_ptr v6
+    mcopy v15, v16, v7
+    ret v14
 }
 
 fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {

@@ -1,9 +1,9 @@
 //@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
-// `abi.encode(...)` allocates a fresh `bytes memory` `[length][data...]` from
-// the free memory pointer; it must never stage argument words at absolute low
-// memory (which clobbers the free memory pointer at 0x40 with 3+ words).
+// `abi.encode(...)` stays as a typed MIR operation until the ABI encoding pass,
+// which allocates a fresh memory slice before the bytes-object adapter copies
+// it into `[length][data...]` memory.
 // `keccak256(abi.encode(...))` hashes the encoding staged at the unbumped free
 // memory pointer without materializing a `bytes` object.
 contract AbiEncodeBytes {
@@ -16,18 +16,19 @@ contract AbiEncodeBytes {
     }
 
     // CHECK-LABEL: fn @encode3{{[( ]}}
-    // CHECK: [[ENCODED:v[0-9]+]] = fmp
-    // CHECK: [[DATA:v[0-9]+]] = memory_object_data memorybytes, [[ENCODED]]
-    // CHECK: mstore [[DATA]], arg0
-    // CHECK: set_memory_object_len memorybytes, [[ENCODED]], 96
+    // CHECK: [[ENCODED:v[0-9]+]] = abi_encode [word, word, word], args arg0, arg1, arg2
+    // CHECK: [[LEN:v[0-9]+]] = slice_len [[ENCODED]]
+    // CHECK: alloc memorybytes
+    // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, [[LEN]]
     function encode3(uint a, uint b, uint c) external pure returns (bytes memory) {
         return abi.encode(a, b, c);
     }
 
     // CHECK-LABEL: fn @encodeDynamic{{[( ]}}
-    // CHECK: [[ENCODED:v[0-9]+]] = fmp
+    // CHECK: [[ENCODED:v[0-9]+]] = abi_encode [word, memory_bytes], args arg0, arg1
+    // CHECK: [[LEN:v[0-9]+]] = slice_len [[ENCODED]]
+    // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, [[LEN]]
     // CHECK: mcopy
-    // CHECK: set_memory_object_len memorybytes, [[ENCODED]],
     function encodeDynamic(uint a, string memory s) external pure returns (bytes memory) {
         return abi.encode(a, s);
     }

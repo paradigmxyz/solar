@@ -192,9 +192,7 @@ impl<'gcx> Lowerer<'gcx> {
         Ok(LoweredAbiItems { items, calldata_slices })
     }
 
-    /// Lowers `abi.encode(...)` to a fresh `bytes memory` allocation
-    /// (`[length][ABI tuple encoding]`) from the free memory pointer and
-    /// returns the pointer.
+    /// Lowers `abi.encode(...)` to a fresh `bytes memory` object.
     pub(super) fn lower_abi_encode_to_bytes(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -202,35 +200,15 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> Result<ValueId, ErrorGuaranteed> {
         let LoweredAbiItems { items, calldata_slices } =
             self.lower_abi_encode_items(builder, arg_exprs.iter())?;
-        let scratch_words = self.abi_scratch_words(&items);
-        let scratch_base =
-            (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
-
-        let ptr = builder.fmp_object(crate::mir::MemoryObjectLayout::Bytes);
-        let word = builder.imm_u64(32);
-        let dest = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        let size = if items.is_empty() {
-            builder.imm_u64(0)
-        } else {
-            self.abi_encode_tuple(
-                builder,
-                &items,
-                dest,
-                &calldata_slices,
-                lower_abi_encode::AbiScratch { base: scratch_base, depth: 0 },
-            )
-        };
-        builder.set_memory_object_len(ptr, size, MemoryObjectKind::Bytes);
-
-        // Finalize the allocation: length word + encoded data. The tuple
-        // encoder itself never allocates (its scratch is reserved above), so
-        // nothing else writes into the buffer region before this bump. The
-        // encoded size is always a multiple of 32, keeping the free memory
-        // pointer word-aligned.
-        let total = builder.add(size, word);
-        let new_free_ptr = builder.add(ptr, total);
-        builder.set_fmp(new_free_ptr);
-        Ok(ptr)
+        let types = items
+            .iter()
+            .map(|&(value, ty)| self.abi_type(ty, calldata_slices.contains(&value)))
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| self.abi_type_error())?;
+        let layout = self.module.intern_abi_layout(AbiLayout::new(types));
+        let args = items.into_iter().map(|(value, _)| value).collect::<Vec<_>>();
+        let payload = builder.abi_encode(layout, None, args);
+        Ok(self.materialize_memory_slice_bytes(builder, payload))
     }
 
     /// Lowers `keccak256(abi.encode(...))` without materializing a `bytes`
