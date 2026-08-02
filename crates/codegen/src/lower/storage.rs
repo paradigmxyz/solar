@@ -722,6 +722,10 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 builder.mstore(destination, array);
             }
+            TyKind::DynArray(element) => {
+                let value = self.copy_storage_dyn_array_to_memory(builder, slot, element);
+                builder.mstore(destination, value);
+            }
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 let value = self.materialize_storage_bytes(builder, slot);
                 builder.mstore(destination, value);
@@ -735,6 +739,50 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.mstore(destination, value);
             }
         }
+    }
+
+    fn copy_storage_dyn_array_to_memory(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slot: ValueId,
+        element: Ty<'gcx>,
+    ) -> ValueId {
+        let len = builder.sload(slot);
+        let word = builder.imm_u64(32);
+        let data_size = builder.mul(len, word);
+        let total_size = builder.add(word, data_size);
+        let array = self.allocate_memory_object_dynamic(
+            builder,
+            total_size,
+            MemoryObjectKind::DynamicArray,
+        );
+        builder.set_memory_object_len(array, len, MemoryObjectKind::DynamicArray);
+        let data_ptr = builder.memory_object_data(array, MemoryObjectKind::DynamicArray);
+
+        let scratch = self.allocate_memory(builder, 32);
+        builder.mstore(scratch, slot);
+        let data_slot = builder.keccak256(scratch, word);
+        let element_slots = self.calculate_storage_slots_for_ty(element, Span::DUMMY);
+        let element = element.peel_refs();
+        self.emit_decode_elements_loop(builder, len, move |this, builder, index| {
+            let memory_offset = builder.mul(index, word);
+            let destination = builder.add(data_ptr, memory_offset);
+            let storage_offset = if element_slots == 1 {
+                index
+            } else {
+                let stride = builder.imm_u64(element_slots);
+                builder.mul(index, stride)
+            };
+            let storage_slot = builder.add(data_slot, storage_offset);
+            this.copy_storage_field_to_memory(
+                builder,
+                element,
+                StorageLocation::full_word(U256::ZERO),
+                storage_slot,
+                destination,
+            );
+        });
+        array
     }
 
     /// Clears every storage slot occupied by a struct at a runtime-computed base slot.
