@@ -129,9 +129,9 @@
 +   bb20:
 +     v58 = alloc memoryarray<1>, exact, uninitialized, infallible, v51
 +     set_memory_object_len memoryarray, v58, v46
-+     v59 = memory_object_data memoryarray, v58
-+     v60 = add v34, 32
-+     calldatacopy v59, v60, v47
++     v59 = add v34, 32
++     v60 = make_calldata_slice v59, v47
++     memory_object_copy_from_slice memoryarray, v58, v60
 +     memory_object_store_field memorystruct<3>, v26, 0, v58
 +     v61 = add v14, 32
 +     v62 = add v61, 32
