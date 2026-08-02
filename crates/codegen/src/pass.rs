@@ -70,10 +70,10 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_frame_slots::LowerFrameSlots,
     &lower_evm_shaped::LowerEvmShaped,
     &lower_immutables::LowerImmutables,
-    &lower_mapping_slots::LowerMappingSlots,
     &lower_mcopy::LowerMCopy,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
+    &lower_mapping_slots::LowerMappingSlots,
     &lower_memory_objects::LowerMemoryObjects,
     &lower_slices::LowerSlices,
     &lower_alloc::LowerAlloc,
@@ -195,12 +195,6 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &static_alloc::DeferAlloc,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
-    // Keep semantic mapping locations through optimization and aggregate
-    // lowering. The expansion owns its scratch allocation at this boundary.
-    &lower_mapping_slots::LowerMappingSlots,
-    // Revisit allocations introduced by late semantic lowering so fixed-size
-    // hash buffers can use backend-known static regions.
-    &static_alloc::DeferAlloc,
     &inst_simplify::InstSimplify,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
@@ -210,6 +204,13 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &dce::Dce,
     &lower_dispatch::LowerDispatch,
     &lower_frame_slots::LowerFrameSlots,
+    // Expand semantic mapping locations after ABI, dispatch, and frame
+    // lowering, while keeping their typed hash buffers ahead of the memory
+    // boundary.
+    &lower_mapping_slots::LowerMappingSlots,
+    // Revisit allocations introduced by late semantic lowering so fixed-size
+    // hash buffers can use backend-known static regions.
+    &static_alloc::DeferAlloc,
     &lower_memory_objects::LowerMemoryObjects,
     &lower_slices::LowerSlices,
     &lower_immutables::LowerImmutables,

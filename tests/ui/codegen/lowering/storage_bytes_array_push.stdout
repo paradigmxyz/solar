@@ -9,20 +9,20 @@ fn @pushStr() {
   bb1:
     tail_call @__panic_41
   bb2:
-    v78 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v115 = add v78, 64
+    v82 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v115 = add v82, 64
     mstore 64, v115 !metadata(memory=scratch)
-    mstore v78, 32
-    v91 = add v78, 32
+    mstore v82, 32
+    v91 = add v82, 32
     v92 = mul 0, 32
     v93 = add v91, v92
     mstore v93, 0
-    v94 = mload v78
-    v95 = add v78, 32
-    v79 = keccak256 v95, v94
-    v80 = add v79, v0
+    v94 = mload v82
+    v95 = add v82, 32
+    v83 = keccak256 v95, v94
+    v84 = add v83, v0
     v4 = mload v75
-    v5 = sload v80 !metadata(storage=symbolic(v3))
+    v5 = sload v84 !metadata(storage=symbolic(v3))
     v6 = and v5, 1
     v7 = eq v6, 1
     v8 = and v5, 255
@@ -50,63 +50,63 @@ fn @pushStr() {
     v26 = and v22, v25
     v27 = shl 1, v4
     v28 = or v26, v27
-    sstore v80, v28 !metadata(storage=symbolic(v3))
+    sstore v84, v28 !metadata(storage=symbolic(v3))
     jump bb7
   bb4:
     v29 = shl 1, v4
     v30 = or v29, 1
-    sstore v80, v30 !metadata(storage=symbolic(v3))
+    sstore v84, v30 !metadata(storage=symbolic(v3))
     mstore 128, 0
     jump bb5
   bb5:
-    v87 = mload 128
-    v32 = lt v87, v21
+    v78 = mload 128
+    v32 = lt v78, v21
     jumpi v32, bb6, bb7
   bb6:
-    v88 = mload 128
-    v81 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v116 = add v81, 64
+    v79 = mload 128
+    v85 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v116 = add v85, 64
     mstore 64, v116 !metadata(memory=scratch)
-    mstore v81, 32
-    v99 = add v81, 32
+    mstore v85, 32
+    v99 = add v85, 32
     v100 = mul 0, 32
     v101 = add v99, v100
-    mstore v101, v80
-    v102 = mload v81
-    v103 = add v81, 32
-    v82 = keccak256 v103, v102
-    v83 = add v82, v88
+    mstore v101, v84
+    v102 = mload v85
+    v103 = add v85, 32
+    v86 = keccak256 v103, v102
+    v87 = add v86, v79
     v104 = add v75, 32
-    v105 = mul v88, 32
+    v105 = mul v79, 32
     v106 = add v104, v105
     v35 = mload v106
-    sstore v83, v35 !metadata(storage=symbolic(v34))
-    v36 = add v88, 1
+    sstore v87, v35 !metadata(storage=symbolic(v34))
+    v36 = add v79, 1
     mstore 128, v36
     jump bb5
   bb7:
     mstore 128, v21
     jump bb8
   bb8:
-    v89 = mload 128
-    v38 = lt v89, v16
+    v80 = mload 128
+    v38 = lt v80, v16
     jumpi v38, bb9, bb10
   bb9:
-    v90 = mload 128
-    v84 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v117 = add v84, 64
+    v81 = mload 128
+    v88 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v117 = add v88, 64
     mstore 64, v117 !metadata(memory=scratch)
-    mstore v84, 32
-    v107 = add v84, 32
+    mstore v88, 32
+    v107 = add v88, 32
     v108 = mul 0, 32
     v109 = add v107, v108
-    mstore v109, v80
-    v110 = mload v84
-    v111 = add v84, 32
-    v85 = keccak256 v111, v110
-    v86 = add v85, v90
-    sstore v86, 0 !metadata(storage=symbolic(v40))
-    v41 = add v90, 1
+    mstore v109, v84
+    v110 = mload v88
+    v111 = add v88, 32
+    v89 = keccak256 v111, v110
+    v90 = add v89, v81
+    sstore v90, 0 !metadata(storage=symbolic(v40))
+    v41 = add v81, 1
     mstore 128, v41
     jump bb8
   bb10:
@@ -180,23 +180,23 @@ fn @popStr() {
     tail_call @__panic_31
   bb2:
     v1 = sub v0, 1
-    v42 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v60 = add v42, 64
+    v44 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v60 = add v44, 64
     mstore 64, v60 !metadata(memory=scratch)
-    mstore v42, 32
-    v50 = add v42, 32
+    mstore v44, 32
+    v50 = add v44, 32
     v51 = mul 0, 32
     v52 = add v50, v51
     mstore v52, 0
-    v53 = mload v42
-    v54 = add v42, 32
-    v43 = keccak256 v54, v53
-    v44 = add v43, v1
+    v53 = mload v44
+    v54 = add v44, 32
+    v45 = keccak256 v54, v53
+    v46 = add v45, v1
     v3 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v61 = add v3, 32
     mstore 64, v61 !metadata(memory=scratch)
     mstore v3, 0
-    v5 = sload v44 !metadata(storage=symbolic(v2))
+    v5 = sload v46 !metadata(storage=symbolic(v2))
     v6 = and v5, 1
     v7 = eq v6, 1
     v8 = and v5, 255
@@ -207,29 +207,29 @@ fn @popStr() {
     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v15 = shr 5, v14
     v16 = select v7, v15, 0
-    sstore v44, 0 !metadata(storage=symbolic(v2))
+    sstore v46, 0 !metadata(storage=symbolic(v2))
     mstore 128, 0
     jump bb3
   bb3:
-    v48 = mload 128
-    v38 = lt v48, v16
+    v42 = mload 128
+    v38 = lt v42, v16
     jumpi v38, bb4, bb5
   bb4:
-    v49 = mload 128
-    v45 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v62 = add v45, 64
+    v43 = mload 128
+    v47 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v62 = add v47, 64
     mstore 64, v62 !metadata(memory=scratch)
-    mstore v45, 32
-    v55 = add v45, 32
+    mstore v47, 32
+    v55 = add v47, 32
     v56 = mul 0, 32
     v57 = add v55, v56
-    mstore v57, v44
-    v58 = mload v45
-    v59 = add v45, 32
-    v46 = keccak256 v59, v58
-    v47 = add v46, v49
-    sstore v47, 0 !metadata(storage=symbolic(v40))
-    v41 = add v49, 1
+    mstore v57, v46
+    v58 = mload v47
+    v59 = add v47, 32
+    v48 = keccak256 v59, v58
+    v49 = add v48, v43
+    sstore v49, 0 !metadata(storage=symbolic(v40))
+    v41 = add v43, 1
     mstore 128, v41
     jump bb3
   bb5:
@@ -381,23 +381,23 @@ fn @pushEmpty() {
   bb1:
     tail_call @__panic_41
   bb2:
-    v43 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v61 = add v43, 64
+    v45 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v61 = add v45, 64
     mstore 64, v61 !metadata(memory=scratch)
-    mstore v43, 32
-    v51 = add v43, 32
+    mstore v45, 32
+    v51 = add v45, 32
     v52 = mul 0, 32
     v53 = add v51, v52
     mstore v53, 2
-    v54 = mload v43
-    v55 = add v43, 32
-    v44 = keccak256 v55, v54
-    v45 = add v44, v0
+    v54 = mload v45
+    v55 = add v45, 32
+    v46 = keccak256 v55, v54
+    v47 = add v46, v0
     v4 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v62 = add v4, 32
     mstore 64, v62 !metadata(memory=scratch)
     mstore v4, 0
-    v6 = sload v45 !metadata(storage=symbolic(v3))
+    v6 = sload v47 !metadata(storage=symbolic(v3))
     v7 = and v6, 1
     v8 = eq v7, 1
     v9 = and v6, 255
@@ -408,29 +408,29 @@ fn @pushEmpty() {
     v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v16 = shr 5, v15
     v17 = select v8, v16, 0
-    sstore v45, 0 !metadata(storage=symbolic(v3))
+    sstore v47, 0 !metadata(storage=symbolic(v3))
     mstore 128, 0
     jump bb3
   bb3:
-    v49 = mload 128
-    v39 = lt v49, v17
+    v43 = mload 128
+    v39 = lt v43, v17
     jumpi v39, bb4, bb5
   bb4:
-    v50 = mload 128
-    v46 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v63 = add v46, 64
+    v44 = mload 128
+    v48 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v63 = add v48, 64
     mstore 64, v63 !metadata(memory=scratch)
-    mstore v46, 32
-    v56 = add v46, 32
+    mstore v48, 32
+    v56 = add v48, 32
     v57 = mul 0, 32
     v58 = add v56, v57
-    mstore v58, v45
-    v59 = mload v46
-    v60 = add v46, 32
-    v47 = keccak256 v60, v59
-    v48 = add v47, v50
-    sstore v48, 0 !metadata(storage=symbolic(v41))
-    v42 = add v50, 1
+    mstore v58, v47
+    v59 = mload v48
+    v60 = add v48, 32
+    v49 = keccak256 v60, v59
+    v50 = add v49, v44
+    sstore v50, 0 !metadata(storage=symbolic(v41))
+    v42 = add v44, 1
     mstore 128, v42
     jump bb3
   bb5:

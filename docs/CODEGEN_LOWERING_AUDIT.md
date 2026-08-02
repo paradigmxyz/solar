@@ -154,6 +154,8 @@ describes observable structure in the current tree, not an intended design.
 * Mapping-slot preimages for word keys, memory keys, calldata keys, and storage
   array roots use typed bytes objects through `keccak256_bytes`; their hash
   inputs no longer expose raw allocation, copy, or store operations to HIR.
+  The mapping-slot pass runs after dispatch and frame lowering, immediately
+  before the memory-object boundary.
 * Storage-to-memory and memory-to-storage aggregate copies use the same typed
   field and element operations. Packed and nested copies no longer expose a
   destination address to HIR lowering.
