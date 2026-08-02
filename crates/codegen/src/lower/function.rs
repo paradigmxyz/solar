@@ -788,6 +788,73 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         arguments: &[&hir::Expr<'_>],
     ) -> Option<ValueId> {
         match builtin {
+            Builtin::YulSload => {
+                let [slot] = arguments else {
+                    return report_unsupported(self.gcx, expr.span, "sload arguments");
+                };
+                let slot = self.lower_expr(slot)?;
+                Some(self.builder.sload(slot))
+            }
+            Builtin::YulSstore => {
+                let [slot, value] = arguments else {
+                    return report_unsupported(self.gcx, expr.span, "sstore arguments");
+                };
+                let slot = self.lower_expr(slot)?;
+                let value = self.lower_expr(value)?;
+                self.builder.sstore(slot, value);
+                Some(self.builder.imm_u256(U256::ZERO))
+            }
+            Builtin::YulMload => {
+                let [offset] = arguments else {
+                    return report_unsupported(self.gcx, expr.span, "mload arguments");
+                };
+                let offset = self.lower_expr(offset)?;
+                Some(self.builder.mload(offset))
+            }
+            Builtin::YulMstore | Builtin::YulMstore8 => {
+                let [offset, value] = arguments else {
+                    return report_unsupported(self.gcx, expr.span, "mstore arguments");
+                };
+                let offset = self.lower_expr(offset)?;
+                let value = self.lower_expr(value)?;
+                if builtin == Builtin::YulMstore {
+                    self.builder.mstore(offset, value);
+                } else {
+                    self.builder.mstore8(offset, value);
+                }
+                Some(self.builder.imm_u256(U256::ZERO))
+            }
+            Builtin::YulAdd
+            | Builtin::YulSub
+            | Builtin::YulMul
+            | Builtin::YulDiv
+            | Builtin::YulMod
+            | Builtin::YulEq
+            | Builtin::YulLt
+            | Builtin::YulGt
+            | Builtin::YulAnd
+            | Builtin::YulOr
+            | Builtin::YulXor => {
+                let [lhs, rhs] = arguments else {
+                    return report_unsupported(self.gcx, expr.span, "Yul arithmetic arguments");
+                };
+                let lhs = self.lower_expr(lhs)?;
+                let rhs = self.lower_expr(rhs)?;
+                Some(match builtin {
+                    Builtin::YulAdd => self.builder.add(lhs, rhs),
+                    Builtin::YulSub => self.builder.sub(lhs, rhs),
+                    Builtin::YulMul => self.builder.mul(lhs, rhs),
+                    Builtin::YulDiv => self.builder.div(lhs, rhs),
+                    Builtin::YulMod => self.builder.mod_(lhs, rhs),
+                    Builtin::YulEq => self.builder.eq(lhs, rhs),
+                    Builtin::YulLt => self.builder.lt(lhs, rhs),
+                    Builtin::YulGt => self.builder.gt(lhs, rhs),
+                    Builtin::YulAnd => self.builder.and(lhs, rhs),
+                    Builtin::YulOr => self.builder.or(lhs, rhs),
+                    Builtin::YulXor => self.builder.xor(lhs, rhs),
+                    _ => unreachable!(),
+                })
+            }
             Builtin::Revert if arguments.is_empty() => {
                 let zero = self.builder.imm_u256(U256::ZERO);
                 self.builder.revert(zero, zero);
