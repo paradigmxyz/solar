@@ -57,12 +57,25 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   fields manually. This permits state from one HIR function or inline call to
   affect another path when a new field is not added to every save/restore
   sequence.
+* **Modifiers are not a lowering stage.** Function-root discovery includes
+  modifier declarations, but the body lowerer has no corresponding modifier
+  expansion. `StmtKind::Placeholder` is a no-op (`lower/stmt.rs`), so modifier
+  pre- and post-code is absent from generated MIR. Existing success tests cover
+  only cases that do not expose this omission; negative modifier cases are in
+  the equivalence suite.
 * **Legacy compatibility surface is broad.** The top-level module exposes many
   `pub(crate)` and `pub(super)` methods because sibling files reach through the
   context. Their callers are not grouped by phase, so removing one helper
   requires searching the whole directory and often changes unrelated lowering
   logic. The rewrite must retain only methods with verified callers and keep
   new interfaces at the smallest useful visibility.
+
+The verified entry-point surface is smaller than the current visibility
+suggests. `lower_contract_with_bytecodes` has production callers in
+`crates/codegen/src/contract.rs` and `benches/src/lib.rs`. `lower_contract` is
+used only by codegen MIR tests, while `Lowerer` and `LoopContext` have no
+callers outside the lowering module. The rewrite can reduce those interfaces
+after the test-only path is migrated.
 
 ## Replacement constraints
 
@@ -74,4 +87,3 @@ will be represented by one type-directed location abstraction that handles
 slots, byte offsets, packed reads, and packed writes. Outlined helpers will be
 named operations keyed by their semantic signature, generated lazily, and
 allowed to be inlined by later passes.
-
