@@ -1,0 +1,20 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_params.mir (before lower-abi) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_params.mir (after lower-abi) ===
+  @module LowerAbiParams
+- fn @read(arg0: memoryfixedarray, arg1: u256) -> u256 [abi_params=[array<3, u256>, u256], abi_returns=[word]] {
++ @phase abi
++ fn @read() {
+    bb0:
+-     ret arg1
++     v0 = calldatasize
++     v1 = lt v0, 132
++     jumpi v1, bb2, bb3
++   bb1:
++     mstore 128, arg3
++     returndata 128, 32
++   bb2:
++     revert 0, 0
++   bb3:
++     jump bb1
+  }
+  

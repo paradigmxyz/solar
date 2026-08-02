@@ -102,7 +102,7 @@ fn @balanceOf(arg0: address) -> u256 [abi_args=lazy, abi_returns=[word]] {
     ret v21
 }
 
-fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [abi_returns=[memory_bytes]] {
+fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [abi_params=[address, bytes], abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldataload 4
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff

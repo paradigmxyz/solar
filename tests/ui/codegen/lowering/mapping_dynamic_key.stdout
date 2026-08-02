@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKey ===
 @module MappingDynamicKey
-fn @lookup(arg0: calldataslice) -> address [abi_returns=[word]] {
+fn @lookup(arg0: calldataslice) -> address [abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot_calldata arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -21,7 +21,7 @@ fn @set(arg0: memorybytes, arg1: address) {
     stop
 }
 
-fn @get(arg0: memorybytes) -> address [abi_returns=[word]] {
+fn @get(arg0: memorybytes) -> address [abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot_memory arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -30,14 +30,14 @@ fn @get(arg0: memorybytes) -> address [abi_returns=[word]] {
 
 // === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKeyPaths ===
 @module MappingDynamicKeyPaths
-fn @flat(arg0: calldataslice) -> u256 [abi_returns=[word]] {
+fn @flat(arg0: calldataslice) -> u256 [abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot_calldata arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
     ret v1
 }
 
-fn @nestedFirst(arg0: calldataslice, arg1: address) -> u256 [abi_returns=[word]] {
+fn @nestedFirst(arg0: calldataslice, arg1: address) -> u256 [abi_params=[bytes, address], abi_returns=[word]] {
   bb0:
     v0 = calldataload 36
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -52,7 +52,7 @@ fn @nestedFirst(arg0: calldataslice, arg1: address) -> u256 [abi_returns=[word]]
     ret v5
 }
 
-fn @nestedSecond(arg0: address, arg1: calldataslice) -> u256 [abi_returns=[word]] {
+fn @nestedSecond(arg0: address, arg1: calldataslice) -> u256 [abi_params=[address, bytes], abi_returns=[word]] {
   bb0:
     v0 = calldataload 4
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -162,7 +162,7 @@ fn @setNestedFirst(arg0: memorybytes, arg1: address, arg2: u256) {
     stop
 }
 
-fn @getNestedFirst(arg0: memorybytes, arg1: address) -> u256 [abi_returns=[word]] {
+fn @getNestedFirst(arg0: memorybytes, arg1: address) -> u256 [abi_params=[bytes, address], abi_returns=[word]] {
   bb0:
     v0 = calldataload 36
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -273,7 +273,7 @@ fn @setViaStorageKey(arg0: u256) [abi_args=lazy] {
     stop
 }
 
-fn @setThenAlloc(arg0: calldataslice, arg1: u256) -> u256 [abi_returns=[word]] {
+fn @setThenAlloc(arg0: calldataslice, arg1: u256) -> u256 [abi_params=[bytes, u256], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot_calldata arg0, 0
     sstore v0, arg1 !metadata(storage=symbolic(v0))

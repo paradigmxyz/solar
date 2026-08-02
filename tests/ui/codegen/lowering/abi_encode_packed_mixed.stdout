@@ -13,7 +13,7 @@ fn @fixedBytesArg(arg0: u256, arg1: address, arg2: bytes2) -> bytes32 [abi_args=
     ret v4
 }
 
-fn @dynamicArg(arg0: bytes32, arg1: memorybytes) -> bytes32 [abi_returns=[word]] {
+fn @dynamicArg(arg0: bytes32, arg1: memorybytes) -> bytes32 [abi_params=[bytes32, bytes], abi_returns=[word]] {
   bb0:
     v0 = fmp
     mstore v0, arg0
@@ -27,7 +27,7 @@ fn @dynamicArg(arg0: bytes32, arg1: memorybytes) -> bytes32 [abi_returns=[word]]
     ret v6
 }
 
-fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) -> memorybytes [abi_returns=[memory_bytes]] {
+fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) -> memorybytes [abi_params=[u16, bytes, bool], abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldataload 4
     v1 = and v0, 0xffff

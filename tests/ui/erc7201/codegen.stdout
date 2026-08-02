@@ -25,7 +25,7 @@ fn @memoryParam() -> u256 [abi_args=lazy, abi_returns=[word]] {
     ret v6
 }
 
-fn @calldataParam(arg0: calldataslice) -> u256 [abi_returns=[word]] {
+fn @calldataParam(arg0: calldataslice) -> u256 [abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = add v0, 31

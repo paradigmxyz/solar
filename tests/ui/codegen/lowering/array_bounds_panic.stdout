@@ -165,7 +165,7 @@ fn @cdDyn(arg0: calldataslice, arg1: u256) -> u256 [abi_returns=[word]] {
     ret v8
 }
 
-fn @cdFix(arg0: memoryfixedarray, arg1: u256) -> u256 [abi_returns=[word]] {
+fn @cdFix(arg0: memoryfixedarray, arg1: u256) -> u256 [abi_params=[array<3, u256>, u256], abi_returns=[word]] {
   bb0:
     v0 = lt arg1, 3
     jumpi v0, bb2, bb1
@@ -179,7 +179,7 @@ fn @cdFix(arg0: memoryfixedarray, arg1: u256) -> u256 [abi_returns=[word]] {
     ret v2
 }
 
-fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [abi_returns=[word]] {
+fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [abi_params=[bytes, u256], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt arg1, v0

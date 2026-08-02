@@ -32,11 +32,12 @@
 //! - Phi nodes are represented only as phi *instructions* (`InstKind::Phi`).
 
 use super::{
-    AbiLayout, AbiLayoutRef, AbiType, AllocationAlignment, AllocationFailure,
-    AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, Disambiguator,
-    EffectKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstId, InstKind, Instruction,
-    InstructionMetadata, MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module,
-    StorageAlias, StorageField, StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
+    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamType, AbiType, AllocationAlignment,
+    AllocationFailure, AllocationInitialization, AllocationKind, AllocationSemantics, BlockId,
+    Disambiguator, EffectKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstId,
+    InstKind, Instruction, InstructionMetadata, MangledSymbol, MemoryObjectKind,
+    MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField, StorageLayout,
+    StorageLayoutRef, Terminator, Value, ValueId,
 };
 use crate::mir::{MirType, SliceLocation, TypeSize};
 use alloy_primitives::U256;
@@ -458,6 +459,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parser.expect(TokenKind::Eq)?;
                     builder.func_mut().abi_returns = Some(self.parse_abi_layout()?);
                 }
+                sym::abi_params => {
+                    self.parser.expect(TokenKind::Eq)?;
+                    builder.func_mut().abi_params = Some(self.parse_abi_param_layout()?);
+                }
                 sym::entry => builder.func_mut().attributes.is_dispatch_entry = true,
                 kw::Receive => builder.func_mut().attributes.is_receive = true,
                 kw::Fallback => builder.func_mut().attributes.is_fallback = true,
@@ -479,6 +484,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_type(&mut self) -> PResult<'sess, MirType> {
         let id = self.parser.parse_ident()?;
+        self.parse_type_from_ident(id)
+    }
+
+    fn parse_type_from_ident(&mut self, id: Symbol) -> PResult<'sess, MirType> {
         let id_str = id.as_str();
         // u8..u256, i8..i256, bytes1..bytes32 — split into prefix + number.
         let ty = if let Some(rest) = id_str.strip_prefix('u') {
@@ -741,6 +750,60 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 AbiType::Tuple(fields.into())
             }
             _ => return Err(self.parser.error(format!("unknown ABI type `{name}`"))),
+        })
+    }
+
+    fn parse_abi_param_layout(&mut self) -> PResult<'sess, AbiParamLayout> {
+        self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
+        let mut types = Vec::new();
+        if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
+            loop {
+                types.push(self.parse_abi_param_type()?);
+                if self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
+                    break;
+                }
+                self.parser.expect(TokenKind::Comma)?;
+            }
+        }
+        Ok(AbiParamLayout::new(types))
+    }
+
+    fn parse_abi_param_type(&mut self) -> PResult<'sess, AbiParamType> {
+        let name = self.parser.parse_ident()?;
+        Ok(match name {
+            kw::Bytes => AbiParamType::Bytes,
+            sym::array => {
+                self.parser.expect(TokenKind::Lt)?;
+                let len = if self.parser.eat(TokenKind::Ident(sym::underscore)) {
+                    None
+                } else {
+                    Some(self.parser.parse_uint()?.try_into().map_err(|_| {
+                        self.parser.error("ABI fixed-array length does not fit in u64")
+                    })?)
+                };
+                self.parser.expect(TokenKind::Comma)?;
+                let element = Box::new(self.parse_abi_param_type()?);
+                self.expect_gt()?;
+                match len {
+                    Some(len) => AbiParamType::FixedArray { element, len },
+                    None => AbiParamType::DynamicArray(element),
+                }
+            }
+            sym::tuple => {
+                self.parser.expect(TokenKind::Lt)?;
+                let mut fields = Vec::new();
+                if !self.eat_gt() {
+                    loop {
+                        fields.push(self.parse_abi_param_type()?);
+                        if self.eat_gt() {
+                            break;
+                        }
+                        self.parser.expect(TokenKind::Comma)?;
+                    }
+                }
+                AbiParamType::Tuple(fields.into())
+            }
+            _ => AbiParamType::Scalar(self.parse_type_from_ident(name)?),
         })
     }
 

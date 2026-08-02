@@ -125,7 +125,7 @@ fn @init(arg0: u256, arg1: address) -> u256 [abi_returns=[word]] {
     ret v57
 }
 
-fn @flat(arg0: memorystruct) -> u256 [abi_returns=[word]] {
+fn @flat(arg0: memorystruct) -> u256 [abi_params=[tuple<u256, address>], abi_returns=[word]] {
   bb0:
     v0 = memory_object_field_addr memorystruct<2>, arg0, 0
     v1 = mload v0

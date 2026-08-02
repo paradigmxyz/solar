@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_control_flow.sol:CalldataSliceControlFlow ===
 @module CalldataSliceControlFlow
-fn @trimLen(arg0: calldataslice) -> u256 [abi_returns=[word]] {
+fn @trimLen(arg0: calldataslice) -> u256 [abi_params=[bytes], abi_returns=[word]] {
   bb0:
     mstore 128, 0
     mstore 160, 0
@@ -63,7 +63,7 @@ fn @_trim(arg0: calldataslice) -> memorybytes {
     ret v18
 }
 
-fn @forward(arg0: calldataslice) -> u256 [abi_returns=[word]] {
+fn @forward(arg0: calldataslice) -> u256 [abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = make_calldata_slice 0, 0
     v1 = slice_ptr v0
@@ -117,7 +117,7 @@ fn @_sum(arg0: calldataslice, arg1: calldataslice) -> u256 {
     ret v8
 }
 
-fn @explicitTrim(arg0: calldataslice) -> u256 [abi_returns=[word]] {
+fn @explicitTrim(arg0: calldataslice) -> u256 [abi_params=[bytes], abi_returns=[word]] {
   bb0:
     mstore 128, 0
     mstore 160, 0
@@ -233,7 +233,7 @@ fn @_explicitTrim(arg0: calldataslice) -> memorybytes {
     ret v31
 }
 
-fn @headTail(arg0: calldataslice) -> (u256, u256) [abi_returns=[word, word]] {
+fn @headTail(arg0: calldataslice) -> (u256, u256) [abi_params=[bytes], abi_returns=[word, word]] {
   bb0:
     mstore 128, 0
     mstore 160, 0

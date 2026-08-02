@@ -57,6 +57,19 @@ impl AbiParamLayout {
     }
 }
 
+impl fmt::Display for AbiParamLayout {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[")?;
+        for (index, ty) in self.types.iter().enumerate() {
+            if index != 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{ty}")?;
+        }
+        write!(f, "]")
+    }
+}
+
 /// ABI input shape with scalar type information for decoding.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum AbiParamType {
@@ -75,6 +88,27 @@ pub(crate) enum AbiParamType {
     },
     /// A struct or tuple.
     Tuple(Box<[Self]>),
+}
+
+impl fmt::Display for AbiParamType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Scalar(ty) => write!(f, "{ty}"),
+            Self::Bytes => f.write_str("bytes"),
+            Self::DynamicArray(element) => write!(f, "array<_, {element}>"),
+            Self::FixedArray { element, len } => write!(f, "array<{len}, {element}>"),
+            Self::Tuple(fields) => {
+                write!(f, "tuple<")?;
+                for (index, ty) in fields.iter().enumerate() {
+                    if index != 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{ty}")?;
+                }
+                write!(f, ">")
+            }
+        }
+    }
 }
 
 impl AbiParamType {

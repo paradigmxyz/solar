@@ -28,7 +28,7 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [abi_args=lazy, a
     ret v0
 }
 
-fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [abi_returns=[memory_bytes]] {
+fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [abi_params=[u256, bytes], abi_returns=[memory_bytes]] {
   bb0:
     v0 = fmp
     v1 = memory_object_data memorybytes, v0
@@ -62,7 +62,7 @@ fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [abi_returns=[me
     ret v0
 }
 
-fn @hashDynamic(arg0: u256, arg1: memorybytes) -> bytes32 [abi_returns=[word]] {
+fn @hashDynamic(arg0: u256, arg1: memorybytes) -> bytes32 [abi_params=[u256, bytes], abi_returns=[word]] {
   bb0:
     v0 = fmp
     v1 = add v0, 64

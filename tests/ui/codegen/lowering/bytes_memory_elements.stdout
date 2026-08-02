@@ -100,7 +100,7 @@ fn @allocDynamic(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     ret v7
 }
 
-fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) -> bytes1 [abi_returns=[word]] {
+fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) -> bytes1 [abi_params=[bytes, u256, bytes1], abi_returns=[word]] {
   bb0:
     v0 = calldataload 68
     v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000

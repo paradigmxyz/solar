@@ -1,0 +1,12 @@
+//@compile-flags: -Zmir-pipeline=lower-abi
+//@filecheck:
+
+// CHECK: + @phase abi
+// CHECK: + fn @read()
+// CHECK: + v{{[0-9]+}} = calldatasize
+@module LowerAbiParams
+
+fn @read(arg0: memoryfixedarray, arg1: u256) -> u256 [selector=0x12345678, abi_params=[array<3, u256>, u256], abi_returns=[word]] {
+  bb0:
+    ret arg1
+}

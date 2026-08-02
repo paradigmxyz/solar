@@ -80,7 +80,7 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) {
     jump bb1
 }
 
-fn @readTwice(arg0: calldataslice) -> (u64, u64) [abi_returns=[word, word]] {
+fn @readTwice(arg0: calldataslice) -> (u64, u64) [abi_params=[bytes], abi_returns=[word, word]] {
   bb0:
     mstore 128, 0
     mstore 160, 0

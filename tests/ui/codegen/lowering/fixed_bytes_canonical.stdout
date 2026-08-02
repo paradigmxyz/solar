@@ -12,7 +12,7 @@ fn @fromHex() -> bytes1 [abi_args=lazy, abi_returns=[word]] {
     ret 0x100000000000000000000000000000000000000000000000000000000000000
 }
 
-fn @compareElement(arg0: memorybytes) -> bool [abi_returns=[word]] {
+fn @compareElement(arg0: memorybytes) -> bool [abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = lt 0, v0

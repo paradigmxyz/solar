@@ -265,6 +265,9 @@ pub(crate) fn display_function_text<'a>(
             if func.abi_args_lazy {
                 write!(f, ", abi_args=lazy")?;
             }
+            if let Some(layout) = &func.abi_params {
+                write!(f, ", abi_params={layout}")?;
+            }
             if let Some(layout) = &func.abi_returns {
                 write!(f, ", abi_returns={layout}")?;
             }
@@ -274,6 +277,13 @@ pub(crate) fn display_function_text<'a>(
             let mut comma = false;
             if func.abi_args_lazy {
                 write!(f, "abi_args=lazy")?;
+                comma = true;
+            }
+            if let Some(layout) = &func.abi_params {
+                if comma {
+                    write!(f, ", ")?;
+                }
+                write!(f, "abi_params={layout}")?;
                 comma = true;
             }
             if let Some(layout) = &func.abi_returns {
