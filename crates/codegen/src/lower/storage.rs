@@ -238,13 +238,63 @@ impl StorageLayout {
 struct StorageBuilder<'gcx> {
     gcx: Gcx<'gcx>,
     locations: FxHashMap<VariableId, StorageLocation>,
-    next_slot: U256,
-    next_offset: u8,
+    cursor: StorageCursor,
+}
+
+/// Walks Solidity's sequential storage layout, including fields packed into a word.
+#[derive(Clone, Copy, Debug)]
+struct StorageCursor {
+    slot: U256,
+    offset: u8,
+}
+
+impl StorageCursor {
+    fn new() -> Self {
+        Self { slot: U256::ZERO, offset: 0 }
+    }
+
+    fn take(
+        &mut self,
+        encoding: Option<(TypeSize, StorageEncoding)>,
+        slots: u64,
+    ) -> StorageLocation {
+        if let Some((size, encoding)) = encoding
+            && size < StorageLocation::WORD
+        {
+            let bytes = size.bytes();
+            if self.offset.saturating_add(bytes) > StorageLocation::word_bytes() {
+                self.finish_word();
+            }
+            let location = StorageLocation { slot: self.slot, offset: self.offset, size, encoding };
+            self.offset = self.offset.saturating_add(bytes);
+            if self.offset == StorageLocation::word_bytes() {
+                self.finish_word();
+            }
+            return location;
+        }
+
+        self.finish_word();
+        let location = StorageLocation::word(self.slot);
+        self.slot = self.slot.saturating_add(U256::from(slots));
+        location
+    }
+
+    fn finish_word(&mut self) {
+        if self.offset != 0 {
+            self.slot = self.slot.saturating_add(U256::from(1));
+            self.offset = 0;
+        }
+    }
+
+    fn slots(&mut self) -> u64 {
+        self.finish_word();
+        self.slot.try_into().unwrap_or(u64::MAX)
+    }
 }
 
 impl<'gcx> StorageBuilder<'gcx> {
     fn new(gcx: Gcx<'gcx>) -> Self {
-        Self { gcx, locations: FxHashMap::default(), next_slot: U256::ZERO, next_offset: 0 }
+        Self { gcx, locations: FxHashMap::default(), cursor: StorageCursor::new() }
     }
 
     fn lower(mut self, contract_id: ContractId) -> StorageLayout {
@@ -265,39 +315,9 @@ impl<'gcx> StorageBuilder<'gcx> {
     }
 
     fn allocate(&mut self, ty: Ty<'gcx>, span: Span) -> Option<StorageLocation> {
-        let Some((size, encoding)) = self.packed_encoding(ty) else {
-            if self.next_offset != 0 {
-                self.next_slot = self.next_slot.saturating_add(U256::from(1));
-                self.next_offset = 0;
-            }
-            let location = StorageLocation::word(self.next_slot);
-            self.next_slot =
-                self.next_slot.saturating_add(U256::from(self.storage_slots(ty, span)));
-            return Some(location);
-        };
-        if size < StorageLocation::WORD {
-            let bytes = size.bytes();
-            if self.next_offset.saturating_add(bytes) > StorageLocation::word_bytes() {
-                self.next_slot = self.next_slot.saturating_add(U256::from(1));
-                self.next_offset = 0;
-            }
-            let location =
-                StorageLocation { slot: self.next_slot, offset: self.next_offset, size, encoding };
-            self.next_offset = self.next_offset.saturating_add(bytes);
-            if self.next_offset == StorageLocation::word_bytes() {
-                self.next_slot = self.next_slot.saturating_add(U256::from(1));
-                self.next_offset = 0;
-            }
-            return Some(location);
-        }
-
-        if self.next_offset != 0 {
-            self.next_slot = self.next_slot.saturating_add(U256::from(1));
-            self.next_offset = 0;
-        }
-        let location = StorageLocation::word(self.next_slot);
-        self.next_slot = self.next_slot.saturating_add(U256::from(self.storage_slots(ty, span)));
-        Some(location)
+        let encoding = self.packed_encoding(ty);
+        let slots = self.storage_slots(ty, span);
+        Some(self.cursor.take(encoding, slots))
     }
 
     fn locate_field(
@@ -305,34 +325,12 @@ impl<'gcx> StorageBuilder<'gcx> {
         struct_id: solar_sema::hir::StructId,
         field: usize,
     ) -> Option<StorageLocation> {
-        let mut slot = U256::ZERO;
-        let mut offset = 0u8;
+        let mut cursor = StorageCursor::new();
         for (index, &field_id) in self.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
             let ty = self.gcx.type_of_item(field_id.into());
-            let location = if let Some((size, encoding)) = self.packed_encoding(ty)
-                && size < StorageLocation::WORD
-            {
-                let bytes = size.bytes();
-                if offset.saturating_add(bytes) > StorageLocation::word_bytes() {
-                    slot = slot.saturating_add(U256::from(1));
-                    offset = 0;
-                }
-                let location = StorageLocation { slot, offset, size, encoding };
-                offset = offset.saturating_add(bytes);
-                if offset == StorageLocation::word_bytes() {
-                    slot = slot.saturating_add(U256::from(1));
-                    offset = 0;
-                }
-                location
-            } else {
-                if offset != 0 {
-                    slot = slot.saturating_add(U256::from(1));
-                    offset = 0;
-                }
-                let location = StorageLocation::word(slot);
-                slot = slot.saturating_add(U256::from(self.storage_slots(ty, Span::DUMMY)));
-                location
-            };
+            let encoding = self.packed_encoding(ty);
+            let slots = self.storage_slots(ty, Span::DUMMY);
+            let location = cursor.take(encoding, slots);
             if index == field {
                 return Some(location);
             }
@@ -388,31 +386,13 @@ impl<'gcx> StorageBuilder<'gcx> {
     }
 
     fn sequence_slots(&self, tys: impl Iterator<Item = Ty<'gcx>>, span: Span) -> u64 {
-        let mut slots = 0u64;
-        let mut offset = 0u64;
+        let mut cursor = StorageCursor::new();
         for ty in tys {
-            if let Some((size, _)) = self.packed_encoding(ty)
-                && size < StorageLocation::WORD
-            {
-                let bytes = u64::from(size.bytes());
-                if offset + bytes > 32 {
-                    slots = slots.saturating_add(1);
-                    offset = 0;
-                }
-                offset += bytes;
-                if offset == 32 {
-                    slots = slots.saturating_add(1);
-                    offset = 0;
-                }
-            } else {
-                if offset != 0 {
-                    slots = slots.saturating_add(1);
-                    offset = 0;
-                }
-                slots = slots.saturating_add(self.storage_slots(ty, span));
-            }
+            let encoding = self.packed_encoding(ty);
+            let slots = self.storage_slots(ty, span);
+            cursor.take(encoding, slots);
         }
-        (slots + u64::from(offset != 0)).max(1)
+        cursor.slots().max(1)
     }
 
     fn unsupported_size(&self, span: Span, kind: &str) -> u64 {

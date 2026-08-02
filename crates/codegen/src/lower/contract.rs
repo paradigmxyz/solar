@@ -21,12 +21,54 @@ pub(super) fn lower(
     let mut module = Module::new(contract.name);
     let storage = StorageLayout::for_contract(gcx, contract_id);
 
-    let function_ids = contract
-        .all_functions()
-        .filter(|&function_id| gcx.hir.function(function_id).kind != hir::FunctionKind::Modifier)
-        .collect::<Vec<_>>();
-    let mut seen = FxHashSet::default();
-    let function_ids = function_ids.into_iter().filter(|id| seen.insert(*id)).collect::<Vec<_>>();
+    let mut function_ids = Vec::new();
+    let mut seen_selectors = FxHashSet::default();
+    let mut has_fallback = false;
+    let mut has_receive = false;
+    for &base in contract.linearized_bases {
+        for function_id in gcx.hir.contract(base).all_functions() {
+            let function = gcx.hir.function(function_id);
+            match function.kind {
+                hir::FunctionKind::Constructor => {
+                    if base == contract_id {
+                        function_ids.push(function_id);
+                    }
+                }
+                hir::FunctionKind::Fallback => {
+                    if !has_fallback {
+                        has_fallback = true;
+                        function_ids.push(function_id);
+                    }
+                }
+                hir::FunctionKind::Receive => {
+                    if !has_receive {
+                        has_receive = true;
+                        function_ids.push(function_id);
+                    }
+                }
+                hir::FunctionKind::Function | hir::FunctionKind::Modifier => {
+                    if function.kind == hir::FunctionKind::Modifier
+                        || (base != contract_id && function.visibility == hir::Visibility::Private)
+                    {
+                        continue;
+                    }
+                    if matches!(
+                        function.visibility,
+                        hir::Visibility::External | hir::Visibility::Public
+                    ) {
+                        if seen_selectors.insert(gcx.function_selector(function_id)) {
+                            function_ids.push(function_id);
+                        }
+                    } else {
+                        function_ids.push(function_id);
+                    }
+                }
+            }
+        }
+    }
+    let mut seen_ids = FxHashSet::default();
+    let function_ids =
+        function_ids.into_iter().filter(|id| seen_ids.insert(*id)).collect::<Vec<_>>();
     let mut mir_ids = FxHashMap::default();
     for &function_id in &function_ids {
         let function = gcx.hir.function(function_id);
@@ -56,11 +98,13 @@ pub(super) fn lower(
         *module.function_mut(mir_id) = mir;
     }
 
-    if contract.ctor.is_none()
-        && contract.linearized_bases.iter().rev().any(|&base| {
-            gcx.hir.contract(base).variables().any(|id| gcx.hir.variable(id).initializer.is_some())
-        })
-    {
+    let has_state_initializers = contract.linearized_bases.iter().rev().any(|&base| {
+        gcx.hir.contract(base).variables().any(|id| gcx.hir.variable(id).initializer.is_some())
+    });
+    let has_implicit_base_constructors =
+        contract.linearized_bases.iter().skip(1).any(|&base| gcx.hir.contract(base).ctor.is_some())
+            || contract.linearized_bases_args.iter().any(Option::is_some);
+    if contract.ctor.is_none() && (has_state_initializers || has_implicit_base_constructors) {
         let mir_id = module.add_function(Function::new(solar_interface::Ident::with_dummy_span(
             solar_interface::kw::Constructor,
         )));

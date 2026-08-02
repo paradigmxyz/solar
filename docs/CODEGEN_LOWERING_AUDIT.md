@@ -56,9 +56,9 @@ The replacement is split into stateful, private components:
   loop targets, return bindings, and `FunctionBuilder`.
 * `TypeLowerer` owns recursive aggregate-shape state and produces MIR types and
   ABI descriptors. Recursive structs fail closed instead of recursing forever.
-* `StorageBuilder` computes one base-to-derived layout. `StorageLayout` owns
-  packed-field reads and read-modify-write stores, including signed and
-  fixed-bytes normalization.
+* `StorageBuilder` computes one base-to-derived layout through a stateful
+  `StorageCursor`. `StorageLayout` owns packed-field reads and read-modify-write
+  stores, including signed and fixed-bytes normalization.
 * `LowerAbiCx` owns ABI wrapper construction and a lazy cleanup-helper registry.
   `OutlineRevertsCx` owns the corresponding registry for shared revert paths.
   Both registries key helpers by their semantic shape and leave trivial `u256`
@@ -88,7 +88,12 @@ existing scalar and packed-storage MIR fixtures. It supports:
   the contract has no explicit constructor;
 * loop-carried scalar and storage-reference environments, including `break` and
   `continue` exits;
+* split Solidity and Yul builtin lowering with shared positional-argument,
+  arity, named-argument, and unsupported-builtin diagnostics;
 * constructor and fallback/function attributes needed by the backend;
+* inherited public and internal function discovery with selector de-duplication;
+* explicit and synthetic base-constructor lowering in linearized order, including
+  constructor argument binding and storage-to-memory aggregate copies;
 * lazy, deduplicated ABI cleanup helpers and outlined revert helpers.
 
 The generated MIR for `tests/ui/codegen/lowering/compound_assign.sol` contains
@@ -104,9 +109,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
 
 1. Complete dynamic aggregate ABI decoding and encoding, including the
    remaining nested arrays, bytes, tuples, and aggregate returns.
-2. Lower base-constructor calls in linearized order and finish constructor
-   argument forwarding. Modifiers now expand through explicit continuations,
-   but base-constructor modifiers still fail closed.
+2. Finish base-constructor argument forwarding for indirect and unresolved
+   constructor arguments, and cover constructor modifiers with Solc-backed
+   runtime tests.
 3. Add the remaining call and language features: external calls, events, Yul
    statements, contract creation, immutables, and function-pointer dispatch.
 4. Finish storage-reference CFG merging for every aggregate shape and audit

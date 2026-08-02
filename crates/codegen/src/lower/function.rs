@@ -67,20 +67,10 @@ pub(super) fn lower(
             return report_unsupported(gcx, hir_function.span, "free constructor");
         };
         lowerer.lower_state_initializers(contract_id)?;
+        lowerer.lower_implicit_base_constructors(contract_id)?;
     }
     if let Some(body) = hir_function.body {
-        if hir_function.modifiers.is_empty() {
-            lowerer.lower_block(body)?;
-        } else {
-            let return_block = lowerer.builder.create_block();
-            lowerer.return_targets.push(return_block);
-            lowerer.lower_modifier_chain(hir_function.modifiers, body)?;
-            lowerer.return_targets.pop();
-            if !lowerer.is_terminated() {
-                lowerer.builder.jump(return_block);
-            }
-            lowerer.builder.switch_to_block(return_block);
-        }
+        lowerer.lower_function_body(hir_function.modifiers, body)?;
     }
     if !lowerer.is_terminated() {
         lowerer.finish(hir_function.returns);
@@ -101,6 +91,7 @@ pub(super) fn lower_synthetic_constructor(
     mir.attributes.is_constructor = true;
     let mut lowerer = FunctionLowerer::new(gcx, storage, function_ids, &mut mir);
     lowerer.lower_state_initializers(contract_id)?;
+    lowerer.lower_implicit_base_constructors(contract_id)?;
     if !lowerer.is_terminated() {
         lowerer.finish(&[]);
     }
@@ -151,6 +142,23 @@ struct StorageAccess {
     slot: ValueId,
     location: StorageLocation,
     offset: Option<ValueId>,
+}
+
+#[derive(Clone, Copy)]
+enum BuiltinArgCount {
+    Exact(usize),
+    AtLeast(usize),
+    Between(usize, usize),
+}
+
+impl BuiltinArgCount {
+    fn description(self) -> String {
+        match self {
+            Self::Exact(count) => count.to_string(),
+            Self::AtLeast(count) => format!("at least {count}"),
+            Self::Between(min, max) => format!("{min} to {max}"),
+        }
+    }
 }
 
 impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
@@ -223,6 +231,30 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         Some(())
     }
 
+    fn lower_implicit_base_constructors(&mut self, contract_id: hir::ContractId) -> Option<()> {
+        let contract = self.gcx.hir.contract(contract_id);
+        for (index, &base_id) in contract.linearized_bases.iter().skip(1).enumerate() {
+            let Some(constructor_id) = self.gcx.hir.contract(base_id).ctor else { continue };
+            let constructor = self.gcx.hir.function(constructor_id);
+            let Some(args) = contract
+                .linearized_bases_args
+                .get(index)
+                .and_then(|modifier| modifier.map(|modifier| modifier.args))
+                .or_else(|| constructor.parameters.is_empty().then(hir::CallArgs::default))
+            else {
+                continue;
+            };
+            let modifier = hir::Modifier {
+                span: constructor.span,
+                name_span: constructor.span,
+                id: hir::ItemId::Contract(base_id),
+                args,
+            };
+            self.lower_base_constructor(&modifier, constructor_id, constructor)?;
+        }
+        Some(())
+    }
+
     fn finish(&mut self, returns: &[VariableId]) {
         if returns.is_empty() {
             self.builder.stop();
@@ -233,6 +265,27 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
 
     fn is_terminated(&self) -> bool {
         self.builder.func().block(self.builder.current_block()).terminator.is_some()
+    }
+
+    fn lower_function_body(
+        &mut self,
+        modifiers: &'gcx [hir::Modifier<'gcx>],
+        body: hir::Block<'gcx>,
+    ) -> Option<()> {
+        if modifiers.is_empty() {
+            self.lower_block(body)
+        } else {
+            let return_block = self.builder.create_block();
+            self.return_targets.push(return_block);
+            let result = self.lower_modifier_chain(modifiers, body);
+            self.return_targets.pop();
+            result?;
+            if !self.is_terminated() {
+                self.builder.jump(return_block);
+            }
+            self.builder.switch_to_block(return_block);
+            Some(())
+        }
     }
 
     fn lower_block(&mut self, block: hir::Block<'_>) -> Option<()> {
@@ -259,7 +312,15 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                     return Some(());
                 }
                 let value = if let Some(expr) = initializer {
-                    self.lower_expr(expr)?
+                    let source_ty = self.gcx.type_of_expr(expr.id);
+                    if self.types.memory_layout(ty).is_some()
+                        && source_ty.is_some_and(|source| source.is_ref_at(DataLocation::Storage))
+                    {
+                        let access = self.storage_access(expr)?;
+                        self.load_storage_object(ty, access.slot, expr.span)?
+                    } else {
+                        self.lower_expr(expr)?
+                    }
                 } else if let Some(value) = self.default_object(ty) {
                     value
                 } else {
@@ -358,10 +419,16 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         let Some(modifier) = modifiers.get(index) else {
             return self.lower_block(body);
         };
+        if modifier.id.as_contract().is_some() {
+            return self.lower_modifier_at(modifiers, body, index + 1);
+        }
         let hir::ItemId::Function(modifier_id) = modifier.id else {
             return report_unsupported(self.gcx, modifier.span, "base constructor modifier");
         };
         let modifier_function = self.gcx.hir.function(modifier_id);
+        if modifier_function.kind == hir::FunctionKind::Constructor {
+            return self.lower_modifier_at(modifiers, body, index + 1);
+        }
         if !modifier_function.kind.is_modifier() {
             return report_unsupported(self.gcx, modifier.span, "modifier target");
         }
@@ -397,6 +464,59 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             }
         }
         result
+    }
+
+    fn lower_base_constructor(
+        &mut self,
+        modifier: &hir::Modifier<'_>,
+        constructor_id: hir::FunctionId,
+        constructor: &'gcx hir::Function<'gcx>,
+    ) -> Option<()> {
+        let Some(body) = constructor.body else {
+            return report_unsupported(self.gcx, modifier.span, "base constructor body");
+        };
+        if modifier.args.len() != constructor.parameters.len() {
+            return report_unsupported(self.gcx, modifier.span, "base constructor arguments");
+        }
+        let parameter_names = self.gcx.callable_param_names(CallableParamSource::Function {
+            id: constructor_id,
+            skips_receiver: false,
+        });
+        let mut saved_parameters = Vec::with_capacity(constructor.parameters.len());
+        for (index, &parameter) in constructor.parameters.iter().enumerate() {
+            let Some(argument) =
+                modifier.args.argument_for_parameter(index, Some(parameter_names.as_slice()))
+            else {
+                return report_unsupported(
+                    self.gcx,
+                    modifier.span,
+                    "named base constructor argument",
+                );
+            };
+            let value = self.lower_expr(argument)?;
+            saved_parameters.push((parameter, self.values.insert(parameter, value)));
+        }
+
+        let continuation = self.builder.create_block();
+        self.return_targets.push(continuation);
+        if let Some(contract_id) = constructor.contract {
+            self.lower_implicit_base_constructors(contract_id)?;
+        }
+        let result = self.lower_function_body(constructor.modifiers, body);
+        self.return_targets.pop();
+        result?;
+        if !self.is_terminated() {
+            self.builder.jump(continuation);
+        }
+        self.builder.switch_to_block(continuation);
+        for (parameter, previous) in saved_parameters {
+            if let Some(value) = previous {
+                self.values.insert(parameter, value);
+            } else {
+                self.values.remove(&parameter);
+            }
+        }
+        Some(())
     }
 
     fn lower_modifier_placeholder(&mut self, span: Span) -> Option<()> {
@@ -898,6 +1018,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             ExprKind::Tuple(values) => self.lower_tuple(expr, values),
             ExprKind::Member(receiver, name) => self.lower_member(expr, receiver, *name),
             ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
+            _ if self.gcx.dcx().has_errors().is_err() => Some(self.builder.imm_u256(U256::ZERO)),
             _ => report_unsupported(self.gcx, expr.span, "expression"),
         }
     }
@@ -1565,10 +1686,13 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             return Some(object);
         }
         if let Some(builtin) = self.gcx.resolved_builtin(callee) {
-            return self.lower_builtin_call(expr, callee, builtin, &arguments);
+            return self.lower_builtin_call(expr, callee, builtin, args);
         }
         if let Some(function_id) = self.gcx.resolved_function(callee) {
             return self.lower_function_call(expr, callee, function_id, args);
+        }
+        if self.gcx.dcx().has_errors().is_err() {
+            return Some(self.builder.imm_u256(U256::ZERO));
         }
         report_unsupported(self.gcx, expr.span, "function call")
     }
@@ -1620,7 +1744,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         expr: &hir::Expr<'_>,
         callee: &hir::Expr<'_>,
         builtin: Builtin,
-        arguments: &[&hir::Expr<'_>],
+        arguments: &[hir::Expr<'_>],
     ) -> Option<ValueId> {
         let ExprKind::Member(receiver, _) = &callee.kind else {
             return report_unsupported(self.gcx, expr.span, "storage array push target");
@@ -1678,7 +1802,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         expr: &hir::Expr<'_>,
         receiver: &hir::Expr<'_>,
         builtin: Builtin,
-        arguments: &[&hir::Expr<'_>],
+        arguments: &[hir::Expr<'_>],
     ) -> Option<ValueId> {
         let access = self.storage_access(receiver)?;
         let old = self.load_storage_bytes(access.slot)?;
@@ -1794,96 +1918,361 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         expr: &hir::Expr<'_>,
         callee: &hir::Expr<'_>,
         builtin: Builtin,
-        arguments: &[&hir::Expr<'_>],
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        if builtin.is_yul() {
+            let returns_value =
+                builtin.ty(self.gcx).returns().is_none_or(|returns| !returns.is_empty());
+            return if returns_value {
+                self.lower_yul_value_builtin_call(builtin, args)
+                    .or_else(|| Some(self.builder.imm_u256(U256::ZERO)))
+            } else {
+                match self.lower_yul_unit_builtin_call(builtin, args) {
+                    Some(()) => None,
+                    None => Some(self.builder.imm_u256(U256::ZERO)),
+                }
+            };
+        }
+
+        if matches!(builtin, Builtin::ArrayPush | Builtin::ArrayPush0 | Builtin::ArrayPop) {
+            let result = match builtin {
+                Builtin::ArrayPush => {
+                    let Some(arguments) = self.builtin_args::<1>(builtin, &args) else {
+                        return Some(self.builder.imm_u256(U256::ZERO));
+                    };
+                    self.lower_storage_array_push(expr, callee, builtin, arguments)
+                }
+                Builtin::ArrayPush0 => {
+                    let Some(arguments) = self.builtin_args::<0>(builtin, &args) else {
+                        return Some(self.builder.imm_u256(U256::ZERO));
+                    };
+                    self.lower_storage_array_push(expr, callee, builtin, arguments)
+                }
+                Builtin::ArrayPop => {
+                    if self.builtin_args::<0>(builtin, &args).is_none() {
+                        return Some(self.builder.imm_u256(U256::ZERO));
+                    }
+                    self.lower_storage_array_pop(expr, callee)
+                }
+                _ => unreachable!(),
+            };
+            return result.or_else(|| Some(self.builder.imm_u256(U256::ZERO)));
+        }
+
+        match builtin {
+            Builtin::Selfdestruct
+            | Builtin::Require
+            | Builtin::Assert
+            | Builtin::Revert
+            | Builtin::RevertMsg => match self.lower_unit_builtin_call(builtin, args) {
+                Some(()) => None,
+                None => Some(self.builder.imm_u256(U256::ZERO)),
+            },
+            _ => self
+                .lower_solidity_value_builtin_call(builtin, args)
+                .or_else(|| Some(self.builder.imm_u256(U256::ZERO))),
+        }
+    }
+
+    fn lower_unit_builtin_call(&mut self, builtin: Builtin, args: hir::CallArgs<'_>) -> Option<()> {
+        match builtin {
+            Builtin::Assert => {
+                let condition = &self.builtin_args::<1>(builtin, &args)?[0];
+                let condition = self.lower_expr(condition)?;
+                let invalid = self.builder.iszero(condition);
+                self.panic_if(invalid, 0x01);
+            }
+            Builtin::Require => {
+                let (required, _message) = self.builtin_args_with_optional::<1>(builtin, &args)?;
+                let condition = required.first()?;
+                let condition = self.lower_expr(condition)?;
+                let is_false = self.builder.iszero(condition);
+                let revert_block = self.builder.create_block();
+                let continue_block = self.builder.create_block();
+                self.builder.branch(is_false, revert_block, continue_block);
+                self.builder.switch_to_block(revert_block);
+                let zero = self.builder.imm_u256(U256::ZERO);
+                self.builder.revert(zero, zero);
+                self.builder.switch_to_block(continue_block);
+            }
+            Builtin::Revert => {
+                let _ = self.builtin_args::<0>(builtin, &args)?;
+                let zero = self.builder.imm_u256(U256::ZERO);
+                self.builder.revert(zero, zero);
+            }
+            Builtin::RevertMsg => {
+                let _ = self.builtin_args::<1>(builtin, &args)?;
+                return self.unsupported_builtin(builtin, args.span);
+            }
+            Builtin::Selfdestruct => {
+                let address = &self.builtin_args::<1>(builtin, &args)?[0];
+                let address = self.lower_expr(address)?;
+                self.builder.selfdestruct(address);
+            }
+            _ => return self.unsupported_builtin(builtin, args.span),
+        }
+        Some(())
+    }
+
+    fn lower_solidity_value_builtin_call(
+        &mut self,
+        builtin: Builtin,
+        args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
         match builtin {
-            Builtin::ArrayPush | Builtin::ArrayPush0 => {
-                self.lower_storage_array_push(expr, callee, builtin, arguments)
-            }
-            Builtin::ArrayPop => self.lower_storage_array_pop(expr, callee),
-            Builtin::YulSload => {
-                let [slot] = arguments else {
-                    return report_unsupported(self.gcx, expr.span, "sload arguments");
-                };
-                let slot = self.lower_expr(slot)?;
-                Some(self.builder.sload(slot))
-            }
-            Builtin::YulSstore => {
-                let [slot, value] = arguments else {
-                    return report_unsupported(self.gcx, expr.span, "sstore arguments");
-                };
-                let slot = self.lower_expr(slot)?;
+            Builtin::Keccak256 => {
+                let value = &self.builtin_args::<1>(builtin, &args)?[0];
                 let value = self.lower_expr(value)?;
-                self.builder.sstore(slot, value);
-                Some(self.builder.imm_u256(U256::ZERO))
+                Some(self.builder.keccak256_bytes(value))
             }
-            Builtin::YulMload => {
-                let [offset] = arguments else {
-                    return report_unsupported(self.gcx, expr.span, "mload arguments");
-                };
-                let offset = self.lower_expr(offset)?;
-                Some(self.builder.mload(offset))
+            Builtin::Gasleft => {
+                let _ = self.builtin_args::<0>(builtin, &args)?;
+                Some(self.builder.gas())
+            }
+            Builtin::AbiEncode => {
+                let _ = self.variadic_builtin_args(builtin, &args)?;
+                self.unsupported_builtin(builtin, args.span)
+            }
+            Builtin::AbiEncodeWithSelector => {
+                let _ = self.builtin_args_with_rest::<1>(builtin, &args)?;
+                self.unsupported_builtin(builtin, args.span)
+            }
+            _ => {
+                if self.validate_builtin_arity(builtin, &args) {
+                    self.unsupported_builtin(builtin, args.span)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    fn lower_yul_unit_builtin_call(
+        &mut self,
+        builtin: Builtin,
+        args: hir::CallArgs<'_>,
+    ) -> Option<()> {
+        match builtin {
+            Builtin::YulSstore => {
+                let [slot, value] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.sstore(slot, value);
             }
             Builtin::YulMstore | Builtin::YulMstore8 => {
-                let [offset, value] = arguments else {
-                    return report_unsupported(self.gcx, expr.span, "mstore arguments");
-                };
-                let offset = self.lower_expr(offset)?;
-                let value = self.lower_expr(value)?;
+                let [offset, value] = self.lower_builtin_args(builtin, &args)?;
                 if builtin == Builtin::YulMstore {
                     self.builder.mstore(offset, value);
                 } else {
                     self.builder.mstore8(offset, value);
                 }
-                Some(self.builder.imm_u256(U256::ZERO))
             }
-            Builtin::YulAdd
-            | Builtin::YulSub
-            | Builtin::YulMul
-            | Builtin::YulDiv
-            | Builtin::YulMod
-            | Builtin::YulEq
-            | Builtin::YulLt
-            | Builtin::YulGt
-            | Builtin::YulAnd
-            | Builtin::YulOr
-            | Builtin::YulXor => {
-                let [lhs, rhs] = arguments else {
-                    return report_unsupported(self.gcx, expr.span, "Yul arithmetic arguments");
-                };
-                let lhs = self.lower_expr(lhs)?;
-                let rhs = self.lower_expr(rhs)?;
-                Some(match builtin {
-                    Builtin::YulAdd => self.builder.add(lhs, rhs),
-                    Builtin::YulSub => self.builder.sub(lhs, rhs),
-                    Builtin::YulMul => self.builder.mul(lhs, rhs),
-                    Builtin::YulDiv => self.builder.div(lhs, rhs),
-                    Builtin::YulMod => self.builder.mod_(lhs, rhs),
-                    Builtin::YulEq => self.builder.eq(lhs, rhs),
-                    Builtin::YulLt => self.builder.lt(lhs, rhs),
-                    Builtin::YulGt => self.builder.gt(lhs, rhs),
-                    Builtin::YulAnd => self.builder.and(lhs, rhs),
-                    Builtin::YulOr => self.builder.or(lhs, rhs),
-                    Builtin::YulXor => self.builder.xor(lhs, rhs),
-                    _ => unreachable!(),
-                })
+            Builtin::YulPop => {
+                let [_value] = self.lower_builtin_args(builtin, &args)?;
             }
-            Builtin::Revert if arguments.is_empty() => {
-                let zero = self.builder.imm_u256(U256::ZERO);
-                self.builder.revert(zero, zero);
-                Some(zero)
+            _ => {
+                if self.validate_builtin_arity(builtin, &args) {
+                    return self.unsupported_yul_builtin(builtin, args.span);
+                }
+                return None;
             }
-            Builtin::Assert => {
-                let [condition] = arguments else {
-                    return report_unsupported(self.gcx, expr.span, "assert arguments");
-                };
-                let condition = self.lower_expr(condition)?;
-                let invalid = self.builder.iszero(condition);
-                self.panic_if(invalid, 0x01);
-                Some(self.builder.imm_u256(U256::ZERO))
-            }
-            _ => report_unsupported(self.gcx, expr.span, "builtin call"),
         }
+        Some(())
+    }
+
+    fn lower_yul_value_builtin_call(
+        &mut self,
+        builtin: Builtin,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        macro_rules! lower {
+            ($method:ident($($arg:ident),* $(,)?)) => {{
+                let [$($arg),*] = self.lower_builtin_args(builtin, &args)?;
+                Some(self.builder.$method($($arg),*))
+            }};
+        }
+        match builtin {
+            Builtin::YulSload => lower!(sload(slot)),
+            Builtin::YulMload => lower!(mload(offset)),
+            Builtin::YulAdd => lower!(add(lhs, rhs)),
+            Builtin::YulSub => lower!(sub(lhs, rhs)),
+            Builtin::YulMul => lower!(mul(lhs, rhs)),
+            Builtin::YulDiv => lower!(div(lhs, rhs)),
+            Builtin::YulMod => lower!(mod_(lhs, rhs)),
+            Builtin::YulEq => lower!(eq(lhs, rhs)),
+            Builtin::YulLt => lower!(lt(lhs, rhs)),
+            Builtin::YulGt => lower!(gt(lhs, rhs)),
+            Builtin::YulAnd => lower!(and(lhs, rhs)),
+            Builtin::YulOr => lower!(or(lhs, rhs)),
+            Builtin::YulXor => lower!(xor(lhs, rhs)),
+            Builtin::YulExtcall => {
+                let [_address, _input, _value, _gas] = self.lower_builtin_args(builtin, &args)?;
+                self.unsupported_yul_builtin(builtin, args.span)
+            }
+            Builtin::YulExtdelegatecall | Builtin::YulExtstaticcall => {
+                let [_address, _input, _gas] = self.lower_builtin_args(builtin, &args)?;
+                self.unsupported_yul_builtin(builtin, args.span)
+            }
+            _ => {
+                if self.validate_builtin_arity(builtin, &args) {
+                    self.unsupported_yul_builtin(builtin, args.span)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    fn emit_wrong_builtin_arg_count(
+        &self,
+        builtin: Builtin,
+        span: Span,
+        expected: BuiltinArgCount,
+        actual: usize,
+    ) {
+        let kind = if builtin.is_yul() { "Yul builtin" } else { "builtin" };
+        let expected = expected.description();
+        self.gcx
+            .dcx()
+            .err(format!(
+                "wrong number of arguments for {kind} `{}`: expected {expected}, found {actual}",
+                builtin.name()
+            ))
+            .span(span)
+            .emit();
+    }
+
+    fn builtin_arg_exprs<'hir>(
+        &self,
+        builtin: Builtin,
+        args: &hir::CallArgs<'hir>,
+    ) -> Option<&'hir [hir::Expr<'hir>]> {
+        match args.kind {
+            hir::CallArgsKind::Unnamed(exprs) => Some(exprs),
+            hir::CallArgsKind::Named(_) => {
+                let kind = if builtin.is_yul() { "Yul builtin" } else { "builtin" };
+                self.gcx
+                    .dcx()
+                    .err(format!(
+                        "named arguments are not supported for {kind} `{}` in codegen",
+                        builtin.name()
+                    ))
+                    .span(args.span)
+                    .emit();
+                None
+            }
+        }
+    }
+
+    fn builtin_args<'hir, const N: usize>(
+        &self,
+        builtin: Builtin,
+        args: &hir::CallArgs<'hir>,
+    ) -> Option<&'hir [hir::Expr<'hir>]> {
+        let exprs = self.builtin_arg_exprs(builtin, args)?;
+        if exprs.len() == N {
+            return Some(exprs);
+        }
+        self.emit_wrong_builtin_arg_count(
+            builtin,
+            args.span,
+            BuiltinArgCount::Exact(N),
+            exprs.len(),
+        );
+        None
+    }
+
+    fn builtin_args_with_rest<'hir, const N: usize>(
+        &self,
+        builtin: Builtin,
+        args: &hir::CallArgs<'hir>,
+    ) -> Option<(&'hir [hir::Expr<'hir>], &'hir [hir::Expr<'hir>])> {
+        let exprs = self.builtin_arg_exprs(builtin, args)?;
+        if exprs.len() < N {
+            self.emit_wrong_builtin_arg_count(
+                builtin,
+                args.span,
+                BuiltinArgCount::AtLeast(N),
+                exprs.len(),
+            );
+            return None;
+        }
+        Some(exprs.split_at(N))
+    }
+
+    fn builtin_args_with_optional<'hir, const N: usize>(
+        &self,
+        builtin: Builtin,
+        args: &hir::CallArgs<'hir>,
+    ) -> Option<(&'hir [hir::Expr<'hir>], Option<&'hir hir::Expr<'hir>>)> {
+        let exprs = self.builtin_arg_exprs(builtin, args)?;
+        if (N..=N + 1).contains(&exprs.len()) {
+            let (required, optional) = exprs.split_at(N);
+            return Some((required, optional.first()));
+        }
+        self.emit_wrong_builtin_arg_count(
+            builtin,
+            args.span,
+            BuiltinArgCount::Between(N, N + 1),
+            exprs.len(),
+        );
+        None
+    }
+
+    fn variadic_builtin_args<'hir>(
+        &self,
+        builtin: Builtin,
+        args: &hir::CallArgs<'hir>,
+    ) -> Option<&'hir [hir::Expr<'hir>]> {
+        self.builtin_arg_exprs(builtin, args)
+    }
+
+    fn validate_builtin_arity(&self, builtin: Builtin, args: &hir::CallArgs<'_>) -> bool {
+        let Some(exprs) = self.builtin_arg_exprs(builtin, args) else {
+            return false;
+        };
+        let TyKind::Fn(function) = builtin.ty(self.gcx).kind else {
+            return true;
+        };
+        let variadic =
+            function.parameters.last().is_some_and(|ty| matches!(ty.kind, TyKind::Variadic));
+        let (valid, expected) = if variadic {
+            let minimum = function.parameters.len().saturating_sub(1);
+            (exprs.len() >= minimum, BuiltinArgCount::AtLeast(minimum))
+        } else {
+            let expected = function.parameters.len();
+            (exprs.len() == expected, BuiltinArgCount::Exact(expected))
+        };
+        if !valid {
+            self.emit_wrong_builtin_arg_count(builtin, args.span, expected, exprs.len());
+        }
+        valid
+    }
+
+    fn lower_builtin_args<const N: usize>(
+        &mut self,
+        builtin: Builtin,
+        args: &hir::CallArgs<'_>,
+    ) -> Option<[ValueId; N]> {
+        let exprs = self.builtin_args::<N>(builtin, args)?;
+        let values = exprs.iter().map(|arg| self.lower_expr(arg)).collect::<Option<Vec<_>>>()?;
+        values.try_into().ok()
+    }
+
+    fn unsupported_builtin<T>(&self, builtin: Builtin, span: Span) -> Option<T> {
+        self.gcx
+            .dcx()
+            .err(format!("unsupported builtin call `{}`", builtin.name()))
+            .span(span)
+            .emit();
+        None
+    }
+
+    fn unsupported_yul_builtin<T>(&self, builtin: Builtin, span: Span) -> Option<T> {
+        self.gcx
+            .dcx()
+            .err(format!("unsupported Yul builtin `{}`", builtin.name()))
+            .span(span)
+            .emit();
+        None
     }
 
     fn panic_if(&mut self, condition: ValueId, code: u64) {
