@@ -1,9 +1,12 @@
 //! Function-level HIR to MIR lowering.
 
 use super::{contract, storage::StorageLayout, types};
-use crate::mir::{
-    AbiLayout, AbiParamLayout, AllocationSemantics, BlockId, Function, FunctionBuilder, FunctionId,
-    MemoryObjectKind, MemoryObjectLayout, Module, ValueId,
+use crate::{
+    memory::EvmMemoryLayout,
+    mir::{
+        AbiLayout, AbiParamLayout, AllocationSemantics, BlockId, Function, FunctionBuilder,
+        FunctionId, MemoryObjectKind, MemoryObjectLayout, Module, ValueId,
+    },
 };
 use alloy_primitives::U256;
 use solar_ast::{BinOpKind, LitKind, UnOpKind};
@@ -432,6 +435,19 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
 
     fn lower_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
         if let ExprKind::Call(callee, ..) = &expr.kind {
+            if let Some(function_id) = self.gcx.resolved_function(callee) {
+                let returns = self.gcx.hir.function(function_id).returns.len();
+                if returns > 1 {
+                    let first = self.lower_expr(expr)?;
+                    let base = self.multi_return_buffer_base();
+                    let mut values = Vec::with_capacity(returns);
+                    values.push(first);
+                    for index in 1..returns {
+                        values.push(self.load_multi_return_value(base, index));
+                    }
+                    return Some(values);
+                }
+            }
             let returns_empty = self
                 .gcx
                 .resolved_function(callee)
@@ -450,6 +466,48 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             }
             _ => Some(vec![self.lower_expr(expr)?]),
         }
+    }
+
+    fn lower_tuple_assignment(
+        &mut self,
+        elements: &[Option<&hir::Expr<'_>>],
+        rhs: &hir::Expr<'_>,
+    ) -> Option<()> {
+        let values = if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind {
+            if rhs_elements.len() != elements.len() {
+                return report_unsupported(self.gcx, rhs.span, "tuple assignment arity");
+            }
+            let mut values = Vec::with_capacity(rhs_elements.len());
+            for value in rhs_elements.iter() {
+                let Some(value) = value else {
+                    return report_unsupported(self.gcx, rhs.span, "tuple assignment value");
+                };
+                values.push(self.lower_expr(value)?);
+            }
+            values
+        } else {
+            self.lower_values(rhs)?
+        };
+        if values.len() != elements.iter().flatten().count() {
+            return report_unsupported(self.gcx, rhs.span, "tuple assignment arity");
+        }
+        let mut values = values.into_iter();
+        for element in elements.iter().flatten() {
+            let value = values.next().expect("tuple assignment arity checked");
+            self.store_lvalue(element, value)?;
+        }
+        Some(())
+    }
+
+    fn multi_return_buffer_base(&mut self) -> ValueId {
+        let slot = self.builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
+        self.builder.mload(slot)
+    }
+
+    fn load_multi_return_value(&mut self, base: ValueId, index: usize) -> ValueId {
+        let offset = self.builder.imm_u64(u64::try_from(index).unwrap_or(u64::MAX) * 32);
+        let address = self.builder.add(base, offset);
+        self.builder.mload(address)
     }
 
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
@@ -494,6 +552,12 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                 self.unary(op.kind, value, expr.span)
             }
             ExprKind::Assign(lhs, op, rhs) => {
+                if op.is_none()
+                    && let ExprKind::Tuple(elements) = &lhs.peel_parens().kind
+                {
+                    self.lower_tuple_assignment(elements, rhs)?;
+                    return Some(self.builder.imm_u256(U256::ZERO));
+                }
                 let rhs = self.lower_expr(rhs)?;
                 let value = if let Some(kind) = op.map(|op| op.kind) {
                     let lhs = self.load_lvalue(lhs)?;
@@ -703,12 +767,10 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             self.builder.internal_call_void(mir_id, values, 0);
             return Some(self.builder.imm_u256(U256::ZERO));
         }
-        if function.returns.len() != 1 {
-            return report_unsupported(self.gcx, expr.span, "multiple return values");
-        }
-        let result_ty =
-            types::TypeLowerer::mir_type(self.gcx.type_of_item(function.returns[0].into()));
-        Some(self.builder.internal_call(mir_id, values, result_ty, 1))
+        let result_ty = types::TypeLowerer::mir_type(
+            self.gcx.type_of_item((*function.returns.first()?).into()),
+        );
+        Some(self.builder.internal_call(mir_id, values, result_ty, function.returns.len()))
     }
 
     fn lower_tuple(
@@ -873,7 +935,8 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             MemoryObjectLayout::Bytes => {
                 let length = self.builder.memory_object_len(object, layout.kind());
                 self.bounds_check(index, length);
-                Some(self.builder.memory_object_load_byte(object, index))
+                let value = self.builder.memory_object_load_byte(object, index);
+                Some(self.normalize_byte_value(expr, value))
             }
             MemoryObjectLayout::Struct { .. } => {
                 report_unsupported(self.gcx, expr.span, "struct index")
@@ -893,6 +956,17 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             return self.lower_constant(var.initializer, span);
         }
         report_unsupported(self.gcx, span, "identifier")
+    }
+
+    fn normalize_byte_value(&mut self, expr: &hir::Expr<'_>, value: ValueId) -> ValueId {
+        let Some(ty) = self.gcx.type_of_expr(expr.id) else { return value };
+        let solar_sema::ty::TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
+            ty.peel_refs().kind
+        else {
+            return value;
+        };
+        let shift = self.builder.imm_u64(u64::from(32 - size.bytes()) * 8);
+        self.builder.shl(shift, value)
     }
 
     fn load_lvalue(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
