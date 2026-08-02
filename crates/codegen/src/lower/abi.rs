@@ -76,6 +76,15 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     fn abi_param_type(&self, ty: Ty<'gcx>) -> Option<AbiParamType> {
+        let mut visiting = FxHashSet::default();
+        self.abi_param_type_inner(ty, &mut visiting)
+    }
+
+    fn abi_param_type_inner(
+        &self,
+        ty: Ty<'gcx>,
+        visiting: &mut FxHashSet<hir::StructId>,
+    ) -> Option<AbiParamType> {
         let ty = ty.peel_refs();
         Some(match ty.kind {
             TyKind::Mapping(..) | TyKind::Ref(_, solar_ast::DataLocation::Storage) => {
@@ -89,28 +98,33 @@ impl<'gcx> Lowerer<'gcx> {
                 variants: self.gcx.hir.enumm(id).variants.len() as u64,
             },
             TyKind::DynArray(element) | TyKind::Slice(element) => {
-                AbiParamType::DynamicArray(Box::new(self.abi_param_type(element)?))
+                AbiParamType::DynamicArray(Box::new(self.abi_param_type_inner(element, visiting)?))
             }
             TyKind::Array(element, len) => AbiParamType::FixedArray {
-                element: Box::new(self.abi_param_type(element)?),
+                element: Box::new(self.abi_param_type_inner(element, visiting)?),
                 len: u64::try_from(len).ok()?,
             },
-            TyKind::Struct(id) => AbiParamType::Tuple(
-                self.gcx
+            TyKind::Struct(id) => {
+                if !visiting.insert(id) {
+                    return None;
+                }
+                let fields = self
+                    .gcx
                     .struct_field_types(id)
                     .iter()
-                    .map(|&field| self.abi_param_type(field))
-                    .collect::<Option<Vec<_>>>()?
-                    .into(),
-            ),
+                    .map(|&field| self.abi_param_type_inner(field, visiting))
+                    .collect::<Option<Vec<_>>>()?;
+                visiting.remove(&id);
+                AbiParamType::Tuple(fields.into())
+            }
             TyKind::Tuple(fields) => AbiParamType::Tuple(
                 fields
                     .iter()
-                    .map(|&field| self.abi_param_type(field))
+                    .map(|&field| self.abi_param_type_inner(field, visiting))
                     .collect::<Option<Vec<_>>>()?
                     .into(),
             ),
-            TyKind::Udvt(inner, _) => return self.abi_param_type(inner),
+            TyKind::Udvt(inner, _) => return self.abi_param_type_inner(inner, visiting),
             _ => AbiParamType::Scalar(self.lower_type_from_ty(ty)),
         })
     }
