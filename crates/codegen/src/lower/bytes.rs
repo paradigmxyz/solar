@@ -24,7 +24,12 @@ impl AbiSource {
     fn load(self, builder: &mut FunctionBuilder<'_>, pos: ValueId) -> ValueId {
         match self {
             Self::Calldata => builder.calldataload(pos),
-            Self::Memory => builder.mload(pos),
+            Self::Memory => {
+                let zero = builder.imm_u64(0);
+                let word = builder.imm_u64(32);
+                let slice = builder.make_slice(pos, word, SliceLocation::Memory);
+                builder.memory_slice_load_word(slice, zero)
+            }
         }
     }
 
