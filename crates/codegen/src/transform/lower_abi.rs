@@ -341,82 +341,85 @@ impl LowerAbiCx {
                 }
             }
         }
-        let mut builder = FunctionBuilder::new(func);
-        let guard = builder.create_block();
-        let revert = builder.create_block();
-        let mut current = guard;
+        let guard = {
+            let mut builder = FunctionBuilder::new(func);
+            let guard = builder.create_block();
+            let revert = builder.create_block();
+            let mut current = guard;
 
-        builder.switch_to_block(current);
-        let calldata_size = builder.calldatasize();
-        let head_size = abi_params.map_or((arg_types.len() as u64) * 32, AbiParamLayout::head_size);
-        let required = builder.imm_u64(4 + head_size);
-        let short = builder.lt(calldata_size, required);
-        let next = builder.create_block();
-        builder.branch(short, revert, next);
-        current = next;
+            builder.switch_to_block(current);
+            let calldata_size = builder.calldatasize();
+            let head_size =
+                abi_params.map_or((arg_types.len() as u64) * 32, AbiParamLayout::head_size);
+            let required = builder.imm_u64(4 + head_size);
+            let short = builder.lt(calldata_size, required);
+            let next = builder.create_block();
+            builder.branch(short, revert, next);
+            current = next;
 
-        if lazy_args {
-            for (index, &ty) in arg_types.iter().enumerate() {
-                let Some(validator) = AbiWordValidator::from_mir_type(ty) else { continue };
-                builder.switch_to_block(current);
-                // `Value::Arg` values carry the canonicality invariant that this
-                // guard establishes. Read the raw calldata word here so an
-                // optimizer cannot fold the check away before it runs.
-                let offset = builder.imm_u64(4 + (index as u64) * 32);
-                let word = builder.calldataload(offset);
-                let valid = validator.condition(&mut builder, word);
-                let next = builder.create_block();
-                builder.branch(valid, next, revert);
-                current = next;
+            if lazy_args {
+                for (index, &ty) in arg_types.iter().enumerate() {
+                    let Some(validator) = AbiWordValidator::from_mir_type(ty) else { continue };
+                    builder.switch_to_block(current);
+                    // `Value::Arg` values carry the canonicality invariant that this
+                    // guard establishes. Read the raw calldata word here so an
+                    // optimizer cannot fold the check away before it runs.
+                    let offset = builder.imm_u64(4 + (index as u64) * 32);
+                    let word = builder.calldataload(offset);
+                    let valid = validator.condition(&mut builder, word);
+                    let next = builder.create_block();
+                    builder.branch(valid, next, revert);
+                    current = next;
+                }
             }
-        }
 
-        if let Some(layout) = abi_params {
-            let mut head_offset = 0;
-            for (index, ty) in layout.types.iter().enumerate() {
-                let arg_index = crate::mir::ArgIdx::new(index);
-                let uses = arg_uses.get(arg_index).map_or(&[][..], Vec::as_slice);
-                if uses.is_empty() {
+            if let Some(layout) = abi_params {
+                let mut head_offset = 0;
+                for (index, ty) in layout.types.iter().enumerate() {
+                    let arg_index = crate::mir::ArgIdx::new(index);
+                    let uses = arg_uses.get(arg_index).map_or(&[][..], Vec::as_slice);
+                    if uses.is_empty() {
+                        head_offset += ty.head_size();
+                        continue;
+                    }
+                    if !Self::is_supported_aggregate(ty) {
+                        head_offset += ty.head_size();
+                        continue;
+                    }
+                    let Some(arg_type) = arg_types.get(index).copied() else {
+                        head_offset += ty.head_size();
+                        continue;
+                    };
+                    if !matches!(arg_type, MirType::MemoryObject(_) | MirType::Slice(_)) {
+                        head_offset += ty.head_size();
+                        continue;
+                    }
+                    let head = builder.imm_u64(4 + head_offset);
+                    let tuple_base = builder.imm_u64(4);
+                    let value = Self::decode_aggregate_argument(
+                        &mut builder,
+                        ty,
+                        arg_type,
+                        head,
+                        tuple_base,
+                        &mut current,
+                    );
+                    for &use_value in uses {
+                        replacements.insert(use_value, value);
+                    }
                     head_offset += ty.head_size();
-                    continue;
                 }
-                if !Self::is_supported_aggregate(ty) {
-                    head_offset += ty.head_size();
-                    continue;
-                }
-                let Some(arg_type) = arg_types.get(index).copied() else {
-                    head_offset += ty.head_size();
-                    continue;
-                };
-                if !matches!(arg_type, MirType::MemoryObject(_) | MirType::Slice(_)) {
-                    head_offset += ty.head_size();
-                    continue;
-                }
-                let head = builder.imm_u64(4 + head_offset);
-                let tuple_base = builder.imm_u64(4);
-                let value = Self::decode_aggregate_argument(
-                    &mut builder,
-                    ty,
-                    arg_type,
-                    head,
-                    tuple_base,
-                    &mut current,
-                );
-                for &use_value in uses {
-                    replacements.insert(use_value, value);
-                }
-                head_offset += ty.head_size();
             }
-        }
 
-        builder.switch_to_block(current);
-        builder.jump(old_entry);
+            builder.switch_to_block(current);
+            builder.jump(old_entry);
 
-        builder.switch_to_block(revert);
-        let zero = builder.imm_u64(0);
-        builder.revert(zero, zero);
+            builder.switch_to_block(revert);
+            let zero = builder.imm_u64(0);
+            builder.revert(zero, zero);
 
-        drop(builder);
+            guard
+        };
         func.replace_uses_canonicalized(&replacements);
         let order = std::iter::once(guard)
             .chain(func.blocks.indices().filter(|&block| block != guard))
@@ -476,7 +479,7 @@ impl LowerAbiCx {
                 let len = builder.calldataload(base);
                 let word = builder.imm_u64(32);
                 let data = builder.add(base, word);
-                return builder.make_slice(data, len, crate::mir::SliceLocation::Calldata);
+                builder.make_slice(data, len, crate::mir::SliceLocation::Calldata)
             }
             crate::mir::AbiParamType::DynamicArray(element)
                 if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(_)) =>
@@ -501,7 +504,7 @@ impl LowerAbiCx {
                 let len = builder.calldataload(base);
                 let word = builder.imm_u64(32);
                 let data = builder.add(base, word);
-                return builder.make_slice(data, len, crate::mir::SliceLocation::Calldata);
+                builder.make_slice(data, len, crate::mir::SliceLocation::Calldata)
             }
             crate::mir::AbiParamType::Bytes => {
                 let len = builder.calldataload(base);
