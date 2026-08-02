@@ -7,10 +7,10 @@ contract StorageBytesPushPop {
     // CHECK-LABEL: fn @_anonymous{{[( ]}}
     // CHECK: [[FIRST:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
     // CHECK: {{v[0-9]+}} = memory_object_len memorybytes, [[FIRST]]
-    // CHECK: mcopy
+    // CHECK: memory_object_copy memorybytes, {{v[0-9]+}}, memorybytes, {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: [[SECOND:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
     // CHECK: {{v[0-9]+}} = memory_object_len memorybytes, [[SECOND]]
-    // CHECK: mcopy
+    // CHECK: memory_object_copy memorybytes, {{v[0-9]+}}, memorybytes, {{v[0-9]+}}, {{v[0-9]+}}
     constructor() {
         data.push(0x01);
         data.push(0x02);
@@ -19,7 +19,7 @@ contract StorageBytesPushPop {
     // CHECK-LABEL: fn @pushValue{{[( ]}}
     // CHECK: [[OLD:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
     // CHECK: [[OLD_LEN:v[0-9]+]] = memory_object_len memorybytes, [[OLD]]
-    // CHECK: mcopy
+    // CHECK: memory_object_copy memorybytes, {{v[0-9]+}}, memorybytes, {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: [[BYTE:v[0-9]+]] = shr 248, arg0
     // CHECK: mstore8 {{v[0-9]+}}, [[BYTE]]
     function pushValue(bytes1 value) external {
@@ -29,7 +29,7 @@ contract StorageBytesPushPop {
     // CHECK-LABEL: fn @pushZero{{[( ]}}
     // CHECK: [[OLD:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
     // CHECK: [[OLD_LEN:v[0-9]+]] = memory_object_len memorybytes, [[OLD]]
-    // CHECK: mcopy
+    // CHECK: memory_object_copy memorybytes, {{v[0-9]+}}, memorybytes, {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: mstore8 {{v[0-9]+}}, 0
     function pushZero() external {
         data.push();
@@ -40,7 +40,7 @@ contract StorageBytesPushPop {
     // CHECK: [[OLD_LEN:v[0-9]+]] = memory_object_len memorybytes, [[OLD]]
     // CHECK: tail_call @__panic_31
     // CHECK: {{v[0-9]+}} = sub [[OLD_LEN]], 1
-    // CHECK: mcopy
+    // CHECK: memory_object_copy memorybytes, {{v[0-9]+}}, memorybytes, {{v[0-9]+}}, {{v[0-9]+}}
     function popValue() external {
         data.pop();
     }

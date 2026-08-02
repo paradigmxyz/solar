@@ -245,13 +245,13 @@ bb19:
   dup1
   mload
   dup1
-  push 384
+  push 320
   mstore
   push 1
   dup2
   add
   dup1
-  push 320
+  push 384
   mstore
   dup2
   dup2
@@ -290,26 +290,19 @@ bb19:
   mstore
   dup3
   dup1
-  push 320
+  push 384
   mstore
   dup2
   mstore
   swap2
   pop
   push 32
-  dup3
-  add
-  dup1
-  push 320
-  mstore
-  push 32
   swap1
-  swap2
   sub
   push 5
   shr
   push 32
-  dup4
+  dup3
   add
   swap1
   push 32
@@ -318,19 +311,20 @@ bb19:
   push 0
   swap1
   mstore
-  swap3
+  swap2
   push 32
+  add
+  push 32
+  dup4
   add
   dup3
   dup1
-  push 384
-  mstore
-  dup2
-  dup6
-  dup1
   push 320
   mstore
+  dup3
+  dup3
   mcopy
+  pop
   pop
   push 128
   mload
@@ -343,8 +337,7 @@ bb19:
   push 4
   calldataload
   gt
-  swap3
-  pop
+  swap2
   pop
   pop
   push bb72
@@ -361,17 +354,27 @@ bb19:
   and
   push 248
   shr
-  push 384
-  mload
-  push 320
+  push 32
+  push 352
   mload
   add
+  dup1
+  push 256
+  mstore
+  push 320
+  mload
+  dup2
+  add
+  dup3
+  swap1
   mstore8
+  swap1
+  pop
   push 352
   mload
   mload
   dup1
-  push 256
+  push 320
   mstore
   push 288
   mload
@@ -442,15 +445,16 @@ bb19:
   add
   push 352
   mstore
-  swap2
+  swap3
+  pop
   pop
   pop
   push bb25
   jumpi
-  push 320
-  mload
-  mload
   push 256
+  mload
+  mload
+  push 320
   mload
   push 3
   shl
@@ -460,7 +464,7 @@ bb19:
   shr
   not
   and
-  push 256
+  push 320
   mload
   push 1
   shl
@@ -501,7 +505,7 @@ bb76:
   add
   jump bb76
 bb25:
-  push 256
+  push 320
   mload
   push 1
   shl
@@ -531,7 +535,7 @@ bb77:
   dup1
   push 5
   shl
-  push 320
+  push 256
   mload
   add
   mload
@@ -616,14 +620,8 @@ bb33:
   dup2
   mstore
   push 32
-  dup2
-  add
-  dup1
-  push 256
-  mstore
-  push 32
   swap1
-  swap3
+  swap2
   sub
   push 5
   shr
@@ -637,23 +635,29 @@ bb33:
   push 0
   swap1
   mstore
-  swap3
+  swap2
   push 32
   add
-  dup3
-  dup2
+  push 32
   dup4
-  dup1
-  push 256
-  mstore
+  add
+  dup3
+  dup3
+  dup3
   mcopy
   pop
-  swap1
   pop
-  swap1
+  pop
+  dup1
   mload
   dup1
   push 288
+  mstore
+  swap1
+  push 32
+  add
+  dup1
+  push 256
   mstore
   push 224
   mload
@@ -701,7 +705,7 @@ bb33:
   push 352
   mstore
   push 31
-  dup3
+  dup4
   add
   push 31
   not
@@ -709,7 +713,7 @@ bb33:
   push 5
   shr
   push 31
-  dup4
+  dup5
   gt
   dup1
   swap2

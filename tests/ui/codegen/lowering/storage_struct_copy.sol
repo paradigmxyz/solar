@@ -1,4 +1,5 @@
 //@ run-call: readCopy => 0x0000000000000000000000000000000000001234, 0x12345678
+//@ run-call: readDirect => 0x0000000000000000000000000000000000001234, 0x12345678
 
 contract StorageStructCopy {
     struct Value {
@@ -16,6 +17,11 @@ contract StorageStructCopy {
     function readCopy() external view returns (address, bytes4) {
         Value storage source = value;
         Value memory result = source;
+        return (result.owner, result.selectors[0]);
+    }
+
+    function readDirect() external view returns (address, bytes4) {
+        Value memory result = value;
         return (result.owner, result.selectors[0]);
     }
 }
