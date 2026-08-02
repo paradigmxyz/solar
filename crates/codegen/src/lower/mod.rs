@@ -1693,13 +1693,18 @@ impl<'gcx> Lowerer<'gcx> {
                         crate::mir::AllocationSemantics::INTERNAL,
                     );
                     builder.set_memory_object_len(array_ptr, len, MemoryObjectKind::DynamicArray);
-                    let dst = builder.memory_object_data(array_ptr, MemoryObjectKind::DynamicArray);
                     let src = builder.add(len_pos, word);
-                    if self.lowering_constructor {
-                        builder.mcopy(dst, src, data_bytes);
+                    let source_location = if self.lowering_constructor {
+                        SliceLocation::Memory
                     } else {
-                        builder.calldatacopy(dst, src, data_bytes);
-                    }
+                        SliceLocation::Calldata
+                    };
+                    let source = builder.make_slice(src, data_bytes, source_location);
+                    builder.memory_object_copy_from_slice(
+                        array_ptr,
+                        MemoryObjectKind::DynamicArray,
+                        source,
+                    );
                     self.bind_param_value_deferred(param_id, array_ptr, &mut deferred_param_slots);
                 } else if decodes_abi_params
                     && !defer_aggregate_abi
@@ -1738,13 +1743,14 @@ impl<'gcx> Lowerer<'gcx> {
                         MemoryObjectKind::Bytes,
                     );
                     builder.set_memory_object_len(ptr, len, MemoryObjectKind::Bytes);
-                    let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
                     let src = builder.add(len_pos, word);
-                    if self.lowering_constructor {
-                        builder.mcopy(data_ptr, src, len);
+                    let source_location = if self.lowering_constructor {
+                        SliceLocation::Memory
                     } else {
-                        builder.calldatacopy(data_ptr, src, len);
-                    }
+                        SliceLocation::Calldata
+                    };
+                    let source = builder.make_slice(src, len, source_location);
+                    builder.memory_object_copy_from_slice(ptr, MemoryObjectKind::Bytes, source);
                     self.bind_param_value_deferred(param_id, ptr, &mut deferred_param_slots);
                 } else {
                     // Non-struct parameters: use normal Arg handling

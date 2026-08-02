@@ -248,9 +248,9 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v6 = add v5, 32
     v7 = alloc memorybytes, exact, uninitialized, infallible, v6
     set_memory_object_len memorybytes, v7, v2
-    v8 = memory_object_data memorybytes, v7
-    v9 = add v1, 32
-    mcopy v8, v9, v2
+    v8 = add v1, 32
+    v9 = make_memory_slice v8, v2
+    memory_object_copy_from_slice memorybytes, v7, v9
     v10 = add v0, arg1
     v11 = mload v10
     v12 = add v11, 31
@@ -259,9 +259,9 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v15 = add v14, 32
     v16 = alloc memorybytes, exact, uninitialized, infallible, v15
     set_memory_object_len memorybytes, v16, v11
-    v17 = memory_object_data memorybytes, v16
-    v18 = add v10, 32
-    mcopy v17, v18, v11
+    v17 = add v10, 32
+    v18 = make_memory_slice v17, v11
+    memory_object_copy_from_slice memorybytes, v16, v18
     v19 = memory_object_len memorybytes, v7
     v20 = memory_object_data memorybytes, v7
     v21 = sload 0 !metadata(storage=slot(0))
@@ -464,9 +464,9 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v6 = add v5, 32
     v7 = alloc memorybytes, exact, uninitialized, infallible, v6
     set_memory_object_len memorybytes, v7, v2
-    v8 = memory_object_data memorybytes, v7
-    v9 = add v1, 32
-    mcopy v8, v9, v2
+    v8 = add v1, 32
+    v9 = make_memory_slice v8, v2
+    memory_object_copy_from_slice memorybytes, v7, v9
     v10 = add v0, arg1
     v11 = mload v10
     v12 = add v11, 31
@@ -475,9 +475,9 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v15 = add v14, 32
     v16 = alloc memorybytes, exact, uninitialized, infallible, v15
     set_memory_object_len memorybytes, v16, v11
-    v17 = memory_object_data memorybytes, v16
-    v18 = add v10, 32
-    mcopy v17, v18, v11
+    v17 = add v10, 32
+    v18 = make_memory_slice v17, v11
+    memory_object_copy_from_slice memorybytes, v16, v18
     v19 = memory_object_len memorybytes, v7
     v20 = memory_object_data memorybytes, v7
     v21 = sload 0 !metadata(storage=slot(0))
