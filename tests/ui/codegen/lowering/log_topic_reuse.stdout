@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/log_topic_reuse.sol:LogTopicReuse (runtime) ===
 @module runtime
 bb0:
-  push 160
+  push 192
   push 64
   mstore
   callvalue
@@ -44,15 +44,19 @@ bb7:
   gt
   push bb5
   jumpi
+  push 128
   push 4
   calldataload
-  push 0
+  dup2
   mstore
-  push 1
   push 32
+  dup2
+  add
+  push 1
+  swap1
   mstore
   push 64
-  push 0
+  swap1
   keccak256
   sload
   dup1

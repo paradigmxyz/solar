@@ -2,8 +2,8 @@
 //!
 //! Keeping storage-location hashing as one MIR instruction lets dominator-tree
 //! CSE reuse repeated accesses without teaching HIR lowering about scratch
-//! memory. This pass expands the builtins immediately after CSE so the
-//! remaining pipeline can optimize the physical memory operations.
+//! memory. This pass expands the builtins at the memory boundary and reserves
+//! each hash input through the semantic allocation policy.
 
 use crate::{
     mir::{BlockId, FunctionBuilder, InstKind, Module},
@@ -11,7 +11,7 @@ use crate::{
 };
 use solar_data_structures::map::FxHashMap;
 
-/// Lowers mapping-slot hash builtins after mapping-aware CSE.
+/// Lowers mapping-slot hash builtins at the memory boundary.
 pub(crate) struct LowerMappingSlots;
 
 impl MirPass for LowerMappingSlots {
@@ -96,10 +96,10 @@ fn lower_storage_array_data_slot(
     builder: &mut FunctionBuilder<'_>,
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
-    let zero = builder.imm_u64(0);
-    builder.mstore(zero, slot);
     let word = builder.imm_u64(32);
-    builder.keccak256(zero, word)
+    let scratch = builder.alloc(word, crate::mir::AllocationSemantics::INTERNAL);
+    builder.mstore(scratch, slot);
+    builder.keccak256(scratch, word)
 }
 
 fn lower_storage_array_element_slot(
@@ -123,12 +123,13 @@ fn lower_word_mapping_slot(
     key: crate::mir::ValueId,
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
-    let zero = builder.imm_u64(0);
-    builder.mstore(zero, key);
-    let slot_offset = builder.imm_u64(32);
-    builder.mstore(slot_offset, slot);
     let hash_size = builder.imm_u64(64);
-    builder.keccak256(zero, hash_size)
+    let scratch = builder.alloc(hash_size, crate::mir::AllocationSemantics::INTERNAL);
+    builder.mstore(scratch, key);
+    let word_size = builder.imm_u64(32);
+    let slot_offset = builder.add(scratch, word_size);
+    builder.mstore(slot_offset, slot);
+    builder.keccak256(scratch, hash_size)
 }
 
 fn lower_memory_mapping_slot(
@@ -138,13 +139,13 @@ fn lower_memory_mapping_slot(
 ) -> crate::mir::ValueId {
     let len = builder.memory_object_len(ptr, crate::mir::MemoryObjectKind::Bytes);
     let data_start = builder.memory_object_data(ptr, crate::mir::MemoryObjectKind::Bytes);
-    let scratch = builder.fmp();
-    builder.mcopy(scratch, data_start, len);
     let word_size = builder.imm_u64(32);
+    let scratch_size = builder.add(len, word_size);
+    let scratch = builder.alloc(scratch_size, crate::mir::AllocationSemantics::INTERNAL);
+    builder.mcopy(scratch, data_start, len);
     let slot_addr = builder.add(scratch, len);
     builder.mstore(slot_addr, slot);
-    let hash_len = builder.add(len, word_size);
-    builder.keccak256(scratch, hash_len)
+    builder.keccak256(scratch, scratch_size)
 }
 
 fn lower_calldata_mapping_slot(
@@ -155,10 +156,10 @@ fn lower_calldata_mapping_slot(
     let len = builder.slice_len(slice);
     let data_start = builder.slice_ptr(slice);
     let word_size = builder.imm_u64(32);
-    let scratch = builder.fmp();
+    let scratch_size = builder.add(len, word_size);
+    let scratch = builder.alloc(scratch_size, crate::mir::AllocationSemantics::INTERNAL);
     builder.calldatacopy(scratch, data_start, len);
     let slot_addr = builder.add(scratch, len);
     builder.mstore(slot_addr, slot);
-    let hash_len = builder.add(len, word_size);
-    builder.keccak256(scratch, hash_len)
+    builder.keccak256(scratch, scratch_size)
 }

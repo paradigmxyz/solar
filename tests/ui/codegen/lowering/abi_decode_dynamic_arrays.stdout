@@ -276,9 +276,7 @@ fn @strs() {
     v25 = lt v24, v13
     jumpi v25, bb1, bb11
   bb10:
-    v89 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v144 = add v89, 160
-    mstore 64, v144 !metadata(memory=scratch)
+    v89 = alloc raw, exact, uninitialized, infallible, 160 !metadata(deferred_alloc)
     v90 = mload 64 !metadata(memory=scratch)
     v91 = add v90, 32
     v92 = sub v91, v90
@@ -330,8 +328,8 @@ fn @strs() {
     tail_call @__panic_41
   bb18:
     v42 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v145 = add v42, v40
-    mstore 64, v145 !metadata(memory=scratch)
+    v144 = add v42, v40
+    mstore 64, v144 !metadata(memory=scratch)
     mstore v42, v30
     v43 = sub v39, 32
     v44 = shr 5, v43
@@ -389,8 +387,8 @@ fn @strs() {
     jumpi v82, bb1, bb25
   bb25:
     v83 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v146 = add v83, v81
-    mstore 64, v146 !metadata(memory=scratch)
+    v145 = add v83, v81
+    mstore 64, v145 !metadata(memory=scratch)
     mstore v83, v70
     v84 = add v83, 32
     calldatacopy v84, v65, v70
@@ -420,8 +418,8 @@ fn @strs() {
     v129 = add v127, 31
     v131 = and v129, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v132 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v147 = add v132, v131
-    mstore 64, v147 !metadata(memory=scratch)
+    v146 = add v132, v131
+    mstore 64, v146 !metadata(memory=scratch)
     returndata v132, v127
   bb29:
     v116 = sub v113, 32

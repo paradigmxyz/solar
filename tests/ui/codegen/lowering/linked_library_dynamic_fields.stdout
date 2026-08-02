@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:L (runtime) ===
 @module runtime
 bb0:
-  push 512
+  push 576
   push 64
   mstore
   callvalue
@@ -552,14 +552,21 @@ bb25:
   mload
   add
   mload
-  push 0
+  push 512
+  dup2
+  dup2
   mstore
+  swap1
+  pop
+  push 32
+  dup2
+  add
   push 4
   calldataload
-  push 32
+  swap1
   mstore
   push 64
-  push 0
+  swap1
   keccak256
   sstore
   push 128
@@ -739,15 +746,19 @@ bb6:
   sub
   push bb5
   jumpi
+  push 160
   push 4
   calldataload
-  push 0
+  dup2
   mstore
-  push 0
   push 32
+  dup2
+  add
+  push 0
+  swap1
   mstore
   push 64
-  push 0
+  swap1
   keccak256
   sload
   jump bb31

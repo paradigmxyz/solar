@@ -72,13 +72,17 @@ describes observable structure in the current tree, not an intended design.
   physical constructor word parameters and rebuilds nested fixed-array memory
   objects; dynamic and narrow constructor shapes remain on the legacy blob
   decoder until a bounded blob-length abstraction exists.
+* Checked ABI head sizing is shared by the MIR input and output layout
+  descriptors, so HIR lowering no longer carries a second recursive size
+  implementation.
 * Literal low-level call payloads use a bytes memory object for their
   length-prefixed staging, then expose only its data slice to the call.
 * Literal mapping keys and embedded creation bytecode use typed bytes-object
   stores for their word chunks before hashing or returning the object.
 * Dynamic mapping keys stay as `mapping_slot_memory` or
-  `mapping_slot_calldata` until the mapping-slot pass. Target-specific memory
-  copies are selected after that semantic operation is lowered.
+  `mapping_slot_calldata` until the mapping-slot pass. That pass now runs at
+  the memory boundary and reserves hash input through `alloc` instead of
+  borrowing the free-memory pointer as scratch.
 * Dynamic storage-array data slots stay as `storage_array_data_slot` until the
   same pass. Indexing, push/pop, bytes access, and aggregate copies share that
   typed operation and the shared element-stride helper instead of staging the
@@ -121,6 +125,8 @@ describes observable structure in the current tree, not an intended design.
 * The lowering module exposes only `lower_contract` and
   `lower_contract_with_bytecodes` publicly. Context, loop, and storage
   implementation types are private to lowering and its child modules.
+  Helpers with no sibling callers are private as well; only methods verified
+  across lowering files retain `pub(super)` visibility.
 
 ## Current shape
 
@@ -148,8 +154,11 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   copies, storage aggregate copies, and ABI payload copies into objects now
   stay semantic. Memory-object allocation, ABI tail assembly, Yul copies,
   returndata staging, and some loop scratch state still emit raw memory
-  operations before the semantic memory passes. The remaining work is to keep
-  those policies in typed MIR until the memory-layout boundary.
+  operations before the semantic memory passes. Mapping slot hashing is no
+  longer one of those early scratch users: it stays semantic through
+  optimization and allocates its hash input at the memory boundary. The
+  remaining work is to keep the other policies in typed MIR until that
+  boundary.
 * **Helper coverage is incomplete.** Panic, short-error, and storage-bytes
   helpers now share a keyed lazy registry. Checked exponentiation, ABI copies,
   and repeated cleanup or validation still have inline or pass-specific
@@ -170,8 +179,10 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   `pub(crate)` and `pub(super)` methods because sibling files reach through the
   context. Their callers are not grouped by phase, so removing one helper
   requires searching the whole directory and often changes unrelated lowering
-  logic. The rewrite must retain only methods with verified callers and keep
-  new interfaces at the smallest useful visibility.
+  logic. Defining-file-only helpers are now private, but the remaining
+  cross-file surface still needs a phase-by-phase replacement. The rewrite
+  must retain only methods with verified callers and keep new interfaces at
+  the smallest useful visibility.
 
 The verified entry-point surface is small. `lower_contract_with_bytecodes` has
 production callers in `crates/codegen/src/contract.rs` and `benches/src/lib.rs`.

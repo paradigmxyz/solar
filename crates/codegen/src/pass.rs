@@ -149,9 +149,6 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &pure_eval::PureEval,
     &inst_simplify::InstSimplify,
     &cse::Cse,
-    // Reuse mapping slots before their scratch-memory expansion can obscure
-    // the semantic expression from the remaining optimization passes.
-    &lower_mapping_slots::LowerMappingSlots,
     &gvn::Gvn,
     &pre::Pre,
     &storage_load_cse::StorageLoadCse,
@@ -198,6 +195,12 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &static_alloc::DeferAlloc,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
+    // Keep semantic mapping locations through optimization and aggregate
+    // lowering. The expansion owns its scratch allocation at this boundary.
+    &lower_mapping_slots::LowerMappingSlots,
+    // Revisit allocations introduced by late semantic lowering so fixed-size
+    // hash buffers can use backend-known static regions.
+    &static_alloc::DeferAlloc,
     &inst_simplify::InstSimplify,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
