@@ -560,8 +560,8 @@ impl<'gcx> Lowerer<'gcx> {
         Ok(values)
     }
 
-    /// Stages return values 2..N at the unbumped free-memory pointer and
-    /// publishes the buffer base through the memory policy's scratch slot.
+    /// Stages return values 2..N in a semantic fixed-array object and publishes
+    /// its data base through the memory policy's scratch slot.
     pub(super) fn stage_multi_return_tail(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -589,7 +589,14 @@ impl<'gcx> Lowerer<'gcx> {
         values: &[ValueId],
         start: usize,
     ) {
-        let base = builder.fmp();
+        let len = values.len() as u64;
+        let size = builder.imm_u64(len * 32);
+        let object = builder.alloc_object(
+            size,
+            crate::mir::MemoryObjectLayout::FixedArray { len, element_words: 1 },
+            crate::mir::AllocationSemantics::INTERNAL,
+        );
+        let base = builder.memory_object_data(object, crate::mir::MemoryObjectKind::FixedArray);
         for (i, &value) in values.iter().enumerate().skip(start) {
             let offset = builder.imm_u64(i as u64 * 32);
             let addr = builder.add(base, offset);

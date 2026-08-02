@@ -32,17 +32,18 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_params=[bytes], abi_
   bb5:
     revert 0, 0
   bb6:
-    v15 = fmp
-    v16 = add v15, 32
-    mstore v16, v7
-    v17 = add v15, 64
-    mstore v17, v12
-    mstore 32, v15 !metadata(memory=scratch)
-    v18 = mload 32 !metadata(memory=scratch)
-    v19 = add v18, 32
-    v20 = mload v19
-    v21 = add v18, 64
-    v22 = mload v21
-    ret v3, v20, v22
+    v15 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v16 = memory_object_data memoryfixedarray, v15
+    v17 = add v16, 32
+    mstore v17, v7
+    v18 = add v16, 64
+    mstore v18, v12
+    mstore 32, v16 !metadata(memory=scratch)
+    v19 = mload 32 !metadata(memory=scratch)
+    v20 = add v19, 32
+    v21 = mload v20
+    v22 = add v19, 64
+    v23 = mload v22
+    ret v3, v21, v23
 }
 

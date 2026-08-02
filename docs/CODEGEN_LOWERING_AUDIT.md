@@ -30,6 +30,9 @@ describes observable structure in the current tree, not an intended design.
 * ECDSA and literal precompile inputs allocate semantic bytes objects before
   writing their fixed-size payloads; the HIR paths no longer read the free
   memory pointer for those scratch buffers.
+* Multi-return values cross control-flow edges through semantic fixed-array
+  storage, with only the data base published in the existing return-buffer
+  slot.
 * Event payloads with representable ABI types use the same typed ABI operation;
   only recursive or otherwise unsupported event types use the compatibility
   fallback.
