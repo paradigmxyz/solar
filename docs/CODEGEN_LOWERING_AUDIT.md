@@ -92,7 +92,10 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * explicit state-variable initializers, including a synthetic constructor when
   the contract has no explicit constructor;
 * loop-carried scalar and storage-reference environments, including `break` and
-  `continue` exits through Solidity and Yul `for` updates;
+  `continue` exits through Solidity and Yul `for` updates, with conservative
+  spill-based fallback for nested storage-reference phis;
+* storage-reference branch and loop merges that preserve slot and packed-offset
+  state across differing exits;
 * constructor-assigned immutable declarations and reads, including inherited
   immutables, typed deployment patching, and narrow immutable widths;
 * split Solidity and Yul builtin lowering with shared positional-argument,
@@ -160,8 +163,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
 3. Add the remaining call and language features: Yul statements beyond `switch`,
    the remaining `try`/`catch` payload and return-binding forms, and the
    remaining external and aggregate function-pointer forms.
-4. Finish storage-reference CFG merging for every aggregate shape and audit
-   allocation guards against the corresponding Solc behavior.
+4. Extend storage-reference CFG tests to packed and Yul offset shapes, and
+   complete allocation-guard differential coverage against Solc.
 5. Add and run differential, UI, and runtime tests for every new semantic
    slice, then run the complete existing test and Solc suites before declaring
    the rewrite complete.

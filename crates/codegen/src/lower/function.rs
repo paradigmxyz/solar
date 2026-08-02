@@ -1217,24 +1217,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         for id in ids {
             let then = then_values.get(&id).copied().or_else(|| before.get(&id).copied());
             let else_ = else_values.get(&id).copied().or_else(|| before.get(&id).copied());
-            let access = match (then_terminated, else_terminated, then, else_) {
-                (true, false, _, Some(value)) => Some(value),
-                (false, true, Some(value), _) => Some(value),
-                (false, false, Some(lhs), Some(rhs)) if lhs == rhs => Some(lhs),
-                (false, false, Some(lhs), Some(rhs)) => {
-                    let slot = self.builder.phi(vec![(then_exit, lhs.slot), (else_exit, rhs.slot)]);
-                    let offset = match (lhs.offset, rhs.offset) {
-                        (Some(lhs), Some(rhs)) if lhs != rhs => {
-                            Some(self.builder.phi(vec![(then_exit, lhs), (else_exit, rhs)]))
-                        }
-                        (Some(offset), _) | (_, Some(offset)) => Some(offset),
-                        _ => None,
-                    };
-                    Some(StorageAccess { slot, location: lhs.location, offset })
-                }
-                (_, _, Some(value), _) | (_, _, _, Some(value)) => Some(value),
-                _ => None,
-            };
+            let mut incoming = Vec::with_capacity(2);
+            if !then_terminated && let Some(access) = then {
+                incoming.push((then_exit, access));
+            }
+            if !else_terminated && let Some(access) = else_ {
+                incoming.push((else_exit, access));
+            }
+            let access = self.merge_storage_accesses(incoming).or(then.or(else_));
             if let Some(access) = access {
                 merged.insert(id, access);
             }
@@ -1468,29 +1458,67 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             .copied()
             .collect::<solar_data_structures::map::FxHashSet<_>>();
         for id in ids {
+            let fallback = before.get(&id).copied();
             let incoming = exits
                 .iter()
-                .filter_map(|state| state.storage_refs.get(&id).copied())
+                .filter_map(|state| {
+                    state
+                        .storage_refs
+                        .get(&id)
+                        .copied()
+                        .or(fallback)
+                        .map(|access| (state.block, access))
+                })
                 .collect::<Vec<_>>();
-            let Some(first) = incoming.first().copied().or_else(|| before.get(&id).copied()) else {
-                continue;
-            };
-            if incoming.iter().all(|access| *access == first) {
-                before.insert(id, first);
-                continue;
+            if let Some(access) = self.merge_storage_accesses(incoming).or(fallback) {
+                before.insert(id, access);
             }
-            let slot = self.builder.phi(
-                exits
-                    .iter()
-                    .filter_map(|state| {
-                        state.storage_refs.get(&id).map(|access| (state.block, access.slot))
-                    })
-                    .collect(),
-            );
-            let offset = first.offset;
-            before.insert(id, StorageAccess { slot, location: first.location, offset });
         }
         before
+    }
+
+    fn merge_storage_accesses(
+        &mut self,
+        incoming: Vec<(BlockId, StorageAccess)>,
+    ) -> Option<StorageAccess> {
+        let first = incoming.first().map(|&(_, access)| access)?;
+        if incoming.iter().all(|&(_, access)| access == first) {
+            return Some(first);
+        }
+
+        let slot = if incoming.iter().all(|&(_, access)| access.slot == first.slot) {
+            first.slot
+        } else {
+            self.builder.phi(incoming.iter().map(|&(block, access)| (block, access.slot)).collect())
+        };
+
+        let offset = if incoming.iter().all(|&(_, access)| access.offset.is_none()) {
+            None
+        } else {
+            let offsets = incoming
+                .iter()
+                .map(|&(_, access)| {
+                    access
+                        .offset
+                        .unwrap_or_else(|| self.builder.imm_u64(u64::from(access.location.offset)))
+                })
+                .collect::<Vec<_>>();
+            let first_offset = offsets[0];
+            if offsets.iter().all(|&offset| offset == first_offset) {
+                Some(first_offset)
+            } else {
+                Some(
+                    self.builder.phi(
+                        incoming
+                            .iter()
+                            .zip(offsets)
+                            .map(|(&(block, _), offset)| (block, offset))
+                            .collect(),
+                    ),
+                )
+            }
+        };
+        Some(StorageAccess { slot, location: first.location, offset })
     }
 
     fn is_low_level_call_expr(&self, expr: &hir::Expr<'_>) -> bool {

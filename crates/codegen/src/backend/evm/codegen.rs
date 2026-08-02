@@ -445,6 +445,17 @@ impl<'a> StackPhiPlanner<'a> {
             let Some(phi_sources) = self.phi_sources_for_pred(&phi_insts, pred) else {
                 return;
             };
+            // Nested phis need their own parallel-copy edge. Keep them out of a
+            // carried stack layout; the spill-based fallback is conservative.
+            if pred == *latch
+                && phi_sources.iter().any(|&source| {
+                    self.is_phi_value(source)
+                        && !results.contains(&source)
+                        && !self.is_loop_header_phi(source)
+                })
+            {
+                return;
+            }
             let mut sources = carry_through.clone();
             sources.extend(phi_sources);
             debug_assert_eq!(sources.len(), entry.len());
@@ -486,6 +497,11 @@ impl<'a> StackPhiPlanner<'a> {
             let Some(sources) = self.phi_sources_for_pred(&phi_insts, pred) else {
                 return;
             };
+            // A join fed by another phi can otherwise bypass that phi's edge
+            // copies when both layouts are carried on the physical stack.
+            if sources.iter().any(|&source| self.is_phi_value(source)) {
+                return;
+            }
             edges.push((pred, sources));
         }
 
@@ -558,6 +574,17 @@ impl<'a> StackPhiPlanner<'a> {
                 incoming.iter().find_map(|&(block, value)| (block == pred).then_some(value))
             })
             .collect()
+    }
+
+    fn is_phi_value(&self, value: ValueId) -> bool {
+        matches!(self.func.value(value), crate::mir::Value::Inst(inst) if matches!(self.func.inst(*inst).kind, InstKind::Phi(_)))
+    }
+
+    fn is_loop_header_phi(&self, value: ValueId) -> bool {
+        let crate::mir::Value::Inst(inst) = self.func.value(value) else { return false };
+        self.loops
+            .iter()
+            .any(|loop_info| self.func.blocks[loop_info.header].instructions.contains(inst))
     }
 }
 
