@@ -13,6 +13,11 @@ struct StaticPair {
     address who;
 }
 
+struct WordList {
+    uint256[] values;
+    uint256 bias;
+}
+
 contract DynamicStructParam {
     // A struct with dynamic members stays typed in built MIR. The ABI phase
     // rebuilds its fields recursively and keeps the source base for calldata
@@ -31,5 +36,13 @@ contract DynamicStructParam {
     // CHECK: mload
     function flat(StaticPair calldata pair) external pure returns (uint256) {
         return pair.x;
+    }
+
+    // A full-word dynamic array field is decoded by the ABI phase.
+    // CHECK-LABEL: fn @words{{[( ]}}
+    // CHECK: memory_object_field_addr memorystruct<2>, arg0, 0
+    // CHECK: mload
+    function words(WordList calldata input) external pure returns (uint256) {
+        return input.values.length + input.bias;
     }
 }

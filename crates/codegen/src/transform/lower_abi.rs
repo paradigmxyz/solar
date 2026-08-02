@@ -668,6 +668,10 @@ impl LowerAbiCx {
             ty,
             crate::mir::AbiParamType::FixedArray { element, .. }
                 if Self::is_supported_tuple_field(element)
+        ) || matches!(
+            ty,
+            crate::mir::AbiParamType::DynamicArray(element)
+                if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(scalar) if *scalar == MirType::uint256())
         ) || matches!(ty, crate::mir::AbiParamType::Tuple(fields) if fields.iter().all(Self::is_supported_tuple_field))
     }
 

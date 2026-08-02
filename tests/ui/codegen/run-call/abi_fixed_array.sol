@@ -8,6 +8,8 @@
 //@ run-call-fail: readDynamicCalldata(uint256[],uint256) [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call: readBytesCalldata(bytes) 0x010203 => 0x02
 //@ run-call: readDynamicPair((uint256,bytes)) (7, 0x010203) => 10
+//@ run-call: readWordList((uint256[],uint256)) ([1, 2, 3], 7) => 10
+//@ run-call: readWordList((uint256[],uint256)) ([], 7) => 7
 //@ run-call: readEnumPair((uint8,uint256)) (1, 9) => 10
 //@ run-call-fail: readEnumPair((uint8,uint256)) (2, 9)
 //@ run-call: readEnumArray(uint8[2]) [1, 0] => 1
@@ -27,6 +29,11 @@ contract AbiFixedArray {
     struct DynamicPair {
         uint256 value;
         bytes data;
+    }
+
+    struct WordList {
+        uint256[] values;
+        uint256 bias;
     }
 
     enum Mode {
@@ -74,6 +81,10 @@ contract AbiFixedArray {
 
     function readDynamicPair(DynamicPair memory value) external pure returns (uint256) {
         return value.value + value.data.length;
+    }
+
+    function readWordList(WordList memory value) external pure returns (uint256) {
+        return value.values.length + value.bias;
     }
 
     function readEnumPair(EnumPair memory value) external pure returns (uint256) {

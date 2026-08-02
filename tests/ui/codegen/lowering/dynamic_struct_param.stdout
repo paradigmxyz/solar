@@ -30,3 +30,25 @@ fn @flat(arg0: memorystruct) -> u256 [abi_params=[tuple<u256, address>], abi_ret
     ret v1
 }
 
+fn @words(arg0: memorystruct) -> u256 [abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_field_addr memorystruct<2>, arg0, 0
+    v1 = mload v0
+    v2 = memory_object_field_addr memorystruct<2>, arg0, 0
+    v3 = mload v2
+    v4 = memory_object_field_addr memorystruct<2>, arg0, 0
+    v5 = mload v4
+    v6 = mload v5
+    v7 = memory_object_field_addr memorystruct<2>, arg0, 1
+    v8 = mload v7
+    v9 = add v6, v8
+    v10 = lt v9, v6
+    jumpi v10, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    ret v9
+}
+

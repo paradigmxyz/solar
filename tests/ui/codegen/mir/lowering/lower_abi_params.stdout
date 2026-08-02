@@ -18,3 +18,49 @@
 +     jump bb1
   }
   
+- fn @read_words(arg0: memorystruct) -> u256 [abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
++ fn @read_words() {
+    bb0:
+-     v0 = memory_object_field_addr memorystruct<0>, arg0, 0
++     v6 = calldatasize
++     v7 = lt v6, 36
++     jumpi v7, bb2, bb3
++   bb1:
++     v0 = memory_object_field_addr memorystruct<0>, v10, 0
+      v1 = mload v0
+      v2 = memory_object_len memoryarray, v1
+-     v3 = memory_object_field_addr memorystruct<0>, arg0, 1
++     v3 = memory_object_field_addr memorystruct<0>, v10, 1
+      v4 = mload v3
+      v5 = add v2, v4
+-     ret v5
++     mstore 128, v5
++     returndata 128, 32
++   bb2:
++     revert 0, 0
++   bb3:
++     v8 = calldataload 4
++     v9 = add 4, v8
++     v10 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
++     v11 = add v9, 0
++     v12 = calldataload v11
++     v13 = add v9, v12
++     v14 = calldataload v13
++     v15 = mul v14, 32
++     v16 = add v15, 32
++     v17 = alloc memoryarray<1>, exact, uninitialized, infallible, v16
++     set_memory_object_len memoryarray, v17, v14
++     v18 = memory_object_data memoryarray, v17
++     v19 = add v13, 32
++     calldatacopy v18, v19, v15
++     v20 = memory_object_field_addr memorystruct<3>, v10, 0
++     mstore v20, v17
++     v21 = add v9, 32
++     v22 = calldataload v21
++     v23 = memory_object_field_addr memorystruct<3>, v10, 1
++     mstore v23, v22
++     v24 = memory_object_field_addr memorystruct<3>, v10, 2
++     mstore v24, v9
++     jump bb1
+  }
+  

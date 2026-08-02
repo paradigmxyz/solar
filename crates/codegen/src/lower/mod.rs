@@ -917,6 +917,9 @@ impl<'gcx> Lowerer<'gcx> {
         let ty = ty.peel_refs();
         match ty.kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => true,
+            // `lower-abi` bulk-copies full-word dynamic arrays. Narrow scalar
+            // arrays still need per-element canonicality checks there.
+            TyKind::DynArray(element) => self.abi_is_full_word_element(element),
             TyKind::Udvt(inner, _) => self.can_defer_external_abi_aggregate_ty(inner),
             TyKind::Struct(id) => {
                 if ty.is_recursive(self.gcx) {
@@ -930,6 +933,14 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::Array(element, _) => self.can_defer_external_abi_aggregate_ty(element),
             TyKind::Enum(_) => true,
             _ => self.can_defer_external_abi_scalar_ty(ty),
+        }
+    }
+
+    fn abi_is_full_word_element(&self, ty: Ty<'gcx>) -> bool {
+        match ty.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::UInt(size)) if size.bits() == 256 => true,
+            TyKind::Udvt(inner, _) => self.abi_is_full_word_element(inner),
+            _ => false,
         }
     }
 
