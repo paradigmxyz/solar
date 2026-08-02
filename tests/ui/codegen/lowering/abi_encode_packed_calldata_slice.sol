@@ -11,11 +11,8 @@ contract AbiEncodePackedCalldataSlice {
     // CHECK: push 0xd07523
     // CHECK: push 0x2a5dea89
     // CHECK: calldatacopy
-    // CHECK: mcopy
     // CHECK: keccak256
     // CHECK: calldatacopy
-    // CHECK: push 112
-    // CHECK: mcopy
     function hash(bytes calldata data, uint256 start, uint256 end) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(data[start:end]));
     }

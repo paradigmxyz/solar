@@ -108,10 +108,10 @@ impl<'gcx> TypeLowerer<'gcx> {
 
     fn abi_param_type_inner(&mut self, ty: Ty<'gcx>) -> Option<AbiParamType> {
         Some(match ty.peel_refs().kind {
-            TyKind::Elementary(elementary) => match elementary {
-                ElementaryType::String | ElementaryType::Bytes => AbiParamType::Bytes,
-                _ => AbiParamType::Scalar(Self::mir_type(ty)),
-            },
+            TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes) => {
+                AbiParamType::Bytes
+            }
+            TyKind::Elementary(_) => AbiParamType::Scalar(Self::mir_type(ty)),
             TyKind::Enum(id) => AbiParamType::Enum {
                 ty: Self::mir_type(ty),
                 variants: self.gcx.hir.enumm(id).variants.len() as u64,
@@ -146,17 +146,24 @@ impl<'gcx> TypeLowerer<'gcx> {
 
     fn abi_type_inner(&mut self, ty: Ty<'gcx>) -> Option<AbiType> {
         Some(match ty.peel_refs().kind {
-            TyKind::Elementary(elementary) => match elementary {
-                ElementaryType::String | ElementaryType::Bytes => {
-                    AbiType::Bytes(SliceLocation::Memory)
-                }
-                _ => AbiType::Word,
-            },
+            TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes) => {
+                AbiType::Bytes(if ty.is_ref_at(DataLocation::Calldata) {
+                    SliceLocation::Calldata
+                } else {
+                    SliceLocation::Memory
+                })
+            }
+            TyKind::Elementary(_) => AbiType::Word,
             TyKind::Enum(_) | TyKind::Contract(_) | TyKind::Super(_) => AbiType::Word,
-            TyKind::DynArray(element) | TyKind::Slice(element) => AbiType::DynamicArray {
+            TyKind::DynArray(element) => AbiType::DynamicArray {
                 element: Box::new(self.abi_type_inner(element)?),
-                location: SliceLocation::Memory,
+                location: if ty.is_ref_at(DataLocation::Calldata) {
+                    SliceLocation::Calldata
+                } else {
+                    SliceLocation::Memory
+                },
             },
+            TyKind::Slice(element) => return self.abi_type_inner(element),
             TyKind::Array(element, len) => AbiType::FixedArray {
                 element: Box::new(self.abi_type_inner(element)?),
                 len: u64::try_from(len).ok()?,

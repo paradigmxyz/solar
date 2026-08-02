@@ -1,27 +1,61 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_staticcall_evm_version.sol:Caller ===
 @module Caller
-fn @probe(arg0: address) -> bool [abi_args=lazy, abi_returns=[word]] {
+fn @probe(arg0: address) -> bool [abi_args=lazy, abi_params=[address], abi_returns=[word]] {
   bb0:
-    v0 = gas
-    v1 = staticcall v0, arg0, 0, 0, 0, 0
-    ret v1
+    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    set_memory_object_len memorybytes, v0, 0
+    v1 = memory_object_data memorybytes, v0
+    v2 = memory_object_len memorybytes, v0
+    v3 = gas
+    v4 = staticcall v3, arg0, v1, v2, 0, 0
+    ret v4
 }
 
-fn @probeCall(arg0: address) -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @probeCall(arg0: address) -> u256 [abi_args=lazy, abi_params=[address], abi_returns=[word]] {
   bb0:
-    v0 = gas
-    v1 = call v0, arg0, 0, 0, 0, 0, 0
-    v2 = returndatasize
-    v3 = make_returndata_slice 0, v2
-    v4 = slice_len v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    memory_object_copy_from_slice memorybytes, v9, v3
-    v10 = mload v9
-    ret v10
+    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    set_memory_object_len memorybytes, v0, 0
+    v1 = memory_object_data memorybytes, v0
+    v2 = memory_object_len memorybytes, v0
+    v3 = gas
+    v4 = call v3, arg0, 0, v1, v2, 0, 0
+    v5 = returndatasize
+    v6 = add v5, 31
+    v7 = lt v6, v5
+    jumpi v7, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v8 = div v6, 32
+    v9 = add v8, 1
+    v10 = lt v9, v8
+    jumpi v10, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v11 = mul v9, 32
+    v12 = iszero 32
+    v13 = div v11, 32
+    v14 = eq v13, v9
+    v15 = or v12, v14
+    v16 = iszero v15
+    jumpi v16, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v17 = alloc memorybytes, exact, uninitialized, infallible, v11
+    set_memory_object_len memorybytes, v17, v5
+    v18 = make_returndata_slice 0, v5
+    memory_object_copy_from_slice memorybytes, v17, v18
+    mstore 32, v17 !metadata(memory=scratch)
+    v19 = mload 32 !metadata(memory=scratch)
+    v20 = memory_object_len memorybytes, v19
+    ret v20
 }
 

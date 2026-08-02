@@ -7,7 +7,7 @@ fn @setS(arg0: u256, arg1: u256, arg2: u256) [abi_args=lazy, abi_params=[u256, u
     jumpi v1, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 0x3200000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
     v2 = mul arg0, 2
@@ -18,7 +18,7 @@ fn @setS(arg0: u256, arg1: u256, arg2: u256) [abi_args=lazy, abi_params=[u256, u
     jumpi v5, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 0x3200000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
     v6 = mul arg0, 2
@@ -35,7 +35,7 @@ fn @getS(arg0: u256) -> (u256, u256) [abi_args=lazy, abi_params=[u256], abi_retu
     jumpi v1, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 0x3200000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
     v2 = mul arg0, 2
@@ -46,7 +46,7 @@ fn @getS(arg0: u256) -> (u256, u256) [abi_args=lazy, abi_params=[u256], abi_retu
     jumpi v6, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 0x3200000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
     v7 = mul arg0, 2

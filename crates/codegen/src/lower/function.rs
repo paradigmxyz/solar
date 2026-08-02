@@ -8,11 +8,12 @@ use super::{
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        AbiLayout, AbiParamLayout, AllocationSemantics, BlockId, Function, FunctionBuilder,
-        FunctionId, MemoryObjectKind, MemoryObjectLayout, Module, SliceLocation, ValueId,
+        AbiLayout, AbiParamLayout, AbiType, AllocationSemantics, BlockId, Function,
+        FunctionBuilder, FunctionId, MemoryObjectKind, MemoryObjectLayout, MirType, Module,
+        SliceLocation, ValueId,
     },
 };
-use alloy_primitives::U256;
+use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, UnOpKind};
 use solar_data_structures::map::{FxHashMap, StdEntry};
 use solar_interface::{Span, sym};
@@ -23,6 +24,7 @@ use solar_sema::{
     hir::{self, ExprKind, LoopSource, StmtKind, VariableId},
     ty::{CallableParamSource, Ty, TyKind},
 };
+use std::sync::Arc;
 
 /// Lowers one HIR function into a typed MIR function.
 pub(super) fn lower(
@@ -144,6 +146,12 @@ struct StorageAccess {
     slot: ValueId,
     location: StorageLocation,
     offset: Option<ValueId>,
+}
+
+enum PackedPiece {
+    Bytes(Vec<u8>),
+    Static { value: ValueId, length: u64, fixed_bytes: bool },
+    Dynamic { source: ValueId, length: ValueId },
 }
 
 #[derive(Clone, Copy)]
@@ -330,6 +338,11 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                 } else {
                     self.builder.imm_u256(U256::ZERO)
                 };
+                let value = self.materialize_memory_argument(
+                    ty,
+                    value,
+                    initializer.map_or(stmt.span, |expr| expr.span),
+                )?;
                 self.values.insert(*id, value);
             }
             StmtKind::DeclMulti(ids, expr) => {
@@ -349,6 +362,17 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                         };
                         let value = self.lower_expr(value)?;
                         let Some(id) = id else { continue };
+                        self.values.insert(*id, value);
+                    }
+                    return Some(());
+                }
+                if self.is_low_level_call_expr(expr) {
+                    let values = self.lower_low_level_call_values(
+                        expr,
+                        ids.iter().flatten().count(),
+                        ids.first().is_some_and(Option::is_none),
+                    )?;
+                    for (id, value) in ids.iter().flatten().zip(values) {
                         self.values.insert(*id, value);
                     }
                     return Some(());
@@ -863,8 +887,62 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         before
     }
 
+    fn is_low_level_call_expr(&self, expr: &hir::Expr<'_>) -> bool {
+        let ExprKind::Call(callee, ..) = &expr.kind else { return false };
+        matches!(
+            self.gcx.resolved_builtin(callee),
+            Some(Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall)
+        ) && matches!(callee.kind, ExprKind::Member(..))
+    }
+
+    fn lower_low_level_call_values(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        count: usize,
+        first_is_omitted: bool,
+    ) -> Option<Vec<ValueId>> {
+        let ExprKind::Call(callee, args, _) = &expr.kind else { return None };
+        let builtin = self.gcx.resolved_builtin(callee)?;
+        if !matches!(
+            builtin,
+            Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall
+        ) {
+            return None;
+        }
+        let ExprKind::Member(receiver, _) = callee.kind else { return None };
+        let capture_returndata = count > 1 || first_is_omitted;
+        let success =
+            self.lower_address_call(callee.span, receiver, builtin, *args, capture_returndata)?;
+        if count <= 1 && !first_is_omitted {
+            return Some(vec![success]);
+        }
+        if count == 1 && first_is_omitted {
+            return Some(vec![self.multi_return_buffer_base()]);
+        }
+        if count != 2 {
+            return report_unsupported(self.gcx, expr.span, "low-level call return values");
+        }
+        let base = self.multi_return_buffer_base();
+        Some(vec![success, base])
+    }
+
     fn lower_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
         if let ExprKind::Call(callee, ..) = &expr.kind {
+            if self.gcx.resolved_builtin(callee) == Some(Builtin::AbiDecode)
+                && let ExprKind::Call(_, args, _) = &expr.kind
+                && let Some(types) = args.exprs().nth(1)
+                && let ExprKind::Tuple(elements) = types.kind
+                && elements.len() > 1
+            {
+                let first = self.lower_expr(expr)?;
+                let base = self.multi_return_buffer_base();
+                let mut values = Vec::with_capacity(elements.len());
+                values.push(first);
+                for index in 1..elements.len() {
+                    values.push(self.load_multi_return_value(base, index));
+                }
+                return Some(values);
+            }
             if let Some(function_id) = self.gcx.resolved_function(callee) {
                 let returns = self.gcx.hir.function(function_id).returns.len();
                 if returns > 1 {
@@ -934,18 +1012,38 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             }
             return Some(());
         }
+        if self.is_low_level_call_expr(rhs) {
+            let values = self.lower_low_level_call_values(
+                rhs,
+                elements.iter().flatten().count(),
+                elements.first().is_some_and(Option::is_none),
+            )?;
+            if values.len() != elements.iter().flatten().count() {
+                return report_unsupported(self.gcx, rhs.span, "tuple assignment arity");
+            }
+            for (element, value) in elements.iter().flatten().zip(values) {
+                self.store_lvalue(element, value)?;
+            }
+            return Some(());
+        }
         if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind {
             if rhs_elements.len() != elements.len() {
                 return report_unsupported(self.gcx, rhs.span, "tuple assignment arity");
             }
-            for (element, value) in elements.iter().zip(rhs_elements.iter()) {
+            let mut values = Vec::with_capacity(rhs_elements.len());
+            for value in rhs_elements.iter() {
+                values.push(match value {
+                    Some(value) => Some(self.lower_expr(value)?),
+                    None => None,
+                });
+            }
+            for (element, value) in elements.iter().zip(values) {
                 let Some(value) = value else {
                     if element.is_some() {
                         return report_unsupported(self.gcx, rhs.span, "tuple assignment value");
                     }
                     continue;
                 };
-                let value = self.lower_expr(value)?;
                 let Some(element) = element else { continue };
                 self.store_lvalue(element, value)?;
             }
@@ -979,6 +1077,9 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),
             ExprKind::Array(elements) => self.lower_array(expr, elements),
             ExprKind::Ident(_) => {
+                if let Some(builtin) = self.gcx.resolved_builtin(expr) {
+                    return self.lower_environment_builtin(expr, builtin);
+                }
                 let id = self.gcx.resolved_variable(expr)?;
                 self.load_variable(id, expr.span)
             }
@@ -1035,7 +1136,11 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                     let lhs_value = self.load_lvalue(lhs)?;
                     self.binary(kind, lhs_value, rhs_value)
                 } else {
-                    rhs_value
+                    self.materialize_memory_argument(
+                        self.gcx.type_of_expr(lhs.id)?,
+                        rhs_value,
+                        rhs.span,
+                    )?
                 };
                 let value = self.coerce_value(
                     value,
@@ -1053,6 +1158,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             ExprKind::Member(receiver, name) => self.lower_member(expr, receiver, *name),
             ExprKind::YulMember(receiver, name) => self.lower_yul_member(expr, receiver, *name),
             ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
+            ExprKind::Slice(receiver, start, end) => self.lower_slice(expr, receiver, *start, *end),
             _ if self.gcx.dcx().has_errors().is_err() => Some(self.builder.imm_u256(U256::ZERO)),
             _ => report_unsupported(self.gcx, expr.span, "expression"),
         }
@@ -1721,7 +1827,20 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             return Some(object);
         }
         if let Some(builtin) = self.gcx.resolved_builtin(callee) {
+            if matches!(
+                builtin,
+                Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall
+            ) && let ExprKind::Member(receiver, _) = callee.kind
+            {
+                return self.lower_address_call(callee.span, receiver, builtin, args, false);
+            }
             return self.lower_builtin_call(expr, callee, builtin, args);
+        }
+        if let Some(TyKind::Fn(function)) = self.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
+            && function.is_external()
+            && function.function_id.is_none()
+        {
+            return self.lower_external_function_pointer_call(callee, function, args);
         }
         if let Some(function_id) = self.gcx.resolved_function(callee) {
             return self.lower_function_call(expr, callee, function_id, args);
@@ -1730,6 +1849,65 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             return Some(self.builder.imm_u256(U256::ZERO));
         }
         report_unsupported(self.gcx, expr.span, "function call")
+    }
+
+    fn lower_external_function_pointer_call(
+        &mut self,
+        callee: &hir::Expr<'_>,
+        function: &solar_sema::ty::TyFn<'gcx>,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        let arg_exprs = self.builtin_arg_exprs(Builtin::AbiEncode, &args)?;
+        if arg_exprs.len() != function.parameters.len() {
+            return report_unsupported(self.gcx, args.span, "external function arguments");
+        }
+        let function_value = self.lower_expr(callee)?;
+        let selector_mask = self.builder.imm_u256(U256::from(u32::MAX));
+        let selector = self.builder.and(function_value, selector_mask);
+        let selector_shift = self.builder.imm_u64(224);
+        let selector = self.builder.shl(selector_shift, selector);
+        let address_shift = self.builder.imm_u64(32);
+        let address = self.builder.shr(address_shift, function_value);
+
+        let mut values = Vec::with_capacity(arg_exprs.len());
+        let mut types = Vec::with_capacity(arg_exprs.len());
+        for (argument, &parameter) in arg_exprs.iter().zip(function.parameters) {
+            let mut value = self.lower_expr(argument)?;
+            let mut abi_type = self.types.abi_type(parameter)?;
+            if self.needs_calldata_materialization(value, &abi_type) {
+                value = self.materialize_calldata_argument(parameter, value, argument.span)?;
+                abi_type = Self::memory_abi_type(abi_type);
+            }
+            values.push(value);
+            types.push(abi_type);
+        }
+        let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+        let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
+        let input = self.builder.slice_ptr(encoded);
+        let input_size = self.builder.slice_len(encoded);
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let returns = function.returns.len();
+        let ret_offset = if returns > 1 { input } else { zero };
+        let ret_size = self.builder.imm_u64((returns as u64).saturating_mul(32));
+        let gas = self.builder.gas();
+        let success = if matches!(
+            function.state_mutability,
+            hir::StateMutability::Pure | hir::StateMutability::View
+        ) && self.gcx.sess.opts.evm_version.has_static_call()
+        {
+            self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
+        } else {
+            self.builder.call(gas, address, zero, input, input_size, ret_offset, ret_size)
+        };
+        self.revert_external_call(success);
+        if returns == 0 {
+            return Some(zero);
+        }
+        if returns > 1 {
+            let base = self.builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
+            self.builder.mstore(base, ret_offset);
+        }
+        Some(self.builder.mload(ret_offset))
     }
 
     fn lower_struct_constructor(
@@ -1748,11 +1926,9 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         for (index, argument) in arguments.iter().enumerate() {
             let field = self.gcx.hir.strukt(struct_id).fields[index];
             let value = self.lower_expr(argument)?;
-            let value = self.coerce_value(
-                value,
-                self.gcx.type_of_expr(argument.id)?,
-                self.gcx.type_of_item(field.into()),
-            );
+            let field_ty = self.gcx.type_of_item(field.into());
+            let value = self.materialize_memory_argument(field_ty, value, argument.span)?;
+            let value = self.coerce_value(value, self.gcx.type_of_expr(argument.id)?, field_ty);
             self.builder.memory_object_store_field(object, layout, index as u64, value);
         }
         Some(object)
@@ -1956,16 +2132,21 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
         if builtin.is_yul() {
-            let returns_value =
-                builtin.ty(self.gcx).returns().is_none_or(|returns| !returns.is_empty());
-            return if returns_value {
-                self.lower_yul_value_builtin_call(builtin, args)
-                    .or_else(|| Some(self.builder.imm_u256(U256::ZERO)))
-            } else {
+            let Some(returns) = builtin.ty(self.gcx).returns() else {
+                return report_error(
+                    self.gcx,
+                    callee.span,
+                    "codegen expected Yul builtin to have a function type",
+                );
+            };
+            return if returns.is_empty() {
                 match self.lower_yul_unit_builtin_call(builtin, args) {
                     Some(()) => Some(self.builder.imm_u256(U256::ZERO)),
                     None => Some(self.builder.imm_u256(U256::ZERO)),
                 }
+            } else {
+                self.lower_yul_value_builtin_call(builtin, args)
+                    .or_else(|| Some(self.builder.imm_u256(U256::ZERO)))
             };
         }
 
@@ -2009,6 +2190,74 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         }
     }
 
+    fn lower_address_call(
+        &mut self,
+        call_span: Span,
+        receiver: &hir::Expr<'_>,
+        builtin: Builtin,
+        args: hir::CallArgs<'_>,
+        capture_returndata: bool,
+    ) -> Option<ValueId> {
+        let data = &self.builtin_args::<1>(builtin, &args)?[0];
+        let address = self.lower_expr(receiver)?;
+        let data = self.lower_expr(data)?;
+        let data = match self.builder.func().value_ty(data) {
+            Some(MirType::Slice(_)) => self.materialize_memory_slice(data),
+            _ => data,
+        };
+        let input = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+        let input_size = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+        let zero = self.builder.imm_u256(U256::ZERO);
+        if capture_returndata && !self.gcx.sess.opts.evm_version.supports_returndata() {
+            return report_error(
+                self.gcx,
+                call_span,
+                "codegen cannot bind low-level call returndata before Byzantium",
+            );
+        }
+        let gas = self.builder.gas();
+        let success = match builtin {
+            Builtin::AddressCall => {
+                self.builder.call(gas, address, zero, input, input_size, zero, zero)
+            }
+            Builtin::AddressStaticcall => {
+                if !self.gcx.sess.opts.evm_version.has_static_call() {
+                    return report_error(
+                        self.gcx,
+                        call_span,
+                        "codegen cannot use `staticcall` before Byzantium",
+                    );
+                }
+                self.builder.staticcall(gas, address, input, input_size, zero, zero)
+            }
+            Builtin::AddressDelegatecall => {
+                self.builder.delegatecall(gas, address, input, input_size, zero, zero)
+            }
+            _ => unreachable!(),
+        };
+        if capture_returndata {
+            let length = self.builder.returndatasize();
+            let thirty_one = self.builder.imm_u64(31);
+            let rounded = self.checked_add(length, thirty_one);
+            let word_size = self.builder.imm_u64(32);
+            let words = self.builder.div(rounded, word_size);
+            let one = self.builder.imm_u64(1);
+            let total_words = self.checked_add(words, one);
+            let size = self.checked_mul(total_words, word_size);
+            let output = self.builder.alloc_object(
+                size,
+                MemoryObjectLayout::Bytes,
+                AllocationSemantics::INTERNAL,
+            );
+            self.builder.set_memory_object_len(output, length, MemoryObjectKind::Bytes);
+            let source = self.builder.make_slice(zero, length, SliceLocation::Returndata);
+            self.builder.memory_object_copy_from_slice(output, MemoryObjectKind::Bytes, source);
+            let base = self.builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
+            self.builder.mstore(base, output);
+        }
+        Some(success)
+    }
+
     fn lower_unit_builtin_call(&mut self, builtin: Builtin, args: hir::CallArgs<'_>) -> Option<()> {
         match builtin {
             Builtin::Assert => {
@@ -2044,7 +2293,13 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                 let address = self.lower_expr(address)?;
                 self.builder.selfdestruct(address);
             }
-            _ => return self.unsupported_builtin(builtin, args.span),
+            _ => {
+                return report_error(
+                    self.gcx,
+                    args.span,
+                    "codegen routed a value builtin through unit lowering",
+                );
+            }
         }
         Some(())
     }
@@ -2057,6 +2312,15 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         match builtin {
             Builtin::Keccak256 => {
                 let value = &self.builtin_args::<1>(builtin, &args)?[0];
+                if let ExprKind::Call(callee, encode_args, _) = &value.kind
+                    && self.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncode)
+                {
+                    let exprs = self.variadic_builtin_args(Builtin::AbiEncode, encode_args)?;
+                    let encoded = self.lower_abi_encode_slice(exprs, None)?;
+                    let pointer = self.builder.slice_ptr(encoded);
+                    let length = self.builder.slice_len(encoded);
+                    return Some(self.builder.keccak256(pointer, length));
+                }
                 let value = self.lower_expr(value)?;
                 Some(self.builder.keccak256_bytes(value))
             }
@@ -2064,6 +2328,16 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                 let _ = self.builtin_args::<0>(builtin, &args)?;
                 Some(self.builder.gas())
             }
+            Builtin::AbiEncode => self.lower_abi_encode_builtin(args, None),
+            Builtin::AbiEncodeWithSelector => {
+                let (selector, rest) = self.builtin_args_with_rest::<1>(builtin, &args)?;
+                let selector = self.lower_selector_word(&selector[0])?;
+                self.lower_abi_encode_builtin_args(rest, Some(selector))
+            }
+            Builtin::AbiEncodePacked => self.lower_abi_encode_packed(args),
+            Builtin::AbiEncodeWithSignature => self.lower_abi_encode_with_signature(args),
+            Builtin::AbiEncodeCall => self.lower_abi_encode_call(args),
+            Builtin::AbiDecode => self.lower_abi_decode(args),
             Builtin::Blockhash | Builtin::Blobhash => {
                 let value = &self.builtin_args::<1>(builtin, &args)?[0];
                 let value = self.lower_expr(value)?;
@@ -2073,19 +2347,29 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                     self.builder.blobhash(value)
                 })
             }
+            Builtin::AddMod | Builtin::MulMod => {
+                let [a, b, modulus] = self.lower_builtin_args(builtin, &args)?;
+                Some(if builtin == Builtin::AddMod {
+                    self.builder.addmod(a, b, modulus)
+                } else {
+                    self.builder.mulmod(a, b, modulus)
+                })
+            }
+            Builtin::Erc7201 => self.lower_erc7201(args),
             Builtin::Sha256 | Builtin::Ripemd160 => self.lower_hash_precompile_call(builtin, args),
             Builtin::EcRecover => self.lower_ecrecover_call(args),
             Builtin::StringConcat | Builtin::BytesConcat => {
                 self.lower_concat_builtin_call(builtin, args)
             }
-            Builtin::AbiEncode => {
-                let _ = self.variadic_builtin_args(builtin, &args)?;
-                self.unsupported_builtin(builtin, args.span)
-            }
-            Builtin::AbiEncodeWithSelector => {
-                let _ = self.builtin_args_with_rest::<1>(builtin, &args)?;
-                self.unsupported_builtin(builtin, args.span)
-            }
+            Builtin::Selfdestruct
+            | Builtin::Require
+            | Builtin::Assert
+            | Builtin::Revert
+            | Builtin::RevertMsg => report_error(
+                self.gcx,
+                args.span,
+                "codegen routed a unit builtin through value lowering",
+            ),
             _ => {
                 if self.validate_builtin_arity(builtin, &args) {
                     self.unsupported_builtin(builtin, args.span)
@@ -2094,6 +2378,26 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                 }
             }
         }
+    }
+
+    fn lower_erc7201(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
+        let argument = &self.builtin_args::<1>(Builtin::Erc7201, &args)?[0];
+        let inner = if let ExprKind::Lit(lit) = &argument.kind
+            && let LitKind::Str(_, bytes, _) = &lit.kind
+        {
+            self.builder.imm_u256(U256::from_be_slice(keccak256(bytes.as_byte_str()).as_slice()))
+        } else {
+            let value = self.lower_expr(argument)?;
+            self.builder.keccak256_bytes(value)
+        };
+        let one = self.builder.imm_u256(U256::from(1));
+        let inner = self.builder.sub(inner, one);
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let word_size = self.builder.imm_u64(32);
+        self.builder.mstore(zero, inner);
+        let outer = self.builder.keccak256(zero, word_size);
+        let mask = self.builder.imm_u256(!U256::from(0xff));
+        Some(self.builder.and(outer, mask))
     }
 
     fn lower_concat_builtin_call(
@@ -2161,6 +2465,739 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             }
         }
         Some(output)
+    }
+
+    fn lower_abi_encode_builtin(
+        &mut self,
+        args: hir::CallArgs<'_>,
+        selector: Option<ValueId>,
+    ) -> Option<ValueId> {
+        let exprs = self.variadic_builtin_args(Builtin::AbiEncode, &args)?;
+        self.lower_abi_encode_builtin_args(exprs, selector)
+    }
+
+    fn lower_abi_encode_builtin_args(
+        &mut self,
+        exprs: &[hir::Expr<'_>],
+        selector: Option<ValueId>,
+    ) -> Option<ValueId> {
+        let encoded = self.lower_abi_encode_slice(exprs, selector)?;
+        Some(self.materialize_memory_slice(encoded))
+    }
+
+    fn lower_abi_encode_slice(
+        &mut self,
+        exprs: &[hir::Expr<'_>],
+        selector: Option<ValueId>,
+    ) -> Option<ValueId> {
+        let mut values = Vec::with_capacity(exprs.len());
+        let mut types = Vec::with_capacity(exprs.len());
+        for expr in exprs {
+            let ty = self.gcx.type_of_expr(expr.id)?;
+            let mut value = self.lower_expr(expr)?;
+            let mut abi_type = self.types.abi_type(ty)?;
+            if self.needs_calldata_materialization(value, &abi_type) {
+                value = self.materialize_calldata_argument(ty, value, expr.span)?;
+                abi_type = Self::memory_abi_type(abi_type);
+            }
+            values.push(value);
+            types.push(abi_type);
+        }
+        let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+        Some(self.builder.abi_encode(layout, selector, values.into_boxed_slice()))
+    }
+
+    fn lower_selector_word(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        let value = self.lower_expr(expr)?;
+        let fixed_bytes = self.gcx.type_of_expr(expr.id).is_some_and(|ty| {
+            matches!(
+                ty.peel_refs().kind,
+                TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
+            )
+        });
+        if !fixed_bytes
+            && matches!(expr.peel_parens().kind, ExprKind::Lit(lit) if matches!(
+                lit.kind,
+                LitKind::Number(_) | LitKind::Rational(_)
+            ))
+        {
+            let shift = self.builder.imm_u64(224);
+            return Some(self.builder.shl(shift, value));
+        }
+        Some(value)
+    }
+
+    fn lower_abi_encode_with_signature(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
+        let (signature, rest) =
+            self.builtin_args_with_rest::<1>(Builtin::AbiEncodeWithSignature, &args)?;
+        let selector = self.lower_signature_selector(&signature[0])?;
+        self.lower_abi_encode_builtin_args(rest, Some(selector))
+    }
+
+    fn lower_signature_selector(&mut self, signature: &hir::Expr<'_>) -> Option<ValueId> {
+        if let ExprKind::Lit(lit) = &signature.kind
+            && let LitKind::Str(_, value, _) = &lit.kind
+        {
+            let hash = keccak256(value.as_byte_str());
+            let selector = U256::from_be_slice(&hash[..4]) << 224;
+            return Some(self.builder.imm_u256(selector));
+        }
+
+        if let ExprKind::Ternary(condition, then_expr, else_expr) = &signature.kind {
+            let condition = self.lower_expr(condition)?;
+            let then_selector = self.lower_signature_selector(then_expr)?;
+            let else_selector = self.lower_signature_selector(else_expr)?;
+            return Some(self.builder.select(condition, then_selector, else_selector));
+        }
+
+        let signature = self.lower_expr(signature)?;
+        let signature = match self.builder.func().value_ty(signature) {
+            Some(MirType::Slice(_)) => self.materialize_memory_slice(signature),
+            _ => signature,
+        };
+        let hash = self.builder.keccak256_bytes(signature);
+        let shift = self.builder.imm_u64(224);
+        let selector = self.builder.shr(shift, hash);
+        Some(self.builder.shl(shift, selector))
+    }
+
+    fn lower_abi_encode_call(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
+        let args = self.builtin_args::<2>(Builtin::AbiEncodeCall, &args)?;
+        let function = &args[0];
+        let tuple = &args[1];
+        let function_id = self.gcx.resolved_function(function)?;
+        let selector = self.gcx.function_selector(function_id).0;
+        let selector = self.builder.imm_u256(U256::from_be_slice(&selector) << 224);
+        let exprs = match tuple.peel_parens().kind {
+            ExprKind::Tuple(elements) => elements.iter().flatten().copied().collect::<Vec<_>>(),
+            _ => vec![tuple],
+        };
+        let mut values = Vec::with_capacity(exprs.len());
+        let mut types = Vec::with_capacity(exprs.len());
+        for expr in exprs {
+            let ty = self.gcx.type_of_expr(expr.id)?;
+            let mut value = self.lower_expr(expr)?;
+            let mut abi_type = self.types.abi_type(ty)?;
+            if self.needs_calldata_materialization(value, &abi_type) {
+                value = self.materialize_calldata_argument(ty, value, expr.span)?;
+                abi_type = Self::memory_abi_type(abi_type);
+            }
+            values.push(value);
+            types.push(abi_type);
+        }
+        let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+        let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
+        Some(self.materialize_memory_slice(encoded))
+    }
+
+    fn lower_abi_decode(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
+        let args = self.builtin_args::<2>(Builtin::AbiDecode, &args)?;
+        let types = match args[1].kind {
+            ExprKind::Tuple(types) => types.iter().flatten().copied().collect::<Vec<_>>(),
+            _ => return report_unsupported(self.gcx, args[1].span, "abi.decode target type"),
+        };
+        if types.is_empty() {
+            return report_unsupported(self.gcx, args[1].span, "abi.decode target type");
+        }
+        let mut decoded_types = Vec::with_capacity(types.len());
+        for ty_expr in &types {
+            let Some(TyKind::Type(ty)) = self.gcx.type_of_expr(ty_expr.id).map(|ty| ty.kind) else {
+                return report_unsupported(self.gcx, ty_expr.span, "abi.decode target type");
+            };
+            decoded_types.push(ty.with_loc_if_ref(self.gcx, DataLocation::Memory));
+        }
+
+        let data = self.lower_expr(&args[0])?;
+        let data = match self.builder.func().value_ty(data) {
+            Some(MirType::Slice(_)) => self.materialize_memory_slice(data),
+            _ => data,
+        };
+        let length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+        let data_start = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+        let values =
+            self.lower_abi_decode_region(data_start, length, &decoded_types, args[1].span)?;
+        if values.len() > 1 {
+            let base = self.multi_return_buffer_base();
+            for (index, value) in values.iter().copied().enumerate().skip(1) {
+                let offset = self.builder.imm_u64((index as u64).saturating_mul(32));
+                let address = self.builder.add(base, offset);
+                self.builder.mstore(address, value);
+            }
+        }
+        values.into_iter().next()
+    }
+
+    fn abi_decode_is_dynamic(&mut self, ty: Ty<'gcx>) -> Option<bool> {
+        Some(self.types.abi_type(ty)?.is_dynamic())
+    }
+
+    fn abi_decode_head_size(&mut self, ty: Ty<'gcx>) -> Option<u64> {
+        self.types.abi_type(ty)?.checked_head_size()
+    }
+
+    fn lower_abi_decode_region(
+        &mut self,
+        base: ValueId,
+        length: ValueId,
+        types: &[Ty<'gcx>],
+        span: Span,
+    ) -> Option<Vec<ValueId>> {
+        let head_size = types
+            .iter()
+            .try_fold(0u64, |size, &ty| size.checked_add(self.abi_decode_head_size(ty)?))?;
+        let required = self.builder.imm_u64(head_size);
+        let short = self.builder.lt(length, required);
+        self.revert_if_empty(short);
+
+        let mut values = Vec::with_capacity(types.len());
+        let mut head_offset = 0u64;
+        for &ty in types {
+            let offset = self.builder.imm_u64(head_offset);
+            let head = self.builder.add(base, offset);
+            let value = if self.abi_decode_is_dynamic(ty)? {
+                let relative = self.builder.mload(head);
+                self.lower_abi_decode_dynamic(base, length, required, relative, ty, span)?
+            } else {
+                self.lower_abi_decode_static(head, ty, span)?
+            };
+            values.push(value);
+            head_offset = head_offset.checked_add(self.abi_decode_head_size(ty)?)?;
+        }
+        Some(values)
+    }
+
+    fn lower_abi_decode_static(
+        &mut self,
+        address: ValueId,
+        ty: Ty<'gcx>,
+        span: Span,
+    ) -> Option<ValueId> {
+        let ty = ty.peel_refs();
+        if let TyKind::Udvt(inner, _) = ty.kind {
+            return self.lower_abi_decode_static(address, inner, span);
+        }
+        let value = self.builder.mload(address);
+        self.decode_abi_word(ty, value, span)
+    }
+
+    fn lower_abi_decode_dynamic(
+        &mut self,
+        base: ValueId,
+        length: ValueId,
+        head_size: ValueId,
+        head: ValueId,
+        ty: Ty<'gcx>,
+        span: Span,
+    ) -> Option<ValueId> {
+        let ty = ty.peel_refs();
+        if let TyKind::Udvt(inner, _) = ty.kind {
+            return self.lower_abi_decode_dynamic(base, length, head_size, head, inner, span);
+        }
+        match ty.kind {
+            TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            ) => self.lower_abi_decode_dynamic_bytes(base, length, head_size, head),
+            TyKind::DynArray(element) => {
+                self.lower_abi_decode_dynamic_array(base, length, head_size, head, element, span)
+            }
+            TyKind::Slice(element) => {
+                self.lower_abi_decode_dynamic(base, length, head_size, head, element, span)
+            }
+            _ => report_unsupported(self.gcx, span, "abi.decode target type"),
+        }
+    }
+
+    fn lower_abi_decode_dynamic_bytes(
+        &mut self,
+        base: ValueId,
+        length: ValueId,
+        head_size: ValueId,
+        head: ValueId,
+    ) -> Option<ValueId> {
+        let before_head = self.builder.lt(head, head_size);
+        self.revert_if_empty(before_head);
+        let word_size = self.builder.imm_u64(32);
+        let tail_end = self.builder.add(head, word_size);
+        let head_overflow = self.builder.lt(tail_end, head);
+        self.revert_if_empty(head_overflow);
+        let tail_oob = self.builder.gt(tail_end, length);
+        self.revert_if_empty(tail_oob);
+
+        let length_address = self.builder.add(base, head);
+        let value_length = self.builder.mload(length_address);
+        let thirty_one = self.builder.imm_u64(31);
+        let rounded = self.builder.add(value_length, thirty_one);
+        let rounded_overflow = self.builder.lt(rounded, value_length);
+        self.revert_if_empty(rounded_overflow);
+        let mask = self.builder.not(thirty_one);
+        let padded = self.builder.and(rounded, mask);
+        let payload_end = self.builder.add(tail_end, padded);
+        let payload_overflow = self.builder.lt(payload_end, tail_end);
+        self.revert_if_empty(payload_overflow);
+        let payload_oob = self.builder.gt(payload_end, length);
+        self.revert_if_empty(payload_oob);
+
+        let empty = self.builder.iszero(padded);
+        let data_size = self.builder.select(empty, word_size, padded);
+        let total_size = self.checked_add(word_size, data_size);
+        let object = self.builder.alloc_object(
+            total_size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::INTERNAL,
+        );
+        self.builder.set_memory_object_len(object, value_length, MemoryObjectKind::Bytes);
+        let destination = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        let source = self.builder.add(length_address, word_size);
+        self.builder.mcopy(destination, source, value_length);
+        Some(object)
+    }
+
+    fn lower_abi_decode_dynamic_array(
+        &mut self,
+        base: ValueId,
+        length: ValueId,
+        head_size: ValueId,
+        head: ValueId,
+        element: Ty<'gcx>,
+        span: Span,
+    ) -> Option<ValueId> {
+        let before_head = self.builder.lt(head, head_size);
+        self.revert_if_empty(before_head);
+        let word_size = self.builder.imm_u64(32);
+        let tail_end = self.builder.add(head, word_size);
+        let head_overflow = self.builder.lt(tail_end, head);
+        self.revert_if_empty(head_overflow);
+        let tail_oob = self.builder.gt(tail_end, length);
+        self.revert_if_empty(tail_oob);
+
+        let array_base = self.builder.add(base, head);
+        let element_count = self.builder.mload(array_base);
+        let shift = self.builder.imm_u64(250);
+        let shifted_count = self.builder.shr(shift, element_count);
+        let count_in_range = self.builder.iszero(shifted_count);
+        let count_invalid = self.builder.iszero(count_in_range);
+        self.revert_if_empty(count_invalid);
+        let payload_size = self.checked_mul(element_count, word_size);
+        let payload_end = self.builder.add(tail_end, payload_size);
+        let payload_overflow = self.builder.lt(payload_end, tail_end);
+        self.revert_if_empty(payload_overflow);
+        let payload_oob = self.builder.gt(payload_end, length);
+        self.revert_if_empty(payload_oob);
+
+        let total_size = self.checked_add(word_size, payload_size);
+        let layout =
+            MemoryObjectLayout::DynamicArray { element_words: self.types.element_words(element) };
+        let object = self.builder.alloc_object(total_size, layout, AllocationSemantics::INTERNAL);
+        self.builder.set_memory_object_len(object, element_count, MemoryObjectKind::DynamicArray);
+        let destination = self.builder.memory_object_data(object, MemoryObjectKind::DynamicArray);
+        let source = self.builder.add(array_base, word_size);
+
+        if !self.abi_decode_is_dynamic(element)? {
+            self.builder.mcopy(destination, source, payload_size);
+            self.lower_abi_decode_elements(element_count, |this, index| {
+                let offset = this.builder.mul(index, word_size);
+                let address = this.builder.add(destination, offset);
+                let value = this.lower_abi_decode_static(address, element, span)?;
+                this.builder.memory_object_store_element(object, layout, index, value);
+                Some(())
+            })?;
+        } else {
+            let region_length = self.builder.sub(length, tail_end);
+            self.lower_abi_decode_elements(element_count, |this, index| {
+                let offset = this.builder.mul(index, word_size);
+                let address = this.builder.add(source, offset);
+                let element_head = this.builder.mload(address);
+                let value = this.lower_abi_decode_dynamic(
+                    source,
+                    region_length,
+                    payload_size,
+                    element_head,
+                    element,
+                    span,
+                )?;
+                this.builder.memory_object_store_element(object, layout, index, value);
+                Some(())
+            })?;
+        }
+        Some(object)
+    }
+
+    fn lower_abi_decode_elements(
+        &mut self,
+        length: ValueId,
+        mut body: impl FnMut(&mut Self, ValueId) -> Option<()>,
+    ) -> Option<()> {
+        let preheader = self.builder.current_block();
+        let header = self.builder.create_block();
+        let body_block = self.builder.create_block();
+        let exit = self.builder.create_block();
+        self.builder.jump(header);
+        self.builder.switch_to_block(header);
+        let zero = self.builder.imm_u64(0);
+        let index = self.builder.phi(vec![(preheader, zero)]);
+        let more = self.builder.lt(index, length);
+        self.builder.branch(more, body_block, exit);
+        self.builder.switch_to_block(body_block);
+        body(self, index)?;
+        let one = self.builder.imm_u64(1);
+        let next = self.builder.add(index, one);
+        let latch = self.builder.current_block();
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(index, latch, next);
+        self.builder.switch_to_block(exit);
+        Some(())
+    }
+
+    fn decode_abi_word(&mut self, ty: Ty<'gcx>, value: ValueId, span: Span) -> Option<ValueId> {
+        let ty = ty.peel_refs();
+        if let TyKind::Udvt(inner, _) = ty.kind {
+            return self.decode_abi_word(inner, value, span);
+        }
+        let (cleaned, valid) = match ty.kind {
+            TyKind::Elementary(elementary) => match elementary {
+                solar_sema::hir::ElementaryType::Bool => {
+                    let is_zero = self.builder.iszero(value);
+                    let cleaned = self.builder.iszero(is_zero);
+                    let valid = self.builder.eq(value, cleaned);
+                    (cleaned, valid)
+                }
+                solar_sema::hir::ElementaryType::Address(_) => {
+                    let mask = self.builder.imm_u256((U256::from(1) << 160) - U256::from(1));
+                    let cleaned = self.builder.and(value, mask);
+                    let valid = self.builder.eq(value, cleaned);
+                    (cleaned, valid)
+                }
+                solar_sema::hir::ElementaryType::UInt(size) => {
+                    if size.bits() == 256 {
+                        (value, self.builder.imm_bool(true))
+                    } else {
+                        let mask =
+                            self.builder.imm_u256((U256::from(1) << size.bits()) - U256::ONE);
+                        let cleaned = self.builder.and(value, mask);
+                        let valid = self.builder.eq(value, cleaned);
+                        (cleaned, valid)
+                    }
+                }
+                solar_sema::hir::ElementaryType::Int(size) => {
+                    if size.bits() == 256 {
+                        (value, self.builder.imm_bool(true))
+                    } else {
+                        let byte = self.builder.imm_u64(u64::from(size.bytes().saturating_sub(1)));
+                        let cleaned = self.builder.signextend(byte, value);
+                        let valid = self.builder.eq(value, cleaned);
+                        (cleaned, valid)
+                    }
+                }
+                solar_sema::hir::ElementaryType::FixedBytes(size) => {
+                    let shift = self.builder.imm_u64(u64::from(32 - size.bytes()) * 8);
+                    let shifted = self.builder.shr(shift, value);
+                    let cleaned = self.builder.shl(shift, shifted);
+                    let valid = self.builder.eq(value, cleaned);
+                    (cleaned, valid)
+                }
+                _ => (value, self.builder.imm_bool(true)),
+            },
+            TyKind::Enum(id) => {
+                let count = self.gcx.hir.enumm(id).variants.len();
+                let limit = self.builder.imm_u64(count as u64);
+                let valid = self.builder.lt(value, limit);
+                (value, valid)
+            }
+            TyKind::Contract(_) => {
+                let mask = self.builder.imm_u256((U256::from(1) << 160) - U256::from(1));
+                let cleaned = self.builder.and(value, mask);
+                let valid = self.builder.eq(value, cleaned);
+                (cleaned, valid)
+            }
+            _ => return report_unsupported(self.gcx, span, "abi.decode target type"),
+        };
+        let invalid = self.builder.iszero(valid);
+        self.revert_if_empty(invalid);
+        Some(cleaned)
+    }
+
+    fn revert_if_empty(&mut self, condition: ValueId) {
+        let revert = self.builder.create_block();
+        let continue_block = self.builder.create_block();
+        self.builder.branch(condition, revert, continue_block);
+        self.builder.switch_to_block(revert);
+        let zero = self.builder.imm_u256(U256::ZERO);
+        self.builder.revert(zero, zero);
+        self.builder.switch_to_block(continue_block);
+    }
+
+    fn revert_external_call(&mut self, success: ValueId) {
+        let revert = self.builder.create_block();
+        let continue_block = self.builder.create_block();
+        self.builder.branch(success, continue_block, revert);
+        self.builder.switch_to_block(revert);
+        let zero = self.builder.imm_u256(U256::ZERO);
+        if self.gcx.sess.opts.evm_version.supports_returndata() {
+            let size = self.builder.returndatasize();
+            self.builder.returndatacopy(zero, zero, size);
+            self.builder.revert(zero, size);
+        } else {
+            self.builder.revert(zero, zero);
+        }
+        self.builder.switch_to_block(continue_block);
+    }
+
+    fn materialize_memory_slice(&mut self, slice: ValueId) -> ValueId {
+        let length = self.builder.slice_len(slice);
+        let thirty_one = self.builder.imm_u64(31);
+        let rounded = self.checked_add(length, thirty_one);
+        let word_size = self.builder.imm_u64(32);
+        let words = self.builder.div(rounded, word_size);
+        let one = self.builder.imm_u64(1);
+        let total_words = self.checked_add(words, one);
+        let size = self.checked_mul(total_words, word_size);
+        let object = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::INTERNAL,
+        );
+        self.builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+        let pointer = self.builder.slice_ptr(slice);
+        let location = match self.builder.func().value_ty(slice) {
+            Some(MirType::Slice(location)) => location,
+            _ => SliceLocation::Memory,
+        };
+        let source = self.builder.make_slice(pointer, length, location);
+        self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
+        object
+    }
+
+    fn lower_abi_encode_packed(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
+        let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, &args)?;
+        let mut total = self.builder.imm_u64(0);
+        let mut pieces = Vec::with_capacity(exprs.len());
+        for expr in exprs {
+            let ty = self.gcx.type_of_expr(expr.id)?;
+            if let ExprKind::Lit(lit) = &expr.kind
+                && let LitKind::Str(_, bytes, _) = &lit.kind
+            {
+                let bytes = bytes.as_byte_str().to_vec();
+                let length = self.builder.imm_u64(bytes.len() as u64);
+                total = self.checked_add(total, length);
+                pieces.push(PackedPiece::Bytes(bytes));
+                continue;
+            }
+
+            let value = self.lower_expr(expr)?;
+            if self.is_calldata_dynamic_bytes_type(ty)
+                || matches!(
+                    ty.peel_refs().kind,
+                    TyKind::Elementary(
+                        solar_sema::hir::ElementaryType::Bytes
+                            | solar_sema::hir::ElementaryType::String,
+                    )
+                )
+            {
+                let value_ty = self.builder.func().value_ty(value);
+                let is_slice = matches!(
+                    value_ty,
+                    Some(MirType::Slice(SliceLocation::Calldata | SliceLocation::Memory))
+                );
+                let length = if is_slice {
+                    self.builder.slice_len(value)
+                } else {
+                    self.builder.memory_object_len(value, MemoryObjectKind::Bytes)
+                };
+                total = self.checked_add(total, length);
+                let source = if is_slice {
+                    value
+                } else {
+                    let pointer = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
+                    self.builder.make_slice(pointer, length, SliceLocation::Memory)
+                };
+                pieces.push(PackedPiece::Dynamic { source, length });
+                continue;
+            }
+
+            let Some((length, fixed_bytes)) = self.packed_static_shape(ty) else {
+                return report_unsupported(self.gcx, expr.span, "abi.encodePacked argument");
+            };
+            let length_value = self.builder.imm_u64(length);
+            total = self.checked_add(total, length_value);
+            pieces.push(PackedPiece::Static { value, length, fixed_bytes });
+        }
+
+        let thirty_one = self.builder.imm_u64(31);
+        let rounded = self.checked_add(total, thirty_one);
+        let word_size = self.builder.imm_u64(32);
+        let words = self.builder.div(rounded, word_size);
+        let one = self.builder.imm_u64(1);
+        let words = self.checked_add(words, one);
+        let size = self.checked_mul(words, word_size);
+        let output = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::INTERNAL,
+        );
+        self.builder.set_memory_object_len(output, total, MemoryObjectKind::Bytes);
+
+        let mut offset = self.builder.imm_u64(0);
+        let mut index = 0;
+        while index < pieces.len() {
+            if let Some((consumed, length)) =
+                self.try_write_packed_word(output, offset, &pieces[index..])
+            {
+                let length = self.builder.imm_u64(length);
+                offset = self.checked_add(offset, length);
+                index += consumed;
+                continue;
+            }
+
+            match &pieces[index] {
+                PackedPiece::Bytes(bytes) => {
+                    for chunk in bytes.chunks(32) {
+                        let mut padded = [0u8; 32];
+                        padded[..chunk.len()].copy_from_slice(chunk);
+                        let value = self.builder.imm_u256(U256::from_be_bytes(padded));
+                        self.builder.memory_object_store_word(output, offset, value);
+                        let length = self.builder.imm_u64(chunk.len() as u64);
+                        offset = self.checked_add(offset, length);
+                    }
+                }
+                PackedPiece::Dynamic { source, length } => {
+                    self.builder.memory_object_copy_from_slice_at(
+                        output,
+                        MemoryObjectKind::Bytes,
+                        offset,
+                        *source,
+                    );
+                    offset = self.checked_add(offset, *length);
+                }
+                PackedPiece::Static { value, length, fixed_bytes } => {
+                    let value = if *fixed_bytes || *length == 32 {
+                        *value
+                    } else {
+                        let shift = self.builder.imm_u64((32 - *length) * 8);
+                        self.builder.shl(shift, *value)
+                    };
+                    self.builder.memory_object_store_word(output, offset, value);
+                    let length = self.builder.imm_u64(*length);
+                    offset = self.checked_add(offset, length);
+                }
+            }
+            index += 1;
+        }
+        Some(output)
+    }
+
+    fn is_calldata_dynamic_bytes_type(&self, ty: Ty<'gcx>) -> bool {
+        match ty.kind {
+            TyKind::Ref(inner, DataLocation::Calldata) => matches!(
+                inner.kind,
+                TyKind::Elementary(
+                    solar_sema::hir::ElementaryType::Bytes
+                        | solar_sema::hir::ElementaryType::String,
+                )
+            ),
+            TyKind::Slice(inner) => {
+                inner.is_ref_at(DataLocation::Calldata)
+                    && matches!(
+                        inner.peel_refs().kind,
+                        TyKind::Elementary(
+                            solar_sema::hir::ElementaryType::Bytes
+                                | solar_sema::hir::ElementaryType::String,
+                        )
+                    )
+            }
+            _ => false,
+        }
+    }
+
+    fn try_write_packed_word(
+        &mut self,
+        output: ValueId,
+        offset: ValueId,
+        pieces: &[PackedPiece],
+    ) -> Option<(usize, u64)> {
+        let mut constant = U256::ZERO;
+        let mut terms = Vec::new();
+        let mut length = 0u64;
+        let mut consumed = 0;
+
+        for piece in pieces {
+            match piece {
+                PackedPiece::Bytes(bytes) => {
+                    let piece_length = u64::try_from(bytes.len()).ok()?;
+                    if piece_length == 0 {
+                        consumed += 1;
+                        continue;
+                    }
+                    if length.checked_add(piece_length)? > 32 {
+                        break;
+                    }
+                    let shift = (32 - length - piece_length) * 8;
+                    constant |= U256::from_be_slice(bytes) << shift;
+                    length += piece_length;
+                    consumed += 1;
+                }
+                PackedPiece::Static { value, length: piece_length, fixed_bytes: false }
+                    if *piece_length < 32 =>
+                {
+                    if *piece_length == 0 {
+                        consumed += 1;
+                        continue;
+                    }
+                    if length.checked_add(*piece_length)? > 32 {
+                        break;
+                    }
+                    let shift = (32 - length - *piece_length) * 8;
+                    terms.push((*value, shift));
+                    length += *piece_length;
+                    consumed += 1;
+                }
+                _ => break,
+            }
+        }
+
+        if consumed < 2 || length == 0 || terms.is_empty() {
+            return None;
+        }
+
+        let mut value = self.builder.imm_u256(constant);
+        for (term, shift) in terms {
+            let term = if shift == 0 {
+                term
+            } else {
+                let shift = self.builder.imm_u64(shift);
+                self.builder.shl(shift, term)
+            };
+            value = self.builder.or(value, term);
+        }
+        self.builder.memory_object_store_word(output, offset, value);
+        Some((consumed, length))
+    }
+
+    fn packed_static_shape(&self, ty: Ty<'gcx>) -> Option<(u64, bool)> {
+        match ty.peel_refs().kind {
+            TyKind::Elementary(elementary) => Some(match elementary {
+                solar_sema::hir::ElementaryType::Bool => (1, false),
+                solar_sema::hir::ElementaryType::Address(_) => (20, false),
+                solar_sema::hir::ElementaryType::Int(size)
+                | solar_sema::hir::ElementaryType::UInt(size)
+                | solar_sema::hir::ElementaryType::Fixed(size, _)
+                | solar_sema::hir::ElementaryType::UFixed(size, _) => {
+                    (u64::from(size.bytes()), false)
+                }
+                solar_sema::hir::ElementaryType::FixedBytes(size) => {
+                    (u64::from(size.bytes()), true)
+                }
+                _ => return None,
+            }),
+            TyKind::Contract(_) => Some((20, false)),
+            TyKind::Enum(id) => {
+                let variants = self.gcx.hir.enumm(id).variants.len().max(1);
+                let bits = (usize::BITS - (variants - 1).leading_zeros()).max(1);
+                Some((u64::from(bits.div_ceil(8)), false))
+            }
+            TyKind::Udvt(inner, _) => self.packed_static_shape(inner),
+            TyKind::IntLiteral(..) => Some((32, false)),
+            _ => None,
+        }
     }
 
     fn lower_hash_precompile_call(
@@ -2349,10 +3386,11 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                 let [_value] = self.lower_builtin_args(builtin, &args)?;
             }
             _ => {
-                if self.validate_builtin_arity(builtin, &args) {
-                    return self.unsupported_yul_builtin(builtin, args.span);
-                }
-                return None;
+                return report_error(
+                    self.gcx,
+                    args.span,
+                    "codegen routed a value Yul builtin through unit lowering",
+                );
             }
         }
         Some(())
@@ -2457,13 +3495,11 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                 let [_address, _input, _gas] = self.lower_builtin_args(builtin, &args)?;
                 self.unsupported_yul_builtin(builtin, args.span)
             }
-            _ => {
-                if self.validate_builtin_arity(builtin, &args) {
-                    self.unsupported_yul_builtin(builtin, args.span)
-                } else {
-                    None
-                }
-            }
+            _ => report_error(
+                self.gcx,
+                args.span,
+                "codegen routed a unit Yul builtin through value lowering",
+            ),
         }
     }
 
@@ -2691,10 +3727,12 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             else {
                 return report_unsupported(self.gcx, expr.span, "named function argument");
             };
-            values.push(self.lower_expr(argument)?);
+            let parameter_ty = self.gcx.type_of_item(function.parameters[index].into());
+            let value = self.lower_expr(argument)?;
+            values.push(self.materialize_memory_argument(parameter_ty, value, argument.span)?);
         }
         let Some(&mir_id) = self.function_ids.get(&function_id) else {
-            return report_unsupported(self.gcx, expr.span, "function target");
+            return self.lower_external_function_call(expr, callee, function_id, args);
         };
         if function.returns.is_empty() {
             self.builder.internal_call_void(mir_id, values, 0);
@@ -2704,6 +3742,315 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             self.gcx.type_of_item((*function.returns.first()?).into()),
         );
         Some(self.builder.internal_call(mir_id, values, result_ty, function.returns.len()))
+    }
+
+    fn lower_external_function_call(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        callee: &hir::Expr<'_>,
+        function_id: hir::FunctionId,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        let ExprKind::Member(receiver, _) = callee.kind else {
+            return report_unsupported(self.gcx, expr.span, "external function target");
+        };
+        let function = self.gcx.hir.function(function_id);
+        if args.len() != function.parameters.len() {
+            return report_unsupported(self.gcx, expr.span, "external function arguments");
+        }
+        let parameter_names = self.gcx.callable_param_names(CallableParamSource::Function {
+            id: function_id,
+            skips_receiver: false,
+        });
+        let mut values = Vec::with_capacity(function.parameters.len());
+        let mut types = Vec::with_capacity(function.parameters.len());
+        for (index, &parameter) in function.parameters.iter().enumerate() {
+            let Some(argument) =
+                args.argument_for_parameter(index, Some(parameter_names.as_slice()))
+            else {
+                return report_unsupported(self.gcx, expr.span, "external function argument");
+            };
+            let parameter_ty = self.gcx.type_of_item(parameter.into());
+            let mut value = self.lower_expr(argument)?;
+            let mut abi_type = self.types.abi_type(parameter_ty)?;
+            if self.needs_calldata_materialization(value, &abi_type) {
+                value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
+                abi_type = Self::memory_abi_type(abi_type);
+            }
+            values.push(value);
+            types.push(abi_type);
+        }
+        let selector = self.gcx.function_selector(function_id).0;
+        let selector = self.builder.imm_u256(U256::from_be_slice(&selector) << 224);
+        let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+        let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
+        let input = self.builder.slice_ptr(encoded);
+        let input_size = self.builder.slice_len(encoded);
+        let address = self.lower_expr(receiver)?;
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let gas = self.builder.gas();
+        let returns = function.returns.len();
+        let ret_offset = if returns > 1 { input } else { zero };
+        let ret_size = self.builder.imm_u64((returns as u64).saturating_mul(32));
+        let success = if matches!(
+            function.state_mutability,
+            hir::StateMutability::Pure | hir::StateMutability::View
+        ) && self.gcx.sess.opts.evm_version.has_static_call()
+        {
+            self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
+        } else {
+            self.builder.call(gas, address, zero, input, input_size, ret_offset, ret_size)
+        };
+        self.revert_external_call(success);
+        if returns == 0 {
+            return Some(zero);
+        }
+        if returns > 1 {
+            let base = self.builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
+            self.builder.mstore(base, ret_offset);
+        }
+        Some(self.builder.mload(ret_offset))
+    }
+
+    fn needs_calldata_materialization(&self, value: ValueId, ty: &AbiType) -> bool {
+        if !matches!(
+            self.builder.func().value_ty(value),
+            Some(MirType::Slice(SliceLocation::Calldata))
+        ) {
+            return false;
+        }
+        match ty {
+            AbiType::Bytes(SliceLocation::Memory)
+            | AbiType::DynamicArray { location: SliceLocation::Memory, .. } => true,
+            AbiType::DynamicArray { element, location: SliceLocation::Calldata } => {
+                !matches!(element.as_ref(), AbiType::Word)
+            }
+            _ => false,
+        }
+    }
+
+    fn materialize_memory_argument(
+        &mut self,
+        ty: Ty<'gcx>,
+        value: ValueId,
+        span: Span,
+    ) -> Option<ValueId> {
+        if matches!(
+            self.builder.func().value_ty(value),
+            Some(MirType::Slice(SliceLocation::Calldata))
+        ) {
+            self.materialize_calldata_argument(ty, value, span)
+        } else {
+            Some(value)
+        }
+    }
+
+    fn memory_abi_type(ty: AbiType) -> AbiType {
+        match ty {
+            AbiType::Word => AbiType::Word,
+            AbiType::Bytes(_) => AbiType::Bytes(SliceLocation::Memory),
+            AbiType::DynamicArray { element, .. } => AbiType::DynamicArray {
+                element: Box::new(Self::memory_abi_type(*element)),
+                location: SliceLocation::Memory,
+            },
+            AbiType::FixedArray { element, len } => {
+                AbiType::FixedArray { element: Box::new(Self::memory_abi_type(*element)), len }
+            }
+            AbiType::Tuple(fields) => {
+                AbiType::Tuple(fields.into_vec().into_iter().map(Self::memory_abi_type).collect())
+            }
+        }
+    }
+
+    fn materialize_calldata_argument(
+        &mut self,
+        ty: Ty<'gcx>,
+        value: ValueId,
+        span: Span,
+    ) -> Option<ValueId> {
+        match ty.peel_refs().kind {
+            TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            ) => Some(self.materialize_memory_slice(value)),
+            TyKind::DynArray(element) | TyKind::Slice(element) => {
+                let element_type = self.types.abi_type(element)?;
+                let length = self.builder.slice_len(value);
+                let data = self.builder.slice_ptr(value);
+                if matches!(element_type, AbiType::Word) {
+                    return Some(self.copy_calldata_word_array(data, length));
+                }
+                self.materialize_calldata_nested_array(element, data, length, span)
+            }
+            _ => report_unsupported(self.gcx, span, "calldata argument materialization"),
+        }
+    }
+
+    fn copy_calldata_word_array(&mut self, data: ValueId, length: ValueId) -> ValueId {
+        let word = self.builder.imm_u64(32);
+        let byte_length = self.checked_mul(length, word);
+        let size = self.checked_add(word, byte_length);
+        let object = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::WORD_ARRAY,
+            AllocationSemantics::INTERNAL,
+        );
+        self.builder.set_memory_object_len(object, length, MemoryObjectKind::DynamicArray);
+        let source = self.builder.make_slice(data, byte_length, SliceLocation::Calldata);
+        self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::DynamicArray, source);
+        object
+    }
+
+    fn materialize_calldata_nested_array(
+        &mut self,
+        element: Ty<'gcx>,
+        data: ValueId,
+        length: ValueId,
+        span: Span,
+    ) -> Option<ValueId> {
+        let word = self.builder.imm_u64(32);
+        let payload_size = self.checked_mul(length, word);
+        let size = self.checked_add(word, payload_size);
+        let object = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::WORD_ARRAY,
+            AllocationSemantics::INTERNAL,
+        );
+        self.builder.set_memory_object_len(object, length, MemoryObjectKind::DynamicArray);
+
+        let preheader = self.builder.current_block();
+        let header = self.builder.create_block();
+        let body = self.builder.create_block();
+        let exit = self.builder.create_block();
+        self.builder.jump(header);
+
+        self.builder.switch_to_block(header);
+        let zero = self.builder.imm_u64(0);
+        let index = self.builder.phi(vec![(preheader, zero)]);
+        let more = self.builder.lt(index, length);
+        self.builder.branch(more, body, exit);
+
+        self.builder.switch_to_block(body);
+        let offset = self.checked_mul(index, word);
+        let head = self.builder.add(data, offset);
+        let value = self.materialize_calldata_value_at(element, head, data, span)?;
+        self.builder.memory_object_store_element(
+            object,
+            MemoryObjectLayout::WORD_ARRAY,
+            index,
+            value,
+        );
+        let one = self.builder.imm_u64(1);
+        let next = self.builder.add(index, one);
+        let backedge = self.builder.current_block();
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(index, backedge, next);
+
+        self.builder.switch_to_block(exit);
+        Some(object)
+    }
+
+    fn materialize_calldata_value_at(
+        &mut self,
+        ty: Ty<'gcx>,
+        head: ValueId,
+        tuple_base: ValueId,
+        span: Span,
+    ) -> Option<ValueId> {
+        let ty = ty.peel_refs();
+        if let TyKind::Udvt(inner, _) = ty.kind {
+            return self.materialize_calldata_value_at(inner, head, tuple_base, span);
+        }
+        let value_pos = if self.types.abi_type(ty)?.is_dynamic() {
+            let offset = self.builder.calldataload(head);
+            self.builder.add(tuple_base, offset)
+        } else {
+            head
+        };
+        match ty.kind {
+            TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            ) => Some(self.materialize_calldata_bytes_at(value_pos)),
+            TyKind::DynArray(element) | TyKind::Slice(element) => {
+                let length = self.builder.calldataload(value_pos);
+                let word = self.builder.imm_u64(32);
+                let data = self.builder.add(value_pos, word);
+                let element_type = self.types.abi_type(element)?;
+                if matches!(element_type, AbiType::Word) {
+                    Some(self.copy_calldata_word_array(data, length))
+                } else {
+                    self.materialize_calldata_nested_array(element, data, length, span)
+                }
+            }
+            TyKind::Array(element, length) => {
+                let length = u64::try_from(length).ok()?;
+                self.materialize_calldata_fixed_array(element, length, value_pos, span)
+            }
+            TyKind::Struct(id) => {
+                let fields = self.gcx.hir.strukt(id).fields.to_vec();
+                let field_types = fields
+                    .iter()
+                    .map(|&field| self.gcx.type_of_item(field.into()))
+                    .collect::<Vec<_>>();
+                self.materialize_calldata_fields(field_types, value_pos, span)
+            }
+            TyKind::Tuple(fields) => {
+                self.materialize_calldata_fields(fields.iter().copied(), value_pos, span)
+            }
+            _ => Some(self.builder.calldataload(value_pos)),
+        }
+    }
+
+    fn materialize_calldata_bytes_at(&mut self, position: ValueId) -> ValueId {
+        let length = self.builder.calldataload(position);
+        let word = self.builder.imm_u64(32);
+        let data = self.builder.add(position, word);
+        let slice = self.builder.make_slice(data, length, SliceLocation::Calldata);
+        self.materialize_memory_slice(slice)
+    }
+
+    fn materialize_calldata_fixed_array(
+        &mut self,
+        element: Ty<'gcx>,
+        length: u64,
+        base: ValueId,
+        span: Span,
+    ) -> Option<ValueId> {
+        let word = self.builder.imm_u64(32);
+        let length_value = self.builder.imm_u64(length);
+        let size = self.checked_mul(length_value, word);
+        let layout = MemoryObjectLayout::FixedArray { len: length, element_words: 1 };
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        let element_head_size = self.types.abi_type(element)?.head_size();
+        for index in 0..length {
+            let index_value = self.builder.imm_u64(index);
+            let element_head_size_value = self.builder.imm_u64(element_head_size);
+            let head_offset = self.checked_mul(index_value, element_head_size_value);
+            let head = self.builder.add(base, head_offset);
+            let value = self.materialize_calldata_value_at(element, head, base, span)?;
+            self.builder.memory_object_store_element(object, layout, index_value, value);
+        }
+        Some(object)
+    }
+
+    fn materialize_calldata_fields(
+        &mut self,
+        fields: impl IntoIterator<Item = Ty<'gcx>>,
+        base: ValueId,
+        span: Span,
+    ) -> Option<ValueId> {
+        let fields = fields.into_iter().collect::<Vec<_>>();
+        let layout = MemoryObjectLayout::Struct { fields: fields.len() as u64 };
+        let size = self.builder.imm_u64(fields.len().checked_mul(32)? as u64);
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        let mut offset = 0u64;
+        for (index, field) in fields.iter().copied().enumerate() {
+            let field_offset = self.builder.imm_u64(offset);
+            let head = self.builder.add(base, field_offset);
+            let value = self.materialize_calldata_value_at(field, head, base, span)?;
+            self.builder.memory_object_store_field(object, layout, index as u64, value);
+            offset = offset.checked_add(self.types.abi_type(field)?.head_size())?;
+        }
+        Some(object)
     }
 
     fn resolve_call_target(
@@ -2848,6 +4195,10 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         name: solar_interface::Ident,
     ) -> Option<ValueId> {
         if let Some(builtin) = self.gcx.resolved_builtin(expr) {
+            if builtin == Builtin::AddressBalance {
+                let receiver = self.lower_expr(receiver)?;
+                return Some(self.builder.balance(receiver));
+            }
             return self.lower_environment_builtin(expr, builtin);
         }
         if name.name == sym::offset
@@ -2946,6 +4297,51 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         expr: &hir::Expr<'_>,
         builtin: Builtin,
     ) -> Option<ValueId> {
+        if builtin == Builtin::FunctionSelector {
+            let selector = match self.gcx.resolved_expr(expr).and_then(|res| match res {
+                hir::Res::Item(item @ (hir::ItemId::Function(_) | hir::ItemId::Error(_))) => {
+                    Some(self.gcx.function_selector(item).0)
+                }
+                _ => None,
+            }) {
+                Some(selector) => selector,
+                None => {
+                    let hir::ExprKind::Member(receiver, _) = &expr.kind else {
+                        return report_unsupported(self.gcx, expr.span, "function selector");
+                    };
+                    let Some(item) = self.gcx.resolved_expr(receiver).and_then(|res| match res {
+                        hir::Res::Item(
+                            item @ (hir::ItemId::Function(_) | hir::ItemId::Error(_)),
+                        ) => Some(item),
+                        _ => None,
+                    }) else {
+                        return report_unsupported(self.gcx, expr.span, "function selector");
+                    };
+                    self.gcx.function_selector(item).0
+                }
+            };
+            return Some(self.builder.imm_u256(U256::from_be_slice(&selector) << 224));
+        }
+        if builtin == Builtin::EventSelector {
+            let event_id = self.gcx.resolved_expr(expr).and_then(|res| match res {
+                hir::Res::Item(hir::ItemId::Event(id)) => Some(id),
+                _ => None,
+            });
+            let event_id = event_id.or_else(|| {
+                let ExprKind::Member(receiver, _) = &expr.kind else { return None };
+                self.gcx.resolved_expr(receiver).and_then(|res| match res {
+                    hir::Res::Item(hir::ItemId::Event(id)) => Some(id),
+                    _ => None,
+                })
+            });
+            let Some(event_id) = event_id else {
+                return report_unsupported(self.gcx, expr.span, "event selector");
+            };
+            return Some(
+                self.builder
+                    .imm_u256(U256::from_be_slice(self.gcx.event_selector(event_id).as_slice())),
+            );
+        }
         if builtin == Builtin::ArrayLength {
             let ExprKind::Member(receiver, _) = &expr.kind else {
                 return report_unsupported(self.gcx, expr.span, "array length");
@@ -3004,6 +4400,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             return Some(self.builder.imm_u256(value));
         }
         Some(match builtin {
+            Builtin::This => self.builder.address(),
             Builtin::BlockCoinbase => self.builder.coinbase(),
             Builtin::BlockTimestamp => self.builder.timestamp(),
             Builtin::BlockDifficulty | Builtin::BlockPrevrandao => self.builder.prevrandao(),
@@ -3089,6 +4486,61 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                 report_unsupported(self.gcx, expr.span, "struct index")
             }
         }
+    }
+
+    fn lower_slice(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        receiver: &hir::Expr<'_>,
+        start: Option<&hir::Expr<'_>>,
+        end: Option<&hir::Expr<'_>>,
+    ) -> Option<ValueId> {
+        let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
+        let is_bytes = self.is_calldata_dynamic_bytes_type(receiver_ty)
+            || matches!(
+                receiver_ty.peel_refs().kind,
+                TyKind::Elementary(
+                    solar_sema::hir::ElementaryType::Bytes
+                        | solar_sema::hir::ElementaryType::String,
+                )
+            );
+        if !is_bytes {
+            return report_unsupported(self.gcx, expr.span, "slice");
+        }
+
+        let value = self.lower_expr(receiver)?;
+        let (source, location) = match self.builder.func().value_ty(value) {
+            Some(MirType::Slice(location)) => (value, location),
+            _ => {
+                let layout = self.types.memory_layout(receiver_ty)?;
+                if layout != MemoryObjectLayout::Bytes {
+                    return report_unsupported(self.gcx, expr.span, "slice");
+                }
+                let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
+                let pointer = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
+                (
+                    self.builder.make_slice(pointer, length, SliceLocation::Memory),
+                    SliceLocation::Memory,
+                )
+            }
+        };
+        let base_ptr = self.builder.slice_ptr(source);
+        let base_len = self.builder.slice_len(source);
+        let start =
+            if let Some(start) = start { self.lower_expr(start)? } else { self.builder.imm_u64(0) };
+        let end = if let Some(end) = end {
+            let end = self.lower_expr(end)?;
+            let past_end = self.builder.gt(end, base_len);
+            self.panic_if(past_end, 0x32);
+            end
+        } else {
+            base_len
+        };
+        let backwards = self.builder.lt(end, start);
+        self.panic_if(backwards, 0x32);
+        let length = self.builder.sub(end, start);
+        let pointer = self.builder.add(base_ptr, start);
+        Some(self.builder.make_slice(pointer, length, location))
     }
 
     fn load_variable(&mut self, id: VariableId, span: Span) -> Option<ValueId> {
@@ -3439,5 +4891,10 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
 
 fn report_unsupported<T>(gcx: Gcx<'_>, span: Span, what: &str) -> Option<T> {
     gcx.dcx().err(format!("codegen rewrite does not support this {what} yet")).span(span).emit();
+    None
+}
+
+fn report_error<T>(gcx: Gcx<'_>, span: Span, message: &'static str) -> Option<T> {
+    gcx.dcx().err(message).span(span).emit();
     None
 }

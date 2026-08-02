@@ -1,25 +1,53 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_semantic.sol:AbiEncodeSemantic ===
 @module AbiEncodeSemantic
-fn @forward(arg0: address, arg1: u256, arg2: calldataslice) {
+fn @forward(arg0: address, arg1: u256, arg2: calldataslice) [abi_args=lazy, abi_params=[address, u256, bytes], abi_returns=[]] {
   bb0:
-    v0 = calldataload 4
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = eq v0, v1
-    jumpi v2, bb2, bb1
+    v0 = slice_len arg2
+    v1 = add v0, 31
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
   bb1:
-    revert 0, 0
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
-    v3 = abi_encode [word, calldata_bytes], selector 0x37650e7800000000000000000000000000000000000000000000000000000000, args arg1, arg2
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = gas
-    v7 = call v6, arg0, 0, v4, v5, 0, 0
-    jumpi v7, bb4, bb3
+    v3 = div v1, 32
+    v4 = add v3, 1
+    v5 = lt v4, v3
+    jumpi v5, bb3, bb4
   bb3:
-    v8 = returndatasize
-    returndatacopy 0, 0, v8 !metadata(memory=scratch)
-    revert 0, v8
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb4:
+    v6 = mul v4, 32
+    v7 = iszero 32
+    v8 = div v6, 32
+    v9 = eq v8, v4
+    v10 = or v7, v9
+    v11 = iszero v10
+    jumpi v11, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v12 = alloc memorybytes, exact, uninitialized, infallible, v6
+    set_memory_object_len memorybytes, v12, v0
+    v13 = slice_ptr arg2
+    v14 = make_calldata_slice v13, v0
+    memory_object_copy_from_slice memorybytes, v12, v14
+    v15 = abi_encode [word, calldata_bytes], selector 0x37650e7800000000000000000000000000000000000000000000000000000000, args arg1, arg2
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = gas
+    v19 = call v18, arg0, 0, v16, v17, 0, 0
+    jumpi v19, bb8, bb7
+  bb7:
+    v20 = returndatasize
+    returndatacopy 0, 0, v20 !metadata(memory=scratch)
+    revert 0, v20
+  bb8:
     stop
 }
 

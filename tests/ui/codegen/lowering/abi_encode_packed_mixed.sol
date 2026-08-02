@@ -22,10 +22,11 @@ contract AbiEncodePackedMixed {
     }
 
     // CHECK-LABEL: fn @materialized{{[( ]}}
+    // CHECK: set_memory_object_len memorybytes
+    // CHECK: {{v[0-9]+}} = shl 240, arg0
     // CHECK: memory_object_copy_from_slice_at memorybytes
     // CHECK: [[BOOL:v[0-9]+]] = shl 248, arg2
     // CHECK: memory_object_store_word memorybytes, {{.*}}, {{.*}}, [[BOOL]]
-    // CHECK: set_memory_object_len memorybytes
     function materialized(uint16 a, bytes memory mid, bool b) external pure returns (bytes memory) {
         return abi.encodePacked(a, mid, b);
     }

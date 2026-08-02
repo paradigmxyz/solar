@@ -11,14 +11,12 @@ contract P {
     // CHECK: push 0x21bd63cb
     // CHECK: push 0xf1245422
     // CHECK: calldatacopy
-    // CHECK: mcopy
     // CHECK: keccak256
     function h(bytes calldata a, uint256 x) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(a, x));
     }
 
     // CHECK: calldatacopy
-    // CHECK: mcopy
     function h2(bytes calldata a, address b) external pure returns (bytes32) {
         return keccak256(abi.encodePacked("pre", a, b));
     }

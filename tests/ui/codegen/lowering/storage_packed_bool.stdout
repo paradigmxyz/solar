@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/storage_packed_bool.sol:PackedBool ===
 @module PackedBool
-fn @a() -> bool [abi_args=lazy, abi_returns=[word]] {
+fn @a() -> bool [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
     ret v1
 }
 
-fn @b() -> bool [abi_args=lazy, abi_returns=[word]] {
+fn @b() -> bool [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
@@ -15,34 +15,33 @@ fn @b() -> bool [abi_args=lazy, abi_returns=[word]] {
     ret v2
 }
 
-fn @set(arg0: bool, arg1: bool) [abi_args=lazy] {
+fn @set(arg0: bool, arg1: bool) [abi_args=lazy, abi_params=[bool, bool], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v2 = and arg0, 255
-    v3 = or v1, v2
-    sstore 0, v3 !metadata(storage=slot(0))
-    v4 = sload 0 !metadata(storage=slot(0))
-    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
-    v6 = and arg1, 255
-    v7 = shl 8, v6
-    v8 = or v5, v7
-    sstore 0, v8 !metadata(storage=slot(0))
+    v1 = not 255
+    v2 = and v0, v1
+    v3 = and arg0, 255
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = shl 8, 255
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = not v5
+    v8 = and v6, v7
+    v9 = and arg1, 255
+    v10 = shl 8, v9
+    v11 = or v8, v10
+    sstore 0, v11 !metadata(storage=slot(0))
     stop
 }
 
-fn @both() -> bool [abi_args=lazy, abi_returns=[word]] {
+fn @both() -> bool [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
-    jumpi v1, bb1, bb2
-  bb1:
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = shr 8, v2
     v4 = and v3, 255
-    jump bb2
-  bb2:
-    v5 = phi [bb0: 0], [bb1: v4]
+    v5 = and v1, v4
     ret v5
 }
 

@@ -11,7 +11,7 @@ contract LowLevelCallReturndata {
     // CHECK: {{v[0-9]+}} = call {{v[0-9]+}}, arg0, 0,
     // CHECK: {{v[0-9]+}} = make_returndata_slice 0,
     // CHECK: memory_object_copy_from_slice memorybytes
-    // CHECK: internal_call @__revert_error
+    // CHECK: revert 0, 0
     function safeTransfer(address token, address to, uint256 value) public {
         (bool success, bytes memory data) =
             token.call(abi.encodeWithSelector(IERC20Minimal.transfer.selector, to, value));
@@ -23,7 +23,7 @@ contract LowLevelCallReturndata {
     // CHECK: {{v[0-9]+}} = staticcall {{v[0-9]+}}, arg0,
     // CHECK: {{v[0-9]+}} = make_returndata_slice 0,
     // CHECK: memory_object_copy_from_slice memorybytes
-    // CHECK: memory_object_load_element memorybytes
+    // CHECK: {{v[0-9]+}} = mload {{v[0-9]+}}
     function balanceOf(address token) public view returns (uint256) {
         (bool success, bytes memory data) =
             token.staticcall(abi.encodeWithSignature("balanceOf(address)", address(this)));

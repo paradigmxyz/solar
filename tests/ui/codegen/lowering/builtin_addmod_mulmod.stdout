@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/builtin_addmod_mulmod.sol:AddmodMulmod ===
 @module AddmodMulmod
-fn @am(arg0: u256, arg1: u256, arg2: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @am(arg0: u256, arg1: u256, arg2: u256) -> u256 [abi_args=lazy, abi_params=[u256, u256, u256], abi_returns=[word]] {
   bb0:
     v0 = addmod arg0, arg1, arg2
     ret v0
 }
 
-fn @mm(arg0: u256, arg1: u256, arg2: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @mm(arg0: u256, arg1: u256, arg2: u256) -> u256 [abi_args=lazy, abi_params=[u256, u256, u256], abi_returns=[word]] {
   bb0:
     v0 = mulmod arg0, arg1, arg2
     ret v0
