@@ -66,12 +66,12 @@ fn @member() {
   bb1:
     tail_call @__panic_32
   bb2:
-    v190 = add v1, 32
-    v191 = mul arg1, 32
-    v192 = add v190, v191
-    v4 = mload v192
-    v193 = add v4, 96
-    v5 = mload v193
+    v189 = add v1, 32
+    v190 = mul arg1, 32
+    v191 = add v189, v190
+    v4 = mload v191
+    v192 = add v4, 96
+    v5 = mload v192
     mstore 128, v5
     returndata 128, 32
   bb3:
@@ -99,8 +99,8 @@ fn @member() {
     jumpi v25, bb3, bb7
   bb7:
     v26 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v208 = add v26, 160
-    mstore 64, v208 !metadata(memory=scratch)
+    v210 = add v26, 160
+    mstore 64, v210 !metadata(memory=scratch)
     v30 = calldatasize
     v31 = gt v21, v30
     v32 = or v22, v31
@@ -159,197 +159,199 @@ fn @member() {
     jumpi v71, bb3, bb16
   bb16:
     v72 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v209 = add v72, v70
-    mstore 64, v209 !metadata(memory=scratch)
+    v211 = add v72, v70
+    mstore 64, v211 !metadata(memory=scratch)
     mstore v72, v55
-    v74 = add v72, 32
-    v75 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v210 = add v75, 96
-    mstore 64, v210 !metadata(memory=scratch)
-    mstore v75, v55
-    v194 = add v75, 32
-    mstore v194, v50
-    v195 = add v75, 64
-    mstore v195, v74
+    v74 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v212 = add v74, 96
+    mstore 64, v212 !metadata(memory=scratch)
+    mstore v74, v55
+    v193 = add v74, 32
+    mstore v193, v50
+    v194 = add v74, 64
+    mstore v194, 0
     jump bb17
   bb17:
-    v76 = mload v75
-    jumpi v76, bb18, bb19
+    v75 = mload v74
+    jumpi v75, bb18, bb19
   bb18:
-    v196 = add v75, 32
+    v195 = add v74, 32
+    v77 = mload v195
+    v196 = add v74, 64
     v78 = mload v196
-    v197 = add v75, 64
-    v79 = mload v197
-    v80 = add v78, 128
-    v81 = lt v80, v78
-    v82 = calldatasize
-    v83 = gt v80, v82
-    v84 = or v81, v83
-    jumpi v84, bb3, bb20
+    v79 = add v77, 128
+    v80 = lt v79, v77
+    v81 = calldatasize
+    v82 = gt v79, v81
+    v83 = or v80, v82
+    jumpi v83, bb3, bb20
   bb19:
-    v198 = add v26, 32
-    mstore v198, v72
-    v122 = add v13, 100
-    v123 = lt v122, v37
-    v124 = calldatasize
-    v125 = gt v122, v124
-    v126 = or v123, v125
-    jumpi v126, bb3, bb27
+    v197 = add v26, 32
+    mstore v197, v72
+    v121 = add v13, 100
+    v122 = lt v121, v37
+    v123 = calldatasize
+    v124 = gt v121, v123
+    v125 = or v122, v124
+    jumpi v125, bb3, bb27
   bb20:
-    v85 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v211 = add v85, 128
-    mstore 64, v211 !metadata(memory=scratch)
-    v87 = add v78, 32
-    v88 = lt v87, v78
-    v89 = calldatasize
-    v90 = gt v87, v89
-    v91 = or v88, v90
-    jumpi v91, bb3, bb21
+    v84 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v213 = add v84, 128
+    mstore 64, v213 !metadata(memory=scratch)
+    v86 = add v77, 32
+    v87 = lt v86, v77
+    v88 = calldatasize
+    v89 = gt v86, v88
+    v90 = or v87, v89
+    jumpi v90, bb3, bb21
   bb21:
-    v92 = calldataload v78
-    v93 = and v92, 255
-    v94 = eq v92, v93
-    jumpi v94, bb22, bb3
+    v91 = calldataload v77
+    v92 = and v91, 255
+    v93 = eq v91, v92
+    jumpi v93, bb22, bb3
   bb22:
-    mstore v85, v92
-    v96 = add v78, 64
-    v97 = lt v96, v87
-    v98 = calldatasize
-    v99 = gt v96, v98
-    v100 = or v97, v99
-    jumpi v100, bb3, bb23
+    mstore v84, v91
+    v95 = add v77, 64
+    v96 = lt v95, v86
+    v97 = calldatasize
+    v98 = gt v95, v97
+    v99 = or v96, v98
+    jumpi v99, bb3, bb23
   bb23:
-    v101 = calldataload v87
-    v102 = and v101, 0xffffffffffffffffffffffffffffffffffffffff
-    v103 = eq v101, v102
-    jumpi v103, bb24, bb3
+    v100 = calldataload v86
+    v101 = and v100, 0xffffffffffffffffffffffffffffffffffffffff
+    v102 = eq v100, v101
+    jumpi v102, bb24, bb3
   bb24:
-    v199 = add v85, 32
-    mstore v199, v101
-    v105 = add v78, 96
-    v106 = lt v105, v96
-    v107 = calldatasize
-    v108 = gt v105, v107
-    v109 = or v106, v108
-    jumpi v109, bb3, bb25
+    v198 = add v84, 32
+    mstore v198, v100
+    v104 = add v77, 96
+    v105 = lt v104, v95
+    v106 = calldatasize
+    v107 = gt v104, v106
+    v108 = or v105, v107
+    jumpi v108, bb3, bb25
   bb25:
-    v110 = calldataload v96
-    v200 = add v85, 64
-    mstore v200, v110
-    v113 = lt v80, v105
-    v114 = calldatasize
-    v115 = gt v80, v114
-    v116 = or v113, v115
-    jumpi v116, bb3, bb26
+    v109 = calldataload v95
+    v199 = add v84, 64
+    mstore v199, v109
+    v112 = lt v79, v104
+    v113 = calldatasize
+    v114 = gt v79, v113
+    v115 = or v112, v114
+    jumpi v115, bb3, bb26
   bb26:
-    v117 = calldataload v105
-    v201 = add v85, 96
-    mstore v201, v117
-    mstore v79, v85
-    v120 = add v79, 32
-    v118 = sub v76, 1
-    mstore v75, v118
-    v202 = add v75, 32
-    mstore v202, v80
-    v203 = add v75, 64
-    mstore v203, v120
+    v116 = calldataload v104
+    v200 = add v84, 96
+    mstore v200, v116
+    v201 = add v72, 32
+    v202 = mul v78, 32
+    v203 = add v201, v202
+    mstore v203, v84
+    v119 = add v78, 1
+    v117 = sub v75, 1
+    mstore v74, v117
+    v204 = add v74, 32
+    mstore v204, v79
+    v205 = add v74, 64
+    mstore v205, v119
     jump bb17
   bb27:
-    v127 = calldataload v37
-    v128 = add v14, v127
-    v129 = lt v128, v14
-    v130 = calldatasize
-    v131 = gt v128, v130
-    v132 = lt v127, 32
-    v133 = or v129, v131
-    v134 = or v133, v132
-    jumpi v134, bb3, bb28
+    v126 = calldataload v37
+    v127 = add v14, v126
+    v128 = lt v127, v14
+    v129 = calldatasize
+    v130 = gt v127, v129
+    v131 = lt v126, 32
+    v132 = or v128, v130
+    v133 = or v132, v131
+    jumpi v133, bb3, bb28
   bb28:
-    v135 = add v128, 32
-    v136 = lt v135, v128
-    v137 = calldatasize
-    v138 = gt v135, v137
-    v139 = or v136, v138
-    jumpi v139, bb3, bb29
+    v134 = add v127, 32
+    v135 = lt v134, v127
+    v136 = calldatasize
+    v137 = gt v134, v136
+    v138 = or v135, v137
+    jumpi v138, bb3, bb29
   bb29:
-    v140 = calldataload v128
-    v141 = shl 5, v140
-    v142 = shr 5, v141
-    v143 = eq v142, v140
-    jumpi v143, bb30, bb3
+    v139 = calldataload v127
+    v140 = shl 5, v139
+    v141 = shr 5, v140
+    v142 = eq v141, v139
+    jumpi v142, bb30, bb3
   bb30:
-    v145 = add v141, 32
-    v146 = lt v145, v141
-    jumpi v146, bb3, bb31
+    v144 = add v140, 32
+    v145 = lt v144, v140
+    jumpi v145, bb3, bb31
   bb31:
-    v147 = add v128, v145
-    v148 = lt v147, v128
-    v149 = calldatasize
-    v150 = gt v147, v149
-    v151 = or v148, v150
-    jumpi v151, bb3, bb32
+    v146 = add v127, v144
+    v147 = lt v146, v127
+    v148 = calldatasize
+    v149 = gt v146, v148
+    v150 = or v147, v149
+    jumpi v150, bb3, bb32
   bb32:
-    v152 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v212 = add v152, v145
-    mstore 64, v212 !metadata(memory=scratch)
-    mstore v152, v140
-    v153 = add v152, 32
-    calldatacopy v153, v135, v141
-    v204 = add v26, 64
-    mstore v204, v152
-    v156 = add v13, 132
-    v157 = lt v156, v122
-    v158 = calldatasize
-    v159 = gt v156, v158
-    v160 = or v157, v159
-    jumpi v160, bb3, bb33
+    v151 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v214 = add v151, v144
+    mstore 64, v214 !metadata(memory=scratch)
+    mstore v151, v139
+    v152 = add v151, 32
+    calldatacopy v152, v134, v140
+    v206 = add v26, 64
+    mstore v206, v151
+    v155 = add v13, 132
+    v156 = lt v155, v121
+    v157 = calldatasize
+    v158 = gt v155, v157
+    v159 = or v156, v158
+    jumpi v159, bb3, bb33
   bb33:
-    v161 = calldataload v122
-    v162 = add v14, v161
-    v163 = lt v162, v14
-    v164 = calldatasize
-    v165 = gt v162, v164
-    v166 = lt v161, 32
-    v167 = or v163, v165
-    v168 = or v167, v166
-    jumpi v168, bb3, bb34
+    v160 = calldataload v121
+    v161 = add v14, v160
+    v162 = lt v161, v14
+    v163 = calldatasize
+    v164 = gt v161, v163
+    v165 = lt v160, 32
+    v166 = or v162, v164
+    v167 = or v166, v165
+    jumpi v167, bb3, bb34
   bb34:
-    v169 = add v162, 32
-    v170 = lt v169, v162
-    v171 = calldatasize
-    v172 = gt v169, v171
-    v173 = or v170, v172
-    jumpi v173, bb3, bb35
+    v168 = add v161, 32
+    v169 = lt v168, v161
+    v170 = calldatasize
+    v171 = gt v168, v170
+    v172 = or v169, v171
+    jumpi v172, bb3, bb35
   bb35:
-    v174 = calldataload v162
-    v175 = add v174, 31
-    v176 = lt v175, v174
-    jumpi v176, bb3, bb36
+    v173 = calldataload v161
+    v174 = add v173, 31
+    v175 = lt v174, v173
+    jumpi v175, bb3, bb36
   bb36:
-    v178 = and v175, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v180 = add v169, v178
-    v181 = lt v180, v169
-    v182 = calldatasize
-    v183 = gt v180, v182
-    v184 = or v181, v183
-    jumpi v184, bb3, bb37
+    v177 = and v174, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v179 = add v168, v177
+    v180 = lt v179, v168
+    v181 = calldatasize
+    v182 = gt v179, v181
+    v183 = or v180, v182
+    jumpi v183, bb3, bb37
   bb37:
-    v185 = add v178, 32
-    v186 = lt v185, v178
-    jumpi v186, bb3, bb38
+    v184 = add v177, 32
+    v185 = lt v184, v177
+    jumpi v185, bb3, bb38
   bb38:
-    v187 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v213 = add v187, v185
-    mstore 64, v213 !metadata(memory=scratch)
-    mstore v187, v174
-    v188 = add v187, 32
-    calldatacopy v188, v169, v174
-    v205 = add v26, 96
-    mstore v205, v187
-    v206 = add v26, 128
-    mstore v206, v14
-    v207 = add v26, 32
-    v1 = mload v207
+    v186 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v215 = add v186, v184
+    mstore 64, v215 !metadata(memory=scratch)
+    mstore v186, v173
+    v187 = add v186, 32
+    calldatacopy v187, v168, v173
+    v207 = add v26, 96
+    mstore v207, v186
+    v208 = add v26, 128
+    mstore v208, v14
+    v209 = add v26, 32
+    v1 = mload v209
     v2 = mload v1
     v3 = lt arg1, v2
     jumpi v3, bb2, bb1
@@ -363,10 +365,10 @@ fn @word() {
   bb1:
     tail_call @__panic_32
   bb2:
-    v189 = add v1, 32
-    v190 = mul arg1, 32
-    v191 = add v189, v190
-    v4 = mload v191
+    v188 = add v1, 32
+    v189 = mul arg1, 32
+    v190 = add v188, v189
+    v4 = mload v190
     mstore 128, v4
     returndata 128, 32
   bb3:
@@ -394,8 +396,8 @@ fn @word() {
     jumpi v24, bb3, bb7
   bb7:
     v25 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v206 = add v25, 160
-    mstore 64, v206 !metadata(memory=scratch)
+    v208 = add v25, 160
+    mstore 64, v208 !metadata(memory=scratch)
     v29 = calldatasize
     v30 = gt v20, v29
     v31 = or v21, v30
@@ -454,197 +456,199 @@ fn @word() {
     jumpi v70, bb3, bb16
   bb16:
     v71 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v207 = add v71, v69
-    mstore 64, v207 !metadata(memory=scratch)
+    v209 = add v71, v69
+    mstore 64, v209 !metadata(memory=scratch)
     mstore v71, v54
-    v73 = add v71, 32
-    v74 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v208 = add v74, 96
-    mstore 64, v208 !metadata(memory=scratch)
-    mstore v74, v54
-    v192 = add v74, 32
-    mstore v192, v49
-    v193 = add v74, 64
-    mstore v193, v73
+    v73 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v210 = add v73, 96
+    mstore 64, v210 !metadata(memory=scratch)
+    mstore v73, v54
+    v191 = add v73, 32
+    mstore v191, v49
+    v192 = add v73, 64
+    mstore v192, 0
     jump bb17
   bb17:
-    v75 = mload v74
-    jumpi v75, bb18, bb19
+    v74 = mload v73
+    jumpi v74, bb18, bb19
   bb18:
-    v194 = add v74, 32
+    v193 = add v73, 32
+    v76 = mload v193
+    v194 = add v73, 64
     v77 = mload v194
-    v195 = add v74, 64
-    v78 = mload v195
-    v79 = add v77, 128
-    v80 = lt v79, v77
-    v81 = calldatasize
-    v82 = gt v79, v81
-    v83 = or v80, v82
-    jumpi v83, bb3, bb20
+    v78 = add v76, 128
+    v79 = lt v78, v76
+    v80 = calldatasize
+    v81 = gt v78, v80
+    v82 = or v79, v81
+    jumpi v82, bb3, bb20
   bb19:
-    v196 = add v25, 32
-    mstore v196, v71
-    v121 = add v12, 100
-    v122 = lt v121, v36
-    v123 = calldatasize
-    v124 = gt v121, v123
-    v125 = or v122, v124
-    jumpi v125, bb3, bb27
+    v195 = add v25, 32
+    mstore v195, v71
+    v120 = add v12, 100
+    v121 = lt v120, v36
+    v122 = calldatasize
+    v123 = gt v120, v122
+    v124 = or v121, v123
+    jumpi v124, bb3, bb27
   bb20:
-    v84 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v209 = add v84, 128
-    mstore 64, v209 !metadata(memory=scratch)
-    v86 = add v77, 32
-    v87 = lt v86, v77
-    v88 = calldatasize
-    v89 = gt v86, v88
-    v90 = or v87, v89
-    jumpi v90, bb3, bb21
+    v83 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v211 = add v83, 128
+    mstore 64, v211 !metadata(memory=scratch)
+    v85 = add v76, 32
+    v86 = lt v85, v76
+    v87 = calldatasize
+    v88 = gt v85, v87
+    v89 = or v86, v88
+    jumpi v89, bb3, bb21
   bb21:
-    v91 = calldataload v77
-    v92 = and v91, 255
-    v93 = eq v91, v92
-    jumpi v93, bb22, bb3
+    v90 = calldataload v76
+    v91 = and v90, 255
+    v92 = eq v90, v91
+    jumpi v92, bb22, bb3
   bb22:
-    mstore v84, v91
-    v95 = add v77, 64
-    v96 = lt v95, v86
-    v97 = calldatasize
-    v98 = gt v95, v97
-    v99 = or v96, v98
-    jumpi v99, bb3, bb23
+    mstore v83, v90
+    v94 = add v76, 64
+    v95 = lt v94, v85
+    v96 = calldatasize
+    v97 = gt v94, v96
+    v98 = or v95, v97
+    jumpi v98, bb3, bb23
   bb23:
-    v100 = calldataload v86
-    v101 = and v100, 0xffffffffffffffffffffffffffffffffffffffff
-    v102 = eq v100, v101
-    jumpi v102, bb24, bb3
+    v99 = calldataload v85
+    v100 = and v99, 0xffffffffffffffffffffffffffffffffffffffff
+    v101 = eq v99, v100
+    jumpi v101, bb24, bb3
   bb24:
-    v197 = add v84, 32
-    mstore v197, v100
-    v104 = add v77, 96
-    v105 = lt v104, v95
-    v106 = calldatasize
-    v107 = gt v104, v106
-    v108 = or v105, v107
-    jumpi v108, bb3, bb25
+    v196 = add v83, 32
+    mstore v196, v99
+    v103 = add v76, 96
+    v104 = lt v103, v94
+    v105 = calldatasize
+    v106 = gt v103, v105
+    v107 = or v104, v106
+    jumpi v107, bb3, bb25
   bb25:
-    v109 = calldataload v95
-    v198 = add v84, 64
-    mstore v198, v109
-    v112 = lt v79, v104
-    v113 = calldatasize
-    v114 = gt v79, v113
-    v115 = or v112, v114
-    jumpi v115, bb3, bb26
+    v108 = calldataload v94
+    v197 = add v83, 64
+    mstore v197, v108
+    v111 = lt v78, v103
+    v112 = calldatasize
+    v113 = gt v78, v112
+    v114 = or v111, v113
+    jumpi v114, bb3, bb26
   bb26:
-    v116 = calldataload v104
-    v199 = add v84, 96
-    mstore v199, v116
-    mstore v78, v84
-    v119 = add v78, 32
-    v117 = sub v75, 1
-    mstore v74, v117
-    v200 = add v74, 32
-    mstore v200, v79
-    v201 = add v74, 64
-    mstore v201, v119
+    v115 = calldataload v103
+    v198 = add v83, 96
+    mstore v198, v115
+    v199 = add v71, 32
+    v200 = mul v77, 32
+    v201 = add v199, v200
+    mstore v201, v83
+    v118 = add v77, 1
+    v116 = sub v74, 1
+    mstore v73, v116
+    v202 = add v73, 32
+    mstore v202, v78
+    v203 = add v73, 64
+    mstore v203, v118
     jump bb17
   bb27:
-    v126 = calldataload v36
-    v127 = add v13, v126
-    v128 = lt v127, v13
-    v129 = calldatasize
-    v130 = gt v127, v129
-    v131 = lt v126, 32
-    v132 = or v128, v130
-    v133 = or v132, v131
-    jumpi v133, bb3, bb28
+    v125 = calldataload v36
+    v126 = add v13, v125
+    v127 = lt v126, v13
+    v128 = calldatasize
+    v129 = gt v126, v128
+    v130 = lt v125, 32
+    v131 = or v127, v129
+    v132 = or v131, v130
+    jumpi v132, bb3, bb28
   bb28:
-    v134 = add v127, 32
-    v135 = lt v134, v127
-    v136 = calldatasize
-    v137 = gt v134, v136
-    v138 = or v135, v137
-    jumpi v138, bb3, bb29
+    v133 = add v126, 32
+    v134 = lt v133, v126
+    v135 = calldatasize
+    v136 = gt v133, v135
+    v137 = or v134, v136
+    jumpi v137, bb3, bb29
   bb29:
-    v139 = calldataload v127
-    v140 = shl 5, v139
-    v141 = shr 5, v140
-    v142 = eq v141, v139
-    jumpi v142, bb30, bb3
+    v138 = calldataload v126
+    v139 = shl 5, v138
+    v140 = shr 5, v139
+    v141 = eq v140, v138
+    jumpi v141, bb30, bb3
   bb30:
-    v144 = add v140, 32
-    v145 = lt v144, v140
-    jumpi v145, bb3, bb31
+    v143 = add v139, 32
+    v144 = lt v143, v139
+    jumpi v144, bb3, bb31
   bb31:
-    v146 = add v127, v144
-    v147 = lt v146, v127
-    v148 = calldatasize
-    v149 = gt v146, v148
-    v150 = or v147, v149
-    jumpi v150, bb3, bb32
+    v145 = add v126, v143
+    v146 = lt v145, v126
+    v147 = calldatasize
+    v148 = gt v145, v147
+    v149 = or v146, v148
+    jumpi v149, bb3, bb32
   bb32:
-    v151 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v210 = add v151, v144
-    mstore 64, v210 !metadata(memory=scratch)
-    mstore v151, v139
-    v152 = add v151, 32
-    calldatacopy v152, v134, v140
-    v202 = add v25, 64
-    mstore v202, v151
-    v155 = add v12, 132
-    v156 = lt v155, v121
-    v157 = calldatasize
-    v158 = gt v155, v157
-    v159 = or v156, v158
-    jumpi v159, bb3, bb33
+    v150 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v212 = add v150, v143
+    mstore 64, v212 !metadata(memory=scratch)
+    mstore v150, v138
+    v151 = add v150, 32
+    calldatacopy v151, v133, v139
+    v204 = add v25, 64
+    mstore v204, v150
+    v154 = add v12, 132
+    v155 = lt v154, v120
+    v156 = calldatasize
+    v157 = gt v154, v156
+    v158 = or v155, v157
+    jumpi v158, bb3, bb33
   bb33:
-    v160 = calldataload v121
-    v161 = add v13, v160
-    v162 = lt v161, v13
-    v163 = calldatasize
-    v164 = gt v161, v163
-    v165 = lt v160, 32
-    v166 = or v162, v164
-    v167 = or v166, v165
-    jumpi v167, bb3, bb34
+    v159 = calldataload v120
+    v160 = add v13, v159
+    v161 = lt v160, v13
+    v162 = calldatasize
+    v163 = gt v160, v162
+    v164 = lt v159, 32
+    v165 = or v161, v163
+    v166 = or v165, v164
+    jumpi v166, bb3, bb34
   bb34:
-    v168 = add v161, 32
-    v169 = lt v168, v161
-    v170 = calldatasize
-    v171 = gt v168, v170
-    v172 = or v169, v171
-    jumpi v172, bb3, bb35
+    v167 = add v160, 32
+    v168 = lt v167, v160
+    v169 = calldatasize
+    v170 = gt v167, v169
+    v171 = or v168, v170
+    jumpi v171, bb3, bb35
   bb35:
-    v173 = calldataload v161
-    v174 = add v173, 31
-    v175 = lt v174, v173
-    jumpi v175, bb3, bb36
+    v172 = calldataload v160
+    v173 = add v172, 31
+    v174 = lt v173, v172
+    jumpi v174, bb3, bb36
   bb36:
-    v177 = and v174, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v179 = add v168, v177
-    v180 = lt v179, v168
-    v181 = calldatasize
-    v182 = gt v179, v181
-    v183 = or v180, v182
-    jumpi v183, bb3, bb37
+    v176 = and v173, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v178 = add v167, v176
+    v179 = lt v178, v167
+    v180 = calldatasize
+    v181 = gt v178, v180
+    v182 = or v179, v181
+    jumpi v182, bb3, bb37
   bb37:
-    v184 = add v177, 32
-    v185 = lt v184, v177
-    jumpi v185, bb3, bb38
+    v183 = add v176, 32
+    v184 = lt v183, v176
+    jumpi v184, bb3, bb38
   bb38:
-    v186 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v211 = add v186, v184
-    mstore 64, v211 !metadata(memory=scratch)
-    mstore v186, v173
-    v187 = add v186, 32
-    calldatacopy v187, v168, v173
-    v203 = add v25, 96
-    mstore v203, v186
-    v204 = add v25, 128
-    mstore v204, v13
-    v205 = add v25, 64
-    v1 = mload v205
+    v185 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v213 = add v185, v183
+    mstore 64, v213 !metadata(memory=scratch)
+    mstore v185, v172
+    v186 = add v185, 32
+    calldatacopy v186, v167, v172
+    v205 = add v25, 96
+    mstore v205, v185
+    v206 = add v25, 128
+    mstore v206, v13
+    v207 = add v25, 64
+    v1 = mload v207
     v2 = mload v1
     v3 = lt arg1, v2
     jumpi v3, bb2, bb1
@@ -680,8 +684,8 @@ fn @lengths() {
     jumpi v31, bb1, bb5
   bb5:
     v32 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v214 = add v32, 160
-    mstore 64, v214 !metadata(memory=scratch)
+    v216 = add v32, 160
+    mstore 64, v216 !metadata(memory=scratch)
     v36 = calldatasize
     v37 = gt v27, v36
     v38 = or v28, v37
@@ -740,203 +744,205 @@ fn @lengths() {
     jumpi v77, bb1, bb14
   bb14:
     v78 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v215 = add v78, v76
-    mstore 64, v215 !metadata(memory=scratch)
+    v217 = add v78, v76
+    mstore 64, v217 !metadata(memory=scratch)
     mstore v78, v61
-    v80 = add v78, 32
-    v81 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v216 = add v81, 96
-    mstore 64, v216 !metadata(memory=scratch)
-    mstore v81, v61
-    v198 = add v81, 32
-    mstore v198, v56
-    v199 = add v81, 64
-    mstore v199, v80
+    v80 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v218 = add v80, 96
+    mstore 64, v218 !metadata(memory=scratch)
+    mstore v80, v61
+    v197 = add v80, 32
+    mstore v197, v56
+    v198 = add v80, 64
+    mstore v198, 0
     jump bb15
   bb15:
-    v82 = mload v81
-    jumpi v82, bb16, bb17
+    v81 = mload v80
+    jumpi v81, bb16, bb17
   bb16:
-    v200 = add v81, 32
+    v199 = add v80, 32
+    v83 = mload v199
+    v200 = add v80, 64
     v84 = mload v200
-    v201 = add v81, 64
-    v85 = mload v201
-    v86 = add v84, 128
-    v87 = lt v86, v84
-    v88 = calldatasize
-    v89 = gt v86, v88
-    v90 = or v87, v89
-    jumpi v90, bb1, bb18
+    v85 = add v83, 128
+    v86 = lt v85, v83
+    v87 = calldatasize
+    v88 = gt v85, v87
+    v89 = or v86, v88
+    jumpi v89, bb1, bb18
   bb17:
-    v202 = add v32, 32
-    mstore v202, v78
-    v128 = add v19, 100
-    v129 = lt v128, v43
-    v130 = calldatasize
-    v131 = gt v128, v130
-    v132 = or v129, v131
-    jumpi v132, bb1, bb25
+    v201 = add v32, 32
+    mstore v201, v78
+    v127 = add v19, 100
+    v128 = lt v127, v43
+    v129 = calldatasize
+    v130 = gt v127, v129
+    v131 = or v128, v130
+    jumpi v131, bb1, bb25
   bb18:
-    v91 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v217 = add v91, 128
-    mstore 64, v217 !metadata(memory=scratch)
-    v93 = add v84, 32
-    v94 = lt v93, v84
-    v95 = calldatasize
-    v96 = gt v93, v95
-    v97 = or v94, v96
-    jumpi v97, bb1, bb19
+    v90 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v219 = add v90, 128
+    mstore 64, v219 !metadata(memory=scratch)
+    v92 = add v83, 32
+    v93 = lt v92, v83
+    v94 = calldatasize
+    v95 = gt v92, v94
+    v96 = or v93, v95
+    jumpi v96, bb1, bb19
   bb19:
-    v98 = calldataload v84
-    v99 = and v98, 255
-    v100 = eq v98, v99
-    jumpi v100, bb20, bb1
+    v97 = calldataload v83
+    v98 = and v97, 255
+    v99 = eq v97, v98
+    jumpi v99, bb20, bb1
   bb20:
-    mstore v91, v98
-    v102 = add v84, 64
-    v103 = lt v102, v93
-    v104 = calldatasize
-    v105 = gt v102, v104
-    v106 = or v103, v105
-    jumpi v106, bb1, bb21
+    mstore v90, v97
+    v101 = add v83, 64
+    v102 = lt v101, v92
+    v103 = calldatasize
+    v104 = gt v101, v103
+    v105 = or v102, v104
+    jumpi v105, bb1, bb21
   bb21:
-    v107 = calldataload v93
-    v108 = and v107, 0xffffffffffffffffffffffffffffffffffffffff
-    v109 = eq v107, v108
-    jumpi v109, bb22, bb1
+    v106 = calldataload v92
+    v107 = and v106, 0xffffffffffffffffffffffffffffffffffffffff
+    v108 = eq v106, v107
+    jumpi v108, bb22, bb1
   bb22:
-    v203 = add v91, 32
-    mstore v203, v107
-    v111 = add v84, 96
-    v112 = lt v111, v102
-    v113 = calldatasize
-    v114 = gt v111, v113
-    v115 = or v112, v114
-    jumpi v115, bb1, bb23
+    v202 = add v90, 32
+    mstore v202, v106
+    v110 = add v83, 96
+    v111 = lt v110, v101
+    v112 = calldatasize
+    v113 = gt v110, v112
+    v114 = or v111, v113
+    jumpi v114, bb1, bb23
   bb23:
-    v116 = calldataload v102
-    v204 = add v91, 64
-    mstore v204, v116
-    v119 = lt v86, v111
-    v120 = calldatasize
-    v121 = gt v86, v120
-    v122 = or v119, v121
-    jumpi v122, bb1, bb24
+    v115 = calldataload v101
+    v203 = add v90, 64
+    mstore v203, v115
+    v118 = lt v85, v110
+    v119 = calldatasize
+    v120 = gt v85, v119
+    v121 = or v118, v120
+    jumpi v121, bb1, bb24
   bb24:
-    v123 = calldataload v111
-    v205 = add v91, 96
-    mstore v205, v123
-    mstore v85, v91
-    v126 = add v85, 32
-    v124 = sub v82, 1
-    mstore v81, v124
-    v206 = add v81, 32
-    mstore v206, v86
-    v207 = add v81, 64
-    mstore v207, v126
+    v122 = calldataload v110
+    v204 = add v90, 96
+    mstore v204, v122
+    v205 = add v78, 32
+    v206 = mul v84, 32
+    v207 = add v205, v206
+    mstore v207, v90
+    v125 = add v84, 1
+    v123 = sub v81, 1
+    mstore v80, v123
+    v208 = add v80, 32
+    mstore v208, v85
+    v209 = add v80, 64
+    mstore v209, v125
     jump bb15
   bb25:
-    v133 = calldataload v43
-    v134 = add v20, v133
-    v135 = lt v134, v20
-    v136 = calldatasize
-    v137 = gt v134, v136
-    v138 = lt v133, 32
-    v139 = or v135, v137
-    v140 = or v139, v138
-    jumpi v140, bb1, bb26
+    v132 = calldataload v43
+    v133 = add v20, v132
+    v134 = lt v133, v20
+    v135 = calldatasize
+    v136 = gt v133, v135
+    v137 = lt v132, 32
+    v138 = or v134, v136
+    v139 = or v138, v137
+    jumpi v139, bb1, bb26
   bb26:
-    v141 = add v134, 32
-    v142 = lt v141, v134
-    v143 = calldatasize
-    v144 = gt v141, v143
-    v145 = or v142, v144
-    jumpi v145, bb1, bb27
+    v140 = add v133, 32
+    v141 = lt v140, v133
+    v142 = calldatasize
+    v143 = gt v140, v142
+    v144 = or v141, v143
+    jumpi v144, bb1, bb27
   bb27:
-    v146 = calldataload v134
-    v147 = shl 5, v146
-    v148 = shr 5, v147
-    v149 = eq v148, v146
-    jumpi v149, bb28, bb1
+    v145 = calldataload v133
+    v146 = shl 5, v145
+    v147 = shr 5, v146
+    v148 = eq v147, v145
+    jumpi v148, bb28, bb1
   bb28:
-    v151 = add v147, 32
-    v152 = lt v151, v147
-    jumpi v152, bb1, bb29
+    v150 = add v146, 32
+    v151 = lt v150, v146
+    jumpi v151, bb1, bb29
   bb29:
-    v153 = add v134, v151
-    v154 = lt v153, v134
-    v155 = calldatasize
-    v156 = gt v153, v155
-    v157 = or v154, v156
-    jumpi v157, bb1, bb30
+    v152 = add v133, v150
+    v153 = lt v152, v133
+    v154 = calldatasize
+    v155 = gt v152, v154
+    v156 = or v153, v155
+    jumpi v156, bb1, bb30
   bb30:
-    v158 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v218 = add v158, v151
-    mstore 64, v218 !metadata(memory=scratch)
-    mstore v158, v146
-    v159 = add v158, 32
-    calldatacopy v159, v141, v147
-    v208 = add v32, 64
-    mstore v208, v158
-    v162 = add v19, 132
-    v163 = lt v162, v128
-    v164 = calldatasize
-    v165 = gt v162, v164
-    v166 = or v163, v165
-    jumpi v166, bb1, bb31
+    v157 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v220 = add v157, v150
+    mstore 64, v220 !metadata(memory=scratch)
+    mstore v157, v145
+    v158 = add v157, 32
+    calldatacopy v158, v140, v146
+    v210 = add v32, 64
+    mstore v210, v157
+    v161 = add v19, 132
+    v162 = lt v161, v127
+    v163 = calldatasize
+    v164 = gt v161, v163
+    v165 = or v162, v164
+    jumpi v165, bb1, bb31
   bb31:
-    v167 = calldataload v128
-    v168 = add v20, v167
-    v169 = lt v168, v20
-    v170 = calldatasize
-    v171 = gt v168, v170
-    v172 = lt v167, 32
-    v173 = or v169, v171
-    v174 = or v173, v172
-    jumpi v174, bb1, bb32
+    v166 = calldataload v127
+    v167 = add v20, v166
+    v168 = lt v167, v20
+    v169 = calldatasize
+    v170 = gt v167, v169
+    v171 = lt v166, 32
+    v172 = or v168, v170
+    v173 = or v172, v171
+    jumpi v173, bb1, bb32
   bb32:
-    v175 = add v168, 32
-    v176 = lt v175, v168
-    v177 = calldatasize
-    v178 = gt v175, v177
-    v179 = or v176, v178
-    jumpi v179, bb1, bb33
+    v174 = add v167, 32
+    v175 = lt v174, v167
+    v176 = calldatasize
+    v177 = gt v174, v176
+    v178 = or v175, v177
+    jumpi v178, bb1, bb33
   bb33:
-    v180 = calldataload v168
-    v181 = add v180, 31
-    v182 = lt v181, v180
-    jumpi v182, bb1, bb34
+    v179 = calldataload v167
+    v180 = add v179, 31
+    v181 = lt v180, v179
+    jumpi v181, bb1, bb34
   bb34:
-    v184 = and v181, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v186 = add v175, v184
-    v187 = lt v186, v175
-    v188 = calldatasize
-    v189 = gt v186, v188
-    v190 = or v187, v189
-    jumpi v190, bb1, bb35
+    v183 = and v180, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v185 = add v174, v183
+    v186 = lt v185, v174
+    v187 = calldatasize
+    v188 = gt v185, v187
+    v189 = or v186, v188
+    jumpi v189, bb1, bb35
   bb35:
-    v191 = add v184, 32
-    v192 = lt v191, v184
-    jumpi v192, bb1, bb36
+    v190 = add v183, 32
+    v191 = lt v190, v183
+    jumpi v191, bb1, bb36
   bb36:
-    v193 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v219 = add v193, v191
-    mstore 64, v219 !metadata(memory=scratch)
-    mstore v193, v180
-    v194 = add v193, 32
-    calldatacopy v194, v175, v180
-    v209 = add v32, 96
-    mstore v209, v193
-    v210 = add v32, 128
-    mstore v210, v20
-    v212 = add v32, 64
-    v6 = mload v212
+    v192 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v221 = add v192, v190
+    mstore 64, v221 !metadata(memory=scratch)
+    mstore v192, v179
+    v193 = add v192, 32
+    calldatacopy v193, v174, v179
+    v211 = add v32, 96
+    mstore v211, v192
+    v212 = add v32, 128
+    mstore v212, v20
+    v214 = add v32, 64
+    v6 = mload v214
     v7 = mload v6
-    v213 = add v32, 96
-    v10 = mload v213
+    v215 = add v32, 96
+    v10 = mload v215
     v11 = mload v10
-    v211 = add v32, 32
-    v2 = mload v211
+    v213 = add v32, 32
+    v2 = mload v213
     v3 = mload v2
     mstore 128, v3
     mstore 160, v7

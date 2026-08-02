@@ -125,6 +125,8 @@ describes observable structure in the current tree, not an intended design.
   fixed low-memory scratch words.
 * Constructor ABI validation and aggregate decoding read words through typed
   memory slices; calldata wrappers retain direct calldata loads.
+* Constructor dynamic-array decoding carries a logical destination index and
+  stores through the typed array object rather than a raw destination pointer.
 * Storage-to-memory and memory-to-storage aggregate copies use the same typed
   field and element operations. Packed and nested copies no longer expose a
   destination address to HIR lowering.

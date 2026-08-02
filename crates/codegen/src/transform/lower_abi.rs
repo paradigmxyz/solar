@@ -801,8 +801,6 @@ impl LowerAbiCx {
                 );
                 builder.set_memory_object_len(ptr, len, crate::mir::MemoryObjectKind::DynamicArray);
                 let data_base = builder.add(base, word);
-                let dest =
-                    builder.memory_object_data(ptr, crate::mir::MemoryObjectKind::DynamicArray);
 
                 // Dynamic ABI arrays use a head of one word per element. The
                 // element value may itself be dynamic, so nested objects are
@@ -817,9 +815,10 @@ impl LowerAbiCx {
                     state_layout,
                     crate::mir::AllocationSemantics::INTERNAL,
                 );
+                let zero = builder.imm_u64(0);
                 builder.memory_object_store_field(state, state_layout, 0, len);
                 builder.memory_object_store_field(state, state_layout, 1, data_base);
-                builder.memory_object_store_field(state, state_layout, 2, dest);
+                builder.memory_object_store_field(state, state_layout, 2, zero);
 
                 let cond = builder.create_block();
                 let body = builder.create_block();
@@ -834,7 +833,7 @@ impl LowerAbiCx {
 
                 builder.switch_to_block(body);
                 let source = builder.memory_object_load_field(state, state_layout, 1);
-                let destination = builder.memory_object_load_field(state, state_layout, 2);
+                let destination_index = builder.memory_object_load_field(state, state_layout, 2);
                 let mut element_current = builder.current_block();
                 let value = Self::decode_aggregate_argument(
                     builder,
@@ -846,15 +845,20 @@ impl LowerAbiCx {
                     constructor,
                     &mut element_current,
                 );
-                builder.mstore(destination, value);
+                builder.memory_object_store_element(
+                    ptr,
+                    crate::mir::MemoryObjectLayout::WORD_ARRAY,
+                    destination_index,
+                    value,
+                );
                 let one = builder.imm_u64(1);
                 let next_remaining = builder.sub(remaining, one);
                 let element_head_size = builder.imm_u64(element.head_size());
                 let next_source = builder.add(source, element_head_size);
-                let next_destination = builder.add(destination, word);
+                let next_destination_index = builder.add(destination_index, one);
                 builder.memory_object_store_field(state, state_layout, 0, next_remaining);
                 builder.memory_object_store_field(state, state_layout, 1, next_source);
-                builder.memory_object_store_field(state, state_layout, 2, next_destination);
+                builder.memory_object_store_field(state, state_layout, 2, next_destination_index);
                 builder.jump(cond);
 
                 builder.switch_to_block(done);
