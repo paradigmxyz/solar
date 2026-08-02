@@ -16,7 +16,7 @@ use crate::{
 use alloy_primitives::{Bytes, U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, UnOpKind};
 use solar_data_structures::map::{FxHashMap, FxHashSet, StdEntry};
-use solar_interface::{Span, sym};
+use solar_interface::{Ident, Span, sym};
 use solar_sema::{
     Gcx,
     builtins::Builtin,
@@ -38,6 +38,7 @@ pub(super) fn lower(
     immutable_ids: &FxHashMap<VariableId, ImmutableId>,
     child_bytecodes: &FxHashMap<hir::ContractId, Bytes>,
     invalid_event_topics: &mut FxHashSet<hir::EventId>,
+    pointer_registry: &mut InternalFunctionPointerRegistry,
 ) -> Option<Function> {
     let hir_function = gcx.hir.function(id);
     let mut mir = contract::declaration(gcx, id, hir_function);
@@ -72,12 +73,14 @@ pub(super) fn lower(
 
     let mut lowerer = FunctionLowerer::new(
         gcx,
+        module,
         storage,
         contract_id,
         function_ids,
         immutable_ids,
         child_bytecodes,
         invalid_event_topics,
+        pointer_registry,
         &mut mir,
     );
     lowerer.bind_signature(hir_function);
@@ -101,24 +104,28 @@ pub(super) fn lower(
 /// an explicit constructor body.
 pub(super) fn lower_synthetic_constructor(
     gcx: Gcx<'_>,
+    module: &mut Module,
     storage: &StorageLayout,
     contract_id: hir::ContractId,
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
     immutable_ids: &FxHashMap<VariableId, ImmutableId>,
     child_bytecodes: &FxHashMap<hir::ContractId, Bytes>,
     invalid_event_topics: &mut FxHashSet<hir::EventId>,
+    pointer_registry: &mut InternalFunctionPointerRegistry,
 ) -> Option<Function> {
     let mut mir =
         Function::new(solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor));
     mir.attributes.is_constructor = true;
     let mut lowerer = FunctionLowerer::new(
         gcx,
+        module,
         storage,
         contract_id,
         function_ids,
         immutable_ids,
         child_bytecodes,
         invalid_event_topics,
+        pointer_registry,
         &mut mir,
     );
     lowerer.lower_state_initializers(contract_id)?;
@@ -134,14 +141,16 @@ pub(super) fn lower_synthetic_constructor(
 /// Keeping the HIR context, variable environment, loop targets, and builder in
 /// one object makes scope changes explicit. Child lowering methods do not need
 /// to pass a growing collection of loosely related maps and flags.
-struct FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events> {
+struct FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers> {
     gcx: Gcx<'gcx>,
+    module: &'module mut Module,
     storage: &'mir StorageLayout,
     contract_id: hir::ContractId,
     function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
     immutable_ids: &'ids FxHashMap<VariableId, ImmutableId>,
     child_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
     invalid_event_topics: &'events mut FxHashSet<hir::EventId>,
+    pointer_registry: &'pointers mut InternalFunctionPointerRegistry,
     builder: FunctionBuilder<'mir>,
     types: types::TypeLowerer<'gcx>,
     values: FxHashMap<VariableId, ValueId>,
@@ -203,25 +212,47 @@ impl BuiltinArgCount {
     }
 }
 
-impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events> {
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub(super) struct InternalFunctionPointerShape {
+    params: Vec<MirType>,
+    returns: Vec<MirType>,
+}
+
+#[derive(Default)]
+pub(super) struct InternalFunctionPointerRegistry {
+    targets: FxHashSet<hir::FunctionId>,
+    dispatchers: FxHashMap<InternalFunctionPointerShape, FunctionId>,
+}
+
+fn internal_function_pointer_id(function_id: hir::FunctionId) -> u64 {
+    function_id.index() as u64 + 1
+}
+
+impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
+    FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
+{
     fn new(
         gcx: Gcx<'gcx>,
+        module: &'module mut Module,
         storage: &'mir StorageLayout,
         contract_id: hir::ContractId,
         function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
         immutable_ids: &'ids FxHashMap<VariableId, ImmutableId>,
         child_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
         invalid_event_topics: &'events mut FxHashSet<hir::EventId>,
+        pointer_registry: &'pointers mut InternalFunctionPointerRegistry,
         function: &'mir mut Function,
     ) -> Self {
         Self {
             gcx,
+            module,
             storage,
             contract_id,
             function_ids,
             immutable_ids,
             child_bytecodes,
             invalid_event_topics,
+            pointer_registry,
             builder: FunctionBuilder::new(function),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
@@ -1503,23 +1534,33 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
                 }
                 return Some(values);
             }
-            if let Some(function_id) = self.gcx.resolved_function(callee) {
-                let returns = self.gcx.hir.function(function_id).returns.len();
-                if returns > 1 {
-                    let first = self.lower_expr(expr)?;
-                    let base = self.multi_return_buffer_base();
-                    let mut values = Vec::with_capacity(returns);
-                    values.push(first);
-                    for index in 1..returns {
-                        values.push(self.load_multi_return_value(base, index));
-                    }
-                    return Some(values);
-                }
-            }
-            let returns_empty = self
+            let returns = self
                 .gcx
                 .resolved_function(callee)
-                .is_some_and(|id| self.gcx.hir.function(id).returns.is_empty())
+                .map(|function_id| self.gcx.hir.function(function_id).returns.len())
+                .or_else(|| {
+                    self.gcx.type_of_expr(callee.id).and_then(|ty| match ty.kind {
+                        TyKind::Fn(function)
+                            if function.is_internal() && function.function_id.is_none() =>
+                        {
+                            Some(function.returns.len())
+                        }
+                        _ => None,
+                    })
+                });
+            if let Some(returns) = returns
+                && returns > 1
+            {
+                let first = self.lower_expr(expr)?;
+                let base = self.multi_return_buffer_base();
+                let mut values = Vec::with_capacity(returns);
+                values.push(first);
+                for index in 1..returns {
+                    values.push(self.load_multi_return_value(base, index));
+                }
+                return Some(values);
+            }
+            let returns_empty = returns.is_some_and(|returns| returns == 0)
                 || self.gcx.resolved_builtin(callee).is_some_and(|builtin| {
                     matches!(builtin, Builtin::Assert | Builtin::Revert | Builtin::RevertMsg)
                 });
@@ -1639,6 +1680,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
             ExprKind::Ident(_) => {
                 if let Some(builtin) = self.gcx.resolved_builtin(expr) {
                     return self.lower_environment_builtin(expr, builtin);
+                }
+                if let Some(value) = self.lower_internal_function_value(expr) {
+                    return Some(value);
                 }
                 let id = self.gcx.resolved_variable(expr)?;
                 self.load_variable(id, expr.span)
@@ -2414,6 +2458,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
         {
             return self.lower_external_function_pointer_call(callee, function, args);
         }
+        if let Some(TyKind::Fn(function)) = self.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
+            && function.is_internal()
+            && function.function_id.is_none()
+        {
+            return self.lower_internal_function_pointer_call(expr, callee, function, args);
+        }
         if let Some(function_id) = self.gcx.resolved_function(callee) {
             return self.lower_function_call(expr, callee, function_id, args);
         }
@@ -2614,6 +2664,77 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
             self.builder.mstore(base, ret_offset);
         }
         Some(self.builder.mload(ret_offset))
+    }
+
+    fn lower_internal_function_pointer_call(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        callee: &hir::Expr<'_>,
+        function: &solar_sema::ty::TyFn<'gcx>,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        if args.len() != function.parameters.len() {
+            return report_unsupported(self.gcx, expr.span, "internal function arguments");
+        }
+        let function_value = self.lower_expr(callee)?;
+        let parameter_names =
+            self.gcx.call_param_source(callee).map(|source| self.gcx.callable_param_names(source));
+        let mut values = Vec::with_capacity(function.parameters.len());
+        for (index, &parameter) in function.parameters.iter().enumerate() {
+            let Some(argument) = args.argument_for_parameter(index, parameter_names.as_deref())
+            else {
+                return report_unsupported(self.gcx, expr.span, "named internal function argument");
+            };
+            let value = self.lower_expr(argument)?;
+            values.push(self.materialize_memory_argument(parameter, value, argument.span)?);
+        }
+        values.insert(0, function_value);
+
+        let dispatcher = self.ensure_internal_function_pointer_dispatcher(function);
+        let returns = function.returns.len();
+        if returns == 0 {
+            self.builder.internal_call_void(dispatcher, values, 0);
+            return Some(self.builder.imm_u256(U256::ZERO));
+        }
+        let result_ty = types::TypeLowerer::mir_type(function.returns[0]);
+        Some(self.builder.internal_call(dispatcher, values, result_ty, returns))
+    }
+
+    fn lower_internal_function_value(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        let TyKind::Fn(function) = self.gcx.type_of_expr(expr.id)?.kind else { return None };
+        if !function.is_internal() {
+            return None;
+        }
+        let hir::Res::Item(hir::ItemId::Function(function_id)) = self.gcx.resolved_expr(expr)?
+        else {
+            return None;
+        };
+        let function_id = self.resolve_call_target(expr, function_id);
+        self.pointer_registry.targets.insert(function_id);
+        Some(self.builder.imm_u64(internal_function_pointer_id(function_id)))
+    }
+
+    fn ensure_internal_function_pointer_dispatcher(
+        &mut self,
+        function: &solar_sema::ty::TyFn<'gcx>,
+    ) -> FunctionId {
+        let shape = InternalFunctionPointerShape {
+            params: function
+                .parameters
+                .iter()
+                .map(|&ty| types::TypeLowerer::mir_type(ty))
+                .collect(),
+            returns: function.returns.iter().map(|&ty| types::TypeLowerer::mir_type(ty)).collect(),
+        };
+        if let Some(&dispatcher) = self.pointer_registry.dispatchers.get(&shape) {
+            return dispatcher;
+        }
+        let index = self.pointer_registry.dispatchers.len();
+        let dispatcher = self
+            .module
+            .add_function(Function::new(Ident::from_str(&format!("__internal_dispatch_{index}"))));
+        self.pointer_registry.dispatchers.insert(shape, dispatcher);
+        dispatcher
     }
 
     fn lower_struct_constructor(
@@ -4989,6 +5110,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
             }
             return self.lower_environment_builtin(expr, builtin);
         }
+        if let Some(value) = self.lower_internal_function_value(expr) {
+            return Some(value);
+        }
         if name.name == sym::offset
             && self
                 .type_of_expr_or_variable(receiver)
@@ -5684,6 +5808,108 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
             }
         }
         values
+    }
+}
+
+pub(super) fn generate_internal_function_pointer_dispatchers(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
+    registry: &InternalFunctionPointerRegistry,
+) {
+    let dispatchers = registry
+        .dispatchers
+        .iter()
+        .map(|(shape, &dispatcher)| (shape.clone(), dispatcher))
+        .collect::<Vec<_>>();
+    for (shape, dispatcher) in dispatchers {
+        let mut candidates = registry
+            .targets
+            .iter()
+            .filter_map(|&function_id| {
+                let TyKind::Fn(function) = gcx.type_of_item(function_id.into()).kind else {
+                    return None;
+                };
+                let candidate_shape = InternalFunctionPointerShape {
+                    params: function
+                        .parameters
+                        .iter()
+                        .map(|&ty| types::TypeLowerer::mir_type(ty))
+                        .collect(),
+                    returns: function
+                        .returns
+                        .iter()
+                        .map(|&ty| types::TypeLowerer::mir_type(ty))
+                        .collect(),
+                };
+                (candidate_shape == shape).then_some(function_id)
+            })
+            .filter_map(|function_id| {
+                function_ids.get(&function_id).copied().map(|mir_id| (function_id, mir_id))
+            })
+            .collect::<Vec<_>>();
+        candidates.sort_by_key(|(function_id, _)| function_id.index());
+
+        let reserved = module.function(dispatcher);
+        let name = reserved.name;
+        let mut function = Function::new(Ident::new(name.symbol, reserved.name_span));
+        function.name = name;
+        function.attributes.no_inline = true;
+        {
+            let mut builder = FunctionBuilder::new(&mut function);
+            let function_value = builder.add_param(MirType::Function);
+            let arguments =
+                shape.params.iter().copied().map(|ty| builder.add_param(ty)).collect::<Vec<_>>();
+            for ty in shape.returns.iter().copied() {
+                builder.add_return(ty);
+            }
+
+            for (function_id, mir_id) in candidates {
+                let case_block = builder.create_block();
+                let next_block = builder.create_block();
+                let id = builder.imm_u64(internal_function_pointer_id(function_id));
+                let is_match = builder.eq(function_value, id);
+                builder.branch(is_match, case_block, next_block);
+
+                builder.switch_to_block(case_block);
+                if shape.returns.is_empty() {
+                    builder.internal_call_void(mir_id, arguments.clone(), 0);
+                    builder.ret([]);
+                } else {
+                    let result = builder.internal_call(
+                        mir_id,
+                        arguments.clone(),
+                        shape.returns[0],
+                        shape.returns.len(),
+                    );
+                    let mut values = Vec::with_capacity(shape.returns.len());
+                    values.push(result);
+                    if shape.returns.len() > 1 {
+                        let slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
+                        let base = builder.mload(slot);
+                        for index in 1..shape.returns.len() {
+                            let offset = builder.imm_u64(
+                                u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32),
+                            );
+                            let address = builder.add(base, offset);
+                            values.push(builder.mload(address));
+                        }
+                    }
+                    builder.ret(values);
+                }
+                builder.switch_to_block(next_block);
+            }
+
+            let zero = builder.imm_u256(U256::ZERO);
+            let selector = builder.imm_u256(U256::from(0x4e48_7b71_u64) << 224);
+            builder.mstore(zero, selector);
+            let four = builder.imm_u256(U256::from(4));
+            let code = builder.imm_u256(U256::from(0x51));
+            builder.mstore(four, code);
+            let size = builder.imm_u256(U256::from(36));
+            builder.revert(zero, size);
+        }
+        *module.function_mut(dispatcher) = function;
     }
 }
 

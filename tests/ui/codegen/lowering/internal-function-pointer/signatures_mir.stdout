@@ -1,12 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/signatures_mir.sol:FunctionPointerSignatures ===
 @module FunctionPointerSignatures
-fn @constructor() {
-  bb0:
-    sstore 1, 2 !metadata(storage=slot(1))
-    stop
-}
-
-fn @callVoid() -> bool [abi_args=lazy, abi_returns=[word]] {
+fn @callVoid() -> bool [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     internal_call @__internal_dispatch_0, 0, 2
     v0 = sload 0 !metadata(storage=slot(0))
@@ -14,28 +8,18 @@ fn @callVoid() -> bool [abi_args=lazy, abi_returns=[word]] {
     ret v1
 }
 
-fn @__internal_dispatch_0(arg0: function) {
-  bb0:
-    v0 = eq arg0, 2
-    jumpi v0, bb1, bb2
-  bb1:
-    internal_call @setFlag.13, 0
-    ret
-  bb2:
-    tail_call @__panic_51
-}
-
-fn @setFlag.3() [abi_args=lazy] {
+fn @setFlag() [abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v2 = and 1, 255
-    v3 = or v1, v2
-    sstore 0, v3 !metadata(storage=slot(0))
+    v1 = not 255
+    v2 = and v0, v1
+    v3 = and 1, 255
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
     stop
 }
 
-fn @callState() -> bool [abi_args=lazy, abi_returns=[word]] {
+fn @callState() -> bool [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     internal_call @__internal_dispatch_0, 0, v0
@@ -44,13 +28,50 @@ fn @callState() -> bool [abi_args=lazy, abi_returns=[word]] {
     ret v2
 }
 
-fn @callPair(arg0: u256) -> (u256, u256) [abi_args=lazy, abi_returns=[word, word]] {
+fn @callPair(arg0: u256) -> (u256, u256) [abi_args=lazy, abi_params=[u256], abi_returns=[word, word]] {
   bb0:
     v0 = internal_call @__internal_dispatch_1, 2, 5, arg0
     v1 = mload 32 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2
     ret v0, v3
+}
+
+fn @pair(arg0: u256) -> (u256, u256) {
+  bb0:
+    v0 = add arg0, 1
+    ret arg0, v0
+}
+
+fn @callZero() [abi_args=lazy, abi_params=[], abi_returns=[]] {
+  bb0:
+    internal_call @__internal_dispatch_0, 0, 0
+    stop
+}
+
+fn @sum(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = add arg0, arg1
+    ret v0
+}
+
+fn @callTwoArgs() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @__internal_dispatch_2, 1, 7, 5, 1
+    ret v0
+}
+
+fn @__internal_dispatch_0(arg0: function) {
+  bb0:
+    v0 = eq arg0, 2
+    jumpi v0, bb1, bb2
+  bb1:
+    internal_call @setFlag, 0
+    ret
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @__internal_dispatch_1(arg0: function, arg1: u256) -> (u256, u256) {
@@ -64,48 +85,9 @@ fn @__internal_dispatch_1(arg0: function, arg1: u256) -> (u256, u256) {
     v4 = mload v3
     ret v1, v4
   bb2:
-    tail_call @__panic_51
-}
-
-fn @pair(arg0: u256) -> (u256, u256) {
-  bb0:
-    v0 = add arg0, 1
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb1:
-    tail_call @__panic_11
-  bb2:
-    ret arg0, v0
-}
-
-fn @__panic_11() {
-  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
-}
-
-fn @callZero() [abi_args=lazy] {
-  bb0:
-    internal_call @__internal_dispatch_0, 0, 0
-    stop
-}
-
-fn @sum(arg0: u256, arg1: u256) -> u256 {
-  bb0:
-    v0 = add arg0, arg1
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb1:
-    tail_call @__panic_11
-  bb2:
-    ret v0
-}
-
-fn @callTwoArgs() -> u256 [abi_args=lazy, abi_returns=[word]] {
-  bb0:
-    v0 = internal_call @__internal_dispatch_2, 1, 7, 5, 1
-    ret v0
 }
 
 fn @__internal_dispatch_2(arg0: function, arg1: u256, arg2: u256) -> u256 {
@@ -116,23 +98,14 @@ fn @__internal_dispatch_2(arg0: function, arg1: u256, arg2: u256) -> u256 {
     v1 = internal_call @sum, 1, arg1, arg2
     ret v1
   bb2:
-    tail_call @__panic_51
-}
-
-fn @setFlag.13() {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v2 = and 1, 255
-    v3 = or v1, v2
-    sstore 0, v3 !metadata(storage=slot(0))
-    stop
-}
-
-fn @__panic_51() {
-  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
+}
+
+fn @constructor() {
+  bb0:
+    sstore 1, 2 !metadata(storage=slot(1))
+    stop
 }
 

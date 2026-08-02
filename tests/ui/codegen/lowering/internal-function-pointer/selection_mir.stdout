@@ -1,18 +1,60 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/selection_mir.sol:FunctionPointerSelection ===
 @module FunctionPointerSelection
-fn @choose(arg0: bool, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @choose(arg0: bool, arg1: u256) -> u256 [abi_args=lazy, abi_params=[bool, u256], abi_returns=[word]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
-    frame_store scratch, word, 0, 2 !metadata(memory=scratch)
     jump bb3
   bb2:
-    frame_store scratch, word, 0, 3 !metadata(memory=scratch)
     jump bb3
   bb3:
-    v0 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v0 = phi [bb1: 2], [bb2: 3]
     v1 = internal_call @__internal_dispatch_0, 1, v0, arg1
     ret v1
+}
+
+fn @increment(arg0: u256) -> u256 {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}
+
+fn @decrement(arg0: u256) -> u256 {
+  bb0:
+    v0 = sub arg0, 1
+    ret v0
+}
+
+fn @callConstant(arg0: u256) -> u256 [abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @__internal_dispatch_0, 1, 2, arg0
+    ret v0
+}
+
+fn @throughCast(arg0: u256) -> u256 [abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @castViewToPure, 1, 7
+    v1 = internal_call @__internal_dispatch_0, 1, v0, arg0
+    ret v1
+}
+
+fn @castViewToPure(arg0: function) -> function {
+  bb0:
+    ret arg0
+}
+
+fn @incrementView(arg0: u256) -> u256 {
+  bb0:
+    v0 = number
+    v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v1, bb1, bb2
+  bb1:
+    ret arg0
+  bb2:
+    jump bb3
+  bb3:
+    v2 = add arg0, 1
+    ret v2
 }
 
 fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 {
@@ -35,78 +77,6 @@ fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 {
     v5 = internal_call @incrementView, 1, arg1
     ret v5
   bb6:
-    tail_call @__panic_51
-}
-
-fn @increment(arg0: u256) -> u256 {
-  bb0:
-    v0 = add arg0, 1
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb1:
-    tail_call @__panic_11
-  bb2:
-    ret v0
-}
-
-fn @__panic_11() {
-  bb0:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-}
-
-fn @decrement(arg0: u256) -> u256 {
-  bb0:
-    v0 = sub arg0, 1
-    v1 = lt arg0, 1
-    jumpi v1, bb1, bb2
-  bb1:
-    tail_call @__panic_11
-  bb2:
-    ret v0
-}
-
-fn @callConstant(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
-  bb0:
-    v0 = internal_call @__internal_dispatch_0, 1, 2, arg0
-    ret v0
-}
-
-fn @throughCast(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
-  bb0:
-    v0 = internal_call @castViewToPure, 1, 7
-    v1 = internal_call @__internal_dispatch_0, 1, v0, arg0
-    ret v1
-}
-
-fn @castViewToPure(arg0: function) -> function {
-  bb0:
-    frame_store internal_frame, word, 0, 0 !metadata(memory=internal_frame)
-    frame_store internal_frame, word, 0, arg0 !metadata(memory=internal_frame)
-    v0 = frame_load internal_frame, word, 0 !metadata(memory=internal_frame)
-    ret v0
-}
-
-fn @incrementView(arg0: u256) -> u256 {
-  bb0:
-    v0 = number
-    v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    jumpi v1, bb1, bb2
-  bb1:
-    ret arg0
-  bb2:
-    v2 = add arg0, 1
-    v3 = lt v2, arg0
-    jumpi v3, bb3, bb4
-  bb3:
-    tail_call @__panic_11
-  bb4:
-    ret v2
-}
-
-fn @__panic_51() {
-  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36

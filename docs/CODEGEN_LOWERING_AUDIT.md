@@ -127,6 +127,9 @@ existing scalar and packed-storage MIR fixtures. It supports:
   bindings, bare catches, `catch (bytes memory)` returndata objects, and
   `catch Error(string memory)`/`catch Panic(uint256)` selector and payload
   checks;
+* internal function-pointer values and shape-specific dispatchers for exact,
+  virtual, and `super` targets, including storage-backed values, higher-order
+  returns, memory arrays, and multi-return calls;
 * `abi.decode` scalar, tuple, dynamic-array, and calldata-slice paths through
   semantic memory slices and object copies; struct targets still fail closed;
 * `ecrecover`, `sha256`, and `ripemd160` through version-aware precompile
@@ -152,8 +155,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    constructor arguments, and cover the remaining constructor modifier edge
    cases with Solc-backed runtime tests.
 3. Add the remaining call and language features: Yul statements beyond `switch`,
-   the remaining `try`/`catch` payload and return-binding forms, and
-   function-pointer dispatch.
+   the remaining `try`/`catch` payload and return-binding forms, and the
+   remaining external and aggregate function-pointer forms.
 4. Finish storage-reference CFG merging for every aggregate shape and audit
    checked arithmetic and allocation guards against the corresponding Solc
    behavior.

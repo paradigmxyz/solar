@@ -92,6 +92,7 @@ pub(super) fn lower(
     let function_ids =
         function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();
     let mut mir_ids = FxHashMap::default();
+    let mut pointer_registry = function::InternalFunctionPointerRegistry::default();
     for &(function_id, expose_selector) in &function_ids {
         let function = gcx.hir.function(function_id);
         let mut declaration = declaration(gcx, function_id, function);
@@ -125,6 +126,7 @@ pub(super) fn lower(
             &immutable_ids,
             child_bytecodes,
             &mut invalid_event_topics,
+            &mut pointer_registry,
         ) else {
             FunctionBuilder::new(module.function_mut(mir_id)).invalid();
             continue;
@@ -145,12 +147,14 @@ pub(super) fn lower(
         )));
         let Some(mut mir) = function::lower_synthetic_constructor(
             gcx,
+            &mut module,
             &storage,
             contract_id,
             &mir_ids,
             &immutable_ids,
             child_bytecodes,
             &mut invalid_event_topics,
+            &mut pointer_registry,
         ) else {
             FunctionBuilder::new(module.function_mut(mir_id)).invalid();
             return module;
@@ -158,6 +162,13 @@ pub(super) fn lower(
         mir.name = module.function(mir_id).name;
         *module.function_mut(mir_id) = mir;
     }
+
+    function::generate_internal_function_pointer_dispatchers(
+        gcx,
+        &mut module,
+        &mir_ids,
+        &pointer_registry,
+    );
 
     if contract.kind == hir::ContractKind::Interface {
         module.is_interface = true;
