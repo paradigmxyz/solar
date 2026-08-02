@@ -145,9 +145,9 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   expose yet.
 * **Physical memory still leaks through a few aggregate helpers.** Mutable
   locals, direct object accesses, object-to-object and typed slice-to-object
-  copies, storage aggregate copies, and legacy ABI tail copies into objects
-  now stay semantic. Memory-object allocation, ABI decoding from an encoded
-  region, Yul copies, and some loop scratch state still emit raw memory
+  copies, storage aggregate copies, and ABI payload copies into objects now
+  stay semantic. Memory-object allocation, ABI tail assembly, Yul copies,
+  returndata staging, and some loop scratch state still emit raw memory
   operations before the semantic memory passes. The remaining work is to keep
   those policies in typed MIR until the memory-layout boundary.
 * **Helper coverage is incomplete.** Panic, short-error, and storage-bytes
