@@ -26,6 +26,9 @@ describes observable structure in the current tree, not an intended design.
 * Modifier placeholders expand the modifier chain in source order. Return
   values pass through the suffix, and constructor base calls stay in the
   constructor prelude.
+* The lowering module exposes only `lower_contract` and
+  `lower_contract_with_bytecodes` publicly. Context, loop, and storage
+  implementation types are private to lowering and its child modules.
 
 ## Current shape
 
@@ -90,12 +93,10 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   logic. The rewrite must retain only methods with verified callers and keep
   new interfaces at the smallest useful visibility.
 
-The verified entry-point surface is smaller than the current visibility
-suggests. `lower_contract_with_bytecodes` has production callers in
-`crates/codegen/src/contract.rs` and `benches/src/lib.rs`. `lower_contract` is
-used only by codegen MIR tests, while `Lowerer` and `LoopContext` have no
-callers outside the lowering module. The rewrite can reduce those interfaces
-after the test-only path is migrated.
+The verified entry-point surface is small. `lower_contract_with_bytecodes` has
+production callers in `crates/codegen/src/contract.rs` and `benches/src/lib.rs`.
+`lower_contract` is used by codegen MIR tests. No caller needs `Lowerer`,
+`LoopContext`, or storage implementation types outside the lowering module.
 
 ## Replacement constraints
 
