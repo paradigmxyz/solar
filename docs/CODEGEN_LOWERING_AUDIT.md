@@ -99,6 +99,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * block, transaction, message, `blockhash`, `blobhash`, and enum/integer
   `type(...).min`/`type(...).max` builtins through typed MIR operations;
 * compile-time ERC-165 interface IDs from the sema interface-function set;
+* positional multi-value declarations and assignments, including evaluation of
+  discarded tuple values for their side effects;
 * lazy, deduplicated ABI cleanup helpers and outlined revert helpers.
 
 The generated MIR for `tests/ui/codegen/lowering/compound_assign.sol` contains

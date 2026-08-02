@@ -333,6 +333,26 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                 self.values.insert(*id, value);
             }
             StmtKind::DeclMulti(ids, expr) => {
+                if let ExprKind::Tuple(values) = &expr.peel_parens().kind
+                    && values.len() == ids.len()
+                {
+                    for (id, value) in ids.iter().zip(values.iter()) {
+                        let Some(value) = value else {
+                            if id.is_some() {
+                                return report_unsupported(
+                                    self.gcx,
+                                    expr.span,
+                                    "tuple declaration value",
+                                );
+                            }
+                            continue;
+                        };
+                        let value = self.lower_expr(value)?;
+                        let Some(id) = id else { continue };
+                        self.values.insert(*id, value);
+                    }
+                    return Some(());
+                }
                 let values = self.lower_values(expr)?;
                 for (id, value) in ids.iter().flatten().zip(values) {
                     self.values.insert(*id, value);
@@ -890,9 +910,15 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             let tuple_span = rhs.span;
             let mut bindings = Vec::with_capacity(elements.len());
             for (lhs, rhs) in elements.iter().zip(rhs_elements.iter()) {
-                let Some(lhs) = lhs else { continue };
                 let Some(rhs) = rhs else {
-                    return report_unsupported(self.gcx, tuple_span, "storage reference tuple");
+                    if lhs.is_some() {
+                        return report_unsupported(self.gcx, tuple_span, "storage reference tuple");
+                    }
+                    continue;
+                };
+                let Some(lhs) = lhs else {
+                    self.lower_expr(rhs)?;
+                    continue;
                 };
                 if !self.is_storage_reference_binding(lhs) {
                     return report_unsupported(self.gcx, lhs.span, "mixed storage tuple");
@@ -908,21 +934,24 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             }
             return Some(());
         }
-        let values = if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind {
+        if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind {
             if rhs_elements.len() != elements.len() {
                 return report_unsupported(self.gcx, rhs.span, "tuple assignment arity");
             }
-            let mut values = Vec::with_capacity(rhs_elements.len());
-            for value in rhs_elements.iter() {
+            for (element, value) in elements.iter().zip(rhs_elements.iter()) {
                 let Some(value) = value else {
-                    return report_unsupported(self.gcx, rhs.span, "tuple assignment value");
+                    if element.is_some() {
+                        return report_unsupported(self.gcx, rhs.span, "tuple assignment value");
+                    }
+                    continue;
                 };
-                values.push(self.lower_expr(value)?);
+                let value = self.lower_expr(value)?;
+                let Some(element) = element else { continue };
+                self.store_lvalue(element, value)?;
             }
-            values
-        } else {
-            self.lower_values(rhs)?
-        };
+            return Some(());
+        }
+        let values = self.lower_values(rhs)?;
         if values.len() != elements.iter().flatten().count() {
             return report_unsupported(self.gcx, rhs.span, "tuple assignment arity");
         }
