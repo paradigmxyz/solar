@@ -33,13 +33,13 @@
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        BlockId, Function, FunctionBuilder, FunctionId, InstKind, MangledSymbol, MirPhase, MirType,
-        Module, Terminator, ValueId,
+        AbiParamLayout, BlockId, Function, FunctionBuilder, FunctionId, InstKind, MangledSymbol,
+        MirPhase, MirType, Module, Terminator, ValueId,
     },
     pass::MirPass,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_interface::{Span, Symbol};
 
 #[derive(Clone, Copy)]
@@ -263,6 +263,7 @@ impl LowerAbiCx {
         needs_body: bool,
     ) -> Option<FunctionId> {
         let lazy_args = module.function(wrapper_id).abi_args_lazy;
+        let abi_params = module.function(wrapper_id).abi_params.clone();
         // The copy must precede wrapper mutation and callvalue injection so
         // internal callers keep the original function semantics.
         let body_id = needs_body.then(|| {
@@ -271,13 +272,18 @@ impl LowerAbiCx {
             body.name_span = Span::DUMMY;
             body.selector = None;
             body.abi_returns = None;
+            body.abi_params = None;
             body.abi_args_lazy = false;
             body.attributes.visibility = solar_sema::hir::Visibility::Internal;
             module.add_function(body)
         });
 
-        if lazy_args {
-            Self::inject_lazy_argument_checks(module.function_mut(wrapper_id));
+        if lazy_args || abi_params.is_some() {
+            Self::inject_abi_prologue(
+                module.function_mut(wrapper_id),
+                abi_params.as_ref(),
+                lazy_args,
+            );
         }
         self.stats.encoded_returns += encode_live_returns(module.function_mut(wrapper_id));
 
@@ -287,19 +293,54 @@ impl LowerAbiCx {
         wrapper.params.clear();
         wrapper.returns.clear();
         wrapper.abi_returns = None;
+        wrapper.abi_params = None;
         wrapper.abi_args_lazy = false;
         body_id
     }
 
-    /// Materializes the ABI boundary for scalar arguments that stayed as
-    /// typed MIR arguments in the built phase.
-    fn inject_lazy_argument_checks(func: &mut Function) {
+    /// Materializes deferred ABI arguments and their validation checks.
+    fn inject_abi_prologue(
+        func: &mut Function,
+        abi_params: Option<&crate::mir::AbiParamLayout>,
+        lazy_args: bool,
+    ) {
         let arg_types: Vec<_> = func.params.iter().copied().collect();
-        if arg_types.is_empty() {
+        if arg_types.is_empty() && abi_params.is_none() {
             return;
         }
 
         let old_entry = BlockId::ENTRY;
+        let arg_uses = func.arg_uses();
+        let mut replacements = FxHashMap::default();
+        if let Some(layout) = abi_params {
+            let mut head_offset = 0_u64;
+            let mut logical_physical = Vec::with_capacity(layout.types.len());
+            for ty in &layout.types {
+                logical_physical.push(
+                    (!Self::is_supported_aggregate(ty))
+                        .then(|| crate::mir::ArgIdx::new((head_offset / 32) as usize)),
+                );
+                head_offset += ty.head_size();
+            }
+            let mut params = IndexVec::with_capacity((head_offset / 32) as usize);
+            for _ in 0..head_offset / 32 {
+                params.push(MirType::uint256());
+            }
+            func.set_params(params);
+            let values = logical_physical
+                .into_iter()
+                .map(|index| index.map(|index| func.alloc_arg(index)))
+                .collect::<Vec<_>>();
+            for (logical, value) in values.iter().enumerate() {
+                if let Some(value) = value {
+                    for &use_value in
+                        arg_uses.get(crate::mir::ArgIdx::new(logical)).into_iter().flatten()
+                    {
+                        replacements.insert(use_value, *value);
+                    }
+                }
+            }
+        }
         let mut builder = FunctionBuilder::new(func);
         let guard = builder.create_block();
         let revert = builder.create_block();
@@ -307,24 +348,55 @@ impl LowerAbiCx {
 
         builder.switch_to_block(current);
         let calldata_size = builder.calldatasize();
-        let required = builder.imm_u64(4 + (arg_types.len() as u64) * 32);
+        let head_size = abi_params.map_or((arg_types.len() as u64) * 32, AbiParamLayout::head_size);
+        let required = builder.imm_u64(4 + head_size);
         let short = builder.lt(calldata_size, required);
         let next = builder.create_block();
         builder.branch(short, revert, next);
         current = next;
 
-        for (index, ty) in arg_types.into_iter().enumerate() {
-            let Some(validator) = AbiWordValidator::from_mir_type(ty) else { continue };
-            builder.switch_to_block(current);
-            // `Value::Arg` values carry the canonicality invariant that this
-            // guard establishes. Read the raw calldata word here so an
-            // optimizer cannot fold the check away before it runs.
-            let offset = builder.imm_u64(4 + (index as u64) * 32);
-            let word = builder.calldataload(offset);
-            let valid = validator.condition(&mut builder, word);
-            let next = builder.create_block();
-            builder.branch(valid, next, revert);
-            current = next;
+        if lazy_args {
+            for (index, &ty) in arg_types.iter().enumerate() {
+                let Some(validator) = AbiWordValidator::from_mir_type(ty) else { continue };
+                builder.switch_to_block(current);
+                // `Value::Arg` values carry the canonicality invariant that this
+                // guard establishes. Read the raw calldata word here so an
+                // optimizer cannot fold the check away before it runs.
+                let offset = builder.imm_u64(4 + (index as u64) * 32);
+                let word = builder.calldataload(offset);
+                let valid = validator.condition(&mut builder, word);
+                let next = builder.create_block();
+                builder.branch(valid, next, revert);
+                current = next;
+            }
+        }
+
+        if let Some(layout) = abi_params {
+            let mut head_offset = 0;
+            for (index, ty) in layout.types.iter().enumerate() {
+                let arg_index = crate::mir::ArgIdx::new(index);
+                let uses = arg_uses.get(arg_index).map_or(&[][..], Vec::as_slice);
+                if uses.is_empty() {
+                    head_offset += ty.head_size();
+                    continue;
+                }
+                if !Self::is_supported_aggregate(ty) {
+                    head_offset += ty.head_size();
+                    continue;
+                }
+                let MirType::MemoryObject(_) =
+                    arg_types.get(index).copied().unwrap_or(MirType::Void)
+                else {
+                    head_offset += ty.head_size();
+                    continue;
+                };
+                let head = builder.imm_u64(4 + head_offset);
+                let value = Self::decode_aggregate_argument(&mut builder, ty, head, &mut current);
+                for &use_value in uses {
+                    replacements.insert(use_value, value);
+                }
+                head_offset += ty.head_size();
+            }
         }
 
         builder.switch_to_block(current);
@@ -334,10 +406,98 @@ impl LowerAbiCx {
         let zero = builder.imm_u64(0);
         builder.revert(zero, zero);
 
+        drop(builder);
+        func.replace_uses_canonicalized(&replacements);
         let order = std::iter::once(guard)
             .chain(func.blocks.indices().filter(|&block| block != guard))
             .collect::<Vec<_>>();
         crate::mir::utils::remap_block_order(func, &order);
+    }
+
+    fn decode_aggregate_argument(
+        builder: &mut FunctionBuilder<'_>,
+        ty: &crate::mir::AbiParamType,
+        head: ValueId,
+        current: &mut BlockId,
+    ) -> ValueId {
+        builder.switch_to_block(*current);
+        let base = if ty.is_dynamic() {
+            let offset = builder.calldataload(head);
+            let args_base = builder.imm_u64(4);
+            builder.add(args_base, offset)
+        } else {
+            head
+        };
+        match ty {
+            crate::mir::AbiParamType::FixedArray { element, len }
+                if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(_)) =>
+            {
+                let size = builder.imm_u64(len.saturating_mul(32));
+                let ptr = builder.alloc_object(
+                    size,
+                    crate::mir::MemoryObjectLayout::word_fixed_array(*len),
+                    crate::mir::AllocationSemantics::INTERNAL,
+                );
+                for index in 0..*len {
+                    let offset = builder.imm_u64(index * 32);
+                    let word_pos = builder.add(base, offset);
+                    let value = builder.calldataload(word_pos);
+                    if let crate::mir::AbiParamType::Scalar(scalar) = element.as_ref()
+                        && let Some(validator) = AbiWordValidator::from_mir_type(*scalar)
+                    {
+                        let valid = validator.condition(builder, value);
+                        let next = builder.create_block();
+                        let revert = builder.create_block();
+                        builder.branch(valid, next, revert);
+                        builder.switch_to_block(revert);
+                        let zero = builder.imm_u64(0);
+                        builder.revert(zero, zero);
+                        builder.switch_to_block(next);
+                        *current = next;
+                    }
+                    let elem_index = builder.imm_u64(index);
+                    let slot = builder.memory_object_element_addr(
+                        ptr,
+                        crate::mir::MemoryObjectLayout::word_fixed_array(*len),
+                        elem_index,
+                    );
+                    builder.mstore(slot, value);
+                }
+                ptr
+            }
+            crate::mir::AbiParamType::DynamicArray(element)
+                if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(_)) =>
+            {
+                let len = builder.calldataload(base);
+                let word = builder.imm_u64(32);
+                let bytes = builder.mul(len, word);
+                let total = builder.add(bytes, word);
+                let ptr = builder.alloc_object(
+                    total,
+                    crate::mir::MemoryObjectLayout::WORD_ARRAY,
+                    crate::mir::AllocationSemantics::INTERNAL,
+                );
+                builder.set_memory_object_len(ptr, len, crate::mir::MemoryObjectKind::DynamicArray);
+                let dst =
+                    builder.memory_object_data(ptr, crate::mir::MemoryObjectKind::DynamicArray);
+                let src = builder.add(base, word);
+                builder.calldatacopy(dst, src, bytes);
+                ptr
+            }
+            _ => builder.undef(MirType::MemoryObject(crate::mir::MemoryObjectKind::FixedArray)),
+        }
+    }
+
+    fn is_supported_aggregate(ty: &crate::mir::AbiParamType) -> bool {
+        matches!(
+            ty,
+            crate::mir::AbiParamType::FixedArray { element, .. }
+                if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(_))
+        ) || matches!(
+            ty,
+            crate::mir::AbiParamType::DynamicArray(element)
+                if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(_))
+        )
     }
 
     /// Prepends `if callvalue() != 0 { revert(0, 0) }` to a wrapper.

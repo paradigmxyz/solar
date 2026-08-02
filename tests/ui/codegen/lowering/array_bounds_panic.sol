@@ -91,8 +91,8 @@ contract ArrayBoundsPanic {
     }
 
     // CHECK-LABEL: fn @cdFix{{[( ]}}
-    // CHECK: {{v[0-9]+}} = lt arg3, 3
-    // CHECK: memory_object_element_addr memoryfixedarray<3, 1>, {{v[0-9]+}}, arg3
+    // CHECK: {{v[0-9]+}} = lt arg1, 3
+    // CHECK: memory_object_element_addr memoryfixedarray<3, 1>, arg0, arg1
     function cdFix(uint256[3] calldata x, uint256 i) public pure returns (uint256) {
         return x[i];
     }

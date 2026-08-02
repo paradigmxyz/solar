@@ -165,32 +165,18 @@ fn @cdDyn(arg0: calldataslice, arg1: u256) -> u256 [abi_returns=[word]] {
     ret v8
 }
 
-fn @cdFix(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 [abi_returns=[word]] {
+fn @cdFix(arg0: memoryfixedarray, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 128
-    jumpi v2, bb1, bb2
+    v0 = lt arg1, 3
+    jumpi v0, bb2, bb1
   bb1:
-    revert 0, 0
-  bb2:
-    v3 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v4 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 0
-    mstore v4, arg0
-    v5 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 1
-    mstore v5, arg1
-    v6 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 2
-    mstore v6, arg2
-    v7 = lt arg3, 3
-    jumpi v7, bb4, bb3
-  bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    v8 = memory_object_element_addr memoryfixedarray<3, 1>, v3, arg3
-    v9 = mload v8
-    ret v9
+  bb2:
+    v1 = memory_object_element_addr memoryfixedarray<3, 1>, arg0, arg1
+    v2 = mload v1
+    ret v2
 }
 
 fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [abi_returns=[word]] {

@@ -1,6 +1,6 @@
 //! Semantic ABI layout descriptors used by MIR encoding operations.
 
-use super::SliceLocation;
+use super::{MirType, SliceLocation};
 use std::{fmt, sync::Arc};
 
 /// An interned ABI tuple layout.
@@ -32,6 +32,76 @@ impl AbiLayout {
 
 /// Shared reference returned by the module ABI-layout interner.
 pub(crate) type AbiLayoutRef = Arc<AbiLayout>;
+
+/// ABI input shape retained until the ABI lowering phase.
+///
+/// Unlike [`AbiType`], scalar leaves keep their MIR type so the ABI phase can
+/// validate narrow words before it stores them in an aggregate object.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct AbiParamLayout {
+    /// Types encoded as one ABI tuple.
+    pub types: Box<[AbiParamType]>,
+}
+
+impl AbiParamLayout {
+    /// Creates an input tuple layout.
+    #[must_use]
+    pub(crate) fn new(types: impl Into<Box<[AbiParamType]>>) -> Self {
+        Self { types: types.into() }
+    }
+
+    /// Returns the tuple head size in bytes.
+    #[must_use]
+    pub(crate) fn head_size(&self) -> u64 {
+        self.types.iter().map(AbiParamType::head_size).sum()
+    }
+}
+
+/// ABI input shape with scalar type information for decoding.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum AbiParamType {
+    /// A scalar encoded as one word.
+    Scalar(MirType),
+    /// A dynamic byte string.
+    Bytes,
+    /// A dynamic array.
+    DynamicArray(Box<Self>),
+    /// A fixed-size array.
+    FixedArray {
+        /// Array element layout.
+        element: Box<Self>,
+        /// Number of elements.
+        len: u64,
+    },
+    /// A struct or tuple.
+    Tuple(Box<[Self]>),
+}
+
+impl AbiParamType {
+    /// Returns whether the ABI value occupies an offset in its containing head.
+    #[must_use]
+    pub(crate) fn is_dynamic(&self) -> bool {
+        match self {
+            Self::Scalar(_) => false,
+            Self::Bytes | Self::DynamicArray(_) => true,
+            Self::FixedArray { element, .. } => element.is_dynamic(),
+            Self::Tuple(fields) => fields.iter().any(Self::is_dynamic),
+        }
+    }
+
+    /// Returns the size occupied by this value in its containing tuple head.
+    #[must_use]
+    pub(crate) fn head_size(&self) -> u64 {
+        if self.is_dynamic() {
+            return 32;
+        }
+        match self {
+            Self::FixedArray { element, len } => element.head_size() * len,
+            Self::Tuple(fields) => fields.iter().map(Self::head_size).sum(),
+            _ => 32,
+        }
+    }
+}
 
 /// The ABI-relevant shape and source representation of one value.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

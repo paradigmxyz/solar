@@ -871,9 +871,9 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Returns whether an external function can keep its ABI boundary out of
-    /// built MIR. Scalar words and storage references already have a direct
-    /// MIR representation; aggregates still use the legacy decode path until
-    /// the ABI pass grows typed aggregate decoding.
+    /// built MIR. Scalar words, storage references, and simple word aggregates
+    /// already have a direct MIR representation; nested aggregates still use
+    /// the legacy HIR-aware decoder.
     fn can_defer_external_abi(&self, func_id: hir::FunctionId) -> bool {
         self.gcx
             .hir
@@ -900,6 +900,16 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::Enum(_) => false,
             _ => false,
         }
+    }
+
+    /// Returns whether an aggregate parameter can stay typed until `lower-abi`.
+    ///
+    /// The first aggregate slice uses the existing word-array representation;
+    /// nested aggregates still use the legacy HIR-aware decoder.
+    fn can_defer_external_abi_param(&self, param_id: VariableId) -> bool {
+        !self.param_is_storage_ref(param_id)
+            && (self.fixed_word_array_param(param_id).is_some()
+                || self.is_dyn_word_array_memory_param(param_id))
     }
 
     /// Lowers a function to MIR.
@@ -1099,6 +1109,15 @@ impl<'gcx> Lowerer<'gcx> {
             || mir_func.attributes.is_fallback;
         let uses_external_abi = mir_func.is_public() && !is_special && !force_internal;
         let defer_external_abi = uses_external_abi && self.can_defer_external_abi(func_id);
+        let has_deferred_aggregate_params = uses_external_abi
+            && hir_func
+                .parameters
+                .iter()
+                .any(|&param_id| self.can_defer_external_abi_param(param_id))
+            && hir_func.parameters.iter().all(|&param_id| {
+                self.can_defer_external_abi_ty(self.gcx.type_of_item(param_id.into()))
+                    || self.can_defer_external_abi_param(param_id)
+            });
         let decodes_abi_params =
             (uses_external_abi && !defer_external_abi) || mir_func.attributes.is_constructor;
         if uses_external_abi {
@@ -1122,6 +1141,7 @@ impl<'gcx> Lowerer<'gcx> {
             external_arg_head_size,
             external_static_return_size,
             return_layout,
+            param_layout,
         } = function_abi;
 
         self.locals.clear();
@@ -1135,6 +1155,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.in_unchecked_block = false;
         self.current_return_tys = current_return_tys;
         mir_func.abi_returns = return_layout;
+        mir_func.abi_params = if has_deferred_aggregate_params { param_layout } else { None };
         mir_func.abi_args_lazy = defer_external_abi;
 
         // Pre-analyze function body to find variables that are assigned after declaration.
@@ -1146,7 +1167,7 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let mut builder = FunctionBuilder::new(&mut mir_func);
 
-            if uses_external_abi && !defer_external_abi {
+            if uses_external_abi && !defer_external_abi && !has_deferred_aggregate_params {
                 Self::emit_external_calldata_head_size_check(&mut builder, external_arg_head_size);
             }
 
@@ -1169,6 +1190,8 @@ impl<'gcx> Lowerer<'gcx> {
                 } else {
                     self.lower_type_from_var(param_id)
                 };
+                let defer_aggregate_abi =
+                    uses_external_abi && self.can_defer_external_abi_param(param_id);
 
                 // Check if this is a struct parameter that needs special handling
                 let abi_param_source = if self.lowering_constructor {
@@ -1181,6 +1204,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // `storage` — legal for library functions) travel as their slot:
                 // one plain word, never field-expanded from calldata.
                 if decodes_abi_params
+                    && !defer_aggregate_abi
                     && !self.param_is_storage_ref(param_id)
                     && matches!(param_ty.peel_refs().kind, TyKind::Struct(_))
                     && self.abi_is_dynamic(param_ty)
@@ -1206,6 +1230,7 @@ impl<'gcx> Lowerer<'gcx> {
                         self.materialize_calldata_value_at(&mut builder, source, param_ty, base);
                     self.bind_param_value_deferred(param_id, struct_ptr, &mut deferred_param_slots);
                 } else if decodes_abi_params
+                    && !defer_aggregate_abi
                     && !self.param_is_storage_ref(param_id)
                     && let TyKind::Struct(struct_id) = param_ty.peel_refs().kind
                 {
@@ -1343,6 +1368,7 @@ impl<'gcx> Lowerer<'gcx> {
                     // Store the memory pointer as the local (not the Arg value)
                     self.bind_param_value_deferred(param_id, struct_ptr, &mut deferred_param_slots);
                 } else if decodes_abi_params
+                    && !defer_aggregate_abi
                     && !self.param_is_storage_ref(param_id)
                     && let Some((elem_ty, len)) = self.fixed_word_array_param(param_id)
                 {
@@ -1372,7 +1398,10 @@ impl<'gcx> Lowerer<'gcx> {
                         builder.mstore(elem_addr, elem_val);
                     }
                     self.bind_param_value_deferred(param_id, array_ptr, &mut deferred_param_slots);
-                } else if decodes_abi_params && self.is_dyn_word_array_memory_param(param_id) {
+                } else if decodes_abi_params
+                    && !defer_aggregate_abi
+                    && self.is_dyn_word_array_memory_param(param_id)
+                {
                     // Dynamic array of word elements in memory: the ABI head is
                     // an offset to `[length][elements...]` in the ABI argument
                     // blob. Runtime calls read it from calldata after the
@@ -1408,6 +1437,7 @@ impl<'gcx> Lowerer<'gcx> {
                     }
                     self.bind_param_value_deferred(param_id, array_ptr, &mut deferred_param_slots);
                 } else if decodes_abi_params
+                    && !defer_aggregate_abi
                     && param.data_location == Some(solar_ast::DataLocation::Memory)
                     && matches!(
                         param_ty.peel_refs().kind,
@@ -1455,7 +1485,7 @@ impl<'gcx> Lowerer<'gcx> {
                     // Non-struct parameters: use normal Arg handling
                     let arg_index = builder.func().params.len() as u64;
                     let head_or_value = builder.add_param(ty);
-                    if decodes_abi_params {
+                    if decodes_abi_params && !defer_aggregate_abi {
                         self.emit_abi_param_validation(
                             &mut builder,
                             arg_index,

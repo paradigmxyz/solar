@@ -10,7 +10,7 @@ pub(crate) use types::{
 };
 
 mod abi;
-pub(crate) use abi::{AbiLayout, AbiLayoutRef, AbiType};
+pub(crate) use abi::{AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamType, AbiType};
 
 mod storage;
 pub use storage::{StorageField, StorageLayout, StorageLayoutRef};

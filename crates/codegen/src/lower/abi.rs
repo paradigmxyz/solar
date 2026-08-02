@@ -1,7 +1,7 @@
 //! ABI type shapes and function-boundary metadata for HIR lowering.
 
 use super::Lowerer;
-use crate::mir::{AbiLayout, AbiLayoutRef, AbiType, SliceLocation};
+use crate::mir::{AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamType, AbiType, SliceLocation};
 use solar_ast::ElementaryType;
 use solar_data_structures::map::FxHashSet;
 use solar_interface::diagnostics::ErrorGuaranteed;
@@ -11,12 +11,14 @@ use solar_sema::{
 };
 
 /// ABI metadata prepared while lowering one HIR function. The body lowerer
-/// consumes the return types; the later `lower-abi` phase consumes the layout.
+/// consumes the return types; the later `lower-abi` phase consumes the input
+/// and output layouts.
 pub(super) struct FunctionAbi<'gcx> {
     pub(super) return_types: Vec<Ty<'gcx>>,
     pub(super) external_arg_head_size: u64,
     pub(super) external_static_return_size: u64,
     pub(super) return_layout: Option<AbiLayoutRef>,
+    pub(super) param_layout: Option<AbiParamLayout>,
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -53,11 +55,59 @@ impl<'gcx> Lowerer<'gcx> {
             None
         };
 
+        let param_layout = if uses_external_abi {
+            let types = parameters
+                .iter()
+                .map(|&id| self.abi_param_type(self.gcx.type_of_item(id.into())))
+                .collect::<Option<Vec<_>>>()
+                .ok_or_else(|| self.abi_type_error())?;
+            Some(AbiParamLayout::new(types))
+        } else {
+            None
+        };
+
         Ok(FunctionAbi {
             return_types,
             external_arg_head_size,
             external_static_return_size,
             return_layout,
+            param_layout,
+        })
+    }
+
+    fn abi_param_type(&self, ty: Ty<'gcx>) -> Option<AbiParamType> {
+        let ty = ty.peel_refs();
+        Some(match ty.kind {
+            TyKind::Mapping(..) | TyKind::Ref(_, solar_ast::DataLocation::Storage) => {
+                AbiParamType::Scalar(self.lower_type_from_ty(ty))
+            }
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                AbiParamType::Bytes
+            }
+            TyKind::DynArray(element) | TyKind::Slice(element) => {
+                AbiParamType::DynamicArray(Box::new(self.abi_param_type(element)?))
+            }
+            TyKind::Array(element, len) => AbiParamType::FixedArray {
+                element: Box::new(self.abi_param_type(element)?),
+                len: u64::try_from(len).ok()?,
+            },
+            TyKind::Struct(id) => AbiParamType::Tuple(
+                self.gcx
+                    .struct_field_types(id)
+                    .iter()
+                    .map(|&field| self.abi_param_type(field))
+                    .collect::<Option<Vec<_>>>()?
+                    .into(),
+            ),
+            TyKind::Tuple(fields) => AbiParamType::Tuple(
+                fields
+                    .iter()
+                    .map(|&field| self.abi_param_type(field))
+                    .collect::<Option<Vec<_>>>()?
+                    .into(),
+            ),
+            TyKind::Udvt(inner, _) => return self.abi_param_type(inner),
+            _ => AbiParamType::Scalar(self.lower_type_from_ty(ty)),
         })
     }
 
