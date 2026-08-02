@@ -84,6 +84,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         | InstKind::MemoryObjectLoadElement { .. }
                         | InstKind::MemoryObjectStoreElement { .. }
                         | InstKind::MemoryObjectCopyFromSlice { .. }
+                        | InstKind::MemoryObjectCopy { .. }
                         | InstKind::Keccak256Bytes(_)
                         | InstKind::Alloc { kind: AllocationKind::Object(_), .. }
                 )
@@ -248,6 +249,24 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         }
                     };
                     builder.func_mut().inst_mut(inst).kind = physical;
+                    stats.accesses += 1;
+                }
+                InstKind::MemoryObjectCopy {
+                    destination,
+                    destination_kind,
+                    source,
+                    source_kind,
+                    length,
+                } => {
+                    let destination = offset_address(
+                        &mut builder,
+                        destination,
+                        P::object_data_offset(destination_kind),
+                    );
+                    let source =
+                        offset_address(&mut builder, source, P::object_data_offset(source_kind));
+                    builder.func_mut().inst_mut(inst).kind =
+                        InstKind::MCopy(destination, source, length);
                     stats.accesses += 1;
                 }
                 _ => {}

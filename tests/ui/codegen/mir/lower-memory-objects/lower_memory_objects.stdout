@@ -51,3 +51,13 @@
       stop
   }
   
+- fn @copy_object(arg0: memorybytes, arg1: memorybytes, arg2: u256) {
++ fn @copy_object(arg0: memptr, arg1: memptr, arg2: u256) {
+    bb0:
+-     memory_object_copy memorybytes, arg0, memorybytes, arg1, arg2
++     v0 = add arg0, 32
++     v1 = add arg1, 32
++     mcopy v0, v1, arg2
+      stop
+  }
+  

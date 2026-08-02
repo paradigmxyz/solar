@@ -408,6 +408,19 @@ fn display_inst_kind<'a>(
             display_val(*object, func),
             display_val(*source, func)
         ),
+        InstKind::MemoryObjectCopy {
+            destination,
+            destination_kind,
+            source,
+            source_kind,
+            length,
+        } => write!(
+            f,
+            "memory_object_copy {destination_kind}, {}, {source_kind}, {}, {}",
+            display_val(*destination, func),
+            display_val(*source, func),
+            display_val(*length, func)
+        ),
         InstKind::StorageArrayElementSlot { slot, index, element_slots } => write!(
             f,
             "storage_array_element_slot {}, {}, {element_slots}",

@@ -1529,6 +1529,29 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let source = self.parse_value(builder)?;
                 (InstKind::MemoryObjectCopyFromSlice { object, kind, source }, None)
             }
+            sym::memory_object_copy => {
+                let destination_name = self.parser.parse_ident()?;
+                let destination_kind = self.parse_memory_object_layout(destination_name)?.kind();
+                self.parser.expect(TokenKind::Comma)?;
+                let destination = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let source_name = self.parser.parse_ident()?;
+                let source_kind = self.parse_memory_object_layout(source_name)?.kind();
+                self.parser.expect(TokenKind::Comma)?;
+                let source = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let length = self.parse_value(builder)?;
+                (
+                    InstKind::MemoryObjectCopy {
+                        destination,
+                        destination_kind,
+                        source,
+                        source_kind,
+                        length,
+                    },
+                    None,
+                )
+            }
 
             // Semantic ABI encoding.
             sym::abi_encode => {

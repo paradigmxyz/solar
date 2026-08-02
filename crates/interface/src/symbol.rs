@@ -1052,6 +1052,7 @@ symbols! {
         memory_bytes,
         memory_dash_lowered: "memory-lowered",
         memory_dash_safe: "memory-safe",
+        memory_object_copy,
         memory_object_copy_from_slice,
         memory_object_data,
         memory_object_element_addr,

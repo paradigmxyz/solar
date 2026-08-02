@@ -472,6 +472,24 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::MemoryObjectCopyFromSlice { object, kind, source });
     }
 
+    /// Copies a byte range between two dynamic memory objects.
+    pub(crate) fn memory_object_copy(
+        &mut self,
+        destination: ValueId,
+        destination_kind: crate::mir::MemoryObjectKind,
+        source: ValueId,
+        source_kind: crate::mir::MemoryObjectKind,
+        length: ValueId,
+    ) {
+        self.emit_void_inst(InstKind::MemoryObjectCopy {
+            destination,
+            destination_kind,
+            source,
+            source_kind,
+            length,
+        });
+    }
+
     fn alloc_kind(
         &mut self,
         size: ValueId,

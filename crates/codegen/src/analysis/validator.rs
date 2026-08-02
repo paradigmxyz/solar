@@ -668,6 +668,7 @@ impl<'a> Validator<'a> {
                             | InstKind::MemoryObjectLoadElement { .. }
                             | InstKind::MemoryObjectStoreElement { .. }
                             | InstKind::MemoryObjectCopyFromSlice { .. }
+                            | InstKind::MemoryObjectCopy { .. }
                             | InstKind::FrameLoad { .. }
                             | InstKind::FrameStore { .. }
                             | InstKind::Keccak256Bytes(_)

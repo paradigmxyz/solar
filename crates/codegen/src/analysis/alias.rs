@@ -738,6 +738,9 @@ impl AliasAnalysis {
             InstKind::MemoryObjectCopyFromSlice { object, source, .. } => {
                 operand != *object && operand != *source
             }
+            InstKind::MemoryObjectCopy { destination, source, length, .. } => {
+                operand != *destination && operand != *source && operand != *length
+            }
             InstKind::MCopy(dest, source, _)
             | InstKind::StorageToMemory { memory: dest, storage: source, .. } => {
                 operand != *dest && operand != *source
@@ -947,6 +950,10 @@ impl AliasAnalysis {
                 ) {
                     effects.read_any(AddressSpace::Memory);
                 }
+                effects.write_any(AddressSpace::Memory);
+            }
+            InstKind::MemoryObjectCopy { .. } => {
+                effects.read_any(AddressSpace::Memory);
                 effects.write_any(AddressSpace::Memory);
             }
             InstKind::Alloc { size, semantics, .. } => {

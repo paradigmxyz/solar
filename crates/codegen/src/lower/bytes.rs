@@ -918,13 +918,17 @@ impl<'gcx> Lowerer<'gcx> {
         let ptr = self.allocate_memory_object_dynamic(builder, total, MemoryObjectKind::Bytes);
         builder.set_memory_object_len(ptr, new_len, MemoryObjectKind::Bytes);
 
-        let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let last_word_off = builder.sub(data_size, word);
         let last_word_index = builder.div(last_word_off, word);
         builder.memory_object_store_element(ptr, MemoryObjectLayout::Bytes, last_word_index, zero);
 
-        let src_data = builder.memory_object_data(src, MemoryObjectKind::Bytes);
-        builder.mcopy(data, src_data, copy_len);
+        builder.memory_object_copy(
+            ptr,
+            MemoryObjectKind::Bytes,
+            src,
+            MemoryObjectKind::Bytes,
+            copy_len,
+        );
         ptr
     }
 

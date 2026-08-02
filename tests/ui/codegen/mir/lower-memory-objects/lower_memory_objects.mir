@@ -35,3 +35,11 @@ fn @copy_from_slice(arg0: memorybytes, arg1: memoryslice, arg2: calldataslice, a
     memory_object_copy_from_slice memorybytes, arg0, arg3
     stop
 }
+
+// CHECK-LABEL: {{^[ +].*}}fn @copy_object{{[( ]}}
+// CHECK: + mcopy [[OBJECT_DEST:v[0-9]+]], [[OBJECT_SOURCE:v[0-9]+]], [[COPY_LEN:(v|arg)[0-9]+]]
+fn @copy_object(arg0: memorybytes, arg1: memorybytes, arg2: u256) {
+  bb0:
+    memory_object_copy memorybytes, arg0, memorybytes, arg1, arg2
+    stop
+}

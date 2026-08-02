@@ -671,6 +671,19 @@ pub(crate) enum InstKind {
         /// Source logical slice.
         source: ValueId,
     },
+    /// Copy a byte range between two dynamic memory objects.
+    MemoryObjectCopy {
+        /// Destination memory object reference.
+        destination: ValueId,
+        /// Destination memory object kind.
+        destination_kind: MemoryObjectKind,
+        /// Source memory object reference.
+        source: ValueId,
+        /// Source memory object kind.
+        source_kind: MemoryObjectKind,
+        /// Number of bytes to copy.
+        length: ValueId,
+    },
     /// ABI-encode values into a freshly allocated memory slice.
     AbiEncode {
         /// Optional left-aligned four-byte selector prefix.
@@ -1029,6 +1042,12 @@ impl InstKind {
                 out.push(*source);
             }
 
+            Self::MemoryObjectCopy { destination, source, length, .. } => {
+                out.push(*destination);
+                out.push(*source);
+                out.push(*length);
+            }
+
             Self::StorageToMemory { storage, memory, .. }
             | Self::MemoryToStorage { memory, storage, .. } => {
                 out.push(*storage);
@@ -1254,6 +1273,12 @@ impl InstKind {
                 f(source);
             }
 
+            Self::MemoryObjectCopy { destination, source, length, .. } => {
+                f(destination);
+                f(source);
+                f(length);
+            }
+
             Self::StorageToMemory { storage, memory, .. }
             | Self::MemoryToStorage { memory, storage, .. } => {
                 f(storage);
@@ -1439,6 +1464,7 @@ impl InstKind {
             Self::MemoryObjectLoadElement { .. } => "memory_object_load_element",
             Self::MemoryObjectStoreElement { .. } => "memory_object_store_element",
             Self::MemoryObjectCopyFromSlice { .. } => "memory_object_copy_from_slice",
+            Self::MemoryObjectCopy { .. } => "memory_object_copy",
             Self::AbiEncode { .. } => "abi_encode",
             Self::StorageToMemory { .. } => "storage_to_memory",
             Self::MemoryToStorage { .. } => "memory_to_storage",
@@ -1535,6 +1561,7 @@ impl InstKind {
             | Self::MemoryObjectStoreField { .. }
             | Self::MemoryObjectStoreElement { .. }
             | Self::MemoryObjectCopyFromSlice { .. }
+            | Self::MemoryObjectCopy { .. }
             | Self::AbiEncode { .. }
             | Self::StorageToMemory { .. }
             | Self::MCopy(_, _, _)
@@ -1577,6 +1604,7 @@ impl InstKind {
             | Self::MemoryObjectStoreField { .. }
             | Self::MemoryObjectStoreElement { .. }
             | Self::MemoryObjectCopyFromSlice { .. }
+            | Self::MemoryObjectCopy { .. }
             | Self::AbiEncode { .. }
             | Self::StorageToMemory { .. }
             | Self::MCopy(_, _, _)
