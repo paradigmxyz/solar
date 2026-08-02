@@ -154,6 +154,7 @@ struct LoopTargets {
     continue_states: Vec<LoopState>,
 }
 
+#[derive(Clone)]
 struct LoopState {
     block: BlockId,
     values: FxHashMap<VariableId, ValueId>,
@@ -1176,10 +1177,15 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
         }
     }
 
-    fn lower_loop(&mut self, block: hir::Block<'_>, _source: LoopSource) -> Option<()> {
+    fn lower_loop(&mut self, block: hir::Block<'_>, source: LoopSource<'_>) -> Option<()> {
+        let update_stmt = match source {
+            LoopSource::For { update } => update,
+            LoopSource::While | LoopSource::DoWhile => None,
+        };
         let preheader = self.builder.current_block();
         let header = self.builder.create_block();
         let exit = self.builder.create_block();
+        let update = update_stmt.map(|_| self.builder.create_block());
         self.builder.jump(header);
         self.builder.switch_to_block(header);
         let before_values = self.values.clone();
@@ -1191,7 +1197,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
             header_values.insert(id, phi);
             header_phis.insert(id, phi);
         }
-        self.values = header_values;
+        self.values = header_values.clone();
         let mut header_storage_refs = before_storage_refs.clone();
         for (&id, &access) in &before_storage_refs {
             let slot = self.builder.phi(vec![(preheader, access.slot)]);
@@ -1201,27 +1207,75 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
         self.storage_refs = header_storage_refs.clone();
         self.loops.push(LoopTargets {
             break_block: exit,
-            continue_block: header,
+            continue_block: update.unwrap_or(header),
             break_states: Vec::new(),
             continue_states: Vec::new(),
         });
-        self.lower_block(block)?;
-        let normal_state = (!self.is_terminated()).then(|| LoopState {
-            block: self.builder.current_block(),
-            values: self.values.clone(),
-            storage_refs: self.storage_refs.clone(),
-        });
-        if normal_state.is_some() {
-            self.builder.jump(header);
-        }
+        let update_state = if let Some(update_stmt) = update_stmt {
+            self.lower_block(block)?;
+            let normal_state = (!self.is_terminated()).then(|| LoopState {
+                block: self.builder.current_block(),
+                values: self.values.clone(),
+                storage_refs: self.storage_refs.clone(),
+            });
+            if normal_state.is_some() {
+                self.builder.jump(update.expect("for loop update block"));
+            }
+
+            let mut update_states = Vec::with_capacity(
+                usize::from(normal_state.is_some())
+                    + self.loops.last().expect("loop target exists").continue_states.len(),
+            );
+            if let Some(state) = normal_state {
+                update_states.push(state);
+            }
+            update_states.extend(
+                self.loops.last().expect("loop target exists").continue_states.iter().cloned(),
+            );
+
+            if update_states.is_empty() {
+                None
+            } else {
+                self.builder.switch_to_block(update.expect("for loop update block"));
+                self.values = self.merge_loop_values(
+                    header_values.clone(),
+                    &update_states,
+                    &FxHashMap::default(),
+                );
+                self.storage_refs =
+                    self.merge_loop_storage_refs(header_storage_refs.clone(), &update_states);
+                self.lower_stmt(update_stmt)?;
+                let update_state = (!self.is_terminated()).then(|| LoopState {
+                    block: self.builder.current_block(),
+                    values: self.values.clone(),
+                    storage_refs: self.storage_refs.clone(),
+                });
+                if update_state.is_some() {
+                    self.builder.jump(header);
+                }
+                update_state
+            }
+        } else {
+            self.lower_block(block)?;
+            let normal_state = (!self.is_terminated()).then(|| LoopState {
+                block: self.builder.current_block(),
+                values: self.values.clone(),
+                storage_refs: self.storage_refs.clone(),
+            });
+            if normal_state.is_some() {
+                self.builder.jump(header);
+            }
+            normal_state
+        };
         let loop_targets = self.loops.pop().expect("loop target exists");
-        if let Some(state) = &normal_state {
+        if let Some(state) = &update_state {
             self.add_loop_phi_incoming(&header_phis, state);
             self.add_loop_storage_phi_incoming(&header_storage_refs, state);
-        }
-        for state in &loop_targets.continue_states {
-            self.add_loop_phi_incoming(&header_phis, state);
-            self.add_loop_storage_phi_incoming(&header_storage_refs, state);
+        } else if update_stmt.is_none() {
+            for state in &loop_targets.continue_states {
+                self.add_loop_phi_incoming(&header_phis, state);
+                self.add_loop_storage_phi_incoming(&header_storage_refs, state);
+            }
         }
         self.builder.switch_to_block(exit);
         self.values =

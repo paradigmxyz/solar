@@ -1285,13 +1285,10 @@ impl<'gcx> ResolveContext<'gcx> {
                 this.in_yul_scope(|this| this.lower_yul_stmts(for_.body.stmts, for_.body.span));
             let builder = this.hir_builder();
 
-            let step_stmt = builder.stmt(hir::StmtKind::Block(step), step.span);
+            let step_stmt = this.arena.alloc(builder.stmt(hir::StmtKind::Block(step), step.span));
             let body = builder.stmt(
                 hir::StmtKind::Block(builder.block(
-                    this.arena.alloc_array([
-                        builder.stmt(hir::StmtKind::Block(body), body.span),
-                        step_stmt,
-                    ]),
+                    this.arena.alloc_array([builder.stmt(hir::StmtKind::Block(body), body.span)]),
                     for_.body.span,
                 )),
                 for_.body.span,
@@ -1304,7 +1301,7 @@ impl<'gcx> ResolveContext<'gcx> {
             let loop_stmt = builder.stmt(
                 hir::StmtKind::Loop(
                     builder.block(this.arena.alloc_as_slice(loop_body), for_.body.span),
-                    hir::LoopSource::For,
+                    hir::LoopSource::For { update: Some(step_stmt) },
                 ),
                 for_.body.span,
             );
@@ -1654,18 +1651,9 @@ impl<'gcx> ResolveContext<'gcx> {
                         this.in_scope_if(next.is_some(), |this| this.lower_stmt_full(body));
                     let next = this.lower_expr_opt(next.as_deref());
                     let builder = this.hir_builder();
-
-                    // <body> = { <body>; <next>; }
-                    if let Some(next) = next {
-                        let next = builder.stmt(hir::StmtKind::Expr(next), next.span);
-                        let body_span = body.span;
-                        body = builder.stmt(
-                            hir::StmtKind::Block(
-                                builder.block(this.arena.alloc_array([body, next]), span),
-                            ),
-                            body_span,
-                        );
-                    }
+                    let update: Option<&'gcx hir::Stmt<'gcx>> = next.map(|next| {
+                        &*this.arena.alloc(builder.stmt(hir::StmtKind::Expr(next), next.span))
+                    });
 
                     // <body> = if (<cond>) { <body> } else break;
                     if let Some(cond) = cond {
@@ -1679,7 +1667,7 @@ impl<'gcx> ResolveContext<'gcx> {
 
                     let mut kind = hir::StmtKind::Loop(
                         builder.block(this.arena.alloc_as_slice(body), span),
-                        hir::LoopSource::For,
+                        hir::LoopSource::For { update },
                     );
 
                     if let Some(init) = init {
