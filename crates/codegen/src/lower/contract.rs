@@ -20,6 +20,22 @@ pub(super) fn lower(
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
     let storage = StorageLayout::for_contract(gcx, contract_id);
+    let mut immutable_ids = FxHashMap::default();
+    for &base in contract.linearized_bases.iter().rev() {
+        for id in gcx.hir.contract(base).variables() {
+            let variable = gcx.hir.variable(id);
+            if !variable.is_state_variable() || !variable.is_immutable() {
+                continue;
+            }
+            let Some(name) = variable.name else { continue };
+            let mir_id = module.add_immutable(
+                name,
+                TypeLowerer::mir_type(gcx.type_of_item(id.into())),
+                Some(id),
+            );
+            immutable_ids.insert(id, mir_id);
+        }
+    }
 
     let mut function_ids = Vec::new();
     let mut seen_selectors = FxHashSet::default();
@@ -106,6 +122,7 @@ pub(super) fn lower(
             function_id,
             expose_selector,
             &mir_ids,
+            &immutable_ids,
             child_bytecodes,
             &mut invalid_event_topics,
         ) else {
@@ -131,6 +148,7 @@ pub(super) fn lower(
             &storage,
             contract_id,
             &mir_ids,
+            &immutable_ids,
             child_bytecodes,
             &mut invalid_event_topics,
         ) else {

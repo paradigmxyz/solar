@@ -4,49 +4,32 @@ immutables:
   start: u256
   duration: u256
 
-fn @start() -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @start() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = loadimmutable start
     ret v0
 }
 
-fn @duration() -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @duration() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = loadimmutable duration
     ret v0
 }
 
-fn @_anonymous(arg0: u256) [abi_args=lazy, abi_params=[u256]] {
+fn @_anonymous(arg0: u256) {
   bb0:
     storeimmutable start, arg0
     v0 = loadimmutable start
     v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
-  bb1:
-    tail_call @__panic_11
-  bb2:
     storeimmutable duration, v1
     stop
 }
 
-fn @__panic_11() {
-  bb0:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-}
-
-fn @end() -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @end() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = loadimmutable start
     v1 = loadimmutable duration
     v2 = add v0, v1
-    v3 = lt v2, v0
-    jumpi v3, bb1, bb2
-  bb1:
-    tail_call @__panic_11
-  bb2:
     ret v2
 }
 

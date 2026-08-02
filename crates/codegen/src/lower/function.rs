@@ -9,8 +9,8 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         AbiLayout, AbiParamLayout, AbiType, AllocationSemantics, BlockId, Function,
-        FunctionBuilder, FunctionId, MemoryObjectKind, MemoryObjectLayout, MirType, Module,
-        SliceLocation, ValueId,
+        FunctionBuilder, FunctionId, ImmutableId, MemoryObjectKind, MemoryObjectLayout, MirType,
+        Module, SliceLocation, ValueId,
     },
 };
 use alloy_primitives::{Bytes, U256, keccak256};
@@ -35,6 +35,7 @@ pub(super) fn lower(
     id: hir::FunctionId,
     expose_selector: bool,
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
+    immutable_ids: &FxHashMap<VariableId, ImmutableId>,
     child_bytecodes: &FxHashMap<hir::ContractId, Bytes>,
     invalid_event_topics: &mut FxHashSet<hir::EventId>,
 ) -> Option<Function> {
@@ -74,6 +75,7 @@ pub(super) fn lower(
         storage,
         contract_id,
         function_ids,
+        immutable_ids,
         child_bytecodes,
         invalid_event_topics,
         &mut mir,
@@ -102,6 +104,7 @@ pub(super) fn lower_synthetic_constructor(
     storage: &StorageLayout,
     contract_id: hir::ContractId,
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
+    immutable_ids: &FxHashMap<VariableId, ImmutableId>,
     child_bytecodes: &FxHashMap<hir::ContractId, Bytes>,
     invalid_event_topics: &mut FxHashSet<hir::EventId>,
 ) -> Option<Function> {
@@ -113,6 +116,7 @@ pub(super) fn lower_synthetic_constructor(
         storage,
         contract_id,
         function_ids,
+        immutable_ids,
         child_bytecodes,
         invalid_event_topics,
         &mut mir,
@@ -135,6 +139,7 @@ struct FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events> {
     storage: &'mir StorageLayout,
     contract_id: hir::ContractId,
     function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
+    immutable_ids: &'ids FxHashMap<VariableId, ImmutableId>,
     child_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
     invalid_event_topics: &'events mut FxHashSet<hir::EventId>,
     builder: FunctionBuilder<'mir>,
@@ -204,6 +209,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
         storage: &'mir StorageLayout,
         contract_id: hir::ContractId,
         function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
+        immutable_ids: &'ids FxHashMap<VariableId, ImmutableId>,
         child_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
         invalid_event_topics: &'events mut FxHashSet<hir::EventId>,
         function: &'mir mut Function,
@@ -213,6 +219,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
             storage,
             contract_id,
             function_ids,
+            immutable_ids,
             child_bytecodes,
             invalid_event_topics,
             builder: FunctionBuilder::new(function),
@@ -260,15 +267,16 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
         for &base in contract.linearized_bases.iter().rev() {
             for id in self.gcx.hir.contract(base).variables() {
                 let variable = self.gcx.hir.variable(id);
-                if !variable.is_state_variable()
-                    || variable.is_constant()
-                    || variable.is_immutable()
-                {
+                if !variable.is_state_variable() || variable.is_constant() {
                     continue;
                 }
                 let Some(initializer) = variable.initializer else { continue };
                 let value = self.lower_expr(initializer)?;
-                self.store_state_variable(id, value, initializer.span)?;
+                if let Some(&immutable_id) = self.immutable_ids.get(&id) {
+                    self.builder.store_immutable(immutable_id, value);
+                } else {
+                    self.store_state_variable(id, value, initializer.span)?;
+                }
             }
         }
         Some(())
@@ -5200,6 +5208,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
         if let Some(value) = self.values.get(&id).copied() {
             return Some(value);
         }
+        if let Some(&immutable_id) = self.immutable_ids.get(&id) {
+            let ty = self.gcx.type_of_item(id.into());
+            return Some(
+                self.builder.load_immutable(immutable_id, types::TypeLowerer::mir_type(ty)),
+            );
+        }
         if let Some(access) = self.storage_refs.get(&id).copied() {
             let ty = self.gcx.type_of_item(id.into());
             if ty.is_ref_at(DataLocation::Storage) {
@@ -5261,6 +5275,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
     fn store_variable(&mut self, id: VariableId, value: ValueId, span: Span) -> Option<()> {
         if let StdEntry::Occupied(mut entry) = self.values.entry(id) {
             entry.insert(value);
+            return Some(());
+        }
+        if let Some(&immutable_id) = self.immutable_ids.get(&id) {
+            self.builder.store_immutable(immutable_id, value);
             return Some(());
         }
         if let Some(location) = self.storage.get(id) {

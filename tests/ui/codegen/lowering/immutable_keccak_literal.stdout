@@ -3,15 +3,19 @@
 immutables:
   value: bytes32
 
-fn @constructor() {
-  bb0:
-    storeimmutable value, 0x31e1c5bf9da84811147b2cab01421da1659d9baff618fb99b976b2c0901cba01
-    stop
-}
-
-fn @get() -> bytes32 [abi_args=lazy, abi_returns=[word]] {
+fn @get() -> bytes32 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = loadimmutable value
     ret v0
+}
+
+fn @constructor() {
+  bb0:
+    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    set_memory_object_len memorybytes, v0, 5
+    memory_object_store_word memorybytes, v0, 0, 0x736f6c6172000000000000000000000000000000000000000000000000000000
+    v1 = keccak256_bytes v0
+    storeimmutable value, v1
+    stop
 }
 

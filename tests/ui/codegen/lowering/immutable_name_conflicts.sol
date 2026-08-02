@@ -15,11 +15,6 @@ contract Base {
 // CHECK-NEXT: value1: u256
 // CHECK-NEXT: value0: u256
 //
-// CHECK-LABEL: fn @constructor{{[( ]}}
-// CHECK: storeimmutable value0_, 1
-// CHECK-NEXT: storeimmutable value1, 2
-// CHECK-NEXT: storeimmutable value0, 3
-//
 // CHECK-LABEL: fn @derivedValue{{[( ]}}
 // CHECK: loadimmutable value1
 //
@@ -28,6 +23,11 @@ contract Base {
 //
 // CHECK-LABEL: fn @baseValue{{[( ]}}
 // CHECK: loadimmutable value0_
+//
+// CHECK-LABEL: fn @constructor{{[( ]}}
+// CHECK: storeimmutable value0_, 1
+// CHECK-NEXT: storeimmutable value1, 2
+// CHECK-NEXT: storeimmutable value0, 3
 contract Derived is Base {
     uint256 private immutable value = 2;
     uint256 private immutable value0 = 3;
