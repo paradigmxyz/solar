@@ -559,14 +559,19 @@ impl LowerAbiCx {
                 // element value may itself be dynamic, so nested objects are
                 // decoded recursively and stored as pointers in this array.
                 // Recursive decoding can introduce arbitrary CFG edges; keep
-                // loop state in an internal allocation so those edges do not
-                // make a value live across an unbounded stack path.
-                let scratch_size = builder.imm_u64(3 * 32);
-                let scratch =
-                    builder.alloc(scratch_size, crate::mir::AllocationSemantics::INTERNAL);
-                let source_slot = builder.add(scratch, word);
-                let destination_slot = builder.add(source_slot, word);
-                builder.mstore(scratch, len);
+                // loop state in a semantic object so those edges do not make
+                // values live across an unbounded stack path.
+                let state_layout = crate::mir::MemoryObjectLayout::structure(3);
+                let state_size = builder.imm_u64(3 * 32);
+                let state = builder.alloc_object(
+                    state_size,
+                    state_layout,
+                    crate::mir::AllocationSemantics::INTERNAL,
+                );
+                let remaining_slot = builder.memory_object_field_addr(state, state_layout, 0);
+                let source_slot = builder.memory_object_field_addr(state, state_layout, 1);
+                let destination_slot = builder.memory_object_field_addr(state, state_layout, 2);
+                builder.mstore(remaining_slot, len);
                 builder.mstore(source_slot, data_base);
                 builder.mstore(destination_slot, dest);
 
@@ -576,7 +581,7 @@ impl LowerAbiCx {
                 builder.jump(cond);
 
                 builder.switch_to_block(cond);
-                let remaining = builder.mload(scratch);
+                let remaining = builder.mload(remaining_slot);
                 let zero = builder.imm_u64(0);
                 let has_next = builder.gt(remaining, zero);
                 builder.branch(has_next, body, done);
@@ -599,7 +604,7 @@ impl LowerAbiCx {
                 let element_head_size = builder.imm_u64(element.head_size());
                 let next_source = builder.add(source, element_head_size);
                 let next_destination = builder.add(destination, word);
-                builder.mstore(scratch, next_remaining);
+                builder.mstore(remaining_slot, next_remaining);
                 builder.mstore(source_slot, next_source);
                 builder.mstore(destination_slot, next_destination);
                 builder.jump(cond);
