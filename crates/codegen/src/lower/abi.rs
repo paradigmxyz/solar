@@ -27,6 +27,7 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         func_id: hir::FunctionId,
         uses_external_abi: bool,
+        has_abi_inputs: bool,
     ) -> Result<FunctionAbi<'gcx>, ErrorGuaranteed> {
         let function = self.gcx.hir.function(func_id);
         let parameters = function.parameters;
@@ -34,7 +35,7 @@ impl<'gcx> Lowerer<'gcx> {
         let return_types =
             returns.iter().map(|&id| self.gcx.type_of_item(id.into())).collect::<Vec<_>>();
 
-        let external_arg_head_size = if uses_external_abi {
+        let external_arg_head_size = if has_abi_inputs {
             self.abi_head_size_sum(parameters.iter().map(|&id| self.gcx.type_of_item(id.into())))?
         } else {
             0
@@ -55,7 +56,7 @@ impl<'gcx> Lowerer<'gcx> {
             None
         };
 
-        let param_layout = if uses_external_abi {
+        let param_layout = if has_abi_inputs {
             let types = parameters
                 .iter()
                 .map(|&id| self.abi_param_type(self.gcx.type_of_item(id.into())))

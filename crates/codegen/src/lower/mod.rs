@@ -1049,6 +1049,51 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    fn is_constructor_abi_full_word_ty(&self, ty: Ty<'gcx>) -> bool {
+        self.can_defer_external_abi_scalar_ty(ty)
+            && matches!(
+                self.lower_type_from_ty(ty),
+                ty if ty == MirType::uint256()
+                    || ty == MirType::int256()
+                    || ty == MirType::bytes32()
+            )
+    }
+
+    fn can_defer_constructor_abi_array_element(&self, ty: Ty<'gcx>) -> bool {
+        let ty = ty.peel_refs();
+        if self.is_constructor_abi_full_word_ty(ty) {
+            return true;
+        }
+        matches!(
+            ty.kind,
+            TyKind::Array(element, len)
+                if len <= U256::from(u16::MAX)
+                    && self.can_defer_constructor_abi_array_element(element)
+        )
+    }
+
+    fn can_defer_constructor_abi_param(&self, param_id: VariableId) -> bool {
+        let param = self.gcx.hir.variable(param_id);
+        let ty = self.gcx.type_of_item(param_id.into()).peel_refs();
+        if self.is_constructor_abi_full_word_ty(ty) {
+            return true;
+        }
+        matches!(
+            ty.kind,
+            TyKind::Array(element, len)
+                if param.data_location == Some(solar_ast::DataLocation::Memory)
+                    && len <= U256::from(u16::MAX)
+                    && self.can_defer_constructor_abi_array_element(element)
+        )
+    }
+
+    fn can_defer_constructor_abi(&self, func_id: hir::FunctionId) -> bool {
+        let parameters = self.gcx.hir.function(func_id).parameters;
+        parameters.iter().any(|&param_id| {
+            matches!(self.gcx.type_of_item(param_id.into()).peel_refs().kind, TyKind::Array(..))
+        }) && parameters.iter().all(|&param_id| self.can_defer_constructor_abi_param(param_id))
+    }
+
     fn is_external_abi_enum_ty(&self, ty: Ty<'gcx>) -> bool {
         let ty = ty.peel_refs();
         match ty.kind {
@@ -1085,8 +1130,9 @@ impl<'gcx> Lowerer<'gcx> {
     /// Returns whether an aggregate parameter can stay typed until `lower-abi`.
     ///
     /// Supported fixed arrays, byte slices, and tuples use their typed MIR
-    /// representation. Constructor parameters still use the constructor
-    /// argument blob decoder because they do not pass through `lower-abi`.
+    /// representation. Constructors defer only fixed arrays whose leaves and
+    /// other parameters are full ABI words; other constructor shapes stay on
+    /// the argument-blob decoder below.
     fn can_defer_external_abi_param(&self, param_id: VariableId) -> bool {
         if self.param_is_storage_ref(param_id) {
             return false;
@@ -1324,7 +1370,9 @@ impl<'gcx> Lowerer<'gcx> {
             || mir_func.attributes.is_fallback;
         let uses_external_abi = mir_func.is_public() && !is_special && !force_internal;
         let defer_external_abi = uses_external_abi && self.can_defer_external_abi(func_id);
-        let has_deferred_param_layout = uses_external_abi
+        let defer_constructor_abi =
+            mir_func.attributes.is_constructor && self.can_defer_constructor_abi(func_id);
+        let has_deferred_external_param_layout = uses_external_abi
             && hir_func.parameters.iter().any(|&param_id| {
                 self.can_defer_external_abi_param(param_id)
                     || self.is_external_abi_enum_ty(self.gcx.type_of_item(param_id.into()))
@@ -1333,13 +1381,18 @@ impl<'gcx> Lowerer<'gcx> {
                 self.can_defer_external_abi_ty(self.gcx.type_of_item(param_id.into()))
                     || self.can_defer_external_abi_param(param_id)
             });
-        let decodes_abi_params =
-            (uses_external_abi && !defer_external_abi) || mir_func.attributes.is_constructor;
+        let has_deferred_param_layout = has_deferred_external_param_layout || defer_constructor_abi;
+        let decodes_abi_params = (uses_external_abi && !defer_external_abi)
+            || (mir_func.attributes.is_constructor && !defer_constructor_abi);
         if uses_external_abi {
             mir_func.selector = Some(self.function_selector(func_id));
         }
         let uses_internal_frame = !uses_external_abi && !is_special;
-        let function_abi = match self.lower_function_abi(func_id, uses_external_abi) {
+        let function_abi = match self.lower_function_abi(
+            func_id,
+            uses_external_abi,
+            uses_external_abi || defer_constructor_abi,
+        ) {
             Ok(abi) => abi,
             Err(guar) => {
                 let mut builder = FunctionBuilder::new(&mut mir_func);
@@ -1371,7 +1424,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.current_return_tys = current_return_tys;
         mir_func.abi_returns = return_layout;
         mir_func.abi_params = if has_deferred_param_layout { param_layout } else { None };
-        mir_func.abi_args_lazy = defer_external_abi;
+        mir_func.abi_args_lazy = defer_external_abi || defer_constructor_abi;
 
         // Pre-analyze function body to find variables that are assigned after declaration.
         // Variables that are only initialized (never reassigned) can stay as SSA values.

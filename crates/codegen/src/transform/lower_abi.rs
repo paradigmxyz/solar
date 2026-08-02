@@ -33,14 +33,14 @@
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        AbiParamLayout, BlockId, Function, FunctionBuilder, FunctionId, InstKind, MangledSymbol,
-        MirPhase, MirType, Module, Terminator, ValueId,
+        AbiParamLayout, AbiParamType, ArgIdx, BlockId, Function, FunctionBuilder, FunctionId,
+        InstKind, MangledSymbol, MirPhase, MirType, Module, Terminator, ValueId,
     },
     pass::MirPass,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
-use solar_interface::{Span, Symbol};
+use solar_interface::{Span, Symbol, kw};
 
 #[derive(Clone, Copy)]
 enum AbiWordValidator {
@@ -147,6 +147,8 @@ struct LowerAbiStats {
     /// Number of wrappers that received a prologue callvalue check because
     /// the dispatch entry cannot hoist one.
     injected_checks: usize,
+    /// Number of constructors whose fixed full-word arrays were materialized.
+    decoded_constructors: usize,
 }
 
 #[derive(Debug, Default)]
@@ -165,6 +167,7 @@ impl LowerAbiCx {
         }
 
         let mut targets = Vec::new();
+        let mut constructors = Vec::new();
         let mut internally_called = DenseBitSet::new_empty(module.functions.len());
         let mut callvalue = super::utils::DispatchCallvalue::default();
         for (id, func) in module.functions.iter_enumerated() {
@@ -172,6 +175,12 @@ impl LowerAbiCx {
             if is_wrappable_external(func) {
                 targets.push(id);
                 self.stats.skipped_returns += usize::from(!can_encode_live_returns(func));
+            }
+            if is_constructor(func) && func.abi_params.is_some() {
+                if !Self::can_decode_constructor_params(func) {
+                    return false;
+                }
+                constructors.push(id);
             }
             for inst_id in func.instructions() {
                 if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
@@ -187,11 +196,9 @@ impl LowerAbiCx {
         if self.stats.skipped_returns != 0 {
             return false;
         }
-        if targets.is_empty() {
+        if targets.is_empty() && constructors.is_empty() {
             let has_selectorless_entry = module.functions.iter().any(|func| {
-                func.attributes.is_constructor
-                    || func.attributes.is_receive
-                    || func.attributes.is_fallback
+                is_constructor(func) || func.attributes.is_receive || func.attributes.is_fallback
             });
             if !has_selectorless_entry {
                 return false;
@@ -211,6 +218,11 @@ impl LowerAbiCx {
         // `lower-dispatch` shares the predicate and routes selector cases
         // unguarded.
         let hoist_callvalue = callvalue.hoists();
+
+        for id in constructors {
+            Self::decode_constructor_params(module.function_mut(id));
+            self.stats.decoded_constructors += 1;
+        }
 
         let mut body_of_wrapper = FxHashMap::default();
         for id in targets {
@@ -242,6 +254,128 @@ impl LowerAbiCx {
 
         module.advance_phase(MirPhase::Abi);
         true
+    }
+
+    fn can_decode_constructor_params(func: &Function) -> bool {
+        let Some(layout) = &func.abi_params else { return false };
+        func.abi_args_lazy
+            && func.params.len() == layout.types.len()
+            && layout.types.iter().zip(&func.params).all(|(abi_ty, &param_ty)| {
+                Self::is_constructor_param_type(abi_ty) && abi_ty.mir_type() == param_ty
+            })
+            && layout.types.iter().any(|ty| matches!(ty, AbiParamType::FixedArray { .. }))
+            && layout
+                .types
+                .iter()
+                .try_fold(0_u64, |words, ty| words.checked_add(Self::constructor_param_words(ty)?))
+                .and_then(|words| usize::try_from(words).ok())
+                .is_some()
+    }
+
+    fn is_constructor_param_type(ty: &AbiParamType) -> bool {
+        Self::is_full_word_scalar(ty)
+            || matches!(
+                ty,
+                AbiParamType::FixedArray { element, len }
+                    if *len <= u64::from(u16::MAX)
+                        && Self::is_constructor_array_element(element)
+            )
+    }
+
+    fn is_constructor_array_element(ty: &AbiParamType) -> bool {
+        Self::is_full_word_scalar(ty)
+            || matches!(
+                ty,
+                AbiParamType::FixedArray { element, len }
+                    if *len <= u64::from(u16::MAX)
+                        && Self::is_constructor_array_element(element)
+            )
+    }
+
+    fn constructor_param_words(ty: &AbiParamType) -> Option<u64> {
+        if Self::is_full_word_scalar(ty) {
+            return Some(1);
+        }
+        let AbiParamType::FixedArray { element, len } = ty else { return None };
+        len.checked_mul(Self::constructor_param_words(element)?)
+    }
+
+    /// Materializes fixed full-word constructor arrays while preserving the
+    /// physical word parameters consumed by deployment codegen.
+    fn decode_constructor_params(func: &mut Function) {
+        let layout = func.abi_params.clone().expect("checked constructor ABI layout");
+        let old_entry = BlockId::ENTRY;
+        let arg_uses = func.arg_uses();
+        let physical_words = layout
+            .types
+            .iter()
+            .map(Self::constructor_param_words)
+            .try_fold(0_u64, |words, next| words.checked_add(next?))
+            .expect("checked constructor ABI word count");
+        let mut params = IndexVec::with_capacity(physical_words as usize);
+        for _ in 0..physical_words {
+            params.push(MirType::uint256());
+        }
+        func.set_params(params);
+        let physical_indices = func.params.indices().collect::<Vec<_>>();
+        let physical_args =
+            physical_indices.into_iter().map(|index| func.alloc_arg(index)).collect::<Vec<_>>();
+
+        let mut replacements = FxHashMap::default();
+        let guard = {
+            let mut builder = FunctionBuilder::new(func);
+            let guard = builder.create_block();
+            builder.switch_to_block(guard);
+            let mut physical_index = 0;
+            for (logical_index, ty) in layout.types.iter().enumerate() {
+                let value = Self::decode_constructor_param(
+                    &mut builder,
+                    ty,
+                    &physical_args,
+                    &mut physical_index,
+                );
+                for &use_value in arg_uses.get(ArgIdx::new(logical_index)).into_iter().flatten() {
+                    replacements.insert(use_value, value);
+                }
+            }
+            debug_assert_eq!(physical_index, physical_args.len());
+            builder.jump(old_entry);
+            guard
+        };
+        func.replace_uses_canonicalized(&replacements);
+        func.abi_params = None;
+        func.abi_args_lazy = false;
+        let order = std::iter::once(guard)
+            .chain(func.blocks.indices().filter(|&block| block != guard))
+            .collect::<Vec<_>>();
+        crate::mir::utils::remap_block_order(func, &order);
+    }
+
+    fn decode_constructor_param(
+        builder: &mut FunctionBuilder<'_>,
+        ty: &AbiParamType,
+        physical_args: &[ValueId],
+        physical_index: &mut usize,
+    ) -> ValueId {
+        if Self::is_full_word_scalar(ty) {
+            let value = physical_args[*physical_index];
+            *physical_index += 1;
+            return value;
+        }
+
+        let AbiParamType::FixedArray { element, len } = ty else {
+            unreachable!("checked constructor ABI parameter")
+        };
+        let size = builder.imm_u64(len.saturating_mul(EvmMemoryLayout::WORD_SIZE));
+        let layout = crate::mir::MemoryObjectLayout::word_fixed_array(*len);
+        let ptr = builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL);
+        for index in 0..*len {
+            let value =
+                Self::decode_constructor_param(builder, element, physical_args, physical_index);
+            let index = builder.imm_u64(index);
+            builder.memory_object_store_element(ptr, layout, index, value);
+        }
+        ptr
     }
 
     /// Rewrites one external function into a self-decoding form, keeping a
@@ -908,6 +1042,13 @@ impl LowerAbiCx {
 /// for. Receive/fallback entries have no selector and need no ABI wrapper.
 fn is_wrappable_external(func: &Function) -> bool {
     func.selector.is_some() && !func.attributes.is_constructor
+}
+
+/// Constructors produced from HIR carry an attribute. Text MIR uses the
+/// reserved constructor name, matching validation and other constructor-only
+/// operations.
+fn is_constructor(func: &Function) -> bool {
+    func.attributes.is_constructor || func.name.symbol == kw::Constructor
 }
 
 /// Whether every value-carrying return has a matching semantic ABI layout.
