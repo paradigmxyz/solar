@@ -12,10 +12,28 @@ use lsp_types::{
 };
 use std::{
     fs,
+    future::Future,
     io::Read,
     path::{Path, PathBuf},
+    pin::Pin,
+    task::{Context, Waker},
 };
 use tempfile::TempDir;
+
+pub(crate) fn assert_request_cancelled<T>(result: async_lsp::Result<T>) {
+    let Err(error) = result else { panic!("expected request cancellation") };
+    let async_lsp::Error::Response(error) = error else {
+        panic!("expected request cancellation, got {error:?}");
+    };
+    assert_eq!(error.code, async_lsp::ErrorCode::REQUEST_CANCELLED);
+}
+
+pub(crate) fn start_request<F: Future>(future: F) -> Pin<Box<F>> {
+    let mut future = Box::pin(future);
+    let mut cx = Context::from_waker(Waker::noop());
+    assert!(future.as_mut().poll(&mut cx).is_pending());
+    future
+}
 
 #[cfg(unix)]
 pub(crate) fn process_exists(pid: u32) -> bool {

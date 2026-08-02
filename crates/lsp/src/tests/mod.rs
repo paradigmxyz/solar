@@ -42,6 +42,8 @@ mod goto_definition;
 mod hover;
 mod implementation;
 mod inlay_hint;
+#[path = "protocol_trace.rs"]
+mod protocol_trace_tests;
 mod references;
 mod refresh;
 mod rename;

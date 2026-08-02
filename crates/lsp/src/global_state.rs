@@ -9,6 +9,7 @@ use crate::{
     flycheck,
     progress::{ProgressCoordinator, ProgressTicket},
     proto,
+    protocol_trace::ProtocolTrace,
     symbols::{SymbolTables, SymbolTablesAggregator},
     vfs::Vfs,
     workspace::WorkspacePathIndex,
@@ -17,7 +18,7 @@ use async_lsp::{ClientSocket, LanguageClient, ResponseError};
 use lsp_types::{
     Diagnostic, DidChangeWatchedFilesRegistrationOptions, FileSystemWatcher, GlobPattern,
     InitializeParams, InitializedParams, LogMessageParams, MessageType, PreviousResultId,
-    PublishDiagnosticsParams, Registration, RegistrationParams, Url, WatchKind,
+    PublishDiagnosticsParams, Registration, RegistrationParams, SetTraceParams, Url, WatchKind,
     WorkDoneProgressCancelParams,
     notification::{DidChangeWatchedFiles, Notification},
 };
@@ -175,6 +176,7 @@ pub(crate) struct GlobalState {
     analysis_commit: Arc<Mutex<AnalysisCommitState>>,
     analysis_progress: ProgressCoordinator,
     analysis_scheduler: Arc<AnalysisScheduler>,
+    protocol_trace: ProtocolTrace,
     flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
     flycheck_cancels: FxHashMap<DiagnosticOwner, oneshot::Sender<()>>,
     pub(crate) symbol_tables: Arc<RwLock<SymbolTables>>,
@@ -185,6 +187,7 @@ impl GlobalState {
     pub(crate) fn new(client: ClientSocket) -> Self {
         let (published_analysis_version, _) = watch::channel(0);
         let config = Arc::new(Config::default());
+        let protocol_trace = ProtocolTrace::new(client.clone());
         let analysis_progress = ProgressCoordinator::with_timing(
             client.clone(),
             false,
@@ -201,6 +204,7 @@ impl GlobalState {
             analysis_commit: Arc::new(Default::default()),
             analysis_progress,
             analysis_scheduler: Arc::new(Default::default()),
+            protocol_trace,
             flycheck_versions: Arc::new(Default::default()),
             flycheck_cancels: FxHashMap::default(),
             symbol_tables: Arc::new(Default::default()),
@@ -230,6 +234,7 @@ impl GlobalState {
         &mut self,
         params: InitializeParams,
     ) -> impl Future<Output = Result<proto::InitializeResponse, ResponseError>> + use<> {
+        self.protocol_trace.set_level(params.trace.unwrap_or_default());
         let (capabilities, mut config) = negotiate_capabilities(params);
 
         config.rediscover_workspaces();
@@ -237,6 +242,15 @@ impl GlobalState {
         self.analysis_progress.set_enabled(config.supports_work_done_progress());
         self.config = Arc::new(config);
         std::future::ready(Ok(proto::InitializeResponse::new(capabilities)))
+    }
+
+    pub(crate) fn on_set_trace(&mut self, params: SetTraceParams) -> NotifyResult {
+        self.protocol_trace.update_level(params.value);
+        ControlFlow::Continue(())
+    }
+
+    pub(crate) fn protocol_trace(&self) -> ProtocolTrace {
+        self.protocol_trace.clone()
     }
 
     pub(crate) fn on_initialized(&mut self, _: InitializedParams) -> NotifyResult {
