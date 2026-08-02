@@ -20,6 +20,8 @@ describes observable structure in the current tree, not an intended design.
   one trailing source-base word when their fields need calldata slices.
 * ABI parameter shapes print and parse with MIR text, so the boundary metadata
   survives phase dumps and round trips.
+* ABI shape construction tracks recursive structs and fails closed with a
+  codegen diagnostic instead of recursing through HIR lowering.
 * Source `abi.encode(...)` emits the typed `abi_encode` MIR operation. The ABI
   pass owns its allocation and tuple layout; HIR only adapts the resulting
   memory slice to a bytes object.
