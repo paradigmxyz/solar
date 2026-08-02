@@ -12,12 +12,24 @@ use xshell::{Shell, cmd};
 mod flags;
 
 const INT_FLAGS: &[&str] = &["--package=solar-compiler", "--test=tests"];
+const FOUNDRY_FLAGS: &[&str] = &["--package=solar-tester"];
 
 fn main() -> anyhow::Result<()> {
     let flags = flags::Xtask::from_env_or_exit();
     match flags.subcommand {
         flags::XtaskCmd::Test(flags::Test { bless, test_name, rest }) => {
             let sh = Shell::new()?;
+
+            if test_name.as_deref().is_some_and(|name| matches!(name, "foundry" | "runtime")) {
+                cmd!(sh, "cargo build --package=solar-compiler --bin=solar").run()?;
+                let mut cmd = cmd!(sh, "cargo nextest run");
+                cmd = cmd.args(FOUNDRY_FLAGS).arg("foundry::tests::foundry").arg("--");
+                if !rest.is_empty() {
+                    cmd = cmd.args(rest);
+                }
+                cmd.run()?;
+                return Ok(());
+            }
 
             let mut cmd =
                 if bless { cmd!(sh, "cargo test") } else { cmd!(sh, "cargo nextest run") };
@@ -48,7 +60,6 @@ fn main() -> anyhow::Result<()> {
 fn tester_mode(test_name: &str) -> Option<&str> {
     match test_name {
         "ui" | "mir" | "evm-ir" | "standard-json" | "solc-solidity" | "solc-yul" => Some(test_name),
-        "foundry" | "runtime" => Some("foundry"),
         _ => None,
     }
 }

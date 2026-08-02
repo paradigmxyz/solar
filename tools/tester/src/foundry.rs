@@ -9,6 +9,7 @@
 use std::{
     collections::HashMap,
     fs,
+    panic::{AssertUnwindSafe, catch_unwind},
     path::{Path, PathBuf},
     process::Command,
     sync::OnceLock,
@@ -24,48 +25,19 @@ use std::{
 struct TestConfig {
     /// Project name (used for display).
     name: String,
-    /// Path to project relative to the workspace root.
-    path: String,
+    /// Foundry project root.
+    path: PathBuf,
     /// Optional filter for test function names (substring match).
     test_filter: Option<String>,
     /// Optional filter for contract names (substring match).
     contract_filter: Option<String>,
     /// If true, only run with Solar (no solc comparison).
     solar_only: bool,
+    /// If true, defer this project until its compiler failures are fixed.
+    ignored: bool,
 }
 
 impl TestConfig {
-    /// Creates a new config with default settings.
-    fn new(name: impl Into<String>, path: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            path: path.into(),
-            test_filter: None,
-            contract_filter: None,
-            solar_only: false,
-        }
-    }
-
-    /// Sets test function filter (substring match on test names).
-    #[allow(dead_code)]
-    fn test_filter(mut self, filter: impl Into<String>) -> Self {
-        self.test_filter = Some(filter.into());
-        self
-    }
-
-    /// Sets contract filter (substring match on contract names).
-    #[allow(dead_code)]
-    fn contract_filter(mut self, filter: impl Into<String>) -> Self {
-        self.contract_filter = Some(filter.into());
-        self
-    }
-
-    /// Sets whether to run Solar-only (no solc comparison).
-    fn solar_only(mut self, value: bool) -> Self {
-        self.solar_only = value;
-        self
-    }
-
     /// Runs the test with this configuration.
     fn run(&self) {
         run_test_with_config(self);
@@ -143,6 +115,77 @@ impl ForgeCompiler {
 
 static SOLAR_BINARY: OnceLock<PathBuf> = OnceLock::new();
 
+const TEMPORARILY_IGNORED_PROJECTS: &[&str] = &[
+    "abi-encoding",
+    "equivalence",
+    "erc20-minimal",
+    "erc721-minimal",
+    "multicall",
+    "stress-arrays",
+    "stress-inheritance",
+    "stress-modifiers",
+    "unifap-v2",
+    "unifap-v2-create",
+    "vault-minimal",
+];
+
+fn foundry_root() -> PathBuf {
+    workspace_root().join("tests/foundry")
+}
+
+fn discover_projects() -> Vec<TestConfig> {
+    let root = foundry_root();
+    assert!(root.is_dir(), "Foundry test root does not exist: {}", root.display());
+    let selected = std::env::var_os("SOLAR_FOUNDRY_PROJECT");
+
+    let mut paths = Vec::new();
+    discover_project_paths(&root, &mut paths);
+    paths.sort();
+
+    paths
+        .into_iter()
+        .filter_map(|path| {
+            let relative = path.strip_prefix(&root).expect("Foundry project outside root");
+            let name = relative.to_string_lossy().replace('\\', "/");
+            if selected.as_deref().is_some_and(|selected| selected != name.as_str()) {
+                return None;
+            }
+            let solar_only = relative == Path::new("stack-deep");
+            let ignored = TEMPORARILY_IGNORED_PROJECTS.contains(&name.as_str());
+
+            Some(TestConfig {
+                name,
+                path,
+                test_filter: None,
+                contract_filter: None,
+                solar_only,
+                ignored,
+            })
+        })
+        .collect()
+}
+
+fn discover_project_paths(dir: &Path, projects: &mut Vec<PathBuf>) {
+    let mut entries: Vec<_> = fs::read_dir(dir)
+        .unwrap_or_else(|error| {
+            panic!("failed to read Foundry test directory {}: {error}", dir.display())
+        })
+        .map(|entry| entry.expect("failed to read Foundry test directory entry").path())
+        .collect();
+    entries.sort();
+
+    if entries.iter().any(|path| path.file_name().is_some_and(|name| name == "foundry.toml")) {
+        projects.push(dir.to_path_buf());
+        return;
+    }
+
+    for path in entries {
+        if path.is_dir() {
+            discover_project_paths(&path, projects);
+        }
+    }
+}
+
 /// Gets the path to the Solar binary.
 ///
 /// Uses the binary supplied by the compiler test runner when available and
@@ -150,6 +193,10 @@ static SOLAR_BINARY: OnceLock<PathBuf> = OnceLock::new();
 fn get_solar_binary() -> PathBuf {
     if let Some(path) = SOLAR_BINARY.get() {
         return path.clone();
+    }
+
+    if let Some(path) = option_env!("CARGO_BIN_EXE_solar") {
+        return PathBuf::from(path);
     }
 
     let workspace_root = workspace_root();
@@ -380,7 +427,7 @@ fn write_runtime_report(
     let report = serde_json::json!({
         "project": {
             "name": config.name.as_str(),
-            "path": config.path.as_str(),
+            "path": config.path.display().to_string(),
             "test_filter": config.test_filter.as_deref(),
             "contract_filter": config.contract_filter.as_deref(),
             "solar_only": config.solar_only,
@@ -536,11 +583,11 @@ fn print_test_diff(solar_tests: &[TestResult], solc_tests: &[TestResult], label:
 
 /// Runs a full comparison between Solar and solc for a project.
 fn run_project_comparison(config: &TestConfig) -> (CompilerRun, CompilerRun) {
-    let project_dir = workspace_root().join(&config.path);
+    let project_dir = &config.path;
 
     // Step 1: Run tests with Solar
     let (solar_test_time, solar_tests, solar_sizes) = run_forge_test(
-        &project_dir,
+        project_dir,
         &format!("{}-solar", config.name),
         config,
         ForgeCompiler::Solar,
@@ -560,7 +607,7 @@ fn run_project_comparison(config: &TestConfig) -> (CompilerRun, CompilerRun) {
 
     // Step 2: Run tests with solc
     let (solc_test_time, solc_tests, solc_sizes) =
-        run_forge_test(&project_dir, &format!("{}-solc", config.name), config, ForgeCompiler::Solc);
+        run_forge_test(project_dir, &format!("{}-solc", config.name), config, ForgeCompiler::Solc);
     let solc_tests = filter_tests(solc_tests, config);
     let solc_passed = solc_tests.iter().filter(|t| t.passed).count();
     let solc_failed = solc_tests.iter().filter(|t| !t.passed).count();
@@ -684,7 +731,7 @@ fn run_test_with_config(config: &TestConfig) {
         return;
     }
 
-    let project_dir = workspace_root().join(&config.path);
+    let project_dir = &config.path;
     if !project_dir.exists() {
         panic!("Project directory not found: {:?}", project_dir);
     }
@@ -698,9 +745,9 @@ fn run_test_with_config(config: &TestConfig) {
 
 /// Runs test with Solar only (no solc comparison).
 fn run_test_solar_only(config: &TestConfig) {
-    let project_dir = workspace_root().join(&config.path);
+    let project_dir = &config.path;
     let (test_time, tests, bytecode_sizes) =
-        run_forge_test(&project_dir, &config.name, config, ForgeCompiler::Solar);
+        run_forge_test(project_dir, &config.name, config, ForgeCompiler::Solar);
     let tests = filter_tests(tests, config);
 
     let total_passed = tests.iter().filter(|t| t.passed).count();
@@ -746,63 +793,24 @@ fn run_test_with_comparison(config: &TestConfig) {
     println!("\n✓ [{}] {} tests passed with Solar", config.name, solar_run.total_passed);
 }
 
-// ============================================================================
-// Legacy API (for backward compatibility)
-// ============================================================================
-
-/// Tests a project with Solar vs solc comparison (legacy API).
-fn test_project_solar(project_name: &str, project_path: &str) {
-    TestConfig::new(project_name, project_path).run();
-}
-
-/// Tests a project where solc can't compile (legacy API).
-fn test_project_solar_only(project_name: &str, project_path: &str) {
-    TestConfig::new(project_name, project_path).solar_only(true).run();
-}
-
 /// Runs the default Foundry suite.
-///
-/// [`crate::run_tests`] calls this when `TESTER_MODE=foundry`.
 pub(super) fn run_default_suite(solar: &Path) {
     let _ = SOLAR_BINARY.set(solar.to_path_buf());
-    test_project_solar("arithmetic", "tests/foundry/arithmetic");
-    test_project_solar("control_flow", "tests/foundry/control-flow");
-    test_project_solar("storage", "tests/foundry/storage");
-    test_project_solar("events", "tests/foundry/events");
-    test_project_solar("calls", "tests/foundry/calls");
-    test_project_solar("interfaces", "tests/foundry/interfaces");
-    test_project_solar("libraries", "tests/foundry/libraries");
-    test_project_solar("constructor_args", "tests/foundry/constructor-args");
-    test_project_solar("multi_return", "tests/foundry/multi-return");
-    test_project_solar("correctness", "tests/foundry/correctness");
-    test_project_solar("receive_fallback", "tests/foundry/receive-fallback");
-    test_project_solar("inheritance", "tests/foundry/inheritance");
-    test_project_solar_only("stack_deep", "tests/foundry/stack-deep");
-    run_compilation_smoke();
-}
+    let projects = discover_projects();
+    assert!(!projects.is_empty(), "No Foundry projects found");
 
-fn run_compilation_smoke() {
-    if !forge_available() {
-        eprintln!("Skipping: forge not found");
-        return;
+    let mut failures = Vec::new();
+    for config in projects {
+        if config.ignored {
+            eprintln!("[{}] temporarily ignored", config.name);
+            continue;
+        }
+        let name = config.name.clone();
+        if catch_unwind(AssertUnwindSafe(|| config.run())).is_err() {
+            failures.push(name);
+        }
     }
-
-    let solar_binary = get_solar_binary();
-    if !solar_binary.exists() {
-        eprintln!("Skipping: Solar binary not found");
-        return;
-    }
-
-    let config = TestConfig::new("compilation-test", "tests/foundry/arithmetic");
-    let project_dir = workspace_root().join(&config.path);
-    let (test_time, tests, sizes) =
-        run_forge_test(&project_dir, "compilation-test", &config, ForgeCompiler::Solar);
-
-    println!("Test time: {:?}", test_time);
-    println!("Tests: {:?}", tests.iter().map(|t| &t.name).collect::<Vec<_>>());
-    println!("Bytecode sizes: {:?}", sizes);
-
-    assert!(!tests.is_empty(), "No tests ran");
+    assert!(failures.is_empty(), "Foundry projects failed: {}", failures.join(", "));
 }
 
 #[cfg(test)]
@@ -810,120 +818,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_arithmetic() {
-        test_project_solar("arithmetic", "tests/foundry/arithmetic");
-    }
-
-    #[test]
-    fn test_control_flow() {
-        test_project_solar("control_flow", "tests/foundry/control-flow");
-    }
-
-    #[test]
-    fn test_storage() {
-        test_project_solar("storage", "tests/foundry/storage");
-    }
-
-    #[test]
-    fn test_events() {
-        test_project_solar("events", "tests/foundry/events");
-    }
-
-    #[test]
-    fn test_calls() {
-        test_project_solar("calls", "tests/foundry/calls");
-    }
-
-    #[test]
-    fn test_interfaces() {
-        test_project_solar("interfaces", "tests/foundry/interfaces");
-    }
-
-    #[test]
-    fn test_libraries() {
-        test_project_solar("libraries", "tests/foundry/libraries");
-    }
-
-    #[test]
-    fn test_constructor_args() {
-        test_project_solar("constructor_args", "tests/foundry/constructor-args");
-    }
-
-    #[test]
-    fn test_multi_return() {
-        test_project_solar("multi_return", "tests/foundry/multi-return");
-    }
-
-    #[test]
-    fn test_correctness() {
-        test_project_solar("correctness", "tests/foundry/correctness");
-    }
-
-    #[test]
-    fn test_receive_fallback() {
-        test_project_solar("receive_fallback", "tests/foundry/receive-fallback");
-    }
-
-    #[test]
-    fn test_inheritance() {
-        test_project_solar("inheritance", "tests/foundry/inheritance");
-    }
-
-    #[test]
-    fn test_stack_deep() {
-        test_project_solar_only("stack_deep", "tests/foundry/stack-deep");
-    }
-
-    #[test]
-    fn test_compilation() {
-        run_compilation_smoke();
-    }
-
-    #[test]
-    #[ignore] // Requires forge-std which is not available in CI
-    fn test_unifap_v2() {
-        test_project_solar("unifap-v2", "tests/foundry/unifap-v2");
-    }
-
-    #[test]
-    #[ignore] // Requires forge-std which is not available in CI
-    fn test_unifap_v2_create() {
-        test_project_solar("unifap-v2-create", "tests/foundry/unifap-v2-create");
-    }
-
-    // Example: run only mint-related tests
-    #[test]
-    #[ignore] // Example - enable when debugging specific tests
-    fn test_unifap_mint_only() {
-        TestConfig::new("unifap-v2-create", "tests/foundry/unifap-v2-create")
-            .test_filter("testMint")
-            .run();
-    }
-
-    // Example: run only tests in a specific contract
-    #[test]
-    #[ignore] // Example - enable when debugging specific contracts
-    fn test_unifap_pair_only() {
-        TestConfig::new("unifap-v2-create", "tests/foundry/unifap-v2-create")
-            .contract_filter("UnifapV2Pair")
-            .run();
-    }
-
-    // Example: combine test + contract filters
-    #[test]
-    #[ignore] // Example - enable when debugging
-    fn test_unifap_pair_swap() {
-        TestConfig::new("unifap-v2-create", "tests/foundry/unifap-v2-create")
-            .contract_filter("UnifapV2Pair")
-            .test_filter("testSwap")
-            .run();
-    }
-
-    // ========== Struct Tests ==========
-
-    #[test]
-    #[ignore] // WIP: 8 struct tests have StackUnderflow issues to fix
-    fn test_structs() {
-        test_project_solar("structs", "tests/foundry/structs");
+    fn foundry() {
+        run_default_suite(&get_solar_binary());
     }
 }
