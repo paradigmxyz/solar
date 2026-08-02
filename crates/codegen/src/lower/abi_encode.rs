@@ -1,6 +1,6 @@
 //! ABI encoding helpers for source-level encodes, calls, errors, and events.
 
-use super::Lowerer;
+use super::{Lowerer, helpers::HelperKey};
 use crate::{
     mir::{AbiLayout, FunctionBuilder, MemoryObjectKind, MirType, ValueId},
     transform::lower_abi_encode,
@@ -392,7 +392,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         slot: ValueId,
     ) -> ValueId {
-        if self.synthesizing_helper {
+        if self.outlined_helpers.is_synthesizing(HelperKey::LoadStorageBytes) {
             return self.materialize_storage_bytes_inline(builder, slot);
         }
         let helper = self.ensure_load_storage_bytes_helper();

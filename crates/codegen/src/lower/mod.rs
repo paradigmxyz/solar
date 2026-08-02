@@ -9,6 +9,7 @@ mod bytes;
 mod call;
 mod checked_arith;
 mod expr;
+mod helpers;
 mod index;
 mod stmt;
 mod storage;
@@ -38,7 +39,7 @@ use solar_sema::{
 };
 use std::collections::hash_map::Entry;
 
-use self::storage::StorageLocation;
+use self::{helpers::OutlinedHelpers, storage::StorageLocation};
 
 /// Minimum contiguous zero-word count where bulk zeroing beats individual stores.
 const MIN_BULK_ZERO_MEMORY_WORDS: u64 = 4;
@@ -223,15 +224,8 @@ pub(crate) struct Lowerer<'gcx> {
     constructor_args_base: Option<ValueId>,
     /// Whether local memory slots should be addressed through the internal-call frame.
     lowering_internal_function: bool,
-    /// The module's shared `Error(string)` revert helper, synthesized on first
-    /// use: constant short revert messages call it instead of materializing
-    /// and ABI-encoding the string at every site.
-    revert_error_helper: Option<FunctionId>,
-    /// The module's shared storage-`bytes`/`string` load helper: decodes the
-    /// packed short/long form into a fresh `[length][data...]` memory copy.
-    storage_bytes_helper: Option<FunctionId>,
-    /// Guards helper synthesis against routing through itself.
-    synthesizing_helper: bool,
+    /// Lazily outlined helpers shared by repeated nontrivial operations.
+    outlined_helpers: OutlinedHelpers,
     /// Whether arithmetic should use wrapping Solidity `unchecked` semantics.
     in_unchecked_block: bool,
     /// Sema return types of the function currently being lowered (one per declared
@@ -317,9 +311,7 @@ impl<'gcx> Lowerer<'gcx> {
             lowering_constructor: false,
             constructor_args_base: None,
             lowering_internal_function: false,
-            revert_error_helper: None,
-            storage_bytes_helper: None,
-            synthesizing_helper: false,
+            outlined_helpers: OutlinedHelpers::default(),
             in_unchecked_block: false,
             current_return_tys: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
@@ -866,68 +858,6 @@ impl<'gcx> Lowerer<'gcx> {
         self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
         mir_id
-    }
-
-    /// Returns the module's shared `Error(string)` revert helper, synthesizing
-    /// it on first use.
-    ///
-    /// The helper takes the message length (1..=32) and its bytes left-aligned
-    /// in one word, and reverts with the standard `Error(string)` encoding:
-    /// selector, head offset, length, one padded data word — 100 bytes of
-    /// revert data, matching what the generic in-line path produces for short
-    /// messages. Sharing this cold path saves the string materialization and
-    /// ABI-encode boilerplate (~60-90 bytes) at every `require`/`revert` site
-    /// with a constant short message.
-    pub(super) fn ensure_revert_error_helper(&mut self) -> FunctionId {
-        let Self { revert_error_helper, module, .. } = self;
-        *revert_error_helper.get_or_insert_with(|| {
-            let name = Ident::new(sym::__revert_error, Span::DUMMY);
-            let mut func = Function::new(name);
-            func.attributes.no_inline = true;
-            {
-                let mut builder = FunctionBuilder::new(&mut func);
-                let len = builder.add_param(MirType::uint256());
-                let data = builder.add_param(MirType::uint256());
-                let selector = builder.imm_u256(U256::from(0x08c3_79a0u64) << 224);
-                let zero = builder.imm_u64(0);
-                builder.mstore(zero, selector);
-                let selector_size = builder.imm_u64(4);
-                let head_offset = builder.imm_u64(32);
-                builder.mstore(selector_size, head_offset);
-                let len_offset = builder.imm_u64(36);
-                builder.mstore(len_offset, len);
-                let data_offset = builder.imm_u64(68);
-                builder.mstore(data_offset, data);
-                let size = builder.imm_u64(100);
-                builder.revert(zero, size);
-            }
-            module.add_function(func)
-        })
-    }
-
-    /// Returns the module's shared storage-`bytes`/`string` load helper,
-    /// synthesizing it on first use: takes the slot, decodes the packed
-    /// short/long form, and returns a fresh `[length][data...]` memory copy.
-    /// Marked `no_inline` — the whole point is existing once per module.
-    pub(super) fn ensure_load_storage_bytes_helper(&mut self) -> FunctionId {
-        if let Some(id) = self.storage_bytes_helper {
-            return id;
-        }
-        let name = Ident::new(sym::__load_storage_bytes, Span::DUMMY);
-        let mut func = Function::new(name);
-        func.attributes.no_inline = true;
-        {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let slot = builder.add_param(MirType::uint256());
-            builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
-            self.synthesizing_helper = true;
-            let ptr = self.materialize_storage_bytes_inline(&mut builder, slot);
-            self.synthesizing_helper = false;
-            builder.ret([ptr]);
-        }
-        let id = self.module.add_function(func);
-        self.storage_bytes_helper = Some(id);
-        id
     }
 
     /// Lowers a public function with the internal-frame calling convention so it

@@ -598,7 +598,6 @@ impl<'gcx> Lowerer<'gcx> {
         let reserved = self.module.function(dispatcher);
         let name = Ident::new(reserved.name.symbol, reserved.name_span);
         let mut dispatcher_function = Function::new(name);
-        dispatcher_function.attributes.no_inline = true;
         {
             let mut builder = FunctionBuilder::new(&mut dispatcher_function);
             let function_value = builder.add_param(MirType::Function);
@@ -2071,10 +2070,8 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         let exit_block = builder.create_block();
-        self.inline_returns = Some(crate::lower::InlineReturnCtx {
-            exit_block,
-            return_vars: func.returns.to_vec(),
-        });
+        self.inline_returns =
+            Some(crate::lower::InlineReturnCtx { exit_block, return_vars: func.returns.to_vec() });
 
         let saved_in_unchecked_block = self.in_unchecked_block;
         self.in_unchecked_block = false;
@@ -2213,10 +2210,8 @@ impl<'gcx> Lowerer<'gcx> {
 
         if let Some(body) = body {
             let exit_block = builder.create_block();
-        self.inline_returns = Some(crate::lower::InlineReturnCtx {
-            exit_block,
-            return_vars: Vec::new(),
-        });
+            self.inline_returns =
+                Some(crate::lower::InlineReturnCtx { exit_block, return_vars: Vec::new() });
             let saved_in_unchecked_block = self.in_unchecked_block;
             self.in_unchecked_block = false;
             self.lower_block(builder, &body);
