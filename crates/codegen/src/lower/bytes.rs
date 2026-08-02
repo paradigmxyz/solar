@@ -373,8 +373,9 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Lowers an expression whose consumer needs a MEMORY dynamic array: a
-    /// calldata dynamic array materializes as a `[length][elems...]` copy;
-    /// anything else lowers normally (it is already a memory pointer).
+    /// calldata or supported storage dynamic array materializes as a
+    /// `[length][elems...]` copy; anything else lowers normally (it is already
+    /// a memory pointer).
     pub(super) fn lower_expr_as_memory_dyn_array(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -385,6 +386,17 @@ impl<'gcx> Lowerer<'gcx> {
                 return self.materialize_calldata_dyn_array_for_ty(builder, ty, slice);
             }
             return self.materialize_calldata_dyn_array(builder, slice);
+        }
+        if let Some((slot, element, element_slots)) = self.storage_dynamic_array_info(builder, expr)
+        {
+            if element_slots == 1 {
+                return self.copy_storage_dyn_array_to_memory(builder, slot, element);
+            }
+            return self.err_value(
+                builder,
+                expr.span,
+                "codegen cannot copy this storage array to memory",
+            );
         }
         self.lower_value_expr(builder, expr)
     }

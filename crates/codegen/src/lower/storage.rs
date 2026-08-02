@@ -812,7 +812,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    fn copy_storage_dyn_array_to_memory(
+    pub(super) fn copy_storage_dyn_array_to_memory(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         slot: ValueId,
