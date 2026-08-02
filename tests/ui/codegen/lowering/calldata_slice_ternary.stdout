@@ -14,18 +14,18 @@ fn @pick(arg0: bool, arg1: calldataslice, arg2: calldataslice) -> u256 [abi_para
   bb3:
     v4 = slice_ptr arg1
     v5 = slice_len arg1
-    mstore 0, v4 !metadata(memory=scratch)
-    mstore 32, v5 !metadata(memory=scratch)
+    frame_store scratch, word, 0, v4 !metadata(memory=scratch)
+    frame_store scratch, word, 32, v5 !metadata(memory=scratch)
     jump bb5
   bb4:
     v6 = slice_ptr arg2
     v7 = slice_len arg2
-    mstore 0, v6 !metadata(memory=scratch)
-    mstore 32, v7 !metadata(memory=scratch)
+    frame_store scratch, word, 0, v6 !metadata(memory=scratch)
+    frame_store scratch, word, 32, v7 !metadata(memory=scratch)
     jump bb5
   bb5:
-    v8 = mload 0 !metadata(memory=scratch)
-    v9 = mload 32 !metadata(memory=scratch)
+    v8 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v9 = frame_load scratch, word, 32 !metadata(memory=scratch)
     v10 = make_calldata_slice v8, v9
     v11 = slice_len v10
     ret v11
@@ -51,10 +51,10 @@ fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [abi_params=[bool, byt
     v7 = lt v6, v5
     jumpi v7, bb6, bb7
   bb4:
-    mstore 0, v4 !metadata(memory=scratch)
+    frame_store scratch, word, 0, v4 !metadata(memory=scratch)
     jump bb5
   bb5:
-    v17 = mload 0 !metadata(memory=scratch)
+    v17 = frame_load scratch, word, 0 !metadata(memory=scratch)
     ret v17
   bb6:
     tail_call @__panic_41
@@ -75,7 +75,7 @@ fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [abi_params=[bool, byt
     v16 = div v15, 32
     memory_object_store_element memorybytes, v14, v16, 0
     memory_object_copy_from_slice memorybytes, v14, arg1
-    mstore 0, v14 !metadata(memory=scratch)
+    frame_store scratch, word, 0, v14 !metadata(memory=scratch)
     jump bb5
 }
 

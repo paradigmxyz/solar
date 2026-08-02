@@ -121,6 +121,8 @@ describes observable structure in the current tree, not an intended design.
   sizing and emission no longer reserve raw scratch buffers for counters.
 * Packed ABI static words also target the bytes object directly; only dynamic
   payload copies still use a physical `mcopy` destination.
+* Scalar and calldata-slice ternary merges use typed frame slots instead of
+  fixed low-memory scratch words.
 * Storage-to-memory and memory-to-storage aggregate copies use the same typed
   field and element operations. Packed and nested copies no longer expose a
   destination address to HIR lowering.

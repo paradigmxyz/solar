@@ -76,9 +76,9 @@ contract BackendControlFlow {
     // CHECK: [[RESERVE1:v[0-9]+]] = sload {{[0-9]+}}
     // CHECK: [[SECOND:v[0-9]+]] = div [[SECOND_NUM]], [[RESERVE1]]
     // CHECK: lt [[FIRST]], [[SECOND]]
-    // CHECK: mstore [[MERGE_ADDR:[0-9]+]], [[FIRST]]
-    // CHECK: mstore [[MERGE_ADDR]], [[SECOND]]
-    // CHECK: [[MIN:v[0-9]+]] = mload [[MERGE_ADDR]]
+    // CHECK: frame_store scratch, word, [[MERGE_ADDR:[0-9]+]], [[FIRST]]
+    // CHECK: frame_store scratch, word, [[MERGE_ADDR]], [[SECOND]]
+    // CHECK: [[MIN:v[0-9]+]] = frame_load scratch, word, [[MERGE_ADDR]]
     // CHECK: frame_store scratch, word, [[RESULT_ADDR]], [[MIN]]
     // CHECK: sstore [[SUPPLY_SLOT]], [[TOTAL]]
     function phiWithTernary() external returns (uint256 liquidity) {

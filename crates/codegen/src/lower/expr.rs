@@ -1564,7 +1564,7 @@ impl<'gcx> Lowerer<'gcx> {
             // (only one branch should be evaluated for side effects)
             let result_ty = self.get_expr_type(expr);
             // A calldata bytes/string/array ternary produces a logical slice:
-            // its pointer and length round-trip through both scratch words and
+            // its pointer and length round-trip through typed frame slots and
             // re-form a slice at the merge, keeping the value lazy.
             let slice_location = result_ty.and_then(|ty| match ty.kind {
                 TyKind::Ref(inner, solar_ast::DataLocation::Calldata) => match inner.kind {
@@ -1575,6 +1575,9 @@ impl<'gcx> Lowerer<'gcx> {
                 },
                 _ => None,
             });
+            let slice_slots = slice_location
+                .map(|_| (self.alloc_temp_frame_word(), self.alloc_temp_frame_word()));
+            let value_slot = slice_location.is_none().then(|| self.alloc_temp_frame_word());
             let cond_val = self.lower_value_expr(builder, cond);
 
             let then_block = builder.create_block();
@@ -1589,18 +1592,16 @@ impl<'gcx> Lowerer<'gcx> {
                     let value = self.lower_value_expr(builder, arm);
                     let ptr = builder.slice_ptr(value);
                     let len = builder.slice_len(value);
-                    let ptr_slot = builder.imm_u64(0);
-                    builder.mstore(ptr_slot, ptr);
-                    // The second scratch word doubles as the ephemeral
-                    // multi-return buffer pointer, which is only live between
-                    // a multi-return call and its immediately-emitted reads,
-                    // never across an arm of a user expression.
-                    let len_slot = builder.imm_u64(32);
-                    builder.mstore(len_slot, len);
+                    let (ptr_slot, len_slot) = slice_slots.expect("slice slots must be allocated");
+                    self.store_frame_word(builder, ptr_slot, ptr);
+                    self.store_frame_word(builder, len_slot, len);
                 } else {
                     let value = self.lower_ternary_arm_value(builder, arm, result_ty);
-                    let slot = builder.imm_u64(0);
-                    builder.mstore(slot, value);
+                    self.store_frame_word(
+                        builder,
+                        value_slot.expect("value slot must be allocated"),
+                        value,
+                    );
                 }
                 builder.jump(merge_block);
             }
@@ -1608,14 +1609,12 @@ impl<'gcx> Lowerer<'gcx> {
             // Merge block: load the selected result from scratch memory.
             builder.switch_to_block(merge_block);
             if let Some(location) = slice_location {
-                let ptr_slot = builder.imm_u64(0);
-                let ptr = builder.mload(ptr_slot);
-                let len_slot = builder.imm_u64(32);
-                let len = builder.mload(len_slot);
+                let (ptr_slot, len_slot) = slice_slots.expect("slice slots must be allocated");
+                let ptr = self.load_frame_word(builder, ptr_slot);
+                let len = self.load_frame_word(builder, len_slot);
                 builder.make_slice(ptr, len, location)
             } else {
-                let slot = builder.imm_u64(0);
-                builder.mload(slot)
+                self.load_frame_word(builder, value_slot.expect("value slot must be allocated"))
             }
         }
     }

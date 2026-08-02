@@ -4,13 +4,13 @@ fn @choose(arg0: bool, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
-    mstore 0, 2 !metadata(memory=scratch)
+    frame_store scratch, word, 0, 2 !metadata(memory=scratch)
     jump bb3
   bb2:
-    mstore 0, 3 !metadata(memory=scratch)
+    frame_store scratch, word, 0, 3 !metadata(memory=scratch)
     jump bb3
   bb3:
-    v0 = mload 0 !metadata(memory=scratch)
+    v0 = frame_load scratch, word, 0 !metadata(memory=scratch)
     v1 = internal_call @__internal_dispatch_0, 1, v0, arg1
     ret v1
 }

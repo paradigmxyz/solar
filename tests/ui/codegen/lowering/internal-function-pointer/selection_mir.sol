@@ -3,8 +3,8 @@
 
 contract FunctionPointerSelection {
     // CHECK-LABEL: fn @choose(
-    // CHECK: mstore 0, [[INCREMENT:[0-9]+]]
-    // CHECK: mstore 0, [[DECREMENT:[0-9]+]]
+    // CHECK: frame_store scratch, word, {{[0-9]+}}, [[INCREMENT:[0-9]+]]
+    // CHECK: frame_store scratch, word, {{[0-9]+}}, [[DECREMENT:[0-9]+]]
     // CHECK: internal_call @__internal_dispatch_0, 1, {{v[0-9]+}}, arg1
     // CHECK-LABEL: fn @__internal_dispatch_0(
     // CHECK: eq arg0, [[INCREMENT]]
