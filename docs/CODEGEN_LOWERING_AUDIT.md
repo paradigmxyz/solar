@@ -57,6 +57,8 @@ describes observable structure in the current tree, not an intended design.
 * ABI decoding stores dynamic-array element pointers and validates copied words
   through typed object accesses. Fixed-array literals use the same element
   store path, leaving only bulk payload copies as raw memory operations.
+* Literal low-level call payloads use a bytes memory object for their
+  length-prefixed staging, then expose only its data slice to the call.
 * Dynamic mapping keys stay as `mapping_slot_memory` or
   `mapping_slot_calldata` until the mapping-slot pass. Target-specific memory
   copies are selected after that semantic operation is lowered.

@@ -1058,23 +1058,23 @@ impl<'gcx> Lowerer<'gcx> {
                 return Ok((builder.imm_u64(0), builder.imm_u64(0)));
             }
 
-            // Write the (left-aligned) bytes into a fresh allocation.
+            // Write the (left-aligned) bytes into a fresh memory object.
             let alloc_size = (len as u64).div_ceil(32) * 32;
-            let ptr = self.allocate_memory(builder, alloc_size);
+            let object_size = 32 + alloc_size;
+            let ptr = self.allocate_memory_object(builder, object_size, MemoryObjectKind::Bytes);
+            let len_value = builder.imm_u64(len as u64);
+            builder.set_memory_object_len(ptr, len_value, MemoryObjectKind::Bytes);
+            let layout = MemoryObjectLayout::Bytes;
             for (i, chunk) in bytes.chunks(32).enumerate() {
                 let mut padded = [0u8; 32];
                 padded[..chunk.len()].copy_from_slice(chunk);
                 let val = builder.imm_u256(U256::from_be_bytes(padded));
-                let addr = if i == 0 {
-                    ptr
-                } else {
-                    let offset_val = builder.imm_u64((i as u64) * 32);
-                    builder.add(ptr, offset_val)
-                };
-                builder.mstore(addr, val);
+                let index = builder.imm_u64(i as u64);
+                builder.memory_object_store_element(ptr, layout, index, val);
             }
 
-            return Ok((ptr, builder.imm_u64(len as u64)));
+            let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+            return Ok((data, len_value));
         }
 
         // Handle the abi.encode* family.
