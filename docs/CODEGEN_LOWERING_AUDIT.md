@@ -56,6 +56,14 @@ describes observable structure in the current tree, not an intended design.
   same pass. Indexing, push/pop, bytes access, and aggregate copies share that
   typed operation and the shared element-stride helper instead of staging the
   slot in HIR scratch memory.
+* Mutable locals and storage-reference values use typed `frame_load` and
+  `frame_store` operations. `lower-frame-slots` selects the external scratch
+  region or the internal-call frame and lowers those operations to physical
+  memory after ABI and dispatch lowering. Slice slots stay typed as
+  pointer/length values until that pass.
+* Panic, short-error, and storage-bytes helpers use one lazy registry keyed by
+  semantic operation. Repeated uses share one helper, while synthesis guards
+  keep recursive helper construction finite.
 * Modifier placeholders expand the modifier chain in source order. Return
   values pass through the suffix, and constructor base calls stay in the
   constructor prelude.
@@ -66,8 +74,8 @@ describes observable structure in the current tree, not an intended design.
 ## Current shape
 
 `crates/codegen/src/lower/mod.rs` owns HIR traversal, function construction,
-ABI layout calculation, calldata and constructor decoding, local-frame
-allocation, inline-call management, helper synthesis, and return encoding.
+ABI layout calculation, calldata and constructor decoding, logical frame-slot
+allocation, inline-call management, helper requests, and return encoding.
 The sibling modules are extensions of that one mutable context rather than
 independent lowering stages. A code search shows direct `mload`, `mstore`,
 `sload`, `sstore`, calldata, and returndata operations spread through
@@ -82,18 +90,15 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   scalar/byte/enum structs now defer to `lower-abi`, including its range and
   overflow checks, but the pass still has a second representation for
   unsupported aggregate shapes.
-* **Raw memory is used as a language-level value model.** Mutable locals are
-  assigned fixed offsets beginning at `EvmMemoryLayout::HEAP_START`, and many
-  lowering paths manually pair pointer and length words. This couples HIR
-  lowering to the physical EVM memory policy and makes alias reasoning depend
-  on undocumented scratch-space conventions.
-* **Helper generation is ad hoc.** `Lowerer` has separate option fields for
-  `Error(string)` and storage-bytes helpers, a recursion guard, and helper
-  builders embedded in the main lowering context. Other nontrivial operations
-  (checked exponentiation, ABI copies, and repeated cleanup/validation) are
-  emitted inline or have their own special-case builders. The helper API does
-  not describe an operation, its inputs, or deduplication key, and the
-  outlining path used to force helpers to remain out of later inlining passes.
+* **Physical memory still leaks through aggregate lowering.** Mutable locals
+  now use typed frame slots, but memory-object allocation, aggregate copies,
+  and some ABI builders still emit raw memory operations before the semantic
+  memory passes. The remaining work is to keep those object and copy policies
+  in typed MIR until the memory-layout boundary.
+* **Helper coverage is incomplete.** Panic, short-error, and storage-bytes
+  helpers now share a keyed lazy registry. Checked exponentiation, ABI copies,
+  and repeated cleanup or validation still have inline or pass-specific
+  builders, so the registry does not yet cover every reusable operation.
 * **Pattern-specific lowering is duplicated.** Struct, fixed-array, dynamic
   array, bytes, and calldata-slice handling each have separate branches in
   parameter setup, expression indexing, assignment, return gathering, and
@@ -134,10 +139,11 @@ production callers in `crates/codegen/src/contract.rs` and `benches/src/lib.rs`.
 ## Replacement constraints
 
 The replacement will translate HIR expressions and statements into typed MIR
-values and semantic memory/storage objects. ABI decoding, wrappers, and
-external termination will be created by the ABI phase. Allocation and object
-access will remain semantic until the memory/backend boundary. Storage layout
-will be represented by one type-directed location abstraction that handles
-slots, byte offsets, packed reads, and packed writes. Outlined helpers will be
-named operations keyed by their semantic signature, generated lazily, and
-allowed to be inlined by later passes.
+values, frame slots, and semantic memory/storage objects. ABI decoding,
+wrappers, and external termination will be created by the ABI phase. Frame
+slots, allocation, and object access will remain semantic until the
+memory/backend boundary. Storage layout will be represented by one type-directed
+location abstraction that handles slots, byte offsets, packed reads, and
+packed writes. Outlined helpers will be named operations keyed by their
+semantic signature, generated lazily, and allowed to be inlined by later
+passes.
