@@ -101,7 +101,7 @@ fn @roundtrip(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb5:
     tail_call @__revert_empty
   bb6:
-    v12 = mload v10
+    v12 = memory_object_load_element memorybytes, v8, 0
     ret v12
 }
 

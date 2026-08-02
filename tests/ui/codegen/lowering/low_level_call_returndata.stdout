@@ -37,7 +37,7 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [abi_args=lazy] {
   bb5:
     tail_call @__revert_empty
   bb6:
-    v18 = mload v16
+    v18 = memory_object_load_element memorybytes, v12, 0
     v19 = iszero v18
     v20 = iszero v19
     v21 = eq v18, v20
@@ -99,7 +99,7 @@ fn @balanceOf(arg0: address) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb3:
     tail_call @__revert_empty
   bb4:
-    v19 = mload v17
+    v19 = memory_object_load_element memorybytes, v14, 0
     ret v19
 }
 

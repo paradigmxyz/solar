@@ -5,7 +5,7 @@ contract AbiDecodeStaticTuple {
     // CHECK-LABEL: fn @decode{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = memory_object_len memorybytes
     // CHECK: {{v[0-9]+}} = lt [[LEN]], 96
-    // CHECK: {{v[0-9]+}} = mload
+    // CHECK: {{v[0-9]+}} = memory_object_load_element memorybytes
     // CHECK: {{v[0-9]+}} = iszero
     // CHECK: {{v[0-9]+}} = and {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffff
     // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}

@@ -2445,9 +2445,8 @@ impl<'gcx> Lowerer<'gcx> {
             self.lower_value_expr(builder, data)
         };
         let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
-        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
 
-        let decoded_values = self.decode_abi_region(builder, data_start, len, &tys);
+        let decoded_values = self.decode_abi_region(builder, ptr, len, &tys);
         self.stage_multi_return_tail(builder, &decoded_values);
         decoded_values.first().copied().ok_or_else(|| {
             self.gcx.dcx().err("`abi.decode` must decode at least one value").span(span).emit()
@@ -2462,10 +2461,11 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn decode_abi_region(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        data_start: ValueId,
+        object: ValueId,
         len: ValueId,
         tys: &[Ty<'gcx>],
     ) -> Vec<ValueId> {
+        let data_start = builder.memory_object_data(object, MemoryObjectKind::Bytes);
         let head_size = match self.abi_head_size_sum(tys.iter().copied()) {
             Ok(size) => size,
             Err(guar) => {
@@ -2489,11 +2489,21 @@ impl<'gcx> Lowerer<'gcx> {
             };
             let decoded = match strategy {
                 DecodeStrategy::Word(elem) => {
-                    let word = builder.mload(head_pos);
+                    let index = builder.imm_u64(head_offset / 32);
+                    let word = builder.memory_object_load_element(
+                        object,
+                        crate::mir::MemoryObjectLayout::Bytes,
+                        index,
+                    );
                     self.lower_abi_decode_word(builder, &elem, word)
                 }
                 DecodeStrategy::DynBytes => {
-                    let head = builder.mload(head_pos);
+                    let index = builder.imm_u64(head_offset / 32);
+                    let head = builder.memory_object_load_element(
+                        object,
+                        crate::mir::MemoryObjectLayout::Bytes,
+                        index,
+                    );
                     self.lower_abi_decode_dynamic_bytes(
                         builder,
                         data_start,
@@ -2503,7 +2513,12 @@ impl<'gcx> Lowerer<'gcx> {
                     )
                 }
                 DecodeStrategy::ElementaryArray(elem) => {
-                    let head = builder.mload(head_pos);
+                    let index = builder.imm_u64(head_offset / 32);
+                    let head = builder.memory_object_load_element(
+                        object,
+                        crate::mir::MemoryObjectLayout::Bytes,
+                        index,
+                    );
                     self.lower_abi_decode_dyn_array(
                         builder, data_start, len, head_size, &elem, head,
                     )
@@ -2513,7 +2528,12 @@ impl<'gcx> Lowerer<'gcx> {
                     // the same recursive materializer that decodes calldata
                     // struct-array parameters.
                     let pos = if self.abi_is_dynamic(ty) {
-                        let offset = builder.mload(head_pos);
+                        let index = builder.imm_u64(head_offset / 32);
+                        let offset = builder.memory_object_load_element(
+                            object,
+                            crate::mir::MemoryObjectLayout::Bytes,
+                            index,
+                        );
                         builder.add(data_start, offset)
                     } else {
                         head_pos

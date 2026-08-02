@@ -1183,9 +1183,8 @@ impl<'gcx> Lowerer<'gcx> {
         let slice = self.returndata_slice(builder);
         let ptr = self.materialize_returndata_slice(builder, slice);
         let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
-        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
 
-        let decoded = self.decode_abi_region(builder, data_start, len, &tys);
+        let decoded = self.decode_abi_region(builder, ptr, len, &tys);
         for (&var_id, value) in vars.iter().zip(decoded) {
             self.bind_local_value(builder, var_id, value);
         }

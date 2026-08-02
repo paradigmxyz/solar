@@ -63,6 +63,8 @@ describes observable structure in the current tree, not an intended design.
 * ABI decoding stores dynamic-array element pointers and validates copied words
   through typed object accesses. Fixed-array literals use the same element
   store path, leaving only bulk payload copies as raw memory operations.
+  Top-level `abi.decode` and `try` return heads load through the source bytes
+  object; tail validation still uses the logical data slice.
 * Typed calldata, memory, and returndata slices copy into bytes objects through
   `memory_object_copy_from_slice`. The memory-object pass selects the physical
   copy opcode, and the canonical pipeline lowers objects before slices so the

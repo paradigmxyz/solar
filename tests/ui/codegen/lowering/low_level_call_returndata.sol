@@ -23,7 +23,7 @@ contract LowLevelCallReturndata {
     // CHECK: {{v[0-9]+}} = staticcall {{v[0-9]+}}, arg0,
     // CHECK: {{v[0-9]+}} = make_returndata_slice 0,
     // CHECK: memory_object_copy_from_slice memorybytes
-    // CHECK: mload
+    // CHECK: memory_object_load_element memorybytes
     function balanceOf(address token) public view returns (uint256) {
         (bool success, bytes memory data) =
             token.staticcall(abi.encodeWithSignature("balanceOf(address)", address(this)));

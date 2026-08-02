@@ -42,7 +42,7 @@ fn @decode(arg0: calldataslice) -> u256 [abi_params=[bytes], abi_returns=[word]]
   bb7:
     tail_call @__revert_empty
   bb8:
-    v21 = mload v19
+    v21 = memory_object_load_element memorybytes, v15, 0
     ret v21
 }
 

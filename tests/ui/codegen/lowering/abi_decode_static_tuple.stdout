@@ -12,9 +12,9 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_params=[bytes], abi_
   bb1:
     tail_call @__revert_empty
   bb2:
-    v3 = mload v1
+    v3 = memory_object_load_element memorybytes, arg0, 0
     v4 = add v1, 32
-    v5 = mload v4
+    v5 = memory_object_load_element memorybytes, arg0, 1
     v6 = iszero v5
     v7 = iszero v6
     v8 = eq v5, v7
@@ -24,7 +24,7 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_params=[bytes], abi_
     revert 0, 0
   bb4:
     v10 = add v1, 64
-    v11 = mload v10
+    v11 = memory_object_load_element memorybytes, arg0, 2
     v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
     v13 = eq v11, v12
     v14 = iszero v13
