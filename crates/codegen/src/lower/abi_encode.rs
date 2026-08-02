@@ -211,9 +211,7 @@ impl<'gcx> Lowerer<'gcx> {
         Ok(self.materialize_memory_slice_bytes(builder, payload))
     }
 
-    /// Lowers `keccak256(abi.encode(...))` without materializing a `bytes`
-    /// object: the tuple encoding is staged at the unbumped free memory
-    /// pointer and hashed in place, like solc.
+    /// Lowers `keccak256(abi.encode(...))` through the typed ABI operation.
     pub(super) fn lower_keccak_abi_encode(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -221,24 +219,16 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> Result<ValueId, ErrorGuaranteed> {
         let LoweredAbiItems { items, calldata_slices } =
             self.lower_abi_encode_items(builder, arg_exprs.iter())?;
-        // Loop scratch must be a real allocation so it sits below the staging
-        // area read by the hash.
-        let scratch_words = self.abi_scratch_words(&items);
-        let scratch_base =
-            (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
-
-        let data = builder.fmp();
-        let size = if items.is_empty() {
-            builder.imm_u64(0)
-        } else {
-            self.abi_encode_tuple(
-                builder,
-                &items,
-                data,
-                &calldata_slices,
-                lower_abi_encode::AbiScratch { base: scratch_base, depth: 0 },
-            )
-        };
+        let types = items
+            .iter()
+            .map(|&(value, ty)| self.abi_type(ty, calldata_slices.contains(&value)))
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| self.abi_type_error())?;
+        let layout = self.module.intern_abi_layout(AbiLayout::new(types));
+        let args = items.into_iter().map(|(value, _)| value).collect::<Vec<_>>();
+        let payload = builder.abi_encode(layout, None, args);
+        let data = builder.slice_ptr(payload);
+        let size = builder.slice_len(payload);
         Ok(builder.keccak256(data, size))
     }
 
