@@ -139,6 +139,15 @@ struct InlineReturnCtx {
     return_vars: Vec<VariableId>,
 }
 
+/// The continuation represented by a modifier placeholder.
+#[derive(Clone, Copy)]
+struct ModifierChain<'hir> {
+    modifiers: &'hir [hir::Modifier<'hir>],
+    body: hir::Block<'hir>,
+    next: usize,
+    return_vars: &'hir [hir::VariableId],
+}
+
 type InternalFunctionPointerShape = (Vec<MirType>, Vec<MirType>);
 
 /// Lowering context for converting HIR to MIR.
@@ -177,6 +186,8 @@ pub(crate) struct Lowerer<'gcx> {
     /// return-variable slots and jumps here, instead of terminating the
     /// enclosing MIR function.
     inline_returns: Option<InlineReturnCtx>,
+    /// Modifier continuations used while expanding a function body.
+    modifier_chains: Vec<ModifierChain<'gcx>>,
     /// Return values of the most recently inlined multi-return callee whose
     /// returns cannot ride the one-word-per-value multi-return buffer
     /// (calldata slices). Destructuring consumes them directly.
@@ -291,6 +302,7 @@ impl<'gcx> Lowerer<'gcx> {
             local_memory_slots: FxHashMap::default(),
             slice_slot_locals: FxHashSet::default(),
             inline_returns: None,
+            modifier_chains: Vec::new(),
             pending_inline_returns: None,
             next_local_memory_offset: EvmMemoryLayout::HEAP_START,
             contract_bytecodes: FxHashMap::default(),
@@ -529,9 +541,10 @@ impl<'gcx> Lowerer<'gcx> {
                     {
                         interface.contains(function_id)
                     }
-                    hir::FunctionKind::Function | hir::FunctionKind::Modifier => {
+                    hir::FunctionKind::Function => {
                         base_id == contract_id || function.visibility != hir::Visibility::Private
                     }
+                    hir::FunctionKind::Modifier => false,
                 };
                 if selected {
                     self.ensure_function_lowered(function_id);
@@ -582,7 +595,7 @@ impl<'gcx> Lowerer<'gcx> {
                             functions.push(func_id);
                         }
                     }
-                    hir::FunctionKind::Function | hir::FunctionKind::Modifier => {
+                    hir::FunctionKind::Function => {
                         // Skip private functions from base contracts - they're not inherited
                         if base_id != contract_id && func.visibility == hir::Visibility::Private {
                             continue;
@@ -605,6 +618,7 @@ impl<'gcx> Lowerer<'gcx> {
                             functions.push(func_id);
                         }
                     }
+                    hir::FunctionKind::Modifier => {}
                 }
             }
         }
@@ -830,6 +844,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
         let saved_inline_returns = self.inline_returns.take();
+        let saved_modifier_chains = std::mem::take(&mut self.modifier_chains);
         let saved_pending_inline_returns = self.pending_inline_returns.take();
         let saved_current_contract_id = self.current_contract_id;
         let saved_lowering_constructor = self.lowering_constructor;
@@ -850,6 +865,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
         self.inline_returns = saved_inline_returns;
+        self.modifier_chains = saved_modifier_chains;
         self.pending_inline_returns = saved_pending_inline_returns;
         self.current_contract_id = saved_current_contract_id;
         self.lowering_constructor = saved_lowering_constructor;
@@ -875,6 +891,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
         let saved_inline_returns = self.inline_returns.take();
+        let saved_modifier_chains = std::mem::take(&mut self.modifier_chains);
         let saved_pending_inline_returns = self.pending_inline_returns.take();
         let saved_current_contract_id = self.current_contract_id;
         let saved_lowering_constructor = self.lowering_constructor;
@@ -893,6 +910,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
         self.inline_returns = saved_inline_returns;
+        self.modifier_chains = saved_modifier_chains;
         self.pending_inline_returns = saved_pending_inline_returns;
         self.current_contract_id = saved_current_contract_id;
         self.lowering_constructor = saved_lowering_constructor;
@@ -901,6 +919,134 @@ impl<'gcx> Lowerer<'gcx> {
         self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
         mir_id
+    }
+
+    /// Lowers a function body with its modifiers expanded around it.
+    fn lower_function_body_with_modifiers(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        function: &hir::Function<'gcx>,
+        body: hir::Block<'gcx>,
+    ) {
+        let continuation = builder.create_block();
+        self.lower_modifier_chain(
+            builder,
+            function.modifiers,
+            body,
+            0,
+            continuation,
+            function.returns,
+        );
+        builder.switch_to_block(continuation);
+    }
+
+    /// Lowers one modifier and leaves a continuation for its placeholder.
+    fn lower_modifier_chain(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        modifiers: &'gcx [hir::Modifier<'gcx>],
+        body: hir::Block<'gcx>,
+        next: usize,
+        continuation: BlockId,
+        return_vars: &'gcx [hir::VariableId],
+    ) {
+        let Some(modifier) = modifiers.get(next).copied() else {
+            let saved_inline_returns = self.inline_returns.take();
+            self.inline_returns = Some(InlineReturnCtx {
+                exit_block: continuation,
+                return_vars: return_vars.to_vec(),
+            });
+            self.lower_block(builder, &body);
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(continuation);
+            }
+            self.inline_returns = saved_inline_returns;
+            builder.switch_to_block(continuation);
+            return;
+        };
+        let hir::ItemId::Function(modifier_id) = modifier.id else {
+            // Constructor base calls live in the same HIR list as modifiers and
+            // are lowered by the constructor prelude.
+            self.lower_modifier_chain(
+                builder,
+                modifiers,
+                body,
+                next + 1,
+                continuation,
+                return_vars,
+            );
+            return;
+        };
+        let modifier_function = self.gcx.hir.function(modifier_id);
+        let args = match self.ordered_args_for(
+            &modifier.args,
+            Some(CallableParamSource::Function { id: modifier_id, skips_receiver: false }),
+        ) {
+            Ok(args) => args,
+            Err(guar) => {
+                builder.error_value(guar);
+                builder.invalid();
+                return;
+            }
+        };
+        let values = args.iter().map(|arg| self.lower_value_expr(builder, arg)).collect::<Vec<_>>();
+
+        // Modifier parameters and locals use their own HIR IDs, so they can
+        // share the surrounding function scope without shadowing its values.
+        if let Some(modifier_body) = modifier_function.body {
+            self.collect_assigned_vars_block(&modifier_body);
+            for (&param_id, value) in modifier_function.parameters.iter().zip(values) {
+                self.bind_param_value(builder, param_id, value);
+            }
+
+            let saved_inline_returns = self.inline_returns.take();
+            self.inline_returns = Some(InlineReturnCtx {
+                exit_block: continuation,
+                return_vars: return_vars.to_vec(),
+            });
+            self.modifier_chains.push(ModifierChain {
+                modifiers,
+                body,
+                next: next + 1,
+                return_vars,
+            });
+            self.lower_block(builder, &modifier_body);
+            self.modifier_chains.pop();
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(continuation);
+            }
+            self.inline_returns = saved_inline_returns;
+            builder.switch_to_block(continuation);
+        } else {
+            self.lower_modifier_chain(
+                builder,
+                modifiers,
+                body,
+                next + 1,
+                continuation,
+                return_vars,
+            );
+        }
+    }
+
+    /// Expands the next modifier when a `_;` placeholder is reached.
+    pub(super) fn lower_modifier_placeholder(&mut self, builder: &mut FunctionBuilder<'_>) {
+        let Some(chain) = self.modifier_chains.pop() else {
+            let guar = self.recovery_error(None, "modifier placeholder has no active modifier");
+            builder.error_value(guar);
+            builder.invalid();
+            return;
+        };
+        let continuation = builder.create_block();
+        self.lower_modifier_chain(
+            builder,
+            chain.modifiers,
+            chain.body,
+            chain.next,
+            continuation,
+            chain.return_vars,
+        );
+        self.modifier_chains.push(chain);
     }
 
     /// Lowers a function to MIR. When `force_internal` is set, the function is
@@ -1342,9 +1488,9 @@ impl<'gcx> Lowerer<'gcx> {
             for &ret_id in hir_func.returns {
                 let ret_var = self.gcx.hir.variable(ret_id);
                 // An unnamed return cannot be assigned or read by the body.
-                // Keep it absent and materialize its default only if control
-                // actually reaches the implicit-return epilogue.
-                if ret_var.name.is_none() {
+                // Modifier expansion still needs a slot so an explicit return
+                // can defer termination until all modifier suffixes run.
+                if ret_var.name.is_none() && hir_func.modifiers.is_empty() {
                     continue;
                 }
                 // Allocate memory for return variables so they can be assigned to
@@ -1372,7 +1518,15 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             if let Some(body) = &hir_func.body {
-                self.lower_block(&mut builder, body);
+                if hir_func
+                    .modifiers
+                    .iter()
+                    .any(|modifier| matches!(modifier.id, hir::ItemId::Function(_)))
+                {
+                    self.lower_function_body_with_modifiers(&mut builder, hir_func, *body);
+                } else {
+                    self.lower_block(&mut builder, body);
+                }
             }
 
             if !builder.func().block(builder.current_block()).is_terminated() {

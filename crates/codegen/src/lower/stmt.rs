@@ -159,7 +159,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
 
-            StmtKind::Placeholder => {}
+            StmtKind::Placeholder => self.lower_modifier_placeholder(builder),
 
             StmtKind::UncheckedBlock(block) => self.lower_unchecked_block(builder, block),
 

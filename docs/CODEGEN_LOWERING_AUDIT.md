@@ -57,12 +57,12 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   fields manually. This permits state from one HIR function or inline call to
   affect another path when a new field is not added to every save/restore
   sequence.
-* **Modifiers are not a lowering stage.** Function-root discovery includes
-  modifier declarations, but the body lowerer has no corresponding modifier
-  expansion. `StmtKind::Placeholder` is a no-op (`lower/stmt.rs`), so modifier
-  pre- and post-code is absent from generated MIR. Existing success tests cover
-  only cases that do not expose this omission; negative modifier cases are in
-  the equivalence suite.
+* **Modifier lowering is now explicit, but still shares the function frame.**
+  Function-root discovery excludes modifier declarations. The lowering stage
+  expands modifier chains at `StmtKind::Placeholder`, carries return values
+  through suffix code, and keeps constructor base calls in the constructor
+  prelude. Modifier parameters and locals still use the enclosing function's
+  frame, so frame isolation remains a follow-up concern.
 * **Legacy compatibility surface is broad.** The top-level module exposes many
   `pub(crate)` and `pub(super)` methods because sibling files reach through the
   context. Their callers are not grouped by phase, so removing one helper
