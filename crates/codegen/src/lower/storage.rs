@@ -203,6 +203,9 @@ impl<'gcx> Lowerer<'gcx> {
     fn packed_storage_size(&self, ty: Ty<'gcx>) -> Option<TypeSize> {
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bool) => Some(TypeSize::new_int_bits(8)),
+            TyKind::Elementary(ElementaryType::UInt(size)) => {
+                Some(TypeSize::new_int_bits(size.bits()))
+            }
             TyKind::Udvt(inner, _) => self.packed_storage_size(inner),
             _ => None,
         }
