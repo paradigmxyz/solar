@@ -23,6 +23,10 @@ struct SignedList {
     uint256 bias;
 }
 
+struct NestedList {
+    uint256[][] values;
+}
+
 contract DynamicStructParam {
     // A struct with dynamic members stays typed in built MIR. The ABI phase
     // rebuilds its fields recursively and keeps the source base for calldata
@@ -56,5 +60,12 @@ contract DynamicStructParam {
     // CHECK: memory_object_field_addr memorystruct<2>, arg0, 0
     function signedWords(SignedList calldata input) external pure returns (uint256) {
         return input.values.length + input.bias;
+    }
+
+    // Nested dynamic arrays are decoded as arrays of typed memory objects.
+    // CHECK-LABEL: fn @nestedWords{{[( ]}}
+    // CHECK: memory_object_element_addr memoryarray<1>, {{v[0-9]+}}
+    function nestedWords(NestedList calldata input) external pure returns (uint256) {
+        return input.values.length + input.values[0].length;
     }
 }

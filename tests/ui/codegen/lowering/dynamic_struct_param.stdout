@@ -74,3 +74,66 @@ fn @signedWords(arg0: memorystruct) -> u256 [abi_params=[tuple<array<_, i256>, u
     ret v9
 }
 
+fn @nestedWords(arg0: memorystruct) -> u256 [abi_params=[tuple<array<_, array<_, u256>>>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_field_addr memorystruct<1>, arg0, 0
+    v1 = mload v0
+    v2 = memory_object_field_addr memorystruct<1>, arg0, 0
+    v3 = mload v2
+    v4 = memory_object_field_addr memorystruct<1>, arg0, 0
+    v5 = mload v4
+    v6 = mload v5
+    v7 = memory_object_field_addr memorystruct<1>, arg0, 0
+    v8 = mload v7
+    v9 = memory_object_field_addr memorystruct<1>, arg0, 0
+    v10 = mload v9
+    v11 = memory_object_len memoryarray, v10
+    v12 = lt 0, v11
+    jumpi v12, bb2, bb1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v13 = memory_object_element_addr memoryarray<1>, v10, 0
+    v14 = mload v13
+    v15 = memory_object_field_addr memorystruct<1>, arg0, 0
+    v16 = mload v15
+    v17 = memory_object_field_addr memorystruct<1>, arg0, 0
+    v18 = mload v17
+    v19 = memory_object_len memoryarray, v18
+    v20 = lt 0, v19
+    jumpi v20, bb4, bb3
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v21 = memory_object_element_addr memoryarray<1>, v18, 0
+    v22 = mload v21
+    v23 = memory_object_field_addr memorystruct<1>, arg0, 0
+    v24 = mload v23
+    v25 = memory_object_field_addr memorystruct<1>, arg0, 0
+    v26 = mload v25
+    v27 = memory_object_len memoryarray, v26
+    v28 = lt 0, v27
+    jumpi v28, bb6, bb5
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v29 = memory_object_element_addr memoryarray<1>, v26, 0
+    v30 = mload v29
+    v31 = mload v30
+    v32 = add v6, v31
+    v33 = lt v32, v6
+    jumpi v33, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    ret v32
+}
+

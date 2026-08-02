@@ -917,9 +917,10 @@ impl<'gcx> Lowerer<'gcx> {
         let ty = ty.peel_refs();
         match ty.kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => true,
-            // `lower-abi` bulk-copies full-word dynamic arrays. Narrow scalar
-            // arrays still need per-element canonicality checks there.
-            TyKind::DynArray(element) => self.abi_is_full_word_element(element),
+            // `lower-abi` materializes dynamic arrays into pointer-bearing
+            // memory objects. Scalar children are decoded and validated one
+            // at a time; aggregate children recurse through the same shape.
+            TyKind::DynArray(element) => self.can_defer_external_abi_aggregate_ty(element),
             TyKind::Udvt(inner, _) => self.can_defer_external_abi_aggregate_ty(inner),
             TyKind::Struct(id) => {
                 if ty.is_recursive(self.gcx) {
@@ -933,19 +934,6 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::Array(element, _) => self.can_defer_external_abi_aggregate_ty(element),
             TyKind::Enum(_) => true,
             _ => self.can_defer_external_abi_scalar_ty(ty),
-        }
-    }
-
-    fn abi_is_full_word_element(&self, ty: Ty<'gcx>) -> bool {
-        match ty.peel_refs().kind {
-            TyKind::Elementary(ElementaryType::UInt(size) | ElementaryType::Int(size))
-                if size.bits() == 256 =>
-            {
-                true
-            }
-            TyKind::Elementary(ElementaryType::FixedBytes(size)) if size.bytes() == 32 => true,
-            TyKind::Udvt(inner, _) => self.abi_is_full_word_element(inner),
-            _ => false,
         }
     }
 
@@ -964,6 +952,10 @@ impl<'gcx> Lowerer<'gcx> {
             || self.is_dyn_word_array_memory_param(param_id)
         {
             return true;
+        }
+        if matches!(ty.kind, TyKind::DynArray(_) | TyKind::Slice(_)) {
+            return param.data_location == Some(solar_ast::DataLocation::Memory)
+                && self.can_defer_external_abi_aggregate_ty(ty);
         }
         if matches!(ty.kind, TyKind::Array(..)) {
             return self.can_defer_external_abi_aggregate_ty(ty);

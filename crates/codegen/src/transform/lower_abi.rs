@@ -520,7 +520,7 @@ impl LowerAbiCx {
                 builder.make_slice(data, len, crate::mir::SliceLocation::Calldata)
             }
             crate::mir::AbiParamType::DynamicArray(element)
-                if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(_)) =>
+                if Self::is_full_word_scalar(element) =>
             {
                 let len = builder.calldataload(base);
                 let word = builder.imm_u64(32);
@@ -536,6 +536,76 @@ impl LowerAbiCx {
                     builder.memory_object_data(ptr, crate::mir::MemoryObjectKind::DynamicArray);
                 let src = builder.add(base, word);
                 builder.calldatacopy(dst, src, bytes);
+                ptr
+            }
+            crate::mir::AbiParamType::DynamicArray(element)
+                if matches!(arg_type, MirType::MemoryObject(_)) =>
+            {
+                let len = builder.calldataload(base);
+                let word = builder.imm_u64(32);
+                let bytes = builder.mul(len, word);
+                let total = builder.add(bytes, word);
+                let ptr = builder.alloc_object(
+                    total,
+                    crate::mir::MemoryObjectLayout::WORD_ARRAY,
+                    crate::mir::AllocationSemantics::INTERNAL,
+                );
+                builder.set_memory_object_len(ptr, len, crate::mir::MemoryObjectKind::DynamicArray);
+                let data_base = builder.add(base, word);
+                let dest =
+                    builder.memory_object_data(ptr, crate::mir::MemoryObjectKind::DynamicArray);
+
+                // Dynamic ABI arrays use a head of one word per element. The
+                // element value may itself be dynamic, so nested objects are
+                // decoded recursively and stored as pointers in this array.
+                // Recursive decoding can introduce arbitrary CFG edges; keep
+                // loop state in an internal allocation so those edges do not
+                // make a value live across an unbounded stack path.
+                let scratch_size = builder.imm_u64(3 * 32);
+                let scratch =
+                    builder.alloc(scratch_size, crate::mir::AllocationSemantics::INTERNAL);
+                let source_slot = builder.add(scratch, word);
+                let destination_slot = builder.add(source_slot, word);
+                builder.mstore(scratch, len);
+                builder.mstore(source_slot, data_base);
+                builder.mstore(destination_slot, dest);
+
+                let cond = builder.create_block();
+                let body = builder.create_block();
+                let done = builder.create_block();
+                builder.jump(cond);
+
+                builder.switch_to_block(cond);
+                let remaining = builder.mload(scratch);
+                let zero = builder.imm_u64(0);
+                let has_next = builder.gt(remaining, zero);
+                builder.branch(has_next, body, done);
+
+                builder.switch_to_block(body);
+                let source = builder.mload(source_slot);
+                let destination = builder.mload(destination_slot);
+                let mut element_current = builder.current_block();
+                let value = Self::decode_aggregate_argument(
+                    builder,
+                    element,
+                    element.mir_type(),
+                    source,
+                    data_base,
+                    &mut element_current,
+                );
+                builder.mstore(destination, value);
+                let one = builder.imm_u64(1);
+                let next_remaining = builder.sub(remaining, one);
+                let element_head_size = builder.imm_u64(element.head_size());
+                let next_source = builder.add(source, element_head_size);
+                let next_destination = builder.add(destination, word);
+                builder.mstore(scratch, next_remaining);
+                builder.mstore(source_slot, next_source);
+                builder.mstore(destination_slot, next_destination);
+                builder.jump(cond);
+
+                builder.switch_to_block(done);
+                *current = done;
                 ptr
             }
             crate::mir::AbiParamType::Bytes if matches!(arg_type, MirType::Slice(_)) => {
@@ -649,7 +719,7 @@ impl LowerAbiCx {
         ) || matches!(
             ty,
             crate::mir::AbiParamType::DynamicArray(element)
-                if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(_))
+                if Self::is_supported_tuple_field(element)
         ) || matches!(ty, crate::mir::AbiParamType::Bytes)
             || matches!(
                 ty,
@@ -671,14 +741,18 @@ impl LowerAbiCx {
         ) || matches!(
             ty,
             crate::mir::AbiParamType::DynamicArray(element)
-                if matches!(
-                    element.as_ref(),
-                    crate::mir::AbiParamType::Scalar(scalar)
-                        if *scalar == MirType::uint256()
-                            || *scalar == MirType::int256()
-                            || *scalar == MirType::bytes32()
-                )
+                if Self::is_supported_tuple_field(element)
         ) || matches!(ty, crate::mir::AbiParamType::Tuple(fields) if fields.iter().all(Self::is_supported_tuple_field))
+    }
+
+    fn is_full_word_scalar(ty: &crate::mir::AbiParamType) -> bool {
+        matches!(
+            ty,
+            crate::mir::AbiParamType::Scalar(scalar)
+                if *scalar == MirType::uint256()
+                    || *scalar == MirType::int256()
+                    || *scalar == MirType::bytes32()
+        )
     }
 
     /// Prepends `if callvalue() != 0 { revert(0, 0) }` to a wrapper.

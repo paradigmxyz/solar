@@ -11,6 +11,7 @@
 //@ run-call: readWordList((uint256[],uint256)) ([1, 2, 3], 7) => 10
 //@ run-call: readWordList((uint256[],uint256)) ([], 7) => 7
 //@ run-call: readSignedList((int256[],uint256)) ([1, 2], 7) => 9
+//@ run-call: readNestedList((uint256[][])) ([[1, 2], [3]]) => 4
 //@ run-call: readEnumPair((uint8,uint256)) (1, 9) => 10
 //@ run-call-fail: readEnumPair((uint8,uint256)) (2, 9)
 //@ run-call: readEnumArray(uint8[2]) [1, 0] => 1
@@ -40,6 +41,10 @@ contract AbiFixedArray {
     struct SignedList {
         int256[] values;
         uint256 bias;
+    }
+
+    struct NestedList {
+        uint256[][] values;
     }
 
     enum Mode {
@@ -95,6 +100,10 @@ contract AbiFixedArray {
 
     function readSignedList(SignedList memory value) external pure returns (uint256) {
         return value.values.length + value.bias;
+    }
+
+    function readNestedList(NestedList memory value) external pure returns (uint256) {
+        return value.values.length + value.values[0].length;
     }
 
     function readEnumPair(EnumPair memory value) external pure returns (uint256) {
