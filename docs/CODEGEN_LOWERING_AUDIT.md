@@ -6,9 +6,10 @@ describes observable structure in the current tree, not an intended design.
 ## Completed slices
 
 * Scalar external arguments stay typed in built MIR. The `lower-abi` pass adds
-  the calldata-size and canonical-word checks, then clears the temporary
-  `abi_args=lazy` marker while it forms the wrapper. Raw words are loaded for
-  validation so MIR simplification cannot assume the check already passed.
+  the calldata-size and canonical-word checks, carries enum variant counts in
+  the ABI shape, then clears the temporary `abi_args=lazy` marker while it
+  forms the wrapper. Raw words are loaded for validation so MIR simplification
+  cannot assume the check already passed.
 * Supported aggregate external arguments stay typed until `lower-abi`. Fixed
   and dynamic word arrays, byte strings, and nested scalar/byte tuples carry an
   ABI shape in MIR; the ABI phase remaps physical head words, validates scalar
