@@ -15,8 +15,8 @@ describes observable structure in the current tree, not an intended design.
   arrays and narrow scalar elements), byte strings, and scalar/byte/enum tuples
   carry an ABI shape in MIR; the ABI phase remaps physical head words,
   validates scalar fields, and builds either memory objects or calldata slices.
-  Dynamic structs carry one trailing source-base word when their fields need
-  calldata slices.
+  Scalar dynamic arrays in calldata stay typed slices. Dynamic structs carry
+  one trailing source-base word when their fields need calldata slices.
 * ABI parameter shapes print and parse with MIR text, so the boundary metadata
   survives phase dumps and round trips.
 * Source `abi.encode(...)` emits the typed `abi_encode` MIR operation. The ABI

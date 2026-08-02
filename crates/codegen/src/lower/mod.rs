@@ -954,8 +954,21 @@ impl<'gcx> Lowerer<'gcx> {
             return true;
         }
         if matches!(ty.kind, TyKind::DynArray(_) | TyKind::Slice(_)) {
-            return param.data_location == Some(solar_ast::DataLocation::Memory)
-                && self.can_defer_external_abi_aggregate_ty(ty);
+            return match param.data_location {
+                Some(solar_ast::DataLocation::Memory) => {
+                    self.can_defer_external_abi_aggregate_ty(ty)
+                }
+                // The ABI phase can preserve a single-word scalar array as a
+                // calldata slice. Aggregate elements still need materialized
+                // objects, so they stay on the legacy decoder.
+                Some(solar_ast::DataLocation::Calldata) => {
+                    let (TyKind::DynArray(element) | TyKind::Slice(element)) = ty.kind else {
+                        unreachable!()
+                    };
+                    self.can_defer_external_abi_scalar_ty(element)
+                }
+                _ => false,
+            };
         }
         if matches!(ty.kind, TyKind::Array(..)) {
             return self.can_defer_external_abi_aggregate_ty(ty);
