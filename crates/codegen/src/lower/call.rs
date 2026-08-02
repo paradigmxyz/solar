@@ -2810,19 +2810,15 @@ impl<'gcx> Lowerer<'gcx> {
             );
             let len_value = builder.imm_u64(len);
             builder.set_memory_object_len(object, len_value, MemoryObjectKind::Bytes);
-            let ptr = builder.memory_object_data(object, MemoryObjectKind::Bytes);
+            let layout = crate::mir::MemoryObjectLayout::Bytes;
             for (i, chunk) in bytes.chunks(32).enumerate() {
                 let mut padded = [0u8; 32];
                 padded[..chunk.len()].copy_from_slice(chunk);
                 let value = builder.imm_u256(U256::from_be_bytes(padded));
-                let dest = if i == 0 {
-                    ptr
-                } else {
-                    let offset = builder.imm_u64((i * 32) as u64);
-                    builder.add(ptr, offset)
-                };
-                builder.mstore(dest, value);
+                let index = builder.imm_u64(i as u64);
+                builder.memory_object_store_element(object, layout, index, value);
             }
+            let ptr = builder.memory_object_data(object, MemoryObjectKind::Bytes);
             return Ok((ptr, builder.imm_u64(len)));
         }
 
