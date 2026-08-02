@@ -660,10 +660,20 @@ impl<'gcx> Lowerer<'gcx> {
         call_opts: Option<&[hir::NamedArg<'_>]>,
         function: &'gcx TyFn<'gcx>,
     ) -> Option<ValueId> {
-        let (success, ret_offset) =
+        let (success, _ret_offset, return_object) =
             self.emit_external_function_pointer_call(builder, callee, args, call_opts, function);
         self.emit_forwarding_revert_unless(builder, success);
-        (!function.returns.is_empty()).then(|| builder.mload(ret_offset))
+        return_object.map(|object| {
+            let index = builder.imm_u64(0);
+            builder.memory_object_load_element(
+                object,
+                MemoryObjectLayout::FixedArray {
+                    len: function.returns.len() as u64,
+                    element_words: 1,
+                },
+                index,
+            )
+        })
     }
 
     pub(super) fn emit_external_function_pointer_call(
@@ -673,7 +683,7 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
         call_opts: Option<&[hir::NamedArg<'_>]>,
         function: &'gcx TyFn<'gcx>,
-    ) -> (ValueId, ValueId) {
+    ) -> (ValueId, ValueId, Option<ValueId>) {
         let function_value = self.lower_value_expr(builder, callee);
         let selector_mask = builder.imm_u64(u32::MAX as u64);
         let selector = builder.and(function_value, selector_mask);
@@ -686,7 +696,7 @@ impl<'gcx> Lowerer<'gcx> {
             Ok(exprs) => exprs,
             Err(guar) => {
                 let error = builder.error_value(guar);
-                return (error, error);
+                return (error, error, None);
             }
         };
         let (calldata_start, calldata_size) = match self.abi_encode_call_payload(
@@ -697,13 +707,24 @@ impl<'gcx> Lowerer<'gcx> {
             Ok(payload) => payload,
             Err(guar) => {
                 let error = builder.error_value(guar);
-                return (error, error);
+                return (error, error, None);
             }
         };
 
-        let ret_offset =
-            if function.returns.len() > 1 { calldata_start } else { builder.imm_u64(0) };
-        let ret_size = builder.imm_u64((function.returns.len() * 32) as u64);
+        let (ret_offset, ret_size, return_object) = if function.returns.is_empty() {
+            let zero = builder.imm_u64(0);
+            (zero, zero, None)
+        } else {
+            let len = function.returns.len() as u64;
+            let size = builder.imm_u64(len * 32);
+            let object = builder.alloc_object(
+                size,
+                MemoryObjectLayout::FixedArray { len, element_words: 1 },
+                crate::mir::AllocationSemantics::INTERNAL,
+            );
+            let ret_offset = builder.memory_object_data(object, MemoryObjectKind::FixedArray);
+            (ret_offset, size, Some(object))
+        };
         let kind = ExternalCallKind::from_state_mutability(
             function.state_mutability,
             self.gcx.sess.opts.evm_version.has_static_call(),
@@ -725,7 +746,7 @@ impl<'gcx> Lowerer<'gcx> {
             let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
             builder.mstore(ptr_slot, ret_offset);
         }
-        (success, ret_offset)
+        (success, ret_offset, return_object)
     }
 
     pub(super) fn virtual_function_target(&self, function_id: hir::FunctionId) -> hir::FunctionId {

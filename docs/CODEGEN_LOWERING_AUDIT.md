@@ -131,6 +131,8 @@ describes observable structure in the current tree, not an intended design.
   load the result through its semantic element operation.
 * High-level external-call value returns use a typed fixed-array output object;
   only the call boundary receives its lowered data pointer.
+* External function-pointer value returns use the same typed fixed-array output
+  object; the call boundary no longer reads the first word from scratch memory.
 * Object-backed constructor and linked-library payload assembly uses
   `memory_object_store_word`; only memory lowering forms payload addresses.
 * ABI tail lengths and nested dynamic-array heads read through

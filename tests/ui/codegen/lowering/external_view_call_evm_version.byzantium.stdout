@@ -34,15 +34,17 @@ fn @readPointer(arg0: function) -> u256 [abi_returns=[word]] {
     v6 = abi_encode [], selector v4
     v7 = slice_ptr v6
     v8 = slice_len v6
-    v9 = gas
-    v10 = staticcall v9, v5, v7, v8, 0, 32
-    jumpi v10, bb4, bb3
+    v9 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v10 = memory_object_data memoryfixedarray, v9
+    v11 = gas
+    v12 = staticcall v11, v5, v7, v8, v10, 32
+    jumpi v12, bb4, bb3
   bb3:
-    v11 = returndatasize
-    returndatacopy 0, 0, v11 !metadata(memory=scratch)
-    revert 0, v11
+    v13 = returndatasize
+    returndatacopy 0, 0, v13 !metadata(memory=scratch)
+    revert 0, v13
   bb4:
-    v12 = mload 0 !metadata(memory=scratch)
-    ret v12
+    v14 = memory_object_load_element memoryfixedarray<1, 1>, v9, 0
+    ret v14
 }
 
