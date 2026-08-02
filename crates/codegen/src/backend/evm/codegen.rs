@@ -3758,8 +3758,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             .constructor_args_offset_const
             .expect("constructor argument end used outside constructor codegen");
         self.emit_constructor_args_base();
-        self.asm.emit_op(op::CODESIZE);
         self.asm.emit_push_deferred(offset);
+        self.asm.emit_op(op::CODESIZE);
         self.asm.emit_op(op::SUB);
         self.asm.emit_op(op::ADD);
     }

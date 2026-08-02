@@ -24,6 +24,8 @@
 //@ run-call: ConstructorAbiFixedArray::result(); constructor=[[[1, 2], [3, 4]], 5] => 8
 //@ run-call: ConstructorAbiDynamic::result(); constructor=[[1, 2, 3], 0x010203] => 5
 //@ run-call: ConstructorAbiDynamicWords::result(); constructor=[[1, 2, 3]] => 2
+//@ run-call: ConstructorAbiBytes::result(); constructor=[0x010203] => 3
+//@ run-call: ConstructorAbiStruct::result(); constructor=[(7, 0x010203)] => 10
 
 contract AbiFixedArray {
     struct Pair {
@@ -155,5 +157,26 @@ contract ConstructorAbiDynamicWords {
 
     constructor(uint256[] memory values) {
         result = values[1];
+    }
+}
+
+contract ConstructorAbiBytes {
+    uint256 public result;
+
+    constructor(bytes memory data) {
+        result = data.length;
+    }
+}
+
+contract ConstructorAbiStruct {
+    struct Value {
+        uint256 value;
+        bytes data;
+    }
+
+    uint256 public result;
+
+    constructor(Value memory value) {
+        result = value.value + value.data.length;
     }
 }

@@ -45,9 +45,12 @@ contract StorageStringConstructor {
     // CHECK: internal_call @__load_storage_bytes, 1, 1
     string public symbol;
 
-    // CHECK-LABEL: fn @_anonymous{{[( ]}}
-    // CHECK-COUNT-2: set_memory_object_len memorybytes
+    // CHECK-LABEL: fn @_anonymous{{.*abi_args=lazy.*}}
+    // CHECK: memory_object_len memorybytes
+    // CHECK: memory_object_data memorybytes
     // CHECK: sstore 0,
+    // CHECK: memory_object_len memorybytes
+    // CHECK: memory_object_data memorybytes
     // CHECK: sstore 1,
     constructor(string memory name_, string memory symbol_) {
         name = name_;

@@ -1049,46 +1049,15 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    fn is_constructor_abi_word_ty(&self, ty: Ty<'gcx>) -> bool {
-        self.can_defer_external_abi_scalar_ty(ty)
-    }
-
-    fn can_defer_constructor_abi_array_element(&self, ty: Ty<'gcx>) -> bool {
-        let ty = ty.peel_refs();
-        if self.is_constructor_abi_word_ty(ty) {
-            return true;
-        }
-        matches!(
-            ty.kind,
-            TyKind::Array(element, len)
-                if len <= U256::from(u16::MAX)
-                    && self.can_defer_constructor_abi_array_element(element)
-        )
-    }
-
     fn can_defer_constructor_abi_param(&self, param_id: VariableId) -> bool {
-        let param = self.gcx.hir.variable(param_id);
-        let ty = self.gcx.type_of_item(param_id.into()).peel_refs();
-        if self.is_constructor_abi_word_ty(ty) {
-            return true;
-        }
-        if self.is_dyn_word_array_memory_param(param_id) {
-            return true;
-        }
-        matches!(
-            ty.kind,
-            TyKind::Array(element, len)
-                if param.data_location == Some(solar_ast::DataLocation::Memory)
-                    && len <= U256::from(u16::MAX)
-                    && self.can_defer_constructor_abi_array_element(element)
-        )
+        let ty = self.gcx.type_of_item(param_id.into());
+        self.can_defer_external_abi_scalar_ty(ty) || self.can_defer_external_abi_param(param_id)
     }
 
     fn can_defer_constructor_abi(&self, func_id: hir::FunctionId) -> bool {
         let parameters = self.gcx.hir.function(func_id).parameters;
-        parameters.iter().any(|&param_id| {
-            matches!(self.gcx.type_of_item(param_id.into()).peel_refs().kind, TyKind::Array(..))
-        }) && parameters.iter().all(|&param_id| self.can_defer_constructor_abi_param(param_id))
+        !parameters.is_empty()
+            && parameters.iter().all(|&param_id| self.can_defer_constructor_abi_param(param_id))
     }
 
     fn is_external_abi_enum_ty(&self, ty: Ty<'gcx>) -> bool {
@@ -1127,9 +1096,9 @@ impl<'gcx> Lowerer<'gcx> {
     /// Returns whether an aggregate parameter can stay typed until `lower-abi`.
     ///
     /// Supported fixed arrays, byte slices, and tuples use their typed MIR
-    /// representation. Constructors defer only fixed arrays whose leaves and
-    /// other parameters are full ABI words; other constructor shapes stay on
-    /// the argument-blob decoder below.
+    /// representation. Constructors defer every non-storage ABI shape that
+    /// `lower-abi` can materialize; unsupported recursive shapes stay on the
+    /// argument-blob decoder below.
     fn can_defer_external_abi_param(&self, param_id: VariableId) -> bool {
         if self.param_is_storage_ref(param_id) {
             return false;

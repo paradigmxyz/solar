@@ -5,9 +5,11 @@ contract AbiParamObjectCopy {
     uint256[] public storedWords;
     bytes public storedBytes;
 
-    // CHECK-LABEL: fn @_anonymous{{[( ]}}
-    // CHECK: memory_object_copy_from_slice memoryarray
-    // CHECK: memory_object_copy_from_slice memorybytes
+    // CHECK-LABEL: fn @_anonymous{{.*abi_args=lazy.*}}
+    // CHECK: memory_object_len memoryarray
+    // CHECK: memory_object_load_element memoryarray
+    // CHECK: memory_object_len memorybytes
+    // CHECK: memory_object_data memorybytes
     constructor(uint256[] memory words, bytes memory data) {
         storedWords = words;
         storedBytes = data;
