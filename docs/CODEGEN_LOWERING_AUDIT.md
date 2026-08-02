@@ -9,6 +9,12 @@ describes observable structure in the current tree, not an intended design.
   the calldata-size and canonical-word checks, then clears the temporary
   `abi_args=lazy` marker while it forms the wrapper. Raw words are loaded for
   validation so MIR simplification cannot assume the check already passed.
+* Simple aggregate external arguments stay typed until `lower-abi`. Fixed and
+  dynamic word arrays, byte strings, and scalar-only structs carry an ABI shape
+  in MIR; the ABI phase remaps physical head words, validates scalar fields,
+  and builds either memory objects or calldata slices.
+* ABI parameter shapes print and parse with MIR text, so the boundary metadata
+  survives phase dumps and round trips.
 * Packed storage locations carry their semantic encoding. Signed values are
   sign-extended on load, fixed bytes are aligned at the MIR boundary, and both
   forms share the same read-modify-write path for state variables, fields, and
@@ -32,13 +38,11 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
 
 ## Concrete shortcomings
 
-* **The ABI boundary is still split for aggregates.** `Lowerer::lower_function` computes
-  ABI head and return sizes, emits the short-calldata guard, creates one MIR
-  argument for each ABI head word, validates those words, and materializes
-  memory arguments (`lower/mod.rs`, around `lower_function`). Scalar word
-  arguments now defer that work to `lower-abi`, but dynamic structs, arrays,
-  bytes, and enums still use the old decode path. The pass therefore remains a
-  second representation of the aggregate boundary until those types move.
+* **The ABI boundary is still split for complex aggregates.**
+  `Lowerer::lower_function` still decodes dynamic structs, nested arrays, and
+  enums. Simple arrays, byte strings, and scalar-only structs now defer to
+  `lower-abi`, but the pass still has a second representation for unsupported
+  aggregate shapes.
 * **Raw memory is used as a language-level value model.** Mutable locals are
   assigned fixed offsets beginning at `EvmMemoryLayout::HEAP_START`, and many
   lowering paths manually pair pointer and length words. `abi_encode.rs` and
