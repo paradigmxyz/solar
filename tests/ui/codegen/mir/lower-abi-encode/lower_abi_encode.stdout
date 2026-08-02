@@ -53,6 +53,98 @@
 +     ret v25
   }
   
+  fn @nested_dynamic_array(arg0: memoryarray) -> memoryslice {
+    bb0:
+-     v0 = abi_encode [memory_array<memory_array<word>>], args arg0
+-     ret v0
++     v1 = alloc memoryarray<1>, exact, uninitialized, infallible, 192
++     set_memory_object_len memoryarray, v1, 5
++     v2 = memory_object_len memoryarray, arg0
++     v3 = mul v2, 32
++     v4 = add 32, v3
++     memory_object_store_element memoryarray<1>, v1, 0, v2
++     memory_object_store_element memoryarray<1>, v1, 1, v4
++     memory_object_store_element memoryarray<1>, v1, 2, 0
++     jump bb1
++   bb1:
++     v5 = memory_object_load_element memoryarray<1>, v1, 0
++     v6 = gt v5, 0
++     jumpi v6, bb2, bb3
++   bb2:
++     v7 = memory_object_load_element memoryarray<1>, v1, 2
++     v8 = memory_object_load_element memoryarray<1>, arg0, v7
++     v9 = memory_object_len memoryarray, v8
++     v10 = mul v9, 32
++     v11 = add 32, v10
++     v12 = memory_object_load_element memoryarray<1>, v1, 1
++     v13 = add v12, v11
++     memory_object_store_element memoryarray<1>, v1, 1, v13
++     v14 = memory_object_load_element memoryarray<1>, v1, 0
++     v15 = sub v14, 1
++     memory_object_store_element memoryarray<1>, v1, 0, v15
++     v16 = memory_object_load_element memoryarray<1>, v1, 2
++     v17 = add v16, 1
++     memory_object_store_element memoryarray<1>, v1, 2, v17
++     jump bb1
++   bb3:
++     v18 = memory_object_load_element memoryarray<1>, v1, 1
++     v19 = add 32, v18
++     v20 = add v19, 0
++     v21 = add v20, 31
++     v22 = not 31
++     v23 = and v21, v22
++     v24 = alloc raw, exact, uninitialized, infallible, v23
++     v25 = add v24, 32
++     v26 = sub v25, v24
++     mstore v24, v26
++     v27 = memory_object_len memoryarray, arg0
++     mstore v25, v27
++     v28 = add v25, 32
++     v29 = mul v27, 32
++     v30 = add v28, v29
++     memory_object_store_element memoryarray<1>, v1, 0, v27
++     memory_object_store_element memoryarray<1>, v1, 1, v30
++     memory_object_store_element memoryarray<1>, v1, 2, v28
++     memory_object_store_element memoryarray<1>, v1, 3, 0
++     memory_object_store_element memoryarray<1>, v1, 4, v28
++     jump bb4
++   bb4:
++     v31 = memory_object_load_element memoryarray<1>, v1, 0
++     v32 = gt v31, 0
++     jumpi v32, bb5, bb6
++   bb5:
++     v33 = memory_object_load_element memoryarray<1>, v1, 3
++     v34 = memory_object_load_element memoryarray<1>, arg0, v33
++     v35 = memory_object_load_element memoryarray<1>, v1, 2
++     v36 = memory_object_load_element memoryarray<1>, v1, 1
++     v37 = memory_object_load_element memoryarray<1>, v1, 4
++     v38 = sub v36, v37
++     mstore v35, v38
++     v39 = memory_object_len memoryarray, v34
++     mstore v36, v39
++     v40 = mul v39, 32
++     v41 = add v36, 32
++     v42 = memory_object_data memoryarray, v34
++     v43 = add v41, v40
++     mcopy v41, v42, v40
++     memory_object_store_element memoryarray<1>, v1, 1, v43
++     v44 = memory_object_load_element memoryarray<1>, v1, 0
++     v45 = sub v44, 1
++     memory_object_store_element memoryarray<1>, v1, 0, v45
++     v46 = memory_object_load_element memoryarray<1>, v1, 3
++     v47 = add v46, 1
++     memory_object_store_element memoryarray<1>, v1, 3, v47
++     v48 = memory_object_load_element memoryarray<1>, v1, 2
++     v49 = add v48, 32
++     memory_object_store_element memoryarray<1>, v1, 2, v49
++     jump bb4
++   bb6:
++     v50 = memory_object_load_element memoryarray<1>, v1, 1
++     v51 = sub v50, v24
++     v52 = make_memory_slice v24, v20
++     ret v52
+  }
+  
   fn @returndata_bytes() -> memoryslice {
     bb0:
       v0 = returndatasize

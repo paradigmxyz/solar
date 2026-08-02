@@ -279,11 +279,10 @@ fn measure_dynamic_array(
     let element_head_size = builder.imm_u64(element.head_size());
     let head_bytes = builder.mul(len, element_head_size);
     let initial_size = builder.add(word, head_bytes);
-    let source_cursor = builder.memory_object_data(value, MemoryObjectKind::DynamicArray);
-
     scratch_store(builder, scratch_base, scratch.depth, 0, len);
     scratch_store(builder, scratch_base, scratch.depth, 1, initial_size);
-    scratch_store(builder, scratch_base, scratch.depth, 2, source_cursor);
+    let zero = builder.imm_u64(0);
+    scratch_store(builder, scratch_base, scratch.depth, 2, zero);
 
     let cond = builder.create_block();
     let body = builder.create_block();
@@ -297,8 +296,9 @@ fn measure_dynamic_array(
     builder.branch(has_next, body, done);
 
     builder.switch_to_block(body);
-    let source = scratch_load(builder, scratch_base, scratch.depth, 2);
-    let element_value = builder.mload(source);
+    let source_index = scratch_load(builder, scratch_base, scratch.depth, 2);
+    let element_value =
+        builder.memory_object_load_element(value, MemoryObjectLayout::WORD_ARRAY, source_index);
     if element.is_dynamic() {
         let size = measure_dynamic_body(
             builder,
@@ -314,9 +314,9 @@ fn measure_dynamic_array(
     let one = builder.imm_u64(1);
     let next_remaining = builder.sub(remaining, one);
     scratch_store(builder, scratch_base, scratch.depth, 0, next_remaining);
-    let source = scratch_load(builder, scratch_base, scratch.depth, 2);
-    let next_source = builder.add(source, word);
-    scratch_store(builder, scratch_base, scratch.depth, 2, next_source);
+    let source_index = scratch_load(builder, scratch_base, scratch.depth, 2);
+    let next_index = builder.add(source_index, one);
+    scratch_store(builder, scratch_base, scratch.depth, 2, next_index);
     builder.jump(cond);
 
     builder.switch_to_block(done);
@@ -491,12 +491,11 @@ fn encode_dynamic_array(
     let element_head_size = builder.imm_u64(element.head_size());
     let head_bytes = builder.mul(len, element_head_size);
     let initial_tail = builder.add(element_area, head_bytes);
-    let source_cursor = builder.memory_object_data(value, MemoryObjectKind::DynamicArray);
-
     scratch_store(builder, scratch_base, scratch.depth, 0, len);
     scratch_store(builder, scratch_base, scratch.depth, 1, initial_tail);
     scratch_store(builder, scratch_base, scratch.depth, 2, element_area);
-    scratch_store(builder, scratch_base, scratch.depth, 3, source_cursor);
+    let zero = builder.imm_u64(0);
+    scratch_store(builder, scratch_base, scratch.depth, 3, zero);
     scratch_store(builder, scratch_base, scratch.depth, 4, element_area);
 
     let cond = builder.create_block();
@@ -511,8 +510,9 @@ fn encode_dynamic_array(
     builder.branch(has_next, body, done);
 
     builder.switch_to_block(body);
-    let source = scratch_load(builder, scratch_base, scratch.depth, 3);
-    let element_value = builder.mload(source);
+    let source_index = scratch_load(builder, scratch_base, scratch.depth, 3);
+    let element_value =
+        builder.memory_object_load_element(value, MemoryObjectLayout::WORD_ARRAY, source_index);
     let element_head = scratch_load(builder, scratch_base, scratch.depth, 2);
     let current_tail = scratch_load(builder, scratch_base, scratch.depth, 1);
     let tuple_base = scratch_load(builder, scratch_base, scratch.depth, 4);
@@ -529,9 +529,9 @@ fn encode_dynamic_array(
     let one = builder.imm_u64(1);
     let next_remaining = builder.sub(remaining, one);
     scratch_store(builder, scratch_base, scratch.depth, 0, next_remaining);
-    let source = scratch_load(builder, scratch_base, scratch.depth, 3);
-    let next_source = builder.add(source, word);
-    scratch_store(builder, scratch_base, scratch.depth, 3, next_source);
+    let source_index = scratch_load(builder, scratch_base, scratch.depth, 3);
+    let next_index = builder.add(source_index, one);
+    scratch_store(builder, scratch_base, scratch.depth, 3, next_index);
     let element_head = scratch_load(builder, scratch_base, scratch.depth, 2);
     let next_head = builder.add(element_head, element_head_size);
     scratch_store(builder, scratch_base, scratch.depth, 2, next_head);

@@ -23,6 +23,15 @@ fn @dynamic(arg0: calldataslice) -> memoryslice {
     ret v0
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @nested_dynamic_array{{[( ]}}
+// CHECK-NOT: + {{v[0-9]+}} = memory_object_data memoryarray, arg0
+// CHECK: + {{v[0-9]+}} = memory_object_load_element memoryarray<1>, arg0
+fn @nested_dynamic_array(arg0: memoryarray) -> memoryslice {
+  bb0:
+    v0 = abi_encode [memory_array<memory_array<word>>], args arg0
+    ret v0
+}
+
 fn @returndata_bytes() -> memoryslice {
   bb0:
     v0 = returndatasize

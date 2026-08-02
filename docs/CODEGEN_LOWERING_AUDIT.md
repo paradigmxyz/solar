@@ -119,6 +119,8 @@ describes observable structure in the current tree, not an intended design.
   untyped load address to HIR lowering.
 * Dynamic ABI encoder loop state lives in a typed one-word array object;
   sizing and emission no longer reserve raw scratch buffers for counters.
+  Nested dynamic-array loops also carry a logical source index and load each
+  element through the typed array object instead of advancing a raw pointer.
 * Packed ABI static words also target the bytes object directly; only dynamic
   payload copies still use a physical `mcopy` destination.
 * Scalar and calldata-slice ternary merges use typed frame slots instead of
