@@ -3,7 +3,7 @@
 use crate::mir::{
     AbiParamType, AbiType, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation,
 };
-use solar_ast::TypeSize;
+use solar_ast::{DataLocation, TypeSize};
 use solar_sema::{
     Gcx,
     hir::{ElementaryType, StructId},
@@ -24,6 +24,9 @@ impl<'gcx> TypeLowerer<'gcx> {
 
     /// Converts a checked Solidity type to its coarse MIR representation.
     pub(super) fn mir_type(ty: Ty<'_>) -> MirType {
+        if matches!(ty.kind, TyKind::Ref(_, DataLocation::Storage)) {
+            return MirType::StoragePtr;
+        }
         match ty.peel_refs().kind {
             TyKind::Elementary(elementary) => match elementary {
                 ElementaryType::Bool => MirType::Bool,

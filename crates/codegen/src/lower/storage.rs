@@ -11,7 +11,7 @@ use solar_sema::{
 };
 
 /// The representation of a packed value in an EVM storage word.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum StorageEncoding {
     Unsigned,
     Signed,
@@ -19,7 +19,7 @@ pub(super) enum StorageEncoding {
 }
 
 /// A logical storage location relative to the contract's storage root.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct StorageLocation {
     pub(super) slot: U256,
     pub(super) offset: u8,

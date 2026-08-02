@@ -13,7 +13,7 @@ use crate::{
     },
 };
 use alloy_primitives::U256;
-use solar_ast::{BinOpKind, LitKind, UnOpKind};
+use solar_ast::{BinOpKind, DataLocation, LitKind, UnOpKind};
 use solar_data_structures::map::{FxHashMap, StdEntry};
 use solar_interface::{Span, sym};
 use solar_sema::{
@@ -94,6 +94,7 @@ struct FunctionLowerer<'gcx, 'mir, 'ids> {
     builder: FunctionBuilder<'mir>,
     types: types::TypeLowerer<'gcx>,
     values: FxHashMap<VariableId, ValueId>,
+    storage_refs: FxHashMap<VariableId, StorageAccess>,
     returns: Vec<VariableId>,
     loops: Vec<LoopTargets>,
     modifiers: Vec<ModifierContext<'gcx>>,
@@ -113,7 +114,7 @@ struct ModifierContext<'gcx> {
     next: usize,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 struct StorageAccess {
     slot: ValueId,
     location: StorageLocation,
@@ -134,6 +135,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             builder: FunctionBuilder::new(function),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
+            storage_refs: FxHashMap::default(),
             returns: Vec::new(),
             loops: Vec::new(),
             modifiers: Vec::new(),
@@ -146,7 +148,19 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             let value = self
                 .builder
                 .add_param(types::TypeLowerer::mir_type(self.gcx.type_of_item(param.into())));
-            self.values.insert(param, value);
+            let ty = self.gcx.type_of_item(param.into());
+            if ty.is_ref_at(DataLocation::Storage) {
+                self.storage_refs.insert(
+                    param,
+                    StorageAccess {
+                        slot: value,
+                        location: StorageLocation::word(U256::ZERO),
+                        offset: None,
+                    },
+                );
+            } else {
+                self.values.insert(param, value);
+            }
         }
         for &ret in function.returns {
             self.builder
@@ -184,10 +198,18 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         match &stmt.kind {
             StmtKind::DeclSingle(id) => {
                 let initializer = self.gcx.hir.variable(*id).initializer;
+                let ty = self.gcx.type_of_item((*id).into());
+                if ty.is_ref_at(DataLocation::Storage) {
+                    let Some(initializer) = initializer else { return Some(()) };
+                    let Some(access) = self.storage_access(initializer) else {
+                        return report_unsupported(self.gcx, initializer.span, "storage reference");
+                    };
+                    self.storage_refs.insert(*id, access);
+                    return Some(());
+                }
                 let value = if let Some(expr) = initializer {
                     self.lower_expr(expr)?
-                } else if let Some(value) = self.default_object(self.gcx.type_of_item((*id).into()))
-                {
+                } else if let Some(value) = self.default_object(ty) {
                     value
                 } else {
                     self.builder.imm_u256(U256::ZERO)
@@ -341,6 +363,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         let else_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
         let before = self.values.clone();
+        let before_storage_refs = self.storage_refs.clone();
         self.builder.branch(condition, then_block, else_block);
 
         self.builder.switch_to_block(then_block);
@@ -348,11 +371,13 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         let then_terminated = self.is_terminated();
         let then_exit = self.builder.current_block();
         let then_values = self.values.clone();
+        let then_storage_refs = self.storage_refs.clone();
         if !then_terminated {
             self.builder.jump(merge_block);
         }
 
         self.values = before.clone();
+        self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(else_block);
         if let Some(stmt) = else_stmt {
             self.lower_stmt(stmt)?;
@@ -360,6 +385,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         let else_terminated = self.is_terminated();
         let else_exit = self.builder.current_block();
         let else_values = self.values.clone();
+        let else_storage_refs = self.storage_refs.clone();
         if !else_terminated {
             self.builder.jump(merge_block);
         }
@@ -374,7 +400,61 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             else_values,
             else_terminated,
         );
+        self.storage_refs = self.merge_storage_refs(
+            before_storage_refs,
+            then_exit,
+            then_storage_refs,
+            then_terminated,
+            else_exit,
+            else_storage_refs,
+            else_terminated,
+        );
         Some(())
+    }
+
+    fn merge_storage_refs(
+        &mut self,
+        before: FxHashMap<VariableId, StorageAccess>,
+        then_exit: BlockId,
+        then_values: FxHashMap<VariableId, StorageAccess>,
+        then_terminated: bool,
+        else_exit: BlockId,
+        else_values: FxHashMap<VariableId, StorageAccess>,
+        else_terminated: bool,
+    ) -> FxHashMap<VariableId, StorageAccess> {
+        let mut merged = FxHashMap::default();
+        let ids = before
+            .keys()
+            .chain(then_values.keys())
+            .chain(else_values.keys())
+            .copied()
+            .collect::<solar_data_structures::map::FxHashSet<_>>();
+        for id in ids {
+            let then = then_values.get(&id).copied().or_else(|| before.get(&id).copied());
+            let else_ = else_values.get(&id).copied().or_else(|| before.get(&id).copied());
+            let access = match (then_terminated, else_terminated, then, else_) {
+                (true, false, _, Some(value)) => Some(value),
+                (false, true, Some(value), _) => Some(value),
+                (false, false, Some(lhs), Some(rhs)) if lhs == rhs => Some(lhs),
+                (false, false, Some(lhs), Some(rhs)) => {
+                    let slot = self.builder.phi(vec![(then_exit, lhs.slot), (else_exit, rhs.slot)]);
+                    let offset = match (lhs.offset, rhs.offset) {
+                        (Some(lhs), Some(rhs)) if lhs != rhs => {
+                            Some(self.builder.phi(vec![(then_exit, lhs), (else_exit, rhs)]))
+                        }
+                        (Some(offset), _) | (_, Some(offset)) => Some(offset),
+                        _ => None,
+                    };
+                    Some(StorageAccess { slot, location: lhs.location, offset })
+                }
+                (_, _, Some(value), _) | (_, _, _, Some(value)) => Some(value),
+                _ => None,
+            };
+            if let Some(access) = access {
+                merged.insert(id, access);
+            }
+        }
+        merged
     }
 
     fn lower_ternary(
@@ -482,6 +562,31 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         elements: &[Option<&hir::Expr<'_>>],
         rhs: &hir::Expr<'_>,
     ) -> Option<()> {
+        if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind
+            && rhs_elements.len() == elements.len()
+            && elements.iter().flatten().any(|element| self.is_storage_reference_binding(element))
+        {
+            let tuple_span = rhs.span;
+            let mut bindings = Vec::with_capacity(elements.len());
+            for (lhs, rhs) in elements.iter().zip(rhs_elements.iter()) {
+                let Some(lhs) = lhs else { continue };
+                let Some(rhs) = rhs else {
+                    return report_unsupported(self.gcx, tuple_span, "storage reference tuple");
+                };
+                if !self.is_storage_reference_binding(lhs) {
+                    return report_unsupported(self.gcx, lhs.span, "mixed storage tuple");
+                }
+                let access = self.storage_access(rhs)?;
+                let Some(id) = self.gcx.resolved_variable(lhs) else {
+                    return report_unsupported(self.gcx, lhs.span, "storage reference target");
+                };
+                bindings.push((id, access));
+            }
+            for (id, access) in bindings {
+                self.storage_refs.insert(id, access);
+            }
+            return Some(());
+        }
         let values = if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind {
             if rhs_elements.len() != elements.len() {
                 return report_unsupported(self.gcx, rhs.span, "tuple assignment arity");
@@ -567,6 +672,14 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                     self.lower_tuple_assignment(elements, rhs)?;
                     return Some(self.builder.imm_u256(U256::ZERO));
                 }
+                if op.is_none() && self.is_storage_reference_binding(lhs) {
+                    let access = self.storage_access(rhs)?;
+                    let Some(id) = self.gcx.resolved_variable(lhs) else {
+                        return report_unsupported(self.gcx, lhs.span, "storage reference target");
+                    };
+                    self.storage_refs.insert(id, access);
+                    return Some(self.builder.imm_u256(U256::ZERO));
+                }
                 let rhs_value = self.lower_expr(rhs)?;
                 let value = if let Some(kind) = op.map(|op| op.kind) {
                     let lhs_value = self.load_lvalue(lhs)?;
@@ -612,6 +725,9 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         match &expr.peel_parens().kind {
             ExprKind::Ident(_) => {
                 let id = self.gcx.resolved_variable(expr)?;
+                if let Some(access) = self.storage_refs.get(&id).copied() {
+                    return Some(access);
+                }
                 let var = self.gcx.hir.variable(id);
                 if !var.is_state_variable() {
                     return None;
@@ -634,6 +750,21 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             ExprKind::Index(receiver, Some(index)) => {
                 let base = self.storage_access(receiver)?;
                 let ty = self.gcx.type_of_expr(receiver.id)?.peel_refs();
+                let index_ty = self.gcx.type_of_expr(index.id)?;
+                let index = self.lower_expr(index)?;
+                if let TyKind::Mapping(_, value) = ty.kind {
+                    let slot = self.mapping_slot(index, index_ty, base.slot);
+                    if let Some((size, encoding)) = self.storage.packed_encoding(self.gcx, value) {
+                        let location =
+                            StorageLocation { slot: U256::ZERO, offset: 0, size, encoding };
+                        return Some(StorageAccess { slot, location, offset: None });
+                    }
+                    return Some(StorageAccess {
+                        slot,
+                        location: StorageLocation::word(U256::ZERO),
+                        offset: None,
+                    });
+                }
                 let (element, dynamic, length) = match ty.kind {
                     TyKind::Array(element, len) => {
                         (element, false, self.builder.imm_u64(u64::try_from(len).ok()?))
@@ -641,11 +772,64 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                     TyKind::DynArray(element) => (element, true, self.builder.sload(base.slot)),
                     _ => return None,
                 };
-                let index = self.lower_expr(index)?;
                 self.bounds_check(index, length);
                 self.storage_array_element_access(base.slot, index, element, dynamic)
             }
+            ExprKind::Call(callee, arguments, _)
+                if arguments.is_empty()
+                    && self.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0) =>
+            {
+                let ExprKind::Member(receiver, _) = &callee.kind else { return None };
+                let (access, _, new_length, base_slot) =
+                    self.storage_array_push_access(receiver)?;
+                self.builder.sstore(base_slot, new_length);
+                Some(access)
+            }
             _ => None,
+        }
+    }
+
+    fn is_storage_reference_binding(&self, expr: &hir::Expr<'_>) -> bool {
+        if !matches!(expr.peel_parens().kind, ExprKind::Ident(_)) {
+            return false;
+        }
+        self.gcx
+            .resolved_variable(expr)
+            .is_some_and(|id| !self.gcx.hir.variable(id).is_state_variable())
+            && self.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
+    }
+
+    fn storage_array_push_access(
+        &mut self,
+        receiver: &hir::Expr<'_>,
+    ) -> Option<(StorageAccess, Ty<'gcx>, ValueId, ValueId)> {
+        let base = self.storage_access(receiver)?;
+        let receiver_ty = self.gcx.type_of_expr(receiver.id)?.peel_refs();
+        let TyKind::DynArray(element) = receiver_ty.kind else { return None };
+        let length = self.builder.sload(base.slot);
+        let one = self.builder.imm_u64(1);
+        let new_length = self.checked_add(length, one);
+        let access = self.storage_array_element_access(base.slot, length, element, true)?;
+        Some((access, element, new_length, base.slot))
+    }
+
+    fn mapping_slot(&mut self, key: ValueId, key_ty: Ty<'gcx>, slot: ValueId) -> ValueId {
+        let is_calldata = key_ty.data_stored_in(DataLocation::Calldata)
+            || matches!(key_ty.kind, TyKind::Slice(inner) if inner.data_stored_in(DataLocation::Calldata));
+        let is_dynamic = matches!(
+            key_ty.peel_refs().kind,
+            TyKind::Elementary(
+                solar_sema::hir::ElementaryType::String | solar_sema::hir::ElementaryType::Bytes
+            ) | TyKind::Slice(_)
+        );
+        if is_dynamic {
+            if is_calldata {
+                self.builder.mapping_slot_calldata(key, slot)
+            } else {
+                self.builder.mapping_slot_memory(key, slot)
+            }
+        } else {
+            self.builder.mapping_slot(key, slot)
         }
     }
 
@@ -656,7 +840,9 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         element: solar_sema::ty::Ty<'gcx>,
         dynamic: bool,
     ) -> Option<StorageAccess> {
-        if let Some((size, encoding)) = self.storage.packed_encoding(self.gcx, element) {
+        if let Some((size, encoding)) = self.storage.packed_encoding(self.gcx, element)
+            && size.bits() < 256
+        {
             let bytes = u64::from(size.bytes());
             let per_slot_value = self.builder.imm_u64(32 / bytes);
             let slot_base =
@@ -702,6 +888,54 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         }
     }
 
+    fn load_storage_access(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        access: StorageAccess,
+    ) -> Option<ValueId> {
+        let ty = self.gcx.type_of_expr(expr.id)?;
+        if ty.is_ref_at(DataLocation::Storage) {
+            return Some(access.slot);
+        }
+        if self.types.memory_layout(ty).is_some() {
+            return self.load_storage_object(ty, access.slot, expr.span);
+        }
+        Some(if let Some(offset) = access.offset {
+            self.storage.load_packed_at_slot(
+                &mut self.builder,
+                access.location,
+                access.slot,
+                offset,
+            )
+        } else {
+            self.storage.load_at_slot(&mut self.builder, access.location, access.slot)
+        })
+    }
+
+    fn store_storage_access(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        access: StorageAccess,
+        value: ValueId,
+    ) -> Option<()> {
+        let ty = self.gcx.type_of_expr(expr.id)?;
+        if self.types.memory_layout(ty).is_some() {
+            return self.store_storage_object(ty, access.slot, value, expr.span);
+        }
+        if let Some(offset) = access.offset {
+            self.storage.store_packed_at_slot(
+                &mut self.builder,
+                access.location,
+                access.slot,
+                offset,
+                value,
+            );
+        } else {
+            self.storage.store_at_slot(&mut self.builder, access.location, access.slot, value);
+        }
+        Some(())
+    }
+
     fn load_storage_object(
         &mut self,
         ty: solar_sema::ty::Ty<'gcx>,
@@ -709,6 +943,9 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         span: Span,
     ) -> Option<ValueId> {
         match ty.peel_refs().kind {
+            solar_sema::ty::TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            ) => self.load_storage_bytes(slot),
             solar_sema::ty::TyKind::Struct(struct_id) => {
                 let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
                 let layout = MemoryObjectLayout::Struct { fields };
@@ -825,6 +1062,9 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         span: Span,
     ) -> Option<()> {
         match ty.peel_refs().kind {
+            solar_sema::ty::TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            ) => self.store_storage_bytes(slot, object),
             solar_sema::ty::TyKind::Struct(struct_id) => {
                 let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
                 let layout = MemoryObjectLayout::Struct { fields };
@@ -877,6 +1117,119 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             }
             _ => report_unsupported(self.gcx, span, "storage object copy"),
         }
+    }
+
+    fn load_storage_bytes(&mut self, slot: ValueId) -> Option<ValueId> {
+        let header = self.builder.sload(slot);
+        let one = self.builder.imm_u64(1);
+        let flag = self.builder.and(header, one);
+        let is_long = self.builder.eq(flag, one);
+        let two = self.builder.imm_u64(2);
+        let short_mask = self.builder.imm_u256(U256::MAX << 8);
+        let short_tag = self.builder.imm_u64(0xfe);
+        let short_len_tag = self.builder.and(header, short_tag);
+        let short_len = self.builder.div(short_len_tag, two);
+        let long_len = self.builder.div(header, two);
+        let length = self.builder.select(is_long, long_len, short_len);
+        let thirty_one = self.builder.imm_u64(31);
+        let rounded = self.checked_add(length, thirty_one);
+        let word_size = self.builder.imm_u64(32);
+        let words = self.builder.div(rounded, word_size);
+        let total_words = self.checked_add(words, one);
+        let size = self.checked_mul(total_words, word_size);
+        let layout = MemoryObjectLayout::Bytes;
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+        self.builder.set_memory_object_len(object, length, layout.kind());
+
+        let short_block = self.builder.create_block();
+        let long_block = self.builder.create_block();
+        let merge_block = self.builder.create_block();
+        self.builder.branch(is_long, long_block, short_block);
+
+        self.builder.switch_to_block(short_block);
+        let zero = self.builder.imm_u64(0);
+        let short_data = self.builder.and(header, short_mask);
+        self.builder.memory_object_store_word(object, zero, short_data);
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(long_block);
+        let data_slot = self.builder.storage_array_data_slot(slot);
+        let preheader = self.builder.current_block();
+        let header_block = self.builder.create_block();
+        let body = self.builder.create_block();
+        let exit = self.builder.create_block();
+        self.builder.jump(header_block);
+        self.builder.switch_to_block(header_block);
+        let index = self.builder.phi(vec![(preheader, zero)]);
+        let condition = self.builder.lt(index, words);
+        self.builder.branch(condition, body, exit);
+        self.builder.switch_to_block(body);
+        let element_slot = self.builder.add(data_slot, index);
+        let value = self.builder.sload(element_slot);
+        let byte_offset = self.builder.mul(index, word_size);
+        self.builder.memory_object_store_word(object, byte_offset, value);
+        let next = self.builder.add(index, one);
+        let backedge = self.builder.current_block();
+        self.builder.jump(header_block);
+        self.builder.add_phi_incoming(index, backedge, next);
+        self.builder.switch_to_block(exit);
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(merge_block);
+        Some(object)
+    }
+
+    fn store_storage_bytes(&mut self, slot: ValueId, object: ValueId) -> Option<()> {
+        let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
+        let word_size = self.builder.imm_u64(32);
+        let short = self.builder.lt(length, word_size);
+        let short_block = self.builder.create_block();
+        let long_block = self.builder.create_block();
+        let merge_block = self.builder.create_block();
+        self.builder.branch(short, short_block, long_block);
+
+        self.builder.switch_to_block(short_block);
+        let zero = self.builder.imm_u64(0);
+        let data = self.builder.memory_object_load_element(object, MemoryObjectLayout::Bytes, zero);
+        let two = self.builder.imm_u64(2);
+        let tag = self.builder.mul(length, two);
+        let header = self.builder.or(data, tag);
+        self.builder.sstore(slot, header);
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(long_block);
+        let one = self.builder.imm_u64(1);
+        let shifted = self.builder.shl(one, length);
+        let tag = self.builder.or(shifted, one);
+        self.builder.sstore(slot, tag);
+        let thirty_one = self.builder.imm_u64(31);
+        let rounded = self.checked_add(length, thirty_one);
+        let words = self.builder.div(rounded, word_size);
+        let data_slot = self.builder.storage_array_data_slot(slot);
+        let preheader = self.builder.current_block();
+        let header_block = self.builder.create_block();
+        let body = self.builder.create_block();
+        let exit = self.builder.create_block();
+        self.builder.jump(header_block);
+        self.builder.switch_to_block(header_block);
+        let index = self.builder.phi(vec![(preheader, zero)]);
+        let condition = self.builder.lt(index, words);
+        self.builder.branch(condition, body, exit);
+        self.builder.switch_to_block(body);
+        let byte_offset = self.builder.mul(index, word_size);
+        let value =
+            self.builder.memory_object_load_element(object, MemoryObjectLayout::Bytes, byte_offset);
+        let element_slot = self.builder.add(data_slot, index);
+        self.builder.sstore(element_slot, value);
+        let next = self.builder.add(index, one);
+        let backedge = self.builder.current_block();
+        self.builder.jump(header_block);
+        self.builder.add_phi_incoming(index, backedge, next);
+        self.builder.switch_to_block(exit);
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(merge_block);
+        Some(())
     }
 
     fn store_dynamic_storage_object(
@@ -1076,16 +1429,20 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         let ExprKind::Member(receiver, _) = &callee.kind else {
             return report_unsupported(self.gcx, expr.span, "storage array push target");
         };
-        let access = self.storage_access(receiver)?;
         let receiver_ty = self.gcx.type_of_expr(receiver.id)?.peel_refs();
-        let element = match receiver_ty.kind {
-            TyKind::DynArray(element) => element,
-            _ => return report_unsupported(self.gcx, expr.span, "storage array push target"),
+        if matches!(
+            receiver_ty.kind,
+            TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String
+            )
+        ) {
+            return self.lower_storage_bytes_push(expr, receiver, builtin, arguments);
+        }
+        let Some((element_access, element, new_length, base_slot)) =
+            self.storage_array_push_access(receiver)
+        else {
+            return report_unsupported(self.gcx, expr.span, "storage array push target");
         };
-        let length = self.builder.sload(access.slot);
-        let one = self.builder.imm_u64(1);
-        let new_length = self.checked_add(length, one);
-        self.builder.sstore(access.slot, new_length);
         let value = if builtin == Builtin::ArrayPush {
             let [argument] = arguments else {
                 return report_unsupported(self.gcx, expr.span, "storage array push arguments");
@@ -1098,8 +1455,6 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             }
             self.default_value(element)
         };
-        let element_access =
-            self.storage_array_element_access(access.slot, length, element, true)?;
         if self.types.memory_layout(element).is_some() {
             self.store_storage_object(element, element_access.slot, value, expr.span)?;
         } else if let Some(offset) = element_access.offset {
@@ -1118,7 +1473,124 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                 value,
             );
         }
+        self.builder.sstore(base_slot, new_length);
         Some(self.builder.imm_u256(U256::ZERO))
+    }
+
+    fn lower_storage_bytes_push(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        receiver: &hir::Expr<'_>,
+        builtin: Builtin,
+        arguments: &[&hir::Expr<'_>],
+    ) -> Option<ValueId> {
+        let access = self.storage_access(receiver)?;
+        let old = self.load_storage_bytes(access.slot)?;
+        let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
+        let one = self.builder.imm_u64(1);
+        let length = self.checked_add(old_length, one);
+        let word_size = self.builder.imm_u64(32);
+        let thirty_one = self.builder.imm_u64(31);
+        let rounded = self.checked_add(length, thirty_one);
+        let words = self.builder.div(rounded, word_size);
+        let total_words = self.checked_add(words, one);
+        let size = self.checked_mul(total_words, word_size);
+        let layout = MemoryObjectLayout::Bytes;
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+        self.builder.set_memory_object_len(object, length, layout.kind());
+        self.builder.memory_object_copy(object, layout.kind(), old, layout.kind(), old_length);
+        let value = if builtin == Builtin::ArrayPush {
+            let [argument] = arguments else {
+                return report_unsupported(self.gcx, expr.span, "storage bytes push arguments");
+            };
+            let value = self.lower_expr(argument)?;
+            let shift = self.builder.imm_u64(248);
+            self.builder.shr(shift, value)
+        } else {
+            if !arguments.is_empty() {
+                return report_unsupported(self.gcx, expr.span, "storage bytes push arguments");
+            }
+            self.builder.imm_u64(0)
+        };
+        self.builder.memory_object_store_byte(object, old_length, value);
+        self.store_storage_bytes(access.slot, object)?;
+        Some(self.builder.imm_u256(U256::ZERO))
+    }
+
+    fn lower_storage_array_pop(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        callee: &hir::Expr<'_>,
+    ) -> Option<ValueId> {
+        let ExprKind::Member(receiver, _) = &callee.kind else {
+            return report_unsupported(self.gcx, expr.span, "storage array pop target");
+        };
+        let receiver_ty = self.gcx.type_of_expr(receiver.id)?.peel_refs();
+        if matches!(
+            receiver_ty.kind,
+            TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String
+            )
+        ) {
+            let access = self.storage_access(receiver)?;
+            let old = self.load_storage_bytes(access.slot)?;
+            let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
+            let zero = self.builder.imm_u64(0);
+            let empty = self.builder.eq(old_length, zero);
+            self.panic_if(empty, 0x31);
+            let one = self.builder.imm_u64(1);
+            let length = self.builder.sub(old_length, one);
+            let word_size = self.builder.imm_u64(32);
+            let thirty_one = self.builder.imm_u64(31);
+            let rounded = self.checked_add(length, thirty_one);
+            let words = self.builder.div(rounded, word_size);
+            let total_words = self.checked_add(words, one);
+            let size = self.checked_mul(total_words, word_size);
+            let layout = MemoryObjectLayout::Bytes;
+            let object =
+                self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+            self.builder.set_memory_object_len(object, length, layout.kind());
+            self.builder.memory_object_copy(object, layout.kind(), old, layout.kind(), length);
+            self.store_storage_bytes(access.slot, object)?;
+            return Some(zero);
+        }
+
+        let Some((base, element)) = self.storage_array_base(receiver) else {
+            return report_unsupported(self.gcx, expr.span, "storage array pop target");
+        };
+        let length = self.builder.sload(base.slot);
+        let zero = self.builder.imm_u64(0);
+        let empty = self.builder.eq(length, zero);
+        self.panic_if(empty, 0x31);
+        let one = self.builder.imm_u64(1);
+        let last = self.builder.sub(length, one);
+        self.builder.sstore(base.slot, last);
+        let access = self.storage_array_element_access(base.slot, last, element, true)?;
+        let value = self.default_value(element);
+        if self.types.memory_layout(element).is_some() {
+            self.store_storage_object(element, access.slot, value, expr.span)?;
+        } else if let Some(offset) = access.offset {
+            self.storage.store_packed_at_slot(
+                &mut self.builder,
+                access.location,
+                access.slot,
+                offset,
+                value,
+            );
+        } else {
+            self.storage.store_at_slot(&mut self.builder, access.location, access.slot, value);
+        }
+        Some(zero)
+    }
+
+    fn storage_array_base(
+        &mut self,
+        receiver: &hir::Expr<'_>,
+    ) -> Option<(StorageAccess, Ty<'gcx>)> {
+        let base = self.storage_access(receiver)?;
+        let ty = self.gcx.type_of_expr(receiver.id)?.peel_refs();
+        let TyKind::DynArray(element) = ty.kind else { return None };
+        Some((base, element))
     }
 
     fn lower_builtin_call(
@@ -1132,6 +1604,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             Builtin::ArrayPush | Builtin::ArrayPush0 => {
                 self.lower_storage_array_push(expr, callee, builtin, arguments)
             }
+            Builtin::ArrayPop => self.lower_storage_array_pop(expr, callee),
             Builtin::YulSload => {
                 let [slot] = arguments else {
                     return report_unsupported(self.gcx, expr.span, "sload arguments");
@@ -1223,7 +1696,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         self.builder.branch(condition, panic_block, continue_block);
         self.builder.switch_to_block(panic_block);
         let selector = self.builder.imm_u256(U256::from(0x4e48_7b71_u64) << 224);
-        let code = self.builder.imm_u256(U256::from(code) << 224);
+        let code = self.builder.imm_u256(U256::from(code));
         let zero = self.builder.imm_u256(U256::ZERO);
         self.builder.mstore(zero, selector);
         let four = self.builder.imm_u256(U256::from(4));
@@ -1394,22 +1867,26 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         name: solar_interface::Ident,
     ) -> Option<ValueId> {
         if let Some(access) = self.storage_access(expr) {
-            let value = if let Some(offset) = access.offset {
-                self.storage.load_packed_at_slot(
-                    &mut self.builder,
-                    access.location,
-                    access.slot,
-                    offset,
-                )
-            } else {
-                self.storage.load_at_slot(&mut self.builder, access.location, access.slot)
-            };
-            return Some(value);
+            return self.load_storage_access(expr, access);
         }
         if name.name == sym::length {
+            let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
+            if receiver_ty.is_ref_at(DataLocation::Storage) {
+                let access = self.storage_access(receiver)?;
+                return match receiver_ty.peel_refs().kind {
+                    TyKind::DynArray(_) => Some(self.builder.sload(access.slot)),
+                    TyKind::Elementary(
+                        solar_sema::hir::ElementaryType::Bytes
+                        | solar_sema::hir::ElementaryType::String,
+                    ) => {
+                        let object = self.load_storage_bytes(access.slot)?;
+                        Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
+                    }
+                    _ => report_unsupported(self.gcx, expr.span, "length member"),
+                };
+            }
             let object = self.lower_expr(receiver)?;
-            let ty = self.gcx.type_of_expr(receiver.id)?;
-            let layout = self.types.memory_layout(ty)?;
+            let layout = self.types.memory_layout(receiver_ty)?;
             return match layout.kind() {
                 MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray => {
                     Some(self.builder.memory_object_len(object, layout.kind()))
@@ -1444,17 +1921,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         index: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
         if let Some(access) = self.storage_access(expr) {
-            let value = if let Some(offset) = access.offset {
-                self.storage.load_packed_at_slot(
-                    &mut self.builder,
-                    access.location,
-                    access.slot,
-                    offset,
-                )
-            } else {
-                self.storage.load_at_slot(&mut self.builder, access.location, access.slot)
-            };
-            return Some(value);
+            return self.load_storage_access(expr, access);
         }
         let Some(index) = index else {
             return report_unsupported(self.gcx, expr.span, "index");
@@ -1490,6 +1957,17 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         if let Some(value) = self.values.get(&id).copied() {
             return Some(value);
         }
+        if let Some(access) = self.storage_refs.get(&id).copied() {
+            let ty = self.gcx.type_of_item(id.into());
+            if ty.is_ref_at(DataLocation::Storage) {
+                return Some(access.slot);
+            }
+            return Some(self.storage.load_at_slot(
+                &mut self.builder,
+                access.location,
+                access.slot,
+            ));
+        }
         if let Some(location) = self.storage.get(id) {
             let ty = self.gcx.type_of_item(id.into());
             if self.types.memory_layout(ty).is_some() {
@@ -1524,6 +2002,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             let variable = self.gcx.hir.variable(id);
             if variable.is_state_variable()
                 || self.values.contains_key(&id)
+                || self.storage_refs.contains_key(&id)
                 || variable.parent.is_none()
             {
                 return self.load_variable(id, expr.span);
@@ -1549,21 +2028,8 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
     }
 
     fn store_lvalue(&mut self, expr: &hir::Expr<'_>, value: ValueId) -> Option<()> {
-        if !matches!(expr.peel_parens().kind, ExprKind::Ident(_))
-            && let Some(access) = self.storage_access(expr)
-        {
-            if let Some(offset) = access.offset {
-                self.storage.store_packed_at_slot(
-                    &mut self.builder,
-                    access.location,
-                    access.slot,
-                    offset,
-                    value,
-                );
-            } else {
-                self.storage.store_at_slot(&mut self.builder, access.location, access.slot, value);
-            }
-            return Some(());
+        if let Some(access) = self.storage_access(expr) {
+            return self.store_storage_access(expr, access, value);
         }
         if let Some(id) = self.gcx.resolved_variable(expr)
             && self.gcx.hir.variable(id).is_state_variable()

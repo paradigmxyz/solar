@@ -1467,6 +1467,12 @@ fn can_encode_live_returns(func: &Function) -> bool {
 /// `returndata(slice_ptr(encoded), slice_len(encoded))`.
 fn encode_live_returns(func: &mut Function) -> usize {
     let Some(layout) = func.abi_returns.clone() else { return 0 };
+    if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
+        // Static return data occupies the low-memory ABI buffer. Keep the
+        // backend spill area above it so a cross-block value cannot be
+        // overwritten while the return tuple is encoded.
+        func.external_static_return_size = layout.head_size();
+    }
     let block_ids: Vec<_> = func.blocks.indices().collect();
     let mut encoded_returns = 0;
     for block_id in block_ids {

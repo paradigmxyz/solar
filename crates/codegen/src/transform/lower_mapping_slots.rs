@@ -97,16 +97,9 @@ fn lower_storage_array_data_slot(
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
     let word = builder.imm_u64(32);
-    let object_size = builder.imm_u64(64);
-    let object = builder.alloc_object(
-        object_size,
-        crate::mir::MemoryObjectLayout::Bytes,
-        crate::mir::AllocationSemantics::INTERNAL,
-    );
-    builder.set_memory_object_len(object, word, crate::mir::MemoryObjectKind::Bytes);
     let zero = builder.imm_u64(0);
-    builder.memory_object_store_element(object, crate::mir::MemoryObjectLayout::Bytes, zero, slot);
-    builder.keccak256_bytes(object)
+    builder.mstore(zero, slot);
+    builder.keccak256(zero, word)
 }
 
 fn lower_storage_array_element_slot(
