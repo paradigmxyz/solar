@@ -2,9 +2,9 @@
 @module AbiDecodeStaticTuple
 fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_params=[bytes], abi_returns=[word, word, word]] {
   bb0:
-    mstore 128, 0
-    mstore 160, 0
-    mstore 192, 0
+    frame_store scratch, word, 0, 0 !metadata(memory=scratch)
+    frame_store scratch, word, 32, 0 !metadata(memory=scratch)
+    frame_store scratch, word, 64, 0 !metadata(memory=scratch)
     v0 = memory_object_len memorybytes, arg0
     v1 = memory_object_data memorybytes, arg0
     v2 = lt v0, 96

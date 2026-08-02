@@ -7,9 +7,7 @@ fn @setText(arg0: calldataslice) {
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb2:
     v3 = not 31
     v4 = and v1, v3
@@ -19,9 +17,7 @@ fn @setText(arg0: calldataslice) {
     v8 = lt v7, v6
     jumpi v8, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb4:
     v9 = alloc memorybytes, exact, uninitialized, infallible, v7
     set_memory_object_len memorybytes, v9, v0
@@ -101,6 +97,13 @@ fn @setText(arg0: calldataslice) {
     stop
 }
 
+fn @__panic_41() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 fn @setBlob(arg0: calldataslice) {
   bb0:
     v0 = slice_len arg0
@@ -108,9 +111,7 @@ fn @setBlob(arg0: calldataslice) {
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb2:
     v3 = not 31
     v4 = and v1, v3
@@ -120,9 +121,7 @@ fn @setBlob(arg0: calldataslice) {
     v8 = lt v7, v6
     jumpi v8, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb4:
     v9 = alloc memorybytes, exact, uninitialized, infallible, v7
     set_memory_object_len memorybytes, v9, v0

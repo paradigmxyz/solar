@@ -216,8 +216,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // Storage-reference assignment writes the actual address into it.
                 let offset = self.alloc_local_memory(var_id);
                 if let Some(slot) = slot {
-                    let addr = self.local_memory_addr(builder, offset);
-                    builder.mstore(addr, slot);
+                    self.store_frame_word(builder, offset, slot);
                 }
             } else if let Some(slot) = slot {
                 self.locals.insert(var_id, slot);
@@ -274,8 +273,7 @@ impl<'gcx> Lowerer<'gcx> {
                 return;
             }
             let offset = self.alloc_local_memory(var_id);
-            let offset_val = self.local_memory_addr(builder, offset);
-            builder.mstore(offset_val, initial_value);
+            self.store_frame_word(builder, offset, initial_value);
         } else {
             // Variable is never reassigned and not from external call - keep as SSA value
             self.locals.insert(var_id, initial_value);
@@ -419,8 +417,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
         } else if self.is_var_assigned(&var_id) {
             let offset = self.alloc_local_memory(var_id);
-            let addr = self.local_memory_addr(builder, offset);
-            builder.mstore(addr, val);
+            self.store_frame_word(builder, offset, val);
         } else {
             self.locals.insert(var_id, val);
         }
@@ -976,8 +973,7 @@ impl<'gcx> Lowerer<'gcx> {
                 if self.is_slice_slot_local(&ret_id) {
                     self.store_slice_slot(builder, offset, val);
                 } else {
-                    let addr = self.local_memory_addr(builder, offset);
-                    builder.mstore(addr, val);
+                    self.store_frame_word(builder, offset, val);
                 }
             } else {
                 self.locals.insert(ret_id, val);

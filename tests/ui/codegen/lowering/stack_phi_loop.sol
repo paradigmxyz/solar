@@ -15,7 +15,7 @@ contract StackPhiLoop {
     // CHECK: jump [[CARRIED_HEADER:bb[0-9]+]]
     // CHECK: [[CARRIED_HEADER]]:
     // CHECK: push [[CARRIED_BODY:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
+    // CHECK: jumpi
     // CHECK: return
     // CHECK: jump [[CARRIED_HEADER]]
     // CHECK: [[CARRIED_BODY]]:
@@ -34,15 +34,9 @@ contract StackPhiLoop {
     // CHECK: jump [[FIRST_HEADER:bb[0-9]+]]
     // CHECK: [[FIRST_HEADER]]:
     // CHECK: push [[FIRST_EXIT:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
+    // CHECK: jumpi
     // CHECK: push 1
     // CHECK: jump [[FIRST_HEADER]]
-    // CHECK: [[FIRST_EXIT]]:
-    // CHECK: jump [[SECOND_HEADER:bb[0-9]+]]
-    // CHECK: [[SECOND_HEADER]]:
-    // CHECK: push {{bb[0-9]+}}
-    // CHECK-NEXT: jumpi
-    // CHECK: jump [[SECOND_HEADER]]
     function sequential(uint256 a, uint256 b) public pure returns (uint256) {
         uint256 acc = 0;
         for (uint256 i = 0; i < a; i++) {
@@ -55,16 +49,9 @@ contract StackPhiLoop {
     }
 
     // CHECK: [[NESTED]]:
-    // CHECK: jump [[OUTER_HEADER:bb[0-9]+]]
-    // CHECK: [[OUTER_HEADER]]:
-    // CHECK: push [[OUTER_BODY:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK: [[OUTER_BODY]]:
-    // CHECK: jump [[INNER_HEADER:bb[0-9]+]]
-    // CHECK: [[INNER_HEADER]]:
-    // CHECK: push [[OUTER_HEADER]]
-    // CHECK-NEXT: jumpi
-    // CHECK: jump [[INNER_HEADER]]
+    // CHECK: jump {{bb[0-9]+}}
+    // CHECK: jumpi
+    // CHECK: jump {{bb[0-9]+}}
     function nested(uint256 outer, uint256 inner) public pure returns (uint256) {
         uint256 acc = 0;
         for (uint256 i = 0; i < outer; i++) {

@@ -7,7 +7,7 @@ fn @pushStr() {
     v53 = lt v52, 36
     jumpi v53, bb11, bb12
   bb1:
-    tail_call @__revert_stub0
+    tail_call @__panic_41
   bb2:
     v4 = add v0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
     v5 = mload v85
@@ -131,14 +131,19 @@ fn @pushStr() {
     jumpi v2, bb1, bb2
 }
 
+fn @__panic_41() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 fn @popStr() {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     jumpi v0, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 49 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_31
   bb2:
     v1 = sub v0, 1
     v3 = add v0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562
@@ -179,15 +184,20 @@ fn @popStr() {
     stop
 }
 
+fn @__panic_31() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 49 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 fn @blobAt() {
   bb0:
     v6 = calldatasize
     v7 = lt v6, 36
     jumpi v7, bb3, bb4
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_32
   bb2:
     mstore 0, 2 !metadata(memory=scratch)
     v3 = add arg0, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
@@ -224,6 +234,13 @@ fn @blobAt() {
     v31 = add v29, v28
     mstore 64, v31 !metadata(memory=scratch)
     returndata v29, v24
+}
+
+fn @__panic_32() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memptr {
@@ -278,7 +295,7 @@ fn @pushEmpty() {
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
   bb1:
-    tail_call @__revert_stub0
+    tail_call @__panic_41
   bb2:
     v4 = add v0, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
     v5 = mload 64 !metadata(memory=scratch, effect=memory_write)
@@ -316,13 +333,6 @@ fn @pushEmpty() {
   bb5:
     sstore 2, v1 !metadata(storage=slot(2))
     stop
-}
-
-fn @__revert_stub0() {
-  bb0:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @entry() [entry] {

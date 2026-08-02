@@ -67,6 +67,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &adce::Adce,
     &lower_abi::LowerAbi,
     &lower_dispatch::LowerDispatch,
+    &lower_frame_slots::LowerFrameSlots,
     &lower_evm_shaped::LowerEvmShaped,
     &lower_immutables::LowerImmutables,
     &lower_mapping_slots::LowerMappingSlots,
@@ -204,8 +205,9 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // bytecode through longer live ranges, so keep it out of `-Osize`.
     &GasOnly(cse::Cse),
     &dce::Dce,
-    &lower_slices::LowerSlices,
     &lower_dispatch::LowerDispatch,
+    &lower_frame_slots::LowerFrameSlots,
+    &lower_slices::LowerSlices,
     &lower_memory_objects::LowerMemoryObjects,
     &lower_immutables::LowerImmutables,
     &lower_alloc::LowerAlloc,

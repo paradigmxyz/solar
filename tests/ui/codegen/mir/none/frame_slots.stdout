@@ -1,0 +1,17 @@
+- // === ROOT/tests/ui/codegen/mir/none/frame_slots.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/none/frame_slots.mir (after none) ===
+  @module FrameSlots
+  fn @external() -> u256 {
+    bb0:
+      frame_store scratch, word, 0, 7
+      v0 = frame_load scratch, word, 0
+      ret v0
+  }
+  
+  fn @internal(arg0: calldataslice) -> calldataslice {
+    bb0:
+      frame_store internal_frame, calldata, 0, arg0
+      v0 = frame_load internal_frame, calldata, 0
+      ret v0
+  }
+  

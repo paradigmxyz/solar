@@ -40,11 +40,16 @@ fn @vMulti(arg0: u32, arg1: i8) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v5 = lt v4, v0
     jumpi v5, bb1, bb2
   bb1:
+    tail_call @__panic_11
+  bb2:
+    ret v4
+}
+
+fn @__panic_11() {
+  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    ret v4
 }
 
 fn @vFull(arg0: u256, arg1: bytes32, arg2: i256) -> u256 [abi_args=lazy, abi_returns=[word]] {
@@ -53,17 +58,13 @@ fn @vFull(arg0: u256, arg1: bytes32, arg2: i256) -> u256 [abi_args=lazy, abi_ret
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb2:
     v2 = add v0, arg2
     v3 = lt v2, v0
     jumpi v3, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb4:
     ret v2
 }

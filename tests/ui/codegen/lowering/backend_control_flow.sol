@@ -29,7 +29,7 @@ contract BackendControlFlow {
 
     // CHECK-LABEL: fn @phiAfterBranch
     // CHECK: jumpi
-    // CHECK: [[LIQUIDITY:v[0-9]+]] = mload {{[0-9]+}}
+    // CHECK: [[LIQUIDITY:v[0-9]+]] = frame_load scratch, word, {{[0-9]+}}
     // CHECK: [[SUPPLY:v[0-9]+]] = sload [[SUPPLY_SLOT:[0-9]+]]
     // CHECK: [[TOTAL:v[0-9]+]] = add [[SUPPLY]], [[LIQUIDITY]]
     // CHECK: sstore [[SUPPLY_SLOT]], [[TOTAL]]
@@ -44,13 +44,13 @@ contract BackendControlFlow {
 
     // CHECK-LABEL: fn @phiUsedMultipleTimes
     // CHECK: jumpi
-    // CHECK: [[LIQUIDITY:v[0-9]+]] = mload [[PHI_ADDR:[0-9]+]]
+    // CHECK: [[LIQUIDITY:v[0-9]+]] = frame_load scratch, word, [[PHI_ADDR:[0-9]+]]
     // CHECK: [[SUPPLY:v[0-9]+]] = sload [[SUPPLY_SLOT:[0-9]+]]
     // CHECK: [[TOTAL:v[0-9]+]] = add [[SUPPLY]], [[LIQUIDITY]]
     // CHECK: sstore [[SUPPLY_SLOT]], [[TOTAL]]
-    // CHECK: [[FIRST_USE:v[0-9]+]] = mload [[PHI_ADDR]]
+    // CHECK: [[FIRST_USE:v[0-9]+]] = frame_load scratch, word, [[PHI_ADDR]]
     // CHECK: [[TWICE:v[0-9]+]] = mul [[FIRST_USE]], 2
-    // CHECK: [[SECOND_USE:v[0-9]+]] = mload [[PHI_ADDR]]
+    // CHECK: [[SECOND_USE:v[0-9]+]] = frame_load scratch, word, [[PHI_ADDR]]
     // CHECK: {{v[0-9]+}} = add [[TWICE]], [[SECOND_USE]]
     function phiUsedMultipleTimes() external returns (uint256 result) {
         uint256 liquidity;
@@ -66,7 +66,7 @@ contract BackendControlFlow {
 
     // CHECK-LABEL: fn @phiWithTernary
     // CHECK: jumpi
-    // CHECK: [[LIQUIDITY:v[0-9]+]] = mload [[RESULT_ADDR:[0-9]+]]
+    // CHECK: [[LIQUIDITY:v[0-9]+]] = frame_load scratch, word, [[RESULT_ADDR:[0-9]+]]
     // CHECK: [[SUPPLY:v[0-9]+]] = sload [[SUPPLY_SLOT:[0-9]+]]
     // CHECK: [[TOTAL:v[0-9]+]] = add [[SUPPLY]], [[LIQUIDITY]]
     // CHECK: [[FIRST_NUM:v[0-9]+]] = mul
@@ -79,7 +79,7 @@ contract BackendControlFlow {
     // CHECK: mstore [[MERGE_ADDR:[0-9]+]], [[FIRST]]
     // CHECK: mstore [[MERGE_ADDR]], [[SECOND]]
     // CHECK: [[MIN:v[0-9]+]] = mload [[MERGE_ADDR]]
-    // CHECK: mstore [[RESULT_ADDR]], [[MIN]]
+    // CHECK: frame_store scratch, word, [[RESULT_ADDR]], [[MIN]]
     // CHECK: sstore [[SUPPLY_SLOT]], [[TOTAL]]
     function phiWithTernary() external returns (uint256 liquidity) {
         uint256 amount0 = 100;

@@ -1018,6 +1018,8 @@ symbols! {
         external_call,
         fmp,
         fn_: "fn",
+        frame_load,
+        frame_store,
         from,
         gasleft,
         global,

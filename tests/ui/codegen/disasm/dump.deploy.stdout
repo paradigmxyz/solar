@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/disasm/dump.sol:C (deployment) ===
-PUSH1 0x8e
+PUSH1 0x92
 DUP1
 PUSH1 0x09
 PUSH0

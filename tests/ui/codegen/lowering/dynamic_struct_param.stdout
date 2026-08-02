@@ -16,11 +16,16 @@ fn @init(arg0: memorystruct, arg1: address) -> u256 [abi_params=[tuple<address, 
     v7 = gt v6, 0xffffffffffffffffffffffffffffffffffffffff
     jumpi v7, bb3, bb4
   bb3:
+    tail_call @__panic_11
+  bb4:
+    ret v6
+}
+
+fn @__panic_11() {
+  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    ret v6
 }
 
 fn @flat(arg0: memorystruct) -> u256 [abi_params=[tuple<u256, address>], abi_returns=[word]] {
@@ -45,9 +50,7 @@ fn @words(arg0: memorystruct) -> u256 [abi_params=[tuple<array<_, u256>, u256>],
     v10 = lt v9, v6
     jumpi v10, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb2:
     ret v9
 }
@@ -67,9 +70,7 @@ fn @signedWords(arg0: memorystruct) -> u256 [abi_params=[tuple<array<_, i256>, u
     v10 = lt v9, v6
     jumpi v10, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb2:
     ret v9
 }
@@ -91,9 +92,7 @@ fn @nestedWords(arg0: memorystruct) -> u256 [abi_params=[tuple<array<_, array<_,
     v12 = lt 0, v11
     jumpi v12, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_32
   bb2:
     v13 = memory_object_element_addr memoryarray<1>, v10, 0
     v14 = mload v13
@@ -105,9 +104,7 @@ fn @nestedWords(arg0: memorystruct) -> u256 [abi_params=[tuple<array<_, array<_,
     v20 = lt 0, v19
     jumpi v20, bb4, bb3
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_32
   bb4:
     v21 = memory_object_element_addr memoryarray<1>, v18, 0
     v22 = mload v21
@@ -119,9 +116,7 @@ fn @nestedWords(arg0: memorystruct) -> u256 [abi_params=[tuple<array<_, array<_,
     v28 = lt 0, v27
     jumpi v28, bb6, bb5
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_32
   bb6:
     v29 = memory_object_element_addr memoryarray<1>, v26, 0
     v30 = mload v29
@@ -130,10 +125,15 @@ fn @nestedWords(arg0: memorystruct) -> u256 [abi_params=[tuple<array<_, array<_,
     v33 = lt v32, v6
     jumpi v33, bb7, bb8
   bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb8:
     ret v32
+}
+
+fn @__panic_32() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 

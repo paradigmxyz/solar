@@ -663,6 +663,8 @@ impl<'a> Validator<'a> {
                             | InstKind::MemoryObjectData(_, _)
                             | InstKind::MemoryObjectFieldAddr { .. }
                             | InstKind::MemoryObjectElementAddr { .. }
+                            | InstKind::FrameLoad { .. }
+                            | InstKind::FrameStore { .. }
                             | InstKind::Keccak256Bytes(_)
                     ) || inst
                         .result_ty
@@ -702,6 +704,9 @@ impl<'a> Validator<'a> {
                         | InstKind::MemoryToStorage { .. }
                         | InstKind::ClearStorage { .. } => Some("aggregate"),
                         InstKind::StoreImmutable(..) => Some("immutable assignment"),
+                        InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => {
+                            Some("frame slot")
+                        }
                         _ => None,
                     };
                     if let Some(semantic_op) = semantic_op {

@@ -604,7 +604,9 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         | InstKind::Sar(..)
         | InstKind::SignExtend(..)
         | InstKind::MLoad(..)
+        | InstKind::FrameLoad { .. }
         | InstKind::MStore(..)
+        | InstKind::FrameStore { .. }
         | InstKind::MStore8(..)
         | InstKind::CalldataLoad(..)
         | InstKind::CalldataSize

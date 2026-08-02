@@ -18,9 +18,7 @@ fn @word(arg0: calldataslice) -> memoryarray [abi_params=[array<_, u256>], abi_r
     v9 = shr 251, v7
     jumpi v9, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb4:
     v10 = mul v7, 32
     v11 = add 32, v10
@@ -29,5 +27,12 @@ fn @word(arg0: calldataslice) -> memoryarray [abi_params=[array<_, u256>], abi_r
     v13 = memory_object_data memoryarray, v12
     calldatacopy v13, v8, v10
     ret v12
+}
+
+fn @__panic_41() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 

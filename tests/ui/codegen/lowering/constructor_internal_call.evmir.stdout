@@ -43,7 +43,7 @@ bb0:
   push 64
   mstore
   pop
-  push bb9
+  push bb10
   jump bb1
 bb1:
   push 160
@@ -54,15 +54,15 @@ bb1:
   push bb3
   jumpi
   push 1
-  jump bb10
-bb10:
+  jump bb11
+bb11:
   push 160
   mload
   push 96
   add
   mstore
   jump
-bb7 [cold]:
+bb8 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -106,7 +106,7 @@ bb3:
   swap1
   pop
   iszero
-  push bb7
+  push bb8
   jumpi
   push 1
   push 160
@@ -191,15 +191,15 @@ bb5:
   add
   mload
   gt
-  push bb7
+  push bb8
   jumpi
   push 160
   mload
   push 160
   add
   mload
-  jump bb10
-bb9:
+  jump bb11
+bb10:
   push 160
   mload
   push 96

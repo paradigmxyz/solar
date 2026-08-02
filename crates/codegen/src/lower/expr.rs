@@ -891,8 +891,7 @@ impl<'gcx> Lowerer<'gcx> {
                                 crate::mir::SliceLocation::Calldata,
                             );
                         }
-                        let offset_val = self.local_memory_addr(builder, offset);
-                        return builder.mload(offset_val);
+                        return self.load_frame_word(builder, offset);
                     }
 
                     // Check if it's a constant - inline its value
@@ -1094,8 +1093,7 @@ impl<'gcx> Lowerer<'gcx> {
                     return slot;
                 }
                 if let Some(offset) = self.get_local_memory_offset(&var_id) {
-                    let offset = self.local_memory_addr(builder, offset);
-                    return builder.mload(offset);
+                    return self.load_frame_word(builder, offset);
                 }
             }
             sym::offset => {
@@ -1106,8 +1104,12 @@ impl<'gcx> Lowerer<'gcx> {
                     if self.is_slice_slot_local(&var_id)
                         && let Some(offset) = self.get_local_memory_offset(&var_id)
                     {
-                        let addr = self.local_memory_addr(builder, offset);
-                        return builder.mload(addr);
+                        let slice = self.load_slice_slot(
+                            builder,
+                            offset,
+                            crate::mir::SliceLocation::Calldata,
+                        );
+                        return builder.slice_ptr(slice);
                     }
                     if let Some(&slice) = self.locals.get(&var_id) {
                         return builder.slice_ptr(slice);
@@ -1121,8 +1123,9 @@ impl<'gcx> Lowerer<'gcx> {
                 if self.is_slice_slot_local(&var_id)
                     && let Some(offset) = self.get_local_memory_offset(&var_id)
                 {
-                    let addr = self.local_memory_addr(builder, offset + EvmMemoryLayout::WORD_SIZE);
-                    return builder.mload(addr);
+                    let slice =
+                        self.load_slice_slot(builder, offset, crate::mir::SliceLocation::Calldata);
+                    return builder.slice_len(slice);
                 }
                 if let Some(&slice) = self.locals.get(&var_id) {
                     return builder.slice_len(slice);
@@ -1741,8 +1744,7 @@ impl<'gcx> Lowerer<'gcx> {
                             self.store_slice_slot(builder, offset, rhs);
                             return;
                         }
-                        let offset_val = self.local_memory_addr(builder, offset);
-                        builder.mstore(offset_val, rhs);
+                        self.store_frame_word(builder, offset, rhs);
                     } else if let Some(local) = self.locals.get_mut(&var_id) {
                         // Function parameter - update SSA mapping (shouldn't happen normally)
                         *local = rhs;
@@ -1884,8 +1886,7 @@ impl<'gcx> Lowerer<'gcx> {
                     && let Some(var_id) = self.gcx.resolved_variable(base)
                 {
                     if let Some(offset) = self.get_local_memory_offset(&var_id) {
-                        let addr = self.local_memory_addr(builder, offset);
-                        builder.mstore(addr, rhs);
+                        self.store_frame_word(builder, offset, rhs);
                     } else {
                         self.locals.insert(var_id, rhs);
                     }
@@ -1906,13 +1907,19 @@ impl<'gcx> Lowerer<'gcx> {
                     if self.is_slice_slot_local(&var_id)
                         && let Some(offset) = self.get_local_memory_offset(&var_id)
                     {
-                        let offset = if member.name == sym::length {
-                            offset + EvmMemoryLayout::WORD_SIZE
+                        let current = self.load_slice_slot(
+                            builder,
+                            offset,
+                            crate::mir::SliceLocation::Calldata,
+                        );
+                        let slice = if member.name == sym::offset {
+                            let len = builder.slice_len(current);
+                            builder.make_slice(rhs, len, crate::mir::SliceLocation::Calldata)
                         } else {
-                            offset
+                            let ptr = builder.slice_ptr(current);
+                            builder.make_slice(ptr, rhs, crate::mir::SliceLocation::Calldata)
                         };
-                        let addr = self.local_memory_addr(builder, offset);
-                        builder.mstore(addr, rhs);
+                        self.store_slice_slot(builder, offset, slice);
                         return;
                     }
                     // An uninitialized calldata slice has the empty `(0, 0)`
@@ -3190,8 +3197,7 @@ impl<'gcx> Lowerer<'gcx> {
             return Some(slot);
         }
         let offset = self.get_local_memory_offset(&var_id)?;
-        let addr = self.local_memory_addr(builder, offset);
-        Some(builder.mload(addr))
+        Some(self.load_frame_word(builder, offset))
     }
 
     /// Whether `callee` resolves to a function whose first return is a storage

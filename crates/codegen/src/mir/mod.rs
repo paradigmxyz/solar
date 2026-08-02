@@ -6,7 +6,8 @@ use solar_data_structures::newtype_index;
 
 mod types;
 pub(crate) use types::{
-    ImmutableEncoding, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation, TypeSize,
+    FrameMode, FrameSlotKind, ImmutableEncoding, MemoryObjectKind, MemoryObjectLayout, MirType,
+    SliceLocation, TypeSize,
 };
 
 mod abi;

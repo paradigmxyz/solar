@@ -7,9 +7,7 @@ fn @asValue() {
     v15 = lt v14, 68
     jumpi v15, bb4, bb5
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb2:
     v8 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v9 = add v8, 32
@@ -69,6 +67,13 @@ fn @asValue() {
     returndata v44, v39
 }
 
+fn @__panic_41() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 fn @viaCall() {
   bb0:
     v6 = calldatasize
@@ -89,8 +94,8 @@ fn @viaCall() {
   bb4:
     mstore 128, 0
     v14 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v18 = add v14, 96
-    mstore 64, v18 !metadata(memory=scratch)
+    v19 = add v14, 96
+    mstore 64, v19 !metadata(memory=scratch)
     mstore v14, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v15 = add v14, 4
     mstore v15, arg1
@@ -99,6 +104,8 @@ fn @viaCall() {
     v3 = gas
     v4 = call v3, arg0, 0, v14, 68, 0, 0
     mstore 128, v4
+    v18 = mload 128
+    mstore 128, v18
     returndata 128, 32
 }
 

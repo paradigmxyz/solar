@@ -8,9 +8,9 @@ fn @constructor() {
 
 fn @items(arg0: u256) -> (address, u256, address) [abi_args=lazy, abi_returns=[word, word, word]] {
   bb0:
-    mstore 128, 0
-    mstore 160, 0
-    mstore 192, 0
+    frame_store scratch, word, 0, 0 !metadata(memory=scratch)
+    frame_store scratch, word, 32, 0 !metadata(memory=scratch)
+    frame_store scratch, word, 64, 0 !metadata(memory=scratch)
     v0 = mapping_slot arg0, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff

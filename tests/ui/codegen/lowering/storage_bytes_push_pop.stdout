@@ -8,9 +8,7 @@ fn @_anonymous() {
     v3 = lt v2, v1
     jumpi v3, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb2:
     v4 = add v2, 31
     v5 = not 31
@@ -102,9 +100,7 @@ fn @_anonymous() {
     v63 = lt v62, v61
     jumpi v63, bb11, bb12
   bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb12:
     v64 = add v62, 31
     v65 = not 31
@@ -237,6 +233,13 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     jump bb4
 }
 
+fn @__panic_41() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 fn @pushValue(arg0: bytes1) [abi_args=lazy] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
@@ -245,9 +248,7 @@ fn @pushValue(arg0: bytes1) [abi_args=lazy] {
     v3 = lt v2, v1
     jumpi v3, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb2:
     v4 = add v2, 31
     v5 = not 31
@@ -345,9 +346,7 @@ fn @pushZero() [abi_args=lazy] {
     v3 = lt v2, v1
     jumpi v3, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb2:
     v4 = add v2, 31
     v5 = not 31
@@ -442,9 +441,7 @@ fn @popValue() [abi_args=lazy] {
     v1 = memory_object_len memorybytes, v0
     jumpi v1, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 49 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_31
   bb2:
     v2 = sub v1, 1
     v3 = add v2, 31
@@ -529,6 +526,13 @@ fn @popValue() [abi_args=lazy] {
     jump bb8
   bb10:
     stop
+}
+
+fn @__panic_31() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 49 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @get() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {

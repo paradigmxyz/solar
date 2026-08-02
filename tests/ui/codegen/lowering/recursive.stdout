@@ -12,11 +12,9 @@ fn @fact.0(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v3 = lt arg0, 1
     jumpi v3, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb4:
-    v4 = internal_call @fact.1, 1, v2
+    v4 = internal_call @fact.2, 1, v2
     v5 = mul arg0, v4
     v6 = iszero v4
     v7 = div v5, v4
@@ -25,14 +23,19 @@ fn @fact.0(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v10 = iszero v9
     jumpi v10, bb5, bb6
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb6:
     ret v5
 }
 
-fn @fact.1(arg0: u256) -> u256 {
+fn @__panic_11() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @fact.2(arg0: u256) -> u256 {
   bb0:
     v0 = gt arg0, 1
     v1 = iszero v0
@@ -44,11 +47,9 @@ fn @fact.1(arg0: u256) -> u256 {
     v3 = lt arg0, 1
     jumpi v3, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb4:
-    v4 = internal_call @fact.1, 1, v2
+    v4 = internal_call @fact.2, 1, v2
     v5 = mul arg0, v4
     v6 = iszero v4
     v7 = div v5, v4
@@ -57,14 +58,12 @@ fn @fact.1(arg0: u256) -> u256 {
     v10 = iszero v9
     jumpi v10, bb5, bb6
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb6:
     ret v5
 }
 
-fn @fib.2(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @fib.3(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = gt arg0, 1
     v1 = iszero v0
@@ -76,32 +75,26 @@ fn @fib.2(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v3 = lt arg0, 1
     jumpi v3, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb4:
-    v4 = internal_call @fib.3, 1, v2
+    v4 = internal_call @fib.4, 1, v2
     v5 = sub arg0, 2
     v6 = lt arg0, 2
     jumpi v6, bb5, bb6
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb6:
-    v7 = internal_call @fib.3, 1, v5
+    v7 = internal_call @fib.4, 1, v5
     v8 = add v4, v7
     v9 = lt v8, v4
     jumpi v9, bb7, bb8
   bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb8:
     ret v8
 }
 
-fn @fib.3(arg0: u256) -> u256 {
+fn @fib.4(arg0: u256) -> u256 {
   bb0:
     v0 = gt arg0, 1
     v1 = iszero v0
@@ -113,32 +106,26 @@ fn @fib.3(arg0: u256) -> u256 {
     v3 = lt arg0, 1
     jumpi v3, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb4:
-    v4 = internal_call @fib.3, 1, v2
+    v4 = internal_call @fib.4, 1, v2
     v5 = sub arg0, 2
     v6 = lt arg0, 2
     jumpi v6, bb5, bb6
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb6:
-    v7 = internal_call @fib.3, 1, v5
+    v7 = internal_call @fib.4, 1, v5
     v8 = add v4, v7
     v9 = lt v8, v4
     jumpi v9, bb7, bb8
   bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb8:
     ret v8
 }
 
-fn @isEven.4(arg0: u256) -> bool [abi_args=lazy, abi_returns=[word]] {
+fn @isEven.5(arg0: u256) -> bool [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -149,15 +136,13 @@ fn @isEven.4(arg0: u256) -> bool [abi_args=lazy, abi_returns=[word]] {
     v2 = lt arg0, 1
     jumpi v2, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb4:
-    v3 = internal_call @isOdd.5, 1, v1
+    v3 = internal_call @isOdd.6, 1, v1
     ret v3
 }
 
-fn @isOdd.5(arg0: u256) -> bool {
+fn @isOdd.6(arg0: u256) -> bool {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -168,15 +153,13 @@ fn @isOdd.5(arg0: u256) -> bool {
     v2 = lt arg0, 1
     jumpi v2, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb4:
-    v3 = internal_call @isEven.6, 1, v1
+    v3 = internal_call @isEven.7, 1, v1
     ret v3
 }
 
-fn @isEven.6(arg0: u256) -> bool {
+fn @isEven.7(arg0: u256) -> bool {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -187,15 +170,13 @@ fn @isEven.6(arg0: u256) -> bool {
     v2 = lt arg0, 1
     jumpi v2, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb4:
-    v3 = internal_call @isOdd.5, 1, v1
+    v3 = internal_call @isOdd.6, 1, v1
     ret v3
 }
 
-fn @isOdd.7(arg0: u256) -> bool [abi_args=lazy, abi_returns=[word]] {
+fn @isOdd.8(arg0: u256) -> bool [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -206,11 +187,9 @@ fn @isOdd.7(arg0: u256) -> bool [abi_args=lazy, abi_returns=[word]] {
     v2 = lt arg0, 1
     jumpi v2, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb4:
-    v3 = internal_call @isEven.6, 1, v1
+    v3 = internal_call @isEven.7, 1, v1
     ret v3
 }
 

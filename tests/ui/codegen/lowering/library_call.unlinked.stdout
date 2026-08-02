@@ -25,7 +25,7 @@ bb4 [cold]:
   push 0
   dup1
   revert
-bb10 [cold]:
+bb12 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -80,7 +80,7 @@ bb5:
   lt
   swap1
   pop
-  push bb10
+  push bb12
   jumpi
   push 160
   mload
@@ -99,7 +99,7 @@ bb5:
   push 160
   mstore
   lt
-  push bb10
+  push bb12
   jumpi
   push 160
   mload
@@ -135,7 +135,7 @@ bb4 [cold]:
   push 0
   dup1
   revert
-bb13 [cold]:
+bb14 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -202,7 +202,7 @@ bb5:
   lt
   swap1
   pop
-  push bb13
+  push bb14
   jumpi
   push 448
   mload
@@ -221,7 +221,7 @@ bb5:
   push 448
   mstore
   lt
-  push bb13
+  push bb14
   jumpi
   push 448
   mload

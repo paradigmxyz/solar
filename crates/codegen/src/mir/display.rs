@@ -3,8 +3,8 @@
 //! Includes DOT format CFG generation for visualization.
 
 use super::{
-    BasicBlock, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, Instruction,
-    MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
+    BasicBlock, BlockId, EffectKind, FrameMode, FrameSlotKind, Function, FunctionId, InstId,
+    InstKind, Instruction, MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
 };
 use arrayvec::ArrayVec;
 use solar_data_structures::{
@@ -426,6 +426,21 @@ fn display_inst_kind<'a>(
             Ok(())
         }
         InstKind::InternalFrameAddr(offset) => write!(f, "internal_frame_addr {offset}"),
+        InstKind::FrameLoad { offset, mode, kind } => {
+            write!(
+                f,
+                "frame_load {}, {}, {offset}",
+                display_frame_mode(*mode),
+                display_frame_kind(*kind)
+            )
+        }
+        InstKind::FrameStore { offset, mode, kind, value } => write!(
+            f,
+            "frame_store {}, {}, {offset}, {}",
+            display_frame_mode(*mode),
+            display_frame_kind(*kind),
+            display_val(*value, func)
+        ),
         InstKind::Phi(args) => {
             write!(f, "phi")?;
             if !args.is_empty() {
@@ -440,6 +455,20 @@ fn display_inst_kind<'a>(
             Ok(())
         }
         _ => display_inst_operands(f, kind, func),
+    })
+}
+
+fn display_frame_mode(mode: FrameMode) -> &'static str {
+    match mode {
+        FrameMode::External => "scratch",
+        FrameMode::Internal => "internal_frame",
+    }
+}
+
+fn display_frame_kind(kind: FrameSlotKind) -> impl fmt::Display {
+    fmt::from_fn(move |f| match kind {
+        FrameSlotKind::Word => f.write_str("word"),
+        FrameSlotKind::Slice(location) => write!(f, "{location}"),
     })
 }
 

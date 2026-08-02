@@ -26,16 +26,19 @@ fn @abs_diff(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]]
     v5 = lt arg1, arg0
     jumpi v5, bb6, bb7
   bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb5:
     ret v2
   bb6:
+    tail_call @__panic_11
+  bb7:
+    ret v4
+}
+
+fn @__panic_11() {
+  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb7:
-    ret v4
 }
 

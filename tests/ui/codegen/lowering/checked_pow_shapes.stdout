@@ -29,9 +29,7 @@ fn @upow(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v12 = or v8, v11
     jumpi v12, bb9, bb10
   bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb8:
     v5 = shl arg1, 1
     jump bb1
@@ -55,9 +53,7 @@ fn @upow(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v26 = gt v14, v25
     jumpi v26, bb16, bb17
   bb14:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb15:
     v20 = and v16, 1
     v21 = mul v14, v15
@@ -66,12 +62,17 @@ fn @upow(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v24 = shr 1, v16
     jump bb11
   bb16:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb17:
     v27 = mul v14, v15
     jump bb1
+}
+
+fn @__panic_11() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @spow(arg0: i256, arg1: u256) -> i256 [abi_args=lazy, abi_returns=[word]] {
@@ -120,15 +121,11 @@ fn @spow(arg0: i256, arg1: u256) -> i256 [abi_args=lazy, abi_returns=[word]] {
     v15 = gt arg0, v14
     jumpi v15, bb13, bb14
   bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb12:
     jump bb1
   bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb14:
     jump bb7
   bb15:
@@ -140,9 +137,7 @@ fn @spow(arg0: i256, arg1: u256) -> i256 [abi_args=lazy, abi_returns=[word]] {
     v20 = slt arg0, v19
     jumpi v20, bb17, bb18
   bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb18:
     jump bb7
   bb19:
@@ -162,9 +157,7 @@ fn @spow(arg0: i256, arg1: u256) -> i256 [abi_args=lazy, abi_returns=[word]] {
     v39 = and v36, v38
     jumpi v39, bb24, bb25
   bb22:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb23:
     v31 = and v27, 1
     v32 = mul v25, v26
@@ -173,9 +166,7 @@ fn @spow(arg0: i256, arg1: u256) -> i256 [abi_args=lazy, abi_returns=[word]] {
     v35 = shr 1, v27
     jump bb19
   bb24:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb25:
     v40 = slt v25, 0
     v41 = sdiv 0x8000000000000000000000000000000000000000000000000000000000000000, v26
@@ -183,9 +174,7 @@ fn @spow(arg0: i256, arg1: u256) -> i256 [abi_args=lazy, abi_returns=[word]] {
     v43 = and v40, v42
     jumpi v43, bb26, bb27
   bb26:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb27:
     v44 = mul v25, v26
     jump bb1
@@ -220,17 +209,13 @@ fn @upow8(arg0: u8, arg1: u8) -> u8 [abi_args=lazy, abi_returns=[word]] {
     v13 = or v9, v12
     jumpi v13, bb11, bb12
   bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb8:
     v5 = shl arg1, 1
     v6 = gt v5, 255
     jumpi v6, bb9, bb10
   bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb10:
     jump bb1
   bb11:
@@ -240,9 +225,7 @@ fn @upow8(arg0: u8, arg1: u8) -> u8 [abi_args=lazy, abi_returns=[word]] {
   bb12:
     jump bb15
   bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb14:
     jump bb1
   bb15:
@@ -260,9 +243,7 @@ fn @upow8(arg0: u8, arg1: u8) -> u8 [abi_args=lazy, abi_returns=[word]] {
     v28 = gt v16, v27
     jumpi v28, bb20, bb21
   bb18:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb19:
     v22 = and v18, 1
     v23 = mul v16, v17
@@ -271,9 +252,7 @@ fn @upow8(arg0: u8, arg1: u8) -> u8 [abi_args=lazy, abi_returns=[word]] {
     v26 = shr 1, v18
     jump bb15
   bb20:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb21:
     v29 = mul v16, v17
     jump bb1
@@ -325,15 +304,11 @@ fn @spow8(arg0: i8, arg1: u8) -> i8 [abi_args=lazy, abi_returns=[word]] {
     v15 = gt arg0, v14
     jumpi v15, bb13, bb14
   bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb12:
     jump bb1
   bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb14:
     jump bb7
   bb15:
@@ -345,9 +320,7 @@ fn @spow8(arg0: i8, arg1: u8) -> i8 [abi_args=lazy, abi_returns=[word]] {
     v20 = slt arg0, v19
     jumpi v20, bb17, bb18
   bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb18:
     jump bb7
   bb19:
@@ -367,9 +340,7 @@ fn @spow8(arg0: i8, arg1: u8) -> i8 [abi_args=lazy, abi_returns=[word]] {
     v39 = and v36, v38
     jumpi v39, bb24, bb25
   bb22:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb23:
     v31 = and v27, 1
     v32 = mul v25, v26
@@ -378,9 +349,7 @@ fn @spow8(arg0: i8, arg1: u8) -> i8 [abi_args=lazy, abi_returns=[word]] {
     v35 = shr 1, v27
     jump bb19
   bb24:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb25:
     v40 = slt v25, 0
     v41 = sdiv 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, v26
@@ -388,9 +357,7 @@ fn @spow8(arg0: i8, arg1: u8) -> i8 [abi_args=lazy, abi_returns=[word]] {
     v43 = and v40, v42
     jumpi v43, bb26, bb27
   bb26:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb27:
     v44 = mul v25, v26
     jump bb1
@@ -401,9 +368,7 @@ fn @const2(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v0 = gt arg0, 255
     jumpi v0, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb2:
     v1 = shl arg0, 1
     ret v1
@@ -414,9 +379,7 @@ fn @const10(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v0 = gt arg0, 77
     jumpi v0, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb2:
     v1 = exp 10, arg0
     ret v1
@@ -427,9 +390,7 @@ fn @const_neg2(arg0: u256) -> i256 [abi_args=lazy, abi_returns=[word]] {
     v0 = eq 2, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
     jumpi v0, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb2:
     v1 = sub 0, 2
     v2 = iszero arg0
@@ -476,15 +437,11 @@ fn @const_neg2(arg0: u256) -> i256 [abi_args=lazy, abi_returns=[word]] {
     v17 = gt v1, v16
     jumpi v17, bb15, bb16
   bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb14:
     jump bb3
   bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb16:
     jump bb9
   bb17:
@@ -496,9 +453,7 @@ fn @const_neg2(arg0: u256) -> i256 [abi_args=lazy, abi_returns=[word]] {
     v22 = slt v1, v21
     jumpi v22, bb19, bb20
   bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb20:
     jump bb9
   bb21:
@@ -518,9 +473,7 @@ fn @const_neg2(arg0: u256) -> i256 [abi_args=lazy, abi_returns=[word]] {
     v41 = and v38, v40
     jumpi v41, bb26, bb27
   bb24:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb25:
     v33 = and v29, 1
     v34 = mul v27, v28
@@ -529,9 +482,7 @@ fn @const_neg2(arg0: u256) -> i256 [abi_args=lazy, abi_returns=[word]] {
     v37 = shr 1, v29
     jump bb21
   bb26:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb27:
     v42 = slt v27, 0
     v43 = sdiv 0x8000000000000000000000000000000000000000000000000000000000000000, v28
@@ -539,9 +490,7 @@ fn @const_neg2(arg0: u256) -> i256 [abi_args=lazy, abi_returns=[word]] {
     v45 = and v42, v44
     jumpi v45, bb28, bb29
   bb28:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb29:
     v46 = mul v27, v28
     jump bb3

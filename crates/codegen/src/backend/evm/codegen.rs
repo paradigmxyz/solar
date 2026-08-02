@@ -3621,8 +3621,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             | InstKind::MemoryObjectData(_, _)
             | InstKind::MemoryObjectFieldAddr { .. }
             | InstKind::MemoryObjectElementAddr { .. }
+            | InstKind::FrameLoad { .. }
+            | InstKind::FrameStore { .. }
             | InstKind::Keccak256Bytes(_) => {
-                unreachable!("memory-object instructions must be lowered before EVM codegen")
+                unreachable!("semantic memory instructions must be lowered before EVM codegen")
             }
 
             InstKind::MemoryZero(_, _) => {

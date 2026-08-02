@@ -6,9 +6,14 @@ fn @f(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
   bb1:
+    tail_call @__panic_11
+  bb2:
+    ret v0
+}
+
+fn @__panic_11() {
+  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    ret v0
 }

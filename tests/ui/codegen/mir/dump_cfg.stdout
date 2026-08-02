@@ -16,7 +16,7 @@ digraph "storageOps" {
     node [shape=box, fontname="Courier", fontsize=10];
     edge [fontname="Courier", fontsize=9];
 
-    bb0 [label="bb0:\l  mstore 128, 0\l  sstore arg0, arg1\l  v0 = sload arg0\l  mstore 128, v0\l  v1 = mload 128\l  ret v1\l"];
+    bb0 [label="bb0:\l  frame_store scratch, word, 0, 0\l  sstore arg0, arg1\l  v0 = sload arg0\l  frame_store scratch, word, 0, v0\l  v1 = frame_load scratch, word, 0\l  ret v1\l"];
 
 }
 

@@ -18,9 +18,7 @@ fn @compareElement(arg0: memorybytes) -> bool [abi_params=[bytes], abi_returns=[
     v1 = lt 0, v0
     jumpi v1, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_32
   bb2:
     v2 = memory_object_data memorybytes, arg0
     v3 = add v2, 0
@@ -31,6 +29,13 @@ fn @compareElement(arg0: memorybytes) -> bool [abi_params=[bytes], abi_returns=[
     v8 = and v7, 0xff00000000000000000000000000000000000000000000000000000000000000
     v9 = eq v5, v8
     ret v9
+}
+
+fn @__panic_32() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @narrow(arg0: bytes4) -> bytes2 [abi_args=lazy, abi_returns=[word]] {

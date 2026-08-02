@@ -28,9 +28,7 @@ fn @__internal_dispatch_0(arg0: function) -> u256 {
     v3 = internal_call @target.0, 1
     ret v3
   bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 81 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_51
 }
 
 fn @callVirtual() -> u256 [abi_args=lazy, abi_returns=[word]] {
@@ -48,5 +46,12 @@ fn @callThroughVirtualPointer() -> u256 {
 fn @target.5() -> u256 {
   bb0:
     ret 1
+}
+
+fn @__panic_51() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
 }
 

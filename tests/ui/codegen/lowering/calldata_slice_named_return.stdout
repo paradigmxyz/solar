@@ -3,56 +3,73 @@
 @phase evm-shaped
 fn @use() {
   bb0:
-    v16 = calldatasize
-    v17 = lt v16, 36
-    jumpi v17, bb3, bb4
+    v18 = calldatasize
+    v19 = lt v18, 36
+    jumpi v19, bb3, bb4
   bb1:
-    jump bb2
-  bb2:
-    v15 = phi [bb9: v36], [bb1: v4]
-    mstore 128, v15
+    v51 = add 128, 32
+    v52 = mload v51
+    mstore 128, v52
     returndata 128, 32
+  bb2:
+    v55 = add 128, 32
+    v56 = mload v55
+    v12 = sub v56, 32
+    v58 = mload 128
+    mstore 128, v58
+    v64 = add 128, 32
+    mstore v64, v12
+    jump bb1
   bb3:
     revert 0, 0
   bb4:
-    v20 = calldatasize
-    v21 = gt 36, v20
-    jumpi v21, bb3, bb5
+    v22 = calldatasize
+    v23 = gt 36, v22
+    jumpi v23, bb3, bb5
   bb5:
-    v23 = calldataload 4
-    v24 = add v23, 4
-    v25 = lt v24, 4
-    v26 = calldatasize
-    v27 = gt v24, v26
-    v28 = lt v23, 32
-    v29 = or v25, v27
-    v30 = or v29, v28
-    jumpi v30, bb3, bb6
+    v25 = calldataload 4
+    v26 = add v25, 4
+    v27 = lt v26, 4
+    v28 = calldatasize
+    v29 = gt v26, v28
+    v30 = lt v25, 32
+    v31 = or v27, v29
+    v32 = or v31, v30
+    jumpi v32, bb3, bb6
   bb6:
-    v31 = add v23, 36
-    v32 = lt v31, v24
-    v33 = calldatasize
-    v34 = gt v31, v33
-    v35 = or v32, v34
-    jumpi v35, bb3, bb7
+    v33 = add v25, 36
+    v34 = lt v33, v26
+    v35 = calldatasize
+    v36 = gt v33, v35
+    v37 = or v34, v36
+    jumpi v37, bb3, bb7
   bb7:
-    v36 = calldataload v24
-    v38 = add v36, 31
-    v39 = lt v38, v36
-    jumpi v39, bb3, bb8
+    v38 = calldataload v26
+    v40 = add v38, 31
+    v41 = lt v40, v38
+    jumpi v41, bb3, bb8
   bb8:
-    v41 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v42 = add v31, v41
-    v43 = lt v42, v31
-    v44 = calldatasize
-    v45 = gt v42, v44
-    v46 = or v43, v45
-    jumpi v46, bb3, bb9
+    v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v44 = add v33, v43
+    v45 = lt v44, v33
+    v46 = calldatasize
+    v47 = gt v44, v46
+    v48 = or v45, v47
+    jumpi v48, bb3, bb9
   bb9:
-    v4 = sub v36, 32
-    v5 = add v31, v4
-    v6 = calldataload v5
-    jumpi v6, bb1, bb2
+    mstore 128, 0
+    v67 = add 128, 32
+    mstore v67, 0
+    mstore 128, v33
+    v70 = add 128, 32
+    mstore v70, v38
+    v71 = mload 128
+    v76 = add 128, 32
+    v77 = mload v76
+    v5 = sub v77, 32
+    v6 = add v71, v5
+    v7 = calldataload v6
+    jumpi v7, bb2, bb1
 }
 
 fn @entry() [entry] {

@@ -6,11 +6,16 @@ fn @double(arg0: u256) -> u256 {
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
   bb1:
+    tail_call @__panic_11
+  bb2:
+    ret v0
+}
+
+fn @__panic_11() {
+  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    ret v0
 }
 
 fn @quadruple(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
@@ -26,9 +31,7 @@ fn @sum_then_double(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb2:
     v2 = internal_call @double, 1, v0
     ret v2

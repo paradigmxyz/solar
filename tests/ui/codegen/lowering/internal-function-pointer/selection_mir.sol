@@ -13,8 +13,7 @@ contract FunctionPointerSelection {
     // CHECK: internal_call @decrement, 1, arg1
     // CHECK: eq arg0, [[INCREMENT_VIEW:[0-9]+]]
     // CHECK: internal_call @incrementView, 1, arg1
-    // CHECK: mstore 4, 81
-    // CHECK: revert 0, 36
+    // CHECK: tail_call @__panic_51
     function choose(bool add, uint256 value) public returns (uint256) {
         function(uint256) internal returns (uint256) fn = add ? increment : decrement;
         return fn(value);
@@ -39,7 +38,7 @@ contract FunctionPointerSelection {
     // CHECK: [[CASTED:v[0-9]+]] = internal_call @castViewToPure, 1, [[INCREMENT_VIEW]]
     // CHECK: internal_call @__internal_dispatch_0, 1, [[CASTED]], arg0
     // CHECK-LABEL: fn @castViewToPure(
-    // CHECK: mstore {{v[0-9]+}}, arg0
+    // CHECK: frame_store internal_frame, word, 0, arg0
     // CHECK: ret {{v[0-9]+}}
     function throughCast(uint256 value) public pure returns (uint256) {
         return castViewToPure(incrementView)(value);

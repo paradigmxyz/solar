@@ -3,14 +3,14 @@
 
 contract LoopSimple {
     // CHECK-LABEL: fn @sum_to{{[( ]}}
-    // CHECK: [[I:v[0-9]+]] = mload 160
+    // CHECK: [[I:v[0-9]+]] = frame_load scratch, word, 32
     // CHECK: lt [[I]], arg0
-    // CHECK: {{v[0-9]+}} = mload 128
+    // CHECK: {{v[0-9]+}} = frame_load scratch, word, 0
     // CHECK: ret
-    // CHECK: [[LOOP_I:v[0-9]+]] = mload 160
+    // CHECK: [[LOOP_I:v[0-9]+]] = frame_load scratch, word, 32
     // CHECK: add [[LOOP_I]], 1
-    // CHECK: [[TOTAL:v[0-9]+]] = mload 128
-    // CHECK: [[BODY_I:v[0-9]+]] = mload 160
+    // CHECK: [[TOTAL:v[0-9]+]] = frame_load scratch, word, 0
+    // CHECK: [[BODY_I:v[0-9]+]] = frame_load scratch, word, 32
     // CHECK: add [[TOTAL]], [[BODY_I]]
     function sum_to(uint256 n) public pure returns (uint256) {
         uint256 total = 0;

@@ -2,13 +2,13 @@
 @module AbiDecodeDynamicTuple
 fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [abi_params=[bytes], abi_returns=[word, memory_bytes, memory_bytes]] {
   bb0:
-    mstore 128, 0
+    frame_store scratch, word, 0, 0 !metadata(memory=scratch)
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0
-    mstore 160, v0
+    frame_store scratch, word, 32, v0 !metadata(memory=scratch)
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v1, 0
-    mstore 192, v1
+    frame_store scratch, word, 64, v1 !metadata(memory=scratch)
     v2 = memory_object_len memorybytes, arg0
     v3 = memory_object_data memorybytes, arg0
     v4 = lt v2, 96
@@ -62,9 +62,7 @@ fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [abi_params=[b
     v24 = lt v23, v22
     jumpi v24, bb15, bb16
   bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb16:
     v25 = alloc memorybytes, exact, uninitialized, infallible, v23
     set_memory_object_len memorybytes, v25, v13
@@ -119,9 +117,7 @@ fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [abi_params=[b
     v48 = lt v47, v46
     jumpi v48, bb29, bb30
   bb29:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb30:
     v49 = alloc memorybytes, exact, uninitialized, infallible, v47
     set_memory_object_len memorybytes, v49, v37
@@ -146,6 +142,13 @@ fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [abi_params=[b
     ret v5, v60, v62
 }
 
+fn @__panic_41() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memorybytes, memorybytes) [abi_params=[u256, bytes, bytes], abi_returns=[word, memory_bytes, memory_bytes]] {
   bb0:
     v0 = abi_encode [word, memory_bytes, memory_bytes], args arg0, arg1, arg2
@@ -154,9 +157,7 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memory
     v3 = lt v2, v1
     jumpi v3, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb2:
     v4 = not 31
     v5 = and v2, v4
@@ -164,9 +165,7 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memory
     v7 = lt v6, v5
     jumpi v7, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb4:
     v8 = alloc memorybytes, exact, uninitialized, infallible, v6
     set_memory_object_len memorybytes, v8, v1
@@ -226,9 +225,7 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memory
     v33 = lt v32, v31
     jumpi v33, bb19, bb20
   bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb20:
     v34 = alloc memorybytes, exact, uninitialized, infallible, v32
     set_memory_object_len memorybytes, v34, v22
@@ -283,9 +280,7 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memory
     v57 = lt v56, v55
     jumpi v57, bb33, bb34
   bb33:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb34:
     v58 = alloc memorybytes, exact, uninitialized, infallible, v56
     set_memory_object_len memorybytes, v58, v46
@@ -363,9 +358,7 @@ fn @decodeBytes(arg0: memorybytes) -> memorybytes [abi_params=[bytes], abi_retur
     v20 = lt v19, v18
     jumpi v20, bb15, bb16
   bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb16:
     v21 = alloc memorybytes, exact, uninitialized, infallible, v19
     set_memory_object_len memorybytes, v21, v9

@@ -50,10 +50,16 @@ fn @lastWord() {
 
 fn @_last(arg0: calldataptr, arg1: u256) -> u256 {
   bb0:
-    v3 = sub arg1, 32
-    v4 = add arg0, v3
-    v5 = calldataload v4
-    ret v5
+    v6 = internal_frame_addr 128
+    mstore v6, 0 !metadata(memory=internal_frame)
+    v2 = sub arg1, 32
+    v3 = add arg0, v2
+    v4 = calldataload v3
+    v7 = internal_frame_addr 128
+    mstore v7, v4 !metadata(memory=internal_frame)
+    v8 = internal_frame_addr 128
+    v9 = mload v8 !metadata(memory=internal_frame)
+    ret v9
 }
 
 fn @lastWord2() {

@@ -70,7 +70,7 @@ bb0:
   swap1
   dup2
   lt
-  push bb12
+  push bb13
   jumpi
   push 384
   mstore
@@ -90,7 +90,7 @@ bb8:
   push 32
   push 128
   return
-bb12 [cold]:
+bb13 [cold]:
   push 0x4e487b71
   push 224
   shl

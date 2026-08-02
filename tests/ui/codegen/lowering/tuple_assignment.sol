@@ -27,10 +27,10 @@ contract C {
     }
 
     // CHECK: [[SWAP]]:
-    // CHECK: push 36
-    // CHECK-NEXT: calldataload
     // CHECK: push 4
-    // CHECK-NEXT: calldataload
+    // CHECK: calldataload
+    // CHECK: push 36
+    // CHECK: calldataload
     // CHECK: jump [[PAIR_RETURN:bb[0-9]+]]
     // CHECK: [[PAIR_RETURN]]:
     // CHECK: return

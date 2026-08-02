@@ -22,6 +22,7 @@ pub(crate) mod lower_aggregates;
 pub(crate) mod lower_alloc;
 pub(crate) mod lower_dispatch;
 pub(crate) mod lower_evm_shaped;
+pub(crate) mod lower_frame_slots;
 pub(crate) mod lower_immutables;
 pub(crate) mod lower_mapping_slots;
 pub(crate) mod lower_mcopy;

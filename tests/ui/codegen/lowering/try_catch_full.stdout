@@ -68,7 +68,7 @@ fn @full() {
     v40 = lt v39, v38
     jumpi v40, bb11, bb12
   bb11:
-    tail_call @__revert_stub0
+    tail_call @__panic_41
   bb12:
     v41 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v225 = add v41, v39
@@ -304,6 +304,13 @@ fn @full() {
     returndata v222, v217
 }
 
+fn @__panic_41() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 fn @rethrows() {
   bb0:
     v92 = calldatasize
@@ -315,8 +322,8 @@ fn @rethrows() {
     v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v14 = add v13, 32
     v15 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v97 = add v15, v14
-    mstore 64, v97 !metadata(memory=scratch)
+    v98 = add v15, v14
+    mstore 64, v98 !metadata(memory=scratch)
     mstore v15, v7
     v16 = add v15, 32
     returndatacopy v16, 0, v7
@@ -336,8 +343,8 @@ fn @rethrows() {
     v52 = and v51, v47
     jumpi v52, bb15, bb14
   bb3:
-    v91 = mload 128
-    mstore 128, v91
+    v97 = mload 128
+    mstore 128, v97
     returndata 128, 32
   bb4:
     revert 0, 0
@@ -375,11 +382,11 @@ fn @rethrows() {
     v39 = lt v38, v37
     jumpi v39, bb12, bb13
   bb12:
-    tail_call @__revert_stub0
+    tail_call @__panic_41
   bb13:
     v40 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v98 = add v40, v38
-    mstore 64, v98 !metadata(memory=scratch)
+    v99 = add v40, v38
+    mstore 64, v99 !metadata(memory=scratch)
     mstore 128, v20
     jump bb3
   bb14:
@@ -392,8 +399,8 @@ fn @rethrows() {
     v59 = and v57, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v60 = add v59, 32
     v61 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v99 = add v61, v60
-    mstore 64, v99 !metadata(memory=scratch)
+    v100 = add v61, v60
+    mstore 64, v100 !metadata(memory=scratch)
     mstore v61, v53
     v62 = add v61, 32
     returndatacopy v62, 0, v53
@@ -432,15 +439,15 @@ fn @rethrows() {
     jumpi v84, bb12, bb22
   bb22:
     v85 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v100 = add v85, v83
-    mstore 64, v100 !metadata(memory=scratch)
+    v101 = add v85, v83
+    mstore 64, v101 !metadata(memory=scratch)
     mstore 128, 1
     jump bb3
   bb23:
     mstore 128, 0
     v94 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v101 = add v94, 64
-    mstore 64, v101 !metadata(memory=scratch)
+    v102 = add v94, 64
+    mstore 64, v102 !metadata(memory=scratch)
     mstore v94, 0xb3de648b00000000000000000000000000000000000000000000000000000000
     v95 = add v94, 4
     mstore v95, arg0
@@ -449,13 +456,6 @@ fn @rethrows() {
     v5 = gas
     v6 = staticcall v5, v4, v94, 36, 0, 0
     jumpi v6, bb1, bb2
-}
-
-fn @__revert_stub0() {
-  bb0:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @entry() [entry] {

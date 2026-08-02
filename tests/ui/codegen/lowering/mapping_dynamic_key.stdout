@@ -284,9 +284,7 @@ fn @setThenAlloc(arg0: calldataslice, arg1: u256) -> u256 [abi_params=[bytes, u2
     v2 = lt v1, 32
     jumpi v2, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb2:
     v3 = not 31
     v4 = and v1, v3
@@ -294,13 +292,18 @@ fn @setThenAlloc(arg0: calldataslice, arg1: u256) -> u256 [abi_params=[bytes, u2
     v6 = lt v5, v4
     jumpi v6, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb4:
     v7 = alloc memorybytes, exact, zeroed, panic, v5
     set_memory_object_len memorybytes, v7, 32
     v8 = mload v7
     ret v8
+}
+
+fn @__panic_41() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 

@@ -35,9 +35,7 @@ fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 {
     v5 = internal_call @incrementView, 1, arg1
     ret v5
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 81 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_51
 }
 
 fn @increment(arg0: u256) -> u256 {
@@ -46,11 +44,16 @@ fn @increment(arg0: u256) -> u256 {
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
   bb1:
+    tail_call @__panic_11
+  bb2:
+    ret v0
+}
+
+fn @__panic_11() {
+  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    ret v0
 }
 
 fn @decrement(arg0: u256) -> u256 {
@@ -59,9 +62,7 @@ fn @decrement(arg0: u256) -> u256 {
     v1 = lt arg0, 1
     jumpi v1, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb2:
     ret v0
 }
@@ -81,13 +82,10 @@ fn @throughCast(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
 
 fn @castViewToPure(arg0: function) -> function {
   bb0:
-    v0 = internal_frame_addr 128
-    mstore v0, 0 !metadata(memory=internal_frame)
-    v1 = internal_frame_addr 128
-    mstore v1, arg0 !metadata(memory=internal_frame)
-    v2 = internal_frame_addr 128
-    v3 = mload v2 !metadata(memory=internal_frame)
-    ret v3
+    frame_store internal_frame, word, 0, 0 !metadata(memory=internal_frame)
+    frame_store internal_frame, word, 0, arg0 !metadata(memory=internal_frame)
+    v0 = frame_load internal_frame, word, 0 !metadata(memory=internal_frame)
+    ret v0
 }
 
 fn @incrementView(arg0: u256) -> u256 {
@@ -102,10 +100,15 @@ fn @incrementView(arg0: u256) -> u256 {
     v3 = lt v2, arg0
     jumpi v3, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb4:
     ret v2
+}
+
+fn @__panic_51() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
 }
 

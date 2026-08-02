@@ -2,15 +2,15 @@
 @module C
 fn @probe(arg0: calldataslice) -> (u256, u256) [abi_params=[array<_, u256>], abi_returns=[word, word]] {
   bb0:
-    mstore 128, 0
-    mstore 160, 0
+    frame_store scratch, word, 0, 0 !metadata(memory=scratch)
+    frame_store scratch, word, 32, 0 !metadata(memory=scratch)
     v0 = slice_len arg0
-    mstore 128, v0
+    frame_store scratch, word, 0, v0 !metadata(memory=scratch)
     v1 = slice_ptr arg0
     v2 = calldataload v1
-    mstore 160, v2
-    v3 = mload 128
-    v4 = mload 160
+    frame_store scratch, word, 32, v2 !metadata(memory=scratch)
+    v3 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v4 = frame_load scratch, word, 32 !metadata(memory=scratch)
     ret v3, v4
 }
 

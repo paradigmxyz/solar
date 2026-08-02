@@ -2054,9 +2054,8 @@ impl<'gcx> Lowerer<'gcx> {
                 self.init_empty_slice_slot(builder, offset);
             } else {
                 let offset = self.alloc_local_memory(ret_id);
-                let addr = self.local_memory_addr(builder, offset);
                 let zero = builder.imm_u64(0);
-                builder.mstore(addr, zero);
+                self.store_frame_word(builder, offset, zero);
             }
         }
 
@@ -2097,8 +2096,7 @@ impl<'gcx> Lowerer<'gcx> {
                 if self.is_slice_slot_local(&ret_id) {
                     self.load_slice_slot(builder, offset, crate::mir::SliceLocation::Calldata)
                 } else {
-                    let addr = self.local_memory_addr(builder, offset);
-                    builder.mload(addr)
+                    self.load_frame_word(builder, offset)
                 }
             })
             .collect();

@@ -2,18 +2,18 @@
 @module YulLocalPhi
 fn @branchLocal(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
-    mstore 128, 0
-    mstore 160, 1
+    frame_store scratch, word, 0, 0 !metadata(memory=scratch)
+    frame_store scratch, word, 32, 1 !metadata(memory=scratch)
     v0 = eq arg0, 0
     v1 = iszero v0
     jumpi v1, bb1, bb2
   bb1:
-    mstore 160, 2
+    frame_store scratch, word, 32, 2 !metadata(memory=scratch)
     jump bb2
   bb2:
-    v2 = mload 160
-    mstore 128, v2
-    v3 = mload 128
+    v2 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    frame_store scratch, word, 0, v2 !metadata(memory=scratch)
+    v3 = frame_load scratch, word, 0 !metadata(memory=scratch)
     ret v3
 }
 

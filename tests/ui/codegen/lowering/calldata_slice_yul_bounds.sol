@@ -49,8 +49,8 @@ contract CalldataSliceYulBounds {
     // slot, so the untaken path keeps the original length. A bare SSA update
     // would leak the branch value; the slot store/load is the branch merge.
     // CHECK-LABEL: fn @conditional{{[( ]}}
-    // CHECK: mstore
-    // CHECK: mload
+    // CHECK: frame_store scratch, calldata
+    // CHECK: frame_load scratch, calldata
     function conditional(bytes calldata x) external pure returns (uint256) {
         bytes calldata y = x;
         if (x.length > 32) {

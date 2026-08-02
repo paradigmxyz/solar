@@ -18,8 +18,9 @@ mod type_query;
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, ImmutableId,
-        MemoryObjectKind, MirType, Module, SliceLocation, StorageLayoutRef, TypeSize, ValueId,
+        BlockId, FrameMode, FrameSlotKind, Function, FunctionAttributes, FunctionBuilder,
+        FunctionId, ImmutableId, MemoryObjectKind, MirType, Module, SliceLocation,
+        StorageLayoutRef, TypeSize, ValueId,
     },
 };
 use alloy_primitives::{Bytes, U256};
@@ -173,8 +174,7 @@ struct Lowerer<'gcx> {
     /// Mapping from HIR variable IDs to MIR values (for local variables).
     /// For SSA-style immutable variables (function params and non-mutated locals).
     locals: FxHashMap<VariableId, ValueId>,
-    /// Mapping from HIR variable IDs to memory offsets (for mutable locals).
-    /// Memory layout: starts at offset 0x80 (after scratch space).
+    /// Mapping from HIR variable IDs to logical frame offsets (for mutable locals).
     local_memory_slots: FxHashMap<VariableId, u64>,
     /// Reassignable calldata `bytes`/`string`/array locals whose two-word
     /// local slot holds the logical slice as `[ptr][len]`. Rebinding stores
@@ -192,7 +192,7 @@ struct Lowerer<'gcx> {
     /// returns cannot ride the one-word-per-value multi-return buffer
     /// (calldata slices). Destructuring consumes them directly.
     pending_inline_returns: Option<Vec<ValueId>>,
-    /// Next available memory offset for locals.
+    /// Next available logical frame offset for locals.
     next_local_memory_offset: u64,
     /// Bytecodes of other contracts (for `new` expressions).
     contract_bytecodes: FxHashMap<ContractId, Bytes>,
@@ -304,7 +304,7 @@ impl<'gcx> Lowerer<'gcx> {
             inline_returns: None,
             modifier_chains: Vec::new(),
             pending_inline_returns: None,
-            next_local_memory_offset: EvmMemoryLayout::HEAP_START,
+            next_local_memory_offset: 0,
             contract_bytecodes: FxHashMap::default(),
             loop_stack: Vec::new(),
             assigned_vars: GrowableBitSet::new_empty(),
@@ -349,7 +349,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Maximum inline depth to prevent excessive recursion.
     const MAX_INLINE_DEPTH: usize = 32;
-    /// Historical base used by local memory slots in external function bodies.
+
     /// Attempts to enter inlining for a function. Returns false if a cycle is detected
     /// or the max inline depth is exceeded.
     fn try_enter_inline(&mut self, func_id: HirFunctionId) -> bool {
@@ -400,24 +400,33 @@ impl<'gcx> Lowerer<'gcx> {
         self.slice_slot_locals.contains(var_id)
     }
 
-    /// Stores a logical slice into its two-word local slot.
+    fn frame_mode(&self) -> FrameMode {
+        if self.lowering_internal_function { FrameMode::Internal } else { FrameMode::External }
+    }
+
+    fn load_frame_word(&self, builder: &mut FunctionBuilder<'_>, offset: u64) -> ValueId {
+        builder.frame_load(offset, self.frame_mode(), FrameSlotKind::Word)
+    }
+
+    fn store_frame_word(&self, builder: &mut FunctionBuilder<'_>, offset: u64, value: ValueId) {
+        builder.frame_store(offset, self.frame_mode(), FrameSlotKind::Word, value);
+    }
+
+    /// Stores a logical slice into its semantic local slot.
     fn store_slice_slot(&mut self, builder: &mut FunctionBuilder<'_>, offset: u64, slice: ValueId) {
-        let ptr = builder.slice_ptr(slice);
-        let len = builder.slice_len(slice);
-        let ptr_addr = self.local_memory_addr(builder, offset);
-        builder.mstore(ptr_addr, ptr);
-        let len_addr = self.local_memory_addr(builder, offset + EvmMemoryLayout::WORD_SIZE);
-        builder.mstore(len_addr, len);
+        builder.frame_store(
+            offset,
+            self.frame_mode(),
+            FrameSlotKind::Slice(SliceLocation::Calldata),
+            slice,
+        );
     }
 
     /// Initializes a two-word local slice slot to the empty slice.
     fn init_empty_slice_slot(&mut self, builder: &mut FunctionBuilder<'_>, offset: u64) {
-        let ptr_addr = self.local_memory_addr(builder, offset);
-        let ptr = builder.imm_u64(0);
-        builder.mstore(ptr_addr, ptr);
-        let len_addr = self.local_memory_addr(builder, offset + EvmMemoryLayout::WORD_SIZE);
-        let len = builder.imm_u64(0);
-        builder.mstore(len_addr, len);
+        let zero = builder.imm_u64(0);
+        let slice = builder.make_slice(zero, zero, SliceLocation::Calldata);
+        self.store_slice_slot(builder, offset, slice);
     }
 
     /// Reloads a logical slice from its two-word local slot.
@@ -427,29 +436,13 @@ impl<'gcx> Lowerer<'gcx> {
         offset: u64,
         location: crate::mir::SliceLocation,
     ) -> ValueId {
-        let ptr_addr = self.local_memory_addr(builder, offset);
-        let ptr = builder.mload(ptr_addr);
-        let len_addr = self.local_memory_addr(builder, offset + EvmMemoryLayout::WORD_SIZE);
-        let len = builder.mload(len_addr);
-        builder.make_slice(ptr, len, location)
+        debug_assert_eq!(location, SliceLocation::Calldata);
+        builder.frame_load(offset, self.frame_mode(), FrameSlotKind::Slice(location))
     }
 
     /// Gets the memory offset for a local variable, if it's stored in memory.
     fn get_local_memory_offset(&self, var_id: &VariableId) -> Option<u64> {
         self.local_memory_slots.get(var_id).copied()
-    }
-
-    /// Returns the address for a local memory slot in the current lowering context.
-    fn local_memory_addr(&self, builder: &mut FunctionBuilder<'_>, offset: u64) -> ValueId {
-        if self.lowering_internal_function {
-            let header_size = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE;
-            let arg_size = (builder.func().params.len() as u64) * EvmMemoryLayout::WORD_SIZE;
-            let return_size = (builder.func().returns.len() as u64) * EvmMemoryLayout::WORD_SIZE;
-            let local_offset = offset.saturating_sub(EvmMemoryLayout::HEAP_START);
-            builder.internal_frame_addr(header_size + arg_size + return_size + local_offset)
-        } else {
-            builder.imm_u64(offset)
-        }
     }
 
     fn constructor_args_base(&mut self, builder: &mut FunctionBuilder<'_>) -> ValueId {
@@ -660,7 +653,7 @@ impl<'gcx> Lowerer<'gcx> {
             let saved_lowering_internal_function = self.lowering_internal_function;
             let saved_in_unchecked_block = self.in_unchecked_block;
             let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
-            self.next_local_memory_offset = EvmMemoryLayout::HEAP_START;
+            self.next_local_memory_offset = 0;
             self.lowering_constructor = true;
             self.constructor_args_base = None;
             self.lowering_internal_function = false;
@@ -668,8 +661,7 @@ impl<'gcx> Lowerer<'gcx> {
 
             self.lower_constructor_prelude(&mut builder, contract_id);
             builder.stop();
-            builder.func_mut().internal_frame_size =
-                self.next_local_memory_offset.saturating_sub(EvmMemoryLayout::HEAP_START);
+            builder.func_mut().internal_frame_size = self.next_local_memory_offset;
             self.locals = saved_locals;
             self.local_memory_slots = saved_local_memory_slots;
             self.slice_slot_locals = saved_slice_slot_locals;
@@ -1217,7 +1209,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.locals.clear();
         self.local_memory_slots.clear();
         self.slice_slot_locals.clear();
-        self.next_local_memory_offset = EvmMemoryLayout::HEAP_START;
+        self.next_local_memory_offset = 0;
         self.assigned_vars.clear();
         self.lowering_constructor = hir_func.kind == hir::FunctionKind::Constructor;
         self.constructor_args_base = None;
@@ -1241,11 +1233,8 @@ impl<'gcx> Lowerer<'gcx> {
                 Self::emit_external_calldata_head_size_check(&mut builder, external_arg_head_size);
             }
 
-            // Register the return types before binding parameters. A
-            // reassigned parameter's slot address goes through
-            // `local_memory_addr`, which spans the complete return area, so a
-            // later return registration would shift the address its own reads
-            // resolve to.
+            // Register return types before binding parameters so the function
+            // signature is complete before the body is lowered.
             for &ret_id in hir_func.returns {
                 let ty = self.lower_type_from_var(ret_id);
                 builder.add_return(ty);
@@ -1592,10 +1581,9 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             // Every parameter is registered now, so a staged slot address
-            // resolves the same way the body's reads will.
+            // can be initialized before the body is lowered.
             for (offset, value) in std::mem::take(&mut deferred_param_slots) {
-                let addr = self.local_memory_addr(&mut builder, offset);
-                builder.mstore(addr, value);
+                self.store_frame_word(&mut builder, offset, value);
             }
 
             // Initialize named-return slots only after the complete return
@@ -1617,12 +1605,11 @@ impl<'gcx> Lowerer<'gcx> {
                 }
 
                 let offset = self.alloc_local_memory(ret_id);
-                let offset_val = self.local_memory_addr(&mut builder, offset);
                 if let Some(value) = self.lower_bulk_zero_return_struct(&mut builder, ret_id) {
-                    builder.mstore(offset_val, value);
+                    self.store_frame_word(&mut builder, offset, value);
                 } else if let Some(value) = self.lower_default_variable_value(&mut builder, ret_id)
                 {
-                    builder.mstore(offset_val, value);
+                    self.store_frame_word(&mut builder, offset, value);
                 }
             }
 
@@ -1661,8 +1648,7 @@ impl<'gcx> Lowerer<'gcx> {
                                     crate::mir::SliceLocation::Calldata,
                                 )
                             } else {
-                                let offset_val = self.local_memory_addr(&mut builder, offset);
-                                builder.mload(offset_val)
+                                self.load_frame_word(&mut builder, offset)
                             }
                         } else if let Some(value) =
                             self.lower_default_variable_value(&mut builder, ret_id)
@@ -1684,8 +1670,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.lowering_constructor = false;
         self.lowering_internal_function = false;
-        mir_func.internal_frame_size =
-            self.next_local_memory_offset.saturating_sub(EvmMemoryLayout::HEAP_START);
+        mir_func.internal_frame_size = self.next_local_memory_offset;
         mir_func.external_static_return_size = external_static_return_size;
 
         mir_func.name = self.module.function(mir_id).name;
@@ -2238,10 +2223,8 @@ impl<'gcx> Lowerer<'gcx> {
     /// Like [`Self::bind_param_value`], but records the slot store to emit once
     /// every parameter is registered.
     ///
-    /// `local_memory_addr` derives a frame address from the parameter and return
-    /// counts, so an address computed while parameters are still being added
-    /// resolves differently from the reads that follow. Callers inside the
-    /// parameter loop stage their stores and flush them afterwards.
+    /// Callers inside the parameter loop stage their stores and flush them
+    /// after all parameters are registered.
     fn bind_param_value_deferred(
         &mut self,
         param_id: hir::VariableId,
@@ -2263,8 +2246,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         if self.is_var_assigned(&param_id) && !self.param_is_storage_ref(param_id) {
             let offset = self.alloc_local_memory(param_id);
-            let addr = self.local_memory_addr(builder, offset);
-            builder.mstore(addr, value);
+            self.store_frame_word(builder, offset, value);
             return;
         }
         self.locals.insert(param_id, value);

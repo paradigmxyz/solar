@@ -4,19 +4,22 @@ fn @div_mod(arg0: u256, arg1: u256) -> (u256, u256) [abi_args=lazy, abi_returns=
   bb0:
     jumpi arg1, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 18 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_12
   bb2:
     v0 = div arg0, arg1
     jumpi arg1, bb4, bb3
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 18 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_12
   bb4:
     v1 = mod arg0, arg1
     ret v0, v1
+}
+
+fn @__panic_12() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @min_max(arg0: u256, arg1: u256) -> (u256, u256) [abi_args=lazy, abi_returns=[word, word]] {
@@ -35,26 +38,27 @@ fn @triple(arg0: u256) -> (u256, u256, u256) [abi_args=lazy, abi_returns=[word, 
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb2:
     v2 = add arg0, arg0
     v3 = lt v2, arg0
     jumpi v3, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb4:
     v4 = add v2, arg0
     v5 = lt v4, v2
     jumpi v5, bb5, bb6
   bb5:
+    tail_call @__panic_11
+  bb6:
+    ret arg0, v0, v4
+}
+
+fn @__panic_11() {
+  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb6:
-    ret arg0, v0, v4
 }
 

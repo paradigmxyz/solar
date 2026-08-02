@@ -325,7 +325,7 @@ fn @strs() {
     v42 = lt v41, v40
     jumpi v42, bb17, bb18
   bb17:
-    tail_call @__revert_stub0
+    tail_call @__panic_41
   bb18:
     v43 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v140 = add v43, v41
@@ -438,6 +438,13 @@ fn @strs() {
     jump bb26
 }
 
+fn @__panic_41() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 fn @mixed() {
   bb0:
     v55 = calldatasize
@@ -509,7 +516,7 @@ fn @mixed() {
     v40 = lt v39, v38
     jumpi v40, bb14, bb15
   bb14:
-    tail_call @__revert_stub0
+    tail_call @__panic_41
   bb15:
     v41 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v123 = add v41, v39
@@ -613,13 +620,6 @@ fn @mixed() {
     v126 = add v120, v119
     mstore 64, v126 !metadata(memory=scratch)
     returndata v120, v115
-}
-
-fn @__revert_stub0() {
-  bb0:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @entry() [entry] {

@@ -21,9 +21,7 @@ fn @dynamic(arg0: calldataslice) -> memorybytes [abi_params=[bytes], abi_returns
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb2:
     v3 = not 31
     v4 = and v1, v3
@@ -33,9 +31,7 @@ fn @dynamic(arg0: calldataslice) -> memorybytes [abi_params=[bytes], abi_returns
     v8 = lt v7, v6
     jumpi v8, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb4:
     v9 = alloc memorybytes, exact, uninitialized, infallible, v7
     set_memory_object_len memorybytes, v9, v0
@@ -48,6 +44,13 @@ fn @dynamic(arg0: calldataslice) -> memorybytes [abi_params=[bytes], abi_returns
     ret v9
 }
 
+fn @__panic_41() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 fn @frameShadow() -> (u256, u256, u256, u256) [abi_args=lazy, abi_returns=[word, word, word, word]] {
   bb0:
     ret 1, 2, 3, 4
@@ -55,12 +58,12 @@ fn @frameShadow() -> (u256, u256, u256, u256) [abi_args=lazy, abi_returns=[word,
 
 fn @rawAssembly() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
-    mstore 128, 0
+    frame_store scratch, word, 0, 0 !metadata(memory=scratch)
     v0 = mload 64 !metadata(memory=scratch)
-    mstore 128, v0
-    v1 = mload 128
+    frame_store scratch, word, 0, v0 !metadata(memory=scratch)
+    v1 = frame_load scratch, word, 0 !metadata(memory=scratch)
     mstore 64, v1 !metadata(memory=scratch)
-    v2 = mload 128
+    v2 = frame_load scratch, word, 0 !metadata(memory=scratch)
     ret v2
 }
 

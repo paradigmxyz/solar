@@ -8,16 +8,16 @@ fn @assign() {
     jumpi v36, bb4, bb5
   bb1:
     v23 = phi [bb8: 0], [bb2: v29]
-    v31 = phi [bb8: 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6], [bb2: v32]
-    v33 = phi [bb8: v22], [bb2: v34]
+    v31 = phi [bb8: v22], [bb2: v32]
+    v33 = phi [bb8: 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6], [bb2: v34]
     v24 = lt v23, v20
     jumpi v24, bb2, bb3
   bb2:
-    v27 = mload v33
-    sstore v31, v27 !metadata(storage=symbolic(v31))
+    v27 = mload v31
+    sstore v33, v27 !metadata(storage=symbolic(v33))
     v29 = add v23, 1
-    v32 = add v31, 1
-    v34 = add v33, 32
+    v32 = add v31, 32
+    v34 = add v33, 1
     jump bb1
   bb3:
     stop
@@ -71,15 +71,27 @@ fn @assign() {
     revert 0, 36
 }
 
+fn @__panic_41() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @__panic_32() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 fn @push() {
   bb0:
     v43 = calldatasize
     v44 = lt v43, 68
     jumpi v44, bb6, bb7
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb2:
     mstore 0, 2 !metadata(memory=scratch)
     v16 = shl 1, v12
@@ -163,9 +175,7 @@ fn @pop() {
     v0 = sload 2 !metadata(storage=slot(2))
     jumpi v0, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 49 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_31
   bb2:
     v1 = sub v0, 1
     mstore 0, 2 !metadata(memory=scratch)
@@ -180,10 +190,10 @@ fn @pop() {
     stop
 }
 
-fn @__revert_stub0() {
+fn @__panic_31() {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
+    mstore 4, 49 !metadata(memory=scratch)
     revert 0, 36
 }
 

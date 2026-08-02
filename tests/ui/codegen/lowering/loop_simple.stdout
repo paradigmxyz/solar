@@ -2,42 +2,45 @@
 @module LoopSimple
 fn @sum_to(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
-    mstore 128, 0
-    mstore 160, 0
+    frame_store scratch, word, 0, 0 !metadata(memory=scratch)
+    frame_store scratch, word, 32, 0 !metadata(memory=scratch)
     jump bb1
   bb1:
-    v0 = mload 160
+    v0 = frame_load scratch, word, 32 !metadata(memory=scratch)
     v1 = lt v0, arg0
     jumpi v1, bb4, bb5
   bb2:
-    v9 = mload 128
+    v9 = frame_load scratch, word, 0 !metadata(memory=scratch)
     ret v9
   bb3:
-    v6 = mload 160
+    v6 = frame_load scratch, word, 32 !metadata(memory=scratch)
     v7 = add v6, 1
     v8 = lt v7, v6
     jumpi v8, bb8, bb9
   bb4:
-    v2 = mload 128
-    v3 = mload 160
+    v2 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v3 = frame_load scratch, word, 32 !metadata(memory=scratch)
     v4 = add v2, v3
     v5 = lt v4, v2
     jumpi v5, bb6, bb7
   bb5:
     jump bb2
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb7:
-    mstore 128, v4
+    frame_store scratch, word, 0, v4 !metadata(memory=scratch)
     jump bb3
   bb8:
+    tail_call @__panic_11
+  bb9:
+    frame_store scratch, word, 32, v7 !metadata(memory=scratch)
+    jump bb1
+}
+
+fn @__panic_11() {
+  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb9:
-    mstore 160, v7
-    jump bb1
 }
 

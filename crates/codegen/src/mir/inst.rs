@@ -1,8 +1,8 @@
 //! MIR instructions.
 
 use super::{
-    AbiLayoutRef, BlockId, Function, FunctionId, ImmutableId, MemoryObjectKind, MemoryObjectLayout,
-    MirType, SliceLocation, StorageLayoutRef, Value, ValueId,
+    AbiLayoutRef, BlockId, FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId,
+    MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation, StorageLayoutRef, Value, ValueId,
 };
 use alloy_primitives::U256;
 use smallvec::{Array, SmallVec};
@@ -691,6 +691,26 @@ pub(crate) enum InstKind {
     SliceLen(ValueId),
     /// Address inside the current internal-call frame.
     InternalFrameAddr(u64),
+    /// Load a mutable local through its logical frame slot.
+    FrameLoad {
+        /// Byte offset within the function's local region.
+        offset: u64,
+        /// Calling convention that owns the local region.
+        mode: FrameMode,
+        /// Logical value representation stored in the slot.
+        kind: FrameSlotKind,
+    },
+    /// Store a mutable local through its logical frame slot.
+    FrameStore {
+        /// Byte offset within the function's local region.
+        offset: u64,
+        /// Calling convention that owns the local region.
+        mode: FrameMode,
+        /// Logical value representation stored in the slot.
+        kind: FrameSlotKind,
+        /// Value to store.
+        value: ValueId,
+    },
     /// Base address of the constructor's copied ABI argument blob.
     ConstructorArgsBase,
 
@@ -928,6 +948,8 @@ impl InstKind {
                 out.push(*len);
             }
 
+            Self::FrameStore { value, .. } => out.push(*value),
+
             Self::SetMemoryObjectLen(object, len, _)
             | Self::MemoryObjectElementAddr { object, index: len, .. } => {
                 out.push(*object);
@@ -1058,6 +1080,7 @@ impl InstKind {
             | Self::Fmp
             | Self::CalldataSize
             | Self::InternalFrameAddr(_)
+            | Self::FrameLoad { .. }
             | Self::ConstructorArgsBase
             | Self::CodeSize
             | Self::LoadImmutable(_)
@@ -1130,6 +1153,8 @@ impl InstKind {
                 f(ptr);
                 f(len);
             }
+
+            Self::FrameStore { value, .. } => f(value),
 
             Self::SetMemoryObjectLen(object, len, _)
             | Self::MemoryObjectElementAddr { object, index: len, .. } => {
@@ -1251,6 +1276,7 @@ impl InstKind {
             | Self::Fmp
             | Self::CalldataSize
             | Self::InternalFrameAddr(_)
+            | Self::FrameLoad { .. }
             | Self::ConstructorArgsBase
             | Self::CodeSize
             | Self::LoadImmutable(_)
@@ -1343,6 +1369,8 @@ impl InstKind {
             Self::ReturnDataSize => "returndatasize",
             Self::ReturnDataCopy(_, _, _) => "returndatacopy",
             Self::InternalFrameAddr(_) => "internal_frame_addr",
+            Self::FrameLoad { .. } => "frame_load",
+            Self::FrameStore { .. } => "frame_store",
             Self::Caller => "caller",
             Self::CallValue => "callvalue",
             Self::Origin => "origin",
@@ -1400,9 +1428,11 @@ impl InstKind {
             | Self::MStore(_, _)
             | Self::MStore8(_, _)
             | Self::MemoryZero(_, _)
+            | Self::FrameLoad { .. }
             | Self::SetFmp(_)
             | Self::Alloc { .. }
             | Self::SetMemoryObjectLen(_, _, _)
+            | Self::FrameStore { .. }
             | Self::AbiEncode { .. }
             | Self::StorageToMemory { .. }
             | Self::MCopy(_, _, _)
@@ -1441,6 +1471,7 @@ impl InstKind {
             | Self::SetFmp(_)
             | Self::Alloc { .. }
             | Self::SetMemoryObjectLen(_, _, _)
+            | Self::FrameStore { .. }
             | Self::AbiEncode { .. }
             | Self::StorageToMemory { .. }
             | Self::MCopy(_, _, _)
@@ -1450,6 +1481,7 @@ impl InstKind {
             | Self::ReturnDataCopy(_, _, _) => EffectKind::MemoryWrite,
             Self::StoreImmutable(..) => EffectKind::ImmutableWrite,
             Self::MLoad(_)
+            | Self::FrameLoad { .. }
             | Self::MemoryObjectLen(_, _)
             | Self::Fmp
             | Self::MSize

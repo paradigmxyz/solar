@@ -9,7 +9,7 @@ contract MemoryFixedArrayAlloc {
     // CHECK-LABEL: fn @guardedFix{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<3, 1>
     // CHECK: lt arg0, 3
-    // CHECK: mstore 4, 50
+    // CHECK: tail_call @__panic_32
     // CHECK: memory_object_element_addr memoryfixedarray<3, 1>, [[ARRAY]], arg0
     function guardedFix(uint256 i) public pure returns (uint256) {
         uint256[3] memory x;
@@ -140,7 +140,7 @@ contract NamedReturnAndDelete {
     // CHECK: [[DATA:v[0-9]+]] = memory_object_field_addr memorystruct<4>, [[WIDE]], 1
     // CHECK: mstore [[DATA]], [[EMPTY]]
     // CHECK-NOT: mstore {{v[0-9]+}}, 0
-    // CHECK: mstore 128, [[WIDE]]
+    // CHECK: frame_store scratch, word, 0, [[WIDE]]
     function emptyWideNamedStruct() public pure returns (WideHolder memory holder) {}
 
     // Named struct returns always receive semantic default objects; optimization

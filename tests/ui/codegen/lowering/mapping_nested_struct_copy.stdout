@@ -21,10 +21,10 @@ fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) [abi_args=la
 
 fn @get(arg0: u256) -> (u256, u256, u256, u256) [abi_args=lazy, abi_returns=[word, word, word, word]] {
   bb0:
-    mstore 128, 0
-    mstore 160, 0
-    mstore 192, 0
-    mstore 224, 0
+    frame_store scratch, word, 0, 0 !metadata(memory=scratch)
+    frame_store scratch, word, 32, 0 !metadata(memory=scratch)
+    frame_store scratch, word, 64, 0 !metadata(memory=scratch)
+    frame_store scratch, word, 96, 0 !metadata(memory=scratch)
     v0 = mapping_slot arg0, 0
     v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     storage_to_memory struct<word, struct<word, word>, word>, v0, v1

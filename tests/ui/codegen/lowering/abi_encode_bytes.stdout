@@ -17,9 +17,7 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [abi_args=lazy, a
     v3 = lt v2, v1
     jumpi v3, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb2:
     v4 = not 31
     v5 = and v2, v4
@@ -27,9 +25,7 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [abi_args=lazy, a
     v7 = lt v6, v5
     jumpi v7, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb4:
     v8 = alloc memorybytes, exact, uninitialized, infallible, v6
     set_memory_object_len memorybytes, v8, v1
@@ -37,6 +33,13 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [abi_args=lazy, a
     v10 = slice_ptr v0
     mcopy v9, v10, v1
     ret v8
+}
+
+fn @__panic_41() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [abi_params=[u256, bytes], abi_returns=[memory_bytes]] {
@@ -47,9 +50,7 @@ fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [abi_params=[u25
     v3 = lt v2, v1
     jumpi v3, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb2:
     v4 = not 31
     v5 = and v2, v4
@@ -57,9 +58,7 @@ fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [abi_params=[u25
     v7 = lt v6, v5
     jumpi v7, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb4:
     v8 = alloc memorybytes, exact, uninitialized, infallible, v6
     set_memory_object_len memorybytes, v8, v1
@@ -86,9 +85,7 @@ fn @roundtrip(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v3 = lt v2, v1
     jumpi v3, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb2:
     v4 = not 31
     v5 = and v2, v4
@@ -96,9 +93,7 @@ fn @roundtrip(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v7 = lt v6, v5
     jumpi v7, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb4:
     v8 = alloc memorybytes, exact, uninitialized, infallible, v6
     set_memory_object_len memorybytes, v8, v1

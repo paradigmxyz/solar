@@ -7,8 +7,7 @@
 // leaks the previous call's value.
 contract MultiReturnNamedInit {
     // CHECK-LABEL: fn @readU64{{[( ]}}
-    // CHECK: [[VALUE_SLOT:v[0-9]+]] = internal_frame_addr 192
-    // CHECK-NEXT: mstore [[VALUE_SLOT]], 0
+    // CHECK: frame_store internal_frame, word, 0, 0
     function readU64(bytes calldata data, uint256 start)
         internal
         pure

@@ -30,13 +30,18 @@ fn @add_balance(arg0: u256, arg1: u256) [abi_args=lazy] {
     v3 = lt v2, v1
     jumpi v3, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_11
   bb2:
     v4 = mapping_slot arg0, 0
     sstore v4, v2 !metadata(storage=symbolic(v4))
     stop
+}
+
+fn @__panic_11() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @approve(arg0: address, arg1: address, arg2: u256) [abi_args=lazy] {

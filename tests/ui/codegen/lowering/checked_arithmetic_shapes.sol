@@ -39,7 +39,7 @@ contract CheckedArithmeticShapes {
 
     // CHECK-LABEL: fn @sdiv{{[( ]}}
     // CHECK: jumpi arg1,
-    // CHECK: mstore 4, 18
+    // CHECK: tail_call @__panic_12
     // CHECK: and {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: sdiv arg0, arg1
     function sdiv(int256 a, int256 b) public pure returns (int256) {
@@ -48,7 +48,7 @@ contract CheckedArithmeticShapes {
 
     // CHECK-LABEL: fn @smod{{[( ]}}
     // CHECK: jumpi arg1,
-    // CHECK: mstore 4, 18
+    // CHECK: tail_call @__panic_12
     // CHECK: smod arg0, arg1
     function smod(int256 a, int256 b) public pure returns (int256) {
         return a % b;
@@ -62,7 +62,7 @@ contract CheckedArithmeticShapes {
     }
 
     // CHECK-LABEL: fn @inc{{[( ]}}
-    // CHECK: [[OLD:v[0-9]+]] = mload 128
+    // CHECK: [[OLD:v[0-9]+]] = frame_load scratch, word, 0
     // CHECK: [[RESULT:v[0-9]+]] = add [[OLD]], 1
     // CHECK: lt [[RESULT]], [[OLD]]
     function inc(uint256 a) public pure returns (uint256) {
@@ -70,7 +70,7 @@ contract CheckedArithmeticShapes {
     }
 
     // CHECK-LABEL: fn @dec{{[( ]}}
-    // CHECK: [[OLD:v[0-9]+]] = mload 128
+    // CHECK: [[OLD:v[0-9]+]] = frame_load scratch, word, 0
     // CHECK: [[RESULT:v[0-9]+]] = sub [[OLD]], 1
     // CHECK: lt [[OLD]], 1
     function dec(uint256 a) public pure returns (uint256) {

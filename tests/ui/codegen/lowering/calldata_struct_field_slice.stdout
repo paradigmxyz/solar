@@ -545,9 +545,7 @@ fn @tailHash.3(arg0: memptr) -> bytes32 {
     v24 = lt v23, v19
     jumpi v24, bb6, bb7
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @__panic_41
   bb7:
     v26 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v27 = iszero v26
@@ -572,7 +570,14 @@ fn @tailHash.3(arg0: memptr) -> bytes32 {
     jump bb3
 }
 
-fn @midWord.4() {
+fn @__panic_41() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @midWord.5() {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -804,12 +809,12 @@ fn @midWord.4() {
     mstore v171, v168
     v172 = add v21, 256
     mstore v172, v9
-    v0 = internal_call @midWord.5, 1, v21
+    v0 = internal_call @midWord.6, 1, v21
     mstore 128, v0
     returndata 128, 32
 }
 
-fn @midWord.5(arg0: memptr) -> bytes32 {
+fn @midWord.6(arg0: memptr) -> bytes32 {
   bb0:
     v0 = add arg0, 256
     v1 = mload v0
@@ -843,7 +848,7 @@ fn @entry() [entry] {
   bb4:
     tail_call @tailHash.2
   bb5:
-    tail_call @midWord.4
+    tail_call @midWord.5
   bb6:
     revert 0, 0
 }

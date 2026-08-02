@@ -22,9 +22,16 @@ fn @add(arg0: i256, arg1: i256) -> i256 {
     v3 = xor v1, v2
     jumpi v3, bb1, bb2
   bb1:
-    tail_call @__revert_stub0
+    tail_call @__panic_11
   bb2:
     ret v0
+}
+
+fn @__panic_11() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @doNeg() {
@@ -45,17 +52,10 @@ fn @neg(arg0: i256) -> i256 {
     v0 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     jumpi v0, bb1, bb2
   bb1:
-    tail_call @__revert_stub0
+    tail_call @__panic_11
   bb2:
     v1 = sub 0, arg0
     ret v1
-}
-
-fn @__revert_stub0() {
-  bb0:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @entry() [entry] {

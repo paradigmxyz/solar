@@ -34,10 +34,10 @@
 use super::{
     AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamType, AbiType, AllocationAlignment,
     AllocationFailure, AllocationInitialization, AllocationKind, AllocationSemantics, BlockId,
-    Disambiguator, EffectKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstId,
-    InstKind, Instruction, InstructionMetadata, MangledSymbol, MemoryObjectKind,
-    MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField, StorageLayout,
-    StorageLayoutRef, Terminator, Value, ValueId,
+    Disambiguator, EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId,
+    ImmutableId, InstId, InstKind, Instruction, InstructionMetadata, MangledSymbol,
+    MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField,
+    StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
 };
 use crate::mir::{MirType, SliceLocation, TypeSize};
 use alloy_primitives::U256;
@@ -1234,6 +1234,26 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         })
     }
 
+    fn parse_frame_mode(&mut self) -> PResult<'sess, FrameMode> {
+        let mode = self.parser.parse_ident()?;
+        Ok(match mode {
+            sym::scratch => FrameMode::External,
+            sym::internal_frame => FrameMode::Internal,
+            _ => return Err(self.parser.error(format!("unknown frame mode `{mode}`"))),
+        })
+    }
+
+    fn parse_frame_slot_kind(&mut self) -> PResult<'sess, FrameSlotKind> {
+        let kind = self.parser.parse_ident()?;
+        Ok(match kind {
+            sym::word => FrameSlotKind::Word,
+            kw::Memory => FrameSlotKind::Slice(SliceLocation::Memory),
+            kw::Calldata => FrameSlotKind::Slice(SliceLocation::Calldata),
+            sym::returndata => FrameSlotKind::Slice(SliceLocation::Returndata),
+            _ => return Err(self.parser.error(format!("unknown frame slot kind `{kind}`"))),
+        })
+    }
+
     fn parse_effect_kind(&self, value: Symbol) -> PResult<'sess, EffectKind> {
         Ok(match value {
             kw::Pure => EffectKind::Pure,
@@ -1610,6 +1630,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::internal_frame_addr => {
                 let offset = self.parser.parse_uint()?.to::<u64>();
                 (InstKind::InternalFrameAddr(offset), Some(MirType::MemPtr))
+            }
+            sym::frame_load => {
+                let mode = self.parse_frame_mode()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let kind = self.parse_frame_slot_kind()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let offset = self.parser.parse_uint()?.to::<u64>();
+                (InstKind::FrameLoad { offset, mode, kind }, Some(kind.result_type()))
+            }
+            sym::frame_store => {
+                let mode = self.parse_frame_mode()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let kind = self.parse_frame_slot_kind()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let offset = self.parser.parse_uint()?.to::<u64>();
+                self.parser.expect(TokenKind::Comma)?;
+                let value = self.parse_value(builder)?;
+                (InstKind::FrameStore { offset, mode, kind, value }, None)
             }
             kw::Create => inst!(Create(a, b, c) => MirType::Address),
             kw::Create2 => inst!(Create2(a, b, c, d) => MirType::Address),

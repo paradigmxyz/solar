@@ -1,8 +1,9 @@
 //! MIR function builder.
 
 use super::{
-    AllocationSemantics, BlockId, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, MemoryRegion, MirType, SliceLocation, StorageAlias, Terminator, Value, ValueId,
+    AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionId, Immediate,
+    ImmutableId, InstId, InstKind, Instruction, MemoryRegion, MirType, SliceLocation, StorageAlias,
+    Terminator, Value, ValueId,
 };
 use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
@@ -128,6 +129,12 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     fn memory_region_for_inst(&self, kind: &InstKind) -> Option<MemoryRegion> {
+        if let InstKind::FrameLoad { mode, .. } | InstKind::FrameStore { mode, .. } = *kind {
+            return Some(match mode {
+                FrameMode::External => MemoryRegion::Scratch,
+                FrameMode::Internal => MemoryRegion::InternalFrame,
+            });
+        }
         let addr = match *kind {
             InstKind::MLoad(addr)
             | InstKind::MStore(addr, _)
@@ -620,6 +627,27 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits an address inside the current internal-call frame.
     pub(crate) fn internal_frame_addr(&mut self, offset: u64) -> ValueId {
         self.emit_inst(InstKind::InternalFrameAddr(offset), Some(MirType::MemPtr))
+    }
+
+    /// Loads a mutable local through its logical frame slot.
+    pub(crate) fn frame_load(
+        &mut self,
+        offset: u64,
+        mode: FrameMode,
+        kind: FrameSlotKind,
+    ) -> ValueId {
+        self.emit_inst(InstKind::FrameLoad { offset, mode, kind }, Some(kind.result_type()))
+    }
+
+    /// Stores a mutable local through its logical frame slot.
+    pub(crate) fn frame_store(
+        &mut self,
+        offset: u64,
+        mode: FrameMode,
+        kind: FrameSlotKind,
+        value: ValueId,
+    ) {
+        self.emit_void_inst(InstKind::FrameStore { offset, mode, kind, value });
     }
 
     /// Emits a caller instruction.
