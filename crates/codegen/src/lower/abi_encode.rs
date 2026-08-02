@@ -268,7 +268,7 @@ impl<'gcx> Lowerer<'gcx> {
         (data, size)
     }
 
-    /// ABI-encodes static event data in scratch memory.
+    /// ABI-encodes event data through the typed ABI operation.
     pub(super) fn abi_encode_event_data(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -278,6 +278,22 @@ impl<'gcx> Lowerer<'gcx> {
             let zero = builder.imm_u64(0);
             return (zero, zero);
         }
+
+        // Events use the same tuple ABI as source `abi.encode`. Keep the
+        // payload as a typed MIR slice so allocation and layout stay in the
+        // ABI phase. A legacy fallback remains for recursive or otherwise
+        // unsupported semantic types.
+        if let Some(types) = items
+            .iter()
+            .map(|&(value, ty)| self.abi_type(ty, Self::value_is_calldata_slice(builder, value)))
+            .collect::<Option<Vec<_>>>()
+        {
+            let layout = self.module.intern_abi_layout(AbiLayout::new(types));
+            let args = items.iter().map(|&(value, _)| value).collect::<Vec<_>>();
+            let payload = builder.abi_encode(layout, None, args);
+            return (builder.slice_ptr(payload), builder.slice_len(payload));
+        }
+
         if items.iter().any(|&(_, ty)| self.abi_is_dynamic(ty)) {
             return self.abi_encode_items_to_memory(builder, items);
         }

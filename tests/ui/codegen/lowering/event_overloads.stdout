@@ -2,11 +2,14 @@
 @module EventOverloads
 fn @emitBoth(arg0: address, arg1: u256) [abi_args=lazy] {
   bb0:
-    mstore 0, arg1 !metadata(memory=scratch)
-    log1 0, 32, 0x248dd4076d0a389d795107efafd558ce7f31ae37b441ccb9a599c60868f480d5
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, arg1 !metadata(memory=scratch)
-    log1 0, 64, 0x69ca02dd4edd7bf0a4abb9ed3b7af3f14778db5d61921c7dc7cd545266326de2
+    v0 = abi_encode [word], args arg1
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    log1 v1, v2, 0x248dd4076d0a389d795107efafd558ce7f31ae37b441ccb9a599c60868f480d5
+    v3 = abi_encode [word, word], args arg0, arg1
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    log1 v4, v5, 0x69ca02dd4edd7bf0a4abb9ed3b7af3f14778db5d61921c7dc7cd545266326de2
     stop
 }
 

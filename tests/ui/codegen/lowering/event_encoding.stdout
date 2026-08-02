@@ -2,21 +2,19 @@
 @module EventEncoding
 fn @emitArray(arg0: memoryfixedarray) {
   bb0:
-    v0 = memory_object_element_addr memoryfixedarray<2, 1>, arg0, 0
-    v1 = mload v0
-    mstore 0, v1 !metadata(memory=scratch)
-    v2 = memory_object_element_addr memoryfixedarray<2, 1>, arg0, 1
-    v3 = mload v2
-    mstore 32, v3 !metadata(memory=scratch)
-    v4 = add 32, 32
-    log1 0, 64, 0x625921711aa49386aa5b640487cbc3efdcbda2656254ae2c5ad71b2ede1efcf4
+    v0 = abi_encode [array<2, word>], args arg0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    log1 v1, v2, 0x625921711aa49386aa5b640487cbc3efdcbda2656254ae2c5ad71b2ede1efcf4
     stop
 }
 
 fn @emitAnonymous(arg0: address, arg1: u256) [abi_args=lazy] {
   bb0:
-    mstore 0, arg1 !metadata(memory=scratch)
-    log1 0, 32, arg0
+    v0 = abi_encode [word], args arg1
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    log1 v1, v2, arg0
     stop
 }
 
@@ -35,9 +33,10 @@ fn @emitIndexedFixedBytes() [abi_args=lazy] {
 
 fn @emitNamed() [abi_args=lazy] {
   bb0:
-    mstore 0, 1 !metadata(memory=scratch)
-    mstore 32, 2 !metadata(memory=scratch)
-    log1 0, 64, 0x7d268c864ab74dc3ecd16b07321ad677da79fbcb3fd2c22d5bfe5d4b81c67d23
+    v0 = abi_encode [word, word], args 1, 2
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    log1 v1, v2, 0x7d268c864ab74dc3ecd16b07321ad677da79fbcb3fd2c22d5bfe5d4b81c67d23
     stop
 }
 
