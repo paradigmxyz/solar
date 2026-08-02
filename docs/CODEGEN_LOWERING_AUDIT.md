@@ -67,6 +67,11 @@ describes observable structure in the current tree, not an intended design.
   `memory_object_copy_from_slice`. The memory-object pass selects the physical
   copy opcode, and the canonical pipeline lowers objects before slices so the
   generated pointer and length projections are consumed by the slice pass.
+* Constructors with only full-word scalars and fixed arrays of full-word
+  scalars defer their input boundary to `lower-abi`. That pass expands the
+  physical constructor word parameters and rebuilds nested fixed-array memory
+  objects; dynamic and narrow constructor shapes remain on the legacy blob
+  decoder until a bounded blob-length abstraction exists.
 * Literal low-level call payloads use a bytes memory object for their
   length-prefixed staging, then expose only its data slice to the call.
 * Literal mapping keys and embedded creation bytecode use typed bytes-object
@@ -130,11 +135,14 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
 
 ## Concrete shortcomings
 
-* **The ABI boundary is still split for constructor aggregates.**
+* **The ABI boundary is still split for most constructor aggregates.**
   External functions with supported fixed arrays, dynamic arrays, byte
   strings, and scalar/byte/enum structs defer to `lower-abi`, including its
-  range and overflow checks. Constructors still decode their argument blob in
-  HIR lowering because the ABI phase currently handles runtime calldata only.
+  range and overflow checks. Constructors with full-word fixed arrays now use
+  the same phase, but narrow scalars, dynamic arrays, bytes, strings, and
+  structs still decode their argument blob in HIR lowering. Moving those
+  shapes safely needs a typed constructor blob end/length, which MIR does not
+  expose yet.
 * **Physical memory still leaks through a few aggregate helpers.** Mutable
   locals, direct object accesses, storage aggregate copies, and typed
   slice-to-object copies now stay semantic. Memory-object allocation, ABI
