@@ -48,9 +48,9 @@ describes observable structure in the current tree, not an intended design.
 * Custom-error reverts use the typed ABI encoder with the error selector, so
   empty and aggregate payloads share the same layout and memory boundary as
   source-level ABI encodes.
-* Standard `Error(string)` reverts use the typed ABI encoder too. The shared
-  short-message helper builds a semantic bytes object before encoding, while
-  longer and dynamic messages use the same operation directly.
+* Standard `Error(string)` reverts use the typed ABI encoder for longer and
+  dynamic messages. The shared short-message helper keeps its fixed-width
+  outlined payload, so repeated literal errors remain compact.
 * Packed storage locations carry their semantic encoding. Signed values are
   sign-extended on load, fixed bytes are aligned at the MIR boundary, and both
   forms share the same read-modify-write path for state variables, fields, and

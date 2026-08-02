@@ -58,13 +58,11 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [abi_args=lazy] {
 
 fn @__revert_error(arg0: u256, arg1: u256) {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v0, arg0
-    memory_object_store_element memorybytes, v0, 0, arg1
-    v1 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v0
-    v2 = slice_ptr v1
-    v3 = slice_len v1
-    revert v2, v3
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, arg0 !metadata(memory=scratch)
+    mstore 68, arg1 !metadata(memory=scratch)
+    revert 0, 100
 }
 
 fn @balanceOf(arg0: address) -> u256 [abi_args=lazy, abi_returns=[word]] {
