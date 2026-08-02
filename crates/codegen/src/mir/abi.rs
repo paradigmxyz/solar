@@ -75,6 +75,13 @@ impl fmt::Display for AbiParamLayout {
 pub(crate) enum AbiParamType {
     /// A scalar encoded as one word.
     Scalar(MirType),
+    /// An enum encoded as a bounded unsigned word.
+    Enum {
+        /// MIR representation of the enum value.
+        ty: MirType,
+        /// Number of declared variants.
+        variants: u64,
+    },
     /// A dynamic byte string.
     Bytes,
     /// A dynamic array.
@@ -94,6 +101,7 @@ impl fmt::Display for AbiParamType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Scalar(ty) => write!(f, "{ty}"),
+            Self::Enum { ty, variants } => write!(f, "enum<{variants}, {ty}>"),
             Self::Bytes => f.write_str("bytes"),
             Self::DynamicArray(element) => write!(f, "array<_, {element}>"),
             Self::FixedArray { element, len } => write!(f, "array<{len}, {element}>"),
@@ -117,6 +125,7 @@ impl AbiParamType {
     pub(crate) fn mir_type(&self) -> MirType {
         match self {
             Self::Scalar(ty) => *ty,
+            Self::Enum { ty, .. } => *ty,
             Self::Bytes => MirType::MemoryObject(super::MemoryObjectKind::Bytes),
             Self::DynamicArray(_) => MirType::MemoryObject(super::MemoryObjectKind::DynamicArray),
             Self::FixedArray { .. } => MirType::MemoryObject(super::MemoryObjectKind::FixedArray),
@@ -128,7 +137,7 @@ impl AbiParamType {
     #[must_use]
     pub(crate) fn is_dynamic(&self) -> bool {
         match self {
-            Self::Scalar(_) => false,
+            Self::Scalar(_) | Self::Enum { .. } => false,
             Self::Bytes | Self::DynamicArray(_) => true,
             Self::FixedArray { element, .. } => element.is_dynamic(),
             Self::Tuple(fields) => fields.iter().any(Self::is_dynamic),

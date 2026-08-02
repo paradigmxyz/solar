@@ -84,6 +84,10 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 AbiParamType::Bytes
             }
+            TyKind::Enum(id) => AbiParamType::Enum {
+                ty: self.lower_type_from_ty(ty),
+                variants: self.gcx.hir.enumm(id).variants.len() as u64,
+            },
             TyKind::DynArray(element) | TyKind::Slice(element) => {
                 AbiParamType::DynamicArray(Box::new(self.abi_param_type(element)?))
             }

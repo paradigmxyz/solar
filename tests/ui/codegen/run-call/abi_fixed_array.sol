@@ -8,6 +8,8 @@
 //@ run-call-fail: readDynamicCalldata(uint256[],uint256) [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call: readBytesCalldata(bytes) 0x010203 => 0x02
 //@ run-call: readDynamicPair((uint256,bytes)) (7, 0x010203) => 10
+//@ run-call: readEnumPair((uint8,uint256)) (1, 9) => 10
+//@ run-call-fail: readEnumPair((uint8,uint256)) (2, 9)
 //@ run-call: readMixed(uint8,bytes) 1, 0x010203 => 4
 
 contract AbiFixedArray {
@@ -24,6 +26,11 @@ contract AbiFixedArray {
     enum Mode {
         Zero,
         One
+    }
+
+    struct EnumPair {
+        Mode mode;
+        uint256 value;
     }
 
     function read(uint256[3] calldata values, uint256 index) external pure returns (uint256) {
@@ -52,6 +59,10 @@ contract AbiFixedArray {
 
     function readDynamicPair(DynamicPair memory value) external pure returns (uint256) {
         return value.value + value.data.length;
+    }
+
+    function readEnumPair(EnumPair memory value) external pure returns (uint256) {
+        return uint256(value.mode) + value.value;
     }
 
     function readMixed(Mode mode, bytes memory data) external pure returns (uint256) {

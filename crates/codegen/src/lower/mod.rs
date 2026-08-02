@@ -914,6 +914,7 @@ impl<'gcx> Lowerer<'gcx> {
                 | ElementaryType::FixedBytes(_),
             )
             | TyKind::Contract(_) => true,
+            TyKind::Enum(_) => true,
             _ => false,
         }
     }
@@ -932,6 +933,7 @@ impl<'gcx> Lowerer<'gcx> {
                     .iter()
                     .all(|&field| self.can_defer_external_abi_aggregate_ty(field))
             }
+            TyKind::Enum(_) => true,
             _ => self.can_defer_external_abi_scalar_ty(ty),
         }
     }

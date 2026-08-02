@@ -772,6 +772,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let name = self.parser.parse_ident()?;
         Ok(match name {
             kw::Bytes => AbiParamType::Bytes,
+            kw::Enum => {
+                self.parser.expect(TokenKind::Lt)?;
+                let variants =
+                    self.parser.parse_uint()?.try_into().map_err(|_| {
+                        self.parser.error("ABI enum variant count does not fit in u64")
+                    })?;
+                self.parser.expect(TokenKind::Comma)?;
+                let ty_name = self.parser.parse_ident()?;
+                let ty = self.parse_type_from_ident(ty_name)?;
+                self.expect_gt()?;
+                AbiParamType::Enum { ty, variants }
+            }
             sym::array => {
                 self.parser.expect(TokenKind::Lt)?;
                 let len = if self.parser.eat(TokenKind::Ident(sym::underscore)) {

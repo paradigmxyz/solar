@@ -47,6 +47,7 @@ enum AbiWordValidator {
     Mask(U256),
     SignExtend(u64),
     Bool,
+    EnumRange(u64),
 }
 
 impl AbiWordValidator {
@@ -95,6 +96,10 @@ impl AbiWordValidator {
                 let zero = builder.iszero(word);
                 let canonical = builder.iszero(zero);
                 builder.eq(word, canonical)
+            }
+            Self::EnumRange(variants) => {
+                let variants = builder.imm_u64(variants);
+                builder.lt(word, variants)
             }
         }
     }
@@ -446,6 +451,9 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::Scalar(scalar) => {
                 Self::decode_scalar(builder, *scalar, base, current)
             }
+            crate::mir::AbiParamType::Enum { variants, .. } => {
+                Self::decode_enum(builder, *variants, base, current)
+            }
             crate::mir::AbiParamType::FixedArray { element, len }
                 if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(_)) =>
             {
@@ -583,6 +591,26 @@ impl LowerAbiCx {
         value
     }
 
+    fn decode_enum(
+        builder: &mut FunctionBuilder<'_>,
+        variants: u64,
+        position: ValueId,
+        current: &mut BlockId,
+    ) -> ValueId {
+        builder.switch_to_block(*current);
+        let value = builder.calldataload(position);
+        let valid = AbiWordValidator::EnumRange(variants).condition(builder, value);
+        let next = builder.create_block();
+        let revert = builder.create_block();
+        builder.branch(valid, next, revert);
+        builder.switch_to_block(revert);
+        let zero = builder.imm_u64(0);
+        builder.revert(zero, zero);
+        builder.switch_to_block(next);
+        *current = next;
+        value
+    }
+
     fn is_supported_aggregate(ty: &crate::mir::AbiParamType) -> bool {
         matches!(
             ty,
@@ -601,8 +629,12 @@ impl LowerAbiCx {
     }
 
     fn is_supported_tuple_field(ty: &crate::mir::AbiParamType) -> bool {
-        matches!(ty, crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Bytes)
-            || matches!(ty, crate::mir::AbiParamType::Tuple(fields) if fields.iter().all(Self::is_supported_tuple_field))
+        matches!(
+            ty,
+            crate::mir::AbiParamType::Scalar(_)
+                | crate::mir::AbiParamType::Enum { .. }
+                | crate::mir::AbiParamType::Bytes
+        ) || matches!(ty, crate::mir::AbiParamType::Tuple(fields) if fields.iter().all(Self::is_supported_tuple_field))
     }
 
     /// Prepends `if callvalue() != 0 { revert(0, 0) }` to a wrapper.
