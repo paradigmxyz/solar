@@ -42,6 +42,41 @@ struct PackedStorageField {
     encoding: StorageEncoding,
 }
 
+#[derive(Clone, Copy)]
+enum MemoryObjectAccess {
+    Field { object: ValueId, layout: MemoryObjectLayout, field: u64 },
+    Element { object: ValueId, layout: MemoryObjectLayout, index: ValueId },
+}
+
+fn store_memory_object_word(
+    builder: &mut FunctionBuilder<'_>,
+    destination: MemoryObjectAccess,
+    value: ValueId,
+) {
+    match destination {
+        MemoryObjectAccess::Field { object, layout, field } => {
+            builder.memory_object_store_field(object, layout, field, value)
+        }
+        MemoryObjectAccess::Element { object, layout, index } => {
+            builder.memory_object_store_element(object, layout, index, value)
+        }
+    }
+}
+
+fn load_memory_object_word(
+    builder: &mut FunctionBuilder<'_>,
+    source: MemoryObjectAccess,
+) -> ValueId {
+    match source {
+        MemoryObjectAccess::Field { object, layout, field } => {
+            builder.memory_object_load_field(object, layout, field)
+        }
+        MemoryObjectAccess::Element { object, layout, index } => {
+            builder.memory_object_load_element(object, layout, index)
+        }
+    }
+}
+
 impl StorageLocation {
     pub(super) const WORD_SIZE: TypeSize = TypeSize::new_int_bits(256);
 
@@ -751,7 +786,8 @@ impl<'gcx> Lowerer<'gcx> {
         let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
         let layout = MemoryObjectLayout::structure(field_tys.len() as u64);
         for (index, field_ty) in field_tys.into_iter().enumerate() {
-            let field_memory = builder.memory_object_field_addr(memory, layout, index as u64);
+            let field_memory =
+                MemoryObjectAccess::Field { object: memory, layout, field: index as u64 };
             let location = self.get_struct_field_storage_location(struct_id, index);
             let field_slot = self.offset_storage_slot_u256(builder, base_slot, location.slot);
             self.copy_storage_field_to_memory(
@@ -770,7 +806,7 @@ impl<'gcx> Lowerer<'gcx> {
         ty: Ty<'gcx>,
         location: StorageLocation,
         slot: ValueId,
-        destination: ValueId,
+        destination: MemoryObjectAccess,
     ) {
         match ty.peel_refs().kind {
             TyKind::Struct(struct_id) => {
@@ -786,7 +822,7 @@ impl<'gcx> Lowerer<'gcx> {
                     let layout = self.storage_layout_for_struct(struct_id);
                     builder.storage_to_memory(Arc::clone(&layout), slot, nested);
                 }
-                builder.mstore(destination, nested);
+                store_memory_object_word(builder, destination, nested);
             }
             TyKind::Array(element, len) => {
                 let Ok(len) = u64::try_from(len) else { return };
@@ -803,7 +839,7 @@ impl<'gcx> Lowerer<'gcx> {
                 for index in 0..len {
                     let index_value = builder.imm_u64(index);
                     let element_memory =
-                        builder.memory_object_element_addr(array, layout, index_value);
+                        MemoryObjectAccess::Element { object: array, layout, index: index_value };
                     let (element_slot, element_location) = if let Some((size, encoding)) = packed {
                         let element_location = Self::packed_array_location(size, encoding, index);
                         let element_slot =
@@ -822,15 +858,15 @@ impl<'gcx> Lowerer<'gcx> {
                         element_memory,
                     );
                 }
-                builder.mstore(destination, array);
+                store_memory_object_word(builder, destination, array);
             }
             TyKind::DynArray(element) => {
                 let value = self.copy_storage_dyn_array_to_memory(builder, slot, element);
-                builder.mstore(destination, value);
+                store_memory_object_word(builder, destination, value);
             }
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 let value = self.materialize_storage_bytes(builder, slot);
-                builder.mstore(destination, value);
+                store_memory_object_word(builder, destination, value);
             }
             _ => {
                 let value = if location.is_packed() {
@@ -838,7 +874,7 @@ impl<'gcx> Lowerer<'gcx> {
                 } else {
                     builder.sload(slot)
                 };
-                builder.mstore(destination, value);
+                store_memory_object_word(builder, destination, value);
             }
         }
     }
@@ -859,14 +895,11 @@ impl<'gcx> Lowerer<'gcx> {
             MemoryObjectKind::DynamicArray,
         );
         builder.set_memory_object_len(array, len, MemoryObjectKind::DynamicArray);
-        let data_ptr = builder.memory_object_data(array, MemoryObjectKind::DynamicArray);
 
         let data_slot = builder.storage_array_data_slot(slot);
         let element_slots = self.calculate_storage_slots_for_ty(element, Span::DUMMY);
         let element = element.peel_refs();
         self.emit_decode_elements_loop(builder, len, move |this, builder, index| {
-            let memory_offset = builder.mul(index, word);
-            let destination = builder.add(data_ptr, memory_offset);
             let storage_slot =
                 Self::storage_array_data_element_slot(builder, data_slot, index, element_slots);
             this.copy_storage_field_to_memory(
@@ -874,7 +907,11 @@ impl<'gcx> Lowerer<'gcx> {
                 element,
                 StorageLocation::full_word(U256::ZERO),
                 storage_slot,
-                destination,
+                MemoryObjectAccess::Element {
+                    object: array,
+                    layout: MemoryObjectLayout::WORD_ARRAY,
+                    index,
+                },
             );
         });
         array
@@ -995,16 +1032,14 @@ impl<'gcx> Lowerer<'gcx> {
         mem_base: ValueId,
     ) {
         let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        let layout = MemoryObjectLayout::structure(field_tys.len() as u64);
         for (i, &field_ty) in field_tys.iter().enumerate() {
             let location = self.get_struct_field_storage_location(struct_id, i);
             let field_slot = self.offset_storage_slot_u256(builder, base_slot, location.slot);
-            let mem_word_addr = if i == 0 {
-                mem_base
-            } else {
-                let off = builder.imm_u64((i as u64) * 32);
-                builder.add(mem_base, off)
-            };
-            let mem_word = builder.mload(mem_word_addr);
+            let mem_word = load_memory_object_word(
+                builder,
+                MemoryObjectAccess::Field { object: mem_base, layout, field: i as u64 },
+            );
             if location.is_packed() {
                 self.store_storage_location_at_slot(builder, location, field_slot, mem_word);
             } else {
@@ -1062,14 +1097,17 @@ impl<'gcx> Lowerer<'gcx> {
         let len = builder.memory_object_len(mem_ptr, MemoryObjectKind::DynamicArray);
         builder.sstore(slot, len);
         let data_slot = builder.storage_array_data_slot(slot);
-        let word = builder.imm_u64(32);
-        let data_ptr = builder.memory_object_data(mem_ptr, MemoryObjectKind::DynamicArray);
         let elem_slots = self.calculate_storage_slots_for_ty(elem, Span::DUMMY);
         let elem = elem.peel_refs();
         self.emit_decode_elements_loop(builder, len, move |this, builder, index| {
-            let mem_off = builder.mul(index, word);
-            let mem_word_addr = builder.add(data_ptr, mem_off);
-            let mem_word = builder.mload(mem_word_addr);
+            let mem_word = load_memory_object_word(
+                builder,
+                MemoryObjectAccess::Element {
+                    object: mem_ptr,
+                    layout: MemoryObjectLayout::WORD_ARRAY,
+                    index,
+                },
+            );
             let elem_slot =
                 Self::storage_array_data_element_slot(builder, data_slot, index, elem_slots);
             this.copy_memory_field_to_storage(builder, elem, elem_slot, mem_word);
@@ -1092,13 +1130,15 @@ impl<'gcx> Lowerer<'gcx> {
             packed.map_or_else(|| self.calculate_storage_slots_for_ty(elem, Span::DUMMY), |_| 0);
         let elem = elem.peel_refs();
         for i in 0..len {
-            let mem_word_addr = if i == 0 {
-                mem_ptr
-            } else {
-                let off = builder.imm_u64(i * 32);
-                builder.add(mem_ptr, off)
-            };
-            let mem_word = builder.mload(mem_word_addr);
+            let index = builder.imm_u64(i);
+            let mem_word = load_memory_object_word(
+                builder,
+                MemoryObjectAccess::Element {
+                    object: mem_ptr,
+                    layout: MemoryObjectLayout::word_fixed_array(len),
+                    index,
+                },
+            );
             if let Some((size, encoding)) = packed {
                 let location = Self::packed_array_location(size, encoding, i);
                 self.store_storage_location_at_slot(builder, location, slot, mem_word);

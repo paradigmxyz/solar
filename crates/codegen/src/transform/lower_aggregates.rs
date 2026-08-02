@@ -1,7 +1,10 @@
 //! Lower semantic memory/storage aggregate operations to word operations.
 
 use crate::{
-    mir::{Function, FunctionBuilder, InstKind, Module, StorageField, StorageLayout, ValueId},
+    mir::{
+        Function, FunctionBuilder, InstKind, MemoryObjectLayout, Module, StorageField,
+        StorageLayout, ValueId,
+    },
     pass::MirPass,
 };
 use solar_sema::Gcx;
@@ -37,6 +40,41 @@ enum AggregateOp {
     StorageToMemory { storage: ValueId, memory: ValueId, layout: Arc<StorageLayout> },
     MemoryToStorage { memory: ValueId, storage: ValueId, layout: Arc<StorageLayout> },
     ClearStorage { storage: ValueId, layout: Arc<StorageLayout> },
+}
+
+#[derive(Clone, Copy)]
+enum MemoryObjectAccess {
+    Field { object: ValueId, layout: MemoryObjectLayout, field: u64 },
+    Element { object: ValueId, layout: MemoryObjectLayout, index: ValueId },
+}
+
+fn store_memory_object_word(
+    builder: &mut FunctionBuilder<'_>,
+    destination: MemoryObjectAccess,
+    value: ValueId,
+) {
+    match destination {
+        MemoryObjectAccess::Field { object, layout, field } => {
+            builder.memory_object_store_field(object, layout, field, value)
+        }
+        MemoryObjectAccess::Element { object, layout, index } => {
+            builder.memory_object_store_element(object, layout, index, value)
+        }
+    }
+}
+
+fn load_memory_object_word(
+    builder: &mut FunctionBuilder<'_>,
+    source: MemoryObjectAccess,
+) -> ValueId {
+    match source {
+        MemoryObjectAccess::Field { object, layout, field } => {
+            builder.memory_object_load_field(object, layout, field)
+        }
+        MemoryObjectAccess::Element { object, layout, index } => {
+            builder.memory_object_load_element(object, layout, index)
+        }
+    }
 }
 
 fn lower_function(func: &mut Function) -> bool {
@@ -106,11 +144,11 @@ fn lower_storage_to_memory(
         StorageLayout::Struct(fields) => {
             let mut storage_offset = 0;
             for (index, field) in fields.iter().enumerate() {
-                let memory = builder.memory_object_field_addr(
-                    memory,
-                    crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
-                    index as u64,
-                );
+                let memory = MemoryObjectAccess::Field {
+                    object: memory,
+                    layout: MemoryObjectLayout::structure(fields.len() as u64),
+                    field: index as u64,
+                };
                 lower_storage_field_to_memory(builder, field, storage, storage_offset, memory);
                 storage_offset += field.storage_slots();
             }
@@ -119,11 +157,11 @@ fn lower_storage_to_memory(
             let mut storage_offset = 0;
             for index in 0..*len {
                 let index_value = builder.imm_u64(index);
-                let memory = builder.memory_object_element_addr(
-                    memory,
-                    crate::mir::MemoryObjectLayout::word_fixed_array(*len),
-                    index_value,
-                );
+                let memory = MemoryObjectAccess::Element {
+                    object: memory,
+                    layout: MemoryObjectLayout::word_fixed_array(*len),
+                    index: index_value,
+                };
                 lower_storage_field_to_memory(builder, element, storage, storage_offset, memory);
                 storage_offset += element.storage_slots();
             }
@@ -136,13 +174,13 @@ fn lower_storage_field_to_memory(
     field: &StorageField,
     storage: ValueId,
     storage_offset: u64,
-    dest: ValueId,
+    dest: MemoryObjectAccess,
 ) {
     let slot = offset_value(builder, storage, storage_offset);
     match field {
         StorageField::Word => {
             let value = builder.sload(slot);
-            builder.mstore(dest, value);
+            store_memory_object_word(builder, dest, value);
         }
         StorageField::Aggregate(layout) => {
             let size = builder.imm_u64(layout.memory_words() * 32);
@@ -160,7 +198,7 @@ fn lower_storage_field_to_memory(
                 crate::mir::AllocationSemantics::INTERNAL,
             );
             lower_storage_to_memory(builder, layout, slot, nested);
-            builder.mstore(dest, nested);
+            store_memory_object_word(builder, dest, nested);
         }
     }
 }
@@ -175,11 +213,11 @@ fn lower_memory_to_storage(
         StorageLayout::Struct(fields) => {
             let mut storage_offset = 0;
             for (index, field) in fields.iter().enumerate() {
-                let memory = builder.memory_object_field_addr(
-                    memory,
-                    crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
-                    index as u64,
-                );
+                let memory = MemoryObjectAccess::Field {
+                    object: memory,
+                    layout: MemoryObjectLayout::structure(fields.len() as u64),
+                    field: index as u64,
+                };
                 lower_memory_field_to_storage(builder, field, memory, storage, storage_offset);
                 storage_offset += field.storage_slots();
             }
@@ -188,11 +226,11 @@ fn lower_memory_to_storage(
             let mut storage_offset = 0;
             for index in 0..*len {
                 let index_value = builder.imm_u64(index);
-                let memory = builder.memory_object_element_addr(
-                    memory,
-                    crate::mir::MemoryObjectLayout::word_fixed_array(*len),
-                    index_value,
-                );
+                let memory = MemoryObjectAccess::Element {
+                    object: memory,
+                    layout: MemoryObjectLayout::word_fixed_array(*len),
+                    index: index_value,
+                };
                 lower_memory_field_to_storage(builder, element, memory, storage, storage_offset);
                 storage_offset += element.storage_slots();
             }
@@ -203,12 +241,12 @@ fn lower_memory_to_storage(
 fn lower_memory_field_to_storage(
     builder: &mut FunctionBuilder<'_>,
     field: &StorageField,
-    source: ValueId,
+    source: MemoryObjectAccess,
     storage: ValueId,
     storage_offset: u64,
 ) {
     let slot = offset_value(builder, storage, storage_offset);
-    let value = builder.mload(source);
+    let value = load_memory_object_word(builder, source);
     match field {
         StorageField::Word => builder.sstore(slot, value),
         StorageField::Aggregate(layout) => {

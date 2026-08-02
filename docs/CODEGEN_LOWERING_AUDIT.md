@@ -66,6 +66,9 @@ describes observable structure in the current tree, not an intended design.
 * Memory-object field and element reads and writes stay typed through HIR
   aggregate lowering. `lower-memory-objects` alone selects their physical
   offsets and emits the final word loads and stores.
+* Storage-to-memory and memory-to-storage aggregate copies use the same typed
+  field and element operations. Packed and nested copies no longer expose a
+  destination address to HIR lowering.
 * Panic, short-error, and storage-bytes helpers use one lazy registry keyed by
   semantic operation. Repeated uses share one helper, while synthesis guards
   keep recursive helper construction finite.
@@ -98,12 +101,12 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   strings, and scalar/byte/enum structs defer to `lower-abi`, including its
   range and overflow checks. Constructors still decode their argument blob in
   HIR lowering because the ABI phase currently handles runtime calldata only.
-* **Physical memory still leaks through aggregate lowering.** Mutable locals
-  and direct object field/element accesses now stay typed, but memory-object
-  allocation, deep aggregate copies, and some ABI builders still emit raw
-  memory operations before the semantic memory passes. The remaining work is
-  to keep those object and copy policies in typed MIR until the memory-layout
-  boundary.
+* **Physical memory still leaks through a few aggregate helpers.** Mutable
+  locals, direct object accesses, and storage aggregate copies now stay typed,
+  but memory-object allocation, byte/ABI bulk copies, and some loop scratch
+  state still emit raw memory operations before the semantic memory passes.
+  The remaining work is to keep those policies in typed MIR until the
+  memory-layout boundary.
 * **Helper coverage is incomplete.** Panic, short-error, and storage-bytes
   helpers now share a keyed lazy registry. Checked exponentiation, ABI copies,
   and repeated cleanup or validation still have inline or pass-specific
