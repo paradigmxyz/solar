@@ -33,8 +33,8 @@ fn @decode(arg0: calldataslice) -> u256 [abi_params=[bytes], abi_returns=[word]]
     set_memory_object_len memorybytes, v15, v6
     v16 = memory_object_data memorybytes, v15
     v17 = sub v12, 32
-    v18 = add v16, v17
-    mstore v18, 0
+    v18 = div v17, 32
+    memory_object_store_element memorybytes, v15, v18, 0
     v19 = slice_ptr v5
     calldatacopy v16, v19, v6
     v20 = memory_object_len memorybytes, v15

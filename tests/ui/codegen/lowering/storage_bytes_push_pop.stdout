@@ -20,8 +20,8 @@ fn @_anonymous() {
     set_memory_object_len memorybytes, v10, v2
     v11 = memory_object_data memorybytes, v10
     v12 = sub v8, 32
-    v13 = add v11, v12
-    mstore v13, 0
+    v13 = div v12, 32
+    memory_object_store_element memorybytes, v10, v13, 0
     v14 = memory_object_data memorybytes, v0
     mcopy v11, v14, v1
     v15 = memory_object_data memorybytes, v10
@@ -110,8 +110,8 @@ fn @_anonymous() {
     set_memory_object_len memorybytes, v68, v60
     v69 = memory_object_data memorybytes, v68
     v70 = sub v66, 32
-    v71 = add v69, v70
-    mstore v71, 0
+    v71 = div v70, 32
+    memory_object_store_element memorybytes, v68, v71, 0
     v72 = memory_object_data memorybytes, v58
     mcopy v69, v72, v59
     v73 = memory_object_data memorybytes, v68
@@ -256,8 +256,8 @@ fn @pushValue(arg0: bytes1) [abi_args=lazy] {
     set_memory_object_len memorybytes, v10, v2
     v11 = memory_object_data memorybytes, v10
     v12 = sub v8, 32
-    v13 = add v11, v12
-    mstore v13, 0
+    v13 = div v12, 32
+    memory_object_store_element memorybytes, v10, v13, 0
     v14 = memory_object_data memorybytes, v0
     mcopy v11, v14, v1
     v15 = shr 248, arg0
@@ -352,8 +352,8 @@ fn @pushZero() [abi_args=lazy] {
     set_memory_object_len memorybytes, v10, v2
     v11 = memory_object_data memorybytes, v10
     v12 = sub v8, 32
-    v13 = add v11, v12
-    mstore v13, 0
+    v13 = div v12, 32
+    memory_object_store_element memorybytes, v10, v13, 0
     v14 = memory_object_data memorybytes, v0
     mcopy v11, v14, v1
     v15 = memory_object_data memorybytes, v10
@@ -446,8 +446,8 @@ fn @popValue() [abi_args=lazy] {
     set_memory_object_len memorybytes, v9, v2
     v10 = memory_object_data memorybytes, v9
     v11 = sub v7, 32
-    v12 = add v10, v11
-    mstore v12, 0
+    v12 = div v11, 32
+    memory_object_store_element memorybytes, v9, v12, 0
     v13 = memory_object_data memorybytes, v0
     mcopy v10, v13, v2
     v14 = memory_object_len memorybytes, v9

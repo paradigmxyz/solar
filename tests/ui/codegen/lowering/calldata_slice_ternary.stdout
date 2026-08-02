@@ -43,43 +43,41 @@ fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [abi_params=[bool, byt
   bb2:
     v4 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v4, 2
-    v5 = memory_object_data memorybytes, v4
-    v6 = add v5, 0
-    mstore v6, 0xaabb000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_element memorybytes, v4, 0, 0xaabb000000000000000000000000000000000000000000000000000000000000
     jumpi arg0, bb3, bb4
   bb3:
-    v7 = slice_len arg1
-    v8 = add v7, 31
-    v9 = lt v8, v7
-    jumpi v9, bb6, bb7
+    v5 = slice_len arg1
+    v6 = add v5, 31
+    v7 = lt v6, v5
+    jumpi v7, bb6, bb7
   bb4:
     mstore 0, v4 !metadata(memory=scratch)
     jump bb5
   bb5:
-    v21 = mload 0 !metadata(memory=scratch)
-    ret v21
+    v19 = mload 0 !metadata(memory=scratch)
+    ret v19
   bb6:
     tail_call @__panic_41
   bb7:
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = iszero v11
-    v13 = select v12, 32, v11
-    v14 = add 32, v13
-    v15 = lt v14, v13
-    jumpi v15, bb8, bb9
+    v8 = not 31
+    v9 = and v6, v8
+    v10 = iszero v9
+    v11 = select v10, 32, v9
+    v12 = add 32, v11
+    v13 = lt v12, v11
+    jumpi v13, bb8, bb9
   bb8:
     tail_call @__panic_41
   bb9:
-    v16 = alloc memorybytes, exact, uninitialized, infallible, v14
-    set_memory_object_len memorybytes, v16, v7
-    v17 = memory_object_data memorybytes, v16
-    v18 = sub v13, 32
-    v19 = add v17, v18
-    mstore v19, 0
-    v20 = slice_ptr arg1
-    calldatacopy v17, v20, v7
-    mstore 0, v16 !metadata(memory=scratch)
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v14, v5
+    v15 = memory_object_data memorybytes, v14
+    v16 = sub v11, 32
+    v17 = div v16, 32
+    memory_object_store_element memorybytes, v14, v17, 0
+    v18 = slice_ptr arg1
+    calldatacopy v15, v18, v5
+    mstore 0, v14 !metadata(memory=scratch)
     jump bb5
 }
 

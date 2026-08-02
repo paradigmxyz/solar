@@ -51,6 +51,9 @@ describes observable structure in the current tree, not an intended design.
   fixed arrays.
 * Nested calldata arrays use semantic memory-object length and data operations;
   the memory-layout pass selects their physical header offsets.
+* Calldata fixed arrays and aggregate field copies allocate typed memory
+  objects and write through their element or field operations. Byte-object
+  literal materialization and zero-padding use word-chunk object stores.
 * Dynamic mapping keys stay as `mapping_slot_memory` or
   `mapping_slot_calldata` until the mapping-slot pass. Target-specific memory
   copies are selected after that semantic operation is lowered.

@@ -64,6 +64,10 @@ contract R {
     }
 
     // CHECK: [[LONG_BODY]]:
+    // CHECK: push 33
+    // CHECK: push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
+    // CHECK: mcopy
+    // CHECK: revert
     function viaLong(uint256 x) external pure returns (uint256) {
         require(x > 5, Errors.LONG);
         return x;
@@ -72,10 +76,6 @@ contract R {
     // CHECK: [[REVERT_BODY]]:
     // CHECK: push 0x7265766572742d70617468
     // CHECK: jump [[SHORT_HELPER]]
-    // CHECK: push 33
-    // CHECK: push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
-    // CHECK: mcopy
-    // CHECK: revert
     function viaRevertMsg(uint256 x) external pure returns (uint256) {
         if (x <= 5) {
             revert("revert-path");

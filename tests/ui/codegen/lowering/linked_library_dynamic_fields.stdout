@@ -1053,7 +1053,14 @@ bb10:
   push 192
   mload
   sub
-  dup2
+  push 5
+  shr
+  push 32
+  dup4
+  add
+  swap1
+  push 32
+  mul
   add
   push 0
   swap1

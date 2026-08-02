@@ -199,7 +199,7 @@ bb15:
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:R (runtime) ===
 @module runtime
 bb0:
-  push 320
+  push 384
   push 64
   mstore
   callvalue
@@ -221,7 +221,7 @@ bb0:
   dup1
   push 0x17a0525e
   eq
-  push bb29
+  push bb31
   jumpi
   dup1
   push 0x9927bee4
@@ -255,8 +255,8 @@ bb9:
   gt
   iszero
   push bb12
-  jump bb35
-bb35:
+  jump bb37
+bb37:
   jumpi
   push 4
   calldataload
@@ -267,14 +267,14 @@ bb35:
   return
 bb12 [cold]:
   push 2
-  push 256
+  push 320
   mstore
   push 0x3339
   push 240
-  jump bb36
-bb36 [cold]:
+  jump bb38
+bb38 [cold]:
   shl
-  push 288
+  push 352
   mstore
   push 0x8c379a0
   push 224
@@ -284,11 +284,11 @@ bb36 [cold]:
   push 32
   push 4
   mstore
-  push 256
+  push 320
   mload
   push 36
   mstore
-  push 288
+  push 352
   mload
   push 68
   mstore
@@ -307,14 +307,14 @@ bb14:
   gt
   iszero
   push bb17
-  jump bb35
+  jump bb37
 bb17 [cold]:
   push 11
-  push 256
+  push 320
   mstore
   push 0x6c69746572616c206d7367
   push 168
-  jump bb36
+  jump bb38
 bb19:
   calldatasize
   push 36
@@ -327,14 +327,14 @@ bb19:
   gt
   iszero
   push bb22
-  jump bb35
+  jump bb37
 bb22 [cold]:
   push 15
-  push 256
+  push 320
   mstore
   push 0x6c6f63616c2d636f6e73742d6d7367
   push 136
-  jump bb36
+  jump bb38
 bb24:
   calldatasize
   push 36
@@ -347,32 +347,12 @@ bb24:
   gt
   iszero
   push bb27
-  jump bb35
-bb29:
-  calldatasize
-  push 36
-  gt
-  push bb8
-  jumpi
-  push 5
-  push 4
-  calldataload
-  gt
-  iszero
-  push bb32
-  jump bb35
-bb32 [cold]:
-  push 11
-  push 256
-  mstore
-  push 0x7265766572742d70617468
-  push 168
-  jump bb36
+  jump bb37
 bb27 [cold]:
   push 64
   mload
   dup1
-  push 160
+  push 224
   mstore
   push 96
   dup2
@@ -386,8 +366,11 @@ bb27 [cold]:
   dup2
   add
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
-  dup2
+  swap1
   mstore
+  push 32
+  dup2
+  add
   push 32
   add
   push 33
@@ -403,19 +386,70 @@ bb27 [cold]:
   push 32
   push 4
   mstore
-  push 33
+  dup1
+  mload
+  dup1
+  push 160
+  mstore
   push 36
   mstore
-  push 0
-  push 100
-  mstore
-  push 32
+  push 31
+  push 160
+  mload
   add
-  push 33
+  push 31
+  not
+  and
+  dup1
+  push 192
+  mstore
+  swap1
+  pop
+  iszero
+  push bb29
+  jumpi
+  push 36
+  push 192
+  mload
+  add
+  push 0
+  swap1
+  mstore
+  jump bb29
+bb29 [cold]:
+  push 32
+  push 224
+  mload
+  add
+  push 160
+  mload
   dup2
   push 68
   mcopy
   pop
-  push 132
+  push 68
+  push 192
+  mload
+  add
   push 0
   revert
+bb31:
+  calldatasize
+  push 36
+  gt
+  push bb8
+  jumpi
+  push 5
+  push 4
+  calldataload
+  gt
+  iszero
+  push bb34
+  jump bb37
+bb34 [cold]:
+  push 11
+  push 320
+  mstore
+  push 0x7265766572742d70617468
+  push 168
+  jump bb38

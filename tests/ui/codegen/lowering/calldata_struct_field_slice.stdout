@@ -244,8 +244,8 @@ fn @factory.0() {
 
 fn @factory.1(arg0: memptr) -> address {
   bb0:
-    v27 = add arg0, 64
-    v2 = mload v27
+    v26 = add arg0, 64
+    v2 = mload v26
     v3 = mload v2
     v4 = lt v3, 20
     jumpi v4, bb1, bb2
@@ -253,26 +253,26 @@ fn @factory.1(arg0: memptr) -> address {
     mstore 0, 0 !metadata(memory=scratch)
     jump bb3
   bb2:
-    v6 = add arg0, 256
-    v7 = mload v6
-    v8 = add v7, 64
-    v9 = calldataload v8
-    v10 = add v7, v9
-    v12 = add v10, 32
-    v11 = calldataload v10
-    v16 = gt 20, v11
-    jumpi v16, bb4, bb5
+    v27 = add arg0, 256
+    v6 = mload v27
+    v7 = add v6, 64
+    v8 = calldataload v7
+    v9 = add v6, v8
+    v11 = add v9, 32
+    v10 = calldataload v9
+    v15 = gt 20, v10
+    jumpi v15, bb4, bb5
   bb3:
-    v26 = mload 0 !metadata(memory=scratch)
-    ret v26
+    v25 = mload 0 !metadata(memory=scratch)
+    ret v25
   bb4:
     revert 0, 0
   bb5:
-    v22 = calldataload v12
-    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v24 = shr 96, v23
-    v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 0, v25 !metadata(memory=scratch)
+    v21 = calldataload v11
+    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
+    v23 = shr 96, v22
+    v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 0, v24 !metadata(memory=scratch)
     jump bb3
 }
 
@@ -515,8 +515,8 @@ fn @tailHash.2() {
 
 fn @tailHash.3(arg0: memptr) -> bytes32 {
   bb0:
-    v35 = add arg0, 64
-    v2 = mload v35
+    v34 = add arg0, 64
+    v2 = mload v34
     v3 = mload v2
     v4 = lt v3, 20
     jumpi v4, bb1, bb2
@@ -524,49 +524,52 @@ fn @tailHash.3(arg0: memptr) -> bytes32 {
     mstore 0, 0 !metadata(memory=scratch)
     jump bb3
   bb2:
-    v5 = add arg0, 256
-    v6 = mload v5
-    v7 = add v6, 64
-    v8 = calldataload v7
-    v9 = add v6, v8
-    v10 = calldataload v9
-    v11 = add v9, 32
-    v15 = lt v10, 20
-    jumpi v15, bb4, bb5
+    v35 = add arg0, 256
+    v5 = mload v35
+    v6 = add v5, 64
+    v7 = calldataload v6
+    v8 = add v5, v7
+    v9 = calldataload v8
+    v10 = add v8, 32
+    v14 = lt v9, 20
+    jumpi v14, bb4, bb5
   bb3:
-    v34 = mload 0 !metadata(memory=scratch)
-    ret v34
+    v33 = mload 0 !metadata(memory=scratch)
+    ret v33
   bb4:
     revert 0, 0
   bb5:
-    v16 = sub v10, 20
-    v17 = add v11, 20
-    v20 = add v16, 31
-    v21 = lt v20, v16
-    jumpi v21, bb6, bb7
+    v15 = sub v9, 20
+    v16 = add v10, 20
+    v19 = add v15, 31
+    v20 = lt v19, v15
+    jumpi v20, bb6, bb7
   bb6:
     tail_call @__panic_41
   bb7:
-    v23 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = iszero v23
-    v25 = select v24, 32, v23
-    v26 = add v25, 32
-    v27 = lt v26, v25
-    jumpi v27, bb6, bb8
+    v22 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v23 = iszero v22
+    v24 = select v23, 32, v22
+    v25 = add v24, 32
+    v26 = lt v25, v24
+    jumpi v26, bb6, bb8
   bb8:
-    v28 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v38 = add v28, v26
-    mstore 64, v38 !metadata(memory=scratch)
-    mstore v28, v16
-    v29 = add v28, 32
-    v30 = sub v25, 32
-    v31 = add v29, v30
-    mstore v31, 0
-    calldatacopy v29, v17, v16
-    v36 = mload v28
-    v37 = add v28, 32
-    v33 = keccak256 v37, v36
-    mstore 0, v33 !metadata(memory=scratch)
+    v27 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v41 = add v27, v25
+    mstore 64, v41 !metadata(memory=scratch)
+    mstore v27, v15
+    v28 = add v27, 32
+    v29 = sub v24, 32
+    v30 = shr 5, v29
+    v36 = add v27, 32
+    v37 = mul v30, 32
+    v38 = add v36, v37
+    mstore v38, 0
+    calldatacopy v28, v16, v15
+    v39 = mload v27
+    v40 = add v27, 32
+    v32 = keccak256 v40, v39
+    mstore 0, v32 !metadata(memory=scratch)
     jump bb3
 }
 
@@ -816,20 +819,20 @@ fn @midWord.5() {
 
 fn @midWord.6(arg0: memptr) -> bytes32 {
   bb0:
-    v0 = add arg0, 256
-    v1 = mload v0
-    v2 = add v1, 96
-    v3 = calldataload v2
-    v4 = add v1, v3
-    v6 = add v4, 32
-    v5 = calldataload v4
-    v10 = gt 32, v5
-    jumpi v10, bb1, bb2
+    v16 = add arg0, 256
+    v0 = mload v16
+    v1 = add v0, 96
+    v2 = calldataload v1
+    v3 = add v0, v2
+    v5 = add v3, 32
+    v4 = calldataload v3
+    v9 = gt 32, v4
+    jumpi v9, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v16 = calldataload v6
-    ret v16
+    v15 = calldataload v5
+    ret v15
 }
 
 fn @entry() [entry] {

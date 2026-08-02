@@ -306,7 +306,14 @@ bb19:
   swap1
   swap2
   sub
-  dup2
+  push 5
+  shr
+  push 32
+  dup4
+  add
+  swap1
+  push 32
+  mul
   add
   push 0
   swap1
@@ -618,7 +625,14 @@ bb33:
   swap1
   swap3
   sub
+  push 5
+  shr
+  push 32
   dup3
+  add
+  swap1
+  push 32
+  mul
   add
   push 0
   swap1

@@ -60,22 +60,20 @@ fn @literal() -> bytes32 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 10
-    v1 = memory_object_data memorybytes, v0
-    v2 = add v1, 0
-    mstore v2, 0x1020304050607080900000000000000000000000000000000000000000000
-    v3 = shl 248, 170
-    v4 = memory_object_len memorybytes, v0
-    v5 = lt 5, v4
-    jumpi v5, bb2, bb1
+    memory_object_store_element memorybytes, v0, 0, 0x1020304050607080900000000000000000000000000000000000000000000
+    v1 = shl 248, 170
+    v2 = memory_object_len memorybytes, v0
+    v3 = lt 5, v2
+    jumpi v3, bb2, bb1
   bb1:
     tail_call @__panic_32
   bb2:
-    v6 = memory_object_data memorybytes, v0
-    v7 = add v6, 5
-    v8 = shr 248, v3
-    mstore8 v7, v8
-    v9 = keccak256_bytes v0
-    ret v9
+    v4 = memory_object_data memorybytes, v0
+    v5 = add v4, 5
+    v6 = shr 248, v1
+    mstore8 v5, v6
+    v7 = keccak256_bytes v0
+    ret v7
 }
 
 fn @allocDynamic(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {

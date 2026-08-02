@@ -83,7 +83,7 @@ impl FrameSlotKind {
 /// and field layouts from being inferred from an untyped pointer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum MemoryObjectKind {
-    /// Dynamically sized bytes or string data.
+    /// Dynamically sized bytes or string data, addressed in word chunks.
     Bytes,
     /// A dynamically sized array.
     DynamicArray,

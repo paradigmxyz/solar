@@ -184,8 +184,8 @@ fn @_explicitTrim(arg0: calldataslice) -> memorybytes {
     set_memory_object_len memorybytes, v17, v8
     v18 = memory_object_data memorybytes, v17
     v19 = sub v14, 32
-    v20 = add v18, v19
-    mstore v20, 0
+    v20 = div v19, 32
+    memory_object_store_element memorybytes, v17, v20, 0
     v21 = slice_ptr v7
     calldatacopy v18, v21, v8
     ret v17
@@ -206,8 +206,8 @@ fn @_explicitTrim(arg0: calldataslice) -> memorybytes {
     set_memory_object_len memorybytes, v31, v22
     v32 = memory_object_data memorybytes, v31
     v33 = sub v28, 32
-    v34 = add v32, v33
-    mstore v34, 0
+    v34 = div v33, 32
+    memory_object_store_element memorybytes, v31, v34, 0
     v35 = slice_ptr arg0
     calldatacopy v32, v35, v22
     ret v31

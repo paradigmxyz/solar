@@ -62,14 +62,12 @@ impl<'gcx> Lowerer<'gcx> {
         let len_val = builder.imm_u64(len as u64);
         builder.set_memory_object_len(ptr, len_val, MemoryObjectKind::Bytes);
 
-        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         for (i, chunk) in bytes.chunks(32).enumerate() {
             let mut padded = [0u8; 32];
             padded[..chunk.len()].copy_from_slice(chunk);
             let val = builder.imm_u256(U256::from_be_bytes(padded));
-            let off = builder.imm_u64((i * 32) as u64);
-            let dest = builder.add(data_start, off);
-            builder.mstore(dest, val);
+            let index = builder.imm_u64(i as u64);
+            builder.memory_object_store_element(ptr, MemoryObjectLayout::Bytes, index, val);
         }
 
         ptr
@@ -179,8 +177,8 @@ impl<'gcx> Lowerer<'gcx> {
         let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let zero = builder.imm_u64(0);
         let last_word_offset = builder.sub(data_size, word_size);
-        let last_word = builder.add(data_ptr, last_word_offset);
-        builder.mstore(last_word, zero);
+        let last_word_index = builder.div(last_word_offset, word_size);
+        builder.memory_object_store_element(ptr, MemoryObjectLayout::Bytes, last_word_index, zero);
 
         let data_pos = builder.slice_ptr(slice);
         builder.calldatacopy(data_ptr, data_pos, len);
@@ -327,8 +325,8 @@ impl<'gcx> Lowerer<'gcx> {
         let data_ptr = builder.add(ptr, word_size);
         let zero = builder.imm_u64(0);
         let last_word_offset = builder.sub(data_size, word_size);
-        let last_word = builder.add(data_ptr, last_word_offset);
-        builder.mstore(last_word, zero);
+        let last_word_index = builder.div(last_word_offset, word_size);
+        builder.memory_object_store_element(ptr, MemoryObjectLayout::Bytes, last_word_index, zero);
 
         let data_pos = builder.add(len_pos, word_size);
         source.copy(builder, data_ptr, data_pos, len);
@@ -639,14 +637,16 @@ impl<'gcx> Lowerer<'gcx> {
         let Some(size) = len.checked_mul(32) else {
             return builder.error_value(self.abi_head_size_overflow());
         };
-        let ptr = self.allocate_memory(builder, size);
+        let layout = MemoryObjectLayout::word_fixed_array(len);
+        let size = builder.imm_u64(size);
+        let ptr = builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL);
         let mut head_offset = 0;
         for i in 0..len {
             let head_pos = self.offset_ptr(builder, pos, head_offset);
             let elem_pos = self.calldata_abi_value_pos(builder, source, elem, head_pos, pos);
             let value = self.materialize_calldata_value_at(builder, source, elem, elem_pos);
-            let dest = self.offset_ptr(builder, ptr, i * 32);
-            builder.mstore(dest, value);
+            let index = builder.imm_u64(i);
+            builder.memory_object_store_element(ptr, layout, index, value);
             head_offset += elem_head_size;
         }
         ptr
@@ -681,7 +681,9 @@ impl<'gcx> Lowerer<'gcx> {
         else {
             return builder.error_value(self.abi_head_size_overflow());
         };
-        let ptr = self.allocate_memory(builder, size);
+        let layout = MemoryObjectLayout::structure(word_count + u64::from(carries_base));
+        let size = builder.imm_u64(size);
+        let ptr = builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL);
         let mut head_offset = 0;
         for (i, &field) in fields.iter().enumerate() {
             // A field sema type carries the canonical `Ref(_, Storage)`
@@ -691,8 +693,7 @@ impl<'gcx> Lowerer<'gcx> {
             let head_pos = self.offset_ptr(builder, pos, head_offset);
             let field_pos = self.calldata_abi_value_pos(builder, source, field, head_pos, pos);
             let value = self.materialize_calldata_value_at(builder, source, field, field_pos);
-            let dest = self.offset_ptr(builder, ptr, (i as u64) * 32);
-            builder.mstore(dest, value);
+            builder.memory_object_store_field(ptr, layout, i as u64, value);
             let field_size = match self.abi_head_size(field) {
                 Ok(size) => size,
                 Err(guar) => return builder.error_value(guar),
@@ -700,8 +701,7 @@ impl<'gcx> Lowerer<'gcx> {
             head_offset += field_size;
         }
         if carries_base {
-            let base_slot = self.offset_ptr(builder, ptr, word_count * 32);
-            builder.mstore(base_slot, pos);
+            builder.memory_object_store_field(ptr, layout, word_count, pos);
         }
         ptr
     }
@@ -718,8 +718,11 @@ impl<'gcx> Lowerer<'gcx> {
         ptr: ValueId,
         field_count: u64,
     ) -> ValueId {
-        let base_slot = self.offset_ptr(builder, ptr, field_count * 32);
-        builder.mload(base_slot)
+        builder.memory_object_load_field(
+            ptr,
+            MemoryObjectLayout::structure(field_count + 1),
+            field_count,
+        )
     }
 
     /// Resolves an ABI head position to the corresponding value body. Dynamic
@@ -921,8 +924,8 @@ impl<'gcx> Lowerer<'gcx> {
 
         let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let last_word_off = builder.sub(data_size, word);
-        let last_word = builder.add(data, last_word_off);
-        builder.mstore(last_word, zero);
+        let last_word_index = builder.div(last_word_off, word);
+        builder.memory_object_store_element(ptr, MemoryObjectLayout::Bytes, last_word_index, zero);
 
         let src_data = builder.memory_object_data(src, MemoryObjectKind::Bytes);
         builder.mcopy(data, src_data, copy_len);

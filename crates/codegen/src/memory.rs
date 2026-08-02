@@ -89,7 +89,10 @@ impl MemoryLayoutPolicy for EvmMemoryLayout {
         let words = match layout {
             MemoryObjectLayout::DynamicArray { element_words }
             | MemoryObjectLayout::FixedArray { element_words, .. } => element_words,
-            MemoryObjectLayout::Bytes | MemoryObjectLayout::Struct { .. } => return None,
+            // Byte objects are addressed in word chunks for bulk materialization
+            // and zeroing. Byte-indexed access uses the dedicated byte helpers.
+            MemoryObjectLayout::Bytes => 1,
+            MemoryObjectLayout::Struct { .. } => return None,
         };
         u64::from(words).checked_mul(Self::WORD_SIZE)
     }

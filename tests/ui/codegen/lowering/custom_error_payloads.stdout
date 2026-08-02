@@ -11,37 +11,35 @@ fn @revert_args() [abi_args=lazy] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 6
-    v1 = memory_object_data memorybytes, v0
-    v2 = add v1, 0
-    mstore v2, 0x6661696c65640000000000000000000000000000000000000000000000000000
-    v3 = alloc raw, exact, uninitialized, infallible, 68
-    mstore v3, 0xb9344e200000000000000000000000000000000000000000000000000000000
-    v4 = add v3, 4
-    v5 = add v4, 64
-    mstore v4, 7
-    v6 = add v4, 32
-    v7 = sub v5, v4
-    mstore v6, v7
-    v8 = memory_object_len memorybytes, v0
-    mstore v5, v8
-    v9 = not 31
-    v10 = add v8, 31
-    v11 = and v10, v9
-    v12 = add v5, 32
-    v13 = iszero v11
-    jumpi v13, bb2, bb1
+    memory_object_store_element memorybytes, v0, 0, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    v1 = alloc raw, exact, uninitialized, infallible, 68
+    mstore v1, 0xb9344e200000000000000000000000000000000000000000000000000000000
+    v2 = add v1, 4
+    v3 = add v2, 64
+    mstore v2, 7
+    v4 = add v2, 32
+    v5 = sub v3, v2
+    mstore v4, v5
+    v6 = memory_object_len memorybytes, v0
+    mstore v3, v6
+    v7 = not 31
+    v8 = add v6, 31
+    v9 = and v8, v7
+    v10 = add v3, 32
+    v11 = iszero v9
+    jumpi v11, bb2, bb1
   bb1:
-    v14 = sub v11, 32
-    v15 = add v12, v14
-    mstore v15, 0
+    v12 = sub v9, 32
+    v13 = add v10, v12
+    mstore v13, 0
     jump bb2
   bb2:
-    v16 = memory_object_data memorybytes, v0
-    v17 = add v12, v11
-    mcopy v12, v16, v8
-    v18 = sub v17, v4
-    v19 = add v18, 4
-    revert v3, v19
+    v14 = memory_object_data memorybytes, v0
+    v15 = add v10, v9
+    mcopy v10, v14, v6
+    v16 = sub v15, v2
+    v17 = add v16, 4
+    revert v1, v17
 }
 
 fn @require_empty(arg0: bool) [abi_args=lazy] {
@@ -63,38 +61,36 @@ fn @require_named(arg0: bool) [abi_args=lazy] {
   bb1:
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v1, 6
-    v2 = memory_object_data memorybytes, v1
-    v3 = add v2, 0
-    mstore v3, 0x6661696c65640000000000000000000000000000000000000000000000000000
-    v4 = alloc raw, exact, uninitialized, infallible, 68
-    mstore v4, 0xb9344e200000000000000000000000000000000000000000000000000000000
-    v5 = add v4, 4
-    v6 = add v5, 64
-    mstore v5, 7
-    v7 = add v5, 32
-    v8 = sub v6, v5
-    mstore v7, v8
-    v9 = memory_object_len memorybytes, v1
-    mstore v6, v9
-    v10 = not 31
-    v11 = add v9, 31
-    v12 = and v11, v10
-    v13 = add v6, 32
-    v14 = iszero v12
-    jumpi v14, bb4, bb3
+    memory_object_store_element memorybytes, v1, 0, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    v2 = alloc raw, exact, uninitialized, infallible, 68
+    mstore v2, 0xb9344e200000000000000000000000000000000000000000000000000000000
+    v3 = add v2, 4
+    v4 = add v3, 64
+    mstore v3, 7
+    v5 = add v3, 32
+    v6 = sub v4, v3
+    mstore v5, v6
+    v7 = memory_object_len memorybytes, v1
+    mstore v4, v7
+    v8 = not 31
+    v9 = add v7, 31
+    v10 = and v9, v8
+    v11 = add v4, 32
+    v12 = iszero v10
+    jumpi v12, bb4, bb3
   bb2:
     stop
   bb3:
-    v15 = sub v12, 32
-    v16 = add v13, v15
-    mstore v16, 0
+    v13 = sub v10, 32
+    v14 = add v11, v13
+    mstore v14, 0
     jump bb4
   bb4:
-    v17 = memory_object_data memorybytes, v1
-    v18 = add v13, v12
-    mcopy v13, v17, v9
-    v19 = sub v18, v5
-    v20 = add v19, 4
-    revert v4, v20
+    v15 = memory_object_data memorybytes, v1
+    v16 = add v11, v10
+    mcopy v11, v15, v7
+    v17 = sub v16, v3
+    v18 = add v17, 4
+    revert v2, v18
 }
 

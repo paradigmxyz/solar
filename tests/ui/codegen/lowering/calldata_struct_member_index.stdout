@@ -10,16 +10,16 @@ fn @plain() {
   bb1:
     revert 0, 0
   bb2:
-    v24 = add arg0, 4
-    v25 = calldataload v24
-    v4 = lt arg1, v25
+    v21 = add arg0, 4
+    v22 = calldataload v21
+    v4 = lt arg1, v22
     jumpi v4, bb4, bb3
   bb3:
     tail_call @__panic_32
   bb4:
     v6 = shl 7, arg1
-    v26 = add arg0, 36
-    v7 = add v26, v6
+    v23 = add arg0, 36
+    v7 = add v23, v6
     v8 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v28 = add v8, 128
     mstore 64, v28 !metadata(memory=scratch)
@@ -35,19 +35,19 @@ fn @plain() {
     v15 = eq v13, v14
     jumpi v15, bb6, bb1
   bb6:
-    v16 = add v8, 32
-    mstore v16, v13
-    v17 = add v7, 64
-    v18 = calldataload v17
-    v19 = add v8, 64
-    mstore v19, v18
-    v20 = add v7, 96
-    v21 = calldataload v20
-    v22 = add v8, 96
-    mstore v22, v21
+    v24 = add v8, 32
+    mstore v24, v13
+    v16 = add v7, 64
+    v17 = calldataload v16
+    v25 = add v8, 64
+    mstore v25, v17
+    v18 = add v7, 96
+    v19 = calldataload v18
+    v26 = add v8, 96
+    mstore v26, v19
     v27 = add v8, 96
-    v23 = mload v27
-    mstore 128, v23
+    v20 = mload v27
+    mstore 128, v20
     returndata 128, 32
 }
 

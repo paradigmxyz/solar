@@ -33,8 +33,8 @@ fn @dynamic(arg0: calldataslice) -> memorybytes [abi_params=[bytes], abi_returns
     set_memory_object_len memorybytes, v9, v0
     v10 = memory_object_data memorybytes, v9
     v11 = sub v6, 32
-    v12 = add v10, v11
-    mstore v12, 0
+    v12 = div v11, 32
+    memory_object_store_element memorybytes, v9, v12, 0
     v13 = slice_ptr arg0
     calldatacopy v10, v13, v0
     ret v9

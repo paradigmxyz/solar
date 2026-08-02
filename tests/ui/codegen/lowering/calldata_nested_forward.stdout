@@ -72,8 +72,8 @@ fn @forward(arg0: calldataslice, arg1: address) {
     set_memory_object_len memorybytes, v27, v18
     v28 = add v27, 32
     v29 = sub v24, 32
-    v30 = add v28, v29
-    mstore v30, 0
+    v30 = div v29, 32
+    memory_object_store_element memorybytes, v27, v30, 0
     v31 = add v17, 32
     calldatacopy v28, v31, v18
     v32 = frame_load scratch, word, 64 !metadata(memory=scratch)
@@ -146,9 +146,9 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
     v15 = frame_load scratch, word, 32 !metadata(memory=scratch)
     v16 = calldataload v15
     v17 = add v6, v16
-    v18 = alloc raw, exact, uninitialized, infallible, 96
+    v18 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v19 = calldataload v17
-    mstore v18, v19
+    memory_object_store_field memorystruct<3>, v18, 0, v19
     v20 = add v17, 32
     v21 = calldataload v20
     v22 = add v17, v21
@@ -157,12 +157,12 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
     v25 = lt v24, v23
     jumpi v25, bb12, bb13
   bb11:
-    v45 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v12
-    v46 = slice_ptr v45
-    v47 = slice_len v45
-    v48 = gas
-    v49 = call v48, arg1, 0, v46, v47, 0, 0
-    jumpi v49, bb17, bb16
+    v43 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v12
+    v44 = slice_ptr v43
+    v45 = slice_len v43
+    v46 = gas
+    v47 = call v46, arg1, 0, v44, v45, 0, 0
+    jumpi v47, bb17, bb16
   bb12:
     tail_call @__panic_41
   bb13:
@@ -180,29 +180,27 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
     set_memory_object_len memorybytes, v32, v23
     v33 = add v32, 32
     v34 = sub v29, 32
-    v35 = add v33, v34
-    mstore v35, 0
+    v35 = div v34, 32
+    memory_object_store_element memorybytes, v32, v35, 0
     v36 = add v22, 32
     calldatacopy v33, v36, v23
-    v37 = add v18, 32
-    mstore v37, v32
-    v38 = add v18, 64
-    mstore v38, v17
-    v39 = frame_load scratch, word, 64 !metadata(memory=scratch)
-    memory_object_store_element memoryarray<1>, v12, v39, v18
-    v40 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v41 = sub v40, 1
-    frame_store scratch, word, 0, v41 !metadata(memory=scratch)
-    v42 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    v43 = add v42, 32
-    frame_store scratch, word, 32, v43 !metadata(memory=scratch)
-    v44 = add v39, 1
-    frame_store scratch, word, 64, v44 !metadata(memory=scratch)
+    memory_object_store_field memorystruct<3>, v18, 1, v32
+    memory_object_store_field memorystruct<3>, v18, 2, v17
+    v37 = frame_load scratch, word, 64 !metadata(memory=scratch)
+    memory_object_store_element memoryarray<1>, v12, v37, v18
+    v38 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v39 = sub v38, 1
+    frame_store scratch, word, 0, v39 !metadata(memory=scratch)
+    v40 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v41 = add v40, 32
+    frame_store scratch, word, 32, v41 !metadata(memory=scratch)
+    v42 = add v37, 1
+    frame_store scratch, word, 64, v42 !metadata(memory=scratch)
     jump bb9
   bb16:
-    v50 = returndatasize
-    returndatacopy 0, 0, v50 !metadata(memory=scratch)
-    revert 0, v50
+    v48 = returndatasize
+    returndatacopy 0, 0, v48 !metadata(memory=scratch)
+    revert 0, v48
   bb17:
     stop
 }
