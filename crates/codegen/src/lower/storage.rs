@@ -830,9 +830,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.set_memory_object_len(array, len, MemoryObjectKind::DynamicArray);
         let data_ptr = builder.memory_object_data(array, MemoryObjectKind::DynamicArray);
 
-        let scratch = self.allocate_memory(builder, 32);
-        builder.mstore(scratch, slot);
-        let data_slot = builder.keccak256(scratch, word);
+        let data_slot = builder.storage_array_data_slot(slot);
         let element_slots = self.calculate_storage_slots_for_ty(element, Span::DUMMY);
         let element = element.peel_refs();
         self.emit_decode_elements_loop(builder, len, move |this, builder, index| {
@@ -1037,10 +1035,8 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         let len = builder.memory_object_len(mem_ptr, MemoryObjectKind::DynamicArray);
         builder.sstore(slot, len);
-        let zero = builder.imm_u64(0);
-        builder.mstore(zero, slot);
+        let data_slot = builder.storage_array_data_slot(slot);
         let word = builder.imm_u64(32);
-        let data_slot = builder.keccak256(zero, word);
         let data_ptr = builder.memory_object_data(mem_ptr, MemoryObjectKind::DynamicArray);
         let elem_slots = self.calculate_storage_slots_for_ty(elem, Span::DUMMY);
         let elem = elem.peel_refs();

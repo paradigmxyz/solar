@@ -1579,6 +1579,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::mapping_slot_calldata => {
                 inst!(MappingSlotCalldata(key, slot) => MirType::bytes32())
             }
+            sym::storage_array_data_slot => {
+                inst!(StorageArrayDataSlot(slot) => MirType::bytes32())
+            }
 
             // Calls and creation.
             kw::Call => struct_inst!(Call {

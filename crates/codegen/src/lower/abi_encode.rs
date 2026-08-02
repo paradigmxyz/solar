@@ -431,7 +431,6 @@ impl<'gcx> Lowerer<'gcx> {
         let data_size = builder.select(is_empty, word_size, padded);
         let total_size = builder.add(word_size, data_size);
 
-        let scratch_base = self.allocate_memory(builder, 32);
         let ptr = self.allocate_memory_object_dynamic(
             builder,
             total_size,
@@ -452,8 +451,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.jump(done_block);
 
         builder.switch_to_block(long_block);
-        builder.mstore(scratch_base, slot);
-        let data_slot = builder.keccak256(scratch_base, word_size);
+        let data_slot = builder.storage_array_data_slot(slot);
         let remaining = builder.div(padded, word_size);
 
         let cond_block = builder.create_block();
@@ -525,11 +523,10 @@ impl<'gcx> Lowerer<'gcx> {
         let is_long = builder.gt(len, thirty_one);
         let new_words = builder.select(is_long, new_words_long, zero);
 
-        // Loop counter scratch; its first word also stages `slot` for the
-        // data-slot keccak.
+        // Loop counters remain in scratch memory while storage words are
+        // copied and cleared.
         let scratch = self.allocate_memory(builder, 32);
-        builder.mstore(scratch, slot);
-        let data_slot = builder.keccak256(scratch, word_size);
+        let data_slot = builder.storage_array_data_slot(slot);
 
         let short_block = builder.create_block();
         let long_block = builder.create_block();

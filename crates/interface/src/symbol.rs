@@ -1107,6 +1107,7 @@ symbols! {
         solidity,
         span,
         stack,
+        storage_array_data_slot,
         storage_read,
         storage_to_memory,
         storage_write,

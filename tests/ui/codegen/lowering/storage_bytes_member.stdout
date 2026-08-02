@@ -201,31 +201,21 @@ bb65:
   dup1
   push 800
   mstore
-  push 32
+  swap1
   dup2
   add
-  dup1
   push 64
   mstore
-  dup1
-  push 832
+  dup3
+  dup2
   mstore
   swap2
-  dup3
-  add
-  push 64
-  mstore
-  dup4
-  dup3
-  mstore
-  swap3
   pop
   push 32
-  dup2
+  dup3
   add
-  push 864
+  push 832
   mstore
-  pop
   pop
   pop
   swap1
@@ -237,12 +227,12 @@ bb65:
   push 736
   mload
   and
-  push 864
+  push 832
   mload
   mstore
   jump bb68
 bb68:
-  push 832
+  push 800
   mload
   push 704
   mstore
@@ -459,10 +449,10 @@ bb19:
   mstore
   push 320
   mload
-  dup2
+  push 0
   mstore
   push 32
-  dup2
+  push 0
   keccak256
   push 416
   mstore
@@ -761,10 +751,10 @@ bb33:
   mstore
   push 256
   mload
-  dup2
+  push 0
   mstore
   push 32
-  dup2
+  push 0
   keccak256
   push 352
   mstore
@@ -1217,31 +1207,29 @@ bb64:
 bb67:
   push 672
   mload
-  push 800
-  mload
+  push 0
   mstore
   push 32
-  push 800
-  mload
+  push 0
   keccak256
   push 768
   mload
   push 5
   shr
-  push 864
+  push 832
   mload
   swap2
   swap1
   jump bb69
 bb69:
   dup1
-  push 800
+  push 768
   mstore
   dup2
-  push 896
+  push 864
   mstore
   dup3
-  push 928
+  push 896
   mstore
   swap2
   pop
@@ -1249,22 +1237,22 @@ bb69:
   iszero
   push bb68
   jumpi
-  push 896
+  push 864
   mload
   sload
-  push 928
+  push 896
   mload
   mstore
   push 1
-  push 896
+  push 864
   mload
   add
   push 32
-  push 928
+  push 896
   mload
   add
   push 1
-  push 800
+  push 768
   mload
   sub
   swap1

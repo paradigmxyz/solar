@@ -21,34 +21,32 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v10 = iszero v9
     v11 = select v10, 32, v9
     v12 = add 32, v11
-    v13 = alloc raw, exact, uninitialized, infallible, 32
-    v14 = alloc memorybytes, exact, uninitialized, infallible, v12
-    set_memory_object_len memorybytes, v14, v6
-    v15 = memory_object_data memorybytes, v14
+    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v13, v6
+    v14 = memory_object_data memorybytes, v13
     jumpi v2, bb2, bb1
   bb1:
-    v16 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    mstore v15, v16
+    v15 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore v14, v15
     jump bb3
   bb2:
-    mstore v13, arg0
-    v17 = keccak256 v13, 32
-    v18 = div v9, 32
+    v16 = storage_array_data_slot arg0
+    v17 = div v9, 32
     jump bb4
   bb3:
-    ret v14
+    ret v13
   bb4:
-    v19 = phi [bb2: v18], [bb5: v26]
-    v20 = phi [bb2: v17], [bb5: v24]
-    v21 = phi [bb2: v15], [bb5: v25]
-    v22 = gt v19, 0
-    jumpi v22, bb5, bb3
+    v18 = phi [bb2: v17], [bb5: v25]
+    v19 = phi [bb2: v16], [bb5: v23]
+    v20 = phi [bb2: v14], [bb5: v24]
+    v21 = gt v18, 0
+    jumpi v21, bb5, bb3
   bb5:
-    v23 = sload v20 !metadata(storage=symbolic(v20))
-    mstore v21, v23
-    v24 = add v20, 1
-    v25 = add v21, 32
-    v26 = sub v19, 1
+    v22 = sload v19 !metadata(storage=symbolic(v19))
+    mstore v20, v22
+    v23 = add v19, 1
+    v24 = add v20, 32
+    v25 = sub v18, 1
     jump bb4
 }
 
@@ -74,8 +72,7 @@ fn @init(arg0: memorybytes) {
     v17 = gt v0, 31
     v18 = select v17, v16, 0
     v19 = alloc raw, exact, uninitialized, infallible, 32
-    mstore v19, 0
-    v20 = keccak256 v19, 32
+    v20 = storage_array_data_slot 0
     jumpi v17, bb2, bb1
   bb1:
     v21 = mload v1
@@ -155,8 +152,7 @@ fn @poke() [abi_args=lazy] {
     sstore 0, v16 !metadata(storage=slot(0))
     jump bb5
   bb4:
-    mstore 0, 0 !metadata(memory=scratch)
-    v17 = keccak256 0, 32 !metadata(memory=scratch)
+    v17 = storage_array_data_slot 0
     v18 = div 5, 32
     v19 = add v17, v18
     v20 = mod 5, 32
@@ -204,34 +200,32 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v10 = iszero v9
     v11 = select v10, 32, v9
     v12 = add 32, v11
-    v13 = alloc raw, exact, uninitialized, infallible, 32
-    v14 = alloc memorybytes, exact, uninitialized, infallible, v12
-    set_memory_object_len memorybytes, v14, v6
-    v15 = memory_object_data memorybytes, v14
+    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v13, v6
+    v14 = memory_object_data memorybytes, v13
     jumpi v2, bb2, bb1
   bb1:
-    v16 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    mstore v15, v16
+    v15 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore v14, v15
     jump bb3
   bb2:
-    mstore v13, arg0
-    v17 = keccak256 v13, 32
-    v18 = div v9, 32
+    v16 = storage_array_data_slot arg0
+    v17 = div v9, 32
     jump bb4
   bb3:
-    ret v14
+    ret v13
   bb4:
-    v19 = phi [bb2: v18], [bb5: v26]
-    v20 = phi [bb2: v17], [bb5: v24]
-    v21 = phi [bb2: v15], [bb5: v25]
-    v22 = gt v19, 0
-    jumpi v22, bb5, bb3
+    v18 = phi [bb2: v17], [bb5: v25]
+    v19 = phi [bb2: v16], [bb5: v23]
+    v20 = phi [bb2: v14], [bb5: v24]
+    v21 = gt v18, 0
+    jumpi v21, bb5, bb3
   bb5:
-    v23 = sload v20 !metadata(storage=symbolic(v20))
-    mstore v21, v23
-    v24 = add v20, 1
-    v25 = add v21, 32
-    v26 = sub v19, 1
+    v22 = sload v19 !metadata(storage=symbolic(v19))
+    mstore v20, v22
+    v23 = add v19, 1
+    v24 = add v20, 32
+    v25 = sub v18, 1
     jump bb4
 }
 
@@ -286,8 +280,7 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v36 = gt v19, 31
     v37 = select v36, v35, 0
     v38 = alloc raw, exact, uninitialized, infallible, 32
-    mstore v38, 0
-    v39 = keccak256 v38, 32
+    v39 = storage_array_data_slot 0
     jumpi v36, bb2, bb1
   bb1:
     v40 = mload v20
@@ -354,8 +347,7 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v79 = gt v62, 31
     v80 = select v79, v78, 0
     v81 = alloc raw, exact, uninitialized, infallible, 32
-    mstore v81, 1
-    v82 = keccak256 v81, 32
+    v82 = storage_array_data_slot 1
     jumpi v79, bb10, bb9
   bb9:
     v83 = mload v63
@@ -428,34 +420,32 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v10 = iszero v9
     v11 = select v10, 32, v9
     v12 = add 32, v11
-    v13 = alloc raw, exact, uninitialized, infallible, 32
-    v14 = alloc memorybytes, exact, uninitialized, infallible, v12
-    set_memory_object_len memorybytes, v14, v6
-    v15 = memory_object_data memorybytes, v14
+    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v13, v6
+    v14 = memory_object_data memorybytes, v13
     jumpi v2, bb2, bb1
   bb1:
-    v16 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    mstore v15, v16
+    v15 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore v14, v15
     jump bb3
   bb2:
-    mstore v13, arg0
-    v17 = keccak256 v13, 32
-    v18 = div v9, 32
+    v16 = storage_array_data_slot arg0
+    v17 = div v9, 32
     jump bb4
   bb3:
-    ret v14
+    ret v13
   bb4:
-    v19 = phi [bb2: v18], [bb5: v26]
-    v20 = phi [bb2: v17], [bb5: v24]
-    v21 = phi [bb2: v15], [bb5: v25]
-    v22 = gt v19, 0
-    jumpi v22, bb5, bb3
+    v18 = phi [bb2: v17], [bb5: v25]
+    v19 = phi [bb2: v16], [bb5: v23]
+    v20 = phi [bb2: v14], [bb5: v24]
+    v21 = gt v18, 0
+    jumpi v21, bb5, bb3
   bb5:
-    v23 = sload v20 !metadata(storage=symbolic(v20))
-    mstore v21, v23
-    v24 = add v20, 1
-    v25 = add v21, 32
-    v26 = sub v19, 1
+    v22 = sload v19 !metadata(storage=symbolic(v19))
+    mstore v20, v22
+    v23 = add v19, 1
+    v24 = add v20, 32
+    v25 = sub v18, 1
     jump bb4
 }
 
@@ -510,8 +500,7 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v36 = gt v19, 31
     v37 = select v36, v35, 0
     v38 = alloc raw, exact, uninitialized, infallible, 32
-    mstore v38, 0
-    v39 = keccak256 v38, 32
+    v39 = storage_array_data_slot 0
     jumpi v36, bb2, bb1
   bb1:
     v40 = mload v20
@@ -578,8 +567,7 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v79 = gt v62, 31
     v80 = select v79, v78, 0
     v81 = alloc raw, exact, uninitialized, infallible, 32
-    mstore v81, 1
-    v82 = keccak256 v81, 32
+    v82 = storage_array_data_slot 1
     jumpi v79, bb10, bb9
   bb9:
     v83 = mload v63
@@ -663,8 +651,7 @@ fn @_anonymous() {
     v23 = gt v6, 31
     v24 = select v23, v22, 0
     v25 = alloc raw, exact, uninitialized, infallible, 32
-    mstore v25, 0
-    v26 = keccak256 v25, 32
+    v26 = storage_array_data_slot 0
     jumpi v23, bb3, bb2
   bb1:
     stop
@@ -733,8 +720,7 @@ fn @_anonymous() {
     v66 = gt v49, 31
     v67 = select v66, v65, 0
     v68 = alloc raw, exact, uninitialized, infallible, 32
-    mstore v68, 1
-    v69 = keccak256 v68, 32
+    v69 = storage_array_data_slot 1
     jumpi v66, bb11, bb10
   bb10:
     v70 = mload v50
@@ -805,34 +791,32 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v10 = iszero v9
     v11 = select v10, 32, v9
     v12 = add 32, v11
-    v13 = alloc raw, exact, uninitialized, infallible, 32
-    v14 = alloc memorybytes, exact, uninitialized, infallible, v12
-    set_memory_object_len memorybytes, v14, v6
-    v15 = memory_object_data memorybytes, v14
+    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v13, v6
+    v14 = memory_object_data memorybytes, v13
     jumpi v2, bb2, bb1
   bb1:
-    v16 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    mstore v15, v16
+    v15 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore v14, v15
     jump bb3
   bb2:
-    mstore v13, arg0
-    v17 = keccak256 v13, 32
-    v18 = div v9, 32
+    v16 = storage_array_data_slot arg0
+    v17 = div v9, 32
     jump bb4
   bb3:
-    ret v14
+    ret v13
   bb4:
-    v19 = phi [bb2: v18], [bb5: v26]
-    v20 = phi [bb2: v17], [bb5: v24]
-    v21 = phi [bb2: v15], [bb5: v25]
-    v22 = gt v19, 0
-    jumpi v22, bb5, bb3
+    v18 = phi [bb2: v17], [bb5: v25]
+    v19 = phi [bb2: v16], [bb5: v23]
+    v20 = phi [bb2: v14], [bb5: v24]
+    v21 = gt v18, 0
+    jumpi v21, bb5, bb3
   bb5:
-    v23 = sload v20 !metadata(storage=symbolic(v20))
-    mstore v21, v23
-    v24 = add v20, 1
-    v25 = add v21, 32
-    v26 = sub v19, 1
+    v22 = sload v19 !metadata(storage=symbolic(v19))
+    mstore v20, v22
+    v23 = add v19, 1
+    v24 = add v20, 32
+    v25 = sub v18, 1
     jump bb4
 }
 
@@ -876,8 +860,7 @@ fn @constructor() {
     v23 = gt v6, 31
     v24 = select v23, v22, 0
     v25 = alloc raw, exact, uninitialized, infallible, 32
-    mstore v25, 0
-    v26 = keccak256 v25, 32
+    v26 = storage_array_data_slot 0
     jumpi v23, bb3, bb2
   bb1:
     stop
@@ -946,8 +929,7 @@ fn @constructor() {
     v66 = gt v49, 31
     v67 = select v66, v65, 0
     v68 = alloc raw, exact, uninitialized, infallible, 32
-    mstore v68, 1
-    v69 = keccak256 v68, 32
+    v69 = storage_array_data_slot 1
     jumpi v66, bb11, bb10
   bb10:
     v70 = mload v50
@@ -1018,34 +1000,32 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v10 = iszero v9
     v11 = select v10, 32, v9
     v12 = add 32, v11
-    v13 = alloc raw, exact, uninitialized, infallible, 32
-    v14 = alloc memorybytes, exact, uninitialized, infallible, v12
-    set_memory_object_len memorybytes, v14, v6
-    v15 = memory_object_data memorybytes, v14
+    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v13, v6
+    v14 = memory_object_data memorybytes, v13
     jumpi v2, bb2, bb1
   bb1:
-    v16 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    mstore v15, v16
+    v15 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore v14, v15
     jump bb3
   bb2:
-    mstore v13, arg0
-    v17 = keccak256 v13, 32
-    v18 = div v9, 32
+    v16 = storage_array_data_slot arg0
+    v17 = div v9, 32
     jump bb4
   bb3:
-    ret v14
+    ret v13
   bb4:
-    v19 = phi [bb2: v18], [bb5: v26]
-    v20 = phi [bb2: v17], [bb5: v24]
-    v21 = phi [bb2: v15], [bb5: v25]
-    v22 = gt v19, 0
-    jumpi v22, bb5, bb3
+    v18 = phi [bb2: v17], [bb5: v25]
+    v19 = phi [bb2: v16], [bb5: v23]
+    v20 = phi [bb2: v14], [bb5: v24]
+    v21 = gt v18, 0
+    jumpi v21, bb5, bb3
   bb5:
-    v23 = sload v20 !metadata(storage=symbolic(v20))
-    mstore v21, v23
-    v24 = add v20, 1
-    v25 = add v21, 32
-    v26 = sub v19, 1
+    v22 = sload v19 !metadata(storage=symbolic(v19))
+    mstore v20, v22
+    v23 = add v19, 1
+    v24 = add v20, 32
+    v25 = sub v18, 1
     jump bb4
 }
 

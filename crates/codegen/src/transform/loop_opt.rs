@@ -274,7 +274,8 @@ impl LoopOptimizer {
             }
             InstKind::MappingSlot(_, _)
             | InstKind::MappingSlotMemory(_, _)
-            | InstKind::MappingSlotCalldata(_, _) => return false,
+            | InstKind::MappingSlotCalldata(_, _)
+            | InstKind::StorageArrayDataSlot(_) => return false,
             InstKind::SLoad(slot) => {
                 return self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_mutate_storage_slot(
@@ -419,7 +420,8 @@ impl LoopOptimizer {
             InstKind::Keccak256(_, _) => 30,
             InstKind::MappingSlot(_, _)
             | InstKind::MappingSlotMemory(_, _)
-            | InstKind::MappingSlotCalldata(_, _) => 30,
+            | InstKind::MappingSlotCalldata(_, _)
+            | InstKind::StorageArrayDataSlot(_) => 30,
             InstKind::Exp(_, _) => 10,
             InstKind::Mul(_, _)
             | InstKind::Div(_, _)

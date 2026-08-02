@@ -462,6 +462,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 InstKind::MappingSlot(..) => 3,
                 InstKind::MappingSlotMemory(..) => 8,
                 InstKind::MappingSlotCalldata(..) => 9,
+                InstKind::StorageArrayDataSlot(..) => 3,
                 _ => 1,
             };
             let inst_cost = estimate_inst_cost(gcx, module, kind);
@@ -673,6 +674,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         InstKind::MappingSlot(..) => (36, 3),
         InstKind::MappingSlotMemory(..) => (60, 8),
         InstKind::MappingSlotCalldata(..) => (63, 9),
+        InstKind::StorageArrayDataSlot(..) => (36, 3),
         InstKind::Call { .. }
         | InstKind::CallCode { .. }
         | InstKind::StaticCall { .. }

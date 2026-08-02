@@ -1,9 +1,9 @@
-//! Lower mapping-slot hash builtins to semantic memory operations.
+//! Lower mapping-slot and storage-array slot builtins to physical hashing.
 //!
-//! Keeping mapping-slot computation as one MIR instruction lets dominator-tree
-//! CSE reuse repeated accesses without teaching HIR lowering about control-flow
-//! scopes or memory invalidation. This pass expands the builtin immediately
-//! after CSE so the remaining pipeline can optimize the semantic memory ops.
+//! Keeping storage-location hashing as one MIR instruction lets dominator-tree
+//! CSE reuse repeated accesses without teaching HIR lowering about scratch
+//! memory. This pass expands the builtins immediately after CSE so the
+//! remaining pipeline can optimize the physical memory operations.
 
 use crate::{
     mir::{BlockId, FunctionBuilder, InstKind, Module},
@@ -36,6 +36,7 @@ impl MirPass for LowerMappingSlots {
                     InstKind::MappingSlot(_, _)
                         | InstKind::MappingSlotMemory(_, _)
                         | InstKind::MappingSlotCalldata(_, _)
+                        | InstKind::StorageArrayDataSlot(_)
                 )
             });
             if !has_mapping_slots {
@@ -59,6 +60,9 @@ impl MirPass for LowerMappingSlots {
                         InstKind::MappingSlotCalldata(key, slot) => {
                             Some(lower_calldata_mapping_slot(&mut builder, key, slot))
                         }
+                        InstKind::StorageArrayDataSlot(slot) => {
+                            Some(lower_storage_array_data_slot(&mut builder, slot))
+                        }
                         _ => {
                             builder.func_mut().blocks[block_id].instructions.push(inst_id);
                             None
@@ -77,6 +81,16 @@ impl MirPass for LowerMappingSlots {
             true
         })
     }
+}
+
+fn lower_storage_array_data_slot(
+    builder: &mut FunctionBuilder<'_>,
+    slot: crate::mir::ValueId,
+) -> crate::mir::ValueId {
+    let zero = builder.imm_u64(0);
+    builder.mstore(zero, slot);
+    let word = builder.imm_u64(32);
+    builder.keccak256(zero, word)
 }
 
 fn lower_word_mapping_slot(

@@ -22,7 +22,7 @@ contract StorageBytesElements {
     // CHECK: jumpi {{v[0-9]+}},
     // CHECK: jumpi [[LONG]],
     // CHECK: sstore 0,
-    // CHECK: {{v[0-9]+}} = keccak256 0, 32
+    // CHECK: {{v[0-9]+}} = storage_array_data_slot 0
     // CHECK: sstore {{v[0-9]+}},
     function poke() public {
         b[5] = 0xAA;

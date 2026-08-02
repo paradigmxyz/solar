@@ -2220,10 +2220,7 @@ impl<'gcx> Lowerer<'gcx> {
             None => {
                 let len = builder.sload(slot_val);
                 self.emit_index_bounds_check(builder, index_val, len);
-                let mem_0 = builder.imm_u64(0);
-                builder.mstore(mem_0, slot_val);
-                let size_32 = builder.imm_u64(32);
-                let data_slot = builder.keccak256(mem_0, size_32);
+                let data_slot = builder.storage_array_data_slot(slot_val);
                 let offset = Self::scale_index_by_slots(builder, index_val, elem_slots);
                 builder.add(data_slot, offset)
             }
@@ -3378,10 +3375,7 @@ impl<'gcx> Lowerer<'gcx> {
         let overflow = builder.lt(new_length, length);
         self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
 
-        let scratch = builder.imm_u64(0);
-        builder.mstore(scratch, slot);
-        let word = builder.imm_u64(32);
-        let data_slot = builder.keccak256(scratch, word);
+        let data_slot = builder.storage_array_data_slot(slot);
         let offset = Self::scale_index_by_slots(builder, length, element_slots);
         let element_slot = builder.add(data_slot, offset);
 
@@ -3432,10 +3426,7 @@ impl<'gcx> Lowerer<'gcx> {
                 let overflow = builder.lt(new_length, length);
                 self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
 
-                let scratch = builder.imm_u64(0);
-                builder.mstore(scratch, slot);
-                let word = builder.imm_u64(32);
-                let data_slot = builder.keccak256(scratch, word);
+                let data_slot = builder.storage_array_data_slot(slot);
                 let offset = Self::scale_index_by_slots(builder, length, element_slots);
                 let element_slot = builder.add(data_slot, offset);
                 self.store_storage_value_at(builder, element_ty, element_slot, value);
@@ -3448,10 +3439,7 @@ impl<'gcx> Lowerer<'gcx> {
                 let one = builder.imm_u64(1);
                 let new_length = builder.sub(length, one);
 
-                let scratch = builder.imm_u64(0);
-                builder.mstore(scratch, slot);
-                let word = builder.imm_u64(32);
-                let data_slot = builder.keccak256(scratch, word);
+                let data_slot = builder.storage_array_data_slot(slot);
                 let offset = Self::scale_index_by_slots(builder, new_length, element_slots);
                 let element_slot = builder.add(data_slot, offset);
                 self.clear_storage_value_at(builder, element_ty, element_slot);

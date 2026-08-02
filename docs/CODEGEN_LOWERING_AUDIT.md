@@ -27,6 +27,9 @@ describes observable structure in the current tree, not an intended design.
 * Dynamic mapping keys stay as `mapping_slot_memory` or
   `mapping_slot_calldata` until the mapping-slot pass. Target-specific memory
   copies are selected after that semantic operation is lowered.
+* Dynamic storage-array data slots stay as `storage_array_data_slot` until the
+  same pass. Indexing, push/pop, bytes access, and aggregate copies share that
+  typed operation instead of staging the slot in HIR scratch memory.
 * Modifier placeholders expand the modifier chain in source order. Return
   values pass through the suffix, and constructor base calls stay in the
   constructor prelude.
@@ -73,10 +76,10 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
 * **Storage semantics are still split between incompatible paths.** Static
   state variables, direct struct fields, and fixed arrays now share
   `StorageLocation` and its encoding for packed reads and read-modify-write
-  stores. Runtime storage references, nested aggregate copies, and
-  dynamic-array and bytes copies still mix that layout with independent slot
-  arithmetic and direct `keccak256` staging writes. The replacement should
-  make one type-directed location query the only source of storage addresses.
+  stores. Runtime storage references, nested aggregate copies, and dynamic
+  array and bytes element strides still mix that layout with independent slot
+  arithmetic. The replacement should make one type-directed location query the
+  only source of storage addresses.
 * **Context state is difficult to reason about.** One `Lowerer` carries
   function-local maps, contract-wide storage maps, inline-return state,
   constructor state, ABI state, helper state, and error-checking state. Calls

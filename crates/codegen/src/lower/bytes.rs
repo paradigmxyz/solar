@@ -814,9 +814,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         builder.switch_to_block(long_block);
         let word_size = builder.imm_u64(32);
-        let scratch = builder.imm_u64(0);
-        builder.mstore(scratch, slot);
-        let data_slot = builder.keccak256(scratch, word_size);
+        let data_slot = builder.storage_array_data_slot(slot);
         let word_index = builder.div(index, word_size);
         let elem_slot = builder.add(data_slot, word_index);
         let byte_index = builder.mod_(index, word_size);

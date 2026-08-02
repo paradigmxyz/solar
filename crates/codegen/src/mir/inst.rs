@@ -782,6 +782,11 @@ pub(crate) enum InstKind {
     /// The temporary scratch memory used by its late lowering is not an
     /// observable part of this instruction's MIR semantics.
     MappingSlotCalldata(ValueId, ValueId),
+    /// Hash the slot of a dynamically-sized storage array to find its data.
+    ///
+    /// The temporary scratch memory used by its late lowering is not an
+    /// observable part of this instruction's MIR semantics.
+    StorageArrayDataSlot(ValueId),
 
     // Call operations
     // TODO(codegen): Consider unifying external calls as one instruction with a call-kind enum
@@ -955,6 +960,7 @@ impl InstKind {
             | Self::BlobHash(a)
             | Self::StoreImmutable(_, a)
             | Self::Keccak256Bytes(a)
+            | Self::StorageArrayDataSlot(a)
             | Self::MemoryObjectLen(a, _)
             | Self::MemoryObjectData(a, _)
             | Self::MemoryObjectFieldAddr { object: a, .. } => {
@@ -1162,6 +1168,7 @@ impl InstKind {
             | Self::StoreImmutable(_, a)
             | Self::SlicePtr(a)
             | Self::Keccak256Bytes(a)
+            | Self::StorageArrayDataSlot(a)
             | Self::SliceLen(a)
             | Self::MemoryObjectLen(a, _)
             | Self::MemoryObjectData(a, _)
@@ -1359,6 +1366,7 @@ impl InstKind {
             Self::MappingSlot(_, _) => "mapping_slot",
             Self::MappingSlotMemory(_, _) => "mapping_slot_memory",
             Self::MappingSlotCalldata(_, _) => "mapping_slot_calldata",
+            Self::StorageArrayDataSlot(_) => "storage_array_data_slot",
             Self::Call { .. } => "call",
             Self::CallCode { .. } => "callcode",
             Self::StaticCall { .. } => "staticcall",
@@ -1494,6 +1502,7 @@ impl InstKind {
             Self::LoadImmutable(_) => EffectKind::ImmutableRead,
             Self::Add(_, _)
             | Self::MappingSlot(_, _)
+            | Self::StorageArrayDataSlot(_)
             | Self::Sub(_, _)
             | Self::Mul(_, _)
             | Self::Div(_, _)
