@@ -1768,10 +1768,12 @@ impl<'gcx> Lowerer<'gcx> {
             ));
         }
 
-        // Load first return value from memory
-        // Multi-return consumers snapshot additional words from the ephemeral
-        // buffer at `ret_offset` before lowering any lvalues.
-        Some(builder.mload(ret_offset))
+        self.err_call_result(
+            builder,
+            callee,
+            callee.span,
+            "codegen could not materialize the external call return object",
+        )
     }
 
     pub(super) fn resolved_function_callee(
