@@ -72,8 +72,10 @@ describes observable structure in the current tree, not an intended design.
 * Constructors with ABI-supported scalar words, arrays, bytes, and structs
   defer their input boundary to `lower-abi`. That pass expands physical
   constructor word parameters, rebuilds aggregate memory objects, validates
-  narrow scalar leaves, and checks the copied blob end. Storage references and
-  unsupported recursive shapes remain on their existing HIR path.
+  narrow scalar leaves, and checks the copied blob end. Aggregate payloads
+  use logical slices and typed object copies until memory lowering. Storage
+  references and unsupported recursive shapes remain on their existing HIR
+  path.
 * Checked ABI head sizing is shared by the MIR input and output layout
   descriptors, so HIR lowering no longer carries a second recursive size
   implementation.

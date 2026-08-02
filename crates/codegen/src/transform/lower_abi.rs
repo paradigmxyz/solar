@@ -765,14 +765,18 @@ impl LowerAbiCx {
                     crate::mir::AllocationSemantics::INTERNAL,
                 );
                 builder.set_memory_object_len(ptr, len, crate::mir::MemoryObjectKind::DynamicArray);
-                let dst =
-                    builder.memory_object_data(ptr, crate::mir::MemoryObjectKind::DynamicArray);
                 let src = builder.add(base, word);
-                if constructor {
-                    builder.mcopy(dst, src, bytes);
+                let location = if constructor {
+                    crate::mir::SliceLocation::Memory
                 } else {
-                    builder.calldatacopy(dst, src, bytes);
-                }
+                    crate::mir::SliceLocation::Calldata
+                };
+                let source = builder.make_slice(src, bytes, location);
+                builder.memory_object_copy_from_slice(
+                    ptr,
+                    crate::mir::MemoryObjectKind::DynamicArray,
+                    source,
+                );
                 ptr
             }
             crate::mir::AbiParamType::DynamicArray(element)
@@ -913,13 +917,18 @@ impl LowerAbiCx {
                     crate::mir::AllocationSemantics::INTERNAL,
                 );
                 builder.set_memory_object_len(ptr, len, crate::mir::MemoryObjectKind::Bytes);
-                let dst = builder.memory_object_data(ptr, crate::mir::MemoryObjectKind::Bytes);
                 let src = builder.add(base, word);
-                if constructor {
-                    builder.mcopy(dst, src, len);
+                let location = if constructor {
+                    crate::mir::SliceLocation::Memory
                 } else {
-                    builder.calldatacopy(dst, src, len);
-                }
+                    crate::mir::SliceLocation::Calldata
+                };
+                let source = builder.make_slice(src, len, location);
+                builder.memory_object_copy_from_slice(
+                    ptr,
+                    crate::mir::MemoryObjectKind::Bytes,
+                    source,
+                );
                 ptr
             }
             crate::mir::AbiParamType::Tuple(fields) if Self::is_supported_aggregate(ty) => {

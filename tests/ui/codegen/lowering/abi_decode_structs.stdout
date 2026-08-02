@@ -10,11 +10,11 @@ fn @dFlat() {
     tail_call @__revert_empty
   bb2:
     v3 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v61 = add v3, 96
-    mstore 64, v61 !metadata(memory=scratch)
-    v4 = mload v51
+    v64 = add v3, 96
+    mstore 64, v64 !metadata(memory=scratch)
+    v4 = mload v1
     mstore v3, v4
-    v5 = add v51, 32
+    v5 = add v1, 32
     v6 = mload v5
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v8 = eq v6, v7
@@ -24,7 +24,7 @@ fn @dFlat() {
   bb4:
     v57 = add v3, 32
     mstore v57, v6
-    v9 = add v51, 64
+    v9 = add v1, 64
     v10 = mload v9
     v11 = iszero v10
     v12 = iszero v11
@@ -82,12 +82,13 @@ fn @dFlat() {
     jumpi v49, bb3, bb12
   bb12:
     v50 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v62 = add v50, v48
-    mstore 64, v62 !metadata(memory=scratch)
+    v65 = add v50, v48
+    mstore 64, v65 !metadata(memory=scratch)
     mstore v50, v37
-    v51 = add v50, 32
-    calldatacopy v51, v32, v37
+    v61 = add v50, 32
+    calldatacopy v61, v32, v37
     v0 = mload v50
+    v1 = add v50, 32
     v2 = lt v0, 96
     jumpi v2, bb1, bb2
 }
@@ -109,13 +110,13 @@ fn @dNested() {
     v141 = mul 0, 32
     v142 = add v140, v141
     v3 = mload v142
-    v4 = add v106, v3
+    v4 = add v1, v3
     v5 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v181 = add v5, 96
-    mstore 64, v181 !metadata(memory=scratch)
+    v184 = add v5, 96
+    mstore 64, v184 !metadata(memory=scratch)
     v6 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v182 = add v6, 96
-    mstore 64, v182 !metadata(memory=scratch)
+    v185 = add v6, 96
+    mstore 64, v185 !metadata(memory=scratch)
     v7 = mload v4
     mstore v6, v7
     v8 = add v4, 32
@@ -142,8 +143,8 @@ fn @dNested() {
     v18 = mload v17
     v19 = add v4, v18
     v20 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v183 = add v20, 96
-    mstore 64, v183 !metadata(memory=scratch)
+    v186 = add v20, 96
+    mstore 64, v186 !metadata(memory=scratch)
     v21 = mload v19
     mstore v20, v21
     v22 = add v19, 32
@@ -164,8 +165,8 @@ fn @dNested() {
     jumpi v33, bb6, bb8
   bb8:
     v34 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v184 = add v34, v32
-    mstore 64, v184 !metadata(memory=scratch)
+    v187 = add v34, v32
+    mstore 64, v187 !metadata(memory=scratch)
     mstore v34, v25
     v35 = sub v31, 32
     v36 = shr 5, v35
@@ -189,8 +190,8 @@ fn @dNested() {
     v45 = shl 5, v42
     v46 = add v45, 32
     v47 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v185 = add v47, v46
-    mstore 64, v185 !metadata(memory=scratch)
+    v188 = add v47, v46
+    mstore 64, v188 !metadata(memory=scratch)
     mstore v47, v42
     v152 = add v47, 32
     mcopy v152, v43, v45
@@ -214,8 +215,8 @@ fn @dNested() {
     jumpi v60, bb6, bb11
   bb11:
     v61 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v186 = add v61, v59
-    mstore 64, v186 !metadata(memory=scratch)
+    v189 = add v61, v59
+    mstore 64, v189 !metadata(memory=scratch)
     mstore v61, v52
     v62 = sub v58, 32
     v63 = shr 5, v62
@@ -245,8 +246,8 @@ fn @dNested() {
     v120 = and v118, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v121 = add v120, 32
     v122 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v187 = add v122, v121
-    mstore 64, v187 !metadata(memory=scratch)
+    v190 = add v122, v121
+    mstore 64, v190 !metadata(memory=scratch)
     mstore v122, v116
     v167 = add v122, 32
     v168 = add v167, 0
@@ -301,28 +302,29 @@ fn @dNested() {
     jumpi v104, bb3, bb18
   bb18:
     v105 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v188 = add v105, v103
-    mstore 64, v188 !metadata(memory=scratch)
+    v191 = add v105, v103
+    mstore 64, v191 !metadata(memory=scratch)
     mstore v105, v92
-    v106 = add v105, 32
-    calldatacopy v106, v87, v92
+    v173 = add v105, 32
+    calldatacopy v173, v87, v92
+    v1 = add v105, 32
     v0 = mload v105
     v2 = lt v0, 32
     jumpi v2, bb1, bb2
   bb19:
     v132 = add v128, 96
-    v173 = add v122, 32
-    v174 = add v173, v132
-    mstore v174, 0
+    v176 = add v122, 32
+    v177 = add v176, v132
+    mstore v177, 0
     jump bb20
   bb20:
     v133 = add v69, 32
-    v175 = add v122, 32
-    v176 = add v175, 128
-    mcopy v176, v133, v125
-    v179 = add v122, 32
-    v180 = add v179, 64
-    mstore v180, v71
+    v178 = add v122, 32
+    v179 = add v178, 128
+    mcopy v179, v133, v125
+    v182 = add v122, 32
+    v183 = add v182, 64
+    mstore v183, v71
     v138 = add v122, 32
     returndata v138, v116
 }
@@ -346,7 +348,7 @@ fn @dDynArr() {
     v99 = mul 0, 32
     v100 = add v98, v99
     v3 = mload v100
-    v4 = add v88, v3
+    v4 = add v1, v3
     v5 = mload v4
     v6 = add v4, 32
     v7 = shr 251, v5
@@ -360,8 +362,8 @@ fn @dDynArr() {
     jumpi v10, bb3, bb5
   bb5:
     v11 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v115 = add v11, v9
-    mstore 64, v115 !metadata(memory=scratch)
+    v118 = add v11, v9
+    mstore 64, v118 !metadata(memory=scratch)
     mstore v11, v5
     mstore 160, v5
     mstore 192, v6
@@ -375,8 +377,8 @@ fn @dDynArr() {
     v15 = mload v93
     v16 = add v6, v15
     v17 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v116 = add v17, 96
-    mstore 64, v116 !metadata(memory=scratch)
+    v119 = add v17, 96
+    mstore 64, v119 !metadata(memory=scratch)
     v18 = mload v16
     mstore v17, v18
     v19 = add v16, 32
@@ -401,8 +403,8 @@ fn @dDynArr() {
     jumpi v30, bb3, bb10
   bb10:
     v31 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v117 = add v31, v29
-    mstore 64, v117 !metadata(memory=scratch)
+    v120 = add v31, v29
+    mstore 64, v120 !metadata(memory=scratch)
     mstore v31, v22
     v32 = sub v28, 32
     v33 = shr 5, v32
@@ -426,8 +428,8 @@ fn @dDynArr() {
     v42 = shl 5, v39
     v43 = add v42, 32
     v44 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v118 = add v44, v43
-    mstore 64, v118 !metadata(memory=scratch)
+    v121 = add v44, v43
+    mstore 64, v121 !metadata(memory=scratch)
     mstore v44, v39
     v108 = add v44, 32
     mcopy v108, v40, v42
@@ -489,12 +491,13 @@ fn @dDynArr() {
     jumpi v86, bb12, bb19
   bb19:
     v87 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v119 = add v87, v85
-    mstore 64, v119 !metadata(memory=scratch)
+    v122 = add v87, v85
+    mstore 64, v122 !metadata(memory=scratch)
     mstore v87, v74
-    v88 = add v87, 32
-    calldatacopy v88, v69, v74
+    v115 = add v87, 32
+    calldatacopy v115, v69, v74
     mstore 128, 0
+    v1 = add v87, 32
     v0 = mload v87
     v2 = lt v0, 32
     jumpi v2, bb1, bb2
