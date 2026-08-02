@@ -122,6 +122,8 @@ describes observable structure in the current tree, not an intended design.
 * Try/catch selector and panic decoding materialize bounded returndata slices
   into typed bytes objects; only unchanged rethrow forwarding copies directly
   to the revert boundary.
+* SHA-256 and RIPEMD-160 precompile results write into a typed bytes object and
+  load the result through its semantic element operation.
 * Object-backed constructor and linked-library payload assembly uses
   `memory_object_store_word`; only memory lowering forms payload addresses.
 * ABI tail lengths and nested dynamic-array heads read through

@@ -2719,7 +2719,15 @@ impl<'gcx> Lowerer<'gcx> {
         let (input_ptr, input_len) = self.lower_precompile_bytes_input(builder, input)?;
 
         let address = builder.imm_u64(if builtin == Builtin::Sha256 { 2 } else { 3 });
-        let output_ptr = builder.imm_u64(0);
+        let output_size_value = builder.imm_u64(64);
+        let output = builder.alloc_object(
+            output_size_value,
+            MemoryObjectLayout::Bytes,
+            crate::mir::AllocationSemantics::INTERNAL,
+        );
+        let output_len = builder.imm_u64(32);
+        builder.set_memory_object_len(output, output_len, MemoryObjectKind::Bytes);
+        let output_ptr = builder.memory_object_data(output, MemoryObjectKind::Bytes);
         let output_size = builder.imm_u64(32);
         let gas = crate::utils::precompile_gas(builder, self.gcx.sess.opts.evm_version);
         let success = self.emit_precompile_call(
@@ -2733,7 +2741,9 @@ impl<'gcx> Lowerer<'gcx> {
         );
         self.emit_forwarding_revert_unless(builder, success);
 
-        let output = builder.mload(output_ptr);
+        let output_index = builder.imm_u64(0);
+        let output =
+            builder.memory_object_load_element(output, MemoryObjectLayout::Bytes, output_index);
         Ok(if builtin == Builtin::Ripemd160 {
             if self.gcx.sess.opts.evm_version.has_bitwise_shifting() {
                 let shift = builder.imm_u64(96);
