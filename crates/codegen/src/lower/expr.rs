@@ -2388,16 +2388,6 @@ impl<'gcx> Lowerer<'gcx> {
         struct_ptr
     }
 
-    /// Allocates memory for a given size and returns the pointer.
-    pub(super) fn allocate_memory(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        size: u64,
-    ) -> ValueId {
-        let size_val = builder.imm_u64(size);
-        builder.alloc(size_val, crate::mir::AllocationSemantics::INTERNAL)
-    }
-
     /// Allocates a shaped Solidity memory object with a constant byte size.
     pub(super) fn allocate_memory_object(
         &mut self,

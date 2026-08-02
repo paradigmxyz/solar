@@ -45,6 +45,9 @@ describes observable structure in the current tree, not an intended design.
 * Event payloads with representable ABI types use the same typed ABI operation;
   recursive or otherwise unsupported event types stop at the ABI boundary with
   a codegen diagnostic instead of using a HIR scratch buffer.
+* Custom-error reverts use the typed ABI encoder with the error selector, so
+  empty and aggregate payloads share the same layout and memory boundary as
+  source-level ABI encodes.
 * Packed storage locations carry their semantic encoding. Signed values are
   sign-extended on load, fixed bytes are aligned at the MIR boundary, and both
   forms share the same read-modify-write path for state variables, fields, and

@@ -1,10 +1,7 @@
 //! ABI encoding helpers for source-level encodes, calls, errors, and events.
 
 use super::{Lowerer, helpers::HelperKey};
-use crate::{
-    mir::{AbiLayout, FunctionBuilder, MemoryObjectKind, MirType, ValueId},
-    transform::lower_abi_encode,
-};
+use crate::mir::{AbiLayout, FunctionBuilder, MemoryObjectKind, MirType, ValueId};
 use alloy_primitives::U256;
 use solar_ast::ElementaryType;
 use solar_data_structures::map::FxHashSet;
@@ -38,28 +35,6 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Encodes a tuple of `(value, type)` items at `dest` using ABI head/tail
-    /// layout. Static items are written inline in the head; dynamic items write a
-    /// relative tail offset in the head and append their body to the shared tail.
-    fn abi_encode_tuple(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        items: &[(ValueId, Ty<'gcx>)],
-        dest: ValueId,
-        calldata_slices: &FxHashSet<ValueId>,
-        scratch: lower_abi_encode::AbiScratch,
-    ) -> ValueId {
-        let values: Vec<_> = items.iter().map(|&(value, _)| value).collect();
-        let types = items
-            .iter()
-            .map(|&(value, ty)| self.abi_type(ty, calldata_slices.contains(&value)))
-            .collect::<Option<Vec<_>>>();
-        let Some(types) = types else {
-            return builder.error_value(self.abi_type_error());
-        };
-        lower_abi_encode::encode_tuple(builder, &values, &types, dest, scratch)
-    }
-
     /// Emits ABI-encoded custom error data and terminates with `REVERT`.
     pub(super) fn emit_abi_error_revert(
         &mut self,
@@ -67,48 +42,22 @@ impl<'gcx> Lowerer<'gcx> {
         selector: [u8; 4],
         items: &[(ValueId, Ty<'gcx>)],
     ) {
-        let head_size = match self.abi_head_size_sum(items.iter().map(|&(_, ty)| ty)) {
-            Ok(size) => size,
-            Err(guar) => {
-                let err = builder.error_value(guar);
-                builder.revert(err, err);
-                return;
-            }
+        let Some(types) =
+            items.iter().map(|&(_, ty)| self.abi_type(ty, false)).collect::<Option<Vec<_>>>()
+        else {
+            let guar = self.abi_type_error();
+            let err = builder.error_value(guar);
+            builder.revert(err, err);
+            return;
         };
-        let scratch_words = self.abi_scratch_words(items);
-        let scratch_base =
-            (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
-
-        let buf = self.allocate_memory(builder, 4 + head_size);
+        let layout = self.module.intern_abi_layout(AbiLayout::new(types));
         let selector = U256::from(u32::from_be_bytes(selector)) << 224;
         let selector = builder.imm_u256(selector);
-        builder.mstore(buf, selector);
-
-        let size = if items.is_empty() {
-            builder.imm_u64(4)
-        } else {
-            let args_base = self.offset_ptr(builder, buf, 4);
-            let calldata_slices = FxHashSet::default();
-            let args_size = self.abi_encode_tuple(
-                builder,
-                items,
-                args_base,
-                &calldata_slices,
-                lower_abi_encode::AbiScratch { base: scratch_base, depth: 0 },
-            );
-            let selector_size = builder.imm_u64(4);
-            builder.add(args_size, selector_size)
-        };
-        builder.revert(buf, size);
-    }
-
-    fn abi_scratch_words(&self, items: &[(ValueId, Ty<'gcx>)]) -> u64 {
-        items
-            .iter()
-            .map(|&(_, ty)| self.abi_type(ty, false).map_or(0, |ty| ty.loop_depth()))
-            .max()
-            .unwrap_or(0)
-            * 5
+        let args: Vec<_> = items.iter().map(|&(value, _)| value).collect();
+        let payload = builder.abi_encode(layout, Some(selector), args);
+        let ptr = builder.slice_ptr(payload);
+        let len = builder.slice_len(payload);
+        builder.revert(ptr, len);
     }
 
     pub(super) fn abi_is_word_element(&self, ty: Ty<'gcx>) -> bool {
