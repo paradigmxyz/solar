@@ -1,264 +1,114 @@
 # Codegen lowering audit
 
-This audit records the lowering rewrite and the remaining boundaries. It
-describes observable structure in the current tree, not an intended design.
+This document is the design record for the lowering rewrite. It describes the
+tree after the legacy implementation was removed and the replacement work that
+has been verified so far.
 
-## Completed slices
+## What the old lowering got wrong
 
-* Scalar external arguments stay typed in built MIR. The `lower-abi` pass adds
-  the calldata-size and canonical-word checks, carries enum variant counts in
-  the ABI shape, then clears the temporary `abi_args=lazy` marker while it
-  forms the wrapper. Raw words are loaded for validation so MIR simplification
-  cannot assume the check already passed.
-* Supported aggregate external arguments stay typed until `lower-abi`. Fixed
-  arrays (including nested static arrays), dynamic arrays (including nested
-  arrays and narrow scalar elements), byte strings, and scalar/byte/enum tuples
-  carry an ABI shape in MIR; the ABI phase remaps physical head words,
-  validates scalar fields and calldata ranges, and builds either memory objects
-  or calldata slices.
-  Scalar dynamic arrays in calldata stay typed slices. Dynamic structs carry
-  one trailing source-base word when their fields need calldata slices.
-* ABI parameter shapes print and parse with MIR text, so the boundary metadata
-  survives phase dumps and round trips.
-* ABI shape construction tracks recursive structs and fails closed with a
-  codegen diagnostic instead of recursing through HIR lowering.
-* Source `abi.encode(...)` emits the typed `abi_encode` MIR operation. The ABI
-  pass owns its allocation and tuple layout; HIR only adapts the resulting
-  memory slice to a bytes object.
-* `keccak256(abi.encode(...))` consumes that typed ABI slice directly instead
-  of staging tuple words at an unbumped free-memory pointer.
-* Packed ABI encodes allocate a semantic bytes object before writing their
-  tight-packed payload, and packed hashes consume that object through
-  `keccak256_bytes`.
-* ECDSA and literal precompile inputs allocate semantic bytes objects before
-  writing their fixed-size payloads through typed element stores; the HIR paths
-  no longer read the free memory pointer for those scratch buffers.
-* Multi-return values cross control-flow edges through semantic fixed-array
-  storage and typed element stores, with only the data base published in the
-  existing return-buffer slot.
-* Contract-creation bytecode and constructor words use a semantic bytes object
-  as their `CREATE`/`CREATE2` input instead of manually advancing the free
-  memory pointer.
-* Linked-library delegatecall payloads size a semantic bytes object from their
-  dynamic tails before writing selector, heads, and tails; struct return space
-  shares that allocation.
-* Event payloads with representable ABI types use the same typed ABI operation;
-  recursive or otherwise unsupported event types stop at the ABI boundary with
-  a codegen diagnostic instead of using a HIR scratch buffer.
-* Custom-error reverts use the typed ABI encoder with the error selector, so
-  empty and aggregate payloads share the same layout and memory boundary as
-  source-level ABI encodes.
-* Standard `Error(string)` reverts use the typed ABI encoder for longer and
-  dynamic messages. The shared short-message helper keeps its fixed-width
-  outlined payload, so repeated literal errors remain compact.
-* Packed storage locations carry their semantic encoding. Signed values are
-  sign-extended on load, fixed bytes are aligned at the MIR boundary, and both
-  forms share the same read-modify-write path for state variables, fields, and
-  fixed arrays.
-* Nested calldata arrays use semantic memory-object length and data operations;
-  the memory-layout pass selects their physical header offsets.
-* Calldata fixed arrays and aggregate field copies allocate typed memory
-  objects and write through their element or field operations. Byte-object
-  literal materialization and zero-padding use word-chunk object stores.
-* ABI decoding stores dynamic-array element pointers and validates copied words
-  through typed object accesses. Fixed-array literals use the same element
-  store path, leaving only bulk payload copies as raw memory operations.
-  Top-level `abi.decode` and `try` return heads load through the source bytes
-  object; tail validation still uses the logical data slice.
-* Typed calldata, memory, and returndata slices copy into bytes objects through
-  `memory_object_copy_from_slice`. The memory-object pass selects the physical
-  copy opcode, and the canonical pipeline lowers objects before slices so the
-  generated pointer and length projections are consumed by the slice pass.
-* Constructors with ABI-supported scalar words, arrays, bytes, and structs
-  defer their input boundary to `lower-abi`. That pass expands physical
-  constructor word parameters, rebuilds aggregate memory objects, validates
-  narrow scalar leaves, and checks the copied blob end. Both fixed and dynamic
-  aggregate paths reject a short head before reading their inputs. Aggregate
-  payloads use logical slices and typed object copies until memory lowering.
-  Storage references and unsupported recursive shapes remain on their existing
-  HIR path.
-* Checked ABI head sizing is shared by the MIR input and output layout
-  descriptors, so HIR lowering no longer carries a second recursive size
-  implementation.
-* Literal low-level call payloads use a bytes memory object for their
-  length-prefixed staging, then copy dynamic tails through typed slices and
-  expose only its data slice to the call.
-* Literal mapping keys and embedded creation bytecode use typed bytes-object
-  stores for their word chunks before hashing or returning the object.
-* Dynamic `erc7201` namespaces use a typed one-word bytes object for the
-  outer slot preimage; raw scratch stores no longer enter that builtin path.
-* Dynamic mapping keys stay as `mapping_slot_memory` or
-  `mapping_slot_calldata` until the mapping-slot pass. That pass now builds
-  typed bytes hash preimages and uses semantic copies and stores; raw scratch
-  is confined to the memory boundary.
-* Dynamic storage-array data slots stay as `storage_array_data_slot` until the
-  same pass. Indexing, push/pop, bytes access, and aggregate copies share that
-  typed operation and the shared element-stride helper instead of staging the
-  slot in HIR scratch memory.
-* Dynamic storage-array element slots now stay as
-  `storage_array_element_slot` with their type-directed stride. The mapping
-  pass alone expands the hash and offset arithmetic, including long bytes
-  element access.
-* Storage bytes ABI copies keep their loop index separate from the physical
-  slot. Each load, store, and stale-slot clear requests a typed
-  `storage_array_element_slot`, so long-form byte encoding and decoding defer
-  storage hashing to the mapping-slot pass. Storage-to-memory materialization
-  writes the loaded words through semantic bytes-object element stores, and
-  memory-to-storage copies read source words through the same typed object.
-* Mutable locals and storage-reference values use typed `frame_load` and
-  `frame_store` operations. `lower-frame-slots` selects the external scratch
-  region or the internal-call frame and lowers those operations to physical
-  memory after ABI and dispatch lowering. Slice slots stay typed as
-  pointer/length values until that pass.
-* Memory-object field and element reads and writes stay typed through HIR
-  aggregate lowering. `lower-memory-objects` alone selects their physical
-  offsets and emits the final word loads and stores.
-* Memory and materialized storage `bytes` indexing loads a semantic word
-  element, then aligns the selected byte in MIR instead of forming an
-  unaligned data pointer.
-* Memory-byte writes use `memory_object_store_byte`; only the memory-object
-  pass emits the final `mstore8`.
-* Fixed-bytes conversions load memory slices through `memory_slice_load_word`;
-  calldata slices retain the direct `calldataload` operation for their source
-  location.
-* Constructor ABI heads and dynamic lengths read through bounded memory slices;
-  only the memory-object pass turns those reads into physical `mload`.
-* Deleting small fixed memory arrays uses typed element stores; only the bulk
-  zero path keeps the dedicated zeroing operation.
-* Try/catch selector and panic decoding materialize bounded returndata slices
-  into typed bytes objects; only unchanged rethrow forwarding copies directly
-  to the revert boundary.
-* SHA-256 and RIPEMD-160 precompile results write into a typed bytes object and
-  load the result through its semantic element operation.
-* Scalar hash preimages use a typed one-word bytes object instead of fixed
-  low-memory scratch.
-* High-level external-call value returns use a typed fixed-array output object;
-  only the call boundary receives its lowered data pointer.
-* External function-pointer value returns use the same typed fixed-array output
-  object; the call boundary no longer reads the first word from scratch memory.
-* Linked-library delegatecall value returns use typed fixed-array or struct
-  output objects; the ABI payload object is no longer reused as return scratch.
-* Object-backed constructor and linked-library payload assembly uses
-  `memory_object_store_word`; only memory lowering forms payload addresses.
-* ABI tail lengths and nested dynamic-array heads read through
-  `memory_slice_load_word`; validated ABI regions no longer expose an
-  untyped load address to HIR lowering.
-* Dynamic ABI encoder loop state lives in a typed one-word array object;
-  sizing and emission no longer reserve raw scratch buffers for counters.
-  Nested dynamic-array loops also carry a logical source index and load each
-  element through the typed array object instead of advancing a raw pointer.
-* Packed ABI static words and dynamic payload copies target the bytes object
-  through semantic stores and slice copies; only memory lowering selects the
-  physical destination for the copy.
-* Scalar and calldata-slice ternary merges use typed frame slots instead of
-  fixed low-memory scratch words.
-* Constructor ABI validation and aggregate decoding read words through typed
-  memory slices; calldata wrappers retain direct calldata loads.
-* Constructor dynamic-array decoding carries a logical destination index and
-  stores through the typed array object rather than a raw destination pointer.
-* Mapping-slot preimages for word keys, memory keys, calldata keys, and storage
-  array roots use typed bytes objects through `keccak256_bytes`; their hash
-  inputs no longer expose raw allocation, copy, or store operations to HIR.
-  The mapping-slot pass runs after dispatch and frame lowering, immediately
-  before the memory-object boundary.
-* Storage-to-memory and memory-to-storage aggregate copies use the same typed
-  field and element operations. Packed and nested copies no longer expose a
-  destination address to HIR lowering.
-* The ABI encoder reads tuple fields and fixed-array elements through typed
-  memory-object loads. Address formation and the final `mload` happen only in
-  `lower-memory-objects`.
-* ABI encoder output buffers are typed bytes objects. Selectors, lengths, ABI
-  offsets, static words, and source-slice copies stay semantic until
-  `lower-memory-objects` selects the physical copy opcode.
-* Dynamic ABI encodes measure their tails before reserving the output through
-  `alloc`. The encoder no longer writes into an unbumped free-memory pointer;
-  the measurement and write phases share the same typed ABI shape.
-* Panic, short-error, storage-bytes, and empty-revert helpers use one lazy
-  registry keyed by semantic operation. Repeated uses share one helper, while
-  synthesis guards keep recursive helper construction finite.
-* Modifier placeholders expand the modifier chain in source order. Return
-  values pass through the suffix, and constructor base calls stay in the
-  constructor prelude.
-* Function, inline-call, and modifier lowering use scoped state overlays.
-  Bindings, loop targets, error flags, storage-reference markers, and return
-  continuations are restored at each boundary; inline frame allocation keeps
-  only its high-water mark in the enclosing function.
-* Recursive calldata-array materialization and storage-bytes copy loops keep
-  their counters in typed temporary frame slots. Nested elements are written
-  through semantic memory-object stores instead of pointer scratch buffers.
-* The lowering module exposes only `lower_contract` and
-  `lower_contract_with_bytecodes` publicly. Context, loop, and storage
-  implementation types are private to lowering and its child modules.
-  Helpers with no sibling callers are private as well; only methods verified
-  across lowering files retain `pub(super)` visibility.
+The deleted implementation put HIR traversal, function construction, ABI
+encoding and decoding, storage layout, memory allocation, helper synthesis,
+inline calls, modifiers, and backend-specific operations in one mutable
+`Lowerer`. The result had several concrete problems:
 
-## Current shape
+* ABI work happened while walking HIR, so the same calldata and return rules
+  were repeated for external functions, constructors, calls, errors, and
+  events.
+* Raw `mload`, `mstore`, calldata, returndata, `sload`, and `sstore` operations
+  were emitted from many pattern-specific branches. The layer could not state
+  which representation was valid at each MIR phase.
+* Memory allocation depended on ad hoc free-memory-pointer reads and manual
+  pointer arithmetic. This mixed allocation policy with expression lowering.
+* Storage offsets, packed reads, and packed writes were calculated in several
+  unrelated paths. Nested structs, arrays, bytes, and references did not share
+  one location query.
+* Helpers were inserted by whichever branch happened to need one. There was
+  no semantic key for deduplication or a clear rule for when a trivial cleanup
+  should remain inline.
+* Modifiers, constructors, inherited functions, and synthetic entry points
+  were handled as special cases in the same context rather than as explicit
+  lowering stages.
+* The context exposed a broad sibling-facing method surface. Removing one
+  helper required searching unrelated lowering files, which made stale paths
+  easy to keep alive.
 
-`crates/codegen/src/lower/mod.rs` owns HIR traversal, function construction,
-ABI layout calculation, calldata and constructor decoding, logical frame-slot
-allocation, inline-call management, helper requests, and return encoding.
-The sibling modules are extensions of that one mutable context rather than
-independent lowering stages. A code search shows direct `mload`, `mstore`,
-`sload`, `sstore`, calldata, and returndata operations spread through
-`expr.rs`, `stmt.rs`, `call.rs`, `bytes.rs`, `index.rs`, `storage.rs`, and
-`abi_encode.rs`.
+The rewrite does not restore those modules or copy their control flow. The
+legacy files were removed in commit `d43240e92` after checking their only
+production callers.
 
-## Concrete shortcomings
+## Verified public boundary
 
-* **The ABI boundary is still split for unsupported constructor aggregates.**
-  External functions with supported fixed arrays, dynamic arrays, byte strings,
-  and scalar/byte/enum structs defer to `lower-abi`, including its range and
-  overflow checks. Constructors with the same supported scalar, array, bytes,
-  and struct shapes now use the same phase. Storage references and unsupported
-  recursive aggregates still decode their argument blob in HIR lowering.
-* **Physical memory still leaks through a few aggregate helpers.** Mutable
-  locals, direct object accesses, object-to-object and typed slice-to-object
-  copies, storage aggregate copies, and ABI payload copies into objects now
-  stay semantic until the memory boundary. ABI tail assembly, Yul copies,
-  returndata staging, and some loop scratch state still emit raw memory
-  operations before the semantic memory passes. Mapping slot hashing is no
-  longer one of those early scratch users: it stays semantic through
-  optimization and allocates its hash input at the memory boundary. The
-  remaining work is to keep the other policies in typed MIR until that
-  boundary.
-* **Helper coverage is incomplete.** Panic, short-error, storage-bytes, and
-  empty-revert helpers now share a keyed lazy registry. Checked exponentiation,
-  ABI copies, and repeated cleanup still have inline or pass-specific builders,
-  so the registry does not yet cover every reusable operation.
-* **Pattern-specific lowering is duplicated.** Struct, fixed-array, dynamic
-  array, bytes, and calldata-slice handling each have separate branches in
-  parameter setup, expression indexing, assignment, return gathering, and
-  storage copying. Several branches repeat pointer/length arithmetic and
-  bounds checks instead of sharing a type-directed aggregate abstraction.
-* **Storage semantics are still split between incompatible paths.** Static
-  state variables, direct struct fields, fixed arrays, storage-reference
-  struct materialization, and dynamic aggregate copies now share
-  `StorageLocation` and its encoding for packed reads, deep copies, and
-  read-modify-write stores. Some nested aggregate paths still mix that layout
-  with independent slot arithmetic. The replacement should make one
-  type-directed location query the only source of storage addresses.
-* **Legacy compatibility surface is broad.** The top-level module exposes many
-  `pub(crate)` and `pub(super)` methods because sibling files reach through the
-  context. Their callers are not grouped by phase, so removing one helper
-  requires searching the whole directory and often changes unrelated lowering
-  logic. Defining-file-only helpers are now private, but the remaining
-  cross-file surface still needs a phase-by-phase replacement. The rewrite
-  must retain only methods with verified callers and keep new interfaces at
-  the smallest useful visibility.
+`crates/codegen/src/lower/mod.rs` exposes only:
 
-The verified entry-point surface is small. `lower_contract_with_bytecodes` has
-production callers in `crates/codegen/src/contract.rs` and `benches/src/lib.rs`.
-`lower_contract` is used by codegen MIR tests. No caller needs `Lowerer`,
-`LoopContext`, or storage implementation types outside the lowering module.
+* `lower_contract(Gcx, ContractId) -> Module`;
+* `lower_contract_with_bytecodes(Gcx, ContractId, &FxHashMap<ContractId, Bytes>) -> Module`.
 
-## Replacement constraints
+The first is used by MIR tests. The second is used by contract compilation and
+the benchmark harness. Child bytecodes are deployment bytecode and remain part
+of that boundary; creation lowering will consume them after the creation
+operation is implemented.
 
-The replacement will translate HIR expressions and statements into typed MIR
-values, frame slots, and semantic memory/storage objects. ABI decoding,
-wrappers, and external termination will be created by the ABI phase. Frame
-slots, allocation, and object access will remain semantic until the
-memory/backend boundary. Storage layout will be represented by one type-directed
-location abstraction that handles slots, byte offsets, packed reads, and
-packed writes. Outlined helpers will be named operations keyed by their
-semantic signature, generated lazily, and allowed to be inlined by later
-passes.
+## Replacement shape
+
+The replacement is split into stateful, private components:
+
+* `FunctionLowerer` owns one function's HIR context, typed value environment,
+  loop targets, return bindings, and `FunctionBuilder`.
+* `TypeLowerer` owns recursive aggregate-shape state and produces MIR types and
+  ABI descriptors. Recursive structs fail closed instead of recursing forever.
+* `StorageBuilder` computes one base-to-derived layout. `StorageLayout` owns
+  packed-field reads and read-modify-write stores, including signed and
+  fixed-bytes normalization.
+* `contract` only discovers functions, assigns function attributes and
+  selectors, and assembles the module.
+
+HIR lowering emits typed scalar MIR and semantic storage operations. External
+  functions retain typed parameters, ABI parameter shapes, and ABI return
+  layouts in built MIR. The existing `lower-abi` pass remains responsible for
+  calldata wrappers, decoding, and external termination. No new lowering code
+  reads or updates the free-memory pointer.
+
+## Verified replacement slice
+
+The current slice compiles the workspace and has been exercised against the
+existing scalar and packed-storage MIR fixtures. It supports:
+
+* scalar literals, local bindings, returns, arithmetic, comparisons, shifts,
+  logical and bitwise operations, assignments, compound assignments, and
+  pre/post increment of scalar l-values;
+* typed external ABI metadata for scalar, enum, byte, array, and tuple shapes;
+* state-variable reads and writes through the shared storage-location object;
+* packed unsigned, signed, address, enum, and fixed-bytes storage fields;
+* basic conditional and loop CFG construction with scoped environments;
+* constructor and fallback/function attributes needed by the backend.
+
+The generated MIR for `tests/ui/codegen/lowering/compound_assign.sol` contains
+the expected `sload`, arithmetic, and `sstore` sequence, and does not contain a
+free-memory-pointer allocation. `cargo check --workspace` and `cargo fmt --all`
+pass for this slice.
+
+## Remaining work
+
+The slice is not full codegen. The following are explicit next stages, each to
+be backed by solc comparisons and existing UI or runtime infrastructure:
+
+1. Lower memory objects, slices, arrays, bytes, structs, and aggregate copies
+   through semantic MIR operations. Physical memory selection belongs to the
+   existing memory-lowering boundary.
+2. Add storage aggregate locations for nested structs, arrays, mappings, dynamic
+   arrays, and storage bytes, including dynamic slot addressing.
+3. Expand modifiers as source-order chains with explicit return continuations;
+   lower base-constructor calls and state initializers in constructor order.
+4. Add internal and external calls, multi-return values, builtins, events,
+   reverts, Yul, contract creation, immutables, and function-pointer dispatch.
+5. Add a lazy helper registry keyed by semantic operation. Trivial `u256`
+   cleanup stays inline; nontrivial checked conversions and shared error paths
+   are named, deduplicated helpers without forced `NO_INLINE`.
+6. Add and run differential/UI/runtime tests for every new semantic slice, then
+   run the complete existing test and solc suites before declaring the rewrite
+   complete.
+
+Unsupported HIR currently emits a diagnostic and omits that function from the
+returned module. This is a deliberate fail-closed boundary while the stages
+above are implemented; it must not be replaced with zero values or silent
+miscompilation.

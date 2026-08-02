@@ -1,0 +1,295 @@
+//! Type-directed storage locations used by HIR lowering.
+
+use crate::mir::{FunctionBuilder, TypeSize, ValueId};
+use alloy_primitives::U256;
+use solar_data_structures::map::FxHashMap;
+use solar_interface::Span;
+use solar_sema::{
+    Gcx,
+    hir::{ContractId, ElementaryType, VariableId},
+    ty::{Ty, TyKind},
+};
+
+/// The representation of a packed value in an EVM storage word.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum StorageEncoding {
+    Unsigned,
+    Signed,
+    FixedBytes,
+}
+
+/// A logical storage location relative to the contract's storage root.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct StorageLocation {
+    pub(super) slot: U256,
+    pub(super) offset: u8,
+    pub(super) size: TypeSize,
+    pub(super) encoding: StorageEncoding,
+}
+
+impl StorageLocation {
+    const WORD: TypeSize = TypeSize::new_int_bits(256);
+
+    const fn word(slot: U256) -> Self {
+        Self { slot, offset: 0, size: Self::WORD, encoding: StorageEncoding::Unsigned }
+    }
+
+    const fn packed(self) -> bool {
+        self.offset != 0 || self.size.bits() != Self::WORD.bits()
+    }
+
+    const fn word_bytes() -> u8 {
+        Self::WORD.bytes()
+    }
+
+    fn mask(self) -> U256 {
+        if self.size >= Self::WORD {
+            U256::MAX
+        } else {
+            (U256::from(1) << self.size.bits()) - U256::from(1)
+        }
+    }
+}
+
+/// Storage locations for all state variables visible to the selected contract.
+#[derive(Debug, Default)]
+pub(super) struct StorageLayout {
+    locations: FxHashMap<VariableId, StorageLocation>,
+}
+
+impl StorageLayout {
+    /// Computes Solidity's base-to-derived storage order once for a module.
+    pub(super) fn for_contract(gcx: Gcx<'_>, contract_id: ContractId) -> Self {
+        StorageBuilder::new(gcx).lower(contract_id)
+    }
+
+    pub(super) fn get(&self, id: VariableId) -> Option<StorageLocation> {
+        self.locations.get(&id).copied()
+    }
+
+    pub(super) fn load(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+    ) -> ValueId {
+        let slot = builder.imm_u256(location.slot);
+        self.load_at(builder, location, slot)
+    }
+
+    pub(super) fn store(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        value: ValueId,
+    ) {
+        let slot = builder.imm_u256(location.slot);
+        self.store_at(builder, location, slot, value);
+    }
+
+    fn load_at(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        slot: ValueId,
+    ) -> ValueId {
+        let word = builder.sload(slot);
+        if !location.packed() {
+            return word;
+        }
+        let shifted = if location.offset == 0 {
+            word
+        } else {
+            let shift = builder.imm_u64(u64::from(location.offset) * 8);
+            builder.shr(shift, word)
+        };
+        let field_mask = builder.imm_u256(location.mask());
+        let masked = builder.and(shifted, field_mask);
+        match location.encoding {
+            StorageEncoding::Unsigned => masked,
+            StorageEncoding::Signed => {
+                let index = builder.imm_u64(u64::from(location.size.bytes() - 1));
+                builder.signextend(index, masked)
+            }
+            StorageEncoding::FixedBytes => {
+                let shift = u64::from(StorageLocation::word_bytes() - location.size.bytes()) * 8;
+                let shift = builder.imm_u64(shift);
+                builder.shl(shift, masked)
+            }
+        }
+    }
+
+    fn store_at(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        slot: ValueId,
+        value: ValueId,
+    ) {
+        if !location.packed() {
+            builder.sstore(slot, value);
+            return;
+        }
+
+        let field_mask = location.mask();
+        let shifted_mask = field_mask << (usize::from(location.offset) * 8);
+        let old = builder.sload(slot);
+        let keep_mask = builder.imm_u256(!shifted_mask);
+        let cleared = builder.and(old, keep_mask);
+        let value = match location.encoding {
+            StorageEncoding::FixedBytes => {
+                let shift = u64::from(StorageLocation::word_bytes() - location.size.bytes()) * 8;
+                let shift = builder.imm_u64(shift);
+                builder.shr(shift, value)
+            }
+            StorageEncoding::Unsigned | StorageEncoding::Signed => value,
+        };
+        let field_mask_value = builder.imm_u256(field_mask);
+        let value = builder.and(value, field_mask_value);
+        let value = if location.offset == 0 {
+            value
+        } else {
+            let shift = builder.imm_u64(u64::from(location.offset) * 8);
+            builder.shl(shift, value)
+        };
+        let updated = builder.or(cleared, value);
+        builder.sstore(slot, updated);
+    }
+}
+
+/// Stateful storage-layout computation for one contract.
+struct StorageBuilder<'gcx> {
+    gcx: Gcx<'gcx>,
+    locations: FxHashMap<VariableId, StorageLocation>,
+    next_slot: U256,
+    next_offset: u8,
+}
+
+impl<'gcx> StorageBuilder<'gcx> {
+    fn new(gcx: Gcx<'gcx>) -> Self {
+        Self { gcx, locations: FxHashMap::default(), next_slot: U256::ZERO, next_offset: 0 }
+    }
+
+    fn lower(mut self, contract_id: ContractId) -> StorageLayout {
+        let contract = self.gcx.hir.contract(contract_id);
+        for &base in contract.linearized_bases.iter().rev() {
+            for id in self.gcx.hir.contract(base).variables() {
+                let var = self.gcx.hir.variable(id);
+                if !var.is_state_variable() || var.is_constant() || var.is_immutable() {
+                    continue;
+                }
+                let ty = self.gcx.type_of_item(id.into());
+                let location = self.allocate(ty, var.span);
+                self.locations.insert(id, location);
+            }
+        }
+        StorageLayout { locations: self.locations }
+    }
+
+    fn allocate(&mut self, ty: Ty<'gcx>, span: Span) -> StorageLocation {
+        if let Some((size, encoding)) = self.packed_encoding(ty)
+            && size < StorageLocation::WORD
+        {
+            let bytes = size.bytes();
+            if self.next_offset.saturating_add(bytes) > StorageLocation::word_bytes() {
+                self.next_slot = self.next_slot.saturating_add(U256::from(1));
+                self.next_offset = 0;
+            }
+            let location =
+                StorageLocation { slot: self.next_slot, offset: self.next_offset, size, encoding };
+            self.next_offset = self.next_offset.saturating_add(bytes);
+            if self.next_offset == StorageLocation::word_bytes() {
+                self.next_slot = self.next_slot.saturating_add(U256::from(1));
+                self.next_offset = 0;
+            }
+            return location;
+        }
+
+        if self.next_offset != 0 {
+            self.next_slot = self.next_slot.saturating_add(U256::from(1));
+            self.next_offset = 0;
+        }
+        let location = StorageLocation::word(self.next_slot);
+        self.next_slot = self.next_slot.saturating_add(U256::from(self.storage_slots(ty, span)));
+        location
+    }
+
+    fn packed_encoding(&self, ty: Ty<'gcx>) -> Option<(TypeSize, StorageEncoding)> {
+        Some(match ty.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::Bool) => {
+                (TypeSize::new_int_bits(8), StorageEncoding::Unsigned)
+            }
+            TyKind::Elementary(ElementaryType::Address(_)) | TyKind::Contract(_) => {
+                (TypeSize::new_int_bits(160), StorageEncoding::Unsigned)
+            }
+            TyKind::Elementary(ElementaryType::FixedBytes(size)) => {
+                (size, StorageEncoding::FixedBytes)
+            }
+            TyKind::Elementary(ElementaryType::Int(size)) => (size, StorageEncoding::Signed),
+            TyKind::Elementary(ElementaryType::UInt(size)) => (size, StorageEncoding::Unsigned),
+            TyKind::Enum(id) => {
+                let variants = self.gcx.hir.enumm(id).variants.len().max(1);
+                let bits = (usize::BITS - (variants - 1).leading_zeros()).max(1);
+                (TypeSize::new_int_bits(bits.div_ceil(8) as u16 * 8), StorageEncoding::Unsigned)
+            }
+            TyKind::Udvt(inner, _) => return self.packed_encoding(inner),
+            _ => return None,
+        })
+    }
+
+    fn storage_slots(&self, ty: Ty<'gcx>, span: Span) -> u64 {
+        match ty.peel_refs().kind {
+            TyKind::Struct(id) => {
+                let fields = self.gcx.hir.strukt(id).fields;
+                self.sequence_slots(
+                    fields.iter().map(|&field| self.gcx.type_of_item(field.into())),
+                    span,
+                )
+            }
+            TyKind::Array(element, len) => {
+                let Ok(len) = u64::try_from(len) else {
+                    return self.unsupported_size(span, "fixed-size storage array");
+                };
+                if let Some((size, _)) = self.packed_encoding(element)
+                    && size < StorageLocation::WORD
+                {
+                    return u64::from(size.bytes()).saturating_mul(len).div_ceil(32).max(1);
+                }
+                len.saturating_mul(self.storage_slots(element, span)).max(1)
+            }
+            _ => 1,
+        }
+    }
+
+    fn sequence_slots(&self, tys: impl Iterator<Item = Ty<'gcx>>, span: Span) -> u64 {
+        let mut slots = 0u64;
+        let mut offset = 0u64;
+        for ty in tys {
+            if let Some((size, _)) = self.packed_encoding(ty)
+                && size < StorageLocation::WORD
+            {
+                let bytes = u64::from(size.bytes());
+                if offset + bytes > 32 {
+                    slots = slots.saturating_add(1);
+                    offset = 0;
+                }
+                offset += bytes;
+                if offset == 32 {
+                    slots = slots.saturating_add(1);
+                    offset = 0;
+                }
+            } else {
+                if offset != 0 {
+                    slots = slots.saturating_add(1);
+                    offset = 0;
+                }
+                slots = slots.saturating_add(self.storage_slots(ty, span));
+            }
+        }
+        (slots + u64::from(offset != 0)).max(1)
+    }
+
+    fn unsupported_size(&self, span: Span, kind: &str) -> u64 {
+        self.gcx.dcx().err(format!("{kind} is too large for codegen")).span(span).emit();
+        1
+    }
+}
