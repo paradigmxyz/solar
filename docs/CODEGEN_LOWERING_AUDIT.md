@@ -129,6 +129,8 @@ describes observable structure in the current tree, not an intended design.
   to the revert boundary.
 * SHA-256 and RIPEMD-160 precompile results write into a typed bytes object and
   load the result through its semantic element operation.
+* Scalar hash preimages use a typed one-word bytes object instead of fixed
+  low-memory scratch.
 * High-level external-call value returns use a typed fixed-array output object;
   only the call boundary receives its lowered data pointer.
 * External function-pointer value returns use the same typed fixed-array output

@@ -1151,10 +1151,22 @@ impl<'gcx> Lowerer<'gcx> {
                     return Ok(hash);
                 }
                 let arg_val = self.lower_value_expr(builder, first);
-                let ptr = builder.imm_u64(0);
-                builder.mstore(ptr, arg_val);
-                let size = builder.imm_u64(32);
-                Ok(builder.keccak256(ptr, size))
+                let word = builder.imm_u64(32);
+                let object_size = builder.imm_u64(64);
+                let object = builder.alloc_object(
+                    object_size,
+                    MemoryObjectLayout::Bytes,
+                    crate::mir::AllocationSemantics::INTERNAL,
+                );
+                builder.set_memory_object_len(object, word, MemoryObjectKind::Bytes);
+                let index = builder.imm_u64(0);
+                builder.memory_object_store_element(
+                    object,
+                    MemoryObjectLayout::Bytes,
+                    index,
+                    arg_val,
+                );
+                Ok(builder.keccak256_bytes(object))
             }
             Builtin::Erc7201 => {
                 let [arg] = self.builtin_args(builtin, args)?;
