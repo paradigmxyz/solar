@@ -3612,31 +3612,36 @@ impl<'gcx> Lowerer<'gcx> {
         false
     }
 
-    /// Hashes a literal mapping key per spec: stage the literal's bytes at the
-    /// unbumped free-memory scratch, append the 32-byte slot, and hash exactly
-    /// `len + 32` bytes. The trailing slot store overwrites any zero padding
-    /// written by the last partial data word.
+    /// Hashes a literal mapping key per spec through a semantic bytes object.
     fn compute_literal_mapping_slot(
         &self,
         builder: &mut FunctionBuilder<'_>,
         bytes: &[u8],
         slot: ValueId,
     ) -> ValueId {
-        let scratch = builder.fmp();
+        let len = builder.imm_u64(bytes.len() as u64);
+        let thirty_one = builder.imm_u64(31);
+        let rounded = builder.add(len, thirty_one);
+        let mask = builder.not(thirty_one);
+        let data_size = builder.and(rounded, mask);
+        let thirty_two = builder.imm_u64(32);
+        let total_size = builder.add(thirty_two, data_size);
+        let object = builder.alloc_object(
+            total_size,
+            crate::mir::MemoryObjectLayout::Bytes,
+            crate::mir::AllocationSemantics::INTERNAL,
+        );
+        let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
         for (i, chunk) in bytes.chunks(32).enumerate() {
             let mut padded = [0u8; 32];
             padded[..chunk.len()].copy_from_slice(chunk);
             let val = builder.imm_u256(U256::from_be_bytes(padded));
             let off = builder.imm_u64((i * 32) as u64);
-            let dest = builder.add(scratch, off);
+            let dest = builder.add(data, off);
             builder.mstore(dest, val);
         }
-        let len = builder.imm_u64(bytes.len() as u64);
-        let slot_addr = builder.add(scratch, len);
-        builder.mstore(slot_addr, slot);
-        let word_size = builder.imm_u64(32);
-        let hash_len = builder.add(len, word_size);
-        builder.keccak256(scratch, hash_len)
+        builder.set_memory_object_len(object, len, MemoryObjectKind::Bytes);
+        builder.mapping_slot_memory(object, slot)
     }
 
     fn compute_dynamic_memory_mapping_slot(

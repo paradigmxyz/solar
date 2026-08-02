@@ -49,15 +49,15 @@ contract MappingDynamicKeyPaths {
     // as the equivalent runtime key.
     // CHECK-LABEL: fn @setLit{{[( ]}}
     // CHECK: mstore {{v[0-9]+}}, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    // CHECK: [[SLOT:v[0-9]+]] = keccak256
+    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_memory
     // CHECK: sstore [[SLOT]], arg0
     function setLit(uint256 v) public {
         flat["hello"] = v;
     }
 
     // CHECK-LABEL: fn @setLitLong{{[( ]}}
-    // CHECK: [[SLOT:v[0-9]+]] = keccak256
-    // CHECK: sstore [[SLOT]], arg0
+    // CHECK: [[SLOT_LONG:v[0-9]+]] = mapping_slot_memory
+    // CHECK: sstore [[SLOT_LONG]], arg0
     function setLitLong(uint256 v) public {
         flat["a literal key longer than thirty-two bytes, hashed in full"] = v;
     }
@@ -103,9 +103,8 @@ contract MappingDynamicKeyPaths {
         flat[skey] = v;
     }
 
-    // Calldata keys are staged at the unbumped free-memory scratch; keys
-    // longer than 32 bytes must not clobber the free memory pointer or the
-    // allocation that follows.
+    // Calldata keys remain semantic until the mapping-slot lowering pass;
+    // subsequent allocations must not overlap their payload.
     // CHECK-LABEL: fn @setThenAlloc{{[( ]}}
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_calldata arg0, 0
     // CHECK: sstore [[SLOT]], arg1
