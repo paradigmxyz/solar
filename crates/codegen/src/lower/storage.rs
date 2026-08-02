@@ -314,7 +314,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Returns the size of scalar types that this lowering can safely pack.
-    pub(super) fn packed_storage_size(&self, ty: Ty<'gcx>) -> Option<TypeSize> {
+    fn packed_storage_size(&self, ty: Ty<'gcx>) -> Option<TypeSize> {
         self.packed_storage_encoding(ty).map(|(size, _)| size)
     }
 

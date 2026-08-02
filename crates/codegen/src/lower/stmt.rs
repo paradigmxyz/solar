@@ -97,7 +97,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Lowers a statement to MIR.
-    pub(super) fn lower_stmt(&mut self, builder: &mut FunctionBuilder<'_>, stmt: &hir::Stmt<'_>) {
+    fn lower_stmt(&mut self, builder: &mut FunctionBuilder<'_>, stmt: &hir::Stmt<'_>) {
         match &stmt.kind {
             StmtKind::DeclSingle(var_id) => {
                 self.lower_single_var_decl(builder, *var_id);
@@ -388,7 +388,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// Lowers a multi-variable declaration.
     /// Multi-return expressions leave their first value in MIR and stage the
     /// remaining values in the ephemeral multi-return buffer.
-    pub(super) fn lower_multi_var_decl(
+    fn lower_multi_var_decl(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         var_ids: &[Option<hir::VariableId>],
@@ -544,7 +544,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers every component of a tuple value without materializing an
     /// aggregate or staging values through the multi-return buffer.
-    pub(super) fn lower_tuple_values(
+    fn lower_tuple_values(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         elements: &[Option<&hir::Expr<'_>>],
@@ -632,7 +632,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mload(addr)
     }
 
-    pub(super) fn is_low_level_call_expr(&self, expr: &hir::Expr<'_>) -> bool {
+    fn is_low_level_call_expr(&self, expr: &hir::Expr<'_>) -> bool {
         let ExprKind::Call(callee, ..) = &expr.kind else { return false };
         let ExprKind::Member(base, member) = &callee.kind else { return false };
         matches!(member.name, kw::Call | kw::Staticcall | kw::Delegatecall)
@@ -991,7 +991,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Gets the tuple arity if this is a ternary expression with tuple branches.
-    pub(super) fn get_ternary_tuple_arity(&self, expr: &hir::Expr<'_>) -> Option<usize> {
+    fn get_ternary_tuple_arity(&self, expr: &hir::Expr<'_>) -> Option<usize> {
         if let hir::ExprKind::Ternary(_, then_expr, else_expr) = &expr.kind {
             // Check if either branch is a tuple
             if let hir::ExprKind::Tuple(elements) = &then_expr.kind

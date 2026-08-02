@@ -2219,7 +2219,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Whether an expression is `msg.data`.
-    pub(super) fn expr_is_msg_data(&self, expr: &hir::Expr<'_>) -> bool {
+    fn expr_is_msg_data(&self, expr: &hir::Expr<'_>) -> bool {
         matches!(self.gcx.resolved_builtin(expr), Some(Builtin::MsgData))
     }
 
@@ -2378,7 +2378,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Allocates a zero-initialized shaped memory object with a constant byte size.
-    pub(super) fn allocate_zeroed_memory_object(
+    fn allocate_zeroed_memory_object(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         size: u64,
@@ -2606,7 +2606,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// bulk with a per-element cleanliness check where the type requires one;
     /// `bytes`/`string` elements decode each element like a dynamic-bytes
     /// tuple member against the array's own data region.
-    pub(super) fn lower_abi_decode_dyn_array(
+    fn lower_abi_decode_dyn_array(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         tuple_base: ValueId,
@@ -2804,7 +2804,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(continue_block);
     }
 
-    pub(super) fn lower_abi_decode_word(
+    fn lower_abi_decode_word(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         elem: &ElementaryType,
@@ -2949,7 +2949,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// Resolves the struct type of an expression, for storage struct field
     /// access. Uses the variable's declared type when available and the inferred
     /// expression type otherwise (e.g. a mapping/array element).
-    pub(super) fn struct_id_of_expr(&self, expr: &hir::Expr<'_>) -> Option<hir::StructId> {
+    fn struct_id_of_expr(&self, expr: &hir::Expr<'_>) -> Option<hir::StructId> {
         if let Some(vid) = self.gcx.resolved_variable(expr)
             && let hir::TypeKind::Custom(hir::ItemId::Struct(sid)) =
                 &self.gcx.hir.variable(vid).ty.kind

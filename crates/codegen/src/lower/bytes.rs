@@ -294,7 +294,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Copies calldata bytes whose absolute length-word position is `len_pos`
     /// into Solidity's memory bytes layout.
-    pub(super) fn materialize_calldata_bytes_at(
+    fn materialize_calldata_bytes_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         source: AbiSource,
@@ -389,7 +389,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Copies a single-word calldata array whose absolute length-word position
     /// is `len_pos` into memory.
-    pub(super) fn materialize_calldata_word_array_at(
+    fn materialize_calldata_word_array_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         source: AbiSource,
@@ -404,7 +404,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// Materializes a calldata dynamic-array slice into memory, rebuilding
     /// reference/aggregate elements so their memory slots hold memory
     /// pointers. Word elements copy verbatim.
-    pub(super) fn materialize_calldata_dyn_array_for_ty(
+    fn materialize_calldata_dyn_array_for_ty(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         ty: Ty<'gcx>,
@@ -427,7 +427,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Copies a single-word calldata array SLICE into memory.
-    pub(super) fn materialize_calldata_dyn_array(
+    fn materialize_calldata_dyn_array(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         slice: ValueId,
@@ -532,7 +532,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// from its data position and length: per the ABI, element offset words
     /// start at `data_pos` and are relative to it. Elements rebuild one at a
     /// time so their memory slots contain memory pointers.
-    pub(super) fn materialize_calldata_nested_array(
+    fn materialize_calldata_nested_array(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         source: AbiSource,
@@ -891,7 +891,7 @@ impl<'gcx> Lowerer<'gcx> {
         None
     }
 
-    pub(super) fn resize_memory_bytes(
+    fn resize_memory_bytes(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         src: ValueId,
@@ -943,7 +943,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Whether an expression is a storage `bytes`/`string` state variable, whose value
     /// lowers to a packed `[length][data...]` memory copy.
-    pub(super) fn is_storage_bytes_expr(&self, expr: &hir::Expr<'_>) -> bool {
+    fn is_storage_bytes_expr(&self, expr: &hir::Expr<'_>) -> bool {
         if let Some(var_id) = self.gcx.resolved_variable(expr) {
             let var = self.gcx.hir.variable(var_id);
             return self.storage_slots.contains_key(&var_id)

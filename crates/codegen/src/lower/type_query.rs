@@ -60,7 +60,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.expr_has_bytes_or_string_type(expr)
     }
 
-    pub(super) fn expr_struct_id(&self, expr: &hir::Expr<'_>) -> Option<hir::StructId> {
+    fn expr_struct_id(&self, expr: &hir::Expr<'_>) -> Option<hir::StructId> {
         if let Some(var_id) = self.gcx.resolved_variable(expr)
             && self.struct_storage_base_slots.contains_key(&var_id)
         {

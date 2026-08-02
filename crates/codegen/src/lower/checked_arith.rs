@@ -978,17 +978,17 @@ impl<'gcx> Lowerer<'gcx> {
         builder.tail_call(helper, Vec::new());
     }
 
-    pub(super) fn unsigned_max(size: TypeSize) -> U256 {
+    fn unsigned_max(size: TypeSize) -> U256 {
         let bits = size.bits();
         if bits >= 256 { U256::MAX } else { (U256::from(1) << bits) - U256::from(1) }
     }
 
-    pub(super) fn signed_min(size: TypeSize) -> U256 {
+    fn signed_min(size: TypeSize) -> U256 {
         let bits = size.bits();
         U256::MAX - (U256::from(1) << (bits - 1)) + U256::from(1)
     }
 
-    pub(super) fn signed_max(size: TypeSize) -> U256 {
+    fn signed_max(size: TypeSize) -> U256 {
         let bits = size.bits();
         (U256::from(1) << (bits - 1)) - U256::from(1)
     }
