@@ -836,13 +836,8 @@ impl<'gcx> Lowerer<'gcx> {
         self.emit_decode_elements_loop(builder, len, move |this, builder, index| {
             let memory_offset = builder.mul(index, word);
             let destination = builder.add(data_ptr, memory_offset);
-            let storage_offset = if element_slots == 1 {
-                index
-            } else {
-                let stride = builder.imm_u64(element_slots);
-                builder.mul(index, stride)
-            };
-            let storage_slot = builder.add(data_slot, storage_offset);
+            let storage_slot =
+                Self::storage_array_data_element_slot(builder, data_slot, index, element_slots);
             this.copy_storage_field_to_memory(
                 builder,
                 element,
@@ -1044,13 +1039,8 @@ impl<'gcx> Lowerer<'gcx> {
             let mem_off = builder.mul(index, word);
             let mem_word_addr = builder.add(data_ptr, mem_off);
             let mem_word = builder.mload(mem_word_addr);
-            let elem_slot = if elem_slots == 1 {
-                builder.add(data_slot, index)
-            } else {
-                let stride = builder.imm_u64(elem_slots);
-                let off = builder.mul(index, stride);
-                builder.add(data_slot, off)
-            };
+            let elem_slot =
+                Self::storage_array_data_element_slot(builder, data_slot, index, elem_slots);
             this.copy_memory_field_to_storage(builder, elem, elem_slot, mem_word);
         });
     }

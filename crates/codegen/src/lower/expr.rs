@@ -2221,10 +2221,22 @@ impl<'gcx> Lowerer<'gcx> {
                 let len = builder.sload(slot_val);
                 self.emit_index_bounds_check(builder, index_val, len);
                 let data_slot = builder.storage_array_data_slot(slot_val);
-                let offset = Self::scale_index_by_slots(builder, index_val, elem_slots);
-                builder.add(data_slot, offset)
+                Self::storage_array_data_element_slot(builder, data_slot, index_val, elem_slots)
             }
         }
+    }
+
+    /// Returns the slot of one element in a dynamic array's hashed data area.
+    /// Keeping stride calculation here makes reads, writes, and aggregate
+    /// copies use the same storage-location rule.
+    pub(super) fn storage_array_data_element_slot(
+        builder: &mut FunctionBuilder<'_>,
+        data_slot: ValueId,
+        index: ValueId,
+        element_slots: u64,
+    ) -> ValueId {
+        let offset = Self::scale_index_by_slots(builder, index, element_slots);
+        builder.add(data_slot, offset)
     }
 
     /// Scales an array index by its element's slot count; single-slot elements
@@ -3376,8 +3388,8 @@ impl<'gcx> Lowerer<'gcx> {
         self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
 
         let data_slot = builder.storage_array_data_slot(slot);
-        let offset = Self::scale_index_by_slots(builder, length, element_slots);
-        let element_slot = builder.add(data_slot, offset);
+        let element_slot =
+            Self::storage_array_data_element_slot(builder, data_slot, length, element_slots);
 
         self.clear_storage_value_at(builder, element_ty, element_slot);
         builder.sstore(slot, new_length);
@@ -3427,8 +3439,12 @@ impl<'gcx> Lowerer<'gcx> {
                 self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
 
                 let data_slot = builder.storage_array_data_slot(slot);
-                let offset = Self::scale_index_by_slots(builder, length, element_slots);
-                let element_slot = builder.add(data_slot, offset);
+                let element_slot = Self::storage_array_data_element_slot(
+                    builder,
+                    data_slot,
+                    length,
+                    element_slots,
+                );
                 self.store_storage_value_at(builder, element_ty, element_slot, value);
                 builder.sstore(slot, new_length);
                 None
@@ -3440,8 +3456,12 @@ impl<'gcx> Lowerer<'gcx> {
                 let new_length = builder.sub(length, one);
 
                 let data_slot = builder.storage_array_data_slot(slot);
-                let offset = Self::scale_index_by_slots(builder, new_length, element_slots);
-                let element_slot = builder.add(data_slot, offset);
+                let element_slot = Self::storage_array_data_element_slot(
+                    builder,
+                    data_slot,
+                    new_length,
+                    element_slots,
+                );
                 self.clear_storage_value_at(builder, element_ty, element_slot);
                 builder.sstore(slot, new_length);
 
