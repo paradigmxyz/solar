@@ -3,9 +3,9 @@
 @phase evm-shaped
 fn @asValue() {
   bb0:
-    v14 = calldatasize
-    v15 = lt v14, 68
-    jumpi v15, bb4, bb5
+    v12 = calldatasize
+    v13 = lt v12, 68
+    jumpi v13, bb4, bb5
   bb1:
     tail_call @__panic_41
   bb2:
@@ -15,56 +15,56 @@ fn @asValue() {
     jumpi v10, bb1, bb3
   bb3:
     v11 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v46 = add v11, v9
-    mstore 64, v46 !metadata(memory=scratch)
+    v47 = add v11, v9
+    mstore 64, v47 !metadata(memory=scratch)
     mstore v11, 68
-    v12 = add v11, 32
-    mcopy v12, v22, 68
-    v26 = mload 64 !metadata(memory=scratch)
-    v27 = add v26, 32
-    v28 = sub v27, v26
-    mstore v26, v28
-    v29 = mload v11
-    mstore v27, v29
-    v31 = add v29, 31
-    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v33 = add v26, 64
-    jumpi v32, bb7, bb8
+    v44 = add v11, 32
+    mcopy v44, v20, 68
+    v24 = mload 64 !metadata(memory=scratch)
+    v25 = add v24, 32
+    v26 = sub v25, v24
+    mstore v24, v26
+    v27 = mload v11
+    mstore v25, v27
+    v29 = add v27, 31
+    v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v31 = add v24, 64
+    jumpi v30, bb7, bb8
   bb4:
     revert 0, 0
   bb5:
-    v16 = calldataload 4
-    v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
-    v18 = eq v16, v17
-    jumpi v18, bb6, bb4
+    v14 = calldataload 4
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = eq v14, v15
+    jumpi v16, bb6, bb4
   bb6:
-    v22 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v47 = add v22, 96
-    mstore 64, v47 !metadata(memory=scratch)
-    mstore v22, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v23 = add v22, 4
-    mstore v23, arg0
-    v24 = add v22, 36
-    mstore v24, arg1
+    v20 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v48 = add v20, 96
+    mstore 64, v48 !metadata(memory=scratch)
+    mstore v20, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v21 = add v20, 4
+    mstore v21, arg0
+    v22 = add v20, 36
+    mstore v22, arg1
     v5 = add 68, 31
     v6 = lt v5, 68
     jumpi v6, bb1, bb2
   bb7:
-    v35 = sub v32, 32
-    v36 = add v33, v35
-    mstore v36, 0
+    v33 = sub v30, 32
+    v34 = add v31, v33
+    mstore v34, 0
     jump bb8
   bb8:
-    v38 = add v33, v32
-    v37 = add v11, 32
-    mcopy v33, v37, v29
-    v39 = sub v38, v26
-    v41 = add v39, 31
-    v43 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v44 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v48 = add v44, v43
-    mstore 64, v48 !metadata(memory=scratch)
-    returndata v44, v39
+    v36 = add v31, v30
+    v35 = add v11, 32
+    mcopy v31, v35, v27
+    v37 = sub v36, v24
+    v39 = add v37, 31
+    v41 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v42 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v49 = add v42, v41
+    mstore 64, v49 !metadata(memory=scratch)
+    returndata v42, v37
 }
 
 fn @__panic_41() {

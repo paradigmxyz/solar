@@ -41,12 +41,10 @@ fn @bytesChain(arg0: calldataslice) -> memorybytes [abi_params=[bytes], abi_retu
   bb8:
     v21 = alloc memorybytes, exact, uninitialized, infallible, v19
     set_memory_object_len memorybytes, v21, v12
-    v22 = memory_object_data memorybytes, v21
-    v23 = sub v18, 32
-    v24 = div v23, 32
-    memory_object_store_element memorybytes, v21, v24, 0
-    v25 = slice_ptr v11
-    calldatacopy v22, v25, v12
+    v22 = sub v18, 32
+    v23 = div v22, 32
+    memory_object_store_element memorybytes, v21, v23, 0
+    memory_object_copy_from_slice memorybytes, v21, v11
     ret v21
 }
 

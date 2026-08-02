@@ -24,7 +24,7 @@ contract CalldataSliceTernary {
     // A memory-typed ternary adopts a calldata arm by materializing it, so
     // the merge stays a single memory pointer.
     // CHECK-LABEL: fn @adopt{{[( ]}}
-    // CHECK: calldatacopy
+    // CHECK: memory_object_copy_from_slice memorybytes
     function adopt(bool c, bytes calldata a) external pure returns (bytes memory) {
         bytes memory local = hex"aabb";
         return c ? a : local;

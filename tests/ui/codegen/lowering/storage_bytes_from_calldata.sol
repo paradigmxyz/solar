@@ -6,9 +6,7 @@ contract StorageBytesFromCalldata {
     bytes blob;
 
     // CHECK-LABEL: fn @setText{{[( ]}}
-    // CHECK: [[LEN:v[0-9]+]] = slice_len arg0
-    // CHECK: [[PTR:v[0-9]+]] = slice_ptr arg0
-    // CHECK: calldatacopy {{v[0-9]+}}, [[PTR]], [[LEN]]
+    // CHECK: memory_object_copy_from_slice memorybytes, {{v[0-9]+}}, arg0
     // CHECK: sload 0
     // CHECK: sstore 0,
     function setText(string calldata value) external {
@@ -16,9 +14,7 @@ contract StorageBytesFromCalldata {
     }
 
     // CHECK-LABEL: fn @setBlob{{[( ]}}
-    // CHECK: [[LEN:v[0-9]+]] = slice_len arg0
-    // CHECK: [[PTR:v[0-9]+]] = slice_ptr arg0
-    // CHECK: calldatacopy {{v[0-9]+}}, [[PTR]], [[LEN]]
+    // CHECK: memory_object_copy_from_slice memorybytes, {{v[0-9]+}}, arg0
     // CHECK: sload 1
     // CHECK: sstore 1,
     function setBlob(bytes calldata value) external {

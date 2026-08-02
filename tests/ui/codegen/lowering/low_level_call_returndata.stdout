@@ -9,42 +9,40 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [abi_args=lazy] {
     v4 = call v3, arg0, 0, v1, v2, 0, 0
     v5 = returndatasize
     v6 = make_returndata_slice 0, v5
-    v7 = slice_ptr v6
-    v8 = slice_len v6
-    v9 = add v8, 31
-    v10 = not 31
-    v11 = and v9, v10
-    v12 = add v11, 32
-    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
-    set_memory_object_len memorybytes, v13, v8
-    v14 = memory_object_data memorybytes, v13
-    returndatacopy v14, v7, v8
+    v7 = slice_len v6
+    v8 = add v7, 31
+    v9 = not 31
+    v10 = and v8, v9
+    v11 = add v10, 32
+    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
+    set_memory_object_len memorybytes, v12, v7
+    memory_object_copy_from_slice memorybytes, v12, v6
     jumpi v4, bb1, bb2
   bb1:
-    v15 = mload v13
-    v16 = eq v15, 0
-    jumpi v16, bb4, bb3
+    v13 = mload v12
+    v14 = eq v13, 0
+    jumpi v14, bb4, bb3
   bb2:
-    v26 = phi [bb0: 0], [bb4: v25]
-    v27 = iszero v26
-    jumpi v27, bb9, bb10
+    v24 = phi [bb0: 0], [bb4: v23]
+    v25 = iszero v24
+    jumpi v25, bb9, bb10
   bb3:
-    v17 = memory_object_len memorybytes, v13
-    v18 = memory_object_data memorybytes, v13
-    v19 = lt v17, 32
-    jumpi v19, bb5, bb6
+    v15 = memory_object_len memorybytes, v12
+    v16 = memory_object_data memorybytes, v12
+    v17 = lt v15, 32
+    jumpi v17, bb5, bb6
   bb4:
-    v25 = phi [bb1: 1], [bb8: v22]
+    v23 = phi [bb1: 1], [bb8: v20]
     jump bb2
   bb5:
     revert 0, 0
   bb6:
-    v20 = mload v18
-    v21 = iszero v20
+    v18 = mload v16
+    v19 = iszero v18
+    v20 = iszero v19
+    v21 = eq v18, v20
     v22 = iszero v21
-    v23 = eq v20, v22
-    v24 = iszero v23
-    jumpi v24, bb7, bb8
+    jumpi v22, bb7, bb8
   bb7:
     revert 0, 0
   bb8:
@@ -76,30 +74,28 @@ fn @balanceOf(arg0: address) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v6 = staticcall v5, arg0, v3, v4, 0, 0
     v7 = returndatasize
     v8 = make_returndata_slice 0, v7
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = add v10, 31
-    v12 = not 31
-    v13 = and v11, v12
-    v14 = add v13, 32
-    v15 = alloc memorybytes, exact, uninitialized, infallible, v14
-    set_memory_object_len memorybytes, v15, v10
-    v16 = memory_object_data memorybytes, v15
-    returndatacopy v16, v9, v10
-    v17 = iszero v6
-    jumpi v17, bb1, bb2
+    v9 = slice_len v8
+    v10 = add v9, 31
+    v11 = not 31
+    v12 = and v10, v11
+    v13 = add v12, 32
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    memory_object_copy_from_slice memorybytes, v14, v8
+    v15 = iszero v6
+    jumpi v15, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v18 = memory_object_len memorybytes, v15
-    v19 = memory_object_data memorybytes, v15
-    v20 = lt v18, 32
-    jumpi v20, bb3, bb4
+    v16 = memory_object_len memorybytes, v14
+    v17 = memory_object_data memorybytes, v14
+    v18 = lt v16, 32
+    jumpi v18, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v21 = mload v19
-    ret v21
+    v19 = mload v17
+    ret v19
 }
 
 fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [abi_params=[address, bytes], abi_returns=[memory_bytes]] {
@@ -117,21 +113,19 @@ fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [abi_params=[addres
     v6 = call v5, arg0, 0, v3, v4, 0, 0
     v7 = returndatasize
     v8 = make_returndata_slice 0, v7
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = add v10, 31
-    v12 = not 31
-    v13 = and v11, v12
-    v14 = add v13, 32
-    v15 = alloc memorybytes, exact, uninitialized, infallible, v14
-    set_memory_object_len memorybytes, v15, v10
-    v16 = memory_object_data memorybytes, v15
-    returndatacopy v16, v9, v10
-    v17 = iszero v6
-    jumpi v17, bb3, bb4
+    v9 = slice_len v8
+    v10 = add v9, 31
+    v11 = not 31
+    v12 = and v10, v11
+    v13 = add v12, 32
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    memory_object_copy_from_slice memorybytes, v14, v8
+    v15 = iszero v6
+    jumpi v15, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    ret v15
+    ret v14
 }
 

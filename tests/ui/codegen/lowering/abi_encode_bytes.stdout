@@ -29,9 +29,7 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [abi_args=lazy, a
   bb4:
     v8 = alloc memorybytes, exact, uninitialized, infallible, v6
     set_memory_object_len memorybytes, v8, v1
-    v9 = add v8, 32
-    v10 = slice_ptr v0
-    mcopy v9, v10, v1
+    memory_object_copy_from_slice memorybytes, v8, v0
     ret v8
 }
 
@@ -62,9 +60,7 @@ fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [abi_params=[u25
   bb4:
     v8 = alloc memorybytes, exact, uninitialized, infallible, v6
     set_memory_object_len memorybytes, v8, v1
-    v9 = add v8, 32
-    v10 = slice_ptr v0
-    mcopy v9, v10, v1
+    memory_object_copy_from_slice memorybytes, v8, v0
     ret v8
 }
 
@@ -97,17 +93,15 @@ fn @roundtrip(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb4:
     v8 = alloc memorybytes, exact, uninitialized, infallible, v6
     set_memory_object_len memorybytes, v8, v1
-    v9 = add v8, 32
-    v10 = slice_ptr v0
-    mcopy v9, v10, v1
-    v11 = memory_object_len memorybytes, v8
-    v12 = memory_object_data memorybytes, v8
-    v13 = lt v11, 32
-    jumpi v13, bb5, bb6
+    memory_object_copy_from_slice memorybytes, v8, v0
+    v9 = memory_object_len memorybytes, v8
+    v10 = memory_object_data memorybytes, v8
+    v11 = lt v9, 32
+    jumpi v11, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
-    v14 = mload v12
-    ret v14
+    v12 = mload v10
+    ret v12
 }
 

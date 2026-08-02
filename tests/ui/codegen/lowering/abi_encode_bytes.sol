@@ -28,7 +28,7 @@ contract AbiEncodeBytes {
     // CHECK: [[ENCODED:v[0-9]+]] = abi_encode [word, memory_bytes], args arg0, arg1
     // CHECK: [[LEN:v[0-9]+]] = slice_len [[ENCODED]]
     // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, [[LEN]]
-    // CHECK: mcopy
+    // CHECK: memory_object_copy_from_slice memorybytes, {{v[0-9]+}}, [[ENCODED]]
     function encodeDynamic(uint a, string memory s) external pure returns (bytes memory) {
         return abi.encode(a, s);
     }

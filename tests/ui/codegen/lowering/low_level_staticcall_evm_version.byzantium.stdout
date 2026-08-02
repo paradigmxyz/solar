@@ -13,17 +13,15 @@ fn @probeCall(arg0: address) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v1 = call v0, arg0, 0, 0, 0, 0, 0
     v2 = returndatasize
     v3 = make_returndata_slice 0, v2
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = add v5, 31
-    v7 = not 31
-    v8 = and v6, v7
-    v9 = add v8, 32
-    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
-    set_memory_object_len memorybytes, v10, v5
-    v11 = memory_object_data memorybytes, v10
-    returndatacopy v11, v4, v5
-    v12 = mload v10
-    ret v12
+    v4 = slice_len v3
+    v5 = add v4, 31
+    v6 = not 31
+    v7 = and v5, v6
+    v8 = add v7, 32
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
+    set_memory_object_len memorybytes, v9, v4
+    memory_object_copy_from_slice memorybytes, v9, v3
+    v10 = mload v9
+    ret v10
 }
 

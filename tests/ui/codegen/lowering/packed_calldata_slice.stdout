@@ -36,29 +36,27 @@ fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [abi_param
   bb8:
     v16 = alloc memorybytes, exact, uninitialized, infallible, v14
     set_memory_object_len memorybytes, v16, v7
-    v17 = memory_object_data memorybytes, v16
-    v18 = sub v13, 32
-    v19 = div v18, 32
-    memory_object_store_element memorybytes, v16, v19, 0
-    v20 = slice_ptr v6
-    calldatacopy v17, v20, v7
-    v21 = memory_object_len memorybytes, v16
-    v22 = add 0, v21
-    v23 = add v22, 1
-    v24 = add v23, 31
-    v25 = not 31
-    v26 = and v24, v25
-    v27 = add 32, v26
-    v28 = alloc memorybytes, exact, uninitialized, infallible, v27
-    v29 = memory_object_data memorybytes, v28
-    v30 = memory_object_len memorybytes, v16
-    v31 = memory_object_data memorybytes, v16
-    mcopy v29, v31, v30
-    v32 = add v29, v30
-    mstore v32, 0x2100000000000000000000000000000000000000000000000000000000000000
-    v33 = add v32, 1
-    set_memory_object_len memorybytes, v28, v23
-    ret v28
+    v17 = sub v13, 32
+    v18 = div v17, 32
+    memory_object_store_element memorybytes, v16, v18, 0
+    memory_object_copy_from_slice memorybytes, v16, v6
+    v19 = memory_object_len memorybytes, v16
+    v20 = add 0, v19
+    v21 = add v20, 1
+    v22 = add v21, 31
+    v23 = not 31
+    v24 = and v22, v23
+    v25 = add 32, v24
+    v26 = alloc memorybytes, exact, uninitialized, infallible, v25
+    v27 = memory_object_data memorybytes, v26
+    v28 = memory_object_len memorybytes, v16
+    v29 = memory_object_data memorybytes, v16
+    mcopy v27, v29, v28
+    v30 = add v27, v28
+    mstore v30, 0x2100000000000000000000000000000000000000000000000000000000000000
+    v31 = add v30, 1
+    set_memory_object_len memorybytes, v26, v21
+    ret v26
 }
 
 fn @__panic_41() {
@@ -91,25 +89,23 @@ fn @all() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb4:
     v11 = alloc memorybytes, exact, uninitialized, infallible, v9
     set_memory_object_len memorybytes, v11, v2
-    v12 = memory_object_data memorybytes, v11
-    v13 = sub v8, 32
-    v14 = div v13, 32
-    memory_object_store_element memorybytes, v11, v14, 0
-    v15 = slice_ptr v1
-    calldatacopy v12, v15, v2
-    v16 = memory_object_len memorybytes, v11
-    v17 = add 0, v16
-    v18 = add v17, 31
-    v19 = not 31
-    v20 = and v18, v19
-    v21 = add 32, v20
-    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
-    v23 = memory_object_data memorybytes, v22
-    v24 = memory_object_len memorybytes, v11
-    v25 = memory_object_data memorybytes, v11
-    mcopy v23, v25, v24
-    v26 = add v23, v24
-    set_memory_object_len memorybytes, v22, v17
-    ret v22
+    v12 = sub v8, 32
+    v13 = div v12, 32
+    memory_object_store_element memorybytes, v11, v13, 0
+    memory_object_copy_from_slice memorybytes, v11, v1
+    v14 = memory_object_len memorybytes, v11
+    v15 = add 0, v14
+    v16 = add v15, 31
+    v17 = not 31
+    v18 = and v16, v17
+    v19 = add 32, v18
+    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
+    v21 = memory_object_data memorybytes, v20
+    v22 = memory_object_len memorybytes, v11
+    v23 = memory_object_data memorybytes, v11
+    mcopy v21, v23, v22
+    v24 = add v21, v22
+    set_memory_object_len memorybytes, v20, v15
+    ret v20
 }
 

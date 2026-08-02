@@ -30,9 +30,7 @@ fn @encode(arg0: calldataslice, arg1: u256) -> memorybytes [abi_params=[bytes, u
   bb6:
     v14 = alloc memorybytes, exact, uninitialized, infallible, v12
     set_memory_object_len memorybytes, v14, v7
-    v15 = add v14, 32
-    v16 = slice_ptr v6
-    mcopy v15, v16, v7
+    memory_object_copy_from_slice memorybytes, v14, v6
     ret v14
 }
 

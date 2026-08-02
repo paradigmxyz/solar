@@ -54,8 +54,8 @@ fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [abi_params=[bool, byt
     mstore 0, v4 !metadata(memory=scratch)
     jump bb5
   bb5:
-    v19 = mload 0 !metadata(memory=scratch)
-    ret v19
+    v17 = mload 0 !metadata(memory=scratch)
+    ret v17
   bb6:
     tail_call @__panic_41
   bb7:
@@ -71,12 +71,10 @@ fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [abi_params=[bool, byt
   bb9:
     v14 = alloc memorybytes, exact, uninitialized, infallible, v12
     set_memory_object_len memorybytes, v14, v5
-    v15 = memory_object_data memorybytes, v14
-    v16 = sub v11, 32
-    v17 = div v16, 32
-    memory_object_store_element memorybytes, v14, v17, 0
-    v18 = slice_ptr arg1
-    calldatacopy v15, v18, v5
+    v15 = sub v11, 32
+    v16 = div v15, 32
+    memory_object_store_element memorybytes, v14, v16, 0
+    memory_object_copy_from_slice memorybytes, v14, arg1
     mstore 0, v14 !metadata(memory=scratch)
     jump bb5
 }

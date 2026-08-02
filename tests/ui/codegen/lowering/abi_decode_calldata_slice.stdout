@@ -31,21 +31,19 @@ fn @decode(arg0: calldataslice) -> u256 [abi_params=[bytes], abi_returns=[word]]
   bb6:
     v15 = alloc memorybytes, exact, uninitialized, infallible, v13
     set_memory_object_len memorybytes, v15, v6
-    v16 = memory_object_data memorybytes, v15
-    v17 = sub v12, 32
-    v18 = div v17, 32
-    memory_object_store_element memorybytes, v15, v18, 0
-    v19 = slice_ptr v5
-    calldatacopy v16, v19, v6
-    v20 = memory_object_len memorybytes, v15
-    v21 = memory_object_data memorybytes, v15
-    v22 = lt v20, 32
-    jumpi v22, bb7, bb8
+    v16 = sub v12, 32
+    v17 = div v16, 32
+    memory_object_store_element memorybytes, v15, v17, 0
+    memory_object_copy_from_slice memorybytes, v15, v5
+    v18 = memory_object_len memorybytes, v15
+    v19 = memory_object_data memorybytes, v15
+    v20 = lt v18, 32
+    jumpi v20, bb7, bb8
   bb7:
     revert 0, 0
   bb8:
-    v23 = mload v21
-    ret v23
+    v21 = mload v19
+    ret v21
 }
 
 fn @__panic_41() {

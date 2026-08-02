@@ -752,16 +752,13 @@ bb37:
   dup2
   mstore
   push 32
-  dup2
-  add
-  push 32
   push 192
   mload
   sub
   push 5
   shr
   push 32
-  dup4
+  dup3
   add
   swap1
   push 32
@@ -770,6 +767,9 @@ bb37:
   push 0
   swap1
   mstore
+  push 32
+  dup2
+  add
   push 256
   mload
   push 288

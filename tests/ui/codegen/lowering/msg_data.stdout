@@ -31,12 +31,10 @@ fn @copy() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb4:
     v11 = alloc memorybytes, exact, uninitialized, infallible, v9
     set_memory_object_len memorybytes, v11, v2
-    v12 = memory_object_data memorybytes, v11
-    v13 = sub v8, 32
-    v14 = div v13, 32
-    memory_object_store_element memorybytes, v11, v14, 0
-    v15 = slice_ptr v1
-    calldatacopy v12, v15, v2
+    v12 = sub v8, 32
+    v13 = div v12, 32
+    memory_object_store_element memorybytes, v11, v13, 0
+    memory_object_copy_from_slice memorybytes, v11, v1
     ret v11
 }
 
@@ -147,12 +145,10 @@ fn @tail(arg0: u256, arg1: u256) -> memorybytes [abi_args=lazy, abi_returns=[mem
   bb8:
     v18 = alloc memorybytes, exact, uninitialized, infallible, v16
     set_memory_object_len memorybytes, v18, v9
-    v19 = memory_object_data memorybytes, v18
-    v20 = sub v15, 32
-    v21 = div v20, 32
-    memory_object_store_element memorybytes, v18, v21, 0
-    v22 = slice_ptr v8
-    calldatacopy v19, v22, v9
+    v19 = sub v15, 32
+    v20 = div v19, 32
+    memory_object_store_element memorybytes, v18, v20, 0
+    memory_object_copy_from_slice memorybytes, v18, v8
     ret v18
 }
 

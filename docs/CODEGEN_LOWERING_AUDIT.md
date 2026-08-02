@@ -63,6 +63,10 @@ describes observable structure in the current tree, not an intended design.
 * ABI decoding stores dynamic-array element pointers and validates copied words
   through typed object accesses. Fixed-array literals use the same element
   store path, leaving only bulk payload copies as raw memory operations.
+* Typed calldata, memory, and returndata slices copy into bytes objects through
+  `memory_object_copy_from_slice`. The memory-object pass selects the physical
+  copy opcode, and the canonical pipeline lowers objects before slices so the
+  generated pointer and length projections are consumed by the slice pass.
 * Literal low-level call payloads use a bytes memory object for their
   length-prefixed staging, then expose only its data slice to the call.
 * Literal mapping keys and embedded creation bytecode use typed bytes-object
@@ -132,10 +136,11 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   range and overflow checks. Constructors still decode their argument blob in
   HIR lowering because the ABI phase currently handles runtime calldata only.
 * **Physical memory still leaks through a few aggregate helpers.** Mutable
-  locals, direct object accesses, and storage aggregate copies now stay typed,
-  but memory-object allocation, byte/ABI bulk copies, and some loop scratch
-  state still emit raw memory operations before the semantic memory passes.
-  The remaining work is to keep those policies in typed MIR until the
+  locals, direct object accesses, storage aggregate copies, and typed
+  slice-to-object copies now stay semantic. Memory-object allocation, ABI
+  decoding from an encoded region, ABI tail copies, Yul copies, and some loop
+  scratch state still emit raw memory operations before the semantic memory
+  passes. The remaining work is to keep those policies in typed MIR until the
   memory-layout boundary.
 * **Helper coverage is incomplete.** Panic, short-error, and storage-bytes
   helpers now share a keyed lazy registry. Checked exponentiation, ABI copies,
