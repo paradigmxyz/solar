@@ -2461,16 +2461,32 @@ impl<'gcx> Lowerer<'gcx> {
             tail_off = builder.add(tail_off, advanced);
         }
 
-        // Return area: reuse the unbumped calldata allocation for value-type
-        // returns, or append an allocation for struct returns.
-        let (ret_offset, ret_size, struct_ptr_opt) =
+        // Return area: keep the delegatecall destination typed instead of
+        // reusing the ABI payload as an untyped return buffer.
+        let (ret_offset, ret_size, struct_ptr_opt, value_return_object) =
             if let Some((_struct_id, field_count)) = struct_return_info {
                 let struct_size = field_count as u64 * 32;
-                let struct_ptr = builder.add(calldata_start, payload_size);
-                (struct_ptr, builder.imm_u64(struct_size), Some(struct_ptr))
+                let size = builder.imm_u64(struct_size);
+                let object = builder.alloc_object(
+                    size,
+                    MemoryObjectLayout::Struct { fields: field_count as u64 },
+                    crate::mir::AllocationSemantics::INTERNAL,
+                );
+                let ret_offset = builder.memory_object_data(object, MemoryObjectKind::Struct);
+                (ret_offset, size, Some(ret_offset), None)
+            } else if num_returns != 0 {
+                let len = num_returns as u64;
+                let size = builder.imm_u64(len * 32);
+                let object = builder.alloc_object(
+                    size,
+                    MemoryObjectLayout::FixedArray { len, element_words: 1 },
+                    crate::mir::AllocationSemantics::INTERNAL,
+                );
+                let ret_offset = builder.memory_object_data(object, MemoryObjectKind::FixedArray);
+                (ret_offset, size, None, Some(object))
             } else {
-                let ret_offset = if num_returns > 1 { calldata_start } else { builder.imm_u64(0) };
-                (ret_offset, builder.imm_u64(num_returns as u64 * 32), None)
+                let zero = builder.imm_u64(0);
+                (zero, zero, None, None)
             };
 
         let calldata_size = payload_size;
@@ -2492,7 +2508,14 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(struct_ptr) = struct_ptr_opt {
             return Some(struct_ptr);
         }
-        Some(builder.mload(ret_offset))
+        value_return_object.map(|object| {
+            let index = builder.imm_u64(0);
+            builder.memory_object_load_element(
+                object,
+                MemoryObjectLayout::FixedArray { len: num_returns as u64, element_words: 1 },
+                index,
+            )
+        })
     }
 
     /// Lowers a library function call.

@@ -135,7 +135,7 @@ bb5:
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 256
+  push 288
   push 64
   mstore
   callvalue
@@ -173,7 +173,7 @@ bb0:
   push 64
   mload
   dup1
-  push 160
+  push 192
   mstore
   push 132
   dup2
@@ -220,20 +220,32 @@ bb0:
   calldataload
   swap1
   mstore
-  gas
+  push 64
+  mload
   dup1
-  push 192
-  mstore
-  dup2
-  push 224
+  push 160
   mstore
   push 32
-  push 0
+  dup2
+  add
+  push 64
+  mstore
+  gas
+  dup1
+  push 224
+  mstore
+  dup3
+  push 256
+  mstore
+  push 32
+  dup3
   push 100
-  dup5
+  dup6
   push 0x1111111111111111111111111111111111111111
   dup6
   delegatecall
+  swap1
+  pop
   swap2
   pop
   pop
@@ -241,6 +253,9 @@ bb0:
   push bb9
   jumpi
   push 0
+  push 160
+  mload
+  add
   mload
   push 128
   mstore
@@ -254,12 +269,12 @@ bb4 [cold]:
 bb9 [cold]:
   returndatasize
   dup1
-  push 160
+  push 192
   mstore
   push 0
   dup1
   returndatacopy
-  push 160
+  push 192
   mload
   push 0
   revert

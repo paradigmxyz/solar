@@ -1333,31 +1333,42 @@ bb10:
   pop
   pop
   pop
+  push 64
+  mload
+  dup1
+  push 160
+  mstore
+  push 32
+  dup2
+  add
+  push 64
+  mstore
   gas
   dup1
   push 416
   mstore
-  dup2
+  dup3
   push 448
   mstore
-  dup3
+  dup4
   push 480
   mstore
   push 32
-  push 0
-  dup5
-  dup5
+  dup3
+  dup6
+  dup6
   push 0x1000000000000000000000000000000000000001
   dup6
   delegatecall
-  swap3
+  swap1
   pop
+  swap2
   pop
+  swap2
   pop
   iszero
   push bb29
   jumpi
-  push 0
   mload
   jump bb31
 bb29 [cold]:

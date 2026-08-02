@@ -74,7 +74,7 @@ bb10 [cold]:
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Outer (runtime) ===
 @module runtime
 bb0:
-  push 256
+  push 288
   push 64
   mstore
   callvalue
@@ -118,7 +118,7 @@ bb8:
   push 64
   mload
   dup1
-  push 160
+  push 192
   mstore
   push 100
   dup2
@@ -157,20 +157,32 @@ bb8:
   calldataload
   swap1
   mstore
-  gas
+  push 64
+  mload
   dup1
-  push 192
-  mstore
-  dup2
-  push 224
+  push 160
   mstore
   push 32
-  push 0
+  dup2
+  add
+  push 64
+  mstore
+  gas
+  dup1
+  push 224
+  mstore
+  dup3
+  push 256
+  mstore
+  push 32
+  dup3
   push 68
-  dup5
+  dup6
   push 0x1000000000000000000000000000000000000001
   dup6
   delegatecall
+  swap1
+  pop
   swap2
   pop
   pop
@@ -178,24 +190,27 @@ bb8:
   push bb10
   jumpi
   push 0
+  push 160
+  mload
+  add
   mload
   jump bb11
 bb10 [cold]:
   returndatasize
   dup1
-  push 160
+  push 192
   mstore
   push 0
   dup1
   returndatacopy
-  push 160
+  push 192
   mload
   push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 256
+  push 288
   push 64
   mstore
   callvalue
@@ -222,7 +237,7 @@ bb0:
   push 64
   mload
   dup1
-  push 160
+  push 192
   mstore
   push 100
   dup2
@@ -260,20 +275,32 @@ bb0:
   calldataload
   swap1
   mstore
-  gas
+  push 64
+  mload
   dup1
-  push 192
-  mstore
-  dup2
-  push 224
+  push 160
   mstore
   push 32
-  push 0
+  dup2
+  add
+  push 64
+  mstore
+  gas
+  dup1
+  push 224
+  mstore
+  dup3
+  push 256
+  mstore
+  push 32
+  dup3
   push 68
-  dup5
+  dup6
   push 0x1000000000000000000000000000000000000002
   dup6
   delegatecall
+  swap1
+  pop
   swap2
   pop
   pop
@@ -281,6 +308,9 @@ bb0:
   push bb8
   jumpi
   push 0
+  push 160
+  mload
+  add
   mload
   push 128
   mstore
@@ -294,12 +324,12 @@ bb4 [cold]:
 bb8 [cold]:
   returndatasize
   dup1
-  push 160
+  push 192
   mstore
   push 0
   dup1
   returndatacopy
-  push 160
+  push 192
   mload
   push 0
   revert

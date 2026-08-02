@@ -16,19 +16,21 @@ fn @pair() -> (u256, u256) [abi_args=lazy, abi_returns=[word, word]] {
     set_memory_object_len memorybytes, v3, v0
     v4 = memory_object_data memorybytes, v3
     memory_object_store_word memorybytes, v3, 0, 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
-    v5 = gas
-    v6 = delegatecall v5, 0x1111111111111111111111111111111111111111, v4, v0, v4, 64
-    jumpi v6, bb2, bb1
+    v5 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v6 = memory_object_data memoryfixedarray, v5
+    v7 = gas
+    v8 = delegatecall v7, 0x1111111111111111111111111111111111111111, v4, v0, v6, 64
+    jumpi v8, bb2, bb1
   bb1:
-    v7 = returndatasize
-    returndatacopy 0, 0, v7 !metadata(memory=scratch)
-    revert 0, v7
+    v9 = returndatasize
+    returndatacopy 0, 0, v9 !metadata(memory=scratch)
+    revert 0, v9
   bb2:
-    mstore 32, v4 !metadata(memory=scratch)
-    v8 = mload v4
-    v9 = mload 32 !metadata(memory=scratch)
-    v10 = add v9, 32
-    v11 = mload v10
-    ret v8, v11
+    mstore 32, v6 !metadata(memory=scratch)
+    v10 = memory_object_load_element memoryfixedarray<2, 1>, v5, 0
+    v11 = mload 32 !metadata(memory=scratch)
+    v12 = add v11, 32
+    v13 = mload v12
+    ret v10, v13
 }
 

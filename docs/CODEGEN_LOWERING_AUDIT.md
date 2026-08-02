@@ -133,6 +133,8 @@ describes observable structure in the current tree, not an intended design.
   only the call boundary receives its lowered data pointer.
 * External function-pointer value returns use the same typed fixed-array output
   object; the call boundary no longer reads the first word from scratch memory.
+* Linked-library delegatecall value returns use typed fixed-array or struct
+  output objects; the ABI payload object is no longer reused as return scratch.
 * Object-backed constructor and linked-library payload assembly uses
   `memory_object_store_word`; only memory lowering forms payload addresses.
 * ABI tail lengths and nested dynamic-array heads read through
