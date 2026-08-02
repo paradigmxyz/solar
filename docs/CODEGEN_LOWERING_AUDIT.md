@@ -124,7 +124,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   constructor ABI encoding, `value`/`salt` options, and forwarding of failed
   creation returndata;
 * basic `try`/`catch` lowering for resolved external calls with scalar return
-  bindings, bare catches, and `catch (bytes memory)` returndata objects;
+  bindings, bare catches, `catch (bytes memory)` returndata objects, and
+  `catch Error(string memory)` selector and payload checks;
 * `abi.decode` scalar, tuple, dynamic-array, and calldata-slice paths through
   semantic memory slices and object copies; struct targets still fail closed;
 * `ecrecover`, `sha256`, and `ripemd160` through version-aware precompile

@@ -966,18 +966,21 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
         {
             return report_unsupported(self.gcx, returns_clause.span, "try return bindings");
         }
-        if catch_clause.name.is_some() || catch_clause.args.len() > 1 {
+        let catch_error = catch_clause.name.is_some_and(|name| name.name == sym::Error);
+        if catch_clause.name.is_some() && !catch_error {
+            return report_unsupported(self.gcx, catch_clause.span, "try catch clause");
+        }
+        if catch_clause.args.len() > 1 {
             return report_unsupported(self.gcx, catch_clause.span, "try catch clause");
         }
         let catch_binding = if let Some(&binding) = catch_clause.args.first() {
             let ty = self.gcx.type_of_item(binding.into());
-            if !matches!(
-                ty.peel_refs().kind,
-                TyKind::Elementary(
-                    solar_sema::hir::ElementaryType::Bytes
-                        | solar_sema::hir::ElementaryType::String
-                )
-            ) {
+            let expected = if catch_error {
+                TyKind::Elementary(solar_sema::hir::ElementaryType::String)
+            } else {
+                TyKind::Elementary(solar_sema::hir::ElementaryType::Bytes)
+            };
+            if ty.peel_refs().kind != expected {
                 return report_unsupported(self.gcx, catch_clause.span, "try catch clause");
             }
             if !self.gcx.sess.opts.evm_version.supports_returndata() {
@@ -1077,7 +1080,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
         self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(catch_block);
         if let Some(binding) = catch_binding {
-            let value = self.materialize_returndata_bytes();
+            let value = if catch_error {
+                self.lower_error_catch_string(try_stmt.expr.span)?
+            } else {
+                self.materialize_returndata_bytes()
+            };
             self.values.insert(binding, value);
         }
         self.lower_block(catch_clause.block)?;
@@ -3679,6 +3686,37 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
         let source = self.builder.make_slice(zero, length, SliceLocation::Returndata);
         self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
         object
+    }
+
+    fn lower_error_catch_string(&mut self, span: Span) -> Option<ValueId> {
+        let data = self.materialize_returndata_bytes();
+        let data_ptr = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+        let data_len = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let selector_slice = self.builder.make_slice(data_ptr, data_len, SliceLocation::Memory);
+        let selector_word = self.builder.memory_slice_load_word(selector_slice, zero);
+        let four = self.builder.imm_u64(4);
+        let short = self.builder.lt(data_len, four);
+        let has_selector = self.builder.iszero(short);
+        let selector_shift = self.builder.imm_u64(224);
+        let selector = self.builder.shr(selector_shift, selector_word);
+        let expected = keccak256("Error(string)");
+        let expected = self.builder.imm_u256(U256::from_be_slice(&expected[..4]));
+        let selector_matches = self.builder.eq(selector, expected);
+        let matched = self.builder.and(has_selector, selector_matches);
+        let decode_block = self.builder.create_block();
+        let rethrow_block = self.builder.create_block();
+        self.builder.branch(matched, decode_block, rethrow_block);
+        self.builder.switch_to_block(rethrow_block);
+        self.builder.revert(data_ptr, data_len);
+        self.builder.switch_to_block(decode_block);
+
+        let payload_ptr = self.builder.add(data_ptr, four);
+        let payload_len = self.builder.sub(data_len, four);
+        let head_size = self.builder.imm_u64(32);
+        let relative = self.abi_decode_word(payload_ptr);
+        self.lower_abi_decode_dynamic_bytes(payload_ptr, payload_len, head_size, relative)
+            .or_else(|| report_unsupported(self.gcx, span, "Error catch payload"))
     }
 
     fn lower_abi_encode_packed(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
