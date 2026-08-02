@@ -2684,8 +2684,8 @@ impl<'gcx> Lowerer<'gcx> {
             MemoryObjectKind::DynamicArray,
         );
         builder.set_memory_object_len(ptr, arr_len, MemoryObjectKind::DynamicArray);
-        let dst_data = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
-        builder.mcopy(dst_data, payload_src, payload_bytes);
+        let payload = builder.make_slice(payload_src, payload_bytes, SliceLocation::Memory);
+        builder.memory_object_copy_from_slice(ptr, MemoryObjectKind::DynamicArray, payload);
 
         let needs_validation = !matches!(
             elem,
@@ -2778,14 +2778,14 @@ impl<'gcx> Lowerer<'gcx> {
         );
         builder.set_memory_object_len(ptr, tail_len, MemoryObjectKind::Bytes);
 
-        let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let zero = builder.imm_u64(0);
         let last_word_offset = builder.sub(data_size, word);
         let last_word_index = builder.div(last_word_offset, word);
         builder.memory_object_store_element(ptr, MemoryObjectLayout::Bytes, last_word_index, zero);
 
         let src = builder.add(tail_len_addr, word);
-        builder.mcopy(data_ptr, src, tail_len);
+        let source = builder.make_slice(src, tail_len, SliceLocation::Memory);
+        builder.memory_object_copy_from_slice(ptr, MemoryObjectKind::Bytes, source);
         ptr
     }
 

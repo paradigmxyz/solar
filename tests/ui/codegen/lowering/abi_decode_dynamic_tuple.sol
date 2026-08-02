@@ -18,7 +18,7 @@ contract AbiDecodeDynamicTuple {
 
     // CHECK-LABEL: fn @roundtrip{{[( ]}}
     // CHECK: set_memory_object_len memorybytes
-    // CHECK: mcopy
+    // CHECK: memory_object_copy_from_slice memorybytes
     // CHECK: set_memory_object_len memorybytes
     // CHECK: ret
     function roundtrip(uint256 a, string memory s, bytes memory b)

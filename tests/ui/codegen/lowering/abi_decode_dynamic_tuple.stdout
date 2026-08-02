@@ -66,12 +66,12 @@ fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [abi_params=[b
   bb16:
     v25 = alloc memorybytes, exact, uninitialized, infallible, v23
     set_memory_object_len memorybytes, v25, v13
-    v26 = memory_object_data memorybytes, v25
-    v27 = sub v22, 32
-    v28 = div v27, 32
-    memory_object_store_element memorybytes, v25, v28, 0
-    v29 = add v12, 32
-    mcopy v26, v29, v13
+    v26 = sub v22, 32
+    v27 = div v26, 32
+    memory_object_store_element memorybytes, v25, v27, 0
+    v28 = add v12, 32
+    v29 = make_memory_slice v28, v13
+    memory_object_copy_from_slice memorybytes, v25, v29
     v30 = add v3, 64
     v31 = mload v30
     v32 = lt v31, 96
@@ -121,12 +121,12 @@ fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [abi_params=[b
   bb30:
     v49 = alloc memorybytes, exact, uninitialized, infallible, v47
     set_memory_object_len memorybytes, v49, v37
-    v50 = memory_object_data memorybytes, v49
-    v51 = sub v46, 32
-    v52 = div v51, 32
-    memory_object_store_element memorybytes, v49, v52, 0
-    v53 = add v36, 32
-    mcopy v50, v53, v37
+    v50 = sub v46, 32
+    v51 = div v50, 32
+    memory_object_store_element memorybytes, v49, v51, 0
+    v52 = add v36, 32
+    v53 = make_memory_slice v52, v37
+    memory_object_copy_from_slice memorybytes, v49, v53
     v54 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v55 = memory_object_data memoryfixedarray, v54
     v56 = add v55, 32
@@ -227,12 +227,12 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memory
   bb20:
     v32 = alloc memorybytes, exact, uninitialized, infallible, v30
     set_memory_object_len memorybytes, v32, v20
-    v33 = memory_object_data memorybytes, v32
-    v34 = sub v29, 32
-    v35 = div v34, 32
-    memory_object_store_element memorybytes, v32, v35, 0
-    v36 = add v19, 32
-    mcopy v33, v36, v20
+    v33 = sub v29, 32
+    v34 = div v33, 32
+    memory_object_store_element memorybytes, v32, v34, 0
+    v35 = add v19, 32
+    v36 = make_memory_slice v35, v20
+    memory_object_copy_from_slice memorybytes, v32, v36
     v37 = add v10, 64
     v38 = mload v37
     v39 = lt v38, 96
@@ -282,12 +282,12 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memory
   bb34:
     v56 = alloc memorybytes, exact, uninitialized, infallible, v54
     set_memory_object_len memorybytes, v56, v44
-    v57 = memory_object_data memorybytes, v56
-    v58 = sub v53, 32
-    v59 = div v58, 32
-    memory_object_store_element memorybytes, v56, v59, 0
-    v60 = add v43, 32
-    mcopy v57, v60, v44
+    v57 = sub v53, 32
+    v58 = div v57, 32
+    memory_object_store_element memorybytes, v56, v58, 0
+    v59 = add v43, 32
+    v60 = make_memory_slice v59, v44
+    memory_object_copy_from_slice memorybytes, v56, v60
     v61 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v62 = memory_object_data memoryfixedarray, v61
     v63 = add v62, 32
@@ -360,12 +360,12 @@ fn @decodeBytes(arg0: memorybytes) -> memorybytes [abi_params=[bytes], abi_retur
   bb16:
     v21 = alloc memorybytes, exact, uninitialized, infallible, v19
     set_memory_object_len memorybytes, v21, v9
-    v22 = memory_object_data memorybytes, v21
-    v23 = sub v18, 32
-    v24 = div v23, 32
-    memory_object_store_element memorybytes, v21, v24, 0
-    v25 = add v8, 32
-    mcopy v22, v25, v9
+    v22 = sub v18, 32
+    v23 = div v22, 32
+    memory_object_store_element memorybytes, v21, v23, 0
+    v24 = add v8, 32
+    v25 = make_memory_slice v24, v9
+    memory_object_copy_from_slice memorybytes, v21, v25
     ret v21
 }
 
