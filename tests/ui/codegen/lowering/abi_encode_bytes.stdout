@@ -99,9 +99,14 @@ fn @roundtrip(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
     v11 = lt v9, 32
     jumpi v11, bb5, bb6
   bb5:
-    revert 0, 0
+    tail_call @__revert_empty
   bb6:
     v12 = mload v10
     ret v12
+}
+
+fn @__revert_empty() {
+  bb0:
+    revert 0, 0
 }
 

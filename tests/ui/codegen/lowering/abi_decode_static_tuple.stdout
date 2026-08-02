@@ -10,7 +10,7 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_params=[bytes], abi_
     v2 = lt v0, 96
     jumpi v2, bb1, bb2
   bb1:
-    revert 0, 0
+    tail_call @__revert_empty
   bb2:
     v3 = mload v1
     v4 = add v1, 32
@@ -45,5 +45,10 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_params=[bytes], abi_
     v22 = add v19, 64
     v23 = mload v22
     ret v3, v21, v23
+}
+
+fn @__revert_empty() {
+  bb0:
+    revert 0, 0
 }
 

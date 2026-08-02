@@ -2798,9 +2798,8 @@ impl<'gcx> Lowerer<'gcx> {
         let continue_block = builder.create_block();
         builder.branch(cond, revert_block, continue_block);
         builder.switch_to_block(revert_block);
-        let zero_off = builder.imm_u64(0);
-        let zero_len = builder.imm_u64(0);
-        builder.revert(zero_off, zero_len);
+        let helper = self.ensure_empty_revert_helper();
+        builder.tail_call(helper, Vec::new());
         builder.switch_to_block(continue_block);
     }
 

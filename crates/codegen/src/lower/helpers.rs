@@ -15,6 +15,8 @@ pub(super) enum HelperKey {
     RevertError,
     /// Decode one storage `bytes`/`string` value into a memory object.
     LoadStorageBytes,
+    /// Revert without returndata for ABI validation failures.
+    EmptyRevert,
 }
 
 /// Registry for lazily outlined helpers.
@@ -115,6 +117,25 @@ impl<'gcx> Lowerer<'gcx> {
             let ptr = self.materialize_storage_bytes_inline(&mut builder, slot);
             self.outlined_helpers.end(key);
             builder.ret([ptr]);
+        }
+        let id = self.module.add_function(func);
+        self.outlined_helpers.insert(key, id);
+        id
+    }
+
+    /// Returns the shared empty-revert helper used by ABI validation.
+    pub(super) fn ensure_empty_revert_helper(&mut self) -> FunctionId {
+        let key = HelperKey::EmptyRevert;
+        if let Some(id) = self.outlined_helpers.get(key) {
+            return id;
+        }
+
+        let name = Ident::new(sym::__revert_empty, Span::DUMMY);
+        let mut func = Function::new(name);
+        {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let zero = builder.imm_u64(0);
+            builder.revert(zero, zero);
         }
         let id = self.module.add_function(func);
         self.outlined_helpers.insert(key, id);

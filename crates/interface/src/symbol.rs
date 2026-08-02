@@ -964,6 +964,7 @@ symbols! {
         X,
         __load_storage_bytes,
         __ret_bytes,
+        __revert_empty,
         __revert_error,
         __tmp_struct,
         _anonymous,

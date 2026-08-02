@@ -112,9 +112,9 @@ describes observable structure in the current tree, not an intended design.
 * Dynamic ABI encodes measure their tails before reserving the output through
   `alloc`. The encoder no longer writes into an unbumped free-memory pointer;
   the measurement and write phases share the same typed ABI shape.
-* Panic, short-error, and storage-bytes helpers use one lazy registry keyed by
-  semantic operation. Repeated uses share one helper, while synthesis guards
-  keep recursive helper construction finite.
+* Panic, short-error, storage-bytes, and empty-revert helpers use one lazy
+  registry keyed by semantic operation. Repeated uses share one helper, while
+  synthesis guards keep recursive helper construction finite.
 * Modifier placeholders expand the modifier chain in source order. Return
   values pass through the suffix, and constructor base calls stay in the
   constructor prelude.
@@ -160,10 +160,10 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   optimization and allocates its hash input at the memory boundary. The
   remaining work is to keep the other policies in typed MIR until that
   boundary.
-* **Helper coverage is incomplete.** Panic, short-error, and storage-bytes
-  helpers now share a keyed lazy registry. Checked exponentiation, ABI copies,
-  and repeated cleanup or validation still have inline or pass-specific
-  builders, so the registry does not yet cover every reusable operation.
+* **Helper coverage is incomplete.** Panic, short-error, storage-bytes, and
+  empty-revert helpers now share a keyed lazy registry. Checked exponentiation,
+  ABI copies, and repeated cleanup still have inline or pass-specific builders,
+  so the registry does not yet cover every reusable operation.
 * **Pattern-specific lowering is duplicated.** Struct, fixed-array, dynamic
   array, bytes, and calldata-slice handling each have separate branches in
   parameter setup, expression indexing, assignment, return gathering, and
