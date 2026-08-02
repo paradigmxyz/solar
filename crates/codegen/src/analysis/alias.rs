@@ -735,6 +735,9 @@ impl AliasAnalysis {
             InstKind::MemoryObjectStoreElement { object, index, value, .. } => {
                 operand != *object && operand != *index && operand != *value
             }
+            InstKind::MemoryObjectCopyFromSlice { object, source, .. } => {
+                operand != *object && operand != *source
+            }
             InstKind::MCopy(dest, source, _)
             | InstKind::StorageToMemory { memory: dest, storage: source, .. } => {
                 operand != *dest && operand != *source
@@ -936,6 +939,15 @@ impl AliasAnalysis {
                 } else {
                     effects.write_any(AddressSpace::Memory);
                 }
+            }
+            InstKind::MemoryObjectCopyFromSlice { source, .. } => {
+                if matches!(
+                    func.value_ty(source),
+                    Some(crate::mir::MirType::Slice(crate::mir::SliceLocation::Memory,))
+                ) {
+                    effects.read_any(AddressSpace::Memory);
+                }
+                effects.write_any(AddressSpace::Memory);
             }
             InstKind::Alloc { size, semantics, .. } => {
                 let fmp = Access::Location(Location::Memory(Self::fmp_location()));

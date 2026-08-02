@@ -462,6 +462,16 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::MemoryObjectStoreElement { object, layout, index, value });
     }
 
+    /// Copies a typed slice into a dynamic memory object's payload.
+    pub(crate) fn memory_object_copy_from_slice(
+        &mut self,
+        object: ValueId,
+        kind: crate::mir::MemoryObjectKind,
+        source: ValueId,
+    ) {
+        self.emit_void_inst(InstKind::MemoryObjectCopyFromSlice { object, kind, source });
+    }
+
     fn alloc_kind(
         &mut self,
         size: ValueId,

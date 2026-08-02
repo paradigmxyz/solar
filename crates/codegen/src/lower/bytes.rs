@@ -174,14 +174,12 @@ impl<'gcx> Lowerer<'gcx> {
         let ptr = self.allocate_memory_object_dynamic(builder, total_size, MemoryObjectKind::Bytes);
         builder.set_memory_object_len(ptr, len, MemoryObjectKind::Bytes);
 
-        let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let zero = builder.imm_u64(0);
         let last_word_offset = builder.sub(data_size, word_size);
         let last_word_index = builder.div(last_word_offset, word_size);
         builder.memory_object_store_element(ptr, MemoryObjectLayout::Bytes, last_word_index, zero);
 
-        let data_pos = builder.slice_ptr(slice);
-        builder.calldatacopy(data_ptr, data_pos, len);
+        builder.memory_object_copy_from_slice(ptr, MemoryObjectKind::Bytes, slice);
         ptr
     }
 
@@ -239,9 +237,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         let ptr = self.allocate_memory_object_dynamic(builder, total_size, MemoryObjectKind::Bytes);
         builder.set_memory_object_len(ptr, len, MemoryObjectKind::Bytes);
-        let data_ptr = builder.add(ptr, word_size);
-        let data_pos = builder.slice_ptr(slice);
-        builder.mcopy(data_ptr, data_pos, len);
+        builder.memory_object_copy_from_slice(ptr, MemoryObjectKind::Bytes, slice);
         ptr
     }
 
@@ -1021,7 +1017,6 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         slice: ValueId,
     ) -> ValueId {
-        let offset = builder.slice_ptr(slice);
         let size = builder.slice_len(slice);
         // total = 32 (length word) + ceil32(size), keeping the free memory
         // pointer word-aligned. With empty returndata this degenerates to a
@@ -1034,8 +1029,7 @@ impl<'gcx> Lowerer<'gcx> {
         let total = builder.add(padded, word);
         let ptr = self.allocate_memory_object_dynamic(builder, total, MemoryObjectKind::Bytes);
         builder.set_memory_object_len(ptr, size, MemoryObjectKind::Bytes);
-        let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        builder.returndatacopy(data_ptr, offset, size);
+        builder.memory_object_copy_from_slice(ptr, MemoryObjectKind::Bytes, slice);
         ptr
     }
 

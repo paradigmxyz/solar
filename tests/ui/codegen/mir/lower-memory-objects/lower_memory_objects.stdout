@@ -30,3 +30,24 @@
       stop
   }
   
+- fn @copy_from_slice(arg0: memorybytes, arg1: memoryslice, arg2: calldataslice, arg3: returndataslice) {
++ fn @copy_from_slice(arg0: memptr, arg1: memoryslice, arg2: calldataslice, arg3: returndataslice) {
+    bb0:
+-     memory_object_copy_from_slice memorybytes, arg0, arg1
+-     memory_object_copy_from_slice memorybytes, arg0, arg2
+-     memory_object_copy_from_slice memorybytes, arg0, arg3
++     v0 = add arg0, 32
++     v1 = slice_ptr arg1
++     v2 = slice_len arg1
++     mcopy v0, v1, v2
++     v3 = add arg0, 32
++     v4 = slice_ptr arg2
++     v5 = slice_len arg2
++     calldatacopy v3, v4, v5
++     v6 = add arg0, 32
++     v7 = slice_ptr arg3
++     v8 = slice_len arg3
++     returndatacopy v6, v7, v8
+      stop
+  }
+  

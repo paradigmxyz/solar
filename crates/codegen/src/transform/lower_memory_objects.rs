@@ -83,6 +83,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         | InstKind::MemoryObjectStoreField { .. }
                         | InstKind::MemoryObjectLoadElement { .. }
                         | InstKind::MemoryObjectStoreElement { .. }
+                        | InstKind::MemoryObjectCopyFromSlice { .. }
                         | InstKind::Keccak256Bytes(_)
                         | InstKind::Alloc { kind: AllocationKind::Object(_), .. }
                 )
@@ -224,6 +225,29 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     let offset = builder.mul(index, stride);
                     let address = builder.add(base, offset);
                     builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
+                    stats.accesses += 1;
+                }
+                InstKind::MemoryObjectCopyFromSlice { object, kind, source } => {
+                    let Some(MirType::Slice(location)) = builder.func().value_ty(source) else {
+                        builder.func_mut().blocks[block].instructions.push(inst);
+                        continue;
+                    };
+                    let destination =
+                        offset_address(&mut builder, object, P::object_data_offset(kind));
+                    let source_ptr = builder.slice_ptr(source);
+                    let length = builder.slice_len(source);
+                    let physical = match location {
+                        crate::mir::SliceLocation::Memory => {
+                            InstKind::MCopy(destination, source_ptr, length)
+                        }
+                        crate::mir::SliceLocation::Calldata => {
+                            InstKind::CalldataCopy(destination, source_ptr, length)
+                        }
+                        crate::mir::SliceLocation::Returndata => {
+                            InstKind::ReturnDataCopy(destination, source_ptr, length)
+                        }
+                    };
+                    builder.func_mut().inst_mut(inst).kind = physical;
                     stats.accesses += 1;
                 }
                 _ => {}

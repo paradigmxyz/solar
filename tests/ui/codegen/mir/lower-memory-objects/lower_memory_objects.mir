@@ -23,3 +23,15 @@ fn @objects(arg0: memorybytes, arg1: memoryarray, arg2: memorystruct, arg3: memo
     mstore v9, v5
     stop
 }
+
+// CHECK-LABEL: {{^[ +].*}}fn @copy_from_slice{{[( ]}}
+// CHECK: + mcopy [[DEST1:v[0-9]+]], [[MEMORY_PTR:v[0-9]+]], [[MEMORY_LEN:v[0-9]+]]
+// CHECK: + calldatacopy [[DEST2:v[0-9]+]], [[CALLDATA_PTR:v[0-9]+]], [[CALLDATA_LEN:v[0-9]+]]
+// CHECK: + returndatacopy [[DEST3:v[0-9]+]], [[RETURNDATA_PTR:v[0-9]+]], [[RETURNDATA_LEN:v[0-9]+]]
+fn @copy_from_slice(arg0: memorybytes, arg1: memoryslice, arg2: calldataslice, arg3: returndataslice) {
+  bb0:
+    memory_object_copy_from_slice memorybytes, arg0, arg1
+    memory_object_copy_from_slice memorybytes, arg0, arg2
+    memory_object_copy_from_slice memorybytes, arg0, arg3
+    stop
+}
