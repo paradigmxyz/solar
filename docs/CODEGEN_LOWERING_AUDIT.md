@@ -9,10 +9,12 @@ describes observable structure in the current tree, not an intended design.
   the calldata-size and canonical-word checks, then clears the temporary
   `abi_args=lazy` marker while it forms the wrapper. Raw words are loaded for
   validation so MIR simplification cannot assume the check already passed.
-* Simple aggregate external arguments stay typed until `lower-abi`. Fixed and
-  dynamic word arrays, byte strings, and scalar-only structs carry an ABI shape
-  in MIR; the ABI phase remaps physical head words, validates scalar fields,
-  and builds either memory objects or calldata slices.
+* Supported aggregate external arguments stay typed until `lower-abi`. Fixed
+  and dynamic word arrays, byte strings, and nested scalar/byte tuples carry an
+  ABI shape in MIR; the ABI phase remaps physical head words, validates scalar
+  fields, and builds either memory objects or calldata slices. Dynamic structs
+  with calldata-located fields still use the legacy path while slice metadata
+  remains outside the typed object layout.
 * ABI parameter shapes print and parse with MIR text, so the boundary metadata
   survives phase dumps and round trips.
 * Packed storage locations carry their semantic encoding. Signed values are
