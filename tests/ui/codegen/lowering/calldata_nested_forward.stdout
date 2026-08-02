@@ -32,70 +32,65 @@ fn @forward(arg0: calldataslice, arg1: address) {
   bb8:
     v12 = alloc memoryarray<1>, exact, uninitialized, infallible, v10
     set_memory_object_len memoryarray, v12, v7
-    v13 = alloc raw, exact, uninitialized, infallible, 96
-    v14 = add v13, 32
-    v15 = add v13, 64
-    v16 = memory_object_data memoryarray, v12
-    mstore v13, v7
-    mstore v14, v6
-    mstore v15, v16
+    frame_store scratch, word, 0, v7 !metadata(memory=scratch)
+    frame_store scratch, word, 32, v6 !metadata(memory=scratch)
+    frame_store scratch, word, 64, 0 !metadata(memory=scratch)
     jump bb9
   bb9:
-    v17 = mload v13
-    v18 = gt v17, 0
-    jumpi v18, bb10, bb11
+    v13 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v14 = gt v13, 0
+    jumpi v14, bb10, bb11
   bb10:
-    v19 = mload v14
-    v20 = calldataload v19
-    v21 = add v6, v20
-    v22 = calldataload v21
-    v23 = add v22, 31
-    v24 = lt v23, v22
-    jumpi v24, bb12, bb13
+    v15 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v16 = calldataload v15
+    v17 = add v6, v16
+    v18 = calldataload v17
+    v19 = add v18, 31
+    v20 = lt v19, v18
+    jumpi v20, bb12, bb13
   bb11:
-    v43 = abi_encode [memory_array<memory_bytes>], selector 0x3731ba7300000000000000000000000000000000000000000000000000000000, args v12
-    v44 = slice_ptr v43
-    v45 = slice_len v43
-    v46 = gas
-    v47 = call v46, arg1, 0, v44, v45, 0, 0
-    jumpi v47, bb17, bb16
+    v38 = abi_encode [memory_array<memory_bytes>], selector 0x3731ba7300000000000000000000000000000000000000000000000000000000, args v12
+    v39 = slice_ptr v38
+    v40 = slice_len v38
+    v41 = gas
+    v42 = call v41, arg1, 0, v39, v40, 0, 0
+    jumpi v42, bb17, bb16
   bb12:
     tail_call @__panic_41
   bb13:
-    v25 = not 31
-    v26 = and v23, v25
-    v27 = iszero v26
-    v28 = select v27, 32, v26
-    v29 = add 32, v28
-    v30 = lt v29, v28
-    jumpi v30, bb14, bb15
+    v21 = not 31
+    v22 = and v19, v21
+    v23 = iszero v22
+    v24 = select v23, 32, v22
+    v25 = add 32, v24
+    v26 = lt v25, v24
+    jumpi v26, bb14, bb15
   bb14:
     tail_call @__panic_41
   bb15:
-    v31 = alloc memorybytes, exact, uninitialized, infallible, v29
-    set_memory_object_len memorybytes, v31, v22
-    v32 = add v31, 32
-    v33 = sub v28, 32
-    v34 = add v32, v33
-    mstore v34, 0
-    v35 = add v21, 32
-    calldatacopy v32, v35, v22
-    v36 = mload v15
-    mstore v36, v31
-    v37 = mload v13
-    v38 = sub v37, 1
-    mstore v13, v38
-    v39 = mload v14
-    v40 = add v39, 32
-    mstore v14, v40
-    v41 = mload v15
-    v42 = add v41, 32
-    mstore v15, v42
+    v27 = alloc memorybytes, exact, uninitialized, infallible, v25
+    set_memory_object_len memorybytes, v27, v18
+    v28 = add v27, 32
+    v29 = sub v24, 32
+    v30 = add v28, v29
+    mstore v30, 0
+    v31 = add v17, 32
+    calldatacopy v28, v31, v18
+    v32 = frame_load scratch, word, 64 !metadata(memory=scratch)
+    memory_object_store_element memoryarray<1>, v12, v32, v27
+    v33 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v34 = sub v33, 1
+    frame_store scratch, word, 0, v34 !metadata(memory=scratch)
+    v35 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v36 = add v35, 32
+    frame_store scratch, word, 32, v36 !metadata(memory=scratch)
+    v37 = add v32, 1
+    frame_store scratch, word, 64, v37 !metadata(memory=scratch)
     jump bb9
   bb16:
-    v48 = returndatasize
-    returndatacopy 0, 0, v48 !metadata(memory=scratch)
-    revert 0, v48
+    v43 = returndatasize
+    returndatacopy 0, 0, v43 !metadata(memory=scratch)
+    revert 0, v43
   bb17:
     stop
 }
@@ -139,80 +134,75 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
   bb8:
     v12 = alloc memoryarray<1>, exact, uninitialized, infallible, v10
     set_memory_object_len memoryarray, v12, v7
-    v13 = alloc raw, exact, uninitialized, infallible, 96
-    v14 = add v13, 32
-    v15 = add v13, 64
-    v16 = memory_object_data memoryarray, v12
-    mstore v13, v7
-    mstore v14, v6
-    mstore v15, v16
+    frame_store scratch, word, 0, v7 !metadata(memory=scratch)
+    frame_store scratch, word, 32, v6 !metadata(memory=scratch)
+    frame_store scratch, word, 64, 0 !metadata(memory=scratch)
     jump bb9
   bb9:
-    v17 = mload v13
-    v18 = gt v17, 0
-    jumpi v18, bb10, bb11
+    v13 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v14 = gt v13, 0
+    jumpi v14, bb10, bb11
   bb10:
-    v19 = mload v14
-    v20 = calldataload v19
-    v21 = add v6, v20
-    v22 = alloc raw, exact, uninitialized, infallible, 96
-    v23 = calldataload v21
-    mstore v22, v23
-    v24 = add v21, 32
-    v25 = calldataload v24
-    v26 = add v21, v25
-    v27 = calldataload v26
-    v28 = add v27, 31
-    v29 = lt v28, v27
-    jumpi v29, bb12, bb13
+    v15 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v16 = calldataload v15
+    v17 = add v6, v16
+    v18 = alloc raw, exact, uninitialized, infallible, 96
+    v19 = calldataload v17
+    mstore v18, v19
+    v20 = add v17, 32
+    v21 = calldataload v20
+    v22 = add v17, v21
+    v23 = calldataload v22
+    v24 = add v23, 31
+    v25 = lt v24, v23
+    jumpi v25, bb12, bb13
   bb11:
-    v50 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v12
-    v51 = slice_ptr v50
-    v52 = slice_len v50
-    v53 = gas
-    v54 = call v53, arg1, 0, v51, v52, 0, 0
-    jumpi v54, bb17, bb16
+    v45 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v12
+    v46 = slice_ptr v45
+    v47 = slice_len v45
+    v48 = gas
+    v49 = call v48, arg1, 0, v46, v47, 0, 0
+    jumpi v49, bb17, bb16
   bb12:
     tail_call @__panic_41
   bb13:
-    v30 = not 31
-    v31 = and v28, v30
-    v32 = iszero v31
-    v33 = select v32, 32, v31
-    v34 = add 32, v33
-    v35 = lt v34, v33
-    jumpi v35, bb14, bb15
+    v26 = not 31
+    v27 = and v24, v26
+    v28 = iszero v27
+    v29 = select v28, 32, v27
+    v30 = add 32, v29
+    v31 = lt v30, v29
+    jumpi v31, bb14, bb15
   bb14:
     tail_call @__panic_41
   bb15:
-    v36 = alloc memorybytes, exact, uninitialized, infallible, v34
-    set_memory_object_len memorybytes, v36, v27
-    v37 = add v36, 32
-    v38 = sub v33, 32
-    v39 = add v37, v38
-    mstore v39, 0
-    v40 = add v26, 32
-    calldatacopy v37, v40, v27
-    v41 = add v22, 32
-    mstore v41, v36
-    v42 = add v22, 64
-    mstore v42, v21
-    v43 = mload v15
-    mstore v43, v22
-    v44 = mload v13
-    v45 = sub v44, 1
-    mstore v13, v45
-    v46 = mload v14
-    v47 = add v46, 32
-    mstore v14, v47
-    v48 = mload v15
-    v49 = add v48, 32
-    mstore v15, v49
+    v32 = alloc memorybytes, exact, uninitialized, infallible, v30
+    set_memory_object_len memorybytes, v32, v23
+    v33 = add v32, 32
+    v34 = sub v29, 32
+    v35 = add v33, v34
+    mstore v35, 0
+    v36 = add v22, 32
+    calldatacopy v33, v36, v23
+    v37 = add v18, 32
+    mstore v37, v32
+    v38 = add v18, 64
+    mstore v38, v17
+    v39 = frame_load scratch, word, 64 !metadata(memory=scratch)
+    memory_object_store_element memoryarray<1>, v12, v39, v18
+    v40 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v41 = sub v40, 1
+    frame_store scratch, word, 0, v41 !metadata(memory=scratch)
+    v42 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    v43 = add v42, 32
+    frame_store scratch, word, 32, v43 !metadata(memory=scratch)
+    v44 = add v39, 1
+    frame_store scratch, word, 64, v44 !metadata(memory=scratch)
     jump bb9
   bb16:
-    v55 = returndatasize
-    returndatacopy 0, 0, v55 !metadata(memory=scratch)
-    revert 0, v55
+    v50 = returndatasize
+    returndatacopy 0, 0, v50 !metadata(memory=scratch)
+    revert 0, v50
   bb17:
     stop
 }

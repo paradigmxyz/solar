@@ -83,6 +83,9 @@ describes observable structure in the current tree, not an intended design.
   Bindings, loop targets, error flags, storage-reference markers, and return
   continuations are restored at each boundary; inline frame allocation keeps
   only its high-water mark in the enclosing function.
+* Recursive calldata-array materialization and storage-bytes copy loops keep
+  their counters in typed temporary frame slots. Nested elements are written
+  through semantic memory-object stores instead of pointer scratch buffers.
 * The lowering module exposes only `lower_contract` and
   `lower_contract_with_bytecodes` publicly. Context, loop, and storage
   implementation types are private to lowering and its child modules.

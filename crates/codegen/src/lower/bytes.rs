@@ -1,7 +1,7 @@
 //! Bytes and string lowering helpers.
 
 use super::{Lowerer, call::StorageArrayMethod, checked_arith::PanicCode};
-use crate::mir::{FunctionBuilder, MemoryObjectKind, SliceLocation, ValueId};
+use crate::mir::{FunctionBuilder, MemoryObjectKind, MemoryObjectLayout, SliceLocation, ValueId};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::LitKind;
 use solar_interface::{diagnostics::ErrorGuaranteed, sym};
@@ -571,16 +571,15 @@ impl<'gcx> Lowerer<'gcx> {
         builder.set_memory_object_len(ptr, len, MemoryObjectKind::DynamicArray);
 
         // Recursive materialization allocates memory and can introduce CFG, so
-        // keep loop state in dedicated memory rather than MIR values.
-        let scratch = self.allocate_memory(builder, 3 * 32);
-        let remaining_slot = scratch;
-        let source_slot = self.offset_ptr(builder, scratch, 32);
-        let dest_slot = self.offset_ptr(builder, scratch, 64);
+        // keep loop state in dedicated frame slots rather than MIR values.
+        let remaining_slot = self.alloc_temp_frame_word();
+        let source_slot = self.alloc_temp_frame_word();
+        let dest_slot = self.alloc_temp_frame_word();
         let tuple_base = data_pos;
-        let dest = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
-        builder.mstore(remaining_slot, len);
-        builder.mstore(source_slot, tuple_base);
-        builder.mstore(dest_slot, dest);
+        self.store_temp_frame_word(builder, remaining_slot, len);
+        self.store_temp_frame_word(builder, source_slot, tuple_base);
+        let zero = builder.imm_u64(0);
+        self.store_temp_frame_word(builder, dest_slot, zero);
 
         let cond_block = builder.create_block();
         let body_block = builder.create_block();
@@ -588,32 +587,31 @@ impl<'gcx> Lowerer<'gcx> {
         builder.jump(cond_block);
 
         builder.switch_to_block(cond_block);
-        let remaining = builder.mload(remaining_slot);
+        let remaining = self.load_temp_frame_word(builder, remaining_slot);
         let zero = builder.imm_u64(0);
         let has_next = builder.gt(remaining, zero);
         builder.branch(has_next, body_block, done_block);
 
         builder.switch_to_block(body_block);
-        let head_cursor = builder.mload(source_slot);
+        let head_cursor = self.load_temp_frame_word(builder, source_slot);
         let elem_pos = self.calldata_abi_value_pos(builder, source, elem, head_cursor, tuple_base);
         let value = self.materialize_calldata_value_at(builder, source, elem, elem_pos);
-        let dest = builder.mload(dest_slot);
-        builder.mstore(dest, value);
+        let dest_index = self.load_temp_frame_word(builder, dest_slot);
+        builder.memory_object_store_element(ptr, MemoryObjectLayout::WORD_ARRAY, dest_index, value);
 
         let one = builder.imm_u64(1);
-        let remaining = builder.mload(remaining_slot);
+        let remaining = self.load_temp_frame_word(builder, remaining_slot);
         let next_remaining = builder.sub(remaining, one);
-        builder.mstore(remaining_slot, next_remaining);
-        let head_cursor = builder.mload(source_slot);
+        self.store_temp_frame_word(builder, remaining_slot, next_remaining);
+        let head_cursor = self.load_temp_frame_word(builder, source_slot);
         let elem_head_size = match self.abi_head_size(elem) {
             Ok(size) => builder.imm_u64(size),
             Err(guar) => return builder.error_value(guar),
         };
         let next_source = builder.add(head_cursor, elem_head_size);
-        builder.mstore(source_slot, next_source);
-        let dest = builder.mload(dest_slot);
-        let next_dest = builder.add(dest, word);
-        builder.mstore(dest_slot, next_dest);
+        self.store_temp_frame_word(builder, source_slot, next_source);
+        let next_dest = builder.add(dest_index, one);
+        self.store_temp_frame_word(builder, dest_slot, next_dest);
         builder.jump(cond_block);
 
         builder.switch_to_block(done_block);

@@ -462,9 +462,9 @@ impl<'gcx> Lowerer<'gcx> {
         let is_long = builder.gt(len, thirty_one);
         let new_words = builder.select(is_long, new_words_long, zero);
 
-        // Loop counters remain in scratch memory while storage words are
+        // Loop counters remain in a typed frame slot while storage words are
         // copied and cleared.
-        let scratch = self.allocate_memory(builder, 32);
+        let scratch = self.alloc_temp_frame_word();
         let data_slot = builder.storage_array_data_slot(slot);
 
         let short_block = builder.create_block();
@@ -500,42 +500,42 @@ impl<'gcx> Lowerer<'gcx> {
         let len_twice_long = builder.shl(shift_one, len);
         let main_word = builder.or(len_twice_long, one);
         builder.sstore(slot, main_word);
-        builder.mstore(scratch, zero);
+        self.store_temp_frame_word(builder, scratch, zero);
         builder.jump(copy_cond);
 
         builder.switch_to_block(copy_cond);
-        let i = builder.mload(scratch);
+        let i = self.load_temp_frame_word(builder, scratch);
         let more = builder.lt(i, new_words);
         builder.branch(more, copy_body, clear_init);
 
         builder.switch_to_block(copy_body);
-        let i = builder.mload(scratch);
+        let i = self.load_temp_frame_word(builder, scratch);
         let dst = builder.add(data_slot, i);
         let src_off = builder.mul(i, word_size);
         let src = builder.add(data, src_off);
         let data_word = builder.mload(src);
         builder.sstore(dst, data_word);
         let next_i = builder.add(i, one);
-        builder.mstore(scratch, next_i);
+        self.store_temp_frame_word(builder, scratch, next_i);
         builder.jump(copy_cond);
 
         // Clear data slots `[new_words, old_words)` left over from a longer
         // previous value.
         builder.switch_to_block(clear_init);
-        builder.mstore(scratch, new_words);
+        self.store_temp_frame_word(builder, scratch, new_words);
         builder.jump(clear_cond);
 
         builder.switch_to_block(clear_cond);
-        let j = builder.mload(scratch);
+        let j = self.load_temp_frame_word(builder, scratch);
         let more_clear = builder.lt(j, old_words);
         builder.branch(more_clear, clear_body, done_block);
 
         builder.switch_to_block(clear_body);
-        let j = builder.mload(scratch);
+        let j = self.load_temp_frame_word(builder, scratch);
         let clear_dst = builder.add(data_slot, j);
         builder.sstore(clear_dst, zero);
         let next_j = builder.add(j, one);
-        builder.mstore(scratch, next_j);
+        self.store_temp_frame_word(builder, scratch, next_j);
         builder.jump(clear_cond);
 
         builder.switch_to_block(done_block);

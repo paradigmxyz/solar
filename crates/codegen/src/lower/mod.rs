@@ -420,6 +420,26 @@ impl<'gcx> Lowerer<'gcx> {
         offset
     }
 
+    /// Allocates a compiler-owned temporary word in the current frame.
+    fn alloc_temp_frame_word(&mut self) -> u64 {
+        let offset = self.next_local_memory_offset;
+        self.next_local_memory_offset += EvmMemoryLayout::WORD_SIZE;
+        offset
+    }
+
+    fn load_temp_frame_word(&self, builder: &mut FunctionBuilder<'_>, offset: u64) -> ValueId {
+        self.load_frame_word(builder, offset)
+    }
+
+    fn store_temp_frame_word(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        offset: u64,
+        value: ValueId,
+    ) {
+        self.store_frame_word(builder, offset, value);
+    }
+
     /// Whether `var_id` is a reassignable local whose slot holds a slice.
     fn is_slice_slot_local(&self, var_id: &VariableId) -> bool {
         self.slice_slot_locals.contains(var_id)
