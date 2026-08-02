@@ -27,6 +27,9 @@ describes observable structure in the current tree, not an intended design.
 * Packed ABI encodes allocate a semantic bytes object before writing their
   tight-packed payload, and packed hashes consume that object through
   `keccak256_bytes`.
+* ECDSA and literal precompile inputs allocate semantic bytes objects before
+  writing their fixed-size payloads; the HIR paths no longer read the free
+  memory pointer for those scratch buffers.
 * Event payloads with representable ABI types use the same typed ABI operation;
   only recursive or otherwise unsupported event types use the compatibility
   fallback.

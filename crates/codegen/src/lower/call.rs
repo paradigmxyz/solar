@@ -2775,7 +2775,14 @@ impl<'gcx> Lowerer<'gcx> {
         let r = self.lower_value_expr(builder, r);
         let s = self.lower_value_expr(builder, s);
 
-        let input_ptr = builder.fmp();
+        let input_size_value = builder.imm_u64(160);
+        let input = builder.alloc_object(
+            input_size_value,
+            crate::mir::MemoryObjectLayout::Bytes,
+            crate::mir::AllocationSemantics::INTERNAL,
+        );
+        builder.set_memory_object_len(input, input_size_value, MemoryObjectKind::Bytes);
+        let input_ptr = builder.memory_object_data(input, MemoryObjectKind::Bytes);
         builder.mstore(input_ptr, hash);
         for (offset, value) in [(32, v), (64, r), (96, s)] {
             let offset = builder.imm_u64(offset);
@@ -2818,7 +2825,17 @@ impl<'gcx> Lowerer<'gcx> {
                 return Ok((builder.imm_u64(0), builder.imm_u64(0)));
             }
 
-            let ptr = builder.fmp();
+            let len = bytes.len() as u64;
+            let alloc_size = len.div_ceil(32) * 32;
+            let alloc_size_value = builder.imm_u64(alloc_size);
+            let object = builder.alloc_object(
+                alloc_size_value,
+                crate::mir::MemoryObjectLayout::Bytes,
+                crate::mir::AllocationSemantics::INTERNAL,
+            );
+            let len_value = builder.imm_u64(len);
+            builder.set_memory_object_len(object, len_value, MemoryObjectKind::Bytes);
+            let ptr = builder.memory_object_data(object, MemoryObjectKind::Bytes);
             for (i, chunk) in bytes.chunks(32).enumerate() {
                 let mut padded = [0u8; 32];
                 padded[..chunk.len()].copy_from_slice(chunk);
@@ -2831,7 +2848,7 @@ impl<'gcx> Lowerer<'gcx> {
                 };
                 builder.mstore(dest, value);
             }
-            return Ok((ptr, builder.imm_u64(bytes.len() as u64)));
+            return Ok((ptr, builder.imm_u64(len)));
         }
 
         self.lower_bytes_arg_to_memory(builder, input)
