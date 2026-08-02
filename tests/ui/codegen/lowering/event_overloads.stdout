@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/event_overloads.sol:EventOverloads ===
 @module EventOverloads
-fn @emitBoth(arg0: address, arg1: u256) [abi_args=lazy] {
+fn @emitBoth(arg0: address, arg1: u256) [abi_args=lazy, abi_params=[address, u256], abi_returns=[]] {
   bb0:
     v0 = abi_encode [word], args arg1
     v1 = slice_ptr v0

@@ -110,6 +110,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   discarded tuple values for their side effects;
 * low-level and typed external calls, including returndata capture and EVM-version
   checks;
+* event emission with overload and named-argument resolution, selector and indexed
+  topics, dynamic-topic hashing, aggregate-topic diagnostics, and MIR ABI data;
 * payable address `send` and `transfer`, including the EVM value stipend and
   forwarding of transfer failures;
 * contract creation with compiled child deployment bytecode, semantic
@@ -139,8 +141,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
 2. Finish base-constructor argument forwarding for indirect and unresolved
    constructor arguments, and cover the remaining constructor modifier edge
    cases with Solc-backed runtime tests.
-3. Add the remaining call and language features: events, Yul statements,
-   immutables, and function-pointer dispatch.
+3. Add the remaining call and language features: Yul statements, immutables,
+   and function-pointer dispatch.
 4. Finish storage-reference CFG merging for every aggregate shape and audit
    checked arithmetic and allocation guards against the corresponding Solc
    behavior.

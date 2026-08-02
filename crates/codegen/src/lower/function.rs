@@ -15,7 +15,7 @@ use crate::{
 };
 use alloy_primitives::{Bytes, U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, UnOpKind};
-use solar_data_structures::map::{FxHashMap, StdEntry};
+use solar_data_structures::map::{FxHashMap, FxHashSet, StdEntry};
 use solar_interface::{Span, sym};
 use solar_sema::{
     Gcx,
@@ -36,6 +36,7 @@ pub(super) fn lower(
     expose_selector: bool,
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
     child_bytecodes: &FxHashMap<hir::ContractId, Bytes>,
+    invalid_event_topics: &mut FxHashSet<hir::EventId>,
 ) -> Option<Function> {
     let hir_function = gcx.hir.function(id);
     let mut mir = contract::declaration(gcx, id, hir_function);
@@ -68,8 +69,15 @@ pub(super) fn lower(
         mir.abi_args_lazy = true;
     }
 
-    let mut lowerer =
-        FunctionLowerer::new(gcx, storage, contract_id, function_ids, child_bytecodes, &mut mir);
+    let mut lowerer = FunctionLowerer::new(
+        gcx,
+        storage,
+        contract_id,
+        function_ids,
+        child_bytecodes,
+        invalid_event_topics,
+        &mut mir,
+    );
     lowerer.bind_signature(hir_function);
     if hir_function.kind == hir::FunctionKind::Constructor {
         let Some(contract_id) = hir_function.contract else {
@@ -95,12 +103,20 @@ pub(super) fn lower_synthetic_constructor(
     contract_id: hir::ContractId,
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
     child_bytecodes: &FxHashMap<hir::ContractId, Bytes>,
+    invalid_event_topics: &mut FxHashSet<hir::EventId>,
 ) -> Option<Function> {
     let mut mir =
         Function::new(solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor));
     mir.attributes.is_constructor = true;
-    let mut lowerer =
-        FunctionLowerer::new(gcx, storage, contract_id, function_ids, child_bytecodes, &mut mir);
+    let mut lowerer = FunctionLowerer::new(
+        gcx,
+        storage,
+        contract_id,
+        function_ids,
+        child_bytecodes,
+        invalid_event_topics,
+        &mut mir,
+    );
     lowerer.lower_state_initializers(contract_id)?;
     lowerer.lower_implicit_base_constructors(contract_id)?;
     if !lowerer.is_terminated() {
@@ -114,12 +130,13 @@ pub(super) fn lower_synthetic_constructor(
 /// Keeping the HIR context, variable environment, loop targets, and builder in
 /// one object makes scope changes explicit. Child lowering methods do not need
 /// to pass a growing collection of loosely related maps and flags.
-struct FunctionLowerer<'gcx, 'mir, 'ids, 'bytes> {
+struct FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events> {
     gcx: Gcx<'gcx>,
     storage: &'mir StorageLayout,
     contract_id: hir::ContractId,
     function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
     child_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
+    invalid_event_topics: &'events mut FxHashSet<hir::EventId>,
     builder: FunctionBuilder<'mir>,
     types: types::TypeLowerer<'gcx>,
     values: FxHashMap<VariableId, ValueId>,
@@ -180,13 +197,14 @@ impl BuiltinArgCount {
     }
 }
 
-impl<'gcx, 'mir, 'ids, 'bytes> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes> {
+impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events> {
     fn new(
         gcx: Gcx<'gcx>,
         storage: &'mir StorageLayout,
         contract_id: hir::ContractId,
         function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
         child_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
+        invalid_event_topics: &'events mut FxHashSet<hir::EventId>,
         function: &'mir mut Function,
     ) -> Self {
         Self {
@@ -195,6 +213,7 @@ impl<'gcx, 'mir, 'ids, 'bytes> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes> {
             contract_id,
             function_ids,
             child_bytecodes,
+            invalid_event_topics,
             builder: FunctionBuilder::new(function),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
@@ -454,11 +473,145 @@ impl<'gcx, 'mir, 'ids, 'bytes> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes> {
             StmtKind::Placeholder => {
                 self.lower_modifier_placeholder(stmt.span)?;
             }
-            StmtKind::Emit(_) | StmtKind::Switch(_) | StmtKind::Try(_) | StmtKind::Err(_) => {
+            StmtKind::Emit(expr) => self.lower_emit(expr)?,
+            StmtKind::Switch(_) | StmtKind::Try(_) | StmtKind::Err(_) => {
                 return report_unsupported(self.gcx, stmt.span, "statement");
             }
         }
         Some(())
+    }
+
+    fn lower_emit(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
+        let ExprKind::Call(callee, args, _) = &expr.kind else {
+            return report_unsupported(self.gcx, expr.span, "event emission");
+        };
+        let Some(hir::Res::Item(hir::ItemId::Event(event_id))) = self.gcx.resolved_expr(callee)
+        else {
+            return report_unsupported(self.gcx, expr.span, "event emission");
+        };
+
+        let event = self.gcx.hir.event(event_id);
+        let max_indexed = if event.anonymous { 4 } else { 3 };
+        let indexed_count =
+            event.parameters.iter().filter(|&&id| self.gcx.hir.variable(id).indexed).count();
+        if indexed_count > max_indexed {
+            if self.invalid_event_topics.insert(event_id) {
+                self.gcx
+                    .dcx()
+                    .err(format!("event cannot have more than {max_indexed} indexed parameters"))
+                    .span(event.span)
+                    .emit();
+            }
+            return Some(());
+        }
+        if args.len() != event.parameters.len() {
+            return report_unsupported(self.gcx, args.span, "event arguments");
+        }
+
+        let parameter_names = self.gcx.callable_param_names(CallableParamSource::Event(event_id));
+        let mut topics = Vec::with_capacity(indexed_count + usize::from(!event.anonymous));
+        if !event.anonymous {
+            topics.push(
+                self.builder
+                    .imm_u256(U256::from_be_slice(self.gcx.event_selector(event_id).as_slice())),
+            );
+        }
+        let mut data_values = Vec::new();
+        let mut data_types = Vec::new();
+        for (index, &parameter) in event.parameters.iter().enumerate() {
+            let Some(argument) =
+                args.argument_for_parameter(index, Some(parameter_names.as_slice()))
+            else {
+                return report_unsupported(self.gcx, args.span, "event argument");
+            };
+            let parameter_ty = self.gcx.type_of_item(parameter.into());
+            let variable = self.gcx.hir.variable(parameter);
+            let mut value = self.lower_expr(argument)?;
+            if variable.indexed {
+                match parameter_ty.peel_refs().kind {
+                    TyKind::Elementary(
+                        solar_sema::hir::ElementaryType::Bytes
+                        | solar_sema::hir::ElementaryType::String,
+                    ) => {
+                        if matches!(self.builder.func().value_ty(value), Some(MirType::Slice(_))) {
+                            value = self.materialize_memory_slice(value);
+                        }
+                        topics.push(self.builder.keccak256_bytes(value));
+                    }
+                    TyKind::Struct(_)
+                    | TyKind::Array(..)
+                    | TyKind::DynArray(_)
+                    | TyKind::Slice(_)
+                    | TyKind::Tuple(_) => {
+                        self.gcx
+                            .dcx()
+                            .err("codegen does not support indexed event aggregate encoding yet")
+                            .span(argument.span)
+                            .emit();
+                        return Some(());
+                    }
+                    _ => topics.push(self.lower_event_word(parameter_ty, argument, value)),
+                }
+            } else {
+                let mut abi_type = self.types.abi_type(parameter_ty)?;
+                if self.needs_calldata_materialization(value, &abi_type) {
+                    value =
+                        self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
+                    abi_type = Self::memory_abi_type(abi_type);
+                }
+                if matches!(abi_type, AbiType::Word) {
+                    value = self.lower_event_word(parameter_ty, argument, value);
+                }
+                data_values.push(value);
+                data_types.push(abi_type);
+            }
+        }
+
+        let (data_ptr, data_size) = if data_types.is_empty() {
+            let zero = self.builder.imm_u256(U256::ZERO);
+            (zero, zero)
+        } else {
+            let layout = Arc::new(AbiLayout::new(data_types.into_boxed_slice()));
+            let encoded = self.builder.abi_encode(layout, None, data_values.into_boxed_slice());
+            (self.builder.slice_ptr(encoded), self.builder.slice_len(encoded))
+        };
+        match topics.as_slice() {
+            [] => self.builder.log0(data_ptr, data_size),
+            &[topic] => self.builder.log1(data_ptr, data_size, topic),
+            &[topic1, topic2] => self.builder.log2(data_ptr, data_size, topic1, topic2),
+            &[topic1, topic2, topic3] => {
+                self.builder.log3(data_ptr, data_size, topic1, topic2, topic3)
+            }
+            &[topic1, topic2, topic3, topic4] => {
+                self.builder.log4(data_ptr, data_size, topic1, topic2, topic3, topic4)
+            }
+            _ => return report_unsupported(self.gcx, args.span, "event topics"),
+        }
+        Some(())
+    }
+
+    fn lower_event_word(&mut self, ty: Ty<'gcx>, expr: &hir::Expr<'_>, value: ValueId) -> ValueId {
+        let expr = expr.peel_parens();
+        if !matches!(
+            ty.peel_refs().kind,
+            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
+        ) {
+            return value;
+        }
+        if let ExprKind::Lit(lit) = &expr.kind
+            && let LitKind::Str(_, bytes, _) = &lit.kind
+        {
+            let bytes = bytes.as_byte_str();
+            return self.builder.imm_u256(U256::from_be_slice(bytes) << ((32 - bytes.len()) * 8));
+        }
+        if matches!(
+            self.builder.func().value_ty(value),
+            Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+        ) {
+            let zero = self.builder.imm_u64(0);
+            return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
+        }
+        value
     }
 
     fn lower_modifier_chain(

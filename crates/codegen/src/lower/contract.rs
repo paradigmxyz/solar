@@ -23,6 +23,7 @@ pub(super) fn lower(
 
     let mut function_ids = Vec::new();
     let mut seen_selectors = FxHashSet::default();
+    let mut invalid_event_topics = FxHashSet::default();
     let mut has_fallback = false;
     let mut has_receive = false;
     for &base in contract.linearized_bases {
@@ -106,6 +107,7 @@ pub(super) fn lower(
             expose_selector,
             &mir_ids,
             child_bytecodes,
+            &mut invalid_event_topics,
         ) else {
             FunctionBuilder::new(module.function_mut(mir_id)).invalid();
             continue;
@@ -130,6 +132,7 @@ pub(super) fn lower(
             contract_id,
             &mir_ids,
             child_bytecodes,
+            &mut invalid_event_topics,
         ) else {
             FunctionBuilder::new(module.function_mut(mir_id)).invalid();
             return module;

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/event_encoding.sol:EventEncoding ===
 @module EventEncoding
-fn @emitArray(arg0: memoryfixedarray) {
+fn @emitArray(arg0: memoryfixedarray) [abi_args=lazy, abi_params=[array<2, u256>], abi_returns=[]] {
   bb0:
     v0 = abi_encode [array<2, word>], args arg0
     v1 = slice_ptr v0
@@ -9,7 +9,7 @@ fn @emitArray(arg0: memoryfixedarray) {
     stop
 }
 
-fn @emitAnonymous(arg0: address, arg1: u256) [abi_args=lazy] {
+fn @emitAnonymous(arg0: address, arg1: u256) [abi_args=lazy, abi_params=[address, u256], abi_returns=[]] {
   bb0:
     v0 = abi_encode [word], args arg1
     v1 = slice_ptr v0
@@ -18,20 +18,23 @@ fn @emitAnonymous(arg0: address, arg1: u256) [abi_args=lazy] {
     stop
 }
 
-fn @emitIndexedBytes(arg0: memorybytes) {
+fn @emitIndexedBytes(arg0: memorybytes) [abi_args=lazy, abi_params=[bytes], abi_returns=[]] {
   bb0:
     v0 = keccak256_bytes arg0
     log2 0, 0, 0x302971c456dab97076d583d969187faf914418423e0641b0c0f01537060f04e7, v0
     stop
 }
 
-fn @emitIndexedFixedBytes() [abi_args=lazy] {
+fn @emitIndexedFixedBytes() [abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb0:
+    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    set_memory_object_len memorybytes, v0, 3
+    memory_object_store_word memorybytes, v0, 0, 0x6162630000000000000000000000000000000000000000000000000000000000
     log2 0, 0, 0xd6843e74884f95c39ee4c0ac08d559101bead98aa590038d667afad12f9006bb, 0x6162630000000000000000000000000000000000000000000000000000000000
     stop
 }
 
-fn @emitNamed() [abi_args=lazy] {
+fn @emitNamed() [abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = abi_encode [word, word], args 1, 2
     v1 = slice_ptr v0

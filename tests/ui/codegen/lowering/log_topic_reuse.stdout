@@ -23,7 +23,7 @@ bb0:
   dup1
   push 0xb3de648b
   eq
-  push bb7
+  push bb9
   jumpi
   jump bb5
 bb5 [cold]:
@@ -31,6 +31,11 @@ bb5 [cold]:
   dup1
   revert
 bb6:
+  calldatasize
+  push 4
+  gt
+  push bb5
+  jumpi
   push 0
   sload
   push 128
@@ -38,7 +43,7 @@ bb6:
   push 32
   push 128
   return
-bb7:
+bb9:
   calldatasize
   push 36
   gt
