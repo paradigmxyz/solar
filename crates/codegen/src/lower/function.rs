@@ -966,9 +966,31 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
         {
             return report_unsupported(self.gcx, returns_clause.span, "try return bindings");
         }
-        if catch_clause.name.is_some() || !catch_clause.args.is_empty() {
+        if catch_clause.name.is_some() || catch_clause.args.len() > 1 {
             return report_unsupported(self.gcx, catch_clause.span, "try catch clause");
         }
+        let catch_binding = if let Some(&binding) = catch_clause.args.first() {
+            let ty = self.gcx.type_of_item(binding.into());
+            if !matches!(
+                ty.peel_refs().kind,
+                TyKind::Elementary(
+                    solar_sema::hir::ElementaryType::Bytes
+                        | solar_sema::hir::ElementaryType::String
+                )
+            ) {
+                return report_unsupported(self.gcx, catch_clause.span, "try catch clause");
+            }
+            if !self.gcx.sess.opts.evm_version.supports_returndata() {
+                return report_error(
+                    self.gcx,
+                    try_stmt.expr.span,
+                    "codegen cannot bind try/catch returndata before Byzantium",
+                );
+            }
+            Some(binding)
+        } else {
+            None
+        };
         if args.len() != function.parameters.len() {
             return report_unsupported(self.gcx, args.span, "try arguments");
         }
@@ -1054,6 +1076,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
         self.values = before.clone();
         self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(catch_block);
+        if let Some(binding) = catch_binding {
+            let value = self.materialize_returndata_bytes();
+            self.values.insert(binding, value);
+        }
         self.lower_block(catch_clause.block)?;
         let catch_terminated = self.is_terminated();
         let catch_exit = self.builder.current_block();
@@ -2902,22 +2928,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
             _ => unreachable!(),
         };
         if capture_returndata {
-            let length = self.builder.returndatasize();
-            let thirty_one = self.builder.imm_u64(31);
-            let rounded = self.checked_add(length, thirty_one);
-            let word_size = self.builder.imm_u64(32);
-            let words = self.builder.div(rounded, word_size);
-            let one = self.builder.imm_u64(1);
-            let total_words = self.checked_add(words, one);
-            let size = self.checked_mul(total_words, word_size);
-            let output = self.builder.alloc_object(
-                size,
-                MemoryObjectLayout::Bytes,
-                AllocationSemantics::INTERNAL,
-            );
-            self.builder.set_memory_object_len(output, length, MemoryObjectKind::Bytes);
-            let source = self.builder.make_slice(zero, length, SliceLocation::Returndata);
-            self.builder.memory_object_copy_from_slice(output, MemoryObjectKind::Bytes, source);
+            let output = self.materialize_returndata_bytes();
             let base = self.builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
             self.builder.mstore(base, output);
         }
@@ -3645,6 +3656,27 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
             _ => SliceLocation::Memory,
         };
         let source = self.builder.make_slice(pointer, length, location);
+        self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
+        object
+    }
+
+    fn materialize_returndata_bytes(&mut self) -> ValueId {
+        let length = self.builder.returndatasize();
+        let thirty_one = self.builder.imm_u64(31);
+        let rounded = self.checked_add(length, thirty_one);
+        let word_size = self.builder.imm_u64(32);
+        let words = self.builder.div(rounded, word_size);
+        let one = self.builder.imm_u64(1);
+        let total_words = self.checked_add(words, one);
+        let size = self.checked_mul(total_words, word_size);
+        let object = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::INTERNAL,
+        );
+        self.builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let source = self.builder.make_slice(zero, length, SliceLocation::Returndata);
         self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
         object
     }
