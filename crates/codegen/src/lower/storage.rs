@@ -1,4 +1,4 @@
-use super::Lowerer;
+use super::{Lowerer, checked_arith::PanicCode};
 use crate::mir::{
     FunctionBuilder, MemoryObjectKind, MemoryObjectLayout, StorageField, StorageLayout,
     StorageLayoutRef, TypeSize, ValueId,
@@ -901,8 +901,13 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> ValueId {
         let len = builder.sload(slot);
         let word = builder.imm_u64(32);
+        let shift = builder.imm_u64(251);
+        let too_big = builder.shr(shift, len);
+        self.emit_panic_if(builder, too_big, PanicCode::MemoryAllocationOverflow);
         let data_size = builder.mul(len, word);
         let total_size = builder.add(word, data_size);
+        let total_overflow = builder.lt(total_size, data_size);
+        self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
         let array = self.allocate_memory_object_dynamic(
             builder,
             total_size,
