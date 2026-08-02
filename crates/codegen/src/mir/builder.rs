@@ -414,32 +414,6 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::MemoryObjectData(object, kind), Some(MirType::MemPtr))
     }
 
-    /// Addresses a direct struct field.
-    pub(crate) fn memory_object_field_addr(
-        &mut self,
-        object: ValueId,
-        layout: crate::mir::MemoryObjectLayout,
-        field: u64,
-    ) -> ValueId {
-        self.emit_inst(
-            InstKind::MemoryObjectFieldAddr { object, layout, field },
-            Some(MirType::MemPtr),
-        )
-    }
-
-    /// Addresses an array element.
-    pub(crate) fn memory_object_element_addr(
-        &mut self,
-        object: ValueId,
-        layout: crate::mir::MemoryObjectLayout,
-        index: ValueId,
-    ) -> ValueId {
-        self.emit_inst(
-            InstKind::MemoryObjectElementAddr { object, layout, index },
-            Some(MirType::MemPtr),
-        )
-    }
-
     /// Loads a direct struct field through the semantic object layout.
     pub(crate) fn memory_object_load_field(
         &mut self,

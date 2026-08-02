@@ -77,6 +77,9 @@ describes observable structure in the current tree, not an intended design.
 * Storage-to-memory and memory-to-storage aggregate copies use the same typed
   field and element operations. Packed and nested copies no longer expose a
   destination address to HIR lowering.
+* The ABI encoder reads tuple fields and fixed-array elements through typed
+  memory-object loads. Address formation and the final `mload` happen only in
+  `lower-memory-objects`.
 * Panic, short-error, and storage-bytes helpers use one lazy registry keyed by
   semantic operation. Repeated uses share one helper, while synthesis guards
   keep recursive helper construction finite.
