@@ -46,7 +46,7 @@ const MIN_BULK_ZERO_MEMORY_WORDS: u64 = 4;
 
 /// Context for a loop (tracks break/continue targets).
 #[derive(Clone, Copy)]
-pub(crate) struct LoopContext {
+struct LoopContext {
     /// Block to jump to on `break`.
     pub break_target: BlockId,
     /// Block to jump to on `continue`.
@@ -151,7 +151,7 @@ struct ModifierChain<'hir> {
 type InternalFunctionPointerShape = (Vec<MirType>, Vec<MirType>);
 
 /// Lowering context for converting HIR to MIR.
-pub(crate) struct Lowerer<'gcx> {
+struct Lowerer<'gcx> {
     /// The global context.
     gcx: Gcx<'gcx>,
     /// The current module being built.
@@ -243,7 +243,7 @@ pub(crate) struct Lowerer<'gcx> {
     /// return), used to ABI-encode external returns.
     current_return_tys: Vec<Ty<'gcx>>,
     /// Mapping from struct state variable ID to base storage slot.
-    pub(crate) struct_storage_base_slots: FxHashMap<VariableId, U256>,
+    struct_storage_base_slots: FxHashMap<VariableId, U256>,
     /// Cached struct field slot offsets: (struct_type_id, field_index) -> slot offset from base.
     pub(super) struct_field_offsets: FxHashMap<(hir::StructId, usize), StorageLocation>,
     /// Cached semantic storage layout for each lowered struct type.
@@ -280,7 +280,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Creates a new lowerer.
-    pub(crate) fn new(gcx: Gcx<'gcx>, name: Ident) -> Self {
+    fn new(gcx: Gcx<'gcx>, name: Ident) -> Self {
         if !gcx.has_typeck_results() {
             gcx.dcx().emit_err(
                 name.span,
@@ -333,17 +333,17 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Pushes a loop context onto the stack.
-    pub(crate) fn push_loop(&mut self, ctx: LoopContext) {
+    fn push_loop(&mut self, ctx: LoopContext) {
         self.loop_stack.push(ctx);
     }
 
     /// Pops a loop context from the stack.
-    pub(crate) fn pop_loop(&mut self) {
+    fn pop_loop(&mut self) {
         self.loop_stack.pop();
     }
 
     /// Gets the current loop context, if any.
-    pub(crate) fn current_loop(&self) -> Option<&LoopContext> {
+    fn current_loop(&self) -> Option<&LoopContext> {
         self.loop_stack.last()
     }
 
@@ -378,7 +378,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Allocates a memory slot for a local variable.
     /// Returns the memory offset.
-    pub(crate) fn alloc_local_memory(&mut self, var_id: VariableId) -> u64 {
+    fn alloc_local_memory(&mut self, var_id: VariableId) -> u64 {
         let offset = self.next_local_memory_offset;
         self.next_local_memory_offset += EvmMemoryLayout::WORD_SIZE;
         self.local_memory_slots.insert(var_id, offset);
@@ -387,7 +387,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Allocates a two-word memory slot holding a logical slice as
     /// `[ptr][len]` and returns the base offset.
-    pub(crate) fn alloc_local_slice_memory(&mut self, var_id: VariableId) -> u64 {
+    fn alloc_local_slice_memory(&mut self, var_id: VariableId) -> u64 {
         let offset = self.next_local_memory_offset;
         self.next_local_memory_offset += 2 * EvmMemoryLayout::WORD_SIZE;
         self.local_memory_slots.insert(var_id, offset);
@@ -396,17 +396,12 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Whether `var_id` is a reassignable local whose slot holds a slice.
-    pub(crate) fn is_slice_slot_local(&self, var_id: &VariableId) -> bool {
+    fn is_slice_slot_local(&self, var_id: &VariableId) -> bool {
         self.slice_slot_locals.contains(var_id)
     }
 
     /// Stores a logical slice into its two-word local slot.
-    pub(crate) fn store_slice_slot(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        offset: u64,
-        slice: ValueId,
-    ) {
+    fn store_slice_slot(&mut self, builder: &mut FunctionBuilder<'_>, offset: u64, slice: ValueId) {
         let ptr = builder.slice_ptr(slice);
         let len = builder.slice_len(slice);
         let ptr_addr = self.local_memory_addr(builder, offset);
@@ -416,7 +411,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Initializes a two-word local slice slot to the empty slice.
-    pub(crate) fn init_empty_slice_slot(&mut self, builder: &mut FunctionBuilder<'_>, offset: u64) {
+    fn init_empty_slice_slot(&mut self, builder: &mut FunctionBuilder<'_>, offset: u64) {
         let ptr_addr = self.local_memory_addr(builder, offset);
         let ptr = builder.imm_u64(0);
         builder.mstore(ptr_addr, ptr);
@@ -426,7 +421,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Reloads a logical slice from its two-word local slot.
-    pub(crate) fn load_slice_slot(
+    fn load_slice_slot(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         offset: u64,
@@ -440,16 +435,12 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Gets the memory offset for a local variable, if it's stored in memory.
-    pub(crate) fn get_local_memory_offset(&self, var_id: &VariableId) -> Option<u64> {
+    fn get_local_memory_offset(&self, var_id: &VariableId) -> Option<u64> {
         self.local_memory_slots.get(var_id).copied()
     }
 
     /// Returns the address for a local memory slot in the current lowering context.
-    pub(crate) fn local_memory_addr(
-        &self,
-        builder: &mut FunctionBuilder<'_>,
-        offset: u64,
-    ) -> ValueId {
+    fn local_memory_addr(&self, builder: &mut FunctionBuilder<'_>, offset: u64) -> ValueId {
         if self.lowering_internal_function {
             let header_size = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE;
             let arg_size = (builder.func().params.len() as u64) * EvmMemoryLayout::WORD_SIZE;
@@ -471,21 +462,17 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Loads an immutable value.
-    pub(crate) fn load_immutable_value(
-        &self,
-        builder: &mut FunctionBuilder<'_>,
-        id: ImmutableId,
-    ) -> ValueId {
+    fn load_immutable_value(&self, builder: &mut FunctionBuilder<'_>, id: ImmutableId) -> ValueId {
         builder.load_immutable(id, self.module.immutable_type(id))
     }
 
     /// Registers a contract's bytecode for use in `new` expressions.
-    pub(crate) fn register_contract_bytecode(&mut self, contract_id: ContractId, bytecode: Bytes) {
+    fn register_contract_bytecode(&mut self, contract_id: ContractId, bytecode: Bytes) {
         self.contract_bytecodes.insert(contract_id, bytecode);
     }
 
     /// Lowers a contract to MIR.
-    pub(crate) fn lower_contract(&mut self, contract_id: ContractId) {
+    fn lower_contract(&mut self, contract_id: ContractId) {
         let contract = self.gcx.hir.contract(contract_id);
         self.contract_id = Some(contract_id);
 
@@ -2054,7 +2041,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Returns the completed module.
     #[must_use]
-    pub(crate) fn finish(mut self) -> Module {
+    fn finish(mut self) -> Module {
         self.generate_internal_function_pointer_dispatchers();
         self.module
     }
@@ -2208,7 +2195,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Returns true if a variable is assigned after declaration.
-    pub(crate) fn is_var_assigned(&self, var_id: &VariableId) -> bool {
+    fn is_var_assigned(&self, var_id: &VariableId) -> bool {
         self.assigned_vars.contains(*var_id)
     }
 
@@ -2262,7 +2249,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// External calls write their return data to shared memory at offset 0,
     /// so variables initialized from them must be stored in memory to preserve the value
     /// across subsequent calls.
-    pub(crate) fn has_external_call(&self, expr: &hir::Expr<'_>) -> bool {
+    fn has_external_call(&self, expr: &hir::Expr<'_>) -> bool {
         use hir::ExprKind;
         match &expr.kind {
             ExprKind::Call(callee, args, _) => {
