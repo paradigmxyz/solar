@@ -4,6 +4,7 @@ use super::{
     Lowerer, MIN_BULK_ZERO_MEMORY_WORDS,
     call::StorageArrayMethod,
     checked_arith::{ArithmeticInfo, PanicCode},
+    storage::StorageLocation,
 };
 use crate::{
     memory::EvmMemoryLayout,
@@ -419,6 +420,10 @@ impl<'gcx> Lowerer<'gcx> {
                     && let Some(slot) = self.lower_lvalue_slot(builder, expr)
                 {
                     return self.materialize_storage_bytes(builder, slot);
+                }
+
+                if let Some(value) = self.lower_storage_struct_field_value(builder, base, *member) {
+                    return value;
                 }
 
                 // Keep a name-based fallback for callers without sema results.
@@ -1778,6 +1783,10 @@ impl<'gcx> Lowerer<'gcx> {
                 self.lower_index_assign(builder, lhs, base, index.as_deref(), rhs);
             }
             ExprKind::Member(base, member) => {
+                if self.store_storage_struct_field_value(builder, base, *member, rhs) {
+                    return;
+                }
+
                 // Check if this is a storage struct member assignment (e.g., storedPoint.x = value)
                 if let Some((struct_id, field_index)) = self.resolved_struct_field(lhs)
                     && let Some(slot) = self.lower_storage_struct_field_slot_by_index(
@@ -2124,6 +2133,46 @@ impl<'gcx> Lowerer<'gcx> {
         let elem_slots = self.calculate_storage_slots_for_ty(element, expr.span);
         let slot = self.lower_lvalue_slot(builder, expr)?;
         Some((slot, fixed_len, elem_slots))
+    }
+
+    /// Resolves a fixed storage array element whose value type is packed into
+    /// a slot. Dynamic arrays keep one full word per element.
+    pub(super) fn packed_storage_array_element(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base: &hir::Expr<'_>,
+        index: Option<&hir::Expr<'_>>,
+    ) -> Option<(ValueId, ValueId, TypeSize)> {
+        let (element, Some(len)) = self.storage_array_type_of_expr(base)? else {
+            return None;
+        };
+        let size = self.packed_storage_size(element)?;
+        if size >= StorageLocation::WORD_SIZE || size.bytes() == 0 {
+            return None;
+        }
+        let slot = self.lower_lvalue_slot(builder, base)?;
+        let index = self.lower_index_value(builder, base.span, index);
+        let len = builder.imm_u64(len);
+        self.emit_index_bounds_check(builder, index, len);
+
+        let bytes = u64::from(size.bytes());
+        let per_slot = u64::from(StorageLocation::WORD_SIZE.bytes()) / bytes;
+        let slot_offset = if per_slot == 1 {
+            index
+        } else {
+            let divisor = builder.imm_u64(per_slot);
+            builder.div(index, divisor)
+        };
+        let slot = if per_slot == 1 { slot } else { builder.add(slot, slot_offset) };
+        let byte_offset = if per_slot == 1 {
+            builder.imm_u64(0)
+        } else {
+            let divisor = builder.imm_u64(per_slot);
+            let inner = builder.mod_(index, divisor);
+            let bytes = builder.imm_u64(bytes);
+            builder.mul(inner, bytes)
+        };
+        Some((slot, byte_offset, size))
     }
 
     /// Resolves a dynamic array living in storage.
@@ -2843,6 +2892,58 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
         None
+    }
+
+    fn lower_storage_struct_field_location(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base: &hir::Expr<'_>,
+        struct_id: hir::StructId,
+        field_index: usize,
+    ) -> Option<(ValueId, StorageLocation)> {
+        if self.struct_id_of_expr(base)? != struct_id {
+            return None;
+        }
+        let base_slot = self.lower_lvalue_slot(builder, base)?;
+        let location = self.get_struct_field_storage_location(struct_id, field_index);
+        let slot = if location.slot.is_zero() {
+            base_slot
+        } else {
+            let offset = builder.imm_u256(location.slot);
+            builder.add(base_slot, offset)
+        };
+        Some((slot, location))
+    }
+
+    fn lower_storage_struct_field_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base: &hir::Expr<'_>,
+        member: Ident,
+    ) -> Option<ValueId> {
+        let struct_id = self.struct_id_of_expr(base)?;
+        let field_index = self.struct_field_index(struct_id, member)?;
+        let (slot, location) =
+            self.lower_storage_struct_field_location(builder, base, struct_id, field_index)?;
+        Some(self.load_storage_location_at_slot(builder, location, slot))
+    }
+
+    fn store_storage_struct_field_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base: &hir::Expr<'_>,
+        member: Ident,
+        value: ValueId,
+    ) -> bool {
+        let Some(struct_id) = self.struct_id_of_expr(base) else { return false };
+        let Some(field_index) = self.struct_field_index(struct_id, member) else { return false };
+        let Some((slot, location)) =
+            self.lower_storage_struct_field_location(builder, base, struct_id, field_index)
+        else {
+            return false;
+        };
+        self.store_storage_location_at_slot(builder, location, slot, value);
+        true
     }
 
     /// Checks if a member access is on a storage-reference local of struct type.

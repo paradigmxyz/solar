@@ -16,6 +16,11 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
     ) -> ValueId {
+        if let Some((slot, byte_offset, size)) =
+            self.packed_storage_array_element(builder, base, index)
+        {
+            return self.load_storage_location_at_dynamic_offset(builder, slot, byte_offset, size);
+        }
         if let Some((slot_val, fixed_len, elem_slots)) =
             self.storage_array_slot_of_base(builder, base)
         {
@@ -183,6 +188,12 @@ impl<'gcx> Lowerer<'gcx> {
         index: Option<&hir::Expr<'_>>,
         rhs: ValueId,
     ) {
+        if let Some((slot, byte_offset, size)) =
+            self.packed_storage_array_element(builder, base, index)
+        {
+            self.store_storage_location_at_dynamic_offset(builder, slot, byte_offset, size, rhs);
+            return;
+        }
         if let Some((slot_val, fixed_len, elem_slots)) =
             self.storage_array_slot_of_base(builder, base)
         {
@@ -195,12 +206,30 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         if let Some(mapping) = self.lower_mapping_element_slot(builder, base, index) {
-            if let Some(ty) = self.get_expr_type(lhs)
-                && let TyKind::Struct(struct_id) = ty.peel_refs().kind
-            {
-                self.copy_memory_to_storage_at(builder, struct_id, mapping.slot, rhs, 0);
-            } else if self.expr_has_bytes_or_string_type(lhs) {
-                self.copy_memory_bytes_to_storage(builder, mapping.slot, rhs);
+            if let Some(ty) = self.get_expr_type(lhs) {
+                match ty.peel_refs().kind {
+                    TyKind::Struct(struct_id) => {
+                        self.copy_memory_to_storage_at(builder, struct_id, mapping.slot, rhs, 0);
+                    }
+                    TyKind::Array(elem, len) => {
+                        if let Ok(len) = u64::try_from(len) {
+                            self.copy_memory_fixed_array_to_storage(
+                                builder,
+                                mapping.slot,
+                                rhs,
+                                elem,
+                                len,
+                            );
+                        }
+                    }
+                    TyKind::DynArray(elem) => {
+                        self.copy_memory_dyn_array_to_storage(builder, mapping.slot, rhs, elem);
+                    }
+                    _ if self.expr_has_bytes_or_string_type(lhs) => {
+                        self.copy_memory_bytes_to_storage(builder, mapping.slot, rhs);
+                    }
+                    _ => builder.sstore(mapping.slot, rhs),
+                }
             } else {
                 builder.sstore(mapping.slot, rhs);
             }

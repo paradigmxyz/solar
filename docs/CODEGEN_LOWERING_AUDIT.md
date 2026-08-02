@@ -42,14 +42,13 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   parameter setup, expression indexing, assignment, return gathering, and
   storage copying. Several branches repeat pointer/length arithmetic and
   bounds checks instead of sharing a type-directed aggregate abstraction.
-* **Storage semantics are split between incompatible paths.** Static state
-  variables use `StorageLocation` and packed read-modify-write, while runtime
-  storage references and aggregate copies use slot arithmetic in separate
-  routines. `store_storage_value_at` walks struct fields by adding whole-slot
-  offsets and writes scalar fields with `sstore`, while packed field metadata is
-  only applied by `store_storage_location`; the two paths therefore do not
-  share one layout calculation. Dynamic-array and bytes copies also issue
-  `keccak256` staging writes directly from lowering.
+* **Storage semantics are still split between incompatible paths.** Static
+  state variables, direct struct fields, and fixed arrays now share
+  `StorageLocation` for packed reads and read-modify-write stores. Runtime
+  storage references, nested aggregate copies, and dynamic-array and bytes
+  copies still mix that layout with independent slot arithmetic and direct
+  `keccak256` staging writes. The replacement should make one type-directed
+  location query the only source of storage addresses.
 * **Context state is difficult to reason about.** One `Lowerer` carries
   function-local maps, contract-wide storage maps, inline-return state,
   constructor state, ABI state, helper state, and error-checking state. Calls

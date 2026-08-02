@@ -245,7 +245,7 @@ pub(crate) struct Lowerer<'gcx> {
     /// Mapping from struct state variable ID to base storage slot.
     pub(crate) struct_storage_base_slots: FxHashMap<VariableId, U256>,
     /// Cached struct field slot offsets: (struct_type_id, field_index) -> slot offset from base.
-    pub(crate) struct_field_offsets: FxHashMap<(hir::StructId, usize), u64>,
+    pub(super) struct_field_offsets: FxHashMap<(hir::StructId, usize), StorageLocation>,
     /// Cached semantic storage layout for each lowered struct type.
     struct_layouts: FxHashMap<hir::StructId, StorageLayoutRef>,
 }

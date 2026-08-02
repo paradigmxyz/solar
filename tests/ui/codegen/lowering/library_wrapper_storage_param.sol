@@ -22,21 +22,18 @@ library L {
     // CHECK: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]
     // CHECK: [[BODY]]:
-    // CHECK: push 2
-    // CHECK-NEXT: push 4
-    // CHECK-NEXT: calldataload
+    // CHECK: push 1
+    // CHECK: push 4
+    // CHECK: calldataload
     // CHECK: sload
-    // CHECK-NEXT: push 36
-    // CHECK-NEXT: calldataload
+    // CHECK: push 36
+    // CHECK: calldataload
     // CHECK: sstore
     // CHECK: push 4
-    // CHECK-NEXT: calldataload
-    // CHECK-NEXT: sload
-    // CHECK: jumpi
-    // CHECK-NEXT: push 1
-    // CHECK-NEXT: push 4
-    // CHECK-NEXT: calldataload
+    // CHECK: calldataload
     // CHECK: sload
+    // CHECK: jumpi
+    // CHECK: push 1
     // CHECK: return
     function settle(DataTypes.Reserve storage r, uint256 amount) public returns (uint256) {
         r.total += amount;

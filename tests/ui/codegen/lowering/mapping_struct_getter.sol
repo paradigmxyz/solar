@@ -20,9 +20,11 @@ contract C {
 
     // CHECK-LABEL: fn @items{{[( ]}}
     // CHECK: [[BASE:v[0-9]+]] = mapping_slot arg0, 1
-    // CHECK: sload [[BASE]]
+    // CHECK: [[A:v[0-9]+]] = sload [[BASE]]
+    // CHECK: and [[A]], 0xffffffffffffffffffffffffffffffffffffffff
     // CHECK: sload {{v[0-9]+}} !metadata(storage=offset([[BASE]], 1))
-    // CHECK: sload {{v[0-9]+}} !metadata(storage=offset([[BASE]], 2))
+    // CHECK: [[C:v[0-9]+]] = sload {{v[0-9]+}} !metadata(storage=offset([[BASE]], 2))
+    // CHECK: and [[C]], 0xffffffffffffffffffffffffffffffffffffffff
     // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}
     mapping(uint256 => Item) public items; // slot 1
 }
