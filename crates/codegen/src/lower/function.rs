@@ -1172,6 +1172,7 @@ impl<'gcx, 'mir, 'ids, 'bytes> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes> {
             ExprKind::YulMember(receiver, name) => self.lower_yul_member(expr, receiver, *name),
             ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
             ExprKind::Slice(receiver, start, end) => self.lower_slice(expr, receiver, *start, *end),
+            ExprKind::Payable(value) => self.lower_expr(value),
             _ if self.gcx.dcx().has_errors().is_err() => Some(self.builder.imm_u256(U256::ZERO)),
             _ => report_unsupported(self.gcx, expr.span, "expression"),
         }
@@ -1851,6 +1852,11 @@ impl<'gcx, 'mir, 'ids, 'bytes> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes> {
             {
                 return self.lower_address_call(callee.span, receiver, builtin, args, false);
             }
+            if matches!(builtin, Builtin::AddressPayableSend | Builtin::AddressPayableTransfer)
+                && let ExprKind::Member(receiver, _) = callee.kind
+            {
+                return self.lower_payable_address_call(receiver, builtin, args);
+            }
             return self.lower_builtin_call(expr, callee, builtin, args);
         }
         if let Some(TyKind::Fn(function)) = self.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
@@ -1866,6 +1872,28 @@ impl<'gcx, 'mir, 'ids, 'bytes> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes> {
             return Some(self.builder.imm_u256(U256::ZERO));
         }
         report_unsupported(self.gcx, expr.span, "function call")
+    }
+
+    fn lower_payable_address_call(
+        &mut self,
+        receiver: &hir::Expr<'_>,
+        builtin: Builtin,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        let amount = &self.builtin_args::<1>(builtin, &args)?[0];
+        let address = self.lower_expr(receiver)?;
+        let amount = self.lower_expr(amount)?;
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let stipend = self.builder.imm_u64(2300);
+        let amount_is_zero = self.builder.iszero(amount);
+        let gas = self.builder.select(amount_is_zero, stipend, zero);
+        let success = self.builder.call(gas, address, amount, zero, zero, zero, zero);
+        if builtin == Builtin::AddressPayableTransfer {
+            self.revert_external_call(success);
+            Some(zero)
+        } else {
+            Some(success)
+        }
     }
 
     fn lower_new_contract(

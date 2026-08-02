@@ -110,6 +110,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   discarded tuple values for their side effects;
 * low-level and typed external calls, including returndata capture and EVM-version
   checks;
+* payable address `send` and `transfer`, including the EVM value stipend and
+  forwarding of transfer failures;
 * contract creation with compiled child deployment bytecode, semantic
   constructor ABI encoding, `value`/`salt` options, and forwarding of failed
   creation returndata;
