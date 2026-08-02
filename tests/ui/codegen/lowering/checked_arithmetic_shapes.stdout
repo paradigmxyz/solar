@@ -1,39 +1,43 @@
 // === ROOT/tests/ui/codegen/lowering/checked_arithmetic_shapes.sol:CheckedArithmeticShapes ===
 @module CheckedArithmeticShapes
-fn @sadd(arg0: i256, arg1: i256) -> i256 [abi_args=lazy, abi_returns=[word]] {
+fn @sadd(arg0: i256, arg1: i256) -> i256 [abi_args=lazy, abi_params=[i256, i256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, arg1
     v1 = slt arg0, 0
-    v2 = slt v0, arg1
-    v3 = xor v1, v2
-    jumpi v3, bb1, bb2
+    v2 = slt arg1, 0
+    v3 = slt v0, 0
+    v4 = xor v1, v2
+    v5 = xor v3, v1
+    v6 = iszero v4
+    v7 = and v6, v5
+    jumpi v7, bb1, bb2
   bb1:
-    tail_call @__panic_11
-  bb2:
-    ret v0
-}
-
-fn @__panic_11() {
-  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-}
-
-fn @ssub(arg0: i256, arg1: i256) -> i256 [abi_args=lazy, abi_returns=[word]] {
-  bb0:
-    v0 = sub arg0, arg1
-    v1 = slt arg1, 0
-    v2 = sgt v0, arg0
-    v3 = xor v1, v2
-    jumpi v3, bb1, bb2
-  bb1:
-    tail_call @__panic_11
   bb2:
     ret v0
 }
 
-fn @smul(arg0: i256, arg1: i256) -> i256 [abi_args=lazy, abi_returns=[word]] {
+fn @ssub(arg0: i256, arg1: i256) -> i256 [abi_args=lazy, abi_params=[i256, i256], abi_returns=[word]] {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = slt arg0, 0
+    v2 = slt arg1, 0
+    v3 = slt v0, 0
+    v4 = xor v1, v2
+    v5 = xor v3, v1
+    v6 = and v4, v5
+    jumpi v6, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    ret v0
+}
+
+fn @smul(arg0: i256, arg1: i256) -> i256 [abi_args=lazy, abi_params=[i256, i256], abi_returns=[word]] {
   bb0:
     v0 = mul arg0, arg1
     v1 = iszero arg1
@@ -41,126 +45,155 @@ fn @smul(arg0: i256, arg1: i256) -> i256 [abi_args=lazy, abi_returns=[word]] {
     v3 = eq v2, arg0
     v4 = or v1, v3
     v5 = iszero v4
-    v6 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v7 = slt arg1, 0
-    v8 = and v6, v7
+    v6 = slt v0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v7 = sgt v0, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v8 = or v6, v7
     v9 = or v5, v8
-    jumpi v9, bb1, bb2
+    v10 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v11 = eq arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v12 = and v10, v11
+    v13 = or v9, v12
+    jumpi v13, bb1, bb2
   bb1:
-    tail_call @__panic_11
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
     ret v0
 }
 
-fn @sdiv(arg0: i256, arg1: i256) -> i256 [abi_args=lazy, abi_returns=[word]] {
+fn @sdiv(arg0: i256, arg1: i256) -> i256 [abi_args=lazy, abi_params=[i256, i256], abi_returns=[word]] {
   bb0:
-    jumpi arg1, bb2, bb1
+    v0 = iszero arg1
+    jumpi v0, bb1, bb2
   bb1:
-    tail_call @__panic_12
-  bb2:
-    v0 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v1 = eq arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    jumpi v2, bb3, bb4
-  bb3:
-    tail_call @__panic_11
-  bb4:
-    v3 = sdiv arg0, arg1
-    ret v3
-}
-
-fn @__panic_12() {
-  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 18 !metadata(memory=scratch)
     revert 0, 36
-}
-
-fn @smod(arg0: i256, arg1: i256) -> i256 [abi_args=lazy, abi_returns=[word]] {
-  bb0:
-    jumpi arg1, bb2, bb1
-  bb1:
-    tail_call @__panic_12
   bb2:
-    v0 = smod arg0, arg1
-    ret v0
+    v1 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v2 = eq arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v3 = and v1, v2
+    jumpi v3, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v4 = sdiv arg0, arg1
+    ret v4
 }
 
-fn @neg(arg0: i256) -> i256 [abi_args=lazy, abi_returns=[word]] {
+fn @smod(arg0: i256, arg1: i256) -> i256 [abi_args=lazy, abi_params=[i256, i256], abi_returns=[word]] {
+  bb0:
+    v0 = iszero arg1
+    jumpi v0, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v1 = smod arg0, arg1
+    ret v1
+}
+
+fn @neg(arg0: i256) -> i256 [abi_args=lazy, abi_params=[i256], abi_returns=[word]] {
   bb0:
     v0 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     jumpi v0, bb1, bb2
   bb1:
-    tail_call @__panic_11
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
     v1 = sub 0, arg0
     ret v1
 }
 
-fn @inc(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @inc(arg0: u256) -> u256 [abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    frame_store scratch, word, 0, arg0 !metadata(memory=scratch)
-    v0 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v0 = add arg0, 1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
   bb1:
-    tail_call @__panic_11
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
-    frame_store scratch, word, 0, v1 !metadata(memory=scratch)
-    ret v1
+    ret v0
 }
 
-fn @dec(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @dec(arg0: u256) -> u256 [abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    frame_store scratch, word, 0, arg0 !metadata(memory=scratch)
-    v0 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v1 = sub v0, 1
-    v2 = lt v0, 1
-    jumpi v2, bb1, bb2
+    v0 = sub arg0, 1
+    v1 = lt arg0, 1
+    jumpi v1, bb1, bb2
   bb1:
-    tail_call @__panic_11
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
-    frame_store scratch, word, 0, v1 !metadata(memory=scratch)
-    ret v1
+    ret v0
 }
 
-fn @uadd128(arg0: u128, arg1: u128) -> u128 [abi_args=lazy, abi_returns=[word]] {
+fn @uadd128(arg0: u128, arg1: u128) -> u128 [abi_args=lazy, abi_params=[u128, u128], abi_returns=[word]] {
   bb0:
     v0 = add arg0, arg1
     v1 = gt v0, 0xffffffffffffffffffffffffffffffff
     jumpi v1, bb1, bb2
   bb1:
-    tail_call @__panic_11
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
     ret v0
 }
 
-fn @umul128(arg0: u128, arg1: u128) -> u128 [abi_args=lazy, abi_returns=[word]] {
+fn @umul128(arg0: u128, arg1: u128) -> u128 [abi_args=lazy, abi_params=[u128, u128], abi_returns=[word]] {
   bb0:
     v0 = mul arg0, arg1
-    v1 = gt v0, 0xffffffffffffffffffffffffffffffff
-    jumpi v1, bb1, bb2
+    v1 = iszero arg1
+    v2 = div v0, arg1
+    v3 = eq v2, arg0
+    v4 = or v1, v3
+    v5 = iszero v4
+    v6 = gt v0, 0xffffffffffffffffffffffffffffffff
+    v7 = or v5, v6
+    jumpi v7, bb1, bb2
   bb1:
-    tail_call @__panic_11
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
     ret v0
 }
 
-fn @smul128(arg0: i128, arg1: i128) -> i128 [abi_args=lazy, abi_returns=[word]] {
+fn @smul128(arg0: i128, arg1: i128) -> i128 [abi_args=lazy, abi_params=[i128, i128], abi_returns=[word]] {
   bb0:
     v0 = mul arg0, arg1
-    v1 = slt v0, 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
-    v2 = sgt v0, 0x7fffffffffffffffffffffffffffffff
-    v3 = or v1, v2
-    jumpi v3, bb1, bb2
+    v1 = iszero arg1
+    v2 = sdiv v0, arg1
+    v3 = eq v2, arg0
+    v4 = or v1, v3
+    v5 = iszero v4
+    v6 = slt v0, 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
+    v7 = sgt v0, 0x7fffffffffffffffffffffffffffffff
+    v8 = or v6, v7
+    v9 = or v5, v8
+    v10 = eq arg0, 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
+    v11 = eq arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v12 = and v10, v11
+    v13 = or v9, v12
+    jumpi v13, bb1, bb2
   bb1:
-    tail_call @__panic_11
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
     ret v0
 }
 
-fn @umul192(arg0: u192, arg1: u192) -> u192 [abi_args=lazy, abi_returns=[word]] {
+fn @umul192(arg0: u192, arg1: u192) -> u192 [abi_args=lazy, abi_params=[u192, u192], abi_returns=[word]] {
   bb0:
     v0 = mul arg0, arg1
     v1 = iszero arg1
@@ -172,7 +205,9 @@ fn @umul192(arg0: u192, arg1: u192) -> u192 [abi_args=lazy, abi_returns=[word]] 
     v7 = or v5, v6
     jumpi v7, bb1, bb2
   bb1:
-    tail_call @__panic_11
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
     ret v0
 }

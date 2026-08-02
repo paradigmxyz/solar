@@ -82,6 +82,9 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * scalar literals, local bindings, returns, arithmetic, comparisons, shifts,
   logical and bitwise operations, assignments, compound assignments, and
   pre/post increment of scalar l-values;
+* checked scalar add, sub, mul, div, mod, negation, and exponentiation with
+  Solidity panic payloads, explicit unchecked-block state, and narrow-type
+  wrapping;
 * typed external ABI metadata for scalar, enum, byte, array, and tuple shapes;
 * state-variable reads and writes through the shared storage-location object;
 * packed unsigned, signed, address, enum, and fixed-bytes storage fields;
@@ -158,8 +161,7 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    the remaining `try`/`catch` payload and return-binding forms, and the
    remaining external and aggregate function-pointer forms.
 4. Finish storage-reference CFG merging for every aggregate shape and audit
-   checked arithmetic and allocation guards against the corresponding Solc
-   behavior.
+   allocation guards against the corresponding Solc behavior.
 5. Add and run differential, UI, and runtime tests for every new semantic
    slice, then run the complete existing test and Solc suites before declaring
    the rewrite complete.
