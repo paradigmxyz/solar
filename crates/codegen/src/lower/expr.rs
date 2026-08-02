@@ -2014,8 +2014,13 @@ impl<'gcx> Lowerer<'gcx> {
         if !calldata && !Self::value_is_memory_slice(builder, value) {
             return None;
         }
-        let ptr = builder.slice_ptr(value);
-        Some(if calldata { builder.calldataload(ptr) } else { builder.mload(ptr) })
+        if calldata {
+            let ptr = builder.slice_ptr(value);
+            Some(builder.calldataload(ptr))
+        } else {
+            let zero = builder.imm_u64(0);
+            Some(builder.memory_slice_load_word(value, zero))
+        }
     }
 
     fn shift_numeric_to_fixed_bytes(

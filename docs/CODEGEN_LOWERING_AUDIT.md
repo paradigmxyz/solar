@@ -117,6 +117,9 @@ describes observable structure in the current tree, not an intended design.
   unaligned data pointer.
 * Memory-byte writes use `memory_object_store_byte`; only the memory-object
   pass emits the final `mstore8`.
+* Fixed-bytes conversions load memory slices through `memory_slice_load_word`;
+  calldata slices retain the direct `calldataload` operation for their source
+  location.
 * Deleting small fixed memory arrays uses typed element stores; only the bulk
   zero path keeps the dedicated zeroing operation.
 * Try/catch selector and panic decoding materialize bounded returndata slices
