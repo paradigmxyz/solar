@@ -2,8 +2,8 @@
 
 use crate::{
     mir::{
-        AbiLayout, AbiType, BlockId, Function, FunctionBuilder, InstKind, MemoryObjectKind, Module,
-        SliceLocation, Terminator, ValueId,
+        AbiLayout, AbiType, BlockId, Function, FunctionBuilder, InstKind, MemoryObjectKind,
+        MemoryObjectLayout, Module, SliceLocation, Terminator, ValueId,
     },
     pass::MirPass,
 };
@@ -148,8 +148,15 @@ fn lower_encode(
     let scratch_base = if scratch_words == 0 {
         None
     } else {
-        let size = builder.imm_u64(scratch_words * 32);
-        Some(builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL))
+        let size = builder.imm_u64((scratch_words + 1) * 32);
+        let object = builder.alloc_object(
+            size,
+            MemoryObjectLayout::WORD_ARRAY,
+            crate::mir::AllocationSemantics::INTERNAL,
+        );
+        let length = builder.imm_u64(scratch_words);
+        builder.set_memory_object_len(object, length, MemoryObjectKind::DynamicArray);
+        Some(object)
     };
 
     let encoded_size =
@@ -274,12 +281,9 @@ fn measure_dynamic_array(
     let initial_size = builder.add(word, head_bytes);
     let source_cursor = builder.memory_object_data(value, MemoryObjectKind::DynamicArray);
 
-    let remaining_slot = scratch_slot(builder, scratch_base, scratch.depth, 0);
-    let size_slot = scratch_slot(builder, scratch_base, scratch.depth, 1);
-    let source_slot = scratch_slot(builder, scratch_base, scratch.depth, 2);
-    builder.mstore(remaining_slot, len);
-    builder.mstore(size_slot, initial_size);
-    builder.mstore(source_slot, source_cursor);
+    scratch_store(builder, scratch_base, scratch.depth, 0, len);
+    scratch_store(builder, scratch_base, scratch.depth, 1, initial_size);
+    scratch_store(builder, scratch_base, scratch.depth, 2, source_cursor);
 
     let cond = builder.create_block();
     let body = builder.create_block();
@@ -287,13 +291,13 @@ fn measure_dynamic_array(
     builder.jump(cond);
 
     builder.switch_to_block(cond);
-    let remaining = builder.mload(remaining_slot);
+    let remaining = scratch_load(builder, scratch_base, scratch.depth, 0);
     let zero = builder.imm_u64(0);
     let has_next = builder.gt(remaining, zero);
     builder.branch(has_next, body, done);
 
     builder.switch_to_block(body);
-    let source = builder.mload(source_slot);
+    let source = scratch_load(builder, scratch_base, scratch.depth, 2);
     let element_value = builder.mload(source);
     if element.is_dynamic() {
         let size = measure_dynamic_body(
@@ -302,21 +306,21 @@ fn measure_dynamic_array(
             element_value,
             AbiScratch { base: Some(scratch_base), depth: scratch.depth + 1 },
         );
-        let total = builder.mload(size_slot);
+        let total = scratch_load(builder, scratch_base, scratch.depth, 1);
         let next_size = builder.add(total, size);
-        builder.mstore(size_slot, next_size);
+        scratch_store(builder, scratch_base, scratch.depth, 1, next_size);
     }
-    let remaining = builder.mload(remaining_slot);
+    let remaining = scratch_load(builder, scratch_base, scratch.depth, 0);
     let one = builder.imm_u64(1);
     let next_remaining = builder.sub(remaining, one);
-    builder.mstore(remaining_slot, next_remaining);
-    let source = builder.mload(source_slot);
+    scratch_store(builder, scratch_base, scratch.depth, 0, next_remaining);
+    let source = scratch_load(builder, scratch_base, scratch.depth, 2);
     let next_source = builder.add(source, word);
-    builder.mstore(source_slot, next_source);
+    scratch_store(builder, scratch_base, scratch.depth, 2, next_source);
     builder.jump(cond);
 
     builder.switch_to_block(done);
-    builder.mload(size_slot)
+    scratch_load(builder, scratch_base, scratch.depth, 1)
 }
 
 fn padded_bytes_size(builder: &mut FunctionBuilder<'_>, len: ValueId) -> ValueId {
@@ -489,16 +493,11 @@ fn encode_dynamic_array(
     let initial_tail = builder.add(element_area, head_bytes);
     let source_cursor = builder.memory_object_data(value, MemoryObjectKind::DynamicArray);
 
-    let remaining_slot = scratch_slot(builder, scratch_base, scratch.depth, 0);
-    let tail_slot = scratch_slot(builder, scratch_base, scratch.depth, 1);
-    let head_slot = scratch_slot(builder, scratch_base, scratch.depth, 2);
-    let source_slot = scratch_slot(builder, scratch_base, scratch.depth, 3);
-    let tuple_base_slot = scratch_slot(builder, scratch_base, scratch.depth, 4);
-    builder.mstore(remaining_slot, len);
-    builder.mstore(tail_slot, initial_tail);
-    builder.mstore(head_slot, element_area);
-    builder.mstore(source_slot, source_cursor);
-    builder.mstore(tuple_base_slot, element_area);
+    scratch_store(builder, scratch_base, scratch.depth, 0, len);
+    scratch_store(builder, scratch_base, scratch.depth, 1, initial_tail);
+    scratch_store(builder, scratch_base, scratch.depth, 2, element_area);
+    scratch_store(builder, scratch_base, scratch.depth, 3, source_cursor);
+    scratch_store(builder, scratch_base, scratch.depth, 4, element_area);
 
     let cond = builder.create_block();
     let body = builder.create_block();
@@ -506,17 +505,17 @@ fn encode_dynamic_array(
     builder.jump(cond);
 
     builder.switch_to_block(cond);
-    let remaining = builder.mload(remaining_slot);
+    let remaining = scratch_load(builder, scratch_base, scratch.depth, 0);
     let zero = builder.imm_u64(0);
     let has_next = builder.gt(remaining, zero);
     builder.branch(has_next, body, done);
 
     builder.switch_to_block(body);
-    let source = builder.mload(source_slot);
+    let source = scratch_load(builder, scratch_base, scratch.depth, 3);
     let element_value = builder.mload(source);
-    let element_head = builder.mload(head_slot);
-    let current_tail = builder.mload(tail_slot);
-    let tuple_base = builder.mload(tuple_base_slot);
+    let element_head = scratch_load(builder, scratch_base, scratch.depth, 2);
+    let current_tail = scratch_load(builder, scratch_base, scratch.depth, 1);
+    let tuple_base = scratch_load(builder, scratch_base, scratch.depth, 4);
     let new_tail = encode_value(
         builder,
         element,
@@ -524,22 +523,22 @@ fn encode_dynamic_array(
         AbiValueDest { head_addr: element_head, tuple_base, tail: current_tail },
         AbiScratch { base: Some(scratch_base), depth: scratch.depth + 1 },
     );
-    builder.mstore(tail_slot, new_tail);
+    scratch_store(builder, scratch_base, scratch.depth, 1, new_tail);
 
-    let remaining = builder.mload(remaining_slot);
+    let remaining = scratch_load(builder, scratch_base, scratch.depth, 0);
     let one = builder.imm_u64(1);
     let next_remaining = builder.sub(remaining, one);
-    builder.mstore(remaining_slot, next_remaining);
-    let source = builder.mload(source_slot);
+    scratch_store(builder, scratch_base, scratch.depth, 0, next_remaining);
+    let source = scratch_load(builder, scratch_base, scratch.depth, 3);
     let next_source = builder.add(source, word);
-    builder.mstore(source_slot, next_source);
-    let element_head = builder.mload(head_slot);
+    scratch_store(builder, scratch_base, scratch.depth, 3, next_source);
+    let element_head = scratch_load(builder, scratch_base, scratch.depth, 2);
     let next_head = builder.add(element_head, element_head_size);
-    builder.mstore(head_slot, next_head);
+    scratch_store(builder, scratch_base, scratch.depth, 2, next_head);
     builder.jump(cond);
 
     builder.switch_to_block(done);
-    builder.mload(tail_slot)
+    scratch_load(builder, scratch_base, scratch.depth, 1)
 }
 
 fn encode_word_array(
@@ -623,13 +622,29 @@ fn copy_slice_data(
     }
 }
 
-fn scratch_slot(
+fn scratch_slot(builder: &mut FunctionBuilder<'_>, depth: u64, slot: u64) -> ValueId {
+    builder.imm_u64(depth * 5 + slot)
+}
+
+fn scratch_store(
+    builder: &mut FunctionBuilder<'_>,
+    base: ValueId,
+    depth: u64,
+    slot: u64,
+    value: ValueId,
+) {
+    let index = scratch_slot(builder, depth, slot);
+    builder.memory_object_store_element(base, MemoryObjectLayout::WORD_ARRAY, index, value);
+}
+
+fn scratch_load(
     builder: &mut FunctionBuilder<'_>,
     base: ValueId,
     depth: u64,
     slot: u64,
 ) -> ValueId {
-    offset_ptr(builder, base, depth * 160 + slot * 32)
+    let index = scratch_slot(builder, depth, slot);
+    builder.memory_object_load_element(base, MemoryObjectLayout::WORD_ARRAY, index)
 }
 
 fn offset_ptr(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -> ValueId {

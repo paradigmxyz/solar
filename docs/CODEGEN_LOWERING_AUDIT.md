@@ -117,6 +117,8 @@ describes observable structure in the current tree, not an intended design.
 * ABI tail lengths and nested dynamic-array heads read through
   `memory_slice_load_word`; validated ABI regions no longer expose an
   untyped load address to HIR lowering.
+* Dynamic ABI encoder loop state lives in a typed one-word array object;
+  sizing and emission no longer reserve raw scratch buffers for counters.
 * Storage-to-memory and memory-to-storage aggregate copies use the same typed
   field and element operations. Packed and nested copies no longer expose a
   destination address to HIR lowering.
