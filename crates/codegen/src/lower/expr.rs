@@ -1520,19 +1520,19 @@ impl<'gcx> Lowerer<'gcx> {
         let len_val = builder.imm_u64(bytecode_len as u64);
         builder.set_memory_object_len(ptr, len_val, MemoryObjectKind::Bytes);
 
-        // Copy bytecode to ptr+32 using MSTORE loop
-        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-
-        let mut offset = 0u64;
-        for chunk in bytecode.chunks(32) {
+        // Copy bytecode data using typed word-chunk stores.
+        for (index, chunk) in bytecode.chunks(32).enumerate() {
             let mut padded = [0u8; 32];
             padded[..chunk.len()].copy_from_slice(chunk);
             let value = U256::from_be_bytes(padded);
             let val_id = builder.imm_u256(value);
-            let offset_id = builder.imm_u64(offset);
-            let dest = builder.add(data_start, offset_id);
-            builder.mstore(dest, val_id);
-            offset += 32;
+            let index = builder.imm_u64(index as u64);
+            builder.memory_object_store_element(
+                ptr,
+                crate::mir::MemoryObjectLayout::Bytes,
+                index,
+                val_id,
+            );
         }
 
         // Return ptr (the bytes memory value)
@@ -3630,14 +3630,17 @@ impl<'gcx> Lowerer<'gcx> {
             crate::mir::MemoryObjectLayout::Bytes,
             crate::mir::AllocationSemantics::INTERNAL,
         );
-        let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
         for (i, chunk) in bytes.chunks(32).enumerate() {
             let mut padded = [0u8; 32];
             padded[..chunk.len()].copy_from_slice(chunk);
             let val = builder.imm_u256(U256::from_be_bytes(padded));
-            let off = builder.imm_u64((i * 32) as u64);
-            let dest = builder.add(data, off);
-            builder.mstore(dest, val);
+            let index = builder.imm_u64(i as u64);
+            builder.memory_object_store_element(
+                object,
+                crate::mir::MemoryObjectLayout::Bytes,
+                index,
+                val,
+            );
         }
         builder.set_memory_object_len(object, len, MemoryObjectKind::Bytes);
         builder.mapping_slot_memory(object, slot)

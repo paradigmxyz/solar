@@ -59,6 +59,8 @@ describes observable structure in the current tree, not an intended design.
   store path, leaving only bulk payload copies as raw memory operations.
 * Literal low-level call payloads use a bytes memory object for their
   length-prefixed staging, then expose only its data slice to the call.
+* Literal mapping keys and embedded creation bytecode use typed bytes-object
+  stores for their word chunks before hashing or returning the object.
 * Dynamic mapping keys stay as `mapping_slot_memory` or
   `mapping_slot_calldata` until the mapping-slot pass. Target-specific memory
   copies are selected after that semantic operation is lowered.

@@ -124,12 +124,10 @@ fn @setLit(arg0: u256) [abi_args=lazy] {
     v2 = and v0, v1
     v3 = add 32, v2
     v4 = alloc memorybytes, exact, uninitialized, infallible, v3
-    v5 = memory_object_data memorybytes, v4
-    v6 = add v5, 0
-    mstore v6, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    memory_object_store_element memorybytes, v4, 0, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     set_memory_object_len memorybytes, v4, 5
-    v7 = mapping_slot_memory v4, 0
-    sstore v7, arg0 !metadata(storage=symbolic(v7))
+    v5 = mapping_slot_memory v4, 0
+    sstore v5, arg0 !metadata(storage=symbolic(v5))
     stop
 }
 
@@ -140,14 +138,11 @@ fn @setLitLong(arg0: u256) [abi_args=lazy] {
     v2 = and v0, v1
     v3 = add 32, v2
     v4 = alloc memorybytes, exact, uninitialized, infallible, v3
-    v5 = memory_object_data memorybytes, v4
-    v6 = add v5, 0
-    mstore v6, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
-    v7 = add v5, 32
-    mstore v7, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
+    memory_object_store_element memorybytes, v4, 0, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
+    memory_object_store_element memorybytes, v4, 1, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
     set_memory_object_len memorybytes, v4, 58
-    v8 = mapping_slot_memory v4, 0
-    sstore v8, arg0 !metadata(storage=symbolic(v8))
+    v5 = mapping_slot_memory v4, 0
+    sstore v5, arg0 !metadata(storage=symbolic(v5))
     stop
 }
 
