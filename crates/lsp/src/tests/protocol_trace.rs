@@ -157,7 +157,7 @@ fn new_protocol_trace_test_service(
         .layer(TracingLayer::default())
         .layer(LifecycleLayer::default())
         .layer(crate::protocol_trace::ProtocolTraceLayer::new(protocol_trace))
-        .layer(request_layer())
+        .layer(request_layer(client.clone()))
         .layer(ClientProcessMonitorLayer::new(client))
         .service(router)
 }

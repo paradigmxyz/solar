@@ -55,8 +55,9 @@ mod workspace;
 #[cfg(feature = "bench")]
 #[doc(hidden)]
 pub use global_state::benchmark::{
-    BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkEdit, BenchmarkError, BenchmarkProject,
-    BenchmarkRequest, BenchmarkResponse,
+    BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit,
+    BenchmarkError, BenchmarkProject, BenchmarkRequest, BenchmarkResponse,
+    BenchmarkWorkspaceReports,
 };
 
 /// Runs the selection-range kernel for Criterion benchmarks.
@@ -113,6 +114,7 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
         .request::<req::Completion, _>(handlers::completion)
         .request::<req::ResolveCompletionItem, _>(handlers::resolve_completion_item)
         .request::<req::DocumentDiagnosticRequest, _>(handlers::document_diagnostic)
+        .request::<req::WorkspaceDiagnosticRequest, _>(handlers::workspace_diagnostic)
         .request::<req::Formatting, _>(handlers::formatting);
 
     // Workspace management
@@ -140,8 +142,8 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
     router
 }
 
-fn request_layer() -> request_cancellation::RequestCancellationLayer {
-    request_cancellation::RequestCancellationLayer
+fn request_layer(client: ClientSocket) -> request_cancellation::RequestCancellationLayer {
+    request_cancellation::RequestCancellationLayer::new(client)
 }
 
 fn new_server_service(
@@ -154,7 +156,7 @@ fn new_server_service(
         .layer(TracingLayer::default())
         .layer(LifecycleLayer::default())
         .layer(protocol_trace::ProtocolTraceLayer::new(protocol_trace))
-        .layer(request_layer())
+        .layer(request_layer(client.clone()))
         .layer(ClientProcessMonitorLayer::new(client))
         .service(new_router_with_state(state))
 }

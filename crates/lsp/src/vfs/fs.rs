@@ -27,6 +27,7 @@ use crate::file_operations::{FileMoveBatch, FileMoveError};
 use crop::Rope;
 use solar_interface::data_structures::map::rustc_hash::FxHashMap;
 use std::{
+    collections::hash_map::Entry,
     mem,
     path::{Path, PathBuf},
 };
@@ -35,6 +36,7 @@ use std::{
 pub(crate) struct Vfs {
     data: FxHashMap<VfsPath, Rope>,
     versions: FxHashMap<VfsPath, i32>,
+    content_revision: u64,
     dirty: bool,
 }
 
@@ -50,19 +52,38 @@ impl Vfs {
         path: VfsPath,
         contents: Option<Rope>,
         version: Option<i32>,
-    ) {
+    ) -> bool {
         if let Some(contents) = contents {
-            self.data.insert(path.clone(), contents);
+            let contents_changed = match self.data.entry(path.clone()) {
+                Entry::Occupied(mut entry) => {
+                    let changed = entry.get() != &contents;
+                    entry.insert(contents);
+                    changed
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(contents);
+                    true
+                }
+            };
             if let Some(version) = version {
                 self.versions.insert(path, version);
             } else {
                 self.versions.remove(&path);
             }
+            if contents_changed {
+                self.bump_content_revision();
+            }
+            self.dirty = true;
+            contents_changed
         } else {
-            self.data.remove(&path);
+            let contents_changed = self.data.remove(&path).is_some();
             self.versions.remove(&path);
+            if contents_changed {
+                self.bump_content_revision();
+            }
+            self.dirty = true;
+            contents_changed
         }
-        self.dirty = true;
     }
 
     pub(crate) fn get_file_contents(&self, path: &VfsPath) -> Option<&Rope> {
@@ -71,6 +92,10 @@ impl Vfs {
 
     pub(crate) fn get_file_version(&self, path: &VfsPath) -> Option<i32> {
         self.versions.get(path).copied()
+    }
+
+    pub(crate) fn content_revision(&self) -> u64 {
+        self.content_revision
     }
 
     pub(crate) fn exists(&self, path: &VfsPath) -> bool {
@@ -114,6 +139,9 @@ impl Vfs {
             }
         }
         self.dirty |= changed;
+        if changed {
+            self.bump_content_revision();
+        }
         Ok(())
     }
 
@@ -135,7 +163,11 @@ impl Vfs {
         let old_len = self.data.len();
         self.data.retain(|path, _| !has_file_prefix(path, deleted_paths));
         self.versions.retain(|path, _| !has_file_prefix(path, deleted_paths));
-        self.dirty |= self.data.len() != old_len;
+        let changed = self.data.len() != old_len;
+        self.dirty |= changed;
+        if changed {
+            self.bump_content_revision();
+        }
     }
 
     /// Whether the VFS is dirty or not.
@@ -163,6 +195,11 @@ impl Vfs {
     pub(crate) fn iter(&self) -> impl Iterator<Item = (&VfsPath, &Rope)> {
         self.data.iter()
     }
+
+    fn bump_content_revision(&mut self) {
+        self.content_revision =
+            self.content_revision.checked_add(1).expect("VFS content revision counter exhausted");
+    }
 }
 
 fn has_file_prefix(path: &VfsPath, prefixes: &[PathBuf]) -> bool {
@@ -188,6 +225,43 @@ mod tests {
 
     fn moves(moves: impl IntoIterator<Item = (PathBuf, PathBuf)>) -> FileMoveBatch {
         FileMoveBatch::new(moves).unwrap()
+    }
+
+    #[test]
+    fn set_file_contents_reports_content_changes() {
+        let mut vfs = Vfs::default();
+        let file = path("/workspace/Test.sol");
+
+        assert!(vfs.set_file_contents_with_version(
+            file.clone(),
+            Some(Rope::from("contract Test {}")),
+            Some(1),
+        ));
+        let revision = vfs.content_revision();
+        vfs.mark_clean();
+
+        assert!(!vfs.set_file_contents_with_version(
+            file.clone(),
+            Some(Rope::from("contract Test {}")),
+            Some(2),
+        ));
+        assert_eq!(vfs.content_revision(), revision);
+        assert_eq!(vfs.get_file_version(&file), Some(2));
+        assert!(vfs.is_dirty());
+
+        assert!(vfs.set_file_contents_with_version(
+            file.clone(),
+            Some(Rope::from("contract Changed {}")),
+            Some(3),
+        ));
+        assert_eq!(vfs.content_revision(), revision + 1);
+        assert_eq!(vfs.get_file_version(&file), Some(3));
+        assert!(vfs.set_file_contents_with_version(file.clone(), None, None));
+        assert_eq!(vfs.content_revision(), revision + 2);
+        assert_eq!(vfs.get_file_contents(&file), None);
+        assert_eq!(vfs.get_file_version(&file), None);
+        assert!(!vfs.set_file_contents_with_version(file, None, None));
+        assert_eq!(vfs.content_revision(), revision + 2);
     }
 
     #[test]

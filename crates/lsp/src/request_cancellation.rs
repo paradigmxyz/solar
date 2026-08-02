@@ -1,9 +1,13 @@
 //! Cancellation tracking for in-flight LSP requests.
 
 use async_lsp::{
-    AnyEvent, AnyNotification, AnyRequest, ErrorCode, LspService, RequestId, ResponseError, Result,
+    AnyEvent, AnyNotification, AnyRequest, ClientSocket, ErrorCode, LspService, RequestId,
+    ResponseError, Result,
 };
-use lsp_types::notification::{self, Notification};
+use lsp_types::{
+    notification::{self, Notification},
+    request::{Request, WorkspaceDiagnosticRequest},
+};
 use std::{
     collections::HashMap,
     future::{Future, pending},
@@ -19,8 +23,16 @@ use tower::{Layer, Service};
 /// async-lsp's main loop stops polling in-flight requests and incoming notifications while a
 /// service is not ready. Capacity limits therefore cannot be enforced through `poll_ready`
 /// without preventing the requests that hold that capacity from completing or being cancelled.
-#[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct RequestCancellationLayer;
+#[derive(Clone, Debug)]
+pub(crate) struct RequestCancellationLayer {
+    client: ClientSocket,
+}
+
+impl RequestCancellationLayer {
+    pub(crate) fn new(client: ClientSocket) -> Self {
+        Self { client }
+    }
+}
 
 impl<S> Layer<S> for RequestCancellationLayer {
     type Service = RequestCancellation<S>;
@@ -29,6 +41,7 @@ impl<S> Layer<S> for RequestCancellationLayer {
         let (completed_tx, completed_rx) = mpsc::unbounded_channel();
         RequestCancellation {
             service,
+            client: self.client.clone(),
             ongoing: HashMap::new(),
             completed_tx,
             completed_rx,
@@ -44,6 +57,7 @@ struct OngoingRequest {
 
 pub(crate) struct RequestCancellation<S> {
     service: S,
+    client: ClientSocket,
     ongoing: HashMap<RequestId, OngoingRequest>,
     completed_tx: mpsc::UnboundedSender<(RequestId, u64)>,
     completed_rx: mpsc::UnboundedReceiver<(RequestId, u64)>,
@@ -64,6 +78,15 @@ struct CompletionGuard {
     completed: mpsc::UnboundedSender<(RequestId, u64)>,
     id: RequestId,
     generation: u64,
+}
+
+struct FlushOutgoing(oneshot::Sender<()>);
+
+async fn flush_outgoing(client: &ClientSocket) {
+    let (flushed, wait_for_flush) = oneshot::channel();
+    if client.emit(FlushOutgoing(flushed)).is_ok() {
+        let _ = wait_for_flush.await;
+    }
 }
 
 impl Drop for CompletionGuard {
@@ -91,11 +114,13 @@ where
         self.remove_completed();
 
         let id = request.id.clone();
+        let flush_before_response = request.method == WorkspaceDiagnosticRequest::METHOD;
         let generation = self.next_generation;
         self.next_generation = self.next_generation.wrapping_add(1);
         let (cancel, cancelled) = oneshot::channel();
         self.ongoing.insert(id.clone(), OngoingRequest { generation, cancel });
         let response = self.service.call(request);
+        let client = self.client.clone();
         let completion = CompletionGuard { completed: self.completed_tx.clone(), id, generation };
 
         Box::pin(async move {
@@ -105,14 +130,18 @@ where
                     pending::<()>().await;
                 }
             };
-            tokio::select! {
+            let result = tokio::select! {
                 biased;
                 () = cancelled => Err(ResponseError::new(
                     ErrorCode::REQUEST_CANCELLED,
                     "Client cancelled the request",
                 ).into()),
                 response = response => response,
+            };
+            if flush_before_response {
+                flush_outgoing(&client).await;
             }
+            result
         })
     }
 }
@@ -139,7 +168,13 @@ where
     }
 
     fn emit(&mut self, event: AnyEvent) -> ControlFlow<Result<()>> {
-        self.service.emit(event)
+        match event.downcast::<FlushOutgoing>() {
+            Ok(FlushOutgoing(flushed)) => {
+                let _ = flushed.send(());
+                ControlFlow::Continue(())
+            }
+            Err(event) => self.service.emit(event),
+        }
     }
 }
 
@@ -153,7 +188,7 @@ mod tests {
     async fn completed_requests_are_removed_from_the_registry() {
         let mut router = Router::new(());
         router.request::<Shutdown, _>(|_, ()| std::future::ready(Ok(())));
-        let mut service = RequestCancellationLayer.layer(router);
+        let mut service = RequestCancellationLayer::new(ClientSocket::new_closed()).layer(router);
         std::future::poll_fn(|cx| service.poll_ready(cx)).await.unwrap();
         let request = serde_json::from_value(serde_json::json!({
             "id": 1,
@@ -171,7 +206,7 @@ mod tests {
     async fn cancellation_wins_over_a_ready_response_for_string_ids() {
         let mut router = Router::new(());
         router.request::<Shutdown, _>(|_, ()| std::future::ready(Ok(())));
-        let mut service = RequestCancellationLayer.layer(router);
+        let mut service = RequestCancellationLayer::new(ClientSocket::new_closed()).layer(router);
         std::future::poll_fn(|cx| service.poll_ready(cx)).await.unwrap();
         let request = serde_json::from_value(serde_json::json!({
             "id": "request-id",
