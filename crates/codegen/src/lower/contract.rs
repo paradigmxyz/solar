@@ -31,19 +31,19 @@ pub(super) fn lower(
             match function.kind {
                 hir::FunctionKind::Constructor => {
                     if base == contract_id {
-                        function_ids.push(function_id);
+                        function_ids.push((function_id, false));
                     }
                 }
                 hir::FunctionKind::Fallback => {
                     if !has_fallback {
                         has_fallback = true;
-                        function_ids.push(function_id);
+                        function_ids.push((function_id, false));
                     }
                 }
                 hir::FunctionKind::Receive => {
                     if !has_receive {
                         has_receive = true;
-                        function_ids.push(function_id);
+                        function_ids.push((function_id, false));
                     }
                 }
                 hir::FunctionKind::Function | hir::FunctionKind::Modifier => {
@@ -56,11 +56,16 @@ pub(super) fn lower(
                         function.visibility,
                         hir::Visibility::External | hir::Visibility::Public
                     ) {
-                        if seen_selectors.insert(gcx.function_selector(function_id)) {
-                            function_ids.push(function_id);
+                        let expose_selector =
+                            seen_selectors.insert(gcx.function_selector(function_id));
+                        if expose_selector
+                            || (function.visibility == hir::Visibility::Public
+                                && function.body.is_some())
+                        {
+                            function_ids.push((function_id, expose_selector));
                         }
                     } else {
-                        function_ids.push(function_id);
+                        function_ids.push((function_id, false));
                     }
                 }
             }
@@ -68,11 +73,14 @@ pub(super) fn lower(
     }
     let mut seen_ids = FxHashSet::default();
     let function_ids =
-        function_ids.into_iter().filter(|id| seen_ids.insert(*id)).collect::<Vec<_>>();
+        function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();
     let mut mir_ids = FxHashMap::default();
-    for &function_id in &function_ids {
+    for &(function_id, expose_selector) in &function_ids {
         let function = gcx.hir.function(function_id);
         let mut declaration = declaration(gcx, function_id, function);
+        if !expose_selector {
+            declaration.selector = None;
+        }
         {
             let mut builder = FunctionBuilder::new(&mut declaration);
             for &param in function.parameters {
@@ -86,12 +94,18 @@ pub(super) fn lower(
         mir_ids.insert(function_id, mir_id);
     }
 
-    for function_id in function_ids {
+    for (function_id, expose_selector) in function_ids {
         let mir_id = mir_ids[&function_id];
         let name = module.function(mir_id).name;
-        let Some(mut mir) =
-            function::lower(gcx, &mut module, &storage, contract_id, function_id, &mir_ids)
-        else {
+        let Some(mut mir) = function::lower(
+            gcx,
+            &mut module,
+            &storage,
+            contract_id,
+            function_id,
+            expose_selector,
+            &mir_ids,
+        ) else {
             FunctionBuilder::new(module.function_mut(mir_id)).invalid();
             continue;
         };

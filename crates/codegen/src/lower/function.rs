@@ -33,10 +33,14 @@ pub(super) fn lower(
     storage: &StorageLayout,
     contract_id: hir::ContractId,
     id: hir::FunctionId,
+    expose_selector: bool,
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
 ) -> Option<Function> {
     let hir_function = gcx.hir.function(id);
     let mut mir = contract::declaration(gcx, id, hir_function);
+    if !expose_selector {
+        mir.selector = None;
+    }
     let mut type_lowerer = types::TypeLowerer::new(gcx);
 
     let input_shapes = hir_function
