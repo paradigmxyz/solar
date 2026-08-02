@@ -54,7 +54,8 @@ describes observable structure in the current tree, not an intended design.
   copies are selected after that semantic operation is lowered.
 * Dynamic storage-array data slots stay as `storage_array_data_slot` until the
   same pass. Indexing, push/pop, bytes access, and aggregate copies share that
-  typed operation instead of staging the slot in HIR scratch memory.
+  typed operation and the shared element-stride helper instead of staging the
+  slot in HIR scratch memory.
 * Modifier placeholders expand the modifier chain in source order. Return
   values pass through the suffix, and constructor base calls stay in the
   constructor prelude.
