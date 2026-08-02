@@ -14,6 +14,7 @@ contract StorageStructDeepCopy {
 
     Sel single;
     Sel[] list;
+    Sel[2] fixedList;
 
     // SDC-LABEL: fn @assign
     // The dynamic array field's length and elements are written to storage.
@@ -39,5 +40,18 @@ contract StorageStructDeepCopy {
     // SDC: sstore
     function pop() public {
         list.pop();
+    }
+
+    // SDC-LABEL: fn @assignFixed
+    // Assignment through a fixed storage-array element must deep-copy the
+    // struct fields instead of storing the memory pointer as one word.
+    // SDC: sload 3
+    // SDC: sstore 3,
+    // SDC: sstore 4,
+    function assignFixed(address a, bytes4 x) public {
+        bytes4[] memory ss = new bytes4[](1);
+        ss[0] = x;
+        Sel[2] storage ref = fixedList;
+        ref[0] = Sel(a, ss);
     }
 }

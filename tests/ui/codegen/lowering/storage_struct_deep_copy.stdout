@@ -199,17 +199,89 @@ fn @__panic_31() {
     revert 0, 36
 }
 
+fn @assignFixed() {
+  bb0:
+    v26 = calldatasize
+    v27 = lt v26, 68
+    jumpi v27, bb4, bb5
+  bb1:
+    v19 = phi [bb8: 0], [bb2: v23]
+    v20 = lt v19, v18
+    jumpi v20, bb2, bb3
+  bb2:
+    v34 = add v17, 32
+    v35 = mul v19, 32
+    v36 = add v34, v35
+    v21 = mload v36
+    mstore 0, 4 !metadata(memory=scratch)
+    v25 = add v19, 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b
+    sstore v25, v21 !metadata(storage=symbolic(v25))
+    v23 = add v19, 1
+    jump bb1
+  bb3:
+    stop
+  bb4:
+    revert 0, 0
+  bb5:
+    v28 = calldataload 4
+    v29 = and v28, 0xffffffffffffffffffffffffffffffffffffffff
+    v30 = eq v28, v29
+    jumpi v30, bb6, bb4
+  bb6:
+    v31 = calldataload 36
+    v32 = and v31, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v33 = eq v31, v32
+    jumpi v33, bb7, bb4
+  bb7:
+    v5 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v42 = add v5, 64
+    v43 = lt v42, v5
+    v44 = gt v42, 0xffffffffffffffff
+    v45 = or v43, v44
+    jumpi v45, bb9, bb8
+  bb8:
+    mstore 64, v42 !metadata(memory=scratch)
+    v47 = calldatasize
+    calldatacopy v5, v47, 64
+    mstore v5, 1
+    v37 = add v5, 32
+    v38 = mul 0, 32
+    v39 = add v37, v38
+    mstore v39, arg1
+    v8 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v46 = add v8, 64
+    mstore 64, v46 !metadata(memory=scratch)
+    mstore v8, arg0
+    v40 = add v8, 32
+    mstore v40, v5
+    v11 = mload v8
+    v12 = sload 3 !metadata(storage=slot(3))
+    v13 = and v12, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
+    v15 = or v13, v14
+    sstore 3, v15 !metadata(storage=slot(3))
+    v41 = add v8, 32
+    v17 = mload v41
+    v18 = mload v17
+    sstore 4, v18 !metadata(storage=slot(4))
+    jump bb1
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb6, bb1
+    jumpi v0, bb7, bb1
   bb1:
     v1 = calldatasize
-    jumpi v1, bb2, bb6
+    jumpi v1, bb2, bb7
   bb2:
     v2 = calldataload 0
     v3 = shr 224, v2
-    switch v3, default bb6, [0x4bd0273c => bb3, 0xa4ece52c => bb4, 0xa60249a3 => bb5]
+    switch v3, default bb7, [0x4bd0273c => bb3, 0xa4ece52c => bb4, 0xa60249a3 => bb5, 0xb7ffd825 => bb6]
   bb3:
     tail_call @assign
   bb4:
@@ -217,6 +289,7 @@ fn @entry() [entry] {
   bb5:
     tail_call @push
   bb6:
+    tail_call @assignFixed
+  bb7:
     revert 0, 0
 }
-

@@ -213,7 +213,33 @@ impl<'gcx> Lowerer<'gcx> {
             let element_slot = self.lower_storage_array_element_slot(
                 builder, slot_val, fixed_len, index_val, elem_slots,
             );
-            builder.sstore(element_slot, rhs);
+            if let Some(ty) = self.get_expr_type(lhs) {
+                match ty.peel_refs().kind {
+                    TyKind::Struct(struct_id) => {
+                        self.copy_memory_to_storage_at(builder, struct_id, element_slot, rhs, 0);
+                    }
+                    TyKind::Array(elem, len) => {
+                        if let Ok(len) = u64::try_from(len) {
+                            self.copy_memory_fixed_array_to_storage(
+                                builder,
+                                element_slot,
+                                rhs,
+                                elem,
+                                len,
+                            );
+                        }
+                    }
+                    TyKind::DynArray(elem) => {
+                        self.copy_memory_dyn_array_to_storage(builder, element_slot, rhs, elem);
+                    }
+                    _ if self.expr_has_bytes_or_string_type(lhs) => {
+                        self.copy_memory_bytes_to_storage(builder, element_slot, rhs);
+                    }
+                    _ => builder.sstore(element_slot, rhs),
+                }
+            } else {
+                builder.sstore(element_slot, rhs);
+            }
             return;
         }
 
