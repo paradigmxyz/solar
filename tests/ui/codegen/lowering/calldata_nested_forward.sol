@@ -20,12 +20,16 @@ contract NestedCalldataForward {
     // layout keeps the dynamic element type instead of collapsing it to one
     // word.
     // CHECK-LABEL: fn @forward{{[( ]}}
+    // CHECK: set_memory_object_len memoryarray
+    // CHECK: memory_object_data memoryarray
     // CHECK: abi_encode [memory_array<memory_bytes>]
     function forward(bytes[] calldata data, BytesSink sink) external {
         sink.consume(data);
     }
 
     // CHECK-LABEL: fn @forwardStructs{{[( ]}}
+    // CHECK: set_memory_object_len memoryarray
+    // CHECK: memory_object_data memoryarray
     // CHECK: abi_encode [memory_array<tuple<word, memory_bytes>>]
     function forwardStructs(NestedItem[] calldata data, StructSink sink) external {
         sink.consume(data);

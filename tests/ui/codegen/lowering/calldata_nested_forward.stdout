@@ -35,7 +35,7 @@ fn @forward(arg0: calldataslice, arg1: address) {
     revert 0, 36
   bb8:
     v12 = alloc memoryarray<1>, exact, uninitialized, infallible, v10
-    mstore v12, v7
+    set_memory_object_len memoryarray, v12, v7
     v13 = alloc raw, exact, uninitialized, infallible, 96
     v14 = add v13, 32
     v15 = add v13, 64
@@ -143,7 +143,7 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
     revert 0, 36
   bb8:
     v12 = alloc memoryarray<1>, exact, uninitialized, infallible, v10
-    mstore v12, v7
+    set_memory_object_len memoryarray, v12, v7
     v13 = alloc raw, exact, uninitialized, infallible, 96
     v14 = add v13, 32
     v15 = add v13, 64

@@ -556,7 +556,7 @@ impl<'gcx> Lowerer<'gcx> {
             total_size,
             MemoryObjectKind::DynamicArray,
         );
-        builder.mstore(ptr, len);
+        builder.set_memory_object_len(ptr, len, MemoryObjectKind::DynamicArray);
 
         // Recursive materialization allocates memory and can introduce CFG, so
         // keep loop state in dedicated memory rather than MIR values.
