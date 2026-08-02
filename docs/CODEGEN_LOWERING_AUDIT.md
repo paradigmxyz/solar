@@ -103,6 +103,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   discarded tuple values for their side effects;
 * `ecrecover`, `sha256`, and `ripemd160` through version-aware precompile
   calls and semantic memory objects;
+* `string.concat` and `bytes.concat` through one variadic packed-memory path,
+  including empty, literal, dynamic, and fixed-bytes pieces;
 * lazy, deduplicated ABI cleanup helpers and outlined revert helpers.
 
 The generated MIR for `tests/ui/codegen/lowering/compound_assign.sol` contains

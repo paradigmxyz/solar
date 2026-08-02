@@ -9,7 +9,7 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         AbiLayout, AbiParamLayout, AllocationSemantics, BlockId, Function, FunctionBuilder,
-        FunctionId, MemoryObjectKind, MemoryObjectLayout, Module, ValueId,
+        FunctionId, MemoryObjectKind, MemoryObjectLayout, Module, SliceLocation, ValueId,
     },
 };
 use alloy_primitives::U256;
@@ -2074,6 +2074,9 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             }
             Builtin::Sha256 | Builtin::Ripemd160 => self.lower_hash_precompile_call(builtin, args),
             Builtin::EcRecover => self.lower_ecrecover_call(args),
+            Builtin::StringConcat | Builtin::BytesConcat => {
+                self.lower_concat_builtin_call(builtin, args)
+            }
             Builtin::AbiEncode => {
                 let _ = self.variadic_builtin_args(builtin, &args)?;
                 self.unsupported_builtin(builtin, args.span)
@@ -2090,6 +2093,73 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                 }
             }
         }
+    }
+
+    fn lower_concat_builtin_call(
+        &mut self,
+        builtin: Builtin,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        let exprs = self.variadic_builtin_args(builtin, &args)?;
+        let mut total = self.builder.imm_u64(0);
+        let mut parts = Vec::with_capacity(exprs.len());
+        for expr in exprs {
+            let ty = self.gcx.type_of_expr(expr.id)?;
+            match ty.peel_refs().kind {
+                TyKind::StringLiteral(..)
+                | TyKind::Elementary(
+                    solar_sema::hir::ElementaryType::String
+                    | solar_sema::hir::ElementaryType::Bytes,
+                ) => {
+                    let value = self.lower_expr(expr)?;
+                    let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
+                    total = self.checked_add(total, length);
+                    parts.push((value, Some(length), 0));
+                }
+                TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => {
+                    let value = self.lower_expr(expr)?;
+                    let length = u64::from(size.bytes());
+                    let length_value = self.builder.imm_u64(length);
+                    total = self.checked_add(total, length_value);
+                    parts.push((value, None, length));
+                }
+                _ => return report_unsupported(self.gcx, expr.span, "concat argument"),
+            }
+        }
+
+        let thirty_one = self.builder.imm_u64(31);
+        let rounded = self.checked_add(total, thirty_one);
+        let word_size = self.builder.imm_u64(32);
+        let words = self.builder.div(rounded, word_size);
+        let one = self.builder.imm_u64(1);
+        let words = self.checked_add(words, one);
+        let size = self.checked_mul(words, word_size);
+        let output = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::SOLIDITY_ZEROED,
+        );
+        self.builder.set_memory_object_len(output, total, MemoryObjectKind::Bytes);
+
+        let mut offset = self.builder.imm_u64(0);
+        for (value, dynamic_length, static_length) in parts {
+            if let Some(length) = dynamic_length {
+                let source_ptr = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
+                let source = self.builder.make_slice(source_ptr, length, SliceLocation::Memory);
+                self.builder.memory_object_copy_from_slice_at(
+                    output,
+                    MemoryObjectKind::Bytes,
+                    offset,
+                    source,
+                );
+                offset = self.checked_add(offset, length);
+            } else {
+                self.builder.memory_object_store_word(output, offset, value);
+                let length = self.builder.imm_u64(static_length);
+                offset = self.checked_add(offset, length);
+            }
+        }
+        Some(output)
     }
 
     fn lower_hash_precompile_call(
