@@ -50,24 +50,35 @@ bb0:
   dup1
   push 448
   mstore
-  push 64
+  push 96
   dup2
   add
   push 64
   mstore
-  push 352
-  mload
+  push 64
   dup2
   mstore
   push 32
   dup2
   add
+  push 352
+  mload
+  swap1
+  mstore
+  push 32
+  dup2
+  add
+  push 32
+  add
   push 320
   mload
   swap1
   mstore
-  push 64
+  dup1
+  mload
   swap1
+  push 32
+  add
   keccak256
   dup1
   sload

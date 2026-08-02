@@ -82,9 +82,9 @@ describes observable structure in the current tree, not an intended design.
 * Literal mapping keys and embedded creation bytecode use typed bytes-object
   stores for their word chunks before hashing or returning the object.
 * Dynamic mapping keys stay as `mapping_slot_memory` or
-  `mapping_slot_calldata` until the mapping-slot pass. That pass now runs at
-  the memory boundary and reserves hash input through `alloc` instead of
-  borrowing the free-memory pointer as scratch.
+  `mapping_slot_calldata` until the mapping-slot pass. That pass now builds
+  typed bytes hash preimages and uses semantic copies and stores; raw scratch
+  is confined to the memory boundary.
 * Dynamic storage-array data slots stay as `storage_array_data_slot` until the
   same pass. Indexing, push/pop, bytes access, and aggregate copies share that
   typed operation and the shared element-stride helper instead of staging the
@@ -127,6 +127,9 @@ describes observable structure in the current tree, not an intended design.
   memory slices; calldata wrappers retain direct calldata loads.
 * Constructor dynamic-array decoding carries a logical destination index and
   stores through the typed array object rather than a raw destination pointer.
+* Mapping-slot preimages for word keys, memory keys, calldata keys, and storage
+  array roots use typed bytes objects through `keccak256_bytes`; their hash
+  inputs no longer expose raw allocation, copy, or store operations to HIR.
 * Storage-to-memory and memory-to-storage aggregate copies use the same typed
   field and element operations. Packed and nested copies no longer expose a
   destination address to HIR lowering.

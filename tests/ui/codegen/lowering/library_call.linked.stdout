@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:Lib (runtime) ===
 @module runtime
 bb0:
-  push 224
+  push 256
   push 64
   mstore
   callvalue
@@ -57,23 +57,37 @@ bb5:
   push 64
   mload
   dup1
-  push 64
+  push 224
+  mstore
+  push 96
+  dup2
   add
   push 64
   mstore
-  push 36
-  calldataload
+  push 64
   dup2
   mstore
   push 32
   dup2
   add
+  push 36
+  calldataload
+  swap1
+  mstore
+  push 32
+  dup2
+  add
+  push 32
+  add
   push 4
   calldataload
   swap1
   mstore
-  push 64
+  dup1
+  mload
   swap1
+  push 32
+  add
   keccak256
   dup1
   push 192

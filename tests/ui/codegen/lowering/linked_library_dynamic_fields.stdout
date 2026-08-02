@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:L (runtime) ===
 @module runtime
 bb0:
-  push 576
+  push 512
   push 64
   mstore
   callvalue
@@ -222,14 +222,14 @@ bb5:
   mload
   add
   dup1
-  push 448
+  push 480
   mstore
   push 416
   mload
   gt
   push bb4
   jumpi
-  push 448
+  push 480
   mload
   push 224
   mload
@@ -248,9 +248,9 @@ bb5:
   push 64
   mload
   dup1
-  push 480
-  mstore
   push 448
+  mstore
+  push 480
   mload
   dup2
   add
@@ -276,7 +276,7 @@ bb5:
   add
   dup2
   dup1
-  push 480
+  push 448
   mstore
   swap1
   mstore
@@ -403,7 +403,7 @@ bb5:
   push 64
   mload
   dup1
-  push 480
+  push 448
   mstore
   push 416
   mload
@@ -431,7 +431,7 @@ bb5:
   add
   dup2
   dup1
-  push 480
+  push 448
   mstore
   swap1
   mstore
@@ -552,21 +552,41 @@ bb25:
   mload
   add
   mload
-  push 512
+  push 64
+  mload
+  dup1
+  push 448
+  mstore
+  push 96
   dup2
+  add
+  push 64
+  mstore
+  push 64
   dup2
+  mstore
+  push 32
+  dup2
+  add
+  dup3
+  swap1
   mstore
   swap1
   pop
   push 32
   dup2
   add
+  push 32
+  add
   push 4
   calldataload
   swap1
   mstore
-  push 64
+  dup1
+  mload
   swap1
+  push 32
+  add
   keccak256
   sstore
   push 128
@@ -746,19 +766,39 @@ bb6:
   sub
   push bb5
   jumpi
+  push 64
+  mload
+  dup1
   push 160
-  push 4
-  calldataload
+  mstore
+  push 96
+  dup2
+  add
+  push 64
+  mstore
+  push 64
   dup2
   mstore
   push 32
   dup2
   add
+  push 4
+  calldataload
+  swap1
+  mstore
+  push 32
+  dup2
+  add
+  push 32
+  add
   push 0
   swap1
   mstore
-  push 64
+  dup1
+  mload
   swap1
+  push 32
+  add
   keccak256
   sload
   jump bb31

@@ -7,9 +7,11 @@
 // CHECK: {{^[ +].*}}after lower-mapping-slots
 // CHECK-NOT: fmp
 // CHECK: {{^[ +].*}}fn @word{{[( ]}}
-// CHECK: + [[SCRATCH:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 64
-// CHECK: + mstore [[SCRATCH]], arg0
-// CHECK: + [[LOWERED_HASH:v[0-9]+]] = keccak256 [[SCRATCH]], 64
+// CHECK: + [[OBJECT:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 96
+// CHECK: + set_memory_object_len memorybytes, [[OBJECT]], 64
+// CHECK: + memory_object_store_element memorybytes, [[OBJECT]], 0, arg0
+// CHECK: + memory_object_store_element memorybytes, [[OBJECT]], 1, 7
+// CHECK: + [[LOWERED_HASH:v[0-9]+]] = keccak256_bytes [[OBJECT]]
 // CHECK: + {{v[0-9]+}} = add [[LOWERED_HASH]], [[LOWERED_HASH]]
 fn @word(arg0: u256) -> u256 {
   bb0:
@@ -50,8 +52,8 @@ fn @memory(arg0: memptr) -> u256 {
 }
 
 // CHECK: {{^[ +].*}}fn @calldata{{[( ]}}
-// CHECK: + calldatacopy
-// CHECK: + [[HASH:v[0-9]+]] = keccak256
+// CHECK: + memory_object_copy_from_slice
+// CHECK: + [[HASH:v[0-9]+]] = keccak256_bytes
 // CHECK: + {{v[0-9]+}} = add [[HASH]], [[HASH]]
 fn @calldata(arg0: calldataslice) -> u256 {
   bb0:

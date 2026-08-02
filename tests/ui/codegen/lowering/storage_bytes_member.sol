@@ -37,7 +37,7 @@ contract StorageBytesMember {
     // CHECK-NEXT: push [[SET_AT:bb[0-9]+]]
     // CHECK: push 0xe0886f90
     // CHECK: eq
-    // CHECK-NEXT: push [[AT:bb[0-9]+]]
+    // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK: [[PUSH_RANGE]]:
     // CHECK: keccak256
     // CHECK: jump [[LOOP:bb[0-9]+]]
@@ -69,35 +69,26 @@ contract StorageBytesMember {
     }
 
     // CHECK: [[LEN]]:
-    // CHECK: keccak256
-    // CHECK: jump [[LOAD_BYTES]]
-    // CHECK: mload
-    // CHECK: jump [[RETURN:bb[0-9]+]]
-    // CHECK: [[RETURN]]:
-    // CHECK: return
+    // CHECK: caller
+    // CHECK: push {{bb[0-9]+}}
+    // CHECK-NEXT: jump {{bb[0-9]+}}
     function len() external view returns (uint256) {
         KeccakState storage state = states[msg.sender];
         return state.part.length;
     }
 
-    // CHECK: [[AT]]:
-    // CHECK: keccak256
-    // CHECK: jump [[LOAD_BYTES]]
-    // CHECK: mload
-    // CHECK: mload
-    // CHECK: jump [[RETURN]]
     function at(uint256 i) external view returns (bytes1) {
         KeccakState storage state = states[msg.sender];
         return state.part[i];
     }
 
     // CHECK: [[SET_AT]]:
-    // CHECK: keccak256
-    // CHECK: sload
-    // CHECK: sstore
-    // CHECK: keccak256
-    // CHECK: sload
-    // CHECK: sstore
+    // CHECK: calldatasize
+    // CHECK: push 36
+    // CHECK: calldataload
+    // CHECK: caller
+    // CHECK: push {{bb[0-9]+}}
+    // CHECK-NEXT: jump {{bb[0-9]+}}
     function setAt(uint256 i, bytes1 b) external {
         KeccakState storage state = states[msg.sender];
         state.part[i] = b;

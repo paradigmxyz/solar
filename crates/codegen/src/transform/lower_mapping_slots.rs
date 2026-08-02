@@ -97,9 +97,16 @@ fn lower_storage_array_data_slot(
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
     let word = builder.imm_u64(32);
-    let scratch = builder.alloc(word, crate::mir::AllocationSemantics::INTERNAL);
-    builder.mstore(scratch, slot);
-    builder.keccak256(scratch, word)
+    let object_size = builder.imm_u64(64);
+    let object = builder.alloc_object(
+        object_size,
+        crate::mir::MemoryObjectLayout::Bytes,
+        crate::mir::AllocationSemantics::INTERNAL,
+    );
+    builder.set_memory_object_len(object, word, crate::mir::MemoryObjectKind::Bytes);
+    let zero = builder.imm_u64(0);
+    builder.memory_object_store_element(object, crate::mir::MemoryObjectLayout::Bytes, zero, slot);
+    builder.keccak256_bytes(object)
 }
 
 fn lower_storage_array_element_slot(
@@ -124,12 +131,19 @@ fn lower_word_mapping_slot(
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
     let hash_size = builder.imm_u64(64);
-    let scratch = builder.alloc(hash_size, crate::mir::AllocationSemantics::INTERNAL);
-    builder.mstore(scratch, key);
-    let word_size = builder.imm_u64(32);
-    let slot_offset = builder.add(scratch, word_size);
-    builder.mstore(slot_offset, slot);
-    builder.keccak256(scratch, hash_size)
+    let object_size = builder.imm_u64(96);
+    let object = builder.alloc_object(
+        object_size,
+        crate::mir::MemoryObjectLayout::Bytes,
+        crate::mir::AllocationSemantics::INTERNAL,
+    );
+    builder.set_memory_object_len(object, hash_size, crate::mir::MemoryObjectKind::Bytes);
+    let layout = crate::mir::MemoryObjectLayout::Bytes;
+    let zero = builder.imm_u64(0);
+    let one = builder.imm_u64(1);
+    builder.memory_object_store_element(object, layout, zero, key);
+    builder.memory_object_store_element(object, layout, one, slot);
+    builder.keccak256_bytes(object)
 }
 
 fn lower_memory_mapping_slot(
@@ -138,14 +152,24 @@ fn lower_memory_mapping_slot(
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
     let len = builder.memory_object_len(ptr, crate::mir::MemoryObjectKind::Bytes);
-    let data_start = builder.memory_object_data(ptr, crate::mir::MemoryObjectKind::Bytes);
     let word_size = builder.imm_u64(32);
-    let scratch_size = builder.add(len, word_size);
-    let scratch = builder.alloc(scratch_size, crate::mir::AllocationSemantics::INTERNAL);
-    builder.mcopy(scratch, data_start, len);
-    let slot_addr = builder.add(scratch, len);
-    builder.mstore(slot_addr, slot);
-    builder.keccak256(scratch, scratch_size)
+    let payload_size = builder.add(len, word_size);
+    let object_size = builder.add(payload_size, word_size);
+    let object = builder.alloc_object(
+        object_size,
+        crate::mir::MemoryObjectLayout::Bytes,
+        crate::mir::AllocationSemantics::INTERNAL,
+    );
+    builder.set_memory_object_len(object, payload_size, crate::mir::MemoryObjectKind::Bytes);
+    builder.memory_object_copy(
+        object,
+        crate::mir::MemoryObjectKind::Bytes,
+        ptr,
+        crate::mir::MemoryObjectKind::Bytes,
+        len,
+    );
+    builder.memory_object_store_word(object, len, slot);
+    builder.keccak256_bytes(object)
 }
 
 fn lower_calldata_mapping_slot(
@@ -154,12 +178,16 @@ fn lower_calldata_mapping_slot(
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
     let len = builder.slice_len(slice);
-    let data_start = builder.slice_ptr(slice);
     let word_size = builder.imm_u64(32);
-    let scratch_size = builder.add(len, word_size);
-    let scratch = builder.alloc(scratch_size, crate::mir::AllocationSemantics::INTERNAL);
-    builder.calldatacopy(scratch, data_start, len);
-    let slot_addr = builder.add(scratch, len);
-    builder.mstore(slot_addr, slot);
-    builder.keccak256(scratch, scratch_size)
+    let payload_size = builder.add(len, word_size);
+    let object_size = builder.add(payload_size, word_size);
+    let object = builder.alloc_object(
+        object_size,
+        crate::mir::MemoryObjectLayout::Bytes,
+        crate::mir::AllocationSemantics::INTERNAL,
+    );
+    builder.set_memory_object_len(object, payload_size, crate::mir::MemoryObjectKind::Bytes);
+    builder.memory_object_copy_from_slice(object, crate::mir::MemoryObjectKind::Bytes, slice);
+    builder.memory_object_store_word(object, len, slot);
+    builder.keccak256_bytes(object)
 }
