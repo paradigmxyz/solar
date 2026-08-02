@@ -1,5 +1,8 @@
-use super::{assert_request_cancelled, start_request};
-use crate::{global_state::GlobalState, new_router_with_state, new_server_service, request_layer};
+use crate::{
+    global_state::GlobalState,
+    new_router_with_state, new_server_service, request_layer,
+    test_support::{assert_request_cancelled, start_request},
+};
 use async_lsp::{
     AnyEvent, AnyNotification, AnyRequest, ClientSocket, LanguageServer, LspService, ResponseError,
     client_monitor::ClientProcessMonitorLayer, router::Router, server::LifecycleLayer,

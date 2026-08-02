@@ -1,5 +1,5 @@
 use super::*;
-use crate::test_support::TestProject;
+use crate::test_support::{TestProject, assert_request_cancelled, start_request};
 use async_lsp::{
     AnyEvent, AnyNotification, AnyRequest, LanguageServer, LspService, ResponseError,
     router::Router,
@@ -21,11 +21,9 @@ use lsp_types::{
 };
 use solar_interface::data_structures::sync::RwLock;
 use std::{
-    future::Future,
     ops::ControlFlow,
-    pin::Pin,
     sync::Arc,
-    task::{Context, Poll, Waker},
+    task::{Context, Poll},
     time::Duration,
 };
 use tokio::sync::{mpsc, oneshot};
@@ -64,21 +62,6 @@ impl LspService for ObservedRouter {
     fn emit(&mut self, event: AnyEvent) -> ControlFlow<async_lsp::Result<()>> {
         self.inner.emit(event)
     }
-}
-
-fn assert_request_cancelled<T>(result: async_lsp::Result<T>) {
-    let Err(error) = result else { panic!("expected request cancellation") };
-    let async_lsp::Error::Response(error) = error else {
-        panic!("expected request cancellation, got {error:?}");
-    };
-    assert_eq!(error.code, async_lsp::ErrorCode::REQUEST_CANCELLED);
-}
-
-fn start_request<F: Future>(future: F) -> Pin<Box<F>> {
-    let mut future = Box::pin(future);
-    let mut cx = Context::from_waker(Waker::noop());
-    assert!(future.as_mut().poll(&mut cx).is_pending());
-    future
 }
 
 #[derive(Debug)]
@@ -956,6 +939,3 @@ async fn initialized_registers_watched_files_when_client_supports_dynamic_regist
     assert!(server_main.await.unwrap().is_ok());
     assert!(matches!(client_main.await.unwrap(), Err(async_lsp::Error::Eof)));
 }
-
-#[path = "protocol_trace.rs"]
-mod protocol_trace_tests;
