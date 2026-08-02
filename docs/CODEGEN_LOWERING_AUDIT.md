@@ -117,6 +117,8 @@ describes observable structure in the current tree, not an intended design.
   unaligned data pointer.
 * Memory-byte writes use `memory_object_store_byte`; only the memory-object
   pass emits the final `mstore8`.
+* Deleting small fixed memory arrays uses typed element stores; only the bulk
+  zero path keeps the dedicated zeroing operation.
 * Object-backed constructor and linked-library payload assembly uses
   `memory_object_store_word`; only memory lowering forms payload addresses.
 * ABI tail lengths and nested dynamic-array heads read through

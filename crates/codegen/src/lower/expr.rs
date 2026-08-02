@@ -784,15 +784,11 @@ impl<'gcx> Lowerer<'gcx> {
                     builder.memory_zero(ptr, size);
                     return;
                 }
+                let layout = crate::mir::MemoryObjectLayout::word_fixed_array(len);
                 for i in 0..len {
                     let value = self.zero_memory_field_value_ty(builder, element_ty, var.ty.span);
-                    if i == 0 {
-                        builder.mstore(ptr, value);
-                    } else {
-                        let offset = builder.imm_u64(i * 32);
-                        let addr = builder.add(ptr, offset);
-                        builder.mstore(addr, value);
-                    }
+                    let index = builder.imm_u64(i);
+                    builder.memory_object_store_element(ptr, layout, index, value);
                 }
                 return;
             }

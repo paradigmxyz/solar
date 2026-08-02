@@ -161,11 +161,7 @@ contract NamedReturnAndDelete {
     // `delete` zeroes the elements in place; the pointer stays valid.
     // CHECK-LABEL: fn @deleteInPlace{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<3, 1>
-    // CHECK: mstore [[ARRAY]], 0
-    // CHECK: [[SECOND:v[0-9]+]] = add [[ARRAY]], 32
-    // CHECK: mstore [[SECOND]], 0
-    // CHECK: [[THIRD:v[0-9]+]] = add [[ARRAY]], 64
-    // CHECK: mstore [[THIRD]], 0
+    // CHECK-COUNT-3: memory_object_store_element memoryfixedarray<3, 1>, [[ARRAY]], {{[0-2]}}, 0
     // CHECK: memory_object_store_element memoryfixedarray<3, 1>, {{v[0-9]+}}, 2, 9
     function deleteInPlace() public pure returns (uint256, uint256) {
         uint256[3] memory x;
