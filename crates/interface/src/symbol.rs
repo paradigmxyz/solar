@@ -1065,6 +1065,7 @@ symbols! {
         memory_object_store_byte,
         memory_object_store_element,
         memory_object_store_field,
+        memory_object_store_word,
         memory_read,
         memory_to_storage,
         memory_write,

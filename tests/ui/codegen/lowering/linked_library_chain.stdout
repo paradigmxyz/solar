@@ -125,22 +125,33 @@ bb8:
   add
   push 64
   mstore
+  push 68
+  dup2
+  mstore
   push 32
+  dup2
+  add
+  push 32
+  dup3
   add
   push 0xfaf4836c
   push 224
   shl
-  dup2
+  swap1
   mstore
+  push 32
+  dup3
+  add
   push 4
-  dup2
   add
   push 4
   calldataload
   swap1
   mstore
+  swap1
+  push 32
+  add
   push 36
-  dup2
   add
   push 36
   calldataload
@@ -218,21 +229,32 @@ bb0:
   add
   push 64
   mstore
+  push 68
+  dup2
+  mstore
   push 32
+  dup2
+  add
+  push 32
+  dup3
   add
   push 0x5e0b1cef
   push 224
   shl
-  dup2
+  swap1
   mstore
+  push 32
+  dup3
+  add
   push 4
-  dup2
   add
   push 0
   swap1
   mstore
+  swap1
+  push 32
+  add
   push 36
-  dup2
   add
   push 4
   calldataload

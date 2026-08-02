@@ -409,6 +409,13 @@ fn display_inst_kind<'a>(
             display_val(*index, func),
             display_val(*value, func)
         ),
+        InstKind::MemoryObjectStoreWord { object, offset, value } => write!(
+            f,
+            "memory_object_store_word memorybytes, {}, {}, {}",
+            display_val(*object, func),
+            display_val(*offset, func),
+            display_val(*value, func)
+        ),
         InstKind::MemoryObjectCopyFromSlice { object, kind, source } => write!(
             f,
             "memory_object_copy_from_slice {kind}, {}, {}",

@@ -181,7 +181,8 @@ fn local_summary(func: &Function) -> FunctionMemorySummary {
                 | InstKind::SetFmp(value)
                 | InstKind::MemoryObjectStoreField { value, .. }
                 | InstKind::MemoryObjectStoreElement { value, .. }
-                | InstKind::MemoryObjectStoreByte { value, .. } => {
+                | InstKind::MemoryObjectStoreByte { value, .. }
+                | InstKind::MemoryObjectStoreWord { value, .. } => {
                     capture_sources(&mut summary, func, &sources, *value);
                 }
                 _ => {}

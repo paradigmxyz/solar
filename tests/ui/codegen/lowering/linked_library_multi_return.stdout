@@ -13,8 +13,9 @@ fn @pair() -> (u256, u256) [abi_args=lazy, abi_returns=[word, word]] {
     v1 = add v0, 32
     v2 = add v1, 0
     v3 = alloc memorybytes, exact, uninitialized, infallible, v2
+    set_memory_object_len memorybytes, v3, v0
     v4 = memory_object_data memorybytes, v3
-    mstore v4, 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
+    memory_object_store_word memorybytes, v3, 0, 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
     v5 = gas
     v6 = delegatecall v5, 0x1111111111111111111111111111111111111111, v4, v0, v4, 64
     jumpi v6, bb2, bb1

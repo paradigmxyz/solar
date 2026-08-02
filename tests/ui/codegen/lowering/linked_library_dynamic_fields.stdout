@@ -1168,37 +1168,52 @@ bb10:
   add
   push 64
   mstore
+  dup2
+  dup2
+  mstore
   push 32
+  dup2
+  add
+  push 32
+  dup3
   add
   push 0xfa06cb96
   push 224
   shl
-  dup2
+  swap1
   mstore
+  push 32
+  dup3
+  add
   push 4
-  dup2
   add
   push 0
-  dup2
+  swap1
   mstore
-  push 36
+  push 32
   dup3
+  add
+  push 36
   add
   dup7
   swap1
   mstore
   swap5
   pop
-  push 132
+  push 32
   dup2
+  add
+  push 132
   add
   dup4
   swap1
   mstore
   swap2
   pop
-  push 68
+  push 32
   dup3
+  add
+  push 68
   add
   push 160
   swap1
@@ -1208,8 +1223,10 @@ bb10:
   dup1
   push 5
   shl
-  push 164
+  push 32
   dup5
+  add
+  push 164
   add
   dup3
   swap1
@@ -1219,8 +1236,8 @@ bb10:
   swap3
   push 32
   add
-  push 196
-  dup4
+  push 164
+  dup6
   add
   dup5
   dup3
@@ -1228,14 +1245,14 @@ bb10:
   mcopy
   pop
   pop
-  swap2
   push 192
+  dup4
+  add
+  push 32
+  dup4
   add
   push 100
-  dup3
   add
-  dup2
-  swap1
   mstore
   dup5
   mload
@@ -1245,29 +1262,27 @@ bb10:
   push 31
   not
   and
-  swap2
-  swap1
-  swap5
-  add
-  dup5
-  dup2
-  mstore
   swap4
-  pop
-  swap4
-  push 32
+  push 196
   add
   swap3
   push 32
   add
-  dup5
-  dup5
+  dup4
+  add
+  mstore
+  swap4
+  push 32
+  add
+  swap1
+  dup4
+  add
+  dup3
+  dup3
   dup3
   mcopy
   pop
-  swap2
   pop
-  swap2
   pop
   gas
   dup1

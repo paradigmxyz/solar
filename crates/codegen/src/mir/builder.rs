@@ -480,6 +480,17 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::MemoryObjectStoreByte { object, index, value });
     }
 
+    /// Stores one word at a byte offset in a bytes object through its semantic
+    /// layout.
+    pub(crate) fn memory_object_store_word(
+        &mut self,
+        object: ValueId,
+        offset: ValueId,
+        value: ValueId,
+    ) {
+        self.emit_void_inst(InstKind::MemoryObjectStoreWord { object, offset, value });
+    }
+
     /// Copies a typed slice into a dynamic memory object's payload.
     pub(crate) fn memory_object_copy_from_slice(
         &mut self,

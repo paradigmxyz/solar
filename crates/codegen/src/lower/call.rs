@@ -968,18 +968,15 @@ impl<'gcx> Lowerer<'gcx> {
             crate::mir::AllocationSemantics::INTERNAL,
         );
         builder.set_memory_object_len(object, total_size_value, MemoryObjectKind::Bytes);
-        let mem_offset = builder.memory_object_data(object, MemoryObjectKind::Bytes);
-
-        // Copy bytecode to memory using MSTORE
-        // For each 32-byte chunk of bytecode, emit an MSTORE at (mem_offset + offset)
+        // Copy bytecode to the semantic payload. Memory lowering owns the
+        // physical data address and word store.
         for (i, chunk) in bytecode.chunks(32).enumerate() {
             let mut padded = [0u8; 32];
             padded[..chunk.len()].copy_from_slice(chunk);
             let value = U256::from_be_bytes(padded);
-            let val_id = builder.imm_u256(value);
             let chunk_offset = builder.imm_u64((i as u64) * 32);
-            let dest = builder.add(mem_offset, chunk_offset);
-            builder.mstore(dest, val_id);
+            let value = builder.imm_u256(value);
+            builder.memory_object_store_word(object, chunk_offset, value);
         }
 
         // Append constructor arguments after bytecode
@@ -987,10 +984,10 @@ impl<'gcx> Lowerer<'gcx> {
         for arg in arg_exprs {
             let arg_val = self.lower_value_expr(builder, arg);
             let arg_offset_imm = builder.imm_u64(args_offset);
-            let arg_dest = builder.add(mem_offset, arg_offset_imm);
-            builder.mstore(arg_dest, arg_val);
+            builder.memory_object_store_word(object, arg_offset_imm, arg_val);
             args_offset += 32; // Each arg is 32 bytes ABI encoded
         }
+        let mem_offset = builder.memory_object_data(object, MemoryObjectKind::Bytes);
 
         // Value to send with CREATE/CREATE2 (0 for non-payable, or from value option)
         let value = value_opt.unwrap_or_else(|| builder.imm_u64(0));
@@ -2383,14 +2380,15 @@ impl<'gcx> Lowerer<'gcx> {
             MemoryObjectLayout::Bytes,
             crate::mir::AllocationSemantics::INTERNAL,
         );
+        builder.set_memory_object_len(object, payload_size, MemoryObjectKind::Bytes);
         let calldata_start = builder.memory_object_data(object, MemoryObjectKind::Bytes);
 
         let selector_val = builder.imm_u256(U256::from(selector) << 224);
-        builder.mstore(calldata_start, selector_val);
+        let zero = builder.imm_u64(0);
+        builder.memory_object_store_word(object, zero, selector_val);
         for (offset, value) in head_values {
-            let offset_val = builder.imm_u64(offset);
-            let write_addr = builder.add(calldata_start, offset_val);
-            builder.mstore(write_addr, value);
+            let offset = builder.imm_u64(offset);
+            builder.memory_object_store_word(object, offset, value);
         }
 
         // Tails: `[len][data...]` blobs appended after the heads; each head
@@ -2399,18 +2397,16 @@ impl<'gcx> Lowerer<'gcx> {
         tail_off = builder.imm_u64((head_size_bytes - 4) as u64);
         for (head_off, src, kind) in pending_tails {
             let object_kind = kind.memory_object_kind();
-            let head_addr_off = builder.imm_u64(head_off);
-            let head_addr = builder.add(calldata_start, head_addr_off);
-            builder.mstore(head_addr, tail_off);
+            let head_off = builder.imm_u64(head_off);
+            builder.memory_object_store_word(object, head_off, tail_off);
 
             let len = builder.memory_object_len(src, object_kind);
             let byte_len = kind.data_size(builder, len, word);
 
             let four = builder.imm_u64(4);
-            let args_base = builder.add(calldata_start, four);
-            let dst = builder.add(args_base, tail_off);
-            builder.mstore(dst, len);
-            let dst_data = builder.add(dst, word);
+            let dst_offset = builder.add(four, tail_off);
+            builder.memory_object_store_word(object, dst_offset, len);
+            let dst_data = builder.add(calldata_start, dst_offset);
             let src_data = builder.memory_object_data(src, object_kind);
             builder.mcopy(dst_data, src_data, byte_len);
 

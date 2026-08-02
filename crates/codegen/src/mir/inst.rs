@@ -671,6 +671,16 @@ pub(crate) enum InstKind {
         /// Low byte to store.
         value: ValueId,
     },
+    /// Store one word at a byte offset in a bytes object without exposing its
+    /// physical address.
+    MemoryObjectStoreWord {
+        /// Bytes object reference.
+        object: ValueId,
+        /// Runtime byte offset from the payload start.
+        offset: ValueId,
+        /// Word to store.
+        value: ValueId,
+    },
     /// Copy a typed slice into the payload of a dynamic memory object.
     MemoryObjectCopyFromSlice {
         /// Destination memory object reference.
@@ -1054,6 +1064,12 @@ impl InstKind {
                 out.push(*value);
             }
 
+            Self::MemoryObjectStoreWord { object, offset, value } => {
+                out.push(*object);
+                out.push(*offset);
+                out.push(*value);
+            }
+
             Self::MemoryObjectCopyFromSlice { object, source, .. } => {
                 out.push(*object);
                 out.push(*source);
@@ -1292,6 +1308,12 @@ impl InstKind {
                 f(value);
             }
 
+            Self::MemoryObjectStoreWord { object, offset, value } => {
+                f(object);
+                f(offset);
+                f(value);
+            }
+
             Self::MemoryObjectCopyFromSlice { object, source, .. } => {
                 f(object);
                 f(source);
@@ -1489,6 +1511,7 @@ impl InstKind {
             Self::MemoryObjectLoadElement { .. } => "memory_object_load_element",
             Self::MemoryObjectStoreElement { .. } => "memory_object_store_element",
             Self::MemoryObjectStoreByte { .. } => "memory_object_store_byte",
+            Self::MemoryObjectStoreWord { .. } => "memory_object_store_word",
             Self::MemoryObjectCopyFromSlice { .. } => "memory_object_copy_from_slice",
             Self::MemoryObjectCopy { .. } => "memory_object_copy",
             Self::AbiEncode { .. } => "abi_encode",
@@ -1588,6 +1611,7 @@ impl InstKind {
             | Self::MemoryObjectStoreField { .. }
             | Self::MemoryObjectStoreElement { .. }
             | Self::MemoryObjectStoreByte { .. }
+            | Self::MemoryObjectStoreWord { .. }
             | Self::MemoryObjectCopyFromSlice { .. }
             | Self::MemoryObjectCopy { .. }
             | Self::AbiEncode { .. }
@@ -1632,6 +1656,7 @@ impl InstKind {
             | Self::MemoryObjectStoreField { .. }
             | Self::MemoryObjectStoreElement { .. }
             | Self::MemoryObjectStoreByte { .. }
+            | Self::MemoryObjectStoreWord { .. }
             | Self::MemoryObjectCopyFromSlice { .. }
             | Self::MemoryObjectCopy { .. }
             | Self::AbiEncode { .. }

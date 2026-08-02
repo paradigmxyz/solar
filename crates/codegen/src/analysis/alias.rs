@@ -738,6 +738,9 @@ impl AliasAnalysis {
             InstKind::MemoryObjectStoreByte { object, index, value } => {
                 operand != *object && operand != *index && operand != *value
             }
+            InstKind::MemoryObjectStoreWord { object, offset, value } => {
+                operand != *object && operand != *offset && operand != *value
+            }
             InstKind::MemoryObjectCopyFromSlice { object, source, .. } => {
                 operand != *object && operand != *source
             }
@@ -947,6 +950,9 @@ impl AliasAnalysis {
                 }
             }
             InstKind::MemoryObjectStoreByte { .. } => {
+                effects.write_any(AddressSpace::Memory);
+            }
+            InstKind::MemoryObjectStoreWord { .. } => {
                 effects.write_any(AddressSpace::Memory);
             }
             InstKind::MemoryObjectCopyFromSlice { source, .. } => {
