@@ -123,7 +123,7 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * contract creation with compiled child deployment bytecode, semantic
   constructor ABI encoding, `value`/`salt` options, and forwarding of failed
   creation returndata;
-* basic `try`/`catch` lowering for resolved external calls with empty return
+* basic `try`/`catch` lowering for resolved external calls with scalar return
   bindings and a bare catch clause;
 * `abi.decode` scalar, tuple, dynamic-array, and calldata-slice paths through
   semantic memory slices and object copies; struct targets still fail closed;

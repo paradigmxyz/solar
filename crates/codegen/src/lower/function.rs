@@ -954,13 +954,16 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
             return report_unsupported(self.gcx, try_stmt.expr.span, "try target");
         };
         let function = self.gcx.hir.function(function_id);
-        if !function.returns.is_empty() {
+        if function.returns.len() > 1 {
             return report_unsupported(self.gcx, try_stmt.expr.span, "try return values");
         }
         let [returns_clause, catch_clause] = try_stmt.clauses else {
             return report_unsupported(self.gcx, try_stmt.expr.span, "try/catch clauses");
         };
-        if returns_clause.name.is_some() || !returns_clause.args.is_empty() {
+        if returns_clause.name.is_some()
+            || returns_clause.args.len() != function.returns.len()
+            || returns_clause.args.len() > 1
+        {
             return report_unsupported(self.gcx, returns_clause.span, "try return bindings");
         }
         if catch_clause.name.is_some() || !catch_clause.args.is_empty() {
@@ -1000,15 +1003,25 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
         let input_size = self.builder.slice_len(encoded);
         let address = self.lower_expr(receiver)?;
         let zero = self.builder.imm_u256(U256::ZERO);
+        let (ret_offset, ret_size, return_ty) = if let Some(&return_id) = function.returns.first() {
+            let return_ty = self.gcx.type_of_item(return_id.into());
+            if !matches!(self.types.abi_type(return_ty)?, AbiType::Word) {
+                return report_unsupported(self.gcx, returns_clause.span, "try return values");
+            }
+            let binding_id = returns_clause.args[0];
+            (zero, self.builder.imm_u64(32), Some((binding_id, return_ty)))
+        } else {
+            (zero, zero, None)
+        };
         let gas = self.builder.gas();
         let success = if matches!(
             function.state_mutability,
             hir::StateMutability::Pure | hir::StateMutability::View
         ) && self.gcx.sess.opts.evm_version.has_static_call()
         {
-            self.builder.staticcall(gas, address, input, input_size, zero, zero)
+            self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
         } else {
-            self.builder.call(gas, address, zero, input, input_size, zero, zero)
+            self.builder.call(gas, address, zero, input, input_size, ret_offset, ret_size)
         };
 
         let success_block = self.builder.create_block();
@@ -1021,6 +1034,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
         self.values = before.clone();
         self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(success_block);
+        if let Some((return_id, return_ty)) = return_ty {
+            let return_size = self.builder.returndatasize();
+            let short = self.builder.lt(return_size, ret_size);
+            self.revert_if_empty(short);
+            let word = self.abi_decode_word(ret_offset);
+            let value = self.decode_abi_word(return_ty, word, returns_clause.span)?;
+            self.values.insert(return_id, value);
+        }
         self.lower_block(returns_clause.block)?;
         let success_terminated = self.is_terminated();
         let success_exit = self.builder.current_block();
