@@ -1167,7 +1167,7 @@ impl<'gcx> Lowerer<'gcx> {
             || mir_func.attributes.is_fallback;
         let uses_external_abi = mir_func.is_public() && !is_special && !force_internal;
         let defer_external_abi = uses_external_abi && self.can_defer_external_abi(func_id);
-        let has_deferred_aggregate_params = uses_external_abi
+        let has_deferred_param_layout = uses_external_abi
             && hir_func.parameters.iter().any(|&param_id| {
                 self.can_defer_external_abi_param(param_id)
                     || self.is_external_abi_enum_ty(self.gcx.type_of_item(param_id.into()))
@@ -1213,7 +1213,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.in_unchecked_block = false;
         self.current_return_tys = current_return_tys;
         mir_func.abi_returns = return_layout;
-        mir_func.abi_params = if has_deferred_aggregate_params { param_layout } else { None };
+        mir_func.abi_params = if has_deferred_param_layout { param_layout } else { None };
         mir_func.abi_args_lazy = defer_external_abi;
 
         // Pre-analyze function body to find variables that are assigned after declaration.
@@ -1225,7 +1225,7 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let mut builder = FunctionBuilder::new(&mut mir_func);
 
-            if uses_external_abi && !defer_external_abi && !has_deferred_aggregate_params {
+            if uses_external_abi && !defer_external_abi && !has_deferred_param_layout {
                 Self::emit_external_calldata_head_size_check(&mut builder, external_arg_head_size);
             }
 
@@ -1249,7 +1249,7 @@ impl<'gcx> Lowerer<'gcx> {
                     self.lower_type_from_var(param_id)
                 };
                 let defer_aggregate_abi =
-                    has_deferred_aggregate_params && self.can_defer_external_abi_param(param_id);
+                    has_deferred_param_layout && self.can_defer_external_abi_param(param_id);
 
                 // Check if this is a struct parameter that needs special handling
                 let abi_param_source = if self.lowering_constructor {
