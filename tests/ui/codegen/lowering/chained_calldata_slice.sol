@@ -8,6 +8,7 @@ contract ChainedCalldataSlice {
     // CHECK-LABEL: fn @bytesChain{{[( ]}}
     // CHECK: make_calldata_slice
     // CHECK: make_calldata_slice
+    // CHECK: set_memory_object_len memorybytes
     function bytesChain(bytes calldata x) external pure returns (bytes memory) {
         return x[1:][1:];
     }

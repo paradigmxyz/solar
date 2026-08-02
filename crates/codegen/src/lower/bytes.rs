@@ -240,7 +240,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
 
         let ptr = self.allocate_memory_object_dynamic(builder, total_size, MemoryObjectKind::Bytes);
-        builder.set_memory_object_len(ptr, len, MemoryObjectKind::DynamicArray);
+        builder.set_memory_object_len(ptr, len, MemoryObjectKind::Bytes);
         let data_ptr = builder.add(ptr, word_size);
         let data_pos = builder.slice_ptr(slice);
         builder.mcopy(data_ptr, data_pos, len);
