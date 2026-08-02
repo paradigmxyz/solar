@@ -1613,9 +1613,14 @@ impl<'gcx> Lowerer<'gcx> {
                                     crate::mir::AllocationSemantics::INTERNAL,
                                 );
                                 builder.set_memory_object_len(ptr, len, object_layout.kind());
-                                let dst = builder.memory_object_data(ptr, object_layout.kind());
                                 let src = builder.add(pos, word);
-                                builder.calldatacopy(dst, src, byte_len);
+                                let source =
+                                    builder.make_slice(src, byte_len, SliceLocation::Calldata);
+                                builder.memory_object_copy_from_slice(
+                                    ptr,
+                                    object_layout.kind(),
+                                    source,
+                                );
                                 ptr
                             }
                             _ => field_val,
