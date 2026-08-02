@@ -821,7 +821,9 @@ impl<'gcx> Lowerer<'gcx> {
             return false;
         }
         match self.gcx.type_of_item(param_id.into()).peel_refs().kind {
-            TyKind::DynArray(elem) => self.abi_is_word_element(elem),
+            TyKind::DynArray(elem) => {
+                self.abi_is_word_element(elem) && !matches!(elem.peel_refs().kind, TyKind::Enum(_))
+            }
             _ => false,
         }
     }

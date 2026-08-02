@@ -455,7 +455,7 @@ impl LowerAbiCx {
                 Self::decode_enum(builder, *variants, base, current)
             }
             crate::mir::AbiParamType::FixedArray { element, len }
-                if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(_)) =>
+                if Self::is_supported_word_element(element) =>
             {
                 let size = builder.imm_u64(len.saturating_mul(32));
                 let ptr = builder.alloc_object(
@@ -466,10 +466,15 @@ impl LowerAbiCx {
                 for index in 0..*len {
                     let offset = builder.imm_u64(index * 32);
                     let word_pos = builder.add(base, offset);
-                    let crate::mir::AbiParamType::Scalar(scalar) = element.as_ref() else {
-                        unreachable!()
+                    let value = match element.as_ref() {
+                        crate::mir::AbiParamType::Scalar(scalar) => {
+                            Self::decode_scalar(builder, *scalar, word_pos, current)
+                        }
+                        crate::mir::AbiParamType::Enum { variants, .. } => {
+                            Self::decode_enum(builder, *variants, word_pos, current)
+                        }
+                        _ => unreachable!(),
                     };
-                    let value = Self::decode_scalar(builder, *scalar, word_pos, current);
                     let elem_index = builder.imm_u64(index);
                     let slot = builder.memory_object_element_addr(
                         ptr,
@@ -615,7 +620,7 @@ impl LowerAbiCx {
         matches!(
             ty,
             crate::mir::AbiParamType::FixedArray { element, .. }
-                if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(_))
+                if Self::is_supported_word_element(element)
         ) || matches!(
             ty,
             crate::mir::AbiParamType::DynamicArray(element)
@@ -626,6 +631,10 @@ impl LowerAbiCx {
                 crate::mir::AbiParamType::Tuple(fields)
                     if fields.iter().all(Self::is_supported_tuple_field)
             )
+    }
+
+    fn is_supported_word_element(ty: &crate::mir::AbiParamType) -> bool {
+        matches!(ty, crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. })
     }
 
     fn is_supported_tuple_field(ty: &crate::mir::AbiParamType) -> bool {
