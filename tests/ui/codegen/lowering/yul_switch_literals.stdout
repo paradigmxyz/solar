@@ -1,0 +1,26 @@
+// === ROOT/tests/ui/codegen/lowering/yul_switch_literals.sol:YulSwitchLiterals ===
+@module YulSwitchLiterals
+fn @selectorLiteral() [abi_args=lazy, abi_params=[], abi_returns=[]] {
+  bb0:
+    switch 0x3100000000000000000000000000000000000000000000000000000000000000, default bb3, [0x3100000000000000000000000000000000000000000000000000000000000000 => bb2]
+  bb1:
+    stop
+  bb2:
+    jump bb1
+  bb3:
+    jump bb1
+}
+
+fn @caseLiterals(arg0: u256) [abi_args=lazy, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    switch arg0, default bb4, [0x3100000000000000000000000000000000000000000000000000000000000000 => bb2, 0x1122000000000000000000000000000000000000000000000000000000000000 => bb3]
+  bb1:
+    stop
+  bb2:
+    jump bb1
+  bb3:
+    jump bb1
+  bb4:
+    jump bb1
+}
+

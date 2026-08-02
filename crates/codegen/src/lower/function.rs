@@ -419,6 +419,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
             StmtKind::If(cond, then_stmt, else_stmt) => {
                 self.lower_if(cond, then_stmt, *else_stmt)?;
             }
+            StmtKind::Switch(switch) => self.lower_switch(switch)?,
             StmtKind::Loop(block, source) => self.lower_loop(*block, *source)?,
             StmtKind::Break => {
                 let Some(target) = self.loops.last().map(|targets| targets.break_block) else {
@@ -471,7 +472,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
                 self.lower_modifier_placeholder(stmt.span)?;
             }
             StmtKind::Emit(expr) => self.lower_emit(expr)?,
-            StmtKind::Switch(_) | StmtKind::Try(_) | StmtKind::Err(_) => {
+            StmtKind::Try(_) | StmtKind::Err(_) => {
                 return report_unsupported(self.gcx, stmt.span, "statement");
             }
         }
@@ -874,6 +875,87 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
             else_terminated,
         );
         Some(())
+    }
+
+    fn lower_switch(&mut self, switch: &hir::StmtSwitch<'_>) -> Option<()> {
+        let selector = self.lower_yul_word_expr(switch.selector)?;
+        let switch_block = self.builder.current_block();
+        let merge_block = self.builder.create_block();
+        let before_values = self.values.clone();
+        let before_storage_refs = self.storage_refs.clone();
+        let mut case_blocks = Vec::new();
+        let mut body_blocks = Vec::new();
+        let mut default_block = merge_block;
+        let mut has_default = false;
+
+        for case in switch.cases {
+            let block = self.builder.create_block();
+            if let Some(constant) = case.constant {
+                let value = self.lower_yul_word_literal(constant)?;
+                case_blocks.push((value, block));
+            } else {
+                default_block = block;
+                has_default = true;
+            }
+            body_blocks.push((case, block));
+        }
+        self.builder.switch(selector, default_block, case_blocks);
+
+        let mut states = Vec::with_capacity(body_blocks.len() + usize::from(!has_default));
+        if !has_default {
+            states.push(LoopState {
+                block: switch_block,
+                values: before_values.clone(),
+                storage_refs: before_storage_refs.clone(),
+            });
+        }
+        for (case, block) in body_blocks {
+            self.values = before_values.clone();
+            self.storage_refs = before_storage_refs.clone();
+            self.builder.switch_to_block(block);
+            self.lower_block(case.body)?;
+            let terminated = self.is_terminated();
+            let exit = self.builder.current_block();
+            if !terminated {
+                self.builder.jump(merge_block);
+                states.push(LoopState {
+                    block: exit,
+                    values: self.values.clone(),
+                    storage_refs: self.storage_refs.clone(),
+                });
+            }
+        }
+
+        self.builder.switch_to_block(merge_block);
+        self.values = self.merge_loop_values(before_values, &states, &FxHashMap::default());
+        self.storage_refs = self.merge_loop_storage_refs(before_storage_refs, &states);
+        Some(())
+    }
+
+    fn lower_yul_word_literal(&mut self, lit: &hir::Lit<'_>) -> Option<ValueId> {
+        if let LitKind::Str(_, bytes, _) = &lit.kind {
+            let bytes = bytes.as_byte_str();
+            if bytes.len() > 32 {
+                return report_unsupported(self.gcx, lit.span, "switch literal");
+            }
+            return Some(
+                self.builder.imm_u256(U256::from_be_slice(bytes) << ((32 - bytes.len()) * 8)),
+            );
+        }
+        if let LitKind::Bool(value) = lit.kind {
+            return Some(self.builder.imm_u256(if value { U256::ONE } else { U256::ZERO }));
+        }
+        if let LitKind::Address(value) = lit.kind {
+            return Some(self.builder.imm_u256(U256::from_be_slice(value.as_slice())));
+        }
+        self.lower_literal(lit.kind, lit.span)
+    }
+
+    fn lower_yul_word_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        if let ExprKind::Lit(lit) = expr.peel_parens().kind {
+            return self.lower_yul_word_literal(lit);
+        }
+        self.lower_expr(expr)
     }
 
     fn merge_storage_refs(

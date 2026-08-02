@@ -94,6 +94,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   arity, named-argument, and unsupported-builtin diagnostics;
 * Yul arithmetic, environment, memory, calldata, storage, logging, call,
   creation, termination, and hashing builtins through direct MIR operations;
+* Yul `switch` statements with default and fall-through-to-merge paths,
+  left-aligned string and hex case words, and branch-local value merging;
 * calldata slice parameters and `.offset`/`.length` access and assignment in
   both ordinary Solidity expressions and inline assembly;
 * constructor and fallback/function attributes needed by the backend;
@@ -143,8 +145,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
 2. Finish base-constructor argument forwarding for indirect and unresolved
    constructor arguments, and cover the remaining constructor modifier edge
    cases with Solc-backed runtime tests.
-3. Add the remaining call and language features: Yul statements, immutables,
-   and function-pointer dispatch.
+3. Add the remaining call and language features: Yul statements beyond `switch`,
+   immutables, and function-pointer dispatch.
 4. Finish storage-reference CFG merging for every aggregate shape and audit
    checked arithmetic and allocation guards against the corresponding Solc
    behavior.
