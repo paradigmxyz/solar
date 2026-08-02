@@ -10,6 +10,7 @@ fn @add(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb2:
     ret v0
 }
+
 fn @__panic_11() {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -197,3 +198,4 @@ fn @checked_inner(arg0: u256, arg1: u256) -> u256 {
   bb2:
     ret v0
 }
+
