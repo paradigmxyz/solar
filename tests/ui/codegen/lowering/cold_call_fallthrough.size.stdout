@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/cold_call_fallthrough.sol:ColdCallFallthrough (runtime) ===
 @module runtime
 bb0:
-  push 416
+  push 640
   push 64
   mstore
   callvalue
@@ -40,8 +40,8 @@ bb6:
   calldataload
   iszero
   push bb9
-  jump bb24
-bb24:
+  jump bb26
+bb26:
   jumpi
   push 4
   calldataload
@@ -51,8 +51,8 @@ bb24:
   push 128
   return
 bb9 [cold]:
-  jump bb25
-bb25 [cold]:
+  jump bb27
+bb27 [cold]:
   push 4
   calldataload
   dup1
@@ -65,29 +65,137 @@ bb25 [cold]:
   mstore
   push 0x7a65726f
   push 224
-  jump bb26
-bb26 [cold]:
+  jump bb28
+bb28 [cold]:
   shl
   push 384
+  mstore
+  push 64
+  mload
+  dup1
+  push 416
+  mstore
+  push 64
+  dup2
+  add
+  push 64
+  mstore
+  push 352
+  mload
+  dup2
+  mstore
+  push 32
+  dup2
+  add
+  push 384
+  mload
+  swap1
+  mstore
+  push 64
+  mload
+  dup1
+  push 576
   mstore
   push 0x8c379a0
   push 224
   shl
-  push 0
+  dup2
   mstore
-  push 32
   push 4
+  dup2
+  add
+  dup1
+  push 448
   mstore
-  push 352
-  mload
   push 36
+  dup3
+  add
+  dup2
+  dup2
+  sub
+  dup3
   mstore
-  push 384
+  dup4
   mload
-  push 68
+  dup1
+  push 480
   mstore
-  push 100
+  swap1
+  mstore
+  push 31
+  push 480
+  mload
+  add
+  push 31
+  not
+  and
+  dup1
+  push 512
+  mstore
+  swap2
+  push 68
+  add
+  push 544
+  mstore
+  pop
+  swap1
+  pop
+  iszero
+  push bb25
+  jumpi
+  push 32
+  push 512
+  mload
+  sub
+  push 544
+  mload
+  add
   push 0
+  swap1
+  mstore
+  jump bb25
+bb25 [cold]:
+  push 512
+  mload
+  push 544
+  mload
+  add
+  push 32
+  push 416
+  mload
+  add
+  push 480
+  mload
+  dup2
+  push 544
+  mload
+  mcopy
+  pop
+  push 448
+  mload
+  swap1
+  sub
+  push 4
+  dup2
+  add
+  swap1
+  push 35
+  add
+  push 31
+  not
+  and
+  push 64
+  mload
+  dup1
+  push 608
+  mstore
+  swap1
+  dup2
+  add
+  push 64
+  mstore
+  dup2
+  dup2
   revert
 bb11:
   calldatasize
@@ -100,9 +208,9 @@ bb11:
   calldataload
   lt
   push bb14
-  jump bb24
+  jump bb26
 bb14 [cold]:
-  jump bb25
+  jump bb27
 bb18 [cold]:
   push 1
   push 256
@@ -115,7 +223,7 @@ bb18 [cold]:
   mstore
   push 0x6f6e65
   push 232
-  jump bb26
+  jump bb28
 bb20 [cold]:
   push 2
   push 256
@@ -128,11 +236,11 @@ bb20 [cold]:
   mstore
   push 0x74776f
   push 232
-  jump bb26
+  jump bb28
 bb22 [cold]:
   push 5
   push 352
   mstore
   push 0x6f74686572
   push 216
-  jump bb26
+  jump bb28

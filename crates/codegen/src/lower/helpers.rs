@@ -1,7 +1,10 @@
 //! Lazily outlined lowering helpers.
 
 use super::{Lowerer, checked_arith::PanicCode};
-use crate::mir::{Function, FunctionBuilder, FunctionId, MemoryObjectKind, MirType};
+use crate::mir::{
+    AbiLayout, AbiType, Function, FunctionBuilder, FunctionId, MemoryObjectKind,
+    MemoryObjectLayout, MirType, SliceLocation,
+};
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, Span, Symbol, sym};
@@ -80,18 +83,24 @@ impl<'gcx> Lowerer<'gcx> {
             let mut builder = FunctionBuilder::new(&mut func);
             let len = builder.add_param(MirType::uint256());
             let data = builder.add_param(MirType::uint256());
-            let selector = builder.imm_u256(U256::from(0x08c3_79a0u64) << 224);
+            let object_size = builder.imm_u64(64);
+            let object = builder.alloc_object(
+                object_size,
+                MemoryObjectLayout::Bytes,
+                crate::mir::AllocationSemantics::INTERNAL,
+            );
+            builder.set_memory_object_len(object, len, MemoryObjectKind::Bytes);
             let zero = builder.imm_u64(0);
-            builder.mstore(zero, selector);
-            let selector_size = builder.imm_u64(4);
-            let head_offset = builder.imm_u64(32);
-            builder.mstore(selector_size, head_offset);
-            let len_offset = builder.imm_u64(36);
-            builder.mstore(len_offset, len);
-            let data_offset = builder.imm_u64(68);
-            builder.mstore(data_offset, data);
-            let size = builder.imm_u64(100);
-            builder.revert(zero, size);
+            builder.memory_object_store_element(object, MemoryObjectLayout::Bytes, zero, data);
+
+            let layout = self
+                .module
+                .intern_abi_layout(AbiLayout::new(vec![AbiType::Bytes(SliceLocation::Memory)]));
+            let selector = builder.imm_u256(U256::from(0x08c3_79a0u64) << 224);
+            let payload = builder.abi_encode(layout, Some(selector), [object]);
+            let ptr = builder.slice_ptr(payload);
+            let size = builder.slice_len(payload);
+            builder.revert(ptr, size);
         }
         let id = self.module.add_function(func);
         self.outlined_helpers.insert(key, id);

@@ -8,7 +8,10 @@ use super::{
 };
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{FunctionBuilder, MemoryObjectKind, MemoryObjectLayout, TypeSize, ValueId},
+    mir::{
+        AbiLayout, AbiType, FunctionBuilder, MemoryObjectKind, MemoryObjectLayout, SliceLocation,
+        TypeSize, ValueId,
+    },
 };
 use alloy_primitives::U256;
 use solar_ast::{LitKind, StrKind};
@@ -1264,43 +1267,14 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         ptr: ValueId,
     ) {
-        let selector = U256::from(0x08c3_79a0u64) << 224;
-        let zero = builder.imm_u64(0);
-        let selector = builder.imm_u256(selector);
-        builder.mstore(zero, selector);
-
-        let selector_size = builder.imm_u64(4);
-        let head_offset = builder.imm_u64(32);
-        builder.mstore(selector_size, head_offset);
-
-        let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
-        let len_offset = builder.imm_u64(36);
-        builder.mstore(len_offset, len);
-
-        let thirty_one = builder.imm_u64(31);
-        let padded = builder.add(len, thirty_one);
-        let mask = builder.imm_u256(U256::MAX - U256::from(31));
-        let padded = builder.and(padded, mask);
-
-        let data_offset = builder.imm_u64(68);
-        let no_data = builder.iszero(padded);
-        let has_data = builder.iszero(no_data);
-        let zero_final_word = builder.create_block();
-        let copy_data = builder.create_block();
-        builder.branch(has_data, zero_final_word, copy_data);
-
-        builder.switch_to_block(zero_final_word);
-        let word = builder.imm_u64(32);
-        let final_word_offset = builder.sub(padded, word);
-        let final_word = builder.add(data_offset, final_word_offset);
-        builder.mstore(final_word, zero);
-        builder.jump(copy_data);
-
-        builder.switch_to_block(copy_data);
-        let src = builder.add(ptr, head_offset);
-        builder.mcopy(data_offset, src, len);
-        let size = builder.add(data_offset, padded);
-        builder.revert(zero, size);
+        let layout = self
+            .module
+            .intern_abi_layout(AbiLayout::new(vec![AbiType::Bytes(SliceLocation::Memory)]));
+        let selector = builder.imm_u256(U256::from(0x08c3_79a0u64) << 224);
+        let payload = builder.abi_encode(layout, Some(selector), [ptr]);
+        let data = builder.slice_ptr(payload);
+        let size = builder.slice_len(payload);
+        builder.revert(data, size);
     }
 
     fn lower_array_length_member(

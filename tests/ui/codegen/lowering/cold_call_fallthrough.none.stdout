@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/cold_call_fallthrough.sol:ColdCallFallthrough (runtime) ===
 @module runtime
 bb0:
-  push 416
+  push 608
   push 64
   mstore
   callvalue
@@ -174,20 +174,195 @@ bb24:
   mstore
   jump bb25
 bb25:
-  push 0x8c379a000000000000000000000000000000000000000000000000000000000
-  push 0
+  push 64
+  mload
+  dup1
+  push 416
   mstore
-  push 32
-  push 4
+  dup1
+  push 416
+  mstore
+  push 64
+  dup2
+  add
+  push 64
   mstore
   push 352
   mload
-  push 36
+  dup2
   mstore
+  push 32
+  dup2
+  add
+  push 32
+  push 0
+  mul
+  dup2
+  add
+  swap1
+  pop
   push 384
   mload
-  push 68
+  dup2
   mstore
-  push 100
+  pop
+  push 64
+  mload
+  dup1
+  push 576
+  mstore
+  push 0x8c379a000000000000000000000000000000000000000000000000000000000
+  dup2
+  mstore
+  push 4
+  dup2
+  add
+  dup1
+  push 448
+  mstore
+  swap1
+  pop
+  dup1
+  push 448
+  mstore
+  push 32
+  dup2
+  add
+  dup2
+  dup1
+  push 448
+  mstore
+  dup2
+  sub
+  dup3
+  mstore
+  dup3
+  dup1
+  push 416
+  mstore
+  mload
+  dup1
+  push 480
+  mstore
+  dup1
+  push 480
+  mstore
+  dup1
+  push 480
+  mstore
+  dup2
+  mstore
+  push 31
+  not
+  push 31
+  push 480
+  mload
+  add
+  and
+  dup1
+  push 512
+  mstore
+  dup1
+  push 512
+  mstore
+  push 32
+  dup3
+  add
+  dup1
+  push 544
+  mstore
+  swap2
+  pop
+  dup2
+  push 544
+  mstore
+  dup1
+  push 512
+  mstore
+  iszero
+  swap1
+  pop
+  swap1
+  pop
+  swap1
+  pop
+  push bb27
+  jumpi
+  jump bb26
+bb26:
+  push 32
+  push 512
+  mload
+  sub
+  push 544
+  mload
+  add
   push 0
+  dup2
+  mstore
+  pop
+  jump bb27
+bb27 [cold]:
+  push 32
+  push 416
+  mload
+  add
+  push 512
+  mload
+  dup1
+  push 512
+  mstore
+  push 544
+  mload
+  add
+  push 480
+  mload
+  dup1
+  push 480
+  mstore
+  dup3
+  push 544
+  mload
+  dup1
+  push 544
+  mstore
+  mcopy
+  swap1
+  pop
+  push 448
+  mload
+  dup1
+  push 448
+  mstore
+  swap1
+  sub
+  push 4
+  swap1
+  add
+  push 31
+  dup2
+  add
+  push 31
+  not
+  dup2
+  and
+  swap1
+  pop
+  push 64
+  mload
+  dup1
+  push 576
+  mstore
+  dup2
+  dup2
+  add
+  swap2
+  pop
+  dup2
+  push 64
+  mstore
+  swap1
+  pop
+  dup2
+  dup2
   revert
