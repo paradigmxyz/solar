@@ -12,7 +12,7 @@ use crate::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
         AbiType, ArgIdx, BlockId, Function, ImmutableId, InstId, InstKind, MemoryObjectKind,
-        MemoryRegion, SliceLocation, StorageAlias, Terminator, Value, ValueId,
+        MemoryObjectLayout, MemoryRegion, SliceLocation, StorageAlias, Terminator, Value, ValueId,
     },
 };
 use smallvec::SmallVec;
@@ -518,6 +518,48 @@ impl AliasAnalysis {
         Some(MemoryLocation::new(address, LocationSize::Const(EvmMemoryLayout::WORD_SIZE)))
     }
 
+    /// Returns the physical word holding a semantic memory object's field.
+    #[must_use]
+    pub(crate) fn memory_object_field_location(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        object: ValueId,
+        layout: MemoryObjectLayout,
+        field: u64,
+    ) -> Option<MemoryLocation> {
+        let offset = EvmMemoryLayout::field_offset(layout, field)?;
+        let mut address = self.memory_address(func, object)?.checked_add(offset)?;
+        if let Some(region) = func.inst(inst_id).metadata.memory_region()
+            && region != MemoryRegion::Unknown
+        {
+            address.region = region;
+        }
+        Some(MemoryLocation::new(address, LocationSize::Const(EvmMemoryLayout::WORD_SIZE)))
+    }
+
+    /// Returns the physical word holding a semantic memory object's element.
+    #[must_use]
+    pub(crate) fn memory_object_element_location(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        object: ValueId,
+        layout: MemoryObjectLayout,
+        index: ValueId,
+    ) -> Option<MemoryLocation> {
+        let index = func.value_u64(index)?;
+        let offset = EvmMemoryLayout::object_data_offset(layout.kind())
+            .checked_add(index.checked_mul(EvmMemoryLayout::element_stride(layout)?)?)?;
+        let mut address = self.memory_address(func, object)?.checked_add(offset)?;
+        if let Some(region) = func.inst(inst_id).metadata.memory_region()
+            && region != MemoryRegion::Unknown
+        {
+            address.region = region;
+        }
+        Some(MemoryLocation::new(address, LocationSize::Const(EvmMemoryLayout::WORD_SIZE)))
+    }
+
     /// Creates a memory location without instruction metadata.
     #[must_use]
     pub(crate) fn bare_memory_location(
@@ -677,14 +719,22 @@ impl AliasAnalysis {
             | InstKind::SlicePtr(_)
             | InstKind::MemoryObjectData(_, _)
             | InstKind::MemoryObjectFieldAddr { .. }
-            | InstKind::MemoryObjectElementAddr { .. } => false,
+            | InstKind::MemoryObjectElementAddr { .. }
+            | InstKind::MemoryObjectLoadField { .. } => false,
             InstKind::MLoad(address)
             | InstKind::MappingSlotMemory(address, _)
             | InstKind::MemoryObjectLen(address, _) => operand != *address,
+            InstKind::MemoryObjectLoadElement { object, .. } => operand != *object,
             InstKind::MStore(address, _)
             | InstKind::MStore8(address, _)
             | InstKind::MemoryZero(address, _)
             | InstKind::SetMemoryObjectLen(address, _, _) => operand != *address,
+            InstKind::MemoryObjectStoreField { object, value, .. } => {
+                operand != *object && operand != *value
+            }
+            InstKind::MemoryObjectStoreElement { object, index, value, .. } => {
+                operand != *object && operand != *index && operand != *value
+            }
             InstKind::MCopy(dest, source, _)
             | InstKind::StorageToMemory { memory: dest, storage: source, .. } => {
                 operand != *dest && operand != *source
@@ -845,6 +895,42 @@ impl AliasAnalysis {
             InstKind::SetMemoryObjectLen(object, _, kind) => {
                 if let Some(location) =
                     self.memory_object_length_location(func, inst_id, object, kind)
+                {
+                    effects.write(Access::Location(Location::Memory(location)));
+                } else {
+                    effects.write_any(AddressSpace::Memory);
+                }
+            }
+            InstKind::MemoryObjectLoadField { object, layout, field } => {
+                if let Some(location) =
+                    self.memory_object_field_location(func, inst_id, object, layout, field)
+                {
+                    effects.read(Access::Location(Location::Memory(location)));
+                } else {
+                    effects.read_any(AddressSpace::Memory);
+                }
+            }
+            InstKind::MemoryObjectStoreField { object, layout, field, .. } => {
+                if let Some(location) =
+                    self.memory_object_field_location(func, inst_id, object, layout, field)
+                {
+                    effects.write(Access::Location(Location::Memory(location)));
+                } else {
+                    effects.write_any(AddressSpace::Memory);
+                }
+            }
+            InstKind::MemoryObjectLoadElement { object, layout, index } => {
+                if let Some(location) =
+                    self.memory_object_element_location(func, inst_id, object, layout, index)
+                {
+                    effects.read(Access::Location(Location::Memory(location)));
+                } else {
+                    effects.read_any(AddressSpace::Memory);
+                }
+            }
+            InstKind::MemoryObjectStoreElement { object, layout, index, .. } => {
+                if let Some(location) =
+                    self.memory_object_element_location(func, inst_id, object, layout, index)
                 {
                     effects.write(Access::Location(Location::Memory(location)));
                 } else {

@@ -128,23 +128,20 @@
 +     v59 = memory_object_data memoryarray, v58
 +     v60 = add v34, 32
 +     calldatacopy v59, v60, v47
-+     v61 = memory_object_field_addr memorystruct<3>, v26, 0
-+     mstore v61, v58
-+     v62 = add v14, 32
-+     v63 = add v62, 32
-+     v64 = lt v63, v62
-+     v65 = calldatasize
-+     v66 = gt v63, v65
-+     v67 = or v64, v66
-+     jumpi v67, bb23, bb22
++     memory_object_store_field memorystruct<3>, v26, 0, v58
++     v61 = add v14, 32
++     v62 = add v61, 32
++     v63 = lt v62, v61
++     v64 = calldatasize
++     v65 = gt v62, v64
++     v66 = or v63, v65
++     jumpi v66, bb23, bb22
 +   bb21:
 +     revert 0, 0
 +   bb22:
-+     v68 = calldataload v62
-+     v69 = memory_object_field_addr memorystruct<3>, v26, 1
-+     mstore v69, v68
-+     v70 = memory_object_field_addr memorystruct<3>, v26, 2
-+     mstore v70, v14
++     v67 = calldataload v61
++     memory_object_store_field memorystruct<3>, v26, 1, v67
++     memory_object_store_field memorystruct<3>, v26, 2, v14
 +     jump bb1
 +   bb23:
 +     revert 0, 0

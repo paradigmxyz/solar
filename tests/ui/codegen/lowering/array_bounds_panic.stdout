@@ -3,22 +3,17 @@
 fn @memFix(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
-    mstore v1, 0
-    v2 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 1
-    mstore v2, 0
-    v3 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
-    mstore v3, 0
-    v4 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 1
-    mstore v4, 20
-    v5 = lt arg0, 3
-    jumpi v5, bb2, bb1
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 0
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 1, 0
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 0
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 1, 20
+    v1 = lt arg0, 3
+    jumpi v1, bb2, bb1
   bb1:
     tail_call @__panic_32
   bb2:
-    v6 = memory_object_element_addr memoryfixedarray<3, 1>, v0, arg0
-    v7 = mload v6
-    ret v7
+    v2 = memory_object_load_element memoryfixedarray<3, 1>, v0, arg0
+    ret v2
 }
 
 fn @__panic_32() {
@@ -31,35 +26,26 @@ fn @__panic_32() {
 fn @memFixConst() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
-    mstore v1, 0
-    v2 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 1
-    mstore v2, 0
-    v3 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
-    mstore v3, 0
-    v4 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
-    mstore v4, 30
-    v5 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
-    v6 = mload v5
-    ret v6
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 0
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 1, 0
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 0
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 30
+    v1 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
+    ret v1
 }
 
 fn @memFixConstOob() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
-    mstore v1, 0
-    v2 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 1
-    mstore v2, 0
-    v3 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
-    mstore v3, 0
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 0
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 1, 0
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 0
     jumpi 1, bb1, bb2
   bb1:
     tail_call @__panic_32
   bb2:
-    v4 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 5
-    v5 = mload v4
-    ret v5
+    v1 = memory_object_load_element memoryfixedarray<3, 1>, v0, 5
+    ret v1
 }
 
 fn @memDyn(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
@@ -85,9 +71,8 @@ fn @memDyn(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb5:
     tail_call @__panic_32
   bb6:
-    v8 = memory_object_element_addr memoryarray<1>, v5, arg1
-    v9 = mload v8
-    ret v9
+    v8 = memory_object_load_element memoryarray<1>, v5, arg1
+    ret v8
 }
 
 fn @__panic_41() {
@@ -159,9 +144,8 @@ fn @cdFix(arg0: memoryfixedarray, arg1: u256) -> u256 [abi_params=[array<3, u256
   bb1:
     tail_call @__panic_32
   bb2:
-    v1 = memory_object_element_addr memoryfixedarray<3, 1>, arg0, arg1
-    v2 = mload v1
-    ret v2
+    v1 = memory_object_load_element memoryfixedarray<3, 1>, arg0, arg1
+    ret v1
 }
 
 fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [abi_params=[bytes, u256], abi_returns=[word]] {

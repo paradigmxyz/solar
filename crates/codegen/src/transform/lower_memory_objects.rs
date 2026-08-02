@@ -79,6 +79,10 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         | InstKind::MemoryObjectData(_, _)
                         | InstKind::MemoryObjectFieldAddr { .. }
                         | InstKind::MemoryObjectElementAddr { .. }
+                        | InstKind::MemoryObjectLoadField { .. }
+                        | InstKind::MemoryObjectStoreField { .. }
+                        | InstKind::MemoryObjectLoadElement { .. }
+                        | InstKind::MemoryObjectStoreElement { .. }
                         | InstKind::Keccak256Bytes(_)
                         | InstKind::Alloc { kind: AllocationKind::Object(_), .. }
                 )
@@ -174,6 +178,52 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     let stride = builder.imm_u64(stride);
                     let offset = builder.mul(index, stride);
                     builder.func_mut().inst_mut(inst).kind = InstKind::Add(base, offset);
+                    stats.accesses += 1;
+                }
+                InstKind::MemoryObjectLoadField { object, layout, field } => {
+                    let Some(offset) = P::field_offset(layout, field) else {
+                        builder.func_mut().blocks[block].instructions.push(inst);
+                        continue;
+                    };
+                    let address = offset_address(&mut builder, object, offset);
+                    builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
+                    stats.accesses += 1;
+                }
+                InstKind::MemoryObjectStoreField { object, layout, field, value } => {
+                    let Some(offset) = P::field_offset(layout, field) else {
+                        builder.func_mut().blocks[block].instructions.push(inst);
+                        continue;
+                    };
+                    let address = offset_address(&mut builder, object, offset);
+                    builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
+                    stats.accesses += 1;
+                }
+                InstKind::MemoryObjectLoadElement { object, layout, index } => {
+                    let Some(stride) = P::element_stride(layout) else {
+                        builder.func_mut().blocks[block].instructions.push(inst);
+                        continue;
+                    };
+                    debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
+                    let base =
+                        offset_address(&mut builder, object, P::object_data_offset(layout.kind()));
+                    let stride = builder.imm_u64(stride);
+                    let offset = builder.mul(index, stride);
+                    let address = builder.add(base, offset);
+                    builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
+                    stats.accesses += 1;
+                }
+                InstKind::MemoryObjectStoreElement { object, layout, index, value } => {
+                    let Some(stride) = P::element_stride(layout) else {
+                        builder.func_mut().blocks[block].instructions.push(inst);
+                        continue;
+                    };
+                    debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
+                    let base =
+                        offset_address(&mut builder, object, P::object_data_offset(layout.kind()));
+                    let stride = builder.imm_u64(stride);
+                    let offset = builder.mul(index, stride);
+                    let address = builder.add(base, offset);
+                    builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
                     stats.accesses += 1;
                 }
                 _ => {}

@@ -20,7 +20,7 @@ contract C {
     // CHECK-LABEL: fn @build.0(
     // CHECK: internal_call @build.{{[0-9]+}}, 1,
     // CHECK: [[RESULT:v[0-9]+]] = alloc memorystruct<2>
-    // CHECK: memory_object_field_addr memorystruct<2>, [[RESULT]], 0
+    // CHECK: memory_object_store_field memorystruct<2>, [[RESULT]], 0
     // CHECK: ret [[RESULT]]
     // CHECK-LABEL: fn @build.{{[0-9]+}}(
     // CHECK: internal_call @build.{{[0-9]+}}, 1,
@@ -46,7 +46,7 @@ contract C {
     // recursive helper returning a memory array, consumed by a public function
     // CHECK-LABEL: fn @fillImpl{{[( ]}}
     // CHECK: ret arg0
-    // CHECK: memory_object_element_addr memoryarray<1>, arg0, arg1
+    // CHECK: memory_object_store_element memoryarray<1>, arg0, arg1
     // CHECK: [[NEXT:v[0-9]+]] = add arg1, 1
     // CHECK: [[RESULT:v[0-9]+]] = internal_call @fillImpl, 1, arg0, [[NEXT]]
     // CHECK: ret [[RESULT]]

@@ -25,12 +25,12 @@ contract FunctionPointerMemoryArray {
     }
 
     // CHECK-LABEL: fn @callArray(
-    // CHECK: mstore {{v[0-9]+}}, [[A:[0-9]+]]
-    // CHECK: mstore {{v[0-9]+}}, [[B:[0-9]+]]
-    // CHECK: mstore {{v[0-9]+}}, [[C:[0-9]+]]
-    // CHECK: mstore {{v[0-9]+}}, [[D:[0-9]+]]
-    // CHECK: mstore {{v[0-9]+}}, [[E:[0-9]+]]
-    // CHECK: [[ARRAY_FN:v[0-9]+]] = mload {{v[0-9]+}}
+    // CHECK: memory_object_store_element memoryarray<1>, {{v[0-9]+}}, 0, [[A:[0-9]+]]
+    // CHECK: memory_object_store_element memoryarray<1>, {{v[0-9]+}}, 1, [[B:[0-9]+]]
+    // CHECK: memory_object_store_element memoryarray<1>, {{v[0-9]+}}, 2, [[C:[0-9]+]]
+    // CHECK: memory_object_store_element memoryarray<1>, {{v[0-9]+}}, 3, [[D:[0-9]+]]
+    // CHECK: memory_object_store_element memoryarray<1>, {{v[0-9]+}}, 4, [[E:[0-9]+]]
+    // CHECK: [[ARRAY_FN:v[0-9]+]] = memory_object_load_element memoryarray<1>, {{v[0-9]+}}, arg1
     // CHECK: internal_call @__internal_dispatch_0, 1, [[ARRAY_FN]], arg0
     // CHECK-LABEL: fn @__internal_dispatch_0(
     // CHECK: eq arg0, [[A]]

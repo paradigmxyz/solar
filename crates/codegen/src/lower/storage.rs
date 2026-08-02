@@ -68,12 +68,11 @@ impl<'gcx> Lowerer<'gcx> {
                 let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
                 let fields = field_tys.len() as u64;
                 for (index, field_ty) in field_tys.into_iter().enumerate() {
-                    let memory = builder.memory_object_field_addr(
+                    let field_value = builder.memory_object_load_field(
                         value,
                         MemoryObjectLayout::structure(fields),
                         index as u64,
                     );
-                    let field_value = builder.mload(memory);
                     let location = self.get_struct_field_storage_location(struct_id, index);
                     let field_slot = self.offset_storage_slot_u256(builder, slot, location.slot);
                     if location.is_packed() {
@@ -95,12 +94,11 @@ impl<'gcx> Lowerer<'gcx> {
                 };
                 for index in 0..len {
                     let index_value = builder.imm_u64(index);
-                    let memory = builder.memory_object_element_addr(
+                    let element_value = builder.memory_object_load_element(
                         value,
                         MemoryObjectLayout::word_fixed_array(len),
                         index_value,
                     );
-                    let element_value = builder.mload(memory);
                     if let Some((size, encoding)) = self.packed_storage_encoding(element_ty)
                         && size < StorageLocation::WORD_SIZE
                     {

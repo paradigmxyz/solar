@@ -3621,6 +3621,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             | InstKind::MemoryObjectData(_, _)
             | InstKind::MemoryObjectFieldAddr { .. }
             | InstKind::MemoryObjectElementAddr { .. }
+            | InstKind::MemoryObjectLoadField { .. }
+            | InstKind::MemoryObjectStoreField { .. }
+            | InstKind::MemoryObjectLoadElement { .. }
+            | InstKind::MemoryObjectStoreElement { .. }
             | InstKind::FrameLoad { .. }
             | InstKind::FrameStore { .. }
             | InstKind::Keccak256Bytes(_) => {

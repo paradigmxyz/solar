@@ -2342,9 +2342,8 @@ impl<'gcx> Lowerer<'gcx> {
                 let field_tys = self.gcx.struct_field_types(struct_id);
                 let layout = crate::mir::MemoryObjectLayout::structure(*slots as u64);
                 for field_idx in 0..*slots {
-                    let field_addr =
-                        builder.memory_object_field_addr(*arg_val, layout, field_idx as u64);
-                    let field_val = builder.mload(field_addr);
+                    let field_val =
+                        builder.memory_object_load_field(*arg_val, layout, field_idx as u64);
                     match field_tys.get(field_idx).and_then(|&f| self.linked_field_kind(f)) {
                         Some(kind @ (LinkedFieldKind::DynArray | LinkedFieldKind::DynBytes)) => {
                             // `field_val` is the caller-memory pointer of the

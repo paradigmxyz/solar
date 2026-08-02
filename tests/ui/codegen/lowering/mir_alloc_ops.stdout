@@ -3,15 +3,11 @@
 fn @fixedArray(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v1 = memory_object_element_addr memoryfixedarray<2, 1>, v0, 0
-    mstore v1, 0
-    v2 = memory_object_element_addr memoryfixedarray<2, 1>, v0, 1
-    mstore v2, 0
-    v3 = memory_object_element_addr memoryfixedarray<2, 1>, v0, 0
-    mstore v3, arg0
-    v4 = memory_object_element_addr memoryfixedarray<2, 1>, v0, 0
-    v5 = mload v4
-    ret v5
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 0
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 0
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, arg0
+    v1 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
+    ret v1
 }
 
 fn @dynamic(arg0: calldataslice) -> memorybytes [abi_params=[bytes], abi_returns=[memory_bytes]] {

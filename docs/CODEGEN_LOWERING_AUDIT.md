@@ -63,6 +63,9 @@ describes observable structure in the current tree, not an intended design.
   region or the internal-call frame and lowers those operations to physical
   memory after ABI and dispatch lowering. Slice slots stay typed as
   pointer/length values until that pass.
+* Memory-object field and element reads and writes stay typed through HIR
+  aggregate lowering. `lower-memory-objects` alone selects their physical
+  offsets and emits the final word loads and stores.
 * Panic, short-error, and storage-bytes helpers use one lazy registry keyed by
   semantic operation. Repeated uses share one helper, while synthesis guards
   keep recursive helper construction finite.
@@ -96,10 +99,11 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   range and overflow checks. Constructors still decode their argument blob in
   HIR lowering because the ABI phase currently handles runtime calldata only.
 * **Physical memory still leaks through aggregate lowering.** Mutable locals
-  now use typed frame slots, but memory-object allocation, aggregate copies,
-  and some ABI builders still emit raw memory operations before the semantic
-  memory passes. The remaining work is to keep those object and copy policies
-  in typed MIR until the memory-layout boundary.
+  and direct object field/element accesses now stay typed, but memory-object
+  allocation, deep aggregate copies, and some ABI builders still emit raw
+  memory operations before the semantic memory passes. The remaining work is
+  to keep those object and copy policies in typed MIR until the memory-layout
+  boundary.
 * **Helper coverage is incomplete.** Panic, short-error, and storage-bytes
   helpers now share a keyed lazy registry. Checked exponentiation, ABI copies,
   and repeated cleanup or validation still have inline or pass-specific

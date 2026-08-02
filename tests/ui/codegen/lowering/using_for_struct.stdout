@@ -6,51 +6,43 @@
 fn @viaMethod(arg0: bytes32, arg1: bytes32) -> bytes32 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    v1 = memory_object_field_addr memorystruct<4>, v0, 0
-    mstore v1, arg0
-    v2 = memory_object_field_addr memorystruct<4>, v0, 1
-    mstore v2, 0
-    v3 = memory_object_field_addr memorystruct<4>, v0, 2
-    mstore v3, 0
-    v4 = memory_object_field_addr memorystruct<4>, v0, 3
-    mstore v4, arg1
-    v5 = internal_call @hashLib, 1, v0
-    ret v5
+    memory_object_store_field memorystruct<4>, v0, 0, arg0
+    memory_object_store_field memorystruct<4>, v0, 1, 0
+    memory_object_store_field memorystruct<4>, v0, 2, 0
+    memory_object_store_field memorystruct<4>, v0, 3, arg1
+    v1 = internal_call @hashLib, 1, v0
+    ret v1
 }
 
 fn @hashLib(arg0: memorystruct) -> bytes32 {
   bb0:
-    v0 = memory_object_field_addr memorystruct<4>, arg0, 0
-    v1 = mload v0
-    v2 = memory_object_field_addr memorystruct<4>, arg0, 1
-    v3 = mload v2
-    v4 = memory_object_field_addr memorystruct<4>, arg0, 2
-    v5 = mload v4
-    v6 = memory_object_field_addr memorystruct<4>, arg0, 3
-    v7 = mload v6
-    v8 = add 0, 1
-    v9 = add v8, 32
-    v10 = add v9, 4
-    v11 = add v10, 32
-    v12 = add v11, 32
-    v13 = add v12, 31
-    v14 = not 31
-    v15 = and v13, v14
-    v16 = add 32, v15
-    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
-    v18 = memory_object_data memorybytes, v17
-    mstore v18, 0x7800000000000000000000000000000000000000000000000000000000000000
-    v19 = add v18, 1
-    mstore v19, v1
-    v20 = shl 224, v3
-    v21 = add v18, 33
-    mstore v21, v20
-    v22 = add v18, 37
-    mstore v22, v5
-    v23 = add v18, 69
-    mstore v23, v7
-    set_memory_object_len memorybytes, v17, v12
-    v24 = keccak256_bytes v17
-    ret v24
+    v0 = memory_object_load_field memorystruct<4>, arg0, 0
+    v1 = memory_object_load_field memorystruct<4>, arg0, 1
+    v2 = memory_object_load_field memorystruct<4>, arg0, 2
+    v3 = memory_object_load_field memorystruct<4>, arg0, 3
+    v4 = add 0, 1
+    v5 = add v4, 32
+    v6 = add v5, 4
+    v7 = add v6, 32
+    v8 = add v7, 32
+    v9 = add v8, 31
+    v10 = not 31
+    v11 = and v9, v10
+    v12 = add 32, v11
+    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
+    v14 = memory_object_data memorybytes, v13
+    mstore v14, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v15 = add v14, 1
+    mstore v15, v0
+    v16 = shl 224, v1
+    v17 = add v14, 33
+    mstore v17, v16
+    v18 = add v14, 37
+    mstore v18, v2
+    v19 = add v14, 69
+    mstore v19, v3
+    set_memory_object_len memorybytes, v13, v8
+    v20 = keccak256_bytes v13
+    ret v20
 }
 

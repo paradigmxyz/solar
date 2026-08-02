@@ -33,7 +33,7 @@ contract DynamicStructParam {
     // slices in a trailing word.
     // CHECK-LABEL: fn @init{{[( ]}}
     // CHECK: calldataload 36
-    // CHECK: memory_object_field_addr memorystruct<4>, arg0, 1
+    // CHECK: memory_object_load_field memorystruct<4>, arg0, 1
     // CHECK: gt {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffff
     function init(InitInput calldata input, address sink) external pure returns (uint256) {
         return input.decimals + uint160(sink);
@@ -41,15 +41,14 @@ contract DynamicStructParam {
 
     // A static scalar struct stays typed until the ABI phase.
     // CHECK-LABEL: fn @flat{{[( ]}}
-    // CHECK: memory_object_field_addr memorystruct<2>, arg0, 0
-    // CHECK: mload
+    // CHECK: memory_object_load_field memorystruct<2>, arg0, 0
     function flat(StaticPair calldata pair) external pure returns (uint256) {
         return pair.x;
     }
 
     // A full-word dynamic array field is decoded by the ABI phase.
     // CHECK-LABEL: fn @words{{[( ]}}
-    // CHECK: memory_object_field_addr memorystruct<2>, arg0, 0
+    // CHECK: memory_object_load_field memorystruct<2>, arg0, 0
     // CHECK: mload
     function words(WordList calldata input) external pure returns (uint256) {
         return input.values.length + input.bias;
@@ -57,14 +56,14 @@ contract DynamicStructParam {
 
     // Signed full-word arrays use the same bulk-copy ABI path.
     // CHECK-LABEL: fn @signedWords{{[( ]}}
-    // CHECK: memory_object_field_addr memorystruct<2>, arg0, 0
+    // CHECK: memory_object_load_field memorystruct<2>, arg0, 0
     function signedWords(SignedList calldata input) external pure returns (uint256) {
         return input.values.length + input.bias;
     }
 
     // Nested dynamic arrays are decoded as arrays of typed memory objects.
     // CHECK-LABEL: fn @nestedWords{{[( ]}}
-    // CHECK: memory_object_element_addr memoryarray<1>, {{v[0-9]+}}
+    // CHECK: memory_object_load_element memoryarray<1>, {{v[0-9]+}}
     function nestedWords(NestedList calldata input) external pure returns (uint256) {
         return input.values.length + input.values[0].length;
     }

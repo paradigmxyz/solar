@@ -380,6 +380,28 @@ fn display_inst_kind<'a>(
             display_val(*object, func),
             display_val(*index, func)
         ),
+        InstKind::MemoryObjectLoadField { object, layout, field } => {
+            write!(f, "memory_object_load_field {layout}, {}, {field}", display_val(*object, func))
+        }
+        InstKind::MemoryObjectStoreField { object, layout, field, value } => write!(
+            f,
+            "memory_object_store_field {layout}, {}, {field}, {}",
+            display_val(*object, func),
+            display_val(*value, func)
+        ),
+        InstKind::MemoryObjectLoadElement { object, layout, index } => write!(
+            f,
+            "memory_object_load_element {layout}, {}, {}",
+            display_val(*object, func),
+            display_val(*index, func)
+        ),
+        InstKind::MemoryObjectStoreElement { object, layout, index, value } => write!(
+            f,
+            "memory_object_store_element {layout}, {}, {}, {}",
+            display_val(*object, func),
+            display_val(*index, func),
+            display_val(*value, func)
+        ),
         InstKind::MemoryObjectLen(object, kind) => {
             write!(f, "memory_object_len {kind}, {}", display_val(*object, func))
         }

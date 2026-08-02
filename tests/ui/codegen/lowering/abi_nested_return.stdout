@@ -18,24 +18,21 @@ fn @structArray(arg0: u256) -> memoryarray [abi_args=lazy, abi_returns=[memory_a
     v5 = alloc memoryarray<1>, exact, zeroed, panic, v3
     set_memory_object_len memoryarray, v5, 1
     v6 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v7 = memory_object_field_addr memorystruct<2>, v6, 0
-    mstore v7, arg0
-    v8 = add arg0, 1
-    v9 = lt v8, arg0
-    jumpi v9, bb5, bb6
+    memory_object_store_field memorystruct<2>, v6, 0, arg0
+    v7 = add arg0, 1
+    v8 = lt v7, arg0
+    jumpi v8, bb5, bb6
   bb5:
     tail_call @__panic_11
   bb6:
-    v10 = memory_object_field_addr memorystruct<2>, v6, 1
-    mstore v10, v8
-    v11 = memory_object_len memoryarray, v5
-    v12 = lt 0, v11
-    jumpi v12, bb8, bb7
+    memory_object_store_field memorystruct<2>, v6, 1, v7
+    v9 = memory_object_len memoryarray, v5
+    v10 = lt 0, v9
+    jumpi v10, bb8, bb7
   bb7:
     tail_call @__panic_32
   bb8:
-    v13 = memory_object_element_addr memoryarray<1>, v5, 0
-    mstore v13, v6
+    memory_object_store_element memoryarray<1>, v5, 0, v6
     ret v5
 }
 
@@ -98,8 +95,7 @@ fn @nestedArray(arg0: u256) -> memoryarray [abi_args=lazy, abi_returns=[memory_a
   bb9:
     tail_call @__panic_32
   bb10:
-    v14 = memory_object_element_addr memoryarray<1>, v5, 0
-    mstore v14, v11
+    memory_object_store_element memoryarray<1>, v5, 0, v11
     ret v5
 }
 

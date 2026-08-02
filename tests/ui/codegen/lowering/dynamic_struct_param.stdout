@@ -9,16 +9,15 @@ fn @init(arg0: memorystruct, arg1: address) -> u256 [abi_params=[tuple<address, 
   bb1:
     revert 0, 0
   bb2:
-    v3 = memory_object_field_addr memorystruct<4>, arg0, 1
-    v4 = mload v3
-    v5 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = add v4, v5
-    v7 = gt v6, 0xffffffffffffffffffffffffffffffffffffffff
-    jumpi v7, bb3, bb4
+    v3 = memory_object_load_field memorystruct<4>, arg0, 1
+    v4 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = add v3, v4
+    v6 = gt v5, 0xffffffffffffffffffffffffffffffffffffffff
+    jumpi v6, bb3, bb4
   bb3:
     tail_call @__panic_11
   bb4:
-    ret v6
+    ret v5
 }
 
 fn @__panic_11() {
@@ -30,104 +29,83 @@ fn @__panic_11() {
 
 fn @flat(arg0: memorystruct) -> u256 [abi_params=[tuple<u256, address>], abi_returns=[word]] {
   bb0:
-    v0 = memory_object_field_addr memorystruct<2>, arg0, 0
-    v1 = mload v0
-    ret v1
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    ret v0
 }
 
 fn @words(arg0: memorystruct) -> u256 [abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
   bb0:
-    v0 = memory_object_field_addr memorystruct<2>, arg0, 0
-    v1 = mload v0
-    v2 = memory_object_field_addr memorystruct<2>, arg0, 0
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    v1 = memory_object_load_field memorystruct<2>, arg0, 0
+    v2 = memory_object_load_field memorystruct<2>, arg0, 0
     v3 = mload v2
-    v4 = memory_object_field_addr memorystruct<2>, arg0, 0
-    v5 = mload v4
-    v6 = mload v5
-    v7 = memory_object_field_addr memorystruct<2>, arg0, 1
-    v8 = mload v7
-    v9 = add v6, v8
-    v10 = lt v9, v6
-    jumpi v10, bb1, bb2
+    v4 = memory_object_load_field memorystruct<2>, arg0, 1
+    v5 = add v3, v4
+    v6 = lt v5, v3
+    jumpi v6, bb1, bb2
   bb1:
     tail_call @__panic_11
   bb2:
-    ret v9
+    ret v5
 }
 
 fn @signedWords(arg0: memorystruct) -> u256 [abi_params=[tuple<array<_, i256>, u256>], abi_returns=[word]] {
   bb0:
-    v0 = memory_object_field_addr memorystruct<2>, arg0, 0
-    v1 = mload v0
-    v2 = memory_object_field_addr memorystruct<2>, arg0, 0
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    v1 = memory_object_load_field memorystruct<2>, arg0, 0
+    v2 = memory_object_load_field memorystruct<2>, arg0, 0
     v3 = mload v2
-    v4 = memory_object_field_addr memorystruct<2>, arg0, 0
-    v5 = mload v4
-    v6 = mload v5
-    v7 = memory_object_field_addr memorystruct<2>, arg0, 1
-    v8 = mload v7
-    v9 = add v6, v8
-    v10 = lt v9, v6
-    jumpi v10, bb1, bb2
+    v4 = memory_object_load_field memorystruct<2>, arg0, 1
+    v5 = add v3, v4
+    v6 = lt v5, v3
+    jumpi v6, bb1, bb2
   bb1:
     tail_call @__panic_11
   bb2:
-    ret v9
+    ret v5
 }
 
 fn @nestedWords(arg0: memorystruct) -> u256 [abi_params=[tuple<array<_, array<_, u256>>>], abi_returns=[word]] {
   bb0:
-    v0 = memory_object_field_addr memorystruct<1>, arg0, 0
-    v1 = mload v0
-    v2 = memory_object_field_addr memorystruct<1>, arg0, 0
+    v0 = memory_object_load_field memorystruct<1>, arg0, 0
+    v1 = memory_object_load_field memorystruct<1>, arg0, 0
+    v2 = memory_object_load_field memorystruct<1>, arg0, 0
     v3 = mload v2
-    v4 = memory_object_field_addr memorystruct<1>, arg0, 0
-    v5 = mload v4
-    v6 = mload v5
-    v7 = memory_object_field_addr memorystruct<1>, arg0, 0
-    v8 = mload v7
-    v9 = memory_object_field_addr memorystruct<1>, arg0, 0
-    v10 = mload v9
-    v11 = memory_object_len memoryarray, v10
-    v12 = lt 0, v11
-    jumpi v12, bb2, bb1
+    v4 = memory_object_load_field memorystruct<1>, arg0, 0
+    v5 = memory_object_load_field memorystruct<1>, arg0, 0
+    v6 = memory_object_len memoryarray, v5
+    v7 = lt 0, v6
+    jumpi v7, bb2, bb1
   bb1:
     tail_call @__panic_32
   bb2:
-    v13 = memory_object_element_addr memoryarray<1>, v10, 0
-    v14 = mload v13
-    v15 = memory_object_field_addr memorystruct<1>, arg0, 0
-    v16 = mload v15
-    v17 = memory_object_field_addr memorystruct<1>, arg0, 0
-    v18 = mload v17
-    v19 = memory_object_len memoryarray, v18
-    v20 = lt 0, v19
-    jumpi v20, bb4, bb3
+    v8 = memory_object_load_element memoryarray<1>, v5, 0
+    v9 = memory_object_load_field memorystruct<1>, arg0, 0
+    v10 = memory_object_load_field memorystruct<1>, arg0, 0
+    v11 = memory_object_len memoryarray, v10
+    v12 = lt 0, v11
+    jumpi v12, bb4, bb3
   bb3:
     tail_call @__panic_32
   bb4:
-    v21 = memory_object_element_addr memoryarray<1>, v18, 0
-    v22 = mload v21
-    v23 = memory_object_field_addr memorystruct<1>, arg0, 0
-    v24 = mload v23
-    v25 = memory_object_field_addr memorystruct<1>, arg0, 0
-    v26 = mload v25
-    v27 = memory_object_len memoryarray, v26
-    v28 = lt 0, v27
-    jumpi v28, bb6, bb5
+    v13 = memory_object_load_element memoryarray<1>, v10, 0
+    v14 = memory_object_load_field memorystruct<1>, arg0, 0
+    v15 = memory_object_load_field memorystruct<1>, arg0, 0
+    v16 = memory_object_len memoryarray, v15
+    v17 = lt 0, v16
+    jumpi v17, bb6, bb5
   bb5:
     tail_call @__panic_32
   bb6:
-    v29 = memory_object_element_addr memoryarray<1>, v26, 0
-    v30 = mload v29
-    v31 = mload v30
-    v32 = add v6, v31
-    v33 = lt v32, v6
-    jumpi v33, bb7, bb8
+    v18 = memory_object_load_element memoryarray<1>, v15, 0
+    v19 = mload v18
+    v20 = add v3, v19
+    v21 = lt v20, v3
+    jumpi v21, bb7, bb8
   bb7:
     tail_call @__panic_11
   bb8:
-    ret v32
+    ret v20
 }
 
 fn @__panic_32() {

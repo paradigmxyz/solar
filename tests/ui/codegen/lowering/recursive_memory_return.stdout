@@ -6,41 +6,35 @@ fn @build.0(arg0: u256) -> memorystruct [abi_args=lazy, abi_returns=[tuple<word,
     jumpi v0, bb1, bb2
   bb1:
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v2 = memory_object_field_addr memorystruct<2>, v1, 0
-    mstore v2, 0
-    v3 = memory_object_field_addr memorystruct<2>, v1, 1
-    mstore v3, 0
+    memory_object_store_field memorystruct<2>, v1, 0, 0
+    memory_object_store_field memorystruct<2>, v1, 1, 0
     ret v1
   bb2:
-    v4 = sub arg0, 1
-    v5 = lt arg0, 1
-    jumpi v5, bb3, bb4
+    v2 = sub arg0, 1
+    v3 = lt arg0, 1
+    jumpi v3, bb3, bb4
   bb3:
     tail_call @__panic_11
   bb4:
-    v6 = internal_call @build.2, 1, v4
-    v7 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v8 = memory_object_field_addr memorystruct<2>, v6, 0
-    v9 = mload v8
-    v10 = add v9, arg0
-    v11 = lt v10, v9
-    jumpi v11, bb5, bb6
+    v4 = internal_call @build.2, 1, v2
+    v5 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v6 = memory_object_load_field memorystruct<2>, v4, 0
+    v7 = add v6, arg0
+    v8 = lt v7, v6
+    jumpi v8, bb5, bb6
   bb5:
     tail_call @__panic_11
   bb6:
-    v12 = memory_object_field_addr memorystruct<2>, v7, 0
-    mstore v12, v10
-    v13 = memory_object_field_addr memorystruct<2>, v6, 1
-    v14 = mload v13
-    v15 = add v14, 1
-    v16 = lt v15, v14
-    jumpi v16, bb7, bb8
+    memory_object_store_field memorystruct<2>, v5, 0, v7
+    v9 = memory_object_load_field memorystruct<2>, v4, 1
+    v10 = add v9, 1
+    v11 = lt v10, v9
+    jumpi v11, bb7, bb8
   bb7:
     tail_call @__panic_11
   bb8:
-    v17 = memory_object_field_addr memorystruct<2>, v7, 1
-    mstore v17, v15
-    ret v7
+    memory_object_store_field memorystruct<2>, v5, 1, v10
+    ret v5
 }
 
 fn @__panic_11() {
@@ -56,41 +50,35 @@ fn @build.2(arg0: u256) -> memorystruct {
     jumpi v0, bb1, bb2
   bb1:
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v2 = memory_object_field_addr memorystruct<2>, v1, 0
-    mstore v2, 0
-    v3 = memory_object_field_addr memorystruct<2>, v1, 1
-    mstore v3, 0
+    memory_object_store_field memorystruct<2>, v1, 0, 0
+    memory_object_store_field memorystruct<2>, v1, 1, 0
     ret v1
   bb2:
-    v4 = sub arg0, 1
-    v5 = lt arg0, 1
-    jumpi v5, bb3, bb4
+    v2 = sub arg0, 1
+    v3 = lt arg0, 1
+    jumpi v3, bb3, bb4
   bb3:
     tail_call @__panic_11
   bb4:
-    v6 = internal_call @build.2, 1, v4
-    v7 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v8 = memory_object_field_addr memorystruct<2>, v6, 0
-    v9 = mload v8
-    v10 = add v9, arg0
-    v11 = lt v10, v9
-    jumpi v11, bb5, bb6
+    v4 = internal_call @build.2, 1, v2
+    v5 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v6 = memory_object_load_field memorystruct<2>, v4, 0
+    v7 = add v6, arg0
+    v8 = lt v7, v6
+    jumpi v8, bb5, bb6
   bb5:
     tail_call @__panic_11
   bb6:
-    v12 = memory_object_field_addr memorystruct<2>, v7, 0
-    mstore v12, v10
-    v13 = memory_object_field_addr memorystruct<2>, v6, 1
-    v14 = mload v13
-    v15 = add v14, 1
-    v16 = lt v15, v14
-    jumpi v16, bb7, bb8
+    memory_object_store_field memorystruct<2>, v5, 0, v7
+    v9 = memory_object_load_field memorystruct<2>, v4, 1
+    v10 = add v9, 1
+    v11 = lt v10, v9
+    jumpi v11, bb7, bb8
   bb7:
     tail_call @__panic_11
   bb8:
-    v17 = memory_object_field_addr memorystruct<2>, v7, 1
-    mstore v17, v15
-    ret v7
+    memory_object_store_field memorystruct<2>, v5, 1, v10
+    ret v5
 }
 
 fn @mkArr(arg0: u256) -> memoryarray [abi_args=lazy, abi_returns=[memory_array<word>]] {
@@ -119,10 +107,10 @@ fn @mkArr(arg0: u256) -> memoryarray [abi_args=lazy, abi_returns=[memory_array<w
   bb6:
     ret v5
   bb7:
-    v19 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v20 = add v19, 1
-    v21 = lt v20, v19
-    jumpi v21, bb14, bb15
+    v18 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v19 = add v18, 1
+    v20 = lt v19, v18
+    jumpi v20, bb14, bb15
   bb8:
     v8 = frame_load scratch, word, 0 !metadata(memory=scratch)
     v9 = mul v8, 10
@@ -144,13 +132,12 @@ fn @mkArr(arg0: u256) -> memoryarray [abi_args=lazy, abi_returns=[memory_array<w
   bb12:
     tail_call @__panic_32
   bb13:
-    v18 = memory_object_element_addr memoryarray<1>, v5, v15
-    mstore v18, v9
+    memory_object_store_element memoryarray<1>, v5, v15, v9
     jump bb7
   bb14:
     tail_call @__panic_11
   bb15:
-    frame_store scratch, word, 0, v20 !metadata(memory=scratch)
+    frame_store scratch, word, 0, v19 !metadata(memory=scratch)
     jump bb5
 }
 
@@ -192,16 +179,15 @@ fn @fillImpl(arg0: memoryarray, arg1: u256) -> memoryarray {
   bb5:
     tail_call @__panic_32
   bb6:
-    v10 = memory_object_element_addr memoryarray<1>, arg0, arg1
-    mstore v10, v2
-    v11 = add arg1, 1
-    v12 = lt v11, arg1
-    jumpi v12, bb7, bb8
+    memory_object_store_element memoryarray<1>, arg0, arg1, v2
+    v10 = add arg1, 1
+    v11 = lt v10, arg1
+    jumpi v11, bb7, bb8
   bb7:
     tail_call @__panic_11
   bb8:
-    v13 = internal_call @fillImpl, 1, arg0, v11
-    ret v13
+    v12 = internal_call @fillImpl, 1, arg0, v10
+    ret v12
 }
 
 fn @squares(arg0: u256) -> memoryarray [abi_args=lazy, abi_returns=[memory_array<word>]] {

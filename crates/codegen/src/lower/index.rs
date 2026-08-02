@@ -182,8 +182,7 @@ impl<'gcx> Lowerer<'gcx> {
             self.emit_index_bounds_check(builder, index_val, len_val);
             MemoryObjectLayout::word_fixed_array(len)
         };
-        let addr = builder.memory_object_element_addr(base_val, layout, index_val);
-        builder.mload(addr)
+        builder.memory_object_load_element(base_val, layout, index_val)
     }
 
     pub(super) fn lower_index_assign(
@@ -290,8 +289,7 @@ impl<'gcx> Lowerer<'gcx> {
             self.emit_index_bounds_check(builder, index_val, len_val);
             MemoryObjectLayout::word_fixed_array(len)
         };
-        let addr = builder.memory_object_element_addr(base_val, layout, index_val);
-        builder.mstore(addr, rhs);
+        builder.memory_object_store_element(base_val, layout, index_val, rhs);
     }
 
     pub(super) fn lower_index_lvalue_slot(

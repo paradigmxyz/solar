@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_array_to_memory.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 384
+  push 352
   push 64
   mstore
   callvalue
@@ -559,7 +559,7 @@ bb37:
   dup2
   add
   dup1
-  push 288
+  push 256
   mstore
   push 4
   dup2
@@ -583,9 +583,9 @@ bb37:
   mload
   add
   dup1
-  push 320
-  mstore
   push 288
+  mstore
+  push 256
   mload
   dup2
   lt
@@ -597,7 +597,7 @@ bb37:
   pop
   push bb7
   jumpi
-  push 288
+  push 256
   mload
   calldataload
   dup1
@@ -617,10 +617,10 @@ bb37:
   push 160
   mload
   and
-  push 320
+  push 288
   mload
   add
-  push 320
+  push 288
   mload
   dup2
   lt
@@ -663,7 +663,7 @@ bb37:
   push 64
   mload
   dup1
-  push 352
+  push 320
   mstore
   swap1
   dup2
@@ -689,34 +689,28 @@ bb37:
   push 160
   mload
   add
-  dup1
-  push 192
-  mstore
   dup2
   dup1
-  push 352
-  mstore
-  dup2
+  push 320
   mstore
   swap1
+  mstore
   pop
   push 31
   push 256
   mload
   add
   dup1
-  push 224
+  push 192
   mstore
   push 256
   mload
   gt
-  swap1
-  pop
   push bb59
   jumpi
   push 31
   not
-  push 224
+  push 192
   mload
   and
   dup1
@@ -731,13 +725,13 @@ bb37:
   pop
   add
   dup1
-  push 224
+  push 192
   mstore
   push 32
   dup2
   add
   dup1
-  push 288
+  push 224
   mstore
   lt
   push bb59
@@ -745,9 +739,9 @@ bb37:
   push 64
   mload
   dup1
-  push 352
+  push 320
   mstore
-  push 288
+  push 224
   mload
   dup2
   add
@@ -761,7 +755,7 @@ bb37:
   dup2
   add
   push 32
-  push 224
+  push 192
   mload
   sub
   dup2
@@ -771,7 +765,7 @@ bb37:
   mstore
   push 256
   mload
-  push 320
+  push 288
   mload
   dup3
   calldatacopy
@@ -780,32 +774,30 @@ bb37:
   push 160
   mload
   add
-  dup1
-  push 224
-  mstore
   dup2
   dup1
-  push 352
-  mstore
-  dup2
+  push 320
   mstore
   swap1
+  mstore
   pop
   push 160
   mload
   mload
   dup1
-  push 160
-  mstore
   push 192
+  mstore
+  push 32
+  push 160
   mload
+  add
   mload
   mload
   push 10
   dup2
   mul
   dup1
-  push 192
+  push 224
   mstore
   push 10
   dup2
@@ -813,28 +805,29 @@ bb37:
   swap1
   swap2
   eq
-  swap3
-  pop
+  swap2
   pop
   pop
   iszero
   push bb61
   jumpi
-  push 192
+  push 224
   mload
-  push 160
+  push 192
   mload
   add
   dup1
-  push 192
+  push 224
   mstore
-  push 160
+  push 192
   mload
   gt
   push bb61
   jumpi
-  push 224
+  push 64
+  push 160
   mload
+  add
   mload
   mload
   push 100
@@ -856,13 +849,13 @@ bb37:
   jumpi
   push 160
   mload
-  push 192
+  push 224
   mload
   add
   dup1
   push 160
   mstore
-  push 192
+  push 224
   mload
   gt
   push bb61

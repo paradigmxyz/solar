@@ -85,50 +85,44 @@ fn @callArray(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]
   bb5:
     tail_call @__panic_32
   bb6:
-    v8 = memory_object_element_addr memoryarray<1>, v5, 0
-    mstore v8, 1
-    v9 = memory_object_len memoryarray, v5
-    v10 = lt 1, v9
-    jumpi v10, bb8, bb7
+    memory_object_store_element memoryarray<1>, v5, 0, 1
+    v8 = memory_object_len memoryarray, v5
+    v9 = lt 1, v8
+    jumpi v9, bb8, bb7
   bb7:
     tail_call @__panic_32
   bb8:
-    v11 = memory_object_element_addr memoryarray<1>, v5, 1
-    mstore v11, 2
-    v12 = memory_object_len memoryarray, v5
-    v13 = lt 2, v12
-    jumpi v13, bb10, bb9
+    memory_object_store_element memoryarray<1>, v5, 1, 2
+    v10 = memory_object_len memoryarray, v5
+    v11 = lt 2, v10
+    jumpi v11, bb10, bb9
   bb9:
     tail_call @__panic_32
   bb10:
-    v14 = memory_object_element_addr memoryarray<1>, v5, 2
-    mstore v14, 3
-    v15 = memory_object_len memoryarray, v5
-    v16 = lt 3, v15
-    jumpi v16, bb12, bb11
+    memory_object_store_element memoryarray<1>, v5, 2, 3
+    v12 = memory_object_len memoryarray, v5
+    v13 = lt 3, v12
+    jumpi v13, bb12, bb11
   bb11:
     tail_call @__panic_32
   bb12:
-    v17 = memory_object_element_addr memoryarray<1>, v5, 3
-    mstore v17, 4
-    v18 = memory_object_len memoryarray, v5
-    v19 = lt 4, v18
-    jumpi v19, bb14, bb13
+    memory_object_store_element memoryarray<1>, v5, 3, 4
+    v14 = memory_object_len memoryarray, v5
+    v15 = lt 4, v14
+    jumpi v15, bb14, bb13
   bb13:
     tail_call @__panic_32
   bb14:
-    v20 = memory_object_element_addr memoryarray<1>, v5, 4
-    mstore v20, 5
-    v21 = memory_object_len memoryarray, v5
-    v22 = lt arg1, v21
-    jumpi v22, bb16, bb15
+    memory_object_store_element memoryarray<1>, v5, 4, 5
+    v16 = memory_object_len memoryarray, v5
+    v17 = lt arg1, v16
+    jumpi v17, bb16, bb15
   bb15:
     tail_call @__panic_32
   bb16:
-    v23 = memory_object_element_addr memoryarray<1>, v5, arg1
-    v24 = mload v23
-    v25 = internal_call @__internal_dispatch_0, 1, v24, arg0
-    ret v25
+    v18 = memory_object_load_element memoryarray<1>, v5, arg1
+    v19 = internal_call @__internal_dispatch_0, 1, v18, arg0
+    ret v19
 }
 
 fn @__panic_41() {

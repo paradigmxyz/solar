@@ -1498,12 +1498,12 @@ impl<'gcx> Lowerer<'gcx> {
                                 field_ty,
                                 pos,
                             );
-                            let field_addr = builder.memory_object_field_addr(
+                            builder.memory_object_store_field(
                                 struct_ptr,
                                 crate::mir::MemoryObjectLayout::structure(num_fields as u64),
                                 field_idx as u64,
+                                field_ptr,
                             );
-                            builder.mstore(field_addr, field_ptr);
                             continue;
                         }
 
@@ -1549,12 +1549,12 @@ impl<'gcx> Lowerer<'gcx> {
                         };
 
                         // Store the field value into the struct memory
-                        let field_addr = builder.memory_object_field_addr(
+                        builder.memory_object_store_field(
                             struct_ptr,
                             crate::mir::MemoryObjectLayout::structure(num_fields as u64),
                             field_idx as u64,
+                            stored_val,
                         );
-                        builder.mstore(field_addr, stored_val);
                     }
 
                     // Store the memory pointer as the local (not the Arg value)
@@ -1582,12 +1582,12 @@ impl<'gcx> Lowerer<'gcx> {
                             abi_param_source,
                         );
                         let elem_index = builder.imm_u64(elem_idx);
-                        let elem_addr = builder.memory_object_element_addr(
+                        builder.memory_object_store_element(
                             array_ptr,
                             crate::mir::MemoryObjectLayout::word_fixed_array(len),
                             elem_index,
+                            elem_val,
                         );
-                        builder.mstore(elem_addr, elem_val);
                     }
                     self.bind_param_value_deferred(param_id, array_ptr, &mut deferred_param_slots);
                 } else if decodes_abi_params

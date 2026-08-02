@@ -440,6 +440,54 @@ impl<'a> FunctionBuilder<'a> {
         )
     }
 
+    /// Loads a direct struct field through the semantic object layout.
+    pub(crate) fn memory_object_load_field(
+        &mut self,
+        object: ValueId,
+        layout: crate::mir::MemoryObjectLayout,
+        field: u64,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::MemoryObjectLoadField { object, layout, field },
+            Some(MirType::uint256()),
+        )
+    }
+
+    /// Stores a direct struct field through the semantic object layout.
+    pub(crate) fn memory_object_store_field(
+        &mut self,
+        object: ValueId,
+        layout: crate::mir::MemoryObjectLayout,
+        field: u64,
+        value: ValueId,
+    ) {
+        self.emit_void_inst(InstKind::MemoryObjectStoreField { object, layout, field, value });
+    }
+
+    /// Loads an array element through the semantic object layout.
+    pub(crate) fn memory_object_load_element(
+        &mut self,
+        object: ValueId,
+        layout: crate::mir::MemoryObjectLayout,
+        index: ValueId,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::MemoryObjectLoadElement { object, layout, index },
+            Some(MirType::uint256()),
+        )
+    }
+
+    /// Stores an array element through the semantic object layout.
+    pub(crate) fn memory_object_store_element(
+        &mut self,
+        object: ValueId,
+        layout: crate::mir::MemoryObjectLayout,
+        index: ValueId,
+        value: ValueId,
+    ) {
+        self.emit_void_inst(InstKind::MemoryObjectStoreElement { object, layout, index, value });
+    }
+
     fn alloc_kind(
         &mut self,
         size: ValueId,

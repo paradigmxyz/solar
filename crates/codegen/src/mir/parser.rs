@@ -1466,6 +1466,60 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let index = self.parse_value(builder)?;
                 (InstKind::MemoryObjectElementAddr { object, layout, index }, Some(MirType::MemPtr))
             }
+            sym::memory_object_load_field => {
+                let name = self.parser.parse_ident()?;
+                let layout = self.parse_memory_object_layout(name)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let field = self
+                    .parser
+                    .parse_uint()?
+                    .try_into()
+                    .map_err(|_| self.parser.error("memory field index does not fit in u64"))?;
+                (
+                    InstKind::MemoryObjectLoadField { object, layout, field },
+                    Some(MirType::uint256()),
+                )
+            }
+            sym::memory_object_store_field => {
+                let name = self.parser.parse_ident()?;
+                let layout = self.parse_memory_object_layout(name)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let field = self
+                    .parser
+                    .parse_uint()?
+                    .try_into()
+                    .map_err(|_| self.parser.error("memory field index does not fit in u64"))?;
+                self.parser.expect(TokenKind::Comma)?;
+                let value = self.parse_value(builder)?;
+                (InstKind::MemoryObjectStoreField { object, layout, field, value }, None)
+            }
+            sym::memory_object_load_element => {
+                let name = self.parser.parse_ident()?;
+                let layout = self.parse_memory_object_layout(name)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let index = self.parse_value(builder)?;
+                (
+                    InstKind::MemoryObjectLoadElement { object, layout, index },
+                    Some(MirType::uint256()),
+                )
+            }
+            sym::memory_object_store_element => {
+                let name = self.parser.parse_ident()?;
+                let layout = self.parse_memory_object_layout(name)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let index = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let value = self.parse_value(builder)?;
+                (InstKind::MemoryObjectStoreElement { object, layout, index, value }, None)
+            }
 
             // Semantic ABI encoding.
             sym::abi_encode => {

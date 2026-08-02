@@ -479,12 +479,11 @@ impl<'gcx> Lowerer<'gcx> {
                 {
                     let base_val = self.lower_value_expr(builder, base);
                     let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
-                    let field_addr = builder.memory_object_field_addr(
+                    return builder.memory_object_load_field(
                         base_val,
                         crate::mir::MemoryObjectLayout::structure(fields),
                         field_index as u64,
                     );
-                    return builder.mload(field_addr);
                 }
 
                 if let Some((struct_id, field_index)) =
@@ -492,12 +491,11 @@ impl<'gcx> Lowerer<'gcx> {
                 {
                     let base_val = self.lower_value_expr(builder, base);
                     let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
-                    let field_addr = builder.memory_object_field_addr(
+                    return builder.memory_object_load_field(
                         base_val,
                         crate::mir::MemoryObjectLayout::structure(fields),
                         field_index as u64,
                     );
-                    return builder.mload(field_addr);
                 }
 
                 // Fallback: just load from base address
@@ -993,8 +991,7 @@ impl<'gcx> Lowerer<'gcx> {
                 continue;
             }
             let value = self.zero_memory_field_value_ty(builder, field_ty, var.ty.span);
-            let field_addr = builder.memory_object_field_addr(ptr, layout, i as u64);
-            builder.mstore(field_addr, value);
+            builder.memory_object_store_field(ptr, layout, i as u64, value);
         }
         Some(ptr)
     }
@@ -1843,12 +1840,12 @@ impl<'gcx> Lowerer<'gcx> {
                 {
                     let base_val = self.lower_value_expr(builder, base);
                     let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
-                    let field_addr = builder.memory_object_field_addr(
+                    builder.memory_object_store_field(
                         base_val,
                         crate::mir::MemoryObjectLayout::structure(fields),
                         field_index as u64,
+                        rhs,
                     );
-                    builder.mstore(field_addr, rhs);
                     return;
                 }
 
@@ -1857,12 +1854,12 @@ impl<'gcx> Lowerer<'gcx> {
                 {
                     let base_val = self.lower_value_expr(builder, base);
                     let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
-                    let field_addr = builder.memory_object_field_addr(
+                    builder.memory_object_store_field(
                         base_val,
                         crate::mir::MemoryObjectLayout::structure(fields),
                         field_index as u64,
+                        rhs,
                     );
-                    builder.mstore(field_addr, rhs);
                     return;
                 }
 
@@ -2392,12 +2389,12 @@ impl<'gcx> Lowerer<'gcx> {
             // values therefore materialize recursively before storing their
             // pointer in the field slot.
             let field_val = self.coerce_value_for_type(builder, arg, field_ty);
-            let field_addr = builder.memory_object_field_addr(
+            builder.memory_object_store_field(
                 struct_ptr,
                 crate::mir::MemoryObjectLayout::structure(num_fields as u64),
                 i as u64,
+                field_val,
             );
-            builder.mstore(field_addr, field_val);
         }
 
         // Return the pointer to the struct

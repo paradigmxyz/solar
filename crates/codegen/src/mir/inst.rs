@@ -622,6 +622,46 @@ pub(crate) enum InstKind {
         /// Runtime element index.
         index: ValueId,
     },
+    /// Load one direct struct field without exposing its physical address.
+    MemoryObjectLoadField {
+        /// Struct object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Zero-based direct field index.
+        field: u64,
+    },
+    /// Store one direct struct field without exposing its physical address.
+    MemoryObjectStoreField {
+        /// Struct object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Zero-based direct field index.
+        field: u64,
+        /// Value to store.
+        value: ValueId,
+    },
+    /// Load one array element without exposing its physical address.
+    MemoryObjectLoadElement {
+        /// Array object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Runtime element index.
+        index: ValueId,
+    },
+    /// Store one array element without exposing its physical address.
+    MemoryObjectStoreElement {
+        /// Array object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Runtime element index.
+        index: ValueId,
+        /// Value to store.
+        value: ValueId,
+    },
     /// ABI-encode values into a freshly allocated memory slice.
     AbiEncode {
         /// Optional left-aligned four-byte selector prefix.
@@ -951,9 +991,21 @@ impl InstKind {
             Self::FrameStore { value, .. } => out.push(*value),
 
             Self::SetMemoryObjectLen(object, len, _)
-            | Self::MemoryObjectElementAddr { object, index: len, .. } => {
+            | Self::MemoryObjectElementAddr { object, index: len, .. }
+            | Self::MemoryObjectLoadElement { object, index: len, .. } => {
                 out.push(*object);
                 out.push(*len);
+            }
+
+            Self::MemoryObjectStoreField { object, value, .. } => {
+                out.push(*object);
+                out.push(*value);
+            }
+
+            Self::MemoryObjectStoreElement { object, index, value, .. } => {
+                out.push(*object);
+                out.push(*index);
+                out.push(*value);
             }
 
             Self::StorageToMemory { storage, memory, .. }
@@ -985,7 +1037,8 @@ impl InstKind {
             | Self::StorageArrayDataSlot(a)
             | Self::MemoryObjectLen(a, _)
             | Self::MemoryObjectData(a, _)
-            | Self::MemoryObjectFieldAddr { object: a, .. } => {
+            | Self::MemoryObjectFieldAddr { object: a, .. }
+            | Self::MemoryObjectLoadField { object: a, .. } => {
                 out.push(*a);
             }
 
@@ -1157,9 +1210,21 @@ impl InstKind {
             Self::FrameStore { value, .. } => f(value),
 
             Self::SetMemoryObjectLen(object, len, _)
-            | Self::MemoryObjectElementAddr { object, index: len, .. } => {
+            | Self::MemoryObjectElementAddr { object, index: len, .. }
+            | Self::MemoryObjectLoadElement { object, index: len, .. } => {
                 f(object);
                 f(len);
+            }
+
+            Self::MemoryObjectStoreField { object, value, .. } => {
+                f(object);
+                f(value);
+            }
+
+            Self::MemoryObjectStoreElement { object, index, value, .. } => {
+                f(object);
+                f(index);
+                f(value);
             }
 
             Self::StorageToMemory { storage, memory, .. }
@@ -1197,7 +1262,8 @@ impl InstKind {
             | Self::SliceLen(a)
             | Self::MemoryObjectLen(a, _)
             | Self::MemoryObjectData(a, _)
-            | Self::MemoryObjectFieldAddr { object: a, .. } => f(a),
+            | Self::MemoryObjectFieldAddr { object: a, .. }
+            | Self::MemoryObjectLoadField { object: a, .. } => f(a),
 
             Self::Alloc { size, .. } => f(size),
 
@@ -1341,6 +1407,10 @@ impl InstKind {
             Self::MemoryObjectData(_, _) => "memory_object_data",
             Self::MemoryObjectFieldAddr { .. } => "memory_object_field_addr",
             Self::MemoryObjectElementAddr { .. } => "memory_object_element_addr",
+            Self::MemoryObjectLoadField { .. } => "memory_object_load_field",
+            Self::MemoryObjectStoreField { .. } => "memory_object_store_field",
+            Self::MemoryObjectLoadElement { .. } => "memory_object_load_element",
+            Self::MemoryObjectStoreElement { .. } => "memory_object_store_element",
             Self::AbiEncode { .. } => "abi_encode",
             Self::StorageToMemory { .. } => "storage_to_memory",
             Self::MemoryToStorage { .. } => "memory_to_storage",
@@ -1433,6 +1503,8 @@ impl InstKind {
             | Self::Alloc { .. }
             | Self::SetMemoryObjectLen(_, _, _)
             | Self::FrameStore { .. }
+            | Self::MemoryObjectStoreField { .. }
+            | Self::MemoryObjectStoreElement { .. }
             | Self::AbiEncode { .. }
             | Self::StorageToMemory { .. }
             | Self::MCopy(_, _, _)
@@ -1472,6 +1544,8 @@ impl InstKind {
             | Self::Alloc { .. }
             | Self::SetMemoryObjectLen(_, _, _)
             | Self::FrameStore { .. }
+            | Self::MemoryObjectStoreField { .. }
+            | Self::MemoryObjectStoreElement { .. }
             | Self::AbiEncode { .. }
             | Self::StorageToMemory { .. }
             | Self::MCopy(_, _, _)
@@ -1483,6 +1557,8 @@ impl InstKind {
             Self::MLoad(_)
             | Self::FrameLoad { .. }
             | Self::MemoryObjectLen(_, _)
+            | Self::MemoryObjectLoadField { .. }
+            | Self::MemoryObjectLoadElement { .. }
             | Self::Fmp
             | Self::MSize
             | Self::Keccak256(_, _)
@@ -1615,8 +1691,8 @@ mod tests {
             assert_data_eq!(actual.to_string(), expected);
         }
 
-        assert_size::<InstKind>(str!["32"]);
+        assert_size::<InstKind>(str!["40"]);
         assert_size::<InstructionMetadata>(str!["24"]);
-        assert_size::<Instruction>(str!["64"]);
+        assert_size::<Instruction>(str!["72"]);
     }
 }

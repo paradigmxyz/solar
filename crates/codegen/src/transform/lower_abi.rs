@@ -503,12 +503,12 @@ impl LowerAbiCx {
                         ),
                     };
                     let elem_index = builder.imm_u64(index);
-                    let slot = builder.memory_object_element_addr(
+                    builder.memory_object_store_element(
                         ptr,
                         crate::mir::MemoryObjectLayout::word_fixed_array(*len),
                         elem_index,
+                        value,
                     );
-                    builder.mstore(slot, value);
                     offset += element.head_size();
                 }
                 ptr
@@ -581,12 +581,9 @@ impl LowerAbiCx {
                     state_layout,
                     crate::mir::AllocationSemantics::INTERNAL,
                 );
-                let remaining_slot = builder.memory_object_field_addr(state, state_layout, 0);
-                let source_slot = builder.memory_object_field_addr(state, state_layout, 1);
-                let destination_slot = builder.memory_object_field_addr(state, state_layout, 2);
-                builder.mstore(remaining_slot, len);
-                builder.mstore(source_slot, data_base);
-                builder.mstore(destination_slot, dest);
+                builder.memory_object_store_field(state, state_layout, 0, len);
+                builder.memory_object_store_field(state, state_layout, 1, data_base);
+                builder.memory_object_store_field(state, state_layout, 2, dest);
 
                 let cond = builder.create_block();
                 let body = builder.create_block();
@@ -594,14 +591,14 @@ impl LowerAbiCx {
                 builder.jump(cond);
 
                 builder.switch_to_block(cond);
-                let remaining = builder.mload(remaining_slot);
+                let remaining = builder.memory_object_load_field(state, state_layout, 0);
                 let zero = builder.imm_u64(0);
                 let has_next = builder.gt(remaining, zero);
                 builder.branch(has_next, body, done);
 
                 builder.switch_to_block(body);
-                let source = builder.mload(source_slot);
-                let destination = builder.mload(destination_slot);
+                let source = builder.memory_object_load_field(state, state_layout, 1);
+                let destination = builder.memory_object_load_field(state, state_layout, 2);
                 let mut element_current = builder.current_block();
                 let value = Self::decode_aggregate_argument(
                     builder,
@@ -617,9 +614,9 @@ impl LowerAbiCx {
                 let element_head_size = builder.imm_u64(element.head_size());
                 let next_source = builder.add(source, element_head_size);
                 let next_destination = builder.add(destination, word);
-                builder.mstore(remaining_slot, next_remaining);
-                builder.mstore(source_slot, next_source);
-                builder.mstore(destination_slot, next_destination);
+                builder.memory_object_store_field(state, state_layout, 0, next_remaining);
+                builder.memory_object_store_field(state, state_layout, 1, next_source);
+                builder.memory_object_store_field(state, state_layout, 2, next_destination);
                 builder.jump(cond);
 
                 builder.switch_to_block(done);
@@ -683,13 +680,11 @@ impl LowerAbiCx {
                         base,
                         current,
                     );
-                    let slot = builder.memory_object_field_addr(ptr, layout, index as u64);
-                    builder.mstore(slot, value);
+                    builder.memory_object_store_field(ptr, layout, index as u64, value);
                     offset += field.head_size();
                 }
                 if carries_base {
-                    let slot = builder.memory_object_field_addr(ptr, layout, fields.len() as u64);
-                    builder.mstore(slot, base);
+                    builder.memory_object_store_field(ptr, layout, fields.len() as u64, base);
                 }
                 ptr
             }

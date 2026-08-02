@@ -316,12 +316,12 @@ impl<'gcx> Lowerer<'gcx> {
                 for i in 0..len {
                     let value = self.zero_memory_field_value_ty(builder, elem_ty, span);
                     let index = builder.imm_u64(i);
-                    let addr = builder.memory_object_element_addr(
+                    builder.memory_object_store_element(
                         ptr,
                         crate::mir::MemoryObjectLayout::word_fixed_array(len),
                         index,
+                        value,
                     );
-                    builder.mstore(addr, value);
                 }
                 ptr
             }
@@ -372,8 +372,7 @@ impl<'gcx> Lowerer<'gcx> {
         let layout = crate::mir::MemoryObjectLayout::structure(field_tys.len() as u64);
         for (i, field_ty) in field_tys.into_iter().enumerate() {
             let value = self.zero_memory_field_value_ty(builder, field_ty, span);
-            let field_addr = builder.memory_object_field_addr(ptr, layout, i as u64);
-            builder.mstore(field_addr, value);
+            builder.memory_object_store_field(ptr, layout, i as u64, value);
         }
     }
 
