@@ -59,7 +59,7 @@ fn @init(arg0: u256, arg1: address) -> u256 [abi_returns=[word]] {
     revert 0, 36
   bb12:
     v26 = alloc memorybytes, exact, uninitialized, infallible, v24
-    mstore v26, v17
+    set_memory_object_len memorybytes, v26, v17
     v27 = add v26, 32
     v28 = sub v23, 32
     v29 = add v27, v28
@@ -93,7 +93,7 @@ fn @init(arg0: u256, arg1: address) -> u256 [abi_returns=[word]] {
     revert 0, 36
   bb16:
     v44 = alloc memorybytes, exact, uninitialized, infallible, v42
-    mstore v44, v35
+    set_memory_object_len memorybytes, v44, v35
     v45 = add v44, 32
     v46 = sub v41, 32
     v47 = add v45, v46

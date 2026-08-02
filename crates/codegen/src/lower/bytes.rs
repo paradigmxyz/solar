@@ -322,7 +322,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
 
         let ptr = self.allocate_memory_object_dynamic(builder, total_size, MemoryObjectKind::Bytes);
-        builder.mstore(ptr, len);
+        builder.set_memory_object_len(ptr, len, MemoryObjectKind::Bytes);
 
         let data_ptr = builder.add(ptr, word_size);
         let zero = builder.imm_u64(0);
