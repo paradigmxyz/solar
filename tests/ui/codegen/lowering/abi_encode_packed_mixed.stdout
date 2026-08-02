@@ -11,15 +11,18 @@ fn @fixedBytesArg(arg0: u256, arg1: address, arg2: bytes2) -> bytes32 [abi_args=
     v6 = add 32, v5
     v7 = alloc memorybytes, exact, uninitialized, infallible, v6
     v8 = memory_object_data memorybytes, v7
-    mstore v8, arg0
-    v9 = shl 96, arg1
-    v10 = add v8, 32
-    mstore v10, v9
-    v11 = add v8, 52
-    mstore v11, arg2
+    v9 = sub v8, v8
+    memory_object_store_word memorybytes, v7, v9, arg0
+    v10 = shl 96, arg1
+    v11 = add v8, 32
+    v12 = sub v11, v8
+    memory_object_store_word memorybytes, v7, v12, v10
+    v13 = add v8, 52
+    v14 = sub v13, v8
+    memory_object_store_word memorybytes, v7, v14, arg2
     set_memory_object_len memorybytes, v7, v2
-    v12 = keccak256_bytes v7
-    ret v12
+    v15 = keccak256_bytes v7
+    ret v15
 }
 
 fn @dynamicArg(arg0: bytes32, arg1: memorybytes) -> bytes32 [abi_params=[bytes32, bytes], abi_returns=[word]] {
@@ -33,15 +36,16 @@ fn @dynamicArg(arg0: bytes32, arg1: memorybytes) -> bytes32 [abi_params=[bytes32
     v6 = add 32, v5
     v7 = alloc memorybytes, exact, uninitialized, infallible, v6
     v8 = memory_object_data memorybytes, v7
-    mstore v8, arg0
-    v9 = add v8, 32
-    v10 = memory_object_len memorybytes, arg1
-    v11 = memory_object_data memorybytes, arg1
-    mcopy v9, v11, v10
-    v12 = add v9, v10
+    v9 = sub v8, v8
+    memory_object_store_word memorybytes, v7, v9, arg0
+    v10 = add v8, 32
+    v11 = memory_object_len memorybytes, arg1
+    v12 = memory_object_data memorybytes, arg1
+    mcopy v10, v12, v11
+    v13 = add v10, v11
     set_memory_object_len memorybytes, v7, v2
-    v13 = keccak256_bytes v7
-    ret v13
+    v14 = keccak256_bytes v7
+    ret v14
 }
 
 fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) -> memorybytes [abi_params=[u16, bytes, bool], abi_returns=[memory_bytes]] {
@@ -72,15 +76,17 @@ fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) -> memorybytes [abi_p
     v15 = alloc memorybytes, exact, uninitialized, infallible, v14
     v16 = memory_object_data memorybytes, v15
     v17 = shl 240, arg0
-    mstore v16, v17
-    v18 = add v16, 2
-    v19 = memory_object_len memorybytes, arg1
-    v20 = memory_object_data memorybytes, arg1
-    mcopy v18, v20, v19
-    v21 = add v18, v19
-    v22 = shl 248, arg2
-    mstore v21, v22
-    v23 = add v21, 1
+    v18 = sub v16, v16
+    memory_object_store_word memorybytes, v15, v18, v17
+    v19 = add v16, 2
+    v20 = memory_object_len memorybytes, arg1
+    v21 = memory_object_data memorybytes, arg1
+    mcopy v19, v21, v20
+    v22 = add v19, v20
+    v23 = shl 248, arg2
+    v24 = sub v22, v16
+    memory_object_store_word memorybytes, v15, v24, v23
+    v25 = add v22, 1
     set_memory_object_len memorybytes, v15, v10
     ret v15
 }

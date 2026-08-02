@@ -53,8 +53,9 @@ fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [abi_param
     v29 = memory_object_data memorybytes, v16
     mcopy v27, v29, v28
     v30 = add v27, v28
-    mstore v30, 0x2100000000000000000000000000000000000000000000000000000000000000
-    v31 = add v30, 1
+    v31 = sub v30, v27
+    memory_object_store_word memorybytes, v26, v31, 0x2100000000000000000000000000000000000000000000000000000000000000
+    v32 = add v30, 1
     set_memory_object_len memorybytes, v26, v21
     ret v26
 }

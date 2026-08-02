@@ -31,18 +31,23 @@ fn @hashLib(arg0: memorystruct) -> bytes32 {
     v12 = add 32, v11
     v13 = alloc memorybytes, exact, uninitialized, infallible, v12
     v14 = memory_object_data memorybytes, v13
-    mstore v14, 0x7800000000000000000000000000000000000000000000000000000000000000
-    v15 = add v14, 1
-    mstore v15, v0
-    v16 = shl 224, v1
-    v17 = add v14, 33
-    mstore v17, v16
-    v18 = add v14, 37
-    mstore v18, v2
-    v19 = add v14, 69
-    mstore v19, v3
+    v15 = sub v14, v14
+    memory_object_store_word memorybytes, v13, v15, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v16 = add v14, 1
+    v17 = sub v16, v14
+    memory_object_store_word memorybytes, v13, v17, v0
+    v18 = shl 224, v1
+    v19 = add v14, 33
+    v20 = sub v19, v14
+    memory_object_store_word memorybytes, v13, v20, v18
+    v21 = add v14, 37
+    v22 = sub v21, v14
+    memory_object_store_word memorybytes, v13, v22, v2
+    v23 = add v14, 69
+    v24 = sub v23, v14
+    memory_object_store_word memorybytes, v13, v24, v3
     set_memory_object_len memorybytes, v13, v8
-    v20 = keccak256_bytes v13
-    ret v20
+    v25 = keccak256_bytes v13
+    ret v25
 }
 

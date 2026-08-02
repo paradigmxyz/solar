@@ -47,7 +47,7 @@ impl<'gcx> Lowerer<'gcx> {
         );
 
         let data_start = builder.memory_object_data(object, MemoryObjectKind::Bytes);
-        self.write_packed_abi_args(builder, data_start, &packed_args);
+        self.write_packed_abi_args(builder, object, data_start, &packed_args);
         builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
         Ok(object)
     }
@@ -193,6 +193,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn write_packed_abi_args(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        object: ValueId,
         data_start: ValueId,
         args: &[PackedAbiArg],
     ) -> (ValueId, Option<u64>) {
@@ -204,9 +205,14 @@ impl<'gcx> Lowerer<'gcx> {
 
         let mut i = 0;
         while i < args.len() {
-            if let Some((consumed, len)) =
-                self.try_write_static_packed_word(builder, base, offset, &args[i..])
-            {
+            if let Some((consumed, len)) = self.try_write_static_packed_word(
+                builder,
+                object,
+                data_start,
+                base,
+                offset,
+                &args[i..],
+            ) {
                 offset += len;
                 i += consumed;
                 continue;
@@ -219,14 +225,16 @@ impl<'gcx> Lowerer<'gcx> {
                         padded[..chunk.len()].copy_from_slice(chunk);
                         let val = builder.imm_u256(U256::from_be_bytes(padded));
                         let dest = self.offset_ptr(builder, base, offset);
-                        builder.mstore(dest, val);
+                        let dest_offset = builder.sub(dest, data_start);
+                        builder.memory_object_store_word(object, dest_offset, val);
                         offset += chunk.len() as u64;
                     }
                 }
                 &PackedAbiArg::Value { value, size, .. } if size >= 32 => {
                     // Full 32 bytes - use MSTORE
                     let dest = self.offset_ptr(builder, base, offset);
-                    builder.mstore(dest, value);
+                    let dest_offset = builder.sub(dest, data_start);
+                    builder.memory_object_store_word(object, dest_offset, value);
                     offset += size as u64;
                 }
                 &PackedAbiArg::Value { value, size, left_aligned } => {
@@ -255,7 +263,8 @@ impl<'gcx> Lowerer<'gcx> {
                     };
 
                     let dest = self.offset_ptr(builder, base, offset);
-                    builder.mstore(dest, value);
+                    let dest_offset = builder.sub(dest, data_start);
+                    builder.memory_object_store_word(object, dest_offset, value);
                     offset += size as u64;
                 }
                 &PackedAbiArg::DynamicBytes(ptr) => {
@@ -285,6 +294,8 @@ impl<'gcx> Lowerer<'gcx> {
     fn try_write_static_packed_word(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        object: ValueId,
+        data_start: ValueId,
         base: ValueId,
         offset: u64,
         args: &[PackedAbiArg],
@@ -342,7 +353,8 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         let dest = self.offset_ptr(builder, base, offset);
-        builder.mstore(dest, value);
+        let dest_offset = builder.sub(dest, data_start);
+        builder.memory_object_store_word(object, dest_offset, value);
         Some((consumed, len as u64))
     }
 

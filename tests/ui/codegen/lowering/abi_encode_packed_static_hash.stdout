@@ -16,11 +16,13 @@ fn @hash(arg0: u64, arg1: u64, arg2: bytes32) -> bytes32 [abi_args=lazy, abi_ret
     v11 = or 0x4d656d6f72793a00000000000000000000000000000000000000000000000000, v10
     v12 = shl 72, arg1
     v13 = or v11, v12
-    mstore v9, v13
-    v14 = add v9, 23
-    mstore v14, arg2
+    v14 = sub v9, v9
+    memory_object_store_word memorybytes, v8, v14, v13
+    v15 = add v9, 23
+    v16 = sub v15, v9
+    memory_object_store_word memorybytes, v8, v16, arg2
     set_memory_object_len memorybytes, v8, v3
-    v15 = keccak256_bytes v8
-    ret v15
+    v17 = keccak256_bytes v8
+    ret v17
 }
 

@@ -7,7 +7,7 @@
 contract AbiEncodePackedMixed {
     // CHECK-LABEL: fn @fixedBytesArg{{[( ]}}
     // CHECK: {{v[0-9]+}} = shl 96, arg1
-    // CHECK: mstore {{v[0-9]+}}, arg2
+    // CHECK: memory_object_store_word memorybytes, {{.*}}, {{.*}}, arg2
     // CHECK: [[OBJECT:v[0-9]+]] = keccak256_bytes
     function fixedBytesArg(uint a, address b, bytes2 c) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(a, b, c));
@@ -24,7 +24,7 @@ contract AbiEncodePackedMixed {
     // CHECK-LABEL: fn @materialized{{[( ]}}
     // CHECK: mcopy
     // CHECK: [[BOOL:v[0-9]+]] = shl 248, arg2
-    // CHECK: mstore {{v[0-9]+}}, [[BOOL]]
+    // CHECK: memory_object_store_word memorybytes, {{.*}}, {{.*}}, [[BOOL]]
     // CHECK: set_memory_object_len memorybytes
     function materialized(uint16 a, bytes memory mid, bool b) external pure returns (bytes memory) {
         return abi.encodePacked(a, mid, b);
