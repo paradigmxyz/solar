@@ -280,6 +280,10 @@ impl LowerAbiCx {
                 .types
                 .iter()
                 .try_fold(0_u64, |words, ty| words.checked_add(Self::constructor_param_words(ty)?))
+                .and_then(|words| {
+                    let bytes = words.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+                    (bytes != 0).then_some(words)
+                })
                 .and_then(|words| usize::try_from(words).ok())
                 .is_some()
     }
@@ -334,6 +338,9 @@ impl LowerAbiCx {
             .map(Self::constructor_param_words)
             .try_fold(0_u64, |words, next| words.checked_add(next?))
             .expect("checked constructor ABI word count");
+        let head_size = physical_words
+            .checked_mul(EvmMemoryLayout::WORD_SIZE)
+            .expect("checked constructor ABI head size");
         let mut params = IndexVec::with_capacity(physical_words as usize);
         for ty in &layout.types {
             Self::push_constructor_param_types(&mut params, ty);
@@ -347,7 +354,23 @@ impl LowerAbiCx {
         let guard = {
             let mut builder = FunctionBuilder::new(func);
             let guard = builder.create_block();
+            let decode = builder.create_block();
+            let revert = builder.create_block();
             builder.switch_to_block(guard);
+            let base = builder.constructor_args_base();
+            let end = builder.constructor_args_end();
+            let head_size = builder.imm_u64(head_size);
+            let required = builder.add(base, head_size);
+            let overflow = builder.lt(required, base);
+            let short = builder.gt(required, end);
+            let invalid = builder.or(overflow, short);
+            builder.branch(invalid, revert, decode);
+
+            builder.switch_to_block(revert);
+            let zero = builder.imm_u64(0);
+            builder.revert(zero, zero);
+
+            builder.switch_to_block(decode);
             let mut physical_index = 0;
             for (logical_index, ty) in layout.types.iter().enumerate() {
                 let value = Self::decode_constructor_param(

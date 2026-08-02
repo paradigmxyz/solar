@@ -133,6 +133,7 @@ impl<'a> FunctionBuilder<'a> {
             return Some(match mode {
                 FrameMode::External => MemoryRegion::Scratch,
                 FrameMode::Internal => MemoryRegion::InternalFrame,
+                FrameMode::MultiReturn => MemoryRegion::Scratch,
             });
         }
         let addr = match *kind {

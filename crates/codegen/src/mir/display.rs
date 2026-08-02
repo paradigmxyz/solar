@@ -536,6 +536,7 @@ fn display_frame_mode(mode: FrameMode) -> &'static str {
     match mode {
         FrameMode::External => "scratch",
         FrameMode::Internal => "internal_frame",
+        FrameMode::MultiReturn => "multi_return",
     }
 }
 

@@ -52,9 +52,13 @@ fn lower_function(func: &mut Function) -> bool {
             match kind {
                 InstKind::FrameLoad { offset, mode, kind } => {
                     let address = frame_address(&mut builder, offset, mode);
-                    let value = match kind {
-                        FrameSlotKind::Word => builder.mload(address),
-                        FrameSlotKind::Slice(location) => {
+                    let value = match (mode, kind) {
+                        (FrameMode::MultiReturn, FrameSlotKind::Word) => builder.mload(address),
+                        (FrameMode::MultiReturn, FrameSlotKind::Slice(_)) => {
+                            unreachable!("multi-return buffers contain words")
+                        }
+                        (_, FrameSlotKind::Word) => builder.mload(address),
+                        (_, FrameSlotKind::Slice(location)) => {
                             let ptr = builder.mload(address);
                             let word = builder.imm_u64(EvmMemoryLayout::WORD_SIZE);
                             let len_address = builder.add(address, word);
@@ -71,9 +75,16 @@ fn lower_function(func: &mut Function) -> bool {
                 }
                 InstKind::FrameStore { offset, mode, kind, value } => {
                     let address = frame_address(&mut builder, offset, mode);
-                    match kind {
-                        FrameSlotKind::Word => builder.mstore(address, value),
-                        FrameSlotKind::Slice(_) => {
+                    match (mode, kind) {
+                        (FrameMode::MultiReturn, FrameSlotKind::Word) => {
+                            debug_assert_eq!(offset, 0);
+                            builder.mstore(address, value);
+                        }
+                        (FrameMode::MultiReturn, FrameSlotKind::Slice(_)) => {
+                            unreachable!("multi-return buffers contain words")
+                        }
+                        (_, FrameSlotKind::Word) => builder.mstore(address, value),
+                        (_, FrameSlotKind::Slice(_)) => {
                             let ptr = builder.slice_ptr(value);
                             let len = builder.slice_len(value);
                             builder.mstore(address, ptr);
@@ -100,6 +111,7 @@ fn frame_address(
 ) -> crate::mir::ValueId {
     match mode {
         FrameMode::External => builder.imm_u64(EvmMemoryLayout::HEAP_START + offset),
+        FrameMode::MultiReturn => builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT),
         FrameMode::Internal => {
             let header = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE;
             let args = (builder.func().params.len() as u64) * EvmMemoryLayout::WORD_SIZE;

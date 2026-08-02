@@ -1239,6 +1239,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(match mode {
             sym::scratch => FrameMode::External,
             sym::internal_frame => FrameMode::Internal,
+            sym::multi_return => FrameMode::MultiReturn,
             _ => return Err(self.parser.error(format!("unknown frame mode `{mode}`"))),
         })
     }

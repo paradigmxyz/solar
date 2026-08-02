@@ -8,12 +8,12 @@ use crate::{
     immutable::immutable_push_type_size,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        BlockId, Function, FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId,
-        InstKind, Instruction, MirType, Module, Terminator, Value, ValueId,
+        AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
+        FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId, InstKind, Instruction,
+        MemoryObjectKind, MemoryObjectLayout, MirType, Module, Terminator, Value, ValueId,
     },
     pass::MirPass,
 };
-use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
@@ -1231,30 +1231,27 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
         .take_while(|&&inst_id| matches!(caller.inst(inst_id).kind, InstKind::Phi(_)))
         .count();
 
-    let (base_load, base) =
-        caller.alloc_value_inst(Instruction::new(InstKind::Fmp, Some(MirType::MemPtr)));
-    let mut insert_at = phi_count;
-    caller.blocks[continuation].instructions.insert(insert_at, base_load);
-    insert_at += 1;
+    let existing_len = caller.blocks[continuation].instructions.len();
+    let mut builder = FunctionBuilder::new(caller);
+    builder.switch_to_block(continuation);
 
+    let len = values.len() as u64 + 1;
+    let size = builder.imm_u64(len * 32);
+    let layout = MemoryObjectLayout::FixedArray { len, element_words: 1 };
+    let object = builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
     for (index, &value) in values.iter().enumerate() {
-        let offset = caller
-            .alloc_value(Value::Immediate(Immediate::uint256(U256::from((index as u64 + 1) * 32))));
-        let (addr, addr_value) = caller.alloc_value_inst(Instruction::new(
-            InstKind::Add(base, offset),
-            Some(MirType::uint256()),
-        ));
-        let store = caller.alloc_inst(Instruction::new(InstKind::MStore(addr_value, value), None));
-        caller.blocks[continuation].instructions.insert(insert_at, addr);
-        caller.blocks[continuation].instructions.insert(insert_at + 1, store);
-        insert_at += 2;
+        let index = builder.imm_u64(index as u64 + 1);
+        builder.memory_object_store_element(object, layout, index, value);
     }
+    let base = builder.memory_object_data(object, MemoryObjectKind::FixedArray);
+    builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, base);
 
-    let ptr_slot = caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(
-        EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT,
-    ))));
-    let publish = caller.alloc_inst(Instruction::new(InstKind::MStore(ptr_slot, base), None));
-    caller.blocks[continuation].instructions.insert(insert_at, publish);
+    let appended = builder.func_mut().blocks[continuation]
+        .instructions
+        .drain(existing_len..)
+        .collect::<Vec<_>>();
+    drop(builder);
+    caller.blocks[continuation].instructions.splice(phi_count..phi_count, appended);
 }
 
 fn redirect_phi_predecessors(

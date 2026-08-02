@@ -1084,6 +1084,7 @@ symbols! {
         mir_type,
         module,
         msg,
+        multi_return,
         name,
         object,
         offset,

@@ -6,22 +6,32 @@
 + fn @constructor(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) {
     bb0:
 -     v0 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 1
-+     v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-+     v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-+     memory_object_store_element memoryfixedarray<2, 1>, v4, 0, arg0
-+     memory_object_store_element memoryfixedarray<2, 1>, v4, 1, arg1
-+     memory_object_store_element memoryfixedarray<2, 1>, v3, 0, v4
-+     v5 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-+     memory_object_store_element memoryfixedarray<2, 1>, v5, 0, arg2
-+     memory_object_store_element memoryfixedarray<2, 1>, v5, 1, arg3
-+     memory_object_store_element memoryfixedarray<2, 1>, v3, 1, v5
-+     jump bb1
++     v3 = constructor_args_base
++     v4 = constructor_args_end
++     v5 = add v3, 160
++     v6 = lt v5, v3
++     v7 = gt v5, v4
++     v8 = or v6, v7
++     jumpi v8, bb3, bb2
 +   bb1:
-+     v0 = memory_object_load_element memoryfixedarray<2, 1>, v3, 1
++     v0 = memory_object_load_element memoryfixedarray<2, 1>, v9, 1
       v1 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
 -     v2 = add v1, arg1
 +     v2 = add v1, arg4
       mstore 0, v2
       stop
++   bb2:
++     v9 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
++     v10 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
++     memory_object_store_element memoryfixedarray<2, 1>, v10, 0, arg0
++     memory_object_store_element memoryfixedarray<2, 1>, v10, 1, arg1
++     memory_object_store_element memoryfixedarray<2, 1>, v9, 0, v10
++     v11 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
++     memory_object_store_element memoryfixedarray<2, 1>, v11, 0, arg2
++     memory_object_store_element memoryfixedarray<2, 1>, v11, 1, arg3
++     memory_object_store_element memoryfixedarray<2, 1>, v9, 1, v11
++     jump bb1
++   bb3:
++     revert 0, 0
   }
   

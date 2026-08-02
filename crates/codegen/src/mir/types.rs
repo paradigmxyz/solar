@@ -54,6 +54,8 @@ pub(crate) enum FrameMode {
     External,
     /// The function uses its internal-call frame for its locals.
     Internal,
+    /// The ephemeral buffer used by multi-value calls.
+    MultiReturn,
 }
 
 /// Logical value representation stored in a mutable-local frame slot.
