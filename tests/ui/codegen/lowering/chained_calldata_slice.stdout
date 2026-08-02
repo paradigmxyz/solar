@@ -101,8 +101,8 @@ fn @arrChain(arg0: calldataslice) -> u256 [abi_params=[array<_, u256>], abi_retu
     v25 = add 32, v24
     v26 = alloc memoryarray<1>, exact, uninitialized, infallible, v25
     set_memory_object_len memoryarray, v26, v21
-    v27 = memory_object_data memoryarray, v26
-    calldatacopy v27, v22, v24
+    v27 = make_calldata_slice v22, v24
+    memory_object_copy_from_slice memoryarray, v26, v27
     ret v26
 }
 

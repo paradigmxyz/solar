@@ -28,10 +28,10 @@ impl AbiSource {
         }
     }
 
-    fn copy(self, builder: &mut FunctionBuilder<'_>, dst: ValueId, src: ValueId, len: ValueId) {
+    fn slice_location(self) -> SliceLocation {
         match self {
-            Self::Calldata => builder.calldatacopy(dst, src, len),
-            Self::Memory => builder.mcopy(dst, src, len),
+            Self::Calldata => SliceLocation::Calldata,
+            Self::Memory => SliceLocation::Memory,
         }
     }
 }
@@ -318,14 +318,14 @@ impl<'gcx> Lowerer<'gcx> {
         let ptr = self.allocate_memory_object_dynamic(builder, total_size, MemoryObjectKind::Bytes);
         builder.set_memory_object_len(ptr, len, MemoryObjectKind::Bytes);
 
-        let data_ptr = builder.add(ptr, word_size);
         let zero = builder.imm_u64(0);
         let last_word_offset = builder.sub(data_size, word_size);
         let last_word_index = builder.div(last_word_offset, word_size);
         builder.memory_object_store_element(ptr, MemoryObjectLayout::Bytes, last_word_index, zero);
 
         let data_pos = builder.add(len_pos, word_size);
-        source.copy(builder, data_ptr, data_pos, len);
+        let source = builder.make_slice(data_pos, len, source.slice_location());
+        builder.memory_object_copy_from_slice(ptr, MemoryObjectKind::Bytes, source);
         ptr
     }
 
@@ -460,8 +460,8 @@ impl<'gcx> Lowerer<'gcx> {
             MemoryObjectKind::DynamicArray,
         );
         builder.set_memory_object_len(ptr, len, MemoryObjectKind::DynamicArray);
-        let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
-        source.copy(builder, data_ptr, data_pos, byte_len);
+        let source = builder.make_slice(data_pos, byte_len, source.slice_location());
+        builder.memory_object_copy_from_slice(ptr, MemoryObjectKind::DynamicArray, source);
         ptr
     }
 

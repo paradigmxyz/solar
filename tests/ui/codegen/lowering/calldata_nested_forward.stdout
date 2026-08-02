@@ -70,12 +70,12 @@ fn @forward(arg0: calldataslice, arg1: address) {
   bb15:
     v27 = alloc memorybytes, exact, uninitialized, infallible, v25
     set_memory_object_len memorybytes, v27, v18
-    v28 = add v27, 32
-    v29 = sub v24, 32
-    v30 = div v29, 32
-    memory_object_store_element memorybytes, v27, v30, 0
-    v31 = add v17, 32
-    calldatacopy v28, v31, v18
+    v28 = sub v24, 32
+    v29 = div v28, 32
+    memory_object_store_element memorybytes, v27, v29, 0
+    v30 = add v17, 32
+    v31 = make_calldata_slice v30, v18
+    memory_object_copy_from_slice memorybytes, v27, v31
     v32 = frame_load scratch, word, 64 !metadata(memory=scratch)
     memory_object_store_element memoryarray<1>, v12, v32, v27
     v33 = frame_load scratch, word, 0 !metadata(memory=scratch)
@@ -178,12 +178,12 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
   bb15:
     v32 = alloc memorybytes, exact, uninitialized, infallible, v30
     set_memory_object_len memorybytes, v32, v23
-    v33 = add v32, 32
-    v34 = sub v29, 32
-    v35 = div v34, 32
-    memory_object_store_element memorybytes, v32, v35, 0
-    v36 = add v22, 32
-    calldatacopy v33, v36, v23
+    v33 = sub v29, 32
+    v34 = div v33, 32
+    memory_object_store_element memorybytes, v32, v34, 0
+    v35 = add v22, 32
+    v36 = make_calldata_slice v35, v23
+    memory_object_copy_from_slice memorybytes, v32, v36
     memory_object_store_field memorystruct<3>, v18, 1, v32
     memory_object_store_field memorystruct<3>, v18, 2, v17
     v37 = frame_load scratch, word, 64 !metadata(memory=scratch)
