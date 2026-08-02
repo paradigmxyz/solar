@@ -210,7 +210,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             self.builder
                 .add_return(types::TypeLowerer::mir_type(self.gcx.type_of_item(ret.into())));
             let ty = self.gcx.type_of_item(ret.into());
-            let value = self.default_value(ty);
+            let value = self.default_binding_value(ty);
             self.values.insert(ret, value);
         }
         self.returns.extend_from_slice(function.returns);
@@ -1051,6 +1051,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             ExprKind::Tuple([Some(inner)]) => self.lower_expr(inner),
             ExprKind::Tuple(values) => self.lower_tuple(expr, values),
             ExprKind::Member(receiver, name) => self.lower_member(expr, receiver, *name),
+            ExprKind::YulMember(receiver, name) => self.lower_yul_member(expr, receiver, *name),
             ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
             _ if self.gcx.dcx().has_errors().is_err() => Some(self.builder.imm_u256(U256::ZERO)),
             _ => report_unsupported(self.gcx, expr.span, "expression"),
@@ -2780,6 +2781,24 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         self.default_object(ty).unwrap_or_else(|| self.builder.imm_u256(U256::ZERO))
     }
 
+    fn default_binding_value(&mut self, ty: solar_sema::ty::Ty<'gcx>) -> ValueId {
+        if ty.is_ref_at(DataLocation::Calldata)
+            && matches!(
+                ty.peel_refs().kind,
+                TyKind::DynArray(_)
+                    | TyKind::Slice(_)
+                    | TyKind::Elementary(
+                        solar_sema::hir::ElementaryType::Bytes
+                            | solar_sema::hir::ElementaryType::String,
+                    )
+            )
+        {
+            let zero = self.builder.imm_u256(U256::ZERO);
+            return self.builder.make_slice(zero, zero, SliceLocation::Calldata);
+        }
+        self.default_value(ty)
+    }
+
     fn default_object(&mut self, ty: solar_sema::ty::Ty<'gcx>) -> Option<ValueId> {
         let layout = self.types.memory_layout(ty)?;
         let size = match layout {
@@ -2831,6 +2850,13 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         if let Some(builtin) = self.gcx.resolved_builtin(expr) {
             return self.lower_environment_builtin(expr, builtin);
         }
+        if name.name == sym::offset
+            && self
+                .type_of_expr_or_variable(receiver)
+                .is_some_and(|ty| ty.is_ref_at(DataLocation::Calldata))
+        {
+            return self.lower_yul_member(expr, receiver, name);
+        }
         if let Some(access) = self.storage_access(expr) {
             return self.load_storage_access(expr, access);
         }
@@ -2874,9 +2900,45 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             return report_unsupported(self.gcx, expr.span, "struct field");
         };
         let object = self.lower_expr(receiver)?;
-        let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
+        let receiver_ty = self.type_of_expr_or_variable(receiver)?;
         let layout = self.types.memory_layout(receiver_ty)?;
         Some(self.builder.memory_object_load_field(object, layout, field as u64))
+    }
+
+    fn lower_yul_member(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        receiver: &hir::Expr<'_>,
+        name: solar_interface::Ident,
+    ) -> Option<ValueId> {
+        let receiver_ty = self.type_of_expr_or_variable(receiver)?;
+        if receiver_ty.is_ref_at(DataLocation::Calldata) {
+            let value = self.lower_expr(receiver)?;
+            return match name.name {
+                sym::offset => Some(self.builder.slice_ptr(value)),
+                sym::length => Some(self.builder.slice_len(value)),
+                _ => report_unsupported(self.gcx, expr.span, "Yul calldata member"),
+            };
+        }
+
+        let Some(access) = self.storage_access(receiver) else {
+            return report_unsupported(self.gcx, expr.span, "Yul storage member");
+        };
+        match name.name {
+            sym::slot => Some(access.slot),
+            sym::offset => Some(
+                access
+                    .offset
+                    .unwrap_or_else(|| self.builder.imm_u64(u64::from(access.location.offset))),
+            ),
+            _ => report_unsupported(self.gcx, expr.span, "Yul storage member"),
+        }
+    }
+
+    fn type_of_expr_or_variable(&self, expr: &hir::Expr<'_>) -> Option<Ty<'gcx>> {
+        self.gcx
+            .type_of_expr(expr.id)
+            .or_else(|| self.gcx.resolved_variable(expr).map(|id| self.gcx.type_of_item(id.into())))
     }
 
     fn lower_environment_builtin(
@@ -2884,6 +2946,38 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         expr: &hir::Expr<'_>,
         builtin: Builtin,
     ) -> Option<ValueId> {
+        if builtin == Builtin::ArrayLength {
+            let ExprKind::Member(receiver, _) = &expr.kind else {
+                return report_unsupported(self.gcx, expr.span, "array length");
+            };
+            let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
+            if receiver_ty.is_ref_at(DataLocation::Storage) {
+                let access = self.storage_access(receiver)?;
+                return match receiver_ty.peel_refs().kind {
+                    TyKind::DynArray(_) => Some(self.builder.sload(access.slot)),
+                    TyKind::Elementary(
+                        solar_sema::hir::ElementaryType::Bytes
+                        | solar_sema::hir::ElementaryType::String,
+                    ) => {
+                        let object = self.load_storage_bytes(access.slot)?;
+                        Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
+                    }
+                    _ => report_unsupported(self.gcx, expr.span, "array length"),
+                };
+            }
+            if receiver_ty.is_ref_at(DataLocation::Calldata) {
+                let slice = self.lower_expr(receiver)?;
+                return Some(self.builder.slice_len(slice));
+            }
+            let object = self.lower_expr(receiver)?;
+            let layout = self.types.memory_layout(receiver_ty)?;
+            return match layout.kind() {
+                MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray => {
+                    Some(self.builder.memory_object_len(object, layout.kind()))
+                }
+                _ => report_unsupported(self.gcx, expr.span, "array length"),
+            };
+        }
         if matches!(builtin, Builtin::TypeMin | Builtin::TypeMax | Builtin::InterfaceId) {
             let ExprKind::Member(receiver, _) = &expr.kind else {
                 return report_unsupported(self.gcx, expr.span, "type member");
@@ -3111,6 +3205,15 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             }
         }
         match &expr.kind {
+            ExprKind::Member(receiver, name)
+                if self.gcx.resolved_builtin(expr) == Some(Builtin::ArrayLength)
+                    || (name.name == sym::offset
+                        && self
+                            .type_of_expr_or_variable(receiver)
+                            .is_some_and(|ty| ty.is_ref_at(DataLocation::Calldata))) =>
+            {
+                self.store_yul_member(receiver, *name, value, expr.span)
+            }
             ExprKind::Member(receiver, name) => {
                 let id = self.gcx.resolved_variable(expr)?;
                 let variable = self.gcx.hir.variable(id);
@@ -3127,6 +3230,9 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                 let layout = self.types.memory_layout(receiver_ty)?;
                 self.builder.memory_object_store_field(object, layout, field as u64, value);
                 Some(())
+            }
+            ExprKind::YulMember(receiver, name) => {
+                self.store_yul_member(receiver, *name, value, expr.span)
             }
             ExprKind::Index(receiver, index) => {
                 let Some(index) = index else {
@@ -3160,6 +3266,42 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             }
             _ => report_unsupported(self.gcx, expr.span, "assignment target"),
         }
+    }
+
+    fn store_yul_member(
+        &mut self,
+        receiver: &hir::Expr<'_>,
+        name: solar_interface::Ident,
+        value: ValueId,
+        span: Span,
+    ) -> Option<()> {
+        let receiver_ty = self.type_of_expr_or_variable(receiver)?;
+        if receiver_ty.is_ref_at(DataLocation::Calldata) {
+            let base = self.lower_expr(receiver)?;
+            let pointer = self.builder.slice_ptr(base);
+            let length = self.builder.slice_len(base);
+            let slice = match name.name {
+                sym::offset => self.builder.make_slice(value, length, SliceLocation::Calldata),
+                sym::length => self.builder.make_slice(pointer, value, SliceLocation::Calldata),
+                _ => return report_unsupported(self.gcx, span, "Yul calldata assignment"),
+            };
+            return self.store_lvalue(receiver, slice);
+        }
+
+        if name.name != sym::slot {
+            return report_unsupported(self.gcx, span, "Yul storage assignment");
+        }
+        let Some(id) = self.gcx.resolved_variable(receiver) else {
+            return report_unsupported(self.gcx, span, "Yul storage assignment target");
+        };
+        if self.gcx.hir.variable(id).is_state_variable() {
+            return report_unsupported(self.gcx, span, "Yul state-variable slot assignment");
+        }
+        let Some(access) = self.storage_refs.get(&id).copied() else {
+            return report_unsupported(self.gcx, span, "Yul storage assignment target");
+        };
+        self.storage_refs.insert(id, StorageAccess { slot: value, ..access });
+        Some(())
     }
 
     fn delete_lvalue(&mut self, expr: &hir::Expr<'_>) -> Option<()> {

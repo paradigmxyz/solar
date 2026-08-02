@@ -1,30 +1,19 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_yul_bounds.sol:CalldataSliceYulBounds ===
 @module CalldataSliceYulBounds
-fn @_empty() -> memorybytes {
+fn @_empty() -> calldataslice {
   bb0:
     v0 = make_calldata_slice 0, 0
-    frame_store internal_frame, calldata, 0, v0 !metadata(memory=internal_frame)
-    v1 = frame_load internal_frame, calldata, 0 !metadata(memory=internal_frame)
-    v2 = slice_ptr v1
-    v3 = make_calldata_slice v2, 0
-    frame_store internal_frame, calldata, 0, v3 !metadata(memory=internal_frame)
-    v4 = frame_load internal_frame, calldata, 0 !metadata(memory=internal_frame)
-    ret v4
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = make_calldata_slice v1, 0
+    ret v3
 }
 
-fn @emptyLen() -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @emptyLen() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = make_calldata_slice 0, 0
-    frame_store scratch, calldata, 0, v0 !metadata(memory=scratch)
-    v1 = frame_load scratch, calldata, 0 !metadata(memory=scratch)
-    v2 = slice_ptr v1
-    v3 = make_calldata_slice v2, 0
-    frame_store scratch, calldata, 0, v3 !metadata(memory=scratch)
-    jump bb1
-  bb1:
-    v4 = frame_load scratch, calldata, 0 !metadata(memory=scratch)
-    v5 = internal_call @_sink, 1, v4
-    ret v5
+    v0 = internal_call @_empty, 1
+    v1 = internal_call @_sink, 1, v0
+    ret v1
 }
 
 fn @_sink(arg0: calldataslice) -> u256 {
@@ -33,40 +22,36 @@ fn @_sink(arg0: calldataslice) -> u256 {
     ret v0
 }
 
-fn @trimLen(arg0: calldataslice) -> u256 [abi_params=[bytes], abi_returns=[word]] {
+fn @trimLen(arg0: calldataslice) -> u256 [abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
-    frame_store scratch, calldata, 0, arg0 !metadata(memory=scratch)
     v0 = slice_ptr arg0
     v1 = add v0, 4
-    v2 = frame_load scratch, calldata, 0 !metadata(memory=scratch)
-    v3 = slice_len v2
+    v2 = slice_ptr arg0
+    v3 = slice_len arg0
     v4 = make_calldata_slice v1, v3
-    frame_store scratch, calldata, 0, v4 !metadata(memory=scratch)
     v5 = slice_len arg0
     v6 = sub v5, 4
-    v7 = frame_load scratch, calldata, 0 !metadata(memory=scratch)
-    v8 = slice_ptr v7
-    v9 = make_calldata_slice v8, v6
-    frame_store scratch, calldata, 0, v9 !metadata(memory=scratch)
-    v10 = frame_load scratch, calldata, 0 !metadata(memory=scratch)
-    v11 = slice_len v10
-    ret v11
+    v7 = slice_ptr v4
+    v8 = slice_len v4
+    v9 = make_calldata_slice v7, v6
+    v10 = slice_len v9
+    ret v10
 }
 
-fn @conditional(arg0: calldataslice) -> u256 [abi_params=[bytes], abi_returns=[word]] {
+fn @conditional(arg0: calldataslice) -> u256 [abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
-    frame_store scratch, calldata, 0, arg0 !metadata(memory=scratch)
     v0 = slice_len arg0
     v1 = gt v0, 32
     jumpi v1, bb1, bb2
   bb1:
-    v2 = frame_load scratch, calldata, 0 !metadata(memory=scratch)
-    v3 = slice_ptr v2
-    v4 = make_calldata_slice v3, 32
-    frame_store scratch, calldata, 0, v4 !metadata(memory=scratch)
-    jump bb2
+    v2 = slice_ptr arg0
+    v3 = slice_len arg0
+    v4 = make_calldata_slice v2, 32
+    jump bb3
   bb2:
-    v5 = frame_load scratch, calldata, 0 !metadata(memory=scratch)
+    jump bb3
+  bb3:
+    v5 = phi [bb1: v4], [bb2: arg0]
     v6 = slice_len v5
     ret v6
 }

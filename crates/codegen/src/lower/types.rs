@@ -24,6 +24,16 @@ impl<'gcx> TypeLowerer<'gcx> {
 
     /// Converts a checked Solidity type to its coarse MIR representation.
     pub(super) fn mir_type(ty: Ty<'_>) -> MirType {
+        if let TyKind::Ref(inner, DataLocation::Calldata) = ty.kind
+            && matches!(
+                inner.peel_refs().kind,
+                TyKind::DynArray(_)
+                    | TyKind::Slice(_)
+                    | TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes)
+            )
+        {
+            return MirType::Slice(SliceLocation::Calldata);
+        }
         if matches!(ty.kind, TyKind::Ref(_, DataLocation::Storage)) {
             return MirType::StoragePtr;
         }

@@ -92,6 +92,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   arity, named-argument, and unsupported-builtin diagnostics;
 * Yul arithmetic, environment, memory, calldata, storage, logging, call,
   creation, termination, and hashing builtins through direct MIR operations;
+* calldata slice parameters and `.offset`/`.length` access and assignment in
+  both ordinary Solidity expressions and inline assembly;
 * constructor and fallback/function attributes needed by the backend;
 * inherited public and internal function discovery with selector de-duplication;
 * explicit and synthetic base-constructor lowering in linearized order, including
