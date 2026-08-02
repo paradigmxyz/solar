@@ -4,6 +4,7 @@
 //@ run-call: valueWithTwoPlaceholders() => 2
 //@ run-call: repeatFalse() => 1
 //@ run-call: repeatTrue() => 3
+//@ run-call: modifierMutates 1 => 1
 
 contract ModifierExpansion {
     uint256 private count;
@@ -27,6 +28,11 @@ contract ModifierExpansion {
 
     modifier repeat(bool twice) {
         if (twice) _;
+        _;
+    }
+
+    modifier mutates(uint256 amount) {
+        amount = 7;
         _;
     }
 
@@ -57,5 +63,10 @@ contract ModifierExpansion {
         result += count + 1;
         count = result;
         return result;
+    }
+
+    function modifierMutates(uint256 value) external mutates(2) returns (uint256) {
+        //~^ WARN: function state mutability can be restricted to pure
+        return value;
     }
 }

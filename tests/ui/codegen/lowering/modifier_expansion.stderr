@@ -1,0 +1,9 @@
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/codegen/lowering/modifier_expansion.sol:LL:CC
+   │
+LL │ ┏     function modifierMutates(uint256 value) external mutates(2) returns (uint256) {
+LL │ ┃
+LL │ ┃         return value;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+

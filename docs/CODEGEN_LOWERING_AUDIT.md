@@ -67,6 +67,10 @@ describes observable structure in the current tree, not an intended design.
 * Modifier placeholders expand the modifier chain in source order. Return
   values pass through the suffix, and constructor base calls stay in the
   constructor prelude.
+* Function, inline-call, and modifier lowering use scoped state overlays.
+  Bindings, loop targets, error flags, storage-reference markers, and return
+  continuations are restored at each boundary; inline frame allocation keeps
+  only its high-water mark in the enclosing function.
 * The lowering module exposes only `lower_contract` and
   `lower_contract_with_bytecodes` publicly. Context, loop, and storage
   implementation types are private to lowering and its child modules.
@@ -84,12 +88,11 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
 
 ## Concrete shortcomings
 
-* **The ABI boundary is still split for complex aggregates.**
-  `Lowerer::lower_function` still decodes recursive or unsupported aggregate
-  shapes. Supported fixed arrays, dynamic arrays, byte strings, and
-  scalar/byte/enum structs now defer to `lower-abi`, including its range and
-  overflow checks, but the pass still has a second representation for
-  unsupported aggregate shapes.
+* **The ABI boundary is still split for constructor aggregates.**
+  External functions with supported fixed arrays, dynamic arrays, byte
+  strings, and scalar/byte/enum structs defer to `lower-abi`, including its
+  range and overflow checks. Constructors still decode their argument blob in
+  HIR lowering because the ABI phase currently handles runtime calldata only.
 * **Physical memory still leaks through aggregate lowering.** Mutable locals
   now use typed frame slots, but memory-object allocation, aggregate copies,
   and some ABI builders still emit raw memory operations before the semantic
@@ -111,19 +114,6 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   array and bytes element strides still mix that layout with independent slot
   arithmetic. The replacement should make one type-directed location query the
   only source of storage addresses.
-* **Context state is difficult to reason about.** One `Lowerer` carries
-  function-local maps, contract-wide storage maps, inline-return state,
-  constructor state, ABI state, helper state, and error-checking state. Calls
-  to `ensure_internal_mir_function` save and restore a large subset of these
-  fields manually. This permits state from one HIR function or inline call to
-  affect another path when a new field is not added to every save/restore
-  sequence.
-* **Modifier lowering is now explicit, but still shares the function frame.**
-  Function-root discovery excludes modifier declarations. The lowering stage
-  expands modifier chains at `StmtKind::Placeholder`, carries return values
-  through suffix code, and keeps constructor base calls in the constructor
-  prelude. Modifier parameters and locals still use the enclosing function's
-  frame, so frame isolation remains a follow-up concern.
 * **Legacy compatibility surface is broad.** The top-level module exposes many
   `pub(crate)` and `pub(super)` methods because sibling files reach through the
   context. Their callers are not grouped by phase, so removing one helper

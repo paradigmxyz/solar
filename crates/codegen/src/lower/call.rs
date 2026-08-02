@@ -2039,82 +2039,61 @@ impl<'gcx> Lowerer<'gcx> {
         body: &hir::Block<'_>,
         arg_vals: &[ValueId],
     ) -> Vec<ValueId> {
-        let saved_locals = std::mem::take(&mut self.locals);
-        let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
-        let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
-        let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
-        let saved_inline_returns = self.inline_returns.take();
-        let saved_pending = self.pending_inline_returns.take();
+        self.with_inline_function_state(|this| {
+            this.collect_assigned_vars_block(body);
 
-        self.collect_assigned_vars_block(body);
-
-        for &ret_id in func.returns {
-            if Self::calldata_dynamic_var_kind(self.gcx.hir.variable(ret_id)).is_some() {
-                let offset = self.alloc_local_slice_memory(ret_id);
-                self.init_empty_slice_slot(builder, offset);
-            } else {
-                let offset = self.alloc_local_memory(ret_id);
-                let zero = builder.imm_u64(0);
-                self.store_frame_word(builder, offset, zero);
-            }
-        }
-
-        for (i, &param_id) in func.parameters.iter().enumerate() {
-            if let Some(&arg_val) = arg_vals.get(i) {
-                self.bind_param_value(builder, param_id, arg_val);
-            }
-        }
-
-        let exit_block = builder.create_block();
-        self.inline_returns =
-            Some(crate::lower::InlineReturnCtx { exit_block, return_vars: func.returns.to_vec() });
-
-        let saved_in_unchecked_block = self.in_unchecked_block;
-        self.in_unchecked_block = false;
-        self.lower_block(builder, body);
-        self.in_unchecked_block = saved_in_unchecked_block;
-
-        // Implicit fallthrough joins the explicit returns at the exit block.
-        if !builder.func().block(builder.current_block()).is_terminated() {
-            builder.jump(exit_block);
-        }
-        builder.switch_to_block(exit_block);
-
-        // Read every return through its slot before caller state is restored;
-        // the loaded values stay valid afterwards.
-        let values: Vec<ValueId> = func
-            .returns
-            .iter()
-            .map(|&ret_id| {
-                let Some(offset) = self.get_local_memory_offset(&ret_id) else {
-                    return self.err_value(
-                        builder,
-                        self.gcx.hir.variable(ret_id).span,
-                        "codegen is missing an inline return slot",
-                    );
-                };
-                if self.is_slice_slot_local(&ret_id) {
-                    self.load_slice_slot(builder, offset, crate::mir::SliceLocation::Calldata)
+            for &ret_id in func.returns {
+                if Self::calldata_dynamic_var_kind(this.gcx.hir.variable(ret_id)).is_some() {
+                    let offset = this.alloc_local_slice_memory(ret_id);
+                    this.init_empty_slice_slot(builder, offset);
                 } else {
-                    self.load_frame_word(builder, offset)
+                    let offset = this.alloc_local_memory(ret_id);
+                    let zero = builder.imm_u64(0);
+                    this.store_frame_word(builder, offset, zero);
                 }
-            })
-            .collect();
+            }
 
-        // Deliberately keep `next_local_memory_offset`: the body's slots —
-        // above all the return slots the loaded values came from — stay part
-        // of the enclosing function's frame. Rolling the offset back would let
-        // later locals and, worse, the backend's cross-block spill area (which
-        // starts at the frame's final high-water mark) reuse addresses whose
-        // stored slices the call site still consumes.
-        self.locals = saved_locals;
-        self.local_memory_slots = saved_local_memory_slots;
-        self.assigned_vars = saved_assigned_vars;
-        self.slice_slot_locals = saved_slice_slot_locals;
-        self.inline_returns = saved_inline_returns;
-        self.pending_inline_returns = saved_pending;
+            for (i, &param_id) in func.parameters.iter().enumerate() {
+                if let Some(&arg_val) = arg_vals.get(i) {
+                    this.bind_param_value(builder, param_id, arg_val);
+                }
+            }
 
-        values
+            let exit_block = builder.create_block();
+            this.inline_returns = Some(crate::lower::InlineReturnCtx {
+                exit_block,
+                return_vars: func.returns.to_vec(),
+            });
+
+            this.in_unchecked_block = false;
+            this.lower_block(builder, body);
+
+            // Implicit fallthrough joins the explicit returns at the exit block.
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(exit_block);
+            }
+            builder.switch_to_block(exit_block);
+
+            // Read every return through its slot before caller state is restored;
+            // the loaded values stay valid afterwards.
+            func.returns
+                .iter()
+                .map(|&ret_id| {
+                    let Some(offset) = this.get_local_memory_offset(&ret_id) else {
+                        return this.err_value(
+                            builder,
+                            this.gcx.hir.variable(ret_id).span,
+                            "codegen is missing an inline return slot",
+                        );
+                    };
+                    if this.is_slice_slot_local(&ret_id) {
+                        this.load_slice_slot(builder, offset, crate::mir::SliceLocation::Calldata)
+                    } else {
+                        this.load_frame_word(builder, offset)
+                    }
+                })
+                .collect()
+        })
     }
 
     fn internal_call_target(&mut self, func_id: hir::FunctionId) -> crate::mir::FunctionId {
@@ -2187,46 +2166,32 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
 
-        let saved_locals = std::mem::take(&mut self.locals);
-        let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
-        let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
-        let saved_inline_returns = self.inline_returns.take();
-        let saved_pending = self.pending_inline_returns.take();
-
-        if let Some(body) = body {
-            self.collect_assigned_vars_block(&body);
-        }
-
-        for (i, &param_id) in parameters.iter().enumerate() {
-            if let Some(&arg_val) = arg_vals.get(i) {
-                self.bind_param_value(builder, param_id, arg_val);
+        self.with_inline_function_state(|this| {
+            if let Some(body) = body {
+                this.collect_assigned_vars_block(&body);
             }
-        }
 
-        if let Some(body) = body {
-            let exit_block = builder.create_block();
-            self.inline_returns =
-                Some(crate::lower::InlineReturnCtx { exit_block, return_vars: Vec::new() });
-            let saved_in_unchecked_block = self.in_unchecked_block;
-            self.in_unchecked_block = false;
-            self.lower_block(builder, &body);
-            self.in_unchecked_block = saved_in_unchecked_block;
-            if !builder.func().block(builder.current_block()).is_terminated() {
-                builder.jump(exit_block);
+            for (i, &param_id) in parameters.iter().enumerate() {
+                if let Some(&arg_val) = arg_vals.get(i) {
+                    this.bind_param_value(builder, param_id, arg_val);
+                }
             }
-            builder.switch_to_block(exit_block);
-        }
 
-        // Keep `next_local_memory_offset`: the body's local slots stay part of
-        // the enclosing function's frame. Rolling the offset back would place
-        // the backend's cross-block spill area — which starts at the frame's
-        // final high-water mark — inside this region, so a caller value
-        // spilled across the inlined body would be clobbered by its locals.
-        self.locals = saved_locals;
-        self.local_memory_slots = saved_local_memory_slots;
-        self.assigned_vars = saved_assigned_vars;
-        self.inline_returns = saved_inline_returns;
-        self.pending_inline_returns = saved_pending;
+            if let Some(body) = body {
+                let exit_block = builder.create_block();
+                this.inline_returns =
+                    Some(crate::lower::InlineReturnCtx { exit_block, return_vars: Vec::new() });
+                this.in_unchecked_block = false;
+                this.lower_block(builder, &body);
+                if !builder.func().block(builder.current_block()).is_terminated() {
+                    builder.jump(exit_block);
+                }
+                builder.switch_to_block(exit_block);
+            }
+        });
+
+        // Keep the frame high-water mark: the body's slots stay part of the
+        // enclosing function's frame, while the scoped bindings above are gone.
         self.exit_inline();
     }
 

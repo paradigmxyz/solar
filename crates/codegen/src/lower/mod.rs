@@ -149,6 +149,31 @@ struct ModifierChain<'hir> {
     return_vars: &'hir [hir::VariableId],
 }
 
+/// Function-local lowering state that must not leak into another body or an
+/// inline expansion. The frame high-water mark stays on [`Lowerer`] so slots
+/// allocated by an inline body remain reserved in the enclosing function.
+struct SavedFunctionState<'gcx> {
+    locals: FxHashMap<VariableId, ValueId>,
+    local_memory_slots: FxHashMap<VariableId, u64>,
+    slice_slot_locals: FxHashSet<VariableId>,
+    assigned_vars: GrowableBitSet<VariableId>,
+    storage_ref_locals: GrowableBitSet<VariableId>,
+    inline_returns: Option<InlineReturnCtx>,
+    modifier_chains: Vec<ModifierChain<'gcx>>,
+    pending_inline_returns: Option<Vec<ValueId>>,
+    current_contract_id: Option<ContractId>,
+    lowering_constructor: bool,
+    constructor_args_base: Option<ValueId>,
+    lowering_internal_function: bool,
+    in_unchecked_block: bool,
+    current_return_tys: Vec<Ty<'gcx>>,
+    loop_stack: Vec<LoopContext>,
+    check_expr_errors: bool,
+    inline_stack: Vec<HirFunctionId>,
+    inline_expr_error_checks: u32,
+    next_local_memory_offset: u64,
+}
+
 type InternalFunctionPointerShape = (Vec<MirType>, Vec<MirType>);
 
 /// Lowering context for converting HIR to MIR.
@@ -641,39 +666,17 @@ impl<'gcx> Lowerer<'gcx> {
 
         {
             let mut builder = FunctionBuilder::new(&mut mir_func);
-            let saved_locals = std::mem::take(&mut self.locals);
-            let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
-            let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
-            let saved_next_local_memory_offset = self.next_local_memory_offset;
-            let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
-            let saved_inline_returns = self.inline_returns.take();
-            let saved_pending_inline_returns = self.pending_inline_returns.take();
-            let saved_lowering_constructor = self.lowering_constructor;
-            let saved_constructor_args_base = self.constructor_args_base;
-            let saved_lowering_internal_function = self.lowering_internal_function;
-            let saved_in_unchecked_block = self.in_unchecked_block;
-            let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
-            self.next_local_memory_offset = 0;
-            self.lowering_constructor = true;
-            self.constructor_args_base = None;
-            self.lowering_internal_function = false;
-            self.in_unchecked_block = false;
+            self.with_saved_function_state(|this| {
+                this.next_local_memory_offset = 0;
+                this.lowering_constructor = true;
+                this.constructor_args_base = None;
+                this.lowering_internal_function = false;
+                this.in_unchecked_block = false;
 
-            self.lower_constructor_prelude(&mut builder, contract_id);
-            builder.stop();
-            builder.func_mut().internal_frame_size = self.next_local_memory_offset;
-            self.locals = saved_locals;
-            self.local_memory_slots = saved_local_memory_slots;
-            self.slice_slot_locals = saved_slice_slot_locals;
-            self.next_local_memory_offset = saved_next_local_memory_offset;
-            self.assigned_vars = saved_assigned_vars;
-            self.inline_returns = saved_inline_returns;
-            self.pending_inline_returns = saved_pending_inline_returns;
-            self.lowering_constructor = saved_lowering_constructor;
-            self.constructor_args_base = saved_constructor_args_base;
-            self.lowering_internal_function = saved_lowering_internal_function;
-            self.in_unchecked_block = saved_in_unchecked_block;
-            self.current_return_tys = saved_current_return_tys;
+                this.lower_constructor_prelude(&mut builder, contract_id);
+                builder.stop();
+                builder.func_mut().internal_frame_size = this.next_local_memory_offset;
+            });
         }
 
         self.module.add_function(mir_func);
@@ -805,6 +808,85 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    fn take_function_state(&mut self) -> SavedFunctionState<'gcx> {
+        SavedFunctionState {
+            locals: std::mem::take(&mut self.locals),
+            local_memory_slots: std::mem::take(&mut self.local_memory_slots),
+            slice_slot_locals: std::mem::take(&mut self.slice_slot_locals),
+            assigned_vars: std::mem::take(&mut self.assigned_vars),
+            storage_ref_locals: std::mem::take(&mut self.storage_ref_locals),
+            inline_returns: self.inline_returns.take(),
+            modifier_chains: std::mem::take(&mut self.modifier_chains),
+            pending_inline_returns: self.pending_inline_returns.take(),
+            current_contract_id: self.current_contract_id,
+            lowering_constructor: self.lowering_constructor,
+            constructor_args_base: self.constructor_args_base,
+            lowering_internal_function: self.lowering_internal_function,
+            in_unchecked_block: self.in_unchecked_block,
+            current_return_tys: std::mem::take(&mut self.current_return_tys),
+            loop_stack: std::mem::take(&mut self.loop_stack),
+            check_expr_errors: self.check_expr_errors,
+            inline_stack: std::mem::take(&mut self.inline_stack),
+            inline_expr_error_checks: self.inline_expr_error_checks,
+            next_local_memory_offset: self.next_local_memory_offset,
+        }
+    }
+
+    fn restore_function_state(&mut self, state: SavedFunctionState<'gcx>, restore_frame: bool) {
+        let SavedFunctionState {
+            locals,
+            local_memory_slots,
+            slice_slot_locals,
+            assigned_vars,
+            storage_ref_locals,
+            inline_returns,
+            modifier_chains,
+            pending_inline_returns,
+            current_contract_id,
+            lowering_constructor,
+            constructor_args_base,
+            lowering_internal_function,
+            in_unchecked_block,
+            current_return_tys,
+            loop_stack,
+            check_expr_errors,
+            inline_stack,
+            inline_expr_error_checks,
+            next_local_memory_offset,
+        } = state;
+        self.locals = locals;
+        self.local_memory_slots = local_memory_slots;
+        self.slice_slot_locals = slice_slot_locals;
+        self.assigned_vars = assigned_vars;
+        self.storage_ref_locals = storage_ref_locals;
+        self.inline_returns = inline_returns;
+        self.modifier_chains = modifier_chains;
+        self.pending_inline_returns = pending_inline_returns;
+        self.current_contract_id = current_contract_id;
+        self.lowering_constructor = lowering_constructor;
+        self.constructor_args_base = constructor_args_base;
+        self.lowering_internal_function = lowering_internal_function;
+        self.in_unchecked_block = in_unchecked_block;
+        self.current_return_tys = current_return_tys;
+        self.loop_stack = loop_stack;
+        self.check_expr_errors = check_expr_errors;
+        self.inline_stack = inline_stack;
+        self.inline_expr_error_checks = inline_expr_error_checks;
+        if restore_frame {
+            self.next_local_memory_offset = next_local_memory_offset;
+        } else {
+            self.next_local_memory_offset =
+                self.next_local_memory_offset.max(next_local_memory_offset);
+        }
+    }
+
+    fn with_saved_function_state<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+        let state = self.take_function_state();
+        let result = f(self);
+        self.restore_function_state(state, true);
+        result
+    }
+
     /// Runs one function lowering with an isolated function-local context.
     /// Contract-wide state stays on `Lowerer`, while all maps and flags that
     /// describe the active function are restored when the body finishes.
@@ -813,46 +895,97 @@ impl<'gcx> Lowerer<'gcx> {
         func_id: hir::FunctionId,
         f: impl FnOnce(&mut Self) -> R,
     ) -> R {
-        let saved_locals = std::mem::take(&mut self.locals);
-        let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
-        let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
-        let saved_next_local_memory_offset = self.next_local_memory_offset;
-        let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
-        let saved_inline_returns = self.inline_returns.take();
-        let saved_modifier_chains = std::mem::take(&mut self.modifier_chains);
-        let saved_pending_inline_returns = self.pending_inline_returns.take();
-        let saved_current_contract_id = self.current_contract_id;
-        let saved_lowering_constructor = self.lowering_constructor;
-        let saved_constructor_args_base = self.constructor_args_base;
-        let saved_lowering_internal_function = self.lowering_internal_function;
-        let saved_in_unchecked_block = self.in_unchecked_block;
-        let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
+        self.with_saved_function_state(|this| {
+            this.current_contract_id = this.gcx.hir.function(func_id).contract;
+            this.in_unchecked_block = false;
+            f(this)
+        })
+    }
 
-        self.current_contract_id = self.gcx.hir.function(func_id).contract;
-        self.in_unchecked_block = false;
+    /// Runs an inline body in a scoped context. Inline allocations stay
+    /// reserved in the enclosing frame, but bindings, loop targets, error
+    /// state, and return continuations are restored afterwards.
+    fn with_inline_function_state<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+        let state = self.take_function_state();
         let result = f(self);
+        self.restore_function_state(state, false);
+        result
+    }
 
-        self.locals = saved_locals;
-        self.local_memory_slots = saved_local_memory_slots;
-        self.slice_slot_locals = saved_slice_slot_locals;
-        self.next_local_memory_offset = saved_next_local_memory_offset;
-        self.assigned_vars = saved_assigned_vars;
-        self.inline_returns = saved_inline_returns;
-        self.modifier_chains = saved_modifier_chains;
-        self.pending_inline_returns = saved_pending_inline_returns;
-        self.current_contract_id = saved_current_contract_id;
-        self.lowering_constructor = saved_lowering_constructor;
-        self.constructor_args_base = saved_constructor_args_base;
-        self.lowering_internal_function = saved_lowering_internal_function;
-        self.in_unchecked_block = saved_in_unchecked_block;
-        self.current_return_tys = saved_current_return_tys;
+    /// Runs a modifier with an overlay of the enclosing function's bindings.
+    /// Modifier expressions can read and write the function's locals, so the
+    /// maps stay visible while the modifier runs; modifier-only bindings and
+    /// control state are discarded when its placeholder continuation returns.
+    fn with_modifier_state<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+        let mut outer_vars = self.locals.keys().copied().collect::<FxHashSet<_>>();
+        outer_vars.extend(self.local_memory_slots.keys().copied());
+        outer_vars.extend(self.storage_ref_locals.iter());
+        let saved = SavedFunctionState {
+            locals: self.locals.clone(),
+            local_memory_slots: self.local_memory_slots.clone(),
+            slice_slot_locals: self.slice_slot_locals.clone(),
+            assigned_vars: self.assigned_vars.clone(),
+            storage_ref_locals: self.storage_ref_locals.clone(),
+            inline_returns: self.inline_returns.clone(),
+            modifier_chains: self.modifier_chains.clone(),
+            pending_inline_returns: self.pending_inline_returns.clone(),
+            current_contract_id: self.current_contract_id,
+            lowering_constructor: self.lowering_constructor,
+            constructor_args_base: self.constructor_args_base,
+            lowering_internal_function: self.lowering_internal_function,
+            in_unchecked_block: self.in_unchecked_block,
+            current_return_tys: self.current_return_tys.clone(),
+            loop_stack: self.loop_stack.clone(),
+            check_expr_errors: self.check_expr_errors,
+            inline_stack: self.inline_stack.clone(),
+            inline_expr_error_checks: self.inline_expr_error_checks,
+            next_local_memory_offset: self.next_local_memory_offset,
+        };
+        let result = f(self);
+        let locals = std::mem::take(&mut self.locals);
+        let local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+        let slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
+        let assigned_vars = std::mem::take(&mut self.assigned_vars);
+        let storage_ref_locals = std::mem::take(&mut self.storage_ref_locals);
+        self.restore_function_state(saved, false);
+
+        // Keep updates to the enclosing function's bindings (a modifier may
+        // assign a parameter before its placeholder), while dropping entries
+        // that belong only to the modifier body.
+        for (var_id, value) in locals {
+            if outer_vars.contains(&var_id) {
+                self.locals.insert(var_id, value);
+            }
+        }
+        for (var_id, offset) in local_memory_slots {
+            if outer_vars.contains(&var_id) {
+                self.locals.remove(&var_id);
+                self.local_memory_slots.insert(var_id, offset);
+            }
+        }
+        for var_id in slice_slot_locals {
+            if outer_vars.contains(&var_id) {
+                self.slice_slot_locals.insert(var_id);
+            }
+        }
+        for var_id in assigned_vars.iter() {
+            if outer_vars.contains(&var_id) {
+                self.assigned_vars.insert(var_id);
+            }
+        }
+        for var_id in storage_ref_locals.iter() {
+            if outer_vars.contains(&var_id) {
+                self.storage_ref_locals.insert(var_id);
+            }
+        }
         result
     }
 
     /// Returns whether an external function can keep its ABI boundary out of
-    /// built MIR. Scalar words, storage references, and simple word aggregates
-    /// already have a direct MIR representation; nested aggregates still use
-    /// the legacy HIR-aware decoder.
+    /// built MIR. Scalar words and storage references already have a direct
+    /// MIR representation. Aggregate parameters are handled by the deferred
+    /// parameter-layout path below; this whole-function fast path is reserved
+    /// for functions that contain no aggregates.
     fn can_defer_external_abi(&self, func_id: hir::FunctionId) -> bool {
         self.gcx
             .hir
@@ -932,8 +1065,8 @@ impl<'gcx> Lowerer<'gcx> {
     /// Returns whether an aggregate parameter can stay typed until `lower-abi`.
     ///
     /// Supported fixed arrays, byte slices, and tuples use their typed MIR
-    /// representation; unsupported aggregate shapes stay on the legacy
-    /// HIR-aware decoder.
+    /// representation. Constructor parameters still use the constructor
+    /// argument blob decoder because they do not pass through `lower-abi`.
     fn can_defer_external_abi_param(&self, param_id: VariableId) -> bool {
         if self.param_is_storage_ref(param_id) {
             return false;
@@ -1078,29 +1211,29 @@ impl<'gcx> Lowerer<'gcx> {
         // Modifier parameters and locals use their own HIR IDs, so they can
         // share the surrounding function scope without shadowing its values.
         if let Some(modifier_body) = modifier_function.body {
-            self.collect_assigned_vars_block(&modifier_body);
-            for (&param_id, value) in modifier_function.parameters.iter().zip(values) {
-                self.bind_param_value(builder, param_id, value);
-            }
+            self.with_modifier_state(|this| {
+                this.collect_assigned_vars_block(&modifier_body);
+                for (&param_id, value) in modifier_function.parameters.iter().zip(values) {
+                    this.bind_param_value(builder, param_id, value);
+                }
 
-            let saved_inline_returns = self.inline_returns.take();
-            self.inline_returns = Some(InlineReturnCtx {
-                exit_block: continuation,
-                return_vars: return_vars.to_vec(),
+                this.inline_returns = Some(InlineReturnCtx {
+                    exit_block: continuation,
+                    return_vars: return_vars.to_vec(),
+                });
+                this.modifier_chains.push(ModifierChain {
+                    modifiers,
+                    body,
+                    next: next + 1,
+                    return_vars,
+                });
+                this.lower_block(builder, &modifier_body);
+                this.modifier_chains.pop();
+                if !builder.func().block(builder.current_block()).is_terminated() {
+                    builder.jump(continuation);
+                }
+                builder.switch_to_block(continuation);
             });
-            self.modifier_chains.push(ModifierChain {
-                modifiers,
-                body,
-                next: next + 1,
-                return_vars,
-            });
-            self.lower_block(builder, &modifier_body);
-            self.modifier_chains.pop();
-            if !builder.func().block(builder.current_block()).is_terminated() {
-                builder.jump(continuation);
-            }
-            self.inline_returns = saved_inline_returns;
-            builder.switch_to_block(continuation);
         } else {
             self.lower_modifier_chain(
                 builder,
