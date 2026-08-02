@@ -42,7 +42,7 @@ use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_interface::{Span, Symbol, kw};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum AbiWordValidator {
     Mask(U256),
     SignExtend(u64),
@@ -103,6 +103,77 @@ impl AbiWordValidator {
             }
         }
     }
+
+    fn cleanup_key(self) -> Option<CleanupKey> {
+        match self {
+            Self::Mask(mask) => Some(CleanupKey::Mask(mask)),
+            Self::SignExtend(byte_index) => Some(CleanupKey::SignExtend(byte_index)),
+            Self::Bool | Self::EnumRange(_) => None,
+        }
+    }
+
+    fn condition_with_helpers(
+        self,
+        builder: &mut FunctionBuilder<'_>,
+        word: ValueId,
+        helpers: &CleanupHelpers,
+    ) -> ValueId {
+        let Some(key) = self.cleanup_key() else { return self.condition(builder, word) };
+        let canonical = helpers.cleanup(builder, key, word);
+        builder.eq(word, canonical)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+enum CleanupKey {
+    Mask(U256),
+    SignExtend(u64),
+}
+
+#[derive(Debug, Default)]
+struct CleanupHelpers {
+    ids: FxHashMap<CleanupKey, FunctionId>,
+    next: usize,
+}
+
+impl CleanupHelpers {
+    fn ensure(&mut self, module: &mut Module, key: CleanupKey) {
+        if self.ids.contains_key(&key) {
+            return;
+        }
+        let name = format!("__cleanup{}", self.next);
+        self.next += 1;
+        let mut func =
+            Function::new(solar_interface::Ident::with_dummy_span(Symbol::intern(&name)));
+        {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let arg = builder.add_param(MirType::uint256());
+            let result = match key {
+                CleanupKey::Mask(mask) => {
+                    let mask = builder.imm_u256(mask);
+                    builder.and(arg, mask)
+                }
+                CleanupKey::SignExtend(byte_index) => {
+                    let byte_index = builder.imm_u64(byte_index);
+                    builder.signextend(byte_index, arg)
+                }
+            };
+            builder.ret([result]);
+        }
+        func.returns.push(MirType::uint256());
+        let id = module.add_function(func);
+        self.ids.insert(key, id);
+    }
+
+    fn cleanup(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        key: CleanupKey,
+        value: ValueId,
+    ) -> ValueId {
+        let function = self.ids[&key];
+        builder.internal_call(function, vec![value], MirType::uint256(), 1)
+    }
 }
 
 /// ABI phase lowering pass.
@@ -154,6 +225,7 @@ struct LowerAbiStats {
 #[derive(Debug, Default)]
 struct LowerAbiCx {
     stats: LowerAbiStats,
+    helpers: CleanupHelpers,
 }
 
 impl LowerAbiCx {
@@ -211,6 +283,34 @@ impl LowerAbiCx {
             return true;
         }
 
+        let helper_targets = targets
+            .iter()
+            .chain(constructors.iter())
+            .chain(wrapped_constructors.iter())
+            .copied()
+            .collect::<Vec<_>>();
+        let mut validators = Vec::new();
+        for id in helper_targets {
+            let func = module.function(id);
+            for &ty in &func.params {
+                if let Some(validator) = AbiWordValidator::from_mir_type(ty) {
+                    validators.push(validator);
+                }
+            }
+            if let Some(layout) = &func.abi_params {
+                for ty in &layout.types {
+                    collect_validators(ty, &mut validators);
+                }
+            }
+        }
+        validators.sort_unstable_by_key(|validator| validator.cleanup_key());
+        validators.dedup();
+        for validator in validators {
+            if let Some(key) = validator.cleanup_key() {
+                self.helpers.ensure(module, key);
+            }
+        }
+
         // Most external functions are never called internally. Only those
         // that are need a second, parameterized body; cloning every wrapper
         // needlessly grows the MIR consumed by all subsequent lowering and
@@ -224,12 +324,12 @@ impl LowerAbiCx {
         let hoist_callvalue = callvalue.hoists();
 
         for id in constructors {
-            Self::decode_constructor_params(module.function_mut(id));
+            self.decode_constructor_params(module.function_mut(id));
             self.stats.decoded_constructors += 1;
         }
         for id in wrapped_constructors {
             let layout = module.function(id).abi_params.clone();
-            Self::inject_abi_prologue(module.function_mut(id), layout.as_ref(), true, true);
+            self.inject_abi_prologue(module.function_mut(id), layout.as_ref(), true, true);
             let func = module.function_mut(id);
             func.abi_params = None;
             func.abi_args_lazy = false;
@@ -328,7 +428,7 @@ impl LowerAbiCx {
 
     /// Materializes fixed constructor inputs while preserving the physical
     /// word parameters consumed by deployment codegen.
-    fn decode_constructor_params(func: &mut Function) {
+    fn decode_constructor_params(&self, func: &mut Function) {
         let layout = func.abi_params.clone().expect("checked constructor ABI layout");
         let old_entry = BlockId::ENTRY;
         let arg_uses = func.arg_uses();
@@ -378,6 +478,7 @@ impl LowerAbiCx {
                     ty,
                     &physical_args,
                     &mut physical_index,
+                    &self.helpers,
                 );
                 for &use_value in arg_uses.get(ArgIdx::new(logical_index)).into_iter().flatten() {
                     replacements.insert(use_value, value);
@@ -401,16 +502,17 @@ impl LowerAbiCx {
         ty: &AbiParamType,
         physical_args: &[ValueId],
         physical_index: &mut usize,
+        helpers: &CleanupHelpers,
     ) -> ValueId {
         if let AbiParamType::Scalar(scalar) = ty {
             let value = physical_args[*physical_index];
             *physical_index += 1;
-            return Self::validate_constructor_word(builder, value, *scalar);
+            return Self::validate_constructor_word(builder, value, *scalar, helpers);
         }
         if let AbiParamType::Enum { variants, .. } = ty {
             let value = physical_args[*physical_index];
             *physical_index += 1;
-            return Self::validate_constructor_enum(builder, value, *variants);
+            return Self::validate_constructor_enum(builder, value, *variants, helpers);
         }
 
         let AbiParamType::FixedArray { element, len } = ty else {
@@ -420,8 +522,13 @@ impl LowerAbiCx {
         let layout = crate::mir::MemoryObjectLayout::word_fixed_array(*len);
         let ptr = builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL);
         for index in 0..*len {
-            let value =
-                Self::decode_constructor_param(builder, element, physical_args, physical_index);
+            let value = Self::decode_constructor_param(
+                builder,
+                element,
+                physical_args,
+                physical_index,
+                helpers,
+            );
             let index = builder.imm_u64(index);
             builder.memory_object_store_element(ptr, layout, index, value);
         }
@@ -468,7 +575,7 @@ impl LowerAbiCx {
         });
 
         if lazy_args || abi_params.is_some() {
-            Self::inject_abi_prologue(
+            self.inject_abi_prologue(
                 module.function_mut(wrapper_id),
                 abi_params.as_ref(),
                 lazy_args,
@@ -490,6 +597,7 @@ impl LowerAbiCx {
 
     /// Materializes deferred ABI arguments and their validation checks.
     fn inject_abi_prologue(
+        &self,
         func: &mut Function,
         abi_params: Option<&crate::mir::AbiParamLayout>,
         lazy_args: bool,
@@ -589,7 +697,7 @@ impl LowerAbiCx {
                         builder.imm_u64(4 + head_offset - 32)
                     };
                     let word = Self::load_input_word(&mut builder, offset, input_end, constructor);
-                    let valid = validator.condition(&mut builder, word);
+                    let valid = validator.condition_with_helpers(&mut builder, word, &self.helpers);
                     let next = builder.create_block();
                     builder.branch(valid, next, revert);
                     current = next;
@@ -632,6 +740,7 @@ impl LowerAbiCx {
                         input_end,
                         constructor,
                         &mut current,
+                        &self.helpers,
                     );
                     for &use_value in uses {
                         replacements.insert(use_value, value);
@@ -666,6 +775,7 @@ impl LowerAbiCx {
         input_end: ValueId,
         constructor: bool,
         current: &mut BlockId,
+        helpers: &CleanupHelpers,
     ) -> ValueId {
         builder.switch_to_block(*current);
         let base = if ty.is_dynamic() {
@@ -677,10 +787,10 @@ impl LowerAbiCx {
         };
         match ty {
             crate::mir::AbiParamType::Scalar(scalar) if constructor => {
-                Self::decode_input_scalar(builder, *scalar, base, input_end, current)
+                Self::decode_input_scalar(builder, *scalar, base, input_end, current, helpers)
             }
             crate::mir::AbiParamType::Scalar(scalar) => {
-                Self::decode_scalar(builder, *scalar, base, current)
+                Self::decode_scalar(builder, *scalar, base, current, helpers)
             }
             crate::mir::AbiParamType::Enum { variants, .. } if constructor => {
                 Self::decode_input_enum(builder, *variants, base, input_end, current)
@@ -706,11 +816,11 @@ impl LowerAbiCx {
                     let value = match element.as_ref() {
                         crate::mir::AbiParamType::Scalar(scalar) if constructor => {
                             Self::decode_input_scalar(
-                                builder, *scalar, word_pos, input_end, current,
+                                builder, *scalar, word_pos, input_end, current, helpers,
                             )
                         }
                         crate::mir::AbiParamType::Scalar(scalar) => {
-                            Self::decode_scalar(builder, *scalar, word_pos, current)
+                            Self::decode_scalar(builder, *scalar, word_pos, current, helpers)
                         }
                         crate::mir::AbiParamType::Enum { variants, .. } if constructor => {
                             Self::decode_input_enum(
@@ -729,6 +839,7 @@ impl LowerAbiCx {
                             input_end,
                             constructor,
                             current,
+                            helpers,
                         ),
                     };
                     let elem_index = builder.imm_u64(index);
@@ -871,6 +982,7 @@ impl LowerAbiCx {
                     input_end,
                     constructor,
                     &mut element_current,
+                    helpers,
                 );
                 builder.memory_object_store_element(
                     ptr,
@@ -985,6 +1097,7 @@ impl LowerAbiCx {
                         input_end,
                         constructor,
                         current,
+                        helpers,
                     );
                     builder.memory_object_store_field(ptr, layout, index as u64, value);
                     offset += field.head_size();
@@ -1003,12 +1116,13 @@ impl LowerAbiCx {
         scalar: MirType,
         position: ValueId,
         current: &mut BlockId,
+        helpers: &CleanupHelpers,
     ) -> ValueId {
         builder.switch_to_block(*current);
         Self::guard_calldata_range(builder, position, 32, current);
         let value = builder.calldataload(position);
         if let Some(validator) = AbiWordValidator::from_mir_type(scalar) {
-            let valid = validator.condition(builder, value);
+            let valid = validator.condition_with_helpers(builder, value, helpers);
             let next = builder.create_block();
             let revert = builder.create_block();
             builder.branch(valid, next, revert);
@@ -1064,6 +1178,7 @@ impl LowerAbiCx {
         position: ValueId,
         input_end: ValueId,
         current: &mut BlockId,
+        helpers: &CleanupHelpers,
     ) -> ValueId {
         builder.switch_to_block(*current);
         Self::guard_input_range(builder, position, 32, input_end, current);
@@ -1072,7 +1187,7 @@ impl LowerAbiCx {
         let zero = builder.imm_u64(0);
         let value = builder.memory_slice_load_word(slice, zero);
         if let Some(validator) = AbiWordValidator::from_mir_type(scalar) {
-            let valid = validator.condition(builder, value);
+            let valid = validator.condition_with_helpers(builder, value, helpers);
             let next = builder.create_block();
             let revert = builder.create_block();
             builder.branch(valid, next, revert);
@@ -1386,25 +1501,33 @@ impl LowerAbiCx {
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,
         ty: MirType,
+        helpers: &CleanupHelpers,
     ) -> ValueId {
         let Some(validator) = AbiWordValidator::from_mir_type(ty) else { return value };
-        Self::validate_constructor_value(builder, value, validator)
+        Self::validate_constructor_value(builder, value, validator, helpers)
     }
 
     fn validate_constructor_enum(
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,
         variants: u64,
+        helpers: &CleanupHelpers,
     ) -> ValueId {
-        Self::validate_constructor_value(builder, value, AbiWordValidator::EnumRange(variants))
+        Self::validate_constructor_value(
+            builder,
+            value,
+            AbiWordValidator::EnumRange(variants),
+            helpers,
+        )
     }
 
     fn validate_constructor_value(
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,
         validator: AbiWordValidator,
+        helpers: &CleanupHelpers,
     ) -> ValueId {
-        let valid = validator.condition(builder, value);
+        let valid = validator.condition_with_helpers(builder, value, helpers);
         let next = builder.create_block();
         let revert = builder.create_block();
         builder.branch(valid, next, revert);
@@ -1436,6 +1559,25 @@ impl LowerAbiCx {
             .chain(func.blocks.indices().filter(|&block| block != guard))
             .collect::<Vec<_>>();
         crate::mir::utils::remap_block_order(func, &order);
+    }
+}
+
+fn collect_validators(ty: &AbiParamType, validators: &mut Vec<AbiWordValidator>) {
+    match ty {
+        AbiParamType::Scalar(scalar) => {
+            if let Some(validator) = AbiWordValidator::from_mir_type(*scalar) {
+                validators.push(validator);
+            }
+        }
+        AbiParamType::FixedArray { element, .. } | AbiParamType::DynamicArray(element) => {
+            collect_validators(element, validators);
+        }
+        AbiParamType::Tuple(fields) => {
+            for field in fields {
+                collect_validators(field, validators);
+            }
+        }
+        AbiParamType::Enum { .. } | AbiParamType::Bytes => {}
     }
 }
 
