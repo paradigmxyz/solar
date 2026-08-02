@@ -31,8 +31,8 @@ describes observable structure in the current tree, not an intended design.
   tight-packed payload, and packed hashes consume that object through
   `keccak256_bytes`.
 * ECDSA and literal precompile inputs allocate semantic bytes objects before
-  writing their fixed-size payloads; the HIR paths no longer read the free
-  memory pointer for those scratch buffers.
+  writing their fixed-size payloads through typed element stores; the HIR paths
+  no longer read the free memory pointer for those scratch buffers.
 * Multi-return values cross control-flow edges through semantic fixed-array
   storage and typed element stores, with only the data base published in the
   existing return-buffer slot.

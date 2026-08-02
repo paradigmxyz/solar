@@ -409,6 +409,19 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::MemoryObjectData(object, kind), Some(MirType::MemPtr))
     }
 
+    /// Projects an element address through the semantic object layout.
+    pub(crate) fn memory_object_element_addr(
+        &mut self,
+        object: ValueId,
+        layout: crate::mir::MemoryObjectLayout,
+        index: ValueId,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::MemoryObjectElementAddr { object, layout, index },
+            Some(MirType::MemPtr),
+        )
+    }
+
     /// Loads a direct struct field through the semantic object layout.
     pub(crate) fn memory_object_load_field(
         &mut self,

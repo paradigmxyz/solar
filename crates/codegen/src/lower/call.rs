@@ -2759,17 +2759,15 @@ impl<'gcx> Lowerer<'gcx> {
         );
         builder.set_memory_object_len(input, input_size_value, MemoryObjectKind::Bytes);
         let input_ptr = builder.memory_object_data(input, MemoryObjectKind::Bytes);
-        builder.mstore(input_ptr, hash);
-        for (offset, value) in [(32, v), (64, r), (96, s)] {
-            let offset = builder.imm_u64(offset);
-            let ptr = builder.add(input_ptr, offset);
-            builder.mstore(ptr, value);
+        let input_layout = crate::mir::MemoryObjectLayout::Bytes;
+        let zero = builder.imm_u64(0);
+        for (index, value) in [(0, hash), (1, v), (2, r), (3, s), (4, zero)] {
+            let index = builder.imm_u64(index);
+            builder.memory_object_store_element(input, input_layout, index, value);
         }
 
-        let output_offset = builder.imm_u64(128);
-        let output_ptr = builder.add(input_ptr, output_offset);
-        let zero = builder.imm_u64(0);
-        builder.mstore(output_ptr, zero);
+        let output_index = builder.imm_u64(4);
+        let output_ptr = builder.memory_object_element_addr(input, input_layout, output_index);
 
         let gas = crate::utils::precompile_gas(builder, self.gcx.sess.opts.evm_version);
         let address = builder.imm_u64(1);
@@ -2785,7 +2783,7 @@ impl<'gcx> Lowerer<'gcx> {
             output_size,
         );
         self.emit_forwarding_revert_unless(builder, success);
-        Ok(builder.mload(output_ptr))
+        Ok(builder.memory_object_load_element(input, input_layout, output_index))
     }
 
     fn lower_precompile_bytes_input(
