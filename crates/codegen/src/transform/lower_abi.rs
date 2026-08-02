@@ -784,7 +784,10 @@ impl LowerAbiCx {
         let overflow = builder.lt(target, base);
         let calldata_size = builder.calldatasize();
         let out_of_range = builder.gt(target, calldata_size);
-        let invalid = builder.or(overflow, out_of_range);
+        let minimum_offset = builder.imm_u64(32);
+        let too_small = builder.lt(offset, minimum_offset);
+        let invalid_range = builder.or(overflow, out_of_range);
+        let invalid = builder.or(invalid_range, too_small);
         let next = builder.create_block();
         let revert = builder.create_block();
         builder.branch(invalid, revert, next);

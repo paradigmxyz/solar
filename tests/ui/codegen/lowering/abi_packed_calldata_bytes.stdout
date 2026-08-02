@@ -54,8 +54,8 @@ bb6:
   push bb5
   jumpi
   push bb38
-  jump bb32
-bb32:
+  jump bb31
+bb31:
   push 4
   calldataload
   dup1
@@ -73,6 +73,11 @@ bb32:
   calldatasize
   dup3
   gt
+  push 32
+  dup5
+  lt
+  swap2
+  or
   or
   swap2
   pop
@@ -91,7 +96,7 @@ bb17:
   push bb5
   jumpi
   push bb42
-  jump bb32
+  jump bb31
 bb35:
   push bb29
   jumpi
@@ -202,8 +207,8 @@ bb36:
   push bb29
   jumpi
   push bb35
-  jump bb31
-bb31:
+  jump bb32
+bb32:
   push 31
   not
   push 160
@@ -417,7 +422,7 @@ bb40:
   push bb29
   jumpi
   push bb39
-  jump bb31
+  jump bb32
 bb41:
   push bb5
   jumpi

@@ -67,6 +67,11 @@ bb5:
   calldatasize
   dup3
   gt
+  push 32
+  dup5
+  lt
+  swap2
+  or
   or
   swap2
   pop
@@ -144,6 +149,7 @@ bb5:
   push 224
   mload
   calldataload
+  dup1
   push 320
   mload
   add
@@ -157,6 +163,13 @@ bb5:
   calldatasize
   dup3
   gt
+  swap3
+  push 32
+  gt
+  swap3
+  or
+  swap1
+  swap2
   or
   swap1
   pop
@@ -290,6 +303,7 @@ bb5:
   push 256
   mload
   calldataload
+  dup1
   push 320
   mload
   add
@@ -303,6 +317,13 @@ bb5:
   calldatasize
   dup3
   gt
+  swap3
+  push 32
+  gt
+  swap3
+  or
+  swap1
+  swap2
   or
   swap1
   pop
@@ -761,6 +782,11 @@ bb10:
   calldatasize
   dup3
   gt
+  push 32
+  dup5
+  lt
+  swap2
+  or
   or
   swap2
   pop
@@ -847,6 +873,11 @@ bb10:
   calldatasize
   dup3
   gt
+  push 32
+  dup5
+  lt
+  swap2
+  or
   or
   swap2
   pop

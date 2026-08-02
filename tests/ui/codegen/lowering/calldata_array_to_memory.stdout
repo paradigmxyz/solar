@@ -100,6 +100,11 @@ bb9:
   calldatasize
   dup3
   gt
+  push 32
+  dup5
+  lt
+  swap2
+  or
   or
   swap2
   pop
@@ -312,6 +317,11 @@ bb27:
   calldatasize
   dup3
   gt
+  push 32
+  dup5
+  lt
+  swap2
+  or
   or
   swap2
   pop
@@ -469,6 +479,11 @@ bb37:
   calldatasize
   dup3
   gt
+  push 32
+  dup5
+  lt
+  swap2
+  or
   or
   swap2
   pop
@@ -555,6 +570,11 @@ bb37:
   calldatasize
   dup3
   gt
+  push 32
+  dup5
+  lt
+  swap2
+  or
   or
   swap2
   pop
