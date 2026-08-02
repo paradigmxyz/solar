@@ -1,13 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_calldata_slice.sol:AbiDecodeCalldataSlice ===
 @module AbiDecodeCalldataSlice
-fn @decode(arg0: calldataslice) -> u256 [abi_params=[bytes], abi_returns=[word]] {
+fn @decode(arg0: calldataslice) -> u256 [abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = lt v1, 4
     jumpi v2, bb1, bb2
   bb1:
-    revert 0, 0
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
     v3 = sub v1, 4
     v4 = add v0, 4
@@ -17,44 +19,51 @@ fn @decode(arg0: calldataslice) -> u256 [abi_params=[bytes], abi_returns=[word]]
     v8 = lt v7, v6
     jumpi v8, bb3, bb4
   bb3:
-    tail_call @__panic_41
-  bb4:
-    v9 = not 31
-    v10 = and v7, v9
-    v11 = iszero v10
-    v12 = select v11, 32, v10
-    v13 = add 32, v12
-    v14 = lt v13, v12
-    jumpi v14, bb5, bb6
-  bb5:
-    tail_call @__panic_41
-  bb6:
-    v15 = alloc memorybytes, exact, uninitialized, infallible, v13
-    set_memory_object_len memorybytes, v15, v6
-    v16 = sub v12, 32
-    v17 = div v16, 32
-    memory_object_store_element memorybytes, v15, v17, 0
-    memory_object_copy_from_slice memorybytes, v15, v5
-    v18 = memory_object_len memorybytes, v15
-    v19 = memory_object_data memorybytes, v15
-    v20 = lt v18, 32
-    jumpi v20, bb7, bb8
-  bb7:
-    tail_call @__revert_empty
-  bb8:
-    v21 = memory_object_load_element memorybytes, v15, 0
-    ret v21
-}
-
-fn @__panic_41() {
-  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-}
-
-fn @__revert_empty() {
-  bb0:
+  bb4:
+    v9 = div v7, 32
+    v10 = add v9, 1
+    v11 = lt v10, v9
+    jumpi v11, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v12 = mul v10, 32
+    v13 = iszero 32
+    v14 = div v12, 32
+    v15 = eq v14, v10
+    v16 = or v13, v15
+    v17 = iszero v16
+    jumpi v17, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v18, v6
+    v19 = slice_ptr v5
+    v20 = make_calldata_slice v19, v6
+    memory_object_copy_from_slice memorybytes, v18, v20
+    v21 = memory_object_len memorybytes, v18
+    v22 = memory_object_data memorybytes, v18
+    v23 = lt v21, 32
+    jumpi v23, bb9, bb10
+  bb9:
     revert 0, 0
+  bb10:
+    v24 = add v22, 0
+    v25 = make_memory_slice v24, 32
+    v26 = memory_slice_load_word memory, v25, 0
+    v27 = iszero 1
+    jumpi v27, bb11, bb12
+  bb11:
+    revert 0, 0
+  bb12:
+    ret v26
 }
 

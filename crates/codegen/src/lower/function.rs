@@ -2659,7 +2659,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             let offset = self.builder.imm_u64(head_offset);
             let head = self.builder.add(base, offset);
             let value = if self.abi_decode_is_dynamic(ty)? {
-                let relative = self.builder.mload(head);
+                let relative = self.abi_decode_word(head);
                 self.lower_abi_decode_dynamic(base, length, required, relative, ty, span)?
             } else {
                 self.lower_abi_decode_static(head, ty, span)?
@@ -2680,8 +2680,15 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         if let TyKind::Udvt(inner, _) = ty.kind {
             return self.lower_abi_decode_static(address, inner, span);
         }
-        let value = self.builder.mload(address);
+        let value = self.abi_decode_word(address);
         self.decode_abi_word(ty, value, span)
+    }
+
+    fn abi_decode_word(&mut self, address: ValueId) -> ValueId {
+        let word_size = self.builder.imm_u64(32);
+        let slice = self.builder.make_slice(address, word_size, SliceLocation::Memory);
+        let zero = self.builder.imm_u64(0);
+        self.builder.memory_slice_load_word(slice, zero)
     }
 
     fn lower_abi_decode_dynamic(
@@ -2728,7 +2735,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         self.revert_if_empty(tail_oob);
 
         let length_address = self.builder.add(base, head);
-        let value_length = self.builder.mload(length_address);
+        let value_length = self.abi_decode_word(length_address);
         let thirty_one = self.builder.imm_u64(31);
         let rounded = self.builder.add(value_length, thirty_one);
         let rounded_overflow = self.builder.lt(rounded, value_length);
@@ -2750,9 +2757,9 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             AllocationSemantics::INTERNAL,
         );
         self.builder.set_memory_object_len(object, value_length, MemoryObjectKind::Bytes);
-        let destination = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
         let source = self.builder.add(length_address, word_size);
-        self.builder.mcopy(destination, source, value_length);
+        let source = self.builder.make_slice(source, value_length, SliceLocation::Memory);
+        self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
         Some(object)
     }
 
@@ -2775,7 +2782,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         self.revert_if_empty(tail_oob);
 
         let array_base = self.builder.add(base, head);
-        let element_count = self.builder.mload(array_base);
+        let element_count = self.abi_decode_word(array_base);
         let shift = self.builder.imm_u64(250);
         let shifted_count = self.builder.shr(shift, element_count);
         let count_in_range = self.builder.iszero(shifted_count);
@@ -2794,10 +2801,15 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         let object = self.builder.alloc_object(total_size, layout, AllocationSemantics::INTERNAL);
         self.builder.set_memory_object_len(object, element_count, MemoryObjectKind::DynamicArray);
         let destination = self.builder.memory_object_data(object, MemoryObjectKind::DynamicArray);
-        let source = self.builder.add(array_base, word_size);
+        let source_ptr = self.builder.add(array_base, word_size);
 
         if !self.abi_decode_is_dynamic(element)? {
-            self.builder.mcopy(destination, source, payload_size);
+            let source = self.builder.make_slice(source_ptr, payload_size, SliceLocation::Memory);
+            self.builder.memory_object_copy_from_slice(
+                object,
+                MemoryObjectKind::DynamicArray,
+                source,
+            );
             self.lower_abi_decode_elements(element_count, |this, index| {
                 let offset = this.builder.mul(index, word_size);
                 let address = this.builder.add(destination, offset);
@@ -2809,10 +2821,10 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             let region_length = self.builder.sub(length, tail_end);
             self.lower_abi_decode_elements(element_count, |this, index| {
                 let offset = this.builder.mul(index, word_size);
-                let address = this.builder.add(source, offset);
-                let element_head = this.builder.mload(address);
+                let address = this.builder.add(source_ptr, offset);
+                let element_head = this.abi_decode_word(address);
                 let value = this.lower_abi_decode_dynamic(
-                    source,
+                    source_ptr,
                     region_length,
                     payload_size,
                     element_head,
