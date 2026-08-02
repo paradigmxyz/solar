@@ -120,6 +120,8 @@ describes observable structure in the current tree, not an intended design.
 * Fixed-bytes conversions load memory slices through `memory_slice_load_word`;
   calldata slices retain the direct `calldataload` operation for their source
   location.
+* Constructor ABI heads and dynamic lengths read through bounded memory slices;
+  only the memory-object pass turns those reads into physical `mload`.
 * Deleting small fixed memory arrays uses typed element stores; only the bulk
   zero path keeps the dedicated zeroing operation.
 * Try/catch selector and panic decoding materialize bounded returndata slices

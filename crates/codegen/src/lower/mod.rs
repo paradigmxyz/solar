@@ -99,6 +99,13 @@ enum ConstructorArguments {
     Resolved(SmallVec<[ValueId; 4]>),
 }
 
+fn load_memory_word(builder: &mut FunctionBuilder<'_>, address: ValueId) -> ValueId {
+    let zero = builder.imm_u64(0);
+    let word = builder.imm_u64(EvmMemoryLayout::WORD_SIZE);
+    let slice = builder.make_slice(address, word, SliceLocation::Memory);
+    builder.memory_slice_load_word(slice, zero)
+}
+
 #[derive(Clone, Copy)]
 enum AbiParamSource {
     ExternalCalldata,
@@ -122,7 +129,7 @@ impl AbiParamSource {
                 let base = lowerer.constructor_args_base(builder);
                 let offset = builder.imm_u64(arg_index * EvmMemoryLayout::WORD_SIZE);
                 let address = builder.add(base, offset);
-                builder.mload(address)
+                load_memory_word(builder, address)
             }
         }
     }
@@ -1651,7 +1658,7 @@ impl<'gcx> Lowerer<'gcx> {
                     };
                     let len_pos = builder.add(abi_base, head);
                     let len = if self.lowering_constructor {
-                        builder.mload(len_pos)
+                        load_memory_word(&mut builder, len_pos)
                     } else {
                         builder.calldataload(len_pos)
                     };
@@ -1698,7 +1705,7 @@ impl<'gcx> Lowerer<'gcx> {
                     };
                     let len_pos = builder.add(abi_base, head);
                     let len = if self.lowering_constructor {
-                        builder.mload(len_pos)
+                        load_memory_word(&mut builder, len_pos)
                     } else {
                         builder.calldataload(len_pos)
                     };
