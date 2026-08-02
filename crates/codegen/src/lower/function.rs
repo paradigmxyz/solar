@@ -709,6 +709,12 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
         let arguments = args.exprs().collect::<Vec<_>>();
+        if let Some(struct_id) = self.gcx.resolved_expr(callee).and_then(|res| match res {
+            hir::Res::Item(item) => item.as_struct(),
+            _ => None,
+        }) {
+            return self.lower_struct_constructor(expr, struct_id, &arguments);
+        }
         if matches!(callee.kind, ExprKind::TypeCall(_) | ExprKind::Type(_)) {
             let [arg] = arguments.as_slice() else {
                 return report_unsupported(self.gcx, expr.span, "type conversion");
@@ -753,6 +759,26 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             return self.lower_function_call(expr, callee, function_id, args);
         }
         report_unsupported(self.gcx, expr.span, "function call")
+    }
+
+    fn lower_struct_constructor(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        struct_id: hir::StructId,
+        arguments: &[&hir::Expr<'_>],
+    ) -> Option<ValueId> {
+        let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
+        if arguments.len() != fields as usize {
+            return report_unsupported(self.gcx, expr.span, "struct constructor arguments");
+        }
+        let layout = MemoryObjectLayout::Struct { fields };
+        let size = self.builder.imm_u64(fields.saturating_mul(32));
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+        for (index, argument) in arguments.iter().enumerate() {
+            let value = self.lower_expr(argument)?;
+            self.builder.memory_object_store_field(object, layout, index as u64, value);
+        }
+        Some(object)
     }
 
     fn lower_builtin_call(
