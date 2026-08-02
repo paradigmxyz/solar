@@ -938,7 +938,12 @@ impl<'gcx> Lowerer<'gcx> {
 
     fn abi_is_full_word_element(&self, ty: Ty<'gcx>) -> bool {
         match ty.peel_refs().kind {
-            TyKind::Elementary(ElementaryType::UInt(size)) if size.bits() == 256 => true,
+            TyKind::Elementary(ElementaryType::UInt(size) | ElementaryType::Int(size))
+                if size.bits() == 256 =>
+            {
+                true
+            }
+            TyKind::Elementary(ElementaryType::FixedBytes(size)) if size.bytes() == 32 => true,
             TyKind::Udvt(inner, _) => self.abi_is_full_word_element(inner),
             _ => false,
         }

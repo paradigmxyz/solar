@@ -18,6 +18,11 @@ struct WordList {
     uint256 bias;
 }
 
+struct SignedList {
+    int256[] values;
+    uint256 bias;
+}
+
 contract DynamicStructParam {
     // A struct with dynamic members stays typed in built MIR. The ABI phase
     // rebuilds its fields recursively and keeps the source base for calldata
@@ -43,6 +48,13 @@ contract DynamicStructParam {
     // CHECK: memory_object_field_addr memorystruct<2>, arg0, 0
     // CHECK: mload
     function words(WordList calldata input) external pure returns (uint256) {
+        return input.values.length + input.bias;
+    }
+
+    // Signed full-word arrays use the same bulk-copy ABI path.
+    // CHECK-LABEL: fn @signedWords{{[( ]}}
+    // CHECK: memory_object_field_addr memorystruct<2>, arg0, 0
+    function signedWords(SignedList calldata input) external pure returns (uint256) {
         return input.values.length + input.bias;
     }
 }
