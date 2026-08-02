@@ -85,6 +85,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         | InstKind::MemoryObjectStoreElement { .. }
                         | InstKind::MemoryObjectStoreByte { .. }
                         | InstKind::MemoryObjectStoreWord { .. }
+                        | InstKind::MemorySliceLoadWord { .. }
                         | InstKind::MemoryObjectCopyFromSlice { .. }
                         | InstKind::MemoryObjectCopy { .. }
                         | InstKind::Keccak256Bytes(_)
@@ -248,6 +249,12 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     );
                     let address = builder.add(base, offset);
                     builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
+                    stats.accesses += 1;
+                }
+                InstKind::MemorySliceLoadWord { slice, offset } => {
+                    let source = builder.slice_ptr(slice);
+                    let address = builder.add(source, offset);
+                    builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectCopyFromSlice { object, kind, source } => {

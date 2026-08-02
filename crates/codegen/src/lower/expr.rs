@@ -2648,7 +2648,8 @@ impl<'gcx> Lowerer<'gcx> {
         self.emit_abi_decode_revert_if(builder, head_oob);
 
         let len_addr = builder.add(tuple_base, head);
-        let arr_len = builder.mload(len_addr);
+        let tuple = builder.make_slice(tuple_base, tuple_len, SliceLocation::Memory);
+        let arr_len = builder.memory_slice_load_word(tuple, head);
         // Guard `len * 32` before it can wrap.
         let shift = builder.imm_u64(250);
         let shifted = builder.shr(shift, arr_len);
@@ -2669,6 +2670,7 @@ impl<'gcx> Lowerer<'gcx> {
             // region into a fresh array of pointers.
             let region_base = payload_src;
             let region_len = builder.sub(tuple_len, tail_head_end);
+            let region = builder.make_slice(region_base, region_len, SliceLocation::Memory);
             let ptr = self.allocate_memory_object_dynamic(
                 builder,
                 total_size,
@@ -2677,8 +2679,7 @@ impl<'gcx> Lowerer<'gcx> {
             builder.set_memory_object_len(ptr, arr_len, MemoryObjectKind::DynamicArray);
             self.emit_decode_elements_loop(builder, arr_len, |this, builder, index| {
                 let offset = builder.mul(index, word);
-                let head_addr = builder.add(region_base, offset);
-                let elem_head = builder.mload(head_addr);
+                let elem_head = builder.memory_slice_load_word(region, offset);
                 let elem_ptr = this.lower_abi_decode_dynamic_bytes(
                     builder,
                     region_base,
@@ -2773,7 +2774,8 @@ impl<'gcx> Lowerer<'gcx> {
         self.emit_abi_decode_revert_if(builder, head_oob);
 
         let tail_len_addr = builder.add(tuple_base, head);
-        let tail_len = builder.mload(tail_len_addr);
+        let tuple = builder.make_slice(tuple_base, tuple_len, SliceLocation::Memory);
+        let tail_len = builder.memory_slice_load_word(tuple, head);
         let thirty_one = builder.imm_u64(31);
         let rounded = builder.add(tail_len, thirty_one);
         let rounded_overflow = builder.lt(rounded, tail_len);

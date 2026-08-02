@@ -114,6 +114,9 @@ describes observable structure in the current tree, not an intended design.
   pass emits the final `mstore8`.
 * Object-backed constructor and linked-library payload assembly uses
   `memory_object_store_word`; only memory lowering forms payload addresses.
+* ABI tail lengths and nested dynamic-array heads read through
+  `memory_slice_load_word`; validated ABI regions no longer expose an
+  untyped load address to HIR lowering.
 * Storage-to-memory and memory-to-storage aggregate copies use the same typed
   field and element operations. Packed and nested copies no longer expose a
   destination address to HIR lowering.

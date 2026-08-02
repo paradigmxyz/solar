@@ -491,6 +491,15 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::MemoryObjectStoreWord { object, offset, value });
     }
 
+    /// Loads one word from a memory slice at a byte offset through its
+    /// semantic representation.
+    pub(crate) fn memory_slice_load_word(&mut self, slice: ValueId, offset: ValueId) -> ValueId {
+        self.emit_inst(
+            InstKind::MemorySliceLoadWord { slice, offset },
+            Some(crate::mir::MirType::uint256()),
+        )
+    }
+
     /// Copies a typed slice into a dynamic memory object's payload.
     pub(crate) fn memory_object_copy_from_slice(
         &mut self,

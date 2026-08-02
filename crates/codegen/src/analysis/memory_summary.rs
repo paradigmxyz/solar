@@ -185,6 +185,10 @@ fn local_summary(func: &Function) -> FunctionMemorySummary {
                 | InstKind::MemoryObjectStoreWord { value, .. } => {
                     capture_sources(&mut summary, func, &sources, *value);
                 }
+                InstKind::MemorySliceLoadWord { slice, offset } => {
+                    capture_sources(&mut summary, func, &sources, *slice);
+                    capture_sources(&mut summary, func, &sources, *offset);
+                }
                 _ => {}
             }
         }

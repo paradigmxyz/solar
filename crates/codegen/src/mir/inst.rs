@@ -681,6 +681,14 @@ pub(crate) enum InstKind {
         /// Word to store.
         value: ValueId,
     },
+    /// Load one word from a memory slice at a byte offset without exposing its
+    /// physical address.
+    MemorySliceLoadWord {
+        /// Memory slice reference.
+        slice: ValueId,
+        /// Runtime byte offset from the slice start.
+        offset: ValueId,
+    },
     /// Copy a typed slice into the payload of a dynamic memory object.
     MemoryObjectCopyFromSlice {
         /// Destination memory object reference.
@@ -1070,6 +1078,11 @@ impl InstKind {
                 out.push(*value);
             }
 
+            Self::MemorySliceLoadWord { slice, offset } => {
+                out.push(*slice);
+                out.push(*offset);
+            }
+
             Self::MemoryObjectCopyFromSlice { object, source, .. } => {
                 out.push(*object);
                 out.push(*source);
@@ -1314,6 +1327,11 @@ impl InstKind {
                 f(value);
             }
 
+            Self::MemorySliceLoadWord { slice, offset } => {
+                f(slice);
+                f(offset);
+            }
+
             Self::MemoryObjectCopyFromSlice { object, source, .. } => {
                 f(object);
                 f(source);
@@ -1512,6 +1530,7 @@ impl InstKind {
             Self::MemoryObjectStoreElement { .. } => "memory_object_store_element",
             Self::MemoryObjectStoreByte { .. } => "memory_object_store_byte",
             Self::MemoryObjectStoreWord { .. } => "memory_object_store_word",
+            Self::MemorySliceLoadWord { .. } => "memory_slice_load_word",
             Self::MemoryObjectCopyFromSlice { .. } => "memory_object_copy_from_slice",
             Self::MemoryObjectCopy { .. } => "memory_object_copy",
             Self::AbiEncode { .. } => "abi_encode",
@@ -1668,6 +1687,7 @@ impl InstKind {
             | Self::ReturnDataCopy(_, _, _) => EffectKind::MemoryWrite,
             Self::StoreImmutable(..) => EffectKind::ImmutableWrite,
             Self::MLoad(_)
+            | Self::MemorySliceLoadWord { .. }
             | Self::FrameLoad { .. }
             | Self::MemoryObjectLen(_, _)
             | Self::MemoryObjectLoadField { .. }

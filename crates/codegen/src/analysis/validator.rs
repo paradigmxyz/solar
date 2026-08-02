@@ -669,6 +669,7 @@ impl<'a> Validator<'a> {
                             | InstKind::MemoryObjectStoreElement { .. }
                             | InstKind::MemoryObjectStoreByte { .. }
                             | InstKind::MemoryObjectStoreWord { .. }
+                            | InstKind::MemorySliceLoadWord { .. }
                             | InstKind::MemoryObjectCopyFromSlice { .. }
                             | InstKind::MemoryObjectCopy { .. }
                             | InstKind::FrameLoad { .. }

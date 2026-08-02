@@ -3,7 +3,7 @@
 use super::{LoopContext, Lowerer, MIN_BULK_ZERO_MEMORY_WORDS};
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{FunctionBuilder, MemoryObjectKind, MemoryObjectLayout, ValueId},
+    mir::{FunctionBuilder, MemoryObjectKind, MemoryObjectLayout, SliceLocation, ValueId},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -1252,7 +1252,9 @@ impl<'gcx> Lowerer<'gcx> {
             let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
             let region_base = builder.add(data, four);
             let region_len = builder.sub(len, four);
-            let head = builder.mload(region_base);
+            let region = builder.make_slice(region_base, region_len, SliceLocation::Memory);
+            let zero = builder.imm_u64(0);
+            let head = builder.memory_slice_load_word(region, zero);
             let word = builder.imm_u64(32);
             // Malformed `Error(string)` data reverts; solc instead falls
             // through to a lower-level handler, which only differs for
