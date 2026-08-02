@@ -137,10 +137,14 @@ bb36:
   swap4
   push 32
   add
-  dup4
-  dup2
-  dup7
+  push 32
+  dup3
+  add
+  dup5
+  dup3
+  dup3
   mcopy
+  pop
   pop
   swap2
   dup4
@@ -378,10 +382,18 @@ bb41:
   swap5
   push 32
   add
+  dup3
+  dup3
+  sub
+  push 32
   dup6
-  dup2
-  dup4
+  add
+  add
+  dup7
+  dup3
+  dup3
   mcopy
+  pop
   pop
   push 36
   calldataload

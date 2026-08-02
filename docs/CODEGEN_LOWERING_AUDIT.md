@@ -123,8 +123,9 @@ describes observable structure in the current tree, not an intended design.
   sizing and emission no longer reserve raw scratch buffers for counters.
   Nested dynamic-array loops also carry a logical source index and load each
   element through the typed array object instead of advancing a raw pointer.
-* Packed ABI static words also target the bytes object directly; only dynamic
-  payload copies still use a physical `mcopy` destination.
+* Packed ABI static words and dynamic payload copies target the bytes object
+  through semantic stores and slice copies; only memory lowering selects the
+  physical destination for the copy.
 * Scalar and calldata-slice ternary merges use typed frame slots instead of
   fixed low-memory scratch words.
 * Constructor ABI validation and aggregate decoding read words through typed

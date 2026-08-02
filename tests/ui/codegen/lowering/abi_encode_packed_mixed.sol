@@ -15,14 +15,14 @@ contract AbiEncodePackedMixed {
 
     // CHECK-LABEL: fn @dynamicArg{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = memory_object_len memorybytes
-    // CHECK: mcopy {{v[0-9]+}}, {{v[0-9]+}}, [[LEN]]
+    // CHECK: memory_object_copy_from_slice_at memorybytes
     // CHECK: [[OBJECT:v[0-9]+]] = keccak256_bytes
     function dynamicArg(bytes32 h, bytes memory tail) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(h, tail));
     }
 
     // CHECK-LABEL: fn @materialized{{[( ]}}
-    // CHECK: mcopy
+    // CHECK: memory_object_copy_from_slice_at memorybytes
     // CHECK: [[BOOL:v[0-9]+]] = shl 248, arg2
     // CHECK: memory_object_store_word memorybytes, {{.*}}, {{.*}}, [[BOOL]]
     // CHECK: set_memory_object_len memorybytes

@@ -51,11 +51,13 @@ fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [abi_param
     v27 = memory_object_data memorybytes, v26
     v28 = memory_object_len memorybytes, v16
     v29 = memory_object_data memorybytes, v16
-    mcopy v27, v29, v28
-    v30 = add v27, v28
-    v31 = sub v30, v27
-    memory_object_store_word memorybytes, v26, v31, 0x2100000000000000000000000000000000000000000000000000000000000000
-    v32 = add v30, 1
+    v30 = sub v27, v27
+    v31 = make_memory_slice v29, v28
+    memory_object_copy_from_slice_at memorybytes, v26, v30, v31
+    v32 = add v27, v28
+    v33 = sub v32, v27
+    memory_object_store_word memorybytes, v26, v33, 0x2100000000000000000000000000000000000000000000000000000000000000
+    v34 = add v32, 1
     set_memory_object_len memorybytes, v26, v21
     ret v26
 }
@@ -104,8 +106,10 @@ fn @all() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
     v21 = memory_object_data memorybytes, v20
     v22 = memory_object_len memorybytes, v11
     v23 = memory_object_data memorybytes, v11
-    mcopy v21, v23, v22
-    v24 = add v21, v22
+    v24 = sub v21, v21
+    v25 = make_memory_slice v23, v22
+    memory_object_copy_from_slice_at memorybytes, v20, v24, v25
+    v26 = add v21, v22
     set_memory_object_len memorybytes, v20, v15
     ret v20
 }

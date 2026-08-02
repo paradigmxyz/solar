@@ -41,11 +41,13 @@ fn @dynamicArg(arg0: bytes32, arg1: memorybytes) -> bytes32 [abi_params=[bytes32
     v10 = add v8, 32
     v11 = memory_object_len memorybytes, arg1
     v12 = memory_object_data memorybytes, arg1
-    mcopy v10, v12, v11
-    v13 = add v10, v11
+    v13 = sub v10, v8
+    v14 = make_memory_slice v12, v11
+    memory_object_copy_from_slice_at memorybytes, v7, v13, v14
+    v15 = add v10, v11
     set_memory_object_len memorybytes, v7, v2
-    v14 = keccak256_bytes v7
-    ret v14
+    v16 = keccak256_bytes v7
+    ret v16
 }
 
 fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) -> memorybytes [abi_params=[u16, bytes, bool], abi_returns=[memory_bytes]] {
@@ -81,12 +83,14 @@ fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) -> memorybytes [abi_p
     v19 = add v16, 2
     v20 = memory_object_len memorybytes, arg1
     v21 = memory_object_data memorybytes, arg1
-    mcopy v19, v21, v20
-    v22 = add v19, v20
-    v23 = shl 248, arg2
-    v24 = sub v22, v16
-    memory_object_store_word memorybytes, v15, v24, v23
-    v25 = add v22, 1
+    v22 = sub v19, v16
+    v23 = make_memory_slice v21, v20
+    memory_object_copy_from_slice_at memorybytes, v15, v22, v23
+    v24 = add v19, v20
+    v25 = shl 248, arg2
+    v26 = sub v24, v16
+    memory_object_store_word memorybytes, v15, v26, v25
+    v27 = add v24, 1
     set_memory_object_len memorybytes, v15, v10
     ret v15
 }

@@ -1,7 +1,7 @@
 //! ABI packed encoding lowering helpers.
 
 use super::Lowerer;
-use crate::mir::{FunctionBuilder, MemoryObjectKind, Value, ValueId};
+use crate::mir::{FunctionBuilder, MemoryObjectKind, SliceLocation, Value, ValueId};
 use alloy_primitives::U256;
 use solar_ast::{ElementaryType, LitKind};
 use solar_interface::{Symbol, diagnostics::ErrorGuaranteed, sym};
@@ -271,7 +271,14 @@ impl<'gcx> Lowerer<'gcx> {
                     let dest = self.offset_ptr(builder, base, offset);
                     let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
                     let src = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-                    builder.mcopy(dest, src, len);
+                    let dest_offset = builder.sub(dest, data_start);
+                    let source = builder.make_slice(src, len, SliceLocation::Memory);
+                    builder.memory_object_copy_from_slice_at(
+                        object,
+                        MemoryObjectKind::Bytes,
+                        dest_offset,
+                        source,
+                    );
                     base = builder.add(dest, len);
                     offset = 0;
                     is_static = false;

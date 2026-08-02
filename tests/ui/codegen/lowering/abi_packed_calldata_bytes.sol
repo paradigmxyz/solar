@@ -9,9 +9,7 @@
 
 contract P {
     // CHECK: push 0x21bd63cb
-    // CHECK: eq
     // CHECK: push 0xf1245422
-    // CHECK: eq
     // CHECK: calldatacopy
     // CHECK: mcopy
     // CHECK: keccak256

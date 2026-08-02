@@ -389,10 +389,18 @@ bb43:
   swap5
   push 32
   add
+  dup3
+  dup3
+  sub
+  push 32
   dup6
-  dup2
-  dup4
+  add
+  add
+  dup7
+  dup3
+  dup3
   mcopy
+  pop
   pop
   swap1
   swap4
