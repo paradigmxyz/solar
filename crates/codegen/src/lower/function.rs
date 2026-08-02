@@ -465,10 +465,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
                     }
                 }
             }
-            StmtKind::Revert(_) => {
-                let zero = self.builder.imm_u256(U256::ZERO);
-                self.builder.revert(zero, zero);
-            }
+            StmtKind::Revert(expr) => self.lower_revert_payload(expr)?,
             StmtKind::AssemblyBlock(block) => self.lower_block(*block)?,
             StmtKind::Placeholder => {
                 self.lower_modifier_placeholder(stmt.span)?;
@@ -478,6 +475,77 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
                 return report_unsupported(self.gcx, stmt.span, "statement");
             }
         }
+        Some(())
+    }
+
+    fn lower_revert_payload(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
+        if let ExprKind::Call(callee, args, _) = &expr.kind
+            && let Some(hir::Res::Item(hir::ItemId::Error(error_id))) =
+                self.gcx.resolved_expr(callee)
+        {
+            return self.lower_custom_error_revert(error_id, *args);
+        }
+
+        let value = self.lower_expr(expr)?;
+        let ty = self.gcx.type_of_expr(expr.id)?;
+        let value =
+            if self.needs_calldata_materialization(value, &AbiType::Bytes(SliceLocation::Memory)) {
+                self.materialize_calldata_argument(ty, value, expr.span)?
+            } else {
+                value
+            };
+        let selector = keccak256("Error(string)");
+        let selector = self.builder.imm_u256(U256::from_be_slice(&selector[..4]) << 224);
+        let layout = Arc::new(AbiLayout::new(
+            vec![AbiType::Bytes(SliceLocation::Memory)].into_boxed_slice(),
+        ));
+        let encoded =
+            self.builder.abi_encode(layout, Some(selector), vec![value].into_boxed_slice());
+        let pointer = self.builder.slice_ptr(encoded);
+        let length = self.builder.slice_len(encoded);
+        self.builder.revert(pointer, length);
+        Some(())
+    }
+
+    fn lower_custom_error_revert(
+        &mut self,
+        error_id: hir::ErrorId,
+        args: hir::CallArgs<'_>,
+    ) -> Option<()> {
+        let parameters = self.gcx.item_parameters(hir::ItemId::Error(error_id));
+        if args.len() != parameters.len() {
+            return report_unsupported(self.gcx, args.span, "error arguments");
+        }
+        let parameter_names = self.gcx.callable_param_names(CallableParamSource::Error(error_id));
+        let mut values = Vec::with_capacity(parameters.len());
+        let mut types = Vec::with_capacity(parameters.len());
+        for (index, &parameter) in parameters.iter().enumerate() {
+            let Some(argument) =
+                args.argument_for_parameter(index, Some(parameter_names.as_slice()))
+            else {
+                return report_unsupported(self.gcx, args.span, "error argument");
+            };
+            let parameter_ty = self.gcx.type_of_item(parameter.into());
+            let mut value = self.lower_expr(argument)?;
+            let mut abi_type = self.types.abi_type(parameter_ty)?;
+            if self.needs_calldata_materialization(value, &abi_type) {
+                value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
+                abi_type = Self::memory_abi_type(abi_type);
+            }
+            if matches!(abi_type, AbiType::Word) {
+                value = self.lower_word_value(parameter_ty, argument, value);
+            }
+            values.push(value);
+            types.push(abi_type);
+        }
+        let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+        let selector = self
+            .builder
+            .imm_u256(U256::from_be_slice(&self.gcx.function_selector(error_id).0) << 224);
+        let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
+        let pointer = self.builder.slice_ptr(encoded);
+        let length = self.builder.slice_len(encoded);
+        self.builder.revert(pointer, length);
         Some(())
     }
 
@@ -550,7 +618,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
                             .emit();
                         return Some(());
                     }
-                    _ => topics.push(self.lower_event_word(parameter_ty, argument, value)),
+                    _ => topics.push(self.lower_word_value(parameter_ty, argument, value)),
                 }
             } else {
                 let mut abi_type = self.types.abi_type(parameter_ty)?;
@@ -560,7 +628,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
                     abi_type = Self::memory_abi_type(abi_type);
                 }
                 if matches!(abi_type, AbiType::Word) {
-                    value = self.lower_event_word(parameter_ty, argument, value);
+                    value = self.lower_word_value(parameter_ty, argument, value);
                 }
                 data_values.push(value);
                 data_types.push(abi_type);
@@ -590,7 +658,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
         Some(())
     }
 
-    fn lower_event_word(&mut self, ty: Ty<'gcx>, expr: &hir::Expr<'_>, value: ValueId) -> ValueId {
+    fn lower_word_value(&mut self, ty: Ty<'gcx>, expr: &hir::Expr<'_>, value: ValueId) -> ValueId {
         let expr = expr.peel_parens();
         if !matches!(
             ty.peel_refs().kind,
@@ -2577,7 +2645,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
                 self.panic_if(invalid, 0x01);
             }
             Builtin::Require => {
-                let (required, _message) = self.builtin_args_with_optional::<1>(builtin, &args)?;
+                let (required, message) = self.builtin_args_with_optional::<1>(builtin, &args)?;
                 let condition = required.first()?;
                 let condition = self.lower_expr(condition)?;
                 let is_false = self.builder.iszero(condition);
@@ -2585,8 +2653,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
                 let continue_block = self.builder.create_block();
                 self.builder.branch(is_false, revert_block, continue_block);
                 self.builder.switch_to_block(revert_block);
-                let zero = self.builder.imm_u256(U256::ZERO);
-                self.builder.revert(zero, zero);
+                if let Some(message) = message {
+                    self.lower_revert_payload(message)?;
+                } else {
+                    let zero = self.builder.imm_u256(U256::ZERO);
+                    self.builder.revert(zero, zero);
+                }
                 self.builder.switch_to_block(continue_block);
             }
             Builtin::Revert => {
@@ -2595,8 +2667,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
                 self.builder.revert(zero, zero);
             }
             Builtin::RevertMsg => {
-                let _ = self.builtin_args::<1>(builtin, &args)?;
-                return self.unsupported_builtin(builtin, args.span);
+                let message = &self.builtin_args::<1>(builtin, &args)?[0];
+                self.lower_revert_payload(message)?;
             }
             Builtin::Selfdestruct => {
                 let address = &self.builtin_args::<1>(builtin, &args)?[0];

@@ -112,6 +112,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   checks;
 * event emission with overload and named-argument resolution, selector and indexed
   topics, dynamic-topic hashing, aggregate-topic diagnostics, and MIR ABI data;
+* `revert` and `require` payloads for `Error(string)` and custom errors through
+  semantic ABI encoding, including named arguments and exact argument checks;
 * payable address `send` and `transfer`, including the EVM value stipend and
   forwarding of transfer failures;
 * contract creation with compiled child deployment bytecode, semantic
