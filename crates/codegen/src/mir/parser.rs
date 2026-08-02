@@ -1656,6 +1656,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::storage_array_data_slot => {
                 inst!(StorageArrayDataSlot(slot) => MirType::bytes32())
             }
+            sym::storage_array_element_slot => {
+                let slot = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let index = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let element_slots = self.parser.parse_uint()?.try_into().map_err(|_| {
+                    self.parser.error("storage array element stride does not fit in u64")
+                })?;
+                (
+                    InstKind::StorageArrayElementSlot { slot, index, element_slots },
+                    Some(MirType::bytes32()),
+                )
+            }
 
             // Calls and creation.
             kw::Call => struct_inst!(Call {

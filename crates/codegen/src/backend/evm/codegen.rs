@@ -3605,7 +3605,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::MappingSlot(_, _)
             | InstKind::MappingSlotMemory(_, _)
             | InstKind::MappingSlotCalldata(_, _)
-            | InstKind::StorageArrayDataSlot(_) => {
+            | InstKind::StorageArrayDataSlot(_)
+            | InstKind::StorageArrayElementSlot { .. } => {
                 unreachable!("mapping-slot builtins must be lowered before EVM codegen")
             }
 

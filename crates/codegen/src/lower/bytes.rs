@@ -814,9 +814,8 @@ impl<'gcx> Lowerer<'gcx> {
 
         builder.switch_to_block(long_block);
         let word_size = builder.imm_u64(32);
-        let data_slot = builder.storage_array_data_slot(slot);
         let word_index = builder.div(index, word_size);
-        let elem_slot = builder.add(data_slot, word_index);
+        let elem_slot = builder.storage_array_element_slot(slot, word_index, 1);
         let byte_index = builder.mod_(index, word_size);
         let data_word = builder.sload(elem_slot);
         let shift = self.storage_byte_shift(builder, byte_index);

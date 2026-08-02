@@ -134,6 +134,7 @@ enum ExprKey {
     MappingSlotMemory(OperandKey, OperandKey),
     MappingSlotCalldata(OperandKey, OperandKey),
     StorageArrayDataSlot(OperandKey),
+    StorageArrayElementSlot(OperandKey, OperandKey, u64),
     MakeSlice(OperandKey, OperandKey, SliceLocation),
     SlicePtr(OperandKey),
     SliceLen(OperandKey),
@@ -784,6 +785,9 @@ impl CommonSubexprEliminator {
             InstKind::StorageArrayDataSlot(slot) => {
                 Some(ExprKey::StorageArrayDataSlot(operand(*slot)))
             }
+            InstKind::StorageArrayElementSlot { slot, index, element_slots } => Some(
+                ExprKey::StorageArrayElementSlot(operand(*slot), operand(*index), *element_slots),
+            ),
             InstKind::MakeSlice { ptr, len, location } => {
                 Some(ExprKey::MakeSlice(operand(*ptr), operand(*len), *location))
             }
@@ -969,6 +973,7 @@ impl CommonSubexprEliminator {
                 | ExprKey::MappingSlotMemory(..)
                 | ExprKey::MappingSlotCalldata(..)
                 | ExprKey::StorageArrayDataSlot(..)
+                | ExprKey::StorageArrayElementSlot(..)
                 | ExprKey::SLoad(_)
                 | ExprKey::TLoad(_)
                 | ExprKey::CalldataLoad(_)

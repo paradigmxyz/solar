@@ -847,6 +847,12 @@ pub(crate) enum InstKind {
     /// The temporary scratch memory used by its late lowering is not an
     /// observable part of this instruction's MIR semantics.
     StorageArrayDataSlot(ValueId),
+    /// Resolve one element slot in a dynamic storage array.
+    ///
+    /// The array's base slot, element index, and logical slot stride stay
+    /// semantic until the mapping-slot lowering pass expands the hash and
+    /// offset calculation.
+    StorageArrayElementSlot { slot: ValueId, index: ValueId, element_slots: u64 },
 
     // Call operations
     // TODO(codegen): Consider unifying external calls as one instruction with a call-kind enum
@@ -977,6 +983,7 @@ impl InstKind {
             | Self::MappingSlot(a, b)
             | Self::MappingSlotMemory(a, b)
             | Self::MappingSlotCalldata(a, b)
+            | Self::StorageArrayElementSlot { slot: a, index: b, .. }
             | Self::Log0(a, b)
             | Self::SignExtend(a, b) => {
                 out.push(*a);
@@ -1196,6 +1203,7 @@ impl InstKind {
             | Self::MappingSlot(a, b)
             | Self::MappingSlotMemory(a, b)
             | Self::MappingSlotCalldata(a, b)
+            | Self::StorageArrayElementSlot { slot: a, index: b, .. }
             | Self::Log0(a, b)
             | Self::SignExtend(a, b) => {
                 f(a);
@@ -1465,6 +1473,7 @@ impl InstKind {
             Self::MappingSlotMemory(_, _) => "mapping_slot_memory",
             Self::MappingSlotCalldata(_, _) => "mapping_slot_calldata",
             Self::StorageArrayDataSlot(_) => "storage_array_data_slot",
+            Self::StorageArrayElementSlot { .. } => "storage_array_element_slot",
             Self::Call { .. } => "call",
             Self::CallCode { .. } => "callcode",
             Self::StaticCall { .. } => "staticcall",
@@ -1611,6 +1620,7 @@ impl InstKind {
             Self::Add(_, _)
             | Self::MappingSlot(_, _)
             | Self::StorageArrayDataSlot(_)
+            | Self::StorageArrayElementSlot { .. }
             | Self::Sub(_, _)
             | Self::Mul(_, _)
             | Self::Div(_, _)

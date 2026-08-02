@@ -60,7 +60,7 @@ contract ArrayBoundsPanic {
     // CHECK: [[LEN:v[0-9]+]] = sload 0
     // CHECK: {{v[0-9]+}} = lt arg0, [[LEN]]
     // CHECK: tail_call @__panic_32
-    // CHECK: {{v[0-9]+}} = storage_array_data_slot 0
+    // CHECK: {{v[0-9]+}} = storage_array_element_slot 0, arg0, 1
     function stDyn(uint256 i) public view returns (uint256) {
         return sdyn[i];
     }

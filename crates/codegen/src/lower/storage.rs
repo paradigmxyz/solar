@@ -896,12 +896,10 @@ impl<'gcx> Lowerer<'gcx> {
         );
         builder.set_memory_object_len(array, len, MemoryObjectKind::DynamicArray);
 
-        let data_slot = builder.storage_array_data_slot(slot);
         let element_slots = self.calculate_storage_slots_for_ty(element, Span::DUMMY);
         let element = element.peel_refs();
         self.emit_decode_elements_loop(builder, len, move |this, builder, index| {
-            let storage_slot =
-                Self::storage_array_data_element_slot(builder, data_slot, index, element_slots);
+            let storage_slot = builder.storage_array_element_slot(slot, index, element_slots);
             this.copy_storage_field_to_memory(
                 builder,
                 element,
@@ -1096,7 +1094,6 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         let len = builder.memory_object_len(mem_ptr, MemoryObjectKind::DynamicArray);
         builder.sstore(slot, len);
-        let data_slot = builder.storage_array_data_slot(slot);
         let elem_slots = self.calculate_storage_slots_for_ty(elem, Span::DUMMY);
         let elem = elem.peel_refs();
         self.emit_decode_elements_loop(builder, len, move |this, builder, index| {
@@ -1108,8 +1105,7 @@ impl<'gcx> Lowerer<'gcx> {
                     index,
                 },
             );
-            let elem_slot =
-                Self::storage_array_data_element_slot(builder, data_slot, index, elem_slots);
+            let elem_slot = builder.storage_array_element_slot(slot, index, elem_slots);
             this.copy_memory_field_to_storage(builder, elem, elem_slot, mem_word);
         });
     }

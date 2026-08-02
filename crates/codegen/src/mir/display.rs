@@ -402,6 +402,12 @@ fn display_inst_kind<'a>(
             display_val(*index, func),
             display_val(*value, func)
         ),
+        InstKind::StorageArrayElementSlot { slot, index, element_slots } => write!(
+            f,
+            "storage_array_element_slot {}, {}, {element_slots}",
+            display_val(*slot, func),
+            display_val(*index, func)
+        ),
         InstKind::MemoryObjectLen(object, kind) => {
             write!(f, "memory_object_len {kind}, {}", display_val(*object, func))
         }

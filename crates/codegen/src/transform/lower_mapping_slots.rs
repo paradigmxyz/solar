@@ -37,6 +37,7 @@ impl MirPass for LowerMappingSlots {
                         | InstKind::MappingSlotMemory(_, _)
                         | InstKind::MappingSlotCalldata(_, _)
                         | InstKind::StorageArrayDataSlot(_)
+                        | InstKind::StorageArrayElementSlot { .. }
                 )
             });
             if !has_mapping_slots {
@@ -62,6 +63,14 @@ impl MirPass for LowerMappingSlots {
                         }
                         InstKind::StorageArrayDataSlot(slot) => {
                             Some(lower_storage_array_data_slot(&mut builder, slot))
+                        }
+                        InstKind::StorageArrayElementSlot { slot, index, element_slots } => {
+                            Some(lower_storage_array_element_slot(
+                                &mut builder,
+                                slot,
+                                index,
+                                element_slots,
+                            ))
                         }
                         _ => {
                             builder.func_mut().blocks[block_id].instructions.push(inst_id);
@@ -91,6 +100,22 @@ fn lower_storage_array_data_slot(
     builder.mstore(zero, slot);
     let word = builder.imm_u64(32);
     builder.keccak256(zero, word)
+}
+
+fn lower_storage_array_element_slot(
+    builder: &mut FunctionBuilder<'_>,
+    slot: crate::mir::ValueId,
+    index: crate::mir::ValueId,
+    element_slots: u64,
+) -> crate::mir::ValueId {
+    let data_slot = lower_storage_array_data_slot(builder, slot);
+    let offset = if element_slots <= 1 {
+        index
+    } else {
+        let stride = builder.imm_u64(element_slots);
+        builder.mul(index, stride)
+    };
+    builder.add(data_slot, offset)
 }
 
 fn lower_word_mapping_slot(

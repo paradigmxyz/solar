@@ -90,10 +90,9 @@ fn @stDyn(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb1:
     tail_call @__panic_32
   bb2:
-    v2 = storage_array_data_slot 0
-    v3 = add v2, arg0
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    ret v4
+    v2 = storage_array_element_slot 0, arg0, 1
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    ret v3
 }
 
 fn @stDynWrite(arg0: u256, arg1: u256) [abi_args=lazy] {
@@ -104,9 +103,8 @@ fn @stDynWrite(arg0: u256, arg1: u256) [abi_args=lazy] {
   bb1:
     tail_call @__panic_32
   bb2:
-    v2 = storage_array_data_slot 0
-    v3 = add v2, arg0
-    sstore v3, arg1 !metadata(storage=symbolic(v3))
+    v2 = storage_array_element_slot 0, arg0, 1
+    sstore v2, arg1 !metadata(storage=symbolic(v2))
     stop
 }
 

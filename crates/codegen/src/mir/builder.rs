@@ -805,6 +805,19 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::StorageArrayDataSlot(slot), Some(MirType::bytes32()))
     }
 
+    /// Resolves one element slot in a dynamic storage array.
+    pub(crate) fn storage_array_element_slot(
+        &mut self,
+        slot: ValueId,
+        index: ValueId,
+        element_slots: u64,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::StorageArrayElementSlot { slot, index, element_slots },
+            Some(MirType::bytes32()),
+        )
+    }
+
     /// Emits a basefee instruction.
     pub(crate) fn basefee(&mut self) -> ValueId {
         self.emit_inst(InstKind::BaseFee, Some(MirType::uint256()))

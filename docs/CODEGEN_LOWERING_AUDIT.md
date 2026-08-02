@@ -58,6 +58,10 @@ describes observable structure in the current tree, not an intended design.
   same pass. Indexing, push/pop, bytes access, and aggregate copies share that
   typed operation and the shared element-stride helper instead of staging the
   slot in HIR scratch memory.
+* Dynamic storage-array element slots now stay as
+  `storage_array_element_slot` with their type-directed stride. The mapping
+  pass alone expands the hash and offset arithmetic, including long bytes
+  element access.
 * Mutable locals and storage-reference values use typed `frame_load` and
   `frame_store` operations. `lower-frame-slots` selects the external scratch
   region or the internal-call frame and lowers those operations to physical

@@ -150,19 +150,18 @@ fn @poke() [abi_args=lazy] {
     sstore 0, v16 !metadata(storage=slot(0))
     jump bb5
   bb4:
-    v17 = storage_array_data_slot 0
-    v18 = div 5, 32
-    v19 = add v17, v18
-    v20 = mod 5, 32
-    v21 = sload v19 !metadata(storage=symbolic(v19))
-    v22 = sub 31, v20
-    v23 = mul v22, 8
-    v24 = shl v23, 255
-    v25 = not v24
-    v26 = and v21, v25
-    v27 = shl v23, v9
-    v28 = or v26, v27
-    sstore v19, v28 !metadata(storage=symbolic(v19))
+    v17 = div 5, 32
+    v18 = storage_array_element_slot 0, v17, 1
+    v19 = mod 5, 32
+    v20 = sload v18 !metadata(storage=symbolic(v18))
+    v21 = sub 31, v19
+    v22 = mul v21, 8
+    v23 = shl v22, 255
+    v24 = not v23
+    v25 = and v20, v24
+    v26 = shl v22, v9
+    v27 = or v25, v26
+    sstore v18, v27 !metadata(storage=symbolic(v18))
     jump bb5
   bb5:
     stop
