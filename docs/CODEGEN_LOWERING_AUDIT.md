@@ -96,15 +96,18 @@ existing scalar and packed-storage MIR fixtures. It supports:
   both ordinary Solidity expressions and inline assembly;
 * constructor and fallback/function attributes needed by the backend;
 * inherited public and internal function discovery with selector de-duplication;
+* most-derived virtual resolution for internal calls, `super` calls, and
+  overridden modifiers, while retaining shadowed public bodies as internal MIR
+  targets;
 * explicit and synthetic base-constructor lowering in linearized order, including
   constructor argument binding and storage-to-memory aggregate copies;
-* most-derived virtual resolution for internal calls, `super` calls, and
-  overridden modifiers;
 * block, transaction, message, `blockhash`, `blobhash`, and enum/integer
   `type(...).min`/`type(...).max` builtins through typed MIR operations;
 * compile-time ERC-165 interface IDs from the sema interface-function set;
 * positional multi-value declarations and assignments, including evaluation of
   discarded tuple values for their side effects;
+* low-level and typed external calls, including returndata capture and EVM-version
+  checks;
 * `ecrecover`, `sha256`, and `ripemd160` through version-aware precompile
   calls and semantic memory objects;
 * `string.concat` and `bytes.concat` through one variadic packed-memory path,
@@ -127,8 +130,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
 2. Finish base-constructor argument forwarding for indirect and unresolved
    constructor arguments, and cover the remaining constructor modifier edge
    cases with Solc-backed runtime tests.
-3. Add the remaining call and language features: external calls, events, Yul
-   statements, contract creation, immutables, and function-pointer dispatch.
+3. Add the remaining call and language features: events, Yul statements,
+   contract creation, immutables, and function-pointer dispatch.
 4. Finish storage-reference CFG merging for every aggregate shape and audit
    checked arithmetic and allocation guards against the corresponding Solc
    behavior.
