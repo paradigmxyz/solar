@@ -18,8 +18,7 @@ fn @static(arg0: u256) -> memoryslice {
 // CHECK: + [[LENGTH:v[0-9]+]] = slice_len arg0
 // CHECK: + [[DYNAMIC_MEMORY:v[0-9]+]] = alloc memorybytes
 // CHECK: + memory_object_store_word memorybytes, [[DYNAMIC_MEMORY]], 0
-// CHECK: + [[POINTER:v[0-9]+]] = slice_ptr arg0
-// CHECK: + calldatacopy {{v[0-9]+}}, [[POINTER]], [[LENGTH]]
+// CHECK: + memory_object_copy_from_slice_at memorybytes, [[DYNAMIC_MEMORY]], {{v[0-9]+}}, arg0
 fn @dynamic(arg0: calldataslice) -> memoryslice {
   bb0:
     v0 = abi_encode [calldata_bytes], args arg0

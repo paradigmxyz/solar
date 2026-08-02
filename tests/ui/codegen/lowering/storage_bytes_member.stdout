@@ -1076,7 +1076,7 @@ bb62:
   dup2
   add
   dup1
-  push 224
+  push 256
   mstore
   swap1
   push 95
@@ -1089,7 +1089,7 @@ bb62:
   push 64
   mload
   dup1
-  push 256
+  push 192
   mstore
   swap1
   dup2
@@ -1098,7 +1098,7 @@ bb62:
   mstore
   dup2
   dup1
-  push 224
+  push 256
   mstore
   dup2
   mstore
@@ -1111,7 +1111,7 @@ bb62:
   dup3
   mload
   dup1
-  push 192
+  push 224
   mstore
   push 32
   dup3
@@ -1120,7 +1120,7 @@ bb62:
   add
   dup2
   dup1
-  push 192
+  push 224
   mstore
   swap1
   mstore
@@ -1146,7 +1146,7 @@ bb62:
   mload
   add
   push 32
-  push 256
+  push 192
   mload
   add
   add
@@ -1160,21 +1160,23 @@ bb64:
   mload
   add
   push 32
-  push 256
+  push 192
   mload
   add
   push 64
-  dup2
   add
-  push 192
+  push 224
   mload
-  dup4
+  dup3
   dup3
   mcopy
   pop
-  swap1
   pop
-  push 224
+  push 32
+  push 192
+  mload
+  add
+  push 256
   mload
   dup2
   return

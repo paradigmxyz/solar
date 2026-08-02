@@ -747,6 +747,9 @@ impl AliasAnalysis {
             InstKind::MemoryObjectCopyFromSlice { object, source, .. } => {
                 operand != *object && operand != *source
             }
+            InstKind::MemoryObjectCopyFromSliceAt { object, offset, source, .. } => {
+                operand != *object && operand != *offset && operand != *source
+            }
             InstKind::MemoryObjectCopy { destination, source, length, .. } => {
                 operand != *destination && operand != *source && operand != *length
             }
@@ -962,6 +965,15 @@ impl AliasAnalysis {
                 effects.read_any(AddressSpace::Memory);
             }
             InstKind::MemoryObjectCopyFromSlice { source, .. } => {
+                if matches!(
+                    func.value_ty(source),
+                    Some(crate::mir::MirType::Slice(crate::mir::SliceLocation::Memory,))
+                ) {
+                    effects.read_any(AddressSpace::Memory);
+                }
+                effects.write_any(AddressSpace::Memory);
+            }
+            InstKind::MemoryObjectCopyFromSliceAt { source, .. } => {
                 if matches!(
                     func.value_ty(source),
                     Some(crate::mir::MirType::Slice(crate::mir::SliceLocation::Memory,))

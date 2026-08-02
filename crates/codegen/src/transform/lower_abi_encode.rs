@@ -643,12 +643,18 @@ fn encode_word_array(
     let word = builder.imm_u64(32);
     let bytes = builder.mul(len, word);
     let data_dest = builder.add(dest_offset, word);
-    let data_source = match location {
-        SliceLocation::Memory => builder.memory_object_data(value, MemoryObjectKind::DynamicArray),
-        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
+    let source = match location {
+        SliceLocation::Memory => {
+            let data = builder.memory_object_data(value, MemoryObjectKind::DynamicArray);
+            builder.make_slice(data, bytes, SliceLocation::Memory)
+        }
+        SliceLocation::Calldata | SliceLocation::Returndata => {
+            let data = builder.slice_ptr(value);
+            builder.make_slice(data, bytes, location)
+        }
     };
     let tail = builder.add(data_dest, bytes);
-    copy_slice_data(builder, object, location, data_dest, data_source, bytes);
+    copy_slice_data(builder, object, data_dest, source);
     tail
 }
 
@@ -685,33 +691,26 @@ fn encode_bytes(
     builder.jump(copy_block);
 
     builder.switch_to_block(copy_block);
-    let data_source = match location {
-        SliceLocation::Memory => builder.memory_object_data(value, MemoryObjectKind::Bytes),
-        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
+    let source = match location {
+        SliceLocation::Memory => {
+            let data = builder.memory_object_data(value, MemoryObjectKind::Bytes);
+            builder.make_slice(data, len, SliceLocation::Memory)
+        }
+        SliceLocation::Calldata | SliceLocation::Returndata => value,
     };
     let tail = builder.add(data_dest, padded);
-    copy_slice_data(builder, object, location, data_dest, data_source, len);
+    copy_slice_data(builder, object, data_dest, source);
     tail
 }
 
-/// Copies `size` bytes of a slice's data from its address space into memory at
-/// `dest`. Memory-to-memory uses `mcopy`; calldata and returndata slices copy
-/// from their own buffers with `calldatacopy`/`returndatacopy`.
+/// Copies a logical slice into an output bytes object at a byte offset.
 fn copy_slice_data(
     builder: &mut FunctionBuilder<'_>,
     object: ValueId,
-    location: SliceLocation,
     dest_offset: ValueId,
     source: ValueId,
-    size: ValueId,
 ) {
-    let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
-    let dest = builder.add(data, dest_offset);
-    match location {
-        SliceLocation::Memory => builder.mcopy(dest, source, size),
-        SliceLocation::Calldata => builder.calldatacopy(dest, source, size),
-        SliceLocation::Returndata => builder.returndatacopy(dest, source, size),
-    }
+    builder.memory_object_copy_from_slice_at(object, MemoryObjectKind::Bytes, dest_offset, source);
 }
 
 fn store_word(builder: &mut FunctionBuilder<'_>, object: ValueId, offset: ValueId, value: ValueId) {

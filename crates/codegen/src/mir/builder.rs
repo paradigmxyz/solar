@@ -511,6 +511,17 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::MemoryObjectCopyFromSlice { object, kind, source });
     }
 
+    /// Copies a typed slice into a byte offset in a dynamic memory object's payload.
+    pub(crate) fn memory_object_copy_from_slice_at(
+        &mut self,
+        object: ValueId,
+        kind: crate::mir::MemoryObjectKind,
+        offset: ValueId,
+        source: ValueId,
+    ) {
+        self.emit_void_inst(InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source });
+    }
+
     /// Copies a byte range between two dynamic memory objects.
     pub(crate) fn memory_object_copy(
         &mut self,

@@ -50,14 +50,11 @@
 +     memory_object_store_word memorybytes, v12, v22, 0
 +     jump bb2
 +   bb2:
-+     v23 = slice_ptr arg0
-+     v24 = add v19, v18
-+     v25 = memory_object_data memorybytes, v12
-+     v26 = add v25, v19
-+     calldatacopy v26, v23, v15
-+     v27 = memory_object_data memorybytes, v12
-+     v28 = make_memory_slice v27, v7
-+     ret v28
++     v23 = add v19, v18
++     memory_object_copy_from_slice_at memorybytes, v12, v19, arg0
++     v24 = memory_object_data memorybytes, v12
++     v25 = make_memory_slice v24, v7
++     ret v25
   }
   
   fn @nested_dynamic_array(arg0: memoryarray) -> memoryslice {
@@ -134,26 +131,25 @@
 +     v41 = mul v40, 32
 +     v42 = add v37, 32
 +     v43 = memory_object_data memoryarray, v35
-+     v44 = add v42, v41
-+     v45 = memory_object_data memorybytes, v25
-+     v46 = add v45, v42
-+     mcopy v46, v43, v41
-+     memory_object_store_element memoryarray<1>, v1, 1, v44
-+     v47 = memory_object_load_element memoryarray<1>, v1, 0
-+     v48 = sub v47, 1
-+     memory_object_store_element memoryarray<1>, v1, 0, v48
-+     v49 = memory_object_load_element memoryarray<1>, v1, 3
-+     v50 = add v49, 1
-+     memory_object_store_element memoryarray<1>, v1, 3, v50
-+     v51 = memory_object_load_element memoryarray<1>, v1, 2
-+     v52 = add v51, 32
-+     memory_object_store_element memoryarray<1>, v1, 2, v52
++     v44 = make_memory_slice v43, v41
++     v45 = add v42, v41
++     memory_object_copy_from_slice_at memorybytes, v25, v42, v44
++     memory_object_store_element memoryarray<1>, v1, 1, v45
++     v46 = memory_object_load_element memoryarray<1>, v1, 0
++     v47 = sub v46, 1
++     memory_object_store_element memoryarray<1>, v1, 0, v47
++     v48 = memory_object_load_element memoryarray<1>, v1, 3
++     v49 = add v48, 1
++     memory_object_store_element memoryarray<1>, v1, 3, v49
++     v50 = memory_object_load_element memoryarray<1>, v1, 2
++     v51 = add v50, 32
++     memory_object_store_element memoryarray<1>, v1, 2, v51
 +     jump bb4
 +   bb6:
-+     v53 = memory_object_load_element memoryarray<1>, v1, 1
-+     v54 = memory_object_data memorybytes, v25
-+     v55 = make_memory_slice v54, v20
-+     ret v55
++     v52 = memory_object_load_element memoryarray<1>, v1, 1
++     v53 = memory_object_data memorybytes, v25
++     v54 = make_memory_slice v53, v20
++     ret v54
   }
   
   fn @returndata_bytes() -> memoryslice {
@@ -192,14 +188,11 @@
 +     memory_object_store_word memorybytes, v14, v24, 0
 +     jump bb2
 +   bb2:
-+     v25 = slice_ptr v1
-+     v26 = add v21, v20
-+     v27 = memory_object_data memorybytes, v14
-+     v28 = add v27, v21
-+     returndatacopy v28, v25, v17
-+     v29 = memory_object_data memorybytes, v14
-+     v30 = make_memory_slice v29, v9
-+     ret v30
++     v25 = add v21, v20
++     memory_object_copy_from_slice_at memorybytes, v14, v21, v1
++     v26 = memory_object_data memorybytes, v14
++     v27 = make_memory_slice v26, v9
++     ret v27
   }
   
   fn @returndata_words(arg0: u256) -> memoryslice {
@@ -226,12 +219,11 @@
 +     v15 = mul v14, 32
 +     v16 = add v12, 32
 +     v17 = slice_ptr v0
-+     v18 = add v16, v15
-+     v19 = memory_object_data memorybytes, v11
-+     v20 = add v19, v16
-+     returndatacopy v20, v17, v15
-+     v21 = memory_object_data memorybytes, v11
-+     v22 = make_memory_slice v21, v6
-+     ret v22
++     v18 = make_returndata_slice v17, v15
++     v19 = add v16, v15
++     memory_object_copy_from_slice_at memorybytes, v11, v16, v18
++     v20 = memory_object_data memorybytes, v11
++     v21 = make_memory_slice v20, v6
++     ret v21
   }
   

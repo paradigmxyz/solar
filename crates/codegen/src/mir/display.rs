@@ -428,6 +428,13 @@ fn display_inst_kind<'a>(
             display_val(*object, func),
             display_val(*source, func)
         ),
+        InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source } => write!(
+            f,
+            "memory_object_copy_from_slice_at {kind}, {}, {}, {}",
+            display_val(*object, func),
+            display_val(*offset, func),
+            display_val(*source, func)
+        ),
         InstKind::MemoryObjectCopy {
             destination,
             destination_kind,

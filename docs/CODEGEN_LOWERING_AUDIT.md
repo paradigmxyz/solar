@@ -139,8 +139,8 @@ describes observable structure in the current tree, not an intended design.
   memory-object loads. Address formation and the final `mload` happen only in
   `lower-memory-objects`.
 * ABI encoder output buffers are typed bytes objects. Selectors, lengths, ABI
-  offsets, and static words use semantic object stores; only source-slice
-  copies still cross through physical copy opcodes at this boundary.
+  offsets, static words, and source-slice copies stay semantic until
+  `lower-memory-objects` selects the physical copy opcode.
 * Dynamic ABI encodes measure their tails before reserving the output through
   `alloc`. The encoder no longer writes into an unbumped free-memory pointer;
   the measurement and write phases share the same typed ABI shape.
@@ -185,9 +185,9 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
 * **Physical memory still leaks through a few aggregate helpers.** Mutable
   locals, direct object accesses, object-to-object and typed slice-to-object
   copies, storage aggregate copies, and ABI payload copies into objects now
-  stay semantic. ABI tail assembly, Yul copies, returndata staging, and some
-  loop scratch state still emit raw memory operations before the semantic
-  memory passes. Mapping slot hashing is no
+  stay semantic until the memory boundary. ABI tail assembly, Yul copies,
+  returndata staging, and some loop scratch state still emit raw memory
+  operations before the semantic memory passes. Mapping slot hashing is no
   longer one of those early scratch users: it stays semantic through
   optimization and allocates its hash input at the memory boundary. The
   remaining work is to keep the other policies in typed MIR until that

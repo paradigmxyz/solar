@@ -3639,6 +3639,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             | InstKind::MemoryObjectStoreWord { .. }
             | InstKind::MemorySliceLoadWord { .. }
             | InstKind::MemoryObjectCopyFromSlice { .. }
+            | InstKind::MemoryObjectCopyFromSliceAt { .. }
             | InstKind::MemoryObjectCopy { .. }
             | InstKind::FrameLoad { .. }
             | InstKind::FrameStore { .. }

@@ -44,7 +44,7 @@ bb6:
   dup2
   add
   dup1
-  push 160
+  push 192
   mstore
   swap1
   push 95
@@ -57,7 +57,7 @@ bb6:
   push 64
   mload
   dup1
-  push 192
+  push 128
   mstore
   swap1
   dup2
@@ -66,7 +66,7 @@ bb6:
   mstore
   dup2
   dup1
-  push 160
+  push 192
   mstore
   dup2
   mstore
@@ -81,7 +81,7 @@ bb6:
   shl
   mload
   dup1
-  push 128
+  push 160
   mstore
   push 32
   dup3
@@ -90,7 +90,7 @@ bb6:
   add
   dup2
   dup1
-  push 128
+  push 160
   mstore
   swap1
   mstore
@@ -115,7 +115,7 @@ bb6:
   mload
   add
   push 32
-  push 192
+  push 128
   mload
   add
   add
@@ -132,21 +132,23 @@ bb8:
 bb12:
   add
   push 32
-  push 192
+  push 128
   mload
   add
   push 64
-  dup2
   add
-  push 128
+  push 160
   mload
-  dup4
+  dup3
   dup3
   mcopy
   pop
-  swap1
   pop
-  push 160
+  push 32
+  push 128
+  mload
+  add
+  push 192
   mload
   dup2
   return
@@ -160,7 +162,7 @@ bb13:
 bb14:
   mload
   dup1
-  push 128
+  push 160
   mstore
   push 32
   dup3
@@ -169,7 +171,7 @@ bb14:
   add
   dup2
   dup1
-  push 128
+  push 160
   mstore
   swap1
   mstore
@@ -194,7 +196,7 @@ bb14:
   mload
   add
   push 32
-  push 192
+  push 128
   mload
   add
   add
@@ -217,7 +219,7 @@ bb15:
   dup2
   add
   dup1
-  push 160
+  push 192
   mstore
   swap1
   push 95
@@ -230,7 +232,7 @@ bb15:
   push 64
   mload
   dup1
-  push 192
+  push 128
   mstore
   swap1
   dup2
@@ -239,7 +241,7 @@ bb15:
   mstore
   dup2
   dup1
-  push 160
+  push 192
   mstore
   dup2
   mstore
@@ -446,7 +448,7 @@ bb27 [cold]:
   dup2
   add
   dup1
-  push 192
+  push 224
   mstore
   swap1
   push 99
@@ -459,7 +461,7 @@ bb27 [cold]:
   push 64
   mload
   dup1
-  push 224
+  push 160
   mstore
   swap1
   dup2
@@ -468,7 +470,7 @@ bb27 [cold]:
   mstore
   dup2
   dup1
-  push 192
+  push 224
   mstore
   dup2
   mstore
@@ -491,7 +493,7 @@ bb27 [cold]:
   dup3
   mload
   dup1
-  push 160
+  push 192
   mstore
   push 32
   dup3
@@ -500,7 +502,7 @@ bb27 [cold]:
   add
   dup2
   dup1
-  push 160
+  push 192
   mstore
   swap1
   mstore
@@ -527,21 +529,23 @@ bb30 [cold]:
   mload
   add
   push 32
-  push 224
+  push 160
   mload
   add
   push 68
-  dup2
   add
-  push 160
+  push 192
   mload
-  dup4
+  dup3
   dup3
   mcopy
   pop
-  swap1
   pop
-  push 192
+  push 32
+  push 160
+  mload
+  add
+  push 224
   mload
   dup2
   revert
@@ -551,7 +555,7 @@ bb29 [cold]:
   mload
   add
   push 32
-  push 224
+  push 160
   mload
   add
   add

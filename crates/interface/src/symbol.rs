@@ -1056,6 +1056,7 @@ symbols! {
         memory_dash_safe: "memory-safe",
         memory_object_copy,
         memory_object_copy_from_slice,
+        memory_object_copy_from_slice_at,
         memory_object_data,
         memory_object_element_addr,
         memory_object_field_addr,

@@ -1568,6 +1568,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let source = self.parse_value(builder)?;
                 (InstKind::MemoryObjectCopyFromSlice { object, kind, source }, None)
             }
+            sym::memory_object_copy_from_slice_at => {
+                let name = self.parser.parse_ident()?;
+                let kind = self.parse_memory_object_layout(name)?.kind();
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let offset = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let source = self.parse_value(builder)?;
+                (InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source }, None)
+            }
             sym::memory_object_copy => {
                 let destination_name = self.parser.parse_ident()?;
                 let destination_kind = self.parse_memory_object_layout(destination_name)?.kind();
