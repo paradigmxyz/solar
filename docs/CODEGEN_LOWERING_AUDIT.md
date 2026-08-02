@@ -144,12 +144,12 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   shapes safely needs a typed constructor blob end/length, which MIR does not
   expose yet.
 * **Physical memory still leaks through a few aggregate helpers.** Mutable
-  locals, direct object accesses, storage aggregate copies, and typed
-  slice-to-object copies now stay semantic. Memory-object allocation, ABI
-  decoding from an encoded region, ABI tail copies, Yul copies, and some loop
-  scratch state still emit raw memory operations before the semantic memory
-  passes. The remaining work is to keep those policies in typed MIR until the
-  memory-layout boundary.
+  locals, direct object accesses, object-to-object and typed slice-to-object
+  copies, and storage aggregate copies now stay semantic. Memory-object
+  allocation, ABI decoding from an encoded region, ABI tail copies, Yul copies,
+  and some loop scratch state still emit raw memory operations before the
+  semantic memory passes. The remaining work is to keep those policies in
+  typed MIR until the memory-layout boundary.
 * **Helper coverage is incomplete.** Panic, short-error, and storage-bytes
   helpers now share a keyed lazy registry. Checked exponentiation, ABI copies,
   and repeated cleanup or validation still have inline or pass-specific
@@ -160,11 +160,12 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   storage copying. Several branches repeat pointer/length arithmetic and
   bounds checks instead of sharing a type-directed aggregate abstraction.
 * **Storage semantics are still split between incompatible paths.** Static
-  state variables, direct struct fields, and fixed arrays now share
-  `StorageLocation` and its encoding for packed reads and read-modify-write
-  stores. Runtime storage references and some nested aggregate paths still mix
-  that layout with independent slot arithmetic. The replacement should make
-  one type-directed location query the only source of storage addresses.
+  state variables, direct struct fields, fixed arrays, and storage-reference
+  struct materialization now share `StorageLocation` and its encoding for
+  packed reads, deep copies, and read-modify-write stores. Dynamic storage
+  references and some nested aggregate paths still mix that layout with
+  independent slot arithmetic. The replacement should make one type-directed
+  location query the only source of storage addresses.
 * **Legacy compatibility surface is broad.** The top-level module exposes many
   `pub(crate)` and `pub(super)` methods because sibling files reach through the
   context. Their callers are not grouped by phase, so removing one helper
