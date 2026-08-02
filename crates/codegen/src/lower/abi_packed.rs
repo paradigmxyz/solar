@@ -1,10 +1,7 @@
 //! ABI packed encoding lowering helpers.
 
 use super::Lowerer;
-use crate::{
-    memory::EvmMemoryLayout,
-    mir::{FunctionBuilder, MemoryObjectKind, Value, ValueId},
-};
+use crate::mir::{FunctionBuilder, MemoryObjectKind, Value, ValueId};
 use alloy_primitives::U256;
 use solar_ast::{ElementaryType, LitKind};
 use solar_interface::{Symbol, diagnostics::ErrorGuaranteed, sym};
@@ -24,77 +21,6 @@ enum PackedAbiArg {
     DynamicBytes(ValueId),
 }
 
-impl PackedAbiArg {
-    fn max_static_write(args: &[Self]) -> Option<usize> {
-        let mut offset = 0usize;
-        let mut max_write = 0usize;
-        let mut i = 0usize;
-
-        while i < args.len() {
-            if let Some((consumed, len)) = Self::static_word_run(&args[i..]) {
-                max_write = max_write.max(offset + 32);
-                offset += len;
-                i += consumed;
-                continue;
-            }
-
-            match &args[i] {
-                Self::Bytes(bytes) => {
-                    for chunk in bytes.chunks(32) {
-                        max_write = max_write.max(offset + 32);
-                        offset += chunk.len();
-                    }
-                }
-                Self::Value { size, .. } => {
-                    max_write = max_write.max(offset + 32);
-                    offset += *size;
-                }
-                Self::DynamicBytes(_) => return None,
-            }
-            i += 1;
-        }
-
-        Some(max_write)
-    }
-
-    fn static_word_run(args: &[Self]) -> Option<(usize, usize)> {
-        let mut len = 0usize;
-        let mut consumed = 0usize;
-        let mut has_value = false;
-
-        for arg in args {
-            match arg {
-                Self::Bytes(bytes) => {
-                    if bytes.is_empty() {
-                        consumed += 1;
-                        continue;
-                    }
-                    if len + bytes.len() > 32 {
-                        break;
-                    }
-                    len += bytes.len();
-                    consumed += 1;
-                }
-                Self::Value { size, left_aligned: false, .. } if *size < 32 => {
-                    if *size == 0 {
-                        consumed += 1;
-                        continue;
-                    }
-                    if len + *size > 32 {
-                        break;
-                    }
-                    len += *size;
-                    consumed += 1;
-                    has_value = true;
-                }
-                _ => break,
-            }
-        }
-
-        (consumed >= 2 && len != 0 && has_value).then_some((consumed, len))
-    }
-}
-
 impl<'gcx> Lowerer<'gcx> {
     /// Lowers abi.encodePacked with proper tight packing.
     /// Returns bytes memory (pointer to length + data).
@@ -103,63 +29,52 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         args: &[hir::Expr<'_>],
     ) -> Result<ValueId, ErrorGuaranteed> {
-        // Arguments are fully lowered before the buffer is touched: nested
-        // calls in arguments may allocate memory of their own. The writes
-        // below allocate nothing, so filling the buffer past the unbumped
-        // free memory pointer and reserving it afterwards is safe.
+        // Arguments are fully lowered before the output object is reserved:
+        // nested calls in arguments may allocate memory of their own.
         let packed_args = self.collect_packed_abi_args(builder, args)?;
 
-        let ptr = builder.fmp_object(crate::mir::MemoryObjectLayout::Bytes);
-
-        // Data starts at ptr+32 (leaving room for the length word).
+        let length = self.packed_abi_len(builder, &packed_args);
+        let thirty_one = builder.imm_u64(31);
+        let rounded = builder.add(length, thirty_one);
+        let mask = builder.not(thirty_one);
+        let aligned = builder.and(rounded, mask);
         let thirty_two = builder.imm_u64(32);
-        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        let (end, static_len) = self.write_packed_abi_args(builder, data_start, &packed_args);
+        let total_size = builder.add(thirty_two, aligned);
+        let object = builder.alloc_object(
+            total_size,
+            crate::mir::MemoryObjectLayout::Bytes,
+            crate::mir::AllocationSemantics::INTERNAL,
+        );
 
-        // Finalize the allocation: length word + data padded to a word
-        // boundary, keeping the free memory pointer aligned.
-        let (length, total_size) = match static_len {
-            Some(len) => (builder.imm_u64(len), builder.imm_u64(32 + len.div_ceil(32) * 32)),
-            None => {
-                let length = builder.sub(end, data_start);
-                let thirty_one = builder.imm_u64(31);
-                let rounded = builder.add(length, thirty_one);
-                let mask = builder.not(thirty_one);
-                let aligned = builder.and(rounded, mask);
-                (length, builder.add(aligned, thirty_two))
-            }
-        };
-        builder.set_memory_object_len(ptr, length, MemoryObjectKind::Bytes);
-        let new_free_ptr = builder.add(ptr, total_size);
-        builder.set_fmp(new_free_ptr);
-
-        // Return pointer to the bytes value
-        Ok(ptr)
+        let data_start = builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        self.write_packed_abi_args(builder, data_start, &packed_args);
+        builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+        Ok(object)
     }
 
-    /// Lowers `keccak256(abi.encodePacked(...))` without materializing a temporary bytes object:
-    /// the packed data is staged at the unbumped free memory pointer and hashed in place.
+    /// Lowers `keccak256(abi.encodePacked(...))` through the packed bytes object.
     pub(super) fn lower_keccak_abi_encode_packed(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         args: &[hir::Expr<'_>],
     ) -> Result<ValueId, ErrorGuaranteed> {
-        let packed_args = self.collect_packed_abi_args(builder, args)?;
+        let object = self.lower_abi_encode_packed(builder, args)?;
+        Ok(builder.keccak256_bytes(object))
+    }
 
-        let data_start = if PackedAbiArg::max_static_write(&packed_args)
-            .is_some_and(|end| end <= EvmMemoryLayout::FMP_SLOT as usize)
-        {
-            builder.imm_u64(0)
-        } else {
-            builder.fmp()
-        };
-        let (end, static_len) = self.write_packed_abi_args(builder, data_start, &packed_args);
-
-        let size = match static_len {
-            Some(len) => builder.imm_u64(len),
-            None => builder.sub(end, data_start),
-        };
-        Ok(builder.keccak256(data_start, size))
+    fn packed_abi_len(&self, builder: &mut FunctionBuilder<'_>, args: &[PackedAbiArg]) -> ValueId {
+        let mut length = builder.imm_u64(0);
+        for arg in args {
+            let size = match arg {
+                PackedAbiArg::Bytes(bytes) => builder.imm_u64(bytes.len() as u64),
+                PackedAbiArg::Value { size, .. } => builder.imm_u64(*size as u64),
+                PackedAbiArg::DynamicBytes(object) => {
+                    builder.memory_object_len(*object, MemoryObjectKind::Bytes)
+                }
+            };
+            length = builder.add(length, size);
+        }
+        length
     }
 
     fn collect_packed_abi_args(

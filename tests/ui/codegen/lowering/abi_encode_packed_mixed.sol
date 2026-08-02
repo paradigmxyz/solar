@@ -8,7 +8,7 @@ contract AbiEncodePackedMixed {
     // CHECK-LABEL: fn @fixedBytesArg{{[( ]}}
     // CHECK: {{v[0-9]+}} = shl 96, arg1
     // CHECK: mstore {{v[0-9]+}}, arg2
-    // CHECK: keccak256 {{v[0-9]+}}, 54
+    // CHECK: [[OBJECT:v[0-9]+]] = keccak256_bytes
     function fixedBytesArg(uint a, address b, bytes2 c) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(a, b, c));
     }
@@ -16,7 +16,7 @@ contract AbiEncodePackedMixed {
     // CHECK-LABEL: fn @dynamicArg{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = memory_object_len memorybytes
     // CHECK: mcopy {{v[0-9]+}}, {{v[0-9]+}}, [[LEN]]
-    // CHECK: keccak256
+    // CHECK: [[OBJECT:v[0-9]+]] = keccak256_bytes
     function dynamicArg(bytes32 h, bytes memory tail) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(h, tail));
     }

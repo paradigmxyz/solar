@@ -46,23 +46,23 @@ fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [abi_param
     mstore v19, 0
     v20 = slice_ptr v6
     calldatacopy v17, v20, v7
-    v21 = fmp
-    v22 = memory_object_data memorybytes, v21
-    v23 = memory_object_len memorybytes, v16
-    v24 = memory_object_data memorybytes, v16
-    mcopy v22, v24, v23
-    v25 = add v22, v23
-    mstore v25, 0x2100000000000000000000000000000000000000000000000000000000000000
-    v26 = add v25, 1
-    v27 = sub v26, v22
-    v28 = add v27, 31
-    v29 = not 31
-    v30 = and v28, v29
-    v31 = add v30, 32
-    set_memory_object_len memorybytes, v21, v27
-    v32 = add v21, v31
-    set_fmp v32
-    ret v21
+    v21 = memory_object_len memorybytes, v16
+    v22 = add 0, v21
+    v23 = add v22, 1
+    v24 = add v23, 31
+    v25 = not 31
+    v26 = and v24, v25
+    v27 = add 32, v26
+    v28 = alloc memorybytes, exact, uninitialized, infallible, v27
+    v29 = memory_object_data memorybytes, v28
+    v30 = memory_object_len memorybytes, v16
+    v31 = memory_object_data memorybytes, v16
+    mcopy v29, v31, v30
+    v32 = add v29, v30
+    mstore v32, 0x2100000000000000000000000000000000000000000000000000000000000000
+    v33 = add v32, 1
+    set_memory_object_len memorybytes, v28, v23
+    ret v28
 }
 
 fn @all() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
@@ -98,20 +98,19 @@ fn @all() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
     mstore v14, 0
     v15 = slice_ptr v1
     calldatacopy v12, v15, v2
-    v16 = fmp
-    v17 = memory_object_data memorybytes, v16
-    v18 = memory_object_len memorybytes, v11
-    v19 = memory_object_data memorybytes, v11
-    mcopy v17, v19, v18
-    v20 = add v17, v18
-    v21 = sub v20, v17
-    v22 = add v21, 31
-    v23 = not 31
-    v24 = and v22, v23
-    v25 = add v24, 32
-    set_memory_object_len memorybytes, v16, v21
-    v26 = add v16, v25
-    set_fmp v26
-    ret v16
+    v16 = memory_object_len memorybytes, v11
+    v17 = add 0, v16
+    v18 = add v17, 31
+    v19 = not 31
+    v20 = and v18, v19
+    v21 = add 32, v20
+    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
+    v23 = memory_object_data memorybytes, v22
+    v24 = memory_object_len memorybytes, v11
+    v25 = memory_object_data memorybytes, v11
+    mcopy v23, v25, v24
+    v26 = add v23, v24
+    set_memory_object_len memorybytes, v22, v17
+    ret v22
 }
 

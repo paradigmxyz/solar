@@ -200,7 +200,7 @@ bb24:
   push 64
   mload
   dup1
-  push 352
+  push 288
   mstore
   push 256
   mload
@@ -230,33 +230,45 @@ bb24:
   mload
   dup3
   calldatacopy
+  swap1
+  mload
+  push 31
+  dup2
+  add
+  push 31
+  not
+  and
+  push 32
+  add
   push 64
   mload
   dup1
-  push 288
-  mstore
-  swap2
-  mload
-  dup1
   push 320
   mstore
+  swap1
   dup2
-  dup4
-  dup1
-  push 288
+  add
+  push 64
   mstore
+  push 32
+  dup2
+  add
+  dup3
+  dup5
+  dup3
   mcopy
   pop
-  push 320
-  mload
+  swap2
+  pop
   dup2
+  mstore
   jump bb22
 bb22:
+  dup1
+  mload
+  swap1
+  push 32
   add
-  dup2
-  swap1
-  sub
-  swap1
   keccak256
   push 128
   mstore
@@ -299,35 +311,59 @@ bb25:
   mload
   dup3
   calldatacopy
+  dup2
+  mload
+  push 33
+  dup2
+  add
+  swap1
+  push 64
+  add
+  push 31
+  not
+  and
+  push 32
+  add
   push 64
   mload
   dup1
   push 352
   mstore
+  swap1
+  dup2
+  add
+  push 64
+  mstore
+  push 32
+  dup2
+  add
   push 112
   push 248
   shl
   dup2
   mstore
   push 1
-  dup2
   add
-  swap3
+  swap4
   mload
   dup1
   push 288
   mstore
-  dup3
-  dup5
+  dup4
+  dup6
   mcopy
-  swap1
+  swap2
   pop
-  swap1
+  swap2
   push 288
   mload
   add
   push 1
+  swap1
+  mstore
+  dup2
   dup2
   mstore
-  push 32
+  swap1
+  pop
   jump bb22

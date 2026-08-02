@@ -358,11 +358,6 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::Fmp, Some(MirType::MemPtr))
     }
 
-    /// Reads the free-memory pointer as the base of a semantic object being built in place.
-    pub(crate) fn fmp_object(&mut self, layout: crate::mir::MemoryObjectLayout) -> ValueId {
-        self.emit_inst(InstKind::Fmp, Some(MirType::MemoryObject(layout.kind())))
-    }
-
     /// Sets the free-memory pointer.
     pub(crate) fn set_fmp(&mut self, ptr: ValueId) {
         self.emit_void_inst(InstKind::SetFmp(ptr))
