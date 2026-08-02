@@ -3,7 +3,7 @@
 use super::{LoopContext, Lowerer, MIN_BULK_ZERO_MEMORY_WORDS};
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{FunctionBuilder, MemoryObjectKind, ValueId},
+    mir::{FunctionBuilder, MemoryObjectKind, MemoryObjectLayout, ValueId},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -596,17 +596,13 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         let len = values.len() as u64;
         let size = builder.imm_u64(len * 32);
-        let object = builder.alloc_object(
-            size,
-            crate::mir::MemoryObjectLayout::FixedArray { len, element_words: 1 },
-            crate::mir::AllocationSemantics::INTERNAL,
-        );
-        let base = builder.memory_object_data(object, crate::mir::MemoryObjectKind::FixedArray);
+        let layout = MemoryObjectLayout::FixedArray { len, element_words: 1 };
+        let object = builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL);
         for (i, &value) in values.iter().enumerate().skip(start) {
-            let offset = builder.imm_u64(i as u64 * 32);
-            let addr = builder.add(base, offset);
-            builder.mstore(addr, value);
+            let index = builder.imm_u64(i as u64);
+            builder.memory_object_store_element(object, layout, index, value);
         }
+        let base = builder.memory_object_data(object, MemoryObjectKind::FixedArray);
         let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
         builder.mstore(ptr_slot, base);
     }

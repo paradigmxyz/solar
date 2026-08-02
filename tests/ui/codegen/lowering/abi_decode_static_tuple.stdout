@@ -33,18 +33,16 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_params=[bytes], abi_
     revert 0, 0
   bb6:
     v15 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    memory_object_store_element memoryfixedarray<3, 1>, v15, 1, v7
+    memory_object_store_element memoryfixedarray<3, 1>, v15, 2, v12
     v16 = memory_object_data memoryfixedarray, v15
-    v17 = add v16, 32
-    mstore v17, v7
-    v18 = add v16, 64
-    mstore v18, v12
     mstore 32, v16 !metadata(memory=scratch)
-    v19 = mload 32 !metadata(memory=scratch)
-    v20 = add v19, 32
+    v17 = mload 32 !metadata(memory=scratch)
+    v18 = add v17, 32
+    v19 = mload v18
+    v20 = add v17, 64
     v21 = mload v20
-    v22 = add v19, 64
-    v23 = mload v22
-    ret v3, v21, v23
+    ret v3, v19, v21
 }
 
 fn @__revert_empty() {

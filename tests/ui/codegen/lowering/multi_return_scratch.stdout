@@ -63,3 +63,48 @@ fn @assign(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [abi_args=lazy, a
     ret v9, v10, v11, v12
 }
 
+fn @ternary(arg0: bool, arg1: u256) -> (u256, u256) [abi_args=lazy, abi_returns=[word, word]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = add arg1, 1
+    v1 = lt v0, arg1
+    jumpi v1, bb4, bb5
+  bb2:
+    v4 = add arg1, 2
+    v5 = lt v4, arg1
+    jumpi v5, bb6, bb7
+  bb3:
+    v10 = mload 32 !metadata(memory=scratch)
+    v11 = add v10, 0
+    v12 = mload v11
+    v13 = mload 32 !metadata(memory=scratch)
+    v14 = add v13, 32
+    v15 = mload v14
+    ret v12, v15
+  bb4:
+    tail_call @__panic_11
+  bb5:
+    v2 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_object_store_element memoryfixedarray<2, 1>, v2, 0, arg1
+    memory_object_store_element memoryfixedarray<2, 1>, v2, 1, v0
+    v3 = memory_object_data memoryfixedarray, v2
+    mstore 32, v3 !metadata(memory=scratch)
+    jump bb3
+  bb6:
+    tail_call @__panic_11
+  bb7:
+    v6 = add arg1, 3
+    v7 = lt v6, arg1
+    jumpi v7, bb8, bb9
+  bb8:
+    tail_call @__panic_11
+  bb9:
+    v8 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_object_store_element memoryfixedarray<2, 1>, v8, 0, v4
+    memory_object_store_element memoryfixedarray<2, 1>, v8, 1, v6
+    v9 = memory_object_data memoryfixedarray, v8
+    mstore 32, v9 !metadata(memory=scratch)
+    jump bb3
+}
+

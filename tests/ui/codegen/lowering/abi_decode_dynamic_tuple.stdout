@@ -128,18 +128,16 @@ fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [abi_params=[b
     v53 = make_memory_slice v52, v37
     memory_object_copy_from_slice memorybytes, v49, v53
     v54 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    memory_object_store_element memoryfixedarray<3, 1>, v54, 1, v25
+    memory_object_store_element memoryfixedarray<3, 1>, v54, 2, v49
     v55 = memory_object_data memoryfixedarray, v54
-    v56 = add v55, 32
-    mstore v56, v25
-    v57 = add v55, 64
-    mstore v57, v49
     mstore 32, v55 !metadata(memory=scratch)
-    v58 = mload 32 !metadata(memory=scratch)
-    v59 = add v58, 32
+    v56 = mload 32 !metadata(memory=scratch)
+    v57 = add v56, 32
+    v58 = mload v57
+    v59 = add v56, 64
     v60 = mload v59
-    v61 = add v58, 64
-    v62 = mload v61
-    ret v5, v60, v62
+    ret v5, v58, v60
 }
 
 fn @__revert_empty() {
@@ -294,18 +292,16 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memory
     v60 = make_memory_slice v59, v44
     memory_object_copy_from_slice memorybytes, v56, v60
     v61 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    memory_object_store_element memoryfixedarray<3, 1>, v61, 1, v32
+    memory_object_store_element memoryfixedarray<3, 1>, v61, 2, v56
     v62 = memory_object_data memoryfixedarray, v61
-    v63 = add v62, 32
-    mstore v63, v32
-    v64 = add v62, 64
-    mstore v64, v56
     mstore 32, v62 !metadata(memory=scratch)
-    v65 = mload 32 !metadata(memory=scratch)
-    v66 = add v65, 32
+    v63 = mload 32 !metadata(memory=scratch)
+    v64 = add v63, 32
+    v65 = mload v64
+    v66 = add v63, 64
     v67 = mload v66
-    v68 = add v65, 64
-    v69 = mload v68
-    ret v12, v67, v69
+    ret v12, v65, v67
 }
 
 fn @decodeBytes(arg0: memorybytes) -> memorybytes [abi_params=[bytes], abi_returns=[memory_bytes]] {

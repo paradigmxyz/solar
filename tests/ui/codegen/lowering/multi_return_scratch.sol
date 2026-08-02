@@ -34,4 +34,10 @@ contract MultiReturnScratch {
             afterPtr := mload(0x40)
         }
     }
+
+    // CHECK-LABEL: fn @ternary{{[( ]}}
+    // CHECK: memory_object_store_element memoryfixedarray<2, 1>
+    function ternary(bool pick, uint256 x) external pure returns (uint256, uint256) {
+        return pick ? (x, x + 1) : (x + 2, x + 3);
+    }
 }
