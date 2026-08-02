@@ -9,7 +9,7 @@ contract AbiParamObjectCopy {
     // CHECK: memory_object_len memoryarray
     // CHECK: memory_object_load_element memoryarray
     // CHECK: memory_object_len memorybytes
-    // CHECK: memory_object_data memorybytes
+    // CHECK: memory_object_load_element memorybytes
     constructor(uint256[] memory words, bytes memory data) {
         storedWords = words;
         storedBytes = data;

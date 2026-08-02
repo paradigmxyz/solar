@@ -380,7 +380,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
         let word_size = builder.imm_u64(32);
-        let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+        let layout = crate::mir::MemoryObjectLayout::Bytes;
 
         // Decode the previous value's data-word count so stale slots are cleared.
         let old_word = builder.sload(slot);
@@ -426,7 +426,7 @@ impl<'gcx> Lowerer<'gcx> {
         // Mask the loaded word to exactly `len` bytes: memory past the value
         // is not guaranteed to be zero.
         builder.switch_to_block(short_block);
-        let word = builder.mload(data);
+        let word = builder.memory_object_load_element(ptr, layout, zero);
         let eight = builder.imm_u64(8);
         let len_bits = builder.mul(len, eight);
         let all_ones = builder.imm_u256(U256::MAX);
@@ -455,9 +455,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(copy_body);
         let i = self.load_temp_frame_word(builder, scratch);
         let dst = builder.storage_array_element_slot(slot, i, 1);
-        let src_off = builder.mul(i, word_size);
-        let src = builder.add(data, src_off);
-        let data_word = builder.mload(src);
+        let data_word = builder.memory_object_load_element(ptr, layout, i);
         builder.sstore(dst, data_word);
         let next_i = builder.add(i, one);
         self.store_temp_frame_word(builder, scratch, next_i);

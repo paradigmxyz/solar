@@ -95,7 +95,8 @@ describes observable structure in the current tree, not an intended design.
   slot. Each load, store, and stale-slot clear requests a typed
   `storage_array_element_slot`, so long-form byte encoding and decoding defer
   storage hashing to the mapping-slot pass. Storage-to-memory materialization
-  writes the loaded words through semantic bytes-object element stores.
+  writes the loaded words through semantic bytes-object element stores, and
+  memory-to-storage copies read source words through the same typed object.
 * Mutable locals and storage-reference values use typed `frame_load` and
   `frame_store` operations. `lower-frame-slots` selects the external scratch
   region or the internal-call frame and lowers those operations to physical
