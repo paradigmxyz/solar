@@ -2412,13 +2412,10 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let four = builder.imm_u64(4);
         let payload_size = builder.add(four, tail_off);
-        let struct_size = struct_return_info.map_or(0, |(_, field_count)| field_count as u64 * 32);
-        let struct_size_value = builder.imm_u64(struct_size);
         let payload_header = builder.imm_u64(EvmMemoryLayout::DYNAMIC_HEADER_SIZE);
         let payload_with_header = builder.add(payload_size, payload_header);
-        let allocation_size = builder.add(payload_with_header, struct_size_value);
         let object = builder.alloc_object(
-            allocation_size,
+            payload_with_header,
             MemoryObjectLayout::Bytes,
             crate::mir::AllocationSemantics::INTERNAL,
         );
