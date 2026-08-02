@@ -10,8 +10,8 @@ contract BytesMemoryElements {
     // CHECK: [[ALLOC_SIZE:v[0-9]+]] = add {{v[0-9]+}}, 32
     // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic, [[ALLOC_SIZE]]
     // CHECK: set_memory_object_len memorybytes, [[BUF]], 96
-    // CHECK: mstore8 {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK: mstore8 {{v[0-9]+}}, 255
+    // CHECK: memory_object_store_byte memorybytes, {{.*}}, {{.*}}, {{.*}}
+    // CHECK: memory_object_store_byte memorybytes, {{.*}}, {{.*}}, 255
     // CHECK: keccak256_bytes [[BUF]]
     function alloc() external pure returns (bytes32) {
         bytes memory buf = new bytes(96);
@@ -23,7 +23,7 @@ contract BytesMemoryElements {
     // CHECK-LABEL: fn @literal{{[( ]}}
     // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes
     // CHECK: set_memory_object_len memorybytes, [[BUF]], 10
-    // CHECK: mstore8 {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: memory_object_store_byte memorybytes, {{.*}}, {{.*}}, {{.*}}
     // CHECK: keccak256_bytes [[BUF]]
     function literal() external pure returns (bytes32) {
         bytes memory buf = hex"00010203040506070809";
@@ -42,7 +42,7 @@ contract BytesMemoryElements {
 
     // CHECK-LABEL: fn @readWrite{{[( ]}}
     // CHECK: [[BYTE:v[0-9]+]] = shr 248, arg2
-    // CHECK: mstore8 {{v[0-9]+}}, [[BYTE]]
+    // CHECK: memory_object_store_byte memorybytes, arg0, arg1, [[BYTE]]
     // CHECK: [[WORD_INDEX:v[0-9]+]] = div arg1, 32
     // CHECK: [[BYTE_INDEX:v[0-9]+]] = mod arg1, 32
     // CHECK: [[SHIFT:v[0-9]+]] = mul [[BYTE_INDEX]], 8

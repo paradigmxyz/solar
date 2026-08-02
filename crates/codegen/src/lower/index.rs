@@ -297,10 +297,8 @@ impl<'gcx> Lowerer<'gcx> {
             let index_val = self.lower_index_value(builder, base.span, index);
             let len = builder.memory_object_len(base_val, MemoryObjectKind::Bytes);
             self.emit_index_bounds_check(builder, index_val, len);
-            let data_base = builder.memory_object_data(base_val, MemoryObjectKind::Bytes);
-            let byte_addr = builder.add(data_base, index_val);
             let byte_val = self.bytes1_store_byte(builder, rhs);
-            builder.mstore8(byte_addr, byte_val);
+            builder.memory_object_store_byte(base_val, index_val, byte_val);
             return;
         }
 

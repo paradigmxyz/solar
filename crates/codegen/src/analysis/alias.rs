@@ -735,6 +735,9 @@ impl AliasAnalysis {
             InstKind::MemoryObjectStoreElement { object, index, value, .. } => {
                 operand != *object && operand != *index && operand != *value
             }
+            InstKind::MemoryObjectStoreByte { object, index, value } => {
+                operand != *object && operand != *index && operand != *value
+            }
             InstKind::MemoryObjectCopyFromSlice { object, source, .. } => {
                 operand != *object && operand != *source
             }
@@ -942,6 +945,9 @@ impl AliasAnalysis {
                 } else {
                     effects.write_any(AddressSpace::Memory);
                 }
+            }
+            InstKind::MemoryObjectStoreByte { .. } => {
+                effects.write_any(AddressSpace::Memory);
             }
             InstKind::MemoryObjectCopyFromSlice { source, .. } => {
                 if matches!(

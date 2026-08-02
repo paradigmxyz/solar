@@ -1062,6 +1062,7 @@ symbols! {
         memory_object_len,
         memory_object_load_element,
         memory_object_load_field,
+        memory_object_store_byte,
         memory_object_store_element,
         memory_object_store_field,
         memory_read,

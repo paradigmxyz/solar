@@ -662,6 +662,15 @@ pub(crate) enum InstKind {
         /// Value to store.
         value: ValueId,
     },
+    /// Store one byte in a bytes object without exposing its physical address.
+    MemoryObjectStoreByte {
+        /// Bytes object reference.
+        object: ValueId,
+        /// Runtime byte index.
+        index: ValueId,
+        /// Low byte to store.
+        value: ValueId,
+    },
     /// Copy a typed slice into the payload of a dynamic memory object.
     MemoryObjectCopyFromSlice {
         /// Destination memory object reference.
@@ -1039,6 +1048,12 @@ impl InstKind {
                 out.push(*value);
             }
 
+            Self::MemoryObjectStoreByte { object, index, value } => {
+                out.push(*object);
+                out.push(*index);
+                out.push(*value);
+            }
+
             Self::MemoryObjectCopyFromSlice { object, source, .. } => {
                 out.push(*object);
                 out.push(*source);
@@ -1271,6 +1286,12 @@ impl InstKind {
                 f(value);
             }
 
+            Self::MemoryObjectStoreByte { object, index, value } => {
+                f(object);
+                f(index);
+                f(value);
+            }
+
             Self::MemoryObjectCopyFromSlice { object, source, .. } => {
                 f(object);
                 f(source);
@@ -1467,6 +1488,7 @@ impl InstKind {
             Self::MemoryObjectStoreField { .. } => "memory_object_store_field",
             Self::MemoryObjectLoadElement { .. } => "memory_object_load_element",
             Self::MemoryObjectStoreElement { .. } => "memory_object_store_element",
+            Self::MemoryObjectStoreByte { .. } => "memory_object_store_byte",
             Self::MemoryObjectCopyFromSlice { .. } => "memory_object_copy_from_slice",
             Self::MemoryObjectCopy { .. } => "memory_object_copy",
             Self::AbiEncode { .. } => "abi_encode",
@@ -1565,6 +1587,7 @@ impl InstKind {
             | Self::FrameStore { .. }
             | Self::MemoryObjectStoreField { .. }
             | Self::MemoryObjectStoreElement { .. }
+            | Self::MemoryObjectStoreByte { .. }
             | Self::MemoryObjectCopyFromSlice { .. }
             | Self::MemoryObjectCopy { .. }
             | Self::AbiEncode { .. }
@@ -1608,6 +1631,7 @@ impl InstKind {
             | Self::FrameStore { .. }
             | Self::MemoryObjectStoreField { .. }
             | Self::MemoryObjectStoreElement { .. }
+            | Self::MemoryObjectStoreByte { .. }
             | Self::MemoryObjectCopyFromSlice { .. }
             | Self::MemoryObjectCopy { .. }
             | Self::AbiEncode { .. }

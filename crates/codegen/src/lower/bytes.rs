@@ -871,9 +871,7 @@ impl<'gcx> Lowerer<'gcx> {
                         self.bytes1_store_byte(builder, value)
                     })
                     .unwrap_or_else(|| builder.imm_u64(0));
-                let data = builder.memory_object_data(resized, MemoryObjectKind::Bytes);
-                let dst = builder.add(data, len);
-                builder.mstore8(dst, byte);
+                builder.memory_object_store_byte(resized, len, byte);
                 self.copy_memory_bytes_to_storage(builder, slot, resized);
                 // The storage reference returned by `push()` reads as the
                 // newly zero-initialized byte when the call is used as an

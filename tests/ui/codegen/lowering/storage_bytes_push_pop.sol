@@ -21,7 +21,7 @@ contract StorageBytesPushPop {
     // CHECK: [[OLD_LEN:v[0-9]+]] = memory_object_len memorybytes, [[OLD]]
     // CHECK: memory_object_copy memorybytes, {{v[0-9]+}}, memorybytes, {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: [[BYTE:v[0-9]+]] = shr 248, arg0
-    // CHECK: mstore8 {{v[0-9]+}}, [[BYTE]]
+    // CHECK: memory_object_store_byte memorybytes, {{v[0-9]+}}, {{v[0-9]+}}, [[BYTE]]
     function pushValue(bytes1 value) external {
         data.push(value);
     }
@@ -30,7 +30,7 @@ contract StorageBytesPushPop {
     // CHECK: [[OLD:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
     // CHECK: [[OLD_LEN:v[0-9]+]] = memory_object_len memorybytes, [[OLD]]
     // CHECK: memory_object_copy memorybytes, {{v[0-9]+}}, memorybytes, {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK: mstore8 {{v[0-9]+}}, 0
+    // CHECK: memory_object_store_byte memorybytes, {{v[0-9]+}}, {{v[0-9]+}}, 0
     function pushZero() external {
         data.push();
     }

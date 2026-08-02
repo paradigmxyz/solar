@@ -179,28 +179,26 @@ fn @namedReturn() -> (memoryfixedarray, u256) [abi_args=lazy, abi_returns=[array
   bb5:
     tail_call @__panic_32
   bb6:
-    v13 = memory_object_data memorybytes, v9
-    v14 = add v13, 0
-    v15 = shr 248, v10
-    mstore8 v14, v15
-    v16 = memory_object_len memorybytes, v9
-    v17 = lt 0, v16
-    jumpi v17, bb8, bb7
+    v13 = shr 248, v10
+    memory_object_store_byte memorybytes, v9, 0, v13
+    v14 = memory_object_len memorybytes, v9
+    v15 = lt 0, v14
+    jumpi v15, bb8, bb7
   bb7:
     tail_call @__panic_32
   bb8:
-    v18 = div 0, 32
-    v19 = mod 0, 32
-    v20 = mul v19, 8
-    v21 = memory_object_load_element memorybytes, v9, v18
-    v22 = shl v20, v21
-    v23 = and v22, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v24 = shr 248, v23
-    v25 = and v24, 255
-    frame_store scratch, word, 32, v25 !metadata(memory=scratch)
-    v26 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v27 = frame_load scratch, word, 32 !metadata(memory=scratch)
-    ret v26, v27
+    v16 = div 0, 32
+    v17 = mod 0, 32
+    v18 = mul v17, 8
+    v19 = memory_object_load_element memorybytes, v9, v16
+    v20 = shl v18, v19
+    v21 = and v20, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v22 = shr 248, v21
+    v23 = and v22, 255
+    frame_store scratch, word, 32, v23 !metadata(memory=scratch)
+    v24 = frame_load scratch, word, 0 !metadata(memory=scratch)
+    v25 = frame_load scratch, word, 32 !metadata(memory=scratch)
+    ret v24, v25
 }
 
 fn @__panic_41() {

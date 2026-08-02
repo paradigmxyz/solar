@@ -470,6 +470,16 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::MemoryObjectStoreElement { object, layout, index, value });
     }
 
+    /// Stores one byte in a bytes object through its semantic layout.
+    pub(crate) fn memory_object_store_byte(
+        &mut self,
+        object: ValueId,
+        index: ValueId,
+        value: ValueId,
+    ) {
+        self.emit_void_inst(InstKind::MemoryObjectStoreByte { object, index, value });
+    }
+
     /// Copies a typed slice into a dynamic memory object's payload.
     pub(crate) fn memory_object_copy_from_slice(
         &mut self,

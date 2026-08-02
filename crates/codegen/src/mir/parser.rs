@@ -1520,6 +1520,20 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let value = self.parse_value(builder)?;
                 (InstKind::MemoryObjectStoreElement { object, layout, index, value }, None)
             }
+            sym::memory_object_store_byte => {
+                let name = self.parser.parse_ident()?;
+                let layout = self.parse_memory_object_layout(name)?;
+                if layout != crate::mir::MemoryObjectLayout::Bytes {
+                    return Err(self.parser.error("memory byte store requires a bytes object"));
+                }
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let index = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let value = self.parse_value(builder)?;
+                (InstKind::MemoryObjectStoreByte { object, index, value }, None)
+            }
             sym::memory_object_copy_from_slice => {
                 let name = self.parser.parse_ident()?;
                 let kind = self.parse_memory_object_layout(name)?.kind();

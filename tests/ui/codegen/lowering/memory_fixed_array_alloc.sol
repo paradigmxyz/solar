@@ -91,7 +91,7 @@ contract NamedReturnAndDelete {
     // CHECK: memory_object_store_element memoryfixedarray<3, 1>, {{v[0-9]+}}, 0, 1
     // CHECK: memory_object_store_element memoryfixedarray<3, 1>, {{v[0-9]+}}, 2, 3
     // CHECK: {{v[0-9]+}} = alloc memorybytes
-    // CHECK: mstore8 {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: memory_object_store_byte memorybytes, {{.*}}, {{.*}}, {{.*}}
     // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
     function namedReturn() public pure returns (uint256[3] memory x, uint256 m) {
         x[0] = 1;

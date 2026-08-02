@@ -83,6 +83,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         | InstKind::MemoryObjectStoreField { .. }
                         | InstKind::MemoryObjectLoadElement { .. }
                         | InstKind::MemoryObjectStoreElement { .. }
+                        | InstKind::MemoryObjectStoreByte { .. }
                         | InstKind::MemoryObjectCopyFromSlice { .. }
                         | InstKind::MemoryObjectCopy { .. }
                         | InstKind::Keccak256Bytes(_)
@@ -226,6 +227,16 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     let offset = builder.mul(index, stride);
                     let address = builder.add(base, offset);
                     builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
+                    stats.accesses += 1;
+                }
+                InstKind::MemoryObjectStoreByte { object, index, value } => {
+                    let base = offset_address(
+                        &mut builder,
+                        object,
+                        P::object_data_offset(crate::mir::MemoryObjectKind::Bytes),
+                    );
+                    let address = builder.add(base, index);
+                    builder.func_mut().inst_mut(inst).kind = InstKind::MStore8(address, value);
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectCopyFromSlice { object, kind, source } => {

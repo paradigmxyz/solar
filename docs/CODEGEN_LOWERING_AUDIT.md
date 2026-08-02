@@ -110,6 +110,8 @@ describes observable structure in the current tree, not an intended design.
 * Memory and materialized storage `bytes` indexing loads a semantic word
   element, then aligns the selected byte in MIR instead of forming an
   unaligned data pointer.
+* Memory-byte writes use `memory_object_store_byte`; only the memory-object
+  pass emits the final `mstore8`.
 * Storage-to-memory and memory-to-storage aggregate copies use the same typed
   field and element operations. Packed and nested copies no longer expose a
   destination address to HIR lowering.

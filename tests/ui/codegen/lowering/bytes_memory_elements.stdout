@@ -25,21 +25,17 @@ fn @alloc() -> bytes32 [abi_args=lazy, abi_returns=[word]] {
   bb5:
     tail_call @__panic_32
   bb6:
-    v10 = memory_object_data memorybytes, v6
-    v11 = add v10, 5
-    v12 = shr 248, v7
-    mstore8 v11, v12
-    v13 = memory_object_len memorybytes, v6
-    v14 = lt 95, v13
-    jumpi v14, bb8, bb7
+    v10 = shr 248, v7
+    memory_object_store_byte memorybytes, v6, 5, v10
+    v11 = memory_object_len memorybytes, v6
+    v12 = lt 95, v11
+    jumpi v12, bb8, bb7
   bb7:
     tail_call @__panic_32
   bb8:
-    v15 = memory_object_data memorybytes, v6
-    v16 = add v15, 95
-    mstore8 v16, 255
-    v17 = keccak256_bytes v6
-    ret v17
+    memory_object_store_byte memorybytes, v6, 95, 255
+    v13 = keccak256_bytes v6
+    ret v13
 }
 
 fn @__panic_41() {
@@ -68,12 +64,10 @@ fn @literal() -> bytes32 [abi_args=lazy, abi_returns=[word]] {
   bb1:
     tail_call @__panic_32
   bb2:
-    v4 = memory_object_data memorybytes, v0
-    v5 = add v4, 5
-    v6 = shr 248, v1
-    mstore8 v5, v6
-    v7 = keccak256_bytes v0
-    ret v7
+    v4 = shr 248, v1
+    memory_object_store_byte memorybytes, v0, 5, v4
+    v5 = keccak256_bytes v0
+    ret v5
 }
 
 fn @allocDynamic(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
@@ -113,22 +107,20 @@ fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) -> bytes1 [abi_params
   bb3:
     tail_call @__panic_32
   bb4:
-    v5 = memory_object_data memorybytes, arg0
-    v6 = add v5, arg1
-    v7 = shr 248, arg2
-    mstore8 v6, v7
-    v8 = memory_object_len memorybytes, arg0
-    v9 = lt arg1, v8
-    jumpi v9, bb6, bb5
+    v5 = shr 248, arg2
+    memory_object_store_byte memorybytes, arg0, arg1, v5
+    v6 = memory_object_len memorybytes, arg0
+    v7 = lt arg1, v6
+    jumpi v7, bb6, bb5
   bb5:
     tail_call @__panic_32
   bb6:
-    v10 = div arg1, 32
-    v11 = mod arg1, 32
-    v12 = mul v11, 8
-    v13 = memory_object_load_element memorybytes, arg0, v10
-    v14 = shl v12, v13
-    v15 = and v14, 0xff00000000000000000000000000000000000000000000000000000000000000
-    ret v15
+    v8 = div arg1, 32
+    v9 = mod arg1, 32
+    v10 = mul v9, 8
+    v11 = memory_object_load_element memorybytes, arg0, v8
+    v12 = shl v10, v11
+    v13 = and v12, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v13
 }
 
