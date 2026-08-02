@@ -1454,12 +1454,11 @@ fn encode_live_returns(func: &mut Function) -> usize {
             builder.ret_data(offset, size);
         } else {
             let offset = builder.imm_u64(EvmMemoryLayout::HEAP_START);
-            let size = super::lower_abi_encode::encode_tuple(
+            let size = super::lower_abi_encode::encode_static_tuple(
                 &mut builder,
                 &values,
                 &layout.types,
                 offset,
-                super::lower_abi_encode::AbiScratch { base: None, depth: 0 },
             );
             builder.ret_data(offset, size);
         }

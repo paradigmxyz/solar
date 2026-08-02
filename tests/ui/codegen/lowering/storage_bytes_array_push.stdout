@@ -252,37 +252,40 @@ fn @blobAt() {
   bb1:
     tail_call @__panic_32
   bb2:
-    v34 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v42 = add v34, 64
-    mstore 64, v42 !metadata(memory=scratch)
-    mstore v34, 32
-    v37 = add v34, 32
-    v38 = mul 0, 32
-    v39 = add v37, v38
-    mstore v39, 2
-    v40 = mload v34
-    v41 = add v34, 32
-    v35 = keccak256 v41, v40
-    v36 = add v35, arg0
-    v3 = internal_call @__load_storage_bytes, 1, v36
+    v37 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v51 = add v37, 64
+    mstore 64, v51 !metadata(memory=scratch)
+    mstore v37, 32
+    v40 = add v37, 32
+    v41 = mul 0, 32
+    v42 = add v40, v41
+    mstore v42, 2
+    v43 = mload v37
+    v44 = add v37, 32
+    v38 = keccak256 v44, v43
+    v39 = add v38, arg0
+    v3 = internal_call @__load_storage_bytes, 1, v39
     v9 = mload v3
     v10 = add v9, 31
     v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v14 = add v12, 64
     v16 = add v12, 95
     v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v43 = add v19, v18
-    mstore 64, v43 !metadata(memory=scratch)
-    v20 = add v19, 32
-    v21 = sub v20, v19
-    mstore v19, v21
-    v22 = mload v3
-    mstore v20, v22
-    v24 = add v22, 31
-    v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v26 = add v19, 64
-    jumpi v25, bb5, bb6
+    v19 = add v18, 32
+    v20 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v52 = add v20, v19
+    mstore 64, v52 !metadata(memory=scratch)
+    mstore v20, v14
+    v45 = add v20, 32
+    v46 = add v45, 0
+    mstore v46, 32
+    v23 = mload v3
+    v47 = add v20, 32
+    v48 = add v47, 32
+    mstore v48, v23
+    v25 = add v23, 31
+    v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    jumpi v26, bb5, bb6
   bb3:
     revert 0, 0
   bb4:
@@ -290,14 +293,17 @@ fn @blobAt() {
     v1 = lt arg0, v0
     jumpi v1, bb2, bb1
   bb5:
-    v28 = sub v25, 32
-    v29 = add v26, v28
-    mstore v29, 0
+    v30 = add v26, 32
+    v49 = add v20, 32
+    v50 = add v49, v30
+    mstore v50, 0
     jump bb6
   bb6:
-    v30 = add v3, 32
-    mcopy v26, v30, v22
-    returndata v19, v14
+    v31 = add v3, 32
+    v33 = add v20, 32
+    v34 = add v33, 64
+    mcopy v34, v31, v23
+    returndata v33, v14
 }
 
 fn @__panic_32() {

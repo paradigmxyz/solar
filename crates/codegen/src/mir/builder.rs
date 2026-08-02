@@ -367,6 +367,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Reserves memory under an explicit semantic policy.
+    #[cfg(test)]
     pub(crate) fn alloc(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
         self.alloc_kind(size, crate::mir::AllocationKind::Raw, semantics)
     }

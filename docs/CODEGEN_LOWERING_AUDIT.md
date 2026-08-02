@@ -138,6 +138,9 @@ describes observable structure in the current tree, not an intended design.
 * The ABI encoder reads tuple fields and fixed-array elements through typed
   memory-object loads. Address formation and the final `mload` happen only in
   `lower-memory-objects`.
+* ABI encoder output buffers are typed bytes objects. Selectors, lengths, ABI
+  offsets, and static words use semantic object stores; only source-slice
+  copies still cross through physical copy opcodes at this boundary.
 * Dynamic ABI encodes measure their tails before reserving the output through
   `alloc`. The encoder no longer writes into an unbumped free-memory pointer;
   the measurement and write phases share the same typed ABI shape.

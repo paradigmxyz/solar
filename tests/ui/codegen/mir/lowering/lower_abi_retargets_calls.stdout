@@ -8,7 +8,9 @@
       v0 = add arg0, 1
 -     ret v0
 +     mstore 128, v0
-+     returndata 128, 32
++     v1 = add 128, 32
++     v2 = sub v1, 128
++     returndata 128, v2
   }
   
 - fn @caller(arg0: u256) -> u256 [abi_returns=[word]] {
@@ -17,7 +19,9 @@
 -     v0 = internal_call @pub, 1, arg0
 +     v0 = internal_call @pub.body, 1, arg0
 +     mstore 128, v0
-+     returndata 128, 32
++     v1 = add 128, 32
++     v2 = sub v1, 128
++     returndata 128, v2
 + }
 + 
 + fn @pub.body(arg0: u256) -> u256 {

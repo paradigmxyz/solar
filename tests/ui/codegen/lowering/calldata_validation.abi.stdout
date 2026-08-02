@@ -8,7 +8,9 @@ fn @vUint8() {
     jumpi v1, bb2, bb3
   bb1:
     mstore 128, arg0
-    returndata 128, 32
+    v5 = add 128, 32
+    v6 = sub v5, 128
+    returndata 128, v6
   bb2:
     revert 0, 0
   bb3:
@@ -27,7 +29,9 @@ fn @vInt16() {
     jumpi v1, bb2, bb3
   bb1:
     mstore 128, arg0
-    returndata 128, 32
+    v5 = add 128, 32
+    v6 = sub v5, 128
+    returndata 128, v6
   bb2:
     revert 0, 0
   bb3:
@@ -46,7 +50,9 @@ fn @vBool() {
     jumpi v1, bb2, bb3
   bb1:
     mstore 128, arg0
-    returndata 128, 32
+    v6 = add 128, 32
+    v7 = sub v6, 128
+    returndata 128, v7
   bb2:
     revert 0, 0
   bb3:
@@ -66,7 +72,9 @@ fn @vAddress() {
     jumpi v1, bb2, bb3
   bb1:
     mstore 128, arg0
-    returndata 128, 32
+    v5 = add 128, 32
+    v6 = sub v5, 128
+    returndata 128, v6
   bb2:
     revert 0, 0
   bb3:
@@ -85,7 +93,9 @@ fn @vBytes4() {
     jumpi v1, bb2, bb3
   bb1:
     mstore 128, arg0
-    returndata 128, 32
+    v5 = add 128, 32
+    v6 = sub v5, 128
+    returndata 128, v6
   bb2:
     revert 0, 0
   bb3:
@@ -104,7 +114,9 @@ fn @vEnum() {
     jumpi v1, bb2, bb3
   bb1:
     mstore 128, arg0
-    returndata 128, 32
+    v4 = add 128, 32
+    v5 = sub v4, 128
+    returndata 128, v5
   bb2:
     revert 0, 0
   bb3:
@@ -132,7 +144,9 @@ fn @vMulti() {
     tail_call @__panic_11
   bb3:
     mstore 128, v4
-    returndata 128, 32
+    v14 = add 128, 32
+    v15 = sub v14, 128
+    returndata 128, v15
   bb4:
     revert 0, 0
   bb5:
@@ -175,7 +189,9 @@ fn @vFull() {
     tail_call @__panic_11
   bb5:
     mstore 128, v2
-    returndata 128, 32
+    v6 = add 128, 32
+    v7 = sub v6, 128
+    returndata 128, v7
   bb6:
     revert 0, 0
   bb7:

@@ -11,7 +11,9 @@
 +     jumpi v1, bb2, bb3
 +   bb1:
 +     mstore 128, arg3
-+     returndata 128, 32
++     v2 = add 128, 32
++     v3 = sub v2, 128
++     returndata 128, v3
 +   bb2:
 +     revert 0, 0
 +   bb3:
@@ -35,7 +37,9 @@
       v5 = add v2, v4
 -     ret v5
 +     mstore 128, v5
-+     returndata 128, 32
++     v68 = add 128, 32
++     v69 = sub v68, 128
++     returndata 128, v69
 +   bb2:
 +     revert 0, 0
 +   bb3:

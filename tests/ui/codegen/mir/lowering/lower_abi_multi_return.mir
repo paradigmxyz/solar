@@ -7,7 +7,7 @@
 // CHECK: + mstore 128, arg0
 // CHECK: + [[SECOND:v[0-9]+]] = add 128, 32
 // CHECK: + mstore [[SECOND]], {{v[0-9]+}}
-// CHECK: + returndata 128, 64
+// CHECK: + returndata 128, {{v[0-9]+}}
 fn @pair(arg0: u256) -> (u256, u256) [selector=0x1f6a26ff, abi_returns=[word, word]] {
   bb0:
     v1 = add arg0, 1

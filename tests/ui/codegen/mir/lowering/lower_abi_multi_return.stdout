@@ -10,6 +10,8 @@
 +     mstore 128, arg0
 +     v1 = add 128, 32
 +     mstore v1, v0
-+     returndata 128, 64
++     v2 = add v1, 32
++     v3 = sub v2, 128
++     returndata 128, v3
   }
   

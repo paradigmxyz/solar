@@ -50,6 +50,11 @@ bb6:
   mstore
   push 32
   push 128
+  add
+  push 128
+  swap1
+  sub
+  push 128
   return
 bb7 [cold]:
   push 0

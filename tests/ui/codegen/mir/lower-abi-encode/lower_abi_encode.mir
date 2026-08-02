@@ -3,9 +3,11 @@
 @module LowerAbiEncode
 
 // CHECK-LABEL: {{^[ +].*}}fn @static{{[( ]}}
-// CHECK: + [[MEMORY:v[0-9]+]] = alloc raw
-// CHECK: + mstore [[MEMORY]], 0x12345678
-// CHECK: + {{v[0-9]+}} = make_memory_slice [[MEMORY]], 36
+// CHECK: + [[STATIC_MEMORY:v[0-9]+]] = alloc memorybytes
+// CHECK: + set_memory_object_len memorybytes, [[STATIC_MEMORY]], 36
+// CHECK: + memory_object_store_word memorybytes, [[STATIC_MEMORY]], 0, 0x12345678
+// CHECK: + {{v[0-9]+}} = memory_object_data memorybytes, [[STATIC_MEMORY]]
+// CHECK: + {{v[0-9]+}} = make_memory_slice {{v[0-9]+}}, 36
 fn @static(arg0: u256) -> memoryslice {
   bb0:
     v0 = abi_encode [word], selector 0x1234567800000000000000000000000000000000000000000000000000000000, args arg0
@@ -14,7 +16,8 @@ fn @static(arg0: u256) -> memoryslice {
 
 // CHECK-LABEL: {{^[ +].*}}fn @dynamic{{[( ]}}
 // CHECK: + [[LENGTH:v[0-9]+]] = slice_len arg0
-// CHECK: + {{v[0-9]+}} = alloc raw
+// CHECK: + [[DYNAMIC_MEMORY:v[0-9]+]] = alloc memorybytes
+// CHECK: + memory_object_store_word memorybytes, [[DYNAMIC_MEMORY]], 0
 // CHECK: + [[POINTER:v[0-9]+]] = slice_ptr arg0
 // CHECK: + calldatacopy {{v[0-9]+}}, [[POINTER]], [[LENGTH]]
 fn @dynamic(arg0: calldataslice) -> memoryslice {
