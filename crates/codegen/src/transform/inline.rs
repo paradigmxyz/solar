@@ -658,6 +658,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         InstKind::MemoryZero(..) => (15, 2),
         InstKind::MSize | InstKind::CodeSize | InstKind::ReturnDataSize => (2, 1),
         InstKind::ConstructorArgsBase => (3, 3),
+        InstKind::ConstructorArgsEnd => (9, 8),
         InstKind::InternalFrameAddr(_) => (6, 3),
         // Typed PUSH<N> placeholder patched at deploy time.
         InstKind::LoadImmutable(id) => {

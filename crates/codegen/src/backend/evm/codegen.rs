@@ -637,6 +637,8 @@ pub struct EvmCodegen<'gcx> {
     immutable_staging_base: u64,
     /// Deferred absolute base of the copied constructor ABI argument blob.
     constructor_args_base_const: Option<DeferredConst>,
+    /// Deferred code offset of the copied constructor ABI argument blob.
+    constructor_args_offset_const: Option<DeferredConst>,
     /// Whether we're currently generating constructor code.
     /// When true, arguments load from the copied deployment ABI blob.
     in_constructor: bool,
@@ -690,6 +692,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             immutable_staging_base: EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT
                 + EvmMemoryLayout::WORD_SIZE,
             constructor_args_base_const: None,
+            constructor_args_offset_const: None,
             in_constructor: false,
             constructor_exit: None,
             constructor_param_count: 0,
@@ -1178,6 +1181,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // then place the free-memory pointer after its word-aligned end.
             if let Some(arg_offset) = constructor_arg_offset {
                 self.constructor_args_base_const = Some(constructor_fixed_memory_end);
+                self.constructor_args_offset_const = Some(arg_offset);
                 self.asm.emit_push_deferred(arg_offset);
                 self.asm.emit_op(op::CODESIZE);
                 self.asm.emit_op(op::SUB); // size = CODESIZE - arg_offset
@@ -1241,6 +1245,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // Reset constructor context
             self.in_constructor = false;
             self.constructor_args_base_const = None;
+            self.constructor_args_offset_const = None;
             self.constructor_exit = None;
             self.constructor_param_count = 0;
 
@@ -3490,6 +3495,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_constructor_args_base();
                 self.scheduler.instruction_executed(0, result_value);
             }
+            InstKind::ConstructorArgsEnd => {
+                self.emit_constructor_args_end();
+                self.scheduler.instruction_executed(0, result_value);
+            }
 
             // Log operations
             InstKind::Log0(offset, size) => {
@@ -3742,6 +3751,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             .constructor_args_base_const
             .expect("constructor argument base used outside constructor codegen");
         self.asm.emit_push_deferred(id);
+    }
+
+    fn emit_constructor_args_end(&mut self) {
+        let offset = self
+            .constructor_args_offset_const
+            .expect("constructor argument end used outside constructor codegen");
+        self.emit_constructor_args_base();
+        self.asm.emit_op(op::CODESIZE);
+        self.asm.emit_push_deferred(offset);
+        self.asm.emit_op(op::SUB);
+        self.asm.emit_op(op::ADD);
     }
 
     fn emit_constructor_arg_load(&mut self, index: ArgIdx) {
@@ -4938,6 +4958,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                         }
                         crate::mir::InstKind::ConstructorArgsBase => {
                             self.emit_constructor_args_base();
+                            self.scheduler.stack.push(val);
+                        }
+                        crate::mir::InstKind::ConstructorArgsEnd => {
+                            self.emit_constructor_args_end();
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::Timestamp => {

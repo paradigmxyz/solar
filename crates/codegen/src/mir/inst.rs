@@ -775,6 +775,8 @@ pub(crate) enum InstKind {
     },
     /// Base address of the constructor's copied ABI argument blob.
     ConstructorArgsBase,
+    /// End address of the constructor's copied ABI argument blob.
+    ConstructorArgsEnd,
 
     // Code operations
     /// Get code size: `codesize()`
@@ -1175,6 +1177,7 @@ impl InstKind {
             | Self::InternalFrameAddr(_)
             | Self::FrameLoad { .. }
             | Self::ConstructorArgsBase
+            | Self::ConstructorArgsEnd
             | Self::CodeSize
             | Self::LoadImmutable(_)
             | Self::ReturnDataSize
@@ -1396,6 +1399,7 @@ impl InstKind {
             | Self::InternalFrameAddr(_)
             | Self::FrameLoad { .. }
             | Self::ConstructorArgsBase
+            | Self::ConstructorArgsEnd
             | Self::CodeSize
             | Self::LoadImmutable(_)
             | Self::ReturnDataSize
@@ -1483,6 +1487,7 @@ impl InstKind {
             Self::SlicePtr(_) => "slice_ptr",
             Self::SliceLen(_) => "slice_len",
             Self::ConstructorArgsBase => "constructor_args_base",
+            Self::ConstructorArgsEnd => "constructor_args_end",
             Self::CodeSize => "codesize",
             Self::CodeCopy(_, _, _) => "codecopy",
             Self::StoreImmutable(..) => "storeimmutable",
@@ -1644,6 +1649,7 @@ impl InstKind {
             | Self::MappingSlotCalldata(_, _)
             | Self::CalldataSize
             | Self::ConstructorArgsBase
+            | Self::ConstructorArgsEnd
             | Self::CodeSize
             | Self::ExtCodeSize(_)
             | Self::ExtCodeHash(_)

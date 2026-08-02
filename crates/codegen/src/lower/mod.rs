@@ -1072,6 +1072,9 @@ impl<'gcx> Lowerer<'gcx> {
         if self.is_constructor_abi_word_ty(ty) {
             return true;
         }
+        if self.is_dyn_word_array_memory_param(param_id) {
+            return true;
+        }
         matches!(
             ty.kind,
             TyKind::Array(element, len)

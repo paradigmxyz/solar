@@ -23,6 +23,7 @@
 //@ run-call: readMixed(uint8,bytes) 1, 0x010203 => 4
 //@ run-call: ConstructorAbiFixedArray::result(); constructor=[[[1, 2], [3, 4]], 5] => 8
 //@ run-call: ConstructorAbiDynamic::result(); constructor=[[1, 2, 3], 0x010203] => 5
+//@ run-call: ConstructorAbiDynamicWords::result(); constructor=[[1, 2, 3]] => 2
 
 contract AbiFixedArray {
     struct Pair {
@@ -146,5 +147,13 @@ contract ConstructorAbiDynamic {
 
     constructor(uint256[] memory values, bytes memory data) {
         result = values[1] + data.length;
+    }
+}
+
+contract ConstructorAbiDynamicWords {
+    uint256 public result;
+
+    constructor(uint256[] memory values) {
+        result = values[1];
     }
 }

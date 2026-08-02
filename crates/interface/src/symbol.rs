@@ -993,6 +993,7 @@ symbols! {
         cold,
         concat,
         constructor_args_base,
+        constructor_args_end,
         creationCode,
         data,
         decode,

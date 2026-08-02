@@ -147,7 +147,7 @@ struct LowerAbiStats {
     /// Number of wrappers that received a prologue callvalue check because
     /// the dispatch entry cannot hoist one.
     injected_checks: usize,
-    /// Number of constructors whose fixed full-word arrays were materialized.
+    /// Number of constructors whose deferred ABI inputs were materialized.
     decoded_constructors: usize,
 }
 
@@ -168,6 +168,7 @@ impl LowerAbiCx {
 
         let mut targets = Vec::new();
         let mut constructors = Vec::new();
+        let mut wrapped_constructors = Vec::new();
         let mut internally_called = DenseBitSet::new_empty(module.functions.len());
         let mut callvalue = super::utils::DispatchCallvalue::default();
         for (id, func) in module.functions.iter_enumerated() {
@@ -177,10 +178,13 @@ impl LowerAbiCx {
                 self.stats.skipped_returns += usize::from(!can_encode_live_returns(func));
             }
             if is_constructor(func) && func.abi_params.is_some() {
-                if !Self::can_decode_constructor_params(func) {
+                if Self::can_decode_constructor_params(func) {
+                    constructors.push(id);
+                } else if Self::can_wrap_constructor_params(func) {
+                    wrapped_constructors.push(id);
+                } else {
                     return false;
                 }
-                constructors.push(id);
             }
             for inst_id in func.instructions() {
                 if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
@@ -196,7 +200,7 @@ impl LowerAbiCx {
         if self.stats.skipped_returns != 0 {
             return false;
         }
-        if targets.is_empty() && constructors.is_empty() {
+        if targets.is_empty() && constructors.is_empty() && wrapped_constructors.is_empty() {
             let has_selectorless_entry = module.functions.iter().any(|func| {
                 is_constructor(func) || func.attributes.is_receive || func.attributes.is_fallback
             });
@@ -221,6 +225,14 @@ impl LowerAbiCx {
 
         for id in constructors {
             Self::decode_constructor_params(module.function_mut(id));
+            self.stats.decoded_constructors += 1;
+        }
+        for id in wrapped_constructors {
+            let layout = module.function(id).abi_params.clone();
+            Self::inject_abi_prologue(module.function_mut(id), layout.as_ref(), true, true);
+            let func = module.function_mut(id);
+            func.abi_params = None;
+            func.abi_args_lazy = false;
             self.stats.decoded_constructors += 1;
         }
 
@@ -272,6 +284,16 @@ impl LowerAbiCx {
                 .is_some()
     }
 
+    fn can_wrap_constructor_params(func: &Function) -> bool {
+        let Some(layout) = &func.abi_params else { return false };
+        func.abi_args_lazy
+            && func.params.len() == layout.types.len()
+            && layout.types.iter().zip(&func.params).all(|(abi_ty, &param_ty)| {
+                (Self::is_constructor_word(abi_ty) || Self::is_supported_aggregate(abi_ty))
+                    && abi_ty.mir_type() == param_ty
+            })
+    }
+
     fn is_constructor_param_type(ty: &AbiParamType) -> bool {
         Self::is_constructor_word(ty)
             || matches!(
@@ -300,8 +322,8 @@ impl LowerAbiCx {
         len.checked_mul(Self::constructor_param_words(element)?)
     }
 
-    /// Materializes fixed full-word constructor arrays while preserving the
-    /// physical word parameters consumed by deployment codegen.
+    /// Materializes fixed constructor inputs while preserving the physical
+    /// word parameters consumed by deployment codegen.
     fn decode_constructor_params(func: &mut Function) {
         let layout = func.abi_params.clone().expect("checked constructor ABI layout");
         let old_entry = BlockId::ENTRY;
@@ -427,12 +449,13 @@ impl LowerAbiCx {
                 module.function_mut(wrapper_id),
                 abi_params.as_ref(),
                 lazy_args,
+                false,
             );
         }
         self.stats.encoded_returns += encode_live_returns(module.function_mut(wrapper_id));
 
-        // The wrapper takes no MIR arguments; its `Arg` values now read the
-        // calldata head words directly.
+        // External wrappers take no MIR arguments; constructor parameters
+        // retain their physical ABI head words for deployment codegen.
         let wrapper = module.function_mut(wrapper_id);
         wrapper.params.clear();
         wrapper.returns.clear();
@@ -447,6 +470,7 @@ impl LowerAbiCx {
         func: &mut Function,
         abi_params: Option<&crate::mir::AbiParamLayout>,
         lazy_args: bool,
+        constructor: bool,
     ) {
         let arg_types: Vec<_> = func.params.iter().copied().collect();
         if arg_types.is_empty() && abi_params.is_none() {
@@ -492,13 +516,24 @@ impl LowerAbiCx {
             let mut current = guard;
 
             builder.switch_to_block(current);
-            let calldata_size = builder.calldatasize();
+            let input_base =
+                if constructor { builder.constructor_args_base() } else { builder.imm_u64(4) };
+            let input_end =
+                if constructor { builder.constructor_args_end() } else { builder.calldatasize() };
             let head_size =
                 abi_params.map_or((arg_types.len() as u64) * 32, AbiParamLayout::head_size);
-            let required = builder.imm_u64(4 + head_size);
-            let short = builder.lt(calldata_size, required);
+            let invalid = if constructor {
+                let head_size_value = builder.imm_u64(head_size);
+                let required = builder.add(input_base, head_size_value);
+                let overflow = builder.lt(required, input_base);
+                let short = builder.gt(required, input_end);
+                builder.or(overflow, short)
+            } else {
+                let required = builder.imm_u64(4 + head_size);
+                builder.lt(input_end, required)
+            };
             let next = builder.create_block();
-            builder.branch(short, revert, next);
+            builder.branch(invalid, revert, next);
             current = next;
 
             if lazy_args {
@@ -522,10 +557,19 @@ impl LowerAbiCx {
                     let Some(validator) = validator else { continue };
                     builder.switch_to_block(current);
                     // `Value::Arg` values carry the canonicality invariant that this
-                    // guard establishes. Read the raw calldata word here so an
-                    // optimizer cannot fold the check away before it runs.
-                    let offset = builder.imm_u64(4 + head_offset - 32);
-                    let word = builder.calldataload(offset);
+                    // guard establishes. Read the raw input word so an optimizer
+                    // cannot fold the check away before it runs.
+                    let offset = if constructor {
+                        let offset_value = builder.imm_u64(head_offset - 32);
+                        builder.add(input_base, offset_value)
+                    } else {
+                        builder.imm_u64(4 + head_offset - 32)
+                    };
+                    let word = if constructor {
+                        builder.mload(offset)
+                    } else {
+                        builder.calldataload(offset)
+                    };
                     let valid = validator.condition(&mut builder, word);
                     let next = builder.create_block();
                     builder.branch(valid, next, revert);
@@ -554,14 +598,20 @@ impl LowerAbiCx {
                         head_offset += ty.head_size();
                         continue;
                     }
-                    let head = builder.imm_u64(4 + head_offset);
-                    let tuple_base = builder.imm_u64(4);
+                    let (head, tuple_base) = if constructor {
+                        let head_offset_value = builder.imm_u64(head_offset);
+                        (builder.add(input_base, head_offset_value), input_base)
+                    } else {
+                        (builder.imm_u64(4 + head_offset), builder.imm_u64(4))
+                    };
                     let value = Self::decode_aggregate_argument(
                         &mut builder,
                         ty,
                         arg_type,
                         head,
                         tuple_base,
+                        input_end,
+                        constructor,
                         &mut current,
                     );
                     for &use_value in uses {
@@ -587,25 +637,34 @@ impl LowerAbiCx {
         crate::mir::utils::remap_block_order(func, &order);
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn decode_aggregate_argument(
         builder: &mut FunctionBuilder<'_>,
         ty: &crate::mir::AbiParamType,
         arg_type: MirType,
         head: ValueId,
         tuple_base: ValueId,
+        input_end: ValueId,
+        constructor: bool,
         current: &mut BlockId,
     ) -> ValueId {
         builder.switch_to_block(*current);
         let base = if ty.is_dynamic() {
-            Self::guard_calldata_range(builder, head, 32, current);
-            let offset = builder.calldataload(head);
-            Self::guard_calldata_offset(builder, tuple_base, offset, current)
+            Self::guard_source_range(builder, head, 32, input_end, constructor, current);
+            let offset = Self::load_input_word(builder, head, constructor);
+            Self::guard_source_offset(builder, tuple_base, offset, input_end, constructor, current)
         } else {
             head
         };
         match ty {
+            crate::mir::AbiParamType::Scalar(scalar) if constructor => {
+                Self::decode_input_scalar(builder, *scalar, base, input_end, current)
+            }
             crate::mir::AbiParamType::Scalar(scalar) => {
                 Self::decode_scalar(builder, *scalar, base, current)
+            }
+            crate::mir::AbiParamType::Enum { variants, .. } if constructor => {
+                Self::decode_input_enum(builder, *variants, base, input_end, current)
             }
             crate::mir::AbiParamType::Enum { variants, .. } => {
                 Self::decode_enum(builder, *variants, base, current)
@@ -614,7 +673,7 @@ impl LowerAbiCx {
                 if Self::is_supported_tuple_field(element) =>
             {
                 let head_size = len.saturating_mul(element.head_size());
-                Self::guard_calldata_range(builder, base, head_size, current);
+                Self::guard_source_range(builder, base, head_size, input_end, constructor, current);
                 let size = builder.imm_u64(len.saturating_mul(32));
                 let ptr = builder.alloc_object(
                     size,
@@ -626,8 +685,18 @@ impl LowerAbiCx {
                     let offset_value = builder.imm_u64(offset);
                     let word_pos = builder.add(base, offset_value);
                     let value = match element.as_ref() {
+                        crate::mir::AbiParamType::Scalar(scalar) if constructor => {
+                            Self::decode_input_scalar(
+                                builder, *scalar, word_pos, input_end, current,
+                            )
+                        }
                         crate::mir::AbiParamType::Scalar(scalar) => {
                             Self::decode_scalar(builder, *scalar, word_pos, current)
+                        }
+                        crate::mir::AbiParamType::Enum { variants, .. } if constructor => {
+                            Self::decode_input_enum(
+                                builder, *variants, word_pos, input_end, current,
+                            )
                         }
                         crate::mir::AbiParamType::Enum { variants, .. } => {
                             Self::decode_enum(builder, *variants, word_pos, current)
@@ -638,6 +707,8 @@ impl LowerAbiCx {
                             element.mir_type(),
                             word_pos,
                             base,
+                            input_end,
+                            constructor,
                             current,
                         ),
                     };
@@ -656,23 +727,42 @@ impl LowerAbiCx {
                 if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(_))
                     && matches!(arg_type, MirType::Slice(_)) =>
             {
-                Self::guard_calldata_range(builder, base, 32, current);
-                let len = builder.calldataload(base);
+                Self::guard_source_range(builder, base, 32, input_end, constructor, current);
+                let len = Self::load_input_word(builder, base, constructor);
                 let word = builder.imm_u64(32);
                 let bytes = Self::checked_mul(builder, len, word, current);
                 let data = builder.add(base, word);
-                Self::guard_calldata_range_value(builder, data, bytes, current);
-                builder.make_slice(data, len, crate::mir::SliceLocation::Calldata)
+                Self::guard_source_range_value(
+                    builder,
+                    data,
+                    bytes,
+                    input_end,
+                    constructor,
+                    current,
+                );
+                let location = if constructor {
+                    crate::mir::SliceLocation::Memory
+                } else {
+                    crate::mir::SliceLocation::Calldata
+                };
+                builder.make_slice(data, len, location)
             }
             crate::mir::AbiParamType::DynamicArray(element)
                 if Self::is_full_word_scalar(element) =>
             {
-                Self::guard_calldata_range(builder, base, 32, current);
-                let len = builder.calldataload(base);
+                Self::guard_source_range(builder, base, 32, input_end, constructor, current);
+                let len = Self::load_input_word(builder, base, constructor);
                 let word = builder.imm_u64(32);
                 let bytes = Self::checked_mul(builder, len, word, current);
                 let total = Self::checked_add(builder, bytes, word, current);
-                Self::guard_calldata_range_value(builder, base, total, current);
+                Self::guard_source_range_value(
+                    builder,
+                    base,
+                    total,
+                    input_end,
+                    constructor,
+                    current,
+                );
                 let ptr = builder.alloc_object(
                     total,
                     crate::mir::MemoryObjectLayout::WORD_ARRAY,
@@ -682,19 +772,30 @@ impl LowerAbiCx {
                 let dst =
                     builder.memory_object_data(ptr, crate::mir::MemoryObjectKind::DynamicArray);
                 let src = builder.add(base, word);
-                builder.calldatacopy(dst, src, bytes);
+                if constructor {
+                    builder.mcopy(dst, src, bytes);
+                } else {
+                    builder.calldatacopy(dst, src, bytes);
+                }
                 ptr
             }
             crate::mir::AbiParamType::DynamicArray(element)
                 if matches!(arg_type, MirType::MemoryObject(_)) =>
             {
-                Self::guard_calldata_range(builder, base, 32, current);
-                let len = builder.calldataload(base);
+                Self::guard_source_range(builder, base, 32, input_end, constructor, current);
+                let len = Self::load_input_word(builder, base, constructor);
                 let word = builder.imm_u64(32);
                 let element_head_size = builder.imm_u64(element.head_size());
                 let head_bytes = Self::checked_mul(builder, len, element_head_size, current);
                 let head = builder.add(base, word);
-                Self::guard_calldata_range_value(builder, head, head_bytes, current);
+                Self::guard_source_range_value(
+                    builder,
+                    head,
+                    head_bytes,
+                    input_end,
+                    constructor,
+                    current,
+                );
                 let bytes = Self::checked_mul(builder, len, word, current);
                 let total = Self::checked_add(builder, bytes, word, current);
                 let ptr = builder.alloc_object(
@@ -745,6 +846,8 @@ impl LowerAbiCx {
                     element.mir_type(),
                     source,
                     data_base,
+                    input_end,
+                    constructor,
                     &mut element_current,
                 );
                 builder.mstore(destination, value);
@@ -763,27 +866,46 @@ impl LowerAbiCx {
                 ptr
             }
             crate::mir::AbiParamType::Bytes if matches!(arg_type, MirType::Slice(_)) => {
-                Self::guard_calldata_range(builder, base, 32, current);
-                let len = builder.calldataload(base);
+                Self::guard_source_range(builder, base, 32, input_end, constructor, current);
+                let len = Self::load_input_word(builder, base, constructor);
                 let word = builder.imm_u64(32);
                 let data = builder.add(base, word);
                 let padding = builder.imm_u64(31);
                 let rounded = Self::checked_add(builder, len, padding, current);
                 let mask = builder.not(padding);
                 let padded = builder.and(rounded, mask);
-                Self::guard_calldata_range_value(builder, data, padded, current);
-                builder.make_slice(data, len, crate::mir::SliceLocation::Calldata)
+                Self::guard_source_range_value(
+                    builder,
+                    data,
+                    padded,
+                    input_end,
+                    constructor,
+                    current,
+                );
+                let location = if constructor {
+                    crate::mir::SliceLocation::Memory
+                } else {
+                    crate::mir::SliceLocation::Calldata
+                };
+                builder.make_slice(data, len, location)
             }
             crate::mir::AbiParamType::Bytes => {
-                Self::guard_calldata_range(builder, base, 32, current);
-                let len = builder.calldataload(base);
+                Self::guard_source_range(builder, base, 32, input_end, constructor, current);
+                let len = Self::load_input_word(builder, base, constructor);
                 let word = builder.imm_u64(32);
                 let thirty_one = builder.imm_u64(31);
                 let rounded = Self::checked_add(builder, len, thirty_one, current);
                 let mask = builder.not(thirty_one);
                 let data_size = builder.and(rounded, mask);
                 let data = builder.add(base, word);
-                Self::guard_calldata_range_value(builder, data, data_size, current);
+                Self::guard_source_range_value(
+                    builder,
+                    data,
+                    data_size,
+                    input_end,
+                    constructor,
+                    current,
+                );
                 let total = Self::checked_add(builder, data_size, word, current);
                 let ptr = builder.alloc_object(
                     total,
@@ -793,14 +915,25 @@ impl LowerAbiCx {
                 builder.set_memory_object_len(ptr, len, crate::mir::MemoryObjectKind::Bytes);
                 let dst = builder.memory_object_data(ptr, crate::mir::MemoryObjectKind::Bytes);
                 let src = builder.add(base, word);
-                builder.calldatacopy(dst, src, len);
+                if constructor {
+                    builder.mcopy(dst, src, len);
+                } else {
+                    builder.calldatacopy(dst, src, len);
+                }
                 ptr
             }
             crate::mir::AbiParamType::Tuple(fields) if Self::is_supported_aggregate(ty) => {
                 // Calldata structs with dynamic fields keep their source base
                 // in one trailing word so slice expressions can recover the
                 // original calldata location after the fields are copied.
-                Self::guard_calldata_range(builder, base, ty.head_size(), current);
+                Self::guard_source_range(
+                    builder,
+                    base,
+                    ty.head_size(),
+                    input_end,
+                    constructor,
+                    current,
+                );
                 let carries_base = fields.iter().any(crate::mir::AbiParamType::is_dynamic);
                 let storage_fields = fields.len() + usize::from(carries_base);
                 let size = builder.imm_u64((storage_fields as u64).saturating_mul(32));
@@ -817,6 +950,8 @@ impl LowerAbiCx {
                         field.mir_type(),
                         field_head,
                         base,
+                        input_end,
+                        constructor,
                         current,
                     );
                     builder.memory_object_store_field(ptr, layout, index as u64, value);
@@ -873,6 +1008,164 @@ impl LowerAbiCx {
         builder.switch_to_block(next);
         *current = next;
         value
+    }
+
+    fn load_input_word(
+        builder: &mut FunctionBuilder<'_>,
+        position: ValueId,
+        constructor: bool,
+    ) -> ValueId {
+        if constructor { builder.mload(position) } else { builder.calldataload(position) }
+    }
+
+    fn decode_input_scalar(
+        builder: &mut FunctionBuilder<'_>,
+        scalar: MirType,
+        position: ValueId,
+        input_end: ValueId,
+        current: &mut BlockId,
+    ) -> ValueId {
+        builder.switch_to_block(*current);
+        Self::guard_input_range(builder, position, 32, input_end, current);
+        let value = builder.mload(position);
+        if let Some(validator) = AbiWordValidator::from_mir_type(scalar) {
+            let valid = validator.condition(builder, value);
+            let next = builder.create_block();
+            let revert = builder.create_block();
+            builder.branch(valid, next, revert);
+            builder.switch_to_block(revert);
+            let zero = builder.imm_u64(0);
+            builder.revert(zero, zero);
+            builder.switch_to_block(next);
+            *current = next;
+        }
+        value
+    }
+
+    fn decode_input_enum(
+        builder: &mut FunctionBuilder<'_>,
+        variants: u64,
+        position: ValueId,
+        input_end: ValueId,
+        current: &mut BlockId,
+    ) -> ValueId {
+        builder.switch_to_block(*current);
+        Self::guard_input_range(builder, position, 32, input_end, current);
+        let value = builder.mload(position);
+        let valid = AbiWordValidator::EnumRange(variants).condition(builder, value);
+        let next = builder.create_block();
+        let revert = builder.create_block();
+        builder.branch(valid, next, revert);
+        builder.switch_to_block(revert);
+        let zero = builder.imm_u64(0);
+        builder.revert(zero, zero);
+        builder.switch_to_block(next);
+        *current = next;
+        value
+    }
+
+    fn guard_source_range(
+        builder: &mut FunctionBuilder<'_>,
+        start: ValueId,
+        size: u64,
+        input_end: ValueId,
+        constructor: bool,
+        current: &mut BlockId,
+    ) {
+        if constructor {
+            Self::guard_input_range(builder, start, size, input_end, current);
+        } else {
+            Self::guard_calldata_range(builder, start, size, current);
+        }
+    }
+
+    fn guard_source_range_value(
+        builder: &mut FunctionBuilder<'_>,
+        start: ValueId,
+        size: ValueId,
+        input_end: ValueId,
+        constructor: bool,
+        current: &mut BlockId,
+    ) {
+        if constructor {
+            Self::guard_input_range_value(builder, start, size, input_end, current);
+        } else {
+            Self::guard_calldata_range_value(builder, start, size, current);
+        }
+    }
+
+    fn guard_source_offset(
+        builder: &mut FunctionBuilder<'_>,
+        base: ValueId,
+        offset: ValueId,
+        input_end: ValueId,
+        constructor: bool,
+        current: &mut BlockId,
+    ) -> ValueId {
+        if constructor {
+            Self::guard_input_offset(builder, base, offset, input_end, current)
+        } else {
+            Self::guard_calldata_offset(builder, base, offset, current)
+        }
+    }
+
+    fn guard_input_range(
+        builder: &mut FunctionBuilder<'_>,
+        start: ValueId,
+        size: u64,
+        input_end: ValueId,
+        current: &mut BlockId,
+    ) {
+        let size = builder.imm_u64(size);
+        Self::guard_input_range_value(builder, start, size, input_end, current);
+    }
+
+    fn guard_input_range_value(
+        builder: &mut FunctionBuilder<'_>,
+        start: ValueId,
+        size: ValueId,
+        input_end: ValueId,
+        current: &mut BlockId,
+    ) {
+        builder.switch_to_block(*current);
+        let end = builder.add(start, size);
+        let overflow = builder.lt(end, start);
+        let out_of_range = builder.gt(end, input_end);
+        let invalid = builder.or(overflow, out_of_range);
+        let next = builder.create_block();
+        let revert = builder.create_block();
+        builder.branch(invalid, revert, next);
+        builder.switch_to_block(revert);
+        let zero = builder.imm_u64(0);
+        builder.revert(zero, zero);
+        builder.switch_to_block(next);
+        *current = next;
+    }
+
+    fn guard_input_offset(
+        builder: &mut FunctionBuilder<'_>,
+        base: ValueId,
+        offset: ValueId,
+        input_end: ValueId,
+        current: &mut BlockId,
+    ) -> ValueId {
+        builder.switch_to_block(*current);
+        let target = builder.add(base, offset);
+        let overflow = builder.lt(target, base);
+        let too_large = builder.gt(target, input_end);
+        let minimum_offset = builder.imm_u64(32);
+        let too_small = builder.lt(offset, minimum_offset);
+        let invalid_range = builder.or(overflow, too_large);
+        let invalid = builder.or(invalid_range, too_small);
+        let next = builder.create_block();
+        let revert = builder.create_block();
+        builder.branch(invalid, revert, next);
+        builder.switch_to_block(revert);
+        let zero = builder.imm_u64(0);
+        builder.revert(zero, zero);
+        builder.switch_to_block(next);
+        *current = next;
+        target
     }
 
     fn guard_calldata_range(

@@ -67,12 +67,11 @@ describes observable structure in the current tree, not an intended design.
   `memory_object_copy_from_slice`. The memory-object pass selects the physical
   copy opcode, and the canonical pipeline lowers objects before slices so the
   generated pointer and length projections are consumed by the slice pass.
-* Constructors with fixed arrays whose leaves are scalar words defer their
-  input boundary to `lower-abi`. That pass expands the
-  physical constructor word parameters and rebuilds nested fixed-array memory
-  objects and validates narrow scalar leaves. Dynamic constructor shapes and
-  standalone scalar-only constructors remain on their existing path until a
-  bounded constructor blob abstraction is shared by both forms.
+* Constructors with supported scalar words, fixed arrays, dynamic arrays,
+  bytes, and structs defer their input boundary to `lower-abi`. That pass
+  expands physical constructor word parameters, rebuilds aggregate memory
+  objects, validates narrow scalar leaves, and checks the copied blob end.
+  Unsupported recursive ABI shapes remain on their existing HIR path.
 * Checked ABI head sizing is shared by the MIR input and output layout
   descriptors, so HIR lowering no longer carries a second recursive size
   implementation.
@@ -142,14 +141,12 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
 
 ## Concrete shortcomings
 
-* **The ABI boundary is still split for most constructor aggregates.**
-  External functions with supported fixed arrays, dynamic arrays, byte
-  strings, and scalar/byte/enum structs defer to `lower-abi`, including its
-  range and overflow checks. Constructors with fixed arrays now use the same
-  phase, including narrow scalar leaves, but standalone narrow scalars,
-  dynamic arrays, bytes, strings, and structs still decode their argument blob
-  in HIR lowering. Moving those shapes safely needs a typed constructor blob
-  end/length, which MIR does not expose yet.
+* **The ABI boundary is still split for unsupported constructor aggregates.**
+  External functions with supported fixed arrays, dynamic arrays, byte strings,
+  and scalar/byte/enum structs defer to `lower-abi`, including its range and
+  overflow checks. Constructors now use the same phase for scalar words,
+  fixed arrays, dynamic arrays, bytes, and supported structs. Unsupported
+  recursive ABI shapes still decode their argument blob in HIR lowering.
 * **Physical memory still leaks through a few aggregate helpers.** Mutable
   locals, direct object accesses, object-to-object and typed slice-to-object
   copies, storage aggregate copies, and ABI payload copies into objects now

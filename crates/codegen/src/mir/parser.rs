@@ -1636,6 +1636,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::slice_ptr => inst!(SlicePtr(a) => MirType::uint256()),
             sym::slice_len => inst!(SliceLen(a) => MirType::uint256()),
             sym::constructor_args_base => unit!(ConstructorArgsBase => MirType::uint256()),
+            sym::constructor_args_end => unit!(ConstructorArgsEnd => MirType::uint256()),
 
             kw::Codesize => unit!(CodeSize => MirType::uint256()),
             kw::Codecopy => inst!(CodeCopy(a, b, c)),

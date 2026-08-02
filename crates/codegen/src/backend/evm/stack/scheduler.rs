@@ -1685,6 +1685,7 @@ impl StackScheduler {
                 | crate::mir::InstKind::Shr(_, _)
                 | crate::mir::InstKind::Sar(_, _)
                 | crate::mir::InstKind::ConstructorArgsBase
+                | crate::mir::InstKind::ConstructorArgsEnd
         )
     }
 
