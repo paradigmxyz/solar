@@ -43,8 +43,12 @@ contract BytesMemoryElements {
     // CHECK-LABEL: fn @readWrite{{[( ]}}
     // CHECK: [[BYTE:v[0-9]+]] = shr 248, arg2
     // CHECK: mstore8 {{v[0-9]+}}, [[BYTE]]
-    // CHECK: [[LOADED:v[0-9]+]] = mload
-    // CHECK: and [[LOADED]], 0xff00000000000000000000000000000000000000000000000000000000000000
+    // CHECK: [[WORD_INDEX:v[0-9]+]] = div arg1, 32
+    // CHECK: [[BYTE_INDEX:v[0-9]+]] = mod arg1, 32
+    // CHECK: [[SHIFT:v[0-9]+]] = mul [[BYTE_INDEX]], 8
+    // CHECK: [[WORD:v[0-9]+]] = memory_object_load_element memorybytes, arg0, [[WORD_INDEX]]
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl [[SHIFT]], [[WORD]]
+    // CHECK: and [[SHIFTED]], 0xff00000000000000000000000000000000000000000000000000000000000000
     function readWrite(bytes memory b, uint i, bytes1 v) external pure returns (bytes1) {
         b[i] = v;
         return b[i];

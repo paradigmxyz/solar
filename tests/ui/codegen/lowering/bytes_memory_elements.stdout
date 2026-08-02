@@ -123,10 +123,12 @@ fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) -> bytes1 [abi_params
   bb5:
     tail_call @__panic_32
   bb6:
-    v10 = memory_object_data memorybytes, arg0
-    v11 = add v10, arg1
-    v12 = mload v11
-    v13 = and v12, 0xff00000000000000000000000000000000000000000000000000000000000000
-    ret v13
+    v10 = div arg1, 32
+    v11 = mod arg1, 32
+    v12 = mul v11, 8
+    v13 = memory_object_load_element memorybytes, arg0, v10
+    v14 = shl v12, v13
+    v15 = and v14, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v15
 }
 

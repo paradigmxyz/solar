@@ -20,15 +20,17 @@ fn @compareElement(arg0: memorybytes) -> bool [abi_params=[bytes], abi_returns=[
   bb1:
     tail_call @__panic_32
   bb2:
-    v2 = memory_object_data memorybytes, arg0
-    v3 = add v2, 0
-    v4 = mload v3
-    v5 = and v4, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v6 = and 1, 255
-    v7 = shl 248, v6
-    v8 = and v7, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v9 = eq v5, v8
-    ret v9
+    v2 = div 0, 32
+    v3 = mod 0, 32
+    v4 = mul v3, 8
+    v5 = memory_object_load_element memorybytes, arg0, v2
+    v6 = shl v4, v5
+    v7 = and v6, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v8 = and 1, 255
+    v9 = shl 248, v8
+    v10 = and v9, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v11 = eq v7, v10
+    ret v11
 }
 
 fn @__panic_32() {

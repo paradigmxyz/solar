@@ -105,6 +105,9 @@ describes observable structure in the current tree, not an intended design.
 * Memory-object field and element reads and writes stay typed through HIR
   aggregate lowering. `lower-memory-objects` alone selects their physical
   offsets and emits the final word loads and stores.
+* Memory and materialized storage `bytes` indexing loads a semantic word
+  element, then aligns the selected byte in MIR instead of forming an
+  unaligned data pointer.
 * Storage-to-memory and memory-to-storage aggregate copies use the same typed
   field and element operations. Packed and nested copies no longer expose a
   destination address to HIR lowering.

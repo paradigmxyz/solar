@@ -130,11 +130,7 @@ impl<'gcx> Lowerer<'gcx> {
             let index_val = self.lower_index_value(builder, base.span, index);
             let len = builder.memory_object_len(base_val, MemoryObjectKind::Bytes);
             self.emit_index_bounds_check(builder, index_val, len);
-            let data_base = builder.memory_object_data(base_val, MemoryObjectKind::Bytes);
-            let byte_addr = builder.add(data_base, index_val);
-            let word = builder.mload(byte_addr);
-            let mask = builder.imm_u256(U256::from(0xffu64) << 248);
-            return builder.and(word, mask);
+            return self.load_memory_bytes_element(builder, base_val, index_val);
         }
 
         if self.is_memory_bytes_expr(base) {
@@ -142,11 +138,7 @@ impl<'gcx> Lowerer<'gcx> {
             let index_val = self.lower_index_value(builder, base.span, index);
             let len = builder.memory_object_len(base_val, MemoryObjectKind::Bytes);
             self.emit_index_bounds_check(builder, index_val, len);
-            let data_base = builder.memory_object_data(base_val, MemoryObjectKind::Bytes);
-            let byte_addr = builder.add(data_base, index_val);
-            let word = builder.mload(byte_addr);
-            let mask = builder.imm_u256(U256::from(0xffu64) << 248);
-            return builder.and(word, mask);
+            return self.load_memory_bytes_element(builder, base_val, index_val);
         }
 
         if let Some(ty) = self.get_expr_type(base)
@@ -183,6 +175,24 @@ impl<'gcx> Lowerer<'gcx> {
             MemoryObjectLayout::word_fixed_array(len)
         };
         builder.memory_object_load_element(base_val, layout, index_val)
+    }
+
+    fn load_memory_bytes_element(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        object: ValueId,
+        index: ValueId,
+    ) -> ValueId {
+        let word_size = builder.imm_u64(32);
+        let word_index = builder.div(index, word_size);
+        let byte_index = builder.mod_(index, word_size);
+        let eight = builder.imm_u64(8);
+        let shift = builder.mul(byte_index, eight);
+        let word =
+            builder.memory_object_load_element(object, MemoryObjectLayout::Bytes, word_index);
+        let shifted = builder.shl(shift, word);
+        let mask = builder.imm_u256(U256::from(0xffu64) << 248);
+        builder.and(shifted, mask)
     }
 
     pub(super) fn lower_index_assign(
