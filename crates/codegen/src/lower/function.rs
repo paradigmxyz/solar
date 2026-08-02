@@ -2543,10 +2543,28 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         expr: &hir::Expr<'_>,
         builtin: Builtin,
     ) -> Option<ValueId> {
-        if matches!(builtin, Builtin::TypeMin | Builtin::TypeMax) {
+        if matches!(builtin, Builtin::TypeMin | Builtin::TypeMax | Builtin::InterfaceId) {
             let ExprKind::Member(receiver, _) = &expr.kind else {
-                return report_unsupported(self.gcx, expr.span, "type limit");
+                return report_unsupported(self.gcx, expr.span, "type member");
             };
+            if builtin == Builtin::InterfaceId {
+                let TyKind::Meta(ty) = self.gcx.type_of_expr(receiver.id)?.kind else {
+                    return report_unsupported(self.gcx, expr.span, "interface id");
+                };
+                let TyKind::Contract(id) = ty.peel_refs().kind else {
+                    return report_unsupported(self.gcx, expr.span, "interface id");
+                };
+                let value = self
+                    .gcx
+                    .interface_functions(id)
+                    .own()
+                    .iter()
+                    .fold(U256::ZERO, |value, function| {
+                        value ^ U256::from_be_slice(function.selector.as_slice())
+                    })
+                    << 224;
+                return Some(self.builder.imm_u256(value));
+            }
             let value = self.type_limit(receiver, expr.span, builtin == Builtin::TypeMax)?;
             return Some(self.builder.imm_u256(value));
         }
