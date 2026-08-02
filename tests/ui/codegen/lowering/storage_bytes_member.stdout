@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_member.sol:StorageBytesMember (runtime) ===
 @module runtime
 bb0:
-  push 896
+  push 832
   push 64
   mstore
   callvalue
@@ -217,11 +217,6 @@ bb65:
   mstore
   swap2
   pop
-  push 32
-  dup3
-  add
-  push 736
-  mstore
   pop
   pop
   swap1
@@ -233,8 +228,10 @@ bb65:
   push 640
   mload
   and
-  push 736
+  push 32
+  push 704
   mload
+  add
   mstore
   jump bb68
 bb68:
@@ -1254,22 +1251,16 @@ bb67:
   push 5
   shr
   push 0
-  push 736
-  mload
-  swap2
+  swap1
   jump bb69
 bb69:
   dup1
   push 672
   mstore
   dup2
-  push 768
+  push 736
   mstore
-  dup3
-  push 800
-  mstore
-  swap2
-  pop
+  swap1
   pop
   iszero
   push bb68
@@ -1277,7 +1268,7 @@ bb69:
   push 64
   mload
   dup1
-  push 864
+  push 800
   mstore
   push 32
   dup2
@@ -1291,23 +1282,26 @@ bb69:
   push 32
   swap1
   keccak256
-  push 768
+  push 736
   mload
   add
   sload
-  push 800
-  mload
-  mstore
   push 32
-  push 800
+  push 704
   mload
   add
+  push 32
+  push 736
+  mload
+  mul
+  add
+  mstore
   push 1
   push 672
   mload
   sub
   push 1
-  push 768
+  push 736
   mload
   add
   swap1

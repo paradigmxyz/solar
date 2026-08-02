@@ -325,7 +325,8 @@ impl<'gcx> Lowerer<'gcx> {
             crate::mir::MemoryObjectKind::Bytes,
         );
         builder.set_memory_object_len(ptr, len, MemoryObjectKind::Bytes);
-        let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+        let layout = crate::mir::MemoryObjectLayout::Bytes;
+        let zero = builder.imm_u64(0);
 
         let short_block = builder.create_block();
         let long_block = builder.create_block();
@@ -335,12 +336,11 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(short_block);
         let data_mask = builder.imm_u256(U256::MAX - U256::from(0xffu64));
         let data = builder.and(word, data_mask);
-        builder.mstore(data_ptr, data);
+        builder.memory_object_store_element(ptr, layout, zero, data);
         builder.jump(done_block);
 
         builder.switch_to_block(long_block);
         let remaining = builder.div(padded, word_size);
-        let zero = builder.imm_u64(0);
 
         let cond_block = builder.create_block();
         let body_block = builder.create_block();
@@ -350,23 +350,19 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(cond_block);
         let remaining_phi = builder.phi(vec![(preheader, remaining)]);
         let index_phi = builder.phi(vec![(preheader, zero)]);
-        let dst_phi = builder.phi(vec![(preheader, data_ptr)]);
         let has_remaining = builder.gt(remaining_phi, zero);
         builder.branch(has_remaining, body_block, done_block);
 
         builder.switch_to_block(body_block);
         let storage_slot = builder.storage_array_element_slot(slot, index_phi, 1);
         let data_word = builder.sload(storage_slot);
-        builder.mstore(dst_phi, data_word);
-        let word_size = builder.imm_u64(32);
-        let next_dst = builder.add(dst_phi, word_size);
+        builder.memory_object_store_element(ptr, layout, index_phi, data_word);
         let next_remaining = builder.sub(remaining_phi, one);
         let next_index = builder.add(index_phi, one);
         let latch = builder.current_block();
         builder.jump(cond_block);
         builder.add_phi_incoming(remaining_phi, latch, next_remaining);
         builder.add_phi_incoming(index_phi, latch, next_index);
-        builder.add_phi_incoming(dst_phi, latch, next_dst);
 
         builder.switch_to_block(done_block);
         ptr

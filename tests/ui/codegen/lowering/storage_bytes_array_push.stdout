@@ -276,37 +276,40 @@ fn @__load_storage_bytes(arg0: u256) -> memptr {
     v11 = select v10, 32, v9
     v12 = add v11, 32
     v13 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v29 = add v13, v12
-    mstore 64, v29 !metadata(memory=scratch)
+    v32 = add v13, v12
+    mstore 64, v32 !metadata(memory=scratch)
     mstore v13, v6
-    v14 = add v13, 32
     jumpi v2, bb2, bb1
   bb1:
-    v15 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    mstore v14, v15
+    v14 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v26 = add v13, 32
+    v27 = mul 0, 32
+    v28 = add v26, v27
+    mstore v28, v14
     jump bb3
   bb2:
-    v16 = shr 5, v9
+    v15 = shr 5, v9
     jump bb4
   bb3:
     ret v13
   bb4:
-    v17 = phi [bb2: v16], [bb5: v24]
-    v18 = phi [bb2: 0], [bb5: v25]
-    v19 = phi [bb2: v14], [bb5: v23]
-    jumpi v17, bb5, bb3
+    v16 = phi [bb2: v15], [bb5: v21]
+    v17 = phi [bb2: 0], [bb5: v22]
+    jumpi v16, bb5, bb3
   bb5:
-    v26 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v30 = add v26, 32
-    mstore 64, v30 !metadata(memory=scratch)
-    mstore v26, arg0
-    v27 = keccak256 v26, 32
-    v28 = add v27, v18
-    v22 = sload v28 !metadata(storage=symbolic(v21))
-    mstore v19, v22
-    v23 = add v19, 32
-    v24 = sub v17, 1
-    v25 = add v18, 1
+    v23 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v33 = add v23, 32
+    mstore 64, v33 !metadata(memory=scratch)
+    mstore v23, arg0
+    v24 = keccak256 v23, 32
+    v25 = add v24, v17
+    v20 = sload v25 !metadata(storage=symbolic(v19))
+    v29 = add v13, 32
+    v30 = mul v17, 32
+    v31 = add v29, v30
+    mstore v31, v20
+    v21 = sub v16, 1
+    v22 = add v17, 1
     jump bb4
 }
 
