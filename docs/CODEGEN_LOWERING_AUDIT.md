@@ -90,6 +90,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   `continue` exits;
 * split Solidity and Yul builtin lowering with shared positional-argument,
   arity, named-argument, and unsupported-builtin diagnostics;
+* Yul arithmetic, environment, memory, calldata, storage, logging, call,
+  creation, termination, and hashing builtins through direct MIR operations;
 * constructor and fallback/function attributes needed by the backend;
 * inherited public and internal function discovery with selector de-duplication;
 * explicit and synthetic base-constructor lowering in linearized order, including

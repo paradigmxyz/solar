@@ -3,10 +3,9 @@
 
 contract YulLocalPhi {
     // CHECK-LABEL: fn @branchLocal{{[( ]}}
-    // CHECK: frame_store scratch, word, 32, 1
     // CHECK: jumpi {{v[0-9]+}},
-    // CHECK: frame_store scratch, word, 32, 2
-    // CHECK: {{v[0-9]+}} = frame_load scratch, word, 32
+    // CHECK: {{v[0-9]+}} = phi [bb1: 2], [bb2: 1]
+    // CHECK: ret {{v[0-9]+}}
     function branchLocal(uint256 flag) public pure returns (uint256 result) {
         assembly {
             let x := 1

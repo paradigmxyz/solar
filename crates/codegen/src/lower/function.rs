@@ -1962,7 +1962,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                     .or_else(|| Some(self.builder.imm_u256(U256::ZERO)))
             } else {
                 match self.lower_yul_unit_builtin_call(builtin, args) {
-                    Some(()) => None,
+                    Some(()) => Some(self.builder.imm_u256(U256::ZERO)),
                     None => Some(self.builder.imm_u256(U256::ZERO)),
                 }
             };
@@ -1999,7 +1999,7 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             | Builtin::Assert
             | Builtin::Revert
             | Builtin::RevertMsg => match self.lower_unit_builtin_call(builtin, args) {
-                Some(()) => None,
+                Some(()) => Some(self.builder.imm_u256(U256::ZERO)),
                 None => Some(self.builder.imm_u256(U256::ZERO)),
             },
             _ => self
@@ -2259,17 +2259,90 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         args: hir::CallArgs<'_>,
     ) -> Option<()> {
         match builtin {
+            Builtin::YulMstore => {
+                let [offset, value] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.mstore(offset, value);
+            }
+            Builtin::YulMstore8 => {
+                let [offset, value] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.mstore8(offset, value);
+            }
+            Builtin::YulMcopy => {
+                if !self.gcx.sess.opts.evm_version.has_mcopy() {
+                    return self.unsupported_yul_version(
+                        "codegen requires Cancun-compatible EVM for memory copy",
+                        "compile with `--evm-version cancun` or newer",
+                        args.span,
+                    );
+                }
+                let [dest, src, size] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.mcopy(dest, src, size);
+            }
             Builtin::YulSstore => {
                 let [slot, value] = self.lower_builtin_args(builtin, &args)?;
                 self.builder.sstore(slot, value);
             }
-            Builtin::YulMstore | Builtin::YulMstore8 => {
-                let [offset, value] = self.lower_builtin_args(builtin, &args)?;
-                if builtin == Builtin::YulMstore {
-                    self.builder.mstore(offset, value);
-                } else {
-                    self.builder.mstore8(offset, value);
-                }
+            Builtin::YulTstore => {
+                let [slot, value] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.tstore(slot, value);
+            }
+            Builtin::YulCalldatacopy => {
+                let [dest, src, size] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.calldatacopy(dest, src, size);
+            }
+            Builtin::YulCodecopy => {
+                let [dest, src, size] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.codecopy(dest, src, size);
+            }
+            Builtin::YulExtcodecopy => {
+                let [address, dest, src, size] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.extcodecopy(address, dest, src, size);
+            }
+            Builtin::YulReturndatacopy => {
+                let [dest, src, size] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.returndatacopy(dest, src, size);
+            }
+            Builtin::YulLog0 => {
+                let [offset, size] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.log0(offset, size);
+            }
+            Builtin::YulLog1 => {
+                let [offset, size, topic1] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.log1(offset, size, topic1);
+            }
+            Builtin::YulLog2 => {
+                let [offset, size, topic1, topic2] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.log2(offset, size, topic1, topic2);
+            }
+            Builtin::YulLog3 => {
+                let [offset, size, topic1, topic2, topic3] =
+                    self.lower_builtin_args(builtin, &args)?;
+                self.builder.log3(offset, size, topic1, topic2, topic3);
+            }
+            Builtin::YulLog4 => {
+                let [offset, size, topic1, topic2, topic3, topic4] =
+                    self.lower_builtin_args(builtin, &args)?;
+                self.builder.log4(offset, size, topic1, topic2, topic3, topic4);
+            }
+            Builtin::YulRevert => {
+                let [offset, size] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.revert(offset, size);
+            }
+            Builtin::YulReturn => {
+                let [offset, size] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.ret_data(offset, size);
+            }
+            Builtin::YulStop => {
+                let [] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.stop();
+            }
+            Builtin::YulInvalid => {
+                let [] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.invalid();
+            }
+            Builtin::YulSelfdestruct => {
+                let [address] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.selfdestruct(address);
             }
             Builtin::YulPop => {
                 let [_value] = self.lower_builtin_args(builtin, &args)?;
@@ -2296,19 +2369,85 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             }};
         }
         match builtin {
-            Builtin::YulSload => lower!(sload(slot)),
-            Builtin::YulMload => lower!(mload(offset)),
             Builtin::YulAdd => lower!(add(lhs, rhs)),
             Builtin::YulSub => lower!(sub(lhs, rhs)),
             Builtin::YulMul => lower!(mul(lhs, rhs)),
             Builtin::YulDiv => lower!(div(lhs, rhs)),
+            Builtin::YulSdiv => lower!(sdiv(lhs, rhs)),
             Builtin::YulMod => lower!(mod_(lhs, rhs)),
+            Builtin::YulSmod => lower!(smod(lhs, rhs)),
+            Builtin::YulExp => lower!(exp(base, exponent)),
+            Builtin::YulSignextend => lower!(signextend(byte, value)),
             Builtin::YulEq => lower!(eq(lhs, rhs)),
             Builtin::YulLt => lower!(lt(lhs, rhs)),
             Builtin::YulGt => lower!(gt(lhs, rhs)),
+            Builtin::YulSlt => lower!(slt(lhs, rhs)),
+            Builtin::YulSgt => lower!(sgt(lhs, rhs)),
             Builtin::YulAnd => lower!(and(lhs, rhs)),
             Builtin::YulOr => lower!(or(lhs, rhs)),
             Builtin::YulXor => lower!(xor(lhs, rhs)),
+            Builtin::YulNot => lower!(not(value)),
+            Builtin::YulByte => lower!(byte(index, value)),
+            Builtin::YulShl => lower!(shl(shift, value)),
+            Builtin::YulShr => lower!(shr(shift, value)),
+            Builtin::YulSar => lower!(sar(shift, value)),
+            Builtin::YulIszero => lower!(iszero(value)),
+            Builtin::YulAddmod => lower!(addmod(a, b, modulus)),
+            Builtin::YulMulmod => lower!(mulmod(a, b, modulus)),
+            Builtin::YulClz => {
+                let [value] = self.lower_builtin_args(builtin, &args)?;
+                if !self.gcx.sess.opts.evm_version.has_clz() {
+                    return self.unsupported_yul_version(
+                        "codegen requires Osaka-compatible EVM for `clz`",
+                        "compile with `--evm-version osaka` or newer",
+                        args.span,
+                    );
+                }
+                Some(self.builder.clz(value))
+            }
+            Builtin::YulMload => lower!(mload(offset)),
+            Builtin::YulMsize => lower!(msize()),
+            Builtin::YulSload => lower!(sload(slot)),
+            Builtin::YulTload => lower!(tload(slot)),
+            Builtin::YulCalldataload => lower!(calldataload(offset)),
+            Builtin::YulCalldatasize => lower!(calldatasize()),
+            Builtin::YulCodesize => lower!(codesize()),
+            Builtin::YulExtcodesize => lower!(extcodesize(address)),
+            Builtin::YulExtcodehash => lower!(extcodehash(address)),
+            Builtin::YulReturndatasize => lower!(returndatasize()),
+            Builtin::YulAddress => lower!(address()),
+            Builtin::YulBalance => lower!(balance(address)),
+            Builtin::YulSelfbalance => lower!(selfbalance()),
+            Builtin::YulCaller => lower!(caller()),
+            Builtin::YulCallvalue => lower!(callvalue()),
+            Builtin::YulOrigin => lower!(origin()),
+            Builtin::YulGasprice => lower!(gasprice()),
+            Builtin::YulBlockhash => lower!(blockhash(number)),
+            Builtin::YulCoinbase => lower!(coinbase()),
+            Builtin::YulTimestamp => lower!(timestamp()),
+            Builtin::YulNumber => lower!(number()),
+            Builtin::YulDifficulty | Builtin::YulPrevrandao => lower!(prevrandao()),
+            Builtin::YulGaslimit => lower!(gaslimit()),
+            Builtin::YulChainid => lower!(chainid()),
+            Builtin::YulGas => lower!(gas()),
+            Builtin::YulBasefee => lower!(basefee()),
+            Builtin::YulBlobbasefee => lower!(blobbasefee()),
+            Builtin::YulBlobhash => lower!(blobhash(index)),
+            Builtin::YulKeccak256 => lower!(keccak256(offset, size)),
+            Builtin::YulCall => {
+                lower!(call(gas, address, value, in_offset, in_size, out_offset, out_size))
+            }
+            Builtin::YulCallcode => {
+                lower!(callcode(gas, address, value, in_offset, in_size, out_offset, out_size))
+            }
+            Builtin::YulStaticcall => {
+                lower!(staticcall(gas, address, in_offset, in_size, out_offset, out_size))
+            }
+            Builtin::YulDelegatecall => {
+                lower!(delegatecall(gas, address, in_offset, in_size, out_offset, out_size))
+            }
+            Builtin::YulCreate => lower!(create(value, offset, size)),
+            Builtin::YulCreate2 => lower!(create2(value, offset, size, salt)),
             Builtin::YulExtcall => {
                 let [_address, _input, _value, _gas] = self.lower_builtin_args(builtin, &args)?;
                 self.unsupported_yul_builtin(builtin, args.span)
@@ -2478,6 +2617,16 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             .err(format!("unsupported Yul builtin `{}`", builtin.name()))
             .span(span)
             .emit();
+        None
+    }
+
+    fn unsupported_yul_version<T>(
+        &self,
+        message: &'static str,
+        help: &'static str,
+        span: Span,
+    ) -> Option<T> {
+        self.gcx.dcx().err(message).span(span).help(help).emit();
         None
     }
 
