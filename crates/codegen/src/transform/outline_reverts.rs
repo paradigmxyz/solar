@@ -103,7 +103,6 @@ impl OutlineRevertsCx {
         let name = format!("__revert_stub{}", self.stats.helpers);
         self.stats.helpers += 1;
         let mut func = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
-        func.attributes.no_inline = true;
         {
             let mut builder = FunctionBuilder::new(&mut func);
             for &(store_offset, value) in stores {

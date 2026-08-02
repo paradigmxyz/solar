@@ -63,8 +63,8 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   builders embedded in the main lowering context. Other nontrivial operations
   (checked exponentiation, ABI copies, and repeated cleanup/validation) are
   emitted inline or have their own special-case builders. The helper API does
-  not describe an operation, its inputs, or deduplication key, and helpers are
-  marked `no_inline` even though later passes should choose inlining.
+  not describe an operation, its inputs, or deduplication key, and the
+  outlining path used to force helpers to remain out of later inlining passes.
 * **Pattern-specific lowering is duplicated.** Struct, fixed-array, dynamic
   array, bytes, and calldata-slice handling each have separate branches in
   parameter setup, expression indexing, assignment, return gathering, and
