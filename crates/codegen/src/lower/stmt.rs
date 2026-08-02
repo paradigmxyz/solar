@@ -1227,10 +1227,13 @@ impl<'gcx> Lowerer<'gcx> {
         let zero = builder.imm_u64(0);
         let too_short = builder.lt(rds, four);
         let has_selector = builder.iszero(too_short);
-        builder.mstore(zero, zero);
         let copy_size = builder.select(has_selector, four, zero);
-        builder.returndatacopy(zero, zero, copy_size);
-        let word = builder.mload(zero);
+        let selector_slice = builder.make_slice(zero, copy_size, SliceLocation::Returndata);
+        let selector_object = self.materialize_returndata_slice(builder, selector_slice);
+        let selector_data = builder.memory_object_data(selector_object, MemoryObjectKind::Bytes);
+        let selector_slice = builder.make_slice(selector_data, copy_size, SliceLocation::Memory);
+        let loaded_word = builder.memory_slice_load_word(selector_slice, zero);
+        let word = builder.select(has_selector, loaded_word, zero);
         let shift = builder.imm_u64(224);
         let selector = builder.shr(shift, word);
 
@@ -1286,10 +1289,12 @@ impl<'gcx> Lowerer<'gcx> {
             builder.branch(matches, body, next);
 
             builder.switch_to_block(body);
-            let zero = builder.imm_u64(0);
             let word = builder.imm_u64(32);
-            builder.returndatacopy(zero, four, word);
-            let code = builder.mload(zero);
+            let panic_slice = builder.make_slice(four, word, SliceLocation::Returndata);
+            let panic_object = self.materialize_returndata_slice(builder, panic_slice);
+            let panic_data = builder.memory_object_data(panic_object, MemoryObjectKind::Bytes);
+            let panic_slice = builder.make_slice(panic_data, word, SliceLocation::Memory);
+            let code = builder.memory_slice_load_word(panic_slice, zero);
             if let [var_id] = clause.args {
                 self.bind_local_value(builder, *var_id, code);
             }

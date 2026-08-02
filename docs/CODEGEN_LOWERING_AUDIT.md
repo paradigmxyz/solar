@@ -119,6 +119,9 @@ describes observable structure in the current tree, not an intended design.
   pass emits the final `mstore8`.
 * Deleting small fixed memory arrays uses typed element stores; only the bulk
   zero path keeps the dedicated zeroing operation.
+* Try/catch selector and panic decoding materialize bounded returndata slices
+  into typed bytes objects; only unchanged rethrow forwarding copies directly
+  to the revert boundary.
 * Object-backed constructor and linked-library payload assembly uses
   `memory_object_store_word`; only memory lowering forms payload addresses.
 * ABI tail lengths and nested dynamic-array heads read through
