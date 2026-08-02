@@ -33,6 +33,9 @@ describes observable structure in the current tree, not an intended design.
 * Multi-return values cross control-flow edges through semantic fixed-array
   storage, with only the data base published in the existing return-buffer
   slot.
+* Contract-creation bytecode and constructor words use a semantic bytes object
+  as their `CREATE`/`CREATE2` input instead of manually advancing the free
+  memory pointer.
 * Event payloads with representable ABI types use the same typed ABI operation;
   only recursive or otherwise unsupported event types use the compatibility
   fallback.

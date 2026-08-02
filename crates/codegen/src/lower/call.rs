@@ -959,8 +959,15 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
 
-        // Allocate memory for bytecode + constructor args from free memory pointer
-        let mem_offset = builder.fmp();
+        let total_size = bytecode_len as u64 + (arg_exprs.len() as u64) * 32;
+        let total_size_value = builder.imm_u64(total_size);
+        let object = builder.alloc_object(
+            total_size_value,
+            MemoryObjectLayout::Bytes,
+            crate::mir::AllocationSemantics::INTERNAL,
+        );
+        builder.set_memory_object_len(object, total_size_value, MemoryObjectKind::Bytes);
+        let mem_offset = builder.memory_object_data(object, MemoryObjectKind::Bytes);
 
         // Copy bytecode to memory using MSTORE
         // For each 32-byte chunk of bytecode, emit an MSTORE at (mem_offset + offset)
@@ -984,24 +991,13 @@ impl<'gcx> Lowerer<'gcx> {
             args_offset += 32; // Each arg is 32 bytes ABI encoded
         }
 
-        // Total size = bytecode + args
-        let total_size = builder.imm_u64(args_offset);
-
-        // Update free memory pointer: new_free = mem_offset + ((total_size + 31) & ~31)
-        let thirty_one = builder.imm_u64(31);
-        let aligned_size = builder.add(total_size, thirty_one);
-        let mask = builder.imm_u256(U256::from(!31u64));
-        let aligned_size = builder.and(aligned_size, mask);
-        let new_free = builder.add(mem_offset, aligned_size);
-        builder.set_fmp(new_free);
-
         // Value to send with CREATE/CREATE2 (0 for non-payable, or from value option)
         let value = value_opt.unwrap_or_else(|| builder.imm_u64(0));
 
         let created = if let Some(salt) = salt_opt {
-            builder.create2(value, mem_offset, total_size, salt)
+            builder.create2(value, mem_offset, total_size_value, salt)
         } else {
-            builder.create(value, mem_offset, total_size)
+            builder.create(value, mem_offset, total_size_value)
         };
         self.emit_forwarding_revert_unless(builder, created);
         created
