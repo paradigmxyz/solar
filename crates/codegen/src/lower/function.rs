@@ -472,9 +472,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
                 self.lower_modifier_placeholder(stmt.span)?;
             }
             StmtKind::Emit(expr) => self.lower_emit(expr)?,
-            StmtKind::Try(_) | StmtKind::Err(_) => {
-                return report_unsupported(self.gcx, stmt.span, "statement");
-            }
+            StmtKind::Try(try_stmt) => self.lower_try(try_stmt)?,
+            StmtKind::Err(_) => return report_unsupported(self.gcx, stmt.span, "statement"),
         }
         Some(())
     }
@@ -929,6 +928,130 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events> FunctionLowerer<'gcx, 'mir, 'ids, 'bytes
         self.builder.switch_to_block(merge_block);
         self.values = self.merge_loop_values(before_values, &states, &FxHashMap::default());
         self.storage_refs = self.merge_loop_storage_refs(before_storage_refs, &states);
+        Some(())
+    }
+
+    fn lower_try(&mut self, try_stmt: &hir::StmtTry<'_>) -> Option<()> {
+        let ExprKind::Call(callee, args, call_opts) = &try_stmt.expr.kind else {
+            return report_unsupported(self.gcx, try_stmt.expr.span, "try expression");
+        };
+        let ExprKind::Member(receiver, _) = callee.kind else {
+            return report_unsupported(self.gcx, try_stmt.expr.span, "try expression");
+        };
+        if call_opts.is_some() {
+            return report_unsupported(self.gcx, try_stmt.expr.span, "try call options");
+        }
+        let Some(function_id) = self.gcx.resolved_function(callee) else {
+            return report_unsupported(self.gcx, try_stmt.expr.span, "try target");
+        };
+        let function = self.gcx.hir.function(function_id);
+        if !function.returns.is_empty() {
+            return report_unsupported(self.gcx, try_stmt.expr.span, "try return values");
+        }
+        let [returns_clause, catch_clause] = try_stmt.clauses else {
+            return report_unsupported(self.gcx, try_stmt.expr.span, "try/catch clauses");
+        };
+        if returns_clause.name.is_some() || !returns_clause.args.is_empty() {
+            return report_unsupported(self.gcx, returns_clause.span, "try return bindings");
+        }
+        if catch_clause.name.is_some() || !catch_clause.args.is_empty() {
+            return report_unsupported(self.gcx, catch_clause.span, "try catch clause");
+        }
+        if args.len() != function.parameters.len() {
+            return report_unsupported(self.gcx, args.span, "try arguments");
+        }
+
+        let parameter_names = self.gcx.callable_param_names(CallableParamSource::Function {
+            id: function_id,
+            skips_receiver: false,
+        });
+        let mut values = Vec::with_capacity(function.parameters.len());
+        let mut types = Vec::with_capacity(function.parameters.len());
+        for (index, &parameter) in function.parameters.iter().enumerate() {
+            let Some(argument) =
+                args.argument_for_parameter(index, Some(parameter_names.as_slice()))
+            else {
+                return report_unsupported(self.gcx, args.span, "try argument");
+            };
+            let parameter_ty = self.gcx.type_of_item(parameter.into());
+            let mut value = self.lower_expr(argument)?;
+            let mut abi_type = self.types.abi_type(parameter_ty)?;
+            if self.needs_calldata_materialization(value, &abi_type) {
+                value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
+                abi_type = Self::memory_abi_type(abi_type);
+            }
+            values.push(value);
+            types.push(abi_type);
+        }
+        let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+        let selector = self.gcx.function_selector(function_id).0;
+        let selector = self.builder.imm_u256(U256::from_be_slice(&selector) << 224);
+        let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
+        let input = self.builder.slice_ptr(encoded);
+        let input_size = self.builder.slice_len(encoded);
+        let address = self.lower_expr(receiver)?;
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let gas = self.builder.gas();
+        let success = if matches!(
+            function.state_mutability,
+            hir::StateMutability::Pure | hir::StateMutability::View
+        ) && self.gcx.sess.opts.evm_version.has_static_call()
+        {
+            self.builder.staticcall(gas, address, input, input_size, zero, zero)
+        } else {
+            self.builder.call(gas, address, zero, input, input_size, zero, zero)
+        };
+
+        let success_block = self.builder.create_block();
+        let catch_block = self.builder.create_block();
+        let merge_block = self.builder.create_block();
+        let before = self.values.clone();
+        let before_storage_refs = self.storage_refs.clone();
+        self.builder.branch(success, success_block, catch_block);
+
+        self.values = before.clone();
+        self.storage_refs = before_storage_refs.clone();
+        self.builder.switch_to_block(success_block);
+        self.lower_block(returns_clause.block)?;
+        let success_terminated = self.is_terminated();
+        let success_exit = self.builder.current_block();
+        let success_values = self.values.clone();
+        let success_storage_refs = self.storage_refs.clone();
+        if !success_terminated {
+            self.builder.jump(merge_block);
+        }
+
+        self.values = before.clone();
+        self.storage_refs = before_storage_refs.clone();
+        self.builder.switch_to_block(catch_block);
+        self.lower_block(catch_clause.block)?;
+        let catch_terminated = self.is_terminated();
+        let catch_exit = self.builder.current_block();
+        let catch_values = self.values.clone();
+        let catch_storage_refs = self.storage_refs.clone();
+        if !catch_terminated {
+            self.builder.jump(merge_block);
+        }
+
+        self.builder.switch_to_block(merge_block);
+        self.values = self.merge_values(
+            before,
+            success_exit,
+            success_values,
+            success_terminated,
+            catch_exit,
+            catch_values,
+            catch_terminated,
+        );
+        self.storage_refs = self.merge_storage_refs(
+            before_storage_refs,
+            success_exit,
+            success_storage_refs,
+            success_terminated,
+            catch_exit,
+            catch_storage_refs,
+            catch_terminated,
+        );
         Some(())
     }
 
