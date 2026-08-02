@@ -2406,9 +2406,14 @@ impl<'gcx> Lowerer<'gcx> {
             let four = builder.imm_u64(4);
             let dst_offset = builder.add(four, tail_off);
             builder.memory_object_store_word(object, dst_offset, len);
-            let dst_data = builder.add(calldata_start, dst_offset);
             let src_data = builder.memory_object_data(src, object_kind);
-            builder.mcopy(dst_data, src_data, byte_len);
+            let source = builder.make_slice(src_data, byte_len, crate::mir::SliceLocation::Memory);
+            builder.memory_object_copy_from_slice_at(
+                object,
+                MemoryObjectKind::Bytes,
+                dst_offset,
+                source,
+            );
 
             let advanced = builder.add(word, byte_len);
             tail_off = builder.add(tail_off, advanced);

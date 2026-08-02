@@ -1276,8 +1276,10 @@ bb10:
   swap3
   push 32
   add
+  push 32
+  dup4
+  add
   push 164
-  dup6
   add
   dup5
   dup3
@@ -1305,17 +1307,24 @@ bb10:
   swap4
   push 196
   add
-  swap3
+  push 32
+  dup5
+  add
+  dup2
+  add
+  dup3
+  swap1
+  mstore
+  swap1
+  pop
+  swap5
   push 32
   add
-  dup4
-  add
-  mstore
-  swap4
+  swap2
   push 32
   add
   swap1
-  dup4
+  swap5
   add
   dup3
   dup3

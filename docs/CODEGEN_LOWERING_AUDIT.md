@@ -80,7 +80,8 @@ describes observable structure in the current tree, not an intended design.
   descriptors, so HIR lowering no longer carries a second recursive size
   implementation.
 * Literal low-level call payloads use a bytes memory object for their
-  length-prefixed staging, then expose only its data slice to the call.
+  length-prefixed staging, then copy dynamic tails through typed slices and
+  expose only its data slice to the call.
 * Literal mapping keys and embedded creation bytecode use typed bytes-object
   stores for their word chunks before hashing or returning the object.
 * Dynamic mapping keys stay as `mapping_slot_memory` or
