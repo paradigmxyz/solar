@@ -475,22 +475,22 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
             let words = match layout {
                 MemoryObjectLayout::Bytes => {
                     let thirty_one = self.builder.imm_u64(31);
-                    let rounded = self.builder.add(len, thirty_one);
+                    let rounded = self.checked_add(len, thirty_one);
                     let thirty_two = self.builder.imm_u64(32);
                     let words = self.builder.div(rounded, thirty_two);
                     let one = self.builder.imm_u64(1);
-                    self.builder.add(words, one)
+                    self.checked_add(words, one)
                 }
                 MemoryObjectLayout::DynamicArray { element_words } => {
                     let stride = self.builder.imm_u64(u64::from(element_words));
-                    let payload = self.builder.mul(len, stride);
+                    let payload = self.checked_mul(len, stride);
                     let one = self.builder.imm_u64(1);
-                    self.builder.add(payload, one)
+                    self.checked_add(payload, one)
                 }
                 _ => return report_unsupported(self.gcx, expr.span, "allocation type"),
             };
             let word_size = self.builder.imm_u64(32);
-            let size = self.builder.mul(words, word_size);
+            let size = self.checked_mul(words, word_size);
             let object =
                 self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
             self.builder.set_memory_object_len(object, len, layout.kind());
@@ -523,21 +523,49 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                 };
                 let condition = self.lower_expr(condition)?;
                 let invalid = self.builder.iszero(condition);
-                self.revert_if(invalid);
+                self.panic_if(invalid, 0x01);
                 Some(self.builder.imm_u256(U256::ZERO))
             }
             _ => report_unsupported(self.gcx, expr.span, "builtin call"),
         }
     }
 
-    fn revert_if(&mut self, condition: ValueId) {
-        let revert_block = self.builder.create_block();
+    fn panic_if(&mut self, condition: ValueId, code: u64) {
+        let panic_block = self.builder.create_block();
         let continue_block = self.builder.create_block();
-        self.builder.branch(condition, revert_block, continue_block);
-        self.builder.switch_to_block(revert_block);
+        self.builder.branch(condition, panic_block, continue_block);
+        self.builder.switch_to_block(panic_block);
+        let selector = self.builder.imm_u256(U256::from(0x4e48_7b71_u64) << 224);
+        let code = self.builder.imm_u256(U256::from(code) << 224);
         let zero = self.builder.imm_u256(U256::ZERO);
-        self.builder.revert(zero, zero);
+        self.builder.mstore(zero, selector);
+        let four = self.builder.imm_u256(U256::from(4));
+        self.builder.mstore(four, code);
+        let size = self.builder.imm_u256(U256::from(36));
+        self.builder.revert(zero, size);
         self.builder.switch_to_block(continue_block);
+    }
+
+    fn checked_add(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
+        let result = self.builder.add(lhs, rhs);
+        let overflow = self.builder.lt(result, lhs);
+        self.panic_if(overflow, 0x41);
+        result
+    }
+
+    fn checked_mul(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
+        let result = self.builder.mul(lhs, rhs);
+        let quotient = self.builder.div(result, rhs);
+        let exact = self.builder.eq(quotient, lhs);
+        let overflow = self.builder.iszero(exact);
+        self.panic_if(overflow, 0x41);
+        result
+    }
+
+    fn bounds_check(&mut self, index: ValueId, length: ValueId) {
+        let in_range = self.builder.lt(index, length);
+        let invalid = self.builder.iszero(in_range);
+        self.panic_if(invalid, 0x32);
     }
 
     fn lower_function_call(
@@ -725,10 +753,21 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
         let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
         let layout = self.types.memory_layout(receiver_ty)?;
         match layout {
-            MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::FixedArray { .. } => {
+            MemoryObjectLayout::DynamicArray { .. } => {
+                let length = self.builder.memory_object_len(object, layout.kind());
+                self.bounds_check(index, length);
                 Some(self.builder.memory_object_load_element(object, layout, index))
             }
-            MemoryObjectLayout::Bytes => Some(self.builder.memory_object_load_byte(object, index)),
+            MemoryObjectLayout::FixedArray { len, .. } => {
+                let length = self.builder.imm_u64(len);
+                self.bounds_check(index, length);
+                Some(self.builder.memory_object_load_element(object, layout, index))
+            }
+            MemoryObjectLayout::Bytes => {
+                let length = self.builder.memory_object_len(object, layout.kind());
+                self.bounds_check(index, length);
+                Some(self.builder.memory_object_load_byte(object, index))
+            }
             MemoryObjectLayout::Struct { .. } => {
                 report_unsupported(self.gcx, expr.span, "struct index")
             }
@@ -815,12 +854,21 @@ impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
                 let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
                 let layout = self.types.memory_layout(receiver_ty)?;
                 match layout {
-                    MemoryObjectLayout::DynamicArray { .. }
-                    | MemoryObjectLayout::FixedArray { .. } => {
+                    MemoryObjectLayout::DynamicArray { .. } => {
+                        let length = self.builder.memory_object_len(object, layout.kind());
+                        self.bounds_check(index, length);
+                        self.builder.memory_object_store_element(object, layout, index, value);
+                        Some(())
+                    }
+                    MemoryObjectLayout::FixedArray { len, .. } => {
+                        let length = self.builder.imm_u64(len);
+                        self.bounds_check(index, length);
                         self.builder.memory_object_store_element(object, layout, index, value);
                         Some(())
                     }
                     MemoryObjectLayout::Bytes => {
+                        let length = self.builder.memory_object_len(object, layout.kind());
+                        self.bounds_check(index, length);
                         self.builder.memory_object_store_byte(object, index, value);
                         Some(())
                     }
