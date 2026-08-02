@@ -458,8 +458,9 @@ impl LowerAbiCx {
     ) -> ValueId {
         builder.switch_to_block(*current);
         let base = if ty.is_dynamic() {
+            Self::guard_calldata_range(builder, head, 32, current);
             let offset = builder.calldataload(head);
-            builder.add(tuple_base, offset)
+            Self::guard_calldata_offset(builder, tuple_base, offset, current)
         } else {
             head
         };
@@ -473,6 +474,8 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::FixedArray { element, len }
                 if Self::is_supported_tuple_field(element) =>
             {
+                let head_size = len.saturating_mul(element.head_size());
+                Self::guard_calldata_range(builder, base, head_size, current);
                 let size = builder.imm_u64(len.saturating_mul(32));
                 let ptr = builder.alloc_object(
                     size,
@@ -514,18 +517,23 @@ impl LowerAbiCx {
                 if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(_))
                     && matches!(arg_type, MirType::Slice(_)) =>
             {
+                Self::guard_calldata_range(builder, base, 32, current);
                 let len = builder.calldataload(base);
                 let word = builder.imm_u64(32);
+                let bytes = Self::checked_mul(builder, len, word, current);
                 let data = builder.add(base, word);
+                Self::guard_calldata_range_value(builder, data, bytes, current);
                 builder.make_slice(data, len, crate::mir::SliceLocation::Calldata)
             }
             crate::mir::AbiParamType::DynamicArray(element)
                 if Self::is_full_word_scalar(element) =>
             {
+                Self::guard_calldata_range(builder, base, 32, current);
                 let len = builder.calldataload(base);
                 let word = builder.imm_u64(32);
-                let bytes = builder.mul(len, word);
-                let total = builder.add(bytes, word);
+                let bytes = Self::checked_mul(builder, len, word, current);
+                let total = Self::checked_add(builder, bytes, word, current);
+                Self::guard_calldata_range_value(builder, base, total, current);
                 let ptr = builder.alloc_object(
                     total,
                     crate::mir::MemoryObjectLayout::WORD_ARRAY,
@@ -541,10 +549,15 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::DynamicArray(element)
                 if matches!(arg_type, MirType::MemoryObject(_)) =>
             {
+                Self::guard_calldata_range(builder, base, 32, current);
                 let len = builder.calldataload(base);
                 let word = builder.imm_u64(32);
-                let bytes = builder.mul(len, word);
-                let total = builder.add(bytes, word);
+                let element_head_size = builder.imm_u64(element.head_size());
+                let head_bytes = Self::checked_mul(builder, len, element_head_size, current);
+                let head = builder.add(base, word);
+                Self::guard_calldata_range_value(builder, head, head_bytes, current);
+                let bytes = Self::checked_mul(builder, len, word, current);
+                let total = Self::checked_add(builder, bytes, word, current);
                 let ptr = builder.alloc_object(
                     total,
                     crate::mir::MemoryObjectLayout::WORD_ARRAY,
@@ -614,19 +627,28 @@ impl LowerAbiCx {
                 ptr
             }
             crate::mir::AbiParamType::Bytes if matches!(arg_type, MirType::Slice(_)) => {
+                Self::guard_calldata_range(builder, base, 32, current);
                 let len = builder.calldataload(base);
                 let word = builder.imm_u64(32);
                 let data = builder.add(base, word);
+                let padding = builder.imm_u64(31);
+                let rounded = Self::checked_add(builder, len, padding, current);
+                let mask = builder.not(padding);
+                let padded = builder.and(rounded, mask);
+                Self::guard_calldata_range_value(builder, data, padded, current);
                 builder.make_slice(data, len, crate::mir::SliceLocation::Calldata)
             }
             crate::mir::AbiParamType::Bytes => {
+                Self::guard_calldata_range(builder, base, 32, current);
                 let len = builder.calldataload(base);
                 let word = builder.imm_u64(32);
                 let thirty_one = builder.imm_u64(31);
-                let rounded = builder.add(len, thirty_one);
+                let rounded = Self::checked_add(builder, len, thirty_one, current);
                 let mask = builder.not(thirty_one);
                 let data_size = builder.and(rounded, mask);
-                let total = builder.add(data_size, word);
+                let data = builder.add(base, word);
+                Self::guard_calldata_range_value(builder, data, data_size, current);
+                let total = Self::checked_add(builder, data_size, word, current);
                 let ptr = builder.alloc_object(
                     total,
                     crate::mir::MemoryObjectLayout::Bytes,
@@ -642,6 +664,7 @@ impl LowerAbiCx {
                 // Calldata structs with dynamic fields keep their source base
                 // in one trailing word so slice expressions can recover the
                 // original calldata location after the fields are copied.
+                Self::guard_calldata_range(builder, base, ty.head_size(), current);
                 let carries_base = fields.iter().any(crate::mir::AbiParamType::is_dynamic);
                 let storage_fields = fields.len() + usize::from(carries_base);
                 let size = builder.imm_u64((storage_fields as u64).saturating_mul(32));
@@ -681,6 +704,7 @@ impl LowerAbiCx {
         current: &mut BlockId,
     ) -> ValueId {
         builder.switch_to_block(*current);
+        Self::guard_calldata_range(builder, position, 32, current);
         let value = builder.calldataload(position);
         if let Some(validator) = AbiWordValidator::from_mir_type(scalar) {
             let valid = validator.condition(builder, value);
@@ -703,6 +727,7 @@ impl LowerAbiCx {
         current: &mut BlockId,
     ) -> ValueId {
         builder.switch_to_block(*current);
+        Self::guard_calldata_range(builder, position, 32, current);
         let value = builder.calldataload(position);
         let valid = AbiWordValidator::EnumRange(variants).condition(builder, value);
         let next = builder.create_block();
@@ -714,6 +739,103 @@ impl LowerAbiCx {
         builder.switch_to_block(next);
         *current = next;
         value
+    }
+
+    fn guard_calldata_range(
+        builder: &mut FunctionBuilder<'_>,
+        start: ValueId,
+        size: u64,
+        current: &mut BlockId,
+    ) {
+        let size = builder.imm_u64(size);
+        Self::guard_calldata_range_value(builder, start, size, current);
+    }
+
+    fn guard_calldata_range_value(
+        builder: &mut FunctionBuilder<'_>,
+        start: ValueId,
+        size: ValueId,
+        current: &mut BlockId,
+    ) {
+        builder.switch_to_block(*current);
+        let end = builder.add(start, size);
+        let overflow = builder.lt(end, start);
+        let calldata_size = builder.calldatasize();
+        let out_of_range = builder.gt(end, calldata_size);
+        let invalid = builder.or(overflow, out_of_range);
+        let next = builder.create_block();
+        let revert = builder.create_block();
+        builder.branch(invalid, revert, next);
+        builder.switch_to_block(revert);
+        let zero = builder.imm_u64(0);
+        builder.revert(zero, zero);
+        builder.switch_to_block(next);
+        *current = next;
+    }
+
+    fn guard_calldata_offset(
+        builder: &mut FunctionBuilder<'_>,
+        base: ValueId,
+        offset: ValueId,
+        current: &mut BlockId,
+    ) -> ValueId {
+        builder.switch_to_block(*current);
+        let target = builder.add(base, offset);
+        let overflow = builder.lt(target, base);
+        let calldata_size = builder.calldatasize();
+        let out_of_range = builder.gt(target, calldata_size);
+        let invalid = builder.or(overflow, out_of_range);
+        let next = builder.create_block();
+        let revert = builder.create_block();
+        builder.branch(invalid, revert, next);
+        builder.switch_to_block(revert);
+        let zero = builder.imm_u64(0);
+        builder.revert(zero, zero);
+        builder.switch_to_block(next);
+        *current = next;
+        target
+    }
+
+    fn checked_add(
+        builder: &mut FunctionBuilder<'_>,
+        lhs: ValueId,
+        rhs: ValueId,
+        current: &mut BlockId,
+    ) -> ValueId {
+        builder.switch_to_block(*current);
+        let result = builder.add(lhs, rhs);
+        let overflow = builder.lt(result, lhs);
+        let next = builder.create_block();
+        let revert = builder.create_block();
+        builder.branch(overflow, revert, next);
+        builder.switch_to_block(revert);
+        let zero = builder.imm_u64(0);
+        builder.revert(zero, zero);
+        builder.switch_to_block(next);
+        *current = next;
+        result
+    }
+
+    fn checked_mul(
+        builder: &mut FunctionBuilder<'_>,
+        lhs: ValueId,
+        rhs: ValueId,
+        current: &mut BlockId,
+    ) -> ValueId {
+        builder.switch_to_block(*current);
+        let result = builder.mul(lhs, rhs);
+        let quotient = builder.div(result, rhs);
+        let valid = builder.eq(quotient, lhs);
+        let overflow = builder.iszero(valid);
+        let next = builder.create_block();
+        let revert = builder.create_block();
+        builder.branch(overflow, revert, next);
+        builder.switch_to_block(revert);
+        let zero = builder.imm_u64(0);
+        builder.revert(zero, zero);
+        builder.switch_to_block(next);
+        *current = next;
+        result
     }
 
     fn is_supported_aggregate(ty: &crate::mir::AbiParamType) -> bool {

@@ -2,6 +2,8 @@
 //@ run-call: negate(bool) true => false
 //@ run-call: pair 41, true => 42, false
 //@ run-call: sum(uint256[]) [1, 2, 3] => 6
+//@ run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020
+//@ run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 //@ run-call: increment => 41
 //@ run-call: increment => 41
 //@ run-call: testInline()

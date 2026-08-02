@@ -9,11 +9,39 @@ fn @lastWord() {
   bb1:
     revert 0, 0
   bb2:
-    v3 = calldataload 4
-    v4 = add v3, 4
-    v5 = calldataload v4
-    v6 = add v3, 36
-    v0 = internal_call @_last, 1, v6, v5
+    v5 = calldatasize
+    v6 = gt 36, v5
+    jumpi v6, bb1, bb3
+  bb3:
+    v8 = calldataload 4
+    v9 = add v8, 4
+    v10 = lt v9, 4
+    v11 = calldatasize
+    v12 = gt v9, v11
+    v13 = or v10, v12
+    jumpi v13, bb1, bb4
+  bb4:
+    v14 = add v8, 36
+    v15 = lt v14, v9
+    v16 = calldatasize
+    v17 = gt v14, v16
+    v18 = or v15, v17
+    jumpi v18, bb1, bb5
+  bb5:
+    v19 = calldataload v9
+    v21 = add v19, 31
+    v22 = lt v21, v19
+    jumpi v22, bb1, bb6
+  bb6:
+    v24 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v25 = add v14, v24
+    v26 = lt v25, v14
+    v27 = calldatasize
+    v28 = gt v25, v27
+    v29 = or v26, v28
+    jumpi v29, bb1, bb7
+  bb7:
+    v0 = internal_call @_last, 1, v14, v19
     mstore 128, v0
     returndata 128, 32
 }
@@ -34,19 +62,47 @@ fn @lastWord2() {
   bb1:
     revert 0, 0
   bb2:
-    v4 = sub v13, 1
-    v5 = add v14, 1
+    v4 = sub v27, 1
+    v5 = add v22, 1
     v7 = internal_call @_last, 1, v5, v4
     v8 = xor v0, v7
     mstore 128, v8
     returndata 128, 32
   bb3:
-    v11 = calldataload 4
-    v12 = add v11, 4
-    v13 = calldataload v12
-    v14 = add v11, 36
-    v0 = internal_call @_last, 1, v14, v13
-    jumpi v13, bb2, bb1
+    v13 = calldatasize
+    v14 = gt 36, v13
+    jumpi v14, bb1, bb4
+  bb4:
+    v16 = calldataload 4
+    v17 = add v16, 4
+    v18 = lt v17, 4
+    v19 = calldatasize
+    v20 = gt v17, v19
+    v21 = or v18, v20
+    jumpi v21, bb1, bb5
+  bb5:
+    v22 = add v16, 36
+    v23 = lt v22, v17
+    v24 = calldatasize
+    v25 = gt v22, v24
+    v26 = or v23, v25
+    jumpi v26, bb1, bb6
+  bb6:
+    v27 = calldataload v17
+    v29 = add v27, 31
+    v30 = lt v29, v27
+    jumpi v30, bb1, bb7
+  bb7:
+    v32 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v33 = add v22, v32
+    v34 = lt v33, v22
+    v35 = calldatasize
+    v36 = gt v33, v35
+    v37 = or v34, v36
+    jumpi v37, bb1, bb8
+  bb8:
+    v0 = internal_call @_last, 1, v22, v27
+    jumpi v27, bb2, bb1
 }
 
 fn @entry() [entry] {

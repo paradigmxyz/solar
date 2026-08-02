@@ -10,7 +10,7 @@ fn @pushStr() {
     tail_call @__revert_stub0
   bb2:
     v4 = add v0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
-    v5 = mload v61
+    v5 = mload v83
     v7 = sload v4 !metadata(storage=symbolic(v4))
     v8 = and v7, 1
     v9 = eq v8, 1
@@ -32,7 +32,7 @@ fn @pushStr() {
     v49 = keccak256 0, 32 !metadata(memory=scratch)
     jumpi v22, bb4, bb3
   bb3:
-    v26 = mload v62
+    v26 = mload v84
     v27 = shl 3, v5
     v28 = shr v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v29 = not v28
@@ -54,7 +54,7 @@ fn @pushStr() {
   bb6:
     v37 = mload v24
     v39 = shl 5, v37
-    v40 = add v62, v39
+    v40 = add v84, v39
     v41 = mload v40
     v38 = add v49, v37
     sstore v38, v41 !metadata(storage=symbolic(v38))
@@ -81,19 +81,48 @@ fn @pushStr() {
   bb11:
     revert 0, 0
   bb12:
-    v54 = calldataload 4
-    v55 = add v54, 4
-    v56 = calldataload v55
-    v57 = add v56, 31
-    v59 = and v57, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v60 = add v59, 32
-    v61 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v64 = add v61, v60
-    mstore 64, v64 !metadata(memory=scratch)
-    mstore v61, v56
-    v62 = add v61, 32
-    v63 = add v54, 36
-    calldatacopy v62, v63, v56
+    v56 = calldatasize
+    v57 = gt 36, v56
+    jumpi v57, bb11, bb13
+  bb13:
+    v59 = calldataload 4
+    v60 = add v59, 4
+    v61 = lt v60, 4
+    v62 = calldatasize
+    v63 = gt v60, v62
+    v64 = or v61, v63
+    jumpi v64, bb11, bb14
+  bb14:
+    v65 = add v59, 36
+    v66 = lt v65, v60
+    v67 = calldatasize
+    v68 = gt v65, v67
+    v69 = or v66, v68
+    jumpi v69, bb11, bb15
+  bb15:
+    v70 = calldataload v60
+    v71 = add v70, 31
+    v72 = lt v71, v70
+    jumpi v72, bb11, bb16
+  bb16:
+    v74 = and v71, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v76 = add v65, v74
+    v77 = lt v76, v65
+    v78 = calldatasize
+    v79 = gt v76, v78
+    v80 = or v77, v79
+    jumpi v80, bb11, bb17
+  bb17:
+    v81 = add v74, 32
+    v82 = lt v81, v74
+    jumpi v82, bb11, bb18
+  bb18:
+    v83 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v86 = add v83, v81
+    mstore 64, v86 !metadata(memory=scratch)
+    mstore v83, v70
+    v84 = add v83, 32
+    calldatacopy v84, v65, v70
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
     v2 = lt v1, v0
