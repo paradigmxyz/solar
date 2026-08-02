@@ -583,6 +583,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
             let base_cost = u64::from(EvmMemoryLayout::object_data_offset(layout.kind()) != 0);
             (11 + base_cost * 3, 3 + base_cost as usize)
         }
+        InstKind::MemoryObjectLoadByte { .. } => (8, 2),
         InstKind::MemoryObjectStoreByte { .. } => (8, 2),
         InstKind::MemoryObjectStoreWord { .. } => (8, 2),
         InstKind::MemorySliceLoadWord { .. } => (6, 1),

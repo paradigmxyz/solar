@@ -461,6 +461,11 @@ impl<'a> FunctionBuilder<'a> {
         )
     }
 
+    /// Loads one byte from a bytes object through its semantic layout.
+    pub(crate) fn memory_object_load_byte(&mut self, object: ValueId, index: ValueId) -> ValueId {
+        self.emit_inst(InstKind::MemoryObjectLoadByte { object, index }, Some(MirType::uint256()))
+    }
+
     /// Stores an array element through the semantic object layout.
     pub(crate) fn memory_object_store_element(
         &mut self,

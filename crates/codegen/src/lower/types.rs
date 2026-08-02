@@ -1,6 +1,8 @@
 //! Type-directed HIR to MIR and ABI shape conversion.
 
-use crate::mir::{AbiParamType, AbiType, MemoryObjectKind, MirType, SliceLocation};
+use crate::mir::{
+    AbiParamType, AbiType, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation,
+};
 use solar_ast::TypeSize;
 use solar_sema::{
     Gcx,
@@ -61,6 +63,34 @@ impl<'gcx> TypeLowerer<'gcx> {
     pub(super) fn abi_type(&mut self, ty: Ty<'gcx>) -> Option<AbiType> {
         self.seen_structs.clear();
         self.abi_type_inner(ty)
+    }
+
+    /// Returns the semantic object layout for a memory-backed aggregate.
+    pub(super) fn memory_layout(&self, ty: Ty<'gcx>) -> Option<MemoryObjectLayout> {
+        Some(match ty.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes) => {
+                MemoryObjectLayout::Bytes
+            }
+            TyKind::DynArray(element) | TyKind::Slice(element) => {
+                MemoryObjectLayout::DynamicArray { element_words: self.element_words(element) }
+            }
+            TyKind::Array(element, len) => MemoryObjectLayout::FixedArray {
+                len: u64::try_from(len).ok()?,
+                element_words: self.element_words(element),
+            },
+            TyKind::Struct(id) => {
+                MemoryObjectLayout::Struct { fields: self.gcx.hir.strukt(id).fields.len() as u64 }
+            }
+            _ => return None,
+        })
+    }
+
+    /// Returns the number of inline words occupied by one aggregate element.
+    pub(super) fn element_words(&self, ty: Ty<'gcx>) -> u32 {
+        match ty.peel_refs().kind {
+            TyKind::Struct(id) => self.gcx.hir.strukt(id).fields.len().max(1) as u32,
+            _ => 1,
+        }
     }
 
     fn abi_param_type_inner(&mut self, ty: Ty<'gcx>) -> Option<AbiParamType> {

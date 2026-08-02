@@ -1510,6 +1510,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Some(MirType::uint256()),
                 )
             }
+            sym::memory_object_load_byte => {
+                let name = self.parser.parse_ident()?;
+                let layout = self.parse_memory_object_layout(name)?;
+                if layout != crate::mir::MemoryObjectLayout::Bytes {
+                    return Err(self.parser.error("memory byte load requires a bytes object"));
+                }
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let index = self.parse_value(builder)?;
+                (InstKind::MemoryObjectLoadByte { object, index }, Some(MirType::uint256()))
+            }
             sym::memory_object_store_element => {
                 let name = self.parser.parse_ident()?;
                 let layout = self.parse_memory_object_layout(name)?;

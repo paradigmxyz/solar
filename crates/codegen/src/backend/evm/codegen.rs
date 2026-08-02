@@ -3634,6 +3634,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             | InstKind::MemoryObjectLoadField { .. }
             | InstKind::MemoryObjectStoreField { .. }
             | InstKind::MemoryObjectLoadElement { .. }
+            | InstKind::MemoryObjectLoadByte { .. }
             | InstKind::MemoryObjectStoreElement { .. }
             | InstKind::MemoryObjectStoreByte { .. }
             | InstKind::MemoryObjectStoreWord { .. }

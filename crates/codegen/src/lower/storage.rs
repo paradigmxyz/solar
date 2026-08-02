@@ -178,17 +178,25 @@ impl<'gcx> StorageBuilder<'gcx> {
                     continue;
                 }
                 let ty = self.gcx.type_of_item(id.into());
-                let location = self.allocate(ty, var.span);
-                self.locations.insert(id, location);
+                if let Some(location) = self.allocate(ty, var.span) {
+                    self.locations.insert(id, location);
+                }
             }
         }
         StorageLayout { locations: self.locations }
     }
 
-    fn allocate(&mut self, ty: Ty<'gcx>, span: Span) -> StorageLocation {
-        if let Some((size, encoding)) = self.packed_encoding(ty)
-            && size < StorageLocation::WORD
-        {
+    fn allocate(&mut self, ty: Ty<'gcx>, span: Span) -> Option<StorageLocation> {
+        let Some((size, encoding)) = self.packed_encoding(ty) else {
+            if self.next_offset != 0 {
+                self.next_slot = self.next_slot.saturating_add(U256::from(1));
+                self.next_offset = 0;
+            }
+            self.next_slot =
+                self.next_slot.saturating_add(U256::from(self.storage_slots(ty, span)));
+            return None;
+        };
+        if size < StorageLocation::WORD {
             let bytes = size.bytes();
             if self.next_offset.saturating_add(bytes) > StorageLocation::word_bytes() {
                 self.next_slot = self.next_slot.saturating_add(U256::from(1));
@@ -201,7 +209,7 @@ impl<'gcx> StorageBuilder<'gcx> {
                 self.next_slot = self.next_slot.saturating_add(U256::from(1));
                 self.next_offset = 0;
             }
-            return location;
+            return Some(location);
         }
 
         if self.next_offset != 0 {
@@ -210,7 +218,7 @@ impl<'gcx> StorageBuilder<'gcx> {
         }
         let location = StorageLocation::word(self.next_slot);
         self.next_slot = self.next_slot.saturating_add(U256::from(self.storage_slots(ty, span)));
-        location
+        Some(location)
     }
 
     fn packed_encoding(&self, ty: Ty<'gcx>) -> Option<(TypeSize, StorageEncoding)> {

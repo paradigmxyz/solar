@@ -1,13 +1,17 @@
 //! Function-level HIR to MIR lowering.
 
 use super::{contract, storage::StorageLayout, types};
-use crate::mir::{AbiLayout, AbiParamLayout, BlockId, Function, FunctionBuilder, Module, ValueId};
+use crate::mir::{
+    AbiLayout, AbiParamLayout, AllocationSemantics, BlockId, Function, FunctionBuilder, FunctionId,
+    MemoryObjectKind, MemoryObjectLayout, Module, ValueId,
+};
 use alloy_primitives::U256;
 use solar_ast::{BinOpKind, LitKind, UnOpKind};
-use solar_data_structures::map::FxHashMap;
-use solar_interface::Span;
+use solar_data_structures::map::{FxHashMap, StdEntry};
+use solar_interface::{Span, sym};
 use solar_sema::{
     Gcx,
+    builtins::Builtin,
     eval::ConstValue,
     hir::{self, ExprKind, LoopSource, StmtKind, VariableId},
 };
@@ -18,6 +22,7 @@ pub(super) fn lower(
     module: &mut Module,
     storage: &StorageLayout,
     id: hir::FunctionId,
+    function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
 ) -> Option<Function> {
     let hir_function = gcx.hir.function(id);
     let mut mir = contract::declaration(gcx, id, hir_function);
@@ -47,7 +52,7 @@ pub(super) fn lower(
         mir.abi_args_lazy = true;
     }
 
-    let mut lowerer = FunctionLowerer::new(gcx, storage, &mut mir);
+    let mut lowerer = FunctionLowerer::new(gcx, storage, function_ids, &mut mir);
     lowerer.bind_signature(hir_function);
     if let Some(body) = hir_function.body {
         lowerer.lower_block(body)?;
@@ -63,10 +68,12 @@ pub(super) fn lower(
 /// Keeping the HIR context, variable environment, loop targets, and builder in
 /// one object makes scope changes explicit. Child lowering methods do not need
 /// to pass a growing collection of loosely related maps and flags.
-struct FunctionLowerer<'gcx, 'mir> {
+struct FunctionLowerer<'gcx, 'mir, 'ids> {
     gcx: Gcx<'gcx>,
     storage: &'mir StorageLayout,
+    function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
     builder: FunctionBuilder<'mir>,
+    types: types::TypeLowerer<'gcx>,
     values: FxHashMap<VariableId, ValueId>,
     returns: Vec<VariableId>,
     loops: Vec<LoopTargets>,
@@ -78,12 +85,19 @@ struct LoopTargets {
     continue_block: BlockId,
 }
 
-impl<'gcx, 'mir> FunctionLowerer<'gcx, 'mir> {
-    fn new(gcx: Gcx<'gcx>, storage: &'mir StorageLayout, function: &'mir mut Function) -> Self {
+impl<'gcx, 'mir, 'ids> FunctionLowerer<'gcx, 'mir, 'ids> {
+    fn new(
+        gcx: Gcx<'gcx>,
+        storage: &'mir StorageLayout,
+        function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
+        function: &'mir mut Function,
+    ) -> Self {
         Self {
             gcx,
             storage,
+            function_ids,
             builder: FunctionBuilder::new(function),
+            types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
             returns: Vec::new(),
             loops: Vec::new(),
@@ -100,8 +114,9 @@ impl<'gcx, 'mir> FunctionLowerer<'gcx, 'mir> {
         for &ret in function.returns {
             self.builder
                 .add_return(types::TypeLowerer::mir_type(self.gcx.type_of_item(ret.into())));
-            let zero = self.builder.imm_u256(U256::ZERO);
-            self.values.insert(ret, zero);
+            let ty = self.gcx.type_of_item(ret.into());
+            let value = self.default_value(ty);
+            self.values.insert(ret, value);
         }
         self.returns.extend_from_slice(function.returns);
     }
@@ -134,6 +149,9 @@ impl<'gcx, 'mir> FunctionLowerer<'gcx, 'mir> {
                 let initializer = self.gcx.hir.variable(*id).initializer;
                 let value = if let Some(expr) = initializer {
                     self.lower_expr(expr)?
+                } else if let Some(value) = self.default_object(self.gcx.type_of_item((*id).into()))
+                {
+                    value
                 } else {
                     self.builder.imm_u256(U256::ZERO)
                 };
@@ -168,7 +186,13 @@ impl<'gcx, 'mir> FunctionLowerer<'gcx, 'mir> {
             StmtKind::Return(expr) => {
                 let values =
                     expr.map_or_else(|| Some(Vec::new()), |expr| self.lower_values(expr))?;
-                self.builder.ret(values);
+                if !self.is_terminated() {
+                    if values.is_empty() {
+                        self.builder.stop();
+                    } else {
+                        self.builder.ret(values);
+                    }
+                }
             }
             StmtKind::Revert(_) => {
                 let zero = self.builder.imm_u256(U256::ZERO);
@@ -201,6 +225,7 @@ impl<'gcx, 'mir> FunctionLowerer<'gcx, 'mir> {
         self.builder.switch_to_block(then_block);
         self.lower_stmt(then_stmt)?;
         let then_terminated = self.is_terminated();
+        let then_exit = self.builder.current_block();
         let then_values = self.values.clone();
         if !then_terminated {
             self.builder.jump(merge_block);
@@ -212,6 +237,7 @@ impl<'gcx, 'mir> FunctionLowerer<'gcx, 'mir> {
             self.lower_stmt(stmt)?;
         }
         let else_terminated = self.is_terminated();
+        let else_exit = self.builder.current_block();
         let else_values = self.values.clone();
         if !else_terminated {
             self.builder.jump(merge_block);
@@ -221,14 +247,65 @@ impl<'gcx, 'mir> FunctionLowerer<'gcx, 'mir> {
         self.values = merge_values(
             &mut self.builder,
             before,
-            then_block,
+            then_exit,
             then_values,
             then_terminated,
-            else_block,
+            else_exit,
             else_values,
             else_terminated,
         );
         Some(())
+    }
+
+    fn lower_ternary(
+        &mut self,
+        condition: &hir::Expr<'_>,
+        then_expr: &hir::Expr<'_>,
+        else_expr: &hir::Expr<'_>,
+    ) -> Option<ValueId> {
+        let condition = self.lower_expr(condition)?;
+        let then_block = self.builder.create_block();
+        let else_block = self.builder.create_block();
+        let merge_block = self.builder.create_block();
+        let before = self.values.clone();
+        self.builder.branch(condition, then_block, else_block);
+
+        self.builder.switch_to_block(then_block);
+        let then_value = self.lower_expr(then_expr)?;
+        let then_terminated = self.is_terminated();
+        let then_exit = self.builder.current_block();
+        let then_values = self.values.clone();
+        if !then_terminated {
+            self.builder.jump(merge_block);
+        }
+
+        self.values = before.clone();
+        self.builder.switch_to_block(else_block);
+        let else_value = self.lower_expr(else_expr)?;
+        let else_terminated = self.is_terminated();
+        let else_exit = self.builder.current_block();
+        let else_values = self.values.clone();
+        if !else_terminated {
+            self.builder.jump(merge_block);
+        }
+
+        self.builder.switch_to_block(merge_block);
+        self.values = merge_values(
+            &mut self.builder,
+            before,
+            then_exit,
+            then_values,
+            then_terminated,
+            else_exit,
+            else_values,
+            else_terminated,
+        );
+        match (then_terminated, else_terminated) {
+            (true, false) => Some(else_value),
+            (false, true) => Some(then_value),
+            _ if then_value == else_value => Some(then_value),
+            _ => Some(self.builder.phi(vec![(then_exit, then_value), (else_exit, else_value)])),
+        }
     }
 
     fn lower_loop(&mut self, block: hir::Block<'_>, _source: LoopSource) -> Option<()> {
@@ -247,6 +324,19 @@ impl<'gcx, 'mir> FunctionLowerer<'gcx, 'mir> {
     }
 
     fn lower_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
+        if let ExprKind::Call(callee, ..) = &expr.kind {
+            let returns_empty = self
+                .gcx
+                .resolved_function(callee)
+                .is_some_and(|id| self.gcx.hir.function(id).returns.is_empty())
+                || self.gcx.resolved_builtin(callee).is_some_and(|builtin| {
+                    matches!(builtin, Builtin::Assert | Builtin::Revert | Builtin::RevertMsg)
+                });
+            if returns_empty {
+                self.lower_expr(expr)?;
+                return Some(Vec::new());
+            }
+        }
         match &expr.kind {
             ExprKind::Tuple(values) => {
                 values.iter().flatten().map(|expr| self.lower_expr(expr)).collect()
@@ -258,6 +348,7 @@ impl<'gcx, 'mir> FunctionLowerer<'gcx, 'mir> {
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         match &expr.kind {
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),
+            ExprKind::Array(elements) => self.lower_array(expr, elements),
             ExprKind::Ident(_) => {
                 let id = self.gcx.resolved_variable(expr)?;
                 self.load_variable(id, expr.span)
@@ -267,13 +358,17 @@ impl<'gcx, 'mir> FunctionLowerer<'gcx, 'mir> {
                 let rhs = self.lower_expr(rhs)?;
                 Some(self.binary(op.kind, lhs, rhs))
             }
+            ExprKind::Call(callee, args, _) => self.lower_call(expr, callee, *args),
+            ExprKind::Delete(value) => {
+                self.delete_lvalue(value)?;
+                Some(self.builder.imm_u256(U256::ZERO))
+            }
             ExprKind::Unary(op, value) => {
                 if matches!(
                     op.kind,
                     UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec
                 ) {
-                    let id = self.gcx.resolved_variable(value)?;
-                    let old = self.load_variable(id, value.span)?;
+                    let old = self.load_lvalue(value)?;
                     let one = self.builder.imm_u256(U256::from(1));
                     let kind = if matches!(op.kind, UnOpKind::PreInc | UnOpKind::PostInc) {
                         BinOpKind::Add
@@ -281,7 +376,7 @@ impl<'gcx, 'mir> FunctionLowerer<'gcx, 'mir> {
                         BinOpKind::Sub
                     };
                     let new = self.binary(kind, old, one);
-                    self.store_variable(id, new, expr.span)?;
+                    self.store_lvalue(value, new)?;
                     return Some(if matches!(op.kind, UnOpKind::PreInc | UnOpKind::PreDec) {
                         new
                     } else {
@@ -292,29 +387,30 @@ impl<'gcx, 'mir> FunctionLowerer<'gcx, 'mir> {
                 self.unary(op.kind, value, expr.span)
             }
             ExprKind::Assign(lhs, op, rhs) => {
-                let id = self.gcx.resolved_variable(lhs)?;
                 let rhs = self.lower_expr(rhs)?;
                 let value = if let Some(kind) = op.map(|op| op.kind) {
-                    self.binary_assign(kind, id, rhs, expr.span)?
+                    let lhs = self.load_lvalue(lhs)?;
+                    self.binary(kind, lhs, rhs)
                 } else {
                     rhs
                 };
-                self.store_variable(id, value, expr.span)?;
+                self.store_lvalue(lhs, value)?;
                 Some(value)
             }
             ExprKind::Ternary(cond, then_expr, else_expr) => {
-                let cond = self.lower_expr(cond)?;
-                let then_value = self.lower_expr(then_expr)?;
-                let else_value = self.lower_expr(else_expr)?;
-                Some(self.builder.select(cond, then_value, else_value))
+                self.lower_ternary(cond, then_expr, else_expr)
             }
             ExprKind::Tuple([Some(inner)]) => self.lower_expr(inner),
+            ExprKind::Tuple(values) => self.lower_tuple(expr, values),
+            ExprKind::Member(receiver, name) => self.lower_member(expr, receiver, *name),
+            ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
             _ => report_unsupported(self.gcx, expr.span, "expression"),
         }
     }
 
     fn lower_literal(&mut self, kind: LitKind<'_>, span: Span) -> Option<ValueId> {
         match kind {
+            LitKind::Str(_, value, _) => self.lower_bytes_literal(value.as_byte_str(), span),
             LitKind::Number(value) => Some(self.builder.imm_u256(value)),
             LitKind::Bool(value) => Some(self.builder.imm_bool(value)),
             LitKind::Address(value) => {
@@ -324,6 +420,318 @@ impl<'gcx, 'mir> FunctionLowerer<'gcx, 'mir> {
                 Some(self.builder.imm_u256(*value.numer()))
             }
             _ => report_unsupported(self.gcx, span, "literal"),
+        }
+    }
+
+    fn lower_array(&mut self, expr: &hir::Expr<'_>, elements: &[hir::Expr<'_>]) -> Option<ValueId> {
+        let ty = self.gcx.type_of_expr(expr.id)?;
+        let layout = self.types.memory_layout(ty)?;
+        let (size, kind) = match layout {
+            MemoryObjectLayout::FixedArray { len, element_words } => {
+                let words = len.checked_mul(u64::from(element_words))?;
+                (words.checked_mul(32)?, MemoryObjectKind::FixedArray)
+            }
+            MemoryObjectLayout::DynamicArray { element_words } => {
+                let words =
+                    u64::try_from(elements.len()).ok()?.checked_mul(u64::from(element_words))?;
+                (words.checked_add(1)?.checked_mul(32)?, MemoryObjectKind::DynamicArray)
+            }
+            _ => return report_unsupported(self.gcx, expr.span, "array literal"),
+        };
+        let size = self.builder.imm_u64(size);
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+        if kind == MemoryObjectKind::DynamicArray {
+            let length = self.builder.imm_u64(u64::try_from(elements.len()).ok()?);
+            self.builder.set_memory_object_len(object, length, kind);
+        }
+        for (index, element) in elements.iter().enumerate() {
+            let value = self.lower_expr(element)?;
+            let index = self.builder.imm_u64(index as u64);
+            self.builder.memory_object_store_element(object, layout, index, value);
+        }
+        Some(object)
+    }
+
+    fn lower_call(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        callee: &hir::Expr<'_>,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        let arguments = args.exprs().collect::<Vec<_>>();
+        if matches!(callee.kind, ExprKind::TypeCall(_) | ExprKind::Type(_)) {
+            let [arg] = arguments.as_slice() else {
+                return report_unsupported(self.gcx, expr.span, "type conversion");
+            };
+            return self.lower_expr(arg);
+        }
+        if matches!(callee.kind, ExprKind::New(_)) {
+            let [arg] = arguments.as_slice() else {
+                return report_unsupported(self.gcx, expr.span, "dynamic allocation");
+            };
+            let len = self.lower_expr(arg)?;
+            let ty = self.gcx.type_of_expr(expr.id)?;
+            let layout = self.types.memory_layout(ty)?;
+            let words = match layout {
+                MemoryObjectLayout::Bytes => {
+                    let thirty_one = self.builder.imm_u64(31);
+                    let rounded = self.builder.add(len, thirty_one);
+                    let thirty_two = self.builder.imm_u64(32);
+                    let words = self.builder.div(rounded, thirty_two);
+                    let one = self.builder.imm_u64(1);
+                    self.builder.add(words, one)
+                }
+                MemoryObjectLayout::DynamicArray { element_words } => {
+                    let stride = self.builder.imm_u64(u64::from(element_words));
+                    let payload = self.builder.mul(len, stride);
+                    let one = self.builder.imm_u64(1);
+                    self.builder.add(payload, one)
+                }
+                _ => return report_unsupported(self.gcx, expr.span, "allocation type"),
+            };
+            let word_size = self.builder.imm_u64(32);
+            let size = self.builder.mul(words, word_size);
+            let object =
+                self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+            self.builder.set_memory_object_len(object, len, layout.kind());
+            return Some(object);
+        }
+        if let Some(builtin) = self.gcx.resolved_builtin(callee) {
+            return self.lower_builtin_call(expr, builtin, &arguments);
+        }
+        if let Some(function_id) = self.gcx.resolved_function(callee) {
+            return self.lower_function_call(expr, callee, function_id, args);
+        }
+        report_unsupported(self.gcx, expr.span, "function call")
+    }
+
+    fn lower_builtin_call(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        builtin: Builtin,
+        arguments: &[&hir::Expr<'_>],
+    ) -> Option<ValueId> {
+        match builtin {
+            Builtin::Revert if arguments.is_empty() => {
+                let zero = self.builder.imm_u256(U256::ZERO);
+                self.builder.revert(zero, zero);
+                Some(zero)
+            }
+            Builtin::Assert => {
+                let [condition] = arguments else {
+                    return report_unsupported(self.gcx, expr.span, "assert arguments");
+                };
+                let condition = self.lower_expr(condition)?;
+                let invalid = self.builder.iszero(condition);
+                self.revert_if(invalid);
+                Some(self.builder.imm_u256(U256::ZERO))
+            }
+            _ => report_unsupported(self.gcx, expr.span, "builtin call"),
+        }
+    }
+
+    fn revert_if(&mut self, condition: ValueId) {
+        let revert_block = self.builder.create_block();
+        let continue_block = self.builder.create_block();
+        self.builder.branch(condition, revert_block, continue_block);
+        self.builder.switch_to_block(revert_block);
+        let zero = self.builder.imm_u256(U256::ZERO);
+        self.builder.revert(zero, zero);
+        self.builder.switch_to_block(continue_block);
+    }
+
+    fn lower_function_call(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        callee: &hir::Expr<'_>,
+        function_id: hir::FunctionId,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        let function = self.gcx.hir.function(function_id);
+        if args.len() != function.parameters.len() {
+            return report_unsupported(self.gcx, expr.span, "function argument list");
+        }
+        let parameter_names =
+            self.gcx.call_param_source(callee).map(|source| self.gcx.callable_param_names(source));
+        let mut values = Vec::with_capacity(function.parameters.len());
+        for index in 0..function.parameters.len() {
+            let Some(argument) = args.argument_for_parameter(index, parameter_names.as_deref())
+            else {
+                return report_unsupported(self.gcx, expr.span, "named function argument");
+            };
+            values.push(self.lower_expr(argument)?);
+        }
+        let Some(&mir_id) = self.function_ids.get(&function_id) else {
+            return report_unsupported(self.gcx, expr.span, "function target");
+        };
+        if function.returns.is_empty() {
+            self.builder.internal_call_void(mir_id, values, 0);
+            return Some(self.builder.imm_u256(U256::ZERO));
+        }
+        if function.returns.len() != 1 {
+            return report_unsupported(self.gcx, expr.span, "multiple return values");
+        }
+        let result_ty =
+            types::TypeLowerer::mir_type(self.gcx.type_of_item(function.returns[0].into()));
+        Some(self.builder.internal_call(mir_id, values, result_ty, 1))
+    }
+
+    fn lower_tuple(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        values: &[Option<&hir::Expr<'_>>],
+    ) -> Option<ValueId> {
+        let ty = self.gcx.type_of_expr(expr.id)?;
+        let MemoryObjectLayout::Struct { fields } = self.types.memory_layout(ty)? else {
+            return report_unsupported(self.gcx, expr.span, "tuple object");
+        };
+        let size = fields.checked_mul(32)?;
+        let size = self.builder.imm_u64(size);
+        let object = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::Struct { fields },
+            AllocationSemantics::SOLIDITY_ZEROED,
+        );
+        for (index, value) in values.iter().enumerate() {
+            let Some(value) = value else { continue };
+            let value = self.lower_expr(value)?;
+            self.builder.memory_object_store_field(
+                object,
+                MemoryObjectLayout::Struct { fields },
+                index as u64,
+                value,
+            );
+        }
+        Some(object)
+    }
+
+    fn lower_bytes_literal(&mut self, bytes: &[u8], span: Span) -> Option<ValueId> {
+        let words = u64::try_from(bytes.len().div_ceil(32)).ok()?;
+        let size = words.checked_add(1)?.checked_mul(32)?;
+        let size = self.builder.imm_u64(size);
+        let object = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::SOLIDITY_ZEROED,
+        );
+        let kind = MemoryObjectKind::Bytes;
+        let length = self.builder.imm_u64(u64::try_from(bytes.len()).ok()?);
+        self.builder.set_memory_object_len(object, length, kind);
+        for (index, chunk) in bytes.chunks(32).enumerate() {
+            let mut word = U256::from_be_slice(chunk);
+            word <<= (32 - chunk.len()) * 8;
+            let value = self.builder.imm_u256(word);
+            let offset = self.builder.imm_u64(index as u64 * 32);
+            self.builder.memory_object_store_word(object, offset, value);
+        }
+        let _ = span;
+        Some(object)
+    }
+
+    fn default_value(&mut self, ty: solar_sema::ty::Ty<'gcx>) -> ValueId {
+        self.default_object(ty).unwrap_or_else(|| self.builder.imm_u256(U256::ZERO))
+    }
+
+    fn default_object(&mut self, ty: solar_sema::ty::Ty<'gcx>) -> Option<ValueId> {
+        let layout = self.types.memory_layout(ty)?;
+        let size = match layout {
+            MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. } => 32,
+            MemoryObjectLayout::FixedArray { len, element_words } => {
+                len.checked_mul(u64::from(element_words))?.checked_mul(32)?
+            }
+            MemoryObjectLayout::Struct { fields } => fields.checked_mul(32)?,
+        };
+        let size = self.builder.imm_u64(size);
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+        match ty.peel_refs().kind {
+            solar_sema::ty::TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            )
+            | solar_sema::ty::TyKind::DynArray(_) => {
+                let zero = self.builder.imm_u256(U256::ZERO);
+                self.builder.set_memory_object_len(object, zero, layout.kind());
+            }
+            solar_sema::ty::TyKind::Struct(id) => {
+                for (index, &field) in self.gcx.hir.strukt(id).fields.iter().enumerate() {
+                    let field_ty = self.gcx.type_of_item(field.into());
+                    if let Some(value) = self.default_object(field_ty) {
+                        self.builder.memory_object_store_field(object, layout, index as u64, value);
+                    }
+                }
+            }
+            solar_sema::ty::TyKind::Array(element, len) => {
+                let Ok(len) = u64::try_from(len) else { return Some(object) };
+                if self.types.memory_layout(element).is_some() {
+                    for index in 0..len {
+                        let Some(value) = self.default_object(element) else { continue };
+                        let index = self.builder.imm_u64(index);
+                        self.builder.memory_object_store_element(object, layout, index, value);
+                    }
+                }
+            }
+            _ => {}
+        }
+        Some(object)
+    }
+
+    fn lower_member(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        receiver: &hir::Expr<'_>,
+        name: solar_interface::Ident,
+    ) -> Option<ValueId> {
+        if name.name == sym::length {
+            let object = self.lower_expr(receiver)?;
+            let ty = self.gcx.type_of_expr(receiver.id)?;
+            let layout = self.types.memory_layout(ty)?;
+            return match layout.kind() {
+                MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray => {
+                    Some(self.builder.memory_object_len(object, layout.kind()))
+                }
+                _ => report_unsupported(self.gcx, expr.span, "length member"),
+            };
+        }
+
+        let id = self.gcx.resolved_variable(expr)?;
+        let variable = self.gcx.hir.variable(id);
+        if variable.is_state_variable() {
+            return self.load_variable(id, expr.span);
+        }
+        let Some(hir::ItemId::Struct(struct_id)) = variable.parent else {
+            return report_unsupported(self.gcx, expr.span, "member");
+        };
+        let Some(field) =
+            self.gcx.hir.strukt(struct_id).fields.iter().position(|&field| field == id)
+        else {
+            return report_unsupported(self.gcx, expr.span, "struct field");
+        };
+        let object = self.lower_expr(receiver)?;
+        let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
+        let layout = self.types.memory_layout(receiver_ty)?;
+        Some(self.builder.memory_object_load_field(object, layout, field as u64))
+    }
+
+    fn lower_index(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        receiver: &hir::Expr<'_>,
+        index: Option<&hir::Expr<'_>>,
+    ) -> Option<ValueId> {
+        let Some(index) = index else {
+            return report_unsupported(self.gcx, expr.span, "index");
+        };
+        let object = self.lower_expr(receiver)?;
+        let index = self.lower_expr(index)?;
+        let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
+        let layout = self.types.memory_layout(receiver_ty)?;
+        match layout {
+            MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::FixedArray { .. } => {
+                Some(self.builder.memory_object_load_element(object, layout, index))
+            }
+            MemoryObjectLayout::Bytes => Some(self.builder.memory_object_load_byte(object, index)),
+            MemoryObjectLayout::Struct { .. } => {
+                report_unsupported(self.gcx, expr.span, "struct index")
+            }
         }
     }
 
@@ -341,9 +749,26 @@ impl<'gcx, 'mir> FunctionLowerer<'gcx, 'mir> {
         report_unsupported(self.gcx, span, "identifier")
     }
 
+    fn load_lvalue(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        if let Some(id) = self.gcx.resolved_variable(expr) {
+            let variable = self.gcx.hir.variable(id);
+            if variable.is_state_variable()
+                || self.values.contains_key(&id)
+                || variable.parent.is_none()
+            {
+                return self.load_variable(id, expr.span);
+            }
+        }
+        match &expr.kind {
+            ExprKind::Member(receiver, name) => self.lower_member(expr, receiver, *name),
+            ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
+            _ => report_unsupported(self.gcx, expr.span, "l-value"),
+        }
+    }
+
     fn store_variable(&mut self, id: VariableId, value: ValueId, span: Span) -> Option<()> {
-        if self.values.contains_key(&id) {
-            self.values.insert(id, value);
+        if let StdEntry::Occupied(mut entry) = self.values.entry(id) {
+            entry.insert(value);
             return Some(());
         }
         if let Some(location) = self.storage.get(id) {
@@ -351,6 +776,96 @@ impl<'gcx, 'mir> FunctionLowerer<'gcx, 'mir> {
             return Some(());
         }
         report_unsupported(self.gcx, span, "assignment target")
+    }
+
+    fn store_lvalue(&mut self, expr: &hir::Expr<'_>, value: ValueId) -> Option<()> {
+        if let Some(id) = self.gcx.resolved_variable(expr) {
+            let variable = self.gcx.hir.variable(id);
+            if variable.is_state_variable()
+                || self.values.contains_key(&id)
+                || variable.parent.is_none()
+            {
+                return self.store_variable(id, value, expr.span);
+            }
+        }
+        match &expr.kind {
+            ExprKind::Member(receiver, name) => {
+                let id = self.gcx.resolved_variable(expr)?;
+                let variable = self.gcx.hir.variable(id);
+                let Some(hir::ItemId::Struct(struct_id)) = variable.parent else {
+                    return report_unsupported(self.gcx, expr.span, "member assignment");
+                };
+                let Some(field) =
+                    self.gcx.hir.strukt(struct_id).fields.iter().position(|&field| field == id)
+                else {
+                    return report_unsupported(self.gcx, name.span, "struct field assignment");
+                };
+                let object = self.lower_expr(receiver)?;
+                let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
+                let layout = self.types.memory_layout(receiver_ty)?;
+                self.builder.memory_object_store_field(object, layout, field as u64, value);
+                Some(())
+            }
+            ExprKind::Index(receiver, index) => {
+                let Some(index) = index else {
+                    return report_unsupported(self.gcx, expr.span, "index assignment");
+                };
+                let object = self.lower_expr(receiver)?;
+                let index = self.lower_expr(index)?;
+                let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
+                let layout = self.types.memory_layout(receiver_ty)?;
+                match layout {
+                    MemoryObjectLayout::DynamicArray { .. }
+                    | MemoryObjectLayout::FixedArray { .. } => {
+                        self.builder.memory_object_store_element(object, layout, index, value);
+                        Some(())
+                    }
+                    MemoryObjectLayout::Bytes => {
+                        self.builder.memory_object_store_byte(object, index, value);
+                        Some(())
+                    }
+                    _ => report_unsupported(self.gcx, expr.span, "index assignment"),
+                }
+            }
+            _ => report_unsupported(self.gcx, expr.span, "assignment target"),
+        }
+    }
+
+    fn delete_lvalue(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
+        let ty = self.gcx.type_of_expr(expr.id)?;
+        let Some(layout) = self.types.memory_layout(ty) else {
+            let zero = self.builder.imm_u256(U256::ZERO);
+            return self.store_lvalue(expr, zero);
+        };
+        let object = self.load_lvalue(expr)?;
+        let zero = self.builder.imm_u256(U256::ZERO);
+        match layout {
+            MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. } => {
+                self.builder.set_memory_object_len(object, zero, layout.kind());
+            }
+            MemoryObjectLayout::FixedArray { len, element_words: _ } => {
+                for index in 0..len {
+                    let index_value = self.builder.imm_u64(index);
+                    let element_ty = match ty.peel_refs().kind {
+                        solar_sema::ty::TyKind::Array(element, _) => element,
+                        _ => return report_unsupported(self.gcx, expr.span, "array deletion"),
+                    };
+                    let value = self.default_value(element_ty);
+                    self.builder.memory_object_store_element(object, layout, index_value, value);
+                }
+            }
+            MemoryObjectLayout::Struct { fields: _ } => {
+                let solar_sema::ty::TyKind::Struct(id) = ty.peel_refs().kind else {
+                    return report_unsupported(self.gcx, expr.span, "struct deletion");
+                };
+                for (index, &field) in self.gcx.hir.strukt(id).fields.iter().enumerate() {
+                    let field_ty = self.gcx.type_of_item(field.into());
+                    let value = self.default_value(field_ty);
+                    self.builder.memory_object_store_field(object, layout, index as u64, value);
+                }
+            }
+        }
+        Some(())
     }
 
     fn lower_constant(
@@ -398,17 +913,6 @@ impl<'gcx, 'mir> FunctionLowerer<'gcx, 'mir> {
             BinOpKind::Sar => self.builder.sar(lhs, rhs),
             BinOpKind::Pow => self.builder.exp(lhs, rhs),
         }
-    }
-
-    fn binary_assign(
-        &mut self,
-        op: BinOpKind,
-        id: VariableId,
-        rhs: ValueId,
-        span: Span,
-    ) -> Option<ValueId> {
-        let lhs = self.load_variable(id, span)?;
-        Some(self.binary(op, lhs, rhs))
     }
 
     fn unary(&mut self, op: UnOpKind, value: ValueId, span: Span) -> Option<ValueId> {

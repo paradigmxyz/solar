@@ -82,6 +82,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         | InstKind::MemoryObjectLoadField { .. }
                         | InstKind::MemoryObjectStoreField { .. }
                         | InstKind::MemoryObjectLoadElement { .. }
+                        | InstKind::MemoryObjectLoadByte { .. }
                         | InstKind::MemoryObjectStoreElement { .. }
                         | InstKind::MemoryObjectStoreByte { .. }
                         | InstKind::MemoryObjectStoreWord { .. }
@@ -216,6 +217,22 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     let offset = builder.mul(index, stride);
                     let address = builder.add(base, offset);
                     builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
+                    stats.accesses += 1;
+                }
+                InstKind::MemoryObjectLoadByte { object, index } => {
+                    let base = offset_address(
+                        &mut builder,
+                        object,
+                        P::object_data_offset(crate::mir::MemoryObjectKind::Bytes),
+                    );
+                    let address = builder.add(base, index);
+                    let word = builder.mload(address);
+                    let zero = builder.imm_u64(0);
+                    let byte = builder.byte(zero, word);
+                    if let Some(result) = builder.func().inst_result_value(inst) {
+                        replacements.insert(result, byte);
+                    }
+                    removed.insert(inst);
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectStoreElement { object, layout, index, value } => {

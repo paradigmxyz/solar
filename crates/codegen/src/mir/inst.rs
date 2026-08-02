@@ -651,6 +651,13 @@ pub(crate) enum InstKind {
         /// Runtime element index.
         index: ValueId,
     },
+    /// Load one byte from a bytes object without exposing its physical address.
+    MemoryObjectLoadByte {
+        /// Bytes object reference.
+        object: ValueId,
+        /// Runtime byte index.
+        index: ValueId,
+    },
     /// Store one array element without exposing its physical address.
     MemoryObjectStoreElement {
         /// Array object reference.
@@ -1061,7 +1068,8 @@ impl InstKind {
 
             Self::SetMemoryObjectLen(object, len, _)
             | Self::MemoryObjectElementAddr { object, index: len, .. }
-            | Self::MemoryObjectLoadElement { object, index: len, .. } => {
+            | Self::MemoryObjectLoadElement { object, index: len, .. }
+            | Self::MemoryObjectLoadByte { object, index: len } => {
                 out.push(*object);
                 out.push(*len);
             }
@@ -1316,7 +1324,8 @@ impl InstKind {
 
             Self::SetMemoryObjectLen(object, len, _)
             | Self::MemoryObjectElementAddr { object, index: len, .. }
-            | Self::MemoryObjectLoadElement { object, index: len, .. } => {
+            | Self::MemoryObjectLoadElement { object, index: len, .. }
+            | Self::MemoryObjectLoadByte { object, index: len } => {
                 f(object);
                 f(len);
             }
@@ -1550,6 +1559,7 @@ impl InstKind {
             Self::MemoryObjectLoadField { .. } => "memory_object_load_field",
             Self::MemoryObjectStoreField { .. } => "memory_object_store_field",
             Self::MemoryObjectLoadElement { .. } => "memory_object_load_element",
+            Self::MemoryObjectLoadByte { .. } => "memory_object_load_byte",
             Self::MemoryObjectStoreElement { .. } => "memory_object_store_element",
             Self::MemoryObjectStoreByte { .. } => "memory_object_store_byte",
             Self::MemoryObjectStoreWord { .. } => "memory_object_store_word",
@@ -1718,6 +1728,7 @@ impl InstKind {
             | Self::MemoryObjectLen(_, _)
             | Self::MemoryObjectLoadField { .. }
             | Self::MemoryObjectLoadElement { .. }
+            | Self::MemoryObjectLoadByte { .. }
             | Self::Fmp
             | Self::MSize
             | Self::Keccak256(_, _)

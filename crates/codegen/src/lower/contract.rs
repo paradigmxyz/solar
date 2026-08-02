@@ -1,15 +1,15 @@
 //! Contract-level lowering and function discovery.
 
-use super::{function, storage::StorageLayout};
+use super::{function, storage::StorageLayout, types::TypeLowerer};
 use alloy_primitives::Bytes;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::Ident;
 use solar_sema::{
     Gcx,
     hir::{self, ContractId},
 };
 
-use crate::mir::{Function, FunctionAttributes, Module};
+use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
 
 /// Builds a typed MIR module from one HIR contract.
 pub(super) fn lower(
@@ -21,13 +21,39 @@ pub(super) fn lower(
     let mut module = Module::new(contract.name);
     let storage = StorageLayout::for_contract(gcx, contract_id);
 
-    for function_id in contract.all_functions() {
+    let function_ids = contract
+        .all_functions()
+        .filter(|&function_id| gcx.hir.function(function_id).kind != hir::FunctionKind::Modifier)
+        .collect::<Vec<_>>();
+    let mut seen = FxHashSet::default();
+    let function_ids = function_ids.into_iter().filter(|id| seen.insert(*id)).collect::<Vec<_>>();
+    let mut mir_ids = FxHashMap::default();
+    for &function_id in &function_ids {
         let function = gcx.hir.function(function_id);
-        if function.kind == hir::FunctionKind::Modifier {
-            continue;
+        let mut declaration = declaration(gcx, function_id, function);
+        {
+            let mut builder = FunctionBuilder::new(&mut declaration);
+            for &param in function.parameters {
+                builder.add_param(TypeLowerer::mir_type(gcx.type_of_item(param.into())));
+            }
+            for &ret in function.returns {
+                builder.add_return(TypeLowerer::mir_type(gcx.type_of_item(ret.into())));
+            }
         }
-        let Some(mir) = function::lower(gcx, &mut module, &storage, function_id) else { continue };
-        module.add_function(mir);
+        let mir_id = module.add_function(declaration);
+        mir_ids.insert(function_id, mir_id);
+    }
+
+    for function_id in function_ids {
+        let mir_id = mir_ids[&function_id];
+        let name = module.function(mir_id).name.clone();
+        let Some(mut mir) = function::lower(gcx, &mut module, &storage, function_id, &mir_ids)
+        else {
+            FunctionBuilder::new(module.function_mut(mir_id)).stop();
+            continue;
+        };
+        mir.name = name;
+        *module.function_mut(mir_id) = mir;
     }
 
     if contract.kind == hir::ContractKind::Interface {

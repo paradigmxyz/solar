@@ -395,6 +395,12 @@ fn display_inst_kind<'a>(
             display_val(*object, func),
             display_val(*index, func)
         ),
+        InstKind::MemoryObjectLoadByte { object, index } => write!(
+            f,
+            "memory_object_load_byte memorybytes, {}, {}",
+            display_val(*object, func),
+            display_val(*index, func)
+        ),
         InstKind::MemoryObjectStoreElement { object, layout, index, value } => write!(
             f,
             "memory_object_store_element {layout}, {}, {}, {}",
