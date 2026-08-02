@@ -22,6 +22,7 @@
 //@ run-call: readNestedBytes((bytes[2])) ([0x0102, 0x030405]) => 5
 //@ run-call: readMixed(uint8,bytes) 1, 0x010203 => 4
 //@ run-call: ConstructorAbiFixedArray::result(); constructor=[[[1, 2], [3, 4]], 5] => 8
+//@ run-call: ConstructorAbiDynamic::result(); constructor=[[1, 2, 3], 0x010203] => 5
 
 contract AbiFixedArray {
     struct Pair {
@@ -137,5 +138,13 @@ contract ConstructorAbiFixedArray {
 
     constructor(uint256[2][2] memory values, int256 bias) {
         result = values[1][0] + uint256(bias);
+    }
+}
+
+contract ConstructorAbiDynamic {
+    uint256 public result;
+
+    constructor(uint256[] memory values, bytes memory data) {
+        result = values[1] + data.length;
     }
 }
