@@ -12,6 +12,8 @@
 //@ run-call-fail: readEnumPair((uint8,uint256)) (2, 9)
 //@ run-call: readEnumArray(uint8[2]) [1, 0] => 1
 //@ run-call-fail: readEnumArray(uint8[2]) [2, 0]
+//@ run-call: readMode(uint8) 1 => 1
+//@ run-call-fail: readMode(uint8) 2
 //@ run-call: readMixed(uint8,bytes) 1, 0x010203 => 4
 
 contract AbiFixedArray {
@@ -69,6 +71,10 @@ contract AbiFixedArray {
 
     function readEnumArray(Mode[2] memory values) external pure returns (uint256) {
         return uint256(values[0]);
+    }
+
+    function readMode(Mode mode) external pure returns (uint256) {
+        return uint256(mode);
     }
 
     function readMixed(Mode mode, bytes memory data) external pure returns (uint256) {

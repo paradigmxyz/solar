@@ -363,13 +363,29 @@ impl LowerAbiCx {
             current = next;
 
             if lazy_args {
+                let mut head_offset = 0;
                 for (index, &ty) in arg_types.iter().enumerate() {
-                    let Some(validator) = AbiWordValidator::from_mir_type(ty) else { continue };
+                    let validator = abi_params
+                        .and_then(|layout| layout.types.get(index))
+                        .and_then(|layout_ty| match layout_ty {
+                            crate::mir::AbiParamType::Enum { variants, .. } => {
+                                Some(AbiWordValidator::EnumRange(*variants))
+                            }
+                            crate::mir::AbiParamType::Scalar(_) => {
+                                AbiWordValidator::from_mir_type(ty)
+                            }
+                            _ => None,
+                        })
+                        .or_else(|| AbiWordValidator::from_mir_type(ty));
+                    head_offset += abi_params
+                        .and_then(|layout| layout.types.get(index))
+                        .map_or(32, crate::mir::AbiParamType::head_size);
+                    let Some(validator) = validator else { continue };
                     builder.switch_to_block(current);
                     // `Value::Arg` values carry the canonicality invariant that this
                     // guard establishes. Read the raw calldata word here so an
                     // optimizer cannot fold the check away before it runs.
-                    let offset = builder.imm_u64(4 + (index as u64) * 32);
+                    let offset = builder.imm_u64(4 + head_offset - 32);
                     let word = builder.calldataload(offset);
                     let valid = validator.condition(&mut builder, word);
                     let next = builder.create_block();

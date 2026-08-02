@@ -895,9 +895,7 @@ impl<'gcx> Lowerer<'gcx> {
                 | ElementaryType::FixedBytes(_),
             )
             | TyKind::Contract(_) => true,
-            // MIR currently lowers every enum to uint8, but that loses the
-            // variant count needed for canonical ABI validation.
-            TyKind::Enum(_) => false,
+            TyKind::Enum(_) => true,
             _ => false,
         }
     }
@@ -914,6 +912,15 @@ impl<'gcx> Lowerer<'gcx> {
                 | ElementaryType::FixedBytes(_),
             )
             | TyKind::Contract(_) => true,
+            TyKind::Enum(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_external_abi_enum_ty(&self, ty: Ty<'gcx>) -> bool {
+        let ty = ty.peel_refs();
+        match ty.kind {
+            TyKind::Udvt(inner, _) => self.is_external_abi_enum_ty(inner),
             TyKind::Enum(_) => true,
             _ => false,
         }
@@ -1161,10 +1168,10 @@ impl<'gcx> Lowerer<'gcx> {
         let uses_external_abi = mir_func.is_public() && !is_special && !force_internal;
         let defer_external_abi = uses_external_abi && self.can_defer_external_abi(func_id);
         let has_deferred_aggregate_params = uses_external_abi
-            && hir_func
-                .parameters
-                .iter()
-                .any(|&param_id| self.can_defer_external_abi_param(param_id))
+            && hir_func.parameters.iter().any(|&param_id| {
+                self.can_defer_external_abi_param(param_id)
+                    || self.is_external_abi_enum_ty(self.gcx.type_of_item(param_id.into()))
+            })
             && hir_func.parameters.iter().all(|&param_id| {
                 self.can_defer_external_abi_ty(self.gcx.type_of_item(param_id.into()))
                     || self.can_defer_external_abi_param(param_id)
