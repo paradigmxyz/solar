@@ -404,7 +404,7 @@ bb18 [cold]:
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 448
+  push 512
   push 64
   mstore
   callvalue
@@ -533,7 +533,7 @@ bb10:
   push 64
   mload
   dup1
-  push 256
+  push 224
   mstore
   swap1
   dup2
@@ -547,13 +547,18 @@ bb10:
   push 32
   dup2
   add
+  dup1
+  push 160
+  mstore
   dup3
   push 192
   mload
   dup3
+  dup1
+  push 160
+  mstore
   calldatacopy
-  pop
-  swap1
+  swap2
   pop
   push 4
   push 68
@@ -561,22 +566,23 @@ bb10:
   add
   calldataload
   dup1
-  push 224
+  push 256
   mstore
   push 31
   dup2
   add
   dup1
-  push 160
+  push 192
   mstore
   lt
-  swap1
+  swap2
+  pop
   pop
   push bb18
   jumpi
   push 31
   not
-  push 160
+  push 192
   mload
   and
   dup1
@@ -591,13 +597,13 @@ bb10:
   pop
   add
   dup1
-  push 160
+  push 192
   mstore
   push 32
   dup2
   add
   dup1
-  push 192
+  push 320
   mstore
   lt
   push bb18
@@ -607,13 +613,13 @@ bb10:
   dup1
   push 288
   mstore
-  push 192
+  push 320
   mload
   dup2
   add
   push 64
   mstore
-  push 224
+  push 256
   mload
   dup2
   mstore
@@ -621,7 +627,7 @@ bb10:
   dup2
   add
   push 32
-  push 160
+  push 192
   mload
   sub
   dup2
@@ -633,17 +639,16 @@ bb10:
   push 68
   calldataload
   add
-  push 224
+  push 256
   mload
   dup2
   dup4
   calldatacopy
   pop
-  pop
   push 64
   mload
   dup1
-  push 320
+  push 352
   mstore
   push 128
   dup2
@@ -657,33 +662,60 @@ bb10:
   push 32
   dup2
   add
-  push 256
+  push 224
   mload
-  dup2
+  swap1
   mstore
   push 64
-  dup3
+  dup2
   add
   dup4
   dup1
   push 288
   mstore
-  dup2
+  swap1
   mstore
-  swap3
-  pop
   push 96
-  dup3
   add
   push 100
   calldataload
-  dup2
+  swap1
   mstore
+  dup2
+  mload
+  push 31
+  add
+  push 31
+  not
+  and
+  push 32
+  add
+  push 224
+  mload
+  mload
+  push 5
+  shl
+  push 192
+  add
+  add
+  push 4
+  dup2
+  add
+  swap1
+  push 36
+  add
   push 64
   mload
   dup1
-  push 352
+  push 384
   mstore
+  swap1
+  dup2
+  add
+  push 64
+  mstore
+  push 32
+  add
   push 0xfa06cb96
   push 224
   shl
@@ -695,21 +727,19 @@ bb10:
   push 0
   dup2
   mstore
-  swap4
-  mload
   push 36
   dup3
   add
-  mstore
-  swap2
-  mload
-  swap4
-  mload
+  push 4
+  calldataload
   swap1
-  mload
+  mstore
   push 132
-  dup4
+  dup3
   add
+  push 100
+  calldataload
+  swap1
   mstore
   push 68
   dup3
@@ -717,7 +747,8 @@ bb10:
   push 160
   swap1
   mstore
-  dup4
+  push 224
+  mload
   mload
   dup1
   push 5
@@ -730,28 +761,24 @@ bb10:
   mstore
   swap1
   pop
-  swap4
-  push 32
-  add
   push 196
   dup4
   add
-  dup6
-  dup3
+  dup2
+  push 160
+  mload
   dup3
   mcopy
   pop
-  pop
-  swap3
   push 192
   add
   push 100
-  dup3
+  dup4
   add
   dup2
   swap1
   mstore
-  dup4
+  swap5
   mload
   push 31
   dup2
@@ -759,46 +786,40 @@ bb10:
   push 31
   not
   and
-  swap4
-  dup3
-  add
-  dup2
-  dup2
-  mstore
-  swap1
-  pop
-  swap4
-  push 32
-  add
-  swap4
-  push 32
-  add
-  dup4
-  dup6
-  dup3
-  mcopy
-  pop
-  swap3
-  pop
-  swap1
-  push 32
-  add
+  swap6
   swap1
   swap2
   add
-  push 4
+  dup2
+  dup2
+  mstore
+  swap1
+  pop
+  push 32
   add
+  dup5
+  dup5
+  dup3
+  mcopy
+  pop
+  swap2
+  pop
+  swap2
+  pop
   gas
   dup1
-  push 384
+  push 416
   mstore
   dup2
-  push 416
+  push 448
+  mstore
+  dup3
+  push 480
   mstore
   push 32
   push 0
-  dup4
-  dup6
+  dup5
+  dup5
   push 0x1000000000000000000000000000000000000001
   dup6
   delegatecall

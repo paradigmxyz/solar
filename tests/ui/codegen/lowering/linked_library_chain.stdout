@@ -74,7 +74,7 @@ bb8 [cold]:
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Outer (runtime) ===
 @module runtime
 bb0:
-  push 224
+  push 256
   push 64
   mstore
   callvalue
@@ -120,6 +120,13 @@ bb8:
   dup1
   push 160
   mstore
+  push 100
+  dup2
+  add
+  push 64
+  mstore
+  push 32
+  add
   push 0xfaf4836c
   push 224
   shl
@@ -142,6 +149,9 @@ bb8:
   gas
   dup1
   push 192
+  mstore
+  dup2
+  push 224
   mstore
   push 32
   push 0
@@ -174,7 +184,7 @@ bb10 [cold]:
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 224
+  push 256
   push 64
   mstore
   callvalue
@@ -203,6 +213,13 @@ bb0:
   dup1
   push 160
   mstore
+  push 100
+  dup2
+  add
+  push 64
+  mstore
+  push 32
+  add
   push 0x5e0b1cef
   push 224
   shl
@@ -224,6 +241,9 @@ bb0:
   gas
   dup1
   push 192
+  mstore
+  dup2
+  push 224
   mstore
   push 32
   push 0

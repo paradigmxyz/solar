@@ -111,7 +111,7 @@ bb5:
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 224
+  push 256
   push 64
   mstore
   callvalue
@@ -151,6 +151,13 @@ bb0:
   dup1
   push 160
   mstore
+  push 132
+  dup2
+  add
+  push 64
+  mstore
+  push 32
+  add
   push 0xed2f0bb8
   push 224
   shl
@@ -179,6 +186,9 @@ bb0:
   gas
   dup1
   push 192
+  mstore
+  dup2
+  push 224
   mstore
   push 32
   push 0

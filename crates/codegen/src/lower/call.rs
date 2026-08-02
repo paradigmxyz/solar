@@ -961,8 +961,9 @@ impl<'gcx> Lowerer<'gcx> {
 
         let total_size = bytecode_len as u64 + (arg_exprs.len() as u64) * 32;
         let total_size_value = builder.imm_u64(total_size);
+        let object_size = builder.imm_u64(total_size + EvmMemoryLayout::DYNAMIC_HEADER_SIZE);
         let object = builder.alloc_object(
-            total_size_value,
+            object_size,
             MemoryObjectLayout::Bytes,
             crate::mir::AllocationSemantics::INTERNAL,
         );
@@ -2368,15 +2369,10 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let head_size_bytes = 4 + arg_slots.iter().sum::<usize>() * 32;
 
-        // Build the calldata at the free pointer.
-        let calldata_start = builder.fmp();
-
-        let selector_val = builder.imm_u256(U256::from(selector) << 224);
-        builder.mstore(calldata_start, selector_val);
-
-        // Heads. A dynamic struct field reserves its head slot here and is
-        // filled by the tail pass below with the tail's args-relative offset.
+        // Gather heads and dynamic tails before allocating the payload. The
+        // tail lengths determine the exact semantic object size.
         let mut pending_tails: Vec<(u64, ValueId, LinkedFieldKind)> = Vec::new();
+        let mut head_values = Vec::new();
         let mut arg_offset = 4u64;
         for ((arg_val, slots), &struct_id) in arg_vals.iter().zip(&arg_slots).zip(&arg_structs) {
             if let Some(struct_id) = struct_id {
@@ -2393,26 +2389,52 @@ impl<'gcx> Lowerer<'gcx> {
                             pending_tails.push((arg_offset, field_val, kind));
                         }
                         _ => {
-                            let offset_val = builder.imm_u64(arg_offset);
-                            let write_addr = builder.add(calldata_start, offset_val);
-                            builder.mstore(write_addr, field_val);
+                            head_values.push((arg_offset, field_val));
                         }
                     }
                     arg_offset += 32;
                 }
             } else {
-                let offset_val = builder.imm_u64(arg_offset);
-                let write_addr = builder.add(calldata_start, offset_val);
-                builder.mstore(write_addr, *arg_val);
+                head_values.push((arg_offset, *arg_val));
                 arg_offset += 32;
             }
+        }
+
+        let word = builder.imm_u64(32);
+        let mut tail_off = builder.imm_u64((head_size_bytes - 4) as u64);
+        for &(_, src, kind) in &pending_tails {
+            let object_kind = kind.memory_object_kind();
+            let len = builder.memory_object_len(src, object_kind);
+            let byte_len = kind.data_size(builder, len, word);
+            let advanced = builder.add(word, byte_len);
+            tail_off = builder.add(tail_off, advanced);
+        }
+        let four = builder.imm_u64(4);
+        let payload_size = builder.add(four, tail_off);
+        let struct_size = struct_return_info.map_or(0, |(_, field_count)| field_count as u64 * 32);
+        let struct_size_value = builder.imm_u64(struct_size);
+        let payload_header = builder.imm_u64(EvmMemoryLayout::DYNAMIC_HEADER_SIZE);
+        let payload_with_header = builder.add(payload_size, payload_header);
+        let allocation_size = builder.add(payload_with_header, struct_size_value);
+        let object = builder.alloc_object(
+            allocation_size,
+            MemoryObjectLayout::Bytes,
+            crate::mir::AllocationSemantics::INTERNAL,
+        );
+        let calldata_start = builder.memory_object_data(object, MemoryObjectKind::Bytes);
+
+        let selector_val = builder.imm_u256(U256::from(selector) << 224);
+        builder.mstore(calldata_start, selector_val);
+        for (offset, value) in head_values {
+            let offset_val = builder.imm_u64(offset);
+            let write_addr = builder.add(calldata_start, offset_val);
+            builder.mstore(write_addr, value);
         }
 
         // Tails: `[len][data...]` blobs appended after the heads; each head
         // slot holds its tail's offset relative to the args start (after the
         // selector), so the callee decodes with `calldataload(4 + offset)`.
-        let mut tail_off = builder.imm_u64((head_size_bytes - 4) as u64);
-        let word = builder.imm_u64(32);
+        tail_off = builder.imm_u64((head_size_bytes - 4) as u64);
         for (head_off, src, kind) in pending_tails {
             let object_kind = kind.memory_object_kind();
             let head_addr_off = builder.imm_u64(head_off);
@@ -2433,25 +2455,20 @@ impl<'gcx> Lowerer<'gcx> {
             let advanced = builder.add(word, byte_len);
             tail_off = builder.add(tail_off, advanced);
         }
-        let four = builder.imm_u64(4);
-        let total_size = builder.add(four, tail_off);
 
         // Return area: reuse the unbumped calldata allocation for value-type
         // returns, or append an allocation for struct returns.
         let (ret_offset, ret_size, struct_ptr_opt) =
             if let Some((_struct_id, field_count)) = struct_return_info {
                 let struct_size = field_count as u64 * 32;
-                let struct_ptr = builder.add(calldata_start, total_size);
-                let struct_size_val = builder.imm_u64(struct_size);
-                let new_free_ptr = builder.add(struct_ptr, struct_size_val);
-                builder.set_fmp(new_free_ptr);
+                let struct_ptr = builder.add(calldata_start, payload_size);
                 (struct_ptr, builder.imm_u64(struct_size), Some(struct_ptr))
             } else {
                 let ret_offset = if num_returns > 1 { calldata_start } else { builder.imm_u64(0) };
                 (ret_offset, builder.imm_u64(num_returns as u64 * 32), None)
             };
 
-        let calldata_size = total_size;
+        let calldata_size = payload_size;
         let addr = builder.imm_u256(lib_addr);
         let gas = builder.gas();
         let success =
@@ -2772,8 +2789,9 @@ impl<'gcx> Lowerer<'gcx> {
         let s = self.lower_value_expr(builder, s);
 
         let input_size_value = builder.imm_u64(160);
+        let input_allocation_size = builder.imm_u64(192);
         let input = builder.alloc_object(
-            input_size_value,
+            input_allocation_size,
             crate::mir::MemoryObjectLayout::Bytes,
             crate::mir::AllocationSemantics::INTERNAL,
         );
@@ -2823,9 +2841,10 @@ impl<'gcx> Lowerer<'gcx> {
 
             let len = bytes.len() as u64;
             let alloc_size = len.div_ceil(32) * 32;
-            let alloc_size_value = builder.imm_u64(alloc_size);
+            let object_size_value =
+                builder.imm_u64(alloc_size + EvmMemoryLayout::DYNAMIC_HEADER_SIZE);
             let object = builder.alloc_object(
-                alloc_size_value,
+                object_size_value,
                 crate::mir::MemoryObjectLayout::Bytes,
                 crate::mir::AllocationSemantics::INTERNAL,
             );
