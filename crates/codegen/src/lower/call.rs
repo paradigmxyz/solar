@@ -1258,10 +1258,17 @@ impl<'gcx> Lowerer<'gcx> {
         };
         let one = builder.imm_u64(1);
         let inner_hash_minus_one = builder.sub(inner_hash, one);
-        let ptr = builder.imm_u64(0);
-        builder.mstore(ptr, inner_hash_minus_one);
-        let size = builder.imm_u64(32);
-        let outer_hash = builder.keccak256(ptr, size);
+        let size = builder.imm_u64(64);
+        let object = builder.alloc_object(
+            size,
+            MemoryObjectLayout::Bytes,
+            crate::mir::AllocationSemantics::INTERNAL,
+        );
+        let length = builder.imm_u64(32);
+        builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+        let offset = builder.imm_u64(0);
+        builder.memory_object_store_word(object, offset, inner_hash_minus_one);
+        let outer_hash = builder.keccak256_bytes(object);
         let mask = builder.imm_u256(!U256::from(0xff));
         Ok(builder.and(outer_hash, mask))
     }

@@ -84,6 +84,8 @@ describes observable structure in the current tree, not an intended design.
   expose only its data slice to the call.
 * Literal mapping keys and embedded creation bytecode use typed bytes-object
   stores for their word chunks before hashing or returning the object.
+* Dynamic `erc7201` namespaces use a typed one-word bytes object for the
+  outer slot preimage; raw scratch stores no longer enter that builtin path.
 * Dynamic mapping keys stay as `mapping_slot_memory` or
   `mapping_slot_calldata` until the mapping-slot pass. That pass now builds
   typed bytes hash preimages and uses semantic copies and stores; raw scratch
