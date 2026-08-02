@@ -1,36 +1,29 @@
 // === ROOT/tests/ui/codegen/lowering/array_bounds_panic.sol:ArrayBoundsPanic ===
 @module ArrayBoundsPanic
-fn @memFix(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @memFix(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
+    mstore v1, 0
+    v2 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 1
+    mstore v2, 0
+    v3 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
+    mstore v3, 0
+    v4 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 1
+    mstore v4, 20
+    v5 = lt arg0, 3
+    jumpi v5, bb2, bb1
   bb1:
-    revert 0, 0
-  bb2:
-    v3 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v4 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 0
-    mstore v4, 0
-    v5 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 1
-    mstore v5, 0
-    v6 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 2
-    mstore v6, 0
-    v7 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 1
-    mstore v7, 20
-    v8 = lt arg0, 3
-    jumpi v8, bb4, bb3
-  bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    v9 = memory_object_element_addr memoryfixedarray<3, 1>, v3, arg0
-    v10 = mload v9
-    ret v10
+  bb2:
+    v6 = memory_object_element_addr memoryfixedarray<3, 1>, v0, arg0
+    v7 = mload v6
+    ret v7
 }
 
-fn @memFixConst() -> u256 [abi_returns=[word]] {
+fn @memFixConst() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
@@ -46,7 +39,7 @@ fn @memFixConst() -> u256 [abi_returns=[word]] {
     ret v6
 }
 
-fn @memFixConstOob() -> u256 [abi_returns=[word]] {
+fn @memFixConstOob() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
@@ -66,114 +59,86 @@ fn @memFixConstOob() -> u256 [abi_returns=[word]] {
     ret v5
 }
 
-fn @memDyn(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
+fn @memDyn(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
+    v0 = mul arg0, 32
+    v1 = div v0, 32
+    v2 = eq v1, arg0
+    jumpi v2, bb2, bb1
   bb1:
-    revert 0, 0
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
-    v3 = mul arg0, 32
-    v4 = div v3, 32
-    v5 = eq v4, arg0
-    jumpi v5, bb4, bb3
+    v3 = add v0, 32
+    v4 = lt v3, v0
+    jumpi v4, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v6 = add v3, 32
-    v7 = lt v6, v3
-    jumpi v7, bb5, bb6
+    v5 = alloc memoryarray<1>, exact, zeroed, panic, v3
+    set_memory_object_len memoryarray, v5, arg0
+    v6 = memory_object_len memoryarray, v5
+    v7 = lt arg1, v6
+    jumpi v7, bb6, bb5
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v8 = alloc memoryarray<1>, exact, zeroed, panic, v6
-    set_memory_object_len memoryarray, v8, arg0
-    v9 = memory_object_len memoryarray, v8
-    v10 = lt arg1, v9
-    jumpi v10, bb8, bb7
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v11 = memory_object_element_addr memoryarray<1>, v8, arg1
-    v12 = mload v11
-    ret v12
+    v8 = memory_object_element_addr memoryarray<1>, v5, arg1
+    v9 = mload v8
+    ret v9
 }
 
-fn @stDyn(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @stDyn(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = lt arg0, v0
+    jumpi v1, bb2, bb1
   bb1:
-    revert 0, 0
-  bb2:
-    v3 = sload 0 !metadata(storage=slot(0))
-    v4 = lt arg0, v3
-    jumpi v4, bb4, bb3
-  bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
+  bb2:
     mstore 0, 0 !metadata(memory=scratch)
-    v5 = keccak256 0, 32 !metadata(memory=scratch)
-    v6 = add v5, arg0
-    v7 = sload v6 !metadata(storage=symbolic(v6))
-    ret v7
+    v2 = keccak256 0, 32 !metadata(memory=scratch)
+    v3 = add v2, arg0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
 }
 
-fn @stDynWrite(arg0: u256, arg1: u256) {
+fn @stDynWrite(arg0: u256, arg1: u256) [abi_args=lazy] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = lt arg0, v0
+    jumpi v1, bb2, bb1
   bb1:
-    revert 0, 0
-  bb2:
-    v3 = sload 0 !metadata(storage=slot(0))
-    v4 = lt arg0, v3
-    jumpi v4, bb4, bb3
-  bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
+  bb2:
     mstore 0, 0 !metadata(memory=scratch)
-    v5 = keccak256 0, 32 !metadata(memory=scratch)
-    v6 = add v5, arg0
-    sstore v6, arg1 !metadata(storage=symbolic(v6))
+    v2 = keccak256 0, 32 !metadata(memory=scratch)
+    v3 = add v2, arg0
+    sstore v3, arg1 !metadata(storage=symbolic(v3))
     stop
 }
 
-fn @stFix(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @stFix(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
+    v0 = lt arg0, 3
+    jumpi v0, bb2, bb1
   bb1:
-    revert 0, 0
-  bb2:
-    v3 = lt arg0, 3
-    jumpi v3, bb4, bb3
-  bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    v4 = add 1, arg0
-    v5 = sload v4 !metadata(storage=offset(arg0, 1))
-    ret v5
+  bb2:
+    v1 = add 1, arg0
+    v2 = sload v1 !metadata(storage=offset(arg0, 1))
+    ret v2
 }
 
 fn @cdDyn(arg0: calldataslice, arg1: u256) -> u256 [abi_returns=[word]] {

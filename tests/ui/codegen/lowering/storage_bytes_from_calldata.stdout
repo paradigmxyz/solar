@@ -218,7 +218,7 @@ fn @setBlob(arg0: calldataslice) {
     stop
 }
 
-fn @getText() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @getText() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     ret v0
@@ -270,7 +270,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     jump bb4
 }
 
-fn @getBlob() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @getBlob() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 1
     ret v0

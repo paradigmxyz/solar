@@ -3,15 +3,14 @@
 @phase evm-shaped
 fn @doAdd() {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
+    v1 = calldatasize
+    v2 = lt v1, 68
     jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v3 = internal_call @add, 1, arg0, arg1
-    mstore 128, v3
+    v0 = internal_call @add, 1, arg0, arg1
+    mstore 128, v0
     returndata 128, 32
 }
 
@@ -30,15 +29,14 @@ fn @add(arg0: i256, arg1: i256) -> i256 {
 
 fn @doNeg() {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
+    v1 = calldatasize
+    v2 = lt v1, 36
     jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v3 = internal_call @neg, 1, arg0
-    mstore 128, v3
+    v0 = internal_call @neg, 1, arg0
+    mstore 128, v0
     returndata 128, 32
 }
 

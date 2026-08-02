@@ -72,7 +72,7 @@ fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [abi_retur
     ret v24
 }
 
-fn @all() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @all() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0

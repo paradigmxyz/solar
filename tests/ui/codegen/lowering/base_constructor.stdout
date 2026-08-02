@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/base_constructor.sol:Base ===
 @module Base
-fn @value() -> u256 [abi_returns=[word]] {
+fn @value() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -22,7 +22,7 @@ fn @_anonymous(arg0: u256) {
     stop
 }
 
-fn @value() -> u256 [abi_returns=[word]] {
+fn @value() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0

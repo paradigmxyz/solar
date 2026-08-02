@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/signed_constant_ops.sol:SignedConstantOps ===
 @module SignedConstantOps
-fn @lt() -> bool [abi_returns=[word]] {
+fn @lt() -> bool [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = eq 1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jumpi v0, bb1, bb2
@@ -14,7 +14,7 @@ fn @lt() -> bool [abi_returns=[word]] {
     ret v2
 }
 
-fn @div() -> i256 [abi_returns=[word]] {
+fn @div() -> i256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = eq 7, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8
     jumpi v0, bb1, bb2
@@ -43,7 +43,7 @@ fn @div() -> i256 [abi_returns=[word]] {
     ret v5
 }
 
-fn @shr() -> i256 [abi_returns=[word]] {
+fn @shr() -> i256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = eq 8, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8
     jumpi v0, bb1, bb2

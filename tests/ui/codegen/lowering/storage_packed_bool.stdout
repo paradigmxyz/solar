@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/storage_packed_bool.sol:PackedBool ===
 @module PackedBool
-fn @a() -> bool [abi_returns=[word]] {
+fn @a() -> bool [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
     ret v1
 }
 
-fn @b() -> bool [abi_returns=[word]] {
+fn @b() -> bool [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
@@ -15,46 +15,23 @@ fn @b() -> bool [abi_returns=[word]] {
     ret v2
 }
 
-fn @set(arg0: bool, arg1: bool) {
+fn @set(arg0: bool, arg1: bool) [abi_args=lazy] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = calldataload 4
-    v4 = iszero v3
-    v5 = iszero v4
-    v6 = eq v3, v5
-    jumpi v6, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v7 = calldataload 36
-    v8 = iszero v7
-    v9 = iszero v8
-    v10 = eq v7, v9
-    jumpi v10, bb6, bb5
-  bb5:
-    revert 0, 0
-  bb6:
-    v11 = sload 0 !metadata(storage=slot(0))
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v13 = and arg0, 255
-    v14 = or v12, v13
-    sstore 0, v14 !metadata(storage=slot(0))
-    v15 = sload 0 !metadata(storage=slot(0))
-    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
-    v17 = and arg1, 255
-    v18 = shl 8, v17
-    v19 = or v16, v18
-    sstore 0, v19 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = and arg0, 255
+    v3 = or v1, v2
+    sstore 0, v3 !metadata(storage=slot(0))
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v6 = and arg1, 255
+    v7 = shl 8, v6
+    v8 = or v5, v7
+    sstore 0, v8 !metadata(storage=slot(0))
     stop
 }
 
-fn @both() -> bool [abi_returns=[word]] {
+fn @both() -> bool [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255

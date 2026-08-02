@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/custom_error_payloads.sol:CustomErrorPayloads ===
 @module CustomErrorPayloads
-fn @revert_empty() {
+fn @revert_empty() [abi_args=lazy] {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 4
     mstore v0, 0x4f3d7def00000000000000000000000000000000000000000000000000000000
     revert v0, 4
 }
 
-fn @revert_args() {
+fn @revert_args() [abi_args=lazy] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 6
@@ -44,87 +44,57 @@ fn @revert_args() {
     revert v3, v19
 }
 
-fn @require_empty(arg0: bool) {
+fn @require_empty(arg0: bool) [abi_args=lazy] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
+    v0 = iszero arg0
+    jumpi v0, bb1, bb2
   bb1:
-    revert 0, 0
+    v1 = alloc raw, exact, uninitialized, infallible, 4
+    mstore v1, 0x4f3d7def00000000000000000000000000000000000000000000000000000000
+    revert v1, 4
   bb2:
-    v3 = calldataload 4
-    v4 = iszero v3
-    v5 = iszero v4
-    v6 = eq v3, v5
-    jumpi v6, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v7 = iszero arg0
-    jumpi v7, bb5, bb6
-  bb5:
-    v8 = alloc raw, exact, uninitialized, infallible, 4
-    mstore v8, 0x4f3d7def00000000000000000000000000000000000000000000000000000000
-    revert v8, 4
-  bb6:
     stop
 }
 
-fn @require_named(arg0: bool) {
+fn @require_named(arg0: bool) [abi_args=lazy] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
+    v0 = iszero arg0
+    jumpi v0, bb1, bb2
   bb1:
-    revert 0, 0
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v1, 6
+    v2 = memory_object_data memorybytes, v1
+    v3 = add v2, 0
+    mstore v3, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    v4 = alloc raw, exact, uninitialized, infallible, 68
+    mstore v4, 0xb9344e200000000000000000000000000000000000000000000000000000000
+    v5 = add v4, 4
+    v6 = add v5, 64
+    mstore v5, 7
+    v7 = add v5, 32
+    v8 = sub v6, v5
+    mstore v7, v8
+    v9 = memory_object_len memorybytes, v1
+    mstore v6, v9
+    v10 = not 31
+    v11 = add v9, 31
+    v12 = and v11, v10
+    v13 = add v6, 32
+    v14 = iszero v12
+    jumpi v14, bb4, bb3
   bb2:
-    v3 = calldataload 4
-    v4 = iszero v3
-    v5 = iszero v4
-    v6 = eq v3, v5
-    jumpi v6, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v7 = iszero arg0
-    jumpi v7, bb5, bb6
-  bb5:
-    v8 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v8, 6
-    v9 = memory_object_data memorybytes, v8
-    v10 = add v9, 0
-    mstore v10, 0x6661696c65640000000000000000000000000000000000000000000000000000
-    v11 = alloc raw, exact, uninitialized, infallible, 68
-    mstore v11, 0xb9344e200000000000000000000000000000000000000000000000000000000
-    v12 = add v11, 4
-    v13 = add v12, 64
-    mstore v12, 7
-    v14 = add v12, 32
-    v15 = sub v13, v12
-    mstore v14, v15
-    v16 = memory_object_len memorybytes, v8
-    mstore v13, v16
-    v17 = not 31
-    v18 = add v16, 31
-    v19 = and v18, v17
-    v20 = add v13, 32
-    v21 = iszero v19
-    jumpi v21, bb8, bb7
-  bb6:
     stop
-  bb7:
-    v22 = sub v19, 32
-    v23 = add v20, v22
-    mstore v23, 0
-    jump bb8
-  bb8:
-    v24 = memory_object_data memorybytes, v8
-    v25 = add v20, v19
-    mcopy v20, v24, v16
-    v26 = sub v25, v12
-    v27 = add v26, 4
-    revert v11, v27
+  bb3:
+    v15 = sub v12, 32
+    v16 = add v13, v15
+    mstore v16, 0
+    jump bb4
+  bb4:
+    v17 = memory_object_data memorybytes, v1
+    v18 = add v13, v12
+    mcopy v13, v17, v9
+    v19 = sub v18, v5
+    v20 = add v19, 4
+    revert v4, v20
 }
 

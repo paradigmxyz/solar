@@ -3,26 +3,19 @@
 
 // === ROOT/tests/ui/codegen/lowering/using_for_struct.sol:C ===
 @module C
-fn @viaMethod(arg0: bytes32, arg1: bytes32) -> bytes32 [abi_returns=[word]] {
+fn @viaMethod(arg0: bytes32, arg1: bytes32) -> bytes32 [abi_args=lazy, abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    v4 = memory_object_field_addr memorystruct<4>, v3, 0
-    mstore v4, arg0
-    v5 = memory_object_field_addr memorystruct<4>, v3, 1
-    mstore v5, 0
-    v6 = memory_object_field_addr memorystruct<4>, v3, 2
-    mstore v6, 0
-    v7 = memory_object_field_addr memorystruct<4>, v3, 3
-    mstore v7, arg1
-    v8 = internal_call @hashLib, 1, v3
-    ret v8
+    v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    v1 = memory_object_field_addr memorystruct<4>, v0, 0
+    mstore v1, arg0
+    v2 = memory_object_field_addr memorystruct<4>, v0, 1
+    mstore v2, 0
+    v3 = memory_object_field_addr memorystruct<4>, v0, 2
+    mstore v3, 0
+    v4 = memory_object_field_addr memorystruct<4>, v0, 3
+    mstore v4, arg1
+    v5 = internal_call @hashLib, 1, v0
+    ret v5
 }
 
 fn @hashLib(arg0: memorystruct) -> bytes32 {

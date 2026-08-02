@@ -6,7 +6,7 @@ fn @constructor() {
     stop
 }
 
-fn @callVoid() -> bool [abi_returns=[word]] {
+fn @callVoid() -> bool [abi_args=lazy, abi_returns=[word]] {
   bb0:
     internal_call @__internal_dispatch_0, 0, 2
     v0 = sload 0 !metadata(storage=slot(0))
@@ -27,7 +27,7 @@ fn @__internal_dispatch_0(arg0: function) {
     revert 0, 36
 }
 
-fn @setFlag.3() {
+fn @setFlag.3() [abi_args=lazy] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -37,7 +37,7 @@ fn @setFlag.3() {
     stop
 }
 
-fn @callState() -> bool [abi_returns=[word]] {
+fn @callState() -> bool [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     internal_call @__internal_dispatch_0, 0, v0
@@ -46,20 +46,13 @@ fn @callState() -> bool [abi_returns=[word]] {
     ret v2
 }
 
-fn @callPair(arg0: u256) -> (u256, u256) [abi_returns=[word, word]] {
+fn @callPair(arg0: u256) -> (u256, u256) [abi_args=lazy, abi_returns=[word, word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = internal_call @__internal_dispatch_1, 2, 5, arg0
-    v4 = mload 32 !metadata(memory=scratch)
-    v5 = add v4, 32
-    v6 = mload v5
-    ret v3, v6
+    v0 = internal_call @__internal_dispatch_1, 2, 5, arg0
+    v1 = mload 32 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    ret v0, v3
 }
 
 fn @__internal_dispatch_1(arg0: function, arg1: u256) -> (u256, u256) {
@@ -91,7 +84,7 @@ fn @pair(arg0: u256) -> (u256, u256) {
     ret arg0, v0
 }
 
-fn @callZero() {
+fn @callZero() [abi_args=lazy] {
   bb0:
     internal_call @__internal_dispatch_0, 0, 0
     stop
@@ -110,7 +103,7 @@ fn @sum(arg0: u256, arg1: u256) -> u256 {
     ret v0
 }
 
-fn @callTwoArgs() -> u256 [abi_returns=[word]] {
+fn @callTwoArgs() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = internal_call @__internal_dispatch_2, 1, 7, 5, 1
     ret v0

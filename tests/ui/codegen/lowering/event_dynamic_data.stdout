@@ -53,7 +53,7 @@ fn @text(arg0: memorybytes) {
     stop
 }
 
-fn @literal() {
+fn @literal() [abi_args=lazy] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 5

@@ -4,7 +4,7 @@ use super::{
     Lowerer, MIN_BULK_ZERO_MEMORY_WORDS,
     call::StorageArrayMethod,
     checked_arith::{ArithmeticInfo, PanicCode},
-    storage::StorageLocation,
+    storage::{StorageEncoding, StorageLocation},
 };
 use crate::{
     memory::EvmMemoryLayout,
@@ -519,7 +519,7 @@ impl<'gcx> Lowerer<'gcx> {
                         "tuple assignment does not produce a single value",
                     );
                 }
-                let rhs_val = if op.is_none()
+                let mut rhs_val = if op.is_none()
                     && self
                         .gcx
                         .resolved_variable(lhs)
@@ -539,6 +539,15 @@ impl<'gcx> Lowerer<'gcx> {
                 } else {
                     self.lower_value_expr(builder, rhs)
                 };
+                if op.is_none()
+                    && let Some(width) = self.fixed_bytes_width_of_expr(lhs)
+                    && width < 32
+                    && let ExprKind::Lit(lit) = &rhs.kind
+                    && matches!(lit.kind, LitKind::Number(_))
+                {
+                    let shift = builder.imm_u64(u64::from(32 - width) * 8);
+                    rhs_val = builder.shl(shift, rhs_val);
+                }
                 // Handle compound assignment (+=, -=, etc.)
                 let final_val = if let Some(bin_op) = op {
                     // Read current value, apply operator, then assign
@@ -2142,11 +2151,11 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         base: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
-    ) -> Option<(ValueId, ValueId, TypeSize)> {
+    ) -> Option<(ValueId, ValueId, TypeSize, StorageEncoding)> {
         let (element, Some(len)) = self.storage_array_type_of_expr(base)? else {
             return None;
         };
-        let size = self.packed_storage_size(element)?;
+        let (size, encoding) = self.packed_storage_encoding(element)?;
         if size >= StorageLocation::WORD_SIZE || size.bytes() == 0 {
             return None;
         }
@@ -2172,7 +2181,7 @@ impl<'gcx> Lowerer<'gcx> {
             let bytes = builder.imm_u64(bytes);
             builder.mul(inner, bytes)
         };
-        Some((slot, byte_offset, size))
+        Some((slot, byte_offset, size, encoding))
     }
 
     /// Resolves a dynamic array living in storage.

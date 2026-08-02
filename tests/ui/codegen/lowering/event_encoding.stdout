@@ -25,22 +25,8 @@ fn @emitArray(arg0: u256, arg1: u256) {
     stop
 }
 
-fn @emitAnonymous(arg0: address, arg1: u256) {
+fn @emitAnonymous(arg0: address, arg1: u256) [abi_args=lazy] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
     mstore 0, arg1 !metadata(memory=scratch)
     log1 0, 32, arg0
     stop
@@ -71,13 +57,13 @@ fn @emitIndexedBytes(arg0: memorybytes) {
     stop
 }
 
-fn @emitIndexedFixedBytes() {
+fn @emitIndexedFixedBytes() [abi_args=lazy] {
   bb0:
     log2 0, 0, 0xd6843e74884f95c39ee4c0ac08d559101bead98aa590038d667afad12f9006bb, 0x6162630000000000000000000000000000000000000000000000000000000000
     stop
 }
 
-fn @emitNamed() {
+fn @emitNamed() [abi_args=lazy] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)

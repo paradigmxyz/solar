@@ -16,10 +16,16 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
     ) -> ValueId {
-        if let Some((slot, byte_offset, size)) =
+        if let Some((slot, byte_offset, size, encoding)) =
             self.packed_storage_array_element(builder, base, index)
         {
-            return self.load_storage_location_at_dynamic_offset(builder, slot, byte_offset, size);
+            return self.load_storage_location_at_dynamic_offset(
+                builder,
+                slot,
+                byte_offset,
+                size,
+                encoding,
+            );
         }
         if let Some((slot_val, fixed_len, elem_slots)) =
             self.storage_array_slot_of_base(builder, base)
@@ -188,10 +194,17 @@ impl<'gcx> Lowerer<'gcx> {
         index: Option<&hir::Expr<'_>>,
         rhs: ValueId,
     ) {
-        if let Some((slot, byte_offset, size)) =
+        if let Some((slot, byte_offset, size, encoding)) =
             self.packed_storage_array_element(builder, base, index)
         {
-            self.store_storage_location_at_dynamic_offset(builder, slot, byte_offset, size, rhs);
+            self.store_storage_location_at_dynamic_offset(
+                builder,
+                slot,
+                byte_offset,
+                size,
+                encoding,
+                rhs,
+            );
             return;
         }
         if let Some((slot_val, fixed_len, elem_slots)) =

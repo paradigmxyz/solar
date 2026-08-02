@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_abi_validation.sol:ConstructorAbiValidation ===
 @module ConstructorAbiValidation
-fn @flag() -> bool [abi_returns=[word]] {
+fn @flag() -> bool [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
     ret v1
 }
 
-fn @second() -> bool [abi_returns=[word]] {
+fn @second() -> bool [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0

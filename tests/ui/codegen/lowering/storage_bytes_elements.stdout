@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageBytesElements ===
 @module StorageBytesElements
-fn @b() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @b() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     ret v0
@@ -143,54 +143,56 @@ fn @init(arg0: memorybytes) {
     stop
 }
 
-fn @poke() {
+fn @poke() [abi_args=lazy] {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 1
-    v2 = eq v1, 1
-    v3 = and v0, 255
-    v4 = shr 1, v3
-    v5 = shr 1, v0
-    v6 = select v2, v5, v4
-    v7 = lt 5, v6
-    jumpi v7, bb2, bb1
+    v0 = shl 248, 170
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = and v1, 1
+    v3 = eq v2, 1
+    v4 = and v1, 255
+    v5 = shr 1, v4
+    v6 = shr 1, v1
+    v7 = select v3, v6, v5
+    v8 = lt 5, v7
+    jumpi v8, bb2, bb1
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    jumpi v2, bb4, bb3
+    v9 = shr 248, v0
+    jumpi v3, bb4, bb3
   bb3:
-    v8 = sub 31, 5
-    v9 = mul v8, 8
-    v10 = shl v9, 255
-    v11 = not v10
-    v12 = and v0, v11
-    v13 = shl v9, 170
-    v14 = or v12, v13
-    sstore 0, v14 !metadata(storage=slot(0))
+    v10 = sub 31, 5
+    v11 = mul v10, 8
+    v12 = shl v11, 255
+    v13 = not v12
+    v14 = and v1, v13
+    v15 = shl v11, v9
+    v16 = or v14, v15
+    sstore 0, v16 !metadata(storage=slot(0))
     jump bb5
   bb4:
     mstore 0, 0 !metadata(memory=scratch)
-    v15 = keccak256 0, 32 !metadata(memory=scratch)
-    v16 = div 5, 32
-    v17 = add v15, v16
-    v18 = mod 5, 32
-    v19 = sload v17 !metadata(storage=symbolic(v17))
-    v20 = sub 31, v18
-    v21 = mul v20, 8
-    v22 = shl v21, 255
-    v23 = not v22
-    v24 = and v19, v23
-    v25 = shl v21, 170
-    v26 = or v24, v25
-    sstore v17, v26 !metadata(storage=symbolic(v17))
+    v17 = keccak256 0, 32 !metadata(memory=scratch)
+    v18 = div 5, 32
+    v19 = add v17, v18
+    v20 = mod 5, 32
+    v21 = sload v19 !metadata(storage=symbolic(v19))
+    v22 = sub 31, v20
+    v23 = mul v22, 8
+    v24 = shl v23, 255
+    v25 = not v24
+    v26 = and v21, v25
+    v27 = shl v23, v9
+    v28 = or v26, v27
+    sstore v19, v28 !metadata(storage=symbolic(v19))
     jump bb5
   bb5:
     stop
 }
 
-fn @hashB() -> bytes32 [abi_returns=[word]] {
+fn @hashB() -> bytes32 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     v1 = keccak256_bytes v0
@@ -199,7 +201,7 @@ fn @hashB() -> bytes32 [abi_returns=[word]] {
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringConstructor ===
 @module StorageStringConstructor
-fn @name() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @name() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     ret v0
@@ -251,7 +253,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     jump bb4
 }
 
-fn @symbol() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @symbol() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 1
     ret v0
@@ -423,7 +425,7 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringBase ===
 @module StorageStringBase
-fn @name() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @name() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     ret v0
@@ -475,7 +477,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     jump bb4
 }
 
-fn @symbol() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @symbol() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 1
     ret v0
@@ -800,7 +802,7 @@ fn @_anonymous() {
     jump bb1
 }
 
-fn @name() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @name() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     ret v0
@@ -852,7 +854,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     jump bb4
 }
 
-fn @symbol() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @symbol() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 1
     ret v0
@@ -1013,7 +1015,7 @@ fn @constructor() {
     jump bb1
 }
 
-fn @name() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @name() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     ret v0
@@ -1065,7 +1067,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     jump bb4
 }
 
-fn @symbol() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @symbol() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 1
     ret v0

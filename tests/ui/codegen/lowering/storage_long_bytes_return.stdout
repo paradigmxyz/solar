@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_long_bytes_return.sol:StorageLongBytesReturn ===
 @module StorageLongBytesReturn
-fn @s() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @s() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     ret v0
@@ -52,7 +52,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     jump bb4
 }
 
-fn @b() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @b() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 1
     ret v0
@@ -73,13 +73,13 @@ fn @_anonymous() {
     stop
 }
 
-fn @getS() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @getS() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     ret v0
 }
 
-fn @getB() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @getB() -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 1
     ret v0

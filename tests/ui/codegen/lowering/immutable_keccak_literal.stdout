@@ -9,7 +9,7 @@ fn @constructor() {
     stop
 }
 
-fn @get() -> bytes32 [abi_returns=[word]] {
+fn @get() -> bytes32 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = loadimmutable value
     ret v0

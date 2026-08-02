@@ -870,6 +870,38 @@ impl<'gcx> Lowerer<'gcx> {
         result
     }
 
+    /// Returns whether an external function can keep its ABI boundary out of
+    /// built MIR. Scalar words and storage references already have a direct
+    /// MIR representation; aggregates still use the legacy decode path until
+    /// the ABI pass grows typed aggregate decoding.
+    fn can_defer_external_abi(&self, func_id: hir::FunctionId) -> bool {
+        self.gcx
+            .hir
+            .function(func_id)
+            .parameters
+            .iter()
+            .all(|&param_id| self.can_defer_external_abi_ty(self.gcx.type_of_item(param_id.into())))
+    }
+
+    fn can_defer_external_abi_ty(&self, ty: Ty<'gcx>) -> bool {
+        match ty.kind {
+            TyKind::Mapping(..) | TyKind::Ref(_, solar_ast::DataLocation::Storage) => true,
+            TyKind::Udvt(inner, _) => self.can_defer_external_abi_ty(inner),
+            TyKind::Elementary(
+                ElementaryType::Bool
+                | ElementaryType::Address(_)
+                | ElementaryType::Int(_)
+                | ElementaryType::UInt(_)
+                | ElementaryType::FixedBytes(_),
+            )
+            | TyKind::Contract(_) => true,
+            // MIR currently lowers every enum to uint8, but that loses the
+            // variant count needed for canonical ABI validation.
+            TyKind::Enum(_) => false,
+            _ => false,
+        }
+    }
+
     /// Lowers a function to MIR.
     pub(super) fn ensure_function_lowered(&mut self, func_id: hir::FunctionId) -> FunctionId {
         if let Some(&mir_id) = self.hir_to_mir_functions.get(&func_id) {
@@ -1066,7 +1098,9 @@ impl<'gcx> Lowerer<'gcx> {
             || mir_func.attributes.is_receive
             || mir_func.attributes.is_fallback;
         let uses_external_abi = mir_func.is_public() && !is_special && !force_internal;
-        let decodes_abi_params = uses_external_abi || mir_func.attributes.is_constructor;
+        let defer_external_abi = uses_external_abi && self.can_defer_external_abi(func_id);
+        let decodes_abi_params =
+            (uses_external_abi && !defer_external_abi) || mir_func.attributes.is_constructor;
         if uses_external_abi {
             mir_func.selector = Some(self.function_selector(func_id));
         }
@@ -1101,6 +1135,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.in_unchecked_block = false;
         self.current_return_tys = current_return_tys;
         mir_func.abi_returns = return_layout;
+        mir_func.abi_args_lazy = defer_external_abi;
 
         // Pre-analyze function body to find variables that are assigned after declaration.
         // Variables that are only initialized (never reassigned) can stay as SSA values.
@@ -1111,7 +1146,7 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let mut builder = FunctionBuilder::new(&mut mir_func);
 
-            if uses_external_abi {
+            if uses_external_abi && !defer_external_abi {
                 Self::emit_external_calldata_head_size_check(&mut builder, external_arg_head_size);
             }
 

@@ -49,11 +49,8 @@ bb47 [cold]:
   revert
 bb7:
   calldatasize
-  push 4
-  swap1
-  sub
-  push 64
-  sgt
+  push 68
+  gt
   push bb6
   jumpi
   push 36
@@ -66,9 +63,10 @@ bb7:
   jumpi
   push 36
   calldataload
+  iszero
   push bb11
   jumpi
-  push 11
+  push 7
   jump bb48
 bb48:
   dup1
@@ -78,8 +76,8 @@ bb48:
   push 128
   mstore
   push 0
-  jump bb14
-bb14:
+  jump bb13
+bb13:
   dup1
   push 256
   mstore
@@ -87,7 +85,7 @@ bb14:
   calldataload
   dup2
   lt
-  push bb16
+  push bb15
   jumpi
   push 128
   mload
@@ -104,9 +102,9 @@ bb49:
   push 128
   return
 bb11:
-  push 7
+  push 11
   jump bb48
-bb16:
+bb15:
   dup1
   push 256
   mstore
@@ -163,22 +161,19 @@ bb16:
   mload
   add
   swap1
-  jump bb14
+  jump bb13
 bb21:
   calldatasize
-  push 4
-  swap1
-  sub
-  push 64
-  sgt
+  push 68
+  gt
   push bb6
   jumpi
   push 0
   push 128
   mstore
   push 0
-  jump bb24
-bb24:
+  jump bb23
+bb23:
   dup1
   push 224
   mstore
@@ -187,7 +182,7 @@ bb24:
   dup2
   lt
   iszero
-  push bb27
+  push bb26
   jumpi
   push 1
   add
@@ -213,12 +208,12 @@ bb24:
   mstore
   push 224
   mload
-  jump bb24
-bb27:
+  jump bb23
+bb26:
   pop
   push 0
-  jump bb29
-bb29:
+  jump bb28
+bb28:
   dup1
   push 288
   mstore
@@ -226,13 +221,13 @@ bb29:
   calldataload
   dup2
   lt
-  push bb31
+  push bb30
   jumpi
   push 128
   mload
   swap1
   jump bb50
-bb31:
+bb30:
   dup1
   push 288
   mstore
@@ -285,14 +280,11 @@ bb31:
   push 288
   mload
   add
-  jump bb29
+  jump bb28
 bb35:
   calldatasize
-  push 4
-  swap1
-  sub
-  push 64
-  sgt
+  push 68
+  gt
   push bb6
   jumpi
   push 0
@@ -301,19 +293,19 @@ bb35:
   push 0
   push 224
   mstore
-  jump bb38
-bb38:
+  jump bb37
+bb37:
   push 4
   calldataload
   push 224
   mload
   lt
-  push bb40
+  push bb39
   jumpi
   push 128
   mload
   jump bb49
-bb40:
+bb39:
   push 1
   push 224
   mload
@@ -322,10 +314,8 @@ bb40:
   mload
   push 0
   dup2
-  swap3
-  swap2
-  jump bb41
-bb41:
+  jump bb40
+bb40:
   dup2
   push 352
   mstore
@@ -349,25 +339,25 @@ bb41:
   pop
   pop
   iszero
-  push bb38
+  push bb37
   jumpi
   push 224
   mload
-  push 320
+  push 288
   mload
   lt
   push bb47
   jumpi
-  push 320
-  mload
   push 288
+  mload
+  push 320
   mload
   lt
   push bb47
   jumpi
   push 128
   mload
-  push 288
+  push 320
   mload
   dup2
   add
@@ -398,4 +388,4 @@ bb41:
   swap1
   swap3
   swap1
-  jump bb41
+  jump bb40

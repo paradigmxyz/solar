@@ -1,24 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/mir_alloc_ops.sol:MirAllocOps ===
 @module MirAllocOps
-fn @fixedArray(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @fixedArray(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v4 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 0
-    mstore v4, 0
-    v5 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 1
-    mstore v5, 0
-    v6 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 0
-    mstore v6, arg0
-    v7 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 0
-    v8 = mload v7
-    ret v8
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v1 = memory_object_element_addr memoryfixedarray<2, 1>, v0, 0
+    mstore v1, 0
+    v2 = memory_object_element_addr memoryfixedarray<2, 1>, v0, 1
+    mstore v2, 0
+    v3 = memory_object_element_addr memoryfixedarray<2, 1>, v0, 0
+    mstore v3, arg0
+    v4 = memory_object_element_addr memoryfixedarray<2, 1>, v0, 0
+    v5 = mload v4
+    ret v5
 }
 
 fn @dynamic(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] {
@@ -62,12 +55,12 @@ fn @dynamic(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] {
     ret v12
 }
 
-fn @frameShadow() -> (u256, u256, u256, u256) [abi_returns=[word, word, word, word]] {
+fn @frameShadow() -> (u256, u256, u256, u256) [abi_args=lazy, abi_returns=[word, word, word, word]] {
   bb0:
     ret 1, 2, 3, 4
 }
 
-fn @rawAssembly() -> u256 [abi_returns=[word]] {
+fn @rawAssembly() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     mstore 128, 0
     v0 = mload 64 !metadata(memory=scratch)

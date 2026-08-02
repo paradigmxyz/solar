@@ -11,7 +11,7 @@ fn @onlyStored() -> u256 {
     ret 7
 }
 
-fn @callStoredOnly() -> u256 [abi_returns=[word]] {
+fn @callStoredOnly() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = internal_call @__internal_dispatch_0, 1, v0

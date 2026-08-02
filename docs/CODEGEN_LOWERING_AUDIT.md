@@ -1,7 +1,23 @@
 # Codegen lowering audit
 
-This audit records the starting point for the lowering rewrite. It describes
-observable structure in the current tree, not an intended design.
+This audit records the lowering rewrite and the remaining boundaries. It
+describes observable structure in the current tree, not an intended design.
+
+## Completed slices
+
+* Scalar external arguments stay typed in built MIR. The `lower-abi` pass adds
+  the calldata-size and canonical-word checks, then clears the temporary
+  `abi_args=lazy` marker while it forms the wrapper. Raw words are loaded for
+  validation so MIR simplification cannot assume the check already passed.
+* Packed storage locations carry their semantic encoding. Signed values are
+  sign-extended on load, fixed bytes are aligned at the MIR boundary, and both
+  forms share the same read-modify-write path for state variables, fields, and
+  fixed arrays.
+* Nested calldata arrays use semantic memory-object length and data operations;
+  the memory-layout pass selects their physical header offsets.
+* Modifier placeholders expand the modifier chain in source order. Return
+  values pass through the suffix, and constructor base calls stay in the
+  constructor prelude.
 
 ## Current shape
 
@@ -16,14 +32,13 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
 
 ## Concrete shortcomings
 
-* **The ABI boundary is in the wrong layer.** `Lowerer::lower_function` computes
+* **The ABI boundary is still split for aggregates.** `Lowerer::lower_function` computes
   ABI head and return sizes, emits the short-calldata guard, creates one MIR
   argument for each ABI head word, validates those words, and materializes
-  memory arguments (`lower/mod.rs`, around `lower_function`). It also decodes
-  dynamic structs, arrays, and bytes before the body is lowered. The
-  `lower-abi` pass then wraps functions that already contain this decoding,
-  which makes the phase a second representation of the same boundary instead
-  of the place where ABI work happens.
+  memory arguments (`lower/mod.rs`, around `lower_function`). Scalar word
+  arguments now defer that work to `lower-abi`, but dynamic structs, arrays,
+  bytes, and enums still use the old decode path. The pass therefore remains a
+  second representation of the aggregate boundary until those types move.
 * **Raw memory is used as a language-level value model.** Mutable locals are
   assigned fixed offsets beginning at `EvmMemoryLayout::HEAP_START`, and many
   lowering paths manually pair pointer and length words. `abi_encode.rs` and
@@ -44,11 +59,11 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
   bounds checks instead of sharing a type-directed aggregate abstraction.
 * **Storage semantics are still split between incompatible paths.** Static
   state variables, direct struct fields, and fixed arrays now share
-  `StorageLocation` for packed reads and read-modify-write stores. Runtime
-  storage references, nested aggregate copies, and dynamic-array and bytes
-  copies still mix that layout with independent slot arithmetic and direct
-  `keccak256` staging writes. The replacement should make one type-directed
-  location query the only source of storage addresses.
+  `StorageLocation` and its encoding for packed reads and read-modify-write
+  stores. Runtime storage references, nested aggregate copies, and
+  dynamic-array and bytes copies still mix that layout with independent slot
+  arithmetic and direct `keccak256` staging writes. The replacement should
+  make one type-directed location query the only source of storage addresses.
 * **Context state is difficult to reason about.** One `Lowerer` carries
   function-local maps, contract-wide storage maps, inline-return state,
   constructor state, ABI state, helper state, and error-checking state. Calls

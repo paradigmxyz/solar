@@ -33,13 +33,72 @@
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        BlockId, Function, FunctionBuilder, FunctionId, InstKind, MangledSymbol, MirPhase, Module,
-        Terminator,
+        BlockId, Function, FunctionBuilder, FunctionId, InstKind, MangledSymbol, MirPhase, MirType,
+        Module, Terminator, ValueId,
     },
     pass::MirPass,
 };
+use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::{Span, Symbol};
+
+#[derive(Clone, Copy)]
+enum AbiWordValidator {
+    Mask(U256),
+    SignExtend(u64),
+    Bool,
+}
+
+impl AbiWordValidator {
+    fn from_mir_type(ty: MirType) -> Option<Self> {
+        Some(match ty {
+            MirType::UInt(size) => {
+                let bits = size.bits();
+                if bits >= 256 {
+                    return None;
+                }
+                Self::Mask(U256::MAX >> (256 - usize::from(bits)))
+            }
+            MirType::Int(size) => {
+                let bits = size.bits();
+                if bits >= 256 {
+                    return None;
+                }
+                Self::SignExtend(u64::from(bits / 8) - 1)
+            }
+            MirType::Address => Self::Mask(U256::MAX >> 96),
+            MirType::FixedBytes(size) => {
+                let bytes = size.bytes();
+                if bytes >= 32 {
+                    return None;
+                }
+                Self::Mask(U256::MAX << (256 - 8 * usize::from(bytes)))
+            }
+            MirType::Bool => Self::Bool,
+            _ => return None,
+        })
+    }
+
+    fn condition(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
+        match self {
+            Self::Mask(mask) => {
+                let mask = builder.imm_u256(mask);
+                let canonical = builder.and(word, mask);
+                builder.eq(word, canonical)
+            }
+            Self::SignExtend(byte_index) => {
+                let byte_index = builder.imm_u64(byte_index);
+                let canonical = builder.signextend(byte_index, word);
+                builder.eq(word, canonical)
+            }
+            Self::Bool => {
+                let zero = builder.iszero(word);
+                let canonical = builder.iszero(zero);
+                builder.eq(word, canonical)
+            }
+        }
+    }
+}
 
 /// ABI phase lowering pass.
 pub(crate) struct LowerAbi;
@@ -203,6 +262,7 @@ impl LowerAbiCx {
         wrapper_id: FunctionId,
         needs_body: bool,
     ) -> Option<FunctionId> {
+        let lazy_args = module.function(wrapper_id).abi_args_lazy;
         // The copy must precede wrapper mutation and callvalue injection so
         // internal callers keep the original function semantics.
         let body_id = needs_body.then(|| {
@@ -211,10 +271,14 @@ impl LowerAbiCx {
             body.name_span = Span::DUMMY;
             body.selector = None;
             body.abi_returns = None;
+            body.abi_args_lazy = false;
             body.attributes.visibility = solar_sema::hir::Visibility::Internal;
             module.add_function(body)
         });
 
+        if lazy_args {
+            Self::inject_lazy_argument_checks(module.function_mut(wrapper_id));
+        }
         self.stats.encoded_returns += encode_live_returns(module.function_mut(wrapper_id));
 
         // The wrapper takes no MIR arguments; its `Arg` values now read the
@@ -223,7 +287,57 @@ impl LowerAbiCx {
         wrapper.params.clear();
         wrapper.returns.clear();
         wrapper.abi_returns = None;
+        wrapper.abi_args_lazy = false;
         body_id
+    }
+
+    /// Materializes the ABI boundary for scalar arguments that stayed as
+    /// typed MIR arguments in the built phase.
+    fn inject_lazy_argument_checks(func: &mut Function) {
+        let arg_types: Vec<_> = func.params.iter().copied().collect();
+        if arg_types.is_empty() {
+            return;
+        }
+
+        let old_entry = BlockId::ENTRY;
+        let mut builder = FunctionBuilder::new(func);
+        let guard = builder.create_block();
+        let revert = builder.create_block();
+        let mut current = guard;
+
+        builder.switch_to_block(current);
+        let calldata_size = builder.calldatasize();
+        let required = builder.imm_u64(4 + (arg_types.len() as u64) * 32);
+        let short = builder.lt(calldata_size, required);
+        let next = builder.create_block();
+        builder.branch(short, revert, next);
+        current = next;
+
+        for (index, ty) in arg_types.into_iter().enumerate() {
+            let Some(validator) = AbiWordValidator::from_mir_type(ty) else { continue };
+            builder.switch_to_block(current);
+            // `Value::Arg` values carry the canonicality invariant that this
+            // guard establishes. Read the raw calldata word here so an
+            // optimizer cannot fold the check away before it runs.
+            let offset = builder.imm_u64(4 + (index as u64) * 32);
+            let word = builder.calldataload(offset);
+            let valid = validator.condition(&mut builder, word);
+            let next = builder.create_block();
+            builder.branch(valid, next, revert);
+            current = next;
+        }
+
+        builder.switch_to_block(current);
+        builder.jump(old_entry);
+
+        builder.switch_to_block(revert);
+        let zero = builder.imm_u64(0);
+        builder.revert(zero, zero);
+
+        let order = std::iter::once(guard)
+            .chain(func.blocks.indices().filter(|&block| block != guard))
+            .collect::<Vec<_>>();
+        crate::mir::utils::remap_block_order(func, &order);
     }
 
     /// Prepends `if callvalue() != 0 { revert(0, 0) }` to a wrapper.

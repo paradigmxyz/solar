@@ -1,5 +1,7 @@
-//@compile-flags: -Zcodegen -O none -Zdump=mir
-//@filecheck:
+//@revisions: built abi
+//@[built] compile-flags: -Zcodegen -O none -Zdump=mir
+//@[abi] compile-flags: -Zcodegen -O none -Zmir-pipeline=lower-abi -Zdump=mir
+//@[abi] filecheck:
 
 // Pins the calldata lower-bound check and validators emitted for value-type
 // external parameters.
@@ -81,7 +83,7 @@ contract CalldataValidation {
 
     // Full-word value types are canonical by construction: no validator.
     // CHECK-LABEL: fn @vFull{{[( ]}}
-    // CHECK: {{v[0-9]+}} = slt {{v[0-9]+}}, 96
+    // CHECK: {{v[0-9]+}} = lt {{v[0-9]+}}, 100
     // CHECK-NOT: calldataload
     // CHECK: add arg0, arg1
     function vFull(uint256 a, bytes32 b, int256 c) external pure returns (uint256) {

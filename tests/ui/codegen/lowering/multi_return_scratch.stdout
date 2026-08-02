@@ -1,17 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_scratch.sol:MultiReturnScratch ===
 @module MultiReturnScratch
-fn @stored(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @stored(arg0: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = mapping_slot arg0, 0
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    ret v4
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    ret v1
 }
 
 fn @triple(arg0: u256) -> (u256, u256, u256) {
@@ -40,37 +33,30 @@ fn @triple(arg0: u256) -> (u256, u256, u256) {
     ret arg0, v1, v3
 }
 
-fn @assign(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [abi_returns=[word, word, word, word]] {
+fn @assign(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [abi_args=lazy, abi_returns=[word, word, word, word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
     mstore 128, 0
     mstore 160, 0
     mstore 192, 0
     mstore 224, 0
-    v3 = mload 64 !metadata(memory=scratch)
-    mstore 192, v3
-    v4 = internal_call @triple, 3, arg1
-    v5 = mload 32 !metadata(memory=scratch)
-    v6 = add v5, 32
-    v7 = mload v6
-    v8 = add v5, 64
-    v9 = mload v8
-    v10 = mapping_slot arg0, 0
-    sstore v10, v4 !metadata(storage=symbolic(v10))
-    mstore 128, v7
-    mstore 160, v9
-    v11 = mload 64 !metadata(memory=scratch)
-    mstore 224, v11
-    v12 = mload 128
-    v13 = mload 160
-    v14 = mload 192
-    v15 = mload 224
-    ret v12, v13, v14, v15
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore 192, v0
+    v1 = internal_call @triple, 3, arg1
+    v2 = mload 32 !metadata(memory=scratch)
+    v3 = add v2, 32
+    v4 = mload v3
+    v5 = add v2, 64
+    v6 = mload v5
+    v7 = mapping_slot arg0, 0
+    sstore v7, v1 !metadata(storage=symbolic(v7))
+    mstore 128, v4
+    mstore 160, v6
+    v8 = mload 64 !metadata(memory=scratch)
+    mstore 224, v8
+    v9 = mload 128
+    v10 = mload 160
+    v11 = mload 192
+    v12 = mload 224
+    ret v9, v10, v11, v12
 }
 

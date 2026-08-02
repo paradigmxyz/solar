@@ -31,11 +31,8 @@ bb0:
   push bb4
   jumpi
   calldatasize
-  push 4
-  swap1
-  sub
-  push 64
-  sgt
+  push 68
+  gt
   push bb4
   jumpi
   push 36
@@ -50,7 +47,7 @@ bb0:
   calldataload
   dup2
   lt
-  push bb9
+  push bb8
   jumpi
   dup1
   push 160
@@ -64,7 +61,7 @@ bb4 [cold]:
   push 0
   dup1
   revert
-bb9 [cold]:
+bb8 [cold]:
   push 0x4e487b71
   push 224
   shl

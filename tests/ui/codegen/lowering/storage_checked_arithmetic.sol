@@ -49,7 +49,8 @@ contract StorageCheckedArithmetic {
     // CHECK: [[BASE:v[0-9]+]] = mapping_slot arg0, 1
     // CHECK: [[WORD:v[0-9]+]] = sload [[BASE]]
     // CHECK: [[SHIFTED:v[0-9]+]] = shr 128, [[WORD]]
-    // CHECK: [[OLD:v[0-9]+]] = and [[SHIFTED]], 255
+    // CHECK: [[RAW:v[0-9]+]] = and [[SHIFTED]], 255
+    // CHECK: [[OLD:v[0-9]+]] = signextend 0, [[RAW]]
     // CHECK: [[NEW:v[0-9]+]] = sub [[OLD]], arg1
     // CHECK: slt [[NEW]], 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
     // CHECK: sgt [[NEW]], 127

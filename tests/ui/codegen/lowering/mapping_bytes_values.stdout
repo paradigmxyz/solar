@@ -185,18 +185,11 @@ fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) {
     stop
 }
 
-fn @get(arg0: u256) -> memorybytes [abi_returns=[memory_bytes]] {
+fn @get(arg0: u256) -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = mapping_slot arg0, 0
-    v4 = internal_call @__load_storage_bytes, 1, v3
-    ret v4
+    v0 = mapping_slot arg0, 0
+    v1 = internal_call @__load_storage_bytes, 1, v0
+    ret v1
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memorybytes {
@@ -245,18 +238,11 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     jump bb4
 }
 
-fn @getNested(arg0: u256, arg1: u256) -> memorybytes [abi_returns=[memory_bytes]] {
+fn @getNested(arg0: u256, arg1: u256) -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = mapping_slot arg0, 1
-    v4 = mapping_slot arg1, v3
-    v5 = internal_call @__load_storage_bytes, 1, v4
-    ret v5
+    v0 = mapping_slot arg0, 1
+    v1 = mapping_slot arg1, v0
+    v2 = internal_call @__load_storage_bytes, 1, v1
+    ret v2
 }
 

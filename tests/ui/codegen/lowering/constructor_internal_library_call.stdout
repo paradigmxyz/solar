@@ -3,7 +3,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_library_call.sol:ConstructorInternalLibraryCall ===
 @module ConstructorInternalLibraryCall
-fn @value() -> u256 [abi_returns=[word]] {
+fn @value() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0

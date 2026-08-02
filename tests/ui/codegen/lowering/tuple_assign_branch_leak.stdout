@@ -39,11 +39,8 @@ bb23 [cold]:
   revert
 bb5:
   calldatasize
-  push 4
-  swap1
-  sub
-  push 64
-  sgt
+  push 68
+  gt
   push bb4
   jumpi
   push 4
@@ -67,22 +64,12 @@ bb5:
   mstore
   push 4
   calldataload
+  iszero
+  push bb12
+  jumpi
   push bb9
-  jumpi
-  push 192
-  mload
-  push 7
-  dup2
-  add
-  dup1
-  push 288
-  mstore
-  lt
-  push bb23
-  jumpi
-  push bb15
-  push 288
-  mload
+  push 36
+  calldataload
   jump bb19
 bb19:
   push 480
@@ -121,11 +108,6 @@ bb19:
   mstore
   jump
 bb9:
-  push bb10
-  push 36
-  calldataload
-  jump bb19
-bb10:
   push bb26
   jump bb25
 bb25:
@@ -150,7 +132,23 @@ bb25:
   mstore
   swap1
   jump
-bb15:
+bb12:
+  push 192
+  mload
+  push 7
+  dup2
+  add
+  dup1
+  push 288
+  mstore
+  lt
+  push bb23
+  jumpi
+  push bb14
+  push 288
+  mload
+  jump bb19
+bb14:
   push bb27
   jump bb25
 bb26:

@@ -9,7 +9,7 @@ fn @constructor() {
     stop
 }
 
-fn @baseValue() -> u256 [abi_returns=[word]] {
+fn @baseValue() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = loadimmutable value
     ret v0
@@ -30,19 +30,19 @@ fn @constructor() {
     stop
 }
 
-fn @derivedValue() -> u256 [abi_returns=[word]] {
+fn @derivedValue() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = loadimmutable value1
     ret v0
 }
 
-fn @numberedValue() -> u256 [abi_returns=[word]] {
+fn @numberedValue() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = loadimmutable value0
     ret v0
 }
 
-fn @baseValue() -> u256 [abi_returns=[word]] {
+fn @baseValue() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = loadimmutable value0_
     ret v0

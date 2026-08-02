@@ -33,21 +33,14 @@ bb4 [cold]:
   revert
 bb5:
   calldatasize
-  push 4
+  push 36
   swap1
-  sub
-  push 32
-  swap1
-  slt
+  lt
   iszero
-  push bb7
+  push bb8
   jumpi
-  jump bb6
-bb6 [cold]:
-  push 0
-  dup1
-  revert
-bb7:
+  jump bb7
+bb6:
   push 4
   calldataload
   push 0x123456789abcde
@@ -58,3 +51,9 @@ bb7:
   push 32
   push 128
   return
+bb7 [cold]:
+  push 0
+  dup1
+  revert
+bb8:
+  jump bb6

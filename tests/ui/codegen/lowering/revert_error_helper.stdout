@@ -245,11 +245,8 @@ bb8 [cold]:
   revert
 bb9:
   calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  sgt
+  push 36
+  gt
   push bb8
   jumpi
   push 5
@@ -257,7 +254,7 @@ bb9:
   calldataload
   gt
   iszero
-  push bb13
+  push bb12
   jump bb35
 bb35:
   jumpi
@@ -268,7 +265,7 @@ bb35:
   push 32
   push 128
   return
-bb13 [cold]:
+bb12 [cold]:
   push 2
   push 256
   mstore
@@ -300,11 +297,8 @@ bb36 [cold]:
   revert
 bb14:
   calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  sgt
+  push 36
+  gt
   push bb8
   jumpi
   push 5
@@ -312,9 +306,9 @@ bb14:
   calldataload
   gt
   iszero
-  push bb18
+  push bb17
   jump bb35
-bb18 [cold]:
+bb17 [cold]:
   push 11
   push 256
   mstore
@@ -323,11 +317,8 @@ bb18 [cold]:
   jump bb36
 bb19:
   calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  sgt
+  push 36
+  gt
   push bb8
   jumpi
   push 5
@@ -335,9 +326,9 @@ bb19:
   calldataload
   gt
   iszero
-  push bb23
+  push bb22
   jump bb35
-bb23 [cold]:
+bb22 [cold]:
   push 15
   push 256
   mstore
@@ -346,11 +337,8 @@ bb23 [cold]:
   jump bb36
 bb24:
   calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  sgt
+  push 36
+  gt
   push bb8
   jumpi
   push 5
@@ -358,15 +346,12 @@ bb24:
   calldataload
   gt
   iszero
-  push bb28
+  push bb27
   jump bb35
 bb29:
   calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  sgt
+  push 36
+  gt
   push bb8
   jumpi
   push 5
@@ -374,16 +359,16 @@ bb29:
   calldataload
   gt
   iszero
-  push bb33
+  push bb32
   jump bb35
-bb33 [cold]:
+bb32 [cold]:
   push 11
   push 256
   mstore
   push 0x7265766572742d70617468
   push 168
   jump bb36
-bb28 [cold]:
+bb27 [cold]:
   push 64
   mload
   dup1

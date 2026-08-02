@@ -16,7 +16,7 @@ fn @_empty() -> memorybytes {
     ret v7
 }
 
-fn @emptyLen() -> u256 [abi_returns=[word]] {
+fn @emptyLen() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     mstore 128, 0
     mstore 160, 0

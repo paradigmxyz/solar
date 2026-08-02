@@ -7,6 +7,8 @@
 //@ run-call: arrayRead 3 => 4
 //@ run-call: arrayWrite 2, 9 => 9
 //@ run-call: mixedRead => 0x0000000000000000000000000000000000001234, true, 4660
+//@ run-call: encodedRead => 0x11223344, -7
+//@ run-call: encodedWrite 0xaabbccdd, -9 => 0xaabbccdd, -9
 
 contract PackedStruct {
     struct S {
@@ -26,6 +28,13 @@ contract PackedStruct {
 
     Mixed private mixed;
 
+    struct Encoded {
+        bytes4 tag;
+        int8 signed;
+    }
+
+    Encoded private encoded;
+
     constructor() {
         value.a = 1;
         value.b = 2;
@@ -37,6 +46,8 @@ contract PackedStruct {
         mixed.owner = address(0x1234);
         mixed.enabled = true;
         mixed.count = 0x1234;
+        encoded.tag = 0x11223344;
+        encoded.signed = -7;
     }
 
     function read() external view returns (uint8, uint8, uint256) {
@@ -84,6 +95,16 @@ contract PackedStruct {
 
     function mixedRead() external view returns (address, bool, uint16) {
         return (mixed.owner, mixed.enabled, mixed.count);
+    }
+
+    function encodedRead() external view returns (bytes4, int8) {
+        return (encoded.tag, encoded.signed);
+    }
+
+    function encodedWrite(bytes4 tag, int8 signed) external returns (bytes4, int8) {
+        encoded.tag = tag;
+        encoded.signed = signed;
+        return (encoded.tag, encoded.signed);
     }
 
     function replaceArray() external returns (uint8, uint8, uint8, uint8) {

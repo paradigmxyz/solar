@@ -44,11 +44,8 @@ bb20 [cold]:
   revert
 bb6:
   calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  sgt
+  push 36
+  gt
   push bb5
   jumpi
   push 4
@@ -86,11 +83,8 @@ bb8:
   jump bb17
 bb11:
   calldatasize
-  push 4
-  swap1
-  sub
-  push 64
-  sgt
+  push 68
+  gt
   push bb5
   jumpi
   push 36

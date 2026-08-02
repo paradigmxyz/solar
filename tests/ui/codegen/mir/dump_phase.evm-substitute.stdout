@@ -33,11 +33,8 @@ bb4 [cold]:
   revert
 bb5:
   calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  sgt
+  push 36
+  gt
   push bb7
   jumpi
   jump bb6

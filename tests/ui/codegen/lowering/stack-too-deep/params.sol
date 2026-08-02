@@ -9,8 +9,8 @@ contract StackTooDeepParams {
     // CHECK: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]
     // CHECK: [[BODY]]:
-    // CHECK: push 640
-    // CHECK-NEXT: sgt
+    // CHECK: push 644
+    // CHECK-NEXT: gt
     // CHECK: push 36
     // CHECK-NEXT: calldataload
     // CHECK: push 612

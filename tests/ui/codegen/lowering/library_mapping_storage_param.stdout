@@ -22,11 +22,8 @@ bb0:
   push bb4
   jumpi
   calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  sgt
+  push 36
+  gt
   push bb4
   jumpi
   push 4

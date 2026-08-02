@@ -33,43 +33,36 @@ bb2:
 bb3:
   jump bb6
 bb4:
-  jump bb11
+  jump bb12
 bb5 [cold]:
   push 0
   dup1
   revert
 bb6:
   calldatasize
-  push 4
+  push 36
   swap1
-  sub
-  push 32
-  swap1
-  slt
+  lt
   iszero
-  push bb8
+  push bb11
   jumpi
-  jump bb7
-bb7 [cold]:
-  push 0
-  dup1
-  revert
-bb8:
+  jump bb10
+bb7:
   push 0
   push 4
   calldataload
   eq
   iszero
-  push bb10
+  push bb9
   jumpi
-  jump bb9
-bb9:
+  jump bb8
+bb8:
   push 4
   calldataload
   push 256
   mstore
-  jump bb16
-bb10:
+  jump bb18
+bb9:
   push 4
   calldataload
   push 128
@@ -77,22 +70,21 @@ bb10:
   push 32
   push 128
   return
-bb11:
-  calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  swap1
-  slt
-  iszero
-  push bb13
-  jumpi
-  jump bb12
-bb12 [cold]:
+bb10 [cold]:
   push 0
   dup1
   revert
+bb11:
+  jump bb7
+bb12:
+  calldatasize
+  push 36
+  swap1
+  lt
+  iszero
+  push bb17
+  jumpi
+  jump bb16
 bb13:
   push 100
   push 4
@@ -107,7 +99,7 @@ bb14:
   calldataload
   push 256
   mstore
-  jump bb16
+  jump bb18
 bb15:
   push 4
   calldataload
@@ -116,25 +108,14 @@ bb15:
   push 32
   push 128
   return
-bb16:
+bb16 [cold]:
   push 0
-  push 256
-  mload
-  eq
-  iszero
-  push bb18
-  jumpi
-  jump bb17
+  dup1
+  revert
 bb17:
-  push 4
-  push 352
-  mstore
-  push 0x7a65726f00000000000000000000000000000000000000000000000000000000
-  push 384
-  mstore
-  jump bb23
+  jump bb13
 bb18:
-  push 1
+  push 0
   push 256
   mload
   eq
@@ -143,15 +124,15 @@ bb18:
   jumpi
   jump bb19
 bb19:
-  push 3
+  push 4
   push 352
   mstore
-  push 0x6f6e650000000000000000000000000000000000000000000000000000000000
+  push 0x7a65726f00000000000000000000000000000000000000000000000000000000
   push 384
   mstore
-  jump bb23
+  jump bb25
 bb20:
-  push 2
+  push 1
   push 256
   mload
   eq
@@ -163,19 +144,36 @@ bb21:
   push 3
   push 352
   mstore
+  push 0x6f6e650000000000000000000000000000000000000000000000000000000000
+  push 384
+  mstore
+  jump bb25
+bb22:
+  push 2
+  push 256
+  mload
+  eq
+  iszero
+  push bb24
+  jumpi
+  jump bb23
+bb23:
+  push 3
+  push 352
+  mstore
   push 0x74776f0000000000000000000000000000000000000000000000000000000000
   push 384
   mstore
-  jump bb23
-bb22:
+  jump bb25
+bb24:
   push 5
   push 352
   mstore
   push 0x6f74686572000000000000000000000000000000000000000000000000000000
   push 384
   mstore
-  jump bb23
-bb23:
+  jump bb25
+bb25:
   push 0x8c379a000000000000000000000000000000000000000000000000000000000
   push 0
   mstore

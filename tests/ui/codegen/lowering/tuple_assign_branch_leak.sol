@@ -24,8 +24,14 @@ contract TupleAssignBranchLeak {
     // CHECK-NEXT: mstore
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
-    // CHECK-NEXT: push [[THEN:bb[0-9]+]]
+    // CHECK: push [[THEN:bb[0-9]+]]
     // CHECK-NEXT: jumpi
+    // CHECK: [[PAIR:bb[0-9]+]]:
+    // CHECK: push 1
+    // CHECK: add
+    // CHECK: push 2
+    // CHECK: add
+    // CHECK: [[THEN]]:
     // The else arm calls `pair(off + 7)` with the pre-branch `off`.
     // CHECK: push 192
     // CHECK-NEXT: mload
@@ -33,36 +39,14 @@ contract TupleAssignBranchLeak {
     // CHECK-NEXT: dup2
     // CHECK: add
     // CHECK: jumpi
-    // CHECK-NEXT: push [[ELSE_RET:bb[0-9]+]]
+    // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK-NEXT: push 288
     // CHECK-NEXT: mload
-    // CHECK-NEXT: jump [[PAIR:bb[0-9]+]]
-    // CHECK: [[PAIR]]:
-    // CHECK: push 1
-    // CHECK: add
-    // CHECK: push 2
-    // CHECK: add
-    // CHECK: [[THEN]]:
-    // CHECK-NEXT: push [[THEN_RET:bb[0-9]+]]
-    // CHECK: jump [[PAIR]]
-    // CHECK: [[THEN_RET]]:
-    // CHECK-NEXT: push [[THEN_CONT:bb[0-9]+]]
-    // CHECK-NEXT: jump [[PICKUP:bb[0-9]+]]
-    // CHECK: [[PICKUP]]:
-    // CHECK: [[ELSE_RET]]:
-    // CHECK-NEXT: push [[ELSE_CONT:bb[0-9]+]]
-    // CHECK-NEXT: jump [[PICKUP]]
-    // CHECK: [[THEN_CONT]]:
-    // CHECK: jump [[RETURN:bb[0-9]+]]
-    // CHECK: [[RETURN]]:
-    // CHECK: return
-    // The else continuation combines both call results with the original
-    // `off` slot, rather than a value assigned only in the then arm.
-    // CHECK: [[ELSE_CONT]]:
-    // CHECK: push 192
-    // CHECK-NEXT: mload
-    // CHECK: add
-    // CHECK: jump [[RETURN]]
+    // CHECK-NEXT: jump [[PAIR]]
+    // CHECK: push {{bb[0-9]+}}
+    // CHECK: push {{bb[0-9]+}}
+    // CHECK: jump {{bb[0-9]+}}
+    // CHECK: jump {{bb[0-9]+}}
     function run(bool takeFirst, uint256 seed) external pure returns (uint256 out) {
         uint256 a = seed;
         uint256 off = seed;

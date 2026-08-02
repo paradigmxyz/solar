@@ -32,6 +32,12 @@ pub(crate) struct Function {
     /// ABI layout of values returned by an external entry before `lower-abi`
     /// materializes returndata encoding.
     pub(crate) abi_returns: Option<AbiLayoutRef>,
+    /// Whether external arguments remain typed MIR arguments until `lower-abi`.
+    ///
+    /// This is an internal lowering marker. It lets the ABI pass add calldata
+    /// guards and canonical-word checks without putting physical calldata
+    /// operations in built MIR.
+    pub(crate) abi_args_lazy: bool,
     /// Bytes reserved for lowered local memory slots.
     ///
     /// Internal-call functions place these in the internal frame; external entries
@@ -75,6 +81,7 @@ impl Function {
             params: IndexVec::new(),
             returns: Vec::new(),
             abi_returns: None,
+            abi_args_lazy: false,
             internal_frame_size: 0,
             external_static_return_size: 0,
             values: IndexVec::new(),

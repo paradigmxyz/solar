@@ -184,11 +184,8 @@ bb7:
   return
 bb14:
   calldatasize
-  push 4
-  swap1
-  sub
-  push 64
-  sgt
+  push 68
+  gt
   push bb6
   jumpi
   push 36

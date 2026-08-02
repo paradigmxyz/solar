@@ -4,13 +4,13 @@ immutables:
   start: u256
   duration: u256
 
-fn @start() -> u256 [abi_returns=[word]] {
+fn @start() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = loadimmutable start
     ret v0
 }
 
-fn @duration() -> u256 [abi_returns=[word]] {
+fn @duration() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = loadimmutable duration
     ret v0
@@ -32,7 +32,7 @@ fn @_anonymous(arg0: u256) {
     stop
 }
 
-fn @end() -> u256 [abi_returns=[word]] {
+fn @end() -> u256 [abi_args=lazy, abi_returns=[word]] {
   bb0:
     v0 = loadimmutable start
     v1 = loadimmutable duration

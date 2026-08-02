@@ -18,13 +18,22 @@ pub(crate) struct StorageLocation {
     pub(super) slot: U256,
     pub(super) offset: u8,
     pub(super) size: TypeSize,
+    pub(super) encoding: StorageEncoding,
+}
+
+/// Semantic encoding of a packed storage value.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum StorageEncoding {
+    Unsigned,
+    Signed,
+    FixedBytes,
 }
 
 impl StorageLocation {
     pub(crate) const WORD_SIZE: TypeSize = TypeSize::new_int_bits(256);
 
     const fn full_word(slot: U256) -> Self {
-        Self { slot, offset: 0, size: Self::WORD_SIZE }
+        Self { slot, offset: 0, size: Self::WORD_SIZE, encoding: StorageEncoding::Unsigned }
     }
 
     const fn is_packed(self) -> bool {
@@ -79,10 +88,10 @@ impl<'gcx> Lowerer<'gcx> {
                         index_value,
                     );
                     let element_value = builder.mload(memory);
-                    if let Some(size) = self.packed_storage_size(element_ty)
+                    if let Some((size, encoding)) = self.packed_storage_encoding(element_ty)
                         && size < StorageLocation::WORD_SIZE
                     {
-                        let location = Self::packed_array_location(size, index);
+                        let location = Self::packed_array_location(size, encoding, index);
                         self.store_storage_location_at_slot(builder, location, slot, element_value);
                     } else {
                         let element_slots =
@@ -137,10 +146,10 @@ impl<'gcx> Lowerer<'gcx> {
                     return;
                 };
                 for index in 0..len {
-                    if let Some(size) = self.packed_storage_size(element_ty)
+                    if let Some((size, encoding)) = self.packed_storage_encoding(element_ty)
                         && size < StorageLocation::WORD_SIZE
                     {
-                        let location = Self::packed_array_location(size, index);
+                        let location = Self::packed_array_location(size, encoding, index);
                         let zero = builder.imm_u64(0);
                         self.store_storage_location_at_slot(builder, location, slot, zero);
                     } else {
@@ -193,13 +202,18 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    fn packed_array_location(size: TypeSize, index: u64) -> StorageLocation {
+    fn packed_array_location(
+        size: TypeSize,
+        encoding: StorageEncoding,
+        index: u64,
+    ) -> StorageLocation {
         let bytes = u64::from(size.bytes());
         let per_slot = u64::from(StorageLocation::WORD_SIZE.bytes()) / bytes;
         StorageLocation {
             slot: U256::from(index / per_slot),
             offset: ((index % per_slot) * bytes) as u8,
             size,
+            encoding,
         }
     }
 
@@ -209,7 +223,7 @@ impl<'gcx> Lowerer<'gcx> {
         ty: Ty<'gcx>,
         span: Span,
     ) -> StorageLocation {
-        if let Some(size) = self.packed_storage_size(ty)
+        if let Some((size, encoding)) = self.packed_storage_encoding(ty)
             && size < StorageLocation::WORD_SIZE
         {
             let bytes = size.bytes();
@@ -221,6 +235,7 @@ impl<'gcx> Lowerer<'gcx> {
                 slot: self.next_storage_slot,
                 offset: self.next_storage_offset,
                 size,
+                encoding,
             };
             self.next_storage_offset += bytes;
             if self.next_storage_offset == StorageLocation::WORD_SIZE.bytes() {
@@ -254,27 +269,38 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Returns the size of scalar types that this lowering can safely pack.
     pub(super) fn packed_storage_size(&self, ty: Ty<'gcx>) -> Option<TypeSize> {
+        self.packed_storage_encoding(ty).map(|(size, _)| size)
+    }
+
+    /// Returns the packed size and semantic encoding of a scalar type.
+    pub(super) fn packed_storage_encoding(
+        &self,
+        ty: Ty<'gcx>,
+    ) -> Option<(TypeSize, StorageEncoding)> {
         match ty.peel_refs().kind {
-            TyKind::Elementary(ElementaryType::Bool) => Some(TypeSize::new_int_bits(8)),
-            TyKind::Elementary(
-                ElementaryType::Address(_)
-                | ElementaryType::FixedBytes(_)
-                | ElementaryType::Int(_)
-                | ElementaryType::UInt(_),
-            ) => match ty.peel_refs().kind {
-                TyKind::Elementary(ElementaryType::Address(_)) => Some(TypeSize::new_int_bits(160)),
-                TyKind::Elementary(ElementaryType::FixedBytes(size))
-                | TyKind::Elementary(ElementaryType::Int(size))
-                | TyKind::Elementary(ElementaryType::UInt(size)) => Some(size),
-                _ => None,
-            },
-            TyKind::Contract(_) => Some(TypeSize::new_int_bits(160)),
+            TyKind::Elementary(ElementaryType::Bool) => {
+                Some((TypeSize::new_int_bits(8), StorageEncoding::Unsigned))
+            }
+            TyKind::Elementary(ElementaryType::Address(_)) => {
+                Some((TypeSize::new_int_bits(160), StorageEncoding::Unsigned))
+            }
+            TyKind::Elementary(ElementaryType::FixedBytes(size)) => {
+                Some((size, StorageEncoding::FixedBytes))
+            }
+            TyKind::Elementary(ElementaryType::Int(size)) => Some((size, StorageEncoding::Signed)),
+            TyKind::Elementary(ElementaryType::UInt(size)) => {
+                Some((size, StorageEncoding::Unsigned))
+            }
+            TyKind::Contract(_) => Some((TypeSize::new_int_bits(160), StorageEncoding::Unsigned)),
             TyKind::Enum(enum_id) => {
                 let variants = self.gcx.hir.enumm(enum_id).variants.len().max(1);
                 let bits = (usize::BITS - (variants - 1).leading_zeros()).max(1);
-                Some(TypeSize::new_int_bits((bits.div_ceil(8) * 8) as u16))
+                Some((
+                    TypeSize::new_int_bits((bits.div_ceil(8) * 8) as u16),
+                    StorageEncoding::Unsigned,
+                ))
             }
-            TyKind::Udvt(inner, _) => self.packed_storage_size(inner),
+            TyKind::Udvt(inner, _) => self.packed_storage_encoding(inner),
             _ => None,
         }
     }
@@ -381,7 +407,20 @@ impl<'gcx> Lowerer<'gcx> {
         };
         let mask = Self::packed_storage_mask(location.size);
         let mask = builder.imm_u256(mask);
-        builder.and(shifted, mask)
+        let value = builder.and(shifted, mask);
+        match location.encoding {
+            StorageEncoding::Unsigned => value,
+            StorageEncoding::Signed => {
+                let byte_index = builder.imm_u64(u64::from(location.size.bytes()) - 1);
+                builder.signextend(byte_index, value)
+            }
+            StorageEncoding::FixedBytes => {
+                let shift = builder.imm_u64(
+                    u64::from(StorageLocation::WORD_SIZE.bytes() - location.size.bytes()) * 8,
+                );
+                builder.shl(shift, value)
+            }
+        }
     }
 
     pub(super) fn store_storage_location(
@@ -414,7 +453,16 @@ impl<'gcx> Lowerer<'gcx> {
 
         let word = builder.sload(slot);
         let cleared = builder.and(word, keep_mask);
-        let masked = builder.and(value, value_mask);
+        let masked = match location.encoding {
+            StorageEncoding::FixedBytes => {
+                let shift = builder.imm_u64(
+                    u64::from(StorageLocation::WORD_SIZE.bytes() - location.size.bytes()) * 8,
+                );
+                let shifted = builder.shr(shift, value);
+                builder.and(shifted, value_mask)
+            }
+            StorageEncoding::Unsigned | StorageEncoding::Signed => builder.and(value, value_mask),
+        };
         let shifted = if location.offset == 0 {
             masked
         } else {
@@ -431,13 +479,26 @@ impl<'gcx> Lowerer<'gcx> {
         slot: ValueId,
         byte_offset: ValueId,
         size: TypeSize,
+        encoding: StorageEncoding,
     ) -> ValueId {
         let word = builder.sload(slot);
         let eight = builder.imm_u64(8);
         let shift = builder.mul(byte_offset, eight);
         let shifted = builder.shr(shift, word);
         let mask = builder.imm_u256(Self::packed_storage_mask(size));
-        builder.and(shifted, mask)
+        let value = builder.and(shifted, mask);
+        match encoding {
+            StorageEncoding::Unsigned => value,
+            StorageEncoding::Signed => {
+                let byte_index = builder.imm_u64(u64::from(size.bytes()) - 1);
+                builder.signextend(byte_index, value)
+            }
+            StorageEncoding::FixedBytes => {
+                let shift = builder
+                    .imm_u64(u64::from(StorageLocation::WORD_SIZE.bytes() - size.bytes()) * 8);
+                builder.shl(shift, value)
+            }
+        }
     }
 
     pub(super) fn store_storage_location_at_dynamic_offset(
@@ -446,6 +507,7 @@ impl<'gcx> Lowerer<'gcx> {
         slot: ValueId,
         byte_offset: ValueId,
         size: TypeSize,
+        encoding: StorageEncoding,
         value: ValueId,
     ) {
         let eight = builder.imm_u64(8);
@@ -457,7 +519,15 @@ impl<'gcx> Lowerer<'gcx> {
         let word = builder.sload(slot);
         let cleared = builder.and(word, keep_mask);
         let value_mask = builder.imm_u256(field_mask);
-        let masked = builder.and(value, value_mask);
+        let masked = match encoding {
+            StorageEncoding::FixedBytes => {
+                let shift = builder
+                    .imm_u64(u64::from(StorageLocation::WORD_SIZE.bytes() - size.bytes()) * 8);
+                let shifted = builder.shr(shift, value);
+                builder.and(shifted, value_mask)
+            }
+            StorageEncoding::Unsigned | StorageEncoding::Signed => builder.and(value, value_mask),
+        };
         let shifted = builder.shl(shift, masked);
         let updated = builder.or(cleared, shifted);
         builder.sstore(slot, updated);
@@ -495,7 +565,7 @@ impl<'gcx> Lowerer<'gcx> {
         let mut offset = 0u64;
         let mut result = StorageLocation::full_word(U256::ZERO);
         for (index, &field_ty) in self.gcx.struct_field_types(struct_id).iter().enumerate() {
-            let location = if let Some(size) = self.packed_storage_size(field_ty)
+            let location = if let Some((size, encoding)) = self.packed_storage_encoding(field_ty)
                 && size < StorageLocation::WORD_SIZE
             {
                 let bytes = u64::from(size.bytes());
@@ -507,6 +577,7 @@ impl<'gcx> Lowerer<'gcx> {
                     slot: U256::from(slot),
                     offset: u8::try_from(offset).unwrap_or(0),
                     size,
+                    encoding,
                 };
                 offset += bytes;
                 if offset == u64::from(StorageLocation::WORD_SIZE.bytes()) {
@@ -694,16 +765,16 @@ impl<'gcx> Lowerer<'gcx> {
                     MemoryObjectKind::FixedArray,
                 );
                 let layout = MemoryObjectLayout::word_fixed_array(len);
-                let packed_size = self
-                    .packed_storage_size(element)
-                    .filter(|size| *size < StorageLocation::WORD_SIZE);
+                let packed = self
+                    .packed_storage_encoding(element)
+                    .filter(|(size, _)| *size < StorageLocation::WORD_SIZE);
                 let element_slots = self.calculate_storage_slots_for_ty(element, Span::DUMMY);
                 for index in 0..len {
                     let index_value = builder.imm_u64(index);
                     let element_memory =
                         builder.memory_object_element_addr(array, layout, index_value);
-                    let (element_slot, element_location) = if let Some(size) = packed_size {
-                        let element_location = Self::packed_array_location(size, index);
+                    let (element_slot, element_location) = if let Some((size, encoding)) = packed {
+                        let element_location = Self::packed_array_location(size, encoding, index);
                         let element_slot =
                             self.offset_storage_slot_u256(builder, slot, element_location.slot);
                         (element_slot, element_location)
@@ -997,10 +1068,11 @@ impl<'gcx> Lowerer<'gcx> {
         elem: Ty<'gcx>,
         len: u64,
     ) {
-        let packed_size =
-            self.packed_storage_size(elem).filter(|size| *size < StorageLocation::WORD_SIZE);
-        let elem_slots = packed_size
-            .map_or_else(|| self.calculate_storage_slots_for_ty(elem, Span::DUMMY), |_| 0);
+        let packed = self
+            .packed_storage_encoding(elem)
+            .filter(|(size, _)| *size < StorageLocation::WORD_SIZE);
+        let elem_slots =
+            packed.map_or_else(|| self.calculate_storage_slots_for_ty(elem, Span::DUMMY), |_| 0);
         let elem = elem.peel_refs();
         for i in 0..len {
             let mem_word_addr = if i == 0 {
@@ -1010,8 +1082,8 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.add(mem_ptr, off)
             };
             let mem_word = builder.mload(mem_word_addr);
-            if let Some(size) = packed_size {
-                let location = Self::packed_array_location(size, i);
+            if let Some((size, encoding)) = packed {
+                let location = Self::packed_array_location(size, encoding, i);
                 self.store_storage_location_at_slot(builder, location, slot, mem_word);
             } else {
                 let elem_slot = if i * elem_slots == 0 {

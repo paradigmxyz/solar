@@ -240,7 +240,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
 
         let ptr = self.allocate_memory_object_dynamic(builder, total_size, MemoryObjectKind::Bytes);
-        builder.mstore(ptr, len);
+        builder.set_memory_object_len(ptr, len, MemoryObjectKind::DynamicArray);
         let data_ptr = builder.add(ptr, word_size);
         let data_pos = builder.slice_ptr(slice);
         builder.mcopy(data_ptr, data_pos, len);
@@ -565,7 +565,7 @@ impl<'gcx> Lowerer<'gcx> {
         let source_slot = self.offset_ptr(builder, scratch, 32);
         let dest_slot = self.offset_ptr(builder, scratch, 64);
         let tuple_base = data_pos;
-        let dest = builder.add(ptr, word);
+        let dest = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
         builder.mstore(remaining_slot, len);
         builder.mstore(source_slot, tuple_base);
         builder.mstore(dest_slot, dest);
