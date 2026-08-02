@@ -14,16 +14,13 @@ struct StaticPair {
 }
 
 contract DynamicStructParam {
-    // A struct with dynamic members is dynamically encoded: one head slot
-    // holds its offset from the args start, and the fields — including
-    // nested dynamic offsets relative to the struct's own base — rebuild
-    // recursively from the tail.
-    // The dynamic struct occupies one head slot and `sink` the next.
+    // A struct with dynamic members stays typed in built MIR. The ABI phase
+    // rebuilds its fields recursively and keeps the source base for calldata
+    // slices in a trailing word.
     // CHECK-LABEL: fn @init{{[( ]}}
-    // CHECK: gt arg0, 0xffffffffffffffff
-    // CHECK: add 4, arg0
-    // CHECK: alloc raw, exact, uninitialized, infallible, 160
-    // CHECK-COUNT-2: calldatacopy
+    // CHECK: calldataload 36
+    // CHECK: memory_object_field_addr memorystruct<4>, arg0, 1
+    // CHECK: gt {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffff
     function init(InitInput calldata input, address sink) external pure returns (uint256) {
         return input.decimals + uint160(sink);
     }

@@ -956,14 +956,6 @@ impl<'gcx> Lowerer<'gcx> {
             return !matches!(param.data_location, Some(solar_ast::DataLocation::Storage));
         }
         if matches!(ty.kind, TyKind::Struct(_)) {
-            // Calldata structs with dynamic fields need to retain the original
-            // calldata base for slice expressions. The ABI phase cannot rebuild
-            // that trailing source position in a plain memory object yet.
-            if matches!(param.data_location, Some(solar_ast::DataLocation::Calldata))
-                && self.abi_is_dynamic(ty)
-            {
-                return false;
-            }
             return self.can_defer_external_abi_aggregate_ty(ty);
         }
         false

@@ -523,12 +523,15 @@ impl LowerAbiCx {
                 ptr
             }
             crate::mir::AbiParamType::Tuple(fields) if Self::is_supported_aggregate(ty) => {
-                let size = builder.imm_u64((fields.len() as u64).saturating_mul(32));
-                let ptr = builder.alloc_object(
-                    size,
-                    crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
-                    crate::mir::AllocationSemantics::INTERNAL,
-                );
+                // Calldata structs with dynamic fields keep their source base
+                // in one trailing word so slice expressions can recover the
+                // original calldata location after the fields are copied.
+                let carries_base = fields.iter().any(crate::mir::AbiParamType::is_dynamic);
+                let storage_fields = fields.len() + usize::from(carries_base);
+                let size = builder.imm_u64((storage_fields as u64).saturating_mul(32));
+                let layout = crate::mir::MemoryObjectLayout::structure(storage_fields as u64);
+                let ptr =
+                    builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL);
                 let mut offset = 0;
                 for (index, field) in fields.iter().enumerate() {
                     let field_offset = builder.imm_u64(offset);
@@ -541,13 +544,13 @@ impl LowerAbiCx {
                         base,
                         current,
                     );
-                    let slot = builder.memory_object_field_addr(
-                        ptr,
-                        crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
-                        index as u64,
-                    );
+                    let slot = builder.memory_object_field_addr(ptr, layout, index as u64);
                     builder.mstore(slot, value);
                     offset += field.head_size();
+                }
+                if carries_base {
+                    let slot = builder.memory_object_field_addr(ptr, layout, fields.len() as u64);
+                    builder.mstore(slot, base);
                 }
                 ptr
             }

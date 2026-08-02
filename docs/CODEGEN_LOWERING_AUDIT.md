@@ -13,8 +13,7 @@ describes observable structure in the current tree, not an intended design.
   and dynamic word arrays, byte strings, and nested scalar/byte tuples carry an
   ABI shape in MIR; the ABI phase remaps physical head words, validates scalar
   fields, and builds either memory objects or calldata slices. Dynamic structs
-  with calldata-located fields still use the legacy path while slice metadata
-  remains outside the typed object layout.
+  carry one trailing source-base word when their fields need calldata slices.
 * ABI parameter shapes print and parse with MIR text, so the boundary metadata
   survives phase dumps and round trips.
 * Packed storage locations carry their semantic encoding. Signed values are
@@ -41,10 +40,9 @@ independent lowering stages. A code search shows direct `mload`, `mstore`,
 ## Concrete shortcomings
 
 * **The ABI boundary is still split for complex aggregates.**
-  `Lowerer::lower_function` still decodes dynamic structs, nested arrays, and
-  enums. Simple arrays, byte strings, and scalar-only structs now defer to
-  `lower-abi`, but the pass still has a second representation for unsupported
-  aggregate shapes.
+  `Lowerer::lower_function` still decodes nested arrays and enums. Supported
+  arrays, byte strings, and scalar/byte structs now defer to `lower-abi`, but
+  the pass still has a second representation for unsupported aggregate shapes.
 * **Raw memory is used as a language-level value model.** Mutable locals are
   assigned fixed offsets beginning at `EvmMemoryLayout::HEAP_START`, and many
   lowering paths manually pair pointer and length words. `abi_encode.rs` and
