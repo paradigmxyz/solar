@@ -46,7 +46,7 @@ pub(super) fn lower(
 
     for function_id in function_ids {
         let mir_id = mir_ids[&function_id];
-        let name = module.function(mir_id).name.clone();
+        let name = module.function(mir_id).name;
         let Some(mut mir) = function::lower(gcx, &mut module, &storage, function_id, &mir_ids)
         else {
             FunctionBuilder::new(module.function_mut(mir_id)).stop();

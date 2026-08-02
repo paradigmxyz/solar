@@ -876,6 +876,11 @@ impl<'a> FunctionBuilder<'a> {
         )
     }
 
+    /// Resolves the first data slot of a dynamic storage array.
+    pub(crate) fn storage_array_data_slot(&mut self, slot: ValueId) -> ValueId {
+        self.emit_inst(InstKind::StorageArrayDataSlot(slot), Some(MirType::bytes32()))
+    }
+
     /// Emits a basefee instruction.
     pub(crate) fn basefee(&mut self) -> ValueId {
         self.emit_inst(InstKind::BaseFee, Some(MirType::uint256()))

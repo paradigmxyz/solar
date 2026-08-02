@@ -105,6 +105,35 @@ impl StorageLayout {
         self.store_at(builder, location, slot, value);
     }
 
+    pub(super) fn load_packed_at_slot(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        slot: ValueId,
+        offset: ValueId,
+    ) -> ValueId {
+        self.load_at_offset(builder, location, slot, offset)
+    }
+
+    pub(super) fn store_packed_at_slot(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        slot: ValueId,
+        offset: ValueId,
+        value: ValueId,
+    ) {
+        self.store_at_offset(builder, location, slot, offset, value);
+    }
+
+    pub(super) fn packed_encoding<'gcx>(
+        &self,
+        gcx: Gcx<'gcx>,
+        ty: Ty<'gcx>,
+    ) -> Option<(TypeSize, StorageEncoding)> {
+        StorageBuilder::new(gcx).packed_encoding(ty)
+    }
+
     pub(super) fn field_location(
         &self,
         gcx: Gcx<'_>,
@@ -124,16 +153,24 @@ impl StorageLayout {
         location: StorageLocation,
         slot: ValueId,
     ) -> ValueId {
+        let offset = builder.imm_u64(u64::from(location.offset));
+        self.load_at_offset(builder, location, slot, offset)
+    }
+
+    fn load_at_offset(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        slot: ValueId,
+        offset: ValueId,
+    ) -> ValueId {
         let word = builder.sload(slot);
         if !location.packed() {
             return word;
         }
-        let shifted = if location.offset == 0 {
-            word
-        } else {
-            let shift = builder.imm_u64(u64::from(location.offset) * 8);
-            builder.shr(shift, word)
-        };
+        let eight = builder.imm_u64(8);
+        let shift = builder.mul(offset, eight);
+        let shifted = builder.shr(shift, word);
         let field_mask = builder.imm_u256(location.mask());
         let masked = builder.and(shifted, field_mask);
         match location.encoding {
@@ -157,15 +194,30 @@ impl StorageLayout {
         slot: ValueId,
         value: ValueId,
     ) {
+        let offset = builder.imm_u64(u64::from(location.offset));
+        self.store_at_offset(builder, location, slot, offset, value);
+    }
+
+    fn store_at_offset(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        slot: ValueId,
+        offset: ValueId,
+        value: ValueId,
+    ) {
         if !location.packed() {
             builder.sstore(slot, value);
             return;
         }
 
         let field_mask = location.mask();
-        let shifted_mask = field_mask << (usize::from(location.offset) * 8);
+        let field_mask_value = builder.imm_u256(field_mask);
+        let eight = builder.imm_u64(8);
+        let shift = builder.mul(offset, eight);
+        let shifted_mask = builder.shl(shift, field_mask_value);
         let old = builder.sload(slot);
-        let keep_mask = builder.imm_u256(!shifted_mask);
+        let keep_mask = builder.not(shifted_mask);
         let cleared = builder.and(old, keep_mask);
         let value = match location.encoding {
             StorageEncoding::FixedBytes => {
@@ -175,14 +227,8 @@ impl StorageLayout {
             }
             StorageEncoding::Unsigned | StorageEncoding::Signed => value,
         };
-        let field_mask_value = builder.imm_u256(field_mask);
         let value = builder.and(value, field_mask_value);
-        let value = if location.offset == 0 {
-            value
-        } else {
-            let shift = builder.imm_u64(u64::from(location.offset) * 8);
-            builder.shl(shift, value)
-        };
+        let value = builder.shl(shift, value);
         let updated = builder.or(cleared, value);
         builder.sstore(slot, updated);
     }
