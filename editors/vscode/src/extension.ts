@@ -11,6 +11,7 @@ import { spawn } from "child_process";
 
 let client: LanguageClient | undefined;
 let clientLifecycle: Promise<void> = Promise.resolve();
+let activeServerKind: "solar" | "forge" | undefined;
 
 const restartSettings = [
   "solarLsp.enable",
@@ -21,11 +22,8 @@ const restartSettings = [
 ];
 
 export function activate(context: vscode.ExtensionContext) {
-  const fileWatcher = vscode.workspace.createFileSystemWatcher("**/*.sol");
-  context.subscriptions.push(fileWatcher);
-
   // Start the LSP server
-  void restartLanguageServer(fileWatcher);
+  void restartLanguageServer();
 
   // Register format document command
   const formatCommand = vscode.commands.registerCommand(
@@ -72,8 +70,13 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const configListener = vscode.workspace.onDidChangeConfiguration((event) => {
-    if (restartSettings.some((setting) => event.affectsConfiguration(setting))) {
-      void restartLanguageServer(fileWatcher);
+    const restartSolarIndexing =
+      activeServerKind === "solar" && event.affectsConfiguration("solarLsp.indexing");
+    if (
+      restartSettings.some((setting) => event.affectsConfiguration(setting)) ||
+      restartSolarIndexing
+    ) {
+      void restartLanguageServer();
     }
   });
 
@@ -100,16 +103,14 @@ export function activate(context: vscode.ExtensionContext) {
   );
 }
 
-function restartLanguageServer(
-  fileWatcher: vscode.FileSystemWatcher,
-): Promise<void> {
+function restartLanguageServer(): Promise<void> {
   clientLifecycle = clientLifecycle
     .then(async () => {
       await stopLanguageServer();
 
       const config = vscode.workspace.getConfiguration("solarLsp");
       if (config.get<boolean>("enable", true)) {
-        await startLanguageServer(fileWatcher);
+        await startLanguageServer();
       }
     })
     .catch((error) => {
@@ -123,6 +124,7 @@ function restartLanguageServer(
 async function stopLanguageServer(): Promise<void> {
   const currentClient = client;
   if (!currentClient) {
+    activeServerKind = undefined;
     return;
   }
 
@@ -132,6 +134,7 @@ async function stopLanguageServer(): Promise<void> {
 
   if (client === currentClient) {
     client = undefined;
+    activeServerKind = undefined;
   }
 }
 
@@ -147,7 +150,7 @@ async function checkExecutableExists(command: string): Promise<boolean> {
   });
 }
 
-async function startLanguageServer(fileWatcher: vscode.FileSystemWatcher) {
+async function startLanguageServer() {
   const config = vscode.workspace.getConfiguration("solarLsp");
   const solarPath = config.get<string>("serverPath", "solar");
   const forgePath = config.get<string>("forgePath", "forge");
@@ -198,9 +201,25 @@ async function startLanguageServer(fileWatcher: vscode.FileSystemWatcher) {
       forgePath,
       flychecks,
       codeLens,
-    },
-    synchronize: {
-      fileEvents: fileWatcher,
+      ...(solarExists
+        ? {
+            indexing: {
+              exclude: config.get<string[]>("indexing.exclude", []),
+              useDefaultExcludes: config.get<boolean>(
+                "indexing.useDefaultExcludes",
+                true,
+              ),
+              excludeHiddenDirectories: config.get<boolean>(
+                "indexing.excludeHiddenDirectories",
+                true,
+              ),
+              excludeNestedRepositories: config.get<boolean>(
+                "indexing.excludeNestedRepositories",
+                true,
+              ),
+            },
+          }
+        : {}),
     },
   };
 
@@ -212,6 +231,7 @@ async function startLanguageServer(fileWatcher: vscode.FileSystemWatcher) {
     clientOptions,
   );
   client = nextClient;
+  activeServerKind = solarExists ? "solar" : "forge";
 
   // Start the client. This will also launch the server
   try {
@@ -229,6 +249,7 @@ async function startLanguageServer(fileWatcher: vscode.FileSystemWatcher) {
     }
     if (client === nextClient) {
       client = undefined;
+      activeServerKind = undefined;
     }
     const message = error instanceof Error ? error.message : String(error);
     console.error("Failed to start LSP client:", error);

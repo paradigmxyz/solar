@@ -5,9 +5,10 @@ use lsp_types::{GotoDefinitionResponse, HoverContents, OneOf, Position, Url};
 use solar_config::CompileOpts;
 use solar_lsp::{
     BenchmarkAnalysis, BenchmarkDocumentUpdate, BenchmarkProject, BenchmarkRequest,
-    BenchmarkResponse, BenchmarkWorkspaceReports, benchmark_selection_ranges,
+    BenchmarkResponse, BenchmarkWorkspaceDiscovery, BenchmarkWorkspaceReports,
+    benchmark_selection_ranges,
 };
-use std::{hint::black_box, path::PathBuf};
+use std::{fs, hint::black_box, path::PathBuf};
 
 const ANALYSIS_FUNCTION_COUNTS: [usize; 2] = [64, 256];
 const HOVER_FUNCTION_COUNT: usize = 256;
@@ -115,6 +116,30 @@ fn analysis_build(c: &mut Criterion) {
             },
         );
     }
+    group.finish();
+}
+
+fn bounded_workspace_discovery(c: &mut Criterion) {
+    let temp = tempfile::tempdir().expect("benchmark temporary directory");
+    let excluded = temp.path().join("node_modules");
+    fs::create_dir_all(&excluded).expect("excluded directory");
+    for index in 0..10_000 {
+        fs::write(excluded.join(format!("Generated{index}.sol")), "contract Generated {} {}")
+            .expect("excluded source");
+    }
+
+    let baseline = BenchmarkWorkspaceDiscovery::run(temp.path());
+    assert_eq!(baseline.eager(), 0);
+    assert_eq!(baseline.source_file_count(), 0);
+    // Manifest discovery and source collection each prune the dependency root without visiting
+    // any of its 10,000 descendants.
+    assert_eq!(baseline.pruned(), 2);
+    assert_eq!(baseline.visited(), 3);
+
+    let mut group = c.benchmark_group("lsp/workspace-discovery");
+    group.bench_function("bounded-10k-excluded", |b| {
+        b.iter(|| black_box(BenchmarkWorkspaceDiscovery::run(black_box(temp.path()))));
+    });
     group.finish();
 }
 
@@ -422,6 +447,7 @@ fn unifap_benches(c: &mut Criterion) {
 criterion_group!(
     benches,
     analysis_build,
+    bounded_workspace_discovery,
     symbol_table_aggregation,
     burst_hover,
     selection_range,

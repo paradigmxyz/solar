@@ -7,17 +7,19 @@ use async_lsp::{
 use lsp_types::{
     CallHierarchyIncomingCallsParams, CallHierarchyItem, CallHierarchyOutgoingCallsParams,
     CallHierarchyPrepareParams, CancelParams, CompletionParams, CompletionResponse,
-    DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
-    DidSaveTextDocumentParams, DocumentFormattingParams, DocumentHighlightParams,
-    DocumentLinkParams, DocumentSymbolParams, ExecuteCommandParams, FileChangeType, FileEvent,
-    FoldingRangeParams, FormattingOptions, HoverParams, InitializeParams, InitializedParams,
-    NumberOrString, PartialResultParams, Position, ProgressParams, ProgressParamsValue,
-    PublishDiagnosticsParams, Range, SelectionRangeParams, SignatureHelpParams, SymbolKind,
+    DeleteFilesParams, DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
+    DidChangeWorkspaceFoldersParams, DidSaveTextDocumentParams, DocumentFormattingParams,
+    DocumentHighlightParams, DocumentLinkParams, DocumentSymbolParams, ExecuteCommandParams,
+    FileChangeType, FileDelete, FileEvent, FileRename, FoldingRangeParams, FormattingOptions,
+    HoverParams, InitializeParams, InitializedParams, NumberOrString, PartialResultParams,
+    Position, ProgressParams, ProgressParamsValue, PublishDiagnosticsParams, Range,
+    RegistrationParams, RenameFilesParams, SelectionRangeParams, SignatureHelpParams, SymbolKind,
     TextDocumentIdentifier, TextDocumentPositionParams, TextDocumentSaveReason,
-    WillSaveTextDocumentParams, WindowClientCapabilities, WorkDoneProgress,
+    UnregistrationParams, WillSaveTextDocumentParams, WindowClientCapabilities, WorkDoneProgress,
     WorkDoneProgressCancelParams, WorkDoneProgressCreateParams, WorkDoneProgressParams,
-    WorkspaceClientCapabilities, WorkspaceSymbolParams, notification as notif,
-    notification::Notification, request, request::Request,
+    WorkspaceClientCapabilities, WorkspaceFolder, WorkspaceFoldersChangeEvent,
+    WorkspaceSymbolParams, notification as notif, notification::Notification, request,
+    request::Request,
 };
 use solar_interface::data_structures::sync::RwLock;
 use std::{
@@ -69,6 +71,42 @@ enum AnalysisClientEvent {
     Create(WorkDoneProgressCreateParams),
     Progress(ProgressParams),
     Diagnostics(PublishDiagnosticsParams),
+}
+
+#[derive(Debug)]
+enum WatchedRegistrationClientEvent {
+    Register(RegistrationParams, oneshot::Sender<()>),
+    Unregister(UnregistrationParams, oneshot::Sender<()>),
+}
+
+async fn next_watched_registration_event(
+    events: &mut mpsc::UnboundedReceiver<WatchedRegistrationClientEvent>,
+) -> WatchedRegistrationClientEvent {
+    tokio::time::timeout(Duration::from_secs(2), events.recv())
+        .await
+        .expect("watched-file registration request should arrive")
+        .expect("watched-file registration event channel should stay open")
+}
+
+fn assert_watched_registration_root(params: &RegistrationParams, root: &std::path::Path) {
+    let [registration] = params.registrations.as_slice() else {
+        panic!("expected one watched-file registration, got {params:?}")
+    };
+    assert_eq!(registration.method, notif::DidChangeWatchedFiles::METHOD);
+    let options = registration.register_options.as_ref().unwrap();
+    let watchers = options["watchers"].as_array().unwrap();
+    let root_uri = lsp_types::Url::from_file_path(root).unwrap().to_string();
+    let root_watchers = watchers
+        .iter()
+        .filter(|watcher| watcher["globPattern"]["baseUri"].as_str() == Some(&root_uri))
+        .collect::<Vec<_>>();
+    assert_eq!(root_watchers.len(), 3, "missing recursive watchers for `{root_uri}`");
+    for pattern in ["**/*.sol", "**/foundry.toml", "**/remappings.txt"] {
+        assert!(
+            root_watchers.iter().any(|watcher| watcher["globPattern"]["pattern"] == pattern),
+            "missing `{pattern}` watcher for `{root_uri}`"
+        );
+    }
 }
 
 async fn next_analysis_event(
@@ -951,6 +989,232 @@ async fn initialized_registers_watched_files_when_client_supports_dynamic_regist
         .unwrap();
     let [registration] = registrations.registrations.try_into().unwrap();
     assert_eq!(registration.method, notif::DidChangeWatchedFiles::METHOD);
+
+    server.shutdown(()).await.unwrap();
+    server.exit(()).unwrap();
+    assert!(server_main.await.unwrap().is_ok());
+    assert!(matches!(client_main.await.unwrap(), Err(async_lsp::Error::Eof)));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watched_file_reregistration_keeps_latest_workspace_folders() {
+    let project = TestProject::new();
+    let initial_path = project.path("/initial");
+    let stale_path = project.path("/stale");
+    let latest_path = project.path("/latest");
+    for path in [&initial_path, &stale_path, &latest_path] {
+        std::fs::create_dir(path).unwrap();
+    }
+    let workspace_folder = |path: &std::path::Path, name: &str| WorkspaceFolder {
+        uri: lsp_types::Url::from_file_path(path).unwrap(),
+        name: name.into(),
+    };
+    let initial = workspace_folder(&initial_path, "initial");
+    let stale = workspace_folder(&stale_path, "stale");
+    let latest = workspace_folder(&latest_path, "latest");
+
+    let (server_main, _client) = async_lsp::MainLoop::new_server(new_router);
+    let (events_tx, mut events_rx) = mpsc::unbounded_channel();
+    let (client_main, mut server) = async_lsp::MainLoop::new_client(move |_| {
+        let mut router = Router::new(events_tx);
+        router.request::<request::RegisterCapability, _>(|events, params| {
+            let (acknowledge, acknowledged) = oneshot::channel();
+            events.send(WatchedRegistrationClientEvent::Register(params, acknowledge)).unwrap();
+            async move {
+                acknowledged.await.unwrap();
+                Ok(())
+            }
+        });
+        router.request::<request::UnregisterCapability, _>(|events, params| {
+            let (acknowledge, acknowledged) = oneshot::channel();
+            events.send(WatchedRegistrationClientEvent::Unregister(params, acknowledge)).unwrap();
+            async move {
+                acknowledged.await.unwrap();
+                Ok(())
+            }
+        });
+        router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
+        router
+    });
+
+    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
+    let (server_rx, server_tx) = tokio::io::split(server_stream);
+    let server_main =
+        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
+    let (client_rx, client_tx) = tokio::io::split(client_stream);
+    let client_main =
+        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+
+    let mut params = project.initialize_params_with_roots(&["/initial"]);
+    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
+            dynamic_registration: Some(true),
+            relative_pattern_support: Some(true),
+        }),
+        ..Default::default()
+    });
+    server.initialize(params).await.unwrap();
+    server.initialized(InitializedParams {}).unwrap();
+
+    let WatchedRegistrationClientEvent::Register(params, acknowledge) =
+        next_watched_registration_event(&mut events_rx).await
+    else {
+        panic!("expected initial watched-file registration")
+    };
+    assert_watched_registration_root(&params, &initial_path);
+    acknowledge.send(()).unwrap();
+
+    server
+        .notify::<notif::DidChangeWorkspaceFolders>(DidChangeWorkspaceFoldersParams {
+            event: WorkspaceFoldersChangeEvent {
+                added: vec![stale.clone()],
+                removed: vec![initial],
+            },
+        })
+        .unwrap();
+    let WatchedRegistrationClientEvent::Unregister(params, stale_unregister) =
+        next_watched_registration_event(&mut events_rx).await
+    else {
+        panic!("expected first watched-file unregistration")
+    };
+    assert_eq!(params.unregisterations[0].id, "solar-watched-files");
+
+    server
+        .notify::<notif::DidChangeWorkspaceFolders>(DidChangeWorkspaceFoldersParams {
+            event: WorkspaceFoldersChangeEvent { added: vec![latest], removed: vec![stale] },
+        })
+        .unwrap();
+
+    stale_unregister.send(()).unwrap();
+    let WatchedRegistrationClientEvent::Unregister(params, latest_unregister) =
+        next_watched_registration_event(&mut events_rx).await
+    else {
+        panic!("expected latest watched-file unregistration")
+    };
+    assert_eq!(params.unregisterations[0].id, "solar-watched-files");
+
+    latest_unregister.send(()).unwrap();
+    let WatchedRegistrationClientEvent::Register(params, acknowledge) =
+        next_watched_registration_event(&mut events_rx).await
+    else {
+        panic!("expected latest watched-file registration")
+    };
+    assert_watched_registration_root(&params, &latest_path);
+    acknowledge.send(()).unwrap();
+
+    server.shutdown(()).await.unwrap();
+    server.exit(()).unwrap();
+    assert!(server_main.await.unwrap().is_ok());
+    assert!(matches!(client_main.await.unwrap(), Err(async_lsp::Error::Eof)));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watched_file_reregistration_follows_workspace_root_file_operations() {
+    let project = TestProject::new();
+    let old_root = project.path("/old");
+    let new_root = project.path("/new");
+    std::fs::create_dir(&old_root).unwrap();
+
+    let (server_main, _client) = async_lsp::MainLoop::new_server(new_router);
+    let (events_tx, mut events_rx) = mpsc::unbounded_channel();
+    let (client_main, mut server) = async_lsp::MainLoop::new_client(move |_| {
+        let mut router = Router::new(events_tx);
+        router.request::<request::RegisterCapability, _>(|events, params| {
+            let (acknowledge, acknowledged) = oneshot::channel();
+            events.send(WatchedRegistrationClientEvent::Register(params, acknowledge)).unwrap();
+            async move {
+                acknowledged.await.unwrap();
+                Ok(())
+            }
+        });
+        router.request::<request::UnregisterCapability, _>(|events, params| {
+            let (acknowledge, acknowledged) = oneshot::channel();
+            events.send(WatchedRegistrationClientEvent::Unregister(params, acknowledge)).unwrap();
+            async move {
+                acknowledged.await.unwrap();
+                Ok(())
+            }
+        });
+        router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
+        router
+    });
+
+    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
+    let (server_rx, server_tx) = tokio::io::split(server_stream);
+    let server_main =
+        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
+    let (client_rx, client_tx) = tokio::io::split(client_stream);
+    let client_main =
+        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+
+    let mut params = project.initialize_params_with_roots(&["/old"]);
+    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
+            dynamic_registration: Some(true),
+            relative_pattern_support: Some(true),
+        }),
+        ..Default::default()
+    });
+    server.initialize(params).await.unwrap();
+    server.initialized(InitializedParams {}).unwrap();
+
+    let WatchedRegistrationClientEvent::Register(params, acknowledge) =
+        next_watched_registration_event(&mut events_rx).await
+    else {
+        panic!("expected initial watched-file registration")
+    };
+    assert_watched_registration_root(&params, &old_root);
+    acknowledge.send(()).unwrap();
+
+    std::fs::rename(&old_root, &new_root).unwrap();
+    server
+        .notify::<notif::DidRenameFiles>(RenameFilesParams {
+            files: vec![FileRename {
+                old_uri: lsp_types::Url::from_file_path(&old_root).unwrap().to_string(),
+                new_uri: lsp_types::Url::from_file_path(&new_root).unwrap().to_string(),
+            }],
+        })
+        .unwrap();
+    let WatchedRegistrationClientEvent::Unregister(_, acknowledge) =
+        next_watched_registration_event(&mut events_rx).await
+    else {
+        panic!("expected watched-file unregistration after root rename")
+    };
+    acknowledge.send(()).unwrap();
+    let WatchedRegistrationClientEvent::Register(params, acknowledge) =
+        next_watched_registration_event(&mut events_rx).await
+    else {
+        panic!("expected watched-file registration after root rename")
+    };
+    assert_watched_registration_root(&params, &new_root);
+    acknowledge.send(()).unwrap();
+
+    std::fs::remove_dir(&new_root).unwrap();
+    server
+        .notify::<notif::DidDeleteFiles>(DeleteFilesParams {
+            files: vec![FileDelete {
+                uri: lsp_types::Url::from_file_path(&new_root).unwrap().to_string(),
+            }],
+        })
+        .unwrap();
+    let WatchedRegistrationClientEvent::Unregister(_, acknowledge) =
+        next_watched_registration_event(&mut events_rx).await
+    else {
+        panic!("expected watched-file unregistration after root deletion")
+    };
+    acknowledge.send(()).unwrap();
+    let WatchedRegistrationClientEvent::Register(params, acknowledge) =
+        next_watched_registration_event(&mut events_rx).await
+    else {
+        panic!("expected empty watched-file registration after root deletion")
+    };
+    let [registration] = params.registrations.as_slice() else {
+        panic!("expected one watched-file registration, got {params:?}")
+    };
+    assert!(
+        registration.register_options.as_ref().unwrap()["watchers"].as_array().unwrap().is_empty()
+    );
+    acknowledge.send(()).unwrap();
 
     server.shutdown(()).await.unwrap();
     server.exit(()).unwrap();

@@ -5,19 +5,23 @@ use super::{
     analyze_with_source_map,
 };
 use crate::{
+    config::negotiate_capabilities,
     diagnostics::{AnalyzedDocuments, DiagnosticStore, PullReport},
     handlers,
     project_fixture::ProjectFixture,
     utils::apply_document_changes,
     vfs::VfsPath,
-    workspace::Workspace,
+    workspace::{
+        Workspace,
+        index_policy::{IndexingCancellation, WorkspaceIndexMetrics, WorkspaceIndexPolicy},
+    },
 };
 use async_lsp::ClientSocket;
 use crop::Rope;
 use lsp_types::{
     Diagnostic, DidChangeTextDocumentParams, GotoDefinitionResponse, Hover, HoverContents,
     Location, Position, PreviousResultId, Range, TextDocumentContentChangeEvent, Url,
-    VersionedTextDocumentIdentifier, WorkspaceSymbol,
+    VersionedTextDocumentIdentifier, WorkspaceFolder, WorkspaceSymbol,
 };
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, Threads};
@@ -38,6 +42,65 @@ use std::{
 #[error("{message}")]
 pub struct BenchmarkError {
     message: String,
+}
+
+/// A summary of one bounded workspace-discovery run.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BenchmarkWorkspaceDiscovery {
+    visited: usize,
+    pruned: usize,
+    eager: usize,
+    source_file_count: usize,
+}
+
+impl BenchmarkWorkspaceDiscovery {
+    /// Run discovery for `root` using the production indexing policy.
+    #[doc(hidden)]
+    pub fn run(root: impl Into<PathBuf>) -> Self {
+        let root = root.into();
+        let params = lsp_types::InitializeParams {
+            workspace_folders: Some(vec![WorkspaceFolder {
+                uri: Url::from_file_path(&root).expect("benchmark root should be a file path"),
+                name: "benchmark".into(),
+            }]),
+            ..Default::default()
+        };
+        let (_, config) = negotiate_capabilities(params);
+        let result = config
+            .discover_workspaces(&IndexingCancellation::default())
+            .expect("benchmark discovery should not be cancelled");
+        Self {
+            visited: result.metrics.visited,
+            pruned: result.metrics.pruned,
+            eager: result.metrics.eager,
+            source_file_count: result
+                .workspaces
+                .iter()
+                .map(|workspace| workspace.source_files().len())
+                .sum(),
+        }
+    }
+
+    /// Number of filesystem entries inspected before pruning.
+    pub fn visited(self) -> usize {
+        self.visited
+    }
+
+    /// Number of directories pruned before reading descendants.
+    pub fn pruned(self) -> usize {
+        self.pruned
+    }
+
+    /// Number of actively indexed Solidity files.
+    pub fn eager(self) -> usize {
+        self.eager
+    }
+
+    /// Number of actively indexed source files.
+    pub fn source_file_count(self) -> usize {
+        self.source_file_count
+    }
 }
 
 impl BenchmarkError {
@@ -162,7 +225,12 @@ impl BenchmarkProject {
                 manifest.display()
             ))
         })?;
-        workspace.refresh_source_files();
+        let mut metrics = WorkspaceIndexMetrics::default();
+        assert!(workspace.refresh_source_files(
+            &WorkspaceIndexPolicy::default(),
+            &IndexingCancellation::default(),
+            &mut metrics,
+        ));
 
         let opts = workspace.compile_opts().clone();
         let root = opts

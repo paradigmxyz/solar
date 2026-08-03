@@ -3,7 +3,13 @@ use crate::{
     diagnostics::DiagnosticOwner,
     file_operations::FileMoveBatch,
     flycheck::{FlycheckConfig, FlycheckInitializationOptions},
-    workspace::{Workspace, WorkspaceKind, WorkspacePathIndex, manifest::ProjectManifest},
+    workspace::{
+        Workspace, WorkspaceKind, WorkspacePathIndex,
+        index_policy::{
+            IndexingCancellation, IndexingOptions, WorkspaceIndexMetrics, WorkspaceIndexPolicy,
+        },
+        manifest::ProjectManifest,
+    },
 };
 use lsp_types::{
     CallHierarchyServerCapability, CodeLensOptions as CodeLensServerOptions, CompletionOptions,
@@ -14,11 +20,14 @@ use lsp_types::{
     SaveOptions, SelectionRangeProviderCapability, ServerCapabilities, SignatureHelpOptions,
     TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
     TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions,
-    WorkspaceFileOperationsServerCapabilities, WorkspaceFolder, WorkspaceServerCapabilities,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceFolder, WorkspaceFoldersServerCapabilities,
+    WorkspaceServerCapabilities,
 };
+use normalize_path::NormalizePath;
 use serde::Deserialize;
 use solar_interface::data_structures::map::FxHashSet;
 use std::{
+    collections::BTreeSet,
     env,
     path::{Path, PathBuf},
     time::Duration,
@@ -34,9 +43,12 @@ use tracing::{info, warn};
 pub(crate) struct Config {
     workspace_roots: Vec<PathBuf>,
     workspaces: Vec<Workspace>,
+    index_policy: WorkspaceIndexPolicy,
+    index_metrics: WorkspaceIndexMetrics,
     flycheck_options: FlycheckInitializationOptions,
     flychecks: Vec<FlycheckConfig>,
     watched_file_dynamic_registration: bool,
+    watched_file_relative_pattern_support: bool,
     workspace_edit_document_changes: bool,
     code_lens_refresh_support: bool,
     diagnostic_refresh_support: bool,
@@ -53,14 +65,34 @@ pub(crate) struct Config {
     code_lens: CodeLensConfig,
 }
 
+pub(crate) struct WorkspaceDiscoveryResult {
+    pub(crate) workspaces: Vec<Workspace>,
+    pub(crate) metrics: WorkspaceIndexMetrics,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct WatchedFileSpec {
+    pub(crate) base: PathBuf,
+    pub(crate) pattern: &'static str,
+}
+
+impl WatchedFileSpec {
+    fn new(base: PathBuf, pattern: &'static str) -> Self {
+        Self { base, pattern }
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
             workspace_roots: Vec::new(),
             workspaces: Vec::new(),
+            index_policy: WorkspaceIndexPolicy::default(),
+            index_metrics: WorkspaceIndexMetrics::default(),
             flycheck_options: FlycheckInitializationOptions::default(),
             flychecks: Vec::new(),
             watched_file_dynamic_registration: false,
+            watched_file_relative_pattern_support: false,
             workspace_edit_document_changes: false,
             code_lens_refresh_support: false,
             diagnostic_refresh_support: false,
@@ -138,6 +170,10 @@ impl CodeLensConfig {
 impl Config {
     pub(crate) fn supports_watched_file_dynamic_registration(&self) -> bool {
         self.watched_file_dynamic_registration
+    }
+
+    pub(crate) fn supports_watched_file_relative_patterns(&self) -> bool {
+        self.watched_file_relative_pattern_support
     }
 
     pub(crate) fn supports_workspace_edit_document_changes(&self) -> bool {
@@ -219,8 +255,111 @@ impl Config {
         &self.workspace_roots
     }
 
+    pub(crate) fn watched_file_specs(&self) -> Vec<WatchedFileSpec> {
+        let mut specs = BTreeSet::new();
+        for root in &self.workspace_roots {
+            for pattern in ["**/*.sol", "**/foundry.toml", "**/remappings.txt"] {
+                specs.insert(WatchedFileSpec::new(root.clone(), pattern));
+            }
+            specs.extend(
+                root.ancestors()
+                    .skip(1)
+                    .map(|ancestor| WatchedFileSpec::new(ancestor.to_path_buf(), "foundry.toml")),
+            );
+        }
+
+        for workspace in &self.workspaces {
+            let Some(base_path) = workspace.compile_opts().base_path.as_deref() else {
+                continue;
+            };
+            if !self
+                .workspace_roots
+                .iter()
+                .any(|root| root.starts_with(base_path) || base_path.starts_with(root))
+            {
+                continue;
+            }
+            if self.is_external_watcher_root(base_path) {
+                specs.insert(WatchedFileSpec::new(base_path.to_path_buf(), "foundry.toml"));
+                specs.insert(WatchedFileSpec::new(base_path.to_path_buf(), "remappings.txt"));
+            }
+
+            for root in workspace.source_roots().iter().chain(workspace.import_only_roots()) {
+                if self.is_external_watcher_root(root) {
+                    specs.insert(WatchedFileSpec::new(root.clone(), "**/*.sol"));
+                }
+            }
+            for remapping in &workspace.compile_opts().import_remappings {
+                let target = Path::new(&remapping.path);
+                let target = if target.is_absolute() {
+                    target.to_path_buf()
+                } else {
+                    base_path.join(target)
+                }
+                .normalize();
+                if self.is_external_watcher_root(&target) {
+                    specs.insert(WatchedFileSpec::new(target, "**/*.sol"));
+                }
+            }
+        }
+        specs.into_iter().collect()
+    }
+
+    fn is_external_watcher_root(&self, path: &Path) -> bool {
+        !self.workspace_roots.iter().any(|root| path.starts_with(root))
+    }
+
     pub(crate) fn tracks_source_file(&self, path: &Path) -> bool {
-        self.workspaces.iter().any(|workspace| workspace.tracks_disk_file(path))
+        WorkspacePathIndex::new(&self.workspaces)
+            .workspace_idx_for_source_path(&self.index_policy, path)
+            .is_some()
+    }
+
+    pub(crate) fn workspace_config_event_is_relevant(&self, path: &Path) -> bool {
+        let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+            return false;
+        };
+        let Some(directory) = path.parent() else { return false };
+
+        if file_name == "remappings.txt" {
+            return self.workspace_roots.iter().any(|root| root == directory)
+                || self.workspaces.iter().any(|workspace| {
+                    workspace.compile_opts().base_path.as_deref() == Some(directory)
+                });
+        }
+        if file_name != "foundry.toml" {
+            return false;
+        }
+
+        if self.workspace_roots.iter().any(|root| root == directory || root.starts_with(directory))
+        {
+            return true;
+        }
+        let workspace_index = WorkspacePathIndex::new(&self.workspaces);
+        self.workspace_roots.iter().any(|root| {
+            if !directory.starts_with(root) {
+                return false;
+            }
+
+            let Some(workspace_idx) = workspace_index.workspace_idx_containing_path(directory)
+            else {
+                return !self.index_policy.excludes_directory(root, root, directory);
+            };
+            let workspace = &self.workspaces[workspace_idx];
+            let workspace_root = workspace.compile_opts().base_path.as_deref().unwrap_or(root);
+            let traversal_root =
+                if workspace_root.starts_with(root) { workspace_root } else { root };
+            !workspace.import_only_roots().iter().any(|path| directory.starts_with(path))
+                && !self.index_policy.excludes_directory(workspace_root, traversal_root, directory)
+        })
+    }
+
+    pub(crate) fn index_policy(&self) -> &WorkspaceIndexPolicy {
+        &self.index_policy
+    }
+
+    pub(crate) fn index_metrics(&self) -> WorkspaceIndexMetrics {
+        self.index_metrics
     }
 
     pub(crate) fn tracked_source_files_under(&self, roots: &[PathBuf]) -> Vec<PathBuf> {
@@ -276,14 +415,41 @@ impl Config {
     }
 
     pub(crate) fn rediscover_workspaces(&mut self) -> Vec<DiagnosticOwner> {
+        let cancellation = IndexingCancellation::default();
+        let Some(result) = self.discover_workspaces(&cancellation) else { return Vec::new() };
+        self.apply_workspace_discovery(result)
+    }
+
+    pub(crate) fn discover_workspaces(
+        &self,
+        cancellation: &IndexingCancellation,
+    ) -> Option<WorkspaceDiscoveryResult> {
+        let start = std::time::Instant::now();
+        let mut metrics = WorkspaceIndexMetrics::default();
         let mut workspaces = Vec::new();
         let mut seen_manifests = FxHashSet::default();
         for root in &self.workspace_roots {
-            let discovered = ProjectManifest::discover_all(std::slice::from_ref(root));
+            if cancellation.is_cancelled() {
+                return None;
+            }
+            let discovered = ProjectManifest::discover_all(
+                std::slice::from_ref(root),
+                &self.index_policy,
+                cancellation,
+                &mut metrics,
+            )?;
             info!(?root, ?discovered, "discovered projects");
             if discovered.is_empty() {
                 info!(?root, "no project manifests found");
-                push_workspace(&mut workspaces, Workspace::naked(root.clone()));
+                if !push_workspace(
+                    &mut workspaces,
+                    Workspace::naked(root.clone()),
+                    &self.index_policy,
+                    cancellation,
+                    &mut metrics,
+                ) {
+                    return None;
+                }
                 continue;
             }
 
@@ -295,11 +461,29 @@ impl Config {
                     ProjectManifest::Foundry(path) => {
                         let fallback_root = path.parent().map(PathBuf::from);
                         match Workspace::load_foundry(path) {
-                            Ok(workspace) => push_workspace(&mut workspaces, workspace),
+                            Ok(workspace) => {
+                                if !push_workspace(
+                                    &mut workspaces,
+                                    workspace,
+                                    &self.index_policy,
+                                    cancellation,
+                                    &mut metrics,
+                                ) {
+                                    return None;
+                                }
+                            }
                             Err(error) => {
                                 warn!(%error, "failed to load workspace");
-                                if let Some(root) = fallback_root {
-                                    push_workspace(&mut workspaces, Workspace::naked(root));
+                                if let Some(root) = fallback_root
+                                    && !push_workspace(
+                                        &mut workspaces,
+                                        Workspace::naked(root),
+                                        &self.index_policy,
+                                        cancellation,
+                                        &mut metrics,
+                                    )
+                                {
+                                    return None;
                                 }
                             }
                         }
@@ -308,7 +492,31 @@ impl Config {
             }
         }
         info!(workspaces = ?workspaces.iter().map(Workspace::kind).collect::<Vec<_>>(), "loaded workspaces");
-        self.workspaces = workspaces;
+        if cancellation.is_cancelled() {
+            return None;
+        }
+        WorkspacePathIndex::reconcile_source_files(
+            &mut workspaces,
+            &self.index_policy,
+            &mut metrics,
+        );
+        metrics.discovery_duration = start.elapsed();
+        info!(
+            visited = metrics.visited,
+            pruned = metrics.pruned,
+            eager = metrics.eager,
+            duration = ?metrics.discovery_duration,
+            "completed workspace discovery"
+        );
+        Some(WorkspaceDiscoveryResult { workspaces, metrics })
+    }
+
+    pub(crate) fn apply_workspace_discovery(
+        &mut self,
+        result: WorkspaceDiscoveryResult,
+    ) -> Vec<DiagnosticOwner> {
+        self.workspaces = result.workspaces;
+        self.index_metrics = result.metrics;
         self.refresh_flychecks()
     }
 
@@ -330,7 +538,8 @@ impl Config {
         &mut self,
         moves: &FileMoveBatch,
         deleted_paths: &[PathBuf],
-    ) {
+    ) -> bool {
+        let previous = self.workspace_roots.clone();
         self.workspace_roots
             .retain(|root| !deleted_paths.iter().any(|deleted| root.starts_with(deleted)));
         for root in &mut self.workspace_roots {
@@ -340,21 +549,24 @@ impl Config {
         }
         let mut seen = FxHashSet::default();
         self.workspace_roots.retain(|root| seen.insert(root.clone()));
+        self.workspace_roots != previous
     }
 
     pub(crate) fn add_source_file(&mut self, path: PathBuf) {
-        if self.workspaces.is_empty() {
+        let Some(idx) = WorkspacePathIndex::new(&self.workspaces)
+            .workspace_idx_for_source_path(&self.index_policy, &path)
+        else {
             return;
-        }
-        let idx = WorkspacePathIndex::new(&self.workspaces).workspace_idx_for_path(&path);
-        self.workspaces[idx].add_source_file(path);
+        };
+        self.workspaces[idx].add_source_file(&self.index_policy, path);
     }
 
     pub(crate) fn remove_source_file(&mut self, path: &Path) {
-        if self.workspaces.is_empty() {
+        let Some(idx) = WorkspacePathIndex::new(&self.workspaces)
+            .workspace_idx_for_source_path(&self.index_policy, path)
+        else {
             return;
-        }
-        let idx = WorkspacePathIndex::new(&self.workspaces).workspace_idx_for_path(path);
+        };
         self.workspaces[idx].remove_source_file(path);
     }
 
@@ -374,9 +586,18 @@ impl Config {
     }
 }
 
-fn push_workspace(workspaces: &mut Vec<Workspace>, mut workspace: Workspace) {
-    workspace.refresh_source_files();
+fn push_workspace(
+    workspaces: &mut Vec<Workspace>,
+    mut workspace: Workspace,
+    policy: &WorkspaceIndexPolicy,
+    cancellation: &IndexingCancellation,
+    metrics: &mut WorkspaceIndexMetrics,
+) -> bool {
+    if !workspace.refresh_source_files(policy, cancellation, metrics) {
+        return false;
+    }
     workspaces.push(workspace);
+    true
 }
 
 fn workspace_file_operation_options() -> FileOperationRegistrationOptions {
@@ -386,6 +607,22 @@ fn workspace_file_operation_options() -> FileOperationRegistrationOptions {
                 scheme: Some("file".into()),
                 pattern: FileOperationPattern {
                     glob: "**/*.sol".into(),
+                    matches: Some(FileOperationPatternKind::File),
+                    options: None,
+                },
+            },
+            FileOperationFilter {
+                scheme: Some("file".into()),
+                pattern: FileOperationPattern {
+                    glob: "**/foundry.toml".into(),
+                    matches: Some(FileOperationPatternKind::File),
+                    options: None,
+                },
+            },
+            FileOperationFilter {
+                scheme: Some("file".into()),
+                pattern: FileOperationPattern {
+                    glob: "**/remappings.txt".into(),
                     matches: Some(FileOperationPatternKind::File),
                     options: None,
                 },
@@ -426,6 +663,8 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
     let root_uri = params.root_uri;
     let workspace_folders = params.workspace_folders;
     let flycheck_options = FlycheckInitializationOptions::from_json(initialization_options.clone());
+    let indexing_options = IndexingOptions::from_json(initialization_options.clone());
+    let index_policy = WorkspaceIndexPolicy::new(indexing_options);
     let code_lens = CodeLensConfig::from_json(initialization_options);
 
     // The latest LSP spec mandates clients report `workspace_folders`, but some might still report
@@ -435,6 +674,12 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
         .as_ref()
         .and_then(|workspace| workspace.did_change_watched_files.as_ref())
         .and_then(|capabilities| capabilities.dynamic_registration)
+        .unwrap_or(false);
+    let watched_file_relative_pattern_support = capabilities
+        .workspace
+        .as_ref()
+        .and_then(|workspace| workspace.did_change_watched_files.as_ref())
+        .and_then(|capabilities| capabilities.relative_pattern_support)
         .unwrap_or(false);
     let workspace_edit_document_changes = capabilities
         .workspace
@@ -566,6 +811,10 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
                 },
             )),
             workspace: Some(WorkspaceServerCapabilities {
+                workspace_folders: Some(WorkspaceFoldersServerCapabilities {
+                    supported: Some(true),
+                    change_notifications: Some(OneOf::Left(true)),
+                }),
                 file_operations: Some(WorkspaceFileOperationsServerCapabilities {
                     did_create: Some(file_operations.clone()),
                     will_create: Some(file_operations.clone()),
@@ -574,15 +823,16 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
                     did_delete: Some(file_operations.clone()),
                     will_delete: Some(file_operations),
                 }),
-                ..Default::default()
             }),
             workspace_symbol_provider: Some(OneOf::Left(true)),
             ..Default::default()
         },
         Config {
             workspace_roots,
+            index_policy,
             flycheck_options,
             watched_file_dynamic_registration,
+            watched_file_relative_pattern_support,
             workspace_edit_document_changes,
             code_lens_refresh_support,
             diagnostic_refresh_support,
@@ -771,6 +1021,41 @@ mod tests {
     }
 
     #[test]
+    fn negotiate_capabilities_reads_workspace_indexing_options() {
+        let project = TestProject::new();
+        let params = InitializeParams {
+            initialization_options: Some(serde_json::json!({
+                "indexing": {
+                    "exclude": ["generated/**"],
+                    "useDefaultExcludes": false,
+                    "excludeHiddenDirectories": false,
+                    "excludeNestedRepositories": false
+                }
+            })),
+            ..Default::default()
+        };
+
+        let (_, config) = negotiate_capabilities(params);
+        let policy = config.index_policy();
+
+        assert!(policy.should_prune_directory(
+            project.root(),
+            project.root(),
+            &project.path("/generated")
+        ));
+        assert!(!policy.should_prune_directory(
+            project.root(),
+            project.root(),
+            &project.path("/node_modules")
+        ));
+        assert!(!policy.should_prune_directory(
+            project.root(),
+            project.root(),
+            &project.path("/.hidden")
+        ));
+    }
+
+    #[test]
     fn code_lens_activity_requires_an_enabled_lens_kind() {
         let inactive = CodeLensConfig {
             enable: true,
@@ -882,6 +1167,22 @@ mod tests {
                 FileOperationFilter {
                     scheme: Some("file".into()),
                     pattern: FileOperationPattern {
+                        glob: "**/foundry.toml".into(),
+                        matches: Some(FileOperationPatternKind::File),
+                        options: None,
+                    },
+                },
+                FileOperationFilter {
+                    scheme: Some("file".into()),
+                    pattern: FileOperationPattern {
+                        glob: "**/remappings.txt".into(),
+                        matches: Some(FileOperationPatternKind::File),
+                        options: None,
+                    },
+                },
+                FileOperationFilter {
+                    scheme: Some("file".into()),
+                    pattern: FileOperationPattern {
                         glob: "**".into(),
                         matches: Some(FileOperationPatternKind::Folder),
                         options: None,
@@ -896,6 +1197,19 @@ mod tests {
         assert_eq!(operations.will_rename, Some(options.clone()));
         assert_eq!(operations.did_delete, Some(options.clone()));
         assert_eq!(operations.will_delete, Some(options));
+    }
+
+    #[test]
+    fn negotiate_capabilities_advertises_workspace_folder_changes() {
+        let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
+        let workspace = capabilities.workspace.unwrap();
+        assert_eq!(
+            workspace.workspace_folders,
+            Some(WorkspaceFoldersServerCapabilities {
+                supported: Some(true),
+                change_notifications: Some(OneOf::Left(true)),
+            })
+        );
     }
 
     #[test]
@@ -1208,6 +1522,195 @@ mod tests {
             config.workspaces().iter().all(|workspace| workspace.kind() == WorkspaceKind::Foundry)
         );
         assert_eq!(nested.source_roots(), &[project.path("/packages/token/contracts")]);
+    }
+
+    #[test]
+    fn rediscovery_reconciles_overlapping_workspace_source_caches() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "."
+
+            //- /Outer.sol
+            contract Outer {}
+
+            //- /nested/foundry.toml
+            [profile.default]
+            src = "."
+
+            //- /nested/Inner.sol
+            contract Inner {}
+
+            //- /nested/generated/Excluded.sol
+            contract Excluded {}
+            "#,
+        );
+        let mut params = project.initialize_params();
+        params.initialization_options = Some(serde_json::json!({
+            "indexing": { "exclude": ["generated/**"] }
+        }));
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+
+        let outer = config
+            .workspaces()
+            .iter()
+            .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(project.root()))
+            .unwrap();
+        let nested = config
+            .workspaces()
+            .iter()
+            .find(|workspace| {
+                workspace.compile_opts().base_path.as_deref()
+                    == Some(project.path("/nested").as_path())
+            })
+            .unwrap();
+        assert_eq!(outer.source_files(), &[project.path("/Outer.sol")]);
+        assert_eq!(nested.source_files(), &[project.path("/nested/Inner.sol")]);
+        assert_eq!(config.index_metrics().eager, 2);
+    }
+
+    #[test]
+    fn workspace_config_events_accept_parent_manifest_candidates() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /project/foundry.toml
+            [profile.default]
+            src = "src"
+
+            //- /project/packages/app/src/.keep
+            "#,
+        );
+        let config = project.config_with_roots(&["/project/packages/app/src"]);
+
+        assert!(config.workspace_config_event_is_relevant(&project.path("/project/foundry.toml")));
+        assert!(
+            config.workspace_config_event_is_relevant(&project.path("/project/remappings.txt"))
+        );
+        assert!(config.workspace_config_event_is_relevant(
+            &project.path("/project/packages/app/foundry.toml")
+        ));
+        assert!(!config.workspace_config_event_is_relevant(&project.path("/other/foundry.toml")));
+    }
+
+    #[test]
+    fn workspace_config_events_reset_custom_globs_at_nested_workspaces() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+
+            //- /packages/app/foundry.toml
+
+            //- /packages/app/generated/.keep
+            "#,
+        );
+        let candidate = project.path("/packages/app/generated/foundry.toml");
+
+        let mut params = project.initialize_params();
+        params.initialization_options = Some(serde_json::json!({
+            "indexing": { "exclude": ["packages/app/generated/**"] }
+        }));
+        let (_, mut outer_scoped) = negotiate_capabilities(params);
+        outer_scoped.rediscover_workspaces();
+        assert!(outer_scoped.workspace_config_event_is_relevant(&candidate));
+
+        let mut params = project.initialize_params();
+        params.initialization_options = Some(serde_json::json!({
+            "indexing": { "exclude": ["generated/**"] }
+        }));
+        let (_, mut nested_scoped) = negotiate_capabilities(params);
+        nested_scoped.rediscover_workspaces();
+        assert!(!nested_scoped.workspace_config_event_is_relevant(&candidate));
+    }
+
+    #[test]
+    fn workspace_config_events_use_only_the_deepest_workspace_import_roots() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            libs = ["packages/app/vendor"]
+
+            //- /packages/app/foundry.toml
+
+            //- /packages/app/vendor/.keep
+
+            //- /packages/app/lib/.keep
+            "#,
+        );
+        let config = project.config();
+
+        assert!(config.workspace_config_event_is_relevant(
+            &project.path("/packages/app/vendor/foundry.toml")
+        ));
+        assert!(
+            !config.workspace_config_event_is_relevant(
+                &project.path("/packages/app/lib/foundry.toml")
+            )
+        );
+    }
+
+    #[test]
+    fn watched_file_specs_cover_bounded_workspace_paths() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /repo/foundry.toml
+            [profile.default]
+            src = "../external-src"
+            libs = ["../external-lib"]
+            remappings = ["@external/=../external-remapping/"]
+
+            //- /repo/workspace/nested/foundry.toml
+            "#,
+        );
+        let explicit_root = project.path("/repo/workspace");
+        let config = project.config_with_roots(&["/repo/workspace"]);
+        let mut expected = vec![
+            WatchedFileSpec::new(explicit_root.clone(), "**/*.sol"),
+            WatchedFileSpec::new(explicit_root.clone(), "**/foundry.toml"),
+            WatchedFileSpec::new(explicit_root.clone(), "**/remappings.txt"),
+            WatchedFileSpec::new(project.path("/repo"), "remappings.txt"),
+            WatchedFileSpec::new(project.path("/external-src"), "**/*.sol"),
+            WatchedFileSpec::new(project.path("/external-lib"), "**/*.sol"),
+            WatchedFileSpec::new(project.path("/external-remapping"), "**/*.sol"),
+        ];
+        expected.extend(
+            explicit_root
+                .ancestors()
+                .skip(1)
+                .map(|ancestor| WatchedFileSpec::new(ancestor.to_path_buf(), "foundry.toml")),
+        );
+        expected.sort();
+        expected.dedup();
+
+        assert_eq!(config.watched_file_specs(), expected);
+    }
+
+    #[test]
+    fn watched_file_specs_are_sorted_and_deduplicate_external_roots() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /repo/foundry.toml
+            [profile.default]
+            src = "../shared"
+            libs = ["../shared"]
+            remappings = ["@shared/=../shared/"]
+            "#,
+        );
+        let config = project.config_with_roots(&["/repo"]);
+
+        let specs = config.watched_file_specs();
+        assert!(specs.windows(2).all(|specs| specs[0] < specs[1]));
+        assert_eq!(
+            specs
+                .iter()
+                .filter(|spec| {
+                    spec.base == project.path("/shared") && spec.pattern == "**/*.sol"
+                })
+                .count(),
+            1
+        );
     }
 
     #[test]

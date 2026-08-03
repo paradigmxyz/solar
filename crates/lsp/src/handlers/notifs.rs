@@ -1,4 +1,9 @@
-use crate::{NotifyResult, global_state::GlobalState, proto, utils::apply_document_changes};
+use crate::{
+    NotifyResult,
+    global_state::{GlobalState, SourceFileEventDisposition},
+    proto,
+    utils::apply_document_changes,
+};
 use crop::Rope;
 use lsp_types::{
     DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
@@ -137,7 +142,10 @@ pub(crate) fn did_change_watched_files(
         };
 
         match path.file_name().and_then(|name| name.to_str()) {
-            Some("foundry.toml") => {
+            Some("foundry.toml" | "remappings.txt") => {
+                if !state.config.workspace_config_event_is_relevant(&path) {
+                    continue;
+                }
                 should_rediscover = true;
                 if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED) {
                     state.file_operations.record_watched_events(event.typ, [path]);
@@ -148,6 +156,19 @@ pub(crate) fn did_change_watched_files(
                 // analysis. The watched change emitted after saving one is redundant.
                 if event.typ == FileChangeType::CHANGED && state.vfs.read().exists(&vfs_path) {
                     continue;
+                }
+                match state.classify_source_file_event(&path, event.typ) {
+                    SourceFileEventDisposition::Relevant => {}
+                    SourceFileEventDisposition::Deferred
+                    | SourceFileEventDisposition::Irrelevant => continue,
+                    SourceFileEventDisposition::Recover => {
+                        should_rediscover = true;
+                        if event.typ == FileChangeType::DELETED {
+                            removed_paths.push(path.clone());
+                        }
+                        disk_paths.push(path);
+                        continue;
+                    }
                 }
                 if event.typ == FileChangeType::CREATED {
                     Arc::make_mut(&mut state.config).add_source_file(path.clone());
@@ -191,6 +212,7 @@ pub(crate) fn did_change_workspace_folders(
     config.add_workspaces(added_paths);
 
     state.reindex_after_removing_paths(removed_paths);
+    state.reregister_watched_files();
 
     ControlFlow::Continue(())
 }
