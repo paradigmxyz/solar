@@ -590,21 +590,21 @@ impl<'a> Validator<'a> {
             module.functions.iter().filter(|f| f.attributes.is_dispatch_entry).count();
         // From the `dispatch` phase on, routing is materialized: a module with
         // a runtime interface must contain exactly one synthesized `entry`.
-        if module.phase >= crate::mir::MirPhase::Dispatch {
-            if dispatch_entries > 1 {
-                self.emit(format_args!(
-                    "module is in the `{}` phase but has multiple `entry` routing functions",
-                    module.phase.name()
-                ));
-            } else if dispatch_entries == 0
-                && module.functions.iter().any(|f| {
-                    f.selector.is_some() || f.attributes.is_receive || f.attributes.is_fallback
-                })
-            {
-                self.emit(format_args!(
+        if module.phase >= crate::mir::MirPhase::Dispatch
+            && module.functions.iter().any(|f| {
+                f.selector.is_some() || f.attributes.is_receive || f.attributes.is_fallback
+            })
+        {
+            match module.functions.iter().filter(|f| f.attributes.is_dispatch_entry).count() {
+                1 => {}
+                0 => self.emit(format_args!(
                     "module is in the `{}` phase but has no `entry` routing function",
                     module.phase.name()
-                ));
+                )),
+                _ => self.emit(format_args!(
+                    "module is in the `{}` phase but has multiple `entry` routing functions",
+                    module.phase.name()
+                )),
             }
         }
     }

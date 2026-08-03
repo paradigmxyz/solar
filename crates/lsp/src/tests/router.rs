@@ -1,5 +1,5 @@
 use super::*;
-use crate::test_support::TestProject;
+use crate::test_support::{TestProject, assert_request_cancelled, start_request};
 use async_lsp::{
     AnyEvent, AnyNotification, AnyRequest, LanguageServer, LspService, ResponseError,
     router::Router,
@@ -21,16 +21,18 @@ use lsp_types::{
 };
 use solar_interface::data_structures::sync::RwLock;
 use std::{
-    future::Future,
     ops::ControlFlow,
-    pin::Pin,
     sync::Arc,
-    task::{Context, Poll, Waker},
+    task::{Context, Poll},
     time::Duration,
 };
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use tower::Service;
+
+fn new_router(client: ClientSocket) -> Router<GlobalState> {
+    new_router_with_state(GlobalState::new(client))
+}
 
 struct ObservedRouter {
     inner: Router<GlobalState>,
@@ -60,21 +62,6 @@ impl LspService for ObservedRouter {
     fn emit(&mut self, event: AnyEvent) -> ControlFlow<async_lsp::Result<()>> {
         self.inner.emit(event)
     }
-}
-
-fn assert_request_cancelled<T>(result: async_lsp::Result<T>) {
-    let Err(error) = result else { panic!("expected request cancellation") };
-    let async_lsp::Error::Response(error) = error else {
-        panic!("expected request cancellation, got {error:?}");
-    };
-    assert_eq!(error.code, async_lsp::ErrorCode::REQUEST_CANCELLED);
-}
-
-fn start_request<F: Future>(future: F) -> Pin<Box<F>> {
-    let mut future = Box::pin(future);
-    let mut cx = Context::from_waker(Waker::noop());
-    assert!(future.as_mut().poll(&mut cx).is_pending());
-    future
 }
 
 #[derive(Debug)]
@@ -367,6 +354,23 @@ async fn router_handles_document_diagnostic_requests() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn router_handles_workspace_diagnostic_requests() {
+    let mut router = new_router(ClientSocket::new_closed());
+    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+        "id": 1,
+        "method": request::WorkspaceDiagnosticRequest::METHOD,
+        "params": {
+            "previousResultIds": [],
+        },
+    }))
+    .unwrap();
+
+    let response = router.call(request).await.unwrap();
+
+    assert_eq!(response, serde_json::json!({ "items": [] }));
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn router_handles_document_highlight_requests() {
     let mut router = new_router(ClientSocket::new_closed());
     let params = DocumentHighlightParams {
@@ -621,12 +625,13 @@ async fn pending_analysis_requests_do_not_block_completion_or_cancellation() {
     let (accepted_tx, mut accepted_rx) = mpsc::unbounded_channel();
 
     let (server_main, _client) = async_lsp::MainLoop::new_server(move |client| {
+        let request_client = client.clone();
         let mut state = GlobalState::new(client);
         state.vfs = Arc::new(RwLock::new(vfs));
         state.config = Arc::new(config);
         state.mark_analysis_pending_for_test();
         let router = ObservedRouter { inner: new_router_with_state(state), accepted: accepted_tx };
-        ServiceBuilder::new().layer(request_layer()).service(router)
+        ServiceBuilder::new().layer(request_layer(request_client)).service(router)
     });
     let (client_main, mut server) = async_lsp::MainLoop::new_client(|_| Router::new(()));
 
