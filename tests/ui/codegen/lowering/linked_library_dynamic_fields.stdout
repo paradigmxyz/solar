@@ -103,15 +103,11 @@ bb5:
   swap1
   push 32
   add
-  dup1
   push 256
   mstore
-  dup2
   push 251
   shr
-  swap4
-  pop
-  pop
+  swap2
   pop
   pop
   push bb13
@@ -598,15 +594,10 @@ bb10:
   push 36
   calldataload
   add
-  dup1
   push 192
   mstore
-  dup2
   push 251
   shr
-  swap2
-  pop
-  pop
   push bb18
   jumpi
   push 160

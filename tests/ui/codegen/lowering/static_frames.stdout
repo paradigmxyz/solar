@@ -378,20 +378,18 @@ bb26:
   push 32
   add
   mload
-  dup1
   push 832
   mstore
   push 0
   sload
-  dup3
+  dup2
   dup2
   add
   dup1
   push 864
   mstore
   lt
-  swap2
-  pop
+  swap1
   pop
   push bb71
   jumpi

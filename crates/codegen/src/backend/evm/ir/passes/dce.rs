@@ -6,7 +6,6 @@ use crate::backend::evm::{
     op,
 };
 use solar_sema::Gcx;
-use std::ops::Range;
 
 pub(super) struct Dce;
 
@@ -15,129 +14,256 @@ impl EvmPass for Dce {
         "dce"
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
-        eliminate_dead_saved_values(module)
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        eliminate_dead_stack_copies(module, !gcx.sess.opts.optimization.is_size())
     }
 }
 
-/// Removes stack copies that only preserve a value until it is discarded.
+/// Removes stack copies that are eventually discarded without being consumed.
 ///
-/// Starting after a `DUP1`, `above` tracks the number of words above the
-/// original value. A candidate is safe while every instruction operates only
-/// on those words. Once they have all been consumed, a `POP` discards the
-/// original and both bookend instructions can be removed. A `SWAPn POP`
-/// cleanup with up to three live results can likewise be replaced by fewer,
-/// shallower swaps.
-fn eliminate_dead_saved_values(module: &mut Module) -> bool {
+/// The pass symbolically executes each straight-line candidate while omitting
+/// one occurrence introduced by a `DUPn`. Physical stack operations are
+/// retargeted to the compressed stack, including rotations when a `SWAPn`
+/// moves the omitted occurrence. Ordinary instructions remain safe as long as
+/// they do not consume it. A rewrite is applied only when the omitted
+/// occurrence reaches a `POP` and the resulting sequence improves either gas
+/// or size without regressing the other.
+fn eliminate_dead_stack_copies(module: &mut Module, allow_dup_retargeting: bool) -> bool {
     let mut changed = false;
-    let mut removals = Vec::new();
+    let mut edits = Vec::new();
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
-        changed |= eliminate_in_block(&mut block.instructions, &mut removals, &mut scratch) != 0;
+        changed |= eliminate_in_block(
+            &mut block.instructions,
+            &mut edits,
+            &mut scratch,
+            allow_dup_retargeting,
+        ) != 0;
     }
     changed
 }
 
 fn eliminate_in_block(
     instructions: &mut Vec<Instruction>,
-    removals: &mut Vec<usize>,
+    edits: &mut Vec<Edit>,
     scratch: &mut Vec<Instruction>,
+    allow_dup_retargeting: bool,
 ) -> usize {
     let mut rewrites = 0;
     loop {
-        removals.clear();
+        edits.clear();
         let mut start = 0;
         while start < instructions.len() {
-            if raw_opcode(&instructions[start]) != Some(op::DUP1) {
+            let Some(opcode) = raw_opcode(&instructions[start]) else {
+                start += 1;
+                continue;
+            };
+            if !(op::DUP1..=op::DUP16).contains(&opcode) {
                 start += 1;
                 continue;
             }
-            let Some(cleanup) = find_cleanup(instructions, start + 1) else {
+
+            let depth = usize::from(opcode - op::DUP1 + 1);
+            let candidate = if depth == 1 {
+                better_candidate(
+                    find_candidate(
+                        instructions,
+                        start,
+                        depth,
+                        Ghost::Original,
+                        allow_dup_retargeting,
+                    ),
+                    find_candidate(
+                        instructions,
+                        start,
+                        depth,
+                        Ghost::Duplicate,
+                        allow_dup_retargeting,
+                    ),
+                )
+            } else {
+                find_candidate(instructions, start, depth, Ghost::Duplicate, allow_dup_retargeting)
+            };
+            let Some(candidate) = candidate else {
                 start += 1;
                 continue;
             };
 
-            removals.push(start);
-            match cleanup.live_results {
-                0 => removals.push(cleanup.range.start),
-                1 => removals.extend(cleanup.range.clone()),
-                2 => {
-                    overwrite_raw(&mut instructions[cleanup.range.start], op::SWAP1);
-                    removals.push(cleanup.range.end - 1);
-                }
-                3 => {
-                    overwrite_raw(&mut instructions[cleanup.range.start], op::SWAP2);
-                    overwrite_raw(&mut instructions[cleanup.range.start + 1], op::SWAP1);
-                }
-                _ => unreachable!("cleanup search only returns profitable result counts"),
-            }
-            start = cleanup.range.end;
+            start = candidate.end;
+            edits.extend(candidate.edits);
             rewrites += 1;
         }
-        if removals.is_empty() {
+        if edits.is_empty() {
             return rewrites;
         }
 
-        scratch.clear();
-        std::mem::swap(instructions, scratch);
-        instructions.reserve(scratch.len() - removals.len());
-        let mut removals = removals.iter().copied().peekable();
-        for (index, inst) in scratch.drain(..).enumerate() {
-            if removals.peek() == Some(&index) {
-                removals.next();
-            } else {
-                instructions.push(inst);
-            }
-        }
+        apply_edits(instructions, edits, scratch);
     }
 }
 
-struct Cleanup {
-    range: Range<usize>,
-    live_results: usize,
+#[derive(Clone, Copy)]
+enum Ghost {
+    /// Omit the value produced by the candidate `DUPn`.
+    Duplicate,
+    /// For `DUP1`, omit the indistinguishable original value instead.
+    Original,
 }
 
-fn find_cleanup(instructions: &[Instruction], mut index: usize) -> Option<Cleanup> {
-    // The duplicate itself is initially the only word above the saved original.
-    let mut above = 1usize;
+#[derive(Clone, Copy)]
+struct Slot {
+    aliases_copy: bool,
+    is_ghost: bool,
+}
+
+impl Slot {
+    const OTHER: Self = Self { aliases_copy: false, is_ghost: false };
+    const COPY: Self = Self { aliases_copy: true, is_ghost: false };
+    const GHOST: Self = Self { aliases_copy: true, is_ghost: true };
+}
+
+struct Candidate {
+    end: usize,
+    edits: Vec<Edit>,
+    old_cost: Cost,
+    new_cost: Cost,
+}
+
+impl Candidate {
+    fn new(start: usize, opcode: u8) -> Self {
+        let mut candidate = Self {
+            end: start + 1,
+            edits: Vec::new(),
+            old_cost: Cost::default(),
+            new_cost: Cost::default(),
+        };
+        candidate.replace(start, opcode, &[]);
+        candidate
+    }
+
+    fn replace(&mut self, index: usize, old: u8, replacement: &[u8]) {
+        if replacement == [old] {
+            return;
+        }
+        self.old_cost += Cost::of_stack_op(old);
+        for &opcode in replacement {
+            self.new_cost += Cost::of_stack_op(opcode);
+        }
+        self.edits.push(Edit { index, replacement: replacement.to_vec() });
+    }
+
+    fn is_profitable(&self) -> bool {
+        self.new_cost.size <= self.old_cost.size
+            && self.new_cost.gas <= self.old_cost.gas
+            && self.new_cost != self.old_cost
+    }
+
+    fn gas_savings(&self) -> usize {
+        self.old_cost.gas - self.new_cost.gas
+    }
+
+    fn size_savings(&self) -> usize {
+        self.old_cost.size - self.new_cost.size
+    }
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+struct Cost {
+    size: usize,
+    gas: usize,
+}
+
+impl Cost {
+    fn of_stack_op(opcode: u8) -> Self {
+        debug_assert!(
+            opcode == op::POP
+                || (op::DUP1..=op::DUP16).contains(&opcode)
+                || (op::SWAP1..=op::SWAP16).contains(&opcode)
+        );
+        Self { size: 1, gas: if opcode == op::POP { 2 } else { 3 } }
+    }
+}
+
+impl std::ops::AddAssign for Cost {
+    fn add_assign(&mut self, rhs: Self) {
+        self.size += rhs.size;
+        self.gas += rhs.gas;
+    }
+}
+
+struct Edit {
+    index: usize,
+    replacement: Vec<u8>,
+}
+
+fn find_candidate(
+    instructions: &[Instruction],
+    start: usize,
+    duplicate_depth: usize,
+    ghost: Ghost,
+    allow_dup_retargeting: bool,
+) -> Option<Candidate> {
+    let mut slots = vec![Slot::OTHER; duplicate_depth];
+    slots[0] = Slot::COPY;
+    slots.push(Slot::GHOST);
+    if matches!(ghost, Ghost::Original) {
+        slots.swap(0, 1);
+    }
+
+    let start_opcode = raw_opcode(&instructions[start])?;
+    let mut candidate = Candidate::new(start, start_opcode);
+
+    let mut index = start + 1;
     while let Some(inst) = instructions.get(index) {
         let opcode = raw_opcode(inst);
         match opcode {
-            Some(op::POP) if above == 0 => {
-                return Some(Cleanup { range: index..index + 1, live_results: 0 });
+            Some(op::POP) if slots.last().is_some_and(|slot| slot.is_ghost) => {
+                candidate.replace(index, op::POP, &[]);
+                candidate.end = index + 1;
+                return candidate.is_profitable().then_some(candidate);
             }
-            Some(op::POP) => above -= 1,
-            Some(opcode)
-                if (1..=3).contains(&above)
-                    && opcode == op::swap(above as u8)
-                    && instructions
-                        .get(index + 1)
-                        .is_some_and(|inst| raw_opcode(inst) == Some(op::POP)) =>
-            {
-                return Some(Cleanup { range: index..index + 2, live_results: above });
+            Some(op::POP) => {
+                slots.pop();
             }
             Some(opcode) if is_control_flow(opcode) => return None,
             Some(opcode) if (op::DUP1..=op::DUP16).contains(&opcode) => {
                 let depth = usize::from(opcode - op::DUP1 + 1);
-                if depth > above {
+                ensure_depth(&mut slots, depth);
+                let selected = slots[slots.len() - depth];
+                let physical_depth = if selected.is_ghost {
+                    nearest_alias_depth(&slots)?
+                } else {
+                    physical_depth(&slots, slots.len() - depth)
+                };
+                // Changing a `DUPn` depth is byte-neutral and can perturb the
+                // later size-oriented layout. Gas mode keeps the substitution
+                // because it unlocks profitable copy cleanup.
+                if !allow_dup_retargeting && physical_depth != depth {
                     return None;
                 }
-                above += 1;
+                let replacement = op::dup(u8::try_from(physical_depth).ok()?);
+                candidate.replace(index, opcode, &[replacement]);
+                slots.push(Slot { aliases_copy: selected.aliases_copy, is_ghost: false });
             }
             Some(opcode) if (op::SWAP1..=op::SWAP16).contains(&opcode) => {
-                let depth = usize::from(opcode - op::SWAP1 + 1);
-                if depth >= above {
-                    return None;
-                }
+                let depth = usize::from(opcode - op::SWAP1 + 2);
+                ensure_depth(&mut slots, depth);
+                let top = slots.len() - 1;
+                let selected = slots.len() - depth;
+                let replacement = swap_replacement(&slots, selected, top)?;
+                candidate.replace(index, opcode, &replacement);
+                slots.swap(selected, top);
             }
             _ => {
                 let effect =
                     inst.metadata.stack.or_else(|| default_instruction_stack_effect(inst))?;
                 let inputs = usize::from(effect.inputs);
-                if inputs > above {
+                if inputs > slots.len()
+                    || slots[slots.len() - inputs..].iter().any(|slot| slot.is_ghost)
+                {
                     return None;
                 }
-                above = above - inputs + usize::from(effect.outputs);
+                slots.truncate(slots.len() - inputs);
+                slots.extend(std::iter::repeat_n(Slot::OTHER, usize::from(effect.outputs)));
             }
         }
         index += 1;
@@ -145,14 +271,87 @@ fn find_cleanup(instructions: &[Instruction], mut index: usize) -> Option<Cleanu
     None
 }
 
-fn raw_opcode(inst: &Instruction) -> Option<u8> {
-    (!inst.is_encoded_push()).then_some(inst.opcode)
+fn ensure_depth(slots: &mut Vec<Slot>, depth: usize) {
+    if depth > slots.len() {
+        slots.splice(..0, std::iter::repeat_n(Slot::OTHER, depth - slots.len()));
+    }
 }
 
-fn overwrite_raw(inst: &mut Instruction, opcode: u8) {
-    debug_assert!(raw_opcode(inst).is_some());
-    inst.opcode = opcode;
-    inst.metadata.stack = None;
+fn physical_depth(slots: &[Slot], selected: usize) -> usize {
+    slots[selected..].iter().filter(|slot| !slot.is_ghost).count()
+}
+
+fn nearest_alias_depth(slots: &[Slot]) -> Option<usize> {
+    let mut depth = 0;
+    for slot in slots.iter().rev() {
+        if slot.is_ghost {
+            continue;
+        }
+        depth += 1;
+        if slot.aliases_copy {
+            return (depth <= 16).then_some(depth);
+        }
+    }
+    None
+}
+
+fn swap_replacement(slots: &[Slot], selected: usize, top: usize) -> Option<Vec<u8>> {
+    let selected_is_ghost = slots[selected].is_ghost;
+    let top_is_ghost = slots[top].is_ghost;
+    if !selected_is_ghost && !top_is_ghost {
+        let depth = physical_depth(slots, selected);
+        return (2..=17).contains(&depth).then(|| vec![op::swap(u8::try_from(depth - 1).unwrap())]);
+    }
+
+    let live = slots[selected..=top].iter().filter(|slot| !slot.is_ghost).count();
+    if live > 16 {
+        return None;
+    }
+    let mut replacement = Vec::with_capacity(live.saturating_sub(1));
+    if selected_is_ghost {
+        replacement.extend((1..live).rev().map(|depth| op::swap(u8::try_from(depth).unwrap())));
+    } else {
+        replacement.extend((1..live).map(|depth| op::swap(u8::try_from(depth).unwrap())));
+    }
+    Some(replacement)
+}
+
+fn better_candidate(left: Option<Candidate>, right: Option<Candidate>) -> Option<Candidate> {
+    match (left, right) {
+        (Some(left), Some(right)) => {
+            let left_score = (left.gas_savings(), left.size_savings());
+            let right_score = (right.gas_savings(), right.size_savings());
+            Some(if right_score > left_score { right } else { left })
+        }
+        (candidate @ Some(_), None) | (None, candidate @ Some(_)) => candidate,
+        (None, None) => None,
+    }
+}
+
+fn apply_edits(
+    instructions: &mut Vec<Instruction>,
+    edits: &[Edit],
+    scratch: &mut Vec<Instruction>,
+) {
+    scratch.clear();
+    std::mem::swap(instructions, scratch);
+    let new_len = scratch.len() + edits.iter().map(|edit| edit.replacement.len()).sum::<usize>()
+        - edits.len();
+    instructions.reserve(new_len);
+
+    let mut edits = edits.iter().peekable();
+    for (index, inst) in scratch.drain(..).enumerate() {
+        if edits.peek().is_some_and(|edit| edit.index == index) {
+            let edit = edits.next().unwrap();
+            instructions.extend(edit.replacement.iter().copied().map(Instruction::opcode));
+        } else {
+            instructions.push(inst);
+        }
+    }
+}
+
+fn raw_opcode(inst: &Instruction) -> Option<u8> {
+    (!inst.is_encoded_push()).then_some(inst.opcode)
 }
 
 const fn is_control_flow(opcode: u8) -> bool {

@@ -348,15 +348,11 @@ bb27:
   push 36
   calldataload
   add
-  dup1
   push 224
   mstore
-  dup2
   push 251
   shr
-  swap3
-  pop
-  pop
+  swap1
   pop
   push bb39
   jumpi
@@ -510,7 +506,6 @@ bb27:
   push 160
   mload
   mload
-  dup1
   push 160
   mstore
   push 192
@@ -529,8 +524,7 @@ bb27:
   swap1
   swap2
   eq
-  swap3
-  pop
+  swap2
   pop
   pop
   iszero
