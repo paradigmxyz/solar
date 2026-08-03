@@ -30,11 +30,6 @@ bb0:
   jumpi
   push 4
   calldataload
-  iszero
-  push bb9
-  jumpi
-  push 4
-  calldataload
   push 0x123456789abcde
   push 0x123456789abcde
   addmod
@@ -46,16 +41,4 @@ bb0:
 bb4 [cold]:
   push 0
   dup1
-  revert
-bb9 [cold]:
-  push 0x4e487b71
-  push 224
-  shl
-  push 0
-  mstore
-  push 18
-  push 4
-  mstore
-  push 36
-  push 0
   revert

@@ -9,12 +9,6 @@ fn @am(arg0: u256, arg1: u256, arg2: u256) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    jumpi arg2, bb4, bb3
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 18 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
     v3 = addmod arg0, arg1, arg2
     ret v3
 }
@@ -28,12 +22,6 @@ fn @mm(arg0: u256, arg1: u256, arg2: u256) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
   bb2:
-    jumpi arg2, bb4, bb3
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 18 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
     v3 = mulmod arg0, arg1, arg2
     ret v3
 }

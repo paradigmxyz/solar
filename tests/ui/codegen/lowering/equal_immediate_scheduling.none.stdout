@@ -50,22 +50,6 @@ bb6 [cold]:
 bb7:
   push 4
   calldataload
-  push bb9
-  jumpi
-  jump bb8
-bb8 [cold]:
-  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
-  push 0
-  mstore
-  push 18
-  push 4
-  mstore
-  push 36
-  push 0
-  revert
-bb9:
-  push 4
-  calldataload
   push 0x123456789abcde
   push 0x123456789abcde
   addmod
