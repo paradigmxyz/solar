@@ -199,7 +199,7 @@ bb15:
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:R (runtime) ===
 @module runtime
 bb0:
-  push 320
+  push 256
   push 64
   mstore
   callvalue
@@ -270,14 +270,14 @@ bb35:
   return
 bb13 [cold]:
   push 2
-  push 256
+  push 192
   mstore
   push 0x3339
   push 240
   jump bb36
 bb36 [cold]:
   shl
-  push 288
+  push 224
   mstore
   push 0x8c379a0
   push 224
@@ -287,11 +287,11 @@ bb36 [cold]:
   push 32
   push 4
   mstore
-  push 256
+  push 192
   mload
   push 36
   mstore
-  push 288
+  push 224
   mload
   push 68
   mstore
@@ -316,7 +316,7 @@ bb14:
   jump bb35
 bb18 [cold]:
   push 11
-  push 256
+  push 192
   mstore
   push 0x6c69746572616c206d7367
   push 168
@@ -339,7 +339,7 @@ bb19:
   jump bb35
 bb23 [cold]:
   push 15
-  push 256
+  push 192
   mstore
   push 0x6c6f63616c2d636f6e73742d6d7367
   push 136
@@ -378,7 +378,7 @@ bb29:
   jump bb35
 bb33 [cold]:
   push 11
-  push 256
+  push 192
   mstore
   push 0x7265766572742d70617468
   push 168

@@ -3778,7 +3778,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         if let Some(func_id) = self.current_internal_function
             && self.static_frame_functions.contains(func_id)
         {
-            let offset = self.compact_stack_return_frame_offset(func_id, offset);
             let addr = self.static_frame_addr(func_id, offset);
             self.asm.emit_push_deferred(addr);
             return;
@@ -3790,12 +3789,22 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_current_internal_frame_addr(offset);
     }
 
-    /// Removes the unused one-word return slot from a stack-return function's physical frame.
-    fn compact_stack_return_frame_offset(&self, func_id: FunctionId, offset: u64) -> u64 {
-        let Some(&local_base) = self.stack_return_local_bases.get(&func_id) else { return offset };
-        let return_base = local_base - EvmMemoryLayout::WORD_SIZE;
-        debug_assert_ne!(offset, return_base, "removed stack-return slot is still referenced");
-        if offset >= local_base { offset - EvmMemoryLayout::WORD_SIZE } else { offset }
+    /// Removes the unused dynamic-frame header and optional return word from a static frame.
+    fn compact_static_frame_offset(&self, func_id: FunctionId, offset: u64) -> u64 {
+        if !self.runtime_stack_args {
+            return offset;
+        }
+        let mut compact = offset
+            .checked_sub(EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE)
+            .expect("static frame header is still referenced");
+        if let Some(&local_base) = self.stack_return_local_bases.get(&func_id) {
+            let return_base = local_base - EvmMemoryLayout::WORD_SIZE;
+            debug_assert_ne!(offset, return_base, "removed stack-return slot is still referenced");
+            if offset >= local_base {
+                compact -= EvmMemoryLayout::WORD_SIZE;
+            }
+        }
+        compact
     }
 
     /// Selects static-frame helpers that can return one word directly on the EVM stack.
@@ -4261,6 +4270,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn static_frame_addr(&mut self, func_id: FunctionId, offset: u64) -> DeferredConst {
+        let offset = self.compact_static_frame_offset(func_id, offset);
         if let Some((id, references)) = self.static_frame_addr_consts.get_mut(&(func_id, offset)) {
             *references += 1;
             return *id;
@@ -4270,11 +4280,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         id
     }
 
-    /// Total frame size of `func_id`: the fixed prefix plus the exact spill
-    /// area recorded after its body emitted.
+    /// Total emitted frame size of `func_id`, including its exact spill area.
     fn emitted_frame_size(&self, module: &Module, func_id: FunctionId) -> u64 {
         let func = &module.functions[func_id];
-        let size = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+        let header = if self.runtime_stack_args && self.static_frame_functions.contains(func_id) {
+            0
+        } else {
+            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+        };
+        let size = header
             + ((func.params.len() + func.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE
             + func.internal_frame_size
             + self.function_spill_size(func_id);
@@ -4303,11 +4317,34 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// constant accounts for its exact spill area and every accepted static
     /// allocation, plus the overlaid helper region when one is referenced.
     fn resolve_static_frames(&mut self, module: &Module) {
+        let uses_dynamic_internal_frames = !self.runtime_stack_args
+            || module.functions.iter().any(|func| {
+                func.instructions().any(|inst_id| {
+                    matches!(
+                        func.inst(inst_id).kind,
+                        InstKind::InternalCall { function, .. }
+                            if !self.static_frame_functions.contains(function)
+                    )
+                })
+            });
+        let low_memory_end = if uses_dynamic_internal_frames {
+            EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE
+        } else {
+            EvmMemoryLayout::HEAP_START
+        };
         let runtime_entries = std::mem::take(&mut self.runtime_entry_funcs);
         let entry_bases: FxHashMap<FunctionId, u64> = runtime_entries
             .iter()
             .copied()
-            .map(|func_id| (func_id, Self::external_spill_base(&module.functions[func_id])))
+            .map(|func_id| {
+                (
+                    func_id,
+                    Self::external_spill_base(
+                        &module.functions[func_id],
+                        uses_dynamic_internal_frames,
+                    ),
+                )
+            })
             .collect();
         let mut entry_ends: FxHashMap<FunctionId, u64> = runtime_entries
             .iter()
@@ -4365,8 +4402,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if placed.is_empty() {
                 (max_entry_end, max_entry_end)
             } else {
-                let start = max_entry_end
-                    .max(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE);
+                let start = max_entry_end.max(low_memory_end);
                 (start, start + static_span)
             }
         };
@@ -4461,8 +4497,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         for (func_id, spills) in self.external_spill_addr_consts.drain() {
-            let base = Self::external_spill_base(&module.functions[func_id])
-                + static_alloc_sizes.get(&func_id).copied().unwrap_or(0);
+            let base =
+                Self::external_spill_base(&module.functions[func_id], uses_dynamic_internal_frames)
+                    + static_alloc_sizes.get(&func_id).copied().unwrap_or(0);
             for (rank, (id, _)) in spills.into_iter().enumerate() {
                 self.asm.set_deferred_const(id, U256::from(base + rank as u64 * 32));
             }
@@ -4479,8 +4516,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    fn external_spill_base(func: &Function) -> u64 {
-        let low_memory_start = if Self::uses_internal_frame_slot(func) {
+    fn external_spill_base(func: &Function, dynamic_frames_enabled: bool) -> u64 {
+        let low_memory_start = if dynamic_frames_enabled && Self::uses_internal_frame_slot(func) {
             EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE
         } else {
             EvmMemoryLayout::HEAP_START
