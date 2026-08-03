@@ -9,8 +9,8 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         AbiLayout, AbiParamLayout, AbiType, AllocationSemantics, BlockId, Function,
-        FunctionBuilder, FunctionId, ImmutableId, MemoryObjectKind, MemoryObjectLayout, MirType,
-        Module, SliceLocation, ValueId,
+        FunctionBuilder, FunctionId, ImmutableId, InstKind, MemoryObjectKind, MemoryObjectLayout,
+        MirType, Module, SliceLocation, Value, ValueId,
     },
 };
 use alloy_primitives::{Bytes, U256, keccak256};
@@ -623,6 +623,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let parameter_ty = self.gcx.type_of_item(parameter.into());
             let mut value = self.lower_expr(argument)?;
             let mut abi_type = self.types.abi_type(parameter_ty)?;
+            abi_type = self.abi_type_for_value(value, abi_type);
             if self.needs_calldata_materialization(value, &abi_type) {
                 value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
@@ -717,6 +718,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 }
             } else {
                 let mut abi_type = self.types.abi_type(parameter_ty)?;
+                abi_type = self.abi_type_for_value(value, abi_type);
                 if self.needs_calldata_materialization(value, &abi_type) {
                     value =
                         self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
@@ -1150,6 +1152,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             };
             let mut value = self.lower_expr(argument)?;
             let mut abi_type = self.types.abi_type(parameter_ty)?;
+            abi_type = self.abi_type_for_value(value, abi_type);
             if self.needs_calldata_materialization(value, &abi_type) {
                 value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
@@ -1431,6 +1434,70 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             _ if then_value == else_value => Some(then_value),
             _ => Some(self.builder.phi(vec![(then_exit, then_value), (else_exit, else_value)])),
         }
+    }
+
+    fn lower_ternary_values(
+        &mut self,
+        condition: &hir::Expr<'_>,
+        then_expr: &hir::Expr<'_>,
+        else_expr: &hir::Expr<'_>,
+    ) -> Option<Vec<ValueId>> {
+        let condition = self.lower_expr(condition)?;
+        let then_block = self.builder.create_block();
+        let else_block = self.builder.create_block();
+        let merge_block = self.builder.create_block();
+        let before = self.values.clone();
+        self.builder.branch(condition, then_block, else_block);
+
+        self.builder.switch_to_block(then_block);
+        let then_result = self.lower_values(then_expr)?;
+        let then_terminated = self.is_terminated();
+        let then_exit = self.builder.current_block();
+        let then_values = self.values.clone();
+        if !then_terminated {
+            self.builder.jump(merge_block);
+        }
+
+        self.values = before.clone();
+        self.builder.switch_to_block(else_block);
+        let else_result = self.lower_values(else_expr)?;
+        let else_terminated = self.is_terminated();
+        let else_exit = self.builder.current_block();
+        let else_values = self.values.clone();
+        if !else_terminated {
+            self.builder.jump(merge_block);
+        }
+
+        self.builder.switch_to_block(merge_block);
+        self.values = self.merge_values(
+            before,
+            then_exit,
+            then_values,
+            then_terminated,
+            else_exit,
+            else_values,
+            else_terminated,
+        );
+        if !then_terminated && !else_terminated && then_result.len() != else_result.len() {
+            return report_unsupported(self.gcx, then_expr.span, "ternary value count");
+        }
+        let values = match (then_terminated, else_terminated) {
+            (true, false) => else_result,
+            (false, true) => then_result,
+            (true, true) => Vec::new(),
+            (false, false) => then_result
+                .into_iter()
+                .zip(else_result)
+                .map(|(then, else_)| {
+                    if then == else_ {
+                        then
+                    } else {
+                        self.builder.phi(vec![(then_exit, then), (else_exit, else_)])
+                    }
+                })
+                .collect(),
+        };
+        Some(values)
     }
 
     fn lower_loop(&mut self, block: hir::Block<'_>, source: LoopSource<'_>) -> Option<()> {
@@ -1718,6 +1785,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     }
 
     fn lower_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
+        if let ExprKind::Ternary(condition, then_expr, else_expr) = &expr.kind {
+            return self.lower_ternary_values(condition, then_expr, else_expr);
+        }
         if let ExprKind::Call(callee, args, ..) = &expr.kind {
             if self.gcx.resolved_builtin(callee) == Some(Builtin::AbiDecode)
                 && let ExprKind::Call(_, args, _) = &expr.kind
@@ -1960,9 +2030,16 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 let rhs_value = self.lower_expr(rhs)?;
                 let lhs_ty = self.type_of_expr_or_variable(lhs)?;
                 let rhs_ty = self.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
+                let preserve_calldata_slice = lhs_ty.is_ref_at(DataLocation::Calldata)
+                    && matches!(
+                        self.builder.func().value_ty(rhs_value),
+                        Some(MirType::Slice(SliceLocation::Calldata))
+                    );
                 let value = if let Some(kind) = op.map(|op| op.kind) {
                     let lhs_value = self.load_lvalue(lhs)?;
                     self.binary(kind, lhs_value, rhs_value, Some(lhs_ty))
+                } else if preserve_calldata_slice {
+                    rhs_value
                 } else {
                     self.materialize_memory_argument(lhs_ty, rhs_value, rhs.span)?
                 };
@@ -2781,6 +2858,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let parameter_ty = self.gcx.type_of_item(parameter.into());
             let mut value = self.lower_expr(argument)?;
             let mut abi_type = self.types.abi_type(parameter_ty)?;
+            abi_type = self.abi_type_for_value(value, abi_type);
             if self.needs_calldata_materialization(value, &abi_type) {
                 value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
@@ -2866,6 +2944,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         for (argument, &parameter) in arg_exprs.iter().zip(function.parameters) {
             let mut value = self.lower_expr(argument)?;
             let mut abi_type = self.types.abi_type(parameter)?;
+            abi_type = self.abi_type_for_value(value, abi_type);
             if self.needs_calldata_materialization(value, &abi_type) {
                 value = self.materialize_calldata_argument(parameter, value, argument.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
@@ -3406,6 +3485,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     return Some(self.builder.keccak256(pointer, length));
                 }
                 let value = self.lower_expr(value)?;
+                let value = match self.builder.func().value_ty(value) {
+                    Some(MirType::Slice(_)) => self.materialize_memory_slice(value),
+                    _ => value,
+                };
                 Some(self.builder.keccak256_bytes(value))
             }
             Builtin::Gasleft => {
@@ -3580,6 +3663,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let ty = self.gcx.type_of_expr(expr.id)?;
             let mut value = self.lower_expr(expr)?;
             let mut abi_type = self.types.abi_type(ty)?;
+            abi_type = self.abi_type_for_value(value, abi_type);
             if self.needs_calldata_materialization(value, &abi_type) {
                 value = self.materialize_calldata_argument(ty, value, expr.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
@@ -3662,6 +3746,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let ty = self.gcx.type_of_expr(expr.id)?;
             let mut value = self.lower_expr(expr)?;
             let mut abi_type = self.types.abi_type(ty)?;
+            abi_type = self.abi_type_for_value(value, abi_type);
             if self.needs_calldata_materialization(value, &abi_type) {
                 value = self.materialize_calldata_argument(ty, value, expr.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
@@ -5096,6 +5181,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let parameter_ty = self.gcx.type_of_item(parameter.into());
             let mut value = self.lower_expr(argument)?;
             let mut abi_type = self.types.abi_type(parameter_ty)?;
+            abi_type = self.abi_type_for_value(value, abi_type);
             if self.needs_calldata_materialization(value, &abi_type) {
                 value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
@@ -5240,6 +5326,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             } else {
                 self.types.abi_type(parameter_ty)?
             };
+            abi_type = self.abi_type_for_value(value, abi_type);
             if self.needs_calldata_materialization(value, &abi_type) {
                 value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
@@ -5369,6 +5456,20 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             AbiType::Tuple(fields) => {
                 AbiType::Tuple(fields.into_vec().into_iter().map(Self::memory_abi_type).collect())
             }
+        }
+    }
+
+    fn abi_type_for_value(&self, value: ValueId, ty: AbiType) -> AbiType {
+        if matches!(
+            self.builder.func().value_ty(value),
+            Some(MirType::MemoryObject(_)) | Some(MirType::Slice(SliceLocation::Memory))
+        ) || matches!(self.builder.func().value(value), Value::Inst(inst) if matches!(
+            &self.builder.func().inst(*inst).kind,
+            InstKind::MemoryObjectLoadField { .. } | InstKind::MemoryObjectLoadElement { .. }
+        )) {
+            Self::memory_abi_type(ty)
+        } else {
+            ty
         }
     }
 

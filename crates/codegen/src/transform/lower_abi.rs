@@ -854,13 +854,13 @@ impl LowerAbiCx {
                 ptr
             }
             crate::mir::AbiParamType::DynamicArray(element)
-                if matches!(element.as_ref(), crate::mir::AbiParamType::Scalar(_))
-                    && matches!(arg_type, MirType::Slice(_)) =>
+                if matches!(arg_type, MirType::Slice(_)) =>
             {
                 Self::guard_source_range(builder, base, 32, input_end, constructor, current);
                 let len = Self::load_input_word(builder, base, input_end, constructor);
                 let word = builder.imm_u64(32);
-                let bytes = Self::checked_mul(builder, len, word, current);
+                let element_head_size = builder.imm_u64(element.head_size());
+                let bytes = Self::checked_mul(builder, len, element_head_size, current);
                 let data = builder.add(base, word);
                 Self::guard_source_range_value(
                     builder,

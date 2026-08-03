@@ -278,7 +278,8 @@ fn lower_function<P: MemoryLayoutPolicy>(
                 InstKind::MemoryObjectCopyFromSlice { object, kind, source } => {
                     let destination =
                         offset_address(&mut builder, object, P::object_data_offset(kind));
-                    let Some(physical) = lower_slice_copy(&mut builder, destination, source) else {
+                    let Some(physical) = lower_slice_copy::<P>(&mut builder, destination, source)
+                    else {
                         builder.func_mut().blocks[block].instructions.push(inst);
                         continue;
                     };
@@ -288,7 +289,8 @@ fn lower_function<P: MemoryLayoutPolicy>(
                 InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source } => {
                     let base = offset_address(&mut builder, object, P::object_data_offset(kind));
                     let destination = builder.add(base, offset);
-                    let Some(physical) = lower_slice_copy(&mut builder, destination, source) else {
+                    let Some(physical) = lower_slice_copy::<P>(&mut builder, destination, source)
+                    else {
                         builder.func_mut().blocks[block].instructions.push(inst);
                         continue;
                     };
@@ -341,25 +343,36 @@ fn offset_address(
     }
 }
 
-fn lower_slice_copy(
+fn lower_slice_copy<P: MemoryLayoutPolicy>(
     builder: &mut FunctionBuilder<'_>,
     destination: crate::mir::ValueId,
     source: crate::mir::ValueId,
 ) -> Option<InstKind> {
-    let Some(MirType::Slice(location)) = builder.func().value_ty(source) else {
-        return None;
-    };
-    let source_ptr = builder.slice_ptr(source);
-    let length = builder.slice_len(source);
-    Some(match location {
-        crate::mir::SliceLocation::Memory => InstKind::MCopy(destination, source_ptr, length),
-        crate::mir::SliceLocation::Calldata => {
-            InstKind::CalldataCopy(destination, source_ptr, length)
+    match builder.func().value_ty(source)? {
+        MirType::MemoryObject(kind) => {
+            let length_offset = P::object_length_offset(kind)?;
+            let source_ptr = offset_address(builder, source, P::object_data_offset(kind));
+            let length_address = offset_address(builder, source, length_offset);
+            let length = builder.mload(length_address);
+            Some(InstKind::MCopy(destination, source_ptr, length))
         }
-        crate::mir::SliceLocation::Returndata => {
-            InstKind::ReturnDataCopy(destination, source_ptr, length)
+        MirType::Slice(location) => {
+            let source_ptr = builder.slice_ptr(source);
+            let length = builder.slice_len(source);
+            Some(match location {
+                crate::mir::SliceLocation::Memory => {
+                    InstKind::MCopy(destination, source_ptr, length)
+                }
+                crate::mir::SliceLocation::Calldata => {
+                    InstKind::CalldataCopy(destination, source_ptr, length)
+                }
+                crate::mir::SliceLocation::Returndata => {
+                    InstKind::ReturnDataCopy(destination, source_ptr, length)
+                }
+            })
         }
-    })
+        _ => None,
+    }
 }
 
 fn erase_object_types(func: &mut Function, stats: &mut LowerMemoryObjectsStats) {
