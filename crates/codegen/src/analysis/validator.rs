@@ -586,8 +586,6 @@ impl<'a> Validator<'a> {
     /// [`MirPhase`](crate::mir::MirPhase), so
     /// the phase is a real contract rather than a label.
     fn validate_module_phase(&mut self, module: &Module) {
-        let dispatch_entries =
-            module.functions.iter().filter(|f| f.attributes.is_dispatch_entry).count();
         // From the `dispatch` phase on, routing is materialized: a module with
         // a runtime interface must contain exactly one synthesized `entry`.
         if module.phase >= crate::mir::MirPhase::Dispatch
