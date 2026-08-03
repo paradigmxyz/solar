@@ -88,6 +88,16 @@ pub(super) fn lower(
             }
         }
     }
+    if contract.kind != hir::ContractKind::Library {
+        for function_id in gcx.contract_reachable_functions(contract_id).iter() {
+            let function = gcx.hir.function(function_id);
+            if function.kind == hir::FunctionKind::Function
+                && function.visibility == hir::Visibility::Internal
+            {
+                function_ids.push((function_id, false));
+            }
+        }
+    }
     let mut seen_ids = FxHashSet::default();
     let function_ids =
         function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();

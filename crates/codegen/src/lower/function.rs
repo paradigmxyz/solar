@@ -4934,14 +4934,25 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     ) -> Option<ValueId> {
         let function_id = self.resolve_call_target(callee, function_id);
         let function = self.gcx.hir.function(function_id);
-        if args.len() != function.parameters.len() {
+        let attached = self.gcx.resolved_callee(callee.id).is_some_and(|callee| callee.attached);
+        let receiver_count = usize::from(attached);
+        if args.len() + receiver_count != function.parameters.len() {
             return report_unsupported(self.gcx, expr.span, "function argument list");
         }
         let parameter_names =
             self.gcx.call_param_source(callee).map(|source| self.gcx.callable_param_names(source));
         let mut values = Vec::with_capacity(function.parameters.len());
-        for index in 0..function.parameters.len() {
-            let Some(argument) = args.argument_for_parameter(index, parameter_names.as_deref())
+        if attached {
+            let ExprKind::Member(receiver, _) = callee.kind else {
+                return report_unsupported(self.gcx, expr.span, "attached function receiver");
+            };
+            let parameter_ty = self.gcx.type_of_item(function.parameters[0].into());
+            let value = self.lower_expr(receiver)?;
+            values.push(self.materialize_memory_argument(parameter_ty, value, receiver.span)?);
+        }
+        for index in receiver_count..function.parameters.len() {
+            let Some(argument) =
+                args.argument_for_parameter(index - receiver_count, parameter_names.as_deref())
             else {
                 return report_unsupported(self.gcx, expr.span, "named function argument");
             };

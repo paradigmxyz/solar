@@ -108,6 +108,7 @@ existing scalar and packed-storage MIR fixtures. It supports:
   both ordinary Solidity expressions and inline assembly;
 * constructor and fallback/function attributes needed by the backend;
 * inherited public and internal function discovery with selector de-duplication;
+* reachable internal library calls, including `using for` receiver binding;
 * most-derived virtual resolution for internal calls, `super` calls, and
   overridden modifiers, while retaining shadowed public bodies as internal MIR
   targets;
