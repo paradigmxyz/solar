@@ -1949,26 +1949,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     fn ensure_multi_return_buffer(&mut self, words: usize) -> ValueId {
         debug_assert!(words > 1);
         let slot = self.builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-        let existing = self.builder.mload(slot);
-        let zero = self.builder.imm_u64(0);
-        let missing = self.builder.eq(existing, zero);
-        let preheader = self.builder.current_block();
-        let allocate = self.builder.create_block();
-        let ready = self.builder.create_block();
-        self.builder.branch(missing, allocate, ready);
-
-        self.builder.switch_to_block(allocate);
+        // The published pointer has no capacity, so each producer gets a fresh object.
         let words = u64::try_from(words).unwrap_or(u64::MAX);
         let size = self.builder.imm_u64(words.saturating_mul(32));
         let layout = MemoryObjectLayout::FixedArray { len: words, element_words: 1 };
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
-        let allocated = self.builder.memory_object_data(object, MemoryObjectKind::FixedArray);
-        self.builder.mstore(slot, allocated);
-        let allocation_exit = self.builder.current_block();
-        self.builder.jump(ready);
-
-        self.builder.switch_to_block(ready);
-        self.builder.phi(vec![(preheader, existing), (allocation_exit, allocated)])
+        let base = self.builder.memory_object_data(object, MemoryObjectKind::FixedArray);
+        self.builder.mstore(slot, base);
+        base
     }
 
     fn load_multi_return_value(&mut self, base: ValueId, index: usize) -> ValueId {
