@@ -2572,6 +2572,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.switch_to_block(short_block);
         let zero = self.builder.imm_u64(0);
         let data = self.builder.memory_object_load_element(object, MemoryObjectLayout::Bytes, zero);
+        let unused_bytes = self.builder.sub(word_size, length);
+        let bits = self.builder.imm_u64(8);
+        let shift = self.builder.mul(unused_bytes, bits);
+        let one = self.builder.imm_u64(1);
+        let high_bit = self.builder.shl(shift, one);
+        let low_mask = self.builder.sub(high_bit, one);
+        let data_mask = self.builder.not(low_mask);
+        let data = self.builder.and(data, data_mask);
         let two = self.builder.imm_u64(2);
         let tag = self.builder.mul(length, two);
         let header = self.builder.or(data, tag);
