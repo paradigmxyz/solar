@@ -58,17 +58,21 @@ pub(super) fn lower(
         .map(|&ret| type_lowerer.abi_type(gcx.type_of_item(ret.into())))
         .collect::<Option<Vec<_>>>();
 
-    if mir.selector.is_some() {
+    let has_constructor_params = mir.attributes.is_constructor
+        && input_shapes.as_ref().is_some_and(|shapes| !shapes.is_empty());
+    if mir.selector.is_some() || has_constructor_params {
         let Some(input_shapes) = input_shapes else {
             return report_unsupported(gcx, hir_function.span, "function parameter shape");
         };
-        let Some(output_shapes) = output_shapes else {
-            return report_unsupported(gcx, hir_function.span, "function return shape");
-        };
         mir.abi_params = Some(AbiParamLayout::new(input_shapes.into_boxed_slice()));
-        mir.abi_returns =
-            Some(module.intern_abi_layout(AbiLayout::new(output_shapes.into_boxed_slice())));
         mir.abi_args_lazy = true;
+        if mir.selector.is_some() {
+            let Some(output_shapes) = output_shapes else {
+                return report_unsupported(gcx, hir_function.span, "function return shape");
+            };
+            mir.abi_returns =
+                Some(module.intern_abi_layout(AbiLayout::new(output_shapes.into_boxed_slice())));
+        }
     }
 
     let mut lowerer = FunctionLowerer::new(
@@ -95,7 +99,7 @@ pub(super) fn lower(
         lowerer.lower_function_body(hir_function.modifiers, body)?;
     }
     if !lowerer.is_terminated() {
-        lowerer.finish(hir_function.returns);
+        lowerer.finish(hir_function.returns)?;
     }
     Some(mir)
 }
@@ -131,7 +135,7 @@ pub(super) fn lower_synthetic_constructor(
     lowerer.lower_state_initializers(contract_id)?;
     lowerer.lower_implicit_base_constructors(contract_id)?;
     if !lowerer.is_terminated() {
-        lowerer.finish(&[]);
+        lowerer.finish(&[])?;
     }
     Some(mir)
 }
@@ -293,7 +297,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
         for &ret in function.returns {
             self.builder
-                .add_return(types::TypeLowerer::mir_type(self.gcx.type_of_item(ret.into())));
+                .add_return(types::TypeLowerer::mir_return_type(self.gcx.type_of_item(ret.into())));
             let ty = self.gcx.type_of_item(ret.into());
             let value = self.default_binding_value(ty);
             self.values.insert(ret, value);
@@ -345,12 +349,22 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         Some(())
     }
 
-    fn finish(&mut self, returns: &[VariableId]) {
+    fn finish(&mut self, returns: &[VariableId]) -> Option<()> {
         if returns.is_empty() {
             self.builder.stop();
         } else {
-            self.builder.ret(returns.iter().filter_map(|id| self.values.get(id).copied()));
+            let mut values = Vec::with_capacity(returns.len());
+            for &id in returns {
+                let value = self.values.get(&id).copied()?;
+                values.push(self.materialize_memory_argument(
+                    self.gcx.type_of_item(id.into()),
+                    value,
+                    self.gcx.hir.variable(id).span,
+                )?);
+            }
+            self.builder.ret(values);
         }
+        Some(())
     }
 
     fn is_terminated(&self) -> bool {
@@ -508,7 +522,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                         if values.len() != self.returns.len() {
                             return report_unsupported(self.gcx, stmt.span, "return value count");
                         }
-                        for (&id, value) in self.returns.iter().zip(values) {
+                        let return_ids = self.returns.clone();
+                        for (id, value) in return_ids.into_iter().zip(values) {
+                            let value = self.materialize_memory_argument(
+                                self.gcx.type_of_item(id.into()),
+                                value,
+                                stmt.span,
+                            )?;
                             self.values.insert(id, value);
                         }
                     }
@@ -517,6 +537,21 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     if values.is_empty() {
                         self.builder.stop();
                     } else {
+                        if values.len() != self.returns.len() {
+                            return report_unsupported(self.gcx, stmt.span, "return value count");
+                        }
+                        let return_ids = self.returns.clone();
+                        let values = return_ids
+                            .into_iter()
+                            .zip(values)
+                            .map(|(id, value)| {
+                                self.materialize_memory_argument(
+                                    self.gcx.type_of_item(id.into()),
+                                    value,
+                                    stmt.span,
+                                )
+                            })
+                            .collect::<Option<Vec<_>>>()?;
                         self.builder.ret(values);
                     }
                 }
@@ -2896,7 +2931,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 return report_unsupported(self.gcx, expr.span, "named internal function argument");
             };
             let value = self.lower_expr(argument)?;
-            values.push(self.materialize_memory_argument(parameter, value, argument.span)?);
+            values.push(self.materialize_call_argument(parameter, value, argument.span)?);
         }
         values.insert(0, function_value);
 
@@ -2906,7 +2941,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             self.builder.internal_call_void(dispatcher, values, 0);
             return Some(self.builder.imm_u256(U256::ZERO));
         }
-        let result_ty = types::TypeLowerer::mir_type(function.returns[0]);
+        let result_ty = types::TypeLowerer::mir_return_type(function.returns[0]);
         Some(self.builder.internal_call(dispatcher, values, result_ty, returns))
     }
 
@@ -2934,7 +2969,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 .iter()
                 .map(|&ty| types::TypeLowerer::mir_type(ty))
                 .collect(),
-            returns: function.returns.iter().map(|&ty| types::TypeLowerer::mir_type(ty)).collect(),
+            returns: function
+                .returns
+                .iter()
+                .map(|&ty| types::TypeLowerer::mir_return_type(ty))
+                .collect(),
         };
         if let Some(&dispatcher) = self.pointer_registry.dispatchers.get(&shape) {
             return dispatcher;
@@ -4177,13 +4216,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             AllocationSemantics::INTERNAL,
         );
         self.builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
-        let pointer = self.builder.slice_ptr(slice);
-        let location = match self.builder.func().value_ty(slice) {
-            Some(MirType::Slice(location)) => location,
-            _ => SliceLocation::Memory,
-        };
-        let source = self.builder.make_slice(pointer, length, location);
-        self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
+        self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, slice);
         object
     }
 
@@ -5002,7 +5035,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             } else {
                 self.lower_expr(receiver)?
             };
-            values.push(self.materialize_memory_argument(parameter_ty, value, receiver.span)?);
+            values.push(self.materialize_call_argument(parameter_ty, value, receiver.span)?);
         }
         for index in receiver_count..function.parameters.len() {
             let Some(argument) =
@@ -5016,7 +5049,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             } else {
                 self.lower_expr(argument)?
             };
-            values.push(self.materialize_memory_argument(parameter_ty, value, argument.span)?);
+            values.push(self.materialize_call_argument(parameter_ty, value, argument.span)?);
         }
         let Some(&mir_id) = self.function_ids.get(&function_id) else {
             return self.lower_external_function_call(expr, callee, function_id, args);
@@ -5025,7 +5058,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             self.builder.internal_call_void(mir_id, values, 0);
             return Some(self.builder.imm_u256(U256::ZERO));
         }
-        let result_ty = types::TypeLowerer::mir_type(
+        let result_ty = types::TypeLowerer::mir_return_type(
             self.gcx.type_of_item((*function.returns.first()?).into()),
         );
         Some(self.builder.internal_call(mir_id, values, result_ty, function.returns.len()))
@@ -5231,13 +5264,36 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         value: ValueId,
         span: Span,
     ) -> Option<ValueId> {
-        if matches!(
-            self.builder.func().value_ty(value),
-            Some(MirType::Slice(SliceLocation::Calldata))
-        ) {
-            self.materialize_calldata_argument(ty, value, span)
-        } else {
+        let Some(MirType::Slice(location)) = self.builder.func().value_ty(value) else {
+            return Some(value);
+        };
+        match location {
+            SliceLocation::Calldata => self.materialize_calldata_argument(ty, value, span),
+            SliceLocation::Memory => match ty.peel_refs().kind {
+                TyKind::Elementary(
+                    solar_sema::hir::ElementaryType::Bytes
+                    | solar_sema::hir::ElementaryType::String,
+                ) => Some(self.materialize_memory_slice(value)),
+                _ => report_unsupported(self.gcx, span, "memory slice materialization"),
+            },
+            SliceLocation::Returndata => {
+                report_unsupported(self.gcx, span, "returndata slice materialization")
+            }
+        }
+    }
+
+    fn materialize_call_argument(
+        &mut self,
+        ty: Ty<'gcx>,
+        value: ValueId,
+        span: Span,
+    ) -> Option<ValueId> {
+        if ty.is_ref_at(DataLocation::Calldata)
+            && matches!(self.builder.func().value_ty(value), Some(MirType::Slice(_)))
+        {
             Some(value)
+        } else {
+            self.materialize_memory_argument(ty, value, span)
         }
     }
 
@@ -5771,11 +5827,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     _ => report_unsupported(self.gcx, expr.span, "array length"),
                 };
             }
-            if receiver_ty.is_ref_at(DataLocation::Calldata) {
-                let slice = self.lower_expr(receiver)?;
-                return Some(self.builder.slice_len(slice));
-            }
             let object = self.lower_expr(receiver)?;
+            if matches!(self.builder.func().value_ty(object), Some(MirType::Slice(_))) {
+                return Some(self.builder.slice_len(object));
+            }
             let layout = self.types.memory_layout(receiver_ty)?;
             return match layout.kind() {
                 MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray => {
@@ -5874,6 +5929,40 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let object = self.lower_expr(receiver)?;
         let index = self.lower_expr(index)?;
         let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
+        if let Some(MirType::Slice(location)) = self.builder.func().value_ty(object) {
+            let length = self.builder.slice_len(object);
+            self.bounds_check(index, length);
+            let base = self.builder.slice_ptr(object);
+            return match receiver_ty.peel_refs().kind {
+                TyKind::Elementary(
+                    solar_sema::hir::ElementaryType::Bytes
+                    | solar_sema::hir::ElementaryType::String,
+                ) => {
+                    let pointer = self.builder.add(base, index);
+                    let word = match location {
+                        SliceLocation::Calldata => self.builder.calldataload(pointer),
+                        SliceLocation::Memory => self.builder.mload(pointer),
+                        SliceLocation::Returndata => {
+                            return report_unsupported(self.gcx, expr.span, "returndata index");
+                        }
+                    };
+                    let zero = self.builder.imm_u64(0);
+                    let byte = self.builder.byte(zero, word);
+                    Some(self.normalize_byte_value(expr, byte))
+                }
+                TyKind::DynArray(element) | TyKind::Slice(element) => {
+                    if location != SliceLocation::Calldata {
+                        return report_unsupported(self.gcx, expr.span, "memory array slice index");
+                    }
+                    let head_size = self.types.abi_type(element)?.head_size();
+                    let head_size = self.builder.imm_u64(head_size);
+                    let offset = self.checked_mul(index, head_size);
+                    let head = self.builder.add(base, offset);
+                    self.materialize_calldata_value_at(element, head, base, expr.span)
+                }
+                _ => report_unsupported(self.gcx, expr.span, "slice index"),
+            };
+        }
         let layout = self.types.memory_layout(receiver_ty)?;
         match layout {
             MemoryObjectLayout::DynamicArray { .. } => {
@@ -6672,7 +6761,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     returns: function
                         .returns
                         .iter()
-                        .map(|&ty| types::TypeLowerer::mir_type(ty))
+                        .map(|&ty| types::TypeLowerer::mir_return_type(ty))
                         .collect(),
                 };
                 (candidate_shape == shape).then_some(function_id)

@@ -86,6 +86,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   Solidity panic payloads, explicit unchecked-block state, and narrow-type
   wrapping;
 * typed external ABI metadata for scalar, enum, byte, array, and tuple shapes;
+* nested ABI parameter locations, fixed-array constructor word decoding, and
+  memory-shaped dynamic calldata returns;
 * state-variable reads and writes through the shared storage-location object;
 * packed unsigned, signed, address, enum, and fixed-bytes storage fields;
 * nested structs, mappings, dynamic arrays, and short and long storage bytes;
@@ -105,7 +107,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * Yul `switch` statements with default and fall-through-to-merge paths,
   left-aligned string and hex case words, and branch-local value merging;
 * calldata slice parameters and `.offset`/`.length` access and assignment in
-  both ordinary Solidity expressions and inline assembly;
+  both ordinary Solidity expressions and inline assembly, including indexed
+  bytes and array slices and internal slice returns;
 * constructor and fallback/function attributes needed by the backend;
 * inherited public and internal function discovery with selector de-duplication;
 * reachable internal library calls, including `using for` receiver binding;
@@ -146,6 +149,7 @@ existing scalar and packed-storage MIR fixtures. It supports:
   returns, memory arrays, and multi-return calls;
 * `abi.decode` scalar, tuple, struct, fixed- and dynamic-array, and
   calldata-slice paths through semantic memory slices and object copies;
+* canonical minimum-offset checks for dynamic ABI arguments;
 * `ecrecover`, `sha256`, and `ripemd160` through version-aware precompile
   calls and semantic memory objects;
 * `string.concat` and `bytes.concat` through one variadic packed-memory path,

@@ -66,10 +66,25 @@ impl<'gcx> TypeLowerer<'gcx> {
         }
     }
 
+    /// Returns the MIR representation used for a function return value.
+    pub(super) fn mir_return_type(ty: Ty<'_>) -> MirType {
+        if let TyKind::Ref(inner, DataLocation::Calldata) = ty.kind
+            && matches!(
+                inner.peel_refs().kind,
+                TyKind::DynArray(_)
+                    | TyKind::Slice(_)
+                    | TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes)
+            )
+        {
+            return Self::mir_type(inner);
+        }
+        Self::mir_type(ty)
+    }
+
     /// Builds the ABI input shape for a function parameter.
     pub(super) fn abi_param_type(&mut self, ty: Ty<'gcx>) -> Option<AbiParamType> {
         self.seen_structs.clear();
-        self.abi_param_type_inner(ty)
+        self.abi_param_type_inner(ty, ty.loc().unwrap_or(DataLocation::Memory))
     }
 
     /// Builds the ABI output shape for a function return value.
@@ -103,7 +118,11 @@ impl<'gcx> TypeLowerer<'gcx> {
         1
     }
 
-    fn abi_param_type_inner(&mut self, ty: Ty<'gcx>) -> Option<AbiParamType> {
+    fn abi_param_type_inner(
+        &mut self,
+        ty: Ty<'gcx>,
+        location: DataLocation,
+    ) -> Option<AbiParamType> {
         if ty.is_ref_at(DataLocation::Storage) || matches!(ty.peel_refs().kind, TyKind::Mapping(..))
         {
             return Some(AbiParamType::Scalar(MirType::StoragePtr));
@@ -118,12 +137,22 @@ impl<'gcx> TypeLowerer<'gcx> {
                 variants: self.gcx.hir.enumm(id).variants.len() as u64,
             },
             TyKind::DynArray(element) | TyKind::Slice(element) => {
-                AbiParamType::DynamicArray(Box::new(self.abi_param_type_inner(element)?))
+                AbiParamType::DynamicArray(Box::new(
+                    self.abi_param_type_inner(
+                        element.with_loc_if_ref(self.gcx, location),
+                        location,
+                    )?,
+                ))
             }
-            TyKind::Array(element, len) => AbiParamType::FixedArray {
-                element: Box::new(self.abi_param_type_inner(element)?),
-                len: u64::try_from(len).ok()?,
-            },
+            TyKind::Array(element, len) => {
+                AbiParamType::FixedArray {
+                    element: Box::new(self.abi_param_type_inner(
+                        element.with_loc_if_ref(self.gcx, location),
+                        location,
+                    )?),
+                    len: u64::try_from(len).ok()?,
+                }
+            }
             TyKind::Struct(id) => {
                 if !self.seen_structs.insert(id) {
                     return None;
@@ -134,12 +163,23 @@ impl<'gcx> TypeLowerer<'gcx> {
                     .strukt(id)
                     .fields
                     .iter()
-                    .map(|&field| self.abi_param_type_inner(self.gcx.type_of_item(field.into())))
+                    .map(|&field| {
+                        let field_ty = self.gcx.type_of_item(field.into());
+                        self.abi_param_type_inner(
+                            field_ty.with_loc_if_ref(self.gcx, location),
+                            location,
+                        )
+                    })
                     .collect::<Option<Vec<_>>>()?;
                 self.seen_structs.remove(&id);
                 AbiParamType::Tuple(fields.into_boxed_slice())
             }
-            TyKind::Udvt(underlying, _) => return self.abi_param_type_inner(underlying),
+            TyKind::Udvt(underlying, _) => {
+                return self.abi_param_type_inner(
+                    underlying.with_loc_if_ref(self.gcx, location),
+                    location,
+                );
+            }
             TyKind::Contract(_) | TyKind::Super(_) => AbiParamType::Scalar(MirType::Address),
             _ => AbiParamType::Scalar(Self::mir_type(ty)),
         })

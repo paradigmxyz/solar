@@ -1045,7 +1045,11 @@ impl<'a> FunctionBuilder<'a> {
     /// current block with the value the phi takes when control arrives from
     /// that block. Emit phis before any other instruction in their block.
     pub(crate) fn phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
-        self.emit_inst(InstKind::Phi(incoming), Some(MirType::uint256()))
+        let ty = incoming
+            .first()
+            .and_then(|(_, value)| self.func.value_ty(*value))
+            .unwrap_or(MirType::uint256());
+        self.emit_inst(InstKind::Phi(incoming), Some(ty))
     }
 
     /// Adds an incoming `(block, value)` edge to an existing phi. This is used

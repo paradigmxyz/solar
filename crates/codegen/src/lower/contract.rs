@@ -140,7 +140,7 @@ pub(super) fn lower(
                 builder.add_param(TypeLowerer::mir_type(gcx.type_of_item(param.into())));
             }
             for &ret in function.returns {
-                builder.add_return(TypeLowerer::mir_type(gcx.type_of_item(ret.into())));
+                builder.add_return(TypeLowerer::mir_return_type(gcx.type_of_item(ret.into())));
             }
         }
         let mir_id = module.add_function(declaration);
