@@ -165,9 +165,10 @@ the expected `sload`, arithmetic, and `sstore` sequence, and does not contain a
 free-memory-pointer allocation. `cargo check --workspace` and `cargo fmt --all`
 pass for this slice. The storage-array runtime fixture also matches Solc 0.8.35
 for direct, push, lvalue, nested-lvalue, bytes, and mapping cases. The
-stress-arrays Foundry project now runs in the default differential suite; all
-34 Solar tests match Solc, including dynamic-array clearing and fixed-array
-deletion.
+Foundry projects `abi-encoding`, `stress-arrays`, `stress-inheritance`, and
+`stress-modifiers` now run in the default differential suite. Their Solar tests
+match Solc, including multi-value ABI decoding, dynamic-array clearing, and
+fixed-array deletion.
 
 ## Remaining work
 
