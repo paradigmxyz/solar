@@ -71,7 +71,6 @@ bb5:
   dup1
   push 192
   mstore
-  dup1
   sload
   push 68
   calldataload
@@ -81,8 +80,6 @@ bb5:
   push 160
   mstore
   lt
-  swap1
-  pop
   push bb11
   jumpi
   push 160
@@ -196,7 +193,6 @@ bb5:
   dup1
   push 480
   mstore
-  dup1
   sload
   push 384
   mload
@@ -206,8 +202,6 @@ bb5:
   push 448
   mstore
   lt
-  swap1
-  pop
   push bb13
   jumpi
   push 448

@@ -154,7 +154,6 @@ bb14:
   push 4
   calldataload
   add
-  dup1
   push 192
   mstore
   push 4
@@ -168,8 +167,6 @@ bb14:
   push 36
   calldataload
   gt
-  swap1
-  pop
   push bb5
   jumpi
   push 36
