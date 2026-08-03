@@ -2697,7 +2697,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             return self.lower_internal_function_pointer_call(expr, callee, function, args);
         }
         if let Some(function_id) = self.gcx.resolved_function(callee) {
-            return self.lower_function_call(expr, callee, function_id, args);
+            return self.lower_function_call(expr, callee, function_id, args, call_opts);
         }
         if self.gcx.dcx().has_errors().is_err() {
             return Some(self.builder.imm_u256(U256::ZERO));
@@ -5015,6 +5015,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         callee: &hir::Expr<'_>,
         function_id: hir::FunctionId,
         args: hir::CallArgs<'_>,
+        call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
         let function_id = self.resolve_call_target(callee, function_id);
         let function = self.gcx.hir.function(function_id);
@@ -5059,7 +5060,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             values.push(self.materialize_call_argument(parameter_ty, value, argument.span)?);
         }
         let Some(&mir_id) = self.function_ids.get(&function_id) else {
-            return self.lower_external_function_call(expr, callee, function_id, args);
+            return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         };
         if function.returns.is_empty() {
             self.builder.internal_call_void(mir_id, values, 0);
@@ -5077,6 +5078,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         callee: &hir::Expr<'_>,
         function_id: hir::FunctionId,
         args: hir::CallArgs<'_>,
+        call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
         let ExprKind::Member(receiver, _) = callee.kind else {
             return report_unsupported(self.gcx, expr.span, "external function target");
@@ -5115,7 +5117,18 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let input_size = self.builder.slice_len(encoded);
         let address = self.lower_expr(receiver)?;
         let zero = self.builder.imm_u256(U256::ZERO);
-        let gas = self.builder.gas();
+        let mut call_value = zero;
+        let mut gas = self.builder.gas();
+        if let Some(options) = call_opts {
+            for option in options.args {
+                let value = self.lower_expr(&option.value)?;
+                match option.name.name {
+                    kw::Gas => gas = value,
+                    sym::value => call_value = value,
+                    _ => return report_unsupported(self.gcx, option.name.span, "call option"),
+                }
+            }
+        }
         let returns = function.returns.len();
         let decode_returndata = function.returns.iter().any(|&ret| {
             self.types
@@ -5135,7 +5148,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         {
             self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
         } else {
-            self.builder.call(gas, address, zero, input, input_size, ret_offset, ret_size)
+            self.builder.call(gas, address, call_value, input, input_size, ret_offset, ret_size)
         };
         self.revert_external_call(success);
         if returns == 0 {
