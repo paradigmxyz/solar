@@ -15,9 +15,9 @@ use solar_interface::{
         Applicability, JsonDiagnostic, JsonDiagnosticMessage, JsonDiagnosticSpan, Severity,
         SolcDiagnostic,
     },
-    source_map::SourceMap,
+    source_map::{FileLoader, SourceMap},
 };
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 pub(crate) type SourceSnapshot = FxHashMap<PathBuf, Rope>;
 
@@ -167,7 +167,7 @@ fn solc_diagnostic(
     range_cache: &mut ByteRangeCache<'_>,
 ) -> Option<(Url, LspDiagnostic)> {
     let location = diagnostic.source_location?;
-    let path = resolve_path(cwd, location.file.as_ref());
+    let path = resolve_path(range_cache.source_map.file_loader(), cwd, location.file.as_ref());
     let uri = Url::from_file_path(&path).ok()?;
     let (start, end) = if location.start == -1 && location.end == -1 {
         (0, 0)
@@ -202,7 +202,7 @@ fn json_diagnostic(
     let (path, byte_start, byte_end) = {
         let span = primary_span(&diagnostic)?;
         (
-            resolve_path(cwd, span.file_name.as_ref()),
+            resolve_path(range_cache.source_map.file_loader(), cwd, span.file_name.as_ref()),
             span.byte_start as usize,
             span.byte_end as usize,
         )
@@ -237,10 +237,10 @@ fn json_suggestions(
 ) -> Vec<DiagnosticSuggestion> {
     let mut suggestions = Vec::<DiagnosticSuggestion>::new();
     for child in &diagnostic.children {
-        let Some(suggestion) = json_suggestion(child, cwd, uri, range_cache) else {
+        let Some(mut suggestion) = json_suggestion(child, cwd, uri, range_cache) else {
             continue;
         };
-        if suggestions.iter_mut().any(|existing| existing.merge_alternatives(suggestion.clone())) {
+        if suggestions.iter_mut().any(|existing| existing.merge_alternatives(&mut suggestion)) {
             continue;
         }
         suggestions.push(suggestion);
@@ -266,7 +266,7 @@ fn json_suggestion(
             Some(_) => {}
         }
 
-        let path = resolve_path(cwd, span.file_name.as_ref());
+        let path = resolve_path(range_cache.source_map.file_loader(), cwd, span.file_name.as_ref());
         if Url::from_file_path(&path).ok().as_ref() != Some(uri) {
             return None;
         }
@@ -329,9 +329,33 @@ fn source(format: FlycheckOutput) -> &'static str {
     }
 }
 
-fn resolve_path(cwd: &Path, path: &str) -> PathBuf {
+fn resolve_path(file_loader: &dyn FileLoader, cwd: &Path, path: &str) -> PathBuf {
     let path = Path::new(path);
-    if path.is_absolute() { path.normalize() } else { cwd.join(path).normalize() }
+    let path = if path.is_absolute() { path.to_path_buf() } else { cwd.join(path) };
+    normalize_source_path(file_loader, path)
+}
+
+pub(super) fn normalize_source_path(file_loader: &dyn FileLoader, path: PathBuf) -> PathBuf {
+    let has_parent = path.components().any(|component| component == Component::ParentDir);
+    let normalized = path.normalize();
+    if !has_parent {
+        return normalized;
+    }
+
+    let Ok(canonical) = file_loader.canonicalize_path(&path) else { return normalized };
+    let common_prefix = path
+        .components()
+        .zip(normalized.components())
+        .take_while(|(original, normalized)| original == normalized)
+        .map(|(component, _)| component)
+        .collect::<PathBuf>();
+    let Ok(canonical_prefix) = file_loader.canonicalize_path(&common_prefix) else {
+        return canonical;
+    };
+    let Ok(suffix) = canonical.strip_prefix(canonical_prefix) else { return canonical };
+
+    // Preserve unrelated path aliases while resolving parent traversal across symlinks.
+    common_prefix.join(suffix)
 }
 
 struct ByteRangeCache<'a> {
@@ -391,6 +415,8 @@ mod tests {
         Applicability, JsonDiagnosticCode, JsonDiagnosticSpanLine, SourceLocation,
     };
     use std::borrow::Cow;
+    #[cfg(unix)]
+    use std::os::unix::fs::symlink;
 
     #[test]
     fn parses_solc_like_diagnostics() {
@@ -565,6 +591,47 @@ mod tests {
         .unwrap();
 
         let uri = Url::from_file_path(file).unwrap();
+        assert!(diagnostics[&uri][0].data.is_some());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn diagnostic_parent_components_after_symlinks_follow_filesystem_semantics() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /actual/Target.sol
+            contract Target { uint256 value; }
+            //- /actual/nested/.keep
+            keep
+            //- /Target.sol
+            contract LexicalTarget { uint256 value; }
+            "#,
+        );
+        symlink(project.path("/actual/nested"), project.path("/link")).unwrap();
+        let contents = project.read_file("/actual/Target.sol");
+        let start = contents.find("value").unwrap();
+        let json = serde_json::to_string(&[solc_diagnostic_fixture(
+            Cow::Borrowed("link/../Target.sol"),
+            start,
+            start + "value".len(),
+            Severity::Warning,
+            Some("2018"),
+            "diagnostic",
+        )])
+        .unwrap();
+
+        let path = project.path("/actual/Target.sol");
+        let snapshot = SourceSnapshot::from_iter([(path.clone(), Rope::from(contents))]);
+        let diagnostics = parse_from_snapshot(
+            json.as_bytes(),
+            project.root(),
+            FlycheckOutput::SolcJson,
+            &snapshot,
+        )
+        .unwrap();
+
+        let uri = Url::from_file_path(path).unwrap();
+        assert_eq!(diagnostics.keys().collect::<Vec<_>>(), [&uri]);
         assert!(diagnostics[&uri][0].data.is_some());
     }
 

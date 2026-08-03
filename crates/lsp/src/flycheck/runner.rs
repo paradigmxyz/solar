@@ -3,7 +3,6 @@ use crate::{
     flycheck::{FlycheckConfig, config::FlycheckOutput, parser, parser::SourceSnapshot},
 };
 use crop::Rope;
-use normalize_path::NormalizePath;
 use solar_interface::{data_structures::map::FxHashMap, source_map::SourceMap};
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
@@ -93,7 +92,7 @@ async fn disk_source_snapshot(paths: Vec<PathBuf>) -> io::Result<DiskSourceSnaps
         let source_map = SourceMap::empty();
         let mut snapshot = DiskSourceSnapshot::default();
         for path in paths {
-            let path = path.normalize();
+            let path = parser::normalize_source_path(source_map.file_loader(), path);
             if let Ok(before) = FileRevision::read(&path)
                 && let Ok(contents) = source_map.file_loader().load_file(&path)
                 && let Ok(after) = FileRevision::read(&path)
@@ -282,6 +281,8 @@ mod tests {
     use crate::test_support::process_exists;
     use crate::{config::negotiate_capabilities, test_support::TestProject};
     #[cfg(unix)]
+    use std::os::unix::fs::symlink;
+    #[cfg(unix)]
     use std::os::unix::process::ExitStatusExt;
     #[cfg(windows)]
     use std::os::windows::process::ExitStatusExt;
@@ -370,6 +371,29 @@ mod tests {
 
         let snapshot = disk_source_snapshot(vec![path.clone()]).await.unwrap();
         assert_eq!(snapshot.sources[&path].byte_slice(..), "contract Test {}");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn source_snapshot_parent_components_after_symlinks_follow_filesystem_semantics() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /actual/Target.sol
+            filesystem target
+            //- /actual/nested/.keep
+            keep
+            //- /Target.sol
+            lexical target
+            "#,
+        );
+        symlink(project.path("/actual/nested"), project.path("/link")).unwrap();
+        let path = project.path("/link/../Target.sol");
+        let resolved = project.path("/actual/Target.sol");
+
+        let snapshot = disk_source_snapshot(vec![path]).await.unwrap();
+
+        assert_eq!(snapshot.sources.keys().collect::<Vec<_>>(), [&resolved]);
+        assert_eq!(snapshot.sources[&resolved].byte_slice(..), "filesystem target");
     }
 
     #[cfg(unix)]

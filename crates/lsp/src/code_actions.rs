@@ -54,7 +54,7 @@ impl DiagnosticData {
     }
 
     fn from_value(value: &serde_json::Value, uri: &Url) -> Option<Self> {
-        let data = serde_json::from_value::<Self>(value.clone()).ok()?;
+        let data = Self::deserialize(value).ok()?;
         (data.version == DIAGNOSTIC_DATA_VERSION && data.uri == *uri).then_some(data)
     }
 }
@@ -76,11 +76,11 @@ impl DiagnosticSuggestion {
         Self { title, applicability, alternatives }
     }
 
-    pub(crate) fn merge_alternatives(&mut self, other: Self) -> bool {
+    pub(crate) fn merge_alternatives(&mut self, other: &mut Self) -> bool {
         if self.title != other.title || self.applicability != other.applicability {
             return false;
         }
-        self.alternatives.extend(other.alternatives);
+        self.alternatives.append(&mut other.alternatives);
         true
     }
 }
@@ -114,58 +114,64 @@ pub(crate) fn plans(
     };
     let uri = &params.text_document.uri;
     let mut plans = Vec::new();
-    for requested in &params.context.diagnostics {
-        let Some(diagnostic_range) = exact_byte_range(&index, requested.range) else { continue };
-        if !code_action_ranges_intersect(&request_range, &diagnostic_range) {
-            continue;
-        }
-        let candidates = current_diagnostics
-            .iter()
-            .filter(|diagnostic| diagnostics_match(requested, diagnostic))
-            .collect::<Vec<_>>();
-        if candidates.is_empty() {
-            continue;
-        }
-        let candidates = requested
-            .data
-            .as_ref()
-            .and_then(|requested_data| {
-                candidates
-                    .iter()
-                    .copied()
-                    .find(|diagnostic| diagnostic.data.as_ref() == Some(requested_data))
-            })
-            .map_or(candidates, |diagnostic| vec![diagnostic]);
-        for diagnostic in candidates {
-            if !matches!(diagnostic.source.as_deref(), Some("solar" | "flycheck" | "forge-lint")) {
-                continue;
+    let candidates = current_diagnostics
+        .iter()
+        .filter_map(|diagnostic| {
+            if !matches!(diagnostic.source.as_deref(), Some("solar" | "flycheck" | "forge-lint"))
+                || !exact_byte_range(&index, diagnostic.range)
+                    .is_some_and(|range| code_action_ranges_intersect(&request_range, &range))
+            {
+                return None;
             }
-            let Some(data) =
-                diagnostic.data.as_ref().and_then(|value| DiagnosticData::from_value(value, uri))
-            else {
-                continue;
-            };
-            if data.suggestions.is_empty() {
-                for plan in fallback_plans(diagnostic, data, contents) {
-                    push_unique_plan(&mut plans, plan);
-                }
-            } else {
-                for suggestion in data.suggestions {
-                    let title = suggestion.title;
-                    let applicability = suggestion.applicability;
-                    for edits in suggestion.alternatives {
-                        push_unique_plan(
-                            &mut plans,
-                            CodeActionPlan {
-                                title: title.clone(),
-                                applicability,
-                                diagnostic: diagnostic.clone(),
-                                uri: data.uri.clone(),
-                                source_fingerprint: data.source_fingerprint.clone(),
-                                edits,
-                            },
-                        );
-                    }
+            let data = diagnostic
+                .data
+                .as_ref()
+                .and_then(|value| DiagnosticData::from_value(value, uri))?;
+            Some((diagnostic, data))
+        })
+        .collect::<Vec<_>>();
+    let client_selected = candidates
+        .iter()
+        .filter_map(|(diagnostic, _)| {
+            params
+                .context
+                .diagnostics
+                .iter()
+                .any(|requested| {
+                    diagnostics_match(requested, diagnostic)
+                        && requested.data.as_ref() == diagnostic.data.as_ref()
+                })
+                .then_some(*diagnostic)
+        })
+        .collect::<Vec<_>>();
+    for (diagnostic, data) in candidates {
+        let group_was_disambiguated =
+            client_selected.iter().any(|selected| diagnostics_match(selected, diagnostic));
+        if group_was_disambiguated
+            && !client_selected.iter().any(|selected| std::ptr::eq(*selected, diagnostic))
+        {
+            continue;
+        }
+        if data.suggestions.is_empty() {
+            for plan in fallback_plans(diagnostic, data, contents) {
+                push_unique_plan(&mut plans, plan);
+            }
+        } else {
+            for suggestion in data.suggestions {
+                let title = suggestion.title;
+                let applicability = suggestion.applicability;
+                for edits in suggestion.alternatives {
+                    push_unique_plan(
+                        &mut plans,
+                        CodeActionPlan {
+                            title: title.clone(),
+                            applicability,
+                            diagnostic: diagnostic.clone(),
+                            uri: data.uri.clone(),
+                            source_fingerprint: data.source_fingerprint.clone(),
+                            edits,
+                        },
+                    );
                 }
             }
         }
@@ -408,9 +414,6 @@ fn spdx_fixes(
         return Vec::new();
     }
     let source = rope_to_string(contents);
-    if source.contains("SPDX-License-Identifier:") {
-        return Vec::new();
-    }
     let eol = if source.contains("\r\n") { "\r\n" } else { "\n" };
     ["MIT", "UNLICENSED"]
         .into_iter()
@@ -436,9 +439,6 @@ fn compiler_pragma_fix(
         return None;
     }
     let source = rope_to_string(contents);
-    if source.contains("pragma solidity") {
-        return None;
-    }
     let recommendation = diagnostic.message.trim_end().strip_prefix(PREFIX)?;
     let recommendation = recommendation.strip_suffix('.').unwrap_or(recommendation);
     let pragma = recommendation.strip_suffix('"')?;

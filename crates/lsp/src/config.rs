@@ -503,13 +503,7 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
         .and_then(|text_document| text_document.code_action.as_ref());
     let code_action_literals = code_action
         .and_then(|capabilities| capabilities.code_action_literal_support.as_ref())
-        .is_some_and(|support| {
-            support
-                .code_action_kind
-                .value_set
-                .iter()
-                .any(|kind| kind == CodeActionKind::QUICKFIX.as_str())
-        });
+        .is_some();
     let code_action_is_preferred =
         code_action.and_then(|capabilities| capabilities.is_preferred_support).unwrap_or(false);
     let publish_diagnostics_data = capabilities
@@ -995,7 +989,7 @@ mod tests {
     }
 
     #[test]
-    fn negotiate_capabilities_omits_code_actions_without_quickfix_literal_support() {
+    fn negotiate_capabilities_advertises_code_actions_with_other_literal_kinds() {
         let mut params = InitializeParams::default();
         params.capabilities.text_document = Some(TextDocumentClientCapabilities {
             code_action: Some(CodeActionClientCapabilities {
@@ -1011,8 +1005,15 @@ mod tests {
 
         let (capabilities, config) = negotiate_capabilities(params);
 
-        assert!(!config.supports_code_action_literals());
-        assert_eq!(capabilities.code_action_provider, None);
+        assert!(config.supports_code_action_literals());
+        assert_eq!(
+            capabilities.code_action_provider,
+            Some(CodeActionProviderCapability::Options(CodeActionOptions {
+                code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+                work_done_progress_options: WorkDoneProgressOptions::default(),
+                resolve_provider: Some(false),
+            }))
+        );
     }
 
     #[test]

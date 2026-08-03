@@ -276,6 +276,10 @@ impl DiagnosticStore {
 }
 
 pub(crate) fn normalize_file_uri(uri: Url) -> Url {
+    if uri.scheme() != "file" {
+        return uri;
+    }
+
     let path = uri.path();
     let is_windows_drive_root = cfg!(windows)
         && path.len() == 4
@@ -283,14 +287,19 @@ pub(crate) fn normalize_file_uri(uri: Url) -> Url {
         && path.as_bytes()[1].is_ascii_alphabetic()
         && path.as_bytes()[2] == b':'
         && path.as_bytes()[3] == b'/';
-    if uri.scheme() == "file"
-        && uri.host_str().is_none()
+    let has_lowercase_windows_drive = cfg!(windows)
+        && path.len() >= 3
+        && path.as_bytes()[0] == b'/'
+        && path.as_bytes()[1].is_ascii_lowercase()
+        && path.as_bytes()[2] == b':';
+    if uri.host_str().is_none()
         && uri.query().is_none()
         && uri.fragment().is_none()
         && path.starts_with('/')
         && !path.as_bytes().contains(&b'%')
         && !path.as_bytes().windows(2).any(|bytes| bytes == b"//")
         && (!path.ends_with('/') || path == "/" || is_windows_drive_root)
+        && !has_lowercase_windows_drive
     {
         return uri;
     }
@@ -331,7 +340,6 @@ mod tests {
             Url::parse("file://localhost/tmp/Hosted.sol").unwrap(),
             Url::parse("file:///tmp/Query.sol?version=1").unwrap(),
             Url::parse("file:///tmp/Fragment.sol#source").unwrap(),
-            Url::parse("untitled:/tmp/Virtual.sol").unwrap(),
         ];
         if cfg!(windows) {
             uris.extend([
@@ -346,6 +354,22 @@ mod tests {
         for uri in uris {
             assert_eq!(normalize_file_uri(uri.clone()), round_trip_file_uri(uri.clone()), "{uri}");
         }
+    }
+
+    #[test]
+    fn normalize_file_uri_preserves_non_file_uris() {
+        let uri = Url::parse("untitled:/tmp/Virtual.sol").unwrap();
+
+        assert_eq!(normalize_file_uri(uri.clone()), uri);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn normalize_file_uri_canonicalizes_lowercase_windows_drive() {
+        let lowercase = Url::parse("file:///c:/tmp/Contract.sol").unwrap();
+        let uppercase = Url::parse("file:///C:/tmp/Contract.sol").unwrap();
+
+        assert_eq!(normalize_file_uri(lowercase), uppercase);
     }
 
     #[test]

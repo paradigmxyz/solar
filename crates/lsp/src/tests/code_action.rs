@@ -511,6 +511,28 @@ fn offers_non_preferred_spdx_alternatives_for_solc_1878() {
 }
 
 #[test]
+fn offers_spdx_fallback_when_identifier_text_only_appears_in_a_string() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Test.sol
+        contract Test { string constant NOTICE = "SPDX-License-Identifier:"; }
+        "#,
+    );
+    let (_, _, params) = fallback_request(
+        &project,
+        Range::default(),
+        "flycheck",
+        Some("1878"),
+        "SPDX license identifier not provided in source file.",
+    );
+    let mut state = state(&project, false);
+
+    let response = authorized_code_actions(&mut state, params);
+
+    assert_eq!(response.len(), 2);
+}
+
+#[test]
 fn adds_message_derived_pragma_for_solc_3420() {
     let project = TestProject::from_fixture(
         r#"
@@ -538,6 +560,35 @@ fn adds_message_derived_pragma_for_solc_3420() {
     assert_eq!(
         action.edit.as_ref().unwrap().changes.as_ref().unwrap()[&uri],
         [TextEdit::new(Range::default(), "pragma solidity ^0.8.99;\r\n".into(),)]
+    );
+}
+
+#[test]
+fn offers_pragma_fallback_when_pragma_text_only_appears_in_a_comment() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Test.sol
+        // TODO: add a pragma solidity directive after choosing a version.
+        contract Test {}
+        "#,
+    );
+    let (uri, _, params) = fallback_request(
+        &project,
+        Range::default(),
+        "flycheck",
+        Some("3420"),
+        "Source file does not specify required compiler version! Consider adding \"pragma solidity ^0.8.99;\"",
+    );
+    let mut state = state(&project, false);
+
+    let response = authorized_code_actions(&mut state, params);
+
+    let [CodeActionOrCommand::CodeAction(action)] = response.as_slice() else {
+        panic!("expected one pragma code action, got {response:#?}");
+    };
+    assert_eq!(
+        action.edit.as_ref().unwrap().changes.as_ref().unwrap()[&uri],
+        [TextEdit::new(Range::default(), "pragma solidity ^0.8.99;\n".into())]
     );
 }
 
@@ -893,6 +944,75 @@ fn rejects_diagnostic_that_is_not_in_the_current_server_report() {
     let response = block_on(crate::handlers::code_actions(&mut state, params)).unwrap().unwrap();
 
     assert!(response.is_empty());
+}
+
+#[test]
+fn uses_current_server_diagnostics_when_client_context_is_empty() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Test.sol
+        contract Test { uint256 bad_name; }
+        "#,
+    );
+    let (uri, edit, diagnostic, mut params) = native_request(&project);
+    params.context.diagnostics.clear();
+    let mut state = state(&project, false);
+    replace_diagnostics(&state, uri.clone(), vec![diagnostic.clone()]);
+
+    let response = block_on(crate::handlers::code_actions(&mut state, params)).unwrap().unwrap();
+
+    let [CodeActionOrCommand::CodeAction(action)] = response.as_slice() else {
+        panic!("expected one server-owned code action, got {response:#?}");
+    };
+    assert_eq!(action.diagnostics.as_deref(), Some(std::slice::from_ref(&diagnostic)));
+    assert_eq!(action.edit.as_ref().unwrap().changes.as_ref().unwrap()[&uri], [edit]);
+}
+
+#[test]
+fn uses_current_server_diagnostic_when_client_presentation_is_stale() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Test.sol
+        contract Test { uint256 bad_name; }
+        "#,
+    );
+    let (uri, edit, diagnostic, mut params) = native_request(&project);
+    params.context.diagnostics[0].message = "stale client message".into();
+    params.context.diagnostics[0].severity = Some(DiagnosticSeverity::ERROR);
+    let mut state = state(&project, false);
+    replace_diagnostics(&state, uri.clone(), vec![diagnostic.clone()]);
+
+    let response = block_on(crate::handlers::code_actions(&mut state, params)).unwrap().unwrap();
+
+    let [CodeActionOrCommand::CodeAction(action)] = response.as_slice() else {
+        panic!("expected one server-owned code action, got {response:#?}");
+    };
+    assert_eq!(action.diagnostics.as_deref(), Some(std::slice::from_ref(&diagnostic)));
+    assert_eq!(action.edit.as_ref().unwrap().changes.as_ref().unwrap()[&uri], [edit]);
+}
+
+#[test]
+fn uses_all_server_diagnostics_when_client_context_is_incomplete() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Test.sol
+        contract Test { uint256 bad_name; }
+        "#,
+    );
+    let (uri, _, diagnostic, params) = native_request(&project);
+    let mut omitted = diagnostic.clone();
+    omitted.code = Some(NumberOrString::String("different-lint".into()));
+    omitted.message = "a different server diagnostic".into();
+    let omitted_data = omitted.data.as_mut().unwrap();
+    omitted_data["suggestions"][0]["title"] = serde_json::json!("apply different fix");
+    omitted_data["suggestions"][0]["alternatives"][0][0]["newText"] =
+        serde_json::json!("differentName");
+    let mut state = state(&project, false);
+    replace_diagnostics(&state, uri, vec![diagnostic, omitted]);
+
+    let response = block_on(crate::handlers::code_actions(&mut state, params)).unwrap().unwrap();
+
+    assert_eq!(response.len(), 2, "expected actions for every current server diagnostic");
 }
 
 #[test]

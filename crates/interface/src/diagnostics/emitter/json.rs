@@ -137,35 +137,31 @@ impl JsonEmitter {
         }
     }
 
-    fn suggestion_to_diagnostics(
-        &self,
-        suggestion: &CodeSuggestion,
-    ) -> Vec<JsonDiagnostic<'static>> {
-        suggestion
-            .substitutions
-            .iter()
-            .map(|substitution| {
-                let spans = substitution
-                    .parts
-                    .iter()
-                    .map(|part| {
-                        self.span_with_suggestion(
-                            part.span,
-                            part.snippet.to_string(),
-                            suggestion.applicability,
-                        )
-                    })
-                    .collect();
-                JsonDiagnostic {
-                    message: Cow::Owned(suggestion.msg.as_str().to_string()),
-                    code: None,
-                    level: Cow::Borrowed("help"),
-                    spans,
-                    children: vec![],
-                    rendered: None,
-                }
-            })
-            .collect()
+    fn suggestion_to_diagnostics<'a>(
+        &'a self,
+        suggestion: &'a CodeSuggestion,
+    ) -> impl Iterator<Item = JsonDiagnostic<'static>> + 'a {
+        suggestion.substitutions.iter().map(move |substitution| {
+            let spans = substitution
+                .parts
+                .iter()
+                .map(|part| {
+                    self.span_with_suggestion(
+                        part.span,
+                        part.snippet.to_string(),
+                        suggestion.applicability,
+                    )
+                })
+                .collect();
+            JsonDiagnostic {
+                message: Cow::Owned(suggestion.msg.as_str().to_string()),
+                code: None,
+                level: Cow::Borrowed("help"),
+                spans,
+                children: vec![],
+                rendered: None,
+            }
+        })
     }
 
     fn spans(&self, msp: &MultiSpan) -> Vec<JsonDiagnosticSpan<'static>> {

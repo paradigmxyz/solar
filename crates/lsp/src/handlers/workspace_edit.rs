@@ -46,8 +46,12 @@ pub(super) fn validated_code_actions(
     let Some((contents, version)) = current_file_contents(&vfs, &source_map, &uri) else {
         return Vec::new();
     };
+    let plans = crate::code_actions::plans(&params, &diagnostics, &contents);
+    if plans.is_empty() {
+        return Vec::new();
+    }
     let fingerprint = rope_source_fingerprint(&contents);
-    crate::code_actions::plans(&params, &diagnostics, &contents)
+    plans
         .into_iter()
         .filter_map(|plan| {
             validated_code_action(
@@ -76,9 +80,22 @@ fn validated_code_action(
         return None;
     }
     let edits = validate_code_action_edits(contents, plan.edits)?;
-    let changes = HashMap::from([(plan.uri.clone(), edits)]);
-    let versions = HashMap::from([(plan.uri, version)]);
-    let edit = ValidatedWorkspaceEdit { changes, versions }.into_workspace_edit(document_changes);
+    let edit = if document_changes {
+        WorkspaceEdit {
+            changes: None,
+            document_changes: Some(DocumentChanges::Edits(vec![TextDocumentEdit {
+                text_document: OptionalVersionedTextDocumentIdentifier { uri: plan.uri, version },
+                edits: edits.into_iter().map(OneOf::Left).collect(),
+            }])),
+            change_annotations: None,
+        }
+    } else {
+        WorkspaceEdit {
+            changes: Some(HashMap::from([(plan.uri, edits)])),
+            document_changes: None,
+            change_annotations: None,
+        }
+    };
     let mut diagnostic = plan.diagnostic;
     if !supports_diagnostic_data {
         diagnostic.data = None;
