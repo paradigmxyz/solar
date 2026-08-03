@@ -470,8 +470,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     return Some(());
                 }
                 let values = self.lower_values(expr)?;
-                for (id, value) in ids.iter().flatten().zip(values) {
-                    self.values.insert(*id, value);
+                if values.len() != ids.len() {
+                    return report_unsupported(self.gcx, expr.span, "tuple declaration arity");
+                }
+                for (id, value) in ids.iter().zip(values) {
+                    if let Some(id) = id {
+                        self.values.insert(*id, value);
+                    }
                 }
             }
             StmtKind::Expr(expr) => {
@@ -1853,13 +1858,15 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             return Some(());
         }
         let values = self.lower_values(rhs)?;
-        if values.len() != elements.iter().flatten().count() {
+        if values.len() != elements.len() {
             return report_unsupported(self.gcx, rhs.span, "tuple assignment arity");
         }
         let mut values = values.into_iter();
-        for element in elements.iter().flatten() {
+        for element in elements {
             let value = values.next().expect("tuple assignment arity checked");
-            self.store_lvalue(element, value)?;
+            if let Some(element) = element {
+                self.store_lvalue(element, value)?;
+            }
         }
         Some(())
     }
