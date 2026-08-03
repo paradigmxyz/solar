@@ -5110,8 +5110,17 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let zero = self.builder.imm_u256(U256::ZERO);
         let gas = self.builder.gas();
         let returns = function.returns.len();
-        let ret_offset = if returns > 1 { input } else { zero };
-        let ret_size = self.builder.imm_u64((returns as u64).saturating_mul(32));
+        let decode_returndata = function.returns.iter().any(|&ret| {
+            self.types
+                .abi_type(self.gcx.type_of_item(ret.into()))
+                .is_some_and(|ty| !matches!(ty, AbiType::Word))
+        });
+        let ret_offset = if !decode_returndata && returns > 1 { input } else { zero };
+        let ret_size = if decode_returndata {
+            zero
+        } else {
+            self.builder.imm_u64((returns as u64).saturating_mul(32))
+        };
         let success = if matches!(
             function.state_mutability,
             hir::StateMutability::Pure | hir::StateMutability::View
@@ -5124,6 +5133,38 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.revert_external_call(success);
         if returns == 0 {
             return Some(zero);
+        }
+        if decode_returndata {
+            if !self.gcx.sess.opts.evm_version.supports_returndata() {
+                return report_error(
+                    self.gcx,
+                    expr.span,
+                    "codegen cannot decode external function returndata before Byzantium",
+                );
+            }
+            let data = self.materialize_returndata_bytes();
+            let data_start = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+            let data_length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+            let return_types = function
+                .returns
+                .iter()
+                .map(|&ret| {
+                    self.gcx
+                        .type_of_item(ret.into())
+                        .with_loc_if_ref(self.gcx, DataLocation::Memory)
+                })
+                .collect::<Vec<_>>();
+            let values =
+                self.lower_abi_decode_region(data_start, data_length, &return_types, expr.span)?;
+            if values.len() > 1 {
+                let base = self.multi_return_buffer_base();
+                for (index, value) in values.iter().copied().enumerate().skip(1) {
+                    let offset = self.builder.imm_u64((index as u64).saturating_mul(32));
+                    let address = self.builder.add(base, offset);
+                    self.builder.mstore(address, value);
+                }
+            }
+            return values.into_iter().next().or(Some(zero));
         }
         if returns > 1 {
             let base = self.builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
