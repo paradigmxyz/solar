@@ -44,15 +44,16 @@ contract C {
     }
 
     // CHECK: [[MULTI]]:
-    // CHECK: push [[TWO_RET:bb[0-9]+]]
-    // CHECK-NEXT: push 7
-    // CHECK: mstore
-    // CHECK: push 9
-    // CHECK: mstore
-    // CHECK-NEXT: jump
-    // CHECK-NEXT: [[TWO_RET]]:
-    // CHECK: push 448
+    // The tiny-leaf inliner exposes `two()` as constants and removes its call frame.
+    // CHECK: push 64
     // CHECK-NEXT: mload
+    // CHECK: push 9
+    // CHECK-NEXT: swap1
+    // CHECK: mstore
+    // CHECK: push 7
+    // CHECK-NEXT: push 128
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push 9
     // CHECK: jump [[PAIR_RETURN]]
     function multi() external pure returns (uint256 x, uint256 y) {
         x = 100;
