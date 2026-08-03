@@ -458,7 +458,6 @@ bb25:
   swap1
   pop
   add
-  dup1
   push 288
   mstore
   push 64
@@ -480,7 +479,6 @@ bb25:
   keccak256
   push 416
   mstore
-  pop
   pop
   swap2
   pop
@@ -766,7 +764,6 @@ bb38:
   swap1
   pop
   add
-  dup1
   push 320
   mstore
   push 576
@@ -782,7 +779,6 @@ bb38:
   keccak256
   push 352
   mstore
-  pop
   pop
   swap3
   pop
