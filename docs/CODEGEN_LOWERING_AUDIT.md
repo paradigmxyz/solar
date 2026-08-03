@@ -120,6 +120,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   discarded tuple values for their side effects;
 * low-level and typed external calls, including returndata capture and EVM-version
   checks;
+* external function-pointer calls with aggregate return decoding through the
+  shared ABI path;
 * event emission with overload and named-argument resolution, selector and indexed
   topics, dynamic-topic hashing, aggregate-topic diagnostics, and MIR ABI data;
 * `revert` and `require` payloads for `Error(string)` and custom errors through
@@ -162,8 +164,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    constructor arguments, and cover the remaining constructor modifier edge
    cases with Solc-backed runtime tests.
 3. Add the remaining call and language features: Yul statements beyond `switch`,
-   custom-error `try`/`catch` clauses, and aggregate external function-pointer
-   ABI forms.
+   custom-error `try`/`catch` clauses, and remaining function-pointer ABI edge
+   cases.
 4. Extend storage-reference CFG tests to packed and Yul offset shapes, and
    complete allocation-guard differential coverage against Solc.
 5. Add and run differential, UI, and runtime tests for every new semantic

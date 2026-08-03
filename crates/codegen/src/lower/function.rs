@@ -1664,7 +1664,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     }
 
     fn lower_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
-        if let ExprKind::Call(callee, ..) = &expr.kind {
+        if let ExprKind::Call(callee, args, ..) = &expr.kind {
             if self.gcx.resolved_builtin(callee) == Some(Builtin::AbiDecode)
                 && let ExprKind::Call(_, args, _) = &expr.kind
                 && let Some(types) = args.exprs().nth(1)
@@ -1687,13 +1687,20 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 .or_else(|| {
                     self.gcx.type_of_expr(callee.id).and_then(|ty| match ty.kind {
                         TyKind::Fn(function)
-                            if function.is_internal() && function.function_id.is_none() =>
+                            if function.function_id.is_none()
+                                && (function.is_internal() || function.is_external()) =>
                         {
                             Some(function.returns.len())
                         }
                         _ => None,
                     })
                 });
+            if let Some(TyKind::Fn(function)) = self.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
+                && function.is_external()
+                && function.function_id.is_none()
+            {
+                return self.lower_external_function_pointer_call_values(callee, function, *args);
+            }
             if let Some(returns) = returns
                 && returns > 1
             {
@@ -2770,6 +2777,16 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         function: &solar_sema::ty::TyFn<'gcx>,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
+        let values = self.lower_external_function_pointer_call_values(callee, function, args)?;
+        Some(values.into_iter().next().unwrap_or_else(|| self.builder.imm_u256(U256::ZERO)))
+    }
+
+    fn lower_external_function_pointer_call_values(
+        &mut self,
+        callee: &hir::Expr<'_>,
+        function: &solar_sema::ty::TyFn<'gcx>,
+        args: hir::CallArgs<'_>,
+    ) -> Option<Vec<ValueId>> {
         let arg_exprs = self.builtin_arg_exprs(Builtin::AbiEncode, &args)?;
         if arg_exprs.len() != function.parameters.len() {
             return report_unsupported(self.gcx, args.span, "external function arguments");
@@ -2799,28 +2816,38 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
         let zero = self.builder.imm_u256(U256::ZERO);
-        let returns = function.returns.len();
-        let ret_offset = if returns > 1 { input } else { zero };
-        let ret_size = self.builder.imm_u64((returns as u64).saturating_mul(32));
+        let ret_size = self.builder.imm_u64(0);
         let gas = self.builder.gas();
         let success = if matches!(
             function.state_mutability,
             hir::StateMutability::Pure | hir::StateMutability::View
         ) && self.gcx.sess.opts.evm_version.has_static_call()
         {
-            self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
+            self.builder.staticcall(gas, address, input, input_size, zero, ret_size)
         } else {
-            self.builder.call(gas, address, zero, input, input_size, ret_offset, ret_size)
+            self.builder.call(gas, address, zero, input, input_size, zero, ret_size)
         };
         self.revert_external_call(success);
-        if returns == 0 {
-            return Some(zero);
+        if function.returns.is_empty() {
+            return Some(Vec::new());
         }
-        if returns > 1 {
-            let base = self.builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-            self.builder.mstore(base, ret_offset);
+        if !self.gcx.sess.opts.evm_version.supports_returndata() {
+            return report_error(
+                self.gcx,
+                callee.span,
+                "codegen cannot decode external function-pointer returndata before Byzantium",
+            );
         }
-        Some(self.builder.mload(ret_offset))
+        let data = self.materialize_returndata_bytes();
+        let data_start = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+        let data_length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+        let return_types = function
+            .returns
+            .iter()
+            .copied()
+            .map(|ty| ty.with_loc_if_ref(self.gcx, DataLocation::Memory))
+            .collect::<Vec<_>>();
+        self.lower_abi_decode_region(data_start, data_length, &return_types, callee.span)
     }
 
     fn lower_internal_function_pointer_call(
