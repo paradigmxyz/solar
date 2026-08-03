@@ -91,6 +91,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * state-variable reads and writes through the shared storage-location object;
 * packed unsigned, signed, address, enum, and fixed-bytes storage fields;
 * nested structs, mappings, dynamic arrays, and short and long storage bytes;
+* storage `delete` for dynamic and fixed arrays, packed elements, structs, and
+  nested storage objects through one recursive location-aware path;
 * explicit state-variable initializers, including a synthetic constructor when
   the contract has no explicit constructor;
 * loop-carried scalar and storage-reference environments, including `break` and
@@ -162,7 +164,10 @@ The generated MIR for `tests/ui/codegen/lowering/compound_assign.sol` contains
 the expected `sload`, arithmetic, and `sstore` sequence, and does not contain a
 free-memory-pointer allocation. `cargo check --workspace` and `cargo fmt --all`
 pass for this slice. The storage-array runtime fixture also matches Solc 0.8.35
-for direct, push, lvalue, nested-lvalue, bytes, and mapping cases.
+for direct, push, lvalue, nested-lvalue, bytes, and mapping cases. The
+stress-arrays Foundry project now runs in the default differential suite; all
+34 Solar tests match Solc, including dynamic-array clearing and fixed-array
+deletion.
 
 ## Remaining work
 
@@ -175,9 +180,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
 2. Finish base-constructor argument forwarding for indirect and unresolved
    constructor arguments, and cover the remaining constructor modifier edge
    cases with Solc-backed runtime tests.
-3. Add custom-error `try`/`catch` clauses, the remaining Yul call builtins
-   (`extcall`, `extdelegatecall`, and `extstaticcall`), and remaining
-   function-pointer ABI edge cases.
+3. Add the remaining Yul call builtins (`extcall`, `extdelegatecall`, and
+   `extstaticcall`) and remaining function-pointer ABI edge cases. Custom
+   error catch clauses are rejected by the tracked Solidity type checker and
+   are not a valid lowering target.
 4. Extend storage-reference CFG tests to packed and Yul offset shapes, and
    complete allocation-guard differential coverage against Solc.
 5. Bring the UI snapshots back in sync with the rewrite. The current
