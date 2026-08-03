@@ -1,0 +1,44 @@
+- // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/inline_tiny_leaves.mir (before inline-tiny-leaves) ===
++ // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/inline_tiny_leaves.mir (after inline-tiny-leaves) ===
+  @module InlineTinyLeaves
+  fn @tiny_caller(arg0: u256) -> u256 {
+    bb0:
+-     v0 = internal_call @tiny, 1, arg0
+-     ret v0
++     jump bb2
++   bb1:
++     v5 = phi [bb2: v4]
++     ret v5
++   bb2:
++     v1 = add arg0, 1
++     v2 = xor v1, 2
++     v3 = mul v2, 3
++     v4 = sub v3, 4
++     jump bb1
+  }
+  
+  fn @tiny(arg0: u256) -> u256 {
+    bb0:
+      v0 = add arg0, 1
+      v1 = xor v0, 2
+      v2 = mul v1, 3
+      v3 = sub v2, 4
+      ret v3
+  }
+  
+  fn @large_caller(arg0: u256) -> u256 {
+    bb0:
+      v0 = internal_call @large, 1, arg0
+      ret v0
+  }
+  
+  fn @large(arg0: u256) -> u256 {
+    bb0:
+      v0 = add arg0, 1
+      v1 = xor v0, 2
+      v2 = mul v1, 3
+      v3 = sub v2, 4
+      v4 = and v3, 5
+      ret v4
+  }
+  
