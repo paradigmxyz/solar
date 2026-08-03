@@ -91,6 +91,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * state-variable reads and writes through the shared storage-location object;
 * packed unsigned, signed, address, enum, and fixed-bytes storage fields;
 * nested structs, mappings, dynamic arrays, and short and long storage bytes;
+* canonical short-storage bytes writes with unspecified memory padding masked
+  before the length tag is persisted;
 * storage `delete` for dynamic and fixed arrays, packed elements, structs, and
   nested storage objects through one recursive location-aware path;
 * explicit state-variable initializers, including a synthetic constructor when
