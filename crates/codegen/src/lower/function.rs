@@ -16,7 +16,7 @@ use crate::{
 use alloy_primitives::{Bytes, U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, UnOpKind};
 use solar_data_structures::map::{FxHashMap, FxHashSet, StdEntry};
-use solar_interface::{Ident, Span, sym};
+use solar_interface::{Ident, Span, kw, sym};
 use solar_sema::{
     Gcx,
     builtins::Builtin,
@@ -990,9 +990,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let ExprKind::Call(callee, args, call_opts) = &try_stmt.expr.kind else {
             return report_unsupported(self.gcx, try_stmt.expr.span, "try expression");
         };
-        if call_opts.is_some() {
-            return report_unsupported(self.gcx, try_stmt.expr.span, "try call options");
-        }
         let (
             parameter_types,
             return_types,
@@ -1141,13 +1138,24 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             self.lower_expr(receiver)?
         };
         let zero = self.builder.imm_u256(U256::ZERO);
+        let mut call_value = zero;
+        let mut gas = self.builder.gas();
+        if let Some(options) = call_opts {
+            for option in options.args {
+                let value = self.lower_expr(&option.value)?;
+                match option.name.name {
+                    kw::Gas => gas = value,
+                    sym::value => call_value = value,
+                    _ => return report_unsupported(self.gcx, option.name.span, "try call option"),
+                }
+            }
+        }
         let ret_offset = zero;
         let ret_size = self.builder.imm_u64(0);
-        let gas = self.builder.gas();
         let success = if static_call {
             self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
         } else {
-            self.builder.call(gas, address, zero, input, input_size, ret_offset, ret_size)
+            self.builder.call(gas, address, call_value, input, input_size, ret_offset, ret_size)
         };
 
         let success_block = self.builder.create_block();
