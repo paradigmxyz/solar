@@ -5289,7 +5289,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         span: Span,
     ) -> Option<ValueId> {
         if ty.is_ref_at(DataLocation::Calldata)
-            && matches!(self.builder.func().value_ty(value), Some(MirType::Slice(_)))
+            && matches!(
+                self.builder.func().value_ty(value),
+                Some(MirType::Slice(SliceLocation::Calldata))
+            )
         {
             Some(value)
         } else {
