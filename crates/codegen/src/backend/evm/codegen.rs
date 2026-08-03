@@ -51,6 +51,7 @@ const GLOBAL_STACK_MIN_BLOCKS: usize = 8;
 const GLOBAL_STACK_MIN_ARG_USES: usize = 6;
 const GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS: usize = 16;
 const STACK_ARG_ROTATION_LIMIT: usize = 16;
+const SELECTOR_LINEAR_SEARCH_MAX_CASES: usize = 8;
 
 #[derive(Default)]
 struct GeneratedCode {
@@ -5567,6 +5568,51 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Emits a gas-optimized binary search over sorted external function selectors.
+    ///
+    /// Every generated path keeps the selector at the bottom of the modeled stack. Split nodes
+    /// branch to the lower half and fall through into the upper half; leaves use the ordinary
+    /// equality chain. Limiting leaves to eight selectors avoids paying split overhead on small
+    /// interfaces while keeping lookup depth logarithmic for large contracts.
+    fn emit_selector_tree(&mut self, cases: &[(U256, BlockId)], default: BlockId) {
+        if cases.len() <= SELECTOR_LINEAR_SEARCH_MAX_CASES {
+            for &(selector, target) in cases {
+                self.asm.emit_op(op::DUP1);
+                self.scheduler.stack.dup(1);
+                self.asm.emit_push(selector);
+                self.scheduler.stack.push_unknown();
+                self.asm.emit_op(op::EQ);
+                self.scheduler.instruction_executed_untracked(2);
+                self.asm.emit_push_label(self.block_labels[&target]);
+                self.asm.emit_op(op::JUMPI);
+                self.scheduler.instruction_executed(1, None);
+            }
+
+            self.asm.emit_push_label(self.block_labels[&default]);
+            self.asm.emit_op(op::JUMP);
+            return;
+        }
+
+        let pivot = cases.len() / 2;
+        let lower_half = self.asm.new_label();
+
+        // EVM comparisons consume the top operand first, so `pivot > selector` selects the lower
+        // half while leaving the original selector resident for either successor.
+        self.asm.emit_op(op::DUP1);
+        self.scheduler.stack.dup(1);
+        self.asm.emit_push(cases[pivot].0);
+        self.scheduler.stack.push_unknown();
+        self.asm.emit_op(op::GT);
+        self.scheduler.instruction_executed_untracked(2);
+        self.asm.emit_push_label(lower_half);
+        self.asm.emit_op(op::JUMPI);
+        self.scheduler.instruction_executed(1, None);
+
+        self.emit_selector_tree(&cases[pivot..], default);
+        self.asm.define_label(lower_half);
+        self.emit_selector_tree(&cases[..pivot], default);
+    }
+
     /// Generates bytecode for a terminator.
     fn generate_terminator(
         &mut self,
@@ -5705,26 +5751,43 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.emit_value(func, *value);
                 }
 
-                for (case_val, target) in cases {
-                    // DUP the value, compare, jump if equal
-                    self.asm.emit_op(op::DUP1);
-                    self.scheduler.stack.dup(1);
-                    self.emit_operand(func, *case_val);
-                    self.asm.emit_op(op::EQ);
-                    self.scheduler.instruction_executed_untracked(2);
-                    self.asm.emit_push_label(self.block_labels[target]);
-                    self.asm.emit_op(op::JUMPI);
-                    self.scheduler.instruction_executed(1, None); // JUMPI consumes condition
-                }
+                let selector_cases = if self.emitting_entry
+                    && self.gcx.sess.opts.optimization.is_gas()
+                    && cases.len() > SELECTOR_LINEAR_SEARCH_MAX_CASES
+                {
+                    cases
+                        .iter()
+                        .map(|&(value, target)| func.value_u256(value).map(|value| (value, target)))
+                        .collect::<Option<Vec<_>>>()
+                } else {
+                    None
+                };
 
-                if !self.emitting_entry {
-                    // Pop the value before the default edge.
-                    self.asm.emit_op(op::POP);
-                    self.scheduler.stack.pop();
-                }
-                if Some(*default) != fallthrough {
-                    self.asm.emit_push_label(self.block_labels[default]);
-                    self.asm.emit_op(op::JUMP);
+                if let Some(mut selector_cases) = selector_cases {
+                    selector_cases.sort_unstable_by_key(|&(selector, _)| selector);
+                    self.emit_selector_tree(&selector_cases, *default);
+                } else {
+                    for (case_val, target) in cases {
+                        // DUP the value, compare, jump if equal.
+                        self.asm.emit_op(op::DUP1);
+                        self.scheduler.stack.dup(1);
+                        self.emit_operand(func, *case_val);
+                        self.asm.emit_op(op::EQ);
+                        self.scheduler.instruction_executed_untracked(2);
+                        self.asm.emit_push_label(self.block_labels[target]);
+                        self.asm.emit_op(op::JUMPI);
+                        self.scheduler.instruction_executed(1, None); // JUMPI consumes condition.
+                    }
+
+                    if !self.emitting_entry {
+                        // Pop the value before the default edge.
+                        self.asm.emit_op(op::POP);
+                        self.scheduler.stack.pop();
+                    }
+                    if Some(*default) != fallthrough {
+                        self.asm.emit_push_label(self.block_labels[default]);
+                        self.asm.emit_op(op::JUMP);
+                    }
                 }
             }
 
