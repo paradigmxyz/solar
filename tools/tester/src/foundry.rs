@@ -116,13 +116,10 @@ impl ForgeCompiler {
 static SOLAR_BINARY: OnceLock<PathBuf> = OnceLock::new();
 
 const TEMPORARILY_IGNORED_PROJECTS: &[&str] = &[
-    "abi-encoding",
     "equivalence",
     "erc20-minimal",
     "erc721-minimal",
     "multicall",
-    "stress-inheritance",
-    "stress-modifiers",
     "unifap-v2",
     "unifap-v2-create",
     "vault-minimal",
