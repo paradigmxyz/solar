@@ -6066,6 +6066,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 access.slot,
             ));
         }
+        let var = self.gcx.hir.variable(id);
+        if var.is_constant() {
+            return self.lower_constant(var.initializer, span);
+        }
         if let Some(location) = self.storage.get(id) {
             let ty = self.gcx.type_of_item(id.into());
             if self.types.memory_layout(ty).is_some() {
@@ -6076,10 +6080,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 return report_unsupported(self.gcx, span, "mapping value");
             }
             return Some(self.storage.load(&mut self.builder, location));
-        }
-        let var = self.gcx.hir.variable(id);
-        if var.is_constant() {
-            return self.lower_constant(var.initializer, span);
         }
         report_unsupported(self.gcx, span, "identifier")
     }
@@ -6313,11 +6313,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let Some(initializer) = initializer else {
             return report_unsupported(self.gcx, span, "constant initializer");
         };
-        match self.gcx.try_eval_const_value(initializer).ok()? {
-            ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
-            ConstValue::Integer(value) => Some(self.builder.imm_u256(value.as_u256()?)),
-            _ => report_unsupported(self.gcx, span, "constant value"),
+        if let Ok(value) = self.gcx.try_eval_const_value(initializer) {
+            return match value {
+                ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
+                ConstValue::Integer(value) => Some(self.builder.imm_u256(value.as_u256()?)),
+                _ => report_unsupported(self.gcx, span, "constant value"),
+            };
         }
+        self.lower_expr(initializer)
     }
 
     fn signed_add_overflow(
