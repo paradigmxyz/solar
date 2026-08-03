@@ -6539,7 +6539,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                         let minus_one = self.builder.imm_u256(U256::MAX);
                         let rhs_is_minus_one = self.builder.eq(rhs, minus_one);
                         let overflow = self.builder.and(lhs_is_min, rhs_is_minus_one);
-                        self.panic_if(overflow, 0x12);
+                        self.panic_if(overflow, 0x11);
                     }
                 }
                 match arithmetic {
