@@ -5051,6 +5051,28 @@ impl<'gcx> EvmCodegen<'gcx> {
                             self.scheduler.stack.pop();
                             self.scheduler.stack.push(val);
                         }
+                        crate::mir::InstKind::Not(value) => {
+                            self.emit_fresh_unary(func, val, *value, op::NOT);
+                        }
+                        crate::mir::InstKind::Clz(value) => {
+                            self.emit_fresh_unary(func, val, *value, op::CLZ);
+                        }
+                        crate::mir::InstKind::IsZero(value) => {
+                            self.emit_fresh_unary(func, val, *value, op::ISZERO);
+                        }
+                        crate::mir::InstKind::Byte(index, value) => {
+                            self.emit_fresh_binary(func, val, *index, *value, op::BYTE, false);
+                        }
+                        crate::mir::InstKind::SignExtend(index, value) => {
+                            self.emit_fresh_binary(
+                                func,
+                                val,
+                                *index,
+                                *value,
+                                op::SIGNEXTEND,
+                                false,
+                            );
+                        }
                         crate::mir::InstKind::Add(a, b) => {
                             self.emit_fresh_binary(func, val, *a, *b, op::ADD, true);
                         }
@@ -5183,6 +5205,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         self.asm.emit_op(opcode);
         self.scheduler.stack.pop();
+        self.scheduler.stack.pop();
+        self.scheduler.stack.push(result);
+    }
+
+    fn emit_fresh_unary(&mut self, func: &Function, result: ValueId, value: ValueId, opcode: u8) {
+        self.emit_value_fresh(func, value);
+        self.asm.emit_op(opcode);
         self.scheduler.stack.pop();
         self.scheduler.stack.push(result);
     }
