@@ -129,8 +129,9 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * contract creation with compiled child deployment bytecode, semantic
   constructor ABI encoding, `value`/`salt` options, and forwarding of failed
   creation returndata;
-* basic `try`/`catch` lowering for resolved external calls with scalar return
-  bindings, bare catches, `catch (bytes memory)` returndata objects, and
+* `try`/`catch` lowering for resolved external calls with scalar and aggregate
+  return bindings, ordered selector dispatch for multiple catches, bare
+  catches, `catch (bytes memory)` returndata objects, and
   `catch Error(string memory)`/`catch Panic(uint256)` selector and payload
   checks;
 * internal function-pointer values and shape-specific dispatchers for exact,
@@ -161,8 +162,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    constructor arguments, and cover the remaining constructor modifier edge
    cases with Solc-backed runtime tests.
 3. Add the remaining call and language features: Yul statements beyond `switch`,
-   the remaining `try`/`catch` payload and return-binding forms, and the
-   remaining external and aggregate function-pointer forms.
+   custom-error `try`/`catch` clauses, and the remaining external and aggregate
+   function-pointer forms.
 4. Extend storage-reference CFG tests to packed and Yul offset shapes, and
    complete allocation-guard differential coverage against Solc.
 5. Add and run differential, UI, and runtime tests for every new semantic

@@ -1000,51 +1000,47 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             return report_unsupported(self.gcx, try_stmt.expr.span, "try target");
         };
         let function = self.gcx.hir.function(function_id);
-        if function.returns.len() > 1 {
-            return report_unsupported(self.gcx, try_stmt.expr.span, "try return values");
-        }
-        let [returns_clause, catch_clause] = try_stmt.clauses else {
+        let Some((returns_clause, catch_clauses)) = try_stmt.clauses.split_first() else {
             return report_unsupported(self.gcx, try_stmt.expr.span, "try/catch clauses");
         };
-        if returns_clause.name.is_some()
-            || returns_clause.args.len() != function.returns.len()
-            || returns_clause.args.len() > 1
-        {
+        if catch_clauses.is_empty() {
+            return report_unsupported(self.gcx, try_stmt.expr.span, "try/catch clauses");
+        }
+        if returns_clause.name.is_some() || returns_clause.args.len() != function.returns.len() {
             return report_unsupported(self.gcx, returns_clause.span, "try return bindings");
         }
-        let catch_error = catch_clause.name.is_some_and(|name| name.name == sym::Error);
-        let catch_panic = catch_clause.name.is_some_and(|name| name.name == sym::Panic);
-        if catch_clause.name.is_some() && !catch_error && !catch_panic {
-            return report_unsupported(self.gcx, catch_clause.span, "try catch clause");
-        }
-        if catch_clause.args.len() > 1 {
-            return report_unsupported(self.gcx, catch_clause.span, "try catch clause");
-        }
-        let catch_binding = if let Some(&binding) = catch_clause.args.first() {
-            let ty = self.gcx.type_of_item(binding.into());
-            let expected = if catch_error {
-                TyKind::Elementary(solar_sema::hir::ElementaryType::String)
-            } else if catch_panic {
-                TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(
-                    solar_ast::TypeSize::new_int_bits(256),
-                ))
-            } else {
-                TyKind::Elementary(solar_sema::hir::ElementaryType::Bytes)
-            };
-            if ty.peel_refs().kind != expected {
+        for catch_clause in catch_clauses {
+            let catch_error = catch_clause.name.is_some_and(|name| name.name == sym::Error);
+            let catch_panic = catch_clause.name.is_some_and(|name| name.name == sym::Panic);
+            if catch_clause.name.is_some() && !catch_error && !catch_panic {
                 return report_unsupported(self.gcx, catch_clause.span, "try catch clause");
             }
-            if !self.gcx.sess.opts.evm_version.supports_returndata() {
-                return report_error(
-                    self.gcx,
-                    try_stmt.expr.span,
-                    "codegen cannot bind try/catch returndata before Byzantium",
-                );
+            if catch_clause.args.len() > 1 {
+                return report_unsupported(self.gcx, catch_clause.span, "try catch clause");
             }
-            Some(binding)
-        } else {
-            None
-        };
+            if let Some(&binding) = catch_clause.args.first() {
+                let ty = self.gcx.type_of_item(binding.into());
+                let expected = if catch_error {
+                    TyKind::Elementary(solar_sema::hir::ElementaryType::String)
+                } else if catch_panic {
+                    TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(
+                        solar_ast::TypeSize::new_int_bits(256),
+                    ))
+                } else {
+                    TyKind::Elementary(solar_sema::hir::ElementaryType::Bytes)
+                };
+                if ty.peel_refs().kind != expected {
+                    return report_unsupported(self.gcx, catch_clause.span, "try catch clause");
+                }
+                if !self.gcx.sess.opts.evm_version.supports_returndata() {
+                    return report_error(
+                        self.gcx,
+                        try_stmt.expr.span,
+                        "codegen cannot bind try/catch returndata before Byzantium",
+                    );
+                }
+            }
+        }
         if args.len() != function.parameters.len() {
             return report_unsupported(self.gcx, args.span, "try arguments");
         }
@@ -1079,16 +1075,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let input_size = self.builder.slice_len(encoded);
         let address = self.lower_expr(receiver)?;
         let zero = self.builder.imm_u256(U256::ZERO);
-        let (ret_offset, ret_size, return_ty) = if let Some(&return_id) = function.returns.first() {
-            let return_ty = self.gcx.type_of_item(return_id.into());
-            if !matches!(self.types.abi_type(return_ty)?, AbiType::Word) {
-                return report_unsupported(self.gcx, returns_clause.span, "try return values");
-            }
-            let binding_id = returns_clause.args[0];
-            (zero, self.builder.imm_u64(32), Some((binding_id, return_ty)))
-        } else {
-            (zero, zero, None)
-        };
+        let ret_offset = zero;
+        let ret_size = self.builder.imm_u64(0);
         let gas = self.builder.gas();
         let success = if matches!(
             function.state_mutability,
@@ -1110,13 +1098,28 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.values = before.clone();
         self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(success_block);
-        if let Some((return_id, return_ty)) = return_ty {
-            let return_size = self.builder.returndatasize();
-            let short = self.builder.lt(return_size, ret_size);
-            self.revert_if_empty(short);
-            let word = self.abi_decode_word(ret_offset);
-            let value = self.decode_abi_word(return_ty, word, returns_clause.span)?;
-            self.values.insert(return_id, value);
+        if !function.returns.is_empty() {
+            let data = self.materialize_returndata_bytes();
+            let data_start = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+            let data_length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+            let return_types = function
+                .returns
+                .iter()
+                .map(|&return_id| {
+                    self.gcx
+                        .type_of_item(return_id.into())
+                        .with_loc_if_ref(self.gcx, DataLocation::Memory)
+                })
+                .collect::<Vec<_>>();
+            let values = self.lower_abi_decode_region(
+                data_start,
+                data_length,
+                &return_types,
+                returns_clause.span,
+            )?;
+            for (&binding, value) in returns_clause.args.iter().zip(values) {
+                self.values.insert(binding, value);
+            }
         }
         self.lower_block(returns_clause.block)?;
         let success_terminated = self.is_terminated();
@@ -1130,44 +1133,86 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.values = before.clone();
         self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(catch_block);
-        if let Some(binding) = catch_binding {
-            let value = if catch_error {
-                self.lower_error_catch_string(try_stmt.expr.span)?
+        let catch_data = self.materialize_returndata_bytes();
+        let catch_data_ptr = self.builder.memory_object_data(catch_data, MemoryObjectKind::Bytes);
+        let catch_data_len = self.builder.memory_object_len(catch_data, MemoryObjectKind::Bytes);
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let selector_slice =
+            self.builder.make_slice(catch_data_ptr, catch_data_len, SliceLocation::Memory);
+        let selector_word = self.builder.memory_slice_load_word(selector_slice, zero);
+        let four = self.builder.imm_u64(4);
+        let selector_short = self.builder.lt(catch_data_len, four);
+        let has_selector = self.builder.iszero(selector_short);
+        let selector_shift = self.builder.imm_u64(224);
+        let selector = self.builder.shr(selector_shift, selector_word);
+        let error_selector =
+            self.builder.imm_u256(U256::from_be_slice(&keccak256("Error(string)")[..4]));
+        let panic_selector = self.builder.imm_u256(U256::from(0x4e48_7b71_u64));
+        let error_selector_matches = self.builder.eq(selector, error_selector);
+        let error_matches = self.builder.and(has_selector, error_selector_matches);
+        let panic_size = self.builder.imm_u64(36);
+        let panic_short = self.builder.lt(catch_data_len, panic_size);
+        let panic_has_payload = self.builder.iszero(panic_short);
+        let panic_selector_matches = self.builder.eq(selector, panic_selector);
+        let panic_matches = self.builder.and(panic_has_payload, panic_selector_matches);
+        let mut catch_states = Vec::with_capacity(catch_clauses.len());
+        let mut next_catch = self.builder.current_block();
+        for catch_clause in catch_clauses {
+            self.builder.switch_to_block(next_catch);
+            let clause_block = self.builder.create_block();
+            let next_block = self.builder.create_block();
+            let catch_error = catch_clause.name.is_some_and(|name| name.name == sym::Error);
+            let catch_panic = catch_clause.name.is_some_and(|name| name.name == sym::Panic);
+            let condition = if catch_error {
+                error_matches
             } else if catch_panic {
-                self.lower_panic_catch_word(try_stmt.expr.span)?
+                panic_matches
             } else {
-                self.materialize_returndata_bytes()
+                self.builder.imm_bool(true)
             };
-            self.values.insert(binding, value);
-        }
-        self.lower_block(catch_clause.block)?;
-        let catch_terminated = self.is_terminated();
-        let catch_exit = self.builder.current_block();
-        let catch_values = self.values.clone();
-        let catch_storage_refs = self.storage_refs.clone();
-        if !catch_terminated {
-            self.builder.jump(merge_block);
-        }
+            self.builder.branch(condition, clause_block, next_block);
 
+            self.values = before.clone();
+            self.storage_refs = before_storage_refs.clone();
+            self.builder.switch_to_block(clause_block);
+            if let Some(&binding) = catch_clause.args.first() {
+                let value = if catch_error {
+                    self.lower_error_catch_string(catch_data, try_stmt.expr.span)?
+                } else if catch_panic {
+                    self.lower_panic_catch_word(catch_data)
+                } else {
+                    catch_data
+                };
+                self.values.insert(binding, value);
+            }
+            self.lower_block(catch_clause.block)?;
+            let catch_terminated = self.is_terminated();
+            let catch_exit = self.builder.current_block();
+            if !catch_terminated {
+                self.builder.jump(merge_block);
+                catch_states.push(LoopState {
+                    block: catch_exit,
+                    values: self.values.clone(),
+                    storage_refs: self.storage_refs.clone(),
+                });
+            }
+            next_catch = next_block;
+        }
+        self.builder.switch_to_block(next_catch);
+        self.builder.revert(catch_data_ptr, catch_data_len);
+
+        let mut states = Vec::with_capacity(catch_states.len() + 1);
+        if !success_terminated {
+            states.push(LoopState {
+                block: success_exit,
+                values: success_values,
+                storage_refs: success_storage_refs,
+            });
+        }
+        states.extend(catch_states);
         self.builder.switch_to_block(merge_block);
-        self.values = self.merge_values(
-            before,
-            success_exit,
-            success_values,
-            success_terminated,
-            catch_exit,
-            catch_values,
-            catch_terminated,
-        );
-        self.storage_refs = self.merge_storage_refs(
-            before_storage_refs,
-            success_exit,
-            success_storage_refs,
-            success_terminated,
-            catch_exit,
-            catch_storage_refs,
-            catch_terminated,
-        );
+        self.values = self.merge_many_values(before, &states);
+        self.storage_refs = self.merge_many_storage_refs(before_storage_refs, &states);
         Some(())
     }
 
@@ -4034,64 +4079,25 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         object
     }
 
-    fn lower_error_catch_string(&mut self, span: Span) -> Option<ValueId> {
-        let data = self.materialize_returndata_bytes();
+    fn lower_error_catch_string(&mut self, data: ValueId, span: Span) -> Option<ValueId> {
         let data_ptr = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
         let data_len = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
-        let zero = self.builder.imm_u256(U256::ZERO);
-        let selector_slice = self.builder.make_slice(data_ptr, data_len, SliceLocation::Memory);
-        let selector_word = self.builder.memory_slice_load_word(selector_slice, zero);
         let four = self.builder.imm_u64(4);
-        let short = self.builder.lt(data_len, four);
-        let has_selector = self.builder.iszero(short);
-        let selector_shift = self.builder.imm_u64(224);
-        let selector = self.builder.shr(selector_shift, selector_word);
-        let expected = keccak256("Error(string)");
-        let expected = self.builder.imm_u256(U256::from_be_slice(&expected[..4]));
-        let selector_matches = self.builder.eq(selector, expected);
-        let matched = self.builder.and(has_selector, selector_matches);
-        let decode_block = self.builder.create_block();
-        let rethrow_block = self.builder.create_block();
-        self.builder.branch(matched, decode_block, rethrow_block);
-        self.builder.switch_to_block(rethrow_block);
-        self.builder.revert(data_ptr, data_len);
-        self.builder.switch_to_block(decode_block);
-
         let payload_ptr = self.builder.add(data_ptr, four);
         let payload_len = self.builder.sub(data_len, four);
-        let head_size = self.builder.imm_u64(32);
         let relative = self.abi_decode_word(payload_ptr);
-        self.lower_abi_decode_dynamic_bytes(payload_ptr, payload_len, head_size, relative)
+        self.lower_abi_decode_dynamic_bytes(payload_ptr, payload_len, four, relative)
             .or_else(|| report_unsupported(self.gcx, span, "Error catch payload"))
     }
 
-    fn lower_panic_catch_word(&mut self, _span: Span) -> Option<ValueId> {
-        let data = self.materialize_returndata_bytes();
+    fn lower_panic_catch_word(&mut self, data: ValueId) -> ValueId {
         let data_ptr = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
-        let data_len = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
         let zero = self.builder.imm_u256(U256::ZERO);
-        let selector_slice = self.builder.make_slice(data_ptr, data_len, SliceLocation::Memory);
-        let selector_word = self.builder.memory_slice_load_word(selector_slice, zero);
         let four = self.builder.imm_u64(4);
-        let payload_size = self.builder.imm_u64(36);
-        let short = self.builder.lt(data_len, payload_size);
-        let has_payload = self.builder.iszero(short);
-        let selector_shift = self.builder.imm_u64(224);
-        let selector = self.builder.shr(selector_shift, selector_word);
-        let expected = self.builder.imm_u256(U256::from(0x4e48_7b71_u64));
-        let selector_matches = self.builder.eq(selector, expected);
-        let matched = self.builder.and(has_payload, selector_matches);
-        let decode_block = self.builder.create_block();
-        let rethrow_block = self.builder.create_block();
-        self.builder.branch(matched, decode_block, rethrow_block);
-        self.builder.switch_to_block(rethrow_block);
-        self.builder.revert(data_ptr, data_len);
-        self.builder.switch_to_block(decode_block);
-
         let payload_ptr = self.builder.add(data_ptr, four);
         let word_size = self.builder.imm_u64(32);
         let payload = self.builder.make_slice(payload_ptr, word_size, SliceLocation::Memory);
-        Some(self.builder.memory_slice_load_word(payload, zero))
+        self.builder.memory_slice_load_word(payload, zero)
     }
 
     fn lower_abi_encode_packed(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
@@ -6295,6 +6301,72 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
         }
         values
+    }
+
+    fn merge_many_values(
+        &mut self,
+        mut before: FxHashMap<VariableId, ValueId>,
+        states: &[LoopState],
+    ) -> FxHashMap<VariableId, ValueId> {
+        let mut ids = before.keys().copied().collect::<Vec<_>>();
+        ids.extend(states.iter().flat_map(|state| state.values.keys().copied()));
+        ids.sort_unstable();
+        ids.dedup();
+        for id in ids {
+            let incoming = states
+                .iter()
+                .filter_map(|state| {
+                    state
+                        .values
+                        .get(&id)
+                        .copied()
+                        .or_else(|| before.get(&id).copied())
+                        .map(|value| (state.block, value))
+                })
+                .collect::<Vec<_>>();
+            let value = match incoming.as_slice() {
+                [] => None,
+                [(_, value)] => Some(*value),
+                [(_, first), rest @ ..] if rest.iter().all(|(_, value)| value == first) => {
+                    Some(*first)
+                }
+                _ => Some(self.builder.phi(incoming)),
+            };
+            if let Some(value) = value {
+                before.insert(id, value);
+            }
+        }
+        before
+    }
+
+    fn merge_many_storage_refs(
+        &mut self,
+        mut before: FxHashMap<VariableId, StorageAccess>,
+        states: &[LoopState],
+    ) -> FxHashMap<VariableId, StorageAccess> {
+        let ids = before
+            .keys()
+            .chain(states.iter().flat_map(|state| state.storage_refs.keys()))
+            .copied()
+            .collect::<solar_data_structures::map::FxHashSet<_>>();
+        for id in ids {
+            let fallback = before.get(&id).copied();
+            let incoming = states
+                .iter()
+                .filter_map(|state| {
+                    state
+                        .storage_refs
+                        .get(&id)
+                        .copied()
+                        .or(fallback)
+                        .map(|access| (state.block, access))
+                })
+                .collect::<Vec<_>>();
+            if let Some(access) = self.merge_storage_accesses(incoming).or(fallback) {
+                before.insert(id, access);
+            }
+        }
+        before
     }
 }
 
