@@ -13,11 +13,13 @@ use solar_interface::{
     data_structures::map::FxHashMap,
     diagnostics::{
         Applicability, JsonDiagnostic, JsonDiagnosticMessage, JsonDiagnosticSpan, Severity,
-        SolcDiagnostic,
     },
     source_map::{FileLoader, SourceMap},
 };
-use std::path::{Component, Path, PathBuf};
+use std::{
+    borrow::Cow,
+    path::{Component, Path, PathBuf},
+};
 
 pub(crate) type SourceSnapshot = FxHashMap<PathBuf, Rope>;
 
@@ -94,22 +96,46 @@ pub(crate) enum ParseError {
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 enum SolcJsonRecord<'a> {
-    Diagnostic(#[serde(borrow)] SolcDiagnostic<'a>),
-    Diagnostics(#[serde(borrow)] Vec<SolcDiagnostic<'a>>),
+    Diagnostic(#[serde(borrow)] SolcInputDiagnostic<'a>),
+    Diagnostics(#[serde(borrow)] Vec<SolcInputDiagnostic<'a>>),
     Errors(#[serde(borrow)] SolcJsonErrors<'a>),
 }
 
 #[derive(Debug, Deserialize)]
 struct SolcJsonErrors<'a> {
     #[serde(borrow)]
-    errors: Vec<SolcDiagnostic<'a>>,
+    errors: Vec<SolcInputDiagnostic<'a>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SolcInputDiagnostic<'a> {
+    #[serde(borrow)]
+    source_location: Option<SolcInputSourceLocation<'a>>,
+    #[serde(rename = "type", borrow)]
+    _type: Cow<'a, str>,
+    #[serde(rename = "component", borrow)]
+    _component: Cow<'a, str>,
+    severity: Severity,
+    #[serde(borrow)]
+    error_code: Option<Cow<'a, str>>,
+    #[serde(borrow)]
+    message: Cow<'a, str>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SolcInputSourceLocation<'a> {
+    #[serde(borrow)]
+    file: Cow<'a, str>,
+    start: i64,
+    end: i64,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 enum JsonEmitterRecord<'a> {
     Rustc(#[serde(borrow)] JsonDiagnosticMessage<'a>),
-    Solc(#[serde(borrow)] SolcDiagnostic<'a>),
+    Solc(#[serde(borrow)] SolcInputDiagnostic<'a>),
 }
 
 fn is_json_emitter_diagnostic(value: &serde_json::Value) -> bool {
@@ -161,7 +187,7 @@ fn push_diagnostic(diagnostics: &mut DiagnosticMap, diagnostic: Option<(Url, Lsp
 }
 
 fn solc_diagnostic(
-    diagnostic: SolcDiagnostic<'_>,
+    diagnostic: SolcInputDiagnostic<'_>,
     cwd: &Path,
     source: &'static str,
     range_cache: &mut ByteRangeCache<'_>,
@@ -412,9 +438,8 @@ mod tests {
     use crate::test_support::TestProject;
     use lsp_types::DiagnosticSeverity;
     use solar_interface::diagnostics::{
-        Applicability, JsonDiagnosticCode, JsonDiagnosticSpanLine, SourceLocation,
+        Applicability, JsonDiagnosticCode, JsonDiagnosticSpanLine, SolcDiagnostic, SourceLocation,
     };
-    use std::borrow::Cow;
     #[cfg(unix)]
     use std::os::unix::fs::symlink;
 
@@ -915,8 +940,8 @@ mod tests {
         SolcDiagnostic {
             source_location: Some(SourceLocation {
                 file,
-                start: start as i64,
-                end: end as i64,
+                start: start as u32,
+                end: end as u32,
                 message: None,
             }),
             secondary_source_locations: Vec::new(),

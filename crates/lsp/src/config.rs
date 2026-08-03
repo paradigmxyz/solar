@@ -297,7 +297,18 @@ impl Config {
     }
 
     pub(crate) fn flychecks_for_path(&self, path: &Path) -> Vec<FlycheckConfig> {
-        self.flychecks.iter().filter(|flycheck| flycheck.applies_to(path)).cloned().collect()
+        self.flychecks
+            .iter()
+            .filter(|flycheck| {
+                flycheck.applies_to(path)
+                    || self.workspaces.iter().any(|workspace| {
+                        workspace.compile_opts().base_path.as_deref()
+                            == Some(flycheck.workspace_root.as_path())
+                            && workspace.tracks_flycheck_file(path)
+                    })
+            })
+            .cloned()
+            .collect()
     }
 
     pub(crate) fn flycheck_owners(&self) -> impl Iterator<Item = DiagnosticOwner> + '_ {
@@ -376,6 +387,11 @@ impl Config {
             return;
         }
         let idx = WorkspacePathIndex::new(&self.workspaces).workspace_idx_for_path(&path);
+        for (workspace_idx, workspace) in self.workspaces.iter_mut().enumerate() {
+            if workspace_idx != idx {
+                workspace.add_flycheck_source_file(&path);
+            }
+        }
         self.workspaces[idx].add_source_file(path);
     }
 
@@ -384,6 +400,11 @@ impl Config {
             return;
         }
         let idx = WorkspacePathIndex::new(&self.workspaces).workspace_idx_for_path(path);
+        for (workspace_idx, workspace) in self.workspaces.iter_mut().enumerate() {
+            if workspace_idx != idx {
+                workspace.remove_flycheck_source_file(path);
+            }
+        }
         self.workspaces[idx].remove_source_file(path);
     }
 
@@ -1289,6 +1310,9 @@ mod tests {
 
             //- /src/Test.sol
             contract Test {}
+
+            //- /lib/Dependency.sol
+            contract Dependency {}
             "#,
         );
         let mut params = project.initialize_params();
@@ -1310,6 +1334,59 @@ mod tests {
         assert_eq!(flychecks[0].command, PathBuf::from("custom-lint"));
         assert_eq!(flychecks[0].args, ["--json"]);
         assert_eq!(flychecks[0].cwd, project.root());
+        assert_eq!(config.flychecks_for_path(&project.path("/lib/Dependency.sol")).len(), 1);
+    }
+
+    #[test]
+    fn source_file_updates_follow_external_foundry_flycheck_roots() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /first/foundry.toml
+            [profile.default]
+            src = "src"
+
+            //- /second/foundry.toml
+            [profile.default]
+            src = "src"
+            test = "../checks"
+            "#,
+        );
+        let mut config = project.config_with_roots(&["/first", "/second"]);
+        let path = project.path("/checks/New.t.sol");
+        project.write_file("/checks/New.t.sol", "contract NewTest {}\n");
+
+        config.add_source_file(path.clone());
+
+        let second = config
+            .workspaces()
+            .iter()
+            .find(|workspace| {
+                workspace.compile_opts().base_path.as_deref()
+                    == Some(project.path("/second").as_path())
+            })
+            .unwrap();
+        assert!(second.flycheck_source_files().contains(&path));
+        let first = config
+            .workspaces()
+            .iter()
+            .find(|workspace| {
+                workspace.compile_opts().base_path.as_deref()
+                    == Some(project.path("/first").as_path())
+            })
+            .unwrap();
+        assert!(!first.flycheck_source_files().contains(&path));
+
+        config.remove_source_file(&path);
+
+        let second = config
+            .workspaces()
+            .iter()
+            .find(|workspace| {
+                workspace.compile_opts().base_path.as_deref()
+                    == Some(project.path("/second").as_path())
+            })
+            .unwrap();
+        assert!(!second.flycheck_source_files().contains(&path));
     }
 
     #[test]

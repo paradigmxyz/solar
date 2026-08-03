@@ -1121,14 +1121,23 @@ impl GlobalStateSnapshot {
         flycheck: &flycheck::FlycheckConfig,
         saved_path: &Path,
     ) -> Vec<PathBuf> {
-        let mut paths = self
-            .config
-            .workspaces()
+        let workspaces = self.config.workspaces();
+        let mut paths = workspaces
             .iter()
             .flat_map(|workspace| workspace.source_files())
             .filter(|path| path.starts_with(&flycheck.workspace_root))
             .cloned()
             .collect::<Vec<_>>();
+        paths.extend(
+            workspaces
+                .iter()
+                .filter(|workspace| {
+                    workspace.compile_opts().base_path.as_deref()
+                        == Some(flycheck.workspace_root.as_path())
+                })
+                .flat_map(|workspace| workspace.flycheck_source_files())
+                .cloned(),
+        );
         paths.push(saved_path.to_path_buf());
         paths.sort_unstable();
         paths.dedup();
@@ -1461,7 +1470,7 @@ mod analysis_batch_tests {
     }
 
     #[test]
-    fn flycheck_snapshot_includes_saved_file_missing_from_workspace_cache() {
+    fn flycheck_snapshot_includes_saved_file_and_default_foundry_inputs() {
         let project = TestProject::from_fixture(
             r#"
             //- /foundry.toml
@@ -1469,6 +1478,10 @@ mod analysis_batch_tests {
             src = "src"
             //- /src/Tracked.sol
             contract Tracked {}
+            //- /test/Tracked.t.sol
+            contract TrackedTest {}
+            //- /script/Tracked.s.sol
+            contract TrackedScript {}
             "#,
         );
         let mut params = project.initialize_params();
@@ -1489,7 +1502,97 @@ mod analysis_batch_tests {
         let paths = state.snapshot().flycheck_source_paths(&flycheck, &saved_path);
 
         assert!(paths.contains(&project.path("/src/Tracked.sol")));
+        assert!(paths.contains(&project.path("/test/Tracked.t.sol")));
+        assert!(paths.contains(&project.path("/script/Tracked.s.sol")));
         assert!(paths.contains(&saved_path));
+    }
+
+    #[test]
+    fn flycheck_snapshot_preserves_nested_workspace_sources() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+            //- /src/Outer.sol
+            contract Outer {}
+            //- /nested/foundry.toml
+            [profile.default]
+            src = "src"
+            //- /nested/src/Nested.sol
+            contract Nested {}
+            "#,
+        );
+        let mut params = project.initialize_params();
+        params.initialization_options = Some(serde_json::json!({
+            "flychecks": [{
+                "id": "custom",
+                "command": "custom-lint"
+            }]
+        }));
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+        let saved_path = project.path("/src/SavedAfterDiscovery.sol");
+        project.write_file("/src/SavedAfterDiscovery.sol", "contract SavedAfterDiscovery {}\n");
+        let [flycheck] = config.flychecks_for_path(&saved_path).try_into().unwrap();
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(config);
+
+        let paths = state.snapshot().flycheck_source_paths(&flycheck, &saved_path);
+
+        assert!(paths.contains(&project.path("/nested/src/Nested.sol")));
+    }
+
+    #[test]
+    fn flycheck_snapshot_includes_all_configured_foundry_input_roots() {
+        let project = TestProject::new();
+        let external_test_root = project.path("/checks");
+        project.write_file(
+            "/workspace/foundry.toml",
+            &format!(
+                r#"
+            [profile.default]
+            src = "contracts"
+            test = '{}'
+            script = "deployments"
+            "#,
+                external_test_root.display()
+            ),
+        );
+        project.write_file("/workspace/contracts/Tracked.sol", "contract Tracked {}");
+        project.write_file("/checks/Tracked.t.sol", "contract TrackedTest {}");
+        project.write_file("/workspace/deployments/Tracked.s.sol", "contract TrackedScript {}");
+        let mut params = project.initialize_params_with_roots(&["/workspace"]);
+        params.initialization_options = Some(serde_json::json!({
+            "flychecks": [{
+                "id": "custom",
+                "command": "custom-lint"
+            }]
+        }));
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+        assert_eq!(
+            config.workspaces()[0].source_files(),
+            &[project.path("/workspace/contracts/Tracked.sol")]
+        );
+        let saved_path = project.path("/checks/SavedAfterDiscovery.t.sol");
+        project
+            .write_file("/checks/SavedAfterDiscovery.t.sol", "contract SavedAfterDiscovery {}\n");
+        let [flycheck] = config.flychecks_for_path(&saved_path).try_into().unwrap();
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(config);
+
+        let paths = state.snapshot().flycheck_source_paths(&flycheck, &saved_path);
+
+        assert_eq!(
+            paths,
+            vec![
+                project.path("/checks/SavedAfterDiscovery.t.sol"),
+                project.path("/checks/Tracked.t.sol"),
+                project.path("/workspace/contracts/Tracked.sol"),
+                project.path("/workspace/deployments/Tracked.s.sol"),
+            ]
+        );
     }
 }
 

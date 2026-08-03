@@ -308,13 +308,13 @@ impl JsonEmitter {
             start: sp
                 .map(|span| {
                     let start = sm.lookup_char_pos(span.lo());
-                    i64::from(start.file.original_relative_byte_pos(span.lo()).0)
+                    start.file.original_relative_byte_pos(span.lo()).0
                 })
                 .unwrap_or(0),
             end: sp
                 .map(|span| {
                     let end = sm.lookup_char_pos(span.hi());
-                    i64::from(end.file.original_relative_byte_pos(span.hi()).0)
+                    end.file.original_relative_byte_pos(span.hi()).0
                 })
                 .unwrap_or(0),
             message,
@@ -480,8 +480,8 @@ impl SolcDiagnostic<'_> {
 pub struct SourceLocation<'a> {
     #[serde(borrow)]
     pub file: Cow<'a, str>,
-    pub start: i64,
-    pub end: i64,
+    pub start: u32,
+    pub end: u32,
     // Some if it's a secondary source location.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(borrow)]
@@ -537,11 +537,13 @@ mod tests {
 
     #[test]
     fn solc_diagnostic_serializes_borrowed_strings() {
+        let start = 0_u32;
+        let end = 1_u32;
         let diagnostic = SolcDiagnostic {
             source_location: Some(SourceLocation {
                 file: Cow::Borrowed("input.sol"),
-                start: 0,
-                end: 1,
+                start,
+                end,
                 message: Some(Cow::Borrowed("borrowed \"message\"")),
             }),
             secondary_source_locations: Vec::new(),
