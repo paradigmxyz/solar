@@ -433,11 +433,10 @@ bb25:
   swap1
   pop
   add
-  dup1
   push 384
   mstore
   push 31
-  dup3
+  dup2
   add
   push 31
   not
@@ -445,7 +444,7 @@ bb25:
   push 5
   shr
   push 31
-  dup4
+  dup3
   gt
   dup1
   swap2
@@ -480,8 +479,7 @@ bb25:
   push 416
   mstore
   pop
-  swap2
-  pop
+  swap1
   pop
   push bb31
   jumpi
@@ -739,11 +737,10 @@ bb38:
   swap1
   pop
   add
-  dup1
   push 384
   mstore
   push 31
-  dup3
+  dup2
   add
   push 31
   not
@@ -751,7 +748,7 @@ bb38:
   push 5
   shr
   push 31
-  dup4
+  dup3
   gt
   dup1
   swap2
@@ -780,8 +777,7 @@ bb38:
   push 352
   mstore
   pop
-  swap3
-  pop
+  swap2
   pop
   pop
   push bb42

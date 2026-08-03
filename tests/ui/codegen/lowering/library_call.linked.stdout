@@ -67,7 +67,6 @@ bb4:
   dup1
   push 192
   mstore
-  dup1
   sload
   push 68
   calldataload
@@ -77,8 +76,6 @@ bb4:
   push 160
   mstore
   lt
-  swap1
-  pop
   push bb10
   jumpi
   push 160

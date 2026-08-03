@@ -125,14 +125,10 @@ bb0:
   calldataload
   push 32
   calldataload
-  dup1
   push 128
   mstore
-  dup2
   push 160
   mstore
-  pop
-  pop
   push 160
   mload
   dup1
