@@ -184,7 +184,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
 3. Add the remaining Yul call builtins (`extcall`, `extdelegatecall`, and
    `extstaticcall`) and remaining function-pointer ABI edge cases. Custom
    error catch clauses are rejected by the tracked Solidity type checker and
-   are not a valid lowering target.
+   are not a valid lowering target. The two Unifap projects also remain
+   blocked by `account.code.length`, unsupported `abi.encodePacked` shapes,
+   and unresolved external targets in their OpenZeppelin and forge-std code.
 4. Extend storage-reference CFG tests to packed and Yul offset shapes, and
    complete allocation-guard differential coverage against Solc.
 5. Bring the UI snapshots back in sync with the rewrite. The current
