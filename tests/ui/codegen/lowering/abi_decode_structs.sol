@@ -15,7 +15,6 @@ contract AbiDecodeStructs {
 
     // ADS-LABEL: fn @dFlat
     // Static struct: fields decode inline from the head, no tail offset.
-    // ADS: tail_call @__revert_empty
     // ADS: mload
     function dFlat(bytes memory b) public pure returns (uint256, address, bool) {
         Flat memory f = abi.decode(b, (Flat));

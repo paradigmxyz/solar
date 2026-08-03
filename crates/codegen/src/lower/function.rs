@@ -3546,8 +3546,95 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         if let TyKind::Udvt(inner, _) = ty.kind {
             return self.lower_abi_decode_static(address, inner, span);
         }
+        if let TyKind::Struct(id) = ty.kind {
+            return self.lower_abi_decode_static_struct(address, id, span);
+        }
+        if let TyKind::Array(element, len) = ty.kind {
+            return self.lower_abi_decode_static_array(
+                address,
+                element,
+                u64::try_from(len).ok()?,
+                span,
+            );
+        }
         let value = self.abi_decode_word(address);
         self.decode_abi_word(ty, value, span)
+    }
+
+    fn lower_abi_decode_static_struct(
+        &mut self,
+        address: ValueId,
+        id: solar_sema::hir::StructId,
+        span: Span,
+    ) -> Option<ValueId> {
+        let fields = self.abi_decode_struct_fields(id);
+        if fields.iter().any(|&ty| self.abi_decode_is_dynamic(ty).unwrap_or(true)) {
+            return report_unsupported(self.gcx, span, "abi.decode target type");
+        }
+        let length = fields
+            .iter()
+            .try_fold(0u64, |size, &ty| size.checked_add(self.abi_decode_head_size(ty)?))?;
+        let length = self.builder.imm_u64(length);
+        self.lower_abi_decode_struct(address, length, &fields, span)
+    }
+
+    fn lower_abi_decode_static_array(
+        &mut self,
+        address: ValueId,
+        element: Ty<'gcx>,
+        len: u64,
+        span: Span,
+    ) -> Option<ValueId> {
+        if self.abi_decode_is_dynamic(element)? {
+            return report_unsupported(self.gcx, span, "abi.decode target type");
+        }
+        let element_head_size = self.abi_decode_head_size(element)?;
+        let element_words = u64::from(self.types.element_words(element));
+        let payload_words = len.checked_mul(element_words)?;
+        let size = payload_words.checked_mul(32)?;
+        let element_words = u32::try_from(element_words).ok()?;
+        let layout = MemoryObjectLayout::FixedArray { len, element_words };
+        let size = self.builder.imm_u64(size);
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        for index in 0..len {
+            let offset = self.builder.imm_u64(index.checked_mul(element_head_size)?);
+            let element_address = self.builder.add(address, offset);
+            let value = self.lower_abi_decode_static(element_address, element, span)?;
+            let index = self.builder.imm_u64(index);
+            self.builder.memory_object_store_element(object, layout, index, value);
+        }
+        Some(object)
+    }
+
+    fn abi_decode_struct_fields(&self, id: solar_sema::hir::StructId) -> Vec<Ty<'gcx>> {
+        self.gcx
+            .hir
+            .strukt(id)
+            .fields
+            .iter()
+            .map(|&field| {
+                self.gcx.type_of_item(field.into()).with_loc_if_ref(self.gcx, DataLocation::Memory)
+            })
+            .collect()
+    }
+
+    fn lower_abi_decode_struct(
+        &mut self,
+        base: ValueId,
+        length: ValueId,
+        fields: &[Ty<'gcx>],
+        span: Span,
+    ) -> Option<ValueId> {
+        let values = self.lower_abi_decode_region(base, length, fields, span)?;
+        let fields_len = u64::try_from(fields.len()).ok()?;
+        let size = fields_len.checked_mul(32)?;
+        let layout = MemoryObjectLayout::Struct { fields: fields_len };
+        let size = self.builder.imm_u64(size);
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        for (index, value) in values.into_iter().enumerate() {
+            self.builder.memory_object_store_field(object, layout, index as u64, value);
+        }
+        Some(object)
     }
 
     fn abi_decode_word(&mut self, address: ValueId) -> ValueId {
@@ -3577,8 +3664,26 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             TyKind::DynArray(element) => {
                 self.lower_abi_decode_dynamic_array(base, length, head_size, head, element, span)
             }
+            TyKind::Array(element, len) if self.abi_decode_is_dynamic(element)? => self
+                .lower_abi_decode_fixed_array_dynamic(
+                    base,
+                    length,
+                    head_size,
+                    head,
+                    element,
+                    u64::try_from(len).ok()?,
+                    span,
+                ),
             TyKind::Slice(element) => {
                 self.lower_abi_decode_dynamic(base, length, head_size, head, element, span)
+            }
+            TyKind::Struct(id) => {
+                let head_oob = self.builder.gt(head, length);
+                self.revert_if_empty(head_oob);
+                let struct_base = self.builder.add(base, head);
+                let struct_length = self.builder.sub(length, head);
+                let fields = self.abi_decode_struct_fields(id);
+                self.lower_abi_decode_struct(struct_base, struct_length, &fields, span)
             }
             _ => report_unsupported(self.gcx, span, "abi.decode target type"),
         }
@@ -3588,11 +3693,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         &mut self,
         base: ValueId,
         length: ValueId,
-        head_size: ValueId,
+        _head_size: ValueId,
         head: ValueId,
     ) -> Option<ValueId> {
-        let before_head = self.builder.lt(head, head_size);
-        self.revert_if_empty(before_head);
         let word_size = self.builder.imm_u64(32);
         let tail_end = self.builder.add(head, word_size);
         let head_overflow = self.builder.lt(tail_end, head);
@@ -3633,13 +3736,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         &mut self,
         base: ValueId,
         length: ValueId,
-        head_size: ValueId,
+        _head_size: ValueId,
         head: ValueId,
         element: Ty<'gcx>,
         span: Span,
     ) -> Option<ValueId> {
-        let before_head = self.builder.lt(head, head_size);
-        self.revert_if_empty(before_head);
         let word_size = self.builder.imm_u64(32);
         let tail_end = self.builder.add(head, word_size);
         let head_overflow = self.builder.lt(tail_end, head);
@@ -3654,22 +3755,28 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let count_in_range = self.builder.iszero(shifted_count);
         let count_invalid = self.builder.iszero(count_in_range);
         self.revert_if_empty(count_invalid);
-        let payload_size = self.checked_mul(element_count, word_size);
+        let element_dynamic = self.abi_decode_is_dynamic(element)?;
+        let element_head_size =
+            if element_dynamic { 32 } else { self.abi_decode_head_size(element)? };
+        let element_head_size_value = self.builder.imm_u64(element_head_size);
+        let payload_size = self.checked_mul(element_count, element_head_size_value);
         let payload_end = self.builder.add(tail_end, payload_size);
         let payload_overflow = self.builder.lt(payload_end, tail_end);
         self.revert_if_empty(payload_overflow);
         let payload_oob = self.builder.gt(payload_end, length);
         self.revert_if_empty(payload_oob);
 
-        let total_size = self.checked_add(word_size, payload_size);
-        let layout =
-            MemoryObjectLayout::DynamicArray { element_words: self.types.element_words(element) };
+        let element_words = self.types.element_words(element);
+        let element_words_value = self.builder.imm_u64(u64::from(element_words));
+        let object_words = self.checked_mul(element_count, element_words_value);
+        let object_payload_size = self.checked_mul(object_words, word_size);
+        let total_size = self.checked_add(word_size, object_payload_size);
+        let layout = MemoryObjectLayout::DynamicArray { element_words };
         let object = self.builder.alloc_object(total_size, layout, AllocationSemantics::INTERNAL);
         self.builder.set_memory_object_len(object, element_count, MemoryObjectKind::DynamicArray);
-        let destination = self.builder.memory_object_data(object, MemoryObjectKind::DynamicArray);
         let source_ptr = self.builder.add(array_base, word_size);
 
-        if !self.abi_decode_is_dynamic(element)? {
+        if !element_dynamic && element_words == 1 && element_head_size == 32 {
             let source = self.builder.make_slice(source_ptr, payload_size, SliceLocation::Memory);
             self.builder.memory_object_copy_from_slice(
                 object,
@@ -3677,8 +3784,16 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 source,
             );
             self.lower_abi_decode_elements(element_count, |this, index| {
-                let offset = this.builder.mul(index, word_size);
-                let address = this.builder.add(destination, offset);
+                let offset = this.builder.mul(index, element_head_size_value);
+                let address = this.builder.add(source_ptr, offset);
+                let value = this.lower_abi_decode_static(address, element, span)?;
+                this.builder.memory_object_store_element(object, layout, index, value);
+                Some(())
+            })?;
+        } else if !element_dynamic {
+            self.lower_abi_decode_elements(element_count, |this, index| {
+                let offset = this.builder.mul(index, element_head_size_value);
+                let address = this.builder.add(source_ptr, offset);
                 let value = this.lower_abi_decode_static(address, element, span)?;
                 this.builder.memory_object_store_element(object, layout, index, value);
                 Some(())
@@ -3686,7 +3801,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         } else {
             let region_length = self.builder.sub(length, tail_end);
             self.lower_abi_decode_elements(element_count, |this, index| {
-                let offset = this.builder.mul(index, word_size);
+                let offset = this.builder.mul(index, element_head_size_value);
                 let address = this.builder.add(source_ptr, offset);
                 let element_head = this.abi_decode_word(address);
                 let value = this.lower_abi_decode_dynamic(
@@ -3701,6 +3816,55 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 Some(())
             })?;
         }
+        Some(object)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn lower_abi_decode_fixed_array_dynamic(
+        &mut self,
+        base: ValueId,
+        length: ValueId,
+        _head_size: ValueId,
+        head: ValueId,
+        element: Ty<'gcx>,
+        len: u64,
+        span: Span,
+    ) -> Option<ValueId> {
+        let word_size = self.builder.imm_u64(32);
+        let element_head_size = self.builder.imm_u64(32);
+        let payload_size = self.builder.imm_u64(len.checked_mul(32)?);
+        let payload_end = self.builder.add(head, payload_size);
+        let payload_overflow = self.builder.lt(payload_end, head);
+        self.revert_if_empty(payload_overflow);
+        let payload_oob = self.builder.gt(payload_end, length);
+        self.revert_if_empty(payload_oob);
+
+        let element_words = self.types.element_words(element);
+        let element_words_value = self.builder.imm_u64(u64::from(element_words));
+        let object_words = self.builder.imm_u64(len);
+        let object_words = self.checked_mul(object_words, element_words_value);
+        let object_payload_size = self.checked_mul(object_words, word_size);
+        let layout = MemoryObjectLayout::FixedArray { len, element_words };
+        let object =
+            self.builder.alloc_object(object_payload_size, layout, AllocationSemantics::INTERNAL);
+        let array_base = self.builder.add(base, head);
+        let region_length = self.builder.sub(length, head);
+        let element_count = self.builder.imm_u64(len);
+        self.lower_abi_decode_elements(element_count, |this, index| {
+            let offset = this.builder.mul(index, element_head_size);
+            let address = this.builder.add(array_base, offset);
+            let element_head = this.abi_decode_word(address);
+            let value = this.lower_abi_decode_dynamic(
+                array_base,
+                region_length,
+                payload_size,
+                element_head,
+                element,
+                span,
+            )?;
+            this.builder.memory_object_store_element(object, layout, index, value);
+            Some(())
+        })?;
         Some(object)
     }
 

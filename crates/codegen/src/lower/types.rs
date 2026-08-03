@@ -98,12 +98,9 @@ impl<'gcx> TypeLowerer<'gcx> {
         })
     }
 
-    /// Returns the number of inline words occupied by one aggregate element.
-    pub(super) fn element_words(&self, ty: Ty<'gcx>) -> u32 {
-        match ty.peel_refs().kind {
-            TyKind::Struct(id) => self.gcx.hir.strukt(id).fields.len().max(1) as u32,
-            _ => 1,
-        }
+    /// Returns the number of words used to reference one aggregate element.
+    pub(super) const fn element_words(&self, _ty: Ty<'gcx>) -> u32 {
+        1
     }
 
     fn abi_param_type_inner(&mut self, ty: Ty<'gcx>) -> Option<AbiParamType> {

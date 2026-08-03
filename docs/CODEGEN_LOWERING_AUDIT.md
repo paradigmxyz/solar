@@ -136,8 +136,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * internal function-pointer values and shape-specific dispatchers for exact,
   virtual, and `super` targets, including storage-backed values, higher-order
   returns, memory arrays, and multi-return calls;
-* `abi.decode` scalar, tuple, dynamic-array, and calldata-slice paths through
-  semantic memory slices and object copies; struct targets still fail closed;
+* `abi.decode` scalar, tuple, struct, fixed- and dynamic-array, and
+  calldata-slice paths through semantic memory slices and object copies;
 * `ecrecover`, `sha256`, and `ripemd160` through version-aware precompile
   calls and semantic memory objects;
 * `string.concat` and `bytes.concat` through one variadic packed-memory path,
@@ -156,7 +156,7 @@ The rewrite is not full codegen. The following are explicit next stages, each
 to be backed by Solc comparisons and existing UI or runtime infrastructure:
 
 1. Complete the remaining aggregate ABI decoding and encoding, including
-   structs, nested aggregates, and aggregate returns.
+   nested edge cases, canonical offset validation, and aggregate returns.
 2. Finish base-constructor argument forwarding for indirect and unresolved
    constructor arguments, and cover the remaining constructor modifier edge
    cases with Solc-backed runtime tests.
