@@ -122,6 +122,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   constructor argument binding and storage-to-memory aggregate copies;
 * block, transaction, message, `blockhash`, `blobhash`, and enum/integer
   `type(...).min`/`type(...).max` builtins through typed MIR operations;
+* enum member constants and checked integer-to-enum conversions with Solidity's
+  `Panic(0x21)` range payload;
 * compile-time ERC-165 interface IDs from the sema interface-function set;
 * positional multi-value declarations and assignments, including evaluation of
   discarded tuple values for their side effects;
@@ -167,19 +169,20 @@ for direct, push, lvalue, nested-lvalue, bytes, and mapping cases.
 The rewrite is not full codegen. The following are explicit next stages, each
 to be backed by Solc comparisons and existing UI or runtime infrastructure:
 
-1. Complete the remaining aggregate ABI decoding and encoding, including
-   nested edge cases, canonical offset validation, and aggregate returns.
+1. Differentially exercise the aggregate ABI paths against Solc, especially
+   nested dynamic values, malformed offsets, and aggregate returns. The core
+   encode/decode and return paths are now covered by the active runtime corpus.
 2. Finish base-constructor argument forwarding for indirect and unresolved
    constructor arguments, and cover the remaining constructor modifier edge
    cases with Solc-backed runtime tests.
-3. Add the remaining call and language features: Yul statements beyond `switch`,
-   custom-error `try`/`catch` clauses, and remaining function-pointer ABI edge
-   cases.
+3. Add custom-error `try`/`catch` clauses, the remaining Yul call builtins
+   (`extcall`, `extdelegatecall`, and `extstaticcall`), and remaining
+   function-pointer ABI edge cases.
 4. Extend storage-reference CFG tests to packed and Yul offset shapes, and
    complete allocation-guard differential coverage against Solc.
-5. Add and run differential, UI, and runtime tests for every new semantic
-   slice, then run the complete existing test and Solc suites before declaring
-   the rewrite complete.
+5. Bring the UI snapshots back in sync with the rewrite. The current
+   `cargo uitest` run still reports 137 snapshot mismatches while the active
+   Foundry, Solidity, and Yul suites pass; no snapshots have been blessed.
 
 Unsupported HIR emits a diagnostic and leaves an `invalid` MIR terminator in the
 rejected function. This is a deliberate fail-closed boundary; it must not be
