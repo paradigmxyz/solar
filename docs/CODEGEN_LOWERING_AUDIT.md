@@ -122,8 +122,9 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * compile-time ERC-165 interface IDs from the sema interface-function set;
 * positional multi-value declarations and assignments, including evaluation of
   discarded tuple values for their side effects;
-* low-level and typed external calls, including returndata capture and EVM-version
-  checks;
+* low-level and typed external calls, including explicit `gas`/`value` options,
+  contract-address conversions, returndata capture, and EVM-version checks;
+* positional and named struct constructors with declaration-order field layout;
 * external function-pointer calls with aggregate return decoding through the
   shared ABI path;
 * event emission with overload and named-argument resolution, selector and indexed

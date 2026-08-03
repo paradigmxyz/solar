@@ -1646,7 +1646,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         count: usize,
         first_is_omitted: bool,
     ) -> Option<Vec<ValueId>> {
-        let ExprKind::Call(callee, args, _) = &expr.kind else { return None };
+        let ExprKind::Call(callee, args, call_opts) = &expr.kind else { return None };
         let builtin = self.gcx.resolved_builtin(callee)?;
         if !matches!(
             builtin,
@@ -1656,8 +1656,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
         let ExprKind::Member(receiver, _) = callee.kind else { return None };
         let capture_returndata = count > 1 || first_is_omitted;
-        let success =
-            self.lower_address_call(callee.span, receiver, builtin, *args, capture_returndata)?;
+        let success = self.lower_address_call(
+            callee.span,
+            receiver,
+            builtin,
+            *args,
+            *call_opts,
+            capture_returndata,
+        )?;
         if count <= 1 && !first_is_omitted {
             return Some(vec![success]);
         }
@@ -2562,9 +2568,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             hir::Res::Item(item) => item.as_struct(),
             _ => None,
         }) {
-            return self.lower_struct_constructor(expr, struct_id, &arguments);
+            return self.lower_struct_constructor(expr, struct_id, args);
         }
-        if matches!(callee.kind, ExprKind::TypeCall(_) | ExprKind::Type(_)) {
+        let is_type_conversion = matches!(callee.kind, ExprKind::TypeCall(_) | ExprKind::Type(_))
+            || self
+                .gcx
+                .resolved_expr(callee)
+                .is_some_and(|res| matches!(res, hir::Res::Item(hir::ItemId::Contract(_))));
+        if is_type_conversion {
             let [arg] = arguments.as_slice() else {
                 return report_unsupported(self.gcx, expr.span, "type conversion");
             };
@@ -2615,7 +2626,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall
             ) && let ExprKind::Member(receiver, _) = callee.kind
             {
-                return self.lower_address_call(callee.span, receiver, builtin, args, false);
+                return self.lower_address_call(
+                    callee.span,
+                    receiver,
+                    builtin,
+                    args,
+                    call_opts,
+                    false,
+                );
             }
             if matches!(builtin, Builtin::AddressPayableSend | Builtin::AddressPayableTransfer)
                 && let ExprKind::Member(receiver, _) = callee.kind
@@ -2933,17 +2951,23 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         &mut self,
         expr: &hir::Expr<'_>,
         struct_id: hir::StructId,
-        arguments: &[&hir::Expr<'_>],
+        args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
-        let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
-        if arguments.len() != fields as usize {
+        let struct_fields = self.gcx.hir.strukt(struct_id).fields;
+        let fields = struct_fields.len() as u64;
+        if args.len() != fields as usize {
             return report_unsupported(self.gcx, expr.span, "struct constructor arguments");
         }
+        let parameter_names = self.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
         let layout = MemoryObjectLayout::Struct { fields };
         let size = self.builder.imm_u64(fields.saturating_mul(32));
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
-        for (index, argument) in arguments.iter().enumerate() {
-            let field = self.gcx.hir.strukt(struct_id).fields[index];
+        for (index, &field) in struct_fields.iter().enumerate() {
+            let Some(argument) =
+                args.argument_for_parameter(index, Some(parameter_names.as_slice()))
+            else {
+                return report_unsupported(self.gcx, args.span, "struct constructor argument");
+            };
             let value = self.lower_expr(argument)?;
             let field_ty = self.gcx.type_of_item(field.into());
             let value = self.materialize_memory_argument(field_ty, value, argument.span)?;
@@ -3215,6 +3239,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         receiver: &hir::Expr<'_>,
         builtin: Builtin,
         args: hir::CallArgs<'_>,
+        call_opts: Option<&hir::CallOptions<'_>>,
         capture_returndata: bool,
     ) -> Option<ValueId> {
         let data = &self.builtin_args::<1>(builtin, &args)?[0];
@@ -3234,10 +3259,21 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 "codegen cannot bind low-level call returndata before Byzantium",
             );
         }
-        let gas = self.builder.gas();
+        let mut gas = self.builder.gas();
+        let mut value = zero;
+        if let Some(options) = call_opts {
+            for option in options.args {
+                let option_value = self.lower_expr(&option.value)?;
+                match option.name.name {
+                    kw::Gas => gas = option_value,
+                    sym::value if builtin == Builtin::AddressCall => value = option_value,
+                    _ => return report_unsupported(self.gcx, option.name.span, "call option"),
+                }
+            }
+        }
         let success = match builtin {
             Builtin::AddressCall => {
-                self.builder.call(gas, address, zero, input, input_size, zero, zero)
+                self.builder.call(gas, address, value, input, input_size, zero, zero)
             }
             Builtin::AddressStaticcall => {
                 if !self.gcx.sess.opts.evm_version.has_static_call() {
