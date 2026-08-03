@@ -2684,10 +2684,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             return self.lower_struct_constructor(expr, struct_id, args);
         }
         let is_type_conversion = matches!(callee.kind, ExprKind::TypeCall(_) | ExprKind::Type(_))
-            || self
-                .gcx
-                .resolved_expr(callee)
-                .is_some_and(|res| matches!(res, hir::Res::Item(hir::ItemId::Contract(_))));
+            || self.gcx.resolved_expr(callee).is_some_and(|res| {
+                matches!(res, hir::Res::Item(hir::ItemId::Contract(_) | hir::ItemId::Enum(_)))
+            });
         if is_type_conversion {
             let [arg] = arguments.as_slice() else {
                 return report_unsupported(self.gcx, expr.span, "type conversion");
@@ -3097,6 +3096,16 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     }
 
     fn coerce_value(&mut self, value: ValueId, from: Ty<'gcx>, to: Ty<'gcx>) -> ValueId {
+        if let TyKind::Enum(id) = to.peel_refs().kind {
+            if !matches!(from.peel_refs().kind, TyKind::Enum(from_id) if from_id == id) {
+                let limit = self.gcx.hir.enumm(id).variants.len() as u64;
+                let limit = self.builder.imm_u64(limit);
+                let valid = self.builder.lt(value, limit);
+                let invalid = self.builder.iszero(valid);
+                self.panic_if(invalid, 0x21);
+            }
+            return value;
+        }
         let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
             to.peel_refs().kind
         else {
@@ -5864,6 +5873,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 
         let id = self.gcx.resolved_variable(expr)?;
         let variable = self.gcx.hir.variable(id);
+        if let Some(hir::ItemId::Enum(enum_id)) = variable.parent {
+            let Some(index) =
+                self.gcx.hir.enumm(enum_id).variants.iter().position(|&variant| variant == id)
+            else {
+                return report_unsupported(self.gcx, expr.span, "enum member");
+            };
+            return Some(self.builder.imm_u256(U256::from(index)));
+        }
         if variable.is_state_variable() {
             return self.load_variable(id, expr.span);
         }
