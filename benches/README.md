@@ -39,7 +39,7 @@ Anvil, executes ordered stateful workloads, and requires normalized return value
 observations to match. The corpus contains four micro contracts, nine minimal import closures from
 real repositories, and three large contracts extracted from the pinned OpenZeppelin and Solady
 project inputs. Its sources, upstream commits, and licenses are documented in
-[`testdata/codegen-runtime/`](../testdata/codegen-runtime/README.md).
+[`codegen-runtime/`](codegen-runtime/README.md).
 
 For example, this command benchmarks the `my-branch` candidate with Gungraun, compares it against
 `main`, and skips the codegen runtime and CodSpeed jobs:

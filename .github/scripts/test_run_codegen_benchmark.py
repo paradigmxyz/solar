@@ -15,12 +15,17 @@ SPEC.loader.exec_module(benchmark)
 
 
 class CorpusTests(unittest.TestCase):
-    def test_vendored_cases_and_helpers_exist(self) -> None:
+    def test_vendored_cases_and_projects_exist(self) -> None:
         self.assertEqual(len(benchmark.TEST_CASES), 4)
         self.assertEqual(len(benchmark.REPO_TEST_CASES), 9)
         self.assertTrue(benchmark.RUNTIME_FIXTURES.is_file())
         for case in benchmark.REPO_TEST_CASES:
-            self.assertTrue(case.source_path.is_file(), case.test_id)
+            self.assertTrue(case.project_path.is_file(), case.test_id)
+            payload = json.loads(
+                benchmark.project_standard_json_input(case.project_file)
+            )
+            self.assertIn(case.source, payload["sources"], case.test_id)
+            self.assertTrue(payload["settings"]["viaIR"])
 
     def test_micro_sources_are_externalized(self) -> None:
         payload = json.loads(benchmark.standard_json_input(benchmark.TEST_CASES[0]))

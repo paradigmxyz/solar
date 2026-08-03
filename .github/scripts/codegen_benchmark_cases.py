@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Sequence
 
 
-ROOT = Path(__file__).resolve().parents[2] / "testdata/codegen-runtime/micro"
+ROOT = Path(__file__).resolve().parents[2] / "benches/codegen-runtime/micro"
 
 
 @dataclass(frozen=True)

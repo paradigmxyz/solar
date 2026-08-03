@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import os
 import re
@@ -24,7 +25,7 @@ from typing import Dict, Optional, Sequence, Tuple
 from codegen_benchmark_cases import TEST_CASES, TestCase
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-ROOT = REPOSITORY_ROOT / "testdata/codegen-runtime"
+ROOT = REPOSITORY_ROOT / "benches/codegen-runtime"
 RESULT_ROOT = REPOSITORY_ROOT / "target/codegen-bench"
 DEFAULT_RPC_URL = "http://127.0.0.1:8545"
 DEFAULT_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
@@ -261,11 +262,9 @@ class SourceCase:
     test_id: str
     description: str
     project: str
-    repo: str
+    project_file: str
     source: str
     contract_name: str
-    import_paths: Sequence[str] = field(default_factory=tuple)
-    remappings: Sequence[str] = field(default_factory=tuple)
     test_calls: Sequence[Tuple[str, Sequence[str]]] = field(default_factory=tuple)
     constructor_args: Sequence[str] = field(default_factory=tuple)
     constructor_sig: Optional[str] = None
@@ -274,12 +273,8 @@ class SourceCase:
     max_solc: Optional[str] = None
 
     @property
-    def source_path(self) -> Path:
-        return ROOT / self.repo / self.source
-
-    @property
-    def repo_path(self) -> Path:
-        return ROOT / self.repo
+    def project_path(self) -> Path:
+        return ROOT / "projects" / self.project_file
 
 
 REPO_TEST_CASES: Sequence[SourceCase] = (
@@ -287,7 +282,7 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="uniswap-v2-pair",
         description="Uniswap V2 Pair",
         project="v2-core",
-        repo="v2-core",
+        project_file="uniswap-v2-pair.json.gz",
         source="contracts/UniswapV2Pair.sol",
         contract_name="UniswapV2Pair",
         min_solc="0.5.16",
@@ -297,7 +292,7 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="openzeppelin-erc20-mock",
         description="OpenZeppelin ERC20Mock",
         project="openzeppelin-contracts",
-        repo="openzeppelin-contracts",
+        project_file="openzeppelin-erc20-mock.json.gz",
         source="contracts/mocks/token/ERC20Mock.sol",
         contract_name="ERC20Mock",
         test_calls=(
@@ -326,7 +321,7 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="openzeppelin-vesting-wallet",
         description="OpenZeppelin VestingWallet",
         project="openzeppelin-contracts",
-        repo="openzeppelin-contracts",
+        project_file="openzeppelin-vesting-wallet.json.gz",
         source="contracts/finance/VestingWallet.sol",
         contract_name="VestingWallet",
         constructor_args=(DEFAULT_SENDER, "1000", "100"),
@@ -360,7 +355,7 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="nitro-one-step-proof",
         description="Nitro OneStepProofEntry",
         project="nitro-contracts",
-        repo="nitro-contracts",
+        project_file="nitro-one-step-proof.json.gz",
         source="src/osp/OneStepProofEntry.sol",
         contract_name="OneStepProofEntry",
         constructor_args=(DEFAULT_SENDER, DEFAULT_SPENDER, DEFAULT_THIRD, DEFAULT_FOURTH),
@@ -427,7 +422,7 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="aave-l2-encoder",
         description="Aave V3 L2Encoder",
         project="aave-v3-core",
-        repo=".",
+        project_file="aave-l2-encoder.json.gz",
         source="fixtures/aave/L2EncoderHarness.sol",
         contract_name="L2EncoderHarness",
         test_calls=(
@@ -559,7 +554,7 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="lilweb3-ens",
         description="LilENS",
         project="lil-web3",
-        repo="lil-web3",
+        project_file="lilweb3-ens.json.gz",
         source="src/LilENS.sol",
         contract_name="LilENS",
         test_calls=(
@@ -590,10 +585,9 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="lilweb3-flashloan",
         description="LilFlashloan",
         project="lil-web3",
-        repo="lil-web3",
+        project_file="lilweb3-flashloan.json.gz",
         source="src/LilFlashloan.sol",
         contract_name="LilFlashloan",
-        remappings=("solmate/=lib/solmate/src/",),
         test_calls=(
             ("manager()", ()),
             ("setFees(address,uint256)", (DEFAULT_SPENDER, "250")),
@@ -626,10 +620,9 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="lilweb3-fractional",
         description="LilFractional",
         project="lil-web3",
-        repo="lil-web3",
+        project_file="lilweb3-fractional.json.gz",
         source="src/LilFractional.sol",
         contract_name="LilFractional",
-        remappings=("solmate/=lib/solmate/src/",),
         test_calls=(
             ("getVault(uint256)", ("0",)),
             ("getVault(uint256)", ("1",)),
@@ -669,7 +662,7 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="maple-erc20",
         description="Maple ERC20",
         project="maple-erc20",
-        repo="maple-erc20",
+        project_file="maple-erc20.json.gz",
         source="contracts/ERC20.sol",
         contract_name="ERC20",
         constructor_args=("Maple Token", "MPL", "18"),
@@ -916,7 +909,16 @@ def standard_json_input(test_case: TestCase) -> str:
     return json.dumps(payload)
 
 
-def parse_standard_json_output(stdout: str, test_case: TestCase) -> Tuple[Optional[str], Optional[str], str]:
+@lru_cache(maxsize=None)
+def project_standard_json_input(project_file: str) -> str:
+    path = ROOT / "projects" / project_file
+    with gzip.open(path, mode="rt") as compressed:
+        return compressed.read()
+
+
+def parse_standard_json_output(
+    stdout: str, test_case: TestCase | SourceCase
+) -> Tuple[Optional[str], Optional[str], str]:
     try:
         output = json.loads(stdout)
     except json.JSONDecodeError as exc:
@@ -993,47 +995,6 @@ def compile_standard_json(spec: CompilerSpec, test_case: TestCase) -> Dict[str, 
     return result
 
 
-def parse_solar_cli_output(stdout: str, case: SourceCase) -> Tuple[Optional[str], Optional[str], str]:
-    decoder = json.JSONDecoder()
-    objects = []
-    idx = 0
-    while idx < len(stdout):
-        while idx < len(stdout) and stdout[idx].isspace():
-            idx += 1
-        if idx >= len(stdout):
-            break
-        try:
-            obj, idx = decoder.raw_decode(stdout, idx)
-        except json.JSONDecodeError as exc:
-            return None, None, f"invalid JSON output: {exc}"
-        if isinstance(obj, dict):
-            objects.append(obj)
-
-    output = next((obj for obj in reversed(objects) if obj.get("contracts")), {})
-    if not output:
-        return None, None, "no contracts in JSON output"
-
-    errors = output.get("errors") or []
-    fatal = [
-        err.get("formattedMessage") or err.get("message") or str(err)
-        for err in errors
-        if err.get("severity") == "error"
-    ]
-    if fatal:
-        return None, None, fatal[0][:1000]
-
-    contracts = output.get("contracts") or {}
-    for key, contract in contracts.items():
-        if key == case.contract_name or key.endswith(f":{case.contract_name}"):
-            bytecode = str(contract.get("bin") or "").strip()
-            runtime = str(contract.get("bin-runtime") or contract.get("bin_runtime") or "").strip()
-            if bytecode:
-                return bytecode, runtime, ""
-
-    available = ", ".join(str(key) for key in contracts.keys())
-    return None, None, f"contract {case.contract_name} not found; available: {available}"
-
-
 def compile_repo_case(spec: CompilerSpec, case: SourceCase) -> Dict[str, object]:
     result = {
         "compiler_id": spec.compiler_id,
@@ -1045,82 +1006,37 @@ def compile_repo_case(spec: CompilerSpec, case: SourceCase) -> Dict[str, object]
         "runtime_size": 0,
         "peak_rss_bytes": None,
         "error": "",
-        "source": str(case.source_path.relative_to(ROOT)),
+        "source": case.source,
         "project": case.project,
     }
 
-    if not case.source_path.exists():
+    if not case.project_path.exists():
         result["status"] = "failed"
-        result["error"] = (
-            f"vendored source not found: {case.source_path.relative_to(ROOT)}"
-        )
+        result["error"] = f"vendored project not found: {case.project_path.relative_to(ROOT)}"
         return result
 
-    with tempfile.TemporaryDirectory(prefix="solar-bench-") as tmp:
-        out_dir = Path(tmp) / spec.compiler_id
-        out_dir.mkdir(parents=True, exist_ok=True)
+    cmd = [str(spec.path)]
+    if spec.kind != "solc":
+        cmd.append("-Zcodegen")
+    cmd.append("--standard-json")
+    proc = run(
+        cmd,
+        input_text=project_standard_json_input(case.project_file),
+        timeout=180,
+        measure_peak_rss=True,
+    )
+    result["peak_rss_bytes"] = proc.peak_rss_bytes
+    result["command"] = display_command(cmd)
+    if proc.returncode != 0:
+        result["status"] = "failed"
+        result["error"] = (proc.stderr or proc.stdout or "compiler failed")[:1000]
+        return result
 
-        if spec.kind == "solc":
-            cmd = [
-                str(spec.path),
-                "--via-ir",
-                "--optimize",
-                "--bin",
-                "--bin-runtime",
-                "--abi",
-                "--base-path",
-                str(case.repo_path),
-                "--overwrite",
-                "-o",
-                str(out_dir),
-            ]
-            for import_path in case.import_paths:
-                cmd.extend(["--include-path", import_path])
-            cmd.extend(case.remappings)
-            cmd.append(case.source)
-            proc = run(cmd, timeout=180, cwd=case.repo_path, measure_peak_rss=True)
-            result["peak_rss_bytes"] = proc.peak_rss_bytes
-            result["command"] = display_command(cmd)
-            if proc.returncode != 0:
-                result["status"] = "failed"
-                result["error"] = (proc.stderr or proc.stdout or "compiler failed")[:1000]
-                return result
-
-            bytecode_path = out_dir / f"{case.contract_name}.bin"
-            runtime_path = out_dir / f"{case.contract_name}.bin-runtime"
-            if not bytecode_path.exists():
-                result["status"] = "failed"
-                result["error"] = f"{bytecode_path.name} was not produced"
-                return result
-            bytecode = bytecode_path.read_text().strip()
-            runtime = runtime_path.read_text().strip() if runtime_path.exists() else ""
-        else:
-            cmd = [
-                str(spec.path),
-                "-Zcodegen",
-                "--emit",
-                "abi,bin,bin-runtime",
-                "--base-path",
-                str(case.repo_path),
-                "--color",
-                "never",
-            ]
-            for import_path in case.import_paths:
-                cmd.extend(["-I", import_path])
-            cmd.extend(case.remappings)
-            cmd.append(case.source)
-            proc = run(cmd, timeout=180, cwd=case.repo_path, measure_peak_rss=True)
-            result["peak_rss_bytes"] = proc.peak_rss_bytes
-            result["command"] = display_command(cmd)
-            if proc.returncode != 0:
-                result["status"] = "failed"
-                result["error"] = (proc.stderr or proc.stdout or "compiler failed")[:1000]
-                return result
-            bytecode, runtime, error = parse_solar_cli_output(proc.stdout, case)
-            if not bytecode:
-                result["status"] = "failed"
-                result["error"] = error
-                return result
+    bytecode, runtime, error = parse_standard_json_output(proc.stdout, case)
+    if not bytecode:
+        result["status"] = "failed"
+        result["error"] = error
+        return result
 
     result["status"] = "ok"
     result["bytecode"] = bytecode
@@ -1790,7 +1706,7 @@ def run_test_case(
     }
     if isinstance(test_case, SourceCase):
         entry["project"] = test_case.project
-        entry["source"] = str(test_case.source_path.relative_to(ROOT))
+        entry["source"] = test_case.source
     reference_solc = next((spec for spec in specs if spec.kind == "solc"), None)
 
     for spec in specs:
