@@ -586,24 +586,27 @@ impl<'a> Validator<'a> {
     /// [`MirPhase`](crate::mir::MirPhase), so
     /// the phase is a real contract rather than a label.
     fn validate_module_phase(&mut self, module: &Module) {
+        let dispatch_entries =
+            module.functions.iter().filter(|f| f.attributes.is_dispatch_entry).count();
         // From the `dispatch` phase on, routing is materialized: a module with
         // a runtime interface must contain exactly one synthesized `entry`.
-        if module.phase >= crate::mir::MirPhase::Dispatch
+        if module.phase < crate::mir::MirPhase::Dispatch {
+            return;
+        }
+        if dispatch_entries > 1 {
+            self.emit(format_args!(
+                "module is in the `{}` phase but has multiple `entry` routing functions",
+                module.phase.name()
+            ));
+        } else if dispatch_entries == 0
             && module.functions.iter().any(|f| {
                 f.selector.is_some() || f.attributes.is_receive || f.attributes.is_fallback
             })
         {
-            match module.functions.iter().filter(|f| f.attributes.is_dispatch_entry).count() {
-                1 => {}
-                0 => self.emit(format_args!(
-                    "module is in the `{}` phase but has no `entry` routing function",
-                    module.phase.name()
-                )),
-                _ => self.emit(format_args!(
-                    "module is in the `{}` phase but has multiple `entry` routing functions",
-                    module.phase.name()
-                )),
-            }
+            self.emit(format_args!(
+                "module is in the `{}` phase but has no `entry` routing function",
+                module.phase.name()
+            ));
         }
     }
 

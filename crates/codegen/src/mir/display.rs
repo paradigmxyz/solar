@@ -281,13 +281,7 @@ fn display_function_attributes(func: &Function) -> impl fmt::Display + '_ {
         if func.attributes.is_dispatch_entry {
             write_function_attribute(f, &mut first, "entry")?;
         }
-        if func.attributes.is_dispatch_entry {
-            write!(f, " [entry")?;
-            if let Some(layout) = &func.abi_returns {
-                write!(f, ", abi_returns={layout}")?;
-            }
-            write!(f, "]")?;
-        } else if let Some(layout) = &func.abi_returns {
+        if let Some(layout) = &func.abi_returns {
             write_function_attribute(f, &mut first, format_args!("abi_returns={layout}"))?;
         }
         if !first {
