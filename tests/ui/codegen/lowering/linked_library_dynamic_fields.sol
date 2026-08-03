@@ -22,8 +22,8 @@ library L {
     // CHECK: eq
     // CHECK-NEXT: push [[APPLY:bb[0-9]+]]
     // CHECK: [[APPLY]]:
-    // CHECK: calldatacopy
-    // CHECK: calldatacopy
+    // CHECK: calldataload
+    // CHECK: calldataload
     // CHECK: keccak256
     // CHECK: sstore
     // CHECK: return

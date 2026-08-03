@@ -4935,6 +4935,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let function_id = self.resolve_call_target(callee, function_id);
         let function = self.gcx.hir.function(function_id);
         let attached = self.gcx.resolved_callee(callee.id).is_some_and(|callee| callee.attached);
+        if !attached
+            && matches!(function.visibility, hir::Visibility::Public | hir::Visibility::External)
+            && let Some(address) = self.linked_library_address(function_id)
+        {
+            return self.lower_linked_library_call(expr, function_id, args, address);
+        }
         let receiver_count = usize::from(attached);
         if args.len() + receiver_count != function.parameters.len() {
             return report_unsupported(self.gcx, expr.span, "function argument list");
@@ -4947,7 +4953,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 return report_unsupported(self.gcx, expr.span, "attached function receiver");
             };
             let parameter_ty = self.gcx.type_of_item(function.parameters[0].into());
-            let value = self.lower_expr(receiver)?;
+            let value = if Self::is_storage_parameter(parameter_ty) {
+                self.storage_access(receiver)?.slot
+            } else {
+                self.lower_expr(receiver)?
+            };
             values.push(self.materialize_memory_argument(parameter_ty, value, receiver.span)?);
         }
         for index in receiver_count..function.parameters.len() {
@@ -4957,7 +4967,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 return report_unsupported(self.gcx, expr.span, "named function argument");
             };
             let parameter_ty = self.gcx.type_of_item(function.parameters[index].into());
-            let value = self.lower_expr(argument)?;
+            let value = if Self::is_storage_parameter(parameter_ty) {
+                self.storage_access(argument)?.slot
+            } else {
+                self.lower_expr(argument)?
+            };
             values.push(self.materialize_memory_argument(parameter_ty, value, argument.span)?);
         }
         let Some(&mir_id) = self.function_ids.get(&function_id) else {
@@ -5039,6 +5053,115 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             self.builder.mstore(base, ret_offset);
         }
         Some(self.builder.mload(ret_offset))
+    }
+
+    fn linked_library_address(&self, function_id: hir::FunctionId) -> Option<U256> {
+        let contract_id = self.gcx.hir.function(function_id).contract?;
+        let contract = self.gcx.hir.contract(contract_id);
+        if contract.kind != hir::ContractKind::Library {
+            return None;
+        }
+        let source = self.gcx.hir.source(contract.source).file.name.display().to_string();
+        self.gcx
+            .sess
+            .opts
+            .libraries
+            .iter()
+            .find(|library| {
+                library.name == contract.name.as_str_in(self.gcx.sess)
+                    && library.source.as_ref().is_none_or(|path| source.ends_with(path))
+            })
+            .map(|library| U256::from_be_slice(library.address.as_slice()))
+    }
+
+    fn lower_linked_library_call(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        function_id: hir::FunctionId,
+        args: hir::CallArgs<'_>,
+        address: U256,
+    ) -> Option<ValueId> {
+        let function = self.gcx.hir.function(function_id);
+        if args.len() != function.parameters.len() {
+            return report_unsupported(self.gcx, expr.span, "linked library arguments");
+        }
+        let parameter_names = self.gcx.callable_param_names(CallableParamSource::Function {
+            id: function_id,
+            skips_receiver: false,
+        });
+        let mut values = Vec::with_capacity(function.parameters.len());
+        let mut types = Vec::with_capacity(function.parameters.len());
+        for (index, &parameter) in function.parameters.iter().enumerate() {
+            let Some(argument) =
+                args.argument_for_parameter(index, Some(parameter_names.as_slice()))
+            else {
+                return report_unsupported(self.gcx, expr.span, "linked library argument");
+            };
+            let parameter_ty = self.gcx.type_of_item(parameter.into());
+            let mut value = if Self::is_storage_parameter(parameter_ty) {
+                self.storage_access(argument)?.slot
+            } else {
+                self.lower_expr(argument)?
+            };
+            let mut abi_type = if Self::is_storage_parameter(parameter_ty) {
+                AbiType::Word
+            } else {
+                self.types.abi_type(parameter_ty)?
+            };
+            if self.needs_calldata_materialization(value, &abi_type) {
+                value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
+                abi_type = Self::memory_abi_type(abi_type);
+            }
+            values.push(value);
+            types.push(abi_type);
+        }
+
+        let selector = self.gcx.function_selector(function_id).0;
+        let selector = self.builder.imm_u256(U256::from_be_slice(&selector) << 224);
+        let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+        let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
+        let input = self.builder.slice_ptr(encoded);
+        let input_size = self.builder.slice_len(encoded);
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let address = self.builder.imm_u256(address);
+        let gas = self.builder.gas();
+        let success = self.builder.delegatecall(gas, address, input, input_size, zero, zero);
+        self.revert_external_call(success);
+        if function.returns.is_empty() {
+            return Some(zero);
+        }
+        if !self.gcx.sess.opts.evm_version.supports_returndata() {
+            return report_error(
+                self.gcx,
+                expr.span,
+                "codegen cannot decode linked library returndata before Byzantium",
+            );
+        }
+        let data = self.materialize_returndata_bytes();
+        let data_start = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+        let data_length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+        let return_types = function
+            .returns
+            .iter()
+            .map(|&ret| {
+                self.gcx.type_of_item(ret.into()).with_loc_if_ref(self.gcx, DataLocation::Memory)
+            })
+            .collect::<Vec<_>>();
+        let values =
+            self.lower_abi_decode_region(data_start, data_length, &return_types, expr.span)?;
+        if values.len() > 1 {
+            let base = self.multi_return_buffer_base();
+            for (index, value) in values.iter().copied().enumerate().skip(1) {
+                let offset = self.builder.imm_u64((index as u64).saturating_mul(32));
+                let address = self.builder.add(base, offset);
+                self.builder.mstore(address, value);
+            }
+        }
+        values.into_iter().next().or(Some(zero))
+    }
+
+    fn is_storage_parameter(ty: Ty<'gcx>) -> bool {
+        ty.is_ref_at(DataLocation::Storage) || matches!(ty.peel_refs().kind, TyKind::Mapping(..))
     }
 
     fn needs_calldata_materialization(&self, value: ValueId, ty: &AbiType) -> bool {

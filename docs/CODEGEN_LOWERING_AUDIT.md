@@ -109,6 +109,9 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * constructor and fallback/function attributes needed by the backend;
 * inherited public and internal function discovery with selector de-duplication;
 * reachable internal library calls, including `using for` receiver binding;
+* linked public library calls through ABI-encoded `DELEGATECALL`, including
+  storage-reference slot forwarding, nested library hops, aggregate arguments,
+  aggregate returns, and revert-data bubbling;
 * most-derived virtual resolution for internal calls, `super` calls, and
   overridden modifiers, while retaining shadowed public bodies as internal MIR
   targets;

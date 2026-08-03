@@ -88,11 +88,36 @@ pub(super) fn lower(
             }
         }
     }
-    if contract.kind != hir::ContractKind::Library {
-        for function_id in gcx.contract_reachable_functions(contract_id).iter() {
+    for function_id in gcx.contract_reachable_functions(contract_id).iter() {
+        let function = gcx.hir.function(function_id);
+        let library_function = function
+            .contract
+            .is_some_and(|id| gcx.hir.contract(id).kind == hir::ContractKind::Library)
+            && matches!(function.visibility, hir::Visibility::Public | hir::Visibility::External)
+            && function.body.is_some();
+        if function.kind == hir::FunctionKind::Function
+            && (function.visibility == hir::Visibility::Internal || library_function)
+        {
+            function_ids.push((function_id, false));
+        }
+    }
+    for library_id in gcx.hir.contract_ids() {
+        let library = gcx.hir.contract(library_id);
+        if library.kind != hir::ContractKind::Library {
+            continue;
+        }
+        let source = gcx.hir.source(library.source).file.name.display().to_string();
+        let linked = gcx.sess.opts.libraries.iter().any(|spec| {
+            spec.name == library.name.as_str_in(gcx.sess)
+                && spec.source.as_ref().is_none_or(|path| source.ends_with(path))
+        });
+        if linked {
+            continue;
+        }
+        for function_id in library.functions() {
             let function = gcx.hir.function(function_id);
-            if function.kind == hir::FunctionKind::Function
-                && function.visibility == hir::Visibility::Internal
+            if matches!(function.visibility, hir::Visibility::Public | hir::Visibility::External)
+                && function.body.is_some()
             {
                 function_ids.push((function_id, false));
             }

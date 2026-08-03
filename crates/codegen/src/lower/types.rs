@@ -104,6 +104,10 @@ impl<'gcx> TypeLowerer<'gcx> {
     }
 
     fn abi_param_type_inner(&mut self, ty: Ty<'gcx>) -> Option<AbiParamType> {
+        if ty.is_ref_at(DataLocation::Storage) || matches!(ty.peel_refs().kind, TyKind::Mapping(..))
+        {
+            return Some(AbiParamType::Scalar(MirType::StoragePtr));
+        }
         Some(match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes) => {
                 AbiParamType::Bytes
