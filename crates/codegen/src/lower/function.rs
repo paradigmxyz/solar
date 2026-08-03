@@ -990,23 +990,82 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let ExprKind::Call(callee, args, call_opts) = &try_stmt.expr.kind else {
             return report_unsupported(self.gcx, try_stmt.expr.span, "try expression");
         };
-        let ExprKind::Member(receiver, _) = callee.kind else {
-            return report_unsupported(self.gcx, try_stmt.expr.span, "try expression");
-        };
         if call_opts.is_some() {
             return report_unsupported(self.gcx, try_stmt.expr.span, "try call options");
         }
-        let Some(function_id) = self.gcx.resolved_function(callee) else {
+        let (
+            parameter_types,
+            return_types,
+            parameter_names,
+            selector,
+            selector_bytes,
+            address,
+            receiver,
+            static_call,
+        ) = if let ExprKind::Member(receiver, _) = callee.kind {
+            let Some(function_id) = self.gcx.resolved_function(callee) else {
+                return report_unsupported(self.gcx, try_stmt.expr.span, "try target");
+            };
+            let function = self.gcx.hir.function(function_id);
+            (
+                function
+                    .parameters
+                    .iter()
+                    .map(|&parameter| self.gcx.type_of_item(parameter.into()))
+                    .collect::<Vec<_>>(),
+                function
+                    .returns
+                    .iter()
+                    .map(|&return_id| self.gcx.type_of_item(return_id.into()))
+                    .collect::<Vec<_>>(),
+                Some(self.gcx.callable_param_names(CallableParamSource::Function {
+                    id: function_id,
+                    skips_receiver: false,
+                })),
+                None,
+                Some(self.gcx.function_selector(function_id).0),
+                None,
+                Some(receiver),
+                matches!(
+                    function.state_mutability,
+                    hir::StateMutability::Pure | hir::StateMutability::View
+                ) && self.gcx.sess.opts.evm_version.has_static_call(),
+            )
+        } else if let Some(TyKind::Fn(function)) =
+            self.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
+            && function.is_external()
+            && function.function_id.is_none()
+        {
+            let function_value = self.lower_expr(callee)?;
+            let selector_mask = self.builder.imm_u256(U256::from(u32::MAX));
+            let selector = self.builder.and(function_value, selector_mask);
+            let selector_shift = self.builder.imm_u64(224);
+            let selector = self.builder.shl(selector_shift, selector);
+            let address_shift = self.builder.imm_u64(32);
+            let address = self.builder.shr(address_shift, function_value);
+            (
+                function.parameters.to_vec(),
+                function.returns.to_vec(),
+                None,
+                Some(selector),
+                None,
+                Some(address),
+                None,
+                matches!(
+                    function.state_mutability,
+                    hir::StateMutability::Pure | hir::StateMutability::View
+                ) && self.gcx.sess.opts.evm_version.has_static_call(),
+            )
+        } else {
             return report_unsupported(self.gcx, try_stmt.expr.span, "try target");
         };
-        let function = self.gcx.hir.function(function_id);
         let Some((returns_clause, catch_clauses)) = try_stmt.clauses.split_first() else {
             return report_unsupported(self.gcx, try_stmt.expr.span, "try/catch clauses");
         };
         if catch_clauses.is_empty() {
             return report_unsupported(self.gcx, try_stmt.expr.span, "try/catch clauses");
         }
-        if returns_clause.name.is_some() || returns_clause.args.len() != function.returns.len() {
+        if returns_clause.name.is_some() || returns_clause.args.len() != return_types.len() {
             return report_unsupported(self.gcx, returns_clause.span, "try return bindings");
         }
         for catch_clause in catch_clauses {
@@ -1041,23 +1100,17 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 }
             }
         }
-        if args.len() != function.parameters.len() {
+        if args.len() != parameter_types.len() {
             return report_unsupported(self.gcx, args.span, "try arguments");
         }
 
-        let parameter_names = self.gcx.callable_param_names(CallableParamSource::Function {
-            id: function_id,
-            skips_receiver: false,
-        });
-        let mut values = Vec::with_capacity(function.parameters.len());
-        let mut types = Vec::with_capacity(function.parameters.len());
-        for (index, &parameter) in function.parameters.iter().enumerate() {
-            let Some(argument) =
-                args.argument_for_parameter(index, Some(parameter_names.as_slice()))
+        let mut values = Vec::with_capacity(parameter_types.len());
+        let mut types = Vec::with_capacity(parameter_types.len());
+        for (index, parameter_ty) in parameter_types.iter().copied().enumerate() {
+            let Some(argument) = args.argument_for_parameter(index, parameter_names.as_deref())
             else {
                 return report_unsupported(self.gcx, args.span, "try argument");
             };
-            let parameter_ty = self.gcx.type_of_item(parameter.into());
             let mut value = self.lower_expr(argument)?;
             let mut abi_type = self.types.abi_type(parameter_ty)?;
             if self.needs_calldata_materialization(value, &abi_type) {
@@ -1067,22 +1120,31 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             values.push(value);
             types.push(abi_type);
         }
+        let selector = if let Some(selector) = selector {
+            selector
+        } else {
+            let Some(selector_bytes) = selector_bytes else {
+                return report_unsupported(self.gcx, try_stmt.expr.span, "try selector");
+            };
+            self.builder.imm_u256(U256::from_be_slice(&selector_bytes) << 224)
+        };
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-        let selector = self.gcx.function_selector(function_id).0;
-        let selector = self.builder.imm_u256(U256::from_be_slice(&selector) << 224);
         let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
-        let address = self.lower_expr(receiver)?;
+        let address = if let Some(address) = address {
+            address
+        } else {
+            let Some(receiver) = receiver else {
+                return report_unsupported(self.gcx, try_stmt.expr.span, "try receiver");
+            };
+            self.lower_expr(receiver)?
+        };
         let zero = self.builder.imm_u256(U256::ZERO);
         let ret_offset = zero;
         let ret_size = self.builder.imm_u64(0);
         let gas = self.builder.gas();
-        let success = if matches!(
-            function.state_mutability,
-            hir::StateMutability::Pure | hir::StateMutability::View
-        ) && self.gcx.sess.opts.evm_version.has_static_call()
-        {
+        let success = if static_call {
             self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
         } else {
             self.builder.call(gas, address, zero, input, input_size, ret_offset, ret_size)
@@ -1098,18 +1160,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.values = before.clone();
         self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(success_block);
-        if !function.returns.is_empty() {
+        if !return_types.is_empty() {
             let data = self.materialize_returndata_bytes();
             let data_start = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
             let data_length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
-            let return_types = function
-                .returns
+            let return_types = return_types
                 .iter()
-                .map(|&return_id| {
-                    self.gcx
-                        .type_of_item(return_id.into())
-                        .with_loc_if_ref(self.gcx, DataLocation::Memory)
-                })
+                .copied()
+                .map(|ty| ty.with_loc_if_ref(self.gcx, DataLocation::Memory))
                 .collect::<Vec<_>>();
             let values = self.lower_abi_decode_region(
                 data_start,
@@ -5336,6 +5394,17 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
         if let Some(value) = self.lower_internal_function_value(expr) {
             return Some(value);
+        }
+        if let Some(TyKind::Fn(function)) = self.gcx.type_of_expr(expr.id).map(|ty| ty.kind)
+            && function.is_external()
+            && let Some(function_id) = self.gcx.resolved_function(expr)
+        {
+            let address = self.lower_expr(receiver)?;
+            let address_shift = self.builder.imm_u64(32);
+            let address = self.builder.shl(address_shift, address);
+            let selector = self.gcx.function_selector(function_id).0;
+            let selector = self.builder.imm_u256(U256::from_be_slice(&selector));
+            return Some(self.builder.or(address, selector));
         }
         if name.name == sym::offset
             && self

@@ -162,8 +162,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    constructor arguments, and cover the remaining constructor modifier edge
    cases with Solc-backed runtime tests.
 3. Add the remaining call and language features: Yul statements beyond `switch`,
-   custom-error `try`/`catch` clauses, and the remaining external and aggregate
-   function-pointer forms.
+   custom-error `try`/`catch` clauses, and aggregate external function-pointer
+   ABI forms.
 4. Extend storage-reference CFG tests to packed and Yul offset shapes, and
    complete allocation-guard differential coverage against Solc.
 5. Add and run differential, UI, and runtime tests for every new semantic
