@@ -1,0 +1,148 @@
+//@compile-flags: -Zevm-ir-pipeline=dce
+//@filecheck:
+@module module
+
+// Eliminate a dead saved value across an arbitrary straight-line region.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: -   dup1
+// CHECK: {{^[ +].*}}mload
+// CHECK: {{^[ +].*}}mstore
+// CHECK: -   pop
+bb0:
+  push 7
+  dup1
+  push 160
+  mload
+  push 128
+  add
+  mstore
+  pop
+  stop
+
+// Preserve the produced value while removing the dead saved operand.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: -   dup1
+// CHECK: {{^[ +].*}}add
+// CHECK: -   swap1
+// CHECK: -   pop
+bb1:
+  push 7
+  dup1
+  push 1
+  add
+  swap1
+  pop
+  push 0
+  mstore
+  stop
+
+// Keep one copy needed for multiple uses, but elide the dead preservation.
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: {{^[ +].*}}dup1
+// CHECK: -   dup1
+// CHECK: {{^[ +].*}}push 32
+// CHECK: {{^[ +].*}}push 64
+// CHECK: -   pop
+bb2:
+  push 7
+  dup1
+  dup1
+  push 32
+  mstore
+  push 64
+  mstore
+  pop
+  stop
+
+// Do not rewrite when the region reads the preserved original.
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: {{^[ +].*}}dup1
+// CHECK: {{^[ +].*}}dup2
+bb3:
+  push 1
+  push 2
+  dup1
+  dup2
+  add
+  swap1
+  pop
+  pop
+  stop
+
+// Do not rewrite when a stack permutation reaches the preserved original.
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: {{^[ +].*}}dup1
+// CHECK: {{^[ +].*}}swap1
+bb4:
+  push 1
+  dup1
+  swap1
+  push 32
+  mstore
+  pop
+  stop
+
+// Do not scan through physical control flow.
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK: {{^[ +].*}}dup1
+// CHECK: {{^[ +].*}}jumpi
+bb5:
+  push 1
+  dup1
+  push bb6
+  jumpi
+  pop
+  stop
+
+bb6:
+  stop
+
+// Keep a saved value when no matching discard exists.
+// CHECK-LABEL: {{^[ +].*}}bb7:
+// CHECK: {{^[ +].*}}dup1
+// CHECK: {{^[ +].*}}mstore
+bb7:
+  push 7
+  dup1
+  push 32
+  mstore
+  stop
+
+// Preserve two results with one shallower swap.
+// CHECK-LABEL: {{^[ +].*}}bb8:
+// CHECK: -   dup1
+// CHECK: -   swap2
+// CHECK: +   swap1
+// CHECK: -   pop
+bb8:
+  push 7
+  dup1
+  pop
+  caller
+  callvalue
+  swap2
+  pop
+  pop
+  pop
+  stop
+
+// Preserve three results with two shallower swaps.
+// CHECK-LABEL: {{^[ +].*}}bb9:
+// CHECK: -   dup1
+// CHECK: -   swap3
+// CHECK: -   pop
+// CHECK: +   swap2
+// CHECK: +   swap1
+bb9:
+  push 7
+  dup1
+  pop
+  caller
+  callvalue
+  origin
+  swap3
+  pop
+  pop
+  pop
+  pop
+  stop

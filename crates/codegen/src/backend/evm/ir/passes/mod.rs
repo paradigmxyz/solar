@@ -7,6 +7,7 @@
 mod block_layout;
 mod cfg_simplify;
 mod compact_pushes;
+mod dce;
 mod outline;
 mod peephole;
 mod share_reverts;
@@ -49,6 +50,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &peephole::Peephole,
     &share_reverts::ShareReverts,
     &compact_pushes::CompactPushes,
+    &dce::Dce,
     &cfg_simplify::CfgSimplify,
     &outline::Outline,
     &terminal_dedup::TerminalDedup,
@@ -76,6 +78,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &cfg_simplify::CfgSimplify,
     &compact_pushes::CompactPushes,
     &peephole::Peephole,
+    &dce::Dce,
     // Pack address-sensitive terminal blocks, then clean up any adjacent
     // revert branch that remains profitable in the final layout.
     &block_layout::BlockLayout,
