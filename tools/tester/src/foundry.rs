@@ -121,7 +121,6 @@ const TEMPORARILY_IGNORED_PROJECTS: &[&str] = &[
     "erc20-minimal",
     "erc721-minimal",
     "multicall",
-    "stress-arrays",
     "stress-inheritance",
     "stress-modifiers",
     "unifap-v2",

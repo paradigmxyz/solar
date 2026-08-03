@@ -6443,6 +6443,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 
     fn delete_lvalue(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
         let ty = self.gcx.type_of_expr(expr.id)?;
+        if ty.is_ref_at(DataLocation::Storage)
+            && let Some(access) = self.storage_access(expr)
+        {
+            return self.clear_storage_access(ty, access);
+        }
         let Some(layout) = self.types.memory_layout(ty) else {
             let zero = self.builder.imm_u256(U256::ZERO);
             return self.store_lvalue(expr, zero);
@@ -6473,6 +6478,46 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     let value = self.default_value(field_ty);
                     self.builder.memory_object_store_field(object, layout, index as u64, value);
                 }
+            }
+        }
+        Some(())
+    }
+
+    fn clear_storage_access(
+        &mut self,
+        ty: solar_sema::ty::Ty<'gcx>,
+        access: StorageAccess,
+    ) -> Option<()> {
+        let zero = self.builder.imm_u256(U256::ZERO);
+        match ty.peel_refs().kind {
+            TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            )
+            | TyKind::DynArray(_) => {
+                self.builder.sstore(access.slot, zero);
+            }
+            TyKind::Struct(struct_id) => {
+                for (index, &field) in self.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
+                    let field_ty = self.gcx.type_of_item(field.into());
+                    let location = self.storage.field_location(self.gcx, struct_id, index)?;
+                    let field_slot = self.add_storage_offset(access.slot, location.slot);
+                    self.clear_storage_access(
+                        field_ty,
+                        StorageAccess { slot: field_slot, location, offset: None },
+                    )?;
+                }
+            }
+            TyKind::Array(element, len) => {
+                let len = u64::try_from(len).ok()?;
+                for index in 0..len {
+                    let index = self.builder.imm_u64(index);
+                    let element_access =
+                        self.storage_array_element_access(access.slot, index, element, false)?;
+                    self.clear_storage_access(element, element_access)?;
+                }
+            }
+            _ => {
+                self.storage.store_at_slot(&mut self.builder, access.location, access.slot, zero);
             }
         }
         Some(())
