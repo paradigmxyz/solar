@@ -1958,21 +1958,15 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     return Some(self.builder.imm_u256(U256::ZERO));
                 }
                 let rhs_value = self.lower_expr(rhs)?;
+                let lhs_ty = self.type_of_expr_or_variable(lhs)?;
+                let rhs_ty = self.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
                 let value = if let Some(kind) = op.map(|op| op.kind) {
                     let lhs_value = self.load_lvalue(lhs)?;
-                    self.binary(kind, lhs_value, rhs_value, self.gcx.type_of_expr(lhs.id))
+                    self.binary(kind, lhs_value, rhs_value, Some(lhs_ty))
                 } else {
-                    self.materialize_memory_argument(
-                        self.gcx.type_of_expr(lhs.id)?,
-                        rhs_value,
-                        rhs.span,
-                    )?
+                    self.materialize_memory_argument(lhs_ty, rhs_value, rhs.span)?
                 };
-                let value = self.coerce_value(
-                    value,
-                    self.gcx.type_of_expr(rhs.id)?,
-                    self.gcx.type_of_expr(lhs.id)?,
-                );
+                let value = self.coerce_value(value, rhs_ty, lhs_ty);
                 self.store_lvalue(lhs, value)?;
                 Some(value)
             }
