@@ -121,23 +121,26 @@ fn analysis_build(c: &mut Criterion) {
 
 fn bounded_workspace_discovery(c: &mut Criterion) {
     let temp = tempfile::tempdir().expect("benchmark temporary directory");
-    let excluded = temp.path().join("node_modules");
-    fs::create_dir_all(&excluded).expect("excluded directory");
+    let project = temp.path().join("project");
+    let dependency = project.join("vendor");
+    fs::create_dir_all(&dependency).expect("dependency directory");
     for index in 0..10_000 {
-        fs::write(excluded.join(format!("Generated{index}.sol")), "contract Generated {} {}")
-            .expect("excluded source");
+        fs::write(dependency.join(format!("Generated{index}.sol")), "contract Generated {} {}")
+            .expect("dependency source");
     }
+    fs::write(project.join("foundry.toml"), "[profile.default]\nlibs = [\"vendor\"]\n")
+        .expect("Foundry project manifest");
 
     let baseline = BenchmarkWorkspaceDiscovery::run(temp.path());
     assert_eq!(baseline.eager(), 0);
     assert_eq!(baseline.source_file_count(), 0);
-    // Manifest discovery and source collection each prune the dependency root without visiting
-    // any of its 10,000 descendants.
-    assert_eq!(baseline.pruned(), 2);
-    assert_eq!(baseline.visited(), 3);
+    // Manifest discovery prunes the import-only root without visiting its 10,000 descendants.
+    // The full workspace load still scans it once for remappings; discovery must not repeat it.
+    assert_eq!(baseline.pruned(), 1);
+    assert_eq!(baseline.visited(), 4);
 
     let mut group = c.benchmark_group("lsp/workspace-discovery");
-    group.bench_function("bounded-10k-excluded", |b| {
+    group.bench_function("foundry-10k-import-only", |b| {
         b.iter(|| black_box(BenchmarkWorkspaceDiscovery::run(black_box(temp.path()))));
     });
     group.finish();

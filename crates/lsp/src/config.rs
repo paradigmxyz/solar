@@ -23,7 +23,6 @@ use lsp_types::{
     WorkspaceFileOperationsServerCapabilities, WorkspaceFolder, WorkspaceFoldersServerCapabilities,
     WorkspaceServerCapabilities,
 };
-use normalize_path::NormalizePath;
 use serde::Deserialize;
 use solar_interface::data_structures::map::FxHashSet;
 use std::{
@@ -284,21 +283,9 @@ impl Config {
                 specs.insert(WatchedFileSpec::new(base_path.to_path_buf(), "remappings.txt"));
             }
 
-            for root in workspace.source_roots().iter().chain(workspace.import_only_roots()) {
+            for root in workspace.source_roots() {
                 if self.is_external_watcher_root(root) {
                     specs.insert(WatchedFileSpec::new(root.clone(), "**/*.sol"));
-                }
-            }
-            for remapping in &workspace.compile_opts().import_remappings {
-                let target = Path::new(&remapping.path);
-                let target = if target.is_absolute() {
-                    target.to_path_buf()
-                } else {
-                    base_path.join(target)
-                }
-                .normalize();
-                if self.is_external_watcher_root(&target) {
-                    specs.insert(WatchedFileSpec::new(target, "**/*.sol"));
                 }
             }
         }
@@ -1652,7 +1639,7 @@ mod tests {
     }
 
     #[test]
-    fn watched_file_specs_cover_bounded_workspace_paths() {
+    fn watched_file_specs_cover_workspace_and_external_source_paths() {
         let project = TestProject::from_fixture(
             r#"
             //- /repo/foundry.toml
@@ -1672,8 +1659,6 @@ mod tests {
             WatchedFileSpec::new(explicit_root.clone(), "**/remappings.txt"),
             WatchedFileSpec::new(project.path("/repo"), "remappings.txt"),
             WatchedFileSpec::new(project.path("/external-src"), "**/*.sol"),
-            WatchedFileSpec::new(project.path("/external-lib"), "**/*.sol"),
-            WatchedFileSpec::new(project.path("/external-remapping"), "**/*.sol"),
         ];
         expected.extend(
             explicit_root

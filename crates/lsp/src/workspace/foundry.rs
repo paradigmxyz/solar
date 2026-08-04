@@ -12,6 +12,10 @@ impl FoundryDocument {
     pub(crate) fn default_profile(self) -> FoundryProfile {
         self.profile.and_then(|profiles| profiles.default).or(self.default).unwrap_or_default()
     }
+
+    pub(crate) fn include_paths(self, root: &Path) -> Vec<PathBuf> {
+        self.default_profile().include_paths(root)
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -92,4 +96,27 @@ fn read_remappings_txt(root: &Path) -> Vec<ImportRemapping> {
         .filter(|line| !line.is_empty())
         .filter_map(|line| line.parse().ok())
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn document_reports_configured_include_paths_directly() {
+        let document = toml_edit::de::from_str::<FoundryDocument>(
+            r#"
+            [profile.default]
+            libs = ["lib", "vendor"]
+            auto_detect_remappings = true
+            remappings = ["@example/=vendor/example/src/"]
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            document.include_paths(Path::new("workspace")),
+            [PathBuf::from("workspace/lib"), PathBuf::from("workspace/vendor")]
+        );
+    }
 }

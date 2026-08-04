@@ -12,6 +12,7 @@ import { spawn } from "child_process";
 let client: LanguageClient | undefined;
 let clientLifecycle: Promise<void> = Promise.resolve();
 let activeServerKind: "solar" | "forge" | undefined;
+let forgeFileWatcher: vscode.FileSystemWatcher | undefined;
 
 const restartSettings = [
   "solarLsp.enable",
@@ -123,13 +124,25 @@ function restartLanguageServer(): Promise<void> {
 
 async function stopLanguageServer(): Promise<void> {
   const currentClient = client;
+  const currentFileWatcher = forgeFileWatcher;
   if (!currentClient) {
     activeServerKind = undefined;
+    if (forgeFileWatcher === currentFileWatcher) {
+      forgeFileWatcher = undefined;
+    }
+    currentFileWatcher?.dispose();
     return;
   }
 
-  if (currentClient.state === State.Running) {
-    await currentClient.stop();
+  try {
+    if (currentClient.state === State.Running) {
+      await currentClient.stop();
+    }
+  } finally {
+    if (forgeFileWatcher === currentFileWatcher) {
+      forgeFileWatcher = undefined;
+    }
+    currentFileWatcher?.dispose();
   }
 
   if (client === currentClient) {
@@ -193,6 +206,10 @@ async function startLanguageServer() {
     args: ["lsp"],
     transport: TransportKind.stdio,
   };
+  // Solar registers bounded watchers dynamically; Forge still needs the legacy watcher.
+  const nextFileWatcher = solarExists
+    ? undefined
+    : vscode.workspace.createFileSystemWatcher("**/*.sol");
 
   // Define client options
   const clientOptions: LanguageClientOptions = {
@@ -221,6 +238,9 @@ async function startLanguageServer() {
           }
         : {}),
     },
+    ...(nextFileWatcher
+      ? { synchronize: { fileEvents: nextFileWatcher } }
+      : {}),
   };
 
   // Create the language client and start it
@@ -232,6 +252,7 @@ async function startLanguageServer() {
   );
   client = nextClient;
   activeServerKind = solarExists ? "solar" : "forge";
+  forgeFileWatcher = nextFileWatcher;
 
   // Start the client. This will also launch the server
   try {
@@ -247,9 +268,13 @@ async function startLanguageServer() {
     } catch {
       // Failed starts can also reject shutdown after scheduling process cleanup.
     }
+    nextFileWatcher?.dispose();
     if (client === nextClient) {
       client = undefined;
       activeServerKind = undefined;
+    }
+    if (forgeFileWatcher === nextFileWatcher) {
+      forgeFileWatcher = undefined;
     }
     const message = error instanceof Error ? error.message : String(error);
     console.error("Failed to start LSP client:", error);

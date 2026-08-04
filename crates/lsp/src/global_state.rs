@@ -2187,7 +2187,7 @@ fn analyze_cancellable_with_source_map(
 
     let mut compiler = Compiler::new(sess);
     compiler.enter_mut(move |compiler| {
-        {
+        let sources_loaded = {
             let mut parsing_context = compiler.parse();
             let files = files
                 .into_iter()
@@ -2208,23 +2208,28 @@ fn analyze_cancellable_with_source_map(
             if let Ok(files) = files {
                 parsing_context.add_files(files);
                 parsing_context.parse();
+                true
+            } else {
+                false
             }
-        }
+        };
 
         if cancellation.is_cancelled() {
             return None;
         }
-        compiler.sources_mut().topo_sort();
-        if cancellation.is_cancelled() {
-            return None;
-        }
-        let _ = compiler.lower_asts();
-        if cancellation.is_cancelled() {
-            return None;
-        }
-        let _ = compiler.analysis();
-        if cancellation.is_cancelled() {
-            return None;
+        if sources_loaded {
+            compiler.sources_mut().topo_sort();
+            if cancellation.is_cancelled() {
+                return None;
+            }
+            let _ = compiler.lower_asts();
+            if cancellation.is_cancelled() {
+                return None;
+            }
+            let _ = compiler.analysis();
+            if cancellation.is_cancelled() {
+                return None;
+            }
         }
 
         let symbol_tables = SymbolTables::build(compiler.gcx(), &document_link_sources);

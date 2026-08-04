@@ -4,9 +4,10 @@ use std::{
 };
 
 use super::{
-    Workspace,
     index_policy::{IndexingCancellation, WorkspaceIndexMetrics, WorkspaceIndexPolicy},
+    load_foundry_document,
 };
+use normalize_path::NormalizePath;
 use solar_interface::data_structures::map::rustc_hash::FxHashSet;
 use tokio::io;
 
@@ -155,8 +156,11 @@ impl ManifestDiscovery<'_> {
 }
 
 fn foundry_import_only_roots(manifest: &Path) -> Vec<PathBuf> {
-    Workspace::load_foundry(manifest.to_path_buf())
-        .map(|workspace| workspace.import_only_roots().to_vec())
+    let Some(root) = manifest.parent() else { return Vec::new() };
+    load_foundry_document(manifest)
+        .map(|document| {
+            document.include_paths(root).into_iter().map(|path| path.normalize()).collect()
+        })
         .unwrap_or_default()
 }
 
