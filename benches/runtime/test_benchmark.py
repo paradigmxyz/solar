@@ -17,8 +17,11 @@ SPEC.loader.exec_module(benchmark)
 
 class CorpusTests(unittest.TestCase):
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 4)
-        self.assertEqual(len(benchmark.REPOSITORY_TEST_CASES), 9)
+        self.assertEqual(len(benchmark.TEST_CASES), 16)
+        repository_cases = [
+            case for case in benchmark.TEST_CASES if case.suite == "repository"
+        ]
+        self.assertEqual(len(repository_cases), 9)
         self.assertTrue(benchmark.RUNTIME_FIXTURES.is_file())
         expected_source_counts = {
             "uniswap-v2-pair": 10,
@@ -31,7 +34,7 @@ class CorpusTests(unittest.TestCase):
             "lilweb3-fractional": 3,
             "maple-erc20": 2,
         }
-        for case in benchmark.REPOSITORY_TEST_CASES:
+        for case in repository_cases:
             self.assertTrue(case.project_path.is_file(), case.test_id)
             payload = json.loads(
                 benchmark.project_standard_json_input(
@@ -56,7 +59,9 @@ class CorpusTests(unittest.TestCase):
         self.assertTrue(payload["settings"]["viaIR"])
 
     def test_filters_incompatible_solc_versions(self) -> None:
-        uniswap = benchmark.REPOSITORY_TEST_CASES[0]
+        uniswap = next(
+            case for case in benchmark.TEST_CASES if case.test_id == "uniswap-v2-pair"
+        )
 
         self.assertTrue(
             benchmark.version_in_range("0.5.16", uniswap.min_solc, uniswap.max_solc)
@@ -66,13 +71,14 @@ class CorpusTests(unittest.TestCase):
         )
 
     def test_large_cases_resolve_from_pinned_projects(self) -> None:
-        self.assertEqual(len(benchmark.LARGE_TEST_CASES), 3)
+        large_cases = [case for case in benchmark.TEST_CASES if case.suite == "large"]
+        self.assertEqual(len(large_cases), 3)
         expected_source_counts = {
             "openzeppelin-governor": 48,
             "solady-signature-checker": 12,
             "solady-lib-string": 9,
         }
-        for case in benchmark.LARGE_TEST_CASES:
+        for case in large_cases:
             project = benchmark.load_project(case.project_path)
             selected = benchmark.project_slice(project, case.source)
             self.assertEqual(len(selected), expected_source_counts[case.test_id])

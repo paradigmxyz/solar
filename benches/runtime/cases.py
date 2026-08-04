@@ -43,34 +43,25 @@ class GasCall:
 class TestCase:
     test_id: str
     description: str
-    source_code: str
-    contract_name: str
-    test_calls: Sequence[tuple[str, Sequence[str]]]
-    constructor_args: Sequence[str] = field(default_factory=tuple)
-    source_name: str = ""
-    gas_calls: Sequence[GasCall] = field(default_factory=tuple)
-    runtime_checks: Sequence[RuntimeCheck] = field(default_factory=tuple)
-
-
-@dataclass(frozen=True)
-class SourceCase:
-    test_id: str
-    description: str
-    project: str
-    project_file: str
-    source: str
     contract_name: str
     test_calls: Sequence[Tuple[str, Sequence[str]]] = field(default_factory=tuple)
+    source_code: Optional[str] = None
+    source_name: str = ""
+    project: str = ""
+    project_file: Optional[str] = None
+    source: str = ""
     gas_calls: Sequence[GasCall] = field(default_factory=tuple)
     constructor_args: Sequence[str] = field(default_factory=tuple)
     constructor_sig: Optional[str] = None
     runtime_checks: Sequence[RuntimeCheck] = field(default_factory=tuple)
     min_solc: Optional[str] = None
     max_solc: Optional[str] = None
-    suite: str = "repository"
+    suite: str = "micro"
 
     @property
     def project_path(self) -> Path:
+        if self.project_file is None:
+            raise ValueError(f"inline case {self.test_id} has no project archive")
         return REPOSITORY_ROOT / self.project_file
 
 
@@ -130,27 +121,25 @@ TEST_CASES: Sequence[TestCase] = (
         source_name="Arithmetic.sol",
         runtime_checks=(RuntimeCheck("value", "value()(uint256)"),),
     ),
-)
-
-
-REPOSITORY_TEST_CASES: Sequence[SourceCase] = (
-    SourceCase(
+    TestCase(
         test_id="uniswap-v2-pair",
         description="Uniswap V2 Pair",
         project="v2-core",
         project_file="testdata/codegen-runtime/projects/uniswap-v2-pair.json.gz",
         source="contracts/UniswapV2Pair.sol",
         contract_name="UniswapV2Pair",
+        suite="repository",
         min_solc="0.5.16",
         max_solc="0.5.16",
     ),
-    SourceCase(
+    TestCase(
         test_id="openzeppelin-erc20-mock",
         description="OpenZeppelin ERC20Mock",
         project="openzeppelin-contracts",
         project_file="testdata/codegen-runtime/projects/openzeppelin-runtime.json.gz",
         source="contracts/mocks/token/ERC20Mock.sol",
         contract_name="ERC20Mock",
+        suite="repository",
         test_calls=(
             ("mint(address,uint256)", (DEFAULT_SENDER, "1000")),
             ("burn(address,uint256)", (DEFAULT_SENDER, "400")),
@@ -173,13 +162,14 @@ REPOSITORY_TEST_CASES: Sequence[SourceCase] = (
             RuntimeCheck("reverse-allowance", "allowance(address,address)(uint256)", (DEFAULT_SPENDER, DEFAULT_SENDER)),
         ),
     ),
-    SourceCase(
+    TestCase(
         test_id="openzeppelin-vesting-wallet",
         description="OpenZeppelin VestingWallet",
         project="openzeppelin-contracts",
         project_file="testdata/codegen-runtime/projects/openzeppelin-runtime.json.gz",
         source="contracts/finance/VestingWallet.sol",
         contract_name="VestingWallet",
+        suite="repository",
         constructor_args=(DEFAULT_SENDER, "1000", "100"),
         constructor_sig="constructor(address,uint64,uint64)",
         test_calls=(
@@ -207,13 +197,14 @@ REPOSITORY_TEST_CASES: Sequence[SourceCase] = (
             RuntimeCheck("vested-far-future", "vestedAmount(uint64)(uint256)", ("999999",)),
         ),
     ),
-    SourceCase(
+    TestCase(
         test_id="nitro-one-step-proof",
         description="Nitro OneStepProofEntry",
         project="nitro-contracts",
         project_file="testdata/codegen-runtime/projects/nitro-one-step-proof.json.gz",
         source="src/osp/OneStepProofEntry.sol",
         contract_name="OneStepProofEntry",
+        suite="repository",
         constructor_args=(DEFAULT_SENDER, DEFAULT_SPENDER, DEFAULT_THIRD, DEFAULT_FOURTH),
         constructor_sig="constructor(address,address,address,address)",
         test_calls=(
@@ -274,13 +265,14 @@ REPOSITORY_TEST_CASES: Sequence[SourceCase] = (
             ),
         ),
     ),
-    SourceCase(
+    TestCase(
         test_id="aave-l2-encoder",
         description="Aave V3 L2Encoder",
         project="aave-v3-core",
         project_file="testdata/codegen-runtime/projects/aave-l2-encoder.json.gz",
         source="fixtures/aave/L2EncoderHarness.sol",
         contract_name="L2EncoderHarness",
+        suite="repository",
         test_calls=(
             ("POOL()", ()),
             ("encodeSupplyParams(address,uint256,uint16)", (DEFAULT_SPENDER, "123456", "7")),
@@ -406,13 +398,14 @@ REPOSITORY_TEST_CASES: Sequence[SourceCase] = (
             ),
         ),
     ),
-    SourceCase(
+    TestCase(
         test_id="lilweb3-ens",
         description="LilENS",
         project="lil-web3",
         project_file="testdata/codegen-runtime/projects/lilweb3-ens.json.gz",
         source="src/LilENS.sol",
         contract_name="LilENS",
+        suite="repository",
         test_calls=(
             ("register(string)", ("testname",)),
             ("update(string,address)", ("testname", DEFAULT_SPENDER)),
@@ -437,13 +430,14 @@ REPOSITORY_TEST_CASES: Sequence[SourceCase] = (
             RuntimeCheck("missing", "lookup(string)(address)", ("missing",)),
         ),
     ),
-    SourceCase(
+    TestCase(
         test_id="lilweb3-flashloan",
         description="LilFlashloan",
         project="lil-web3",
         project_file="testdata/codegen-runtime/projects/lilweb3-runtime.json.gz",
         source="src/LilFlashloan.sol",
         contract_name="LilFlashloan",
+        suite="repository",
         test_calls=(
             ("manager()", ()),
             ("setFees(address,uint256)", (DEFAULT_SPENDER, "250")),
@@ -472,13 +466,14 @@ REPOSITORY_TEST_CASES: Sequence[SourceCase] = (
             RuntimeCheck("computed-fee-missing", "getFee(address,uint256)(uint256)", (ZERO_ADDRESS, "10000")),
         ),
     ),
-    SourceCase(
+    TestCase(
         test_id="lilweb3-fractional",
         description="LilFractional",
         project="lil-web3",
         project_file="testdata/codegen-runtime/projects/lilweb3-runtime.json.gz",
         source="src/LilFractional.sol",
         contract_name="LilFractional",
+        suite="repository",
         test_calls=(
             ("getVault(uint256)", ("0",)),
             ("getVault(uint256)", ("1",)),
@@ -514,13 +509,14 @@ REPOSITORY_TEST_CASES: Sequence[SourceCase] = (
             ),
         ),
     ),
-    SourceCase(
+    TestCase(
         test_id="maple-erc20",
         description="Maple ERC20",
         project="maple-erc20",
         project_file="testdata/codegen-runtime/projects/maple-erc20.json.gz",
         source="contracts/ERC20.sol",
         contract_name="ERC20",
+        suite="repository",
         constructor_args=("Maple Token", "MPL", "18"),
         constructor_sig="constructor(string,string,uint8)",
         test_calls=(
@@ -553,11 +549,7 @@ REPOSITORY_TEST_CASES: Sequence[SourceCase] = (
             RuntimeCheck("permit-typehash", "PERMIT_TYPEHASH()(bytes32)"),
         ),
     ),
-)
-
-
-LARGE_TEST_CASES: Sequence[SourceCase] = (
-    SourceCase(
+    TestCase(
         test_id="openzeppelin-governor",
         description="OpenZeppelin Governor",
         project="openzeppelin-5.6.1",
@@ -591,7 +583,7 @@ LARGE_TEST_CASES: Sequence[SourceCase] = (
         ),
         suite="large",
     ),
-    SourceCase(
+    TestCase(
         test_id="solady-signature-checker",
         description="Solady SignatureCheckerLib",
         project="solady-0.1.26",
@@ -628,7 +620,7 @@ LARGE_TEST_CASES: Sequence[SourceCase] = (
         ),
         suite="large",
     ),
-    SourceCase(
+    TestCase(
         test_id="solady-lib-string",
         description="Solady LibString",
         project="solady-0.1.26",
@@ -820,7 +812,7 @@ HOT_GAS_CALLS: Dict[str, Sequence[GasCall]] = {
 }
 
 
-def default_gas_calls(test_case: TestCase | SourceCase) -> Sequence[GasCall]:
+def default_gas_calls(test_case: TestCase) -> Sequence[GasCall]:
     if test_case.gas_calls:
         return test_case.gas_calls
     return tuple(
@@ -829,11 +821,11 @@ def default_gas_calls(test_case: TestCase | SourceCase) -> Sequence[GasCall]:
     )
 
 
-def gas_calls(test_case: TestCase | SourceCase, profile: str) -> Sequence[GasCall]:
+def gas_calls(test_case: TestCase, profile: str) -> Sequence[GasCall]:
     if profile == "hot":
         return HOT_GAS_CALLS.get(test_case.test_id, default_gas_calls(test_case))
     return default_gas_calls(test_case)
 
 
-def runtime_checks(test_case: TestCase | SourceCase) -> Sequence[RuntimeCheck]:
+def runtime_checks(test_case: TestCase) -> Sequence[RuntimeCheck]:
     return test_case.runtime_checks

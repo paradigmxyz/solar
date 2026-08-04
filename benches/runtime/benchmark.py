@@ -24,13 +24,10 @@ from cases import (
     DEFAULT_SPENDER,
     DEFAULT_THIRD,
     EDGE_BYTES32,
-    LARGE_TEST_CASES,
     MAX_UINT128,
     MAX_UINT256,
     MIXED_BYTES32,
-    REPOSITORY_TEST_CASES,
     SIGNED_HASH,
-    SourceCase,
     TEST_CASES,
     TestCase,
     ZERO_ADDRESS,
@@ -167,6 +164,8 @@ class CompilerSpec:
 
 
 def standard_json_input(test_case: TestCase) -> str:
+    if test_case.source_code is None:
+        raise ValueError(f"project case {test_case.test_id} has no inline source")
     source_name = test_case.source_name or f"{test_case.test_id}.sol"
     payload = {
         "language": "Solidity",
@@ -214,7 +213,7 @@ def project_standard_json_input(project_file: str, source: str, contract_name: s
     return json.dumps(payload)
 
 
-def compile_case(spec: CompilerSpec, test_case: TestCase | SourceCase) -> Dict[str, object]:
+def compile_case(spec: CompilerSpec, test_case: TestCase) -> Dict[str, object]:
     result = {
         "compiler_id": spec.compiler_id,
         "label": spec.label,
@@ -227,7 +226,7 @@ def compile_case(spec: CompilerSpec, test_case: TestCase | SourceCase) -> Dict[s
         "peak_rss_bytes": None,
         "error": "",
     }
-    if isinstance(test_case, SourceCase):
+    if test_case.project_file is not None:
         result.update(source=test_case.source, project=test_case.project)
         if not test_case.project_path.exists():
             result["status"] = "failed"
@@ -276,7 +275,7 @@ def compile_case(spec: CompilerSpec, test_case: TestCase | SourceCase) -> Dict[s
 
 
 def parse_standard_json_output(
-    stdout: str, test_case: TestCase | SourceCase
+    stdout: str, test_case: TestCase
 ) -> Tuple[Optional[str], Optional[str], str]:
     try:
         output = json.loads(stdout)
@@ -396,7 +395,7 @@ def abi_encode_constructor(constructor_args: Sequence[str], constructor_sig: Opt
 
 def deploy_contract(
     bytecode: str,
-    test_case: TestCase | SourceCase,
+    test_case: TestCase,
     rpc_url: str,
     private_key: str,
 ) -> Tuple[Optional[str], Optional[int], str]:
@@ -895,7 +894,7 @@ def run_nitro_cold_paths(address: str, rpc_url: str) -> List[Dict[str, object]]:
 
 
 def run_cold_path_checks(
-    test_case: TestCase | SourceCase,
+    test_case: TestCase,
     address: str,
     solc_path: Path,
     rpc_url: str,
@@ -957,7 +956,7 @@ def compare_runtime_results(entry: Dict[str, object], specs: Sequence[CompilerSp
 
 
 def run_test_case(
-    test_case: TestCase | SourceCase,
+    test_case: TestCase,
     specs: Sequence[CompilerSpec],
     include_gas: bool,
     gas_profile: str,
@@ -969,11 +968,11 @@ def run_test_case(
         "test_id": test_case.test_id,
         "description": test_case.description,
         "contract_name": test_case.contract_name,
-        "suite": test_case.suite if isinstance(test_case, SourceCase) else "micro",
+        "suite": test_case.suite,
         "gas_profile": gas_profile,
         "compilers": {},
     }
-    if isinstance(test_case, SourceCase):
+    if test_case.project_file is not None:
         entry["project"] = test_case.project
         entry["source"] = test_case.source
     reference_solc = next((spec for spec in specs if spec.kind == "solc"), None)
@@ -1133,28 +1132,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    all_tests = []
-    if args.suite in ("micro", "all"):
-        all_tests.extend(TEST_CASES)
-    if args.suite in ("repository", "all"):
-        all_tests.extend(REPOSITORY_TEST_CASES)
-    if args.suite in ("large", "all"):
-        all_tests.extend(LARGE_TEST_CASES)
+    all_tests = [
+        test
+        for test in TEST_CASES
+        if args.suite == "all" or test.suite == args.suite
+    ]
 
     if args.projects:
         project_set = set(args.projects)
-        all_tests = [
-            test for test in all_tests
-            if isinstance(test, SourceCase) and test.project in project_set
-        ]
+        all_tests = [test for test in all_tests if test.project in project_set]
 
     test_map = {test.test_id: test for test in all_tests}
     if args.list_tests:
         for test in all_tests:
-            if isinstance(test, SourceCase):
+            if test.project_file is not None:
                 print(f"{test.test_id}	{test.project}	{test.source}	{test.contract_name}")
             else:
-                print(f"{test.test_id}	micro	inline	{test.contract_name}")
+                print(f"{test.test_id}	{test.suite}	inline	{test.contract_name}")
         return 0
 
     solc = find_binary(args.solc, ["solc"])
@@ -1199,13 +1193,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if not args.include_incompatible:
         compatible_tests = []
         for test in tests:
-            if isinstance(test, SourceCase) and not version_in_range(solc_version, test.min_solc, test.max_solc):
+            if test.project_file is not None and not version_in_range(
+                solc_version, test.min_solc, test.max_solc
+            ):
                 skipped.append(test)
             else:
                 compatible_tests.append(test)
         tests = compatible_tests
 
-    if args.gas and any(isinstance(test, SourceCase) and not gas_calls(test, args.gas_profile) and not runtime_checks(test) for test in tests):
+    if args.gas and any(
+        test.project_file is not None
+        and not gas_calls(test, args.gas_profile)
+        and not runtime_checks(test)
+        for test in tests
+    ):
         print(_color("repository contracts without gas calls or runtime checks will show N/A in the gas table", YELLOW), file=sys.stderr)
 
     if args.gas and args.start_anvil and not check_tool("anvil"):
@@ -1240,7 +1241,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         current_suite = None
         suite_started = None
         for test in tests:
-            suite = test.suite if isinstance(test, SourceCase) else "micro"
+            suite = test.suite
             if suite != current_suite:
                 if current_suite is not None and suite_started is not None:
                     timings[current_suite] = timings.get(current_suite, 0.0) + time.monotonic() - suite_started
