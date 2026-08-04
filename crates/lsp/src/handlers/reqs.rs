@@ -1,4 +1,4 @@
-use super::workspace_edit::validated_rename_workspace_edit;
+use super::workspace_edit::{validated_code_actions, validated_rename_workspace_edit};
 use crate::{
     diagnostics::PullReport,
     formatter::{self, FormatterError},
@@ -13,14 +13,15 @@ use crop::Rope;
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
-    CodeLens, CodeLensParams, CompletionItem, CompletionParams, CompletionResponse,
-    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
-    DocumentFormattingParams, DocumentHighlight, DocumentHighlightParams, DocumentLink,
-    DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
-    FoldingRangeParams, FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse,
-    Hover, HoverParams, InlayHint, InlayHintParams, Position, PrepareRenameResponse, ProgressToken,
-    ReferenceParams, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
-    RenameParams, SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
+    CodeActionParams, CodeActionResponse, CodeLens, CodeLensParams, CompletionItem,
+    CompletionParams, CompletionResponse, DocumentDiagnosticParams, DocumentDiagnosticReport,
+    DocumentDiagnosticReportResult, DocumentFormattingParams, DocumentHighlight,
+    DocumentHighlightParams, DocumentLink, DocumentLinkParams, DocumentSymbolParams,
+    DocumentSymbolResponse, FoldingRange, FoldingRangeParams, FullDocumentDiagnosticReport,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InlayHint, InlayHintParams,
+    Position, PrepareRenameResponse, ProgressToken, ReferenceParams,
+    RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport, RenameParams,
+    SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
     TextDocumentPositionParams, TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams,
     TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, UnchangedDocumentDiagnosticReport,
     Url, WorkDoneProgress, WorkDoneProgressBegin, WorkDoneProgressEnd, WorkspaceDiagnosticParams,
@@ -338,6 +339,43 @@ pub(crate) fn document_links(
         let symbol_tables = latest_analysis.await?;
         let links = symbol_tables.read().document_links(&path);
         Ok(Some(links))
+    }
+}
+
+pub(crate) fn code_actions(
+    state: &mut GlobalState,
+    mut params: CodeActionParams,
+) -> impl Future<Output = Result<Option<CodeActionResponse>, ResponseError>> + use<> {
+    params.text_document.uri = crate::diagnostics::normalize_file_uri(params.text_document.uri);
+    let vfs = state.vfs.clone();
+    let document_changes = state.config.supports_workspace_edit_document_changes();
+    let literals = state.config.supports_code_action_literals();
+    let is_preferred = state.config.supports_code_action_is_preferred();
+    let diagnostic_data = state.config.supports_code_action_diagnostic_data();
+    let diagnostics = state.code_action_diagnostics(params.text_document.uri.clone());
+    async move {
+        if !literals {
+            return Ok(Some(Vec::new()));
+        }
+        let diagnostics = diagnostics.await?;
+        let actions = tokio::task::spawn_blocking(move || {
+            validated_code_actions(
+                params,
+                diagnostics,
+                vfs,
+                document_changes,
+                is_preferred,
+                diagnostic_data,
+            )
+        })
+        .await
+        .map_err(|error| {
+            ResponseError::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("code-action task failed: {error}"),
+            )
+        })?;
+        Ok(Some(actions))
     }
 }
 
