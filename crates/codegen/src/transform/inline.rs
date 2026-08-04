@@ -597,6 +597,10 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
             let words = layout.head_size() / 32;
             (30 + words * 12, 8 + args.len() * 3)
         }
+        InstKind::AbiDecode { layout, .. } => {
+            let words = layout.head_size() / 32;
+            (30 + words * 12, 8 + layout.types.len() * 3)
+        }
         InstKind::StorageToMemory { layout, .. } => {
             let slots = layout.storage_slots();
             (slots * 103, slots as usize * 2)

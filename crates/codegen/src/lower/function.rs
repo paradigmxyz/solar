@@ -3798,24 +3798,16 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
 
         let data = self.lower_expr(&args[0])?;
-        let values = self.lower_abi_decode_values(data, &decoded_types, args[1].span)?;
-        if values.len() > 1 {
-            let base = self.ensure_multi_return_buffer(values.len());
-            for (index, value) in values.iter().copied().enumerate().skip(1) {
-                let offset = self.builder.imm_u64((index as u64).saturating_mul(32));
-                let address = self.builder.add(base, offset);
-                self.builder.mstore(address, value);
-            }
-        }
-        values.into_iter().next()
+        let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?;
+        Some(self.builder.abi_decode(layout, data))
     }
 
-    fn lower_abi_decode_values(
+    fn lower_abi_decode_layout(
         &mut self,
         data: ValueId,
         types: &[Ty<'gcx>],
         span: Span,
-    ) -> Option<Vec<ValueId>> {
+    ) -> Option<(ValueId, AbiParamLayout)> {
         let data = match self.builder.func().value_ty(data) {
             Some(MirType::Slice(_)) => self.materialize_memory_slice(data),
             _ => data,
@@ -3827,10 +3819,25 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             };
             abi_types.push(abi_type);
         }
-        let layout = AbiParamLayout::new(abi_types.into_boxed_slice());
+        Some((data, AbiParamLayout::new(abi_types.into_boxed_slice())))
+    }
+
+    fn lower_abi_decode_values(
+        &mut self,
+        data: ValueId,
+        types: &[Ty<'gcx>],
+        span: Span,
+    ) -> Option<Vec<ValueId>> {
+        let (data, layout) = self.lower_abi_decode_layout(data, types, span)?;
         let length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
         let base = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
-        crate::transform::lower_abi::decode_memory_tuple(&mut self.builder, base, length, &layout)
+        crate::transform::lower_abi::decode_memory_tuple(
+            &mut self.builder,
+            base,
+            length,
+            &layout,
+            None,
+        )
     }
 
     fn revert_external_call(&mut self, success: ValueId) {
@@ -3901,6 +3908,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             payload_ptr,
             payload_len,
             &layout,
+            None,
         )
         .and_then(|mut values| values.pop())
         .or_else(|| report_unsupported(self.gcx, span, "Error catch payload"))

@@ -3683,6 +3683,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 unreachable!("ABI encoding must be lowered before EVM codegen")
             }
 
+            InstKind::AbiDecode { .. } => {
+                unreachable!("ABI decoding must be lowered before EVM codegen")
+            }
+
             InstKind::StorageToMemory { .. }
             | InstKind::MemoryToStorage { .. }
             | InstKind::ClearStorage { .. } => {

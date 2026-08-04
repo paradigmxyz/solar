@@ -388,6 +388,7 @@ impl MemoryStoreEliminator {
                     | InstKind::SetMemoryObjectLen(_, _, _)
                     | InstKind::StorageToMemory { .. }
                     | InstKind::AbiEncode { .. }
+                    | InstKind::AbiDecode { .. }
             )
         });
         if !has_memory_writes {
@@ -837,9 +838,10 @@ impl MemoryStoreEliminator {
                 | InstKind::CodeCopy(_, _, _)
                 | InstKind::ReturnDataCopy(_, _, _)
                 | InstKind::ExtCodeCopy(_, _, _, _) => memory_writes += 1,
-                InstKind::SetFmp(_) | InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => {
-                    memory_writes += 1
-                }
+                InstKind::SetFmp(_)
+                | InstKind::Alloc { .. }
+                | InstKind::AbiEncode { .. }
+                | InstKind::AbiDecode { .. } => memory_writes += 1,
                 InstKind::MLoad(_) | InstKind::MemoryObjectLen(_, _) => has_load = true,
                 InstKind::Keccak256(_, _) => has_keccak = true,
                 _ if self

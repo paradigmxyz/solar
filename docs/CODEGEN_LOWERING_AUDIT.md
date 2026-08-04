@@ -183,9 +183,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    corpus covers valid flat, typed and decoded dynamic-struct-array, and
    fixed-dynamic-array vectors, one malformed short-input vector, and
    round-trip cases, including Solc-compatible zero offsets.
-   The recursive decoder now lives in `transform/lower_abi.rs`; the remaining
-   step is to represent `abi.decode` as a MIR operation so HIR lowering no
-   longer invokes the decoder directly.
+   `abi.decode` is now represented by a semantic MIR operation and lowered by
+   the ABI pass; the remaining work is broader independent differential
+   coverage.
 2. Finish base-constructor argument forwarding for indirect and unresolved
    constructor arguments, and cover the remaining constructor modifier edge
    cases with Solc-backed runtime tests.
@@ -198,7 +198,7 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
 4. Extend storage-reference CFG tests to packed and Yul offset shapes, and
    complete allocation-guard differential coverage against Solc.
 5. Bring the UI snapshots back in sync with the rewrite. The current
-   `cargo uitest` run still reports 136 snapshot mismatches while the active
+   `cargo uitest` run still reports 139 snapshot mismatches while the active
    Foundry, Solidity, and Yul suites pass; no snapshots have been blessed.
 
 Unsupported HIR emits a diagnostic and leaves an `invalid` MIR terminator in the

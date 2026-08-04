@@ -1653,6 +1653,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Some(MirType::Slice(SliceLocation::Memory)),
                 )
             }
+            sym::abi_decode => {
+                let layout = self.parse_abi_param_layout()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let data = self.parse_value(builder)?;
+                if builder.func().value_ty(data)
+                    != Some(MirType::MemoryObject(crate::mir::MemoryObjectKind::Bytes))
+                {
+                    return Err(self.parser.error("ABI decode requires a bytes object"));
+                }
+                let result_ty = layout
+                    .types
+                    .first()
+                    .map(AbiParamType::mir_type)
+                    .ok_or_else(|| self.parser.error("ABI decode requires a result type"))?;
+                (InstKind::AbiDecode { data, layout: Box::new(layout) }, Some(result_ty))
+            }
             // Aggregate storage/memory copies with recursive layouts.
             sym::storage_to_memory => {
                 let layout = self.parse_storage_layout()?;

@@ -92,14 +92,14 @@ fn lower_function(func: &mut Function) -> bool {
     !replacements.is_empty() || repaired
 }
 
-fn resolve(mut value: ValueId, replacements: &FxHashMap<ValueId, ValueId>) -> ValueId {
+pub(crate) fn resolve(mut value: ValueId, replacements: &FxHashMap<ValueId, ValueId>) -> ValueId {
     while let Some(&replacement) = replacements.get(&value) {
         value = replacement;
     }
     value
 }
 
-fn move_terminator(
+pub(crate) fn move_terminator(
     builder: &mut FunctionBuilder<'_>,
     original_block: BlockId,
     terminator: Option<Terminator>,

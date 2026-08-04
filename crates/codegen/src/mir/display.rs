@@ -483,6 +483,9 @@ fn display_inst_kind<'a>(
             }
             Ok(())
         }
+        InstKind::AbiDecode { data, layout } => {
+            write!(f, "abi_decode {layout}, {}", display_val(*data, func))
+        }
         InstKind::StorageToMemory { storage, memory, layout } => write!(
             f,
             "storage_to_memory {layout}, {}, {}",

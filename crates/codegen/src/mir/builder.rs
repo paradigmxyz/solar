@@ -568,6 +568,20 @@ impl<'a> FunctionBuilder<'a> {
         )
     }
 
+    /// Decodes a memory-backed ABI tuple into semantic values.
+    pub(crate) fn abi_decode(
+        &mut self,
+        layout: crate::mir::AbiParamLayout,
+        data: ValueId,
+    ) -> ValueId {
+        let result_ty = layout
+            .types
+            .first()
+            .map(crate::mir::AbiParamType::mir_type)
+            .expect("ABI decode requires at least one result");
+        self.emit_inst(InstKind::AbiDecode { data, layout: Box::new(layout) }, Some(result_ty))
+    }
+
     /// Copies a statically shaped aggregate from storage into memory.
     pub(crate) fn storage_to_memory(
         &mut self,

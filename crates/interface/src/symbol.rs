@@ -971,6 +971,7 @@ symbols! {
         _recursive_internal,
         abi,
         abi_args,
+        abi_decode,
         abi_encode,
         abi_params,
         abi_return,

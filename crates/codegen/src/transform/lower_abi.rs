@@ -33,8 +33,9 @@
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        AbiParamLayout, AbiParamType, ArgIdx, BlockId, Function, FunctionBuilder, FunctionId,
-        InstKind, MangledSymbol, MirPhase, MirType, Module, SliceLocation, Terminator, ValueId,
+        AbiParamLayout, AbiParamType, AllocationSemantics, ArgIdx, BlockId, Function,
+        FunctionBuilder, FunctionId, InstKind, MangledSymbol, MemoryObjectKind, MemoryObjectLayout,
+        MirPhase, MirType, Module, SliceLocation, Terminator, ValueId,
     },
     pass::MirPass,
 };
@@ -131,7 +132,7 @@ enum CleanupKey {
 }
 
 #[derive(Debug, Default)]
-struct CleanupHelpers {
+pub(crate) struct CleanupHelpers {
     ids: FxHashMap<CleanupKey, FunctionId>,
     next: usize,
 }
@@ -241,6 +242,7 @@ impl LowerAbiCx {
         let mut targets = Vec::new();
         let mut constructors = Vec::new();
         let mut wrapped_constructors = Vec::new();
+        let mut has_decodes = false;
         let mut internally_called = DenseBitSet::new_empty(module.functions.len());
         let mut callvalue = super::utils::DispatchCallvalue::default();
         for (id, func) in module.functions.iter_enumerated() {
@@ -259,6 +261,7 @@ impl LowerAbiCx {
                 }
             }
             for inst_id in func.instructions() {
+                has_decodes |= matches!(func.inst(inst_id).kind, InstKind::AbiDecode { .. });
                 if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
                     internally_called.insert(function);
                 }
@@ -272,7 +275,11 @@ impl LowerAbiCx {
         if self.stats.skipped_returns != 0 {
             return false;
         }
-        if targets.is_empty() && constructors.is_empty() && wrapped_constructors.is_empty() {
+        if targets.is_empty()
+            && constructors.is_empty()
+            && wrapped_constructors.is_empty()
+            && !has_decodes
+        {
             let has_selectorless_entry = module.functions.iter().any(|func| {
                 is_constructor(func) || func.attributes.is_receive || func.attributes.is_fallback
             });
@@ -303,12 +310,25 @@ impl LowerAbiCx {
                 }
             }
         }
+        for func in module.functions.iter() {
+            for inst_id in func.instructions() {
+                if let InstKind::AbiDecode { layout, .. } = &func.inst(inst_id).kind {
+                    for ty in &layout.types {
+                        collect_validators(ty, &mut validators);
+                    }
+                }
+            }
+        }
         validators.sort_unstable_by_key(|validator| validator.cleanup_key());
         validators.dedup();
         for validator in validators {
             if let Some(key) = validator.cleanup_key() {
                 self.helpers.ensure(module, key);
             }
+        }
+
+        if has_decodes && !self.lower_decode_instructions(module) {
+            return false;
         }
 
         // Most external functions are never called internally. Only those
@@ -424,6 +444,94 @@ impl LowerAbiCx {
         }
         let AbiParamType::FixedArray { element, len } = ty else { return None };
         len.checked_mul(Self::constructor_param_words(element)?)
+    }
+
+    fn lower_decode_instructions(&self, module: &mut Module) -> bool {
+        for func in module.functions.iter() {
+            for inst_id in func.instructions() {
+                if let InstKind::AbiDecode { layout, .. } = &func.inst(inst_id).kind
+                    && (layout.types.is_empty() || layout.checked_head_size().is_none())
+                {
+                    return false;
+                }
+            }
+        }
+
+        let mut changed = false;
+        for func in module.functions.iter_mut() {
+            let has_decode = func
+                .instructions()
+                .any(|inst| matches!(func.inst(inst).kind, InstKind::AbiDecode { .. }));
+            if !has_decode {
+                continue;
+            }
+
+            let mut replacements = FxHashMap::default();
+            let blocks: Vec<_> = func.blocks.indices().collect();
+            for block in blocks {
+                let instructions = std::mem::take(&mut func.blocks[block].instructions);
+                let terminator = func.blocks[block].terminator.take();
+                let mut builder = FunctionBuilder::new(func);
+                builder.switch_to_block(block);
+                for inst in instructions {
+                    let decoded = match &builder.func().inst(inst).kind {
+                        InstKind::AbiDecode { data, layout } => Some((
+                            super::lower_abi_encode::resolve(*data, &replacements),
+                            layout.clone(),
+                        )),
+                        _ => None,
+                    };
+                    let Some((data, layout)) = decoded else {
+                        let current = builder.current_block();
+                        builder.func_mut().blocks[current].instructions.push(inst);
+                        continue;
+                    };
+
+                    let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
+                    let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
+                    let Some(values) = Self::decode_memory_tuple(
+                        &mut builder,
+                        base,
+                        length,
+                        &layout,
+                        Some(&self.helpers),
+                    ) else {
+                        return false;
+                    };
+                    let result = builder
+                        .func()
+                        .inst_result_value(inst)
+                        .expect("ABI decode must produce a value");
+                    replacements.insert(result, values[0]);
+
+                    if values.len() > 1 {
+                        let words = values.len() as u64;
+                        let size = builder.imm_u64(words.saturating_mul(32));
+                        let object_layout =
+                            MemoryObjectLayout::FixedArray { len: words, element_words: 1 };
+                        let object = builder.alloc_object(
+                            size,
+                            object_layout,
+                            AllocationSemantics::INTERNAL,
+                        );
+                        let base = builder.memory_object_data(object, MemoryObjectKind::FixedArray);
+                        let slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
+                        builder.mstore(slot, base);
+                        for (index, value) in values.iter().copied().enumerate().skip(1) {
+                            let offset = builder.imm_u64((index as u64).saturating_mul(32));
+                            let address = builder.add(base, offset);
+                            builder.mstore(address, value);
+                        }
+                    }
+                    changed = true;
+                }
+                super::lower_abi_encode::move_terminator(&mut builder, block, terminator);
+            }
+            func.replace_uses_canonicalized(&replacements);
+            let repaired = crate::mir::utils::repair_reachability_phis(func);
+            changed |= repaired;
+        }
+        changed
     }
 
     /// Materializes fixed constructor inputs while preserving the physical
@@ -1123,6 +1231,7 @@ impl LowerAbiCx {
         base: ValueId,
         length: ValueId,
         layout: &AbiParamLayout,
+        helpers: Option<&CleanupHelpers>,
     ) -> Option<Vec<ValueId>> {
         let input_end = builder.add(base, length);
         let mut current = builder.current_block();
@@ -1144,7 +1253,7 @@ impl LowerAbiCx {
                 input_end,
                 true,
                 &mut current,
-                None,
+                helpers,
             );
             values.push(value);
             head_offset = head_offset.checked_add(ty.head_size())?;
@@ -1613,8 +1722,9 @@ pub(crate) fn decode_memory_tuple(
     base: ValueId,
     length: ValueId,
     layout: &AbiParamLayout,
+    helpers: Option<&CleanupHelpers>,
 ) -> Option<Vec<ValueId>> {
-    LowerAbiCx::decode_memory_tuple(builder, base, length, layout)
+    LowerAbiCx::decode_memory_tuple(builder, base, length, layout, helpers)
 }
 
 fn collect_validators(ty: &AbiParamType, validators: &mut Vec<AbiWordValidator>) {

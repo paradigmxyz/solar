@@ -346,7 +346,10 @@ impl PointerProvenance {
         // so skip all of it — most small functions (getters, setters, pure
         // helpers) take this path on every rebuild.
         let has_allocations = func.instructions().any(|inst_id| {
-            matches!(func.inst(inst_id).kind, InstKind::Alloc { .. } | InstKind::AbiEncode { .. })
+            matches!(
+                func.inst(inst_id).kind,
+                InstKind::Alloc { .. } | InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. }
+            )
         });
         if !has_allocations {
             return Self::default();
@@ -386,7 +389,9 @@ impl PointerProvenance {
             for &inst_id in &block.instructions {
                 if matches!(
                     func.inst(inst_id).kind,
-                    InstKind::Alloc { .. } | InstKind::AbiEncode { .. }
+                    InstKind::Alloc { .. }
+                        | InstKind::AbiEncode { .. }
+                        | InstKind::AbiDecode { .. }
                 ) {
                     allocations.insert(
                         inst_id,
@@ -783,6 +788,7 @@ impl AliasAnalysis {
                 .zip(layout.types.iter())
                 .filter(|(arg, _)| **arg == operand)
                 .any(|(_, ty)| !Self::abi_type_reads_memory(ty)),
+            InstKind::AbiDecode { data, .. } => operand != *data,
             InstKind::InternalCall { function, args, .. } => self
                 .call_summaries
                 .as_deref()
@@ -1010,6 +1016,10 @@ impl AliasAnalysis {
                         read_memory(&mut effects, arg, SizeOperand::Unknown);
                     }
                 }
+                effects.write_any(AddressSpace::Memory);
+            }
+            InstKind::AbiDecode { data, .. } => {
+                read_memory(&mut effects, data, SizeOperand::Unknown);
                 effects.write_any(AddressSpace::Memory);
             }
             InstKind::StorageToMemory { .. } => {
@@ -1430,21 +1440,23 @@ impl AliasAnalysis {
                 // spaces, not memory, so they carry no memory provenance.
                 SliceLocation::Calldata | SliceLocation::Returndata => None,
             },
-            InstKind::AbiEncode { .. } => Some(if self.allocation_is_dynamic(func, *inst_id) {
-                MemoryAddress {
-                    region: MemoryRegion::Heap,
-                    base: MemoryBase::DynamicAllocation(*inst_id),
-                    offset: 0,
-                }
-            } else if self.allocation_has_unique_provenance(func, *inst_id) {
-                MemoryAddress {
-                    region: MemoryRegion::Heap,
-                    base: MemoryBase::Allocation(*inst_id),
-                    offset: 0,
-                }
-            } else {
-                MemoryAddress::symbolic(slice, MemoryRegion::Heap)
-            }),
+            InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => {
+                Some(if self.allocation_is_dynamic(func, *inst_id) {
+                    MemoryAddress {
+                        region: MemoryRegion::Heap,
+                        base: MemoryBase::DynamicAllocation(*inst_id),
+                        offset: 0,
+                    }
+                } else if self.allocation_has_unique_provenance(func, *inst_id) {
+                    MemoryAddress {
+                        region: MemoryRegion::Heap,
+                        base: MemoryBase::Allocation(*inst_id),
+                        offset: 0,
+                    }
+                } else {
+                    MemoryAddress::symbolic(slice, MemoryRegion::Heap)
+                })
+            }
             _ => Some(MemoryAddress::symbolic(slice, MemoryRegion::Unknown)),
         }
     }
@@ -1622,9 +1634,10 @@ impl AliasAnalysis {
         }
         let Value::Inst(inst) = func.value(value) else { return None };
         match &func.inst(*inst).kind {
-            InstKind::Fmp | InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => {
-                Some(EvmMemoryLayout::HEAP_START)
-            }
+            InstKind::Fmp
+            | InstKind::Alloc { .. }
+            | InstKind::AbiEncode { .. }
+            | InstKind::AbiDecode { .. } => Some(EvmMemoryLayout::HEAP_START),
             InstKind::MLoad(address)
                 if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
             {
@@ -1645,7 +1658,9 @@ impl AliasAnalysis {
                     InstKind::MakeSlice { ptr, location: SliceLocation::Memory, .. } => {
                         Self::pointer_lower_bound(func, *ptr, depth + 1)
                     }
-                    InstKind::AbiEncode { .. } => Some(EvmMemoryLayout::HEAP_START),
+                    InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => {
+                        Some(EvmMemoryLayout::HEAP_START)
+                    }
                     _ => None,
                 }
             }

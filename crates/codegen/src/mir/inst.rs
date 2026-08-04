@@ -1,8 +1,9 @@
 //! MIR instructions.
 
 use super::{
-    AbiLayoutRef, BlockId, FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId,
-    MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation, StorageLayoutRef, Value, ValueId,
+    AbiLayoutRef, AbiParamLayout, BlockId, FrameMode, FrameSlotKind, Function, FunctionId,
+    ImmutableId, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation, StorageLayoutRef,
+    Value, ValueId,
 };
 use alloy_primitives::U256;
 use smallvec::{Array, SmallVec};
@@ -738,6 +739,16 @@ pub(crate) enum InstKind {
         /// Interned semantic ABI layout.
         layout: AbiLayoutRef,
     },
+    /// Decode a memory-backed ABI tuple into semantic MIR values.
+    ///
+    /// The instruction result is the first tuple value. Additional values are
+    /// published through the multi-return buffer, matching ordinary MIR calls.
+    AbiDecode {
+        /// ABI-encoded bytes object.
+        data: ValueId,
+        /// ABI input layout, including scalar validation types.
+        layout: Box<AbiParamLayout>,
+    },
     /// Copy a statically shaped aggregate from storage into an existing memory allocation.
     StorageToMemory {
         /// Base storage slot.
@@ -1129,6 +1140,8 @@ impl InstKind {
                 out.extend(selector.iter().chain(args).copied());
             }
 
+            Self::AbiDecode { data, .. } => out.push(*data),
+
             // Unary operations
             Self::Not(a)
             | Self::Clz(a)
@@ -1390,6 +1403,8 @@ impl InstKind {
                 }
             }
 
+            Self::AbiDecode { data, .. } => f(data),
+
             Self::Not(a)
             | Self::Clz(a)
             | Self::IsZero(a)
@@ -1568,6 +1583,7 @@ impl InstKind {
             Self::MemoryObjectCopyFromSliceAt { .. } => "memory_object_copy_from_slice_at",
             Self::MemoryObjectCopy { .. } => "memory_object_copy",
             Self::AbiEncode { .. } => "abi_encode",
+            Self::AbiDecode { .. } => "abi_decode",
             Self::StorageToMemory { .. } => "storage_to_memory",
             Self::MemoryToStorage { .. } => "memory_to_storage",
             Self::ClearStorage { .. } => "clear_storage",
@@ -1669,6 +1685,7 @@ impl InstKind {
             | Self::MemoryObjectCopyFromSliceAt { .. }
             | Self::MemoryObjectCopy { .. }
             | Self::AbiEncode { .. }
+            | Self::AbiDecode { .. }
             | Self::StorageToMemory { .. }
             | Self::MCopy(_, _, _)
             // External calls
@@ -1715,6 +1732,7 @@ impl InstKind {
             | Self::MemoryObjectCopyFromSliceAt { .. }
             | Self::MemoryObjectCopy { .. }
             | Self::AbiEncode { .. }
+            | Self::AbiDecode { .. }
             | Self::StorageToMemory { .. }
             | Self::MCopy(_, _, _)
             | Self::CalldataCopy(_, _, _)

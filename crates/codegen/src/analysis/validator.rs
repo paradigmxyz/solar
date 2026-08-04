@@ -710,6 +710,7 @@ impl<'a> Validator<'a> {
                         }
                         InstKind::MemoryZero(_, _) => Some("memory zero"),
                         InstKind::AbiEncode { .. } => Some("ABI encoding"),
+                        InstKind::AbiDecode { .. } => Some("ABI decoding"),
                         InstKind::StorageToMemory { .. }
                         | InstKind::MemoryToStorage { .. }
                         | InstKind::ClearStorage { .. } => Some("aggregate"),
