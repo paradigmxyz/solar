@@ -5821,7 +5821,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .expect("dense switch table index must fit usize");
             targets[index] = self.block_labels[&entry.target];
         }
-        let in_range = self.asm.new_label();
 
         if !low.is_zero() {
             self.asm.emit_push(low);
@@ -5831,26 +5830,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_op(op::SUB);
             self.scheduler.instruction_executed_untracked(2);
         }
-        self.asm.emit_op(op::DUP1);
-        self.scheduler.stack.dup(1);
-        self.asm.emit_push(U256::from(range));
-        self.scheduler.stack.push_unknown();
-        self.asm.emit_op(op::GT);
-        self.scheduler.instruction_executed_untracked(2);
-        self.asm.emit_push_label(in_range);
-        self.asm.emit_op(op::JUMPI);
-        self.scheduler.instruction_executed(1, None);
-
-        let indexed_stack = self.scheduler.stack.clone();
-        self.asm.emit_op(op::POP);
-        self.scheduler.stack.pop();
-        self.asm.emit_push_label(self.block_labels[&default]);
-        self.asm.emit_op(op::JUMP);
-
-        self.asm.define_label(in_range);
-        self.scheduler.stack = indexed_stack;
-        self.asm.emit_indexed_jump(targets);
-        self.scheduler.stack.pop();
+        self.emit_bounded_indexed_jump(default, range, targets);
     }
 
     fn emit_perfect_mir_switch(
@@ -5951,7 +5931,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             targets[affine_index(entry.value, low, multiplier, rotate)] =
                 self.block_labels[&entry.target];
         }
-        let in_range = self.asm.new_label();
 
         if !low.is_zero() {
             self.asm.emit_push(low);
@@ -5983,6 +5962,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_op(op::OR);
             self.scheduler.instruction_executed_untracked(2);
         }
+        self.emit_bounded_indexed_jump(default, range, targets);
+    }
+
+    fn emit_bounded_indexed_jump(&mut self, default: BlockId, range: usize, targets: Vec<Label>) {
+        let in_range = self.asm.new_label();
         self.asm.emit_op(op::DUP1);
         self.scheduler.stack.dup(1);
         self.asm.emit_push(U256::from(range));

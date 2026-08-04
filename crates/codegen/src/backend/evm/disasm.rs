@@ -65,6 +65,7 @@ fn reachable_jumpdest_labels(instructions: &[DecodedInstruction<'_>]) -> BTreeMa
         .collect::<Vec<_>>();
     let mut reachable = vec![false; instructions.len()];
     let mut pending = VecDeque::from([0]);
+    let mut all_jumpdests_pending = false;
 
     while let Some(index) = pending.pop_front() {
         let Some(instruction) = instructions.get(index) else { continue };
@@ -73,10 +74,24 @@ fn reachable_jumpdest_labels(instructions: &[DecodedInstruction<'_>]) -> BTreeMa
         }
 
         if instruction.opcode == op::JUMP {
-            add_jump_successors(instructions, &offsets, &jumpdests, index, &mut pending);
+            add_jump_successors(
+                instructions,
+                &offsets,
+                &jumpdests,
+                index,
+                &mut pending,
+                &mut all_jumpdests_pending,
+            );
         } else if instruction.opcode == op::JUMPI {
             pending.push_back(index + 1);
-            add_jump_successors(instructions, &offsets, &jumpdests, index, &mut pending);
+            add_jump_successors(
+                instructions,
+                &offsets,
+                &jumpdests,
+                index,
+                &mut pending,
+                &mut all_jumpdests_pending,
+            );
         } else if !op::is_terminal(instruction.opcode) {
             pending.push_back(index + 1);
         }
@@ -97,6 +112,7 @@ fn add_jump_successors(
     jumpdests: &[usize],
     index: usize,
     pending: &mut VecDeque<usize>,
+    all_jumpdests_pending: &mut bool,
 ) {
     if let Some(previous) = index.checked_sub(1)
         && is_push(&instructions[previous])
@@ -110,7 +126,10 @@ fn add_jump_successors(
         }
     } else {
         // An unresolved dynamic jump may target any JUMPDEST.
-        pending.extend(jumpdests.iter().copied());
+        if !*all_jumpdests_pending {
+            pending.extend(jumpdests.iter().copied());
+            *all_jumpdests_pending = true;
+        }
     }
 }
 

@@ -17,9 +17,8 @@ use crate::backend::evm::{
         Block, BlockId, Instruction, Module, PushValue, TerminatorKind,
         assembly::estimated_indexed_jump_terminator_size,
     },
-    op,
+    op, push_len,
 };
-use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
@@ -238,7 +237,7 @@ fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
         3
     } else if inst.is_encoded_push() {
         match &inst.value {
-            Some(PushValue::Immediate(value)) => push_len(gcx, *value),
+            Some(PushValue::Immediate(value)) => push_len(gcx.sess.opts.evm_version, *value),
             Some(PushValue::Block(_)) => 3,
             _ => 1,
         }
@@ -271,11 +270,6 @@ fn estimated_terminator_size(gcx: Gcx<'_>, kind: &TerminatorKind, next: Option<B
         }
         TerminatorKind::Op(_) => 1,
     }
-}
-
-fn push_len(gcx: Gcx<'_>, value: U256) -> usize {
-    let width = value.byte_len();
-    if width == 0 && !gcx.sess.opts.evm_version.has_push0() { 2 } else { width + 1 }
 }
 
 fn is_terminal_block(block: &Block) -> bool {

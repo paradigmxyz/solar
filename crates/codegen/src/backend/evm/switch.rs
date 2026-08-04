@@ -13,7 +13,13 @@
 //! keeps the original case order for linear scans and uses sorted values only
 //! for shapes whose dispatch arithmetic requires it.
 
-use super::ir::immediate_materialization_cost;
+use super::{
+    ir::{
+        assembly::{estimated_indexed_jump_code_size, packs_indexed_jump},
+        immediate_materialization_cost,
+    },
+    push_len,
+};
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode, SwitchLowering};
 
@@ -33,7 +39,6 @@ const MOD_GAS: usize = 5;
 const MUL_GAS: usize = 5;
 const JUMPDEST_GAS: usize = 1;
 
-const INDEXED_JUMP_BASE_LEN: usize = 7;
 const PACKED_TERMINAL_TARGET_MAX_SIZE: usize = 2;
 const MIN_BUCKET_CASES: usize = 2;
 // Bound table footprint and the number of bucket blocks processed by EVM IR passes.
@@ -142,7 +147,7 @@ impl SwitchDefault {
     fn code_size(self, evm_version: EvmVersion) -> usize {
         match self {
             Self::Jump => MIN_DEFAULT_JUMP_LEN,
-            Self::Revert => push_len(U256::ZERO, evm_version) * 2 + 1,
+            Self::Revert => push_len(evm_version, U256::ZERO) * 2 + 1,
             Self::CleanupJump => 1 + MIN_DEFAULT_JUMP_LEN,
             Self::Fallthrough => 0,
             Self::CleanupFallthrough => 1,
@@ -152,7 +157,7 @@ impl SwitchDefault {
     fn max_code_size(self, evm_version: EvmVersion, target_width: usize) -> usize {
         match self {
             Self::Jump => max_default_jump_len(target_width),
-            Self::Revert => push_len(U256::ZERO, evm_version) * 2 + 1,
+            Self::Revert => push_len(evm_version, U256::ZERO) * 2 + 1,
             Self::CleanupJump => 1 + max_default_jump_len(target_width),
             Self::Fallthrough => max_default_jump_len(target_width),
             Self::CleanupFallthrough => 1 + max_default_jump_len(target_width),
@@ -901,15 +906,28 @@ fn bucket_lowering_cost_with_tests(
 ) -> LoweringCost {
     debug_assert!(!default.can_fallthrough());
     debug_assert_eq!(values.len(), equality_costs.len());
-    let hash_len = 1 + push_len(U256::from(bucket_count), evm_version) + 1 + 1;
+    let hash_len = 1 + push_len(evm_version, U256::from(bucket_count)) + 1 + 1;
     let hash_gas = VERY_LOW_GAS * 3 + MOD_GAS;
     let indexed_jump_gas =
         indexed_jump_gas(bucket_count, table_target_width, evm_version) + JUMPDEST_GAS;
     let dispatch_gas = hash_gas + indexed_jump_gas;
     let mut cost = LoweringCost {
-        code_size: hash_len + indexed_jump_code_size(bucket_count, table_target_width, evm_version),
+        code_size: hash_len
+            + estimated_indexed_jump_code_size(
+                bucket_count,
+                table_target_width,
+                1,
+                evm_version,
+                table_target_width == 1,
+            ),
         max_code_size: hash_len
-            + max_indexed_jump_code_size(bucket_count, table_target_width, evm_version),
+            + estimated_indexed_jump_code_size(
+                bucket_count,
+                table_target_width,
+                table_target_width,
+                evm_version,
+                false,
+            ),
         hit_gas_sum: dispatch_gas * values.len(),
         miss_gas: dispatch_gas,
     };
@@ -956,7 +974,7 @@ fn dense_lowering_cost(
     let (low_len, low_gas) = immediate_materialization_cost(evm_version, low);
     let normalize_len = usize::from(!low.is_zero()) * (low_len + 2);
     let normalize_gas = usize::from(!low.is_zero()) * (low_gas + VERY_LOW_GAS * 2);
-    let bounds_prefix_len = 1 + push_len(U256::from(range), evm_version) + 1;
+    let bounds_prefix_len = 1 + push_len(evm_version, U256::from(range)) + 1;
     let bounds_len = bounds_prefix_len + MIN_LABEL_PUSH_LEN + 1;
     let max_bounds_len = bounds_prefix_len + max_label_push_len(table_target_width) + 1;
     let bounds_gas = VERY_LOW_GAS * 4 + JUMPI_GAS;
@@ -980,14 +998,26 @@ fn dense_lowering_cost(
                 + 1
                 + MIN_DEFAULT_JUMP_LEN
                 + JUMPDEST_LEN
-                + indexed_jump_code_size(range, table_target_width, evm_version)
+                + estimated_indexed_jump_code_size(
+                    range,
+                    table_target_width,
+                    1,
+                    evm_version,
+                    table_target_width == 1,
+                )
                 + usize::from(shared_case_continuation) * MIN_DEFAULT_JUMP_LEN,
             max_code_size: normalize_len
                 + max_bounds_len
                 + 1
                 + max_default_jump_len(table_target_width)
                 + JUMPDEST_LEN
-                + max_indexed_jump_code_size(range, table_target_width, evm_version),
+                + estimated_indexed_jump_code_size(
+                    range,
+                    table_target_width,
+                    table_target_width,
+                    evm_version,
+                    false,
+                ),
             hit_gas_sum: hit_gas * values.len(),
             miss_gas,
         },
@@ -1128,9 +1158,22 @@ fn bit_slice_lowering_cost_with_tests(
         indexed_jump_gas(table_size, table_target_width, evm_version) + JUMPDEST_GAS;
     let dispatch_gas = hash_gas + indexed_jump_gas;
     let mut cost = LoweringCost {
-        code_size: hash_len + indexed_jump_code_size(table_size, table_target_width, evm_version),
+        code_size: hash_len
+            + estimated_indexed_jump_code_size(
+                table_size,
+                table_target_width,
+                1,
+                evm_version,
+                table_target_width == 1,
+            ),
         max_code_size: hash_len
-            + max_indexed_jump_code_size(table_size, table_target_width, evm_version),
+            + estimated_indexed_jump_code_size(
+                table_size,
+                table_target_width,
+                table_target_width,
+                evm_version,
+                false,
+            ),
         hit_gas_sum: dispatch_gas * equality_costs.len(),
         miss_gas: dispatch_gas,
     };
@@ -1202,7 +1245,7 @@ fn affine_lowering_cost(
     let (rotate_len, rotate_gas) = rotate_cost(rotate, evm_version);
     let hash_len = normalize_len + multiply_len + rotate_len;
     let hash_gas = normalize_gas + multiply_gas + rotate_gas;
-    let bounds_prefix_len = 1 + push_len(U256::from(range), evm_version) + 1;
+    let bounds_prefix_len = 1 + push_len(evm_version, U256::from(range)) + 1;
     let bounds_len = bounds_prefix_len + MIN_LABEL_PUSH_LEN + 1;
     let max_bounds_len = bounds_prefix_len + max_label_push_len(table_target_width) + 1;
     let bounds_gas = VERY_LOW_GAS * 4 + JUMPI_GAS;
@@ -1222,13 +1265,25 @@ fn affine_lowering_cost(
             + 1
             + MIN_DEFAULT_JUMP_LEN
             + JUMPDEST_LEN
-            + indexed_jump_code_size(range, table_target_width, evm_version),
+            + estimated_indexed_jump_code_size(
+                range,
+                table_target_width,
+                1,
+                evm_version,
+                table_target_width == 1,
+            ),
         max_code_size: hash_len
             + max_bounds_len
             + 1
             + max_default_jump_len(table_target_width)
             + JUMPDEST_LEN
-            + max_indexed_jump_code_size(range, table_target_width, evm_version),
+            + estimated_indexed_jump_code_size(
+                range,
+                table_target_width,
+                table_target_width,
+                evm_version,
+                false,
+            ),
         hit_gas_sum: hit_gas * values.len(),
         miss_gas,
     }
@@ -1283,39 +1338,6 @@ pub(super) fn affine_index(value: U256, low: U256, multiplier: U256, rotate: usi
     usize::try_from(hashed).expect("affine switch hash must fit usize")
 }
 
-const fn indexed_jump_stub_len(target_width: usize) -> usize {
-    // JUMPDEST, PUSH<n> target, JUMP.
-    target_width + 3
-}
-
-fn indexed_jump_code_size(
-    table_size: usize,
-    target_width: usize,
-    evm_version: EvmVersion,
-) -> usize {
-    if packs_indexed_jump(table_size, target_width, evm_version) {
-        packed_indexed_jump_code_size(table_size, target_width)
-    } else if target_width == 1
-        && packs_two_word_indexed_jump(table_size, target_width, evm_version)
-    {
-        packed_two_word_indexed_jump_code_size(table_size, target_width, evm_version)
-    } else {
-        INDEXED_JUMP_BASE_LEN + table_size * indexed_jump_stub_len(target_width)
-    }
-}
-
-fn max_indexed_jump_code_size(
-    table_size: usize,
-    target_width: usize,
-    evm_version: EvmVersion,
-) -> usize {
-    if packs_indexed_jump(table_size, target_width, evm_version) {
-        packed_indexed_jump_code_size(table_size, target_width)
-    } else {
-        max_indexed_jump_base_len(target_width) + table_size * indexed_jump_stub_len(target_width)
-    }
-}
-
 fn indexed_jump_gas(table_size: usize, target_width: usize, evm_version: EvmVersion) -> usize {
     if packs_indexed_jump(table_size, target_width, evm_version) {
         let scale = target_width * 8;
@@ -1323,62 +1345,6 @@ fn indexed_jump_gas(table_size: usize, target_width: usize, evm_version: EvmVers
     } else {
         VERY_LOW_GAS * 4 + MUL_GAS + JUMP_GAS * 2 + JUMPDEST_GAS
     }
-}
-
-fn packs_indexed_jump(table_size: usize, target_width: usize, evm_version: EvmVersion) -> bool {
-    evm_version.has_bitwise_shifting()
-        && table_size >= 2
-        && table_size.saturating_mul(target_width) <= 32
-}
-
-const fn packed_indexed_jump_code_size(table_size: usize, target_width: usize) -> usize {
-    9 + table_size * target_width + target_width
-}
-
-fn packs_two_word_indexed_jump(
-    table_size: usize,
-    target_width: usize,
-    evm_version: EvmVersion,
-) -> bool {
-    if !evm_version.has_bitwise_shifting() || !target_width.is_power_of_two() {
-        return false;
-    }
-    let entries_per_chunk = 32 / target_width;
-    let bytes = table_size.saturating_mul(target_width);
-    entries_per_chunk >= 2
-        && bytes > 32
-        && bytes <= 64
-        && packed_two_word_indexed_jump_code_size(table_size, target_width, evm_version)
-            < outlined_indexed_jump_code_size(table_size, target_width)
-}
-
-fn packed_two_word_indexed_jump_code_size(
-    table_size: usize,
-    target_width: usize,
-    evm_version: EvmVersion,
-) -> usize {
-    let entries_per_chunk = 32 / target_width;
-    let second_chunk_bytes = (table_size - entries_per_chunk) * target_width;
-    let chunk_shift = entries_per_chunk.ilog2();
-    let entry_mask = entries_per_chunk - 1;
-    let scale_shift = (target_width * 8).ilog2();
-    let target_mask = (U256::ONE << (target_width * 8)) - U256::ONE;
-    14 + push_len(U256::from(chunk_shift), evm_version)
-        + second_chunk_bytes
-        + 1
-        + 33
-        + push_len(U256::from(entry_mask), evm_version)
-        + push_len(U256::from(scale_shift), evm_version)
-        + push_len(target_mask, evm_version)
-}
-
-const fn outlined_indexed_jump_code_size(table_size: usize, target_width: usize) -> usize {
-    target_width + 6 + table_size * indexed_jump_stub_len(target_width)
-}
-
-const fn max_indexed_jump_base_len(table_target_width: usize) -> usize {
-    // PUSH1 stub length, MUL, PUSH<n> table, ADD, JUMP.
-    5 + max_label_push_len(table_target_width)
 }
 
 const fn max_label_push_len(target_width: usize) -> usize {
@@ -1485,10 +1451,6 @@ fn ordered_test_cost(value: U256, evm_version: EvmVersion, table_target_width: u
     }
 }
 
-fn push_len(value: U256, evm_version: EvmVersion) -> usize {
-    if value.is_zero() && evm_version.has_push0() { 1 } else { 1 + value.byte_len().max(1) }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1529,9 +1491,9 @@ mod tests {
 
     #[test]
     fn models_locally_packed_indexed_jump_sizes() {
-        assert_eq!(indexed_jump_code_size(20, 1, EvmVersion::Cancun), 30);
-        assert_eq!(indexed_jump_code_size(33, 1, EvmVersion::Cancun), 57);
-        assert_eq!(max_indexed_jump_code_size(20, 2, EvmVersion::Cancun), 108);
+        assert_eq!(estimated_indexed_jump_code_size(20, 1, 1, EvmVersion::Cancun, true), 30);
+        assert_eq!(estimated_indexed_jump_code_size(33, 1, 1, EvmVersion::Cancun, true), 57);
+        assert_eq!(estimated_indexed_jump_code_size(20, 2, 2, EvmVersion::Cancun, false), 108);
     }
 
     #[test]
@@ -2219,9 +2181,9 @@ mod tests {
 
     #[test]
     fn accounts_for_indexed_jump_table_label_width() {
-        assert_eq!(max_indexed_jump_base_len(1), INDEXED_JUMP_BASE_LEN);
-        assert_eq!(max_indexed_jump_base_len(2), INDEXED_JUMP_BASE_LEN + 1);
-        assert_eq!(max_indexed_jump_base_len(3), INDEXED_JUMP_BASE_LEN + 2);
+        assert_eq!(estimated_indexed_jump_code_size(0, 1, 1, EvmVersion::Cancun, false), 7);
+        assert_eq!(estimated_indexed_jump_code_size(0, 2, 2, EvmVersion::Cancun, false), 8);
+        assert_eq!(estimated_indexed_jump_code_size(0, 3, 3, EvmVersion::Cancun, false), 9);
     }
 
     #[test]

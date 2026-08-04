@@ -4,7 +4,7 @@ use super::{AsmInst, Program, lower};
 use crate::backend::evm::{
     assembler::{Assembler, Label},
     ir::{self, BlockId},
-    op,
+    op, push_len,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -193,17 +193,14 @@ fn choose_indexed_jump_encoding(
 ) -> IndexedJumpEncoding {
     let absolute_width = indexed_jump_target_width(targets, offsets, global_width);
     let outlined_len = outlined_indexed_jump_len(targets.len(), absolute_width);
-    let absolute = IndexedJumpEncoding {
-        width: absolute_width,
-        packed_chunks: indexed_jump_packed_chunks(
-            targets.len(),
-            absolute_width,
-            evm_version,
-            allow_relative,
-            outlined_len,
-        ),
-        base: None,
-    };
+    let absolute = make_indexed_jump_encoding(
+        targets.len(),
+        absolute_width,
+        None,
+        evm_version,
+        allow_relative,
+        outlined_len,
+    );
     if !allow_relative {
         return absolute;
     }
@@ -214,20 +211,47 @@ fn choose_indexed_jump_encoding(
         .expect("indexed jump must have targets");
     let width = indexed_jump_relative_width(targets, base, offsets, global_width);
     let base_width = indexed_jump_target_width(&[base], offsets, global_width);
-    let relative = IndexedJumpEncoding {
+    let relative = make_indexed_jump_encoding(
+        targets.len(),
+        width,
+        Some((base, base_width)),
+        evm_version,
+        true,
+        outlined_len,
+    );
+    choose_shorter_relative_encoding(absolute, relative, targets.len(), evm_version)
+}
+
+fn make_indexed_jump_encoding(
+    table_len: usize,
+    width: u8,
+    base: Option<(BlockId, u8)>,
+    evm_version: EvmVersion,
+    pack_two_word_tables: bool,
+    outlined_len: usize,
+) -> IndexedJumpEncoding {
+    IndexedJumpEncoding {
         width,
         packed_chunks: indexed_jump_packed_chunks(
-            targets.len(),
+            table_len,
             width,
             evm_version,
-            true,
+            pack_two_word_tables,
             outlined_len,
         ),
-        base: Some((base, base_width)),
-    };
+        base,
+    }
+}
+
+fn choose_shorter_relative_encoding(
+    absolute: IndexedJumpEncoding,
+    relative: IndexedJumpEncoding,
+    table_len: usize,
+    evm_version: EvmVersion,
+) -> IndexedJumpEncoding {
     if relative.packed_chunks != PackedTableChunks::None
-        && indexed_jump_encoding_len(relative, targets.len(), evm_version)
-            < indexed_jump_encoding_len(absolute, targets.len(), evm_version)
+        && indexed_jump_encoding_len(relative, table_len, evm_version)
+            < indexed_jump_encoding_len(absolute, table_len, evm_version)
     {
         relative
     } else {
@@ -250,35 +274,23 @@ fn update_indexed_jump_encoding(
         let base_width =
             indexed_jump_target_width(&[base], offsets, global_width).max(previous_base_width);
         let outlined_len = outlined_indexed_jump_len(targets.len(), absolute_width);
-        let relative = IndexedJumpEncoding {
+        let relative = make_indexed_jump_encoding(
+            targets.len(),
             width,
-            packed_chunks: indexed_jump_packed_chunks(
-                targets.len(),
-                width,
-                evm_version,
-                pack_two_word_tables,
-                outlined_len,
-            ),
-            base: Some((base, base_width)),
-        };
-        let absolute = IndexedJumpEncoding {
-            width: absolute_width,
-            packed_chunks: indexed_jump_packed_chunks(
-                targets.len(),
-                absolute_width,
-                evm_version,
-                pack_two_word_tables,
-                outlined_len,
-            ),
-            base: None,
-        };
-        if relative.packed_chunks != PackedTableChunks::None
-            && indexed_jump_encoding_len(relative, targets.len(), evm_version)
-                < indexed_jump_encoding_len(absolute, targets.len(), evm_version)
-        {
-            return relative;
-        }
-        return absolute;
+            Some((base, base_width)),
+            evm_version,
+            pack_two_word_tables,
+            outlined_len,
+        );
+        let absolute = make_indexed_jump_encoding(
+            targets.len(),
+            absolute_width,
+            None,
+            evm_version,
+            pack_two_word_tables,
+            outlined_len,
+        );
+        return choose_shorter_relative_encoding(absolute, relative, targets.len(), evm_version);
     }
 
     if absolute_width <= encoding.width {
@@ -309,25 +321,15 @@ fn update_indexed_jump_encoding(
         .expect("indexed jump must have targets");
     let width = indexed_jump_relative_width(targets, base, offsets, global_width);
     let base_width = indexed_jump_target_width(&[base], offsets, global_width);
-    let relative = IndexedJumpEncoding {
+    let relative = make_indexed_jump_encoding(
+        targets.len(),
         width,
-        packed_chunks: indexed_jump_packed_chunks(
-            targets.len(),
-            width,
-            evm_version,
-            true,
-            outlined_len,
-        ),
-        base: Some((base, base_width)),
-    };
-    if relative.packed_chunks != PackedTableChunks::None
-        && indexed_jump_encoding_len(relative, targets.len(), evm_version)
-            < indexed_jump_encoding_len(absolute, targets.len(), evm_version)
-    {
-        relative
-    } else {
-        absolute
-    }
+        Some((base, base_width)),
+        evm_version,
+        true,
+        outlined_len,
+    );
+    choose_shorter_relative_encoding(absolute, relative, targets.len(), evm_version)
 }
 
 fn indexed_jump_global_width(
@@ -354,6 +356,34 @@ fn push_width_fits(size: usize, width: u8) -> bool {
     bits >= usize::BITS || size <= 1usize << bits
 }
 
+/// Estimates the encoded size of an indexed-jump dispatch with absolute targets.
+pub(in crate::backend::evm) fn estimated_indexed_jump_code_size(
+    table_len: usize,
+    target_width: usize,
+    base_width: usize,
+    evm_version: EvmVersion,
+    pack_two_word_tables: bool,
+) -> usize {
+    let target_width = u8::try_from(target_width).expect("indexed jump target width must fit u8");
+    let base_width = u8::try_from(base_width).expect("indexed jump base width must fit u8");
+    let outlined_len =
+        usize::from(base_width) + 6 + table_len.saturating_mul(usize::from(target_width) + 3);
+    let packed_chunks = indexed_jump_packed_chunks(
+        table_len,
+        target_width,
+        evm_version,
+        pack_two_word_tables,
+        outlined_len,
+    );
+    match packed_chunks {
+        PackedTableChunks::None => outlined_len,
+        chunks => packed_indexed_jump_len(
+            PackedTableEstimate { len: table_len, width: target_width, chunks, base_width: 0 },
+            evm_version,
+        ),
+    }
+}
+
 fn indexed_jump_packed_chunks(
     table_len: usize,
     target_width: u8,
@@ -361,7 +391,7 @@ fn indexed_jump_packed_chunks(
     pack_two_word_tables: bool,
     outlined_len: usize,
 ) -> PackedTableChunks {
-    if !evm_version.has_bitwise_shifting() || table_len < 2 {
+    if !supports_indexed_jump_packing(table_len, evm_version) {
         return PackedTableChunks::None;
     }
     let bytes = table_len.saturating_mul(usize::from(target_width));
@@ -386,6 +416,19 @@ fn indexed_jump_packed_chunks(
             PackedTableChunks::None
         }
     }
+}
+
+pub(in crate::backend::evm) fn packs_indexed_jump(
+    table_len: usize,
+    target_width: usize,
+    evm_version: EvmVersion,
+) -> bool {
+    supports_indexed_jump_packing(table_len, evm_version)
+        && table_len.saturating_mul(target_width) <= 32
+}
+
+fn supports_indexed_jump_packing(table_len: usize, evm_version: EvmVersion) -> bool {
+    evm_version.has_bitwise_shifting() && table_len >= 2
 }
 
 /// Returns the largest source-block terminator size for target widths through
@@ -509,7 +552,7 @@ fn estimated_block_size(
             usize::from(type_size.bytes()) + 1
         } else if inst.is_encoded_push() {
             if let Some(value) = inst.pushed_value() {
-                push_len(value, evm_version)
+                push_len(evm_version, value)
             } else if inst.pushed_block().is_some() {
                 usize::from(block_target_width) + 1
             } else {
@@ -576,18 +619,14 @@ fn packed_indexed_jump_len(table: PackedTableEstimate, evm_version: EvmVersion) 
         let second_chunk_push = second_chunk_bytes + 1;
         let first_chunk_push = 33;
         opcode_bytes
-            + push_len(U256::from(chunk_shift), evm_version)
+            + push_len(evm_version, U256::from(chunk_shift))
             + second_chunk_push
             + first_chunk_push
-            + push_len(U256::from(entry_mask), evm_version)
-            + push_len(U256::from(scale_shift), evm_version)
-            + push_len(target_mask, evm_version)
+            + push_len(evm_version, U256::from(entry_mask))
+            + push_len(evm_version, U256::from(scale_shift))
+            + push_len(evm_version, target_mask)
     };
     table_len + usize::from(table.base_width) + usize::from(table.base_width != 0) * 2
-}
-
-fn push_len(value: U256, evm_version: EvmVersion) -> usize {
-    if value.is_zero() && evm_version.has_push0() { 1 } else { value.byte_len().max(1) + 1 }
 }
 
 pub(super) fn lower(

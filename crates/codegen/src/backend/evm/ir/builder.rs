@@ -5,7 +5,7 @@ use crate::{
     backend::evm::{
         assembler::{Assembler, DeferredAllocResolution, DeferredConst, Label},
         ir::assembly::DeferredAlloc,
-        op,
+        op, push_len,
     },
     memory::EvmMemoryLayout,
     mir::{ImmutableId, TypeSize},
@@ -187,7 +187,7 @@ impl<'gcx> Assembler<'gcx> {
         } else if !inst.is_encoded_push() {
             (1, 1)
         } else if let Some(value) = inst.pushed_value() {
-            let size = self.push_value_size(value);
+            let size = push_len(self.gcx.sess.opts.evm_version, value);
             (size, size)
         } else if self
             .label_relocations
@@ -201,18 +201,21 @@ impl<'gcx> Assembler<'gcx> {
             })
         {
             self.deferred_values.get(&id).map_or((1, deferred_value_width + 1), |&value| {
-                let size = self.push_value_size(value);
+                let size = push_len(self.gcx.sess.opts.evm_version, value);
                 (size, size)
             })
         } else if let Some(id) = self.alloc_relocations.iter().find_map(|&(source, index, id)| {
             (source == block && index == instruction).then_some(id)
         }) {
-            let slot_size = self.push_value_size(U256::from(EvmMemoryLayout::FMP_SLOT));
+            let slot_size =
+                push_len(self.gcx.sess.opts.evm_version, U256::from(EvmMemoryLayout::FMP_SLOT));
             self.deferred_allocations.get(&id).map_or((1, slot_size * 2 + 33 + 4), |resolution| {
                 let size = match resolution {
-                    DeferredAllocResolution::Static(address) => self.push_value_size(*address),
+                    DeferredAllocResolution::Static(address) => {
+                        push_len(self.gcx.sess.opts.evm_version, *address)
+                    }
                     DeferredAllocResolution::Dynamic(size) => {
-                        slot_size * 2 + self.push_value_size(*size) + 4
+                        slot_size * 2 + push_len(self.gcx.sess.opts.evm_version, *size) + 4
                     }
                 };
                 (size, size)
@@ -220,11 +223,6 @@ impl<'gcx> Assembler<'gcx> {
         } else {
             (1, 33)
         }
-    }
-
-    fn push_value_size(&self, value: U256) -> usize {
-        let width = value.byte_len();
-        if width == 0 && self.gcx.sess.opts.evm_version.has_push0() { 1 } else { width.max(1) + 1 }
     }
 
     /// Emits a push instruction that will be resolved to a label's offset.
