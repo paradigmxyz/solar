@@ -150,6 +150,11 @@ impl LowerDispatchCx {
     ) {
         let fallback_rejects =
             fallback.is_some_and(|id| super::utils::rejects_callvalue(module.function(id)));
+        // `CALLDATALOAD(0)` right-pads short calldata with zeroes before the
+        // selector extraction. A short input can therefore match a selector
+        // only when its final byte is zero; guard all short inputs if any
+        // route has that suffix. Solc emits this guard for every dispatch,
+        // but the selective form avoids it when no route can collide.
         let needs_short_calldata_guard = routes.iter().any(|(selector, _)| selector & 0xff == 0);
         let needs_size_dispatch = receive.is_some() || needs_short_calldata_guard;
 
@@ -193,8 +198,6 @@ impl LowerDispatchCx {
             }
 
             if let Some(short_size_block) = short_size_block {
-                // CALLDATALOAD zero-pads short input. It can only spuriously
-                // match a selector whose final byte is zero.
                 builder.switch_to_block(short_size_block);
                 let size = builder.calldatasize();
                 let selector_size = builder.imm_u64(4);
