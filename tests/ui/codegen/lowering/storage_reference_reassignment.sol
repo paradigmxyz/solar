@@ -3,6 +3,11 @@
 //@ run-call: rebind false, 3, 5, 17 => 17, 0
 //@ run-call: rebindParameter 3, 5, 19 => 0, 19
 //@ run-call: swap 3, 5, 23, 29 => 29, 23
+//@ run-call: packedRebind false, 3, 5, 17 => 17, 0
+//@ run-call: packedRebind true, 3, 5, 17 => 0, 17
+//@ run-call: packedYulRebind false, 3, 5, 17 => 17, 0, 0
+//@ run-call: packedYulRebind true, 3, 5, 17 => 17, 0, 0
+//@ run-call: yulPackedOffset 17 => 1
 
 contract StorageReferenceReassignment {
     struct Item {
@@ -11,6 +16,17 @@ contract StorageReferenceReassignment {
     }
 
     mapping(uint256 => Item) items;
+
+    struct PackedItem {
+        uint256 whole;
+        uint8 first;
+        uint8 second;
+    }
+
+    mapping(uint256 => PackedItem) packedItems;
+    mapping(uint256 => PackedItem) otherPackedItems;
+    uint8 yulPrefix;
+    uint8 yulPacked;
 
     function bindAfterDeclaration(uint256 key, uint256 value)
         external
@@ -54,6 +70,44 @@ contract StorageReferenceReassignment {
         firstItem.a = firstValue;
         secondItem.a = secondValue;
         return (items[first].a, items[second].a);
+    }
+
+    function packedRebind(bool useSecond, uint256 first, uint256 second, uint8 value)
+        external
+        returns (uint8, uint8)
+    {
+        PackedItem storage item = packedItems[first];
+        if (useSecond) {
+            item = packedItems[second];
+        }
+        item.second = value;
+        return (packedItems[first].second, packedItems[second].second);
+    }
+
+    function packedYulRebind(bool useSecond, uint256 first, uint256 second, uint256 value)
+        external
+        returns (uint256, uint256, uint256)
+    {
+        mapping(uint256 => PackedItem) storage itemsRef = packedItems;
+        if (useSecond) {
+            itemsRef = otherPackedItems;
+        }
+        PackedItem storage item = itemsRef[first];
+        uint256 offset;
+        assembly {
+            offset := itemsRef.offset
+            sstore(item.slot, value)
+        }
+        return (itemsRef[first].whole, itemsRef[second].whole, offset);
+    }
+
+    function yulPackedOffset(uint8 value) external returns (uint256 offset) {
+        assembly {
+            offset := yulPacked.offset
+            let shift := mul(offset, 8)
+            let mask := shl(shift, 0xff)
+            sstore(yulPacked.slot, or(and(sload(yulPacked.slot), not(mask)), shl(shift, value)))
+        }
     }
 
     function readB(Item storage item) internal view returns (uint256) {
