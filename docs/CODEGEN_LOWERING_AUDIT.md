@@ -107,7 +107,9 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * split Solidity and Yul builtin lowering with shared positional-argument,
   arity, named-argument, and unsupported-builtin diagnostics;
 * Yul arithmetic, environment, memory, calldata, storage, logging, call,
-  creation, termination, and hashing builtins through direct MIR operations;
+  creation, termination, and hashing builtins through direct MIR operations,
+  including the Prague `extcall`, `extdelegatecall`, and `extstaticcall`
+  instructions;
 * Yul `switch` statements with default and fall-through-to-merge paths,
   left-aligned string and hex case words, and branch-local value merging;
 * calldata slice parameters and `.offset`/`.length` access and assignment in
@@ -190,8 +192,7 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    unresolved and constructor-modifier edge cases. Inherited constructor
    arguments that call direct or virtual functions now have Solc-backed
    run-call coverage.
-3. Add the remaining Yul call builtins (`extcall`, `extdelegatecall`, and
-   `extstaticcall`) and remaining function-pointer ABI edge cases. Custom
+3. Extend function-pointer ABI coverage to the remaining edge cases. Custom
    error catch clauses are rejected by the tracked Solidity type checker and
    are not a valid lowering target. The two Unifap projects also remain
    blocked by `account.code.length`, unsupported `abi.encodePacked` shapes,

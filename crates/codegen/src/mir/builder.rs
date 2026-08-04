@@ -978,6 +978,46 @@ impl<'a> FunctionBuilder<'a> {
         )
     }
 
+    /// Emits an EOF external call.
+    pub(crate) fn extcall(
+        &mut self,
+        addr: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+        value: ValueId,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::ExtCall { addr, args_offset, args_size, value },
+            Some(MirType::uint256()),
+        )
+    }
+
+    /// Emits an EOF external delegate call.
+    pub(crate) fn extdelegatecall(
+        &mut self,
+        addr: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::ExtDelegateCall { addr, args_offset, args_size },
+            Some(MirType::uint256()),
+        )
+    }
+
+    /// Emits an EOF external static call.
+    pub(crate) fn extstaticcall(
+        &mut self,
+        addr: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::ExtStaticCall { addr, args_offset, args_size },
+            Some(MirType::uint256()),
+        )
+    }
+
     /// Emits a create instruction (deploy a contract).
     pub(crate) fn create(&mut self, value: ValueId, offset: ValueId, size: ValueId) -> ValueId {
         self.emit_inst(InstKind::Create(value, offset, size), Some(MirType::Address))

@@ -3499,6 +3499,42 @@ impl<'gcx> EvmCodegen<'gcx> {
                 );
             }
 
+            InstKind::ExtCall { addr, args_offset, args_size, value } => {
+                self.prepare_fresh_operands(func, &[*addr, *args_offset, *args_size, *value]);
+                self.emit_value_fresh(func, *value);
+                self.emit_value_fresh(func, *args_size);
+                self.emit_value_fresh(func, *args_offset);
+                self.emit_value_fresh(func, *addr);
+                let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
+                self.emit_op_with_effect(op::EXTCALL, StackEffect { pops: 4, pushes: 1 }, push);
+            }
+
+            InstKind::ExtDelegateCall { addr, args_offset, args_size } => {
+                self.prepare_fresh_operands(func, &[*addr, *args_offset, *args_size]);
+                self.emit_value_fresh(func, *args_size);
+                self.emit_value_fresh(func, *args_offset);
+                self.emit_value_fresh(func, *addr);
+                let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
+                self.emit_op_with_effect(
+                    op::EXTDELEGATECALL,
+                    StackEffect { pops: 3, pushes: 1 },
+                    push,
+                );
+            }
+
+            InstKind::ExtStaticCall { addr, args_offset, args_size } => {
+                self.prepare_fresh_operands(func, &[*addr, *args_offset, *args_size]);
+                self.emit_value_fresh(func, *args_size);
+                self.emit_value_fresh(func, *args_offset);
+                self.emit_value_fresh(func, *addr);
+                let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
+                self.emit_op_with_effect(
+                    op::EXTSTATICCALL,
+                    StackEffect { pops: 3, pushes: 1 },
+                    push,
+                );
+            }
+
             InstKind::InternalCall { function, args, returns } => {
                 self.emit_internal_call(
                     func,

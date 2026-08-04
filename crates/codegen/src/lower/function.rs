@@ -4484,12 +4484,40 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             Builtin::YulCreate => lower!(create(value, offset, size)),
             Builtin::YulCreate2 => lower!(create2(value, offset, size, salt)),
             Builtin::YulExtcall => {
-                let [_address, _input, _value, _gas] = self.lower_builtin_args(builtin, &args)?;
-                self.unsupported_yul_builtin(builtin, args.span)
+                let [address, input_offset, input_size, value] =
+                    self.lower_builtin_args(builtin, &args)?;
+                if !self.gcx.sess.opts.evm_version.has_ext_call() {
+                    return self.unsupported_yul_version(
+                        "codegen requires Prague-compatible EVM for `extcall`",
+                        "compile with `--evm-version prague` or newer",
+                        args.span,
+                    );
+                }
+                Some(self.builder.extcall(address, input_offset, input_size, value))
             }
-            Builtin::YulExtdelegatecall | Builtin::YulExtstaticcall => {
-                let [_address, _input, _gas] = self.lower_builtin_args(builtin, &args)?;
-                self.unsupported_yul_builtin(builtin, args.span)
+            Builtin::YulExtdelegatecall => {
+                let [address, input_offset, input_size] =
+                    self.lower_builtin_args(builtin, &args)?;
+                if !self.gcx.sess.opts.evm_version.has_ext_call() {
+                    return self.unsupported_yul_version(
+                        "codegen requires Prague-compatible EVM for `extdelegatecall`",
+                        "compile with `--evm-version prague` or newer",
+                        args.span,
+                    );
+                }
+                Some(self.builder.extdelegatecall(address, input_offset, input_size))
+            }
+            Builtin::YulExtstaticcall => {
+                let [address, input_offset, input_size] =
+                    self.lower_builtin_args(builtin, &args)?;
+                if !self.gcx.sess.opts.evm_version.has_ext_call() {
+                    return self.unsupported_yul_version(
+                        "codegen requires Prague-compatible EVM for `extstaticcall`",
+                        "compile with `--evm-version prague` or newer",
+                        args.span,
+                    );
+                }
+                Some(self.builder.extstaticcall(address, input_offset, input_size))
             }
             _ => report_error(
                 self.gcx,
@@ -4639,15 +4667,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.gcx
             .dcx()
             .err(format!("unsupported builtin call `{}`", builtin.name()))
-            .span(span)
-            .emit();
-        None
-    }
-
-    fn unsupported_yul_builtin<T>(&self, builtin: Builtin, span: Span) -> Option<T> {
-        self.gcx
-            .dcx()
-            .err(format!("unsupported Yul builtin `{}`", builtin.name()))
             .span(span)
             .emit();
         None

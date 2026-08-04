@@ -476,6 +476,9 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
                 | InstKind::DelegateCall { .. }
+                | InstKind::ExtCall { .. }
+                | InstKind::ExtDelegateCall { .. }
+                | InstKind::ExtStaticCall { .. }
                 | InstKind::Create(..)
                 | InstKind::Create2(..) => {
                     summary.has_external_call = true;
@@ -707,7 +710,10 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         InstKind::Call { .. }
         | InstKind::CallCode { .. }
         | InstKind::StaticCall { .. }
-        | InstKind::DelegateCall { .. } => (700, 1),
+        | InstKind::DelegateCall { .. }
+        | InstKind::ExtCall { .. }
+        | InstKind::ExtDelegateCall { .. }
+        | InstKind::ExtStaticCall { .. } => (700, 1),
         InstKind::InternalCall { args, returns, .. } => {
             let returns = *returns as usize;
             (80 + ((args.len() + returns) as u64) * 20, 16 + (args.len() + returns) * 4)

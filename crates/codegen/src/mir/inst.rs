@@ -975,6 +975,12 @@ pub(crate) enum InstKind {
         ret_offset: ValueId,
         ret_size: ValueId,
     },
+    /// EOF external call: `extcall(addr, argsOffset, argsSize, value)`.
+    ExtCall { addr: ValueId, args_offset: ValueId, args_size: ValueId, value: ValueId },
+    /// EOF external delegate call: `extdelegatecall(addr, argsOffset, argsSize)`.
+    ExtDelegateCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
+    /// EOF external static call: `extstaticcall(addr, argsOffset, argsSize)`.
+    ExtStaticCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
     /// Internal function call lowered to a direct jump.
     InternalCall { function: FunctionId, args: Box<[ValueId]>, returns: u32 },
 
@@ -1241,6 +1247,18 @@ impl InstKind {
                 out.push(*ret_offset);
                 out.push(*ret_size);
             }
+            Self::ExtCall { addr, args_offset, args_size, value } => {
+                out.push(*addr);
+                out.push(*args_offset);
+                out.push(*args_size);
+                out.push(*value);
+            }
+            Self::ExtDelegateCall { addr, args_offset, args_size }
+            | Self::ExtStaticCall { addr, args_offset, args_size } => {
+                out.push(*addr);
+                out.push(*args_offset);
+                out.push(*args_size);
+            }
             Self::InternalCall { args, .. } => {
                 out.extend(args.iter().copied());
             }
@@ -1489,6 +1507,18 @@ impl InstKind {
                 f(ret_offset);
                 f(ret_size);
             }
+            Self::ExtCall { addr, args_offset, args_size, value } => {
+                f(addr);
+                f(args_offset);
+                f(args_size);
+                f(value);
+            }
+            Self::ExtDelegateCall { addr, args_offset, args_size }
+            | Self::ExtStaticCall { addr, args_offset, args_size } => {
+                f(addr);
+                f(args_offset);
+                f(args_size);
+            }
             Self::InternalCall { args, .. } => {
                 for arg in args {
                     f(arg);
@@ -1643,6 +1673,9 @@ impl InstKind {
             Self::CallCode { .. } => "callcode",
             Self::StaticCall { .. } => "staticcall",
             Self::DelegateCall { .. } => "delegatecall",
+            Self::ExtCall { .. } => "extcall",
+            Self::ExtDelegateCall { .. } => "extdelegatecall",
+            Self::ExtStaticCall { .. } => "extstaticcall",
             Self::InternalCall { .. } => "internal_call",
             Self::Create(_, _, _) => "create",
             Self::Create2(_, _, _, _) => "create2",
@@ -1693,6 +1726,9 @@ impl InstKind {
             | Self::CallCode { .. }
             | Self::StaticCall { .. }
             | Self::DelegateCall { .. }
+            | Self::ExtCall { .. }
+            | Self::ExtDelegateCall { .. }
+            | Self::ExtStaticCall { .. }
             | Self::InternalCall { .. }
             // Contract creation
             | Self::Create(_, _, _)
@@ -1761,7 +1797,10 @@ impl InstKind {
             Self::Call { .. }
             | Self::CallCode { .. }
             | Self::StaticCall { .. }
-            | Self::DelegateCall { .. } => EffectKind::ExternalCall,
+            | Self::DelegateCall { .. }
+            | Self::ExtCall { .. }
+            | Self::ExtDelegateCall { .. }
+            | Self::ExtStaticCall { .. } => EffectKind::ExternalCall,
             Self::InternalCall { .. } => EffectKind::InternalCall,
             Self::Create(_, _, _) | Self::Create2(_, _, _, _) => EffectKind::Create,
             Self::Log0(_, _)

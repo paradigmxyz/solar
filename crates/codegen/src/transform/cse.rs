@@ -958,6 +958,8 @@ impl CommonSubexprEliminator {
             InstKind::Call { .. }
                 | InstKind::CallCode { .. }
                 | InstKind::DelegateCall { .. }
+                | InstKind::ExtCall { .. }
+                | InstKind::ExtDelegateCall { .. }
                 | InstKind::InternalCall { .. }
                 | InstKind::Create(_, _, _)
                 | InstKind::Create2(_, _, _, _)

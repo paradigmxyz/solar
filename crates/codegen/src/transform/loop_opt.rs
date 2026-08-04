@@ -402,6 +402,9 @@ impl LoopOptimizer {
                         | InstKind::CallCode { .. }
                         | InstKind::StaticCall { .. }
                         | InstKind::DelegateCall { .. }
+                        | InstKind::ExtCall { .. }
+                        | InstKind::ExtDelegateCall { .. }
+                        | InstKind::ExtStaticCall { .. }
                         | InstKind::InternalCall { .. }
                         | InstKind::Create(_, _, _)
                         | InstKind::Create2(_, _, _, _)

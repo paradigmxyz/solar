@@ -1795,6 +1795,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::Delegatecall => struct_inst!(DelegateCall {
                 gas, addr, args_offset, args_size, ret_offset, ret_size
             } => MirType::uint256()),
+            kw::Extcall => struct_inst!(ExtCall { addr, args_offset, args_size, value }
+                => MirType::uint256()),
+            kw::Extdelegatecall => struct_inst!(ExtDelegateCall { addr, args_offset, args_size }
+                => MirType::uint256()),
+            kw::Extstaticcall => struct_inst!(ExtStaticCall { addr, args_offset, args_size }
+                => MirType::uint256()),
             sym::internal_call => {
                 let function = self.parse_function_id()?;
                 self.parser.expect(TokenKind::Comma)?;

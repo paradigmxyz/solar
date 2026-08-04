@@ -780,6 +780,9 @@ impl AliasAnalysis {
             | InstKind::DelegateCall { args_offset, ret_offset, .. } => {
                 operand != *args_offset && operand != *ret_offset
             }
+            InstKind::ExtCall { args_offset, .. }
+            | InstKind::ExtDelegateCall { args_offset, .. }
+            | InstKind::ExtStaticCall { args_offset, .. } => operand != *args_offset,
             InstKind::Create(_, offset, _) | InstKind::Create2(_, offset, _, _) => {
                 operand != *offset
             }
@@ -1116,6 +1119,17 @@ impl AliasAnalysis {
                 effects.read_any(AddressSpace::Storage);
                 effects.read_any(AddressSpace::Transient);
                 if !matches!(kind, InstKind::StaticCall { .. }) {
+                    effects.write_any(AddressSpace::Storage);
+                    effects.write_any(AddressSpace::Transient);
+                }
+            }
+            InstKind::ExtCall { args_offset, args_size, .. }
+            | InstKind::ExtDelegateCall { args_offset, args_size, .. }
+            | InstKind::ExtStaticCall { args_offset, args_size, .. } => {
+                read_memory(&mut effects, args_offset, SizeOperand::Value(args_size));
+                effects.read_any(AddressSpace::Storage);
+                effects.read_any(AddressSpace::Transient);
+                if !matches!(kind, InstKind::ExtStaticCall { .. }) {
                     effects.write_any(AddressSpace::Storage);
                     effects.write_any(AddressSpace::Transient);
                 }
