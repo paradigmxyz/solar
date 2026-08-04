@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Sequence
 
 
-ROOT = Path(__file__).resolve().parents[2] / "benches/codegen-runtime/micro"
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+TESTDATA_ROOT = REPOSITORY_ROOT / "testdata"
 
 
 @dataclass(frozen=True)
@@ -24,14 +25,14 @@ class TestCase:
 
 
 def source(name: str) -> str:
-    return (ROOT / name).read_text()
+    return (TESTDATA_ROOT / name).read_text()
 
 
 TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="factorial",
         description="Factorial with storage caching opportunity",
-        source_code=source("factorial.sol"),
+        source_code=source("Factorial.sol"),
         contract_name="FactorialStorage",
         test_calls=(
             ("computeFactorial(uint256)", ("5",)),
@@ -41,19 +42,19 @@ TEST_CASES: Sequence[TestCase] = (
     ),
     TestCase(
         test_id="counter",
-        description="Simple counter with increment loop",
-        source_code=source("counter.sol"),
+        description="Simple counter with setter and increment",
+        source_code=(TESTDATA_ROOT / "Counter.sol").read_text(),
         contract_name="Counter",
         test_calls=(
-            ("increment(uint256)", ("10",)),
-            ("reset()", ()),
-            ("increment(uint256)", ("50",)),
+            ("setNumber(uint256)", ("10",)),
+            ("increment()", ()),
+            ("setNumber(uint256)", ("50",)),
         ),
     ),
     TestCase(
         test_id="sum-array",
         description="Sum computation with storage writes",
-        source_code=source("sum-array.sol"),
+        source_code=source("SumArray.sol"),
         contract_name="SumStorage",
         test_calls=(
             ("sumRange(uint256,uint256)", ("1", "10")),
@@ -64,7 +65,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="arithmetic",
         description="Mixed arithmetic operations",
-        source_code=source("arithmetic.sol"),
+        source_code=source("Arithmetic.sol"),
         contract_name="Arithmetic",
         test_calls=(
             ("compute(uint256,uint256,uint256)", ("100", "3", "10")),

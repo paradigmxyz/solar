@@ -18,8 +18,8 @@ SCHEMA = json.loads(
 DEFAULT_TIMING = object()
 
 
-def result(test_id="test", **compiler):
-    return {"test_id": test_id, "compilers": {"solar": compiler}}
+def result(test_id="test", suite="repo", **compiler):
+    return {"test_id": test_id, "suite": suite, "compilers": {"solar": compiler}}
 
 
 class ReportFormattingTests(unittest.TestCase):
@@ -109,12 +109,10 @@ class ReportFormattingTests(unittest.TestCase):
         )
 
     def test_codegen_report_combines_all_benches(self):
-        micro = result("micro", status="ok", total_gas=10, runtime_size=20)
+        micro = result("micro", suite="micro", status="ok", total_gas=10, runtime_size=20)
         repo = result("repository", status="ok", total_gas=30, runtime_size=40)
-        large = result("large", status="ok", total_gas=50, runtime_size=60)
-        report = benchmark.codegen_report(
-            [micro], [repo], [micro], [repo], [large], [large]
-        )
+        large = result("large", suite="large", status="ok", total_gas=50, runtime_size=60)
+        report = benchmark.codegen_report([micro, repo, large], [micro, repo, large])
         self.assertEqual(
             report,
             "## Codegen benchmark\n"
@@ -156,15 +154,21 @@ class CommonBenchmarkResultTests(unittest.TestCase):
             return_value={"os": "linux", "arch": "x86_64", "logical_cpus": 4},
         ):
             output = Path(directory) / "common.json"
-            benchmark.write_common_result(
-                output,
-                micro,
-                repo,
-                micro_timing,
-                repo_timing,
-                large,
-                large_timing,
-            )
+            results = [
+                {**entry, "suite": suite}
+                for suite, entries in (("micro", micro), ("repo", repo), ("large", large))
+                for entry in entries
+            ]
+            timings = {
+                suite: timing
+                for suite, timing in (
+                    ("micro", micro_timing),
+                    ("repo", repo_timing),
+                    ("large", large_timing),
+                )
+                if timing is not None
+            }
+            benchmark.write_common_result(output, results, timings)
             document = json.loads(output.read_text())
         Draft202012Validator(SCHEMA).validate(document)
         return document
@@ -295,6 +299,7 @@ class CommonBenchmarkResultTests(unittest.TestCase):
         results = [
             result(
                 "large",
+                suite="large",
                 status="ok",
                 total_gas=10,
                 deploy_gas=20,

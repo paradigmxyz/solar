@@ -9,13 +9,10 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
-import os
 import re
 import shutil
-import signal
 import subprocess
 import sys
-import tempfile
 import time
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -23,12 +20,19 @@ from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 
 from codegen_benchmark_cases import TEST_CASES, TestCase
+from codegen_benchmark_common import (
+    DEFAULT_PRIVATE_KEY,
+    DEFAULT_RPC_URL,
+    load_project,
+    parse_receipt_int,
+    project_slice,
+    run,
+    stop_anvil,
+)
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-ROOT = REPOSITORY_ROOT / "benches/codegen-runtime"
+ROOT = REPOSITORY_ROOT / "testdata/codegen-runtime"
 RESULT_ROOT = REPOSITORY_ROOT / "target/codegen-bench"
-DEFAULT_RPC_URL = "http://127.0.0.1:8545"
-DEFAULT_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 DEFAULT_SENDER = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 DEFAULT_SPENDER = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
 DEFAULT_THIRD = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
@@ -38,11 +42,12 @@ MAX_UINT256 = str((1 << 256) - 1)
 MAX_UINT128 = str((1 << 128) - 1)
 EDGE_BYTES32 = "0x" + "ff" * 31 + "f0"
 MIXED_BYTES32 = "0x" + "ff" * 30 + "0000"
+SIGNED_HASH = "0x7d768af957ef8cbf6219a37e743d5546d911dae3e46449d8a5810522db2ef65e"
 CAST_DEPLOY_TIMEOUT = 45
 CAST_TX_TIMEOUT = 30
 CAST_READ_TIMEOUT = 10
 CAST_RPC_TIMEOUT = 10
-CAST_GAS_LIMIT = "30000000"
+CAST_GAS_LIMIT = "80000000"
 RUNTIME_FIXTURES = ROOT / "fixtures/runtime/RuntimeFixtures.sol"
 
 RESET = "\033[0m"
@@ -104,83 +109,6 @@ def display_command(cmd: Sequence[str | Path]) -> str:
 def verbose_log(enabled: bool, message: str) -> None:
     if enabled:
         print(message, flush=True)
-
-
-@dataclass(frozen=True)
-class CommandResult:
-    returncode: int
-    stdout: str
-    stderr: str
-    peak_rss_bytes: Optional[int] = None
-
-
-def read_peak_rss(path: Path) -> Optional[int]:
-    try:
-        peak_rss_kib = int(path.read_text().strip())
-    except (OSError, ValueError):
-        return None
-    return peak_rss_kib * 1024
-
-
-def run(
-    cmd: Sequence[str],
-    input_text: Optional[str] = None,
-    timeout: int = 120,
-    cwd: Optional[Path] = None,
-    measure_peak_rss: bool = False,
-) -> CommandResult:
-    start = time.monotonic()
-    peak_rss_path = None
-    run_cmd = list(cmd)
-    if measure_peak_rss and sys.platform.startswith("linux"):
-        time_binary = Path("/usr/bin/time")
-        if time_binary.is_file():
-            fd, raw_path = tempfile.mkstemp(prefix="solar-bench-rss-")
-            os.close(fd)
-            peak_rss_path = Path(raw_path)
-            run_cmd = [str(time_binary), "-q", "-f", "%M", "-o", raw_path, "--", *cmd]
-
-    kwargs = {}
-    if os.name != "nt":
-        kwargs["start_new_session"] = True
-    proc = subprocess.Popen(
-        run_cmd,
-        stdin=subprocess.PIPE if input_text is not None else None,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        cwd=cwd,
-        **kwargs,
-    )
-    try:
-        stdout, stderr = proc.communicate(input=input_text, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        if os.name != "nt":
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except OSError:
-                proc.kill()
-        else:
-            proc.kill()
-        try:
-            stdout, stderr = proc.communicate(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            stdout, stderr = proc.communicate()
-        elapsed = time.monotonic() - start
-        stderr = (stderr or "").strip()
-        message = f"TIMEOUT after {elapsed:.1f}s: {display_command(cmd)}"
-        if stderr:
-            message = f"{message}\n{stderr}"
-        result = CommandResult(-1, stdout or "", message)
-    else:
-        result = CommandResult(proc.returncode, stdout, stderr)
-
-    if peak_rss_path is not None:
-        peak_rss_bytes = read_peak_rss(peak_rss_path)
-        peak_rss_path.unlink(missing_ok=True)
-        result = CommandResult(result.returncode, result.stdout, result.stderr, peak_rss_bytes)
-    return result
 
 
 def find_binary(explicit: Optional[str], candidates: Sequence[str]) -> Optional[Path]:
@@ -266,15 +194,17 @@ class SourceCase:
     source: str
     contract_name: str
     test_calls: Sequence[Tuple[str, Sequence[str]]] = field(default_factory=tuple)
+    gas_calls: Sequence[GasCall] = field(default_factory=tuple)
     constructor_args: Sequence[str] = field(default_factory=tuple)
     constructor_sig: Optional[str] = None
     runtime_checks: Sequence[RuntimeCheck] = field(default_factory=tuple)
     min_solc: Optional[str] = None
     max_solc: Optional[str] = None
+    suite: str = "repo"
 
     @property
     def project_path(self) -> Path:
-        return ROOT / "projects" / self.project_file
+        return REPOSITORY_ROOT / self.project_file
 
 
 REPO_TEST_CASES: Sequence[SourceCase] = (
@@ -282,7 +212,7 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="uniswap-v2-pair",
         description="Uniswap V2 Pair",
         project="v2-core",
-        project_file="uniswap-v2-pair.json.gz",
+        project_file="testdata/codegen-runtime/projects/uniswap-v2-pair.json.gz",
         source="contracts/UniswapV2Pair.sol",
         contract_name="UniswapV2Pair",
         min_solc="0.5.16",
@@ -292,7 +222,7 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="openzeppelin-erc20-mock",
         description="OpenZeppelin ERC20Mock",
         project="openzeppelin-contracts",
-        project_file="openzeppelin-erc20-mock.json.gz",
+        project_file="testdata/codegen-runtime/projects/openzeppelin-runtime.json.gz",
         source="contracts/mocks/token/ERC20Mock.sol",
         contract_name="ERC20Mock",
         test_calls=(
@@ -321,7 +251,7 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="openzeppelin-vesting-wallet",
         description="OpenZeppelin VestingWallet",
         project="openzeppelin-contracts",
-        project_file="openzeppelin-vesting-wallet.json.gz",
+        project_file="testdata/codegen-runtime/projects/openzeppelin-runtime.json.gz",
         source="contracts/finance/VestingWallet.sol",
         contract_name="VestingWallet",
         constructor_args=(DEFAULT_SENDER, "1000", "100"),
@@ -355,7 +285,7 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="nitro-one-step-proof",
         description="Nitro OneStepProofEntry",
         project="nitro-contracts",
-        project_file="nitro-one-step-proof.json.gz",
+        project_file="testdata/codegen-runtime/projects/nitro-one-step-proof.json.gz",
         source="src/osp/OneStepProofEntry.sol",
         contract_name="OneStepProofEntry",
         constructor_args=(DEFAULT_SENDER, DEFAULT_SPENDER, DEFAULT_THIRD, DEFAULT_FOURTH),
@@ -422,7 +352,7 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="aave-l2-encoder",
         description="Aave V3 L2Encoder",
         project="aave-v3-core",
-        project_file="aave-l2-encoder.json.gz",
+        project_file="testdata/codegen-runtime/projects/aave-l2-encoder.json.gz",
         source="fixtures/aave/L2EncoderHarness.sol",
         contract_name="L2EncoderHarness",
         test_calls=(
@@ -554,7 +484,7 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="lilweb3-ens",
         description="LilENS",
         project="lil-web3",
-        project_file="lilweb3-ens.json.gz",
+        project_file="testdata/codegen-runtime/projects/lilweb3-ens.json.gz",
         source="src/LilENS.sol",
         contract_name="LilENS",
         test_calls=(
@@ -585,7 +515,7 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="lilweb3-flashloan",
         description="LilFlashloan",
         project="lil-web3",
-        project_file="lilweb3-flashloan.json.gz",
+        project_file="testdata/codegen-runtime/projects/lilweb3-runtime.json.gz",
         source="src/LilFlashloan.sol",
         contract_name="LilFlashloan",
         test_calls=(
@@ -620,7 +550,7 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="lilweb3-fractional",
         description="LilFractional",
         project="lil-web3",
-        project_file="lilweb3-fractional.json.gz",
+        project_file="testdata/codegen-runtime/projects/lilweb3-runtime.json.gz",
         source="src/LilFractional.sol",
         contract_name="LilFractional",
         test_calls=(
@@ -662,7 +592,7 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
         test_id="maple-erc20",
         description="Maple ERC20",
         project="maple-erc20",
-        project_file="maple-erc20.json.gz",
+        project_file="testdata/codegen-runtime/projects/maple-erc20.json.gz",
         source="contracts/ERC20.sol",
         contract_name="ERC20",
         constructor_args=("Maple Token", "MPL", "18"),
@@ -700,6 +630,113 @@ REPO_TEST_CASES: Sequence[SourceCase] = (
 )
 
 
+LARGE_TEST_CASES: Sequence[SourceCase] = (
+    SourceCase(
+        test_id="openzeppelin-governor",
+        description="OpenZeppelin Governor",
+        project="openzeppelin-5.6.1",
+        project_file="testdata/projects/openzeppelin-5.6.1.json.gz",
+        source="test/governance/Governor.t.sol",
+        contract_name="GovernorInternalTest",
+        gas_calls=(
+            GasCall(
+                "hash-proposal-empty-zero",
+                "hashProposal(address[],uint256[],bytes[],bytes32)",
+                ("[]", "[]", "[]", "0x" + "00" * 32),
+                repeat=3,
+            ),
+            GasCall(
+                "hash-proposal-empty-nonzero",
+                "hashProposal(address[],uint256[],bytes[],bytes32)",
+                ("[]", "[]", "[]", "0x" + "42" * 32),
+                repeat=3,
+            ),
+            GasCall("name", "name()", repeat=3),
+            GasCall("version", "version()", repeat=3),
+        ),
+        runtime_checks=(
+            RuntimeCheck("name", "name()(string)"),
+            RuntimeCheck("version", "version()(string)"),
+            RuntimeCheck(
+                "hash-proposal-empty",
+                "hashProposal(address[],uint256[],bytes[],bytes32)(uint256)",
+                ("[]", "[]", "[]", "0x" + "00" * 32),
+            ),
+        ),
+        suite="large",
+    ),
+    SourceCase(
+        test_id="solady-signature-checker",
+        description="Solady SignatureCheckerLib",
+        project="solady-0.1.26",
+        project_file="testdata/projects/solady-0.1.26.json.gz",
+        source="test/SignatureCheckerLib.t.sol",
+        contract_name="SignatureCheckerLibTest",
+        gas_calls=(
+            GasCall(
+                "empty-signature",
+                "isValidSignatureNowCalldata(address,bytes32,bytes)",
+                (DEFAULT_SPENDER, SIGNED_HASH, "0x"),
+                repeat=3,
+            ),
+            GasCall("empty-helpers", "testEmptyCalldataHelpers()", repeat=3),
+            GasCall(
+                "eth-signed-hash-word",
+                "testToEthSignedMessageHashDifferential(bytes32)",
+                (SIGNED_HASH,),
+                repeat=3,
+            ),
+            GasCall(
+                "eth-signed-hash-bytes",
+                "testToEthSignedMessageHashDifferential(bytes)",
+                ("0x" + "ab" * 96,),
+                repeat=3,
+            ),
+        ),
+        runtime_checks=(
+            RuntimeCheck(
+                "empty-signature",
+                "isValidSignatureNowCalldata(address,bytes32,bytes)(bool)",
+                (DEFAULT_SPENDER, SIGNED_HASH, "0x"),
+            ),
+        ),
+        suite="large",
+    ),
+    SourceCase(
+        test_id="solady-lib-string",
+        description="Solady LibString",
+        project="solady-0.1.26",
+        project_file="testdata/projects/solady-0.1.26.json.gz",
+        source="test/LibString.t.sol",
+        contract_name="LibStringTest",
+        gas_calls=(
+            GasCall("serial-number", "checkIsSN(string)", ("123456789",), repeat=3),
+            GasCall("not-serial-number", "checkIsSN(string)", ("12ab",), repeat=3),
+            GasCall(
+                "return-string",
+                "returnString(string)",
+                ("the quick brown fox jumps over the lazy dog",),
+                repeat=3,
+            ),
+            GasCall("small-string", "toSmallString(string)", ("short string",), repeat=3),
+            GasCall("replace-medium", "testStringReplaceMedium()", repeat=3),
+            GasCall("replace-long", "testStringReplaceLong()", repeat=3),
+        ),
+        runtime_checks=(
+            RuntimeCheck("serial-number", "checkIsSN(string)(bool)", ("123456789",)),
+            RuntimeCheck("not-serial-number", "checkIsSN(string)(bool)", ("12ab",)),
+            RuntimeCheck(
+                "return-string",
+                "returnString(string)(string)",
+                ("the quick brown fox jumps over the lazy dog",),
+            ),
+            RuntimeCheck("small-string", "toSmallString(string)(bytes32)", ("short string",)),
+        ),
+        suite="large",
+    ),
+)
+
+
 HOT_GAS_CALLS: Dict[str, Sequence[GasCall]] = {
     "factorial": (
         GasCall("factorial-5", "computeFactorial(uint256)", ("5",)),
@@ -710,11 +747,11 @@ HOT_GAS_CALLS: Dict[str, Sequence[GasCall]] = {
         GasCall("factorial-50", "computeFactorial(uint256)", ("50",)),
     ),
     "counter": (
-        GasCall("increment-10", "increment(uint256)", ("10",)),
-        GasCall("reset", "reset()"),
-        GasCall("increment-50", "increment(uint256)", ("50",)),
-        GasCall("reset-again", "reset()"),
-        GasCall("increment-100", "increment(uint256)", ("100",)),
+        GasCall("set-number-10", "setNumber(uint256)", ("10",)),
+        GasCall("increment", "increment()"),
+        GasCall("set-number-50", "setNumber(uint256)", ("50",)),
+        GasCall("increment-again", "increment()"),
+        GasCall("set-number-100", "setNumber(uint256)", ("100",)),
     ),
     "sum-array": (
         GasCall("sum-1-10", "sumRange(uint256,uint256)", ("1", "10")),
@@ -858,6 +895,8 @@ HOT_GAS_CALLS: Dict[str, Sequence[GasCall]] = {
 
 
 def default_gas_calls(test_case: TestCase | SourceCase) -> Sequence[GasCall]:
+    if isinstance(test_case, SourceCase) and test_case.gas_calls:
+        return test_case.gas_calls
     return tuple(
         GasCall(signature, signature, tuple(args))
         for signature, args in test_case.test_calls
@@ -872,7 +911,7 @@ def gas_calls(test_case: TestCase | SourceCase, profile: str) -> Sequence[GasCal
 
 MICRO_RUNTIME_CHECKS: Dict[str, Sequence[RuntimeCheck]] = {
     "factorial": (RuntimeCheck("result", "getResult()(uint256)"),),
-    "counter": (RuntimeCheck("count", "count()(uint256)"),),
+    "counter": (RuntimeCheck("number", "number()(uint256)"),),
     "sum-array": (RuntimeCheck("total", "total()(uint256)"),),
     "arithmetic": (RuntimeCheck("value", "value()(uint256)"),),
 }
@@ -910,10 +949,34 @@ def standard_json_input(test_case: TestCase) -> str:
 
 
 @lru_cache(maxsize=None)
-def project_standard_json_input(project_file: str) -> str:
-    path = ROOT / "projects" / project_file
-    with gzip.open(path, mode="rt") as compressed:
-        return compressed.read()
+def project_standard_json_input(
+    project_file: str,
+    source: Optional[str] = None,
+    contract_name: Optional[str] = None,
+) -> str:
+    path = REPOSITORY_ROOT / project_file
+    if source is None:
+        with gzip.open(path, mode="rt") as compressed:
+            return compressed.read()
+
+    project = load_project(path)
+    settings = dict(project["settings"])
+    if source is not None and contract_name is not None:
+        settings["outputSelection"] = {
+            source: {
+                contract_name: [
+                    "abi",
+                    "evm.bytecode.object",
+                    "evm.deployedBytecode.object",
+                ]
+            }
+        }
+    payload = {
+        "language": project["language"],
+        "sources": project_slice(project, source),
+        "settings": settings,
+    }
+    return json.dumps(payload)
 
 
 def parse_standard_json_output(
@@ -960,6 +1023,7 @@ def compile_standard_json(spec: CompilerSpec, test_case: TestCase) -> Dict[str, 
         "runtime_bytecode": "",
         "bytecode_size": 0,
         "runtime_size": 0,
+        "compile_time_seconds": 0.0,
         "peak_rss_bytes": None,
         "error": "",
     }
@@ -968,12 +1032,14 @@ def compile_standard_json(spec: CompilerSpec, test_case: TestCase) -> Dict[str, 
         # Solar gates its experimental code generator behind `-Zcodegen`.
         sj_cmd.append("-Zcodegen")
     sj_cmd.append("--standard-json")
+    started = time.monotonic()
     proc = run(
         sj_cmd,
         input_text=standard_json_input(test_case),
         timeout=120,
         measure_peak_rss=True,
     )
+    result["compile_time_seconds"] = time.monotonic() - started
     result["peak_rss_bytes"] = proc.peak_rss_bytes
     result["command"] = display_command(sj_cmd)
     if proc.returncode != 0:
@@ -1004,6 +1070,7 @@ def compile_repo_case(spec: CompilerSpec, case: SourceCase) -> Dict[str, object]
         "runtime_bytecode": "",
         "bytecode_size": 0,
         "runtime_size": 0,
+        "compile_time_seconds": 0.0,
         "peak_rss_bytes": None,
         "error": "",
         "source": case.source,
@@ -1012,19 +1079,21 @@ def compile_repo_case(spec: CompilerSpec, case: SourceCase) -> Dict[str, object]
 
     if not case.project_path.exists():
         result["status"] = "failed"
-        result["error"] = f"vendored project not found: {case.project_path.relative_to(ROOT)}"
+        result["error"] = f"vendored project not found: {case.project_file}"
         return result
 
     cmd = [str(spec.path)]
     if spec.kind != "solc":
         cmd.append("-Zcodegen")
     cmd.append("--standard-json")
+    started = time.monotonic()
     proc = run(
         cmd,
-        input_text=project_standard_json_input(case.project_file),
+        input_text=project_standard_json_input(case.project_file, case.source, case.contract_name),
         timeout=180,
         measure_peak_rss=True,
     )
+    result["compile_time_seconds"] = time.monotonic() - started
     result["peak_rss_bytes"] = proc.peak_rss_bytes
     result["command"] = display_command(cmd)
     if proc.returncode != 0:
@@ -1088,22 +1157,32 @@ def check_tool(name: str) -> bool:
     return shutil.which(name) is not None
 
 
-def start_anvil(port: int = 8545) -> subprocess.Popen[bytes]:
+def start_anvil(rpc_url: str) -> subprocess.Popen[bytes]:
+    match = re.fullmatch(r"http://(?:127\.0\.0\.1|localhost):(\d+)", rpc_url)
+    if match is None:
+        raise ValueError("`--start-anvil` requires a localhost HTTP RPC URL")
     proc = subprocess.Popen(
-        ["anvil", "--port", str(port), "--steps-tracing"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        [
+            "anvil",
+            "--port",
+            match.group(1),
+            "--steps-tracing",
+            "--disable-code-size-limit",
+            "--gas-limit",
+            "100000000",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
-    time.sleep(2)
-    return proc
-
-
-def stop_anvil(proc: subprocess.Popen[bytes]) -> None:
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    for _ in range(100):
+        if proc.poll() is not None:
+            raise RuntimeError("anvil exited before accepting RPC requests")
+        _, error = rpc_request("eth_chainId", (), rpc_url)
+        if not error:
+            return proc
+        time.sleep(0.1)
+    stop_anvil(proc)
+    raise RuntimeError("anvil did not accept RPC requests")
 
 
 def abi_encode_constructor(constructor_args: Sequence[str], constructor_sig: Optional[str]) -> Optional[str]:
@@ -1184,14 +1263,6 @@ def deploy_creation_code(
     return data.get("contractAddress"), deploy_gas, ""
 
 
-def parse_receipt_int(value: object) -> Optional[int]:
-    if isinstance(value, str):
-        return int(value, 16) if value.startswith("0x") else int(value)
-    if value is None:
-        return None
-    return int(value)
-
-
 def call_contract(
     address: str,
     signature: str,
@@ -1267,7 +1338,8 @@ def read_contract(
 
 def rpc_request(method: str, params: Sequence[object], rpc_url: str) -> Tuple[Optional[object], str]:
     proc = run(
-        ["cast", "rpc", "--rpc-url", rpc_url, "--raw", method, json.dumps(list(params))],
+        ["cast", "rpc", "--rpc-url", rpc_url, "--raw", method],
+        input_text=json.dumps(list(params)),
         timeout=CAST_READ_TIMEOUT,
     )
     if proc.returncode != 0:
@@ -1700,7 +1772,7 @@ def run_test_case(
         "test_id": test_case.test_id,
         "description": test_case.description,
         "contract_name": test_case.contract_name,
-        "suite": "repo" if isinstance(test_case, SourceCase) else "micro",
+        "suite": test_case.suite if isinstance(test_case, SourceCase) else "micro",
         "gas_profile": gas_profile,
         "compilers": {},
     }
@@ -1718,6 +1790,7 @@ def run_test_case(
         )
         compiler_entry = dict(compiled)
         compiler_entry.pop("bytecode", None)
+        compiler_entry.pop("runtime_bytecode", None)
         entry["compilers"][spec.compiler_id] = compiler_entry
 
         checks = runtime_checks(test_case)
@@ -2043,7 +2116,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "--solar",
         help="Path to solar binary (default: solar or target/{release,debug}/solar)",
     )
-    parser.add_argument("--suite", choices=("micro", "repo", "all"), default="micro", help="Benchmark suite to run")
+    parser.add_argument(
+        "--suite",
+        choices=("micro", "repo", "large", "all"),
+        default="micro",
+        help="Benchmark suite to run",
+    )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
     parser.add_argument("--projects", nargs="*", help="Subset of repository project names to run")
     parser.add_argument("--list-tests", action="store_true", help="List available tests and exit")
@@ -2077,6 +2155,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         all_tests.extend(TEST_CASES)
     if args.suite in ("repo", "all"):
         all_tests.extend(REPO_TEST_CASES)
+    if args.suite in ("large", "all"):
+        all_tests.extend(LARGE_TEST_CASES)
 
     if args.projects:
         project_set = set(args.projects)
@@ -2168,17 +2248,39 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     print(f"Running {len(tests)} tests")
 
     results = []
-    for test in tests:
-        anvil_proc = None
-        try:
-            if args.gas and args.start_anvil:
-                print(f"Starting anvil for {test.test_id}...")
-                anvil_proc = start_anvil()
-            results.append(run_test_case(test, specs, args.gas, args.gas_profile, args.rpc_url, args.private_key, args.verbose))
-        finally:
-            if anvil_proc:
-                print(f"Stopping anvil for {test.test_id}...")
-                stop_anvil(anvil_proc)
+    timings = {}
+    started = time.monotonic()
+    anvil_proc = None
+    try:
+        if args.gas and args.start_anvil:
+            print("Starting anvil...")
+            anvil_proc = start_anvil(args.rpc_url)
+        current_suite = None
+        suite_started = None
+        for test in tests:
+            suite = test.suite if isinstance(test, SourceCase) else "micro"
+            if suite != current_suite:
+                if current_suite is not None and suite_started is not None:
+                    timings[current_suite] = timings.get(current_suite, 0.0) + time.monotonic() - suite_started
+                current_suite = suite
+                suite_started = time.monotonic()
+            results.append(
+                run_test_case(
+                    test,
+                    specs,
+                    args.gas,
+                    args.gas_profile,
+                    args.rpc_url,
+                    args.private_key,
+                    args.verbose,
+                )
+            )
+        if current_suite is not None and suite_started is not None:
+            timings[current_suite] = timings.get(current_suite, 0.0) + time.monotonic() - suite_started
+    finally:
+        if anvil_proc:
+            print("Stopping anvil...")
+            stop_anvil(anvil_proc)
 
     print_size_table(results, specs)
     print_memory_table(results, specs)
@@ -2214,7 +2316,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     RESULT_ROOT.mkdir(parents=True, exist_ok=True)
     output = Path(args.output) if args.output else RESULT_ROOT / "solar_latest.json"
-    output.write_text(json.dumps(results, indent=2))
+    document = {
+        "schema_version": 1,
+        "wall_time_seconds": time.monotonic() - started,
+        "timings": timings,
+        "results": results,
+    }
+    output.write_text(json.dumps(document, indent=2) + "\n")
     print(f"\nResults saved to {display_path(output)}")
 
     failed = [

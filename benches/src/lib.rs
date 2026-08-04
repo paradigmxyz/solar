@@ -117,6 +117,9 @@ fn common_sources() -> Vec<Source> {
         // Multi-file concatenation: top-level redeclarations fail symbol
         // resolution in `lower_asts`, so parsing is this source's ceiling.
         include_source("../testdata/Optimism.sol", Capabilities::lex_and_parse()),
+        include_source("../testdata/Arithmetic.sol", Capabilities::all()),
+        include_source("../testdata/Factorial.sol", Capabilities::all()),
+        include_source("../testdata/SumArray.sol", Capabilities::all()),
     ]
 }
 

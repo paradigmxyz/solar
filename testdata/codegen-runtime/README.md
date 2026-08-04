@@ -1,10 +1,11 @@
 # Codegen runtime corpus
 
 This directory contains the self-contained inputs used by the codegen runtime benchmark. The
-repository cases are stored as compressed standard-json inputs under `projects/`; each archive
-includes only the entrypoint and its transitive Solidity import closure. Keeping the inputs here
-makes the benchmark reproducible from this checkout and removes the CI dependency on a second
-repository and its recursive submodules.
+repository cases are stored as compressed standard-json inputs under `projects/`; archives group
+cases from the same upstream project. The runner selects only each entrypoint's transitive
+Solidity import closure before compiling it. Keeping the inputs here makes the benchmark
+reproducible from this checkout and removes the CI dependency on a second repository and its
+recursive submodules.
 
 The workload definitions and helper fixtures were imported from
 [`walnuthq/solidity-compiler-benchmarks`](https://github.com/walnuthq/solidity-compiler-benchmarks)
@@ -24,8 +25,13 @@ normalized runtime observations to match.
 | `lilweb3-fractional` | `m1guelpf/lil-web3` plus `transmissions11/solmate` | `7346bd28c2586da3b07102d5290175a276949b15`, `e802bcf2fb24dda2bf7e513bea86d15c48b57486` | 3 |
 | `maple-erc20` | `maple-labs/erc20` | `baf791a9f894b0b319a2d42d5b9f8d30349ebaad` | 2 |
 
-The four contracts in `micro/` and the Aave harness embedded in
-`projects/aave-l2-encoder.json.gz` came from the benchmark repository at the commit above.
+The OpenZeppelin cases share `projects/openzeppelin-runtime.json.gz`, and the Lil Web3 cases
+share `projects/lilweb3-runtime.json.gz`; the file counts above are the sliced closure for each
+case.
+
+The three additional micro contracts (`../Arithmetic.sol`, `../Factorial.sol`, and
+`../SumArray.sol`) came from the benchmark repository at the commit above. The runtime suite
+reuses the existing `../Counter.sol` source from the normal benchmark suite. The Aave harness is
+embedded in `projects/aave-l2-encoder.json.gz`.
 `fixtures/runtime/RuntimeFixtures.sol` provides local Apache-2.0 helpers with the same interfaces
-used by the cold-path workloads. The corresponding upstream license texts are retained in
-`licenses/`; embedded Solidity sources also retain their SPDX identifiers.
+used by the cold-path workloads. Embedded Solidity sources retain their SPDX identifiers.
