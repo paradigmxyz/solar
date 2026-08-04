@@ -44,10 +44,10 @@ bb5 [cold]:
 bb6:
   push 4
   calldataload
-  push bb9
+  push bb8
   jumpi
-  jump bb8
-bb8 [cold]:
+  jump bb7
+bb7 [cold]:
   push 0x4e487b7100000000000000000000000000000000000000000000000000000000
   push 0
   mstore
@@ -57,7 +57,7 @@ bb8 [cold]:
   push 36
   push 0
   revert
-bb9:
+bb8:
   push 4
   calldataload
   push 0x123456789abcde

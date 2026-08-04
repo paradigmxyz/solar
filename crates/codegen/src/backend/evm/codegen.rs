@@ -682,8 +682,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Creates a new EVM code generator.
     #[must_use]
     pub fn new(gcx: Gcx<'gcx>) -> Self {
-        let switch_gas_code_growth_remaining =
-            gcx.sess.opts.unstable.switch_max_gas_code_growth.unwrap_or(MAX_GAS_CODE_GROWTH);
+        let switch_gas_code_growth_remaining = Self::switch_gas_code_growth_limit(gcx);
         Self {
             gcx,
             asm: Assembler::new(gcx),
@@ -727,8 +726,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn reset_switch_gas_code_growth(&mut self) {
-        self.switch_gas_code_growth_remaining =
-            self.gcx.sess.opts.unstable.switch_max_gas_code_growth.unwrap_or(MAX_GAS_CODE_GROWTH);
+        self.switch_gas_code_growth_remaining = Self::switch_gas_code_growth_limit(self.gcx);
+    }
+
+    fn switch_gas_code_growth_limit(gcx: Gcx<'_>) -> usize {
+        gcx.sess.opts.unstable.switch_max_gas_code_growth.unwrap_or(MAX_GAS_CODE_GROWTH)
     }
 
     /// Whether a function is an external interface of its module: an ABI entry,
@@ -5696,14 +5698,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             shared_case_continuation,
             terminal_case_count,
             default_layout,
-            trace_size_bounds: (terminal_case_count != 0)
-                .then(|| {
-                    self.asm.current_trace_size_bounds(
-                        self.switch_table_target_width(),
-                        size_of::<u64>(),
-                    )
-                })
-                .flatten(),
+            trace_size_bounds: if terminal_case_count != 0 {
+                self.asm
+                    .current_trace_size_bounds(self.switch_table_target_width(), size_of::<u64>())
+            } else {
+                None
+            },
         }
     }
 

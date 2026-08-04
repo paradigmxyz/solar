@@ -908,29 +908,13 @@ fn bucket_lowering_cost_with_tests(
     debug_assert_eq!(values.len(), equality_costs.len());
     let hash_len = 1 + push_len(evm_version, U256::from(bucket_count)) + 1 + 1;
     let hash_gas = VERY_LOW_GAS * 3 + MOD_GAS;
-    let indexed_jump_gas =
-        indexed_jump_gas(bucket_count, table_target_width, evm_version) + JUMPDEST_GAS;
-    let dispatch_gas = hash_gas + indexed_jump_gas;
-    let mut cost = LoweringCost {
-        code_size: hash_len
-            + estimated_indexed_jump_code_size(
-                bucket_count,
-                table_target_width,
-                1,
-                evm_version,
-                table_target_width == 1,
-            ),
-        max_code_size: hash_len
-            + estimated_indexed_jump_code_size(
-                bucket_count,
-                table_target_width,
-                table_target_width,
-                evm_version,
-                false,
-            ),
-        hit_gas_sum: dispatch_gas * values.len(),
-        miss_gas: dispatch_gas,
-    };
+    let (mut cost, dispatch_gas) = indexed_jump_dispatch_cost(
+        values.len(),
+        bucket_count,
+        (hash_len, hash_gas),
+        evm_version,
+        table_target_width,
+    );
 
     let mut bucket_path_gas = vec![0; bucket_count];
     for (&value, &test) in values.iter().zip(equality_costs) {
@@ -957,6 +941,96 @@ fn bucket_lowering_cost_with_tests(
     cost
 }
 
+fn indexed_jump_dispatch_cost(
+    case_count: usize,
+    table_len: usize,
+    hash: (usize, usize),
+    evm_version: EvmVersion,
+    table_target_width: usize,
+) -> (LoweringCost, usize) {
+    let (hash_len, hash_gas) = hash;
+    let indexed_jump_gas =
+        indexed_jump_gas(table_len, table_target_width, evm_version) + JUMPDEST_GAS;
+    let dispatch_gas = hash_gas + indexed_jump_gas;
+    let cost = LoweringCost {
+        code_size: hash_len
+            + estimated_indexed_jump_code_size(
+                table_len,
+                table_target_width,
+                1,
+                evm_version,
+                table_target_width == 1,
+            ),
+        max_code_size: hash_len
+            + estimated_indexed_jump_code_size(
+                table_len,
+                table_target_width,
+                table_target_width,
+                evm_version,
+                false,
+            ),
+        hit_gas_sum: dispatch_gas * case_count,
+        miss_gas: dispatch_gas,
+    };
+    (cost, dispatch_gas)
+}
+
+fn bounded_indexed_jump_cost(
+    values: &[U256],
+    range: usize,
+    hash: (usize, usize),
+    evm_version: EvmVersion,
+    default: SwitchDefault,
+    table_target_width: usize,
+    shared_case_continuation: bool,
+) -> LoweringCost {
+    let (hash_len, hash_gas) = hash;
+    let bounds_prefix_len = 1 + push_len(evm_version, U256::from(range)) + 1;
+    let bounds_len = bounds_prefix_len + MIN_LABEL_PUSH_LEN + 1;
+    let max_bounds_len = bounds_prefix_len + max_label_push_len(table_target_width) + 1;
+    let bounds_gas = VERY_LOW_GAS * 4 + JUMPI_GAS;
+    let indexed_jump_gas = indexed_jump_gas(range, table_target_width, evm_version);
+    let continuation_gas = usize::from(shared_case_continuation) * DEFAULT_JUMP_GAS;
+    let hit_gas = hash_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas + continuation_gas;
+    let default_body_gas =
+        if default == SwitchDefault::Revert { JUMPDEST_GAS + default.gas(evm_version) } else { 0 };
+    let out_of_range_miss_gas =
+        hash_gas + bounds_gas + POP_GAS + DEFAULT_JUMP_GAS + default_body_gas;
+    let hole_miss_gas = (range > values.len())
+        .then_some(hash_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas + default_body_gas);
+    let miss_gas =
+        hole_miss_gas.map_or(out_of_range_miss_gas, |gas| out_of_range_miss_gas.max(gas));
+    LoweringCost {
+        code_size: hash_len
+            + bounds_len
+            + 1
+            + MIN_DEFAULT_JUMP_LEN
+            + JUMPDEST_LEN
+            + estimated_indexed_jump_code_size(
+                range,
+                table_target_width,
+                1,
+                evm_version,
+                table_target_width == 1,
+            )
+            + usize::from(shared_case_continuation) * MIN_DEFAULT_JUMP_LEN,
+        max_code_size: hash_len
+            + max_bounds_len
+            + 1
+            + max_default_jump_len(table_target_width)
+            + JUMPDEST_LEN
+            + estimated_indexed_jump_code_size(
+                range,
+                table_target_width,
+                table_target_width,
+                evm_version,
+                false,
+            ),
+        hit_gas_sum: hit_gas * values.len(),
+        miss_gas,
+    }
+}
+
 fn dense_lowering_cost(
     values: &[U256],
     evm_version: EvmVersion,
@@ -974,53 +1048,18 @@ fn dense_lowering_cost(
     let (low_len, low_gas) = immediate_materialization_cost(evm_version, low);
     let normalize_len = usize::from(!low.is_zero()) * (low_len + 2);
     let normalize_gas = usize::from(!low.is_zero()) * (low_gas + VERY_LOW_GAS * 2);
-    let bounds_prefix_len = 1 + push_len(evm_version, U256::from(range)) + 1;
-    let bounds_len = bounds_prefix_len + MIN_LABEL_PUSH_LEN + 1;
-    let max_bounds_len = bounds_prefix_len + max_label_push_len(table_target_width) + 1;
-    let bounds_gas = VERY_LOW_GAS * 4 + JUMPI_GAS;
-    let indexed_jump_gas = indexed_jump_gas(range, table_target_width, evm_version);
-    let continuation_gas = usize::from(shared_case_continuation) * DEFAULT_JUMP_GAS;
-    let hit_gas = normalize_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas + continuation_gas;
-    let default_body_gas =
-        if default == SwitchDefault::Revert { JUMPDEST_GAS + default.gas(evm_version) } else { 0 };
-    let out_of_range_miss_gas =
-        normalize_gas + bounds_gas + POP_GAS + DEFAULT_JUMP_GAS + default_body_gas;
-    let hole_miss_gas = (range > values.len())
-        .then_some(normalize_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas + default_body_gas);
-    let miss_gas =
-        hole_miss_gas.map_or(out_of_range_miss_gas, |gas| out_of_range_miss_gas.max(gas));
     Some((
         low,
         range,
-        LoweringCost {
-            code_size: normalize_len
-                + bounds_len
-                + 1
-                + MIN_DEFAULT_JUMP_LEN
-                + JUMPDEST_LEN
-                + estimated_indexed_jump_code_size(
-                    range,
-                    table_target_width,
-                    1,
-                    evm_version,
-                    table_target_width == 1,
-                )
-                + usize::from(shared_case_continuation) * MIN_DEFAULT_JUMP_LEN,
-            max_code_size: normalize_len
-                + max_bounds_len
-                + 1
-                + max_default_jump_len(table_target_width)
-                + JUMPDEST_LEN
-                + estimated_indexed_jump_code_size(
-                    range,
-                    table_target_width,
-                    table_target_width,
-                    evm_version,
-                    false,
-                ),
-            hit_gas_sum: hit_gas * values.len(),
-            miss_gas,
-        },
+        bounded_indexed_jump_cost(
+            values,
+            range,
+            (normalize_len, normalize_gas),
+            evm_version,
+            default,
+            table_target_width,
+            shared_case_continuation,
+        ),
     ))
 }
 
@@ -1154,29 +1193,13 @@ fn bit_slice_lowering_cost_with_tests(
         + mask_gas
         + VERY_LOW_GAS;
     let table_size = mask + 1;
-    let indexed_jump_gas =
-        indexed_jump_gas(table_size, table_target_width, evm_version) + JUMPDEST_GAS;
-    let dispatch_gas = hash_gas + indexed_jump_gas;
-    let mut cost = LoweringCost {
-        code_size: hash_len
-            + estimated_indexed_jump_code_size(
-                table_size,
-                table_target_width,
-                1,
-                evm_version,
-                table_target_width == 1,
-            ),
-        max_code_size: hash_len
-            + estimated_indexed_jump_code_size(
-                table_size,
-                table_target_width,
-                table_target_width,
-                evm_version,
-                false,
-            ),
-        hit_gas_sum: dispatch_gas * equality_costs.len(),
-        miss_gas: dispatch_gas,
-    };
+    let (mut cost, dispatch_gas) = indexed_jump_dispatch_cost(
+        equality_costs.len(),
+        table_size,
+        (hash_len, hash_gas),
+        evm_version,
+        table_target_width,
+    );
 
     let shared_miss = default.needs_value_cleanup();
     for &test in equality_costs {
@@ -1245,48 +1268,15 @@ fn affine_lowering_cost(
     let (rotate_len, rotate_gas) = rotate_cost(rotate, evm_version);
     let hash_len = normalize_len + multiply_len + rotate_len;
     let hash_gas = normalize_gas + multiply_gas + rotate_gas;
-    let bounds_prefix_len = 1 + push_len(evm_version, U256::from(range)) + 1;
-    let bounds_len = bounds_prefix_len + MIN_LABEL_PUSH_LEN + 1;
-    let max_bounds_len = bounds_prefix_len + max_label_push_len(table_target_width) + 1;
-    let bounds_gas = VERY_LOW_GAS * 4 + JUMPI_GAS;
-    let indexed_jump_gas = indexed_jump_gas(range, table_target_width, evm_version);
-    let hit_gas = hash_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas;
-    let default_body_gas =
-        if default == SwitchDefault::Revert { JUMPDEST_GAS + default.gas(evm_version) } else { 0 };
-    let out_of_range_miss_gas =
-        hash_gas + bounds_gas + POP_GAS + DEFAULT_JUMP_GAS + default_body_gas;
-    let hole_miss_gas = (range > values.len())
-        .then_some(hash_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas + default_body_gas);
-    let miss_gas =
-        hole_miss_gas.map_or(out_of_range_miss_gas, |gas| out_of_range_miss_gas.max(gas));
-    LoweringCost {
-        code_size: hash_len
-            + bounds_len
-            + 1
-            + MIN_DEFAULT_JUMP_LEN
-            + JUMPDEST_LEN
-            + estimated_indexed_jump_code_size(
-                range,
-                table_target_width,
-                1,
-                evm_version,
-                table_target_width == 1,
-            ),
-        max_code_size: hash_len
-            + max_bounds_len
-            + 1
-            + max_default_jump_len(table_target_width)
-            + JUMPDEST_LEN
-            + estimated_indexed_jump_code_size(
-                range,
-                table_target_width,
-                table_target_width,
-                evm_version,
-                false,
-            ),
-        hit_gas_sum: hit_gas * values.len(),
-        miss_gas,
-    }
+    bounded_indexed_jump_cost(
+        values,
+        range,
+        (hash_len, hash_gas),
+        evm_version,
+        default,
+        table_target_width,
+        false,
+    )
 }
 
 fn gcd(mut left: U256, mut right: U256) -> U256 {

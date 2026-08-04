@@ -124,9 +124,8 @@ pub(super) fn materialize_tables(
 
     for (table, encoding) in tables.iter_mut().zip(&encodings) {
         if encoding.packed_chunks == PackedTableChunks::None {
-            let targets = table.targets.clone();
-            let mut entries = Vec::with_capacity(targets.len());
-            for &target in &targets {
+            let mut entries = Vec::with_capacity(table.targets.len());
+            for &target in &table.targets {
                 let mut block = ir::Block::new(next_label);
                 next_label = next_label.checked_add(1).expect("EVM IR block label overflow");
                 block.terminator = Some(ir::Terminator::new(ir::TerminatorKind::Jump(target)));
@@ -205,10 +204,7 @@ fn choose_indexed_jump_encoding(
         return absolute;
     }
 
-    let &base = targets
-        .iter()
-        .min_by_key(|&&target| offsets[target])
-        .expect("indexed jump must have targets");
+    let base = earliest_indexed_jump_base(targets, offsets);
     let width = indexed_jump_relative_width(targets, base, offsets, global_width);
     let base_width = indexed_jump_target_width(&[base], offsets, global_width);
     let relative = make_indexed_jump_encoding(
@@ -220,6 +216,14 @@ fn choose_indexed_jump_encoding(
         outlined_len,
     );
     choose_shorter_relative_encoding(absolute, relative, targets.len(), evm_version)
+}
+
+fn earliest_indexed_jump_base(targets: &[BlockId], offsets: &IndexVec<BlockId, usize>) -> BlockId {
+    targets
+        .iter()
+        .min_by_key(|&&target| offsets[target])
+        .copied()
+        .expect("indexed jump must have targets")
 }
 
 fn make_indexed_jump_encoding(
@@ -315,10 +319,7 @@ fn update_indexed_jump_encoding(
         return absolute;
     }
 
-    let &base = targets
-        .iter()
-        .min_by_key(|&&target| offsets[target])
-        .expect("indexed jump must have targets");
+    let base = earliest_indexed_jump_base(targets, offsets);
     let width = indexed_jump_relative_width(targets, base, offsets, global_width);
     let base_width = indexed_jump_target_width(&[base], offsets, global_width);
     let relative = make_indexed_jump_encoding(

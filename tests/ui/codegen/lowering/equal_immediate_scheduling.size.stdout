@@ -27,7 +27,7 @@ bb0:
   push 4
   calldataload
   iszero
-  push bb9
+  push bb8
   jumpi
   push 4
   calldataload
@@ -43,7 +43,7 @@ bb3 [cold]:
   push 0
   dup1
   revert
-bb9 [cold]:
+bb8 [cold]:
   push 0x4e487b71
   push 224
   shl
