@@ -25,13 +25,17 @@ pub(crate) struct StackModel {
     /// The stack, with index 0 being the top.
     /// Each entry is either a known ValueId or None (for anonymous or successor-unused words).
     stack: SmallVec<[Option<ValueId>; 16]>,
+    /// Greatest depth reached since this model was created. Clearing at a
+    /// block boundary deliberately retains the high-water mark so codegen can
+    /// validate untracked internal-call prefixes after emitting a function.
+    max_depth: usize,
 }
 
 impl StackModel {
     /// Creates a new empty stack model.
     #[must_use]
     pub(crate) fn new() -> Self {
-        Self { stack: SmallVec::new() }
+        Self { stack: SmallVec::new(), max_depth: 0 }
     }
 
     /// Returns the current stack depth.
@@ -40,14 +44,27 @@ impl StackModel {
         self.stack.len()
     }
 
+    /// Returns the greatest depth reached by this model.
+    #[must_use]
+    pub(crate) fn max_depth(&self) -> usize {
+        self.max_depth
+    }
+
+    /// Retains a high-water mark observed on another control-flow path.
+    pub(crate) fn inherit_max_depth(&mut self, max_depth: usize) {
+        self.max_depth = self.max_depth.max(max_depth);
+    }
+
     /// Pushes a value onto the stack.
     pub(crate) fn push(&mut self, value: ValueId) {
         self.stack.insert(0, Some(value));
+        self.max_depth = self.max_depth.max(self.stack.len());
     }
 
     /// Pushes an unknown/anonymous value onto the stack.
     pub(crate) fn push_unknown(&mut self) {
         self.stack.insert(0, None);
+        self.max_depth = self.max_depth.max(self.stack.len());
     }
 
     /// Pops the top value from the stack.
@@ -101,6 +118,7 @@ impl StackModel {
         );
         if let Some(&value) = self.stack.get(depth) {
             self.stack.insert(0, value);
+            self.max_depth = self.max_depth.max(self.stack.len());
         }
     }
 
