@@ -1243,25 +1243,26 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
         .count();
 
     let existing_len = caller.blocks[continuation].instructions.len();
-    let mut builder = FunctionBuilder::new(caller);
-    builder.switch_to_block(continuation);
+    let appended = {
+        let mut builder = FunctionBuilder::new(caller);
+        builder.switch_to_block(continuation);
 
-    let len = values.len() as u64 + 1;
-    let size = builder.imm_u64(len * 32);
-    let layout = MemoryObjectLayout::FixedArray { len, element_words: 1 };
-    let object = builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
-    for (index, &value) in values.iter().enumerate() {
-        let index = builder.imm_u64(index as u64 + 1);
-        builder.memory_object_store_element(object, layout, index, value);
-    }
-    let base = builder.memory_object_data(object, MemoryObjectKind::FixedArray);
-    builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, base);
+        let len = values.len() as u64 + 1;
+        let size = builder.imm_u64(len * 32);
+        let layout = MemoryObjectLayout::FixedArray { len, element_words: 1 };
+        let object = builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        for (index, &value) in values.iter().enumerate() {
+            let index = builder.imm_u64(index as u64 + 1);
+            builder.memory_object_store_element(object, layout, index, value);
+        }
+        let base = builder.memory_object_data(object, MemoryObjectKind::FixedArray);
+        builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, base);
 
-    let appended = builder.func_mut().blocks[continuation]
-        .instructions
-        .drain(existing_len..)
-        .collect::<Vec<_>>();
-    drop(builder);
+        builder.func_mut().blocks[continuation]
+            .instructions
+            .drain(existing_len..)
+            .collect::<Vec<_>>()
+    };
     caller.blocks[continuation].instructions.splice(phi_count..phi_count, appended);
 }
 
