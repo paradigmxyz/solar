@@ -376,23 +376,18 @@ memory use. Treat compile time as a tie-breaker after output quality. Reject a
 candidate whose only win is faster compilation.
 
 Use two corpora for codegen work. The UI codegen files give a fast generated
-size signal. The CI corpus in `walnuthq/solidity-compiler-benchmarks` is the
-source of truth for runtime checks and gas.
+size signal. The vendored corpus in `testdata/codegen-runtime` is the source of
+truth for runtime checks and gas.
 
-Build the debug compiler in the current checkout, then use the benchmark
-repository's `solar_bench.py` to record both optimization modes before editing.
-Do not use release builds for routine local tests:
+Build the debug compiler in the current checkout, then run the in-repository
+benchmark before editing. Do not use release builds for routine local tests:
 
 ```bash
 cargo build -p solar-compiler --bin solar
-uv run ~/github/danipopes/solidity-compiler-benchmarks/solar_bench.py \
-  --solar-only --solar target/debug/solar --solar-optimize gas \
-  --corpus tests/ui/codegen --allow-failures \
-  --output target/codegen-bench/ui-gas-baseline.json
-uv run ~/github/danipopes/solidity-compiler-benchmarks/solar_bench.py \
-  --solar-only --solar target/debug/solar --solar-optimize size \
-  --corpus tests/ui/codegen --allow-failures \
-  --output target/codegen-bench/ui-size-baseline.json
+python3 benches/runtime/benchmark.py \
+  --solc /path/to/pinned/solc --solar target/debug/solar \
+  --suite all --allow-failures \
+  --output target/codegen-bench/corpus-baseline.json
 ```
 
 Record the baseline before editing. Rebuild and benchmark the candidate in the
@@ -403,15 +398,15 @@ compilation, and a new failure must not make the candidate total look smaller.
 Compare per-file deltas as well because an aggregate win can hide a large
 regression in one contract.
 
-For the CI corpus, use the `BENCHMARK_REF` and `SOLC_VERSION` pinned in
-`.github/workflows/bench.yml`. Use the current benchmark checkout at that pin
-and initialize its recursive submodules; do not create another worktree. Run
-`solar_bench.py --suite all` as a quick size screen, then enable the hot gas
-workload with `--gas --gas-profile hot --start-anvil` before accepting an
-`-Ogas` candidate. Always write JSON with `--output`, retain the baseline JSON,
-and compare the same test IDs and gas-call labels. `--allow-failures` keeps an
-exploratory run going; it does not make compiler failures or runtime mismatches
-acceptable. Use `--solar-optimize size` for the corresponding `-Osize` screen.
+For the runtime corpus, use the `SOLC_VERSION` pinned in
+`.github/workflows/bench.yml`; the Solidity sources and their upstream commits
+are pinned in `testdata/codegen-runtime/README.md`. Run the command above as a
+quick size screen, then enable the hot gas workload with
+`--gas --gas-profile hot --start-anvil` before accepting an `-Ogas` candidate.
+Always write JSON with `--output`, retain the baseline JSON, and compare the
+same test IDs and gas-call labels. `--allow-failures` keeps an exploratory run
+going; it does not make compiler failures or runtime mismatches acceptable.
+Use the UI codegen corpus for the corresponding `-Osize` screen.
 
 When tuning a pipeline, remove or move one pass group at a time. Record the
 candidate name, exact ordering, UI gas/size reports, CI size report, and hot-gas
