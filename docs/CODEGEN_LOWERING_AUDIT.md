@@ -186,9 +186,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi.decode` is now represented by a semantic MIR operation and lowered by
    the ABI pass; the remaining work is broader independent differential
    coverage.
-2. Finish base-constructor argument forwarding for indirect and unresolved
-   constructor arguments, and cover the remaining constructor modifier edge
-   cases with Solc-backed runtime tests.
+2. Extend base-constructor argument forwarding coverage to the remaining
+   unresolved and constructor-modifier edge cases. Inherited constructor
+   arguments that call direct or virtual functions now have Solc-backed
+   run-call coverage.
 3. Add the remaining Yul call builtins (`extcall`, `extdelegatecall`, and
    `extstaticcall`) and remaining function-pointer ABI edge cases. Custom
    error catch clauses are rejected by the tracked Solidity type checker and
