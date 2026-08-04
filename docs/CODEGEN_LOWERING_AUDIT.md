@@ -197,7 +197,7 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
 4. Extend storage-reference CFG tests to packed and Yul offset shapes, and
    complete allocation-guard differential coverage against Solc.
 5. Bring the UI snapshots back in sync with the rewrite. The current
-   `cargo uitest` run still reports 137 snapshot mismatches while the active
+   `cargo uitest` run still reports 136 snapshot mismatches while the active
    Foundry, Solidity, and Yul suites pass; no snapshots have been blessed.
 
 Unsupported HIR emits a diagnostic and leaves an `invalid` MIR terminator in the
