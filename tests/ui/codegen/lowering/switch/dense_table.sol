@@ -4,6 +4,14 @@
 // TABLE: push 10
 // TABLE-NEXT: swap1
 // TABLE-NEXT: sub
+// TABLE-NEXT: dup1
+// TABLE-NEXT: push 24
+// TABLE-NEXT: gt
+// TABLE-NEXT: push [[IN_RANGE:bb[0-9]+]]
+// TABLE-NEXT: jumpi
+// TABLE-NEXT: pop
+// TABLE-NEXT: push 255
+// TABLE-NEXT: jump
 // TABLE: indexed_jump
 contract SwitchDenseTable {
     uint256 value;

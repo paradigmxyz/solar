@@ -330,6 +330,8 @@ pub(crate) enum TerminatorKind {
         else_block: BlockId,
     },
     /// Jump through a dense zero-based table using an index from the stack.
+    ///
+    /// The index must be in range; lowering intentionally emits no bounds check.
     IndexedJump(Box<[BlockId]>),
     /// Terminal EVM opcode.
     Op(u8),

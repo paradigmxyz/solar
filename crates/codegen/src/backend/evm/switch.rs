@@ -175,8 +175,8 @@ impl SwitchDefault {
                 }
             }
             Self::CleanupJump => POP_GAS + DEFAULT_JUMP_GAS,
-            Self::Fallthrough => DEFAULT_JUMP_GAS,
-            Self::CleanupFallthrough => POP_GAS + DEFAULT_JUMP_GAS,
+            Self::Fallthrough => 0,
+            Self::CleanupFallthrough => POP_GAS,
         }
     }
 
@@ -2131,7 +2131,7 @@ mod tests {
         );
         assert_eq!(explicit.code_size, fallthrough.code_size + MIN_DEFAULT_JUMP_LEN);
         assert_eq!(explicit.max_code_size, fallthrough.max_code_size);
-        assert_eq!(explicit.miss_gas, fallthrough.miss_gas);
+        assert_eq!(explicit.miss_gas, fallthrough.miss_gas + DEFAULT_JUMP_GAS);
     }
 
     #[test]
