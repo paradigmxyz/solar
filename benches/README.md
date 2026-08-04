@@ -41,6 +41,7 @@ observations to match. The corpus contains four micro contracts, including the s
 contracts extracted from the pinned OpenZeppelin and Solady project inputs. Its sources and
 upstream commits are documented in
 [`testdata/codegen-runtime/`](../testdata/codegen-runtime/README.md).
+The runtime harness and its tests are in [`runtime/`](runtime/).
 
 For example, this command benchmarks the `my-branch` candidate with Gungraun, compares it against
 `main`, and skips the codegen runtime and CodSpeed jobs:

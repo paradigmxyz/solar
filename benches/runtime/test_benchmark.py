@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest import mock
 
 
-SCRIPT = Path(__file__).with_name("run_codegen_benchmark.py")
+SCRIPT = Path(__file__).with_name("benchmark.py")
 sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("codegen_benchmark", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
@@ -18,7 +18,7 @@ SPEC.loader.exec_module(benchmark)
 class CorpusTests(unittest.TestCase):
     def test_vendored_cases_and_projects_exist(self) -> None:
         self.assertEqual(len(benchmark.TEST_CASES), 4)
-        self.assertEqual(len(benchmark.REPO_TEST_CASES), 9)
+        self.assertEqual(len(benchmark.REPOSITORY_TEST_CASES), 9)
         self.assertTrue(benchmark.RUNTIME_FIXTURES.is_file())
         expected_source_counts = {
             "uniswap-v2-pair": 10,
@@ -31,10 +31,12 @@ class CorpusTests(unittest.TestCase):
             "lilweb3-fractional": 3,
             "maple-erc20": 2,
         }
-        for case in benchmark.REPO_TEST_CASES:
+        for case in benchmark.REPOSITORY_TEST_CASES:
             self.assertTrue(case.project_path.is_file(), case.test_id)
             payload = json.loads(
-                benchmark.project_standard_json_input(case.project_file, case.source)
+                benchmark.project_standard_json_input(
+                    case.project_file, case.source, case.contract_name
+                )
             )
             self.assertIn(case.source, payload["sources"], case.test_id)
             self.assertEqual(
@@ -45,16 +47,16 @@ class CorpusTests(unittest.TestCase):
     def test_micro_sources_are_externalized(self) -> None:
         payload = json.loads(benchmark.standard_json_input(benchmark.TEST_CASES[0]))
 
-        self.assertEqual(list(payload["sources"]), ["factorial.sol"])
+        self.assertEqual(list(payload["sources"]), ["Factorial.sol"])
         self.assertTrue(
-            payload["sources"]["factorial.sol"]["content"].startswith(
+            payload["sources"]["Factorial.sol"]["content"].startswith(
                 "\n// SPDX-License-Identifier: MIT"
             )
         )
         self.assertTrue(payload["settings"]["viaIR"])
 
     def test_filters_incompatible_solc_versions(self) -> None:
-        uniswap = benchmark.REPO_TEST_CASES[0]
+        uniswap = benchmark.REPOSITORY_TEST_CASES[0]
 
         self.assertTrue(
             benchmark.version_in_range("0.5.16", uniswap.min_solc, uniswap.max_solc)

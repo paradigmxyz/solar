@@ -384,7 +384,7 @@ benchmark before editing. Do not use release builds for routine local tests:
 
 ```bash
 cargo build -p solar-compiler --bin solar
-python3 .github/scripts/run_codegen_benchmark.py \
+python3 benches/runtime/benchmark.py \
   --solc /path/to/pinned/solc --solar target/debug/solar \
   --suite all --allow-failures \
   --output target/codegen-bench/corpus-baseline.json

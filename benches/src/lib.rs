@@ -52,10 +52,13 @@ pub fn get_srcs() -> &'static [Source] {
         sources.extend([
             include_source("../testdata/projects/seaport-1.6.json.gz", Capabilities::all()),
             include_source(
-                "../testdata/projects/openzeppelin-5.6.1.json.gz",
+                "../testdata/codegen-runtime/projects/openzeppelin-5.6.1.json.gz",
                 Capabilities::no_codegen(),
             ),
-            include_source("../testdata/projects/solady-0.1.26.json.gz", Capabilities::all()),
+            include_source(
+                "../testdata/codegen-runtime/projects/solady-0.1.26.json.gz",
+                Capabilities::all(),
+            ),
             include_source(
                 "../testdata/projects/v4-core-4.0.0.json.gz",
                 Capabilities::no_codegen(),

@@ -63,7 +63,7 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/schema-test"
           "$RUNNER_TEMP/schema-test/bin/pip" install jsonschema==4.25.1
           "$RUNNER_TEMP/schema-test/bin/python" -m unittest discover \
-            -s .github/scripts -p 'test_*.py'
+            -s benches/runtime -p 'test_*.py'
 
       - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
@@ -129,7 +129,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p target/codegen-bench
-          if ! python3 .github/scripts/run_codegen_benchmark.py --verbose \
+          if ! python3 benches/runtime/benchmark.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
             --solar target/debug/solar \
             --suite all \
@@ -158,7 +158,7 @@ jobs:
           if [[ -f target/codegen-bench/baseline/results.json ]]; then
             args+=(--baseline target/codegen-bench/baseline/results.json)
           fi
-          python3 .github/scripts/check_codegen_benchmark.py "${args[@]}"
+          python3 benches/runtime/report.py "${args[@]}"
 
       - name: Comment on PR
         if: >-

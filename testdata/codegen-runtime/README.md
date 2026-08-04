@@ -29,6 +29,9 @@ The OpenZeppelin cases share `projects/openzeppelin-runtime.json.gz`, and the Li
 share `projects/lilweb3-runtime.json.gz`; the file counts above are the sliced closure for each
 case.
 
+The large OpenZeppelin and Solady cases use the pinned archives in this same `projects/`
+directory. The normal benchmark suite also reads those archives from here.
+
 The three additional micro contracts (`../Arithmetic.sol`, `../Factorial.sol`, and
 `../SumArray.sol`) came from the benchmark repository at the commit above. The runtime suite
 reuses the existing `../Counter.sol` source from the normal benchmark suite. The Aave harness is

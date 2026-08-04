@@ -18,6 +18,18 @@ from pathlib import Path
 from typing import Any
 
 
+def normalize_timings(timings: Any) -> dict[str, int | float]:
+    if not isinstance(timings, dict):
+        return {}
+    normalized = {}
+    for name, value in timings.items():
+        if isinstance(value, dict):
+            value = value.get("wall_time_seconds")
+        if isinstance(value, (int, float)):
+            normalized["repository" if name == "repo" else str(name)] = value
+    return normalized
+
+
 def load_document(path: Path | None, label: str) -> dict[str, Any]:
     empty = {"results": [], "timings": {}}
     if path is None:
@@ -32,12 +44,16 @@ def load_document(path: Path | None, label: str) -> dict[str, Any]:
     if not isinstance(data, dict) or not isinstance(data.get("results"), list):
         warning(f"{label} benchmark results have unexpected shape: expected result document")
         return empty
-    timings = data.get("timings")
-    return {"results": data["results"], "timings": timings if isinstance(timings, dict) else {}}
+    return {"results": data["results"], "timings": normalize_timings(data.get("timings"))}
+
+
+def suite_name(result: dict[str, Any]) -> str:
+    suite = str(result.get("suite", "repository"))
+    return "repository" if suite == "repo" else suite
 
 
 def suite_key(result: dict[str, Any]) -> tuple[str, str]:
-    return (str(result.get("suite", "repo")), str(result.get("test_id", "<unknown>")))
+    return (suite_name(result), str(result.get("test_id", "<unknown>")))
 
 
 def by_test_id(results: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
@@ -472,19 +488,9 @@ def metric(value: int | float, unit: str, statistic: str) -> dict[str, Any]:
 def common_benchmark(
     name: str,
     results: list[dict[str, Any]],
-    timing: dict[str, Any] | int | float | None,
+    timing: int | float | None,
 ) -> dict[str, Any] | None:
     if not results or timing is None:
-        return None
-
-    if isinstance(timing, (int, float)):
-        wall_time = timing
-    elif isinstance(timing, dict):
-        wall_time = timing.get("wall_time_seconds")
-    else:
-        wall_time = None
-    if not isinstance(wall_time, (int, float)):
-        warning(f"{name} benchmark timing is missing wall time")
         return None
 
     successful = []
@@ -498,7 +504,7 @@ def common_benchmark(
 
     benchmark = {
         "name": f"codegen_runtime_suite/{name}",
-        "wall_time": metric(wall_time, "second", "total"),
+        "wall_time": metric(timing, "second", "total"),
         "counters": {
             "tests": metric(len(results), "count", "total"),
             "successful_compilations": metric(len(successful), "count", "total"),
@@ -535,6 +541,9 @@ def common_benchmark(
         )
     if compiler_metrics:
         benchmark["compiler"] = compiler_metrics
+    peak_rss_values = complete_values("peak_rss_bytes")
+    if peak_rss_values is not None:
+        benchmark["memory"] = metric(max(peak_rss_values), "byte", "max")
     return benchmark
 
 
@@ -564,9 +573,10 @@ def write_common_result(
     results: list[dict[str, Any]],
     timings: dict[str, Any],
 ) -> None:
+    timings = normalize_timings(timings)
     by_suite: dict[str, list[dict[str, Any]]] = {}
     for result in results:
-        by_suite.setdefault(str(result.get("suite", "repo")), []).append(result)
+        by_suite.setdefault(suite_name(result), []).append(result)
     benchmarks = [
         benchmark
         for suite, suite_results in by_suite.items()

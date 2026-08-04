@@ -9,16 +9,15 @@ from unittest.mock import patch
 from jsonschema import Draft202012Validator
 
 sys.path.insert(0, str(Path(__file__).parent))
-import check_codegen_benchmark as benchmark
+import report as benchmark
 
 
 SCHEMA = json.loads(
     (Path(__file__).resolve().parents[2] / "benches/schema/benchmark-result-v1.schema.json").read_text()
 )
-DEFAULT_TIMING = object()
 
 
-def result(test_id="test", suite="repo", **compiler):
+def result(test_id="test", suite="repository", **compiler):
     return {"test_id": test_id, "suite": suite, "compilers": {"solar": compiler}}
 
 
@@ -110,9 +109,11 @@ class ReportFormattingTests(unittest.TestCase):
 
     def test_codegen_report_combines_all_benches(self):
         micro = result("micro", suite="micro", status="ok", total_gas=10, runtime_size=20)
-        repo = result("repository", status="ok", total_gas=30, runtime_size=40)
+        repository = result("repository", status="ok", total_gas=30, runtime_size=40)
         large = result("large", suite="large", status="ok", total_gas=50, runtime_size=60)
-        report = benchmark.codegen_report([micro, repo, large], [micro, repo, large])
+        report = benchmark.codegen_report(
+            [micro, repository, large], [micro, repository, large]
+        )
         self.assertEqual(
             report,
             "## Codegen benchmark\n"
@@ -126,21 +127,9 @@ class ReportFormattingTests(unittest.TestCase):
 
 
 class CommonBenchmarkResultTests(unittest.TestCase):
-    def write_result(
-        self,
-        micro,
-        repo=None,
-        micro_timing=DEFAULT_TIMING,
-        repo_timing=None,
-        large=None,
-        large_timing=None,
-    ):
-        if repo is None:
-            repo = []
-        if large is None:
-            large = []
-        if micro_timing is DEFAULT_TIMING:
-            micro_timing = {"wall_time_seconds": 1.25}
+    def write_result(self, results, timings=None):
+        if timings is None:
+            timings = {"micro": 1.25}
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ,
             {
@@ -154,20 +143,6 @@ class CommonBenchmarkResultTests(unittest.TestCase):
             return_value={"os": "linux", "arch": "x86_64", "logical_cpus": 4},
         ):
             output = Path(directory) / "common.json"
-            results = [
-                {**entry, "suite": suite}
-                for suite, entries in (("micro", micro), ("repo", repo), ("large", large))
-                for entry in entries
-            ]
-            timings = {
-                suite: timing
-                for suite, timing in (
-                    ("micro", micro_timing),
-                    ("repo", repo_timing),
-                    ("large", large_timing),
-                )
-                if timing is not None
-            }
             benchmark.write_common_result(output, results, timings)
             document = json.loads(output.read_text())
         Draft202012Validator(SCHEMA).validate(document)
@@ -181,6 +156,7 @@ class CommonBenchmarkResultTests(unittest.TestCase):
                 deploy_gas=20,
                 bytecode_size=30,
                 runtime_size=40,
+                peak_rss_bytes=100,
             ),
             result(
                 status="ok",
@@ -188,9 +164,12 @@ class CommonBenchmarkResultTests(unittest.TestCase):
                 deploy_gas=2,
                 bytecode_size=3,
                 runtime_size=4,
+                peak_rss_bytes=200,
             ),
         ]
-        document = self.write_result(micro)
+        document = self.write_result(
+            [{**entry, "suite": "micro"} for entry in micro]
+        )
         self.assertEqual(
             document,
             {
@@ -240,6 +219,11 @@ class CommonBenchmarkResultTests(unittest.TestCase):
                                 "statistic": "total",
                             },
                         },
+                        "memory": {
+                            "value": 200,
+                            "unit": "byte",
+                            "statistic": "max",
+                        },
                     }
                 ],
             },
@@ -256,7 +240,9 @@ class CommonBenchmarkResultTests(unittest.TestCase):
             ),
             result(status="failed"),
         ]
-        document = self.write_result(compilation_failure)
+        document = self.write_result(
+            [{**entry, "suite": "micro"} for entry in compilation_failure]
+        )
         benchmark_result = document["benchmarks"][0]
         self.assertNotIn("gas", benchmark_result)
         self.assertNotIn("compiler", benchmark_result)
@@ -279,20 +265,23 @@ class CommonBenchmarkResultTests(unittest.TestCase):
         for missing, group, metric_name in cases:
             with self.subTest(missing=missing):
                 incomplete = complete | {missing: None}
-                document = self.write_result([result(**complete), result(**incomplete)])
+                document = self.write_result(
+                    [
+                        {**result(**complete), "suite": "micro"},
+                        {**result(**incomplete), "suite": "micro"},
+                    ]
+                )
                 self.assertNotIn(metric_name, document["benchmarks"][0][group])
 
     def test_omits_suite_without_timing(self):
-        results = [result(status="ok", bytecode_size=1, runtime_size=1)]
+        results = [result(status="ok", bytecode_size=1, runtime_size=1, suite="repo")]
         document = self.write_result(
             results,
-            results,
-            micro_timing=None,
-            repo_timing={"wall_time_seconds": 2.0},
+            {"repo": {"wall_time_seconds": 2.0}},
         )
         self.assertEqual(
             [entry["name"] for entry in document["benchmarks"]],
-            ["codegen_runtime_suite/repo"],
+            ["codegen_runtime_suite/repository"],
         )
 
     def test_writes_large_contract_suite(self):
@@ -308,10 +297,8 @@ class CommonBenchmarkResultTests(unittest.TestCase):
             )
         ]
         document = self.write_result(
-            [],
-            micro_timing=None,
-            large=results,
-            large_timing={"wall_time_seconds": 3.5},
+            results,
+            {"large": {"wall_time_seconds": 3.5}},
         )
         self.assertEqual(
             [entry["name"] for entry in document["benchmarks"]],
