@@ -155,7 +155,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   returns, memory arrays, and multi-return calls;
 * `abi.decode` scalar, tuple, struct, fixed- and dynamic-array, and
   calldata-slice paths through semantic memory slices and object copies;
-* canonical minimum-offset checks for dynamic ABI arguments;
+* Solc-compatible dynamic ABI offset bounds, including valid zero offsets
+  and overflow/range rejection;
 * `ecrecover`, `sha256`, and `ripemd160` through version-aware precompile
   calls and semantic memory objects;
 * `string.concat` and `bytes.concat` through one variadic packed-memory path,
@@ -177,9 +178,12 @@ fixed-array deletion.
 The rewrite is not full codegen. The following are explicit next stages, each
 to be backed by Solc comparisons and existing UI or runtime infrastructure:
 
-1. Differentially exercise the aggregate ABI paths against Solc, especially
-   nested dynamic values, malformed offsets, and aggregate returns. The core
-   encode/decode and return paths are now covered by the active runtime corpus.
+1. Differentially exercise the aggregate ABI paths against Solc with
+   independent nested, mixed-tuple, and malformed vectors. The current runtime
+   corpus covers valid flat, dynamic-struct-array, and fixed-dynamic-array
+   vectors plus round-trip cases, including Solc-compatible zero offsets.
+   The duplicate ABI decoder in `lower/function.rs` still needs to be folded
+   into the MIR ABI decoder.
 2. Finish base-constructor argument forwarding for indirect and unresolved
    constructor arguments, and cover the remaining constructor modifier edge
    cases with Solc-backed runtime tests.
