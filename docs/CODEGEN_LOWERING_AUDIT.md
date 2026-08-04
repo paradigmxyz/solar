@@ -198,8 +198,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    blocked by `account.code.length`, unsupported `abi.encodePacked` shapes,
    and unresolved external targets in their OpenZeppelin and forge-std code.
 4. Storage-reference CFG tests now cover packed struct fields, mapping-pointer
-   rebinding, and Yul `.slot`/`.offset` access. Complete allocation-guard
-   differential coverage against Solc.
+   rebinding, and Yul `.slot`/`.offset` access. Direct dynamic bytes and array
+   overflow cases now have exact `Panic(0x41)` run-call checks; extend this
+   coverage to nested and aggregate allocations against Solc.
 5. Bring the UI snapshots back in sync with the rewrite. The current
    `cargo uitest` run still reports 139 snapshot mismatches while the active
    Foundry, Solidity, and Yul suites pass; no snapshots have been blessed.
