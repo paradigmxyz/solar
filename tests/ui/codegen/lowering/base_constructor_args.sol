@@ -4,8 +4,12 @@
 //@ run-call: ConstructorInitializationOrder::x() => 4
 //@ run-call: NamedDerived::value() => 12
 //@ run-call: BaseConstructorReturn::value() => 2
+//@ run-call: FunctionUsageDerived::getA() => 2
+//@ run-call: VirtualFunctionUsageDerived::getA() => 2
 // ported-from: test/libsolidity/semanticTests/constructor/order_of_evaluation.sol
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_inheritance_init_order_3_legacy.sol
+// ported-from: test/libsolidity/semanticTests/constructor/function_usage_in_constructor_arguments.sol
+// ported-from: test/libsolidity/semanticTests/virtualFunctions/virtual_function_usage_in_constructor_arguments.sol
 
 contract Root {
     uint256 public value;
@@ -98,5 +102,54 @@ contract ReturningBase {
 contract BaseConstructorReturn is ReturningBase {
     constructor() {
         value = 2;
+    }
+}
+
+contract FunctionUsageBaseBase {
+    uint256 internal value;
+
+    constructor(uint256 value_) {
+        value = value_;
+    }
+
+    function g() public pure returns (uint256) {
+        return 2;
+    }
+}
+
+contract FunctionUsageBase is FunctionUsageBaseBase(FunctionUsageBaseBase.g()) {}
+
+contract FunctionUsageDerived is FunctionUsageBase {
+    function getA() public view returns (uint256) {
+        return value;
+    }
+}
+
+contract VirtualFunctionUsageBaseBase {
+    uint256 internal value;
+
+    constructor(uint256 value_) {
+        value = value_;
+    }
+
+    function overridden() public pure virtual returns (uint256) {
+        return 1;
+    }
+
+    function g() public pure returns (uint256) {
+        return overridden();
+    }
+}
+
+contract VirtualFunctionUsageBase
+    is VirtualFunctionUsageBaseBase(VirtualFunctionUsageBaseBase.g()) {}
+
+contract VirtualFunctionUsageDerived is VirtualFunctionUsageBase {
+    function getA() public view returns (uint256) {
+        return value;
+    }
+
+    function overridden() public pure override returns (uint256) {
+        return 2;
     }
 }

@@ -326,14 +326,24 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     }
 
     fn lower_implicit_base_constructors(&mut self, contract_id: hir::ContractId) -> Option<()> {
-        let contract = self.gcx.hir.contract(contract_id);
-        for (index, &base_id) in contract.linearized_bases.iter().skip(1).enumerate() {
+        let mut lowered = FxHashSet::default();
+        self.lower_implicit_base_constructors_inner(contract_id, &mut lowered)
+    }
+
+    fn lower_implicit_base_constructors_inner(
+        &mut self,
+        contract_id: hir::ContractId,
+        lowered: &mut FxHashSet<hir::ContractId>,
+    ) -> Option<()> {
+        let bases = self.gcx.hir.contract(contract_id).linearized_bases;
+        for (index, &base_id) in bases.iter().skip(1).enumerate() {
             let Some(constructor_id) = self.gcx.hir.contract(base_id).ctor else { continue };
+            if lowered.contains(&base_id) {
+                continue;
+            }
             let constructor = self.gcx.hir.function(constructor_id);
-            let Some(args) = contract
-                .linearized_bases_args
-                .get(index)
-                .and_then(|modifier| modifier.map(|modifier| modifier.args))
+            let Some(args) = self
+                .base_constructor_args(contract_id, base_id, index)
                 .or_else(|| constructor.parameters.is_empty().then(hir::CallArgs::default))
             else {
                 continue;
@@ -344,9 +354,37 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 id: hir::ItemId::Contract(base_id),
                 args,
             };
-            self.lower_base_constructor(&modifier, constructor_id, constructor)?;
+            lowered.insert(base_id);
+            self.lower_base_constructor(&modifier, constructor_id, constructor, lowered)?;
         }
         Some(())
+    }
+
+    fn base_constructor_args(
+        &self,
+        contract_id: hir::ContractId,
+        base_id: hir::ContractId,
+        index: usize,
+    ) -> Option<hir::CallArgs<'gcx>> {
+        let contract = self.gcx.hir.contract(contract_id);
+        if let Some(modifier) = contract.linearized_bases_args.get(index).copied().flatten() {
+            return Some(modifier.args);
+        }
+
+        for &ancestor_id in contract.linearized_bases.iter().skip(1) {
+            let ancestor = self.gcx.hir.contract(ancestor_id);
+            let Some(ancestor_index) =
+                ancestor.linearized_bases.iter().skip(1).position(|&id| id == base_id)
+            else {
+                continue;
+            };
+            if let Some(modifier) =
+                ancestor.linearized_bases_args.get(ancestor_index).copied().flatten()
+            {
+                return Some(modifier.args);
+            }
+        }
+        None
     }
 
     fn finish(&mut self, returns: &[VariableId]) -> Option<()> {
@@ -849,6 +887,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         modifier: &hir::Modifier<'_>,
         constructor_id: hir::FunctionId,
         constructor: &'gcx hir::Function<'gcx>,
+        lowered: &mut FxHashSet<hir::ContractId>,
     ) -> Option<()> {
         let Some(body) = constructor.body else {
             return report_unsupported(self.gcx, modifier.span, "base constructor body");
@@ -878,7 +917,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let continuation = self.builder.create_block();
         self.return_targets.push(continuation);
         if let Some(contract_id) = constructor.contract {
-            self.lower_implicit_base_constructors(contract_id)?;
+            self.lower_implicit_base_constructors_inner(contract_id, lowered)?;
         }
         let result = self.lower_function_body(constructor.modifiers, body);
         self.return_targets.pop();
