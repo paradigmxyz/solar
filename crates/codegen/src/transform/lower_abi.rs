@@ -740,7 +740,7 @@ impl LowerAbiCx {
                         input_end,
                         constructor,
                         &mut current,
-                        &self.helpers,
+                        Some(&self.helpers),
                     );
                     for &use_value in uses {
                         replacements.insert(use_value, value);
@@ -775,7 +775,7 @@ impl LowerAbiCx {
         input_end: ValueId,
         constructor: bool,
         current: &mut BlockId,
-        helpers: &CleanupHelpers,
+        helpers: Option<&CleanupHelpers>,
     ) -> ValueId {
         builder.switch_to_block(*current);
         let base = if ty.is_dynamic() {
@@ -1078,7 +1078,8 @@ impl LowerAbiCx {
                     constructor,
                     current,
                 );
-                let carries_base = fields.iter().any(crate::mir::AbiParamType::is_dynamic);
+                let carries_base =
+                    !constructor && fields.iter().any(crate::mir::AbiParamType::is_dynamic);
                 let storage_fields = fields.len() + usize::from(carries_base);
                 let size = builder.imm_u64((storage_fields as u64).saturating_mul(32));
                 let layout = crate::mir::MemoryObjectLayout::structure(storage_fields as u64);
@@ -1111,18 +1112,62 @@ impl LowerAbiCx {
         }
     }
 
+    /// Decodes an ABI tuple from an absolute memory range into semantic MIR values.
+    ///
+    /// The same routine serves `abi.decode` and external/constructor wrappers. The caller
+    /// supplies the tuple base and byte length; this entry point turns that range into the
+    /// checked memory-input form used by the recursive aggregate decoder.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn decode_memory_tuple(
+        builder: &mut FunctionBuilder<'_>,
+        base: ValueId,
+        length: ValueId,
+        layout: &AbiParamLayout,
+    ) -> Option<Vec<ValueId>> {
+        let input_end = builder.add(base, length);
+        let mut current = builder.current_block();
+        Self::guard_input_range_value(builder, base, length, input_end, &mut current);
+        let head_size = layout.checked_head_size()?;
+        Self::guard_input_range(builder, base, head_size, input_end, &mut current);
+
+        let mut values = Vec::with_capacity(layout.types.len());
+        let mut head_offset = 0_u64;
+        for ty in &layout.types {
+            let offset = builder.imm_u64(head_offset);
+            let head = builder.add(base, offset);
+            let value = Self::decode_aggregate_argument(
+                builder,
+                ty,
+                ty.mir_type(),
+                head,
+                base,
+                input_end,
+                true,
+                &mut current,
+                None,
+            );
+            values.push(value);
+            head_offset = head_offset.checked_add(ty.head_size())?;
+        }
+        Some(values)
+    }
+
     fn decode_scalar(
         builder: &mut FunctionBuilder<'_>,
         scalar: MirType,
         position: ValueId,
         current: &mut BlockId,
-        helpers: &CleanupHelpers,
+        helpers: Option<&CleanupHelpers>,
     ) -> ValueId {
         builder.switch_to_block(*current);
         Self::guard_calldata_range(builder, position, 32, current);
         let value = builder.calldataload(position);
         if let Some(validator) = AbiWordValidator::from_mir_type(scalar) {
-            let valid = validator.condition_with_helpers(builder, value, helpers);
+            let valid = if let Some(helpers) = helpers {
+                validator.condition_with_helpers(builder, value, helpers)
+            } else {
+                validator.condition(builder, value)
+            };
             let next = builder.create_block();
             let revert = builder.create_block();
             builder.branch(valid, next, revert);
@@ -1178,7 +1223,7 @@ impl LowerAbiCx {
         position: ValueId,
         input_end: ValueId,
         current: &mut BlockId,
-        helpers: &CleanupHelpers,
+        helpers: Option<&CleanupHelpers>,
     ) -> ValueId {
         builder.switch_to_block(*current);
         Self::guard_input_range(builder, position, 32, input_end, current);
@@ -1187,7 +1232,11 @@ impl LowerAbiCx {
         let zero = builder.imm_u64(0);
         let value = builder.memory_slice_load_word(slice, zero);
         if let Some(validator) = AbiWordValidator::from_mir_type(scalar) {
-            let valid = validator.condition_with_helpers(builder, value, helpers);
+            let valid = if let Some(helpers) = helpers {
+                validator.condition_with_helpers(builder, value, helpers)
+            } else {
+                validator.condition(builder, value)
+            };
             let next = builder.create_block();
             let revert = builder.create_block();
             builder.branch(valid, next, revert);
@@ -1556,6 +1605,16 @@ impl LowerAbiCx {
             .collect::<Vec<_>>();
         crate::mir::utils::remap_block_order(func, &order);
     }
+}
+
+/// Decodes a memory-backed ABI tuple through the shared ABI-layer decoder.
+pub(crate) fn decode_memory_tuple(
+    builder: &mut FunctionBuilder<'_>,
+    base: ValueId,
+    length: ValueId,
+    layout: &AbiParamLayout,
+) -> Option<Vec<ValueId>> {
+    LowerAbiCx::decode_memory_tuple(builder, base, length, layout)
 }
 
 fn collect_validators(ty: &AbiParamType, validators: &mut Vec<AbiWordValidator>) {

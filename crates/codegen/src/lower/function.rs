@@ -8,7 +8,7 @@ use super::{
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        AbiLayout, AbiParamLayout, AbiType, AllocationSemantics, BlockId, Function,
+        AbiLayout, AbiParamLayout, AbiParamType, AbiType, AllocationSemantics, BlockId, Function,
         FunctionBuilder, FunctionId, ImmutableId, InstKind, MemoryObjectKind, MemoryObjectLayout,
         MirType, Module, SliceLocation, Value, ValueId,
     },
@@ -1213,19 +1213,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.switch_to_block(success_block);
         if !return_types.is_empty() {
             let data = self.materialize_returndata_bytes();
-            let data_start = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
-            let data_length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
             let return_types = return_types
                 .iter()
                 .copied()
                 .map(|ty| ty.with_loc_if_ref(self.gcx, DataLocation::Memory))
                 .collect::<Vec<_>>();
-            let values = self.lower_abi_decode_region(
-                data_start,
-                data_length,
-                &return_types,
-                returns_clause.span,
-            )?;
+            let values = self.lower_abi_decode_values(data, &return_types, returns_clause.span)?;
             for (&binding, value) in returns_clause.args.iter().zip(values) {
                 self.values.insert(binding, value);
             }
@@ -3000,15 +2993,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             );
         }
         let data = self.materialize_returndata_bytes();
-        let data_start = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
-        let data_length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
         let return_types = function
             .returns
             .iter()
             .copied()
             .map(|ty| ty.with_loc_if_ref(self.gcx, DataLocation::Memory))
             .collect::<Vec<_>>();
-        self.lower_abi_decode_region(data_start, data_length, &return_types, callee.span)
+        self.lower_abi_decode_values(data, &return_types, callee.span)
     }
 
     fn lower_internal_function_pointer_call(
@@ -3807,14 +3798,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
 
         let data = self.lower_expr(&args[0])?;
-        let data = match self.builder.func().value_ty(data) {
-            Some(MirType::Slice(_)) => self.materialize_memory_slice(data),
-            _ => data,
-        };
-        let length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
-        let data_start = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
-        let values =
-            self.lower_abi_decode_region(data_start, length, &decoded_types, args[1].span)?;
+        let values = self.lower_abi_decode_values(data, &decoded_types, args[1].span)?;
         if values.len() > 1 {
             let base = self.ensure_multi_return_buffer(values.len());
             for (index, value) in values.iter().copied().enumerate().skip(1) {
@@ -3826,479 +3810,27 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         values.into_iter().next()
     }
 
-    fn abi_decode_is_dynamic(&mut self, ty: Ty<'gcx>) -> Option<bool> {
-        Some(self.types.abi_type(ty)?.is_dynamic())
-    }
-
-    fn abi_decode_head_size(&mut self, ty: Ty<'gcx>) -> Option<u64> {
-        self.types.abi_type(ty)?.checked_head_size()
-    }
-
-    fn lower_abi_decode_region(
+    fn lower_abi_decode_values(
         &mut self,
-        base: ValueId,
-        length: ValueId,
+        data: ValueId,
         types: &[Ty<'gcx>],
         span: Span,
     ) -> Option<Vec<ValueId>> {
-        let head_size = types
-            .iter()
-            .try_fold(0u64, |size, &ty| size.checked_add(self.abi_decode_head_size(ty)?))?;
-        let required = self.builder.imm_u64(head_size);
-        let short = self.builder.lt(length, required);
-        self.revert_if_empty(short);
-
-        let mut values = Vec::with_capacity(types.len());
-        let mut head_offset = 0u64;
-        for &ty in types {
-            let offset = self.builder.imm_u64(head_offset);
-            let head = self.builder.add(base, offset);
-            let value = if self.abi_decode_is_dynamic(ty)? {
-                let relative = self.abi_decode_word(head);
-                self.lower_abi_decode_dynamic(base, length, required, relative, ty, span)?
-            } else {
-                self.lower_abi_decode_static(head, ty, span)?
-            };
-            values.push(value);
-            head_offset = head_offset.checked_add(self.abi_decode_head_size(ty)?)?;
-        }
-        Some(values)
-    }
-
-    fn lower_abi_decode_static(
-        &mut self,
-        address: ValueId,
-        ty: Ty<'gcx>,
-        span: Span,
-    ) -> Option<ValueId> {
-        let ty = ty.peel_refs();
-        if let TyKind::Udvt(inner, _) = ty.kind {
-            return self.lower_abi_decode_static(address, inner, span);
-        }
-        if let TyKind::Struct(id) = ty.kind {
-            return self.lower_abi_decode_static_struct(address, id, span);
-        }
-        if let TyKind::Array(element, len) = ty.kind {
-            return self.lower_abi_decode_static_array(
-                address,
-                element,
-                u64::try_from(len).ok()?,
-                span,
-            );
-        }
-        let value = self.abi_decode_word(address);
-        self.decode_abi_word(ty, value, span)
-    }
-
-    fn lower_abi_decode_static_struct(
-        &mut self,
-        address: ValueId,
-        id: solar_sema::hir::StructId,
-        span: Span,
-    ) -> Option<ValueId> {
-        let fields = self.abi_decode_struct_fields(id);
-        if fields.iter().any(|&ty| self.abi_decode_is_dynamic(ty).unwrap_or(true)) {
-            return report_unsupported(self.gcx, span, "abi.decode target type");
-        }
-        let length = fields
-            .iter()
-            .try_fold(0u64, |size, &ty| size.checked_add(self.abi_decode_head_size(ty)?))?;
-        let length = self.builder.imm_u64(length);
-        self.lower_abi_decode_struct(address, length, &fields, span)
-    }
-
-    fn lower_abi_decode_static_array(
-        &mut self,
-        address: ValueId,
-        element: Ty<'gcx>,
-        len: u64,
-        span: Span,
-    ) -> Option<ValueId> {
-        if self.abi_decode_is_dynamic(element)? {
-            return report_unsupported(self.gcx, span, "abi.decode target type");
-        }
-        let element_head_size = self.abi_decode_head_size(element)?;
-        let element_words = u64::from(self.types.element_words(element));
-        let payload_words = len.checked_mul(element_words)?;
-        let size = payload_words.checked_mul(32)?;
-        let element_words = u32::try_from(element_words).ok()?;
-        let layout = MemoryObjectLayout::FixedArray { len, element_words };
-        let size = self.builder.imm_u64(size);
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
-        for index in 0..len {
-            let offset = self.builder.imm_u64(index.checked_mul(element_head_size)?);
-            let element_address = self.builder.add(address, offset);
-            let value = self.lower_abi_decode_static(element_address, element, span)?;
-            let index = self.builder.imm_u64(index);
-            self.builder.memory_object_store_element(object, layout, index, value);
-        }
-        Some(object)
-    }
-
-    fn abi_decode_struct_fields(&self, id: solar_sema::hir::StructId) -> Vec<Ty<'gcx>> {
-        self.gcx
-            .hir
-            .strukt(id)
-            .fields
-            .iter()
-            .map(|&field| {
-                self.gcx.type_of_item(field.into()).with_loc_if_ref(self.gcx, DataLocation::Memory)
-            })
-            .collect()
-    }
-
-    fn lower_abi_decode_struct(
-        &mut self,
-        base: ValueId,
-        length: ValueId,
-        fields: &[Ty<'gcx>],
-        span: Span,
-    ) -> Option<ValueId> {
-        let values = self.lower_abi_decode_region(base, length, fields, span)?;
-        let fields_len = u64::try_from(fields.len()).ok()?;
-        let size = fields_len.checked_mul(32)?;
-        let layout = MemoryObjectLayout::Struct { fields: fields_len };
-        let size = self.builder.imm_u64(size);
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
-        for (index, value) in values.into_iter().enumerate() {
-            self.builder.memory_object_store_field(object, layout, index as u64, value);
-        }
-        Some(object)
-    }
-
-    fn abi_decode_word(&mut self, address: ValueId) -> ValueId {
-        let word_size = self.builder.imm_u64(32);
-        let slice = self.builder.make_slice(address, word_size, SliceLocation::Memory);
-        let zero = self.builder.imm_u64(0);
-        self.builder.memory_slice_load_word(slice, zero)
-    }
-
-    fn lower_abi_decode_dynamic(
-        &mut self,
-        base: ValueId,
-        length: ValueId,
-        head_size: ValueId,
-        head: ValueId,
-        ty: Ty<'gcx>,
-        span: Span,
-    ) -> Option<ValueId> {
-        let ty = ty.peel_refs();
-        if let TyKind::Udvt(inner, _) = ty.kind {
-            return self.lower_abi_decode_dynamic(base, length, head_size, head, inner, span);
-        }
-        match ty.kind {
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => self.lower_abi_decode_dynamic_bytes(base, length, head_size, head),
-            TyKind::DynArray(element) => {
-                self.lower_abi_decode_dynamic_array(base, length, head_size, head, element, span)
-            }
-            TyKind::Array(element, len) if self.abi_decode_is_dynamic(element)? => self
-                .lower_abi_decode_fixed_array_dynamic(
-                    base,
-                    length,
-                    head_size,
-                    head,
-                    element,
-                    u64::try_from(len).ok()?,
-                    span,
-                ),
-            TyKind::Slice(element) => {
-                self.lower_abi_decode_dynamic(base, length, head_size, head, element, span)
-            }
-            TyKind::Struct(id) => {
-                let head_oob = self.builder.gt(head, length);
-                self.revert_if_empty(head_oob);
-                let struct_base = self.builder.add(base, head);
-                let struct_length = self.builder.sub(length, head);
-                let fields = self.abi_decode_struct_fields(id);
-                self.lower_abi_decode_struct(struct_base, struct_length, &fields, span)
-            }
-            _ => report_unsupported(self.gcx, span, "abi.decode target type"),
-        }
-    }
-
-    fn lower_abi_decode_dynamic_bytes(
-        &mut self,
-        base: ValueId,
-        length: ValueId,
-        _head_size: ValueId,
-        head: ValueId,
-    ) -> Option<ValueId> {
-        let word_size = self.builder.imm_u64(32);
-        let tail_end = self.builder.add(head, word_size);
-        let head_overflow = self.builder.lt(tail_end, head);
-        self.revert_if_empty(head_overflow);
-        let tail_oob = self.builder.gt(tail_end, length);
-        self.revert_if_empty(tail_oob);
-
-        let length_address = self.builder.add(base, head);
-        let value_length = self.abi_decode_word(length_address);
-        let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.builder.add(value_length, thirty_one);
-        let rounded_overflow = self.builder.lt(rounded, value_length);
-        self.revert_if_empty(rounded_overflow);
-        let mask = self.builder.not(thirty_one);
-        let padded = self.builder.and(rounded, mask);
-        let payload_end = self.builder.add(tail_end, padded);
-        let payload_overflow = self.builder.lt(payload_end, tail_end);
-        self.revert_if_empty(payload_overflow);
-        let payload_oob = self.builder.gt(payload_end, length);
-        self.revert_if_empty(payload_oob);
-
-        let empty = self.builder.iszero(padded);
-        let data_size = self.builder.select(empty, word_size, padded);
-        let total_size = self.checked_add(word_size, data_size);
-        let object = self.builder.alloc_object(
-            total_size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
-        self.builder.set_memory_object_len(object, value_length, MemoryObjectKind::Bytes);
-        let source = self.builder.add(length_address, word_size);
-        let source = self.builder.make_slice(source, value_length, SliceLocation::Memory);
-        self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
-        Some(object)
-    }
-
-    fn lower_abi_decode_dynamic_array(
-        &mut self,
-        base: ValueId,
-        length: ValueId,
-        _head_size: ValueId,
-        head: ValueId,
-        element: Ty<'gcx>,
-        span: Span,
-    ) -> Option<ValueId> {
-        let word_size = self.builder.imm_u64(32);
-        let tail_end = self.builder.add(head, word_size);
-        let head_overflow = self.builder.lt(tail_end, head);
-        self.revert_if_empty(head_overflow);
-        let tail_oob = self.builder.gt(tail_end, length);
-        self.revert_if_empty(tail_oob);
-
-        let array_base = self.builder.add(base, head);
-        let element_count = self.abi_decode_word(array_base);
-        let shift = self.builder.imm_u64(250);
-        let shifted_count = self.builder.shr(shift, element_count);
-        let count_in_range = self.builder.iszero(shifted_count);
-        let count_invalid = self.builder.iszero(count_in_range);
-        self.revert_if_empty(count_invalid);
-        let element_dynamic = self.abi_decode_is_dynamic(element)?;
-        let element_head_size =
-            if element_dynamic { 32 } else { self.abi_decode_head_size(element)? };
-        let element_head_size_value = self.builder.imm_u64(element_head_size);
-        let payload_size = self.checked_mul(element_count, element_head_size_value);
-        let payload_end = self.builder.add(tail_end, payload_size);
-        let payload_overflow = self.builder.lt(payload_end, tail_end);
-        self.revert_if_empty(payload_overflow);
-        let payload_oob = self.builder.gt(payload_end, length);
-        self.revert_if_empty(payload_oob);
-
-        let element_words = self.types.element_words(element);
-        let element_words_value = self.builder.imm_u64(u64::from(element_words));
-        let object_words = self.checked_mul(element_count, element_words_value);
-        let object_payload_size = self.checked_mul(object_words, word_size);
-        let total_size = self.checked_add(word_size, object_payload_size);
-        let layout = MemoryObjectLayout::DynamicArray { element_words };
-        let object = self.builder.alloc_object(total_size, layout, AllocationSemantics::INTERNAL);
-        self.builder.set_memory_object_len(object, element_count, MemoryObjectKind::DynamicArray);
-        let source_ptr = self.builder.add(array_base, word_size);
-
-        if !element_dynamic && element_words == 1 && element_head_size == 32 {
-            let source = self.builder.make_slice(source_ptr, payload_size, SliceLocation::Memory);
-            self.builder.memory_object_copy_from_slice(
-                object,
-                MemoryObjectKind::DynamicArray,
-                source,
-            );
-            self.lower_abi_decode_elements(element_count, |this, index| {
-                let offset = this.builder.mul(index, element_head_size_value);
-                let address = this.builder.add(source_ptr, offset);
-                let value = this.lower_abi_decode_static(address, element, span)?;
-                this.builder.memory_object_store_element(object, layout, index, value);
-                Some(())
-            })?;
-        } else if !element_dynamic {
-            self.lower_abi_decode_elements(element_count, |this, index| {
-                let offset = this.builder.mul(index, element_head_size_value);
-                let address = this.builder.add(source_ptr, offset);
-                let value = this.lower_abi_decode_static(address, element, span)?;
-                this.builder.memory_object_store_element(object, layout, index, value);
-                Some(())
-            })?;
-        } else {
-            let region_length = self.builder.sub(length, tail_end);
-            self.lower_abi_decode_elements(element_count, |this, index| {
-                let offset = this.builder.mul(index, element_head_size_value);
-                let address = this.builder.add(source_ptr, offset);
-                let element_head = this.abi_decode_word(address);
-                let value = this.lower_abi_decode_dynamic(
-                    source_ptr,
-                    region_length,
-                    payload_size,
-                    element_head,
-                    element,
-                    span,
-                )?;
-                this.builder.memory_object_store_element(object, layout, index, value);
-                Some(())
-            })?;
-        }
-        Some(object)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn lower_abi_decode_fixed_array_dynamic(
-        &mut self,
-        base: ValueId,
-        length: ValueId,
-        _head_size: ValueId,
-        head: ValueId,
-        element: Ty<'gcx>,
-        len: u64,
-        span: Span,
-    ) -> Option<ValueId> {
-        let word_size = self.builder.imm_u64(32);
-        let element_head_size = self.builder.imm_u64(32);
-        let payload_size = self.builder.imm_u64(len.checked_mul(32)?);
-        let payload_end = self.builder.add(head, payload_size);
-        let payload_overflow = self.builder.lt(payload_end, head);
-        self.revert_if_empty(payload_overflow);
-        let payload_oob = self.builder.gt(payload_end, length);
-        self.revert_if_empty(payload_oob);
-
-        let element_words = self.types.element_words(element);
-        let element_words_value = self.builder.imm_u64(u64::from(element_words));
-        let object_words = self.builder.imm_u64(len);
-        let object_words = self.checked_mul(object_words, element_words_value);
-        let object_payload_size = self.checked_mul(object_words, word_size);
-        let layout = MemoryObjectLayout::FixedArray { len, element_words };
-        let object =
-            self.builder.alloc_object(object_payload_size, layout, AllocationSemantics::INTERNAL);
-        let array_base = self.builder.add(base, head);
-        let region_length = self.builder.sub(length, head);
-        let element_count = self.builder.imm_u64(len);
-        self.lower_abi_decode_elements(element_count, |this, index| {
-            let offset = this.builder.mul(index, element_head_size);
-            let address = this.builder.add(array_base, offset);
-            let element_head = this.abi_decode_word(address);
-            let value = this.lower_abi_decode_dynamic(
-                array_base,
-                region_length,
-                payload_size,
-                element_head,
-                element,
-                span,
-            )?;
-            this.builder.memory_object_store_element(object, layout, index, value);
-            Some(())
-        })?;
-        Some(object)
-    }
-
-    fn lower_abi_decode_elements(
-        &mut self,
-        length: ValueId,
-        mut body: impl FnMut(&mut Self, ValueId) -> Option<()>,
-    ) -> Option<()> {
-        let preheader = self.builder.current_block();
-        let header = self.builder.create_block();
-        let body_block = self.builder.create_block();
-        let exit = self.builder.create_block();
-        self.builder.jump(header);
-        self.builder.switch_to_block(header);
-        let zero = self.builder.imm_u64(0);
-        let index = self.builder.phi(vec![(preheader, zero)]);
-        let more = self.builder.lt(index, length);
-        self.builder.branch(more, body_block, exit);
-        self.builder.switch_to_block(body_block);
-        body(self, index)?;
-        let one = self.builder.imm_u64(1);
-        let next = self.builder.add(index, one);
-        let latch = self.builder.current_block();
-        self.builder.jump(header);
-        self.builder.add_phi_incoming(index, latch, next);
-        self.builder.switch_to_block(exit);
-        Some(())
-    }
-
-    fn decode_abi_word(&mut self, ty: Ty<'gcx>, value: ValueId, span: Span) -> Option<ValueId> {
-        let ty = ty.peel_refs();
-        if let TyKind::Udvt(inner, _) = ty.kind {
-            return self.decode_abi_word(inner, value, span);
-        }
-        let (cleaned, valid) = match ty.kind {
-            TyKind::Elementary(elementary) => match elementary {
-                solar_sema::hir::ElementaryType::Bool => {
-                    let is_zero = self.builder.iszero(value);
-                    let cleaned = self.builder.iszero(is_zero);
-                    let valid = self.builder.eq(value, cleaned);
-                    (cleaned, valid)
-                }
-                solar_sema::hir::ElementaryType::Address(_) => {
-                    let mask = self.builder.imm_u256((U256::from(1) << 160) - U256::from(1));
-                    let cleaned = self.builder.and(value, mask);
-                    let valid = self.builder.eq(value, cleaned);
-                    (cleaned, valid)
-                }
-                solar_sema::hir::ElementaryType::UInt(size) => {
-                    if size.bits() == 256 {
-                        (value, self.builder.imm_bool(true))
-                    } else {
-                        let mask =
-                            self.builder.imm_u256((U256::from(1) << size.bits()) - U256::ONE);
-                        let cleaned = self.builder.and(value, mask);
-                        let valid = self.builder.eq(value, cleaned);
-                        (cleaned, valid)
-                    }
-                }
-                solar_sema::hir::ElementaryType::Int(size) => {
-                    if size.bits() == 256 {
-                        (value, self.builder.imm_bool(true))
-                    } else {
-                        let byte = self.builder.imm_u64(u64::from(size.bytes().saturating_sub(1)));
-                        let cleaned = self.builder.signextend(byte, value);
-                        let valid = self.builder.eq(value, cleaned);
-                        (cleaned, valid)
-                    }
-                }
-                solar_sema::hir::ElementaryType::FixedBytes(size) => {
-                    let shift = self.builder.imm_u64(u64::from(32 - size.bytes()) * 8);
-                    let shifted = self.builder.shr(shift, value);
-                    let cleaned = self.builder.shl(shift, shifted);
-                    let valid = self.builder.eq(value, cleaned);
-                    (cleaned, valid)
-                }
-                _ => (value, self.builder.imm_bool(true)),
-            },
-            TyKind::Enum(id) => {
-                let count = self.gcx.hir.enumm(id).variants.len();
-                let limit = self.builder.imm_u64(count as u64);
-                let valid = self.builder.lt(value, limit);
-                (value, valid)
-            }
-            TyKind::Contract(_) => {
-                let mask = self.builder.imm_u256((U256::from(1) << 160) - U256::from(1));
-                let cleaned = self.builder.and(value, mask);
-                let valid = self.builder.eq(value, cleaned);
-                (cleaned, valid)
-            }
-            _ => return report_unsupported(self.gcx, span, "abi.decode target type"),
+        let data = match self.builder.func().value_ty(data) {
+            Some(MirType::Slice(_)) => self.materialize_memory_slice(data),
+            _ => data,
         };
-        let invalid = self.builder.iszero(valid);
-        self.revert_if_empty(invalid);
-        Some(cleaned)
-    }
-
-    fn revert_if_empty(&mut self, condition: ValueId) {
-        let revert = self.builder.create_block();
-        let continue_block = self.builder.create_block();
-        self.builder.branch(condition, revert, continue_block);
-        self.builder.switch_to_block(revert);
-        let zero = self.builder.imm_u256(U256::ZERO);
-        self.builder.revert(zero, zero);
-        self.builder.switch_to_block(continue_block);
+        let mut abi_types = Vec::with_capacity(types.len());
+        for &ty in types {
+            let Some(abi_type) = self.types.abi_param_type(ty) else {
+                return report_unsupported(self.gcx, span, "abi.decode target type");
+            };
+            abi_types.push(abi_type);
+        }
+        let layout = AbiParamLayout::new(abi_types.into_boxed_slice());
+        let length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+        let base = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+        crate::transform::lower_abi::decode_memory_tuple(&mut self.builder, base, length, &layout)
     }
 
     fn revert_external_call(&mut self, success: ValueId) {
@@ -4363,9 +3895,15 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let four = self.builder.imm_u64(4);
         let payload_ptr = self.builder.add(data_ptr, four);
         let payload_len = self.builder.sub(data_len, four);
-        let relative = self.abi_decode_word(payload_ptr);
-        self.lower_abi_decode_dynamic_bytes(payload_ptr, payload_len, four, relative)
-            .or_else(|| report_unsupported(self.gcx, span, "Error catch payload"))
+        let layout = AbiParamLayout::new(vec![AbiParamType::Bytes].into_boxed_slice());
+        crate::transform::lower_abi::decode_memory_tuple(
+            &mut self.builder,
+            payload_ptr,
+            payload_len,
+            &layout,
+        )
+        .and_then(|mut values| values.pop())
+        .or_else(|| report_unsupported(self.gcx, span, "Error catch payload"))
     }
 
     fn lower_panic_catch_word(&mut self, data: ValueId) -> ValueId {
@@ -5273,8 +4811,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 );
             }
             let data = self.materialize_returndata_bytes();
-            let data_start = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
-            let data_length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
             let return_types = function
                 .returns
                 .iter()
@@ -5284,8 +4820,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                         .with_loc_if_ref(self.gcx, DataLocation::Memory)
                 })
                 .collect::<Vec<_>>();
-            let values =
-                self.lower_abi_decode_region(data_start, data_length, &return_types, expr.span)?;
+            let values = self.lower_abi_decode_values(data, &return_types, expr.span)?;
             if values.len() > 1 {
                 let base = self.ensure_multi_return_buffer(values.len());
                 for (index, value) in values.iter().copied().enumerate().skip(1) {
@@ -5387,8 +4922,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             );
         }
         let data = self.materialize_returndata_bytes();
-        let data_start = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
-        let data_length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
         let return_types = function
             .returns
             .iter()
@@ -5396,8 +4929,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 self.gcx.type_of_item(ret.into()).with_loc_if_ref(self.gcx, DataLocation::Memory)
             })
             .collect::<Vec<_>>();
-        let values =
-            self.lower_abi_decode_region(data_start, data_length, &return_types, expr.span)?;
+        let values = self.lower_abi_decode_values(data, &return_types, expr.span)?;
         if values.len() > 1 {
             let base = self.ensure_multi_return_buffer(values.len());
             for (index, value) in values.iter().copied().enumerate().skip(1) {

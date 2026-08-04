@@ -183,8 +183,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    corpus covers valid flat, typed and decoded dynamic-struct-array, and
    fixed-dynamic-array vectors, one malformed short-input vector, and
    round-trip cases, including Solc-compatible zero offsets.
-   The duplicate ABI decoder in `lower/function.rs` still needs to be folded
-   into the MIR ABI decoder.
+   The recursive decoder now lives in `transform/lower_abi.rs`; the remaining
+   step is to represent `abi.decode` as a MIR operation so HIR lowering no
+   longer invokes the decoder directly.
 2. Finish base-constructor argument forwarding for indirect and unresolved
    constructor arguments, and cover the remaining constructor modifier edge
    cases with Solc-backed runtime tests.
