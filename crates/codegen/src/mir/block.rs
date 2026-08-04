@@ -21,12 +21,6 @@ impl BasicBlock {
     pub(crate) fn new() -> Self {
         Self { instructions: Vec::new(), terminator: None, predecessors: SmallVec::new() }
     }
-
-    /// Returns true if this block has a terminator.
-    #[must_use]
-    pub(crate) const fn is_terminated(&self) -> bool {
-        self.terminator.is_some()
-    }
 }
 
 impl Default for BasicBlock {

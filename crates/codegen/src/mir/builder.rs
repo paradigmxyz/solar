@@ -411,19 +411,6 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::MemoryObjectData(object, kind), Some(MirType::MemPtr))
     }
 
-    /// Projects an element address through the semantic object layout.
-    pub(crate) fn memory_object_element_addr(
-        &mut self,
-        object: ValueId,
-        layout: crate::mir::MemoryObjectLayout,
-        index: ValueId,
-    ) -> ValueId {
-        self.emit_inst(
-            InstKind::MemoryObjectElementAddr { object, layout, index },
-            Some(MirType::MemPtr),
-        )
-    }
-
     /// Loads a direct struct field through the semantic object layout.
     pub(crate) fn memory_object_load_field(
         &mut self,
@@ -582,31 +569,6 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::AbiDecode { data, layout: Box::new(layout) }, Some(result_ty))
     }
 
-    /// Copies a statically shaped aggregate from storage into memory.
-    pub(crate) fn storage_to_memory(
-        &mut self,
-        layout: crate::mir::StorageLayoutRef,
-        storage: ValueId,
-        memory: ValueId,
-    ) {
-        self.emit_void_inst(InstKind::StorageToMemory { storage, memory, layout })
-    }
-
-    /// Copies a statically shaped aggregate from memory into storage.
-    pub(crate) fn memory_to_storage(
-        &mut self,
-        layout: crate::mir::StorageLayoutRef,
-        memory: ValueId,
-        storage: ValueId,
-    ) {
-        self.emit_void_inst(InstKind::MemoryToStorage { memory, storage, layout })
-    }
-
-    /// Clears every storage slot occupied by a statically shaped aggregate.
-    pub(crate) fn clear_storage(&mut self, layout: crate::mir::StorageLayoutRef, storage: ValueId) {
-        self.emit_void_inst(InstKind::ClearStorage { storage, layout })
-    }
-
     /// Emits an mcopy instruction.
     pub(crate) fn mcopy(&mut self, dest: ValueId, src: ValueId, len: ValueId) {
         self.emit_void_inst(InstKind::MCopy(dest, src, len))
@@ -752,16 +714,6 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits an address inside the current internal-call frame.
     pub(crate) fn internal_frame_addr(&mut self, offset: u64) -> ValueId {
         self.emit_inst(InstKind::InternalFrameAddr(offset), Some(MirType::MemPtr))
-    }
-
-    /// Loads a mutable local through its logical frame slot.
-    pub(crate) fn frame_load(
-        &mut self,
-        offset: u64,
-        mode: FrameMode,
-        kind: FrameSlotKind,
-    ) -> ValueId {
-        self.emit_inst(InstKind::FrameLoad { offset, mode, kind }, Some(kind.result_type()))
     }
 
     /// Stores a mutable local through its logical frame slot.
