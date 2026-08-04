@@ -100,8 +100,6 @@ fn watched_paths_under(
         roots.iter().any(|root| path.starts_with(root)).then(|| path.to_path_buf())
     }));
     paths.extend(roots.iter().filter(|path| is_watched_path(path)).cloned());
-    paths.sort();
-    paths.dedup();
     paths
 }
 
@@ -214,8 +212,6 @@ pub(crate) fn did_delete_files(state: &mut GlobalState, params: DeleteFilesParam
     watched_paths.extend(
         state.file_operations.watched_event_paths_under(FileChangeType::DELETED, &deleted_paths),
     );
-    watched_paths.sort_unstable();
-    watched_paths.dedup();
     let schedule_analysis =
         !state.file_operations.consume_watched_events(FileChangeType::DELETED, &watched_paths);
     reconcile_workspace_file_operations(

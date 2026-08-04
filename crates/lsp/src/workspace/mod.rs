@@ -30,7 +30,6 @@ pub(crate) struct Workspace {
     kind: WorkspaceKind,
     compile_opts: CompileOpts,
     source_roots: Vec<PathBuf>,
-    import_only_roots: Vec<PathBuf>,
     source_files: Vec<PathBuf>,
 }
 
@@ -51,7 +50,6 @@ impl Workspace {
             kind: WorkspaceKind::Naked,
             compile_opts: CompileOpts { base_path: Some(root), ..Default::default() },
             source_roots,
-            import_only_roots: Vec::new(),
             source_files: Vec::new(),
         }
     }
@@ -61,7 +59,6 @@ impl Workspace {
             kind: WorkspaceKind::Naked,
             compile_opts: CompileOpts::default(),
             source_roots: Vec::new(),
-            import_only_roots: Vec::new(),
             source_files: Vec::new(),
         }
     }
@@ -83,7 +80,7 @@ impl Workspace {
     }
 
     pub(crate) fn import_only_roots(&self) -> &[PathBuf] {
-        &self.import_only_roots
+        &self.compile_opts.include_paths
     }
 
     pub(crate) fn refresh_source_files(
@@ -98,7 +95,7 @@ impl Workspace {
             if !(SourceFileCollector {
                 workspace_root,
                 source_root: root,
-                import_only_roots: &self.import_only_roots,
+                import_only_roots: self.import_only_roots(),
                 policy,
                 cancellation,
                 metrics,
@@ -109,7 +106,7 @@ impl Workspace {
                 return false;
             }
         }
-        source_files.sort();
+        source_files.sort_unstable();
         source_files.dedup();
         self.source_files = source_files;
         true
@@ -135,7 +132,7 @@ impl Workspace {
 
     pub(crate) fn tracks_disk_file(&self, policy: &WorkspaceIndexPolicy, path: &Path) -> bool {
         is_solidity_file(path)
-            && !self.import_only_roots.iter().any(|root| path.starts_with(root))
+            && !self.import_only_roots().iter().any(|root| path.starts_with(root))
             && self.source_roots.iter().any(|root| {
                 let workspace_root = self.compile_opts.base_path.as_deref().unwrap_or(root);
                 path.starts_with(root) && !policy.excludes_file(workspace_root, root, path)
@@ -154,7 +151,7 @@ impl Workspace {
             .collect::<Vec<_>>();
         let compile_opts = compile_opts(
             root.clone(),
-            import_only_roots.clone(),
+            import_only_roots,
             profile.remappings(&root),
             profile.evm_version(),
         );
@@ -162,7 +159,6 @@ impl Workspace {
         Ok(Self {
             kind: WorkspaceKind::Foundry,
             source_roots,
-            import_only_roots,
             compile_opts,
             source_files: Vec::new(),
         })

@@ -2284,6 +2284,33 @@ fn concurrent_watched_file_updates_keep_desired_specs_and_generation_in_sync() {
     assert_eq!(current.generation, generation);
 }
 
+#[test]
+fn global_fallback_watched_file_update_ignores_spec_changes() {
+    let project = TestProject::new();
+    let mut params = project.initialize_params();
+    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
+            dynamic_registration: Some(true),
+            relative_pattern_support: Some(false),
+        }),
+        ..Default::default()
+    });
+    let (_, config) = negotiate_capabilities(params);
+    let coordinator = WatchedFileRegistrationCoordinator::default();
+    let first_specs = vec![WatchedFileSpec { base: project.path("/first"), pattern: "**/*.sol" }];
+    let first = prepare_watched_file_registration_update(&config, &coordinator, first_specs, false)
+        .unwrap();
+
+    assert!(first.desired_specs.is_empty());
+    let generation = first.generation;
+    let second_specs = vec![WatchedFileSpec { base: project.path("/second"), pattern: "**/*.sol" }];
+    assert!(
+        prepare_watched_file_registration_update(&config, &coordinator, second_specs, true)
+            .is_none()
+    );
+    assert_eq!(coordinator.generation.load(Ordering::Acquire), generation);
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn failed_watched_file_registration_allows_the_same_specs_to_retry() {
     let project = TestProject::new();

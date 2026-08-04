@@ -153,12 +153,19 @@ impl WorkspaceIndexPolicy {
     }
 
     fn excludes_relative_path(&self, workspace_root: &Path, path: &Path, directory: bool) -> bool {
-        let Some(relative) = portable_relative_path(workspace_root, path) else { return false };
+        if self.excludes.is_empty() {
+            return false;
+        }
+        let Some(mut relative) = portable_relative_path(workspace_root, path) else { return false };
         let options = MatchOptions { require_literal_separator: true, ..MatchOptions::new() };
-        self.excludes.iter().any(|pattern| {
-            pattern.matches_with(&relative, options)
-                || directory && pattern.matches_with(&format!("{relative}/"), options)
-        })
+        if self.excludes.iter().any(|pattern| pattern.matches_with(&relative, options)) {
+            return true;
+        }
+        if !directory {
+            return false;
+        }
+        relative.push('/');
+        self.excludes.iter().any(|pattern| pattern.matches_with(&relative, options))
     }
 }
 

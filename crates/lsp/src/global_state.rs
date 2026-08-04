@@ -105,7 +105,7 @@ impl AnalysisPathIndex {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Default)]
 struct ImportPathProbes {
     existing: FxHashSet<PathBuf>,
     missing: FxHashSet<PathBuf>,
@@ -115,12 +115,14 @@ struct ImportPathProbes {
 struct ImportPathTracker(Arc<Mutex<ImportPathProbes>>);
 
 impl ImportPathTracker {
-    fn probes(&self) -> ImportPathProbes {
-        self.0.lock().clone()
+    fn take_probes(&self) -> ImportPathProbes {
+        mem::take(&mut *self.0.lock())
     }
 
     fn clear(&self) {
-        *self.0.lock() = ImportPathProbes::default();
+        let mut probes = self.0.lock();
+        probes.existing.clear();
+        probes.missing.clear();
     }
 }
 
@@ -310,7 +312,7 @@ impl Default for AnalysisScheduler {
 struct AnalysisTasks {
     coordinator: Option<(AnalysisTaskKey, AbortHandle)>,
     worker: Option<(AnalysisTaskKey, AbortHandle)>,
-    cancellation: Option<(usize, IndexingCancellation)>,
+    cancellation: Option<IndexingCancellation>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -327,7 +329,7 @@ enum AnalysisTaskStage {
 
 impl AnalysisTasks {
     fn cancel(&mut self) {
-        if let Some((_, cancellation)) = self.cancellation.take() {
+        if let Some(cancellation) = self.cancellation.take() {
             cancellation.cancel();
         }
         if let Some((_, worker)) = self.worker.take() {
@@ -596,6 +598,9 @@ impl GlobalState {
     }
 
     fn update_watched_file_registration(&self, replace: bool) {
+        if !self.config.supports_watched_file_dynamic_registration() {
+            return;
+        }
         let update = {
             let commit = self.analysis_commit.lock();
             let specs = watched_file_specs(&self.config, &commit.analysis_paths);
@@ -832,7 +837,7 @@ impl GlobalState {
 
         let mut tasks = scheduler.tasks.lock();
         tasks.cancel();
-        tasks.cancellation = Some((version, cancellation.clone()));
+        tasks.cancellation = Some(cancellation.clone());
         let coordinator = tokio::spawn(async move {
             if !delay.is_zero() {
                 tokio::time::sleep(delay).await;
@@ -975,7 +980,7 @@ impl GlobalState {
         if cancel_previous {
             tasks.cancel();
         }
-        tasks.cancellation = Some((version, cancellation.clone()));
+        tasks.cancellation = Some(cancellation.clone());
         let coordinator = tokio::spawn(async move {
             if !delay.is_zero() {
                 tokio::time::sleep(delay).await;
@@ -1563,17 +1568,18 @@ fn watched_file_specs(config: &Config, analysis_paths: &AnalysisPathIndex) -> Ve
         .iter()
         .chain(analysis_paths.existing_unresolved_candidates.iter())
         .chain(analysis_paths.missing_candidates.iter())
-        .filter_map(|path| path.parent().map(Path::to_path_buf))
+        .filter_map(|path| {
+            let parent = path.parent()?;
+            Some((parent.components().count(), parent))
+        })
         .collect::<Vec<_>>();
-    dependency_parents.sort_unstable_by(|a, b| {
-        a.components().count().cmp(&b.components().count()).then_with(|| a.cmp(b))
-    });
+    dependency_parents.sort_unstable();
     dependency_parents.dedup();
-    for parent in dependency_parents {
+    for (_, parent) in dependency_parents {
         if specs.iter().any(|spec| spec.pattern == "**/*.sol" && parent.starts_with(&spec.base)) {
             continue;
         }
-        specs.push(WatchedFileSpec { base: parent, pattern: "**/*.sol" });
+        specs.push(WatchedFileSpec { base: parent.to_path_buf(), pattern: "**/*.sol" });
     }
     specs.sort_unstable();
     specs.dedup();
@@ -1589,18 +1595,19 @@ fn prepare_watched_file_registration_update(
     if !config.supports_watched_file_dynamic_registration() {
         return None;
     }
-    let desired_specs =
-        if config.supports_watched_file_relative_patterns() { specs.clone() } else { Vec::new() };
-    let generation = {
-        let mut current_specs = coordinator.desired_specs.lock();
-        if current_specs.as_ref() == Some(&desired_specs) {
-            return None;
-        }
-        *current_specs = Some(desired_specs.clone());
-        coordinator.generation.fetch_add(1, Ordering::AcqRel).wrapping_add(1)
-    };
+    let relative_patterns = config.supports_watched_file_relative_patterns();
+    let mut current_specs = coordinator.desired_specs.lock();
+    if current_specs.as_ref().is_some_and(|current| {
+        if relative_patterns { current == &specs } else { current.is_empty() }
+    }) {
+        return None;
+    }
+    let desired_specs = if relative_patterns { specs } else { Vec::new() };
+    *current_specs = Some(desired_specs.clone());
+    let generation = coordinator.generation.fetch_add(1, Ordering::AcqRel).wrapping_add(1);
+    drop(current_specs);
 
-    let registration = watched_file_registration_params_with_specs(config, &specs);
+    let registration = watched_file_registration_params_with_specs(config, &desired_specs);
     Some(WatchedFileRegistrationUpdate { generation, desired_specs, registration, replace })
 }
 
@@ -1659,8 +1666,7 @@ fn watched_file_registration_params_with_specs(
     specs: &[WatchedFileSpec],
 ) -> RegistrationParams {
     let kind = Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete);
-    let patterns = ["**/*.sol", "**/foundry.toml", "**/remappings.txt"];
-    let relative_watchers = if config.supports_watched_file_relative_patterns() {
+    let watchers = if config.supports_watched_file_relative_patterns() {
         specs
             .iter()
             .filter_map(|spec| {
@@ -1675,12 +1681,7 @@ fn watched_file_registration_params_with_specs(
             })
             .collect::<Vec<_>>()
     } else {
-        Vec::new()
-    };
-    let watchers = if config.supports_watched_file_relative_patterns() {
-        relative_watchers
-    } else {
-        patterns
+        ["**/*.sol", "**/foundry.toml", "**/remappings.txt"]
             .into_iter()
             .map(|pattern| FileSystemWatcher {
                 glob_pattern: GlobPattern::String(pattern.into()),
@@ -1795,17 +1796,12 @@ impl GlobalStateSnapshot {
             }
         }
 
-        for workspace in workspaces.iter() {
+        for (idx, workspace) in workspaces.iter().enumerate() {
+            let batch = &mut batches[idx];
             for path in workspace.source_files() {
                 if cancellation.is_cancelled() {
                     return None;
                 }
-                let Some(idx) = workspace_path_index
-                    .workspace_idx_for_source_path(self.config.index_policy(), path)
-                else {
-                    continue;
-                };
-                let batch = &mut batches[idx];
                 if batch.seen_paths.contains(path) {
                     continue;
                 }
@@ -1866,7 +1862,6 @@ impl GlobalStateSnapshot {
                 });
                 return false;
             }
-            let new_watched_file_specs = watched_file_specs(&self.config, &analysis_paths);
             let AnalysisResult { mut analyzed_documents, diagnostics, symbol_tables: new_tables } =
                 result;
             let mut index_metrics = self.config.index_metrics();
@@ -1916,12 +1911,17 @@ impl GlobalStateSnapshot {
                 discovery_duration = ?index_metrics.discovery_duration,
                 "published workspace index"
             );
-            let watched_file_registration_update = prepare_watched_file_registration_update(
-                &self.config,
-                &self.watched_file_registration,
-                new_watched_file_specs,
-                true,
-            );
+            let watched_file_registration_update =
+                if self.config.supports_watched_file_dynamic_registration() {
+                    prepare_watched_file_registration_update(
+                        &self.config,
+                        &self.watched_file_registration,
+                        watched_file_specs(&self.config, &commit.analysis_paths),
+                        true,
+                    )
+                } else {
+                    None
+                };
             (old_symbol_tables, refresh_requests, watched_file_registration_update)
         };
         drop(old_symbol_tables);
@@ -2231,19 +2231,20 @@ fn analyze_cancellable_with_source_map(
         if cancellation.is_cancelled() {
             return None;
         }
-        let parsed_paths = compiler
+        let mut parsed_paths = compiler
             .sources()
             .iter()
             .filter_map(|source| source.file.name.as_real().map(Path::to_path_buf))
             .collect::<FxHashSet<_>>();
-        let resolved_dependencies =
-            parsed_paths.difference(&document_link_sources).cloned().collect();
-        let probes = import_paths.probes();
-        let existing_unresolved_candidates =
-            probes.existing.difference(&parsed_paths).cloned().collect();
-        let missing_candidates = probes.missing.difference(&parsed_paths).cloned().collect();
+        let ImportPathProbes {
+            existing: mut existing_unresolved_candidates,
+            missing: mut missing_candidates,
+        } = import_paths.take_probes();
+        existing_unresolved_candidates.retain(|path| !parsed_paths.contains(path));
+        missing_candidates.retain(|path| !parsed_paths.contains(path));
+        parsed_paths.retain(|path| !document_link_sources.contains(path));
         let analysis_paths = AnalysisPathIndex {
-            resolved_dependencies,
+            resolved_dependencies: parsed_paths,
             existing_unresolved_candidates,
             missing_candidates,
         };

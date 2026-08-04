@@ -425,17 +425,13 @@ impl FileOperationCoordinator {
         typ: FileChangeType,
         roots: &[PathBuf],
     ) -> Vec<PathBuf> {
-        let mut paths = self
-            .watched_events
+        self.watched_events
             .iter()
             .filter(|transaction| transaction.typ == typ)
             .flat_map(|transaction| &transaction.paths)
             .filter(|path| roots.iter().any(|root| path.starts_with(root)))
             .cloned()
-            .collect::<Vec<_>>();
-        paths.sort_unstable();
-        paths.dedup();
-        paths
+            .collect()
     }
 
     fn observe_direct_event(&mut self, path: &Path, typ: FileChangeType) -> bool {
