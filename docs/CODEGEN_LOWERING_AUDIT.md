@@ -182,9 +182,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
 
 1. Differentially exercise the aggregate ABI paths against Solc with
    independent nested, mixed-tuple, and malformed vectors. The current runtime
-   corpus covers valid flat, typed and decoded dynamic-struct-array, and
-   fixed-dynamic-array vectors, one malformed short-input vector, and
-   round-trip cases, including Solc-compatible zero offsets.
+   corpus covers valid flat, mixed-tuple, typed and decoded
+   dynamic-struct-array, and fixed-dynamic-array vectors, malformed short and
+   invalid-offset inputs, and round-trip cases, including Solc-compatible zero
+   offsets.
    `abi.decode` is now represented by a semantic MIR operation and lowered by
    the ABI pass; the remaining work is broader independent differential
    coverage.
