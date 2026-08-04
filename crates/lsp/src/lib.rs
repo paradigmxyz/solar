@@ -193,3 +193,7 @@ pub async fn run_server_stdio(_args: LspArgs) -> async_lsp::Result<()> {
 #[cfg(test)]
 #[path = "tests/router.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tests/flycheck.rs"]
+mod flycheck_tests;
