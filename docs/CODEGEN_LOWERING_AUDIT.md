@@ -192,15 +192,18 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    unresolved and constructor-modifier edge cases. Inherited constructor
    arguments that call direct or virtual functions now have Solc-backed
    run-call coverage.
-3. Extend function-pointer ABI coverage to the remaining edge cases. Custom
-   error catch clauses are rejected by the tracked Solidity type checker and
-   are not a valid lowering target. The two Unifap projects also remain
-   blocked by `account.code.length`, unsupported `abi.encodePacked` shapes,
-   and unresolved external targets in their OpenZeppelin and forge-std code.
+3. Extend function-pointer ABI coverage to the remaining edge cases. External
+   pointers now have runtime coverage for aggregate arguments and returns,
+   including aggregate `try` return bindings. Custom error catch clauses are
+   rejected by the tracked Solidity type checker and are not a valid lowering
+   target. The two Unifap projects also remain blocked by `account.code.length`,
+   unsupported `abi.encodePacked` shapes, and unresolved external targets in
+   their OpenZeppelin and forge-std code.
 4. Storage-reference CFG tests now cover packed struct fields, mapping-pointer
    rebinding, and Yul `.slot`/`.offset` access. Direct dynamic bytes and array
-   overflow cases now have exact `Panic(0x41)` run-call checks; extend this
-   coverage to nested and aggregate allocations against Solc.
+   overflow cases now have exact `Panic(0x41)` run-call checks, as do nested
+   dynamic arrays and arrays of dynamic structs. Extend this coverage to the
+   remaining aggregate allocation shapes against Solc.
 5. Bring the UI snapshots back in sync with the rewrite. The current
    `cargo uitest` run still reports 139 snapshot mismatches while the active
    Foundry, Solidity, and Yul suites pass; no snapshots have been blessed.
