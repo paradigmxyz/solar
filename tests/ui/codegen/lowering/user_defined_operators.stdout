@@ -3,59 +3,51 @@
 @phase evm-shaped
 fn @doAdd() {
   bb0:
-    v1 = calldatasize
-    v2 = lt v1, 68
-    jumpi v2, bb1, bb2
+    v8 = calldatasize
+    v9 = lt v8, 68
+    jumpi v9, bb3, bb4
   bb1:
-    revert 0, 0
+    tail_call @__revert_stub0
   bb2:
-    v0 = internal_call @add, 1, arg0, arg1
     mstore 128, v0
     returndata 128, 32
-}
-
-fn @add(arg0: i256, arg1: i256) -> i256 {
-  bb0:
+  bb3:
+    revert 0, 0
+  bb4:
     v0 = add arg0, arg1
     v1 = slt arg0, 0
-    v2 = slt v0, arg1
-    v3 = xor v1, v2
-    jumpi v3, bb1, bb2
-  bb1:
-    tail_call @__panic_11
-  bb2:
-    ret v0
-}
-
-fn @__panic_11() {
-  bb0:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v3 = slt v0, 0
+    v5 = xor v3, v1
+    v2 = slt arg1, 0
+    v4 = xor v1, v2
+    v6 = iszero v4
+    v7 = and v6, v5
+    jumpi v7, bb1, bb2
 }
 
 fn @doNeg() {
   bb0:
-    v1 = calldatasize
-    v2 = lt v1, 36
-    jumpi v2, bb1, bb2
+    v2 = calldatasize
+    v3 = lt v2, 36
+    jumpi v3, bb3, bb4
   bb1:
-    revert 0, 0
-  bb2:
-    v0 = internal_call @neg, 1, arg0
-    mstore 128, v0
-    returndata 128, 32
-}
-
-fn @neg(arg0: i256) -> i256 {
-  bb0:
-    v0 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    jumpi v0, bb1, bb2
-  bb1:
-    tail_call @__panic_11
+    tail_call @__revert_stub0
   bb2:
     v1 = sub 0, arg0
-    ret v1
+    mstore 128, v1
+    returndata 128, 32
+  bb3:
+    revert 0, 0
+  bb4:
+    v0 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    jumpi v0, bb1, bb2
+}
+
+fn @__revert_stub0() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @entry() [entry] {

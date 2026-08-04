@@ -1891,6 +1891,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         elements: &[Option<&hir::Expr<'_>>],
         rhs: &hir::Expr<'_>,
     ) -> Option<()> {
+        let rhs = rhs.peel_parens();
         if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind
             && rhs_elements.len() == elements.len()
             && elements.iter().flatten().any(|element| self.is_storage_reference_binding(element))
@@ -1937,35 +1938,27 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             return Some(());
         }
         if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind {
-            if rhs_elements.len() != elements.len() {
+            if rhs_elements.len() < elements.len() {
                 return report_unsupported(self.gcx, rhs.span, "tuple assignment arity");
             }
-            let mut values = Vec::with_capacity(rhs_elements.len());
-            for value in rhs_elements.iter() {
-                values.push(match value {
-                    Some(value) => Some(self.lower_expr(value)?),
-                    None => None,
-                });
-            }
-            for (element, value) in elements.iter().zip(values) {
+            for (index, value) in rhs_elements.iter().enumerate() {
                 let Some(value) = value else {
-                    if element.is_some() {
+                    if elements.get(index).is_some_and(Option::is_some) {
                         return report_unsupported(self.gcx, rhs.span, "tuple assignment value");
                     }
                     continue;
                 };
-                let Some(element) = element else { continue };
+                let value = self.lower_expr(value)?;
+                let Some(Some(element)) = elements.get(index) else { continue };
                 self.store_lvalue(element, value)?;
             }
             return Some(());
         }
         let values = self.lower_values(rhs)?;
-        if values.len() != elements.len() {
+        if values.len() < elements.len() {
             return report_unsupported(self.gcx, rhs.span, "tuple assignment arity");
         }
-        let mut values = values.into_iter();
-        for element in elements {
-            let value = values.next().expect("tuple assignment arity checked");
+        for (element, value) in elements.iter().zip(values) {
             if let Some(element) = element {
                 self.store_lvalue(element, value)?;
             }
@@ -3009,36 +3002,58 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
         let zero = self.builder.imm_u256(U256::ZERO);
-        let ret_size = self.builder.imm_u64(0);
+        let returns = function.returns.len();
+        let decode_returndata =
+            function.returns.iter().any(|&ret| {
+                self.types.abi_type(ret).is_some_and(|ty| !matches!(ty, AbiType::Word))
+            }) || self.gcx.sess.opts.evm_version.supports_returndata();
+        let ret_offset = if !decode_returndata && returns > 1 { input } else { zero };
+        let ret_size = if decode_returndata {
+            zero
+        } else {
+            self.builder.imm_u64((returns as u64).saturating_mul(32))
+        };
         let gas = self.builder.gas();
         let success = if matches!(
             function.state_mutability,
             hir::StateMutability::Pure | hir::StateMutability::View
         ) && self.gcx.sess.opts.evm_version.has_static_call()
         {
-            self.builder.staticcall(gas, address, input, input_size, zero, ret_size)
+            self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
         } else {
-            self.builder.call(gas, address, zero, input, input_size, zero, ret_size)
+            self.builder.call(gas, address, zero, input, input_size, ret_offset, ret_size)
         };
         self.revert_external_call(success);
-        if function.returns.is_empty() {
+        if returns == 0 {
             return Some(Vec::new());
         }
-        if !self.gcx.sess.opts.evm_version.supports_returndata() {
-            return report_error(
-                self.gcx,
-                callee.span,
-                "codegen cannot decode external function-pointer returndata before Byzantium",
-            );
+        if decode_returndata {
+            if !self.gcx.sess.opts.evm_version.supports_returndata() {
+                return report_error(
+                    self.gcx,
+                    callee.span,
+                    "codegen cannot decode external function-pointer returndata before Byzantium",
+                );
+            }
+            let data = self.materialize_returndata_bytes();
+            let return_types = function
+                .returns
+                .iter()
+                .copied()
+                .map(|ty| ty.with_loc_if_ref(self.gcx, DataLocation::Memory))
+                .collect::<Vec<_>>();
+            return self.lower_abi_decode_values(data, &return_types, callee.span);
         }
-        let data = self.materialize_returndata_bytes();
-        let return_types = function
-            .returns
-            .iter()
-            .copied()
-            .map(|ty| ty.with_loc_if_ref(self.gcx, DataLocation::Memory))
-            .collect::<Vec<_>>();
-        self.lower_abi_decode_values(data, &return_types, callee.span)
+        if returns > 1 {
+            let slot = self.builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
+            self.builder.mstore(slot, ret_offset);
+            let mut values = Vec::with_capacity(returns);
+            for index in 0..returns {
+                values.push(self.load_multi_return_value(ret_offset, index));
+            }
+            return Some(values);
+        }
+        Some(vec![self.builder.mload(ret_offset)])
     }
 
     fn lower_internal_function_pointer_call(
@@ -3587,6 +3602,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             Builtin::EcRecover => self.lower_ecrecover_call(args),
             Builtin::StringConcat | Builtin::BytesConcat => {
                 self.lower_concat_builtin_call(builtin, args)
+            }
+            Builtin::UdvtWrap | Builtin::UdvtUnwrap => {
+                let value = self.builtin_args::<1>(builtin, &args)?.first()?;
+                self.lower_expr(value)
             }
             Builtin::Selfdestruct
             | Builtin::Require
@@ -5678,6 +5697,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 let shift = self.builder.imm_u64(224);
                 self.builder.shr(shift, word)
             }
+            Builtin::MsgData => {
+                let offset = self.builder.imm_u64(0);
+                let length = self.builder.calldatasize();
+                self.builder.make_slice(offset, length, SliceLocation::Calldata)
+            }
             Builtin::TxOrigin => self.builder.origin(),
             Builtin::TxGasPrice => self.builder.gasprice(),
             _ => return report_unsupported(self.gcx, expr.span, "environment builtin"),
@@ -6154,7 +6178,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             return match value {
                 ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
                 ConstValue::Integer(value) => Some(self.builder.imm_u256(value.as_u256()?)),
-                _ => report_unsupported(self.gcx, span, "constant value"),
+                ConstValue::String(value) => {
+                    self.lower_bytes_literal(value.as_byte_str_in(self.gcx.sess), span)
+                }
             };
         }
         self.lower_expr(initializer)

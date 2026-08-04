@@ -47,7 +47,7 @@ bb0:
   calldataload
   dup2
   lt
-  push bb10
+  push bb8
   jumpi
   dup1
   push 160
@@ -61,7 +61,7 @@ bb4 [cold]:
   push 0
   dup1
   revert
-bb10 [cold]:
+bb8 [cold]:
   push 0x4e487b71
   push 224
   shl
