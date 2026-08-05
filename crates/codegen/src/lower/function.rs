@@ -5050,6 +5050,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let function_id = self.resolve_call_target(callee, function_id);
         let function = self.gcx.hir.function(function_id);
         let attached = self.gcx.resolved_callee(callee.id).is_some_and(|callee| callee.attached);
+        if let ExprKind::Member(receiver, _) = callee.kind
+            && self.gcx.resolved_builtin(receiver) == Some(Builtin::This)
+        {
+            return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
+        }
         if !attached
             && matches!(function.visibility, hir::Visibility::Public | hir::Visibility::External)
             && let Some(address) = self.linked_library_address(function_id)
