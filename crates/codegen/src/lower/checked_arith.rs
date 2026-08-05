@@ -177,7 +177,10 @@ impl<'gcx> Lowerer<'gcx> {
             BinOpKind::BitAnd => builder.and(lhs, rhs),
             BinOpKind::BitOr => builder.or(lhs, rhs),
             BinOpKind::BitXor => builder.xor(lhs, rhs),
-            BinOpKind::Shl => builder.shl(rhs, lhs),
+            BinOpKind::Shl => {
+                let result = builder.shl(rhs, lhs);
+                self.truncate_wrapping_result(builder, result, arithmetic.integer)
+            }
             BinOpKind::Shr => {
                 // For signed types, >> is arithmetic shift (SAR)
                 if arithmetic.is_signed { builder.sar(rhs, lhs) } else { builder.shr(rhs, lhs) }
@@ -223,10 +226,9 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Truncates a wrapping result back into its sub-word type. The checked
-    /// paths prove the result in range, but unchecked sub-word arithmetic can
-    /// wrap past the type's width, and the checked shapes (and ABI encoding)
-    /// rely on values of type `uintN`/`intN` being clean.
+    /// Truncates a wrapping result back into its sub-word type. Left shifts and unchecked
+    /// arithmetic can wrap past the type's width, while later operations and ABI encoding rely on
+    /// values of type `uintN`/`intN` being clean.
     fn truncate_wrapping_result(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
