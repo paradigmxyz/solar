@@ -51,25 +51,24 @@ fn @nested(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_params=[u256, u25
     revert 0, 36
   bb2:
     v6 = memory_object_load_element memoryfixedarray<3, 1>, v0, 0
-    v7 = lt 0, 2
-    v8 = iszero v7
-    jumpi v8, bb3, bb4
+    v7 = eq v6, 0
+    jumpi v7, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    v8 = alloc memoryfixedarray<2, 1>, exact, zeroed, panic, 64
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 0, v8
+    jump bb4
   bb4:
-    memory_object_store_element memoryfixedarray<2, 1>, v6, 0, 1
-    v9 = lt arg0, 3
-    v10 = iszero v9
-    jumpi v10, bb5, bb6
+    v9 = phi [bb2: v6], [bb3: v8]
+    v10 = lt 0, 2
+    v11 = iszero v10
+    jumpi v11, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v11 = memory_object_load_element memoryfixedarray<3, 1>, v0, arg0
-    v12 = lt arg1, 2
+    memory_object_store_element memoryfixedarray<2, 1>, v9, 0, 1
+    v12 = lt arg0, 3
     v13 = iszero v12
     jumpi v13, bb7, bb8
   bb7:
@@ -77,8 +76,25 @@ fn @nested(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_params=[u256, u25
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v14 = memory_object_load_element memoryfixedarray<2, 1>, v11, arg1
-    ret v14
+    v14 = memory_object_load_element memoryfixedarray<3, 1>, v0, arg0
+    v15 = eq v14, 0
+    jumpi v15, bb9, bb10
+  bb9:
+    v16 = alloc memoryfixedarray<2, 1>, exact, zeroed, panic, 64
+    memory_object_store_element memoryfixedarray<3, 1>, v0, arg0, v16
+    jump bb10
+  bb10:
+    v17 = phi [bb8: v14], [bb9: v16]
+    v18 = lt arg1, 2
+    v19 = iszero v18
+    jumpi v19, bb11, bb12
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    v20 = memory_object_load_element memoryfixedarray<2, 1>, v17, arg1
+    ret v20
 }
 
 fn @fmpIntegrity() -> (u256, u256) [abi_args=lazy, abi_params=[], abi_returns=[word, word]] {

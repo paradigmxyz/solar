@@ -67,15 +67,24 @@ fn @nestedWords(arg0: memorystruct) -> u256 [abi_args=lazy, abi_params=[tuple<ar
     revert 0, 36
   bb2:
     v6 = memory_object_load_element memoryarray<1>, v2, 0
-    v7 = memory_object_len memoryarray, v6
-    v8 = add v1, v7
-    v9 = lt v8, v1
-    jumpi v9, bb3, bb4
+    v7 = eq v6, 0
+    jumpi v7, bb3, bb4
   bb3:
+    v8 = alloc memoryarray<1>, exact, zeroed, panic, 32
+    set_memory_object_len memoryarray, v8, 0
+    memory_object_store_element memoryarray<1>, v2, 0, v8
+    jump bb4
+  bb4:
+    v9 = phi [bb2: v6], [bb3: v8]
+    v10 = memory_object_len memoryarray, v9
+    v11 = add v1, v10
+    v12 = lt v11, v1
+    jumpi v12, bb5, bb6
+  bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    ret v8
+  bb6:
+    ret v11
 }
 

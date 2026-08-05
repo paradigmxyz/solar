@@ -2859,43 +2859,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         report_unsupported(self.gcx, expr.span, "function call")
     }
 
-    fn default_static_object(&mut self, ty: Ty<'gcx>) -> Option<ValueId> {
-        let layout = self.types.memory_layout(ty)?;
-        let size = match layout {
-            MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. } => return None,
-            MemoryObjectLayout::FixedArray { len, element_words } => {
-                len.checked_mul(u64::from(element_words))?.checked_mul(32)?
-            }
-            MemoryObjectLayout::Struct { fields } => fields.checked_mul(32)?,
-        };
-        let size = self.builder.imm_u64(size);
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
-        match ty.peel_refs().kind {
-            TyKind::Struct(id) => {
-                for (index, &field) in self.gcx.hir.strukt(id).fields.iter().enumerate() {
-                    let field_ty = self.gcx.type_of_item(field.into());
-                    if matches!(field_ty.peel_refs().kind, TyKind::Struct(_) | TyKind::Array(..)) {
-                        let value = self.default_static_object(field_ty)?;
-                        self.builder.memory_object_store_field(object, layout, index as u64, value);
-                    }
-                }
-            }
-            TyKind::Array(element, len) => {
-                let len = u64::try_from(len).ok()?;
-                if matches!(element.peel_refs().kind, TyKind::Struct(_) | TyKind::Array(..)) {
-                    for index in 0..len {
-                        let value = self.default_static_object(element)?;
-                        let index = self.builder.imm_u64(index);
-                        self.builder.memory_object_store_element(object, layout, index, value);
-                    }
-                }
-            }
-            _ => {}
-        }
-        Some(object)
-    }
-
-    fn materialize_dynamic_array_element(
+    fn materialize_array_element(
         &mut self,
         object: ValueId,
         layout: MemoryObjectLayout,
@@ -2911,7 +2875,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.branch(is_null, allocate, merge);
 
         self.builder.switch_to_block(allocate);
-        let allocated = self.default_static_object(element)?;
+        let allocated = self.default_object(element)?;
         self.builder.memory_object_store_element(object, layout, index, allocated);
         let allocation_block = self.builder.current_block();
         self.builder.jump(merge);
@@ -6109,17 +6073,22 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 self.bounds_check(index, length);
                 let value = self.builder.memory_object_load_element(object, layout, index);
                 if let TyKind::DynArray(element) = receiver_ty.peel_refs().kind
-                    && matches!(element.peel_refs().kind, TyKind::Struct(_) | TyKind::Array(..))
+                    && self.types.memory_layout(element).is_some()
                 {
-                    return self
-                        .materialize_dynamic_array_element(object, layout, index, element, value);
+                    return self.materialize_array_element(object, layout, index, element, value);
                 }
                 Some(value)
             }
             MemoryObjectLayout::FixedArray { len, .. } => {
                 let length = self.builder.imm_u64(len);
                 self.bounds_check(index, length);
-                Some(self.builder.memory_object_load_element(object, layout, index))
+                let value = self.builder.memory_object_load_element(object, layout, index);
+                if let TyKind::Array(element, _) = receiver_ty.peel_refs().kind
+                    && self.types.memory_layout(element).is_some()
+                {
+                    return self.materialize_array_element(object, layout, index, element, value);
+                }
+                Some(value)
             }
             MemoryObjectLayout::Bytes => {
                 let length = self.builder.memory_object_len(object, layout.kind());

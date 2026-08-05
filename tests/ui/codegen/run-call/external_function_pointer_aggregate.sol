@@ -2,6 +2,8 @@
 //@ run-call: readArguments() => 7, "ok"
 //@ run-call: pointerArgumentRoundtrip() => 8
 //@ run-call: pointerReturnRoundtrip() => 9
+//@ run-call: pointerStructRoundtrip() => 9
+//@ run-call: pointerArrayRoundtrip() => 9
 
 contract ExternalFunctionPointerAggregateTarget {
     function pair() external pure returns (uint256, string memory) {
@@ -18,6 +20,10 @@ contract ExternalFunctionPointerAggregateTarget {
 }
 
 contract ExternalFunctionPointerAggregate {
+    struct PointerHolder {
+        function(uint256) external returns (uint256) pointer;
+    }
+
     ExternalFunctionPointerAggregateTarget private target;
 
     constructor() {
@@ -71,5 +77,19 @@ contract ExternalFunctionPointerAggregate {
     function pointerReturnRoundtrip() external returns (uint256) {
         function(uint256) external returns (uint256) pointer = this.pointer();
         return pointer(8);
+    }
+
+    function pointerStructRoundtrip() external returns (uint256) {
+        PointerHolder memory holder;
+        holder.pointer = this.increment;
+        return holder.pointer(8);
+    }
+
+    function pointerArrayRoundtrip() external returns (uint256) {
+        function(uint256) external returns (uint256)[] memory pointers =
+            new function(uint256) external returns (uint256)[](2);
+        pointers[0] = this.increment;
+        pointers[1] = this.increment;
+        return pointers[0](3) + pointers[1](4);
     }
 }

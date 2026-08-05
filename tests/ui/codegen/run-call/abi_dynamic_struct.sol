@@ -3,6 +3,9 @@
 //@ run-call: allocatedAggregates() => 2, 18, 5, 2, 8
 //@ run-call: fixedAllocatedAggregates() => 2, 12, 5, 2, 9
 //@ run-call: zeroAllocatedAggregates() => 2, 0, 0, 0
+//@ run-call: zeroDynamicAggregates() => 2, 0, 2, 0
+//@ run-call: zeroDynamicAggregatesAfterScratch() => 0, 1
+//@ run-call: zeroNestedDynamicAggregateAfterScratch() => 0
 
 struct InitInput {
     address asset;
@@ -86,5 +89,36 @@ contract AbiDynamicStruct {
             values[0].data.length + values[1].data.length,
             values[0].values.length + values[1].values.length
         );
+    }
+
+    function zeroDynamicAggregates()
+        external
+        pure
+        returns (uint256, uint256, uint256, uint256)
+    {
+        bytes[] memory bytesValues = new bytes[](2);
+        uint256[][] memory arrayValues = new uint256[][](2);
+        return (
+            bytesValues.length,
+            bytesValues[0].length + bytesValues[1].length,
+            arrayValues.length,
+            arrayValues[0].length + arrayValues[1].length
+        );
+    }
+
+    function zeroDynamicAggregatesAfterScratch() external pure returns (uint256, uint256) {
+        bytes[] memory values = new bytes[](1);
+        assembly {
+            mstore(0, 99)
+        }
+        return (values[0].length, values.length);
+    }
+
+    function zeroNestedDynamicAggregateAfterScratch() external pure returns (uint256) {
+        Allocated[] memory values = new Allocated[](1);
+        assembly {
+            mstore(0, 99)
+        }
+        return values[0].data.length;
     }
 }

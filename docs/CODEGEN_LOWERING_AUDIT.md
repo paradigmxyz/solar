@@ -167,7 +167,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * `abi.decode` scalar, tuple, struct, fixed- and dynamic-array, and
   calldata-slice paths through semantic memory slices and object copies;
 * dynamic and fixed memory arrays of structs with nested bytes and dynamic
-  arrays, including zero-initialized aggregate elements from `new` allocations;
+  arrays, including lazy zero-initialization of aggregate elements from `new`
+  allocations and their nested dynamic objects;
 * Solc-compatible dynamic ABI offset bounds, including valid zero offsets
   and overflow/range rejection;
 * `ecrecover`, `sha256`, and `ripemd160` through version-aware precompile
@@ -209,7 +210,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    pointer arguments and pointer returns, including aggregate `try` return
    bindings. Custom error catch clauses are rejected by the tracked Solidity
    type checker and are not a valid lowering target. Creation and runtime code
-   literals now use compiled child artifacts.
+   literals now use compiled child artifacts. External pointers also have
+   runtime coverage inside memory structs and arrays.
    The Unifap creation fixture now passes the differential Foundry
    suite; the companion fixture compiles with no Solar-only regressions, but
    retains seven pre-existing failures under both compilers because its
