@@ -65,6 +65,9 @@ The replacement is split into stateful, private components:
   with raw op emission limited to the explicit inline-assembly boundary.
   Modifier and base-constructor expansion live in `function/modifiers`, with
   continuation blocks carrying the placeholder and return semantics.
+  Checked arithmetic, allocation overflow, and index bounds checks live in the
+  shared `function/checks` module instead of being repeated by each lowering
+  path.
   Memory-backed arrays, tuples, literals, and zero-initialized aggregate
   defaults live in `function/memory_values`.
   Storage-reference access, packed indexing, and aggregate storage copies live
