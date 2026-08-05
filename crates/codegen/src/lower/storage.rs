@@ -1,12 +1,14 @@
 //! Type-directed storage locations used by HIR lowering.
 
+use std::cell::RefCell;
+
 use crate::mir::{FunctionBuilder, TypeSize, ValueId};
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
 use solar_interface::Span;
 use solar_sema::{
     Gcx,
-    hir::{ContractId, ElementaryType, VariableId},
+    hir::{ContractId, ElementaryType, StructId, VariableId},
     ty::{Ty, TyKind},
 };
 
@@ -262,7 +264,7 @@ impl<'gcx> StorageLayout<'gcx> {
 struct StorageBuilder<'gcx> {
     gcx: Gcx<'gcx>,
     locations: FxHashMap<VariableId, StorageLocation>,
-    field_locations: FxHashMap<(solar_sema::hir::StructId, usize), StorageLocation>,
+    field_locations: RefCell<FxHashMap<StructId, Box<[StorageLocation]>>>,
     cursor: StorageCursor,
 }
 
@@ -322,22 +324,12 @@ impl<'gcx> StorageBuilder<'gcx> {
         Self {
             gcx,
             locations: FxHashMap::default(),
-            field_locations: FxHashMap::default(),
+            field_locations: RefCell::new(FxHashMap::default()),
             cursor: StorageCursor::new(),
         }
     }
 
     fn lower(mut self, contract_id: ContractId) -> StorageLayout<'gcx> {
-        for struct_id in self.gcx.hir.strukt_ids() {
-            let mut cursor = StorageCursor::new();
-            for (field, &field_id) in self.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
-                let ty = self.gcx.type_of_item(field_id.into());
-                let encoding = self.packed_encoding(ty);
-                let slots = self.storage_slots(ty, Span::DUMMY);
-                let location = cursor.take(encoding, slots);
-                self.field_locations.insert((struct_id, field), location);
-            }
-        }
         let contract = self.gcx.hir.contract(contract_id);
         for &base in contract.linearized_bases.iter().rev() {
             for id in self.gcx.hir.contract(base).variables() {
@@ -360,12 +352,29 @@ impl<'gcx> StorageBuilder<'gcx> {
         Some(self.cursor.take(encoding, slots))
     }
 
-    fn locate_field(
-        &self,
-        struct_id: solar_sema::hir::StructId,
-        field: usize,
-    ) -> Option<StorageLocation> {
-        self.field_locations.get(&(struct_id, field)).copied()
+    fn locate_field(&self, struct_id: StructId, field: usize) -> Option<StorageLocation> {
+        if let Some(location) =
+            self.field_locations.borrow().get(&struct_id).and_then(|fields| fields.get(field))
+        {
+            return Some(*location);
+        }
+
+        let mut cursor = StorageCursor::new();
+        let locations = self
+            .gcx
+            .hir
+            .strukt(struct_id)
+            .fields
+            .iter()
+            .map(|&field_id| {
+                let ty = self.gcx.type_of_item(field_id.into());
+                let encoding = self.packed_encoding(ty);
+                let slots = self.storage_slots(ty, Span::DUMMY);
+                cursor.take(encoding, slots)
+            })
+            .collect::<Box<_>>();
+        let mut cached = self.field_locations.borrow_mut();
+        cached.entry(struct_id).or_insert(locations).get(field).copied()
     }
 
     fn packed_encoding(&self, ty: Ty<'gcx>) -> Option<(TypeSize, StorageEncoding)> {
