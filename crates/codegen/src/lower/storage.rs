@@ -379,6 +379,9 @@ impl<'gcx> StorageBuilder<'gcx> {
             TyKind::Elementary(ElementaryType::Address(_)) | TyKind::Contract(_) => {
                 (TypeSize::new_int_bits(160), StorageEncoding::Unsigned)
             }
+            TyKind::Fn(function) if function.is_external() => {
+                (TypeSize::new_int_bits(192), StorageEncoding::Unsigned)
+            }
             TyKind::Elementary(ElementaryType::FixedBytes(size)) => {
                 (size, StorageEncoding::FixedBytes)
             }
