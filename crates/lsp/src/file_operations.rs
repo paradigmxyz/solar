@@ -66,6 +66,7 @@ struct RenameWatcherPath {
 struct DirectFileEventTransaction {
     typ: FileChangeType,
     paths: Vec<PathBuf>,
+    roots: Vec<PathBuf>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -329,36 +330,52 @@ impl FileOperationCoordinator {
         true
     }
 
+    #[cfg(test)]
     pub(crate) fn record_direct_events(
         &mut self,
         typ: FileChangeType,
         paths: impl IntoIterator<Item = PathBuf>,
     ) {
+        self.record_direct_events_under(typ, paths, []);
+    }
+
+    pub(crate) fn record_direct_events_under(
+        &mut self,
+        typ: FileChangeType,
+        paths: impl IntoIterator<Item = PathBuf>,
+        roots: impl IntoIterator<Item = PathBuf>,
+    ) {
         debug_assert!(matches!(typ, FileChangeType::CREATED | FileChangeType::DELETED));
         let mut paths = paths.into_iter().map(|path| path.normalize()).collect::<Vec<_>>();
         paths.sort_unstable();
         paths.dedup();
-        if paths.is_empty() {
+        let mut roots = roots.into_iter().map(|path| path.normalize()).collect::<Vec<_>>();
+        roots.sort_unstable();
+        roots.dedup();
+        if paths.is_empty() && roots.is_empty() {
             return;
         }
 
         self.renames.retain(|transaction| {
             transaction.state != RenameTransactionState::Applied
-                || !paths.iter().any(|path| transaction.watcher.is_opposite(path, typ))
+                || !paths
+                    .iter()
+                    .chain(&roots)
+                    .any(|path| transaction.watcher.is_opposite(path, typ))
         });
         for transaction in &mut self.direct_events {
             if transaction.typ != typ {
-                transaction.paths.retain(|path| paths.binary_search(path).is_err());
+                transaction.retain_non_overlapping(&paths, &roots);
             }
         }
         for transaction in &mut self.watched_events {
             if transaction.typ != typ {
-                transaction.paths.retain(|path| paths.binary_search(path).is_err());
+                transaction.retain_non_overlapping(&paths, &roots);
             }
         }
-        self.direct_events.retain(|transaction| !transaction.paths.is_empty());
-        self.watched_events.retain(|transaction| !transaction.paths.is_empty());
-        self.direct_events.push(DirectFileEventTransaction { typ, paths });
+        self.direct_events.retain(|transaction| !transaction.is_empty());
+        self.watched_events.retain(|transaction| !transaction.is_empty());
+        self.direct_events.push(DirectFileEventTransaction { typ, paths, roots });
         if self.direct_events.len() > DIRECT_EVENT_HISTORY_LIMIT {
             self.direct_events.remove(0);
         }
@@ -391,7 +408,7 @@ impl FileOperationCoordinator {
             transaction.paths.dedup();
             return;
         }
-        self.watched_events.push(DirectFileEventTransaction { typ, paths });
+        self.watched_events.push(DirectFileEventTransaction { typ, paths, roots: Vec::new() });
         if self.watched_events.len() > DIRECT_EVENT_HISTORY_LIMIT {
             self.watched_events.remove(0);
         }
@@ -442,14 +459,13 @@ impl FileOperationCoordinator {
         let path = path.normalize();
         let mut matched = false;
         for transaction in &mut self.direct_events {
-            let Ok(index) = transaction.paths.binary_search(&path) else { continue };
             if transaction.typ == typ {
-                matched = true;
+                matched |= transaction.matches(&path);
             } else {
-                transaction.paths.remove(index);
+                transaction.remove_overlapping(&path);
             }
         }
-        self.direct_events.retain(|transaction| !transaction.paths.is_empty());
+        self.direct_events.retain(|transaction| !transaction.is_empty());
         matched
     }
 
@@ -508,6 +524,29 @@ impl FileOperationCoordinator {
             };
             self.renames.remove(index);
         }
+    }
+}
+
+impl DirectFileEventTransaction {
+    fn is_empty(&self) -> bool {
+        self.paths.is_empty() && self.roots.is_empty()
+    }
+
+    fn matches(&self, path: &Path) -> bool {
+        self.paths.binary_search_by(|candidate| candidate.as_path().cmp(path)).is_ok()
+            || self.roots.iter().any(|root| path.starts_with(root))
+    }
+
+    fn remove_overlapping(&mut self, path: &Path) {
+        self.paths.retain(|candidate| !paths_overlap(candidate, path));
+        self.roots.retain(|root| !paths_overlap(root, path));
+    }
+
+    fn retain_non_overlapping(&mut self, paths: &[PathBuf], roots: &[PathBuf]) {
+        let overlaps =
+            |candidate: &Path| paths.iter().chain(roots).any(|path| paths_overlap(candidate, path));
+        self.paths.retain(|path| !overlaps(path));
+        self.roots.retain(|root| !overlaps(root));
     }
 }
 
@@ -1028,6 +1067,27 @@ mod tests {
         );
         assert_eq!(
             coordinator.observe_watcher_event(&b, FileChangeType::CREATED),
+            WatchedFileAction::Process
+        );
+    }
+
+    #[test]
+    fn direct_directory_event_echoes_match_descendants_and_expire_on_opposite_activity() {
+        let root = path("/workspace/created");
+        let child = path("/workspace/created/nested/Target.sol");
+        let mut coordinator = FileOperationCoordinator::default();
+
+        coordinator.record_direct_events_under(FileChangeType::CREATED, [], [root]);
+        assert_eq!(
+            coordinator.observe_watcher_event(&child, FileChangeType::CREATED),
+            WatchedFileAction::Ignore
+        );
+        assert_eq!(
+            coordinator.observe_watcher_event(&child, FileChangeType::CHANGED),
+            WatchedFileAction::Process
+        );
+        assert_eq!(
+            coordinator.observe_watcher_event(&child, FileChangeType::CREATED),
             WatchedFileAction::Process
         );
     }

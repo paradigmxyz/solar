@@ -103,7 +103,9 @@ fn watched_paths_under(
 
 fn is_watched_path(path: &Path) -> bool {
     path.extension().is_some_and(|extension| extension == "sol")
-        || path.file_name().is_some_and(|name| name == "foundry.toml")
+        || path
+            .file_name()
+            .is_some_and(|name| matches!(name.to_str(), Some("foundry.toml" | "remappings.txt")))
 }
 
 pub(crate) fn did_create_files(state: &mut GlobalState, params: CreateFilesParams) -> NotifyResult {
@@ -111,6 +113,14 @@ pub(crate) fn did_create_files(state: &mut GlobalState, params: CreateFilesParam
         params.files.into_iter().filter_map(|file| parse_file_uri(&file.uri)).collect::<Vec<_>>();
     let mut watched_paths =
         watched_paths_under(&state.config, &state.vfs, &state.symbol_tables, &created_paths);
+    watched_paths.extend(
+        state.file_operations.watched_event_paths_under(FileChangeType::CREATED, &created_paths),
+    );
+    watched_paths.sort_unstable();
+    watched_paths.dedup();
+    // Workspace configuration includes the optional `remappings.txt`; a missing path cannot
+    // produce a create watcher echo and must not prevent matching the paths that did.
+    watched_paths.retain(|path| path.exists());
     let schedule_analysis =
         !state.file_operations.consume_watched_events(FileChangeType::CREATED, &watched_paths);
     reconcile_workspace_file_operations(
@@ -123,8 +133,13 @@ pub(crate) fn did_create_files(state: &mut GlobalState, params: CreateFilesParam
     if schedule_analysis {
         watched_paths =
             watched_paths_under(&state.config, &state.vfs, &state.symbol_tables, &created_paths);
+        watched_paths.retain(|path| path.exists());
     }
-    state.file_operations.record_direct_events(FileChangeType::CREATED, watched_paths);
+    state.file_operations.record_direct_events_under(
+        FileChangeType::CREATED,
+        watched_paths,
+        created_paths,
+    );
     ControlFlow::Continue(())
 }
 
@@ -163,10 +178,14 @@ pub(crate) fn did_delete_files(state: &mut GlobalState, params: DeleteFilesParam
         state,
         Vec::new(),
         FileMoveBatch::default(),
-        deleted_paths,
+        deleted_paths.clone(),
         schedule_analysis,
     );
-    state.file_operations.record_direct_events(FileChangeType::DELETED, watched_paths);
+    state.file_operations.record_direct_events_under(
+        FileChangeType::DELETED,
+        watched_paths,
+        deleted_paths,
+    );
     ControlFlow::Continue(())
 }
 

@@ -1,4 +1,4 @@
-use lsp_types::{DocumentLink, Url};
+use lsp_types::{DocumentLink, Location, Position, Range, Url};
 use solar_config::ImportRemapping;
 use solar_interface::{data_structures::map::FxHashSet, source_map::FileResolver};
 use solar_parse::lexer::unescape::{StrKind, try_parse_string_literal};
@@ -138,6 +138,15 @@ impl DocumentLinkIndex {
     pub(crate) fn links(&self, path: &Path) -> Vec<DocumentLink> {
         let Some(indexed) = self.by_file.get(path) else { return Vec::new() };
         indexed.links.iter().filter_map(StoredDocumentLink::to_lsp).collect()
+    }
+
+    pub(crate) fn definition_at(&self, path: &Path, position: Position) -> Option<Location> {
+        let indexed = self.by_file.get(path)?;
+        let link = indexed
+            .links
+            .iter()
+            .find(|link| position >= link.range.start && position < link.range.end)?;
+        Some(Location { uri: Url::from_file_path(&link.target).ok()?, range: Range::default() })
     }
 
     fn sort(&mut self) {

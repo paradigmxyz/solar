@@ -146,6 +146,46 @@ async fn did_create_watcher_echo_does_not_start_another_epoch() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn did_create_remappings_watcher_echo_does_not_start_another_epoch() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+
+        //- /src/Main.sol
+        contract Main {}
+        "#,
+    );
+    let created = project.path("/remappings.txt");
+    let mut state = state(&project);
+    project.write_file("/remappings.txt", "pkg/=lib/pkg/\n");
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    assert!(matches!(
+        crate::handlers::did_create_files(
+            &mut state,
+            CreateFilesParams {
+                files: vec![FileCreate { uri: Url::from_file_path(&created).unwrap().to_string() }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: vec![FileEvent {
+                    uri: Url::from_file_path(created).unwrap(),
+                    typ: FileChangeType::CREATED,
+                }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn watcher_create_followed_by_did_create_starts_one_epoch() {
     let project = TestProject::from_fixture(
         r#"
@@ -261,6 +301,55 @@ async fn watcher_delete_followed_by_did_delete_starts_one_epoch() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn watcher_delete_of_an_open_file_publishes_fresh_tables_once() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Deleted.sol open
+        contract Deleted {}
+        "#,
+    );
+    let deleted = project.path("/Deleted.sol");
+    let mut state = state(&project);
+    fs::remove_file(&deleted).unwrap();
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: vec![FileEvent {
+                    uri: Url::from_file_path(&deleted).unwrap(),
+                    typ: FileChangeType::DELETED,
+                }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("watcher delete analysis should finish")
+        .unwrap();
+    assert!(matches!(
+        crate::handlers::did_delete_files(
+            &mut state,
+            DeleteFilesParams {
+                files: vec![FileDelete { uri: Url::from_file_path(&deleted).unwrap().to_string() }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("reconciled delete analysis should remain available")
+        .unwrap();
+    assert!(tables.read().workspace_symbols("Deleted").is_empty());
+    let vfs_revision = state.vfs.read().content_revision();
+    assert!(state.analysis_revision().is_current(vfs_revision));
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn folder_create_split_watcher_echoes_do_not_start_another_epoch() {
     let project = TestProject::from_fixture(
         r#"
@@ -272,6 +361,8 @@ async fn folder_create_split_watcher_echoes_do_not_start_another_epoch() {
     let first = project.path("/created/First.sol");
     let second = project.path("/created/Second.sol");
     let mut state = state(&project);
+    project.write_file("/created/foundry.toml", "[profile.default]\nsrc = \".\"\n");
+    project.write_file("/created/remappings.txt", "pkg/=lib/pkg/\n");
     project.write_file("/created/First.sol", "contract First {}");
     project.write_file("/created/Second.sol", "contract Second {}");
     let previous_version = state.analysis_version.load(Ordering::Relaxed);
@@ -285,7 +376,12 @@ async fn folder_create_split_watcher_echoes_do_not_start_another_epoch() {
         ),
         ControlFlow::Continue(())
     ));
-    for path in [first, second] {
+    for path in [
+        project.path("/created/foundry.toml"),
+        project.path("/created/remappings.txt"),
+        first,
+        second,
+    ] {
         assert!(matches!(
             crate::handlers::did_change_watched_files(
                 &mut state,
@@ -304,6 +400,138 @@ async fn folder_create_split_watcher_echoes_do_not_start_another_epoch() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn folder_create_records_foundry_flycheck_descendants_for_watcher_echoes() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Existing.sol
+        contract Existing {}
+        "#,
+    );
+    let folder = project.path("/created");
+    let manifest = project.path("/created/foundry.toml");
+    let test = project.path("/created/test/Only.t.sol");
+    let mut state = state(&project);
+    project.write_file("/created/foundry.toml", "[profile.default]\nsrc = \"src\"\n");
+    project.write_file("/created/test/Only.t.sol", "contract OnlyTest {}");
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    assert!(matches!(
+        crate::handlers::did_create_files(
+            &mut state,
+            CreateFilesParams {
+                files: vec![FileCreate { uri: Url::from_file_path(folder).unwrap().to_string() }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: [manifest, test]
+                    .into_iter()
+                    .map(|path| FileEvent {
+                        uri: Url::from_file_path(path).unwrap(),
+                        typ: FileChangeType::CREATED,
+                    })
+                    .collect(),
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn folder_create_records_import_only_descendants_for_watcher_echoes() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        auto_detect_remappings = false
+        libs = ["lib"]
+
+        //- /src/Main.sol
+        import "pkg/src/Target.sol";
+        "#,
+    );
+    let folder = project.path("/lib/pkg");
+    let target = project.path("/lib/pkg/src/Target.sol");
+    let mut state = state(&project);
+    project.write_file("/lib/pkg/src/Target.sol", "contract Target {}");
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    assert!(matches!(
+        crate::handlers::did_create_files(
+            &mut state,
+            CreateFilesParams {
+                files: vec![FileCreate { uri: Url::from_file_path(folder).unwrap().to_string() }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: vec![FileEvent {
+                    uri: Url::from_file_path(target).unwrap(),
+                    typ: FileChangeType::CREATED,
+                }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn import_only_watcher_create_followed_by_folder_create_starts_one_epoch() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        auto_detect_remappings = false
+        libs = ["lib"]
+
+        //- /src/Main.sol
+        import "pkg/src/Target.sol";
+        "#,
+    );
+    let folder = project.path("/lib/pkg");
+    let target = project.path("/lib/pkg/src/Target.sol");
+    let mut state = state(&project);
+    project.write_file("/lib/pkg/src/Target.sol", "contract Target {}");
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: vec![FileEvent {
+                    uri: Url::from_file_path(&target).unwrap(),
+                    typ: FileChangeType::CREATED,
+                }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert!(matches!(
+        crate::handlers::did_create_files(
+            &mut state,
+            CreateFilesParams {
+                files: vec![FileCreate { uri: Url::from_file_path(folder).unwrap().to_string() }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn folder_watcher_create_followed_by_did_create_starts_one_epoch() {
     let project = TestProject::from_fixture(
         r#"
@@ -312,18 +540,20 @@ async fn folder_watcher_create_followed_by_did_create_starts_one_epoch() {
         "#,
     );
     let folder = project.path("/created");
-    let first = project.path("/created/First.sol");
-    let second = project.path("/created/Second.sol");
+    let manifest = project.path("/created/foundry.toml");
+    let first = project.path("/created/src/First.sol");
+    let second = project.path("/created/src/Second.sol");
     let mut state = state(&project);
-    project.write_file("/created/First.sol", "contract First {}");
-    project.write_file("/created/Second.sol", "contract Second {}");
+    project.write_file("/created/foundry.toml", "[profile.default]\nsrc = \"src\"\n");
+    project.write_file("/created/src/First.sol", "contract First {}");
+    project.write_file("/created/src/Second.sol", "contract Second {}");
     let previous_version = state.analysis_version.load(Ordering::Relaxed);
 
     assert!(matches!(
         crate::handlers::did_change_watched_files(
             &mut state,
             lsp_types::DidChangeWatchedFilesParams {
-                changes: [first, second]
+                changes: [manifest, first, second]
                     .into_iter()
                     .map(|path| FileEvent {
                         uri: Url::from_file_path(path).unwrap(),
@@ -351,6 +581,13 @@ async fn folder_watcher_create_followed_by_did_create_starts_one_epoch() {
 async fn folder_delete_split_watcher_echoes_do_not_start_another_epoch() {
     let project = TestProject::from_fixture(
         r#"
+        //- /deleted/foundry.toml
+        [profile.default]
+        src = "."
+
+        //- /deleted/remappings.txt
+        pkg/=lib/pkg/
+
         //- /deleted/First.sol
         contract First {}
 
@@ -374,7 +611,12 @@ async fn folder_delete_split_watcher_echoes_do_not_start_another_epoch() {
         ),
         ControlFlow::Continue(())
     ));
-    for path in [first, second] {
+    for path in [
+        project.path("/deleted/foundry.toml"),
+        project.path("/deleted/remappings.txt"),
+        first,
+        second,
+    ] {
         assert!(matches!(
             crate::handlers::did_change_watched_files(
                 &mut state,

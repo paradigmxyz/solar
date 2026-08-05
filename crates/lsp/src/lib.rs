@@ -32,6 +32,7 @@ mod folding_range;
 mod formatter;
 mod global_state;
 mod handlers;
+mod import_resolution;
 mod inlay_hints;
 mod natspec_completion;
 mod override_index;

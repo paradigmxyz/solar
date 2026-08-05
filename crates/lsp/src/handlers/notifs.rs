@@ -123,6 +123,9 @@ pub(crate) fn did_change_watched_files(
     params: DidChangeWatchedFilesParams,
 ) -> NotifyResult {
     let changes = super::file_operations::reconcile_watched_file_events(state, params.changes);
+    // A paired create may be an unclaimed rename; preserve its open source overlay until a direct
+    // file-operation notification confirms the move.
+    let remove_deleted_vfs = !changes.iter().any(|event| event.typ == FileChangeType::CREATED);
 
     let mut should_rediscover = false;
     let mut disk_paths = Vec::new();
@@ -137,13 +140,18 @@ pub(crate) fn did_change_watched_files(
         };
 
         match path.file_name().and_then(|name| name.to_str()) {
-            Some("foundry.toml") => {
+            Some("foundry.toml" | "remappings.txt") => {
                 should_rediscover = true;
                 if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED) {
                     state.file_operations.record_watched_events(event.typ, [path]);
                 }
             }
             Some(_) if path.extension().is_some_and(|ext| ext == "sol") => {
+                if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED)
+                    && state.config.is_import_only_path(&path)
+                {
+                    should_rediscover = true;
+                }
                 // Open documents are sourced from the VFS, and `didChange` already schedules their
                 // analysis. The watched change emitted after saving one is redundant.
                 if event.typ == FileChangeType::CHANGED && state.vfs.read().exists(&vfs_path) {
@@ -153,6 +161,9 @@ pub(crate) fn did_change_watched_files(
                     Arc::make_mut(&mut state.config).add_source_file(path.clone());
                 } else if event.typ == FileChangeType::DELETED {
                     Arc::make_mut(&mut state.config).remove_source_file(&path);
+                    if remove_deleted_vfs {
+                        state.vfs.write().remove_file_prefixes(std::slice::from_ref(&path));
+                    }
                     removed_paths.push(path.clone());
                 }
                 if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED) {

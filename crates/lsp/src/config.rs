@@ -3,6 +3,7 @@ use crate::{
     diagnostics::DiagnosticOwner,
     file_operations::FileMoveBatch,
     flycheck::{FlycheckConfig, FlycheckInitializationOptions},
+    import_resolution::ImportResolutionContext,
     workspace::{Workspace, WorkspaceKind, WorkspacePathIndex, manifest::ProjectManifest},
 };
 use lsp_types::{
@@ -17,6 +18,7 @@ use lsp_types::{
     TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions,
     WorkspaceFileOperationsServerCapabilities, WorkspaceFolder, WorkspaceServerCapabilities,
 };
+use normalize_path::NormalizePath;
 use serde::Deserialize;
 use solar_interface::data_structures::map::FxHashSet;
 use std::{
@@ -244,6 +246,20 @@ impl Config {
         &self.workspaces
     }
 
+    pub(crate) fn import_resolution_context(
+        &self,
+        path: &Path,
+    ) -> Option<ImportResolutionContext<'_>> {
+        ImportResolutionContext::for_workspaces(&self.workspaces, path)
+    }
+
+    pub(crate) fn is_import_only_path(&self, path: &Path) -> bool {
+        let path = path.normalize();
+        self.workspaces.iter().any(|workspace| {
+            workspace.import_only_roots().iter().any(|root| path.starts_with(root.normalize()))
+        })
+    }
+
     pub(crate) fn workspace_roots(&self) -> &[PathBuf] {
         &self.workspace_roots
     }
@@ -267,13 +283,23 @@ impl Config {
 
     pub(crate) fn file_operation_paths_under(&self, roots: &[PathBuf]) -> Vec<PathBuf> {
         let mut paths = self.tracked_source_files_under(roots);
-        paths.extend(self.workspaces.iter().filter_map(|workspace| {
-            if workspace.kind() != WorkspaceKind::Foundry {
-                return None;
-            }
-            let manifest = workspace.compile_opts().base_path.as_ref()?.join("foundry.toml");
-            roots.iter().any(|root| manifest.starts_with(root)).then_some(manifest)
-        }));
+        paths.extend(
+            self.workspaces
+                .iter()
+                .flat_map(Workspace::flycheck_source_files)
+                .filter(|path| roots.iter().any(|root| path.starts_with(root)))
+                .cloned(),
+        );
+        paths.extend(
+            self.workspaces
+                .iter()
+                .filter(|workspace| workspace.kind() == WorkspaceKind::Foundry)
+                .filter_map(|workspace| workspace.compile_opts().base_path.as_deref())
+                .flat_map(|base_path| {
+                    ["foundry.toml", "remappings.txt"].map(|name| base_path.join(name))
+                })
+                .filter(|path| roots.iter().any(|root| path.starts_with(root))),
+        );
         paths.sort();
         paths.dedup();
         paths
@@ -584,7 +610,13 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
     (
         ServerCapabilities {
             completion_provider: Some(CompletionOptions {
-                trigger_characters: Some(vec![".".into(), "/".into(), "*".into()]),
+                trigger_characters: Some(vec![
+                    ".".into(),
+                    "/".into(),
+                    "*".into(),
+                    "\"".into(),
+                    "'".into(),
+                ]),
                 resolve_provider: Some(true),
                 ..Default::default()
             }),
@@ -886,7 +918,13 @@ mod tests {
         let completion_provider = capabilities.completion_provider.unwrap();
         assert_eq!(
             completion_provider.trigger_characters,
-            Some(vec![".".to_string(), "/".to_string(), "*".to_string()])
+            Some(vec![
+                ".".to_string(),
+                "/".to_string(),
+                "*".to_string(),
+                "\"".to_string(),
+                "'".to_string(),
+            ])
         );
         assert_eq!(completion_provider.resolve_provider, Some(true));
         assert_eq!(capabilities.declaration_provider, Some(DeclarationCapability::Simple(true)));
