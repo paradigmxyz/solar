@@ -4,8 +4,8 @@
 //! makes it an ordinary MIR function named `entry` (the dispatch phase of the
 //! sketch in [`MirPhase`]).
 //!
-//! The synthesized `entry` function loads the 4-byte selector from
-//! `calldataload(0)` and switches on it to one argument-free `internal_call`
+//! The synthesized `entry` function loads the 4-byte selector through a
+//! semantic calldata slice and switches on it to one argument-free `internal_call`
 //! per external wrapper, defaulting to a `revert`. It is meant
 //! to run after [`super::lower_abi::LowerAbi`], which turns external functions into the
 //! argument-free self-decoding wrappers this switch routes to; that is why it
@@ -19,7 +19,7 @@
 //! The backend only consumes the final `evm-shaped` module.
 
 use crate::{
-    mir::{Function, FunctionBuilder, FunctionId, MirPhase, Module, ValueId},
+    mir::{Function, FunctionBuilder, FunctionId, MirPhase, Module, SliceLocation, ValueId},
     pass::MirPass,
 };
 use alloy_primitives::U256;
@@ -273,7 +273,9 @@ impl LowerDispatchCx {
     /// Loads the 4-byte function selector from the first calldata word.
     fn load_selector(&self, builder: &mut FunctionBuilder<'_>) -> ValueId {
         let zero = builder.imm_u64(0);
-        let word = builder.calldataload(zero);
+        let size = builder.imm_u64(32);
+        let slice = builder.make_slice(zero, size, SliceLocation::Calldata);
+        let word = builder.calldata_slice_load_word(slice, zero);
         if self.has_bitwise_shifting {
             let shift = builder.imm_u64(224);
             builder.shr(shift, word)

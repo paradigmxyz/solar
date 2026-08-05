@@ -26,9 +26,7 @@ bb0:
   gt
   push bb4
   jumpi
-  push 0
   push 4
-  add
   calldataload
   dup1
   push 224

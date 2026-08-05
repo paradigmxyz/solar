@@ -58,9 +58,9 @@ fn @entry() [entry] {
     v1 = calldatasize
     jumpi v1, bb2, bb5
   bb2:
-    v2 = calldataload 0
-    v3 = shr 224, v2
-    switch v3, default bb5, [0x8fa81b4e => bb3, 0xe9148a2a => bb4]
+    v3 = calldataload 0
+    v4 = shr 224, v3
+    switch v4, default bb5, [0x8fa81b4e => bb3, 0xe9148a2a => bb4]
   bb3:
     tail_call @doNeg
   bb4:

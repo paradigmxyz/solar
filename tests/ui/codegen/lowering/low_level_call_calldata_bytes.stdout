@@ -48,9 +48,7 @@ bb6:
   gt
   push bb5
   jumpi
-  push 0
   push 4
-  add
   calldataload
   dup1
   push 352
@@ -89,9 +87,7 @@ bb8:
   push bb44
   jump bb37
 bb37:
-  push 0
   push 36
-  add
   calldataload
   dup1
   push 224
@@ -120,9 +116,7 @@ bb20:
   gt
   push bb5
   jumpi
-  push 0
   push 4
-  add
   calldataload
   dup1
   push 352
@@ -264,10 +258,8 @@ bb40:
 bb43:
   push bb5
   jumpi
-  push 0
   push 288
   mload
-  add
   calldataload
   dup1
   push 256
@@ -413,10 +405,8 @@ bb46:
 bb47:
   push bb5
   jumpi
-  push 0
   push 288
   mload
-  add
   calldataload
   dup1
   push 256

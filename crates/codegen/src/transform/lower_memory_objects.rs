@@ -272,13 +272,13 @@ fn lower_function<P: MemoryLayoutPolicy>(
                 }
                 InstKind::MemorySliceLoadWord { slice, offset } => {
                     let source = builder.slice_ptr(slice);
-                    let address = builder.add(source, offset);
+                    let address = dynamic_offset_address(&mut builder, source, offset);
                     builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
                     stats.accesses += 1;
                 }
                 InstKind::CalldataSliceLoadWord { slice, offset } => {
                     let source = builder.slice_ptr(slice);
-                    let address = builder.add(source, offset);
+                    let address = dynamic_offset_address(&mut builder, source, offset);
                     builder.func_mut().inst_mut(inst).kind = InstKind::CalldataLoad(address);
                     stats.accesses += 1;
                 }
@@ -348,6 +348,14 @@ fn offset_address(
         let offset = builder.imm_u64(offset);
         builder.add(base, offset)
     }
+}
+
+fn dynamic_offset_address(
+    builder: &mut FunctionBuilder<'_>,
+    base: crate::mir::ValueId,
+    offset: crate::mir::ValueId,
+) -> crate::mir::ValueId {
+    if builder.func().value_u64(offset) == Some(0) { base } else { builder.add(base, offset) }
 }
 
 fn lower_slice_copy<P: MemoryLayoutPolicy>(

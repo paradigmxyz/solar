@@ -25,9 +25,10 @@
 +     v3 = lt v2, 4
 +     jumpi v3, bb6, bb3
 +   bb3:
-+     v4 = calldataload 0
-+     v5 = shr 224, v4
-+     switch v5, default bb6, [0x12000000 => bb4, 0x8d3a3e57 => bb5]
++     v4 = make_calldata_slice 0, 32
++     v5 = calldata_slice_load_word calldata, v4, 0
++     v6 = shr 224, v5
++     switch v6, default bb6, [0x12000000 => bb4, 0x8d3a3e57 => bb5]
 +   bb4:
 +     tail_call @ping
 +   bb5:

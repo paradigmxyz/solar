@@ -80,9 +80,9 @@ Multi-return buffers use the same semantic fixed-array objects and frame-slot
 operations in HIR lowering, ABI lowering, and generated function-pointer
 dispatchers. Their consumers carry the complete logical slice length instead
 of rebuilding a raw address for each word.
-Typed memory and calldata-slice copies and byte indexing use semantic slice
-loads; direct memory opcodes remain only for inline assembly and explicit
-revert payload construction.
+Typed memory and calldata-slice copies, byte indexing, ABI scalar words, and
+selector dispatch use semantic slice loads; direct memory opcodes remain only
+for inline assembly and explicit revert payload construction.
 
 ## Verified replacement slice
 

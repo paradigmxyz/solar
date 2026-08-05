@@ -51,8 +51,7 @@ fn @use() {
     v7 = gt 36, v6
     jumpi v7, bb1, bb3
   bb3:
-    v37 = add 4, 0
-    v10 = calldataload v37
+    v10 = calldataload 4
     v11 = add v10, 4
     v12 = lt v11, 4
     v13 = calldatasize
@@ -67,8 +66,7 @@ fn @use() {
     v20 = or v17, v19
     jumpi v20, bb1, bb5
   bb5:
-    v39 = add v11, 0
-    v22 = calldataload v39
+    v22 = calldataload v11
     v24 = add v22, 31
     v25 = lt v24, v22
     jumpi v25, bb1, bb6
@@ -95,9 +93,9 @@ fn @entry() [entry] {
     v1 = calldatasize
     jumpi v1, bb2, bb4
   bb2:
-    v2 = calldataload 0
-    v3 = shr 224, v2
-    switch v3, default bb4, [0x1bd03f7 => bb3]
+    v3 = calldataload 0
+    v4 = shr 224, v3
+    switch v4, default bb4, [0x1bd03f7 => bb3]
   bb3:
     tail_call @use
   bb4:

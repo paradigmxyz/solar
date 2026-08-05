@@ -36,9 +36,7 @@ bb5:
   gt
   push bb4
   jumpi
-  push 0
   push 36
-  add
   calldataload
   dup1
   push 224
@@ -104,10 +102,8 @@ bb5:
   pop
   push bb4
   jumpi
-  push 0
   push 288
   mload
-  add
   calldataload
   push 352
   mload
@@ -131,10 +127,8 @@ bb5:
   pop
   push bb4
   jumpi
-  push 0
   push 320
   mload
-  add
   calldataload
   push 288
   mload
@@ -173,10 +167,8 @@ bb5:
   pop
   push bb4
   jumpi
-  push 0
   push 320
   mload
-  add
   calldataload
   dup1
   push 384
@@ -281,10 +273,8 @@ bb5:
   pop
   push bb4
   jumpi
-  push 0
   push 256
   mload
-  add
   calldataload
   push 288
   mload
@@ -323,10 +313,8 @@ bb5:
   pop
   push bb4
   jumpi
-  push 0
   push 256
   mload
-  add
   calldataload
   dup1
   push 256
@@ -428,10 +416,8 @@ bb5:
   or
   push bb4
   jumpi
-  push 0
   push 320
   mload
-  add
   calldataload
   dup1
   push 224
@@ -740,9 +726,7 @@ bb6:
   gt
   push bb5
   jumpi
-  push 0
   push 4
-  add
   calldataload
   dup1
   push 224
@@ -821,9 +805,7 @@ bb11:
   gt
   push bb5
   jumpi
-  push 0
   push 100
-  add
   calldataload
   dup1
   push 448
@@ -848,9 +830,7 @@ bb13:
   gt
   push bb5
   jumpi
-  push 0
   push 36
-  add
   calldataload
   dup1
   push 224
@@ -892,10 +872,8 @@ bb13:
   pop
   push bb5
   jumpi
-  push 0
   push 256
   mload
-  add
   calldataload
   dup1
   push 384
@@ -938,9 +916,7 @@ bb13:
   gt
   push bb5
   jumpi
-  push 0
   push 68
-  add
   calldataload
   dup1
   push 224
@@ -982,10 +958,8 @@ bb13:
   pop
   push bb5
   jumpi
-  push 0
   push 256
   mload
-  add
   calldataload
   dup1
   push 352
@@ -1565,10 +1539,8 @@ bb33:
   or
   push bb5
   jumpi
-  push 0
   push 224
   mload
-  add
   mload
   jump bb44
 bb40:

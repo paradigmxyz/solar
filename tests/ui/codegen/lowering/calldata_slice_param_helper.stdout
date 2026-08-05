@@ -13,8 +13,7 @@ fn @lastWord() {
     v6 = gt 36, v5
     jumpi v6, bb1, bb3
   bb3:
-    v36 = add 4, 0
-    v9 = calldataload v36
+    v9 = calldataload 4
     v10 = add v9, 4
     v11 = lt v10, 4
     v12 = calldatasize
@@ -29,8 +28,7 @@ fn @lastWord() {
     v19 = or v16, v18
     jumpi v19, bb1, bb5
   bb5:
-    v38 = add v10, 0
-    v21 = calldataload v38
+    v21 = calldataload v10
     v23 = add v21, 31
     v24 = lt v23, v21
     jumpi v24, bb1, bb6
@@ -71,8 +69,7 @@ fn @lastWord2() {
     v14 = gt 36, v13
     jumpi v14, bb3, bb5
   bb5:
-    v44 = add 4, 0
-    v17 = calldataload v44
+    v17 = calldataload 4
     v18 = add v17, 4
     v19 = lt v18, 4
     v20 = calldatasize
@@ -87,8 +84,7 @@ fn @lastWord2() {
     v27 = or v24, v26
     jumpi v27, bb3, bb7
   bb7:
-    v46 = add v18, 0
-    v29 = calldataload v46
+    v29 = calldataload v18
     v31 = add v29, 31
     v32 = lt v31, v29
     jumpi v32, bb3, bb8
@@ -121,9 +117,9 @@ fn @entry() [entry] {
     v1 = calldatasize
     jumpi v1, bb2, bb5
   bb2:
-    v2 = calldataload 0
-    v3 = shr 224, v2
-    switch v3, default bb5, [0x3955f902 => bb3, 0x97f495a8 => bb4]
+    v3 = calldataload 0
+    v4 = shr 224, v3
+    switch v4, default bb5, [0x3955f902 => bb3, 0x97f495a8 => bb4]
   bb3:
     tail_call @lastWord
   bb4:

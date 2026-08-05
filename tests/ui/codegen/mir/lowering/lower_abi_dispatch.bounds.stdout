@@ -37,9 +37,10 @@
 +     v1 = calldatasize
 +     jumpi v1, bb2, bb4
 +   bb2:
-+     v2 = calldataload 0
-+     v3 = shr 224, v2
-+     switch v3, default bb4, [0x9507d39a => bb3]
++     v2 = make_calldata_slice 0, 32
++     v3 = calldata_slice_load_word calldata, v2, 0
++     v4 = shr 224, v3
++     switch v4, default bb4, [0x9507d39a => bb3]
 +   bb3:
 +     tail_call @get
 +   bb4:
@@ -64,9 +65,10 @@
       v1 = calldatasize
       jumpi v1, bb2, bb4
     bb2:
-      v2 = calldataload 0
-      v3 = shr 224, v2
-      switch v3, default bb4, [0x9507d39a => bb3]
+      v2 = make_calldata_slice 0, 32
+      v3 = calldata_slice_load_word calldata, v2, 0
+      v4 = shr 224, v3
+      switch v4, default bb4, [0x9507d39a => bb3]
     bb3:
       tail_call @get
     bb4:

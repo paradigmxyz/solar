@@ -23,23 +23,18 @@ bb0:
   calldatasize
   push 68
   gt
-  push 4
-  calldataload
   push 36
   calldataload
-  swap2
+  swap1
   push bb4
   jumpi
-  push 0
   push 4
-  add
   calldataload
   dup1
   push 256
   mstore
   push 384
   mstore
-  pop
   pop
   push bb7
   push 0

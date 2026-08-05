@@ -290,10 +290,8 @@ bb8:
   or
   push bb4
   jumpi
-  push 0
   push 160
   mload
-  add
   mload
   jump bb17
 bb15 [cold]:
@@ -513,10 +511,8 @@ bb5:
   or
   push bb4
   jumpi
-  push 0
   push 160
   mload
-  add
   mload
   push 128
   mstore
