@@ -178,8 +178,10 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * positional multi-value declarations and assignments, including full
   right-hand-side evaluation before tuple stores and evaluation of discarded
   tuple values for their side effects;
-* low-level and typed external calls, including explicit `gas`/`value` options,
-  contract-address conversions, returndata capture, and EVM-version checks;
+* low-level and typed external calls, including contract-typed receiver dispatch,
+  source-order receiver, call-option, and argument evaluation, explicit
+  `gas`/`value` options, contract-address conversions, returndata capture, and
+  EVM-version checks;
 * positional and named struct constructors with declaration-order field layout;
 * one-time l-value resolution for compound assignments and increments, plus
   argument-before-length evaluation for storage-array and storage-bytes pushes;

@@ -67,11 +67,11 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) [abi_args=lazy, abi_
     v3 = sub v1, arg1
     v4 = add v0, arg1
     v5 = make_calldata_slice v4, v3
-    v6 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v5
-    v7 = slice_ptr v6
-    v8 = slice_len v6
-    v9 = gas
-    v10 = call v9, arg2, 0, v7, v8, 0, 0
+    v6 = gas
+    v7 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v5
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = call v6, arg2, 0, v8, v9, 0, 0
     jumpi v10, bb4, bb3
   bb3:
     revert_returndata

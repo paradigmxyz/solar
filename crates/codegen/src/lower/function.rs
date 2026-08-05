@@ -2668,6 +2668,15 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         }
         if !attached
+            && let ExprKind::Member(receiver, _) = callee.kind
+            && self
+                .gcx
+                .type_of_expr(receiver.id)
+                .is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::Contract(_)))
+        {
+            return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
+        }
+        if !attached
             && matches!(function.visibility, hir::Visibility::Public | hir::Visibility::External)
             && let Some(address) = self.linked_library_address(function_id)
         {
@@ -2734,6 +2743,20 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         if args.len() != function.parameters.len() {
             return report_unsupported(self.gcx, expr.span, "external function arguments");
         }
+        let address = self.lower_expr(receiver)?;
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let mut call_value = zero;
+        let mut gas = self.builder.gas();
+        if let Some(options) = call_opts {
+            for option in options.args {
+                let value = self.lower_expr(&option.value)?;
+                match option.name.name {
+                    kw::Gas => gas = value,
+                    sym::value => call_value = value,
+                    _ => return report_unsupported(self.gcx, option.name.span, "call option"),
+                }
+            }
+        }
         let parameter_names = self.gcx.callable_param_names(CallableParamSource::Function {
             id: function_id,
             skips_receiver: false,
@@ -2757,20 +2780,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
-        let address = self.lower_expr(receiver)?;
-        let zero = self.builder.imm_u256(U256::ZERO);
-        let mut call_value = zero;
-        let mut gas = self.builder.gas();
-        if let Some(options) = call_opts {
-            for option in options.args {
-                let value = self.lower_expr(&option.value)?;
-                match option.name.name {
-                    kw::Gas => gas = value,
-                    sym::value => call_value = value,
-                    _ => return report_unsupported(self.gcx, option.name.span, "call option"),
-                }
-            }
-        }
         let returns = function.returns.len();
         let decode_returndata = function.returns.iter().any(|&ret| {
             self.types
