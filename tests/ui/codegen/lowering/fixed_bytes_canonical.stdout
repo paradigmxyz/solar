@@ -34,6 +34,7 @@ fn @compareElement(arg0: memorybytes) -> bool [abi_args=lazy, abi_params=[bytes]
 
 fn @narrow(arg0: bytes4) -> bytes2 [abi_args=lazy, abi_params=[bytes4], abi_returns=[word]] {
   bb0:
-    ret arg0
+    v0 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
+    ret v0
 }
 

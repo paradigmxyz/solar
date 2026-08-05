@@ -23,7 +23,8 @@ contract FixedBytesCanonical {
     }
 
     // CHECK-LABEL: fn @narrow{{[( ]}}
-    // CHECK: ret arg0
+    // CHECK: [[MASKED:v[0-9]+]] = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
+    // CHECK: ret [[MASKED]]
     function narrow(bytes4 value) external pure returns (bytes2) {
         return bytes2(value);
     }

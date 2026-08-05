@@ -126,7 +126,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * state-variable reads and writes through the shared storage-location object;
 * packed unsigned, signed, address, enum, and fixed-bytes storage fields;
 * left-aligned fixed-bytes values from literals, storage, state initializers,
-  and `msg.sig`, with explicit same-width integer and address conversions;
+  and `msg.sig`, with canonical narrowing and explicit integer and address
+  conversions;
 * nested structs, mappings, dynamic arrays, and short and long storage bytes;
 * canonical short-storage bytes writes with unspecified memory padding masked
   before the length tag is persisted;
@@ -347,8 +348,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    with the rewrite, and the full `cargo tq ui` suite passes. ERC-7201
    literal, memory, calldata, and empty-storage arguments now have runtime
    vectors. `fixed_bytes_storage.sol` checks packed storage, state
-   initialization, `msg.sig`, and Solc-compatible numeric returns; the
-   remaining work is broader aggregate and constructor coverage.
+   initialization, `msg.sig`, and Solc-compatible numeric returns.
+   `fixed_bytes_conversions.sol` checks fixed-byte widening, narrowing, and
+   numeric conversions; the remaining work is broader aggregate and
+   constructor coverage.
 
 The current intentional boundary is dynamic-element calldata array slicing.
 Solidity rejects range access for arrays with dynamically encoded base types,

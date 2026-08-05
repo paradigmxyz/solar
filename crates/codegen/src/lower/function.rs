@@ -2490,19 +2490,20 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     }
 
     fn coerce_value(&mut self, value: ValueId, from: Ty<'gcx>, to: Ty<'gcx>) -> ValueId {
-        let value = if let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
-            from.peel_refs().kind
-            && !matches!(
-                to.peel_refs().kind,
-                TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
-            ) {
-            let shift = u64::from(32 - size.bytes()) * 8;
-            if shift == 0 {
-                value
-            } else {
-                let shift = self.builder.imm_u64(shift);
-                self.builder.shr(shift, value)
-            }
+        let source_size = match from.peel_refs().kind {
+            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => Some(size),
+            _ => None,
+        };
+        let destination_size = match to.peel_refs().kind {
+            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => Some(size),
+            _ => None,
+        };
+        let value = if let Some(size) = source_size
+            && destination_size.is_none()
+            && u64::from(32 - size.bytes()) * 8 != 0
+        {
+            let shift = self.builder.imm_u64(u64::from(32 - size.bytes()) * 8);
+            self.builder.shr(shift, value)
         } else {
             value
         };
@@ -2516,9 +2517,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
             return value;
         }
-        let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
-            to.peel_refs().kind
-        else {
+        let Some(size) = destination_size else {
             return value;
         };
         if matches!(from.peel_refs().kind, TyKind::StringLiteral(..)) {
@@ -2539,10 +2538,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let zero = self.builder.imm_u256(U256::ZERO);
             return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
         }
-        if matches!(
-            from.peel_refs().kind,
-            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
-        ) {
+        if let Some(source_size) = source_size {
+            if source_size.bytes() > size.bytes() {
+                let shift = u64::from(32 - size.bytes()) * 8;
+                let mask = self.builder.imm_u256(U256::MAX << shift);
+                return self.builder.and(value, mask);
+            }
             return value;
         }
         let shift = self.builder.imm_u64(u64::from(32 - size.bytes()) * 8);
