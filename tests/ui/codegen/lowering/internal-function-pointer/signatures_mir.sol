@@ -18,8 +18,10 @@ contract FunctionPointerSignatures {
     }
 
     // CHECK-LABEL: fn @callState(
-    // CHECK: [[STORED:v[0-9]+]] = sload 1
-    // CHECK: internal_call @__internal_dispatch_0, 0, [[STORED]]
+    // CHECK: [[STORED:v[0-9]+]] = sload 0
+    // CHECK: [[SHIFTED:v[0-9]+]] = shr 8, [[STORED]]
+    // CHECK: [[MASKED:v[0-9]+]] = and [[SHIFTED]], 0xffffffffffffffff
+    // CHECK: internal_call @__internal_dispatch_0, 0, [[MASKED]]
     function callState() public returns (bool) {
         stateFn();
         return flag;
@@ -67,5 +69,5 @@ contract FunctionPointerSignatures {
     // CHECK: eq arg0, 7
     // CHECK: internal_call @sum, 1, arg1, arg2
     // CHECK-LABEL: fn @constructor(
-    // CHECK: sstore 1, 2
+    // CHECK: sstore 0,
 }
