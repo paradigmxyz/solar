@@ -1,0 +1,215 @@
+//! Memory-backed value construction and default aggregate values.
+
+use super::*;
+
+impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
+    FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
+{
+    pub(super) fn lower_array(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        elements: &[hir::Expr<'_>],
+    ) -> Option<ValueId> {
+        let ty = self.gcx.type_of_expr(expr.id)?;
+        let TyKind::Array(element_ty, _) = ty.peel_refs().kind else {
+            return report_unsupported(self.gcx, expr.span, "array literal");
+        };
+        let layout = self.types.memory_layout(ty)?;
+        let (size, kind) = match layout {
+            MemoryObjectLayout::FixedArray { len, element_words } => {
+                let words = len.checked_mul(u64::from(element_words))?;
+                (words.checked_mul(32)?, MemoryObjectKind::FixedArray)
+            }
+            MemoryObjectLayout::DynamicArray { element_words } => {
+                let words =
+                    u64::try_from(elements.len()).ok()?.checked_mul(u64::from(element_words))?;
+                (words.checked_add(1)?.checked_mul(32)?, MemoryObjectKind::DynamicArray)
+            }
+            _ => return report_unsupported(self.gcx, expr.span, "array literal"),
+        };
+        let size = self.builder.imm_u64(size);
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+        if kind == MemoryObjectKind::DynamicArray {
+            let length = self.builder.imm_u64(u64::try_from(elements.len()).ok()?);
+            self.builder.set_memory_object_len(object, length, kind);
+        }
+        for (index, element) in elements.iter().enumerate() {
+            let value = self.lower_expr(element)?;
+            let value = self.coerce_value(value, self.gcx.type_of_expr(element.id)?, element_ty);
+            let index = self.builder.imm_u64(index as u64);
+            self.builder.memory_object_store_element(object, layout, index, value);
+        }
+        Some(object)
+    }
+
+    pub(super) fn materialize_array_element(
+        &mut self,
+        object: ValueId,
+        layout: MemoryObjectLayout,
+        index: ValueId,
+        element: Ty<'gcx>,
+        value: ValueId,
+    ) -> Option<ValueId> {
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let is_null = self.builder.eq(value, zero);
+        let preheader = self.builder.current_block();
+        let allocate = self.builder.create_block();
+        let merge = self.builder.create_block();
+        self.builder.branch(is_null, allocate, merge);
+
+        self.builder.switch_to_block(allocate);
+        let allocated = self.default_object(element)?;
+        self.builder.memory_object_store_element(object, layout, index, allocated);
+        let allocation_block = self.builder.current_block();
+        self.builder.jump(merge);
+
+        self.builder.switch_to_block(merge);
+        Some(self.builder.phi(vec![(preheader, value), (allocation_block, allocated)]))
+    }
+
+    pub(super) fn lower_struct_constructor(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        struct_id: hir::StructId,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        let struct_fields = self.gcx.hir.strukt(struct_id).fields;
+        let fields = struct_fields.len() as u64;
+        if args.len() != fields as usize {
+            return report_unsupported(self.gcx, expr.span, "struct constructor arguments");
+        }
+        let parameter_names = self.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
+        let layout = MemoryObjectLayout::Struct { fields };
+        let size = self.builder.imm_u64(fields.saturating_mul(32));
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+        for (index, &field) in struct_fields.iter().enumerate() {
+            let Some(argument) =
+                args.argument_for_parameter(index, Some(parameter_names.as_slice()))
+            else {
+                return report_unsupported(self.gcx, args.span, "struct constructor argument");
+            };
+            let field_ty = self.gcx.type_of_item(field.into());
+            let value = self.lower_typed_expr(argument, field_ty)?;
+            let value = self.materialize_memory_argument(field_ty, value, argument.span)?;
+            let value = self.coerce_value(value, self.gcx.type_of_expr(argument.id)?, field_ty);
+            self.builder.memory_object_store_field(object, layout, index as u64, value);
+        }
+        Some(object)
+    }
+
+    pub(super) fn lower_tuple(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        values: &[Option<&hir::Expr<'_>>],
+    ) -> Option<ValueId> {
+        let ty = self.gcx.type_of_expr(expr.id)?;
+        let MemoryObjectLayout::Struct { fields } = self.types.memory_layout(ty)? else {
+            return report_unsupported(self.gcx, expr.span, "tuple object");
+        };
+        let size = fields.checked_mul(32)?;
+        let size = self.builder.imm_u64(size);
+        let object = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::Struct { fields },
+            AllocationSemantics::SOLIDITY_ZEROED,
+        );
+        for (index, value) in values.iter().enumerate() {
+            let Some(value) = value else { continue };
+            let value = self.lower_expr(value)?;
+            self.builder.memory_object_store_field(
+                object,
+                MemoryObjectLayout::Struct { fields },
+                index as u64,
+                value,
+            );
+        }
+        Some(object)
+    }
+
+    pub(super) fn lower_bytes_literal(&mut self, bytes: &[u8], span: Span) -> Option<ValueId> {
+        let words = u64::try_from(bytes.len().div_ceil(32)).ok()?;
+        let size = words.checked_add(1)?.checked_mul(32)?;
+        let size = self.builder.imm_u64(size);
+        let object = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::SOLIDITY_ZEROED,
+        );
+        let kind = MemoryObjectKind::Bytes;
+        let length = self.builder.imm_u64(u64::try_from(bytes.len()).ok()?);
+        self.builder.set_memory_object_len(object, length, kind);
+        for (index, chunk) in bytes.chunks(32).enumerate() {
+            let mut word = U256::from_be_slice(chunk);
+            word <<= (32 - chunk.len()) * 8;
+            let value = self.builder.imm_u256(word);
+            let offset = self.builder.imm_u64(index as u64 * 32);
+            self.builder.memory_object_store_word(object, offset, value);
+        }
+        let _ = span;
+        Some(object)
+    }
+
+    pub(super) fn default_value(&mut self, ty: solar_sema::ty::Ty<'gcx>) -> ValueId {
+        self.default_object(ty).unwrap_or_else(|| self.builder.imm_u256(U256::ZERO))
+    }
+
+    pub(super) fn default_binding_value(&mut self, ty: solar_sema::ty::Ty<'gcx>) -> ValueId {
+        if ty.is_ref_at(DataLocation::Calldata)
+            && matches!(
+                ty.peel_refs().kind,
+                TyKind::DynArray(_)
+                    | TyKind::Slice(_)
+                    | TyKind::Elementary(
+                        solar_sema::hir::ElementaryType::Bytes
+                            | solar_sema::hir::ElementaryType::String,
+                    )
+            )
+        {
+            let zero = self.builder.imm_u256(U256::ZERO);
+            return self.builder.make_slice(zero, zero, SliceLocation::Calldata);
+        }
+        self.default_value(ty)
+    }
+
+    pub(super) fn default_object(&mut self, ty: solar_sema::ty::Ty<'gcx>) -> Option<ValueId> {
+        let layout = self.types.memory_layout(ty)?;
+        let size = match layout {
+            MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. } => 32,
+            MemoryObjectLayout::FixedArray { len, element_words } => {
+                len.checked_mul(u64::from(element_words))?.checked_mul(32)?
+            }
+            MemoryObjectLayout::Struct { fields } => fields.checked_mul(32)?,
+        };
+        let size = self.builder.imm_u64(size);
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+        match ty.peel_refs().kind {
+            solar_sema::ty::TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            )
+            | solar_sema::ty::TyKind::DynArray(_) => {
+                let zero = self.builder.imm_u256(U256::ZERO);
+                self.builder.set_memory_object_len(object, zero, layout.kind());
+            }
+            solar_sema::ty::TyKind::Struct(id) => {
+                for (index, &field) in self.gcx.hir.strukt(id).fields.iter().enumerate() {
+                    let field_ty = self.gcx.type_of_item(field.into());
+                    if let Some(value) = self.default_object(field_ty) {
+                        self.builder.memory_object_store_field(object, layout, index as u64, value);
+                    }
+                }
+            }
+            solar_sema::ty::TyKind::Array(element, len) => {
+                let Ok(len) = u64::try_from(len) else { return Some(object) };
+                if self.types.memory_layout(element).is_some() {
+                    for index in 0..len {
+                        let Some(value) = self.default_object(element) else { continue };
+                        let index = self.builder.imm_u64(index);
+                        self.builder.memory_object_store_element(object, layout, index, value);
+                    }
+                }
+            }
+            _ => {}
+        }
+        Some(object)
+    }
+}

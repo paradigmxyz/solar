@@ -65,6 +65,8 @@ The replacement is split into stateful, private components:
   with raw op emission limited to the explicit inline-assembly boundary.
   Modifier and base-constructor expansion live in `function/modifiers`, with
   continuation blocks carrying the placeholder and return semantics.
+  Memory-backed arrays, tuples, literals, and zero-initialized aggregate
+  defaults live in `function/memory_values`.
   Storage-reference access, packed indexing, and aggregate storage copies live
   in the child `function/storage_values` module instead of in the main HIR
   expression walker.
