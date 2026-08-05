@@ -194,8 +194,9 @@ existing scalar and packed-storage MIR fixtures. It supports:
   shared ABI path, explicit `gas`/`value` options, and `.address` extraction;
 * event emission with overload and named-argument resolution, selector and indexed
   topics, dynamic-topic hashing, static and word-array aggregate-topic hashing,
-  nested dynamic array, struct, string, and bytes topic hashing, dynamic
-  aggregate diagnostics, indexed external function pointers, and MIR ABI data;
+  nested dynamic array, struct, string, and bytes topic hashing, in-place
+  aggregate function members, dynamic aggregate diagnostics, indexed external
+  function pointers, and MIR ABI data;
 * `revert` and `require` payloads for `Error(string)` and custom errors through
   semantic ABI encoding, including named arguments and exact argument checks;
 * payable address `send` and `transfer`, including the EVM value stipend and

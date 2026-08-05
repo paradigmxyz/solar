@@ -561,6 +561,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 .fields
                 .iter()
                 .all(|&field| self.inplace_dynamic_shape(self.gcx.type_of_item(field.into()))),
+            TyKind::Fn(function) => function.is_external(),
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
             ) => true,
@@ -670,6 +671,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             ) => Some(self.copy_inplace_bytes(value, output, offset)),
             TyKind::Udvt(inner, _) => self.copy_inplace_dynamic_value(inner, value, output, offset),
             TyKind::Tuple(_) | TyKind::Slice(_) => None,
+            TyKind::Fn(function) if function.is_external() => {
+                let shift = self.builder.imm_u64(64);
+                let value = self.builder.shl(shift, value);
+                self.builder.memory_object_store_word(output, offset, value);
+                let word = self.builder.imm_u64(32);
+                Some(self.checked_add(offset, word))
+            }
             _ => {
                 self.builder.memory_object_store_word(output, offset, value);
                 let word = self.builder.imm_u64(32);
