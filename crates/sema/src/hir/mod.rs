@@ -2190,8 +2190,8 @@ mod tests {
         assert_size::<ExprKind<'_>>(str!["48"]);
         assert_size::<Expr<'_>>(str!["64"]);
 
-        assert_size::<StmtKind<'_>>(str!["32"]);
-        assert_size::<Stmt<'_>>(str!["40"]);
+        assert_size::<StmtKind<'_>>(str!["40"]);
+        assert_size::<Stmt<'_>>(str!["48"]);
         assert_size::<Block<'_>>(str!["24"]);
     }
 }
