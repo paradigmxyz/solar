@@ -86,7 +86,7 @@ pub(super) struct SwitchSelection {
     pub(super) gas_code_growth: usize,
 }
 
-/// Placement of the switch's default target after the canonical EVM IR pipeline.
+/// Placement of the switch's default target after EVM IR layout.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) enum SwitchDefaultLayout {
     /// The default reaches an outlined body of unknown size.
@@ -114,13 +114,13 @@ pub(super) struct SwitchPlanOptions {
 /// Post-lowering CFG facts used to refine plan ranking.
 #[derive(Clone, Copy, Debug, Default)]
 pub(super) struct SwitchLayout {
-    /// Every case target is a distinct, single-predecessor block that CFG
-    /// simplification can coalesce into a perfect-hash guard.
+    /// Every case target is a distinct, single-predecessor block eligible for
+    /// coalescing into a perfect-hash guard.
     pub(super) coalesce_case_targets: bool,
     /// The coalesced case targets all jump to one continuation.
     pub(super) shared_case_continuation: bool,
-    /// Number of entry cases whose empty function targets terminal
-    /// deduplication maps to one shared `STOP`.
+    /// Number of entry cases whose empty function targets are eligible for
+    /// terminal deduplication into one shared `STOP`.
     pub(super) terminal_case_count: usize,
     /// Placement of the default target relative to the switch.
     pub(super) default_layout: SwitchDefaultLayout,

@@ -59,10 +59,6 @@ const GLOBAL_STACK_MIN_ARG_USES: usize = 6;
 const GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS: usize = 16;
 const STACK_ARG_ROTATION_LIMIT: usize = 16;
 
-fn models_default_evm_ir_pipeline(pipeline: Option<&str>) -> bool {
-    matches!(pipeline, None | Some("default"))
-}
-
 #[derive(Default)]
 struct GeneratedCode {
     bytecode: Vec<u8>,
@@ -5644,15 +5640,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         entries: &[MirSwitchEntry],
         default: BlockId,
     ) -> SwitchLayout {
-        let models_default_pipeline =
-            models_default_evm_ir_pipeline(self.gcx.sess.opts.unstable.evm_ir_pipeline.as_deref());
         let mut targets = FxHashSet::default();
-        let coalesce_case_targets = models_default_pipeline
-            && entries.iter().all(|entry| {
-                entry.target != default
-                    && targets.insert(entry.target)
-                    && func.blocks[entry.target].predecessors.len() == 1
-            });
+        let coalesce_case_targets = entries.iter().all(|entry| {
+            entry.target != default
+                && targets.insert(entry.target)
+                && func.blocks[entry.target].predecessors.len() == 1
+        });
         let continuation = coalesce_case_targets.then(|| {
             entries.first().and_then(|entry| {
                 let Terminator::Jump(target) = func.blocks[entry.target].terminator.as_ref()?
@@ -5670,7 +5663,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             })
         });
-        let terminal_case_count = if models_default_pipeline && self.emitting_entry {
+        let terminal_case_count = if self.emitting_entry {
             entries
                 .iter()
                 .filter(|entry| {
@@ -6401,14 +6394,6 @@ mod tests {
     fn with_codegen<T: Send>(opts: CompileOpts, f: impl FnOnce(EvmCodegen<'_>) -> T + Send) -> T {
         let compiler = Compiler::new(Session::builder().opts(opts).build());
         compiler.enter(|c| f(EvmCodegen::new(c.gcx())))
-    }
-
-    #[test]
-    fn models_only_the_default_evm_ir_pipeline() {
-        assert!(models_default_evm_ir_pipeline(None));
-        assert!(models_default_evm_ir_pipeline(Some("default")));
-        assert!(!models_default_evm_ir_pipeline(Some("none")));
-        assert!(!models_default_evm_ir_pipeline(Some("terminal-dedup,tail-merge")));
     }
 
     #[test]
