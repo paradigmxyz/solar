@@ -3001,6 +3001,20 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             .or_else(|| self.gcx.resolved_variable(expr).map(|id| self.gcx.type_of_item(id.into())))
     }
 
+    fn lower_selector_receiver_effects(&mut self, receiver: &hir::Expr<'_>) -> Option<()> {
+        let receiver = receiver.peel_parens();
+        match receiver.kind {
+            ExprKind::Ident(_) | ExprKind::Type(_) => Some(()),
+            ExprKind::Member(base, _)
+                if matches!(base.peel_parens().kind, ExprKind::Ident(_) | ExprKind::Type(_)) =>
+            {
+                Some(())
+            }
+            ExprKind::Member(base, _) => self.lower_expr(base).map(|_| ()),
+            _ => self.lower_expr(receiver).map(|_| ()),
+        }
+    }
+
     fn lower_environment_builtin(
         &mut self,
         expr: &hir::Expr<'_>,
@@ -3072,7 +3086,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 }
                 _ => None,
             }) {
-                Some(selector) => selector,
+                Some(selector) => {
+                    let ExprKind::Member(receiver, _) = &expr.kind else {
+                        return report_unsupported(self.gcx, expr.span, "function selector");
+                    };
+                    self.lower_selector_receiver_effects(receiver)?;
+                    selector
+                }
                 None => {
                     let hir::ExprKind::Member(receiver, _) = &expr.kind else {
                         return report_unsupported(self.gcx, expr.span, "function selector");
@@ -3083,6 +3103,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                         ) => Some(item),
                         _ => None,
                     }) {
+                        self.lower_selector_receiver_effects(receiver)?;
                         self.gcx.function_selector(item).0
                     } else {
                         let Some(TyKind::Fn(function)) =
