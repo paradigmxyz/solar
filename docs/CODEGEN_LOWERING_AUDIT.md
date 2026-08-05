@@ -274,7 +274,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    run-call coverage. Virtual constructor modifiers and library modifiers with
    storage parameters now have differential runtime coverage as well. The
    `modifier_return_postlude.sol` vector checks that a return still runs the
-   modifier postlude.
+   modifier postlude. `constructor_dynamic_array_forwarding.sol` ports the
+   dynamic `address[]` path through a derived constructor, a base constructor,
+   and storage before reading it back.
 3. Extend function-pointer ABI coverage to the remaining edge cases. External
    pointers now have runtime coverage for aggregate arguments and returns,
    pointer arguments and pointer returns, including aggregate `try` return
