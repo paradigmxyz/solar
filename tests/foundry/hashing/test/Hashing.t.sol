@@ -43,6 +43,8 @@ contract HashingTest {
         bytes32 result = h.hashBytes(data);
         bytes32 expected = keccak256(data);
         assert(result == expected);
+        assert(h.hashSha256(data) == sha256(data));
+        assert(h.hashRipemd160(data) == ripemd160(data));
     }
 
     function testHashEmptyBytes() public view {
@@ -76,6 +78,8 @@ contract HashingTest {
             h.hashStoredConcat(suffix) == keccak256(bytes.concat(data, suffix)),
             "short concat mismatch"
         );
+        require(h.hashStoredSha256() == sha256(data), "short sha256 mismatch");
+        require(h.hashStoredRipemd160() == ripemd160(data), "short ripemd160 mismatch");
 
         bytes memory longData =
             hex"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20";
@@ -88,5 +92,9 @@ contract HashingTest {
             h.hashStoredConcat(suffix) == keccak256(bytes.concat(longData, suffix)),
             "long concat mismatch"
         );
+        require(h.hashStoredSha256() == sha256(longData), "long sha256 mismatch");
+        require(h.hashStoredRipemd160() == ripemd160(longData), "long ripemd160 mismatch");
+        assert(h.hashSha256(longData) == sha256(longData));
+        assert(h.hashRipemd160(longData) == ripemd160(longData));
     }
 }

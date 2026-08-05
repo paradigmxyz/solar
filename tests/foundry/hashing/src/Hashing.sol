@@ -26,6 +26,14 @@ contract Hashing {
         return keccak256(data);
     }
 
+    function hashSha256(bytes calldata data) external pure returns (bytes32) {
+        return sha256(data);
+    }
+
+    function hashRipemd160(bytes calldata data) external pure returns (bytes20) {
+        return ripemd160(data);
+    }
+
     function setStored(bytes memory data) external {
         stored = data;
     }
@@ -36,6 +44,14 @@ contract Hashing {
 
     function hashStoredConcat(bytes calldata suffix) external view returns (bytes32) {
         return keccak256(bytes.concat(stored, suffix));
+    }
+
+    function hashStoredSha256() external view returns (bytes32) {
+        return sha256(stored);
+    }
+
+    function hashStoredRipemd160() external view returns (bytes20) {
+        return ripemd160(stored);
     }
 
 }

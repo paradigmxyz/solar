@@ -4537,7 +4537,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         if !matches!(self.types.memory_layout(input_ty)?, MemoryObjectLayout::Bytes) {
             return report_unsupported(self.gcx, input.span, "precompile input");
         }
-        let input = self.lower_expr(input)?;
+        let span = input.span;
+        let memory_ty = input_ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+        let input = self.lower_typed_expr(input, memory_ty)?;
+        let input = self.materialize_memory_argument(memory_ty, input, span)?;
         let input_ptr = self.builder.memory_object_data(input, MemoryObjectKind::Bytes);
         let input_len = self.builder.memory_object_len(input, MemoryObjectKind::Bytes);
 
