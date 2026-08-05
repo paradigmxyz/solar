@@ -232,7 +232,7 @@ pub(super) fn declaration(
         is_fallback: function.kind == hir::FunctionKind::Fallback,
         is_receive: function.kind == hir::FunctionKind::Receive,
         is_dispatch_entry: false,
-        no_inline: false,
+        is_function_pointer_dispatcher: false,
     };
 
     if function.kind == hir::FunctionKind::Function

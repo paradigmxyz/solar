@@ -11,7 +11,7 @@ fn @callThroughVirtualPointer() -> u256 {
     ret v0
 }
 
-fn @__internal_dispatch_0(arg0: function) -> u256 {
+fn @__internal_dispatch_0(arg0: function) -> u256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
@@ -54,7 +54,7 @@ fn @callThroughVirtualPointer() -> u256 {
     ret v0
 }
 
-fn @__internal_dispatch_0(arg0: function) -> u256 {
+fn @__internal_dispatch_0(arg0: function) -> u256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2

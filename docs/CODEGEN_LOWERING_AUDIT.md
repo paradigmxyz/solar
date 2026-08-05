@@ -264,10 +264,11 @@ Solidity rejects range access for arrays with dynamically encoded base types,
 and the MIR slice representation keeps only a pointer and length, so it cannot
 recover the original base needed to resolve nested dynamic ABI offsets.
 
-The generated internal function-pointer dispatchers keep `no_inline` as a
-semantic boundary: inlining would duplicate a shape-wide target switch at each
-call site. This does not apply to cleanup or revert helper registries, which
-remain deduplicated by semantic shape.
+Generated internal function-pointer dispatchers carry an explicit dispatcher
+attribute. The inliner keeps a shared dispatcher intact unless a constant
+pointer permits specialization, while still allowing its normal single-call
+policy. Cleanup and revert helper registries remain deduplicated by semantic
+shape without imposing an inline attribute.
 
 Unsupported HIR emits a diagnostic and leaves an `invalid` MIR terminator in the
 rejected function. This is a deliberate fail-closed boundary; it must not be

@@ -272,6 +272,18 @@ pub(crate) fn display_function_text<'a>(
                 write!(f, ", abi_returns={layout}")?;
             }
             write!(f, "]")?;
+        } else if func.attributes.is_function_pointer_dispatcher {
+            write!(f, " [function_pointer_dispatcher")?;
+            if func.abi_args_lazy {
+                write!(f, ", abi_args=lazy")?;
+            }
+            if let Some(layout) = &func.abi_params {
+                write!(f, ", abi_params={layout}")?;
+            }
+            if let Some(layout) = &func.abi_returns {
+                write!(f, ", abi_returns={layout}")?;
+            }
+            write!(f, "]")?;
         } else if func.abi_args_lazy || func.abi_returns.is_some() {
             write!(f, " [")?;
             let mut comma = false;

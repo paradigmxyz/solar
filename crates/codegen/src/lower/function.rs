@@ -7151,7 +7151,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
         let name = reserved.name;
         let mut function = Function::new(Ident::new(name.symbol, reserved.name_span));
         function.name = name;
-        function.attributes.no_inline = true;
+        function.attributes.is_function_pointer_dispatcher = true;
         {
             let mut builder = FunctionBuilder::new(&mut function);
             let function_value = builder.add_param(MirType::Function);

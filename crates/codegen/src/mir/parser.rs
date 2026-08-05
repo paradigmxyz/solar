@@ -464,6 +464,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     builder.func_mut().abi_params = Some(self.parse_abi_param_layout()?);
                 }
                 sym::entry => builder.func_mut().attributes.is_dispatch_entry = true,
+                sym::function_pointer_dispatcher => {
+                    builder.func_mut().attributes.is_function_pointer_dispatcher = true;
+                }
                 kw::Receive => builder.func_mut().attributes.is_receive = true,
                 kw::Fallback => builder.func_mut().attributes.is_fallback = true,
                 kw::Payable => {

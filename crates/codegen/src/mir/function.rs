@@ -534,10 +534,8 @@ pub(crate) struct FunctionAttributes {
     pub(crate) is_receive: bool,
     /// Whether this is the synthesized runtime dispatch entry.
     pub(crate) is_dispatch_entry: bool,
-    /// Never clone this function into multiple callers (synthesized shared
-    /// helpers whose whole point is existing once per module). A sole call
-    /// site may still absorb it: with one caller there is nothing to share.
-    pub(crate) no_inline: bool,
+    /// Whether this function dispatches an internal function-pointer shape.
+    pub(crate) is_function_pointer_dispatcher: bool,
 }
 
 impl Default for FunctionAttributes {
@@ -549,7 +547,7 @@ impl Default for FunctionAttributes {
             is_fallback: false,
             is_receive: false,
             is_dispatch_entry: false,
-            no_inline: false,
+            is_function_pointer_dispatcher: false,
         }
     }
 }

@@ -18,7 +18,7 @@ fn @callStoredOnly() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] 
     ret v1
 }
 
-fn @__internal_dispatch_0(arg0: function) -> u256 {
+fn @__internal_dispatch_0(arg0: function) -> u256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2

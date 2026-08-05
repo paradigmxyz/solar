@@ -75,7 +75,7 @@ fn @callTwoArgs() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
     ret v0
 }
 
-fn @__internal_dispatch_0(arg0: function) {
+fn @__internal_dispatch_0(arg0: function) [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
@@ -88,7 +88,7 @@ fn @__internal_dispatch_0(arg0: function) {
     revert 0, 36
 }
 
-fn @__internal_dispatch_1(arg0: function, arg1: u256) -> (u256, u256) {
+fn @__internal_dispatch_1(arg0: function, arg1: u256) -> (u256, u256) [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 5
     jumpi v0, bb1, bb2
@@ -104,7 +104,7 @@ fn @__internal_dispatch_1(arg0: function, arg1: u256) -> (u256, u256) {
     revert 0, 36
 }
 
-fn @__internal_dispatch_2(arg0: function, arg1: u256, arg2: u256) -> u256 {
+fn @__internal_dispatch_2(arg0: function, arg1: u256, arg2: u256) -> u256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 7
     jumpi v0, bb1, bb2

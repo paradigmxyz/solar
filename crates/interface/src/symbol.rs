@@ -1024,6 +1024,7 @@ symbols! {
         frame_load,
         frame_store,
         from,
+        function_pointer_dispatcher,
         gasleft,
         global,
         heap,

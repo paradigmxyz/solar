@@ -156,7 +156,7 @@ struct MirInlineSummary {
     has_unsupported_terminator: bool,
     is_entry_point: bool,
     is_constructor: bool,
-    no_inline: bool,
+    is_function_pointer_dispatcher: bool,
     has_function_selector: bool,
 }
 
@@ -190,9 +190,9 @@ impl MirInliner {
         // Specialize dispatcher calls before helper-local inlining introduces phis.
         let mut caller_ids = module.functions.indices().collect::<Vec<_>>();
         caller_ids.sort_by_key(|caller| {
-            summaries
-                .get(caller)
-                .is_some_and(|summary| summary.no_inline && summary.has_function_selector)
+            summaries.get(caller).is_some_and(|summary| {
+                summary.is_function_pointer_dispatcher && summary.has_function_selector
+            })
         });
         for caller_id in caller_ids {
             let loop_depths = block_loop_depths(module.function(caller_id));
@@ -363,11 +363,13 @@ impl MirInliner {
 
         // Keep shared helpers intact unless a constant function selector lets
         // later passes discard all but one dispatcher arm.
-        let can_specialize_dispatcher = summary.no_inline
+        let can_specialize_dispatcher = summary.is_function_pointer_dispatcher
             && summary.has_function_selector
             && site.has_constant_function_selector;
         if caller == site.callee
-            || (summary.no_inline && !single_call && !can_specialize_dispatcher)
+            || (summary.is_function_pointer_dispatcher
+                && !single_call
+                && !can_specialize_dispatcher)
             || summary.is_entry_point
             || summary.is_constructor
             || summary.has_phi
@@ -450,7 +452,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
             || func.attributes.is_receive
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,
-        no_inline: func.attributes.no_inline,
+        is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.params.first() == Some(&MirType::Function),
         ..MirInlineSummary::default()
     };
@@ -795,7 +797,7 @@ fn specialize_function_pointers(module: &mut Module) -> usize {
     for (function, func) in module.functions.iter_enumerated() {
         if is_transparent_function_pointer_cast(func) {
             casts.insert(function);
-        } else if func.attributes.no_inline && func.params.first() == Some(&MirType::Function) {
+        } else if func.attributes.is_function_pointer_dispatcher {
             dispatchers.insert(function);
         }
     }
