@@ -3734,24 +3734,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
     }
 
-    fn load_lvalue(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
-        if let Some(id) = self.gcx.resolved_variable(expr) {
-            let variable = self.gcx.hir.variable(id);
-            if variable.is_state_variable()
-                || self.values.contains_key(&id)
-                || self.storage_refs.contains_key(&id)
-                || variable.parent.is_none()
-            {
-                return self.load_variable(id, expr.span);
-            }
-        }
-        match &expr.kind {
-            ExprKind::Member(receiver, name) => self.lower_member(expr, receiver, *name),
-            ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
-            _ => report_unsupported(self.gcx, expr.span, "l-value"),
-        }
-    }
-
     fn store_variable(&mut self, id: VariableId, value: ValueId, span: Span) -> Option<()> {
         if let StdEntry::Occupied(mut entry) = self.values.entry(id) {
             entry.insert(value);
@@ -3920,13 +3902,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let zero = self.builder.imm_u256(U256::ZERO);
             return self.store_lvalue(expr, zero);
         };
-        let object = self.load_lvalue(expr)?;
-        let zero = self.builder.imm_u256(U256::ZERO);
+        let place = self.resolve_lvalue_place(expr)?;
         match layout {
             MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. } => {
-                self.builder.set_memory_object_len(object, zero, layout.kind());
+                let object = self.default_object(ty)?;
+                self.store_lvalue_place(&place, object)?;
             }
             MemoryObjectLayout::FixedArray { len, element_words: _ } => {
+                let object = self.load_lvalue_place(&place)?;
                 for index in 0..len {
                     let index_value = self.builder.imm_u64(index);
                     let element_ty = match ty.peel_refs().kind {
@@ -3938,6 +3921,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 }
             }
             MemoryObjectLayout::Struct { fields: _ } => {
+                let object = self.load_lvalue_place(&place)?;
                 let solar_sema::ty::TyKind::Struct(id) = ty.peel_refs().kind else {
                     return report_unsupported(self.gcx, expr.span, "struct deletion");
                 };
