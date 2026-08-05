@@ -26,6 +26,7 @@ contract Structs {
     // ========= Storage Variables =========
 
     Point public storedPoint;
+    Point[2] private storedPoints;
     Person public storedPerson;
     Nested public storedNested;
 
@@ -120,8 +121,27 @@ contract Structs {
         return storedNested.value;
     }
 
-    // ========= Struct Arrays (Future) =========
-    // TODO: Add array of structs tests when arrays are supported
+    // ========= Struct Arrays =========
+
+    function setPointArray(uint256 index, uint256 x, uint256 y) external {
+        storedPoints[index] = Point(x, y);
+    }
+
+    function getPointArray(uint256 index) external view returns (Point memory) {
+        return storedPoints[index];
+    }
+
+    function sumStoredPoint(uint256 index) external view returns (uint256) {
+        return sumPointInternal(storedPoints[index]);
+    }
+
+    function sumStoredPointExternal(uint256 index) external view returns (uint256) {
+        return this.sumPoint(storedPoints[index]);
+    }
+
+    function sumPointInternal(Point memory point) internal pure returns (uint256) {
+        return point.x + point.y;
+    }
 
     // ========= Helper for Complex Operations =========
 

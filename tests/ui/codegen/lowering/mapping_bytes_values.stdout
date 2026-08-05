@@ -106,7 +106,67 @@ fn @get(arg0: u256) -> memorybytes [abi_args=lazy, abi_params=[u256], abi_return
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
     v1 = mapping_slot arg0, 0
-    ret v1
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = and v2, 1
+    v4 = eq v3, 1
+    v5 = and v2, 254
+    v6 = div v5, 2
+    v7 = div v2, 2
+    v8 = select v4, v7, v6
+    v9 = add v8, 31
+    v10 = lt v9, v8
+    jumpi v10, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v11 = div v9, 32
+    v12 = add v11, 1
+    v13 = lt v12, v11
+    jumpi v13, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v14 = mul v12, 32
+    v15 = iszero 32
+    v16 = div v14, 32
+    v17 = eq v16, v12
+    v18 = or v15, v17
+    v19 = iszero v18
+    jumpi v19, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v20 = alloc memorybytes, exact, zeroed, panic, v14
+    set_memory_object_len memorybytes, v20, v8
+    jumpi v4, bb8, bb7
+  bb7:
+    v21 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    memory_object_store_word memorybytes, v20, 0, v21
+    jump bb9
+  bb8:
+    v22 = storage_array_data_slot v1
+    jump bb10
+  bb9:
+    ret v20
+  bb10:
+    v23 = phi [bb8: 0], [bb11: v28]
+    v24 = lt v23, v11
+    jumpi v24, bb11, bb12
+  bb11:
+    v25 = add v22, v23
+    v26 = sload v25 !metadata(storage=symbolic(v25))
+    v27 = mul v23, 32
+    memory_object_store_word memorybytes, v20, v27, v26
+    v28 = add v23, 1
+    jump bb10
+  bb12:
+    jump bb9
 }
 
 fn @getNested(arg0: u256, arg1: u256) -> memorybytes [abi_args=lazy, abi_params=[u256, u256], abi_returns=[memory_bytes]] {
@@ -115,6 +175,66 @@ fn @getNested(arg0: u256, arg1: u256) -> memorybytes [abi_args=lazy, abi_params=
     set_memory_object_len memorybytes, v0, 0
     v1 = mapping_slot arg0, 1
     v2 = mapping_slot arg1, v1
-    ret v2
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    v4 = and v3, 1
+    v5 = eq v4, 1
+    v6 = and v3, 254
+    v7 = div v6, 2
+    v8 = div v3, 2
+    v9 = select v5, v8, v7
+    v10 = add v9, 31
+    v11 = lt v10, v9
+    jumpi v11, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v12 = div v10, 32
+    v13 = add v12, 1
+    v14 = lt v13, v12
+    jumpi v14, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v15 = mul v13, 32
+    v16 = iszero 32
+    v17 = div v15, 32
+    v18 = eq v17, v13
+    v19 = or v16, v18
+    v20 = iszero v19
+    jumpi v20, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v21 = alloc memorybytes, exact, zeroed, panic, v15
+    set_memory_object_len memorybytes, v21, v9
+    jumpi v5, bb8, bb7
+  bb7:
+    v22 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    memory_object_store_word memorybytes, v21, 0, v22
+    jump bb9
+  bb8:
+    v23 = storage_array_data_slot v2
+    jump bb10
+  bb9:
+    ret v21
+  bb10:
+    v24 = phi [bb8: 0], [bb11: v29]
+    v25 = lt v24, v12
+    jumpi v25, bb11, bb12
+  bb11:
+    v26 = add v23, v24
+    v27 = sload v26 !metadata(storage=symbolic(v26))
+    v28 = mul v24, 32
+    memory_object_store_word memorybytes, v21, v28, v27
+    v29 = add v24, 1
+    jump bb10
+  bb12:
+    jump bb9
 }
 

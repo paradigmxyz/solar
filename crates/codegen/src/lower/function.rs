@@ -468,15 +468,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     return Some(());
                 }
                 let value = if let Some(expr) = initializer {
-                    let source_ty = self.gcx.type_of_expr(expr.id);
-                    if self.types.memory_layout(ty).is_some()
-                        && source_ty.is_some_and(|source| source.is_ref_at(DataLocation::Storage))
-                    {
-                        let access = self.storage_access(expr)?;
-                        self.load_storage_object(ty, access.slot, expr.span)?
-                    } else {
-                        self.lower_expr(expr)?
-                    }
+                    self.lower_typed_expr(expr, ty)?
                 } else if let Some(value) = self.default_object(ty) {
                     value
                 } else {
@@ -572,8 +564,23 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 self.builder.jump(target);
             }
             StmtKind::Return(expr) => {
-                let values =
-                    expr.map_or_else(|| Some(Vec::new()), |expr| self.lower_values(expr))?;
+                let values = expr.map_or_else(
+                    || Some(Vec::new()),
+                    |expr| {
+                        if self.returns.len() == 1 {
+                            let ty = self.gcx.type_of_item(self.returns[0].into());
+                            if self
+                                .gcx
+                                .type_of_expr(expr.id)
+                                .is_some_and(|source| source.is_ref_at(DataLocation::Storage))
+                                && self.types.memory_layout(ty).is_some()
+                            {
+                                return Some(vec![self.lower_typed_expr(expr, ty)?]);
+                            }
+                        }
+                        self.lower_values(expr)
+                    },
+                )?;
                 if let Some(&target) = self.return_targets.last() {
                     if !values.is_empty() {
                         if values.len() != self.returns.len() {
@@ -673,7 +680,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 return report_unsupported(self.gcx, args.span, "error argument");
             };
             let parameter_ty = self.gcx.type_of_item(parameter.into());
-            let mut value = self.lower_expr(argument)?;
+            let mut value = self.lower_typed_expr(argument, parameter_ty)?;
             let mut abi_type = self.types.abi_type(parameter_ty)?;
             abi_type = self.abi_type_for_value(value, abi_type);
             if self.needs_calldata_materialization(value, &abi_type) {
@@ -742,7 +749,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             };
             let parameter_ty = self.gcx.type_of_item(parameter.into());
             let variable = self.gcx.hir.variable(parameter);
-            let mut value = self.lower_expr(argument)?;
+            let mut value = self.lower_typed_expr(argument, parameter_ty)?;
             if variable.indexed {
                 match parameter_ty.peel_refs().kind {
                     TyKind::Elementary(
@@ -902,7 +909,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 saved_storage_parameters
                     .push((parameter, self.storage_refs.insert(parameter, access)));
             } else {
-                let value = self.lower_expr(argument)?;
+                let value = self.lower_typed_expr(argument, parameter_ty)?;
                 saved_parameters.push((parameter, self.values.insert(parameter, value)));
             }
         }
@@ -955,7 +962,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     "named base constructor argument",
                 );
             };
-            let value = self.lower_expr(argument)?;
+            let parameter_ty = self.gcx.type_of_item(parameter.into());
+            let value = self.lower_typed_expr(argument, parameter_ty)?;
             saved_parameters.push((parameter, self.values.insert(parameter, value)));
         }
 
@@ -1237,7 +1245,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             else {
                 return report_unsupported(self.gcx, args.span, "try argument");
             };
-            let mut value = self.lower_expr(argument)?;
+            let mut value = self.lower_typed_expr(argument, parameter_ty)?;
             let mut abi_type = self.types.abi_type(parameter_ty)?;
             abi_type = self.abi_type_for_value(value, abi_type);
             if self.needs_calldata_materialization(value, &abi_type) {
@@ -3000,7 +3008,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 return report_unsupported(self.gcx, args.span, "constructor argument");
             };
             let parameter_ty = self.gcx.type_of_item(parameter.into());
-            let mut value = self.lower_expr(argument)?;
+            let mut value = self.lower_typed_expr(argument, parameter_ty)?;
             let mut abi_type = self.types.abi_type(parameter_ty)?;
             abi_type = self.abi_type_for_value(value, abi_type);
             if self.needs_calldata_materialization(value, &abi_type) {
@@ -3086,7 +3094,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let mut values = Vec::with_capacity(arg_exprs.len());
         let mut types = Vec::with_capacity(arg_exprs.len());
         for (argument, &parameter) in arg_exprs.iter().zip(function.parameters) {
-            let mut value = self.lower_expr(argument)?;
+            let mut value = self.lower_typed_expr(argument, parameter)?;
             let mut abi_type = self.types.abi_type(parameter)?;
             abi_type = self.abi_type_for_value(value, abi_type);
             if self.needs_calldata_materialization(value, &abi_type) {
@@ -3173,7 +3181,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             else {
                 return report_unsupported(self.gcx, expr.span, "named internal function argument");
             };
-            let value = self.lower_expr(argument)?;
+            let value = self.lower_typed_expr(argument, parameter)?;
             values.push(self.materialize_call_argument(parameter, value, argument.span)?);
         }
         values.insert(0, function_value);
@@ -3250,8 +3258,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             else {
                 return report_unsupported(self.gcx, args.span, "struct constructor argument");
             };
-            let value = self.lower_expr(argument)?;
             let field_ty = self.gcx.type_of_item(field.into());
+            let value = self.lower_typed_expr(argument, field_ty)?;
             let value = self.materialize_memory_argument(field_ty, value, argument.span)?;
             let value = self.coerce_value(value, self.gcx.type_of_expr(argument.id)?, field_ty);
             self.builder.memory_object_store_field(object, layout, index as u64, value);
@@ -3340,7 +3348,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let [argument] = arguments else {
                 return report_unsupported(self.gcx, expr.span, "storage array push arguments");
             };
-            let value = self.lower_expr(argument)?;
+            let value = self.lower_typed_expr(argument, element)?;
             self.coerce_value(value, self.gcx.type_of_expr(argument.id)?, element)
         } else {
             if !arguments.is_empty() {
@@ -5076,7 +5084,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let value = if Self::is_storage_parameter(parameter_ty) {
                 self.storage_access(receiver)?.slot
             } else {
-                self.lower_expr(receiver)?
+                self.lower_typed_expr(receiver, parameter_ty)?
             };
             values.push(self.materialize_call_argument(parameter_ty, value, receiver.span)?);
         }
@@ -5090,7 +5098,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let value = if Self::is_storage_parameter(parameter_ty) {
                 self.storage_access(argument)?.slot
             } else {
-                self.lower_expr(argument)?
+                self.lower_typed_expr(argument, parameter_ty)?
             };
             values.push(self.materialize_call_argument(parameter_ty, value, argument.span)?);
         }
@@ -5135,7 +5143,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 return report_unsupported(self.gcx, expr.span, "external function argument");
             };
             let parameter_ty = self.gcx.type_of_item(parameter.into());
-            let mut value = self.lower_expr(argument)?;
+            let mut value = self.lower_typed_expr(argument, parameter_ty)?;
             let mut abi_type = self.types.abi_type(parameter_ty)?;
             abi_type = self.abi_type_for_value(value, abi_type);
             if self.needs_calldata_materialization(value, &abi_type) {
@@ -5272,7 +5280,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let mut value = if Self::is_storage_parameter(parameter_ty) {
                 self.storage_access(argument)?.slot
             } else {
-                self.lower_expr(argument)?
+                self.lower_typed_expr(argument, parameter_ty)?
             };
             let mut abi_type = if Self::is_storage_parameter(parameter_ty) {
                 AbiType::Word
@@ -5372,6 +5380,20 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 report_unsupported(self.gcx, span, "returndata slice materialization")
             }
         }
+    }
+
+    fn lower_typed_expr(&mut self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> Option<ValueId> {
+        if !ty.is_ref_at(DataLocation::Storage)
+            && self.types.memory_layout(ty).is_some()
+            && self
+                .gcx
+                .type_of_expr(expr.id)
+                .is_some_and(|source| source.is_ref_at(DataLocation::Storage))
+        {
+            let access = self.storage_access(expr)?;
+            return self.load_storage_object(ty, access.slot, expr.span);
+        }
+        self.lower_expr(expr)
     }
 
     fn materialize_call_argument(

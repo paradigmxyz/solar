@@ -105,6 +105,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   spill-based fallback for nested storage-reference phis;
 * storage-reference branch and loop merges that preserve slot and packed-offset
   state across differing exits;
+* storage aggregate references copied through memory returns and internal or
+  external calls, including fixed storage arrays of structs;
 * constructor-assigned immutable declarations and reads, including inherited
   immutables, typed deployment patching, and narrow immutable widths;
 * split Solidity and Yul builtin lowering with shared positional-argument,

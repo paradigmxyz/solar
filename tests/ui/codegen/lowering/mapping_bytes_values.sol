@@ -23,7 +23,8 @@ contract MappingBytesValues {
 
     // CHECK-LABEL: fn @get{{[( ]}}
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot arg0, 0
-    // CHECK: ret [[SLOT]]
+    // CHECK: [[HEADER:v[0-9]+]] = sload [[SLOT]]
+    // CHECK: ret [[VALUE:v[0-9]+]]
     function get(uint256 key) external view returns (bytes memory) {
         return data[key];
     }
@@ -31,7 +32,8 @@ contract MappingBytesValues {
     // CHECK-LABEL: fn @getNested{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot arg0, 1
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot arg1, [[OUTER]]
-    // CHECK: ret [[INNER]]
+    // CHECK: [[HEADER:v[0-9]+]] = sload [[INNER]]
+    // CHECK: ret [[VALUE:v[0-9]+]]
     function getNested(uint256 outer, uint256 inner) external view returns (string memory) {
         return nested[outer][inner];
     }

@@ -88,6 +88,20 @@ contract StructsTest {
         require(s.getNestedValue() == 300, "value should be 300");
     }
 
+    // ========= Struct Array Tests =========
+
+    function testStructArray() public {
+        s.setPointArray(0, 11, 22);
+        s.setPointArray(1, 33, 44);
+
+        Structs.Point memory first = s.getPointArray(0);
+        Structs.Point memory second = s.getPointArray(1);
+        require(first.x == 11 && first.y == 22, "first point mismatch");
+        require(second.x == 33 && second.y == 44, "second point mismatch");
+        require(s.sumStoredPoint(0) == 33, "internal point sum mismatch");
+        require(s.sumStoredPointExternal(1) == 77, "external point sum mismatch");
+    }
+
     // ========= Complex Operations =========
 
     function testDistanceSquared() public view {
