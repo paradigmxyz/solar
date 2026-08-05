@@ -1065,6 +1065,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             return report_unsupported(self.gcx, try_stmt.expr.span, "try expression");
         };
         let (
+            creation,
             parameter_types,
             return_types,
             parameter_names,
@@ -1073,12 +1074,45 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             address,
             receiver,
             static_call,
-        ) = if let ExprKind::Member(receiver, _) = callee.kind {
+        ) = if let ExprKind::New(ty) = &callee.kind {
+            let TyKind::Contract(contract_id) = self.gcx.type_of_hir_ty(ty).kind else {
+                return report_unsupported(self.gcx, try_stmt.expr.span, "try target");
+            };
+            let contract = self.gcx.hir.contract(contract_id);
+            let (parameters, parameter_names) = contract
+                .ctor
+                .map(|id| {
+                    let constructor = self.gcx.hir.function(id);
+                    (
+                        constructor.parameters,
+                        self.gcx.callable_param_names(CallableParamSource::Function {
+                            id,
+                            skips_receiver: false,
+                        }),
+                    )
+                })
+                .unwrap_or((&[], Vec::new().into()));
+            (
+                Some((ty, contract_id)),
+                parameters
+                    .iter()
+                    .map(|&parameter| self.gcx.type_of_item(parameter.into()))
+                    .collect::<Vec<_>>(),
+                Vec::new(),
+                Some(parameter_names),
+                None,
+                None,
+                None,
+                None,
+                false,
+            )
+        } else if let ExprKind::Member(receiver, _) = callee.kind {
             let Some(function_id) = self.gcx.resolved_function(callee) else {
                 return report_unsupported(self.gcx, try_stmt.expr.span, "try target");
             };
             let function = self.gcx.hir.function(function_id);
             (
+                None,
                 function
                     .parameters
                     .iter()
@@ -1115,6 +1149,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let address_shift = self.builder.imm_u64(32);
             let address = self.builder.shr(address_shift, function_value);
             (
+                None,
                 function.parameters.to_vec(),
                 function.returns.to_vec(),
                 None,
@@ -1136,9 +1171,17 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         if catch_clauses.is_empty() {
             return report_unsupported(self.gcx, try_stmt.expr.span, "try/catch clauses");
         }
-        if returns_clause.name.is_some() || returns_clause.args.len() != return_types.len() {
-            return report_unsupported(self.gcx, returns_clause.span, "try return bindings");
-        }
+        let creation_binding = if creation.is_some() {
+            if returns_clause.name.is_some() || returns_clause.args.len() != 1 {
+                return report_unsupported(self.gcx, returns_clause.span, "try return bindings");
+            }
+            Some(returns_clause.args[0])
+        } else {
+            if returns_clause.name.is_some() || returns_clause.args.len() != return_types.len() {
+                return report_unsupported(self.gcx, returns_clause.span, "try return bindings");
+            }
+            None
+        };
         for catch_clause in catch_clauses {
             let catch_error = catch_clause.name.is_some_and(|name| name.name == sym::Error);
             let catch_panic = catch_clause.name.is_some_and(|name| name.name == sym::Panic);
@@ -1175,56 +1218,71 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             return report_unsupported(self.gcx, args.span, "try arguments");
         }
 
-        let mut values = Vec::with_capacity(parameter_types.len());
-        let mut types = Vec::with_capacity(parameter_types.len());
-        for (index, parameter_ty) in parameter_types.iter().copied().enumerate() {
-            let Some(argument) = args.argument_for_parameter(index, parameter_names.as_deref())
-            else {
-                return report_unsupported(self.gcx, args.span, "try argument");
-            };
-            let (value, abi_type) = self.lower_abi_call_argument(argument, parameter_ty)?;
-            values.push(value);
-            types.push(abi_type);
-        }
-        let selector = if let Some(selector) = selector {
-            selector
+        let (success, creation_value) = if let Some((ty, contract_id)) = creation {
+            let created = self.lower_create_contract(ty, contract_id, *args, *call_opts)?;
+            let zero = self.builder.imm_u256(U256::ZERO);
+            let failed = self.builder.eq(created, zero);
+            (self.builder.iszero(failed), Some(created))
         } else {
-            let Some(selector_bytes) = selector_bytes else {
-                return report_unsupported(self.gcx, try_stmt.expr.span, "try selector");
+            let mut values = Vec::with_capacity(parameter_types.len());
+            let mut types = Vec::with_capacity(parameter_types.len());
+            for (index, parameter_ty) in parameter_types.iter().copied().enumerate() {
+                let Some(argument) = args.argument_for_parameter(index, parameter_names.as_deref())
+                else {
+                    return report_unsupported(self.gcx, args.span, "try argument");
+                };
+                let (value, abi_type) = self.lower_abi_call_argument(argument, parameter_ty)?;
+                values.push(value);
+                types.push(abi_type);
+            }
+            let selector = if let Some(selector) = selector {
+                selector
+            } else {
+                let Some(selector_bytes) = selector_bytes else {
+                    return report_unsupported(self.gcx, try_stmt.expr.span, "try selector");
+                };
+                self.builder.imm_u256(U256::from_be_slice(&selector_bytes) << 224)
             };
-            self.builder.imm_u256(U256::from_be_slice(&selector_bytes) << 224)
-        };
-        let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-        let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
-        let input = self.builder.slice_ptr(encoded);
-        let input_size = self.builder.slice_len(encoded);
-        let address = if let Some(address) = address {
-            address
-        } else {
-            let Some(receiver) = receiver else {
-                return report_unsupported(self.gcx, try_stmt.expr.span, "try receiver");
+            let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+            let encoded =
+                self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
+            let input = self.builder.slice_ptr(encoded);
+            let input_size = self.builder.slice_len(encoded);
+            let address = if let Some(address) = address {
+                address
+            } else {
+                let Some(receiver) = receiver else {
+                    return report_unsupported(self.gcx, try_stmt.expr.span, "try receiver");
+                };
+                self.lower_expr(receiver)?
             };
-            self.lower_expr(receiver)?
-        };
-        let zero = self.builder.imm_u256(U256::ZERO);
-        let mut call_value = zero;
-        let mut gas = self.builder.gas();
-        if let Some(options) = call_opts {
-            for option in options.args {
-                let value = self.lower_expr(&option.value)?;
-                match option.name.name {
-                    kw::Gas => gas = value,
-                    sym::value => call_value = value,
-                    _ => return report_unsupported(self.gcx, option.name.span, "try call option"),
+            let zero = self.builder.imm_u256(U256::ZERO);
+            let mut call_value = zero;
+            let mut gas = self.builder.gas();
+            if let Some(options) = call_opts {
+                for option in options.args {
+                    let value = self.lower_expr(&option.value)?;
+                    match option.name.name {
+                        kw::Gas => gas = value,
+                        sym::value => call_value = value,
+                        _ => {
+                            return report_unsupported(
+                                self.gcx,
+                                option.name.span,
+                                "try call option",
+                            );
+                        }
+                    }
                 }
             }
-        }
-        let ret_offset = zero;
-        let ret_size = self.builder.imm_u64(0);
-        let success = if static_call {
-            self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
-        } else {
-            self.builder.call(gas, address, call_value, input, input_size, ret_offset, ret_size)
+            let ret_offset = zero;
+            let ret_size = self.builder.imm_u64(0);
+            let success = if static_call {
+                self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
+            } else {
+                self.builder.call(gas, address, call_value, input, input_size, ret_offset, ret_size)
+            };
+            (success, None)
         };
 
         let success_block = self.builder.create_block();
@@ -1237,7 +1295,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.values = before.clone();
         self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(success_block);
-        if !return_types.is_empty() {
+        if let Some(binding) = creation_binding {
+            let Some(value) = creation_value else {
+                return report_unsupported(self.gcx, returns_clause.span, "try return bindings");
+            };
+            self.values.insert(binding, value);
+        } else if !return_types.is_empty() {
             let data = self.materialize_returndata_bytes();
             let return_types = return_types
                 .iter()
@@ -2346,6 +2409,18 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
+        let created = self.lower_create_contract(ty, contract_id, args, call_opts)?;
+        self.revert_external_call(created);
+        Some(created)
+    }
+
+    fn lower_create_contract(
+        &mut self,
+        ty: &hir::Type<'_>,
+        contract_id: hir::ContractId,
+        args: hir::CallArgs<'_>,
+        call_opts: Option<&hir::CallOptions<'_>>,
+    ) -> Option<ValueId> {
         let contract = self.gcx.hir.contract(contract_id);
         let bytecode = self.child_bytecodes.get(&contract_id).ok_or_else(|| {
             self.gcx
@@ -2441,7 +2516,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         } else {
             self.builder.create(call_value, data, total_len)
         };
-        self.revert_external_call(created);
         Some(created)
     }
 
