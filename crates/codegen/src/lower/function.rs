@@ -257,7 +257,7 @@ enum PackedPiece {
     Bytes(Vec<u8>),
     Static { value: ValueId, length: u64, fixed_bytes: bool },
     Dynamic { source: ValueId, length: ValueId },
-    Array { value: ValueId, length: ValueId, source: PackedArraySource },
+    Array { value: ValueId, length: ValueId, element: AbiType, source: PackedArraySource },
 }
 
 #[derive(Clone, Copy)]

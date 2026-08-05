@@ -370,11 +370,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 continue;
             }
 
-            if let Some((length, source)) = self.packed_array_shape(ty, value) {
+            if let Some((length, element, source)) = self.packed_array_shape(ty, value) {
                 let word = self.builder.imm_u64(32);
                 let byte_length = self.checked_mul(length, word);
                 total = self.checked_add(total, byte_length);
-                pieces.push(PackedPiece::Array { value, length, source });
+                pieces.push(PackedPiece::Array { value, length, element, source });
                 continue;
             }
 
@@ -432,8 +432,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     );
                     offset = self.checked_add(offset, *length);
                 }
-                PackedPiece::Array { value, length, source } => {
-                    offset = self.copy_packed_array(output, offset, *value, *length, *source);
+                PackedPiece::Array { value, length, element, source } => {
+                    offset =
+                        self.copy_packed_array(output, offset, *value, *length, element, *source);
                 }
                 PackedPiece::Static { value, length, fixed_bytes } => {
                     let value = if *fixed_bytes || *length == 32 {
@@ -456,7 +457,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         &mut self,
         ty: Ty<'gcx>,
         value: ValueId,
-    ) -> Option<(ValueId, PackedArraySource)> {
+    ) -> Option<(ValueId, AbiType, PackedArraySource)> {
         let element = match ty.peel_refs().kind {
             TyKind::DynArray(element) | TyKind::Array(element, _) => element,
             TyKind::Slice(inner) => match inner.peel_refs().kind {
@@ -467,7 +468,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             },
             _ => return None,
         };
-        if !matches!(self.types.abi_type(element)?, AbiType::Word) {
+        let element_abi = self.types.abi_type(element)?;
+        if !matches!(element_abi, AbiType::Word | AbiType::Function) {
             return None;
         }
 
@@ -491,7 +493,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             PackedArraySource::Memory { .. } => return None,
             PackedArraySource::Slice(_) => self.builder.slice_len(value),
         };
-        Some((length, source))
+        Some((length, element_abi, source))
     }
 
     pub(super) fn lower_packed_word_array(
@@ -499,7 +501,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         ty: Ty<'gcx>,
         value: ValueId,
     ) -> Option<ValueId> {
-        let (length, source) = self.packed_array_shape(ty, value)?;
+        let (length, element, source) = self.packed_array_shape(ty, value)?;
         let word = self.builder.imm_u64(32);
         let byte_length = self.checked_mul(length, word);
         let size = self.checked_add(word, byte_length);
@@ -510,7 +512,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         );
         self.builder.set_memory_object_len(output, byte_length, MemoryObjectKind::Bytes);
         let offset = self.builder.imm_u64(0);
-        self.copy_packed_array(output, offset, value, length, source);
+        self.copy_packed_array(output, offset, value, length, &element, source);
         Some(output)
     }
 
@@ -520,6 +522,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         offset: ValueId,
         value: ValueId,
         length: ValueId,
+        element: &AbiType,
         source: PackedArraySource,
     ) -> ValueId {
         let word = self.builder.imm_u64(32);
@@ -553,7 +556,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.switch_to_block(body);
         let element_offset = self.checked_mul(index, word);
         let destination = self.checked_add(offset, element_offset);
-        let element = match source {
+        let element_value = match source {
             PackedArraySource::Memory { layout } => {
                 self.builder.memory_object_load_element(value, layout, index)
             }
@@ -567,7 +570,15 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 SliceLocation::Returndata => unreachable!("returndata packed array"),
             },
         };
-        self.builder.memory_object_store_word(output, destination, element);
+        let element_value = if matches!(element, AbiType::Function)
+            && matches!(source, PackedArraySource::Memory { .. })
+        {
+            let shift = self.builder.imm_u64(64);
+            self.builder.shl(shift, element_value)
+        } else {
+            element_value
+        };
+        self.builder.memory_object_store_word(output, destination, element_value);
         let one = self.builder.imm_u64(1);
         let next = self.builder.add(index, one);
         let backedge = self.builder.current_block();
