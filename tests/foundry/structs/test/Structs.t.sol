@@ -100,6 +100,10 @@ contract StructsTest {
         require(second.x == 33 && second.y == 44, "second point mismatch");
         require(s.sumStoredPoint(0) == 33, "internal point sum mismatch");
         require(s.sumStoredPointExternal(1) == 77, "external point sum mismatch");
+
+        bytes memory encoded = s.encodeStoredPoint(0);
+        (uint256 x, uint256 y) = abi.decode(encoded, (uint256, uint256));
+        require(x == 11 && y == 22, "encoded point mismatch");
     }
 
     // ========= Complex Operations =========

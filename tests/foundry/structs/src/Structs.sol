@@ -143,6 +143,10 @@ contract Structs {
         return point.x + point.y;
     }
 
+    function encodeStoredPoint(uint256 index) external view returns (bytes memory) {
+        return abi.encode(storedPoints[index]);
+    }
+
     // ========= Helper for Complex Operations =========
 
     /// @notice Compute distance squared between two points

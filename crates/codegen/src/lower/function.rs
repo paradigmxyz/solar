@@ -3889,7 +3889,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let mut types = Vec::with_capacity(exprs.len());
         for expr in exprs {
             let ty = self.gcx.type_of_expr(expr.id)?;
-            let mut value = self.lower_expr(expr)?;
+            let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+            let mut value = self.lower_typed_expr(expr, memory_ty)?;
             let mut abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
                 AbiType::Bytes(SliceLocation::Memory)
             } else {
