@@ -30,4 +30,11 @@ contract AbiEncodePackedMixed {
     function materialized(uint16 a, bytes memory mid, bool b) external pure returns (bytes memory) {
         return abi.encodePacked(a, mid, b);
     }
+
+    // CHECK-LABEL: fn @hashArray{{[( ]}}
+    // CHECK: memory_object_load_element memoryarray<1>
+    // CHECK: memory_object_store_word memorybytes
+    function hashArray(bytes32[] memory values) external pure returns (bytes32) {
+        return keccak256(abi.encodePacked(values));
+    }
 }

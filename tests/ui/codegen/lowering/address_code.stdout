@@ -1,0 +1,61 @@
+// === ROOT/tests/ui/codegen/lowering/address_code.sol:AddressCode ===
+@module AddressCode
+fn @codeLength(arg0: address) -> u256 [abi_args=lazy, abi_params=[address], abi_returns=[word]] {
+  bb0:
+    v0 = extcodesize arg0
+    ret v0
+}
+
+fn @codeHash(arg0: address) -> bytes32 [abi_args=lazy, abi_params=[address], abi_returns=[word]] {
+  bb0:
+    v0 = extcodehash arg0
+    ret v0
+}
+
+fn @code(arg0: address) -> memorybytes [abi_args=lazy, abi_params=[address], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    set_memory_object_len memorybytes, v0, 0
+    v1 = extcodesize arg0
+    v2 = add v1, 31
+    v3 = lt v2, v1
+    jumpi v3, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v4 = div v2, 32
+    v5 = add v4, 1
+    v6 = lt v5, v4
+    jumpi v6, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v7 = mul v5, 32
+    v8 = iszero 32
+    v9 = div v7, 32
+    v10 = eq v9, v5
+    v11 = or v8, v10
+    v12 = iszero v11
+    jumpi v12, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v13 = alloc memorybytes, exact, zeroed, panic, v7
+    set_memory_object_len memorybytes, v13, v1
+    v14 = memory_object_data memorybytes, v13
+    extcodecopy arg0, v14, 0, v1
+    ret v13
+}
+
+fn @addressFromBytes20(arg0: bytes20) -> address [abi_args=lazy, abi_params=[bytes20], abi_returns=[word]] {
+  bb0:
+    v0 = shr 96, arg0
+    ret v0
+}
+

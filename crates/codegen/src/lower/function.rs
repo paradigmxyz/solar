@@ -198,6 +198,13 @@ enum PackedPiece {
     Bytes(Vec<u8>),
     Static { value: ValueId, length: u64, fixed_bytes: bool },
     Dynamic { source: ValueId, length: ValueId },
+    Array { value: ValueId, length: ValueId, source: PackedArraySource },
+}
+
+#[derive(Clone, Copy)]
+enum PackedArraySource {
+    Memory { layout: MemoryObjectLayout },
+    Slice(SliceLocation),
 }
 
 #[derive(Clone, Copy)]
@@ -3171,6 +3178,15 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
             return value;
         }
+        if matches!(
+            to.peel_refs().kind,
+            TyKind::Elementary(solar_sema::hir::ElementaryType::Address(_))
+        ) && let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
+            from.peel_refs().kind
+        {
+            let shift = self.builder.imm_u64(u64::from(32 - size.bytes()) * 8);
+            return self.builder.shr(shift, value);
+        }
         let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
             to.peel_refs().kind
         else {
@@ -4028,6 +4044,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 continue;
             }
 
+            if let Some((length, source)) = self.packed_array_shape(ty, value) {
+                let word = self.builder.imm_u64(32);
+                let byte_length = self.checked_mul(length, word);
+                total = self.checked_add(total, byte_length);
+                pieces.push(PackedPiece::Array { value, length, source });
+                continue;
+            }
+
             let Some((length, fixed_bytes)) = self.packed_static_shape(ty) else {
                 return report_unsupported(self.gcx, expr.span, "abi.encodePacked argument");
             };
@@ -4082,6 +4106,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     );
                     offset = self.checked_add(offset, *length);
                 }
+                PackedPiece::Array { value, length, source } => {
+                    offset = self.copy_packed_array(output, offset, *value, *length, *source);
+                }
                 PackedPiece::Static { value, length, fixed_bytes } => {
                     let value = if *fixed_bytes || *length == 32 {
                         *value
@@ -4097,6 +4124,99 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             index += 1;
         }
         Some(output)
+    }
+
+    fn packed_array_shape(
+        &mut self,
+        ty: Ty<'gcx>,
+        value: ValueId,
+    ) -> Option<(ValueId, PackedArraySource)> {
+        let element = match ty.peel_refs().kind {
+            TyKind::DynArray(element) | TyKind::Slice(element) | TyKind::Array(element, _) => {
+                element
+            }
+            _ => return None,
+        };
+        if !matches!(self.types.abi_type(element)?, AbiType::Word) {
+            return None;
+        }
+
+        let layout = self.types.memory_layout(ty)?;
+        let source = match self.builder.func().value_ty(value) {
+            Some(MirType::MemoryObject(
+                MemoryObjectKind::DynamicArray | MemoryObjectKind::FixedArray,
+            )) => PackedArraySource::Memory { layout },
+            Some(MirType::Slice(location @ (SliceLocation::Memory | SliceLocation::Calldata))) => {
+                PackedArraySource::Slice(location)
+            }
+            _ => return None,
+        };
+        let length = match source {
+            PackedArraySource::Memory { layout: MemoryObjectLayout::DynamicArray { .. } } => {
+                self.builder.memory_object_len(value, MemoryObjectKind::DynamicArray)
+            }
+            PackedArraySource::Memory { layout: MemoryObjectLayout::FixedArray { len, .. } } => {
+                self.builder.imm_u64(len)
+            }
+            PackedArraySource::Memory { .. } => return None,
+            PackedArraySource::Slice(_) => self.builder.slice_len(value),
+        };
+        Some((length, source))
+    }
+
+    fn copy_packed_array(
+        &mut self,
+        output: ValueId,
+        offset: ValueId,
+        value: ValueId,
+        length: ValueId,
+        source: PackedArraySource,
+    ) -> ValueId {
+        let word = self.builder.imm_u64(32);
+        let byte_length = self.checked_mul(length, word);
+        let end_offset = self.checked_add(offset, byte_length);
+        let base = match source {
+            PackedArraySource::Memory { .. } => None,
+            PackedArraySource::Slice(_) => Some(self.builder.slice_ptr(value)),
+        };
+
+        let preheader = self.builder.current_block();
+        let header = self.builder.create_block();
+        let body = self.builder.create_block();
+        let exit = self.builder.create_block();
+        self.builder.jump(header);
+
+        self.builder.switch_to_block(header);
+        let zero = self.builder.imm_u64(0);
+        let index = self.builder.phi(vec![(preheader, zero)]);
+        let more = self.builder.lt(index, length);
+        self.builder.branch(more, body, exit);
+
+        self.builder.switch_to_block(body);
+        let element_offset = self.checked_mul(index, word);
+        let destination = self.checked_add(offset, element_offset);
+        let element = match source {
+            PackedArraySource::Memory { layout } => {
+                self.builder.memory_object_load_element(value, layout, index)
+            }
+            PackedArraySource::Slice(location) => {
+                let pointer = self.builder.add(base.expect("slice base"), element_offset);
+                match location {
+                    SliceLocation::Memory => self.builder.mload(pointer),
+                    SliceLocation::Calldata => self.builder.calldataload(pointer),
+                    SliceLocation::Returndata => unreachable!("returndata packed array"),
+                }
+            }
+        };
+        self.builder.memory_object_store_word(output, destination, element);
+        let one = self.builder.imm_u64(1);
+        let next = self.builder.add(index, one);
+        let backedge = self.builder.current_block();
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(index, backedge, next);
+
+        self.builder.switch_to_block(exit);
+        end_offset
     }
 
     fn is_calldata_dynamic_bytes_type(&self, ty: Ty<'gcx>) -> bool {
@@ -5576,6 +5696,55 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         expr: &hir::Expr<'_>,
         builtin: Builtin,
     ) -> Option<ValueId> {
+        if builtin == Builtin::ContractCreationCode {
+            let ExprKind::Member(receiver, _) = &expr.kind else {
+                return report_unsupported(self.gcx, expr.span, "environment builtin");
+            };
+            let TyKind::Meta(ty) = self.gcx.type_of_expr(receiver.id)?.kind else {
+                return report_unsupported(self.gcx, expr.span, "creation code target");
+            };
+            let TyKind::Contract(contract_id) = ty.peel_refs().kind else {
+                return report_unsupported(self.gcx, expr.span, "creation code target");
+            };
+            let Some(bytecode) = self.child_bytecodes.get(&contract_id) else {
+                self.gcx
+                    .dcx()
+                    .err("codegen is missing creation bytecode for `creationCode`")
+                    .span(expr.span)
+                    .note("the referenced contract did not compile or was not lowered first")
+                    .emit();
+                return None;
+            };
+            return self.lower_bytes_literal(bytecode, expr.span);
+        }
+        if matches!(builtin, Builtin::AddressCode | Builtin::AddressCodehash) {
+            let ExprKind::Member(receiver, _) = &expr.kind else {
+                return report_unsupported(self.gcx, expr.span, "environment builtin");
+            };
+            let address = self.lower_expr(receiver)?;
+            if builtin == Builtin::AddressCodehash {
+                return Some(self.builder.extcodehash(address));
+            }
+
+            let length = self.builder.extcodesize(address);
+            let thirty_one = self.builder.imm_u64(31);
+            let rounded = self.checked_add(length, thirty_one);
+            let word_size = self.builder.imm_u64(32);
+            let words = self.builder.div(rounded, word_size);
+            let one = self.builder.imm_u64(1);
+            let words = self.checked_add(words, one);
+            let size = self.checked_mul(words, word_size);
+            let object = self.builder.alloc_object(
+                size,
+                MemoryObjectLayout::Bytes,
+                AllocationSemantics::SOLIDITY_ZEROED,
+            );
+            self.builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+            let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+            let zero = self.builder.imm_u256(U256::ZERO);
+            self.builder.extcodecopy(address, data, zero, length);
+            return Some(object);
+        }
         if builtin == Builtin::FunctionSelector {
             let selector = match self.gcx.resolved_expr(expr).and_then(|res| match res {
                 hir::Res::Item(item @ (hir::ItemId::Function(_) | hir::ItemId::Error(_))) => {
@@ -5625,6 +5794,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let ExprKind::Member(receiver, _) = &expr.kind else {
                 return report_unsupported(self.gcx, expr.span, "array length");
             };
+            if self.gcx.resolved_builtin(receiver) == Some(Builtin::AddressCode)
+                && let ExprKind::Member(address, _) = &receiver.kind
+            {
+                let address = self.lower_expr(address)?;
+                return Some(self.builder.extcodesize(address));
+            }
             let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
             if receiver_ty.is_ref_at(DataLocation::Storage) {
                 let access = self.storage_access(receiver)?;

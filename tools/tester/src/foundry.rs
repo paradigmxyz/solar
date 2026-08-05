@@ -115,7 +115,7 @@ impl ForgeCompiler {
 
 static SOLAR_BINARY: OnceLock<PathBuf> = OnceLock::new();
 
-const TEMPORARILY_IGNORED_PROJECTS: &[&str] = &["unifap-v2", "unifap-v2-create"];
+const TEMPORARILY_IGNORED_PROJECTS: &[&str] = &["unifap-v2"];
 
 fn foundry_root() -> PathBuf {
     workspace_root().join("tests/foundry")

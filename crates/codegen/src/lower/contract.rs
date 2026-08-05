@@ -65,7 +65,8 @@ pub(super) fn lower(
                 }
                 hir::FunctionKind::Function | hir::FunctionKind::Modifier => {
                     if function.kind == hir::FunctionKind::Modifier
-                        || (base != contract_id && function.visibility == hir::Visibility::Private)
+                        || (function.visibility == hir::Visibility::Private
+                            && (base != contract_id || contract.kind != hir::ContractKind::Library))
                     {
                         continue;
                     }
@@ -96,7 +97,8 @@ pub(super) fn lower(
             && matches!(function.visibility, hir::Visibility::Public | hir::Visibility::External)
             && function.body.is_some();
         if function.kind == hir::FunctionKind::Function
-            && (function.visibility == hir::Visibility::Internal || library_function)
+            && (matches!(function.visibility, hir::Visibility::Internal | hir::Visibility::Private)
+                || library_function)
         {
             function_ids.push((function_id, false));
         }

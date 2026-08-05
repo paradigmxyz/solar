@@ -22,6 +22,16 @@ contract AbiEncodingTest {
         assert(keccak256(result) == keccak256(abi.encodePacked(uint256(1), uint256(2))));
     }
 
+    function testEncodePackedArray() public view {
+        bytes32[] memory values = new bytes32[](3);
+        values[0] = bytes32(uint256(1));
+        values[1] = bytes32(uint256(2));
+        values[2] = bytes32(uint256(3));
+        bytes memory result = target.encodePackedArray(values);
+        assert(result.length == 96);
+        assert(keccak256(result) == keccak256(abi.encodePacked(values)));
+    }
+
     function testEncodeMultiple() public view {
         bytes memory result = target.encodeMultiple(10, 20, 30);
         assert(result.length == 96);
@@ -54,5 +64,17 @@ contract AbiEncodingTest {
     function testRoundtripMax() public view {
         uint256 result = target.roundtrip(type(uint256).max);
         assert(result == type(uint256).max);
+    }
+
+    function testAddressCode() public view {
+        assert(target.codeLength(address(0)) == 0);
+        assert(target.codeHash(address(0)) == bytes32(0));
+        assert(target.code(address(0)).length == 0);
+        assert(target.code(address(target)).length > 0);
+    }
+
+    function testAddressFromBytes20() public view {
+        bytes20 value = bytes20(0x00112233445566778899AABbCCdDeeFf00112233);
+        assert(target.addressFromBytes20(value) == address(value));
     }
 }

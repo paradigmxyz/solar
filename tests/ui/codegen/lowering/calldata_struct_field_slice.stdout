@@ -3,26 +3,27 @@
 @phase optimized
 fn @factory(arg0: memptr) -> address {
   bb0:
-    v16 = add arg0, 64
-    v0 = mload v16
+    v17 = add arg0, 64
+    v0 = mload v17
     v1 = mload v0
     v2 = lt v1, 20
     jumpi v2, bb2, bb1
   bb1:
-    v17 = add arg0, 64
-    v3 = mload v17
+    v18 = add arg0, 64
+    v3 = mload v18
     v5 = add v3, 32
     v4 = mload v3
     v9 = gt 20, v4
     jumpi v9, bb3, bb4
   bb2:
-    v15 = phi [bb0: 0], [bb4: v14]
-    ret v15
+    v16 = phi [bb0: 0], [bb4: v15]
+    ret v16
   bb3:
     tail_call @__revert_stub0
   bb4:
     v13 = make_memory_slice v5, 20
     v14 = shl 96, v13
+    v15 = shr 96, v14
     jump bb2
 }
 
@@ -792,26 +793,27 @@ fn @midWord.2() {
 
 fn @factory.3(arg0: memptr) -> address {
   bb0:
-    v16 = add arg0, 64
-    v0 = mload v16
+    v17 = add arg0, 64
+    v0 = mload v17
     v1 = mload v0
     v2 = lt v1, 20
     jumpi v2, bb2, bb1
   bb1:
-    v17 = add arg0, 64
-    v3 = mload v17
+    v18 = add arg0, 64
+    v3 = mload v18
     v5 = add v3, 32
     v4 = mload v3
     v9 = gt 20, v4
     jumpi v9, bb3, bb4
   bb2:
-    v15 = phi [bb0: 0], [bb4: v14]
-    ret v15
+    v16 = phi [bb0: 0], [bb4: v15]
+    ret v16
   bb3:
     tail_call @__revert_stub0
   bb4:
     v13 = make_memory_slice v5, 20
     v14 = shl 96, v13
+    v15 = shr 96, v14
     jump bb2
 }
 
