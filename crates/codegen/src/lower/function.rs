@@ -4291,9 +4291,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         value: ValueId,
     ) -> Option<(ValueId, PackedArraySource)> {
         let element = match ty.peel_refs().kind {
-            TyKind::DynArray(element) | TyKind::Slice(element) | TyKind::Array(element, _) => {
-                element
-            }
+            TyKind::DynArray(element) | TyKind::Array(element, _) => element,
+            TyKind::Slice(inner) => match inner.peel_refs().kind {
+                TyKind::DynArray(element) | TyKind::Slice(element) | TyKind::Array(element, _) => {
+                    element
+                }
+                _ => inner,
+            },
             _ => return None,
         };
         if !matches!(self.types.abi_type(element)?, AbiType::Word) {
@@ -5421,6 +5425,17 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         span: Span,
     ) -> Option<ValueId> {
         match ty.peel_refs().kind {
+            TyKind::Slice(element)
+                if matches!(
+                    element.peel_refs().kind,
+                    TyKind::Elementary(
+                        solar_sema::hir::ElementaryType::Bytes
+                            | solar_sema::hir::ElementaryType::String,
+                    )
+                ) =>
+            {
+                Some(self.materialize_memory_slice(value))
+            }
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
             ) => Some(self.materialize_memory_slice(value)),
