@@ -27,6 +27,34 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
     }
 
+    pub(super) fn calldata_aggregate_requires_validation(&self, ty: Ty<'gcx>) -> bool {
+        let ty = ty.peel_refs();
+        match ty.kind {
+            TyKind::DynArray(element) | TyKind::Slice(element) | TyKind::Array(element, _) => {
+                self.calldata_aggregate_requires_validation(element)
+            }
+            TyKind::Struct(id) => self.gcx.hir.strukt(id).fields.iter().any(|&field| {
+                self.calldata_aggregate_requires_validation(self.gcx.type_of_item(field.into()))
+            }),
+            TyKind::Tuple(fields) => {
+                fields.iter().any(|&field| self.calldata_aggregate_requires_validation(field))
+            }
+            TyKind::Udvt(inner, _) => self.calldata_aggregate_requires_validation(inner),
+            TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            ) => false,
+            _ => !Self::calldata_word_is_full_width(ty),
+        }
+    }
+
+    fn calldata_word_is_full_width(ty: Ty<'gcx>) -> bool {
+        match types::TypeLowerer::mir_type(ty) {
+            MirType::UInt(size) | MirType::Int(size) => size.bits() == 256,
+            MirType::FixedBytes(size) => size.bytes() == 32,
+            _ => false,
+        }
+    }
+
     pub(super) fn materialize_memory_argument(
         &mut self,
         ty: Ty<'gcx>,
@@ -168,7 +196,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 let element_type = self.types.abi_type(element)?;
                 let length = self.builder.slice_len(value);
                 let data = self.builder.slice_ptr(value);
-                if matches!(element_type, AbiType::Word) {
+                if matches!(element_type, AbiType::Word)
+                    && Self::calldata_word_is_full_width(element)
+                {
                     return Some(self.copy_calldata_word_array(data, length));
                 }
                 self.materialize_calldata_nested_array(element, data, length, span)
@@ -302,7 +332,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 let length = self.calldata_load_word(value_pos);
                 let data = self.builder.add(value_pos, word);
                 let element_type = self.types.abi_type(element)?;
-                if matches!(element_type, AbiType::Word) {
+                if matches!(element_type, AbiType::Word)
+                    && Self::calldata_word_is_full_width(element)
+                {
                     if validate_bounds {
                         let element_head_size = self.builder.imm_u64(element_type.head_size());
                         let head_size = self.checked_mul(length, element_head_size);
@@ -345,7 +377,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             TyKind::Fn(function) if function.is_external() => {
                 Some(self.decode_calldata_function_pointer(value_pos))
             }
-            _ => Some(self.calldata_load_word(value_pos)),
+            _ => Some(self.decode_calldata_word(ty, value_pos)),
         }
     }
 
@@ -409,6 +441,60 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.revert_if_calldata_invalid(invalid);
         let shift = self.builder.imm_u64(64);
         self.builder.shr(shift, value)
+    }
+
+    fn decode_calldata_word(&mut self, ty: Ty<'gcx>, position: ValueId) -> ValueId {
+        if let TyKind::Fn(function) = ty.kind
+            && function.is_external()
+        {
+            return self.decode_calldata_function_pointer(position);
+        }
+
+        let word = self.builder.imm_u64(32);
+        self.check_calldata_range(position, word);
+        let value = self.calldata_load_word(position);
+        let valid = match ty.kind {
+            TyKind::Enum(id) => {
+                let variants = self.gcx.hir.enumm(id).variants.len() as u64;
+                let variants = self.builder.imm_u64(variants);
+                Some(self.builder.lt(value, variants))
+            }
+            _ => match types::TypeLowerer::mir_type(ty) {
+                MirType::UInt(size) if size.bits() < 256 => {
+                    let mask = U256::MAX >> (256 - usize::from(size.bits()));
+                    let mask = self.builder.imm_u256(mask);
+                    let canonical = self.builder.and(value, mask);
+                    Some(self.builder.eq(value, canonical))
+                }
+                MirType::Int(size) if size.bits() < 256 => {
+                    let byte_index = self.builder.imm_u64(u64::from(size.bits() / 8) - 1);
+                    let canonical = self.builder.signextend(byte_index, value);
+                    Some(self.builder.eq(value, canonical))
+                }
+                MirType::Address => {
+                    let mask = self.builder.imm_u256(U256::MAX >> 96);
+                    let canonical = self.builder.and(value, mask);
+                    Some(self.builder.eq(value, canonical))
+                }
+                MirType::FixedBytes(size) if size.bytes() < 32 => {
+                    let mask =
+                        self.builder.imm_u256(U256::MAX << (256 - 8 * usize::from(size.bytes())));
+                    let canonical = self.builder.and(value, mask);
+                    Some(self.builder.eq(value, canonical))
+                }
+                MirType::Bool => {
+                    let zero = self.builder.iszero(value);
+                    let canonical = self.builder.iszero(zero);
+                    Some(self.builder.eq(value, canonical))
+                }
+                _ => None,
+            },
+        };
+        if let Some(valid) = valid {
+            let invalid = self.builder.iszero(valid);
+            self.revert_if_calldata_invalid(invalid);
+        }
+        value
     }
 
     fn materialize_calldata_bytes_at(&mut self, position: ValueId) -> ValueId {

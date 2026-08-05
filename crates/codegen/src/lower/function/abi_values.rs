@@ -40,7 +40,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 self.types.abi_type(ty)?
             };
             abi_type = self.abi_type_for_value(value, abi_type);
-            if self.needs_calldata_materialization(value, &abi_type) {
+            if self.needs_calldata_materialization(value, &abi_type)
+                || (matches!(
+                    self.builder.func().value_ty(value),
+                    Some(MirType::Slice(SliceLocation::Calldata))
+                ) && self.calldata_aggregate_requires_validation(ty))
+            {
                 value = self.materialize_calldata_argument(ty, value, expr.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
             }
@@ -156,7 +161,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             value = self.coerce_value(value, from_ty, ty);
             let mut abi_type = self.types.abi_type(ty)?;
             abi_type = self.abi_type_for_value(value, abi_type);
-            if self.needs_calldata_materialization(value, &abi_type) {
+            if self.needs_calldata_materialization(value, &abi_type)
+                || (matches!(
+                    self.builder.func().value_ty(value),
+                    Some(MirType::Slice(SliceLocation::Calldata))
+                ) && self.calldata_aggregate_requires_validation(ty))
+            {
                 value = self.materialize_calldata_argument(ty, value, expr.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
             }
