@@ -59,6 +59,8 @@ The replacement is split into stateful, private components:
   ABI value and packed encoding helpers live in the child
   `function/abi_values` module, leaving the main walker with only the
   dispatch points and shared argument materialization it needs.
+  ABI call-argument typing and calldata materialization live in the sibling
+  `function/abi_calls` module.
   Storage-reference access, packed indexing, and aggregate storage copies live
   in the child `function/storage_values` module instead of in the main HIR
   expression walker.
