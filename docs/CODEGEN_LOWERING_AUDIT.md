@@ -211,8 +211,9 @@ existing scalar and packed-storage MIR fixtures. It supports:
   return bindings, ordered selector dispatch for multiple catches, bare
   catches, `catch (bytes memory)` returndata objects, and
   `catch Error(string memory)`/`catch Panic(uint256)` selector and payload
-  checks, including explicit `gas` and `value` call options, plus constructor
-  creation with `CREATE`/`CREATE2` failure dispatch;
+  checks, including source-order receiver, `gas`/`value` options, and argument
+  evaluation, plus constructor creation with `CREATE`/`CREATE2` failure
+  dispatch;
 * internal function-pointer values and shape-specific dispatchers for exact,
   virtual, and `super` targets, including storage-backed values, higher-order
   returns, memory arrays, and multi-return calls;

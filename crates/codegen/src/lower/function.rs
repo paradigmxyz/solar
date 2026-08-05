@@ -1224,30 +1224,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let failed = self.builder.eq(created, zero);
             (self.builder.iszero(failed), Some(created))
         } else {
-            let mut values = Vec::with_capacity(parameter_types.len());
-            let mut types = Vec::with_capacity(parameter_types.len());
-            for (index, parameter_ty) in parameter_types.iter().copied().enumerate() {
-                let Some(argument) = args.argument_for_parameter(index, parameter_names.as_deref())
-                else {
-                    return report_unsupported(self.gcx, args.span, "try argument");
-                };
-                let (value, abi_type) = self.lower_abi_call_argument(argument, parameter_ty)?;
-                values.push(value);
-                types.push(abi_type);
-            }
-            let selector = if let Some(selector) = selector {
-                selector
-            } else {
-                let Some(selector_bytes) = selector_bytes else {
-                    return report_unsupported(self.gcx, try_stmt.expr.span, "try selector");
-                };
-                self.builder.imm_u256(U256::from_be_slice(&selector_bytes) << 224)
-            };
-            let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-            let encoded =
-                self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
-            let input = self.builder.slice_ptr(encoded);
-            let input_size = self.builder.slice_len(encoded);
             let address = if let Some(address) = address {
                 address
             } else {
@@ -1275,6 +1251,30 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     }
                 }
             }
+            let mut values = Vec::with_capacity(parameter_types.len());
+            let mut types = Vec::with_capacity(parameter_types.len());
+            for (index, parameter_ty) in parameter_types.iter().copied().enumerate() {
+                let Some(argument) = args.argument_for_parameter(index, parameter_names.as_deref())
+                else {
+                    return report_unsupported(self.gcx, args.span, "try argument");
+                };
+                let (value, abi_type) = self.lower_abi_call_argument(argument, parameter_ty)?;
+                values.push(value);
+                types.push(abi_type);
+            }
+            let selector = if let Some(selector) = selector {
+                selector
+            } else {
+                let Some(selector_bytes) = selector_bytes else {
+                    return report_unsupported(self.gcx, try_stmt.expr.span, "try selector");
+                };
+                self.builder.imm_u256(U256::from_be_slice(&selector_bytes) << 224)
+            };
+            let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+            let encoded =
+                self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
+            let input = self.builder.slice_ptr(encoded);
+            let input_size = self.builder.slice_len(encoded);
             let ret_offset = zero;
             let ret_size = self.builder.imm_u64(0);
             let success = if static_call {

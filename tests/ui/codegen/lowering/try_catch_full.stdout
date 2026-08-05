@@ -402,6 +402,9 @@ fn @full() {
     mstore 64, v406 !metadata(memory=scratch)
     v423 = calldatasize
     calldatacopy v0, v423, 32
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = gas
     v202 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v422 = add v202, 96
     mstore 64, v422 !metadata(memory=scratch)
@@ -413,10 +416,7 @@ fn @full() {
     v381 = add v380, 4
     mstore v381, arg0
     v205 = add v202, 32
-    v4 = sload 0 !metadata(storage=slot(0))
-    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = gas
-    v7 = staticcall v6, v5, v205, 36, 0, 0
+    v7 = staticcall v3, v2, v205, 36, 0, 0
     jumpi v7, bb1, bb2
   bb48:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -636,6 +636,9 @@ fn @rethrows() {
     mcopy v200, v149, v155
     jump bb3
   bb34:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = gas
     v174 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v213 = add v174, 96
     mstore 64, v213 !metadata(memory=scratch)
@@ -647,10 +650,7 @@ fn @rethrows() {
     v206 = add v205, 4
     mstore v206, arg0
     v177 = add v174, 32
-    v3 = sload 0 !metadata(storage=slot(0))
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = gas
-    v6 = staticcall v5, v4, v177, 36, 0, 0
+    v6 = staticcall v2, v1, v177, 36, 0, 0
     jumpi v6, bb1, bb2
 }
 
