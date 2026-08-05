@@ -680,13 +680,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 return report_unsupported(self.gcx, args.span, "error argument");
             };
             let parameter_ty = self.gcx.type_of_item(parameter.into());
-            let mut value = self.lower_typed_expr(argument, parameter_ty)?;
-            let mut abi_type = self.types.abi_type(parameter_ty)?;
-            abi_type = self.abi_type_for_value(value, abi_type);
-            if self.needs_calldata_materialization(value, &abi_type) {
-                value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
-                abi_type = Self::memory_abi_type(abi_type);
-            }
+            let (mut value, abi_type) = self.lower_abi_call_argument(argument, parameter_ty)?;
             if matches!(abi_type, AbiType::Word) {
                 value = self.lower_word_value(parameter_ty, argument, value);
             }
@@ -1245,13 +1239,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             else {
                 return report_unsupported(self.gcx, args.span, "try argument");
             };
-            let mut value = self.lower_typed_expr(argument, parameter_ty)?;
-            let mut abi_type = self.types.abi_type(parameter_ty)?;
-            abi_type = self.abi_type_for_value(value, abi_type);
-            if self.needs_calldata_materialization(value, &abi_type) {
-                value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
-                abi_type = Self::memory_abi_type(abi_type);
-            }
+            let (value, abi_type) = self.lower_abi_call_argument(argument, parameter_ty)?;
             values.push(value);
             types.push(abi_type);
         }
@@ -3095,13 +3083,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let mut values = Vec::with_capacity(arg_exprs.len());
         let mut types = Vec::with_capacity(arg_exprs.len());
         for (argument, &parameter) in arg_exprs.iter().zip(function.parameters) {
-            let mut value = self.lower_typed_expr(argument, parameter)?;
-            let mut abi_type = self.types.abi_type(parameter)?;
-            abi_type = self.abi_type_for_value(value, abi_type);
-            if self.needs_calldata_materialization(value, &abi_type) {
-                value = self.materialize_calldata_argument(parameter, value, argument.span)?;
-                abi_type = Self::memory_abi_type(abi_type);
-            }
+            let (value, abi_type) = self.lower_abi_call_argument(argument, parameter)?;
             values.push(value);
             types.push(abi_type);
         }
@@ -5161,13 +5143,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 return report_unsupported(self.gcx, expr.span, "external function argument");
             };
             let parameter_ty = self.gcx.type_of_item(parameter.into());
-            let mut value = self.lower_typed_expr(argument, parameter_ty)?;
-            let mut abi_type = self.types.abi_type(parameter_ty)?;
-            abi_type = self.abi_type_for_value(value, abi_type);
-            if self.needs_calldata_materialization(value, &abi_type) {
-                value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
-                abi_type = Self::memory_abi_type(abi_type);
-            }
+            let (value, abi_type) = self.lower_abi_call_argument(argument, parameter_ty)?;
             values.push(value);
             types.push(abi_type);
         }
@@ -5295,21 +5271,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 return report_unsupported(self.gcx, expr.span, "linked library argument");
             };
             let parameter_ty = self.gcx.type_of_item(parameter.into());
-            let mut value = if Self::is_storage_parameter(parameter_ty) {
-                self.storage_access(argument)?.slot
+            let (value, abi_type) = if Self::is_storage_parameter(parameter_ty) {
+                (self.storage_access(argument)?.slot, AbiType::Word)
             } else {
-                self.lower_typed_expr(argument, parameter_ty)?
+                self.lower_abi_call_argument(argument, parameter_ty)?
             };
-            let mut abi_type = if Self::is_storage_parameter(parameter_ty) {
-                AbiType::Word
-            } else {
-                self.types.abi_type(parameter_ty)?
-            };
-            abi_type = self.abi_type_for_value(value, abi_type);
-            if self.needs_calldata_materialization(value, &abi_type) {
-                value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
-                abi_type = Self::memory_abi_type(abi_type);
-            }
             values.push(value);
             types.push(abi_type);
         }
@@ -5412,6 +5378,21 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             return self.load_storage_object(ty, access.slot, expr.span);
         }
         self.lower_expr(expr)
+    }
+
+    fn lower_abi_call_argument(
+        &mut self,
+        argument: &hir::Expr<'_>,
+        parameter_ty: Ty<'gcx>,
+    ) -> Option<(ValueId, AbiType)> {
+        let mut value = self.lower_typed_expr(argument, parameter_ty)?;
+        let mut abi_type = self.types.abi_type(parameter_ty)?;
+        abi_type = self.abi_type_for_value(value, abi_type);
+        if self.needs_calldata_materialization(value, &abi_type) {
+            value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
+            abi_type = Self::memory_abi_type(abi_type);
+        }
+        Some((value, abi_type))
     }
 
     fn materialize_call_argument(
