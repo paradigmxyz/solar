@@ -340,7 +340,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    dynamic storage arrays of words, bytes, and static structs now have typed
    external-call coverage, dynamic storage arrays of structs with nested bytes
    and arrays now have typed external-call coverage, and storage copies of
-   nested fixed arrays have an ABI-encoding fixture.
+   nested fixed arrays have an ABI-encoding fixture. `storage_nested_struct_calldata.sol`
+   adds a nested calldata struct-array copy with dynamic and fixed members.
 5. Keep expanding runtime and differential coverage for aggregate allocation
    shapes and constructor/modifier edges. The UI snapshots are now in sync
    with the rewrite, and the full `cargo tq ui` suite passes. ERC-7201
