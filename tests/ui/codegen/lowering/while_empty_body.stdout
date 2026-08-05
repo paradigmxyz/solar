@@ -2,7 +2,7 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 52
+  push 47
   dup1
   push 9
   push 0
@@ -17,11 +17,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb4
-  jumpi
-  calldatasize
-  iszero
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -30,7 +26,7 @@ bb0:
   dup1
   push 0xb3de648b
   sub
-  push bb4
+  push bb3
   jumpi
   calldatasize
   push 4
@@ -38,16 +34,16 @@ bb0:
   sub
   push 32
   sgt
-  push bb4
+  push bb3
   jumpi
-  jump bb6
-bb6:
+  jump bb5
+bb5:
   push 4
   calldataload
-  push bb6
+  push bb5
   jumpi
   stop
-bb4 [cold]:
+bb3 [cold]:
   push 0
   dup1
   revert

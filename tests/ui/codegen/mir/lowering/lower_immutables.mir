@@ -27,3 +27,20 @@ fn @runtime() [selector=1] {
     storeimmutable first, 1
     stop
 }
+
+// CHECK-LABEL: fn @entry
+// CHECK: -     storeimmutable first, 2
+// CHECK: +     mstore 192, 2
+fn @entry() {
+  bb0:
+    storeimmutable first, 2
+    stop
+}
+
+// CHECK-LABEL: fn @router
+// CHECK: storeimmutable first, 3
+fn @router() [entry] {
+  bb0:
+    storeimmutable first, 3
+    stop
+}

@@ -182,21 +182,18 @@ fn @__revert_stub0() {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb6, bb1
+    jumpi v0, bb5, bb1
   bb1:
-    v1 = calldatasize
-    jumpi v1, bb2, bb6
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb5, [0x4bd0273c => bb2, 0xa4ece52c => bb3, 0xa60249a3 => bb4]
   bb2:
-    v2 = calldataload 0
-    v3 = shr 224, v2
-    switch v3, default bb6, [0x4bd0273c => bb3, 0xa4ece52c => bb4, 0xa60249a3 => bb5]
-  bb3:
     tail_call @assign
-  bb4:
+  bb3:
     tail_call @pop
-  bb5:
+  bb4:
     tail_call @push
-  bb6:
+  bb5:
     revert 0, 0
 }
 

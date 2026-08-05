@@ -1024,6 +1024,7 @@ symbols! {
         immutable_read,
         immutable_write,
         immutables,
+        indexed_jump,
         infallible,
         interfaceId,
         internal_call,
