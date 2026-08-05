@@ -290,7 +290,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    and storage before reading it back. The
    `constructor_nested_aggregate_forwarding.sol` vector extends this to a
    nested `struct[]` with dynamic `bytes` fields and checks the copied storage
-   values after construction.
+   values after construction. `constructor_modifier_creation_context.sol`
+   covers virtual modifier dispatch and public calls made while the base
+   constructor is still running.
 3. Extend function-pointer ABI coverage to the remaining edge cases. External
    pointers now have runtime coverage for aggregate arguments and returns,
    pointer arguments and pointer returns, including aggregate `try` return
