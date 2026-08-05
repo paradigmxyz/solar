@@ -350,6 +350,49 @@ async fn watcher_delete_of_an_open_file_publishes_fresh_tables_once() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn mixed_watcher_batch_removes_an_unrelated_deleted_open_file() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Deleted.sol open
+        contract Deleted {}
+        "#,
+    );
+    let deleted = project.path("/Deleted.sol");
+    let created = project.path("/Created.sol");
+    let mut state = state(&project);
+    fs::remove_file(&deleted).unwrap();
+    project.write_file("/Created.sol", "contract Created {}");
+
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: vec![
+                    FileEvent {
+                        uri: Url::from_file_path(&deleted).unwrap(),
+                        typ: FileChangeType::DELETED,
+                    },
+                    FileEvent {
+                        uri: Url::from_file_path(created).unwrap(),
+                        typ: FileChangeType::CREATED,
+                    },
+                ],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert!(!state.vfs.read().exists(&VfsPath::from(deleted)));
+
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("mixed watcher analysis should finish")
+        .unwrap();
+    let tables = tables.read();
+    assert!(tables.workspace_symbols("Deleted").is_empty());
+    assert!(tables.workspace_symbols("Created").iter().any(|symbol| symbol.name == "Created"));
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn folder_create_split_watcher_echoes_do_not_start_another_epoch() {
     let project = TestProject::from_fixture(
         r#"
@@ -1161,7 +1204,7 @@ async fn failed_will_rename_does_not_leave_a_watcher_transaction() {
 
     assert!(matches!(watched, ControlFlow::Continue(())));
     assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
-    assert!(state.vfs.read().exists(&VfsPath::from(project.path("/old/Target.sol"))));
+    assert!(!state.vfs.read().exists(&VfsPath::from(project.path("/old/Target.sol"))));
     assert!(!state.vfs.read().exists(&VfsPath::from(project.path("/new/Target.sol"))));
 }
 
@@ -1203,7 +1246,7 @@ async fn cancelled_will_rename_does_not_leave_a_watcher_transaction() {
 
     assert!(matches!(watched, ControlFlow::Continue(())));
     assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
-    assert!(state.vfs.read().exists(&VfsPath::from(project.path("/old/Target.sol"))));
+    assert!(!state.vfs.read().exists(&VfsPath::from(project.path("/old/Target.sol"))));
     assert!(!state.vfs.read().exists(&VfsPath::from(project.path("/new/Target.sol"))));
 }
 

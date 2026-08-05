@@ -123,9 +123,6 @@ pub(crate) fn did_change_watched_files(
     params: DidChangeWatchedFilesParams,
 ) -> NotifyResult {
     let changes = super::file_operations::reconcile_watched_file_events(state, params.changes);
-    // A paired create may be an unclaimed rename; preserve its open source overlay until a direct
-    // file-operation notification confirms the move.
-    let remove_deleted_vfs = !changes.iter().any(|event| event.typ == FileChangeType::CREATED);
 
     let mut should_rediscover = false;
     let mut disk_paths = Vec::new();
@@ -161,9 +158,7 @@ pub(crate) fn did_change_watched_files(
                     Arc::make_mut(&mut state.config).add_source_file(path.clone());
                 } else if event.typ == FileChangeType::DELETED {
                     Arc::make_mut(&mut state.config).remove_source_file(&path);
-                    if remove_deleted_vfs {
-                        state.vfs.write().remove_file_prefixes(std::slice::from_ref(&path));
-                    }
+                    state.vfs.write().remove_file_prefixes(std::slice::from_ref(&path));
                     removed_paths.push(path.clone());
                 }
                 if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED) {
