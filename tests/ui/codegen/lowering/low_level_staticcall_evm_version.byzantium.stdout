@@ -53,9 +53,7 @@ fn @probeCall(arg0: address) -> u256 [abi_args=lazy, abi_params=[address], abi_r
     set_memory_object_len memorybytes, v17, v5
     v18 = make_returndata_slice 0, v5
     memory_object_copy_from_slice memorybytes, v17, v18
-    mstore 32, v17 !metadata(memory=scratch)
-    v19 = mload 32 !metadata(memory=scratch)
-    v20 = memory_object_len memorybytes, v19
-    ret v20
+    v19 = memory_object_len memorybytes, v17
+    ret v19
 }
 

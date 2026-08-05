@@ -17,6 +17,7 @@ contract StressEvents {
     event IndexedAddress(address indexed addr);
     event IndexedBytes32(bytes32 indexed data);
     event IndexedStaticArray(uint256[2] indexed values);
+    event IndexedDynamicArray(uint256[] indexed values);
     
     // ========== Mixed indexed and non-indexed ==========
     event Transfer(address indexed from, address indexed to, uint256 value);
@@ -97,6 +98,10 @@ contract StressEvents {
 
     function emitIndexedStaticArray(uint256[2] memory values) public {
         emit IndexedStaticArray(values);
+    }
+
+    function emitIndexedDynamicArray(uint256[] memory values) public {
+        emit IndexedDynamicArray(values);
     }
     
     // ========== Emit mixed events ==========

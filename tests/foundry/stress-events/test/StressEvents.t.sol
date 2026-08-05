@@ -3,8 +3,15 @@ pragma solidity ^0.8.0;
 
 import "../src/StressEvents.sol";
 
+interface Vm {
+    function expectEmit(bool, bool, bool, bool) external;
+}
+
 contract StressEventsTest {
+    Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
     StressEvents se;
+
+    event IndexedDynamicArray(uint256[] indexed values);
     
     function setUp() public {
         se = new StressEvents();
@@ -48,6 +55,15 @@ contract StressEventsTest {
     function test_EmitIndexedStaticArray() public {
         uint256[2] memory values = [uint256(100), uint256(200)];
         se.emitIndexedStaticArray(values);
+    }
+
+    function test_EmitIndexedDynamicArray() public {
+        uint256[] memory values = new uint256[](2);
+        values[0] = 100;
+        values[1] = 200;
+        vm.expectEmit(true, false, false, false);
+        emit IndexedDynamicArray(values);
+        se.emitIndexedDynamicArray(values);
     }
     
     // ========== Mixed event tests ==========

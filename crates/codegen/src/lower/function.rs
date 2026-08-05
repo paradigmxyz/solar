@@ -762,6 +762,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                         let mut abi_type = self.types.abi_type(parameter_ty)?;
                         abi_type = self.abi_type_for_value(value, abi_type);
                         if abi_type.is_dynamic() {
+                            if let Some(packed) = self.lower_packed_word_array(parameter_ty, value)
+                            {
+                                topics.push(self.builder.keccak256_bytes(packed));
+                                continue;
+                            }
                             self.gcx
                                 .dcx()
                                 .err(
@@ -1034,6 +1039,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             else_storage_refs,
             else_terminated,
         );
+        if then_terminated && else_terminated {
+            self.builder.invalid();
+        }
         Some(())
     }
 
@@ -1614,6 +1622,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             );
 
             if update_states.is_empty() {
+                let update = update.expect("for loop update block");
+                self.builder.switch_to_block(update);
+                self.builder.invalid();
                 None
             } else {
                 self.builder.switch_to_block(update.expect("for loop update block"));
@@ -1820,7 +1831,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
         let ExprKind::Member(receiver, _) = callee.kind else { return None };
         let capture_returndata = count > 1 || first_is_omitted;
-        let success = self.lower_address_call(
+        let (success, returndata) = self.lower_address_call_result(
             callee.span,
             receiver,
             builtin,
@@ -1831,14 +1842,16 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         if count <= 1 && !first_is_omitted {
             return Some(vec![success]);
         }
-        if count == 1 && first_is_omitted {
-            return Some(vec![self.multi_return_buffer_base()]);
-        }
         if count != 2 {
-            return report_unsupported(self.gcx, expr.span, "low-level call return values");
+            let Some(returndata) = returndata else {
+                return report_unsupported(self.gcx, expr.span, "low-level call return values");
+            };
+            return Some(vec![returndata]);
         }
-        let base = self.multi_return_buffer_base();
-        Some(vec![success, base])
+        let Some(returndata) = returndata else {
+            return report_unsupported(self.gcx, expr.span, "low-level call return values");
+        };
+        Some(vec![success, returndata])
     }
 
     fn lower_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
@@ -3469,6 +3482,26 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         call_opts: Option<&hir::CallOptions<'_>>,
         capture_returndata: bool,
     ) -> Option<ValueId> {
+        self.lower_address_call_result(
+            call_span,
+            receiver,
+            builtin,
+            args,
+            call_opts,
+            capture_returndata,
+        )
+        .map(|(success, _)| success)
+    }
+
+    fn lower_address_call_result(
+        &mut self,
+        call_span: Span,
+        receiver: &hir::Expr<'_>,
+        builtin: Builtin,
+        args: hir::CallArgs<'_>,
+        call_opts: Option<&hir::CallOptions<'_>>,
+        capture_returndata: bool,
+    ) -> Option<(ValueId, Option<ValueId>)> {
         let data = &self.builtin_args::<1>(builtin, &args)?[0];
         let address = self.lower_expr(receiver)?;
         let data = self.lower_expr(data)?;
@@ -3517,12 +3550,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
             _ => unreachable!(),
         };
-        if capture_returndata {
-            let output = self.materialize_returndata_bytes();
-            let base = self.builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-            self.builder.mstore(base, output);
-        }
-        Some(success)
+        let returndata = capture_returndata.then(|| self.materialize_returndata_bytes());
+        Some((success, returndata))
     }
 
     fn lower_unit_builtin_call(&mut self, builtin: Builtin, args: hir::CallArgs<'_>) -> Option<()> {
@@ -4180,6 +4209,22 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             PackedArraySource::Slice(_) => self.builder.slice_len(value),
         };
         Some((length, source))
+    }
+
+    fn lower_packed_word_array(&mut self, ty: Ty<'gcx>, value: ValueId) -> Option<ValueId> {
+        let (length, source) = self.packed_array_shape(ty, value)?;
+        let word = self.builder.imm_u64(32);
+        let byte_length = self.checked_mul(length, word);
+        let size = self.checked_add(word, byte_length);
+        let output = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::INTERNAL,
+        );
+        self.builder.set_memory_object_len(output, byte_length, MemoryObjectKind::Bytes);
+        let offset = self.builder.imm_u64(0);
+        self.copy_packed_array(output, offset, value, length, source);
+        Some(output)
     }
 
     fn copy_packed_array(
