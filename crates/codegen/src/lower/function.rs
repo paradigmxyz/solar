@@ -376,6 +376,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.returns.extend_from_slice(function.returns);
     }
 
+    /// Lowers only one contract's own state initializers.
     fn lower_state_initializers(&mut self, contract_id: hir::ContractId) -> Option<()> {
         let contract = self.gcx.hir.contract(contract_id);
         for id in contract.variables() {

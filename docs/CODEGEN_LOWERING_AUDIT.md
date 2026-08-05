@@ -298,7 +298,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    constructor is still running. `constructor_inheritance_init_order.sol` and
    `constructor_state_variable_order.sol` cover base state initialization,
    derived initializers, implicit bases, and constructor-body reads in
-   linearized order.
+   linearized order. `constructor_diamond_forwarding.sol` covers argument
+   forwarding through a diamond with a shared base.
 3. Extend function-pointer ABI coverage to the remaining edge cases. External
    pointers now have runtime coverage for aggregate arguments and returns,
    pointer arguments and pointer returns, including aggregate `try` return
