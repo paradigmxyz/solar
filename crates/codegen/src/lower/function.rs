@@ -889,14 +889,22 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             skips_receiver: false,
         });
         let mut saved_parameters = Vec::with_capacity(modifier_function.parameters.len());
+        let mut saved_storage_parameters = Vec::new();
         for (index, &parameter) in modifier_function.parameters.iter().enumerate() {
             let Some(argument) =
                 modifier.args.argument_for_parameter(index, Some(parameter_names.as_slice()))
             else {
                 return report_unsupported(self.gcx, modifier.span, "named modifier argument");
             };
-            let value = self.lower_expr(argument)?;
-            saved_parameters.push((parameter, self.values.insert(parameter, value)));
+            let parameter_ty = self.gcx.type_of_item(parameter.into());
+            if Self::is_storage_parameter(parameter_ty) {
+                let access = self.storage_access(argument)?;
+                saved_storage_parameters
+                    .push((parameter, self.storage_refs.insert(parameter, access)));
+            } else {
+                let value = self.lower_expr(argument)?;
+                saved_parameters.push((parameter, self.values.insert(parameter, value)));
+            }
         }
 
         self.modifiers.push(ModifierContext { modifiers, body, next: index + 1 });
@@ -907,6 +915,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 self.values.insert(parameter, value);
             } else {
                 self.values.remove(&parameter);
+            }
+        }
+        for (parameter, previous) in saved_storage_parameters {
+            if let Some(access) = previous {
+                self.storage_refs.insert(parameter, access);
+            } else {
+                self.storage_refs.remove(&parameter);
             }
         }
         result
