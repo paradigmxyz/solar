@@ -361,9 +361,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 continue;
             }
 
-            if let Some((length, element, source)) = self.packed_array_shape(ty, value) {
-                let word = self.builder.imm_u64(32);
-                let byte_length = self.checked_mul(length, word);
+            if let Some((length, element, element_bytes, source)) =
+                self.packed_array_shape(ty, value)
+            {
+                let element_bytes_value = self.builder.imm_u64(element_bytes);
+                let byte_length = self.checked_mul(length, element_bytes_value);
                 total = self.checked_add(total, byte_length);
                 pieces.push(PackedPiece::Array { value, length, element, source });
                 continue;
@@ -448,21 +450,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         &mut self,
         ty: Ty<'gcx>,
         value: ValueId,
-    ) -> Option<(ValueId, AbiType, PackedArraySource)> {
-        let element = match ty.peel_refs().kind {
-            TyKind::DynArray(element) | TyKind::Array(element, _) => element,
-            TyKind::Slice(inner) => match inner.peel_refs().kind {
-                TyKind::DynArray(element) | TyKind::Slice(element) | TyKind::Array(element, _) => {
-                    element
-                }
-                _ => inner,
-            },
+    ) -> Option<(ValueId, AbiType, u64, PackedArraySource)> {
+        let array_abi = self.types.abi_type(ty)?;
+        let element_abi = match array_abi {
+            AbiType::DynamicArray { element, .. } | AbiType::FixedArray { element, .. } => *element,
             _ => return None,
         };
-        let element_abi = self.types.abi_type(element)?;
-        if !matches!(element_abi, AbiType::Word | AbiType::Function) {
-            return None;
-        }
+        let element_bytes = Self::packed_array_element_bytes(&element_abi)?;
 
         let layout = self.types.memory_layout(ty)?;
         let source = match self.builder.func().value_ty(value) {
@@ -484,7 +478,17 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             PackedArraySource::Memory { .. } => return None,
             PackedArraySource::Slice(_) => self.builder.slice_len(value),
         };
-        Some((length, element_abi, source))
+        Some((length, element_abi, element_bytes, source))
+    }
+
+    fn packed_array_element_bytes(element: &AbiType) -> Option<u64> {
+        match element {
+            AbiType::Word | AbiType::Function => Some(32),
+            AbiType::FixedArray { element, len } => {
+                Self::packed_array_element_bytes(element)?.checked_mul(*len)
+            }
+            AbiType::DynamicArray { .. } | AbiType::Bytes(_) | AbiType::Tuple(_) => None,
+        }
     }
 
     pub(super) fn lower_packed_word_array(
@@ -492,9 +496,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         ty: Ty<'gcx>,
         value: ValueId,
     ) -> Option<ValueId> {
-        let (length, element, source) = self.packed_array_shape(ty, value)?;
+        let (length, element, element_bytes, source) = self.packed_array_shape(ty, value)?;
         let word = self.builder.imm_u64(32);
-        let byte_length = self.checked_mul(length, word);
+        let element_bytes_value = self.builder.imm_u64(element_bytes);
+        let byte_length = self.checked_mul(length, element_bytes_value);
         let size = self.checked_add(word, byte_length);
         let output = self.builder.alloc_object(
             size,
@@ -764,8 +769,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         element: &AbiType,
         source: PackedArraySource,
     ) -> ValueId {
-        let word = self.builder.imm_u64(32);
-        let byte_length = self.checked_mul(length, word);
+        let element_bytes = Self::packed_array_element_bytes(element).expect("packed array shape");
+        let element_bytes_value = self.builder.imm_u64(element_bytes);
+        let byte_length = self.checked_mul(length, element_bytes_value);
         let end_offset = self.checked_add(offset, byte_length);
         let base = match source {
             PackedArraySource::Memory { .. } => None,
@@ -793,31 +799,65 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.branch(more, body, exit);
 
         self.builder.switch_to_block(body);
-        let element_offset = self.checked_mul(index, word);
+        let element_offset = self.checked_mul(index, element_bytes_value);
         let destination = self.checked_add(offset, element_offset);
-        let element_value = match source {
-            PackedArraySource::Memory { layout } => {
-                self.builder.memory_object_load_element(value, layout, index)
+        match element {
+            AbiType::Word | AbiType::Function => {
+                let element_value = match source {
+                    PackedArraySource::Memory { layout } => {
+                        self.builder.memory_object_load_element(value, layout, index)
+                    }
+                    PackedArraySource::Slice(location) => match location {
+                        SliceLocation::Memory => self.builder.memory_slice_load_word(
+                            memory_source.expect("memory slice"),
+                            element_offset,
+                        ),
+                        SliceLocation::Calldata => {
+                            self.builder.calldata_slice_load_word(value, element_offset)
+                        }
+                        SliceLocation::Returndata => unreachable!("returndata packed array"),
+                    },
+                };
+                let element_value = if matches!(element, AbiType::Function)
+                    && matches!(source, PackedArraySource::Memory { .. })
+                {
+                    let shift = self.builder.imm_u64(64);
+                    self.builder.shl(shift, element_value)
+                } else {
+                    element_value
+                };
+                self.builder.memory_object_store_word(output, destination, element_value);
             }
-            PackedArraySource::Slice(location) => match location {
-                SliceLocation::Memory => self
-                    .builder
-                    .memory_slice_load_word(memory_source.expect("memory slice"), element_offset),
-                SliceLocation::Calldata => {
-                    self.builder.calldata_slice_load_word(value, element_offset)
-                }
-                SliceLocation::Returndata => unreachable!("returndata packed array"),
-            },
-        };
-        let element_value = if matches!(element, AbiType::Function)
-            && matches!(source, PackedArraySource::Memory { .. })
-        {
-            let shift = self.builder.imm_u64(64);
-            self.builder.shl(shift, element_value)
-        } else {
-            element_value
-        };
-        self.builder.memory_object_store_word(output, destination, element_value);
+            AbiType::FixedArray { element: nested, len } => {
+                let nested_length = self.builder.imm_u64(*len);
+                let (nested_value, nested_source) = match source {
+                    PackedArraySource::Memory { layout } => {
+                        let nested_value =
+                            self.builder.memory_object_load_element(value, layout, index);
+                        let nested_layout = MemoryObjectLayout::word_fixed_array(*len);
+                        (nested_value, PackedArraySource::Memory { layout: nested_layout })
+                    }
+                    PackedArraySource::Slice(location) => {
+                        let base = self.builder.slice_ptr(value);
+                        let pointer = self.builder.add(base, element_offset);
+                        let nested_value =
+                            self.builder.make_slice(pointer, nested_length, location);
+                        (nested_value, PackedArraySource::Slice(location))
+                    }
+                };
+                self.copy_packed_array(
+                    output,
+                    destination,
+                    nested_value,
+                    nested_length,
+                    nested,
+                    nested_source,
+                );
+            }
+            AbiType::DynamicArray { .. } | AbiType::Bytes(_) | AbiType::Tuple(_) => {
+                unreachable!("packed array shape")
+            }
+        }
         let one = self.builder.imm_u64(1);
         let next = self.builder.add(index, one);
         let backedge = self.builder.current_block();
