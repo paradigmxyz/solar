@@ -116,9 +116,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         ) {
             return self.lower_storage_bytes_push(expr, receiver, builtin, arguments);
         }
-        let Some((element_access, element, new_length, base_slot)) =
-            self.storage_array_push_access(receiver)
-        else {
+        let Some((base, element)) = self.storage_array_base(receiver) else {
             return report_unsupported(self.gcx, expr.span, "storage array push target");
         };
         let value = if builtin == Builtin::ArrayPush {
@@ -138,6 +136,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
             self.default_value(element)
         };
+        let length = self.builder.sload(base.slot);
+        let one = self.builder.imm_u64(1);
+        let new_length = self.checked_add(length, one);
+        let element_access = self.storage_array_element_access(base.slot, length, element, true)?;
         if self.types.memory_layout(element).is_some() {
             self.store_storage_object(element, element_access.slot, value, expr.span)?;
         } else if let Some(offset) = element_access.offset {
@@ -156,7 +158,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 value,
             );
         }
-        self.builder.sstore(base_slot, new_length);
+        self.builder.sstore(base.slot, new_length);
         Some(self.builder.imm_u256(U256::ZERO))
     }
 
@@ -168,6 +170,19 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         arguments: &[hir::Expr<'_>],
     ) -> Option<ValueId> {
         let access = self.storage_access(receiver)?;
+        let value = if builtin == Builtin::ArrayPush {
+            let [argument] = arguments else {
+                return report_unsupported(self.gcx, expr.span, "storage bytes push arguments");
+            };
+            let value = self.lower_expr(argument)?;
+            let shift = self.builder.imm_u64(248);
+            self.builder.shr(shift, value)
+        } else {
+            if !arguments.is_empty() {
+                return report_unsupported(self.gcx, expr.span, "storage bytes push arguments");
+            }
+            self.builder.imm_u64(0)
+        };
         let old = self.load_storage_bytes(access.slot)?;
         let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
         let one = self.builder.imm_u64(1);
@@ -182,19 +197,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
         self.builder.set_memory_object_len(object, length, layout.kind());
         self.builder.memory_object_copy(object, layout.kind(), old, layout.kind(), old_length);
-        let value = if builtin == Builtin::ArrayPush {
-            let [argument] = arguments else {
-                return report_unsupported(self.gcx, expr.span, "storage bytes push arguments");
-            };
-            let value = self.lower_expr(argument)?;
-            let shift = self.builder.imm_u64(248);
-            self.builder.shr(shift, value)
-        } else {
-            if !arguments.is_empty() {
-                return report_unsupported(self.gcx, expr.span, "storage bytes push arguments");
-            }
-            self.builder.imm_u64(0)
-        };
         self.builder.memory_object_store_byte(object, old_length, value);
         self.store_storage_bytes(access.slot, object)?;
         Some(self.builder.imm_u256(U256::ZERO))

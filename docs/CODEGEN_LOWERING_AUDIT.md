@@ -180,6 +180,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * low-level and typed external calls, including explicit `gas`/`value` options,
   contract-address conversions, returndata capture, and EVM-version checks;
 * positional and named struct constructors with declaration-order field layout;
+* one-time l-value resolution for compound assignments and increments, plus
+  argument-before-length evaluation for storage-array and storage-bytes pushes;
 * external function-pointer calls with aggregate return decoding through the
   shared ABI path;
 * event emission with overload and named-argument resolution, selector and indexed
