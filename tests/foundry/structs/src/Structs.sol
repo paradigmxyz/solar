@@ -27,6 +27,8 @@ contract Structs {
 
     Point public storedPoint;
     Point[2] private storedPoints;
+    Point[] private storedPointList;
+    uint256[] private storedValues;
     Person public storedPerson;
     Nested public storedNested;
 
@@ -149,6 +151,34 @@ contract Structs {
 
     function encodeCallStoredPoint(uint256 index) external view returns (bytes memory) {
         return abi.encodeCall(this.sumPoint, (storedPoints[index]));
+    }
+
+    function setValues(uint256[] calldata values) external {
+        storedValues = values;
+    }
+
+    function sumValues(uint256[] memory values) external pure returns (uint256 total) {
+        for (uint256 i; i < values.length; i++) {
+            total += values[i];
+        }
+    }
+
+    function sumStoredValuesExternal() external view returns (uint256) {
+        return this.sumValues(storedValues);
+    }
+
+    function setPointList(Point[] calldata points) external {
+        storedPointList = points;
+    }
+
+    function sumPointList(Point[] memory points) external pure returns (uint256 total) {
+        for (uint256 i; i < points.length; i++) {
+            total += points[i].x + points[i].y;
+        }
+    }
+
+    function sumStoredPointListExternal() external view returns (uint256) {
+        return this.sumPointList(storedPointList);
     }
 
     // ========= Helper for Complex Operations =========

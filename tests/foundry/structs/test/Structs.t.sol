@@ -110,6 +110,21 @@ contract StructsTest {
         require(keccak256(encodedCall) == keccak256(expectedCall), "encoded call mismatch");
     }
 
+    function testExternalDynamicStorageArray() public {
+        uint256[] memory values = new uint256[](3);
+        values[0] = 11;
+        values[1] = 22;
+        values[2] = 33;
+        s.setValues(values);
+        require(s.sumStoredValuesExternal() == 66, "dynamic array call mismatch");
+
+        Structs.Point[] memory points = new Structs.Point[](2);
+        points[0] = Structs.Point(4, 5);
+        points[1] = Structs.Point(6, 7);
+        s.setPointList(points);
+        require(s.sumStoredPointListExternal() == 22, "multiword array call mismatch");
+    }
+
     // ========= Complex Operations =========
 
     function testDistanceSquared() public view {
