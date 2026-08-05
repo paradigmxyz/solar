@@ -273,6 +273,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi_calldata_unused_aggregate_validation.sol` covers the other lazy
    boundary: unused dynamic bytes and structs validate their immediate heads,
    while nested dynamic offsets remain lazy like Solc.
+   `abi_calldata_struct_dynamic.sol` checks ABI re-encoding of one and two
+   dynamic structs with word-array members.
    `abi.decode`, external return decoding, and `catch Error(string)` payload
    decoding are represented by semantic MIR operations and lowered by the ABI
    pass; multi-return materialization uses the shared frame/object path. The
@@ -343,6 +345,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    and arrays now have typed external-call coverage, and storage copies of
    nested fixed arrays have an ABI-encoding fixture. `storage_nested_struct_calldata.sol`
    adds a nested calldata struct-array copy with dynamic and fixed members.
+   `storage_struct_dynamic_words_calldata.sol` adds a dynamic struct-array
+   copy whose nested arrays use full-width words.
 5. Keep expanding runtime and differential coverage for aggregate allocation
    shapes and constructor/modifier edges. The UI snapshots are now in sync
    with the rewrite, and the full `cargo tq ui` suite passes. ERC-7201
