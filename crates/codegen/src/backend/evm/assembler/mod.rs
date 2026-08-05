@@ -160,6 +160,7 @@ impl<'gcx> Assembler<'gcx> {
 
     /// Clears all emitted instructions and local identifiers.
     pub(crate) fn clear(&mut self) {
+        self.artifact_kind = ArtifactKind::Runtime;
         self.program = Self::new_ir_module();
         self.program_is_finalized = false;
         self.current_block = None;
