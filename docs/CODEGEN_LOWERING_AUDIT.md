@@ -61,6 +61,8 @@ The replacement is split into stateful, private components:
   dispatch points and shared argument materialization it needs.
   ABI call-argument typing and calldata materialization live in the sibling
   `function/abi_calls` module.
+  Solidity, Yul, and address builtin dispatch live in `function/builtins`,
+  with raw op emission limited to the explicit inline-assembly boundary.
   Storage-reference access, packed indexing, and aggregate storage copies live
   in the child `function/storage_values` module instead of in the main HIR
   expression walker.
