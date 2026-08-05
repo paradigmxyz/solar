@@ -466,6 +466,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             Some(MirType::Slice(location @ (SliceLocation::Memory | SliceLocation::Calldata))) => {
                 PackedArraySource::Slice(location)
             }
+            Some(MirType::UInt(size))
+                if matches!(
+                    layout,
+                    MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::FixedArray { .. }
+                ) && size.bits() == 256 =>
+            {
+                PackedArraySource::Memory { layout }
+            }
             _ => return None,
         };
         let length = match source {

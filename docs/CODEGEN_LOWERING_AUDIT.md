@@ -196,8 +196,9 @@ existing scalar and packed-storage MIR fixtures. It supports:
   constructor ABI encoding, `value`/`salt` options, and forwarding of failed
   creation returndata;
 * `abi.encodePacked` arrays of static word elements, including nested fixed
-  arrays and dynamic arrays of fixed arrays, storage-backed short and long
-  bytes, address `code` and `codehash` builtins, `type(...).creationCode` and
+  arrays and dynamic arrays of fixed arrays, indexed and struct-field array
+  values, storage-backed short and long bytes, address `code` and `codehash`
+  builtins, `type(...).creationCode` and
   `runtimeCode`, and fixed-bytes to address conversions;
 * `try`/`catch` lowering for resolved external calls with scalar and aggregate
   return bindings, ordered selector dispatch for multiple catches, bare
