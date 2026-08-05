@@ -749,6 +749,9 @@ impl AliasAnalysis {
             InstKind::MemorySliceLoadWord { slice, offset } => {
                 operand != *slice && operand != *offset
             }
+            InstKind::CalldataSliceLoadWord { slice, offset } => {
+                operand != *slice && operand != *offset
+            }
             InstKind::MemoryObjectCopyFromSlice { object, source, .. } => {
                 operand != *object && operand != *source
             }

@@ -4430,8 +4430,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     .builder
                     .memory_slice_load_word(memory_source.expect("memory slice"), element_offset),
                 SliceLocation::Calldata => {
-                    let pointer = self.builder.add(base.expect("slice base"), element_offset);
-                    self.builder.calldataload(pointer)
+                    self.builder.calldata_slice_load_word(value, element_offset)
                 }
                 SliceLocation::Returndata => unreachable!("returndata packed array"),
             },
@@ -5604,7 +5603,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             return self.materialize_calldata_value_at(inner, head, tuple_base, span);
         }
         let value_pos = if self.types.abi_type(ty)?.is_dynamic() {
-            let offset = self.builder.calldataload(head);
+            let offset = self.calldata_load_word(head);
             self.builder.add(tuple_base, offset)
         } else {
             head
@@ -5614,7 +5613,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
             ) => Some(self.materialize_calldata_bytes_at(value_pos)),
             TyKind::DynArray(element) | TyKind::Slice(element) => {
-                let length = self.builder.calldataload(value_pos);
+                let length = self.calldata_load_word(value_pos);
                 let word = self.builder.imm_u64(32);
                 let data = self.builder.add(value_pos, word);
                 let element_type = self.types.abi_type(element)?;
@@ -5639,12 +5638,19 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             TyKind::Tuple(fields) => {
                 self.materialize_calldata_fields(fields.iter().copied(), value_pos, span)
             }
-            _ => Some(self.builder.calldataload(value_pos)),
+            _ => Some(self.calldata_load_word(value_pos)),
         }
     }
 
+    fn calldata_load_word(&mut self, pointer: ValueId) -> ValueId {
+        let length = self.builder.imm_u64(32);
+        let slice = self.builder.make_slice(pointer, length, SliceLocation::Calldata);
+        let zero = self.builder.imm_u64(0);
+        self.builder.calldata_slice_load_word(slice, zero)
+    }
+
     fn materialize_calldata_bytes_at(&mut self, position: ValueId) -> ValueId {
-        let length = self.builder.calldataload(position);
+        let length = self.calldata_load_word(position);
         let word = self.builder.imm_u64(32);
         let data = self.builder.add(position, word);
         let slice = self.builder.make_slice(data, length, SliceLocation::Calldata);
@@ -6234,8 +6240,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 ) => {
                     let word = match location {
                         SliceLocation::Calldata => {
-                            let pointer = self.builder.add(base, index);
-                            self.builder.calldataload(pointer)
+                            self.builder.calldata_slice_load_word(object, index)
                         }
                         SliceLocation::Memory => self.builder.memory_slice_load_word(object, index),
                         SliceLocation::Returndata => {

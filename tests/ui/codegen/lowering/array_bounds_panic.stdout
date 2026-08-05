@@ -184,8 +184,9 @@ fn @cdDyn(arg0: calldataslice, arg1: u256) -> u256 [abi_args=lazy, abi_params=[a
     revert 0, 36
   bb4:
     v10 = add v3, v4
-    v11 = calldataload v10
-    ret v11
+    v11 = make_calldata_slice v10, 32
+    v12 = calldata_slice_load_word calldata, v11, 0
+    ret v12
 }
 
 fn @cdFix(arg0: memoryfixedarray, arg1: u256) -> u256 [abi_args=lazy, abi_params=[array<3, u256>, u256], abi_returns=[word]] {
@@ -214,10 +215,9 @@ fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [abi_args=lazy, abi_param
     revert 0, 36
   bb2:
     v3 = slice_ptr arg0
-    v4 = add v3, arg1
-    v5 = calldataload v4
-    v6 = byte 0, v5
-    v7 = shl 248, v6
-    ret v7
+    v4 = calldata_slice_load_word calldata, arg0, arg1
+    v5 = byte 0, v4
+    v6 = shl 248, v5
+    ret v6
 }
 

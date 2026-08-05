@@ -3,9 +3,9 @@
 @phase evm-shaped
 fn @plain() {
   bb0:
-    v21 = calldatasize
-    v22 = lt v21, 68
-    jumpi v22, bb5, bb6
+    v25 = calldatasize
+    v26 = lt v25, 68
+    jumpi v26, bb5, bb6
   bb1:
     tail_call @__revert_stub0
   bb2:
@@ -18,64 +18,68 @@ fn @plain() {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v10 = add v34, v4
+    v10 = add v38, v4
     v11 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v59 = add v11, 128
-    mstore 64, v59 !metadata(memory=scratch)
-    v13 = calldataload v10
-    mstore v11, v13
-    v14 = add v10, 32
-    v15 = calldataload v14
-    v55 = add v11, 32
-    mstore v55, v15
-    v16 = add v10, 64
-    v17 = calldataload v16
-    v56 = add v11, 64
-    mstore v56, v17
-    v18 = add v10, 96
-    v19 = calldataload v18
-    v57 = add v11, 96
-    mstore v57, v19
-    v58 = add v11, 96
-    v20 = mload v58
-    mstore 128, v20
+    v71 = add v11, 128
+    mstore 64, v71 !metadata(memory=scratch)
+    v60 = add v10, 0
+    v14 = calldataload v60
+    mstore v11, v14
+    v15 = add v10, 32
+    v62 = add v15, 0
+    v17 = calldataload v62
+    v63 = add v11, 32
+    mstore v63, v17
+    v18 = add v10, 64
+    v65 = add v18, 0
+    v20 = calldataload v65
+    v66 = add v11, 64
+    mstore v66, v20
+    v21 = add v10, 96
+    v68 = add v21, 0
+    v23 = calldataload v68
+    v69 = add v11, 96
+    mstore v69, v23
+    v70 = add v11, 96
+    v24 = mload v70
+    mstore 128, v24
     returndata 128, 32
   bb5:
     revert 0, 0
   bb6:
-    v25 = calldatasize
-    v26 = gt 36, v25
-    jumpi v26, bb5, bb7
+    v29 = calldatasize
+    v30 = gt 36, v29
+    jumpi v30, bb5, bb7
   bb7:
-    v28 = calldataload 4
-    v29 = add v28, 4
-    v30 = lt v29, 4
-    v31 = calldatasize
-    v32 = gt v29, v31
-    v33 = or v30, v32
-    jumpi v33, bb5, bb8
+    v32 = calldataload 4
+    v33 = add v32, 4
+    v34 = lt v33, 4
+    v35 = calldatasize
+    v36 = gt v33, v35
+    v37 = or v34, v36
+    jumpi v37, bb5, bb8
   bb8:
-    v34 = add v28, 36
-    v35 = lt v34, v29
-    v36 = calldatasize
-    v37 = gt v34, v36
-    v38 = or v35, v37
-    jumpi v38, bb5, bb9
+    v38 = add v32, 36
+    v39 = lt v38, v33
+    v40 = calldatasize
+    v41 = gt v38, v40
+    v42 = or v39, v41
+    jumpi v42, bb5, bb9
   bb9:
-    v39 = calldataload v29
-    v40 = shl 7, v39
-    v42 = shr 7, v40
-    v43 = eq v42, v39
-    jumpi v43, bb10, bb5
+    v43 = calldataload v33
+    v44 = shl 7, v43
+    v46 = shr 7, v44
+    v47 = eq v46, v43
+    jumpi v47, bb10, bb5
   bb10:
-    v47 = add v34, v40
-    v48 = lt v47, v34
-    v49 = calldatasize
-    v50 = gt v47, v49
-    v51 = or v48, v50
-    jumpi v51, bb5, bb11
+    v51 = add v38, v44
+    v52 = lt v51, v38
+    v53 = calldatasize
+    v54 = gt v51, v53
+    v55 = or v52, v54
+    jumpi v55, bb5, bb11
   bb11:
-    v1 = lt arg1, v39
+    v1 = lt arg1, v43
     jumpi v1, bb2, bb1
 }
 

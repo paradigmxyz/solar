@@ -697,6 +697,14 @@ pub(crate) enum InstKind {
         /// Runtime byte offset from the slice start.
         offset: ValueId,
     },
+    /// Load one word from a calldata slice at a byte offset without exposing
+    /// the physical calldata address.
+    CalldataSliceLoadWord {
+        /// Calldata slice reference.
+        slice: ValueId,
+        /// Runtime byte offset from the slice start.
+        offset: ValueId,
+    },
     /// Copy a typed slice into the payload of a dynamic memory object.
     MemoryObjectCopyFromSlice {
         /// Destination memory object reference.
@@ -1119,6 +1127,11 @@ impl InstKind {
                 out.push(*offset);
             }
 
+            Self::CalldataSliceLoadWord { slice, offset } => {
+                out.push(*slice);
+                out.push(*offset);
+            }
+
             Self::MemoryObjectCopyFromSlice { object, source, .. } => {
                 out.push(*object);
                 out.push(*source);
@@ -1389,6 +1402,11 @@ impl InstKind {
                 f(offset);
             }
 
+            Self::CalldataSliceLoadWord { slice, offset } => {
+                f(slice);
+                f(offset);
+            }
+
             Self::MemoryObjectCopyFromSlice { object, source, .. } => {
                 f(object);
                 f(source);
@@ -1609,6 +1627,7 @@ impl InstKind {
             Self::MemoryObjectStoreByte { .. } => "memory_object_store_byte",
             Self::MemoryObjectStoreWord { .. } => "memory_object_store_word",
             Self::MemorySliceLoadWord { .. } => "memory_slice_load_word",
+            Self::CalldataSliceLoadWord { .. } => "calldata_slice_load_word",
             Self::MemoryObjectCopyFromSlice { .. } => "memory_object_copy_from_slice",
             Self::MemoryObjectCopyFromSliceAt { .. } => "memory_object_copy_from_slice_at",
             Self::MemoryObjectCopy { .. } => "memory_object_copy",
@@ -1809,6 +1828,7 @@ impl InstKind {
             | Self::Log3(_, _, _, _, _)
             | Self::Log4(_, _, _, _, _, _) => EffectKind::Log,
             Self::CalldataLoad(_)
+            | Self::CalldataSliceLoadWord { .. }
             | Self::MappingSlotCalldata(_, _)
             | Self::CalldataSize
             | Self::ConstructorArgsBase

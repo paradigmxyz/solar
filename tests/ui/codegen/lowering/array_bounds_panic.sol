@@ -83,7 +83,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @cdDyn{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = slice_len arg0
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
-    // CHECK: calldataload
+    // CHECK: calldata_slice_load_word calldata
     function cdDyn(uint256[] calldata x, uint256 i) public pure returns (uint256) {
         return x[i];
     }
@@ -98,7 +98,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @cdBytes{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = slice_len arg0
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
-    // CHECK: calldataload
+    // CHECK: calldata_slice_load_word calldata
     function cdBytes(bytes calldata b, uint256 i) public pure returns (bytes1) {
         return b[i];
     }

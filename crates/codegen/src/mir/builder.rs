@@ -506,6 +506,15 @@ impl<'a> FunctionBuilder<'a> {
         )
     }
 
+    /// Loads one word from a calldata slice at a byte offset through its
+    /// semantic representation.
+    pub(crate) fn calldata_slice_load_word(&mut self, slice: ValueId, offset: ValueId) -> ValueId {
+        self.emit_inst(
+            InstKind::CalldataSliceLoadWord { slice, offset },
+            Some(crate::mir::MirType::uint256()),
+        )
+    }
+
     /// Copies a typed slice into a dynamic memory object's payload.
     pub(crate) fn memory_object_copy_from_slice(
         &mut self,

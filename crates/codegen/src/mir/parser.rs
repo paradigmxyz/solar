@@ -1575,6 +1575,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let offset = self.parse_value(builder)?;
                 (InstKind::MemorySliceLoadWord { slice, offset }, Some(MirType::uint256()))
             }
+            sym::calldata_slice_load_word => {
+                self.parser.expect(TokenKind::Ident(kw::Calldata))?;
+                self.parser.expect(TokenKind::Comma)?;
+                let slice = self.parse_value(builder)?;
+                if builder.func().value_ty(slice) != Some(MirType::Slice(SliceLocation::Calldata)) {
+                    return Err(self.parser.error("calldata slice load requires a calldata slice"));
+                }
+                self.parser.expect(TokenKind::Comma)?;
+                let offset = self.parse_value(builder)?;
+                (InstKind::CalldataSliceLoadWord { slice, offset }, Some(MirType::uint256()))
+            }
             sym::memory_object_copy_from_slice => {
                 let name = self.parser.parse_ident()?;
                 let kind = self.parse_memory_object_layout(name)?.kind();
@@ -1860,7 +1871,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         break;
                     }
                 }
-                (InstKind::Phi(incoming), Some(MirType::uint256()))
+                let ty = incoming
+                    .first()
+                    .and_then(|(_, value)| builder.func().value_ty(*value))
+                    .unwrap_or(MirType::uint256());
+                (InstKind::Phi(incoming), Some(ty))
             }
 
             _ => {

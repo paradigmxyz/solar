@@ -440,6 +440,12 @@ fn display_inst_kind<'a>(
             display_val(*slice, func),
             display_val(*offset, func)
         ),
+        InstKind::CalldataSliceLoadWord { slice, offset } => write!(
+            f,
+            "calldata_slice_load_word calldata, {}, {}",
+            display_val(*slice, func),
+            display_val(*offset, func)
+        ),
         InstKind::MemoryObjectCopyFromSlice { object, kind, source } => write!(
             f,
             "memory_object_copy_from_slice {kind}, {}, {}",

@@ -189,6 +189,10 @@ fn local_summary(func: &Function) -> FunctionMemorySummary {
                     capture_sources(&mut summary, func, &sources, *slice);
                     capture_sources(&mut summary, func, &sources, *offset);
                 }
+                InstKind::CalldataSliceLoadWord { slice, offset } => {
+                    capture_sources(&mut summary, func, &sources, *slice);
+                    capture_sources(&mut summary, func, &sources, *offset);
+                }
                 _ => {}
             }
         }

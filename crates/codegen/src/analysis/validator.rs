@@ -670,6 +670,7 @@ impl<'a> Validator<'a> {
                             | InstKind::MemoryObjectStoreByte { .. }
                             | InstKind::MemoryObjectStoreWord { .. }
                             | InstKind::MemorySliceLoadWord { .. }
+                            | InstKind::CalldataSliceLoadWord { .. }
                             | InstKind::MemoryObjectCopyFromSlice { .. }
                             | InstKind::MemoryObjectCopyFromSliceAt { .. }
                             | InstKind::MemoryObjectCopy { .. }

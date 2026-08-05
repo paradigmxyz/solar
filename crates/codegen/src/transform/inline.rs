@@ -592,6 +592,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         InstKind::MemoryObjectStoreByte { .. } => (8, 2),
         InstKind::MemoryObjectStoreWord { .. } => (8, 2),
         InstKind::MemorySliceLoadWord { .. } => (6, 1),
+        InstKind::CalldataSliceLoadWord { .. } => (6, 1),
         InstKind::MemoryObjectCopyFromSlice { .. } => (12, 1),
         InstKind::MemoryObjectCopyFromSliceAt { .. } => (12, 1),
         InstKind::MemoryObjectCopy { .. } => (12, 1),

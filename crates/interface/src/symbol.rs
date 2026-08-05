@@ -987,6 +987,7 @@ symbols! {
         built,
         calldata_array,
         calldata_bytes,
+        calldata_slice_load_word,
         calldataptr,
         calldataslice,
         clear_storage,
