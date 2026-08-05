@@ -18,7 +18,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
         match ty {
             AbiType::Bytes(SliceLocation::Memory)
-            | AbiType::DynamicArray { location: SliceLocation::Memory, .. } => true,
+            | AbiType::DynamicArray { location: SliceLocation::Memory, .. }
+            | AbiType::FixedArray { .. } => true,
             AbiType::DynamicArray { element, location: SliceLocation::Calldata } => {
                 !matches!(element.as_ref(), AbiType::Word)
             }
@@ -91,6 +92,15 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     ) -> Option<ValueId> {
         if ty.is_ref_at(DataLocation::Calldata)
             && matches!(
+                ty.peel_refs().kind,
+                TyKind::DynArray(_)
+                    | TyKind::Slice(_)
+                    | TyKind::Elementary(
+                        solar_sema::hir::ElementaryType::Bytes
+                            | solar_sema::hir::ElementaryType::String,
+                    )
+            )
+            && matches!(
                 self.builder.func().value_ty(value),
                 Some(MirType::Slice(SliceLocation::Calldata))
             )
@@ -161,6 +171,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     return Some(self.copy_calldata_word_array(data, length));
                 }
                 self.materialize_calldata_nested_array(element, data, length, span)
+            }
+            TyKind::Array(element, length) => {
+                let length = u64::try_from(length).ok()?;
+                let data = self.builder.slice_ptr(value);
+                self.materialize_calldata_fixed_array(element, length, data, span, true)
             }
             _ => report_unsupported(self.gcx, span, "calldata argument materialization"),
         }
@@ -239,6 +254,19 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         span: Span,
         validate_bounds: bool,
     ) -> Option<ValueId> {
+        let ty = ty.peel_refs();
+        if let TyKind::Array(_, length) = ty.kind
+            && self.types.abi_type(ty)?.is_dynamic()
+        {
+            let value_pos = self.calldata_value_position(ty, head, tuple_base, validate_bounds)?;
+            let length = u64::try_from(length).ok()?;
+            if validate_bounds {
+                let size = self.builder.imm_u64(self.types.abi_type(ty)?.head_size());
+                self.check_calldata_range(value_pos, size);
+            }
+            let length = self.builder.imm_u64(length);
+            return Some(self.builder.make_slice(value_pos, length, SliceLocation::Calldata));
+        }
         self.materialize_calldata_value_at_inner(ty, head, tuple_base, span, validate_bounds)
     }
 
@@ -261,20 +289,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             );
         }
         let word = self.builder.imm_u64(32);
-        let value_pos = if self.types.abi_type(ty)?.is_dynamic() {
-            if validate_bounds {
-                self.check_calldata_range(head, word);
-            }
-            let offset = self.calldata_load_word(head);
-            let value_pos = self.builder.add(tuple_base, offset);
-            if validate_bounds {
-                let overflow = self.builder.lt(value_pos, tuple_base);
-                self.revert_if_calldata_invalid(overflow);
-            }
-            value_pos
-        } else {
-            head
-        };
+        let value_pos = self.calldata_value_position(ty, head, tuple_base, validate_bounds)?;
         match ty.kind {
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
@@ -328,6 +343,29 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             ),
             _ => Some(self.calldata_load_word(value_pos)),
         }
+    }
+
+    fn calldata_value_position(
+        &mut self,
+        ty: Ty<'gcx>,
+        head: ValueId,
+        tuple_base: ValueId,
+        validate_bounds: bool,
+    ) -> Option<ValueId> {
+        let word = self.builder.imm_u64(32);
+        if !self.types.abi_type(ty)?.is_dynamic() {
+            return Some(head);
+        }
+        if validate_bounds {
+            self.check_calldata_range(head, word);
+        }
+        let offset = self.calldata_load_word(head);
+        let value_pos = self.builder.add(tuple_base, offset);
+        if validate_bounds {
+            let overflow = self.builder.lt(value_pos, tuple_base);
+            self.revert_if_calldata_invalid(overflow);
+        }
+        Some(value_pos)
     }
 
     fn check_calldata_range(&mut self, start: ValueId, size: ValueId) {

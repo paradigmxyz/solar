@@ -3228,7 +3228,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     let byte = self.builder.byte(zero, word);
                     Some(self.normalize_byte_value(expr, byte))
                 }
-                TyKind::DynArray(element) | TyKind::Slice(element) => {
+                TyKind::DynArray(element) | TyKind::Slice(element) | TyKind::Array(element, _) => {
                     if location != SliceLocation::Calldata {
                         return report_unsupported(self.gcx, expr.span, "memory array slice index");
                     }
@@ -3236,10 +3236,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     let head_size = self.builder.imm_u64(head_size);
                     let offset = self.checked_mul(index, head_size);
                     let head = self.builder.add(base, offset);
-                    // Slices do not retain the ABI tuple base for nested offsets.
-                    let validate_bounds =
-                        matches!(receiver_ty.peel_refs().kind, TyKind::DynArray(_))
-                            && self.types.abi_type(element)?.is_dynamic();
+                    // Dynamic-array slices retain their element base for nested offsets;
+                    // arbitrary slices still cannot validate offsets relative to the tuple.
+                    let validate_bounds = matches!(
+                        receiver_ty.peel_refs().kind,
+                        TyKind::DynArray(_) | TyKind::Array(_, _)
+                    ) && self.types.abi_type(element)?.is_dynamic();
                     self.materialize_calldata_index_value_at(
                         element,
                         head,

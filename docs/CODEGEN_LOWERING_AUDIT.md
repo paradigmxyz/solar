@@ -254,6 +254,11 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi_calldata_nested_validation.sol` now checks Solc's distinction between
    shallow validation for an unused nested array and deep validation when an
    inner element is read.
+   `abi_calldata_nested_static_middle.sol` covers the same distinction when a
+   dynamic array contains a fixed array whose dynamic child is still absent:
+   indexing the fixed array checks only its head, while indexing the child
+   validates the nested tail. The fixture also checks materialization at memory
+   assignment and internal-call boundaries.
    `abi.decode`, external return decoding, and `catch Error(string)` payload
    decoding are represented by semantic MIR operations and lowered by the ABI
    pass; multi-return materialization uses the shared frame/object path. The
