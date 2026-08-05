@@ -307,6 +307,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    between two external pointers at runtime.
    `function_selector_side_effect.sol` checks that a call used to obtain a
    statically resolved selector still runs before the selector value is read.
+   `internal_function_pointer_calldata.sol` checks calldata slices through
+   internal pointer dispatch, and `mapping_internal_function_pointer.sol`
+   checks mapping-backed internal pointer state transitions.
    `external_function_pointer_calldata_array.sol` adds a Solc-checked calldata
    array decode and re-encoding vector. `abi_function_pointer_validation.sol`
    ports Solc's canonical 24-byte pointer checks: unused calldata structs stay
