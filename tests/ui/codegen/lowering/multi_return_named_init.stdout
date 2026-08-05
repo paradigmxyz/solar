@@ -4,17 +4,17 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb3: v15]
+    v0 = phi [bb0: arg1], [bb3: v16]
     v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v14]
-    v3 = phi [bb0: 0], [bb3: v17]
+    v2 = phi [bb0: 0], [bb3: v15]
+    v3 = phi [bb0: 0], [bb3: v18]
     v4 = phi [bb0: arg1], [bb3: v4]
     v5 = lt v3, 8
     jumpi v5, bb4, bb5
   bb2:
     ret v2, v0
   bb3:
-    v17 = add v3, 1
+    v18 = add v3, 1
     jump bb1
   bb4:
     v6 = shl 8, v2
@@ -35,10 +35,11 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) {
     v11 = calldata_slice_load_word calldata, v1, v0
     v12 = byte 0, v11
     v13 = shl 248, v12
-    v14 = or v6, v13
-    v15 = add v0, 1
-    v16 = lt v15, v0
-    jumpi v16, bb9, bb10
+    v14 = shr 248, v13
+    v15 = or v6, v14
+    v16 = add v0, 1
+    v17 = lt v16, v0
+    jumpi v17, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

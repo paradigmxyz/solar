@@ -385,7 +385,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     continue;
                 }
                 let Some(initializer) = variable.initializer else { continue };
-                let value = self.lower_expr(initializer)?;
+                let ty = self.gcx.type_of_item(id.into());
+                let value = self.lower_typed_expr(initializer, ty)?;
+                let value = self.coerce_value(value, self.gcx.type_of_expr(initializer.id)?, ty);
                 if let Some(&immutable_id) = self.immutable_ids.get(&id) {
                     self.builder.store_immutable(immutable_id, value);
                 } else {
@@ -525,7 +527,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     return Some(());
                 }
                 let value = if let Some(expr) = initializer {
-                    self.lower_typed_expr(expr, ty)?
+                    let value = self.lower_typed_expr(expr, ty)?;
+                    self.coerce_value(value, self.gcx.type_of_expr(expr.id)?, ty)
                 } else if let Some(value) = self.default_object(ty) {
                     value
                 } else {
@@ -2487,6 +2490,22 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     }
 
     fn coerce_value(&mut self, value: ValueId, from: Ty<'gcx>, to: Ty<'gcx>) -> ValueId {
+        let value = if let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
+            from.peel_refs().kind
+            && !matches!(
+                to.peel_refs().kind,
+                TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
+            ) {
+            let shift = u64::from(32 - size.bytes()) * 8;
+            if shift == 0 {
+                value
+            } else {
+                let shift = self.builder.imm_u64(shift);
+                self.builder.shr(shift, value)
+            }
+        } else {
+            value
+        };
         if let TyKind::Enum(id) = to.peel_refs().kind {
             if !matches!(from.peel_refs().kind, TyKind::Enum(from_id) if from_id == id) {
                 let limit = self.gcx.hir.enumm(id).variants.len() as u64;
@@ -2496,15 +2515,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 self.panic_if(invalid, 0x21);
             }
             return value;
-        }
-        if matches!(
-            to.peel_refs().kind,
-            TyKind::Elementary(solar_sema::hir::ElementaryType::Address(_))
-        ) && let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
-            from.peel_refs().kind
-        {
-            let shift = self.builder.imm_u64(u64::from(32 - size.bytes()) * 8);
-            return self.builder.shr(shift, value);
         }
         let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
             to.peel_refs().kind
@@ -3196,9 +3206,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             Builtin::MsgValue => self.builder.callvalue(),
             Builtin::MsgSig => {
                 let offset = self.builder.imm_u64(0);
-                let word = self.calldata_load_word(offset);
-                let shift = self.builder.imm_u64(224);
-                self.builder.shr(shift, word)
+                self.calldata_load_word(offset)
             }
             Builtin::MsgData => {
                 let offset = self.builder.imm_u64(0);

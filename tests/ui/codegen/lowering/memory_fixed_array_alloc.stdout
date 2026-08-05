@@ -285,7 +285,8 @@ fn @namedReturn() -> (memoryfixedarray, u256) [abi_args=lazy, abi_params=[], abi
   bb14:
     v25 = memory_object_load_byte memorybytes, v16, 0
     v26 = shl 248, v25
-    ret v0, v26
+    v27 = shr 248, v26
+    ret v0, v27
 }
 
 fn @emptyMemoryReferences() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
