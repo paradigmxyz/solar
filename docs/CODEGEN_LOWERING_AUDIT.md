@@ -166,6 +166,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   returns, memory arrays, and multi-return calls;
 * `abi.decode` scalar, tuple, struct, fixed- and dynamic-array, and
   calldata-slice paths through semantic memory slices and object copies;
+* dynamic calldata arrays of multiword static elements, including storage
+  copies and ABI encoding of nested fixed arrays;
 * dynamic and fixed memory arrays of structs with nested bytes and dynamic
   arrays, including lazy zero-initialization of aggregate elements from `new`
   allocations and their nested dynamic objects;
@@ -197,7 +199,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    corpus covers valid flat, mixed-tuple, typed and decoded
    dynamic-struct-array, and fixed-dynamic-array vectors, malformed short and
    invalid-offset inputs, and round-trip cases, including Solc-compatible zero
-   offsets.
+   offsets. Storage-backed ABI encoding now also covers dynamic arrays of
+   multiword fixed elements and fixed nested arrays. The calldata materializer
+   uses each element's ABI head width, so static elements wider than one word do
+   not overlap.
    `abi.decode` is now represented by a semantic MIR operation and lowered by
    the ABI pass; the remaining work is broader independent differential
    coverage.
@@ -223,7 +228,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    overflow cases now have exact `Panic(0x41)` run-call checks, as do nested
    dynamic arrays and arrays of dynamic structs. Extend this coverage to the
    remaining aggregate allocation shapes against Solc; dynamic and fixed
-   memory arrays of nested structs now have independent run-call coverage.
+   memory arrays of nested structs now have independent run-call coverage, and
+   storage copies of nested fixed arrays have an ABI-encoding fixture.
 5. Keep expanding runtime and differential coverage for aggregate allocation
    shapes and constructor/modifier edges. The UI snapshots are now in sync
    with the rewrite, and the full `cargo tq ui` suite passes.

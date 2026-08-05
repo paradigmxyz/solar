@@ -5388,6 +5388,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         span: Span,
     ) -> Option<ValueId> {
         let word = self.builder.imm_u64(32);
+        let element_head_size = self.builder.imm_u64(self.types.abi_type(element)?.head_size());
         let payload_size = self.checked_mul(length, word);
         let size = self.checked_add(word, payload_size);
         let object = self.builder.alloc_object(
@@ -5410,7 +5411,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.branch(more, body, exit);
 
         self.builder.switch_to_block(body);
-        let offset = self.checked_mul(index, word);
+        let offset = self.checked_mul(index, element_head_size);
         let head = self.builder.add(data, offset);
         let value = self.materialize_calldata_value_at(element, head, data, span)?;
         self.builder.memory_object_store_element(
