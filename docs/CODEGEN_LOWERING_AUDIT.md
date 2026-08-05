@@ -251,13 +251,16 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    not overlap.
    `abi_calldata_nested_reencode.sol` adds Solc-checked hashes for a three-level
    dynamic array and an outer dynamic array of fixed pairs of dynamic arrays.
+   `abi_calldata_nested_validation.sol` now checks Solc's distinction between
+   shallow validation for an unused nested array and deep validation when an
+   inner element is read.
    `abi.decode`, external return decoding, and `catch Error(string)` payload
    decoding are represented by semantic MIR operations and lowered by the ABI
    pass; multi-return materialization uses the shared frame/object path. The
-   remaining work is broader independent differential coverage. In particular,
-   lazy wrapper validation does not yet reject every Solc-invalid nested
-   dynamic-array vector, including an unused aggregate argument; eager
-   validation needs a separate design so it does not force materialization.
+   remaining work is broader independent differential coverage. Lazy wrapper
+   validation still does not reject every Solc-invalid aggregate vector; eager
+   validation for shapes beyond the covered nested-array heads needs a separate
+   design so it does not force materialization.
 2. Extend base-constructor argument forwarding coverage to the remaining
    unresolved and constructor-modifier edge cases. Inherited constructor
    arguments that call direct or virtual functions now have Solc-backed

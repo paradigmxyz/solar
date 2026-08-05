@@ -214,7 +214,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.switch_to_block(body);
         let offset = self.checked_mul(index, element_head_size);
         let head = self.builder.add(data, offset);
-        let value = self.materialize_calldata_value_at(element, head, data, span)?;
+        let value = self.materialize_calldata_value_at_inner(element, head, data, span, false)?;
         self.builder.memory_object_store_element(
             object,
             MemoryObjectLayout::WORD_ARRAY,
@@ -231,20 +231,47 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         Some(object)
     }
 
-    pub(super) fn materialize_calldata_value_at(
+    pub(super) fn materialize_calldata_index_value_at(
         &mut self,
         ty: Ty<'gcx>,
         head: ValueId,
         tuple_base: ValueId,
         span: Span,
+        validate_bounds: bool,
+    ) -> Option<ValueId> {
+        self.materialize_calldata_value_at_inner(ty, head, tuple_base, span, validate_bounds)
+    }
+
+    fn materialize_calldata_value_at_inner(
+        &mut self,
+        ty: Ty<'gcx>,
+        head: ValueId,
+        tuple_base: ValueId,
+        span: Span,
+        validate_bounds: bool,
     ) -> Option<ValueId> {
         let ty = ty.peel_refs();
         if let TyKind::Udvt(inner, _) = ty.kind {
-            return self.materialize_calldata_value_at(inner, head, tuple_base, span);
+            return self.materialize_calldata_value_at_inner(
+                inner,
+                head,
+                tuple_base,
+                span,
+                validate_bounds,
+            );
         }
+        let word = self.builder.imm_u64(32);
         let value_pos = if self.types.abi_type(ty)?.is_dynamic() {
+            if validate_bounds {
+                self.check_calldata_range(head, word);
+            }
             let offset = self.calldata_load_word(head);
-            self.builder.add(tuple_base, offset)
+            let value_pos = self.builder.add(tuple_base, offset);
+            if validate_bounds {
+                let overflow = self.builder.lt(value_pos, tuple_base);
+                self.revert_if_calldata_invalid(overflow);
+            }
+            value_pos
         } else {
             head
         };
@@ -253,19 +280,37 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
             ) => Some(self.materialize_calldata_bytes_at(value_pos)),
             TyKind::DynArray(element) | TyKind::Slice(element) => {
+                if validate_bounds {
+                    self.check_calldata_range(value_pos, word);
+                }
                 let length = self.calldata_load_word(value_pos);
-                let word = self.builder.imm_u64(32);
                 let data = self.builder.add(value_pos, word);
                 let element_type = self.types.abi_type(element)?;
                 if matches!(element_type, AbiType::Word) {
+                    if validate_bounds {
+                        let element_head_size = self.builder.imm_u64(element_type.head_size());
+                        let head_size = self.checked_mul(length, element_head_size);
+                        self.check_calldata_range(data, head_size);
+                    }
                     Some(self.copy_calldata_word_array(data, length))
                 } else {
+                    if validate_bounds {
+                        let element_head_size = self.builder.imm_u64(element_type.head_size());
+                        let head_size = self.checked_mul(length, element_head_size);
+                        self.check_calldata_range(data, head_size);
+                    }
                     self.materialize_calldata_nested_array(element, data, length, span)
                 }
             }
             TyKind::Array(element, length) => {
                 let length = u64::try_from(length).ok()?;
-                self.materialize_calldata_fixed_array(element, length, value_pos, span)
+                self.materialize_calldata_fixed_array(
+                    element,
+                    length,
+                    value_pos,
+                    span,
+                    validate_bounds,
+                )
             }
             TyKind::Struct(id) => {
                 let fields = self.gcx.hir.strukt(id).fields.to_vec();
@@ -273,13 +318,35 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     .iter()
                     .map(|&field| self.gcx.type_of_item(field.into()))
                     .collect::<Vec<_>>();
-                self.materialize_calldata_fields(field_types, value_pos, span)
+                self.materialize_calldata_fields(field_types, value_pos, span, validate_bounds)
             }
-            TyKind::Tuple(fields) => {
-                self.materialize_calldata_fields(fields.iter().copied(), value_pos, span)
-            }
+            TyKind::Tuple(fields) => self.materialize_calldata_fields(
+                fields.iter().copied(),
+                value_pos,
+                span,
+                validate_bounds,
+            ),
             _ => Some(self.calldata_load_word(value_pos)),
         }
+    }
+
+    fn check_calldata_range(&mut self, start: ValueId, size: ValueId) {
+        let end = self.builder.add(start, size);
+        let overflow = self.builder.lt(end, start);
+        let calldata_size = self.builder.calldatasize();
+        let out_of_bounds = self.builder.gt(end, calldata_size);
+        let invalid = self.builder.or(overflow, out_of_bounds);
+        self.revert_if_calldata_invalid(invalid);
+    }
+
+    fn revert_if_calldata_invalid(&mut self, condition: ValueId) {
+        let revert = self.builder.create_block();
+        let continue_block = self.builder.create_block();
+        self.builder.branch(condition, revert, continue_block);
+        self.builder.switch_to_block(revert);
+        let zero = self.builder.imm_u64(0);
+        self.builder.revert(zero, zero);
+        self.builder.switch_to_block(continue_block);
     }
 
     pub(super) fn calldata_load_word(&mut self, pointer: ValueId) -> ValueId {
@@ -303,19 +370,26 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         length: u64,
         base: ValueId,
         span: Span,
+        validate_bounds: bool,
     ) -> Option<ValueId> {
         let word = self.builder.imm_u64(32);
         let length_value = self.builder.imm_u64(length);
         let size = self.checked_mul(length_value, word);
+        let element_head_size = self.types.abi_type(element)?.head_size();
         let layout = MemoryObjectLayout::FixedArray { len: length, element_words: 1 };
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
-        let element_head_size = self.types.abi_type(element)?.head_size();
         for index in 0..length {
             let index_value = self.builder.imm_u64(index);
             let element_head_size_value = self.builder.imm_u64(element_head_size);
             let head_offset = self.checked_mul(index_value, element_head_size_value);
             let head = self.builder.add(base, head_offset);
-            let value = self.materialize_calldata_value_at(element, head, base, span)?;
+            let value = self.materialize_calldata_value_at_inner(
+                element,
+                head,
+                base,
+                span,
+                validate_bounds,
+            )?;
             self.builder.memory_object_store_element(object, layout, index_value, value);
         }
         Some(object)
@@ -326,6 +400,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         fields: impl IntoIterator<Item = Ty<'gcx>>,
         base: ValueId,
         span: Span,
+        validate_bounds: bool,
     ) -> Option<ValueId> {
         let fields = fields.into_iter().collect::<Vec<_>>();
         let layout = MemoryObjectLayout::Struct { fields: fields.len() as u64 };
@@ -335,7 +410,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         for (index, field) in fields.iter().copied().enumerate() {
             let field_offset = self.builder.imm_u64(offset);
             let head = self.builder.add(base, field_offset);
-            let value = self.materialize_calldata_value_at(field, head, base, span)?;
+            let value =
+                self.materialize_calldata_value_at_inner(field, head, base, span, validate_bounds)?;
             self.builder.memory_object_store_field(object, layout, index as u64, value);
             offset = offset.checked_add(self.types.abi_type(field)?.head_size())?;
         }

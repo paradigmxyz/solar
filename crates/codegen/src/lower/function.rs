@@ -3236,7 +3236,17 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     let head_size = self.builder.imm_u64(head_size);
                     let offset = self.checked_mul(index, head_size);
                     let head = self.builder.add(base, offset);
-                    self.materialize_calldata_value_at(element, head, base, expr.span)
+                    // Slices do not retain the ABI tuple base for nested offsets.
+                    let validate_bounds =
+                        matches!(receiver_ty.peel_refs().kind, TyKind::DynArray(_))
+                            && self.types.abi_type(element)?.is_dynamic();
+                    self.materialize_calldata_index_value_at(
+                        element,
+                        head,
+                        base,
+                        expr.span,
+                        validate_bounds,
+                    )
                 }
                 _ => report_unsupported(self.gcx, expr.span, "slice index"),
             };
