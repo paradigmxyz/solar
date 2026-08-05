@@ -202,10 +202,10 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * contract creation with compiled child deployment bytecode, semantic
   constructor ABI encoding, `value`/`salt` options, source-order option and
   argument evaluation, and forwarding of failed creation returndata;
-* `abi.encodePacked` arrays of static word elements, including nested fixed
-  arrays and dynamic arrays of fixed arrays, indexed and struct-field array
-  values, storage-backed short and long bytes, address `code` and `codehash`
-  builtins, `type(...).creationCode` and
+* `abi.encodePacked` arrays of static word elements and external function
+  values, including nested fixed arrays and dynamic arrays of fixed arrays,
+  indexed and struct-field array values, storage-backed short and long bytes,
+  address `code` and `codehash` builtins, `type(...).creationCode` and
   `runtimeCode`, and fixed-bytes to address conversions;
 * `try`/`catch` lowering for resolved external calls with scalar and aggregate
   return bindings, ordered selector dispatch for multiple catches, bare

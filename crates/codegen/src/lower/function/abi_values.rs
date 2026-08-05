@@ -980,6 +980,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 _ => return None,
             }),
             TyKind::Contract(_) => Some((20, false)),
+            TyKind::Fn(function) if function.is_external() => Some((24, false)),
             TyKind::Enum(id) => {
                 let variants = self.gcx.hir.enumm(id).variants.len().max(1);
                 let bits = (usize::BITS - (variants - 1).leading_zeros()).max(1);
