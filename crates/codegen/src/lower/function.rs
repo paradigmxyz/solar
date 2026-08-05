@@ -2388,8 +2388,27 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         if ty.is_ref_at(DataLocation::Storage) {
             return Some(access.slot);
         }
+        self.load_storage_value(ty, access, expr.span)
+    }
+
+    fn store_storage_access(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        access: StorageAccess,
+        value: ValueId,
+    ) -> Option<()> {
+        let ty = self.gcx.type_of_expr(expr.id)?;
+        self.store_storage_value(ty, access, value, expr.span)
+    }
+
+    fn load_storage_value(
+        &mut self,
+        ty: solar_sema::ty::Ty<'gcx>,
+        access: StorageAccess,
+        span: Span,
+    ) -> Option<ValueId> {
         if self.types.memory_layout(ty).is_some() {
-            return self.load_storage_object(ty, access.slot, expr.span);
+            return self.load_storage_object(ty, access.slot, span);
         }
         Some(if let Some(offset) = access.offset {
             self.storage.load_packed_at_slot(
@@ -2403,15 +2422,15 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         })
     }
 
-    fn store_storage_access(
+    fn store_storage_value(
         &mut self,
-        expr: &hir::Expr<'_>,
+        ty: solar_sema::ty::Ty<'gcx>,
         access: StorageAccess,
         value: ValueId,
+        span: Span,
     ) -> Option<()> {
-        let ty = self.gcx.type_of_expr(expr.id)?;
         if self.types.memory_layout(ty).is_some() {
-            return self.store_storage_object(ty, access.slot, value, expr.span);
+            return self.store_storage_object(ty, access.slot, value, span);
         }
         if let Some(offset) = access.offset {
             self.storage.store_packed_at_slot(
@@ -2447,11 +2466,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     let field_ty = self.gcx.type_of_item(field.into());
                     let location = self.storage.field_location(self.gcx, struct_id, index)?;
                     let field_slot = self.add_storage_offset(slot, location.slot);
-                    let value = if self.types.memory_layout(field_ty).is_some() {
-                        self.load_storage_object(field_ty, field_slot, span)?
-                    } else {
-                        self.storage.load_at_slot(&mut self.builder, location, field_slot)
-                    };
+                    let value = self.load_storage_value(
+                        field_ty,
+                        StorageAccess { slot: field_slot, location, offset: None },
+                        span,
+                    )?;
                     self.builder.memory_object_store_field(object, layout, index as u64, value);
                 }
                 Some(object)
@@ -2469,18 +2488,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     let index_value = self.builder.imm_u64(index);
                     let access =
                         self.storage_array_element_access(slot, index_value, element, false)?;
-                    let value = if self.types.memory_layout(element).is_some() {
-                        self.load_storage_object(element, access.slot, span)?
-                    } else if let Some(offset) = access.offset {
-                        self.storage.load_packed_at_slot(
-                            &mut self.builder,
-                            access.location,
-                            access.slot,
-                            offset,
-                        )
-                    } else {
-                        self.storage.load_at_slot(&mut self.builder, access.location, access.slot)
-                    };
+                    let value = self.load_storage_value(element, access, span)?;
                     self.builder.memory_object_store_element(object, layout, index_value, value);
                 }
                 Some(object)
@@ -2523,18 +2531,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 
         self.builder.switch_to_block(body);
         let access = self.storage_array_element_access(slot, index, element, true)?;
-        let value = if self.types.memory_layout(element).is_some() {
-            self.load_storage_object(element, access.slot, span)?
-        } else if let Some(offset) = access.offset {
-            self.storage.load_packed_at_slot(
-                &mut self.builder,
-                access.location,
-                access.slot,
-                offset,
-            )
-        } else {
-            self.storage.load_at_slot(&mut self.builder, access.location, access.slot)
-        };
+        let value = self.load_storage_value(element, access, span)?;
         self.builder.memory_object_store_element(object, layout, index, value);
         let one = self.builder.imm_u64(1);
         let next = self.builder.add(index, one);
@@ -2564,11 +2561,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     let location = self.storage.field_location(self.gcx, struct_id, index)?;
                     let field_slot = self.add_storage_offset(slot, location.slot);
                     let value = self.builder.memory_object_load_field(object, layout, index as u64);
-                    if self.types.memory_layout(field_ty).is_some() {
-                        self.store_storage_object(field_ty, field_slot, value, span)?;
-                    } else {
-                        self.storage.store_at_slot(&mut self.builder, location, field_slot, value);
-                    }
+                    self.store_storage_value(
+                        field_ty,
+                        StorageAccess { slot: field_slot, location, offset: None },
+                        value,
+                        span,
+                    )?;
                 }
                 Some(())
             }
@@ -2582,24 +2580,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                         self.builder.memory_object_load_element(object, layout, index_value);
                     let access =
                         self.storage_array_element_access(slot, index_value, element, false)?;
-                    if let Some(offset) = access.offset {
-                        self.storage.store_packed_at_slot(
-                            &mut self.builder,
-                            access.location,
-                            access.slot,
-                            offset,
-                            value,
-                        );
-                    } else if self.types.memory_layout(element).is_some() {
-                        self.store_storage_object(element, access.slot, value, span)?;
-                    } else {
-                        self.storage.store_at_slot(
-                            &mut self.builder,
-                            access.location,
-                            access.slot,
-                            value,
-                        );
-                    }
+                    self.store_storage_value(element, access, value, span)?;
                 }
                 Some(())
             }
@@ -2758,19 +2739,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.switch_to_block(body);
         let value = self.builder.memory_object_load_element(object, array_layout, index);
         let access = self.storage_array_element_access(slot, index, element, true)?;
-        if self.types.memory_layout(element).is_some() {
-            self.store_storage_object(element, access.slot, value, span)?;
-        } else if let Some(offset) = access.offset {
-            self.storage.store_packed_at_slot(
-                &mut self.builder,
-                access.location,
-                access.slot,
-                offset,
-                value,
-            );
-        } else {
-            self.storage.store_at_slot(&mut self.builder, access.location, access.slot, value);
-        }
+        self.store_storage_value(element, access, value, span)?;
         let one = self.builder.imm_u64(1);
         let next = self.builder.add(index, one);
         let backedge = self.builder.current_block();
