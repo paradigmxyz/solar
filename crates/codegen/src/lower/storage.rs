@@ -262,6 +262,7 @@ impl<'gcx> StorageLayout<'gcx> {
 struct StorageBuilder<'gcx> {
     gcx: Gcx<'gcx>,
     locations: FxHashMap<VariableId, StorageLocation>,
+    field_locations: FxHashMap<(solar_sema::hir::StructId, usize), StorageLocation>,
     cursor: StorageCursor,
 }
 
@@ -318,10 +319,25 @@ impl StorageCursor {
 
 impl<'gcx> StorageBuilder<'gcx> {
     fn new(gcx: Gcx<'gcx>) -> Self {
-        Self { gcx, locations: FxHashMap::default(), cursor: StorageCursor::new() }
+        Self {
+            gcx,
+            locations: FxHashMap::default(),
+            field_locations: FxHashMap::default(),
+            cursor: StorageCursor::new(),
+        }
     }
 
     fn lower(mut self, contract_id: ContractId) -> StorageLayout<'gcx> {
+        for struct_id in self.gcx.hir.strukt_ids() {
+            let mut cursor = StorageCursor::new();
+            for (field, &field_id) in self.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
+                let ty = self.gcx.type_of_item(field_id.into());
+                let encoding = self.packed_encoding(ty);
+                let slots = self.storage_slots(ty, Span::DUMMY);
+                let location = cursor.take(encoding, slots);
+                self.field_locations.insert((struct_id, field), location);
+            }
+        }
         let contract = self.gcx.hir.contract(contract_id);
         for &base in contract.linearized_bases.iter().rev() {
             for id in self.gcx.hir.contract(base).variables() {
@@ -349,17 +365,7 @@ impl<'gcx> StorageBuilder<'gcx> {
         struct_id: solar_sema::hir::StructId,
         field: usize,
     ) -> Option<StorageLocation> {
-        let mut cursor = StorageCursor::new();
-        for (index, &field_id) in self.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
-            let ty = self.gcx.type_of_item(field_id.into());
-            let encoding = self.packed_encoding(ty);
-            let slots = self.storage_slots(ty, Span::DUMMY);
-            let location = cursor.take(encoding, slots);
-            if index == field {
-                return Some(location);
-            }
-        }
-        None
+        self.field_locations.get(&(struct_id, field)).copied()
     }
 
     fn packed_encoding(&self, ty: Ty<'gcx>) -> Option<(TypeSize, StorageEncoding)> {
