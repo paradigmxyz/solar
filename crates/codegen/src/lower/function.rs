@@ -827,7 +827,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                         let mut abi_type = self.types.abi_type(parameter_ty)?;
                         abi_type = self.abi_type_for_value(value, abi_type);
                         if abi_type.is_dynamic() {
-                            if let Some(packed) = self.lower_packed_word_array(parameter_ty, value)
+                            if let Some(packed) = self
+                                .lower_packed_word_array(parameter_ty, value)
+                                .or_else(|| self.lower_inplace_word_array(parameter_ty, value))
                             {
                                 topics.push(self.builder.keccak256_bytes(packed));
                                 continue;

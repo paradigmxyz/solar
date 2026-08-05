@@ -507,6 +507,142 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         Some(output)
     }
 
+    pub(super) fn lower_inplace_word_array(
+        &mut self,
+        ty: Ty<'gcx>,
+        value: ValueId,
+    ) -> Option<ValueId> {
+        if !self.inplace_word_array_shape(ty)
+            || (!matches!(self.builder.func().value_ty(value), Some(MirType::MemoryObject(_)))
+                && !matches!(self.builder.func().value(value), Value::Inst(inst) if matches!(
+                    &self.builder.func().inst(*inst).kind,
+                    InstKind::MemoryObjectLoadField { .. } | InstKind::MemoryObjectLoadElement { .. }
+                )))
+        {
+            return None;
+        }
+        let words = self.count_inplace_word_array(ty, value)?;
+        let word = self.builder.imm_u64(32);
+        let length = self.checked_mul(words, word);
+        let size = self.checked_add(word, length);
+        let output = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::INTERNAL,
+        );
+        self.builder.set_memory_object_len(output, length, MemoryObjectKind::Bytes);
+        let zero = self.builder.imm_u64(0);
+        self.copy_inplace_word_array(ty, value, output, zero)?;
+        Some(output)
+    }
+
+    fn inplace_word_array_shape(&mut self, ty: Ty<'gcx>) -> bool {
+        match ty.peel_refs().kind {
+            TyKind::DynArray(element) | TyKind::Array(element, _) => {
+                self.inplace_word_array_shape(element)
+            }
+            _ => matches!(self.types.abi_type(ty), Some(AbiType::Word)),
+        }
+    }
+
+    fn inplace_array_info(
+        &mut self,
+        ty: Ty<'gcx>,
+        value: ValueId,
+    ) -> Option<(Ty<'gcx>, ValueId, MemoryObjectLayout)> {
+        let ty = ty.peel_refs();
+        let (element, length, layout) = match ty.kind {
+            TyKind::DynArray(element) => {
+                let layout = self.types.memory_layout(ty)?;
+                let length = self.builder.memory_object_len(value, MemoryObjectKind::DynamicArray);
+                (element, length, layout)
+            }
+            TyKind::Array(element, length) => {
+                let layout = self.types.memory_layout(ty)?;
+                let length = self.builder.imm_u64(u64::try_from(length).ok()?);
+                (element, length, layout)
+            }
+            _ => return None,
+        };
+        Some((element, length, layout))
+    }
+
+    fn count_inplace_word_array(&mut self, ty: Ty<'gcx>, value: ValueId) -> Option<ValueId> {
+        let ty = ty.peel_refs();
+        if !matches!(ty.kind, TyKind::DynArray(_) | TyKind::Array(..)) {
+            return Some(self.builder.imm_u64(1));
+        }
+        let (element, length, layout) = self.inplace_array_info(ty, value)?;
+        let preheader = self.builder.current_block();
+        let header = self.builder.create_block();
+        let body = self.builder.create_block();
+        let exit = self.builder.create_block();
+        self.builder.jump(header);
+
+        self.builder.switch_to_block(header);
+        let zero = self.builder.imm_u64(0);
+        let index = self.builder.phi(vec![(preheader, zero)]);
+        let total = self.builder.phi(vec![(preheader, zero)]);
+        let more = self.builder.lt(index, length);
+        self.builder.branch(more, body, exit);
+
+        self.builder.switch_to_block(body);
+        let element_value = self.builder.memory_object_load_element(value, layout, index);
+        let element_words = self.count_inplace_word_array(element, element_value)?;
+        let next_total = self.checked_add(total, element_words);
+        let one = self.builder.imm_u64(1);
+        let next_index = self.builder.add(index, one);
+        let backedge = self.builder.current_block();
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(index, backedge, next_index);
+        self.builder.add_phi_incoming(total, backedge, next_total);
+
+        self.builder.switch_to_block(exit);
+        Some(total)
+    }
+
+    fn copy_inplace_word_array(
+        &mut self,
+        ty: Ty<'gcx>,
+        value: ValueId,
+        output: ValueId,
+        offset: ValueId,
+    ) -> Option<ValueId> {
+        let ty = ty.peel_refs();
+        let (TyKind::DynArray(_) | TyKind::Array(..)) = ty.kind else {
+            self.builder.memory_object_store_word(output, offset, value);
+            let word = self.builder.imm_u64(32);
+            return Some(self.checked_add(offset, word));
+        };
+        let (element, length, layout) = self.inplace_array_info(ty, value)?;
+        let preheader = self.builder.current_block();
+        let header = self.builder.create_block();
+        let body = self.builder.create_block();
+        let exit = self.builder.create_block();
+        self.builder.jump(header);
+
+        self.builder.switch_to_block(header);
+        let zero = self.builder.imm_u64(0);
+        let index = self.builder.phi(vec![(preheader, zero)]);
+        let current_offset = self.builder.phi(vec![(preheader, offset)]);
+        let more = self.builder.lt(index, length);
+        self.builder.branch(more, body, exit);
+
+        self.builder.switch_to_block(body);
+        let element_value = self.builder.memory_object_load_element(value, layout, index);
+        let next_offset =
+            self.copy_inplace_word_array(element, element_value, output, current_offset)?;
+        let one = self.builder.imm_u64(1);
+        let next_index = self.builder.add(index, one);
+        let backedge = self.builder.current_block();
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(index, backedge, next_index);
+        self.builder.add_phi_incoming(current_offset, backedge, next_offset);
+
+        self.builder.switch_to_block(exit);
+        Some(current_offset)
+    }
+
     fn copy_packed_array(
         &mut self,
         output: ValueId,

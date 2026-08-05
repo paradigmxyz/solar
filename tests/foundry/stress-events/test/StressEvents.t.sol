@@ -12,6 +12,7 @@ contract StressEventsTest {
     StressEvents se;
 
     event IndexedDynamicArray(uint256[] indexed values);
+    event IndexedNestedDynamicArray(uint256[][] indexed values);
     
     function setUp() public {
         se = new StressEvents();
@@ -64,6 +65,18 @@ contract StressEventsTest {
         vm.expectEmit(true, false, false, false);
         emit IndexedDynamicArray(values);
         se.emitIndexedDynamicArray(values);
+    }
+
+    function test_EmitIndexedNestedDynamicArray() public {
+        uint256[][] memory values = new uint256[][](2);
+        values[0] = new uint256[](2);
+        values[1] = new uint256[](1);
+        values[0][0] = 100;
+        values[0][1] = 200;
+        values[1][0] = 300;
+        vm.expectEmit(true, false, false, false);
+        emit IndexedNestedDynamicArray(values);
+        se.emitIndexedNestedDynamicArray(values);
     }
     
     // ========== Mixed event tests ==========
