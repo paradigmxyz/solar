@@ -1974,6 +1974,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             if rhs_elements.len() < elements.len() {
                 return report_unsupported(self.gcx, rhs.span, "tuple assignment arity");
             }
+            let mut values = Vec::with_capacity(rhs_elements.len());
             for (index, value) in rhs_elements.iter().enumerate() {
                 let Some(value) = value else {
                     if elements.get(index).is_some_and(Option::is_some) {
@@ -1981,7 +1982,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     }
                     continue;
                 };
-                let value = self.lower_expr(value)?;
+                values.push((index, self.lower_expr(value)?));
+            }
+            for (index, value) in values {
                 let Some(Some(element)) = elements.get(index) else { continue };
                 self.store_lvalue(element, value)?;
             }

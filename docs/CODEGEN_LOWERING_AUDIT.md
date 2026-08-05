@@ -175,8 +175,9 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * enum member constants and checked integer-to-enum conversions with Solidity's
   `Panic(0x21)` range payload;
 * compile-time ERC-165 interface IDs from the sema interface-function set;
-* positional multi-value declarations and assignments, including evaluation of
-  discarded tuple values for their side effects;
+* positional multi-value declarations and assignments, including full
+  right-hand-side evaluation before tuple stores and evaluation of discarded
+  tuple values for their side effects;
 * low-level and typed external calls, including explicit `gas`/`value` options,
   contract-address conversions, returndata capture, and EVM-version checks;
 * positional and named struct constructors with declaration-order field layout;

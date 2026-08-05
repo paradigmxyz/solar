@@ -24,7 +24,7 @@ contract C {
 
     // CHECK: push 36
     // CHECK: calldataload
-    // CHECK: push 36
+    // CHECK: push 4
     // CHECK: calldataload
     // CHECK: return
     function swap(uint256 a, uint256 b) external pure returns (uint256, uint256) {
