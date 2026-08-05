@@ -3290,6 +3290,20 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
         if matches!(
             from.peel_refs().kind,
+            TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            )
+        ) {
+            let value = match self.builder.func().value_ty(value) {
+                Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => value,
+                Some(MirType::Slice(_)) => self.materialize_memory_slice(value),
+                _ => return value,
+            };
+            let zero = self.builder.imm_u256(U256::ZERO);
+            return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
+        }
+        if matches!(
+            from.peel_refs().kind,
             TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
         ) {
             return value;
@@ -3939,21 +3953,44 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let args = self.builtin_args::<2>(Builtin::AbiEncodeCall, &args)?;
         let function = &args[0];
         let tuple = &args[1];
-        let function_id = self.gcx.resolved_function(function)?;
-        let selector = self.gcx.function_selector(function_id).0;
-        let selector = self.builder.imm_u256(U256::from_be_slice(&selector) << 224);
-        let callee = self.gcx.hir.function(function_id);
+        let (selector, parameter_types) =
+            if let Some(function_id) = self.gcx.resolved_function(function) {
+                let selector = self.gcx.function_selector(function_id).0;
+                let parameter_types = self
+                    .gcx
+                    .hir
+                    .function(function_id)
+                    .parameters
+                    .iter()
+                    .map(|&parameter| self.gcx.type_of_item(parameter.into()))
+                    .collect::<Vec<_>>();
+                (self.builder.imm_u256(U256::from_be_slice(&selector) << 224), parameter_types)
+            } else {
+                let Some(TyKind::Fn(function_ty)) =
+                    self.gcx.type_of_expr(function.id).map(|ty| ty.kind)
+                else {
+                    return report_unsupported(self.gcx, function.span, "abi.encodeCall function");
+                };
+                if !function_ty.is_external() {
+                    return report_unsupported(self.gcx, function.span, "abi.encodeCall function");
+                }
+                let function_value = self.lower_expr(function)?;
+                let mask = self.builder.imm_u256(U256::from(u32::MAX));
+                let selector = self.builder.and(function_value, mask);
+                let shift = self.builder.imm_u64(224);
+                (self.builder.shl(shift, selector), function_ty.parameters.to_vec())
+            };
         let exprs = match tuple.peel_parens().kind {
             ExprKind::Tuple(elements) => elements.iter().flatten().copied().collect::<Vec<_>>(),
             _ => vec![tuple],
         };
-        if exprs.len() != callee.parameters.len() {
+        if exprs.len() != parameter_types.len() {
             return report_unsupported(self.gcx, tuple.span, "abi.encodeCall argument list");
         }
         let mut values = Vec::with_capacity(exprs.len());
         let mut types = Vec::with_capacity(exprs.len());
         for (index, expr) in exprs.into_iter().enumerate() {
-            let ty = self.gcx.type_of_item(callee.parameters[index].into());
+            let ty = parameter_types[index];
             let from_ty = self.gcx.type_of_expr(expr.id)?;
             let mut value = self.lower_expr(expr)?;
             value = self.coerce_value(value, from_ty, ty);
@@ -5908,15 +5945,28 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     let hir::ExprKind::Member(receiver, _) = &expr.kind else {
                         return report_unsupported(self.gcx, expr.span, "function selector");
                     };
-                    let Some(item) = self.gcx.resolved_expr(receiver).and_then(|res| match res {
+                    if let Some(item) = self.gcx.resolved_expr(receiver).and_then(|res| match res {
                         hir::Res::Item(
                             item @ (hir::ItemId::Function(_) | hir::ItemId::Error(_)),
                         ) => Some(item),
                         _ => None,
-                    }) else {
-                        return report_unsupported(self.gcx, expr.span, "function selector");
-                    };
-                    self.gcx.function_selector(item).0
+                    }) {
+                        self.gcx.function_selector(item).0
+                    } else {
+                        let Some(TyKind::Fn(function)) =
+                            self.type_of_expr_or_variable(receiver).map(|ty| ty.kind)
+                        else {
+                            return report_unsupported(self.gcx, expr.span, "function selector");
+                        };
+                        if !function.is_external() {
+                            return report_unsupported(self.gcx, expr.span, "function selector");
+                        }
+                        let value = self.lower_expr(receiver)?;
+                        let mask = self.builder.imm_u256(U256::from(u32::MAX));
+                        let selector = self.builder.and(value, mask);
+                        let shift = self.builder.imm_u64(224);
+                        return Some(self.builder.shl(shift, selector));
+                    }
                 }
             };
             return Some(self.builder.imm_u256(U256::from_be_slice(&selector) << 224));
