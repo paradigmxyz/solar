@@ -826,10 +826,18 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     | TyKind::Tuple(_) => {
                         let mut abi_type = self.types.abi_type(parameter_ty)?;
                         abi_type = self.abi_type_for_value(value, abi_type);
+                        if self.needs_calldata_materialization(value, &abi_type) {
+                            value = self.materialize_calldata_argument(
+                                parameter_ty,
+                                value,
+                                argument.span,
+                            )?;
+                            abi_type = self.abi_type_for_value(value, abi_type);
+                        }
                         if abi_type.is_dynamic() {
                             if let Some(packed) = self
                                 .lower_packed_word_array(parameter_ty, value)
-                                .or_else(|| self.lower_inplace_word_array(parameter_ty, value))
+                                .or_else(|| self.lower_inplace_dynamic_value(parameter_ty, value))
                             {
                                 topics.push(self.builder.keccak256_bytes(packed));
                                 continue;

@@ -507,12 +507,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         Some(output)
     }
 
-    pub(super) fn lower_inplace_word_array(
+    pub(super) fn lower_inplace_dynamic_value(
         &mut self,
         ty: Ty<'gcx>,
         value: ValueId,
     ) -> Option<ValueId> {
-        if !self.inplace_word_array_shape(ty)
+        if !self.inplace_dynamic_shape(ty)
             || (!matches!(self.builder.func().value_ty(value), Some(MirType::MemoryObject(_)))
                 && !matches!(self.builder.func().value(value), Value::Inst(inst) if matches!(
                     &self.builder.func().inst(*inst).kind,
@@ -521,7 +521,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         {
             return None;
         }
-        let words = self.count_inplace_word_array(ty, value)?;
+        let words = self.count_inplace_dynamic_value(ty, value)?;
         let word = self.builder.imm_u64(32);
         let length = self.checked_mul(words, word);
         let size = self.checked_add(word, length);
@@ -532,16 +532,136 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         );
         self.builder.set_memory_object_len(output, length, MemoryObjectKind::Bytes);
         let zero = self.builder.imm_u64(0);
-        self.copy_inplace_word_array(ty, value, output, zero)?;
+        self.copy_inplace_dynamic_value(ty, value, output, zero)?;
         Some(output)
     }
 
-    fn inplace_word_array_shape(&mut self, ty: Ty<'gcx>) -> bool {
+    fn inplace_dynamic_shape(&mut self, ty: Ty<'gcx>) -> bool {
         match ty.peel_refs().kind {
             TyKind::DynArray(element) | TyKind::Array(element, _) => {
-                self.inplace_word_array_shape(element)
+                self.inplace_dynamic_shape(element)
             }
+            TyKind::Struct(id) => self
+                .gcx
+                .hir
+                .strukt(id)
+                .fields
+                .iter()
+                .all(|&field| self.inplace_dynamic_shape(self.gcx.type_of_item(field.into()))),
+            TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            ) => true,
+            TyKind::Udvt(inner, _) => self.inplace_dynamic_shape(inner),
+            TyKind::Tuple(_) => false,
+            TyKind::Slice(_) => false,
             _ => matches!(self.types.abi_type(ty), Some(AbiType::Word)),
+        }
+    }
+
+    fn inplace_struct_layout(&self, fields: usize) -> MemoryObjectLayout {
+        MemoryObjectLayout::Struct { fields: fields as u64 }
+    }
+
+    fn count_inplace_dynamic_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> Option<ValueId> {
+        let ty = ty.peel_refs();
+        match ty.kind {
+            TyKind::DynArray(_) | TyKind::Array(..) => self.count_inplace_array(ty, value),
+            TyKind::Struct(id) => {
+                let fields = self.gcx.hir.strukt(id).fields.to_vec();
+                let layout = self.inplace_struct_layout(fields.len());
+                let mut total = self.builder.imm_u64(0);
+                for (index, field) in fields.into_iter().enumerate() {
+                    let field = self.gcx.type_of_item(field.into());
+                    let field_value =
+                        self.builder.memory_object_load_field(value, layout, index as u64);
+                    let field_words = self.count_inplace_dynamic_value(field, field_value)?;
+                    total = self.checked_add(total, field_words);
+                }
+                Some(total)
+            }
+            TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            ) => Some(self.count_inplace_bytes(value)),
+            TyKind::Udvt(inner, _) => self.count_inplace_dynamic_value(inner, value),
+            TyKind::Tuple(_) | TyKind::Slice(_) => None,
+            _ => Some(self.builder.imm_u64(1)),
+        }
+    }
+
+    fn count_inplace_array(&mut self, ty: Ty<'gcx>, value: ValueId) -> Option<ValueId> {
+        let (element, length, layout) = self.inplace_array_info(ty, value)?;
+        let preheader = self.builder.current_block();
+        let header = self.builder.create_block();
+        let body = self.builder.create_block();
+        let exit = self.builder.create_block();
+        self.builder.jump(header);
+
+        self.builder.switch_to_block(header);
+        let zero = self.builder.imm_u64(0);
+        let index = self.builder.phi(vec![(preheader, zero)]);
+        let total = self.builder.phi(vec![(preheader, zero)]);
+        let more = self.builder.lt(index, length);
+        self.builder.branch(more, body, exit);
+
+        self.builder.switch_to_block(body);
+        let element_value = self.builder.memory_object_load_element(value, layout, index);
+        let element_words = self.count_inplace_dynamic_value(element, element_value)?;
+        let next_total = self.checked_add(total, element_words);
+        let one = self.builder.imm_u64(1);
+        let next_index = self.builder.add(index, one);
+        let backedge = self.builder.current_block();
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(index, backedge, next_index);
+        self.builder.add_phi_incoming(total, backedge, next_total);
+
+        self.builder.switch_to_block(exit);
+        Some(total)
+    }
+
+    fn count_inplace_bytes(&mut self, value: ValueId) -> ValueId {
+        let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
+        let word = self.builder.imm_u64(32);
+        let thirty_one = self.builder.imm_u64(31);
+        let rounded = self.checked_add(length, thirty_one);
+        let mask = self.builder.not(thirty_one);
+        let padded = self.builder.and(rounded, mask);
+        self.builder.div(padded, word)
+    }
+
+    fn copy_inplace_dynamic_value(
+        &mut self,
+        ty: Ty<'gcx>,
+        value: ValueId,
+        output: ValueId,
+        offset: ValueId,
+    ) -> Option<ValueId> {
+        let ty = ty.peel_refs();
+        match ty.kind {
+            TyKind::DynArray(_) | TyKind::Array(..) => {
+                self.copy_inplace_array(ty, value, output, offset)
+            }
+            TyKind::Struct(id) => {
+                let fields = self.gcx.hir.strukt(id).fields.to_vec();
+                let layout = self.inplace_struct_layout(fields.len());
+                let mut offset = offset;
+                for (index, field) in fields.into_iter().enumerate() {
+                    let field = self.gcx.type_of_item(field.into());
+                    let field_value =
+                        self.builder.memory_object_load_field(value, layout, index as u64);
+                    offset = self.copy_inplace_dynamic_value(field, field_value, output, offset)?;
+                }
+                Some(offset)
+            }
+            TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            ) => Some(self.copy_inplace_bytes(value, output, offset)),
+            TyKind::Udvt(inner, _) => self.copy_inplace_dynamic_value(inner, value, output, offset),
+            TyKind::Tuple(_) | TyKind::Slice(_) => None,
+            _ => {
+                self.builder.memory_object_store_word(output, offset, value);
+                let word = self.builder.imm_u64(32);
+                Some(self.checked_add(offset, word))
+            }
         }
     }
 
@@ -567,41 +687,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         Some((element, length, layout))
     }
 
-    fn count_inplace_word_array(&mut self, ty: Ty<'gcx>, value: ValueId) -> Option<ValueId> {
-        let ty = ty.peel_refs();
-        if !matches!(ty.kind, TyKind::DynArray(_) | TyKind::Array(..)) {
-            return Some(self.builder.imm_u64(1));
-        }
-        let (element, length, layout) = self.inplace_array_info(ty, value)?;
-        let preheader = self.builder.current_block();
-        let header = self.builder.create_block();
-        let body = self.builder.create_block();
-        let exit = self.builder.create_block();
-        self.builder.jump(header);
-
-        self.builder.switch_to_block(header);
-        let zero = self.builder.imm_u64(0);
-        let index = self.builder.phi(vec![(preheader, zero)]);
-        let total = self.builder.phi(vec![(preheader, zero)]);
-        let more = self.builder.lt(index, length);
-        self.builder.branch(more, body, exit);
-
-        self.builder.switch_to_block(body);
-        let element_value = self.builder.memory_object_load_element(value, layout, index);
-        let element_words = self.count_inplace_word_array(element, element_value)?;
-        let next_total = self.checked_add(total, element_words);
-        let one = self.builder.imm_u64(1);
-        let next_index = self.builder.add(index, one);
-        let backedge = self.builder.current_block();
-        self.builder.jump(header);
-        self.builder.add_phi_incoming(index, backedge, next_index);
-        self.builder.add_phi_incoming(total, backedge, next_total);
-
-        self.builder.switch_to_block(exit);
-        Some(total)
-    }
-
-    fn copy_inplace_word_array(
+    fn copy_inplace_array(
         &mut self,
         ty: Ty<'gcx>,
         value: ValueId,
@@ -609,11 +695,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         offset: ValueId,
     ) -> Option<ValueId> {
         let ty = ty.peel_refs();
-        let (TyKind::DynArray(_) | TyKind::Array(..)) = ty.kind else {
-            self.builder.memory_object_store_word(output, offset, value);
-            let word = self.builder.imm_u64(32);
-            return Some(self.checked_add(offset, word));
-        };
         let (element, length, layout) = self.inplace_array_info(ty, value)?;
         let preheader = self.builder.current_block();
         let header = self.builder.create_block();
@@ -631,7 +712,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.switch_to_block(body);
         let element_value = self.builder.memory_object_load_element(value, layout, index);
         let next_offset =
-            self.copy_inplace_word_array(element, element_value, output, current_offset)?;
+            self.copy_inplace_dynamic_value(element, element_value, output, current_offset)?;
         let one = self.builder.imm_u64(1);
         let next_index = self.builder.add(index, one);
         let backedge = self.builder.current_block();
@@ -641,6 +722,37 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 
         self.builder.switch_to_block(exit);
         Some(current_offset)
+    }
+
+    fn copy_inplace_bytes(&mut self, value: ValueId, output: ValueId, offset: ValueId) -> ValueId {
+        let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
+        let word = self.builder.imm_u64(32);
+        let thirty_one = self.builder.imm_u64(31);
+        let rounded = self.checked_add(length, thirty_one);
+        let mask = self.builder.not(thirty_one);
+        let padded = self.builder.and(rounded, mask);
+        let empty = self.builder.iszero(padded);
+        let zero_block = self.builder.create_block();
+        let copy_block = self.builder.create_block();
+        self.builder.branch(empty, copy_block, zero_block);
+
+        self.builder.switch_to_block(zero_block);
+        let last_offset = self.builder.sub(padded, word);
+        let last = self.builder.add(offset, last_offset);
+        let zero = self.builder.imm_u64(0);
+        self.builder.memory_object_store_word(output, last, zero);
+        self.builder.jump(copy_block);
+
+        self.builder.switch_to_block(copy_block);
+        let data = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
+        let source = self.builder.make_slice(data, length, SliceLocation::Memory);
+        self.builder.memory_object_copy_from_slice_at(
+            output,
+            MemoryObjectKind::Bytes,
+            offset,
+            source,
+        );
+        self.builder.add(offset, padded)
     }
 
     fn copy_packed_array(

@@ -19,6 +19,14 @@ contract StressEvents {
     event IndexedStaticArray(uint256[2] indexed values);
     event IndexedDynamicArray(uint256[] indexed values);
     event IndexedNestedDynamicArray(uint256[][] indexed values);
+    event IndexedStringArray(string[] indexed values);
+
+    struct IndexedStruct {
+        uint256 value;
+        bytes data;
+    }
+
+    event IndexedStructArray(IndexedStruct[] indexed values);
     
     // ========== Mixed indexed and non-indexed ==========
     event Transfer(address indexed from, address indexed to, uint256 value);
@@ -107,6 +115,26 @@ contract StressEvents {
 
     function emitIndexedNestedDynamicArray(uint256[][] memory values) public {
         emit IndexedNestedDynamicArray(values);
+    }
+
+    function emitIndexedNestedDynamicArrayCalldata(uint256[][] calldata values) external {
+        emit IndexedNestedDynamicArray(values);
+    }
+
+    function emitIndexedStringArray(string[] memory values) public {
+        emit IndexedStringArray(values);
+    }
+
+    function emitIndexedStringArrayCalldata(string[] calldata values) external {
+        emit IndexedStringArray(values);
+    }
+
+    function emitIndexedStructArray(IndexedStruct[] memory values) public {
+        emit IndexedStructArray(values);
+    }
+
+    function emitIndexedStructArrayCalldata(IndexedStruct[] calldata values) external {
+        emit IndexedStructArray(values);
     }
     
     // ========== Emit mixed events ==========

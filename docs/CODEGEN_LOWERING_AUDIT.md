@@ -184,8 +184,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   shared ABI path;
 * event emission with overload and named-argument resolution, selector and indexed
   topics, dynamic-topic hashing, static and word-array aggregate-topic hashing,
-  nested dynamic word-array topic hashing, dynamic aggregate diagnostics, and MIR
-  ABI data;
+  nested dynamic array, struct, string, and bytes topic hashing, dynamic
+  aggregate diagnostics, and MIR ABI data;
 * `revert` and `require` payloads for `Error(string)` and custom errors through
   semantic ABI encoding, including named arguments and exact argument checks;
 * payable address `send` and `transfer`, including the EVM value stipend and
@@ -283,9 +283,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi.decode`, external return decoding, and `catch Error(string)` payload
    decoding are represented by semantic MIR operations and lowered by the ABI
    pass; multi-return materialization uses the shared frame/object path. The
-   indexed event path now flattens nested dynamic arrays of static words for
-   topic hashing; dynamic members such as strings, bytes, and structs still
-   need their in-place encoding rules.
+   indexed event path now flattens nested dynamic arrays, structs, and padded
+   string or bytes members for topic hashing. Tuples and other unsupported
+   aggregate shapes still fail closed until their in-place encoding rules are
+   defined.
    remaining work is broader independent differential coverage. Lazy wrapper
    validation still does not reject every Solc-invalid aggregate vector; eager
    validation for shapes beyond the covered nested-array heads needs a separate
