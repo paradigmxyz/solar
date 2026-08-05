@@ -656,7 +656,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                                 return Some(vec![self.lower_typed_expr(expr, ty)?]);
                             }
                         }
-                        self.lower_values(expr)
+                        self.lower_return_values(expr)
                     },
                 )?;
                 if let Some(&target) = self.return_targets.last() {
@@ -2010,6 +2010,26 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
             _ => Some(vec![self.lower_expr(expr)?]),
         }
+    }
+
+    fn lower_return_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
+        if self.returns.len() > 1
+            && let ExprKind::Tuple(values) = &expr.peel_parens().kind
+            && values.len() == self.returns.len()
+        {
+            let returns = self.returns.clone();
+            return values
+                .iter()
+                .zip(returns)
+                .map(|(value, id)| {
+                    let value = (*value)?;
+                    let ty = self.gcx.type_of_item(id.into());
+                    self.lower_typed_expr(value, ty)
+                })
+                .collect();
+        }
+
+        self.lower_values(expr)
     }
 
     fn lower_tuple_assignment(

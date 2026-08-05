@@ -147,6 +147,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * storage aggregate references copied through memory returns and internal or
   external calls, including fixed and dynamic storage arrays of words, bytes,
   and structs with nested dynamic members;
+* multi-value returns that materialize storage-backed dynamic bytes into memory
+  ABI objects;
 * constructor-assigned immutable declarations and reads, including inherited
   immutables, typed deployment patching, and narrow immutable widths;
 * split Solidity and Yul builtin lowering with shared positional-argument,
