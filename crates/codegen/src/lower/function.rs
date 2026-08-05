@@ -2997,13 +2997,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 return report_unsupported(self.gcx, args.span, "constructor argument");
             };
             let parameter_ty = self.gcx.type_of_item(parameter.into());
-            let mut value = self.lower_typed_expr(argument, parameter_ty)?;
-            let mut abi_type = self.types.abi_type(parameter_ty)?;
-            abi_type = self.abi_type_for_value(value, abi_type);
-            if self.needs_calldata_materialization(value, &abi_type) {
-                value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
-                abi_type = Self::memory_abi_type(abi_type);
-            }
+            let (value, abi_type) = self.lower_abi_call_argument(argument, parameter_ty)?;
             values.push(value);
             types.push(abi_type);
         }
@@ -3777,8 +3771,15 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let inner = self.builder.sub(inner, one);
         let zero = self.builder.imm_u256(U256::ZERO);
         let word_size = self.builder.imm_u64(32);
-        self.builder.mstore(zero, inner);
-        let outer = self.builder.keccak256(zero, word_size);
+        let object = self.builder.alloc_object(
+            word_size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::INTERNAL,
+        );
+        self.builder.set_memory_object_len(object, word_size, MemoryObjectKind::Bytes);
+        self.builder.memory_object_store_word(object, zero, inner);
+        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        let outer = self.builder.keccak256(data, word_size);
         let mask = self.builder.imm_u256(!U256::from(0xff));
         Some(self.builder.and(outer, mask))
     }
