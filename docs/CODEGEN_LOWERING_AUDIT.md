@@ -301,6 +301,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    an external function array is re-encoded with `abi.encodePacked`.
    `abi_forward_function_pointer_array.sol` covers cleanup and validation when a
    lazy calldata pointer array crosses an external-call boundary.
+   `external_function_pointer_storage_array.sol` covers memory-to-storage and
+   storage-to-storage copies of external function pointer arrays.
    The Unifap creation fixture now passes the differential Foundry
    suite; the companion fixture compiles with no Solar-only regressions, but
    retains seven pre-existing failures under both compilers because its
