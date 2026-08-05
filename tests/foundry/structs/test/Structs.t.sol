@@ -123,6 +123,9 @@ contract StructsTest {
         second[32] = 0xff;
         s.setBlobs(first, second);
         require(s.sumStoredBlobLengthsExternal() == 35, "nested array call mismatch");
+
+        s.setPointList(4, 5, 6, 7);
+        require(s.sumStoredPointListExternal() == 22, "multiword array call mismatch");
     }
 
     // ========= Complex Operations =========

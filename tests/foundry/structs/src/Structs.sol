@@ -27,6 +27,7 @@ contract Structs {
 
     Point public storedPoint;
     Point[2] private storedPoints;
+    Point[] private storedPointList;
     uint256[] private storedValues;
     bytes[] private storedBlobs;
     Person public storedPerson;
@@ -181,6 +182,26 @@ contract Structs {
 
     function sumStoredBlobLengthsExternal() external view returns (uint256) {
         return this.sumBlobLengths(storedBlobs);
+    }
+
+    function setPointList(uint256 x0, uint256 y0, uint256 x1, uint256 y1) external {
+        delete storedPointList;
+        storedPointList.push();
+        storedPointList[0].x = x0;
+        storedPointList[0].y = y0;
+        storedPointList.push();
+        storedPointList[1].x = x1;
+        storedPointList[1].y = y1;
+    }
+
+    function sumPointList(Point[] memory points) external pure returns (uint256 total) {
+        for (uint256 i; i < points.length; i++) {
+            total += points[i].x + points[i].y;
+        }
+    }
+
+    function sumStoredPointListExternal() external view returns (uint256) {
+        return this.sumPointList(storedPointList);
     }
 
     // ========= Helper for Complex Operations =========
