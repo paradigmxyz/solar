@@ -1033,7 +1033,7 @@ impl LowerAbiCx {
                                 &mut current,
                                 Some(&self.helpers),
                             );
-                        } else if Self::contains_dynamic_array(ty) {
+                        } else if ty.is_dynamic() {
                             Self::validate_aggregate_argument(
                                 &mut builder,
                                 ty,
@@ -1094,24 +1094,8 @@ impl LowerAbiCx {
         crate::mir::utils::remap_block_order(func, &order);
     }
 
-    /// Returns whether an ABI shape contains a dynamic array.
-    fn contains_dynamic_array(ty: &crate::mir::AbiParamType) -> bool {
-        match ty {
-            crate::mir::AbiParamType::DynamicArray(_) => true,
-            crate::mir::AbiParamType::FixedArray { element, .. } => {
-                Self::contains_dynamic_array(element)
-            }
-            crate::mir::AbiParamType::Tuple(fields) => {
-                fields.iter().any(Self::contains_dynamic_array)
-            }
-            crate::mir::AbiParamType::Scalar(_)
-            | crate::mir::AbiParamType::Enum { .. }
-            | crate::mir::AbiParamType::Bytes => false,
-        }
-    }
-
-    /// Validates the immediate ABI heads of a dynamic-array aggregate without
-    /// materializing its memory representation.
+    /// Validates the immediate ABI shape of an aggregate without materializing
+    /// its memory representation.
     #[allow(clippy::too_many_arguments)]
     fn validate_aggregate_argument(
         builder: &mut FunctionBuilder<'_>,
@@ -1151,53 +1135,20 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::FixedArray { element, len } => {
                 let head_size = len.saturating_mul(element.head_size());
                 Self::guard_source_range(builder, base, head_size, input_end, constructor, current);
-                let mut offset = 0_u64;
-                for _ in 0..*len {
-                    if !Self::contains_dynamic_array(element) {
-                        offset = offset.saturating_add(element.head_size());
-                        continue;
-                    }
-                    let offset_value = builder.imm_u64(offset);
-                    let element_head = builder.add(base, offset_value);
-                    Self::validate_aggregate_argument(
-                        builder,
-                        element,
-                        element_head,
-                        base,
-                        input_end,
-                        constructor,
-                        current,
-                    );
-                    offset = offset.saturating_add(element.head_size());
-                }
             }
             crate::mir::AbiParamType::Tuple(fields) => {
                 let head_size =
                     fields.iter().fold(0_u64, |size, field| size.saturating_add(field.head_size()));
                 Self::guard_source_range(builder, base, head_size, input_end, constructor, current);
-                let mut offset = 0_u64;
-                for field in fields {
-                    if !Self::contains_dynamic_array(field) {
-                        offset = offset.saturating_add(field.head_size());
-                        continue;
-                    }
-                    let offset_value = builder.imm_u64(offset);
-                    let field_head = builder.add(base, offset_value);
-                    Self::validate_aggregate_argument(
-                        builder,
-                        field,
-                        field_head,
-                        base,
-                        input_end,
-                        constructor,
-                        current,
-                    );
-                    offset = offset.saturating_add(field.head_size());
-                }
             }
-            crate::mir::AbiParamType::Scalar(_)
-            | crate::mir::AbiParamType::Enum { .. }
-            | crate::mir::AbiParamType::Bytes => {}
+            crate::mir::AbiParamType::Bytes => {
+                Self::guard_source_range(builder, base, 32, input_end, constructor, current);
+                let len = Self::load_input_word(builder, base, input_end, constructor);
+                let word = builder.imm_u64(32);
+                let data = builder.add(base, word);
+                Self::guard_source_range_value(builder, data, len, input_end, constructor, current);
+            }
+            crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. } => {}
         }
     }
 
