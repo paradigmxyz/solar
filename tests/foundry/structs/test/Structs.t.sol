@@ -126,6 +126,11 @@ contract StructsTest {
 
         s.setPointList(4, 5, 6, 7);
         require(s.sumStoredPointListExternal() == 22, "multiword array call mismatch");
+
+        bytes memory complexFirst = hex"010203";
+        bytes memory complexSecond = new bytes(33);
+        s.setComplexList(complexFirst, complexSecond);
+        require(s.sumStoredComplexListExternal() == 48, "nested dynamic struct call mismatch");
     }
 
     // ========= Complex Operations =========

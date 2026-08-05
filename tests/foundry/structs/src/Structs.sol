@@ -23,6 +23,11 @@ contract Structs {
         uint256 value;
     }
 
+    struct Complex {
+        bytes blob;
+        uint256[] values;
+    }
+
     // ========= Storage Variables =========
 
     Point public storedPoint;
@@ -32,6 +37,7 @@ contract Structs {
     bytes[] private storedBlobs;
     Person public storedPerson;
     Nested public storedNested;
+    Complex[] private storedComplexList;
 
     // ========= Basic Storage Tests =========
 
@@ -202,6 +208,33 @@ contract Structs {
 
     function sumStoredPointListExternal() external view returns (uint256) {
         return this.sumPointList(storedPointList);
+    }
+
+    function setComplexList(bytes calldata first, bytes calldata second) external {
+        delete storedComplexList;
+        storedComplexList.push();
+        storedComplexList[0].blob = first;
+        storedComplexList[0].values.push(5);
+        storedComplexList.push();
+        storedComplexList[1].blob = second;
+        storedComplexList[1].values.push(7);
+    }
+
+    function sumComplexList(Complex[] memory values)
+        external
+        pure
+        returns (uint256 total)
+    {
+        for (uint256 i; i < values.length; i++) {
+            total += values[i].blob.length;
+            for (uint256 j; j < values[i].values.length; j++) {
+                total += values[i].values[j];
+            }
+        }
+    }
+
+    function sumStoredComplexListExternal() external view returns (uint256) {
+        return this.sumComplexList(storedComplexList);
     }
 
     // ========= Helper for Complex Operations =========
