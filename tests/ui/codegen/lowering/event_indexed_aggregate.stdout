@@ -1,0 +1,12 @@
+// === ROOT/tests/ui/codegen/lowering/event_indexed_aggregate.sol:EventIndexedAggregate ===
+@module EventIndexedAggregate
+fn @emitArray(arg0: memoryfixedarray) [abi_args=lazy, abi_params=[array<2, u256>], abi_returns=[]] {
+  bb0:
+    v0 = abi_encode [array<2, word>], args arg0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = keccak256 v1, v2
+    log2 0, 0, 0x593dc6b174959b601bb79a461ad966793c2efcb91b01656672c2ca58b06730f3, v3
+    stop
+}
+

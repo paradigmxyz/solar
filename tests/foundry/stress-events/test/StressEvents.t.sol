@@ -44,6 +44,11 @@ contract StressEventsTest {
     function test_EmitIndexedBytes32() public {
         se.emitIndexedBytes32(keccak256("test"));
     }
+
+    function test_EmitIndexedStaticArray() public {
+        uint256[2] memory values = [uint256(100), uint256(200)];
+        se.emitIndexedStaticArray(values);
+    }
     
     // ========== Mixed event tests ==========
     function test_EmitTransfer() public {

@@ -759,12 +759,23 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     | TyKind::DynArray(_)
                     | TyKind::Slice(_)
                     | TyKind::Tuple(_) => {
-                        self.gcx
-                            .dcx()
-                            .err("codegen does not support indexed event aggregate encoding yet")
-                            .span(argument.span)
-                            .emit();
-                        return Some(());
+                        let mut abi_type = self.types.abi_type(parameter_ty)?;
+                        abi_type = self.abi_type_for_value(value, abi_type);
+                        if abi_type.is_dynamic() {
+                            self.gcx
+                                .dcx()
+                                .err(
+                                    "codegen does not support indexed event aggregate encoding yet",
+                                )
+                                .span(argument.span)
+                                .emit();
+                            return Some(());
+                        }
+                        let layout = Arc::new(AbiLayout::new(vec![abi_type].into_boxed_slice()));
+                        let encoded = self.builder.abi_encode(layout, None, [value]);
+                        let pointer = self.builder.slice_ptr(encoded);
+                        let length = self.builder.slice_len(encoded);
+                        topics.push(self.builder.keccak256(pointer, length));
                     }
                     _ => topics.push(self.lower_word_value(parameter_ty, argument, value)),
                 }
