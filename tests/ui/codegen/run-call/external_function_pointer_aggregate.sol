@@ -1,5 +1,7 @@
 //@ run-call: read() => 7, "ok"
 //@ run-call: readArguments() => 7, "ok"
+//@ run-call: pointerArgumentRoundtrip() => 8
+//@ run-call: pointerReturnRoundtrip() => 9
 
 contract ExternalFunctionPointerAggregateTarget {
     function pair() external pure returns (uint256, string memory) {
@@ -34,5 +36,40 @@ contract ExternalFunctionPointerAggregate {
         values[0] = 4;
         values[1] = 3;
         return pointer(values, "ok");
+    }
+
+    function increment(uint256 value) external pure returns (uint256) {
+        return value + 1;
+    }
+
+    function invoke(
+        function(uint256) external returns (uint256) pointer,
+        uint256 value
+    )
+        external
+        returns (uint256)
+    {
+        return pointer(value);
+    }
+
+    function pointerArgumentRoundtrip() external view returns (uint256) {
+        (bool success, bytes memory result) = address(this).staticcall(
+            abi.encodeWithSelector(this.invoke.selector, this.increment, 7)
+        );
+        require(success);
+        return abi.decode(result, (uint256));
+    }
+
+    function pointer()
+        external
+        view
+        returns (function(uint256) external returns (uint256))
+    {
+        return this.increment;
+    }
+
+    function pointerReturnRoundtrip() external returns (uint256) {
+        function(uint256) external returns (uint256) pointer = this.pointer();
+        return pointer(8);
     }
 }

@@ -204,9 +204,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    run-call coverage.
 3. Extend function-pointer ABI coverage to the remaining edge cases. External
    pointers now have runtime coverage for aggregate arguments and returns,
-   including aggregate `try` return bindings. Custom error catch clauses are
-   rejected by the tracked Solidity type checker and are not a valid lowering
-   target. Creation and runtime code literals now use compiled child artifacts.
+   pointer arguments and pointer returns, including aggregate `try` return
+   bindings. Custom error catch clauses are rejected by the tracked Solidity
+   type checker and are not a valid lowering target. Creation and runtime code
+   literals now use compiled child artifacts.
    The Unifap creation fixture now passes the differential Foundry
    suite; the companion fixture compiles with no Solar-only regressions, but
    retains seven pre-existing failures under both compilers because its
