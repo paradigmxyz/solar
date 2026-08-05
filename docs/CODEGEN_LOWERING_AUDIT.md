@@ -295,6 +295,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi_calldata_static_tuple_lazy_validation.sol` covers static calldata
    structs: field reads validate only the selected scalar, unused dirty fields
    remain lazy, and full-word tuples materialize before ABI encoding.
+   `abi_calldata_fixed_dynamic.sol` covers a top-level fixed array of dynamic
+   bytes, including exact unpadded tails and a missing nested tail.
    `abi_calldata_unused_aggregate_validation.sol` covers the other lazy
    boundary: unused dynamic bytes and structs validate their immediate heads,
    while nested dynamic offsets remain lazy like Solc.
