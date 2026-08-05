@@ -1439,6 +1439,67 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
     }
 
+    fn lower_logical(
+        &mut self,
+        lhs_expr: &hir::Expr<'_>,
+        op: BinOpKind,
+        rhs_expr: &hir::Expr<'_>,
+    ) -> Option<ValueId> {
+        let lhs = self.lower_expr(lhs_expr)?;
+        let rhs_block = self.builder.create_block();
+        let short_block = self.builder.create_block();
+        let merge_block = self.builder.create_block();
+        let before = self.values.clone();
+        let before_storage_refs = self.storage_refs.clone();
+        let is_and = op == BinOpKind::And;
+        if is_and {
+            self.builder.branch(lhs, rhs_block, short_block);
+        } else {
+            self.builder.branch(lhs, short_block, rhs_block);
+        }
+
+        self.values = before.clone();
+        self.storage_refs = before_storage_refs.clone();
+        self.builder.switch_to_block(rhs_block);
+        let rhs = self.lower_expr(rhs_expr)?;
+        let rhs_terminated = self.is_terminated();
+        let rhs_exit = self.builder.current_block();
+        let rhs_values = self.values.clone();
+        let rhs_storage_refs = self.storage_refs.clone();
+        if !rhs_terminated {
+            self.builder.jump(merge_block);
+        }
+
+        self.values = before.clone();
+        self.storage_refs = before_storage_refs.clone();
+        self.builder.switch_to_block(short_block);
+        let short = self.builder.imm_bool(!is_and);
+        let short_exit = self.builder.current_block();
+        let short_values = self.values.clone();
+        let short_storage_refs = self.storage_refs.clone();
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(merge_block);
+        self.values = self.merge_values(
+            before,
+            MergeBranch { block: rhs_exit, values: rhs_values, terminated: rhs_terminated },
+            MergeBranch { block: short_exit, values: short_values, terminated: false },
+        );
+        self.storage_refs = self.merge_storage_refs(
+            before_storage_refs,
+            MergeBranch { block: rhs_exit, values: rhs_storage_refs, terminated: rhs_terminated },
+            MergeBranch { block: short_exit, values: short_storage_refs, terminated: false },
+        );
+        if rhs_terminated {
+            return Some(short);
+        }
+        if rhs == short {
+            Some(short)
+        } else {
+            Some(self.builder.phi(vec![(rhs_exit, rhs), (short_exit, short)]))
+        }
+    }
+
     fn lower_ternary_values(
         &mut self,
         condition: &hir::Expr<'_>,
@@ -1978,6 +2039,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 self.load_variable(id, expr.span)
             }
             ExprKind::Binary(lhs, op, rhs) => {
+                if matches!(op.kind, BinOpKind::And | BinOpKind::Or) {
+                    return self.lower_logical(lhs, op.kind, rhs);
+                }
                 let lhs_ty = self.gcx.type_of_expr(lhs.id);
                 let lhs = self.lower_expr(lhs)?;
                 let rhs_ty = self.gcx.type_of_expr(rhs.id);

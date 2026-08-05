@@ -115,8 +115,8 @@ The current slice compiles the workspace and has been exercised against the
 existing scalar and packed-storage MIR fixtures. It supports:
 
 * scalar literals, local bindings, returns, arithmetic, comparisons, shifts,
-  logical and bitwise operations, assignments, compound assignments, and
-  pre/post increment of scalar l-values;
+  logical and bitwise operations with short-circuit control flow, assignments,
+  compound assignments, and pre/post increment of scalar l-values;
 * checked scalar add, sub, mul, div, mod, negation, and exponentiation with
   Solidity panic payloads, explicit unchecked-block state, and narrow-type
   wrapping;

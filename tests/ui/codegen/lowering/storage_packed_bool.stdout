@@ -38,10 +38,16 @@ fn @both() -> bool [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
+    jumpi v1, bb1, bb2
+  bb1:
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = shr 8, v2
     v4 = and v3, 255
-    v5 = and v1, v4
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v5 = phi [bb1: v4], [bb2: 0]
     ret v5
 }
 
