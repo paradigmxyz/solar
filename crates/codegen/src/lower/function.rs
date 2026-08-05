@@ -2657,6 +2657,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 
     fn store_storage_bytes(&mut self, slot: ValueId, object: ValueId) -> Option<()> {
         let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
+        let data_ptr = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        let data = self.builder.make_slice(data_ptr, length, SliceLocation::Memory);
         let word_size = self.builder.imm_u64(32);
         let short = self.builder.lt(length, word_size);
         let short_block = self.builder.create_block();
@@ -2666,7 +2668,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 
         self.builder.switch_to_block(short_block);
         let zero = self.builder.imm_u64(0);
-        let data = self.builder.memory_object_load_element(object, MemoryObjectLayout::Bytes, zero);
+        let data_word = self.builder.memory_slice_load_word(data, zero);
         let unused_bytes = self.builder.sub(word_size, length);
         let bits = self.builder.imm_u64(8);
         let shift = self.builder.mul(unused_bytes, bits);
@@ -2674,10 +2676,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let high_bit = self.builder.shl(shift, one);
         let low_mask = self.builder.sub(high_bit, one);
         let data_mask = self.builder.not(low_mask);
-        let data = self.builder.and(data, data_mask);
+        let data_word = self.builder.and(data_word, data_mask);
         let two = self.builder.imm_u64(2);
         let tag = self.builder.mul(length, two);
-        let header = self.builder.or(data, tag);
+        let header = self.builder.or(data_word, tag);
         self.builder.sstore(slot, header);
         self.builder.jump(merge_block);
 
@@ -2701,8 +2703,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.branch(condition, body, exit);
         self.builder.switch_to_block(body);
         let byte_offset = self.builder.mul(index, word_size);
-        let value =
-            self.builder.memory_object_load_element(object, MemoryObjectLayout::Bytes, byte_offset);
+        let value = self.builder.memory_slice_load_word(data, byte_offset);
         let element_slot = self.builder.add(data_slot, index);
         self.builder.sstore(element_slot, value);
         let next = self.builder.add(index, one);
@@ -3811,7 +3812,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     solar_sema::hir::ElementaryType::String
                     | solar_sema::hir::ElementaryType::Bytes,
                 ) => {
-                    let value = self.lower_expr(expr)?;
+                    let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+                    let value = self.lower_typed_expr(expr, memory_ty)?;
+                    let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;
                     let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
                     total = self.checked_add(total, length);
                     parts.push((value, Some(length), 0));
@@ -4182,7 +4185,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 continue;
             }
 
-            let value = self.lower_expr(expr)?;
+            let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+            let value = self.lower_typed_expr(expr, memory_ty)?;
             if self.is_calldata_dynamic_bytes_type(ty)
                 || matches!(
                     ty.peel_refs().kind,

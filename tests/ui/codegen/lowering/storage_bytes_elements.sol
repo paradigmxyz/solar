@@ -41,10 +41,10 @@ contract StorageStringConstructor {
 
     // CHECK-LABEL: fn @_anonymous{{.*abi_args=lazy.*}}
     // CHECK: memory_object_len memorybytes
-    // CHECK: memory_object_load_element memorybytes
+    // CHECK: memory_slice_load_word memory
     // CHECK: sstore 0,
     // CHECK: memory_object_len memorybytes
-    // CHECK: memory_object_load_element memorybytes
+    // CHECK: memory_slice_load_word memory
     // CHECK: sstore 1,
     constructor(string memory name_, string memory symbol_) {
         name = name_;

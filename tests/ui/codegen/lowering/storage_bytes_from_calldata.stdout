@@ -36,27 +36,29 @@ fn @setText(arg0: calldataslice) [abi_args=lazy, abi_params=[bytes], abi_returns
     set_memory_object_len memorybytes, v12, v0
     memory_object_copy_from_slice memorybytes, v12, arg0
     v13 = memory_object_len memorybytes, v12
-    v14 = lt v13, 32
-    jumpi v14, bb7, bb8
+    v14 = memory_object_data memorybytes, v12
+    v15 = make_memory_slice v14, v13
+    v16 = lt v13, 32
+    jumpi v16, bb7, bb8
   bb7:
-    v15 = memory_object_load_element memorybytes, v12, 0
-    v16 = sub 32, v13
-    v17 = mul v16, 8
-    v18 = shl v17, 1
-    v19 = sub v18, 1
-    v20 = not v19
-    v21 = and v15, v20
-    v22 = mul v13, 2
-    v23 = or v21, v22
-    sstore 0, v23 !metadata(storage=slot(0))
+    v17 = memory_slice_load_word memory, v15, 0
+    v18 = sub 32, v13
+    v19 = mul v18, 8
+    v20 = shl v19, 1
+    v21 = sub v20, 1
+    v22 = not v21
+    v23 = and v17, v22
+    v24 = mul v13, 2
+    v25 = or v23, v24
+    sstore 0, v25 !metadata(storage=slot(0))
     jump bb9
   bb8:
-    v24 = shl 1, v13
-    v25 = or v24, 1
-    sstore 0, v25 !metadata(storage=slot(0))
-    v26 = add v13, 31
-    v27 = lt v26, v13
-    jumpi v27, bb10, bb11
+    v26 = shl 1, v13
+    v27 = or v26, 1
+    sstore 0, v27 !metadata(storage=slot(0))
+    v28 = add v13, 31
+    v29 = lt v28, v13
+    jumpi v29, bb10, bb11
   bb9:
     stop
   bb10:
@@ -64,19 +66,19 @@ fn @setText(arg0: calldataslice) [abi_args=lazy, abi_params=[bytes], abi_returns
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb11:
-    v28 = div v26, 32
-    v29 = storage_array_data_slot 0
+    v30 = div v28, 32
+    v31 = storage_array_data_slot 0
     jump bb12
   bb12:
-    v30 = phi [bb11: 0], [bb13: v35]
-    v31 = lt v30, v28
-    jumpi v31, bb13, bb14
+    v32 = phi [bb11: 0], [bb13: v37]
+    v33 = lt v32, v30
+    jumpi v33, bb13, bb14
   bb13:
-    v32 = mul v30, 32
-    v33 = memory_object_load_element memorybytes, v12, v32
-    v34 = add v29, v30
-    sstore v34, v33 !metadata(storage=symbolic(v34))
-    v35 = add v30, 1
+    v34 = mul v32, 32
+    v35 = memory_slice_load_word memory, v15, v34
+    v36 = add v31, v32
+    sstore v36, v35 !metadata(storage=symbolic(v36))
+    v37 = add v32, 1
     jump bb12
   bb14:
     jump bb9
@@ -118,27 +120,29 @@ fn @setBlob(arg0: calldataslice) [abi_args=lazy, abi_params=[bytes], abi_returns
     set_memory_object_len memorybytes, v12, v0
     memory_object_copy_from_slice memorybytes, v12, arg0
     v13 = memory_object_len memorybytes, v12
-    v14 = lt v13, 32
-    jumpi v14, bb7, bb8
+    v14 = memory_object_data memorybytes, v12
+    v15 = make_memory_slice v14, v13
+    v16 = lt v13, 32
+    jumpi v16, bb7, bb8
   bb7:
-    v15 = memory_object_load_element memorybytes, v12, 0
-    v16 = sub 32, v13
-    v17 = mul v16, 8
-    v18 = shl v17, 1
-    v19 = sub v18, 1
-    v20 = not v19
-    v21 = and v15, v20
-    v22 = mul v13, 2
-    v23 = or v21, v22
-    sstore 1, v23 !metadata(storage=slot(1))
+    v17 = memory_slice_load_word memory, v15, 0
+    v18 = sub 32, v13
+    v19 = mul v18, 8
+    v20 = shl v19, 1
+    v21 = sub v20, 1
+    v22 = not v21
+    v23 = and v17, v22
+    v24 = mul v13, 2
+    v25 = or v23, v24
+    sstore 1, v25 !metadata(storage=slot(1))
     jump bb9
   bb8:
-    v24 = shl 1, v13
-    v25 = or v24, 1
-    sstore 1, v25 !metadata(storage=slot(1))
-    v26 = add v13, 31
-    v27 = lt v26, v13
-    jumpi v27, bb10, bb11
+    v26 = shl 1, v13
+    v27 = or v26, 1
+    sstore 1, v27 !metadata(storage=slot(1))
+    v28 = add v13, 31
+    v29 = lt v28, v13
+    jumpi v29, bb10, bb11
   bb9:
     stop
   bb10:
@@ -146,19 +150,19 @@ fn @setBlob(arg0: calldataslice) [abi_args=lazy, abi_params=[bytes], abi_returns
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb11:
-    v28 = div v26, 32
-    v29 = storage_array_data_slot 1
+    v30 = div v28, 32
+    v31 = storage_array_data_slot 1
     jump bb12
   bb12:
-    v30 = phi [bb11: 0], [bb13: v35]
-    v31 = lt v30, v28
-    jumpi v31, bb13, bb14
+    v32 = phi [bb11: 0], [bb13: v37]
+    v33 = lt v32, v30
+    jumpi v33, bb13, bb14
   bb13:
-    v32 = mul v30, 32
-    v33 = memory_object_load_element memorybytes, v12, v32
-    v34 = add v29, v30
-    sstore v34, v33 !metadata(storage=symbolic(v34))
-    v35 = add v30, 1
+    v34 = mul v32, 32
+    v35 = memory_slice_load_word memory, v15, v34
+    v36 = add v31, v32
+    sstore v36, v35 !metadata(storage=symbolic(v36))
+    v37 = add v32, 1
     jump bb12
   bb14:
     jump bb9

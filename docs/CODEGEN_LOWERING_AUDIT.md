@@ -156,9 +156,9 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * contract creation with compiled child deployment bytecode, semantic
   constructor ABI encoding, `value`/`salt` options, and forwarding of failed
   creation returndata;
-* `abi.encodePacked` arrays of static word elements, address `code` and
-  `codehash` builtins, `type(...).creationCode` and `runtimeCode`, and
-  fixed-bytes to address conversions;
+* `abi.encodePacked` arrays of static word elements, storage-backed short and
+  long bytes, address `code` and `codehash` builtins, `type(...).creationCode`
+  and `runtimeCode`, and fixed-bytes to address conversions;
 * `try`/`catch` lowering for resolved external calls with scalar and aggregate
   return bindings, ordered selector dispatch for multiple catches, bare
   catches, `catch (bytes memory)` returndata objects, and
@@ -183,7 +183,7 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * `ecrecover`, `sha256`, and `ripemd160` through version-aware precompile
   calls and semantic memory objects;
 * `string.concat` and `bytes.concat` through one variadic packed-memory path,
-  including empty, literal, dynamic, and fixed-bytes pieces;
+  including empty, literal, dynamic, fixed-bytes, and storage-backed pieces;
 * lazy, deduplicated ABI cleanup helpers and outlined revert helpers.
 
 The generated MIR for `tests/ui/codegen/lowering/compound_assign.sol` contains

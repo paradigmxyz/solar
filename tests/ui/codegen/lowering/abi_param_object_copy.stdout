@@ -100,27 +100,29 @@ fn @_anonymous(arg0: memoryarray, arg1: memorybytes) [abi_args=lazy, abi_params=
     jump bb1
   bb3:
     v6 = memory_object_len memorybytes, arg1
-    v7 = lt v6, 32
-    jumpi v7, bb4, bb5
+    v7 = memory_object_data memorybytes, arg1
+    v8 = make_memory_slice v7, v6
+    v9 = lt v6, 32
+    jumpi v9, bb4, bb5
   bb4:
-    v8 = memory_object_load_element memorybytes, arg1, 0
-    v9 = sub 32, v6
-    v10 = mul v9, 8
-    v11 = shl v10, 1
-    v12 = sub v11, 1
-    v13 = not v12
-    v14 = and v8, v13
-    v15 = mul v6, 2
-    v16 = or v14, v15
-    sstore 1, v16 !metadata(storage=slot(1))
+    v10 = memory_slice_load_word memory, v8, 0
+    v11 = sub 32, v6
+    v12 = mul v11, 8
+    v13 = shl v12, 1
+    v14 = sub v13, 1
+    v15 = not v14
+    v16 = and v10, v15
+    v17 = mul v6, 2
+    v18 = or v16, v17
+    sstore 1, v18 !metadata(storage=slot(1))
     jump bb6
   bb5:
-    v17 = shl 1, v6
-    v18 = or v17, 1
-    sstore 1, v18 !metadata(storage=slot(1))
-    v19 = add v6, 31
-    v20 = lt v19, v6
-    jumpi v20, bb7, bb8
+    v19 = shl 1, v6
+    v20 = or v19, 1
+    sstore 1, v20 !metadata(storage=slot(1))
+    v21 = add v6, 31
+    v22 = lt v21, v6
+    jumpi v22, bb7, bb8
   bb6:
     stop
   bb7:
@@ -128,19 +130,19 @@ fn @_anonymous(arg0: memoryarray, arg1: memorybytes) [abi_args=lazy, abi_params=
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v21 = div v19, 32
-    v22 = storage_array_data_slot 1
+    v23 = div v21, 32
+    v24 = storage_array_data_slot 1
     jump bb9
   bb9:
-    v23 = phi [bb8: 0], [bb10: v28]
-    v24 = lt v23, v21
-    jumpi v24, bb10, bb11
+    v25 = phi [bb8: 0], [bb10: v30]
+    v26 = lt v25, v23
+    jumpi v26, bb10, bb11
   bb10:
-    v25 = mul v23, 32
-    v26 = memory_object_load_element memorybytes, arg1, v25
-    v27 = add v22, v23
-    sstore v27, v26 !metadata(storage=symbolic(v27))
-    v28 = add v23, 1
+    v27 = mul v25, 32
+    v28 = memory_slice_load_word memory, v8, v27
+    v29 = add v24, v25
+    sstore v29, v28 !metadata(storage=symbolic(v29))
+    v30 = add v25, 1
     jump bb9
   bb11:
     jump bb6

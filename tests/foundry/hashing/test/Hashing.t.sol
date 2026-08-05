@@ -63,4 +63,30 @@ contract HashingTest {
         bytes32 expected = keccak256(abi.encode(type(uint256).max));
         assert(result == expected);
     }
+
+    function testHashStoredBytes() public {
+        bytes memory data = hex"deadbeef";
+        bytes memory suffix = hex"0102";
+        h.setStored(data);
+        require(
+            h.hashStoredPacked(suffix) == keccak256(abi.encodePacked(data, suffix)),
+            "short packed mismatch"
+        );
+        require(
+            h.hashStoredConcat(suffix) == keccak256(bytes.concat(data, suffix)),
+            "short concat mismatch"
+        );
+
+        bytes memory longData =
+            hex"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20";
+        h.setStored(longData);
+        require(
+            h.hashStoredPacked(suffix) == keccak256(abi.encodePacked(longData, suffix)),
+            "long packed mismatch"
+        );
+        require(
+            h.hashStoredConcat(suffix) == keccak256(bytes.concat(longData, suffix)),
+            "long concat mismatch"
+        );
+    }
 }

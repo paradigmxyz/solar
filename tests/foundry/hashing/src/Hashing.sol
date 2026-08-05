@@ -2,6 +2,8 @@
 pragma solidity ^0.8.0;
 
 contract Hashing {
+    bytes private stored;
+
     function hashUint(uint256 a) external pure returns (bytes32) {
         return keccak256(abi.encode(a));
     }
@@ -23,4 +25,17 @@ contract Hashing {
     function hashBytes(bytes calldata data) external pure returns (bytes32) {
         return keccak256(data);
     }
+
+    function setStored(bytes memory data) external {
+        stored = data;
+    }
+
+    function hashStoredPacked(bytes calldata suffix) external view returns (bytes32) {
+        return keccak256(abi.encodePacked(stored, suffix));
+    }
+
+    function hashStoredConcat(bytes calldata suffix) external view returns (bytes32) {
+        return keccak256(bytes.concat(stored, suffix));
+    }
+
 }
