@@ -373,7 +373,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.store_storage_value(ty, access, value, expr.span)
     }
 
-    fn load_storage_value(
+    pub(super) fn load_storage_value(
         &mut self,
         ty: solar_sema::ty::Ty<'gcx>,
         access: StorageAccess,
@@ -394,7 +394,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         })
     }
 
-    fn store_storage_value(
+    pub(super) fn store_storage_value(
         &mut self,
         ty: solar_sema::ty::Ty<'gcx>,
         access: StorageAccess,

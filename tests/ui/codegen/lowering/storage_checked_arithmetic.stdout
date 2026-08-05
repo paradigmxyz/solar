@@ -12,8 +12,7 @@ fn @storage_sub(arg0: address, arg1: u256) [abi_args=lazy, abi_params=[address, 
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v4 = mapping_slot arg0, 0
-    sstore v4, v2 !metadata(storage=symbolic(v4))
+    sstore v0, v2 !metadata(storage=symbolic(v0))
     stop
 }
 
@@ -47,13 +46,12 @@ fn @storage_struct_add(arg0: address, arg1: u128) [abi_args=lazy, abi_params=[ad
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v5 = mapping_slot arg0, 1
-    v6 = sload v5 !metadata(storage=symbolic(v5))
-    v7 = not 0xffffffffffffffffffffffffffffffff
-    v8 = and v6, v7
-    v9 = and v3, 0xffffffffffffffffffffffffffffffff
-    v10 = or v8, v9
-    sstore v5, v10 !metadata(storage=symbolic(v5))
+    v5 = sload v0 !metadata(storage=symbolic(v0))
+    v6 = not 0xffffffffffffffffffffffffffffffff
+    v7 = and v5, v6
+    v8 = and v3, 0xffffffffffffffffffffffffffffffff
+    v9 = or v7, v8
+    sstore v0, v9 !metadata(storage=symbolic(v0))
     stop
 }
 
@@ -81,15 +79,14 @@ fn @storage_struct_signed_sub(arg0: address, arg1: i8) [abi_args=lazy, abi_param
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v16 = mapping_slot arg0, 1
-    v17 = shl 128, 255
-    v18 = sload v16 !metadata(storage=symbolic(v16))
-    v19 = not v17
-    v20 = and v18, v19
-    v21 = and v5, 255
-    v22 = shl 128, v21
-    v23 = or v20, v22
-    sstore v16, v23 !metadata(storage=symbolic(v16))
+    v16 = shl 128, 255
+    v17 = sload v0 !metadata(storage=symbolic(v0))
+    v18 = not v16
+    v19 = and v17, v18
+    v20 = and v5, 255
+    v21 = shl 128, v20
+    v22 = or v19, v21
+    sstore v0, v22 !metadata(storage=symbolic(v0))
     stop
 }
 

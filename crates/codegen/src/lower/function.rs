@@ -253,6 +253,14 @@ struct StorageAccess {
     offset: Option<ValueId>,
 }
 
+enum LValuePlace<'gcx> {
+    Variable { id: VariableId, span: Span },
+    Storage { ty: Ty<'gcx>, access: StorageAccess, span: Span },
+    MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64 },
+    MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId },
+    MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
+}
+
 enum PackedPiece {
     Bytes(Vec<u8>),
     Static { value: ValueId, length: u64, fixed_bytes: bool },
@@ -2018,7 +2026,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     op.kind,
                     UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec
                 ) {
-                    let old = self.load_lvalue(value)?;
+                    let place = self.resolve_lvalue_place(value)?;
+                    let old = self.load_lvalue_place(&place)?;
                     let one = self.builder.imm_u256(U256::from(1));
                     let kind = if matches!(op.kind, UnOpKind::PreInc | UnOpKind::PostInc) {
                         BinOpKind::Add
@@ -2026,7 +2035,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                         BinOpKind::Sub
                     };
                     let new = self.binary(kind, old, one, self.gcx.type_of_expr(value.id));
-                    self.store_lvalue(value, new)?;
+                    self.store_lvalue_place(&place, new)?;
                     return Some(if matches!(op.kind, UnOpKind::PreInc | UnOpKind::PreDec) {
                         new
                     } else {
@@ -2054,15 +2063,20 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 let rhs_value = self.lower_expr(rhs)?;
                 let lhs_ty = self.type_of_expr_or_variable(lhs)?;
                 let rhs_ty = self.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
+                if let Some(kind) = op.map(|op| op.kind) {
+                    let place = self.resolve_lvalue_place(lhs)?;
+                    let lhs_value = self.load_lvalue_place(&place)?;
+                    let value = self.binary(kind, lhs_value, rhs_value, Some(lhs_ty));
+                    let value = self.coerce_value(value, rhs_ty, lhs_ty);
+                    self.store_lvalue_place(&place, value)?;
+                    return Some(value);
+                }
                 let preserve_calldata_slice = lhs_ty.is_ref_at(DataLocation::Calldata)
                     && matches!(
                         self.builder.func().value_ty(rhs_value),
                         Some(MirType::Slice(SliceLocation::Calldata))
                     );
-                let value = if let Some(kind) = op.map(|op| op.kind) {
-                    let lhs_value = self.load_lvalue(lhs)?;
-                    self.binary(kind, lhs_value, rhs_value, Some(lhs_ty))
-                } else if preserve_calldata_slice {
+                let value = if preserve_calldata_slice {
                     rhs_value
                 } else {
                     self.materialize_memory_argument(lhs_ty, rhs_value, rhs.span)?
@@ -3492,13 +3506,128 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 
     fn normalize_byte_value(&mut self, expr: &hir::Expr<'_>, value: ValueId) -> ValueId {
         let Some(ty) = self.gcx.type_of_expr(expr.id) else { return value };
-        let solar_sema::ty::TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
+        self.normalize_byte_type(ty, value)
+    }
+
+    fn normalize_byte_type(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
+        let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
             ty.peel_refs().kind
         else {
             return value;
         };
         let shift = self.builder.imm_u64(u64::from(32 - size.bytes()) * 8);
         self.builder.shl(shift, value)
+    }
+
+    fn resolve_lvalue_place(&mut self, expr: &hir::Expr<'_>) -> Option<LValuePlace<'gcx>> {
+        if let Some(access) = self.storage_access(expr) {
+            let ty = self.type_of_expr_or_variable(expr)?;
+            return Some(LValuePlace::Storage { ty, access, span: expr.span });
+        }
+        if let Some(id) = self.gcx.resolved_variable(expr) {
+            let variable = self.gcx.hir.variable(id);
+            if variable.is_state_variable()
+                || self.values.contains_key(&id)
+                || variable.parent.is_none()
+            {
+                return Some(LValuePlace::Variable { id, span: expr.span });
+            }
+        }
+
+        match &expr.kind {
+            ExprKind::Member(receiver, name) => {
+                if self.gcx.resolved_builtin(expr) == Some(Builtin::ArrayLength)
+                    || name.name == sym::offset
+                {
+                    return report_unsupported(self.gcx, expr.span, "l-value");
+                }
+                let id = self.gcx.resolved_variable(expr)?;
+                let variable = self.gcx.hir.variable(id);
+                let Some(hir::ItemId::Struct(struct_id)) = variable.parent else {
+                    return report_unsupported(self.gcx, expr.span, "member l-value");
+                };
+                let Some(field) =
+                    self.gcx.hir.strukt(struct_id).fields.iter().position(|&field| field == id)
+                else {
+                    return report_unsupported(self.gcx, name.span, "struct field l-value");
+                };
+                let object = self.lower_expr(receiver)?;
+                let receiver_ty = self.type_of_expr_or_variable(receiver)?;
+                let layout = self.types.memory_layout(receiver_ty)?;
+                Some(LValuePlace::MemoryField { object, layout, field: field as u64 })
+            }
+            ExprKind::Index(receiver, index) => {
+                let Some(index) = index else {
+                    return report_unsupported(self.gcx, expr.span, "index l-value");
+                };
+                let object = self.lower_expr(receiver)?;
+                let index = self.lower_expr(index)?;
+                let receiver_ty = self.type_of_expr_or_variable(receiver)?;
+                let layout = self.types.memory_layout(receiver_ty)?;
+                match layout {
+                    MemoryObjectLayout::DynamicArray { .. } => {
+                        let length = self.builder.memory_object_len(object, layout.kind());
+                        self.bounds_check(index, length);
+                        Some(LValuePlace::MemoryElement { object, layout, index })
+                    }
+                    MemoryObjectLayout::FixedArray { len, .. } => {
+                        let length = self.builder.imm_u64(len);
+                        self.bounds_check(index, length);
+                        Some(LValuePlace::MemoryElement { object, layout, index })
+                    }
+                    MemoryObjectLayout::Bytes => {
+                        let length = self.builder.memory_object_len(object, layout.kind());
+                        self.bounds_check(index, length);
+                        let ty = self.type_of_expr_or_variable(expr)?;
+                        Some(LValuePlace::MemoryByte { object, index, ty })
+                    }
+                    MemoryObjectLayout::Struct { .. } => {
+                        report_unsupported(self.gcx, expr.span, "struct index l-value")
+                    }
+                }
+            }
+            _ => report_unsupported(self.gcx, expr.span, "l-value"),
+        }
+    }
+
+    fn load_lvalue_place(&mut self, place: &LValuePlace<'gcx>) -> Option<ValueId> {
+        match *place {
+            LValuePlace::Variable { id, span } => self.load_variable(id, span),
+            LValuePlace::Storage { ty, access, span } => self.load_storage_value(ty, access, span),
+            LValuePlace::MemoryField { object, layout, field } => {
+                Some(self.builder.memory_object_load_field(object, layout, field))
+            }
+            LValuePlace::MemoryElement { object, layout, index } => {
+                Some(self.builder.memory_object_load_element(object, layout, index))
+            }
+            LValuePlace::MemoryByte { object, index, ty } => {
+                let value = self.builder.memory_object_load_byte(object, index);
+                Some(self.normalize_byte_type(ty, value))
+            }
+        }
+    }
+
+    fn store_lvalue_place(&mut self, place: &LValuePlace<'gcx>, value: ValueId) -> Option<()> {
+        match *place {
+            LValuePlace::Variable { id, span } => self.store_variable(id, value, span),
+            LValuePlace::Storage { ty, access, span } => {
+                self.store_storage_value(ty, access, value, span)
+            }
+            LValuePlace::MemoryField { object, layout, field } => {
+                self.builder.memory_object_store_field(object, layout, field, value);
+                Some(())
+            }
+            LValuePlace::MemoryElement { object, layout, index } => {
+                self.builder.memory_object_store_element(object, layout, index, value);
+                Some(())
+            }
+            LValuePlace::MemoryByte { object, index, .. } => {
+                let zero = self.builder.imm_u256(U256::ZERO);
+                let value = self.builder.byte(zero, value);
+                self.builder.memory_object_store_byte(object, index, value);
+                Some(())
+            }
+        }
     }
 
     fn load_lvalue(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
