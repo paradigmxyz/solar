@@ -2919,8 +2919,25 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         else {
             return report_unsupported(self.gcx, expr.span, "struct field");
         };
-        let object = self.lower_expr(receiver)?;
         let receiver_ty = self.type_of_expr_or_variable(receiver)?;
+        let object = self.lower_expr(receiver)?;
+        if receiver_ty.is_ref_at(DataLocation::Calldata)
+            && matches!(
+                self.builder.func().value_ty(object),
+                Some(MirType::Slice(SliceLocation::Calldata))
+            )
+        {
+            let AbiType::Tuple(fields) = self.types.abi_type(receiver_ty)? else {
+                return report_unsupported(self.gcx, expr.span, "calldata struct field");
+            };
+            let offset = fields[..field].iter().map(AbiType::head_size).sum();
+            let offset = self.builder.imm_u64(offset);
+            let base = self.builder.slice_ptr(object);
+            let head = self.builder.add(base, offset);
+            let field_ty =
+                self.gcx.type_of_item(id.into()).with_loc_if_ref(self.gcx, DataLocation::Calldata);
+            return self.materialize_calldata_value_at_inner(field_ty, head, base, expr.span, true);
+        }
         let layout = self.types.memory_layout(receiver_ty)?;
         let value = self.builder.memory_object_load_field(object, layout, field as u64);
         if receiver_ty.is_ref_at(DataLocation::Calldata)

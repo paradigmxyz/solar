@@ -198,18 +198,43 @@ fn @cdDyn(arg0: calldataslice, arg1: u256) -> u256 [abi_args=lazy, abi_params=[a
     ret v17
 }
 
-fn @cdFix(arg0: memoryfixedarray, arg1: u256) -> u256 [abi_args=lazy, abi_params=[array<3, u256>, u256], abi_returns=[word]] {
+fn @cdFix(arg0: calldataslice, arg1: u256) -> u256 [abi_args=lazy, abi_params=[array<3, u256>, u256], abi_returns=[word]] {
   bb0:
-    v0 = lt arg1, 3
-    v1 = iszero v0
-    jumpi v1, bb1, bb2
+    v0 = slice_len arg0
+    v1 = lt arg1, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v2 = memory_object_load_element memoryfixedarray<3, 1>, arg0, arg1
-    ret v2
+    v3 = slice_ptr arg0
+    v4 = mul arg1, 32
+    v5 = iszero 32
+    v6 = div v4, 32
+    v7 = eq v6, arg1
+    v8 = or v5, v7
+    v9 = iszero v8
+    jumpi v9, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v10 = add v3, v4
+    v11 = add v10, 32
+    v12 = lt v11, v10
+    v13 = calldatasize
+    v14 = gt v11, v13
+    v15 = or v12, v14
+    jumpi v15, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v16 = make_calldata_slice v10, 32
+    v17 = calldata_slice_load_word calldata, v16, 0
+    ret v17
 }
 
 fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [abi_args=lazy, abi_params=[bytes, u256], abi_returns=[word]] {

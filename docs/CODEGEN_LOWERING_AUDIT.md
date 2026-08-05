@@ -264,6 +264,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi_packed_calldata_scalar_validation.sol` applies the same check to
    `abi.encodePacked`, which must clean each array element instead of copying
    dirty calldata words.
+   `abi_calldata_static_tuple_lazy_validation.sol` covers static calldata
+   structs: field reads validate only the selected scalar, unused dirty fields
+   remain lazy, and full-word tuples materialize before ABI encoding.
    `abi.decode`, external return decoding, and `catch Error(string)` payload
    decoding are represented by semantic MIR operations and lowered by the ABI
    pass; multi-return materialization uses the shared frame/object path. The

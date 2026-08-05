@@ -15,11 +15,12 @@ struct Outer {
 contract NestedStaticStructParam {
     // A static struct with a nested static struct is fully inlined in the ABI
     // head: `x`, `inner.a`, `inner.b`, `y` occupy four consecutive head words.
-    // The typed MIR keeps the nested layout until the ABI phase rebuilds it.
+    // Calldata field reads decode only the selected words.
     // CHECK-LABEL: fn @take{{[( ]}}
     // CHECK: abi_params=[tuple<u256, tuple<u256, u256>, u256>]
-    // CHECK: memory_object_load_field memorystruct<3>, arg0, 1
-    // CHECK: memory_object_load_field memorystruct<2>, v0, 1
+    // CHECK: slice_ptr arg0
+    // CHECK: calldata_slice_load_word calldata
+    // CHECK: calldata_slice_load_word calldata
     function take(Outer calldata o) external pure returns (uint256, uint256) {
         return (o.inner.b, o.y);
     }

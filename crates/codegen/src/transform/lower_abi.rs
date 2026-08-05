@@ -1239,6 +1239,10 @@ impl LowerAbiCx {
             {
                 let head_size = len.saturating_mul(element.head_size());
                 Self::guard_source_range(builder, base, head_size, input_end, constructor, current);
+                if matches!(arg_type, MirType::Slice(SliceLocation::Calldata)) {
+                    let length = builder.imm_u64(*len);
+                    return builder.make_slice(base, length, SliceLocation::Calldata);
+                }
                 let size = builder.imm_u64(len.saturating_mul(32));
                 let ptr = builder.alloc_object(
                     size,
@@ -1514,6 +1518,10 @@ impl LowerAbiCx {
                     constructor,
                     current,
                 );
+                if matches!(arg_type, MirType::Slice(SliceLocation::Calldata)) {
+                    let length = builder.imm_u64(ty.head_size());
+                    return builder.make_slice(base, length, SliceLocation::Calldata);
+                }
                 let carries_base =
                     !constructor && fields.iter().any(crate::mir::AbiParamType::is_dynamic);
                 let storage_fields = fields.len() + usize::from(carries_base);

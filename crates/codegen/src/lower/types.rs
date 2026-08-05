@@ -29,6 +29,8 @@ impl<'gcx> TypeLowerer<'gcx> {
                 inner.peel_refs().kind,
                 TyKind::DynArray(_)
                     | TyKind::Slice(_)
+                    | TyKind::Array(_, _)
+                    | TyKind::Struct(_)
                     | TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes)
             )
         {

@@ -89,8 +89,9 @@ contract ArrayBoundsPanic {
     }
 
     // CHECK-LABEL: fn @cdFix{{[( ]}}
-    // CHECK: {{v[0-9]+}} = lt arg1, 3
-    // CHECK: memory_object_load_element memoryfixedarray<3, 1>, arg0, arg1
+    // CHECK: [[LEN:v[0-9]+]] = slice_len arg0
+    // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
+    // CHECK: calldata_slice_load_word calldata
     function cdFix(uint256[3] calldata x, uint256 i) public pure returns (uint256) {
         return x[i];
     }
