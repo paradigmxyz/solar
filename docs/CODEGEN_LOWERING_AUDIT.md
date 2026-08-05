@@ -70,9 +70,9 @@ The replacement is split into stateful, private components:
   path.
   Memory-backed arrays, tuples, literals, and zero-initialized aggregate
   defaults live in `function/memory_values`.
-  Storage-reference access, packed indexing, and aggregate storage copies live
-  in the child `function/storage_values` module instead of in the main HIR
-  expression walker.
+  Storage-reference access, packed indexing, array push/pop, and aggregate
+  storage copies live in the child `function/storage_values` module instead of
+  in the main HIR expression walker.
 * `TypeLowerer` owns recursive aggregate-shape state and produces MIR types and
   ABI descriptors. Recursive structs fail closed instead of recursing forever.
 * `StorageBuilder` computes one base-to-derived layout through a stateful
