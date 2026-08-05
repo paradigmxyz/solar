@@ -137,6 +137,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   reference, preserving aliases to the previous object;
 * explicit state-variable initializers, including a synthetic constructor when
   the contract has no explicit constructor;
+* modifier parameters that copy calldata arrays into independent memory objects
+  before modifier-local mutation;
 * loop-carried scalar and storage-reference environments, including `break` and
   `continue` exits through Solidity and Yul `for` updates, with conservative
   spill-based fallback for nested storage-reference phis;
