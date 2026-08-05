@@ -234,6 +234,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    multiword fixed elements and fixed nested arrays. The calldata materializer
    uses each element's ABI head width, so static elements wider than one word do
    not overlap.
+   `abi_calldata_nested_reencode.sol` adds Solc-checked hashes for a three-level
+   dynamic array and an outer dynamic array of fixed pairs of dynamic arrays.
    `abi.decode` is now represented by a semantic MIR operation and lowered by
    the ABI pass; multi-return materialization uses the shared frame/object
    path. The remaining work is broader independent differential coverage.
