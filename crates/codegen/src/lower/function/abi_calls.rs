@@ -240,7 +240,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 {
                     return Some(self.copy_calldata_word_array(data, length));
                 }
-                self.materialize_calldata_nested_array(element, data, length, span)
+                self.materialize_calldata_nested_array(element, data, length, span, true)
             }
             TyKind::Array(element, length) => {
                 let length = u64::try_from(length).ok()?;
@@ -281,6 +281,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         data: ValueId,
         length: ValueId,
         span: Span,
+        validate_bounds: bool,
     ) -> Option<ValueId> {
         let word = self.builder.imm_u64(32);
         let element_head_size = self.builder.imm_u64(self.types.abi_type(element)?.head_size());
@@ -308,7 +309,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.switch_to_block(body);
         let offset = self.checked_mul(index, element_head_size);
         let head = self.builder.add(data, offset);
-        let value = self.materialize_calldata_value_at_inner(element, head, data, span, false)?;
+        let value =
+            self.materialize_calldata_value_at_inner(element, head, data, span, validate_bounds)?;
         self.builder.memory_object_store_element(
             object,
             MemoryObjectLayout::WORD_ARRAY,
@@ -398,7 +400,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => Some(self.materialize_calldata_bytes_at(value_pos)),
+            ) => Some(self.materialize_calldata_bytes_at(value_pos, validate_bounds)),
             TyKind::DynArray(element) | TyKind::Slice(element) => {
                 if is_calldata {
                     if validate_bounds {
@@ -435,7 +437,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                         let head_size = self.checked_mul(length, element_head_size);
                         self.check_calldata_range(data, head_size);
                     }
-                    self.materialize_calldata_nested_array(element, data, length, span)
+                    self.materialize_calldata_nested_array(
+                        element,
+                        data,
+                        length,
+                        span,
+                        validate_bounds,
+                    )
                 }
             }
             TyKind::Array(element, length) => {
@@ -610,10 +618,24 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         value
     }
 
-    fn materialize_calldata_bytes_at(&mut self, position: ValueId) -> ValueId {
-        let length = self.calldata_load_word(position);
+    fn materialize_calldata_bytes_at(
+        &mut self,
+        position: ValueId,
+        validate_bounds: bool,
+    ) -> ValueId {
         let word = self.builder.imm_u64(32);
+        if validate_bounds {
+            self.check_calldata_range(position, word);
+        }
+        let length = self.calldata_load_word(position);
         let data = self.builder.add(position, word);
+        if validate_bounds {
+            let padding = self.builder.imm_u64(31);
+            let rounded = self.checked_add(length, padding);
+            let mask = self.builder.not(padding);
+            let data_size = self.builder.and(rounded, mask);
+            self.check_calldata_range(data, data_size);
+        }
         let slice = self.builder.make_slice(data, length, SliceLocation::Calldata);
         self.materialize_memory_slice(slice)
     }

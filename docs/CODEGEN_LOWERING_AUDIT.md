@@ -231,6 +231,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * dynamic and fixed memory arrays of structs with nested bytes and dynamic
   arrays, including lazy zero-initialization of aggregate elements from `new`
   allocations and their nested dynamic objects;
+* calldata structs and dynamic arrays with `bytes` members copied to memory,
+  including checked length and padded-payload bounds;
 * `abi.encodeCall` arguments typed from the resolved callee with scalar
   coercions, including dynamic structs, string literals, and fixed bytes;
 * string literals coerced to fixed-bytes values in comparisons and byte-array
