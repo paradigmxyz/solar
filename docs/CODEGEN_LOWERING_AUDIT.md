@@ -256,6 +256,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    literals now use compiled child artifacts. External pointers also have
    runtime coverage inside memory structs and arrays, storage structs and
    arrays, and memory-signature pointers targeting calldata implementations.
+   `external_function_pointer_calldata_array.sol` adds a Solc-checked calldata
+   array decode and re-encoding vector.
    The Unifap creation fixture now passes the differential Foundry
    suite; the companion fixture compiles with no Solar-only regressions, but
    retains seven pre-existing failures under both compilers because its
