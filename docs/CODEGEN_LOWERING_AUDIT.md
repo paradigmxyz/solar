@@ -200,8 +200,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * payable address `send` and `transfer`, including the EVM value stipend and
   forwarding of transfer failures;
 * contract creation with compiled child deployment bytecode, semantic
-  constructor ABI encoding, `value`/`salt` options, and forwarding of failed
-  creation returndata;
+  constructor ABI encoding, `value`/`salt` options, source-order option and
+  argument evaluation, and forwarding of failed creation returndata;
 * `abi.encodePacked` arrays of static word elements, including nested fixed
   arrays and dynamic arrays of fixed arrays, indexed and struct-field array
   values, storage-backed short and long bytes, address `code` and `codehash`
