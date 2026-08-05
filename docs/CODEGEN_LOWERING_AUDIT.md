@@ -303,6 +303,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    arrays, and memory-signature pointers targeting calldata implementations.
    `external_function_pointer_memory_type.sol` checks the direct assignment of
    a calldata function to a memory-typed external pointer before the call.
+   `function_selector_ternary.sol` checks selector extraction after choosing
+   between two external pointers at runtime.
    `external_function_pointer_calldata_array.sol` adds a Solc-checked calldata
    array decode and re-encoding vector. `abi_function_pointer_validation.sol`
    ports Solc's canonical 24-byte pointer checks: unused calldata structs stay
