@@ -3765,6 +3765,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             self.builder.imm_u256(U256::from_be_slice(keccak256(bytes.as_byte_str()).as_slice()))
         } else {
             let value = self.lower_expr(argument)?;
+            let value = if matches!(self.builder.func().value_ty(value), Some(MirType::Slice(_))) {
+                self.materialize_memory_slice(value)
+            } else {
+                value
+            };
             self.builder.keccak256_bytes(value)
         };
         let one = self.builder.imm_u256(U256::from(1));
