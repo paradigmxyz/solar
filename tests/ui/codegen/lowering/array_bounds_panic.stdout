@@ -249,9 +249,20 @@ fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [abi_args=lazy, abi_param
     revert 0, 36
   bb2:
     v3 = slice_ptr arg0
-    v4 = calldata_slice_load_word calldata, arg0, arg1
-    v5 = byte 0, v4
-    v6 = shl 248, v5
-    ret v6
+    v4 = slice_ptr arg0
+    v5 = slice_len arg0
+    v6 = add v4, v5
+    v7 = lt v6, v4
+    v8 = calldatasize
+    v9 = gt v6, v8
+    v10 = or v7, v9
+    jumpi v10, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v11 = calldata_slice_load_word calldata, arg0, arg1
+    v12 = byte 0, v11
+    v13 = shl 248, v12
+    ret v13
 }
 
