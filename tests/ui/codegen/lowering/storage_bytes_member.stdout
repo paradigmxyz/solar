@@ -1053,14 +1053,16 @@ bb93:
   iszero
   push bb106
   jumpi
+  push 36
+  calldataload
+  push 0
+  byte
+  swap1
   push 32
   add
   push 4
   calldataload
   add
-  push 36
-  calldataload
-  swap1
   mstore8
   stop
 bb98:

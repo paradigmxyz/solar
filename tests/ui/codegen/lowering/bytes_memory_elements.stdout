@@ -43,23 +43,25 @@ fn @alloc() -> bytes32 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    memory_object_store_byte memorybytes, v11, 5, v12
-    v16 = alloc memorybytes, exact, zeroed, panic, 64
-    set_memory_object_len memorybytes, v16, 1
-    memory_object_store_word memorybytes, v16, 0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v17 = shl 248, v16
-    v18 = memory_object_len memorybytes, v11
-    v19 = lt 95, v18
-    v20 = iszero v19
-    jumpi v20, bb9, bb10
+    v16 = byte 0, v12
+    memory_object_store_byte memorybytes, v11, 5, v16
+    v17 = alloc memorybytes, exact, zeroed, panic, 64
+    set_memory_object_len memorybytes, v17, 1
+    memory_object_store_word memorybytes, v17, 0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v18 = memory_object_load_element memorybytes, v17, 0
+    v19 = memory_object_len memorybytes, v11
+    v20 = lt 95, v19
+    v21 = iszero v20
+    jumpi v21, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    memory_object_store_byte memorybytes, v11, 95, v17
-    v21 = keccak256_bytes v11
-    ret v21
+    v22 = byte 0, v18
+    memory_object_store_byte memorybytes, v11, 95, v22
+    v23 = keccak256_bytes v11
+    ret v23
 }
 
 fn @literal() -> bytes32 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
@@ -77,9 +79,10 @@ fn @literal() -> bytes32 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    memory_object_store_byte memorybytes, v0, 5, v1
-    v5 = keccak256_bytes v0
-    ret v5
+    v5 = byte 0, v1
+    memory_object_store_byte memorybytes, v0, 5, v5
+    v6 = keccak256_bytes v0
+    ret v6
 }
 
 fn @allocDynamic(arg0: u256) -> u256 [abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
@@ -130,18 +133,19 @@ fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) -> bytes1 [abi_args=l
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    memory_object_store_byte memorybytes, arg0, arg1, arg2
-    v3 = memory_object_len memorybytes, arg0
-    v4 = lt arg1, v3
-    v5 = iszero v4
-    jumpi v5, bb3, bb4
+    v3 = byte 0, arg2
+    memory_object_store_byte memorybytes, arg0, arg1, v3
+    v4 = memory_object_len memorybytes, arg0
+    v5 = lt arg1, v4
+    v6 = iszero v5
+    jumpi v6, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v6 = memory_object_load_byte memorybytes, arg0, arg1
-    v7 = shl 248, v6
-    ret v7
+    v7 = memory_object_load_byte memorybytes, arg0, arg1
+    v8 = shl 248, v7
+    ret v8
 }
 

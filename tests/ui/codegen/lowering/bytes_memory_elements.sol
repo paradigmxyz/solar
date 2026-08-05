@@ -41,7 +41,7 @@ contract BytesMemoryElements {
     }
 
     // CHECK-LABEL: fn @readWrite{{[( ]}}
-    // CHECK: memory_object_store_byte memorybytes, arg0, arg1, arg2
+    // CHECK: memory_object_store_byte memorybytes, arg0, arg1, {{v[0-9]+}}
     // CHECK: memory_object_load_byte memorybytes, arg0, arg1
     function readWrite(bytes memory b, uint i, bytes1 v) external pure returns (bytes1) {
         b[i] = v;

@@ -272,19 +272,20 @@ fn @namedReturn() -> (memoryfixedarray, u256) [abi_args=lazy, abi_params=[], abi
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb12:
-    memory_object_store_byte memorybytes, v16, 0, v17
-    v21 = memory_object_len memorybytes, v16
-    v22 = lt 0, v21
-    v23 = iszero v22
-    jumpi v23, bb13, bb14
+    v21 = byte 0, v17
+    memory_object_store_byte memorybytes, v16, 0, v21
+    v22 = memory_object_len memorybytes, v16
+    v23 = lt 0, v22
+    v24 = iszero v23
+    jumpi v24, bb13, bb14
   bb13:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb14:
-    v24 = memory_object_load_byte memorybytes, v16, 0
-    v25 = shl 248, v24
-    ret v0, v25
+    v25 = memory_object_load_byte memorybytes, v16, 0
+    v26 = shl 248, v25
+    ret v0, v26
 }
 
 fn @emptyMemoryReferences() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {

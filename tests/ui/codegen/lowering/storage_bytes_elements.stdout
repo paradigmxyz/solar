@@ -188,7 +188,8 @@ fn @poke() [abi_args=lazy, abi_params=[], abi_returns=[]] {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb14:
-    memory_object_store_byte memorybytes, v19, 5, v0
+    v31 = byte 0, v0
+    memory_object_store_byte memorybytes, v19, 5, v31
     stop
 }
 

@@ -2060,7 +2060,28 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             ExprKind::Binary(lhs, op, rhs) => {
                 let lhs_ty = self.gcx.type_of_expr(lhs.id);
                 let lhs = self.lower_expr(lhs)?;
+                let rhs_ty = self.gcx.type_of_expr(rhs.id);
                 let rhs = self.lower_expr(rhs)?;
+                let (lhs, rhs) = match (lhs_ty, rhs_ty) {
+                    (Some(lhs_ty), Some(rhs_ty))
+                        if matches!(
+                            lhs_ty.peel_refs().kind,
+                            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
+                        ) && matches!(rhs_ty.peel_refs().kind, TyKind::StringLiteral(..)) =>
+                    {
+                        (lhs, self.coerce_value(rhs, rhs_ty, lhs_ty))
+                    }
+                    (Some(lhs_ty), Some(rhs_ty))
+                        if matches!(lhs_ty.peel_refs().kind, TyKind::StringLiteral(..))
+                            && matches!(
+                                rhs_ty.peel_refs().kind,
+                                TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
+                            ) =>
+                    {
+                        (self.coerce_value(lhs, lhs_ty, rhs_ty), rhs)
+                    }
+                    _ => (lhs, rhs),
+                };
                 let ty = match op.kind {
                     BinOpKind::Lt
                     | BinOpKind::Gt
@@ -3263,6 +3284,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         else {
             return value;
         };
+        if matches!(from.peel_refs().kind, TyKind::StringLiteral(..)) {
+            let zero = self.builder.imm_u256(U256::ZERO);
+            return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
+        }
         if matches!(
             from.peel_refs().kind,
             TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
@@ -6368,6 +6393,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     MemoryObjectLayout::Bytes => {
                         let length = self.builder.memory_object_len(object, layout.kind());
                         self.bounds_check(index, length);
+                        let zero = self.builder.imm_u256(U256::ZERO);
+                        let value = self.builder.byte(zero, value);
                         self.builder.memory_object_store_byte(object, index, value);
                         Some(())
                     }
