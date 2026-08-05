@@ -118,11 +118,11 @@ contract StructsTest {
         s.setValues(values);
         require(s.sumStoredValuesExternal() == 66, "dynamic array call mismatch");
 
-        Structs.Point[] memory points = new Structs.Point[](2);
-        points[0] = Structs.Point(4, 5);
-        points[1] = Structs.Point(6, 7);
-        s.setPointList(points);
-        require(s.sumStoredPointListExternal() == 22, "multiword array call mismatch");
+        bytes memory first = hex"0102";
+        bytes memory second = new bytes(33);
+        second[32] = 0xff;
+        s.setBlobs(first, second);
+        require(s.sumStoredBlobLengthsExternal() == 35, "nested array call mismatch");
     }
 
     // ========= Complex Operations =========
