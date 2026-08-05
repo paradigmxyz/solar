@@ -63,6 +63,15 @@ impl AbiParamLayout {
     }
 }
 
+/// Source data location of an ABI parameter.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum AbiParamLocation {
+    /// A memory-backed parameter is decoded before entering the body.
+    Memory,
+    /// A calldata-backed parameter remains lazy until the body uses it.
+    Calldata,
+}
+
 impl fmt::Display for AbiParamLayout {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[")?;

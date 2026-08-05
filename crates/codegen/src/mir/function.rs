@@ -1,8 +1,8 @@
 //! MIR functions.
 
 use super::{
-    AbiLayoutRef, AbiParamLayout, ArgIdx, BasicBlock, BlockId, Immediate, InstId, InstKind,
-    Instruction, MangledSymbol, MirType, StorageAlias, Value, ValueId, utils,
+    AbiLayoutRef, AbiParamLayout, AbiParamLocation, ArgIdx, BasicBlock, BlockId, Immediate, InstId,
+    InstKind, Instruction, MangledSymbol, MirType, StorageAlias, Value, ValueId, utils,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -34,6 +34,8 @@ pub(crate) struct Function {
     pub(crate) abi_returns: Option<AbiLayoutRef>,
     /// ABI input layout retained until `lower-abi` materializes aggregate parameters.
     pub(crate) abi_params: Option<AbiParamLayout>,
+    /// Source locations for the ABI parameters retained until `lower-abi`.
+    pub(crate) abi_param_locations: Option<Box<[AbiParamLocation]>>,
     /// Whether external arguments remain typed MIR arguments until `lower-abi`.
     ///
     /// This is an internal lowering marker. It lets the ABI pass add calldata
@@ -84,6 +86,7 @@ impl Function {
             returns: Vec::new(),
             abi_returns: None,
             abi_params: None,
+            abi_param_locations: None,
             abi_args_lazy: false,
             internal_frame_size: 0,
             external_static_return_size: 0,

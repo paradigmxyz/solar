@@ -37,8 +37,8 @@
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        AbiParamLayout, AbiParamType, AllocationSemantics, ArgIdx, BlockId, FrameMode,
-        FrameSlotKind, Function, FunctionBuilder, FunctionId, InstKind, MangledSymbol,
+        AbiParamLayout, AbiParamLocation, AbiParamType, AllocationSemantics, ArgIdx, BlockId,
+        FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstKind, MangledSymbol,
         MemoryObjectKind, MirPhase, MirType, Module, SliceLocation, Terminator, ValueId,
     },
     pass::MirPass,
@@ -81,6 +81,7 @@ impl AbiWordValidator {
                 }
                 Self::Mask(U256::MAX << (256 - 8 * usize::from(bytes)))
             }
+            MirType::Function => Self::Mask(U256::MAX << 64),
             MirType::Bool => Self::Bool,
             _ => return None,
         })
@@ -393,6 +394,7 @@ impl LowerAbiCx {
             self.inject_abi_prologue(module.function_mut(id), layout.as_ref(), true, true);
             let func = module.function_mut(id);
             func.abi_params = None;
+            func.abi_param_locations = None;
             func.abi_args_lazy = false;
             self.stats.decoded_constructors += 1;
         }
@@ -701,6 +703,7 @@ impl LowerAbiCx {
         };
         func.replace_uses_canonicalized(&replacements);
         func.abi_params = None;
+        func.abi_param_locations = None;
         func.abi_args_lazy = false;
         let order = std::iter::once(guard)
             .chain(func.blocks.indices().filter(|&block| block != guard))
@@ -780,8 +783,10 @@ impl LowerAbiCx {
             body.selector = None;
             body.abi_returns = None;
             body.abi_params = None;
+            body.abi_param_locations = None;
             body.abi_args_lazy = false;
             body.attributes.visibility = solar_sema::hir::Visibility::Internal;
+            body.for_each_instruction_mut(|_, inst| inst.metadata.set_abi_validation(false));
             module.add_function(body)
         });
 
@@ -802,6 +807,7 @@ impl LowerAbiCx {
         wrapper.returns.clear();
         wrapper.abi_returns = None;
         wrapper.abi_params = None;
+        wrapper.abi_param_locations = None;
         wrapper.abi_args_lazy = false;
         body_id
     }
@@ -821,8 +827,10 @@ impl LowerAbiCx {
         body.selector = None;
         body.abi_returns = None;
         body.abi_params = None;
+        body.abi_param_locations = None;
         body.abi_args_lazy = false;
         body.attributes.visibility = solar_sema::hir::Visibility::Internal;
+        body.for_each_instruction_mut(|_, inst| inst.metadata.set_abi_validation(false));
         body.attributes.is_fallback = false;
         body.attributes.is_receive = false;
         if !Self::lower_bytes_fallback_returns(&mut body) {
@@ -883,6 +891,8 @@ impl LowerAbiCx {
 
         let old_entry = BlockId::ENTRY;
         let arg_uses = func.arg_uses();
+        let abi_param_locations = func.abi_param_locations.clone();
+        let mut logical_values = Vec::new();
         let mut replacements = FxHashMap::default();
         if let Some(layout) = abi_params {
             let mut head_offset = 0_u64;
@@ -899,12 +909,15 @@ impl LowerAbiCx {
                 params.push(MirType::uint256());
             }
             func.set_params(params);
-            let values = logical_physical
+            logical_values = logical_physical
                 .into_iter()
                 .map(|index| index.map(|index| func.alloc_arg(index)))
                 .collect::<Vec<_>>();
-            for (logical, value) in values.iter().enumerate() {
+            for (logical, value) in logical_values.iter().enumerate() {
                 if let Some(value) = value {
+                    if arg_types.get(logical) == Some(&MirType::Function) {
+                        continue;
+                    }
                     for &use_value in
                         arg_uses.get(crate::mir::ArgIdx::new(logical)).into_iter().flatten()
                     {
@@ -1001,7 +1014,26 @@ impl LowerAbiCx {
                         (builder.imm_u64(4 + head_offset), builder.imm_u64(4))
                     };
                     if uses.is_empty() {
-                        if Self::contains_dynamic_array(ty) {
+                        let location = abi_param_locations
+                            .as_deref()
+                            .and_then(|locations| locations.get(index))
+                            .copied()
+                            // Text MIR and older callers do not carry HIR data locations.
+                            // Preserve the historical lazy behavior for those inputs.
+                            .unwrap_or(AbiParamLocation::Calldata);
+                        if location == AbiParamLocation::Memory {
+                            let _ = Self::decode_aggregate_argument(
+                                &mut builder,
+                                ty,
+                                arg_type,
+                                head,
+                                tuple_base,
+                                input_end,
+                                constructor,
+                                &mut current,
+                                Some(&self.helpers),
+                            );
+                        } else if Self::contains_dynamic_array(ty) {
                             Self::validate_aggregate_argument(
                                 &mut builder,
                                 ty,
@@ -1033,6 +1065,19 @@ impl LowerAbiCx {
             }
 
             builder.switch_to_block(current);
+            for (logical, value) in logical_values.iter().enumerate() {
+                if arg_types.get(logical) != Some(&MirType::Function) {
+                    continue;
+                }
+                let Some(value) = value else { continue };
+                let shift = builder.imm_u64(64);
+                let value = builder.shr(shift, *value);
+                for &use_value in
+                    arg_uses.get(crate::mir::ArgIdx::new(logical)).into_iter().flatten()
+                {
+                    replacements.insert(use_value, value);
+                }
+            }
             builder.jump(old_entry);
 
             builder.switch_to_block(revert);
@@ -1042,6 +1087,7 @@ impl LowerAbiCx {
             guard
         };
         func.replace_uses_canonicalized(&replacements);
+        func.for_each_instruction_mut(|_, inst| inst.metadata.set_abi_validation(false));
         let order = std::iter::once(guard)
             .chain(func.blocks.indices().filter(|&block| block != guard))
             .collect::<Vec<_>>();
@@ -1575,6 +1621,10 @@ impl LowerAbiCx {
             builder.switch_to_block(next);
             *current = next;
         }
+        if scalar == MirType::Function {
+            let shift = builder.imm_u64(64);
+            return builder.shr(shift, value);
+        }
         value
     }
 
@@ -1643,6 +1693,10 @@ impl LowerAbiCx {
             builder.revert(zero, zero);
             builder.switch_to_block(next);
             *current = next;
+        }
+        if scalar == MirType::Function {
+            let shift = builder.imm_u64(64);
+            return builder.shr(shift, value);
         }
         value
     }
@@ -1947,7 +2001,12 @@ impl LowerAbiCx {
         helpers: &CleanupHelpers,
     ) -> ValueId {
         let Some(validator) = AbiWordValidator::from_mir_type(ty) else { return value };
-        Self::validate_constructor_value(builder, value, validator, helpers)
+        let value = Self::validate_constructor_value(builder, value, validator, helpers);
+        if ty == MirType::Function {
+            let shift = builder.imm_u64(64);
+            return builder.shr(shift, value);
+        }
+        value
     }
 
     fn validate_constructor_enum(
@@ -2087,6 +2146,19 @@ fn encode_live_returns(func: &mut Function) -> usize {
         let values = values.clone().into_vec().into_boxed_slice();
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block_id);
+        let values = values
+            .iter()
+            .copied()
+            .map(|value| {
+                if builder.func().value_ty(value) == Some(MirType::Function) {
+                    let shift = builder.imm_u64(64);
+                    builder.shl(shift, value)
+                } else {
+                    value
+                }
+            })
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
         if layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
             let encoded = builder.abi_encode(layout.clone(), None, values);
             let offset = builder.slice_ptr(encoded);

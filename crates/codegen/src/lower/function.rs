@@ -8,9 +8,10 @@ use super::{
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        AbiLayout, AbiParamLayout, AbiParamType, AbiType, AllocationSemantics, BlockId, FrameMode,
-        FrameSlotKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind,
-        MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation, Value, ValueId,
+        AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AllocationSemantics,
+        BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, ImmutableId,
+        InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation, Value,
+        ValueId,
     },
 };
 use alloy_primitives::{Bytes, U256, keccak256};
@@ -91,6 +92,20 @@ pub(super) fn lower(
             return report_unsupported(gcx, hir_function.span, "function parameter shape");
         };
         mir.abi_params = Some(AbiParamLayout::new(input_shapes.into_boxed_slice()));
+        mir.abi_param_locations = Some(
+            hir_function
+                .parameters
+                .iter()
+                .map(|&param| {
+                    if gcx.type_of_item(param.into()).is_ref_at(DataLocation::Calldata) {
+                        AbiParamLocation::Calldata
+                    } else {
+                        AbiParamLocation::Memory
+                    }
+                })
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        );
         mir.abi_args_lazy = true;
         if mir.selector.is_some() {
             let Some(output_shapes) = output_shapes else {
@@ -2907,7 +2922,20 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let object = self.lower_expr(receiver)?;
         let receiver_ty = self.type_of_expr_or_variable(receiver)?;
         let layout = self.types.memory_layout(receiver_ty)?;
-        Some(self.builder.memory_object_load_field(object, layout, field as u64))
+        let value = self.builder.memory_object_load_field(object, layout, field as u64);
+        if receiver_ty.is_ref_at(DataLocation::Calldata)
+            && let TyKind::Fn(function) = self.gcx.type_of_item(id.into()).peel_refs().kind
+            && function.is_external()
+        {
+            let inst = match self.builder.func().value(value) {
+                Value::Inst(inst) => Some(*inst),
+                _ => None,
+            };
+            if let Some(inst) = inst {
+                self.builder.func_mut().inst_mut(inst).metadata.set_abi_validation(true);
+            }
+        }
+        Some(value)
     }
 
     fn lower_yul_member(

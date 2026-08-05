@@ -34,6 +34,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let ty = self.gcx.type_of_expr(expr.id)?;
             let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
             let mut value = self.lower_typed_expr(expr, memory_ty)?;
+            value = self.normalize_external_function_pointer_for_abi(ty, value);
             let mut abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
                 AbiType::Bytes(SliceLocation::Memory)
             } else {
@@ -154,6 +155,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
             let mut value = self.lower_typed_expr(expr, memory_ty)?;
             value = self.coerce_value(value, from_ty, ty);
+            value = self.normalize_external_function_pointer_for_abi(ty, value);
             let mut abi_type = self.types.abi_type(ty)?;
             abi_type = self.abi_type_for_value(value, abi_type);
             if self.needs_calldata_materialization(value, &abi_type) {
@@ -222,12 +224,15 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     ) -> Option<Vec<ValueId>> {
         let (data, layout) = self.lower_abi_decode_layout(data, types, span)?;
         let first = self.builder.abi_decode(layout, data);
+        let first = self.denormalize_external_function_pointer_from_abi(types[0], first);
         let mut values = Vec::with_capacity(types.len());
         values.push(first);
         if types.len() > 1 {
             let base = self.multi_return_buffer_base();
             for index in 1..types.len() {
-                values.push(self.load_multi_return_value(base, index, types.len()));
+                let value = self.load_multi_return_value(base, index, types.len());
+                values
+                    .push(self.denormalize_external_function_pointer_from_abi(types[index], value));
             }
         }
         Some(values)

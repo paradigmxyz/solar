@@ -282,7 +282,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    runtime coverage inside memory structs and arrays, storage structs and
    arrays, and memory-signature pointers targeting calldata implementations.
    `external_function_pointer_calldata_array.sol` adds a Solc-checked calldata
-   array decode and re-encoding vector.
+   array decode and re-encoding vector. `abi_function_pointer_validation.sol`
+   ports Solc's canonical 24-byte pointer checks: unused calldata structs stay
+   lazy, while memory structs and accessed calldata fields reject high-byte
+   garbage.
    The Unifap creation fixture now passes the differential Foundry
    suite; the companion fixture compiles with no Solar-only regressions, but
    retains seven pre-existing failures under both compilers because its

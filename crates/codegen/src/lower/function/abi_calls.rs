@@ -75,6 +75,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         parameter_ty: Ty<'gcx>,
     ) -> Option<(ValueId, AbiType)> {
         let mut value = self.lower_typed_expr(argument, parameter_ty)?;
+        value = self.normalize_external_function_pointer_for_abi(parameter_ty, value);
         let mut abi_type = self.types.abi_type(parameter_ty)?;
         abi_type = self.abi_type_for_value(value, abi_type);
         if self.needs_calldata_materialization(value, &abi_type) {
@@ -82,6 +83,34 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             abi_type = Self::memory_abi_type(abi_type);
         }
         Some((value, abi_type))
+    }
+
+    pub(super) fn normalize_external_function_pointer_for_abi(
+        &mut self,
+        ty: Ty<'gcx>,
+        value: ValueId,
+    ) -> ValueId {
+        if let TyKind::Fn(function) = ty.peel_refs().kind
+            && function.is_external()
+        {
+            let shift = self.builder.imm_u64(64);
+            return self.builder.shl(shift, value);
+        }
+        value
+    }
+
+    pub(super) fn denormalize_external_function_pointer_from_abi(
+        &mut self,
+        ty: Ty<'gcx>,
+        value: ValueId,
+    ) -> ValueId {
+        if let TyKind::Fn(function) = ty.peel_refs().kind
+            && function.is_external()
+        {
+            let shift = self.builder.imm_u64(64);
+            return self.builder.shr(shift, value);
+        }
+        value
     }
 
     pub(super) fn materialize_call_argument(

@@ -112,6 +112,17 @@ impl InstructionMetadata {
     pub(crate) fn set_deferred_alloc(&mut self) {
         self.flags.set_deferred_alloc();
     }
+
+    /// Returns whether this instruction must survive optimization until ABI lowering.
+    #[must_use]
+    pub(crate) fn abi_validation(&self) -> bool {
+        self.flags.abi_validation()
+    }
+
+    /// Marks this instruction as an ABI validation dependency.
+    pub(crate) fn set_abi_validation(&mut self, value: bool) {
+        self.flags.set_abi_validation(value);
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -124,6 +135,7 @@ impl MetadataFlags {
     const EFFECT_SHIFT: u16 = 3;
     const UNCHECKED: u16 = 0b1000_0000;
     const DEFERRED_ALLOC: u16 = 0b1_0000_0000;
+    const ABI_VALIDATION: u16 = 0b10_0000_0000;
 
     fn memory_region(self) -> Option<MemoryRegion> {
         match self.0 & Self::MEMORY_MASK {
@@ -167,6 +179,18 @@ impl MetadataFlags {
 
     fn set_deferred_alloc(&mut self) {
         self.0 |= Self::DEFERRED_ALLOC;
+    }
+
+    fn abi_validation(self) -> bool {
+        self.0 & Self::ABI_VALIDATION != 0
+    }
+
+    fn set_abi_validation(&mut self, value: bool) {
+        if value {
+            self.0 |= Self::ABI_VALIDATION;
+        } else {
+            self.0 &= !Self::ABI_VALIDATION;
+        }
     }
 
     fn effect(self) -> Option<EffectKind> {

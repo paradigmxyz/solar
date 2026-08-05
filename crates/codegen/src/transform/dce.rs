@@ -153,7 +153,7 @@ impl DeadCodeEliminator {
                 let inst = func.inst(inst_id);
 
                 // Instructions with side effects are always kept.
-                if inst.kind.has_side_effects() {
+                if inst.kind.has_side_effects() || inst.metadata.abi_validation() {
                     continue;
                 }
 
