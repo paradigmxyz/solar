@@ -247,7 +247,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    unresolved and constructor-modifier edge cases. Inherited constructor
    arguments that call direct or virtual functions now have Solc-backed
    run-call coverage. Virtual constructor modifiers and library modifiers with
-   storage parameters now have differential runtime coverage as well.
+   storage parameters now have differential runtime coverage as well. The
+   `modifier_return_postlude.sol` vector checks that a return still runs the
+   modifier postlude.
 3. Extend function-pointer ABI coverage to the remaining edge cases. External
    pointers now have runtime coverage for aggregate arguments and returns,
    pointer arguments and pointer returns, including aggregate `try` return
