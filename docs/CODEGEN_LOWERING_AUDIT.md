@@ -275,6 +275,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    while nested dynamic offsets remain lazy like Solc.
    `abi_calldata_struct_dynamic.sol` checks ABI re-encoding of one and two
    dynamic structs with word-array members.
+   `calldata_struct_dynamic_memory.sol` checks copying the same aggregate
+   shape from calldata into memory before reading nested values.
    `abi.decode`, external return decoding, and `catch Error(string)` payload
    decoding are represented by semantic MIR operations and lowered by the ABI
    pass; multi-return materialization uses the shared frame/object path. The
