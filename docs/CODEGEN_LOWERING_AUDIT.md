@@ -316,9 +316,11 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
 4. Storage-reference CFG tests now cover packed struct fields, mapping-pointer
    rebinding, and Yul `.slot`/`.offset` access. Direct dynamic bytes and array
    overflow cases now have exact `Panic(0x41)` run-call checks, as do nested
-   dynamic arrays and arrays of dynamic structs. Extend this coverage to the
-   remaining aggregate allocation shapes against Solc; dynamic and fixed
-   memory arrays of nested structs now have independent run-call coverage,
+   dynamic arrays and arrays of dynamic structs. Malformed short and long
+   storage-byte headers now reject with Solc's exact `Panic(0x22)` payload.
+   Extend this coverage to the remaining aggregate allocation shapes against
+   Solc; dynamic and fixed memory arrays of nested structs now have independent
+   run-call coverage,
    dynamic storage arrays of words, bytes, and static structs now have typed
    external-call coverage, dynamic storage arrays of structs with nested bytes
    and arrays now have typed external-call coverage, and storage copies of

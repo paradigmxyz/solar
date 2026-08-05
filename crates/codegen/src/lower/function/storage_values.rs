@@ -575,6 +575,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let short_len = self.builder.div(short_len_tag, two);
         let long_len = self.builder.div(header, two);
         let length = self.builder.select(is_long, long_len, short_len);
+        let thirty_two = self.builder.imm_u64(32);
+        let short_length = self.builder.lt(length, thirty_two);
+        let invalid_encoding = self.builder.eq(is_long, short_length);
+        self.panic_if(invalid_encoding, 0x22);
         let thirty_one = self.builder.imm_u64(31);
         let rounded = self.checked_add(length, thirty_one);
         let word_size = self.builder.imm_u64(32);
