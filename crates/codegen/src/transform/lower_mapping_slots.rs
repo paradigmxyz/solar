@@ -2,8 +2,9 @@
 //!
 //! Keeping storage-location hashing as one MIR instruction lets dominator-tree
 //! CSE reuse repeated accesses without teaching HIR lowering about scratch
-//! memory. This pass expands the builtins at the memory boundary and reserves
-//! each hash input through the semantic allocation policy.
+//! memory. This pass expands the builtins at the memory boundary. Variable-size
+//! hash inputs use the semantic allocation policy; the fixed one-word
+//! storage-array hash stays a scratch sequence.
 
 use crate::{
     mir::{BlockId, FunctionBuilder, InstKind, Module},
