@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 contract Hashing {
     bytes private stored;
+    mapping(uint256 => bytes) private storedMap;
 
     function hashUint(uint256 a) external pure returns (bytes32) {
         return keccak256(abi.encode(a));
@@ -48,6 +49,14 @@ contract Hashing {
 
     function decodeStoredUint() external view returns (uint256) {
         return abi.decode(stored, (uint256));
+    }
+
+    function setStoredMap(uint256 key, bytes memory data) external {
+        storedMap[key] = data;
+    }
+
+    function decodeStoredMap(uint256 key) external view returns (uint256) {
+        return abi.decode(storedMap[key], (uint256));
     }
 
     function hashStoredSha256() external view returns (bytes32) {

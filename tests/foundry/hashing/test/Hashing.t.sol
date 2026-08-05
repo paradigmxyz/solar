@@ -100,5 +100,7 @@ contract HashingTest {
         bytes memory encoded = abi.encode(uint256(42));
         h.setStored(encoded);
         require(h.decodeStoredUint() == 42, "stored decode mismatch");
+        h.setStoredMap(7, encoded);
+        require(h.decodeStoredMap(7) == 42, "mapped decode mismatch");
     }
 }
