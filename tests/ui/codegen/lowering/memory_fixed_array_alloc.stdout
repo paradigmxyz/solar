@@ -432,7 +432,7 @@ fn @fullyInitializedNamedStruct() -> memorystruct [abi_args=lazy, abi_params=[],
     ret v0
 }
 
-fn @deleteInPlace() -> (u256, u256) [abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @deleteRebind() -> (u256, u256) [abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, zeroed, panic, 96
     v1 = lt 0, 3
@@ -462,40 +462,38 @@ fn @deleteInPlace() -> (u256, u256) [abi_args=lazy, abi_params=[], abi_returns=[
     revert 0, 36
   bb6:
     memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 7
-    memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 0
-    memory_object_store_element memoryfixedarray<3, 1>, v0, 1, 0
-    memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 0
-    v7 = lt 2, 3
-    v8 = iszero v7
-    jumpi v8, bb7, bb8
+    v7 = alloc memoryfixedarray<3, 1>, exact, zeroed, panic, 96
+    v8 = lt 2, 3
+    v9 = iszero v8
+    jumpi v9, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 9
-    v9 = lt 0, 3
-    v10 = iszero v9
-    jumpi v10, bb9, bb10
+    memory_object_store_element memoryfixedarray<3, 1>, v7, 2, 9
+    v10 = lt 0, 3
+    v11 = iszero v10
+    jumpi v11, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    v11 = memory_object_load_element memoryfixedarray<3, 1>, v0, 0
-    v12 = lt 2, 3
-    v13 = iszero v12
-    jumpi v13, bb11, bb12
+    v12 = memory_object_load_element memoryfixedarray<3, 1>, v7, 0
+    v13 = lt 2, 3
+    v14 = iszero v13
+    jumpi v14, bb11, bb12
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb12:
-    v14 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
-    ret v11, v14
+    v15 = memory_object_load_element memoryfixedarray<3, 1>, v7, 2
+    ret v12, v15
 }
 
-fn @bulkDeleteInPlace() -> (u256, u256) [abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @bulkDeleteRebind() -> (u256, u256) [abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<4, 1>, exact, zeroed, panic, 128
     v1 = lt 0, 4
@@ -516,37 +514,34 @@ fn @bulkDeleteInPlace() -> (u256, u256) [abi_args=lazy, abi_params=[], abi_retur
     revert 0, 36
   bb4:
     memory_object_store_element memoryfixedarray<4, 1>, v0, 3, 7
-    memory_object_store_element memoryfixedarray<4, 1>, v0, 0, 0
-    memory_object_store_element memoryfixedarray<4, 1>, v0, 1, 0
-    memory_object_store_element memoryfixedarray<4, 1>, v0, 2, 0
-    memory_object_store_element memoryfixedarray<4, 1>, v0, 3, 0
-    v5 = lt 3, 4
-    v6 = iszero v5
-    jumpi v6, bb5, bb6
+    v5 = alloc memoryfixedarray<4, 1>, exact, zeroed, panic, 128
+    v6 = lt 3, 4
+    v7 = iszero v6
+    jumpi v7, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    memory_object_store_element memoryfixedarray<4, 1>, v0, 3, 9
-    v7 = lt 0, 4
-    v8 = iszero v7
-    jumpi v8, bb7, bb8
+    memory_object_store_element memoryfixedarray<4, 1>, v5, 3, 9
+    v8 = lt 0, 4
+    v9 = iszero v8
+    jumpi v9, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v9 = memory_object_load_element memoryfixedarray<4, 1>, v0, 0
-    v10 = lt 3, 4
-    v11 = iszero v10
-    jumpi v11, bb9, bb10
+    v10 = memory_object_load_element memoryfixedarray<4, 1>, v5, 0
+    v11 = lt 3, 4
+    v12 = iszero v11
+    jumpi v12, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    v12 = memory_object_load_element memoryfixedarray<4, 1>, v0, 3
-    ret v9, v12
+    v13 = memory_object_load_element memoryfixedarray<4, 1>, v5, 3
+    ret v10, v13
 }
 

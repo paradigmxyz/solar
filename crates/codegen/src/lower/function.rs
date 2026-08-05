@@ -4018,28 +4018,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 let object = self.default_object(ty)?;
                 self.store_lvalue_place(&place, object)?;
             }
-            MemoryObjectLayout::FixedArray { len, element_words: _ } => {
-                let object = self.load_lvalue_place(&place)?;
-                for index in 0..len {
-                    let index_value = self.builder.imm_u64(index);
-                    let element_ty = match ty.peel_refs().kind {
-                        solar_sema::ty::TyKind::Array(element, _) => element,
-                        _ => return report_unsupported(self.gcx, expr.span, "array deletion"),
-                    };
-                    let value = self.default_value(element_ty);
-                    self.builder.memory_object_store_element(object, layout, index_value, value);
-                }
+            MemoryObjectLayout::FixedArray { .. } => {
+                let object = self.default_object(ty)?;
+                self.store_lvalue_place(&place, object)?;
             }
             MemoryObjectLayout::Struct { fields: _ } => {
-                let object = self.load_lvalue_place(&place)?;
-                let solar_sema::ty::TyKind::Struct(id) = ty.peel_refs().kind else {
-                    return report_unsupported(self.gcx, expr.span, "struct deletion");
-                };
-                for (index, &field) in self.gcx.hir.strukt(id).fields.iter().enumerate() {
-                    let field_ty = self.gcx.type_of_item(field.into());
-                    let value = self.default_value(field_ty);
-                    self.builder.memory_object_store_field(object, layout, index as u64, value);
-                }
+                let object = self.default_object(ty)?;
+                self.store_lvalue_place(&place, object)?;
             }
         }
         Some(())

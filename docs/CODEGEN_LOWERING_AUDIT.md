@@ -133,8 +133,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   before the length tag is persisted;
 * storage `delete` for dynamic and fixed arrays, packed elements, structs, and
   nested storage objects through one recursive location-aware path;
-* memory `delete` for dynamic arrays and bytes by rebinding only the selected
-  reference, preserving aliases to the previous object;
+* memory `delete` for dynamic and fixed arrays, bytes, and structs by rebinding
+  only the selected reference, preserving aliases to the previous object;
 * explicit state-variable initializers, including a synthetic constructor when
   the contract has no explicit constructor;
 * modifier parameters that copy calldata arrays into independent memory objects

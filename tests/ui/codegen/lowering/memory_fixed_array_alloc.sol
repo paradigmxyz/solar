@@ -155,12 +155,15 @@ contract NamedReturnAndDelete {
         holder.data = new bytes(1);
     }
 
-    // `delete` zeroes the elements in place; the pointer stays valid.
-    // CHECK-LABEL: fn @deleteInPlace{{[( ]}}
+    // `delete` rebinds the reference to a fresh zeroed object.
+    // CHECK-LABEL: fn @deleteRebind{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<3, 1>
-    // CHECK-COUNT-3: memory_object_store_element memoryfixedarray<3, 1>, [[ARRAY]], {{[0-2]}}, 0
-    // CHECK: memory_object_store_element memoryfixedarray<3, 1>, {{v[0-9]+}}, 2, 9
-    function deleteInPlace() public pure returns (uint256, uint256) {
+    // CHECK: memory_object_store_element memoryfixedarray<3, 1>, [[ARRAY]], 0, 5
+    // CHECK: memory_object_store_element memoryfixedarray<3, 1>, [[ARRAY]], 1, 6
+    // CHECK: memory_object_store_element memoryfixedarray<3, 1>, [[ARRAY]], 2, 7
+    // CHECK: [[DELETED:v[0-9]+]] = alloc memoryfixedarray<3, 1>
+    // CHECK: memory_object_store_element memoryfixedarray<3, 1>, [[DELETED]], 2, 9
+    function deleteRebind() public pure returns (uint256, uint256) {
         uint256[3] memory x;
         x[0] = 5;
         x[1] = 6;
@@ -170,13 +173,13 @@ contract NamedReturnAndDelete {
         return (x[0], x[2]);
     }
 
-    // Deleting a wide value array also zeroes it in bulk.
-    // CHECK-LABEL: fn @bulkDeleteInPlace{{[( ]}}
+    // Deleting a wide value array also allocates a fresh zeroed object.
+    // CHECK-LABEL: fn @bulkDeleteRebind{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<4, 1>
     // CHECK: memory_object_store_element memoryfixedarray<4, 1>, {{v[0-9]+}}, 3, 7
-    // CHECK-COUNT-4: memory_object_store_element memoryfixedarray<4, 1>, [[ARRAY]], {{[0-3]}}, 0
-    // CHECK: memory_object_store_element memoryfixedarray<4, 1>, {{v[0-9]+}}, 3, 9
-    function bulkDeleteInPlace() public pure returns (uint256, uint256) {
+    // CHECK: [[DELETED:v[0-9]+]] = alloc memoryfixedarray<4, 1>
+    // CHECK: memory_object_store_element memoryfixedarray<4, 1>, [[DELETED]], 3, 9
+    function bulkDeleteRebind() public pure returns (uint256, uint256) {
         uint256[4] memory x;
         x[0] = 5;
         x[3] = 7;
