@@ -3304,6 +3304,24 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             self.builder.extcodecopy(address, data, zero, length);
             return Some(object);
         }
+        if builtin == Builtin::FunctionAddress {
+            let ExprKind::Member(receiver, _) = &expr.kind else {
+                return report_unsupported(self.gcx, expr.span, "function address");
+            };
+            let Some(TyKind::Fn(function)) =
+                self.type_of_expr_or_variable(receiver).map(|ty| ty.kind)
+            else {
+                return report_unsupported(self.gcx, expr.span, "function address");
+            };
+            if !function.is_external() {
+                return report_unsupported(self.gcx, expr.span, "function address");
+            }
+            let value = self.lower_expr(receiver)?;
+            let shift = self.builder.imm_u64(32);
+            let address = self.builder.shr(shift, value);
+            let mask = self.builder.imm_u256(U256::MAX >> 96);
+            return Some(self.builder.and(address, mask));
+        }
         if builtin == Builtin::FunctionSelector {
             let selector = match self.gcx.resolved_expr(expr).and_then(|res| match res {
                 hir::Res::Item(item @ (hir::ItemId::Function(_) | hir::ItemId::Error(_))) => {

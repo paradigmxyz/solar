@@ -190,7 +190,7 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * one-time l-value resolution for compound assignments and increments, plus
   argument-before-length evaluation for storage-array and storage-bytes pushes;
 * external function-pointer calls with aggregate return decoding through the
-  shared ABI path and explicit `gas`/`value` options;
+  shared ABI path, explicit `gas`/`value` options, and `.address` extraction;
 * event emission with overload and named-argument resolution, selector and indexed
   topics, dynamic-topic hashing, static and word-array aggregate-topic hashing,
   nested dynamic array, struct, string, and bytes topic hashing, dynamic
