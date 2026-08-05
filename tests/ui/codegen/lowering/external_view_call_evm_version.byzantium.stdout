@@ -30,7 +30,7 @@ fn @readPointer(arg0: function) -> u256 [abi_args=lazy, abi_params=[function], a
   bb1:
     revert_returndata
   bb2:
-    v8 = returndatasize
+    v8 = returndata_size
     v9 = add v8, 31
     v10 = lt v9, v8
     jumpi v10, bb3, bb4

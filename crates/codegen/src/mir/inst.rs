@@ -811,6 +811,10 @@ pub(crate) enum InstKind {
         /// Address space containing the slice data.
         location: SliceLocation,
     },
+    /// Read the size of the returndata produced by the preceding call.
+    ///
+    /// The ABI phase materializes the volatile EVM query.
+    ReturndataSize,
     /// Project the data pointer from a slice.
     SlicePtr(ValueId),
     /// Project the logical length from a slice.
@@ -1287,6 +1291,7 @@ impl InstKind {
             Self::MSize
             | Self::Fmp
             | Self::CalldataSize
+            | Self::ReturndataSize
             | Self::InternalFrameAddr(_)
             | Self::FrameLoad { .. }
             | Self::ConstructorArgsBase
@@ -1552,6 +1557,7 @@ impl InstKind {
             Self::MSize
             | Self::Fmp
             | Self::CalldataSize
+            | Self::ReturndataSize
             | Self::InternalFrameAddr(_)
             | Self::FrameLoad { .. }
             | Self::ConstructorArgsBase
@@ -1647,6 +1653,7 @@ impl InstKind {
             Self::MakeSlice { location: SliceLocation::Memory, .. } => "make_memory_slice",
             Self::MakeSlice { location: SliceLocation::Calldata, .. } => "make_calldata_slice",
             Self::MakeSlice { location: SliceLocation::Returndata, .. } => "make_returndata_slice",
+            Self::ReturndataSize => "returndata_size",
             Self::SlicePtr(_) => "slice_ptr",
             Self::SliceLen(_) => "slice_len",
             Self::ConstructorArgsBase => "constructor_args_base",
@@ -1836,6 +1843,7 @@ impl InstKind {
             | Self::CodeSize
             | Self::ExtCodeSize(_)
             | Self::ExtCodeHash(_)
+            | Self::ReturndataSize
             | Self::ReturnDataSize
             | Self::Caller
             | Self::CallValue

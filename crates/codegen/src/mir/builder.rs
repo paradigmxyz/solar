@@ -635,6 +635,11 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::MakeSlice { ptr, len, location }, Some(MirType::Slice(location)))
     }
 
+    /// Reads the preceding call's returndata size.
+    pub(crate) fn returndata_size(&mut self) -> ValueId {
+        self.emit_inst(InstKind::ReturndataSize, Some(MirType::uint256()))
+    }
+
     /// Projects the data pointer from a slice.
     pub(crate) fn slice_ptr(&mut self, slice: ValueId) -> ValueId {
         self.emit_inst(InstKind::SlicePtr(slice), Some(MirType::uint256()))

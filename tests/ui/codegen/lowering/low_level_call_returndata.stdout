@@ -40,7 +40,7 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [abi_args=lazy, abi_p
     v15 = memory_object_len memorybytes, v13
     v16 = gas
     v17 = call v16, arg0, 0, v14, v15, 0, 0
-    v18 = returndatasize
+    v18 = returndata_size
     v19 = add v18, 31
     v20 = lt v19, v18
     jumpi v20, bb7, bb8
@@ -134,7 +134,7 @@ fn @balanceOf(arg0: address) -> u256 [abi_args=lazy, abi_params=[address], abi_r
     v16 = memory_object_len memorybytes, v14
     v17 = gas
     v18 = staticcall v17, arg0, v15, v16, 0, 0
-    v19 = returndatasize
+    v19 = returndata_size
     v20 = add v19, 31
     v21 = lt v20, v19
     jumpi v21, bb7, bb8
@@ -185,7 +185,7 @@ fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [abi_args=lazy, abi
     v2 = memory_object_len memorybytes, arg1
     v3 = gas
     v4 = call v3, arg0, 0, v1, v2, 0, 0
-    v5 = returndatasize
+    v5 = returndata_size
     v6 = add v5, 31
     v7 = lt v6, v5
     jumpi v7, bb1, bb2

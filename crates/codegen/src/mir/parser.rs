@@ -1730,6 +1730,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 };
                 (InstKind::MakeSlice { ptr, len, location }, Some(MirType::Slice(location)))
             }
+            sym::returndata_size => (InstKind::ReturndataSize, Some(MirType::uint256())),
             sym::slice_ptr => inst!(SlicePtr(a) => MirType::uint256()),
             sym::slice_len => inst!(SliceLen(a) => MirType::uint256()),
             sym::constructor_args_base => unit!(ConstructorArgsBase => MirType::uint256()),

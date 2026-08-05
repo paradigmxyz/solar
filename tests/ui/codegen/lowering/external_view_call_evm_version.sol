@@ -29,6 +29,7 @@ contract Caller {
     // BYZANTIUM-LABEL: fn @readPointer
     // BYZANTIUM: staticcall
     // BYZANTIUM: revert_returndata
+    // BYZANTIUM: returndata_size
     function readPointer(function() external view returns (uint256) target)
         external
         view

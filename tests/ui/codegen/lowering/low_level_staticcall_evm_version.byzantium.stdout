@@ -19,7 +19,7 @@ fn @probeCall(arg0: address) -> u256 [abi_args=lazy, abi_params=[address], abi_r
     v2 = memory_object_len memorybytes, v0
     v3 = gas
     v4 = call v3, arg0, 0, v1, v2, 0, 0
-    v5 = returndatasize
+    v5 = returndata_size
     v6 = add v5, 31
     v7 = lt v6, v5
     jumpi v7, bb1, bb2

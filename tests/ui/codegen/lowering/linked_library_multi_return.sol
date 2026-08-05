@@ -12,7 +12,7 @@ contract C {
     // returned words before tuple extraction.
     // CHECK-LABEL: fn @pair{{[( ]}}
     // CHECK: delegatecall
-    // CHECK: returndatasize
+    // CHECK: returndata_size
     // CHECK: memory_slice_load_word
     // CHECK: memory_slice_load_word
     function pair() external pure returns (uint256, uint256) {

@@ -262,7 +262,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     }
 
     pub(super) fn materialize_returndata_bytes(&mut self) -> ValueId {
-        let length = self.builder.returndatasize();
+        let length = self.builder.returndata_size();
         let thirty_one = self.builder.imm_u64(31);
         let rounded = self.checked_add(length, thirty_one);
         let word_size = self.builder.imm_u64(32);

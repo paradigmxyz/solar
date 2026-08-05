@@ -14,7 +14,7 @@ contract Caller {
 
     // CHECK-LABEL: fn @probeCall
     // CHECK: call
-    // CHECK: returndatasize
+    // CHECK: returndata_size
     // CHECK: memory_object_copy_from_slice memorybytes
     function probeCall(address target) external returns (uint256) {
         (, bytes memory data) = target.call("");
