@@ -56,6 +56,9 @@ The replacement is split into stateful, private components:
 
 * `FunctionLowerer` owns one function's HIR context, typed value environment,
   loop targets, return bindings, and `FunctionBuilder`.
+  ABI value and packed encoding helpers live in the child
+  `function/abi_values` module, leaving the main walker with only the
+  dispatch points and shared argument materialization it needs.
   Storage-reference access, packed indexing, and aggregate storage copies live
   in the child `function/storage_values` module instead of in the main HIR
   expression walker.
