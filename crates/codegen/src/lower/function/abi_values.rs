@@ -332,7 +332,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
 
             let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
-            let value = self.lower_typed_expr(expr, memory_ty)?;
+            let mut value = self.lower_typed_expr(expr, memory_ty)?;
+            let needs_validation = matches!(
+                self.builder.func().value_ty(value),
+                Some(MirType::Slice(SliceLocation::Calldata))
+            ) && self.calldata_aggregate_requires_validation(ty);
+            if needs_validation {
+                value = self.materialize_calldata_argument(ty, value, expr.span)?;
+            }
             if self.is_calldata_dynamic_bytes_type(ty)
                 || matches!(
                     ty.peel_refs().kind,
