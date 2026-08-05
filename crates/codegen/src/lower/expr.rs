@@ -255,29 +255,7 @@ impl<'gcx> Lowerer<'gcx> {
                             let guar = self.emit_unsupported_udvt_operator(expr.span);
                             return builder.error_value(guar);
                         }
-                        let result =
-                            self.lower_unary_op(builder, *op, operand_val, int_info, expr.span);
-                        if op.kind == UnOpKind::BitNot {
-                            if let Some(width) = self.fixed_bytes_width_of_expr(expr) {
-                                return self.clean_fixed_bytes(
-                                    builder,
-                                    result,
-                                    TypeSize::new_fb_bytes(width),
-                                );
-                            }
-                            if let Some(info) = int_info
-                                && !info.signed
-                                && self.get_expr_type(expr).is_some_and(|ty| {
-                                    matches!(
-                                        ty.peel_refs().kind,
-                                        TyKind::Elementary(ElementaryType::UInt(_))
-                                    )
-                                })
-                            {
-                                return self.mask_to_bits(builder, result, info.size);
-                            }
-                        }
-                        result
+                        self.lower_unary_op(builder, *op, operand_val, int_info, expr)
                     }
                 }
             }

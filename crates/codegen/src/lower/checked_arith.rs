@@ -986,17 +986,31 @@ impl<'gcx> Lowerer<'gcx> {
         op: hir::UnOp,
         operand: ValueId,
         int_info: Option<IntegerInfo>,
-        span: Span,
+        expr: &hir::Expr<'_>,
     ) -> ValueId {
         use hir::UnOpKind;
 
         match op.kind {
             UnOpKind::Not => builder.iszero(operand),
-            UnOpKind::BitNot => builder.not(operand),
+            UnOpKind::BitNot => {
+                let result = builder.not(operand);
+                if let Some(width) = self.fixed_bytes_width_of_expr(expr) {
+                    return self.clean_fixed_bytes(builder, result, TypeSize::new_fb_bytes(width));
+                }
+                if let Some(info) = int_info
+                    && !info.signed
+                    && self.get_expr_type(expr).is_some_and(|ty| {
+                        matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::UInt(_)))
+                    })
+                {
+                    return self.mask_to_bits(builder, result, info.size);
+                }
+                result
+            }
             UnOpKind::Neg => {
                 let zero = builder.imm_u256(U256::ZERO);
                 if !self.in_unchecked_block {
-                    let int_info = self.require_checked_arithmetic_info(int_info, span);
+                    let int_info = self.require_checked_arithmetic_info(int_info, expr.span);
                     if let Some(info) = int_info
                         && info.signed
                     {
