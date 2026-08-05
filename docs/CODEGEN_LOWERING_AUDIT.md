@@ -94,6 +94,10 @@ Multi-return buffers use the same semantic fixed-array objects and frame-slot
 operations in HIR lowering, ABI lowering, and generated function-pointer
 dispatchers. Their consumers carry the complete logical slice length instead
 of rebuilding a raw address for each word.
+External-call, linked-library, function-pointer, `try` return, and
+`catch Error(string)` payload decoding now emits `AbiDecode` in HIR. The ABI
+pass expands each instruction through the shared checked decoder and publishes
+additional tuple values through the multi-return frame slot.
 Typed memory and calldata-slice copies, byte indexing, ABI scalar words, and
 selector dispatch use semantic slice loads; direct memory opcodes remain only
 for inline assembly and explicit revert payload construction.
@@ -240,9 +244,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    not overlap.
    `abi_calldata_nested_reencode.sol` adds Solc-checked hashes for a three-level
    dynamic array and an outer dynamic array of fixed pairs of dynamic arrays.
-   `abi.decode` is now represented by a semantic MIR operation and lowered by
-   the ABI pass; multi-return materialization uses the shared frame/object
-   path. The remaining work is broader independent differential coverage.
+   `abi.decode`, external return decoding, and `catch Error(string)` payload
+   decoding are represented by semantic MIR operations and lowered by the ABI
+   pass; multi-return materialization uses the shared frame/object path. The
+   remaining work is broader independent differential coverage.
 2. Extend base-constructor argument forwarding coverage to the remaining
    unresolved and constructor-modifier edge cases. Inherited constructor
    arguments that call direct or virtual functions now have Solc-backed

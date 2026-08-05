@@ -221,15 +221,16 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         span: Span,
     ) -> Option<Vec<ValueId>> {
         let (data, layout) = self.lower_abi_decode_layout(data, types, span)?;
-        let length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
-        let base = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
-        crate::transform::lower_abi::decode_memory_tuple(
-            &mut self.builder,
-            base,
-            length,
-            &layout,
-            None,
-        )
+        let first = self.builder.abi_decode(layout, data);
+        let mut values = Vec::with_capacity(types.len());
+        values.push(first);
+        if types.len() > 1 {
+            let base = self.multi_return_buffer_base();
+            for index in 1..types.len() {
+                values.push(self.load_multi_return_value(base, index, types.len()));
+            }
+        }
+        Some(values)
     }
 
     pub(super) fn revert_external_call(&mut self, success: ValueId) {
@@ -288,26 +289,17 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         object
     }
 
-    pub(super) fn lower_error_catch_string(
-        &mut self,
-        data: ValueId,
-        span: Span,
-    ) -> Option<ValueId> {
+    pub(super) fn lower_error_catch_string(&mut self, data: ValueId) -> Option<ValueId> {
         let data_ptr = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
         let data_len = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
         let four = self.builder.imm_u64(4);
         let payload_ptr = self.builder.add(data_ptr, four);
         let payload_len = self.builder.sub(data_len, four);
+        let payload_slice =
+            self.builder.make_slice(payload_ptr, payload_len, SliceLocation::Memory);
+        let payload = self.materialize_memory_slice(payload_slice);
         let layout = AbiParamLayout::new(vec![AbiParamType::Bytes].into_boxed_slice());
-        crate::transform::lower_abi::decode_memory_tuple(
-            &mut self.builder,
-            payload_ptr,
-            payload_len,
-            &layout,
-            None,
-        )
-        .and_then(|mut values| values.pop())
-        .or_else(|| report_unsupported(self.gcx, span, "Error catch payload"))
+        Some(self.builder.abi_decode(layout, payload))
     }
 
     pub(super) fn lower_panic_catch_word(&mut self, data: ValueId) -> ValueId {

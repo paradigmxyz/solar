@@ -734,8 +734,8 @@ bb6:
   push 576
   mstore
   push bb8
-  jump bb43
-bb43:
+  jump bb44
+bb44:
   push 0
   not
   push 96
@@ -792,8 +792,8 @@ bb8:
   add
   keccak256
   sload
-  jump bb44
-bb44:
+  jump bb45
+bb45:
   push 128
   mstore
   push 32
@@ -813,7 +813,7 @@ bb11:
   push 576
   mstore
   push bb13
-  jump bb43
+  jump bb44
 bb13:
   push 608
   mload
@@ -1371,10 +1371,10 @@ bb13:
   pop
   pop
   pop
-  push bb40
+  push bb41
   jumpi
-  jump bb41
-bb41:
+  jump bb42
+bb42:
   push 32
   push 320
   mload
@@ -1507,43 +1507,58 @@ bb33:
   dup3
   returndatacopy
   pop
-  dup1
-  mload
-  swap1
   push 32
+  dup2
   add
   dup1
   push 224
   mstore
   swap1
+  mload
   dup2
   add
   dup1
   push 256
   mstore
-  lt
-  push bb5
-  jumpi
-  push 32
-  push 224
-  mload
-  add
-  push 224
-  mload
+  dup2
   dup2
   lt
-  swap1
-  push 256
-  mload
-  lt
+  dup2
+  dup1
+  gt
   or
+  swap2
+  pop
+  pop
+  push bb5
+  jumpi
+  push 32
+  push 224
+  mload
+  add
+  push 256
+  mload
+  dup2
+  gt
+  swap1
+  push 224
+  mload
+  gt
+  or
+  dup1
+  push 256
+  mstore
+  push bb5
+  jumpi
+  push 256
+  mload
   push bb5
   jumpi
   push 224
   mload
   mload
-  jump bb44
-bb40:
+  jump bb45
+bb41:
   push 32
   push 416
   mload
@@ -1559,4 +1574,4 @@ bb40:
   push 0
   swap1
   mstore
-  jump bb41
+  jump bb42

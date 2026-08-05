@@ -1252,7 +1252,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             self.builder.switch_to_block(clause_block);
             if let Some(&binding) = catch_clause.args.first() {
                 let value = if catch_error {
-                    self.lower_error_catch_string(catch_data, try_stmt.expr.span)?
+                    self.lower_error_catch_string(catch_data)?
                 } else if catch_panic {
                     self.lower_panic_catch_word(catch_data)
                 } else {

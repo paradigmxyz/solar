@@ -1805,17 +1805,6 @@ impl LowerAbiCx {
     }
 }
 
-/// Decodes a memory-backed ABI tuple through the shared ABI-layer decoder.
-pub(crate) fn decode_memory_tuple(
-    builder: &mut FunctionBuilder<'_>,
-    base: ValueId,
-    length: ValueId,
-    layout: &AbiParamLayout,
-    helpers: Option<&CleanupHelpers>,
-) -> Option<Vec<ValueId>> {
-    LowerAbiCx::decode_memory_tuple(builder, base, length, layout, helpers)
-}
-
 fn collect_validators(ty: &AbiParamType, validators: &mut Vec<AbiWordValidator>) {
     match ty {
         AbiParamType::Scalar(scalar) => {

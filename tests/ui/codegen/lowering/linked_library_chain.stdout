@@ -98,7 +98,7 @@ bb4 [cold]:
   push 0
   dup1
   revert
-bb16 [cold]:
+bb17 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -121,8 +121,8 @@ bb5:
   push bb8
   jumpi
   push 0
-  jump bb17
-bb17:
+  jump bb18
+bb18:
   push 128
   mstore
   push 32
@@ -188,22 +188,22 @@ bb8:
   pop
   pop
   iszero
-  push bb15
+  push bb16
   jumpi
   returndatasize
   dup1
-  push 160
+  push 192
   mstore
   push 31
   dup2
   add
   dup1
-  push 192
+  push 160
   mstore
   lt
-  push bb16
+  push bb17
   jumpi
-  push 192
+  push 160
   mload
   push 5
   shr
@@ -211,12 +211,12 @@ bb8:
   dup2
   add
   dup1
-  push 192
+  push 160
   mstore
   lt
-  push bb16
+  push bb17
   jumpi
-  push 192
+  push 160
   mload
   push 5
   shl
@@ -226,13 +226,13 @@ bb8:
   dup1
   push 5
   shr
-  push 192
+  push 160
   mload
   eq
   swap1
   pop
   iszero
-  push bb16
+  push bb17
   jumpi
   push 64
   mload
@@ -245,56 +245,71 @@ bb8:
   add
   push 64
   mstore
-  push 160
+  push 192
   mload
   dup2
   mstore
   push 32
   dup2
   add
-  push 160
+  push 192
   mload
   push 0
   dup3
   returndatacopy
   pop
-  dup1
-  mload
-  swap1
   push 32
-  add
-  dup1
-  push 160
-  mstore
-  swap1
   dup2
   add
   dup1
   push 192
   mstore
-  lt
-  push bb4
-  jumpi
-  push 32
-  push 160
-  mload
-  add
-  push 160
+  swap1
   mload
   dup2
+  add
+  dup1
+  push 160
+  mstore
+  dup2
+  dup2
   lt
-  swap1
-  push 192
-  mload
-  lt
+  dup2
+  dup1
+  gt
   or
+  swap2
+  pop
+  pop
+  push bb4
+  jumpi
+  push 32
+  push 192
+  mload
+  add
+  push 160
+  mload
+  dup2
+  gt
+  swap1
+  push 192
+  mload
+  gt
+  or
+  dup1
+  push 160
+  mstore
   push bb4
   jumpi
   push 160
   mload
+  push bb4
+  jumpi
+  push 192
   mload
-  jump bb17
-bb15 [cold]:
+  mload
+  jump bb18
+bb16 [cold]:
   returndatasize
   dup1
   push 224
@@ -333,7 +348,7 @@ bb4 [cold]:
   push 0
   dup1
   revert
-bb14 [cold]:
+bb15 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -409,22 +424,22 @@ bb5:
   pop
   pop
   iszero
-  push bb13
+  push bb14
   jumpi
   returndatasize
   dup1
-  push 160
+  push 192
   mstore
   push 31
   dup2
   add
   dup1
-  push 192
+  push 160
   mstore
   lt
-  push bb14
+  push bb15
   jumpi
-  push 192
+  push 160
   mload
   push 5
   shr
@@ -432,12 +447,12 @@ bb5:
   dup2
   add
   dup1
-  push 192
+  push 160
   mstore
   lt
-  push bb14
+  push bb15
   jumpi
-  push 192
+  push 160
   mload
   push 5
   shl
@@ -447,13 +462,13 @@ bb5:
   dup1
   push 5
   shr
-  push 192
+  push 160
   mload
   eq
   swap1
   pop
   iszero
-  push bb14
+  push bb15
   jumpi
   push 64
   mload
@@ -466,52 +481,67 @@ bb5:
   add
   push 64
   mstore
-  push 160
+  push 192
   mload
   dup2
   mstore
   push 32
   dup2
   add
-  push 160
+  push 192
   mload
   push 0
   dup3
   returndatacopy
   pop
-  dup1
-  mload
-  swap1
   push 32
-  add
-  dup1
-  push 160
-  mstore
-  swap1
   dup2
   add
   dup1
   push 192
   mstore
-  lt
-  push bb4
-  jumpi
-  push 32
-  push 160
-  mload
-  add
-  push 160
+  swap1
   mload
   dup2
+  add
+  dup1
+  push 160
+  mstore
+  dup2
+  dup2
   lt
-  swap1
-  push 192
-  mload
-  lt
+  dup2
+  dup1
+  gt
   or
+  swap2
+  pop
+  pop
+  push bb4
+  jumpi
+  push 32
+  push 192
+  mload
+  add
+  push 160
+  mload
+  dup2
+  gt
+  swap1
+  push 192
+  mload
+  gt
+  or
+  dup1
+  push 160
+  mstore
   push bb4
   jumpi
   push 160
+  mload
+  push bb4
+  jumpi
+  push 192
   mload
   mload
   push 128
@@ -519,7 +549,7 @@ bb5:
   push 32
   push 128
   return
-bb13 [cold]:
+bb14 [cold]:
   returndatasize
   dup1
   push 224

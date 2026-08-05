@@ -68,37 +68,7 @@ fn @readPointer(arg0: function) -> u256 [abi_args=lazy, abi_params=[function], a
     set_memory_object_len memorybytes, v21, v9
     v22 = make_returndata_slice 0, v9
     memory_object_copy_from_slice memorybytes, v21, v22
-    v23 = memory_object_len memorybytes, v21
-    v24 = memory_object_data memorybytes, v21
-    v25 = add v24, v23
-    v26 = add v24, v23
-    v27 = lt v26, v24
-    v28 = gt v26, v25
-    v29 = or v27, v28
-    jumpi v29, bb10, bb9
-  bb9:
-    v30 = add v24, 32
-    v31 = lt v30, v24
-    v32 = gt v30, v25
-    v33 = or v31, v32
-    jumpi v33, bb12, bb11
-  bb10:
-    revert 0, 0
-  bb11:
-    v34 = add v24, 0
-    v35 = add v34, 32
-    v36 = lt v35, v34
-    v37 = gt v35, v25
-    v38 = or v36, v37
-    jumpi v38, bb14, bb13
-  bb12:
-    revert 0, 0
-  bb13:
-    v39 = sub v25, v34
-    v40 = make_memory_slice v34, v39
-    v41 = memory_slice_load_word memory, v40, 0
-    ret v41
-  bb14:
-    revert 0, 0
+    v23 = abi_decode [u256], v21
+    ret v23
 }
 
