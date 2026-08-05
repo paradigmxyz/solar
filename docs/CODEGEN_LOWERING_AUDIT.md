@@ -295,7 +295,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    nested `struct[]` with dynamic `bytes` fields and checks the copied storage
    values after construction. `constructor_modifier_creation_context.sol`
    covers virtual modifier dispatch and public calls made while the base
-   constructor is still running.
+   constructor is still running. `constructor_inheritance_init_order.sol` and
+   `constructor_state_variable_order.sol` cover base state initialization,
+   derived initializers, implicit bases, and constructor-body reads in
+   linearized order.
 3. Extend function-pointer ABI coverage to the remaining edge cases. External
    pointers now have runtime coverage for aggregate arguments and returns,
    pointer arguments and pointer returns, including aggregate `try` return

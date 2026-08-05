@@ -136,8 +136,8 @@ pub(super) fn lower(
         let Some(contract_id) = hir_function.contract else {
             return report_unsupported(gcx, hir_function.span, "free constructor");
         };
-        lowerer.lower_state_initializers(contract_id)?;
         lowerer.lower_implicit_base_constructors(contract_id)?;
+        lowerer.lower_state_initializers(contract_id)?;
     }
     if let Some(body) = hir_function.body {
         lowerer.lower_function_body(hir_function.modifiers, body)?;
@@ -184,8 +184,8 @@ pub(super) fn lower_synthetic_constructor(
         },
         &mut mir,
     );
-    lowerer.lower_state_initializers(contract_id)?;
     lowerer.lower_implicit_base_constructors(contract_id)?;
+    lowerer.lower_state_initializers(contract_id)?;
     if !lowerer.is_terminated() {
         lowerer.finish(&[])?;
     }
@@ -378,21 +378,19 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 
     fn lower_state_initializers(&mut self, contract_id: hir::ContractId) -> Option<()> {
         let contract = self.gcx.hir.contract(contract_id);
-        for &base in contract.linearized_bases.iter().rev() {
-            for id in self.gcx.hir.contract(base).variables() {
-                let variable = self.gcx.hir.variable(id);
-                if !variable.is_state_variable() || variable.is_constant() {
-                    continue;
-                }
-                let Some(initializer) = variable.initializer else { continue };
-                let ty = self.gcx.type_of_item(id.into());
-                let value = self.lower_typed_expr(initializer, ty)?;
-                let value = self.coerce_value(value, self.gcx.type_of_expr(initializer.id)?, ty);
-                if let Some(&immutable_id) = self.immutable_ids.get(&id) {
-                    self.builder.store_immutable(immutable_id, value);
-                } else {
-                    self.store_state_variable(id, value, initializer.span)?;
-                }
+        for id in contract.variables() {
+            let variable = self.gcx.hir.variable(id);
+            if !variable.is_state_variable() || variable.is_constant() {
+                continue;
+            }
+            let Some(initializer) = variable.initializer else { continue };
+            let ty = self.gcx.type_of_item(id.into());
+            let value = self.lower_typed_expr(initializer, ty)?;
+            let value = self.coerce_value(value, self.gcx.type_of_expr(initializer.id)?, ty);
+            if let Some(&immutable_id) = self.immutable_ids.get(&id) {
+                self.builder.store_immutable(immutable_id, value);
+            } else {
+                self.store_state_variable(id, value, initializer.span)?;
             }
         }
         Some(())
@@ -410,10 +408,15 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     ) -> Option<()> {
         let bases = self.gcx.hir.contract(contract_id).linearized_bases;
         for (index, &base_id) in bases.iter().skip(1).enumerate() {
-            let Some(constructor_id) = self.gcx.hir.contract(base_id).ctor else { continue };
             if lowered.contains(&base_id) {
                 continue;
             }
+            let Some(constructor_id) = self.gcx.hir.contract(base_id).ctor else {
+                self.lower_implicit_base_constructors_inner(base_id, lowered)?;
+                self.lower_state_initializers(base_id)?;
+                lowered.insert(base_id);
+                continue;
+            };
             let constructor = self.gcx.hir.function(constructor_id);
             let Some(args) = self
                 .base_constructor_args(contract_id, base_id, index)

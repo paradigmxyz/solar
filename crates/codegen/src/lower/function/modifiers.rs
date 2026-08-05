@@ -98,6 +98,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         if modifier.args.len() != constructor.parameters.len() {
             return report_unsupported(self.gcx, modifier.span, "base constructor arguments");
         }
+        let contract_id = constructor.contract;
+        // Root base initializers run before their constructor arguments; derived
+        // initializers wait until ancestor constructors finish.
+        let has_ancestors =
+            contract_id.is_some_and(|id| self.gcx.hir.contract(id).linearized_bases.len() > 1);
+        if !has_ancestors && let Some(contract_id) = contract_id {
+            self.lower_state_initializers(contract_id)?;
+        }
         let parameter_names = self.gcx.callable_param_names(CallableParamSource::Function {
             id: constructor_id,
             skips_receiver: false,
@@ -120,8 +128,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 
         let continuation = self.builder.create_block();
         self.return_targets.push(continuation);
-        if let Some(contract_id) = constructor.contract {
+        if let Some(contract_id) = contract_id {
             self.lower_implicit_base_constructors_inner(contract_id, lowered)?;
+            if has_ancestors {
+                self.lower_state_initializers(contract_id)?;
+            }
         }
         let result = self.lower_function_body(constructor.modifiers, body);
         self.return_targets.pop();
