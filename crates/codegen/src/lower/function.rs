@@ -4102,7 +4102,22 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 }
             }
             _ => {
-                self.storage.store_at_slot(&mut self.builder, access.location, access.slot, zero);
+                if let Some(offset) = access.offset {
+                    self.storage.store_packed_at_slot(
+                        &mut self.builder,
+                        access.location,
+                        access.slot,
+                        offset,
+                        zero,
+                    );
+                } else {
+                    self.storage.store_at_slot(
+                        &mut self.builder,
+                        access.location,
+                        access.slot,
+                        zero,
+                    );
+                }
             }
         }
         Some(())
