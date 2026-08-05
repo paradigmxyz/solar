@@ -43,6 +43,29 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             && self.calldata_aggregate_requires_validation(ty)
     }
 
+    pub(super) fn validate_calldata_array_head(
+        &mut self,
+        value: ValueId,
+        ty: Ty<'gcx>,
+        abi_type: &AbiType,
+    ) {
+        if !matches!(
+            self.builder.func().value_ty(value),
+            Some(MirType::Slice(SliceLocation::Calldata))
+        ) || !matches!(ty.peel_refs().kind, TyKind::DynArray(_))
+        {
+            return;
+        }
+        let AbiType::DynamicArray { element, location: SliceLocation::Calldata } = abi_type else {
+            return;
+        };
+        let word = self.builder.imm_u64(element.head_size());
+        let length = self.builder.slice_len(value);
+        let data = self.builder.slice_ptr(value);
+        let byte_length = self.checked_mul(length, word);
+        self.check_calldata_range(data, byte_length);
+    }
+
     pub(super) fn calldata_aggregate_requires_validation(&self, ty: Ty<'gcx>) -> bool {
         let ty = ty.peel_refs();
         match ty.kind {

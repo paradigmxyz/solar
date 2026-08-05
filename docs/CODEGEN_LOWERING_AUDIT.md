@@ -264,6 +264,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    assignment and internal-call boundaries.
    `abi_calldata_scalar_validation.sol` adds Solc's invalid narrow-word vectors:
    calldata `uint8[]` values are checked when indexed and when re-encoded.
+   `abi_calldata_stride_validation.sol` checks the element stride for full-word
+   calldata arrays when they are read or re-encoded.
    `abi_packed_calldata_scalar_validation.sol` applies the same check to
    `abi.encodePacked`, which must clean each array element instead of copying
    dirty calldata words.
