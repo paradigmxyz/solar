@@ -6,6 +6,7 @@ contract EventEncoding {
     event AnonymousEvent(address indexed sender, uint256 value) anonymous;
     event IndexedBytes(bytes indexed value);
     event IndexedFixedBytes(bytes3 indexed value);
+    event IndexedExternalFunction(function() external indexed target);
     event NamedEvent(uint256 a, uint256 b);
 
     // CHECK-LABEL: fn @emitArray
@@ -38,6 +39,16 @@ contract EventEncoding {
     function emitIndexedFixedBytes() external {
         emit IndexedFixedBytes("abc");
     }
+
+    // CHECK-LABEL: fn @emitIndexedExternalFunction
+    // CHECK: [[POINTER:v[0-9]+]] = or
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl 64, [[POINTER]]
+    // CHECK: log2 0, 0, {{[^,]+}}, [[SHIFTED]]
+    function emitIndexedExternalFunction() external {
+        emit IndexedExternalFunction(this.target);
+    }
+
+    function target() external {}
 
     // CHECK-LABEL: fn @emitNamed
     // CHECK: [[NAMED_ENCODED:v[0-9]+]] = abi_encode [word, word], args 1, 2

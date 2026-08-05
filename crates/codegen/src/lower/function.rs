@@ -908,6 +908,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 
     fn lower_word_value(&mut self, ty: Ty<'gcx>, expr: &hir::Expr<'_>, value: ValueId) -> ValueId {
         let expr = expr.peel_parens();
+        if let TyKind::Fn(function) = ty.peel_refs().kind
+            && function.is_external()
+        {
+            let shift = self.builder.imm_u64(64);
+            return self.builder.shl(shift, value);
+        }
         if !matches!(
             ty.peel_refs().kind,
             TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))

@@ -34,6 +34,21 @@ fn @emitIndexedFixedBytes() [abi_args=lazy, abi_params=[], abi_returns=[]] {
     stop
 }
 
+fn @emitIndexedExternalFunction() [abi_args=lazy, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = address
+    v1 = shl 32, v0
+    v2 = or v1, 0xd4b83992
+    v3 = shl 64, v2
+    log2 0, 0, 0xefb12970329680bd50d7b95a4e501f38356ac11483b41fd330311f90226d742b, v3
+    stop
+}
+
+fn @target() [abi_args=lazy, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
 fn @emitNamed() [abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = abi_encode [word, word], args 1, 2

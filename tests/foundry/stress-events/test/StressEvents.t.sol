@@ -14,6 +14,7 @@ contract StressEventsTest {
     event IndexedDynamicArray(uint256[] indexed values);
     event IndexedNestedDynamicArray(uint256[][] indexed values);
     event IndexedStringArray(string[] indexed values);
+    event IndexedExternalFunction(function() external indexed target);
 
     event IndexedStructArray(StressEvents.IndexedStruct[] indexed values);
     
@@ -112,6 +113,12 @@ contract StressEventsTest {
         vm.expectEmit(true, false, false, false);
         emit IndexedStringArray(values);
         se.emitIndexedStringArrayCalldata(values);
+    }
+
+    function test_EmitIndexedExternalFunction() public {
+        vm.expectEmit(true, false, false, false);
+        emit IndexedExternalFunction(se.functionPointerTarget);
+        se.emitIndexedExternalFunction();
     }
 
     function test_EmitIndexedStructArray() public {

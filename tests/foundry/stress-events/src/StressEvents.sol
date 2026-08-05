@@ -20,6 +20,7 @@ contract StressEvents {
     event IndexedDynamicArray(uint256[] indexed values);
     event IndexedNestedDynamicArray(uint256[][] indexed values);
     event IndexedStringArray(string[] indexed values);
+    event IndexedExternalFunction(function() external indexed target);
 
     struct IndexedStruct {
         uint256 value;
@@ -128,6 +129,12 @@ contract StressEvents {
     function emitIndexedStringArrayCalldata(string[] calldata values) external {
         emit IndexedStringArray(values);
     }
+
+    function emitIndexedExternalFunction() public {
+        emit IndexedExternalFunction(this.functionPointerTarget);
+    }
+
+    function functionPointerTarget() external {}
 
     function emitIndexedStructArray(IndexedStruct[] memory values) public {
         emit IndexedStructArray(values);
