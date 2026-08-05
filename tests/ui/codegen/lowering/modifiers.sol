@@ -1,5 +1,6 @@
 //@ compile-flags: -Zcodegen -O none -Zdump=mir
 //@ filecheck:
+//@ normalize-stdout-test: "\n(\n)$" -> "$1"
 
 contract ModifierLowering {
     uint256 private value;
