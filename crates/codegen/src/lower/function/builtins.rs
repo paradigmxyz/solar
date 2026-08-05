@@ -219,7 +219,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     let length = self.builder.slice_len(encoded);
                     return Some(self.builder.keccak256(pointer, length));
                 }
+                let value_ty = self.gcx.type_of_expr(value.id);
                 let value = self.lower_expr(value)?;
+                if let Some(value_ty) = value_ty
+                    && let Some(abi_type) = self.types.abi_type(value_ty)
+                {
+                    self.validate_calldata_bytes_argument(value, &abi_type);
+                }
                 let value = match self.builder.func().value_ty(value) {
                     Some(MirType::Slice(_)) => self.materialize_memory_slice(value),
                     _ => value,
@@ -294,6 +300,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             self.builder.imm_u256(U256::from_be_slice(keccak256(bytes.as_byte_str()).as_slice()))
         } else {
             let value = self.lower_expr(argument)?;
+            if let Some(value_ty) = self.gcx.type_of_expr(argument.id)
+                && let Some(abi_type) = self.types.abi_type(value_ty)
+            {
+                self.validate_calldata_bytes_argument(value, &abi_type);
+            }
             let value = if matches!(self.builder.func().value_ty(value), Some(MirType::Slice(_))) {
                 self.materialize_memory_slice(value)
             } else {

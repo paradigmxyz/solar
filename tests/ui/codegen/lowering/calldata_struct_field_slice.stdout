@@ -94,8 +94,8 @@ fn @tailHash(arg0: calldataptr, arg1: u256) -> bytes32 {
     v29 = or v3, v28
     jumpi v29, bb1, bb7
   bb6:
-    v63 = phi [bb4: 0], [bb15: v62]
-    ret v63
+    v70 = phi [bb4: 0], [bb16: v69]
+    ret v70
   bb7:
     v31 = calldataload v1
     v32 = add arg0, v31
@@ -117,33 +117,40 @@ fn @tailHash(arg0: calldataptr, arg1: u256) -> bytes32 {
   bb11:
     v46 = sub v40, 20
     v47 = add v34, 20
-    v50 = add v46, 31
-    v51 = lt v50, v46
-    jumpi v51, bb12, bb13
+    v51 = add v47, v46
+    v52 = lt v51, v47
+    v53 = calldatasize
+    v54 = gt v51, v53
+    v55 = or v52, v54
+    jumpi v55, bb1, bb12
   bb12:
+    v57 = add v46, 31
+    v58 = lt v57, v46
+    jumpi v58, bb13, bb14
+  bb13:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb13:
-    v52 = shr 5, v50
-    v53 = add v52, 1
-    v54 = lt v53, v52
-    jumpi v54, bb12, bb14
   bb14:
-    v55 = shl 5, v53
-    v57 = shr 5, v55
-    v58 = eq v57, v53
-    jumpi v58, bb15, bb12
+    v59 = shr 5, v57
+    v60 = add v59, 1
+    v61 = lt v60, v59
+    jumpi v61, bb13, bb15
   bb15:
-    v61 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v73 = add v61, v55
-    mstore 64, v73 !metadata(memory=scratch)
-    mstore v61, v46
-    v68 = add v61, 32
-    calldatacopy v68, v47, v46
-    v71 = mload v61
-    v72 = add v61, 32
-    v62 = keccak256 v72, v71
+    v62 = shl 5, v60
+    v64 = shr 5, v62
+    v65 = eq v64, v60
+    jumpi v65, bb16, bb13
+  bb16:
+    v68 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v80 = add v68, v62
+    mstore 64, v80 !metadata(memory=scratch)
+    mstore v68, v46
+    v75 = add v68, 32
+    calldatacopy v75, v47, v46
+    v78 = mload v68
+    v79 = add v68, 32
+    v69 = keccak256 v79, v78
     jump bb6
 }
 
@@ -1001,8 +1008,8 @@ fn @tailHash.4(arg0: calldataptr, arg1: u256) -> bytes32 {
     v29 = or v3, v28
     jumpi v29, bb1, bb7
   bb6:
-    v63 = phi [bb4: 0], [bb15: v62]
-    ret v63
+    v70 = phi [bb4: 0], [bb16: v69]
+    ret v70
   bb7:
     v31 = calldataload v1
     v32 = add arg0, v31
@@ -1024,31 +1031,38 @@ fn @tailHash.4(arg0: calldataptr, arg1: u256) -> bytes32 {
   bb11:
     v46 = sub v40, 20
     v47 = add v34, 20
-    v50 = add v46, 31
-    v51 = lt v50, v46
-    jumpi v51, bb12, bb13
+    v51 = add v47, v46
+    v52 = lt v51, v47
+    v53 = calldatasize
+    v54 = gt v51, v53
+    v55 = or v52, v54
+    jumpi v55, bb1, bb12
   bb12:
-    tail_call @__revert_stub0
+    v57 = add v46, 31
+    v58 = lt v57, v46
+    jumpi v58, bb13, bb14
   bb13:
-    v52 = shr 5, v50
-    v53 = add v52, 1
-    v54 = lt v53, v52
-    jumpi v54, bb12, bb14
+    tail_call @__revert_stub0
   bb14:
-    v55 = shl 5, v53
-    v57 = shr 5, v55
-    v58 = eq v57, v53
-    jumpi v58, bb15, bb12
+    v59 = shr 5, v57
+    v60 = add v59, 1
+    v61 = lt v60, v59
+    jumpi v61, bb13, bb15
   bb15:
-    v61 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v73 = add v61, v55
-    mstore 64, v73 !metadata(memory=scratch)
-    mstore v61, v46
-    v68 = add v61, 32
-    calldatacopy v68, v47, v46
-    v71 = mload v61
-    v72 = add v61, 32
-    v62 = keccak256 v72, v71
+    v62 = shl 5, v60
+    v64 = shr 5, v62
+    v65 = eq v64, v60
+    jumpi v65, bb16, bb13
+  bb16:
+    v68 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v80 = add v68, v62
+    mstore 64, v80 !metadata(memory=scratch)
+    mstore v68, v46
+    v75 = add v68, 32
+    calldatacopy v75, v47, v46
+    v78 = mload v68
+    v79 = add v68, 32
+    v69 = keccak256 v79, v78
     jump bb6
 }
 
