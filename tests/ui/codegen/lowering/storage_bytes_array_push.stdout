@@ -84,7 +84,7 @@ fn @pushStr() {
     jumpi v53, bb9, bb14
   bb14:
     v55 = and v52, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v57 = add v45, v55
+    v57 = add v45, v51
     v58 = lt v57, v45
     v59 = calldatasize
     v60 = gt v57, v59

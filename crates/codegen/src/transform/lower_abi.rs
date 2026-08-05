@@ -1400,18 +1400,7 @@ impl LowerAbiCx {
                 let len = Self::load_input_word(builder, base, input_end, constructor);
                 let word = builder.imm_u64(32);
                 let data = builder.add(base, word);
-                let padding = builder.imm_u64(31);
-                let rounded = Self::checked_add(builder, len, padding, current);
-                let mask = builder.not(padding);
-                let padded = builder.and(rounded, mask);
-                Self::guard_source_range_value(
-                    builder,
-                    data,
-                    padded,
-                    input_end,
-                    constructor,
-                    current,
-                );
+                Self::guard_source_range_value(builder, data, len, input_end, constructor, current);
                 let location = if constructor {
                     crate::mir::SliceLocation::Memory
                 } else {
@@ -1428,14 +1417,7 @@ impl LowerAbiCx {
                 let mask = builder.not(thirty_one);
                 let data_size = builder.and(rounded, mask);
                 let data = builder.add(base, word);
-                Self::guard_source_range_value(
-                    builder,
-                    data,
-                    data_size,
-                    input_end,
-                    constructor,
-                    current,
-                );
+                Self::guard_source_range_value(builder, data, len, input_end, constructor, current);
                 let total = Self::checked_add(builder, data_size, word, current);
                 let ptr = builder.alloc_object(
                     total,

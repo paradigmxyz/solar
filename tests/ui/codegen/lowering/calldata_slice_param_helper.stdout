@@ -29,18 +29,13 @@ fn @lastWord() {
     jumpi v19, bb1, bb5
   bb5:
     v21 = calldataload v10
-    v23 = add v21, 31
-    v24 = lt v23, v21
-    jumpi v24, bb1, bb6
+    v23 = add v15, v21
+    v24 = lt v23, v15
+    v25 = calldatasize
+    v26 = gt v23, v25
+    v27 = or v24, v26
+    jumpi v27, bb1, bb6
   bb6:
-    v26 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v27 = add v15, v26
-    v28 = lt v27, v15
-    v29 = calldatasize
-    v30 = gt v27, v29
-    v31 = or v28, v30
-    jumpi v31, bb1, bb7
-  bb7:
     v0 = internal_call @_last, 1, v15, v21
     mstore 128, v0
     returndata 128, 32
@@ -85,18 +80,13 @@ fn @lastWord2() {
     jumpi v27, bb3, bb7
   bb7:
     v29 = calldataload v18
-    v31 = add v29, 31
-    v32 = lt v31, v29
-    jumpi v32, bb3, bb8
+    v31 = add v23, v29
+    v32 = lt v31, v23
+    v33 = calldatasize
+    v34 = gt v31, v33
+    v35 = or v32, v34
+    jumpi v35, bb3, bb8
   bb8:
-    v34 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v35 = add v23, v34
-    v36 = lt v35, v23
-    v37 = calldatasize
-    v38 = gt v35, v37
-    v39 = or v36, v38
-    jumpi v39, bb3, bb9
-  bb9:
     v0 = internal_call @_last, 1, v23, v29
     jumpi v29, bb2, bb1
 }

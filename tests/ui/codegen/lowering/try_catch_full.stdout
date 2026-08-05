@@ -222,7 +222,7 @@ fn @full() {
     jumpi v129, bb21, bb27
   bb27:
     v131 = and v128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v133 = add v121, v131
+    v133 = add v121, v127
     v134 = lt v133, v121
     v135 = gt v133, v92
     v136 = or v134, v135
@@ -300,7 +300,7 @@ fn @full() {
     jumpi v175, bb21, bb35
   bb35:
     v177 = and v174, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v179 = add v167, v177
+    v179 = add v167, v173
     v180 = lt v179, v167
     v181 = gt v179, v146
     v182 = or v180, v181
@@ -566,7 +566,7 @@ fn @rethrows() {
     jumpi v111, bb17, bb23
   bb23:
     v113 = and v110, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v115 = add v103, v113
+    v115 = add v103, v109
     v116 = lt v115, v103
     v117 = gt v115, v74
     v118 = or v116, v117
@@ -618,7 +618,7 @@ fn @rethrows() {
     jumpi v157, bb17, bb31
   bb31:
     v159 = and v156, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v161 = add v149, v159
+    v161 = add v149, v155
     v162 = lt v161, v149
     v163 = gt v161, v128
     v164 = or v162, v163

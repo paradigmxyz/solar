@@ -88,7 +88,7 @@ fn @dFlat() {
     jumpi v72, bb2, bb14
   bb14:
     v74 = and v71, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v76 = add v64, v74
+    v76 = add v64, v70
     v77 = lt v76, v64
     v78 = calldatasize
     v79 = gt v76, v78
@@ -236,7 +236,7 @@ fn @dNested() {
     jumpi v116, bb2, bb20
   bb20:
     v118 = and v115, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v120 = add v108, v118
+    v120 = add v108, v114
     v121 = lt v120, v108
     v122 = gt v120, v10
     v123 = or v121, v122
@@ -324,7 +324,7 @@ fn @dNested() {
     jumpi v183, bb2, bb32
   bb32:
     v185 = and v182, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v187 = add v175, v185
+    v187 = add v175, v181
     v188 = lt v187, v175
     v189 = gt v187, v10
     v190 = or v188, v189
@@ -401,7 +401,7 @@ fn @dNested() {
     jumpi v218, bb2, bb39
   bb39:
     v220 = and v217, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v222 = add v210, v220
+    v222 = add v210, v216
     v223 = lt v222, v210
     v224 = calldatasize
     v225 = gt v222, v224
@@ -580,7 +580,7 @@ fn @dDynArr() {
     jumpi v102, bb2, bb21
   bb21:
     v104 = and v101, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v106 = add v94, v104
+    v106 = add v94, v100
     v107 = lt v106, v94
     v108 = gt v106, v4
     v109 = or v107, v108
@@ -679,7 +679,7 @@ fn @dDynArr() {
     jumpi v174, bb2, bb34
   bb34:
     v176 = and v173, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v178 = add v166, v176
+    v178 = add v166, v172
     v179 = lt v178, v166
     v180 = calldatasize
     v181 = gt v178, v180

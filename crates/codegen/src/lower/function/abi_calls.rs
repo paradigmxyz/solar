@@ -647,11 +647,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     }
 
     fn validate_calldata_bytes_range(&mut self, pointer: ValueId, length: ValueId) {
-        let padding = self.builder.imm_u64(31);
-        let rounded = self.checked_add(length, padding);
-        let mask = self.builder.not(padding);
-        let data_size = self.builder.and(rounded, mask);
-        self.check_calldata_range(pointer, data_size);
+        self.check_calldata_range(pointer, length);
     }
 
     fn materialize_calldata_fixed_array(

@@ -18,7 +18,7 @@ bb0:
   dup1
   push 0x6a57f6c7
   eq
-  push bb21
+  push bb20
   jumpi
   dup1
   push 0x6b995abd
@@ -30,7 +30,7 @@ bb5 [cold]:
   push 0
   dup1
   revert
-bb36 [cold]:
+bb34 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -56,8 +56,8 @@ bb6:
   push 544
   mstore
   push bb8
-  jump bb37
-bb37:
+  jump bb35
+bb35:
   push 0
   not
   push 96
@@ -84,13 +84,13 @@ bb8:
   gt
   push bb5
   jumpi
-  push bb46
-  jump bb39
-bb39:
+  push bb44
+  jump bb37
+bb37:
   push 36
   calldataload
   dup1
-  push 256
+  push 320
   mstore
   push 4
   dup2
@@ -110,7 +110,7 @@ bb39:
   pop
   swap1
   jump
-bb21:
+bb20:
   calldatasize
   push 68
   gt
@@ -123,9 +123,9 @@ bb21:
   mstore
   push 544
   mstore
-  push bb23
-  jump bb37
-bb23:
+  push bb22
+  jump bb35
+bb22:
   push 576
   mload
   dup1
@@ -141,10 +141,10 @@ bb23:
   gt
   push bb5
   jumpi
-  push bb50
-  jump bb39
-bb43:
-  push bb36
+  push bb48
+  jump bb37
+bb41:
+  push bb34
   jumpi
   push 64
   mload
@@ -157,16 +157,16 @@ bb43:
   add
   push 64
   mstore
-  push 288
+  push 256
   mload
   dup2
   mstore
   push 32
   dup2
   add
-  push 288
+  push 256
   mload
-  push 320
+  push 288
   mload
   dup3
   calldatacopy
@@ -189,11 +189,11 @@ bb43:
   push 0
   push 4
   calldataload
-  push 256
+  push 320
   mload
   call
-  jump bb38
-bb38:
+  jump bb36
+bb36:
   swap2
   pop
   pop
@@ -202,19 +202,19 @@ bb38:
   push 32
   push 128
   return
-bb44:
+bb42:
   push bb5
   jumpi
   gas
   dup1
-  push 256
+  push 320
   mstore
+  push 256
+  mload
   push 288
   mload
-  push 320
-  mload
   add
-  push 320
+  push 288
   mload
   dup2
   lt
@@ -228,16 +228,16 @@ bb44:
   push bb5
   jumpi
   push 31
-  push 288
+  push 256
   mload
   add
   dup1
   push 224
   mstore
-  push 288
+  push 256
   mload
   gt
-  push bb36
+  push bb34
   jumpi
   push 224
   mload
@@ -250,11 +250,11 @@ bb44:
   push 224
   mstore
   lt
-  push bb36
+  push bb34
   jumpi
-  push bb43
-  jump bb42
-bb42:
+  push bb41
+  jump bb40
+bb40:
   push 224
   mload
   push 5
@@ -273,36 +273,23 @@ bb42:
   iszero
   swap1
   jump
-bb45:
+bb43:
   push bb5
   jumpi
+  push bb42
+  jump bb38
+bb38:
   push 224
   mload
   calldataload
   dup1
-  push 288
+  push 256
   mstore
-  push 31
-  dup2
-  add
   dup1
-  push 256
-  mstore
-  lt
-  push bb5
-  jumpi
-  push bb44
-  jump bb41
-bb41:
-  push 31
-  not
-  push 256
-  mload
-  and
-  push 320
+  push 288
   mload
   add
-  push 320
+  push 288
   mload
   dup2
   lt
@@ -312,19 +299,21 @@ bb41:
   gt
   or
   swap1
+  pop
+  swap1
   jump
-bb46:
+bb44:
   push bb5
   jumpi
-  push bb45
-  jump bb40
-bb40:
+  push bb43
+  jump bb39
+bb39:
   push 36
-  push 256
+  push 320
   mload
   add
   dup1
-  push 320
+  push 288
   mstore
   push 224
   mload
@@ -338,8 +327,8 @@ bb40:
   pop
   swap1
   jump
-bb47:
-  push bb36
+bb45:
+  push bb34
   jumpi
   push 64
   mload
@@ -352,16 +341,16 @@ bb47:
   add
   push 64
   mstore
-  push 288
+  push 256
   mload
   dup2
   mstore
   push 32
   dup2
   add
-  push 288
+  push 256
   mload
-  push 320
+  push 288
   mload
   dup3
   calldatacopy
@@ -383,23 +372,23 @@ bb47:
   dup4
   push 4
   calldataload
-  push 256
+  push 320
   mload
   delegatecall
-  jump bb38
-bb48:
+  jump bb36
+bb46:
   push bb5
   jumpi
   gas
   dup1
-  push 256
+  push 320
   mstore
+  push 256
+  mload
   push 288
   mload
-  push 320
-  mload
   add
-  push 320
+  push 288
   mload
   dup2
   lt
@@ -413,16 +402,16 @@ bb48:
   push bb5
   jumpi
   push 31
-  push 288
+  push 256
   mload
   add
   dup1
   push 224
   mstore
-  push 288
+  push 256
   mload
   gt
-  push bb36
+  push bb34
   jumpi
   push 224
   mload
@@ -435,32 +424,17 @@ bb48:
   push 224
   mstore
   lt
-  push bb36
+  push bb34
+  jumpi
+  push bb45
+  jump bb40
+bb47:
+  push bb5
+  jumpi
+  push bb46
+  jump bb38
+bb48:
+  push bb5
   jumpi
   push bb47
-  jump bb42
-bb49:
-  push bb5
-  jumpi
-  push 224
-  mload
-  calldataload
-  dup1
-  push 288
-  mstore
-  push 31
-  dup2
-  add
-  dup1
-  push 256
-  mstore
-  lt
-  push bb5
-  jumpi
-  push bb48
-  jump bb41
-bb50:
-  push bb5
-  jumpi
-  push bb49
-  jump bb40
+  jump bb39

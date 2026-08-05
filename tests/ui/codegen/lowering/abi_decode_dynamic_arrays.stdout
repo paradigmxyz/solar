@@ -102,7 +102,7 @@ fn @words() {
     jumpi v69, bb2, bb14
   bb14:
     v71 = and v68, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v73 = add v61, v71
+    v73 = add v61, v67
     v74 = lt v73, v61
     v75 = calldatasize
     v76 = gt v73, v75
@@ -285,7 +285,7 @@ fn @bools() {
     jumpi v93, bb2, bb20
   bb20:
     v95 = and v92, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v97 = add v85, v95
+    v97 = add v85, v91
     v98 = lt v97, v85
     v99 = calldatasize
     v100 = gt v97, v99
@@ -439,7 +439,7 @@ fn @strs() {
     jumpi v77, bb2, bb17
   bb17:
     v79 = and v76, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v81 = add v69, v79
+    v81 = add v69, v75
     v82 = lt v81, v69
     v83 = gt v81, v4
     v84 = or v82, v83
@@ -493,7 +493,7 @@ fn @strs() {
     jumpi v115, bb2, bb24
   bb24:
     v117 = and v114, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v119 = add v107, v117
+    v119 = add v107, v113
     v120 = lt v119, v107
     v121 = calldatasize
     v122 = gt v119, v121
@@ -795,7 +795,7 @@ fn @mixed() {
     jumpi v81, bb2, bb14
   bb14:
     v83 = and v80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v85 = add v73, v83
+    v85 = add v73, v79
     v86 = lt v85, v73
     v87 = gt v85, v10
     v88 = or v86, v87
@@ -894,7 +894,7 @@ fn @mixed() {
     jumpi v118, bb2, bb21
   bb21:
     v120 = and v117, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v122 = add v110, v120
+    v122 = add v110, v116
     v123 = lt v122, v110
     v124 = calldatasize
     v125 = gt v122, v124
