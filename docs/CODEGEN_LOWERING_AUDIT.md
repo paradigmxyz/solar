@@ -217,9 +217,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
 1. Differentially exercise the aggregate ABI paths against Solc with
    independent nested, mixed-tuple, and malformed vectors. The current runtime
    corpus covers valid flat, mixed-tuple, typed and decoded
-   dynamic-struct-array, and fixed-dynamic-array vectors, malformed short and
-   invalid-offset inputs, and round-trip cases, including Solc-compatible zero
-   offsets. Storage-backed ABI encoding now also covers dynamic arrays of
+   dynamic-struct-array, fixed-dynamic-array, and nested dynamic-array-plus-
+   bytes vectors; malformed short and invalid-offset inputs; and
+   Solc-compatible zero-offset round trips. Storage-backed ABI encoding now
+   also covers dynamic arrays of
    multiword fixed elements and fixed nested arrays. The calldata materializer
    uses each element's ABI head width, so static elements wider than one word do
    not overlap.
