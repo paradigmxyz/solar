@@ -254,7 +254,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi.decode`, external return decoding, and `catch Error(string)` payload
    decoding are represented by semantic MIR operations and lowered by the ABI
    pass; multi-return materialization uses the shared frame/object path. The
-   remaining work is broader independent differential coverage.
+   remaining work is broader independent differential coverage. In particular,
+   lazy wrapper validation does not yet reject every Solc-invalid nested
+   dynamic-array vector, including an unused aggregate argument; eager
+   validation needs a separate design so it does not force materialization.
 2. Extend base-constructor argument forwarding coverage to the remaining
    unresolved and constructor-modifier edge cases. Inherited constructor
    arguments that call direct or virtual functions now have Solc-backed
