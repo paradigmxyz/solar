@@ -65,11 +65,9 @@ bb9:
   push 4
   dup2
   sub
-  push 36
+  push 40
   push 4
   calldataload
-  add
-  push 4
   add
   push 128
   mstore

@@ -200,13 +200,15 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &inst_simplify::InstSimplify,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
-    // Late CSE reduces runtime gas after aggregate lowering, but can grow
-    // bytecode through longer live ranges, so keep it out of `-Osize`.
-    &GasOnly(cse::Cse),
     &dce::Dce,
     &lower_slices::LowerSlices,
     &lower_dispatch::LowerDispatch,
     &lower_memory_objects::LowerMemoryObjects,
+    &inst_simplify::InstSimplify,
+    // Late CSE reduces runtime gas after memory-object lowering, but can grow
+    // bytecode through longer live ranges, so keep it out of `-Osize`.
+    &GasOnly(cse::Cse),
+    &cfg_simplify::CfgSimplify,
     &lower_immutables::LowerImmutables,
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,

@@ -23,21 +23,16 @@ fn @asValue() {
     mstore v24, arg0
     v25 = add v23, 36
     mstore v25, arg1
-    v11 = add 68, 31
-    v12 = lt v11, 68
-    jumpi v12, bb4, bb5
+    jumpi 0, bb4, bb5
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb5:
-    v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v15 = add v14, 32
-    v16 = lt v15, v14
-    jumpi v16, bb4, bb6
+    jumpi 0, bb4, bb6
   bb6:
     v17 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v48 = add v17, v15
+    v48 = add v17, 128
     mstore 64, v48 !metadata(memory=scratch)
     mstore v17, 68
     v18 = add v17, 32
@@ -59,8 +54,7 @@ fn @asValue() {
     jump bb8
   bb8:
     v39 = add v34, v33
-    v38 = add v17, 32
-    mcopy v34, v38, v30
+    mcopy v34, v18, v30
     v40 = sub v39, v27
     v42 = add v40, 31
     v44 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
