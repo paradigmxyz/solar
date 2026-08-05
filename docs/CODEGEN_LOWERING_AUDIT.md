@@ -393,6 +393,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    remaining bytes in each word.
    `storage_delete_packed_array.sol` checks that deleting packed fixed-array
    storage references preserves the runtime element offset while clearing.
+   `storage_delete_packed_struct.sol` extends that check through packed struct
+   fields in dynamic arrays and mappings, including aggregate assignment.
 5. Keep expanding runtime and differential coverage for aggregate allocation
    shapes and constructor/modifier edges. The UI snapshots are now in sync
    with the rewrite, and the full `cargo tq ui` suite passes. ERC-7201
