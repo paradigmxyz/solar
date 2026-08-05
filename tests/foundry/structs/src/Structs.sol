@@ -168,7 +168,7 @@ contract Structs {
         return this.sumValues(storedValues);
     }
 
-    function setBlobs(bytes memory first, bytes memory second) external {
+    function setBlobs(bytes calldata first, bytes calldata second) external {
         delete storedBlobs;
         storedBlobs.push(first);
         storedBlobs.push(second);

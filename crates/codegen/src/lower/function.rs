@@ -3350,7 +3350,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 return report_unsupported(self.gcx, expr.span, "storage array push arguments");
             };
             let value = self.lower_typed_expr(argument, element)?;
-            self.coerce_value(value, self.gcx.type_of_expr(argument.id)?, element)
+            let value = self.coerce_value(value, self.gcx.type_of_expr(argument.id)?, element);
+            if self.types.memory_layout(element).is_some() {
+                self.materialize_memory_argument(element, value, argument.span)?
+            } else {
+                value
+            }
         } else {
             if !arguments.is_empty() {
                 return report_unsupported(self.gcx, expr.span, "storage array push arguments");
