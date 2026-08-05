@@ -147,6 +147,10 @@ contract Structs {
         return abi.encode(storedPoints[index]);
     }
 
+    function encodeCallStoredPoint(uint256 index) external view returns (bytes memory) {
+        return abi.encodeCall(this.sumPoint, (storedPoints[index]));
+    }
+
     // ========= Helper for Complex Operations =========
 
     /// @notice Compute distance squared between two points

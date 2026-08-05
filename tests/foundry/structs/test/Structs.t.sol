@@ -104,6 +104,10 @@ contract StructsTest {
         bytes memory encoded = s.encodeStoredPoint(0);
         (uint256 x, uint256 y) = abi.decode(encoded, (uint256, uint256));
         require(x == 11 && y == 22, "encoded point mismatch");
+
+        bytes memory encodedCall = s.encodeCallStoredPoint(0);
+        bytes memory expectedCall = abi.encodeWithSignature("sumPoint((uint256,uint256))", 11, 22);
+        require(keccak256(encodedCall) == keccak256(expectedCall), "encoded call mismatch");
     }
 
     // ========= Complex Operations =========

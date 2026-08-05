@@ -4005,7 +4005,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         for (index, expr) in exprs.into_iter().enumerate() {
             let ty = parameter_types[index];
             let from_ty = self.gcx.type_of_expr(expr.id)?;
-            let mut value = self.lower_expr(expr)?;
+            let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+            let mut value = self.lower_typed_expr(expr, memory_ty)?;
             value = self.coerce_value(value, from_ty, ty);
             let mut abi_type = self.types.abi_type(ty)?;
             abi_type = self.abi_type_for_value(value, abi_type);
