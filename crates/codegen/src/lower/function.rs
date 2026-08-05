@@ -3882,7 +3882,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         for expr in exprs {
             let ty = self.gcx.type_of_expr(expr.id)?;
             let mut value = self.lower_expr(expr)?;
-            let mut abi_type = self.types.abi_type(ty)?;
+            let mut abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
+                AbiType::Bytes(SliceLocation::Memory)
+            } else {
+                self.types.abi_type(ty)?
+            };
             abi_type = self.abi_type_for_value(value, abi_type);
             if self.needs_calldata_materialization(value, &abi_type) {
                 value = self.materialize_calldata_argument(ty, value, expr.span)?;
