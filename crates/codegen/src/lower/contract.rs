@@ -153,20 +153,19 @@ pub(super) fn lower(
     for (function_id, expose_selector) in function_ids {
         let mir_id = mir_ids[&function_id];
         let name = module.function(mir_id).name;
-        let Some(mut mir) = function::lower(
+        let context = function::LoweringContext {
             gcx,
-            &mut module,
-            &storage,
+            module: &mut module,
+            storage: &storage,
             contract_id,
-            function_id,
-            expose_selector,
-            &mir_ids,
-            &immutable_ids,
+            function_ids: &mir_ids,
+            immutable_ids: &immutable_ids,
             child_bytecodes,
             child_runtime_bytecodes,
-            &mut invalid_event_topics,
-            &mut pointer_registry,
-        ) else {
+            invalid_event_topics: &mut invalid_event_topics,
+            pointer_registry: &mut pointer_registry,
+        };
+        let Some(mut mir) = function::lower(context, function_id, expose_selector) else {
             FunctionBuilder::new(module.function_mut(mir_id)).invalid();
             continue;
         };
@@ -184,18 +183,19 @@ pub(super) fn lower(
         let mir_id = module.add_function(Function::new(solar_interface::Ident::with_dummy_span(
             solar_interface::kw::Constructor,
         )));
-        let Some(mut mir) = function::lower_synthetic_constructor(
+        let context = function::LoweringContext {
             gcx,
-            &mut module,
-            &storage,
+            module: &mut module,
+            storage: &storage,
             contract_id,
-            &mir_ids,
-            &immutable_ids,
+            function_ids: &mir_ids,
+            immutable_ids: &immutable_ids,
             child_bytecodes,
             child_runtime_bytecodes,
-            &mut invalid_event_topics,
-            &mut pointer_registry,
-        ) else {
+            invalid_event_topics: &mut invalid_event_topics,
+            pointer_registry: &mut pointer_registry,
+        };
+        let Some(mut mir) = function::lower_synthetic_constructor(context, contract_id) else {
             FunctionBuilder::new(module.function_mut(mir_id)).invalid();
             return module;
         };

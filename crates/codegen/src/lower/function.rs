@@ -26,21 +26,38 @@ use solar_sema::{
 };
 use std::sync::Arc;
 
+/// Shared inputs for one contract's function lowering.
+pub(super) struct LoweringContext<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers> {
+    pub(super) gcx: Gcx<'gcx>,
+    pub(super) module: &'module mut Module,
+    pub(super) storage: &'mir StorageLayout,
+    pub(super) contract_id: hir::ContractId,
+    pub(super) function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
+    pub(super) immutable_ids: &'ids FxHashMap<VariableId, ImmutableId>,
+    pub(super) child_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
+    pub(super) child_runtime_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
+    pub(super) invalid_event_topics: &'events mut FxHashSet<hir::EventId>,
+    pub(super) pointer_registry: &'pointers mut InternalFunctionPointerRegistry,
+}
+
 /// Lowers one HIR function into a typed MIR function.
 pub(super) fn lower(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    storage: &StorageLayout,
-    contract_id: hir::ContractId,
+    context: LoweringContext<'_, '_, '_, '_, '_, '_, '_>,
     id: hir::FunctionId,
     expose_selector: bool,
-    function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
-    immutable_ids: &FxHashMap<VariableId, ImmutableId>,
-    child_bytecodes: &FxHashMap<hir::ContractId, Bytes>,
-    child_runtime_bytecodes: &FxHashMap<hir::ContractId, Bytes>,
-    invalid_event_topics: &mut FxHashSet<hir::EventId>,
-    pointer_registry: &mut InternalFunctionPointerRegistry,
 ) -> Option<Function> {
+    let LoweringContext {
+        gcx,
+        module,
+        storage,
+        contract_id,
+        function_ids,
+        immutable_ids,
+        child_bytecodes,
+        child_runtime_bytecodes,
+        invalid_event_topics,
+        pointer_registry,
+    } = context;
     let hir_function = gcx.hir.function(id);
     let mut mir = contract::declaration(gcx, id, hir_function);
     if !expose_selector {
@@ -77,16 +94,18 @@ pub(super) fn lower(
     }
 
     let mut lowerer = FunctionLowerer::new(
-        gcx,
-        module,
-        storage,
-        contract_id,
-        function_ids,
-        immutable_ids,
-        child_bytecodes,
-        child_runtime_bytecodes,
-        invalid_event_topics,
-        pointer_registry,
+        LoweringContext {
+            gcx,
+            module,
+            storage,
+            contract_id,
+            function_ids,
+            immutable_ids,
+            child_bytecodes,
+            child_runtime_bytecodes,
+            invalid_event_topics,
+            pointer_registry,
+        },
         &mut mir,
     );
     lowerer.bind_signature(hir_function);
@@ -109,31 +128,37 @@ pub(super) fn lower(
 /// Lowers the synthetic constructor used when state initializers exist without
 /// an explicit constructor body.
 pub(super) fn lower_synthetic_constructor(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    storage: &StorageLayout,
+    context: LoweringContext<'_, '_, '_, '_, '_, '_, '_>,
     contract_id: hir::ContractId,
-    function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
-    immutable_ids: &FxHashMap<VariableId, ImmutableId>,
-    child_bytecodes: &FxHashMap<hir::ContractId, Bytes>,
-    child_runtime_bytecodes: &FxHashMap<hir::ContractId, Bytes>,
-    invalid_event_topics: &mut FxHashSet<hir::EventId>,
-    pointer_registry: &mut InternalFunctionPointerRegistry,
 ) -> Option<Function> {
-    let mut mir =
-        Function::new(solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor));
-    mir.attributes.is_constructor = true;
-    let mut lowerer = FunctionLowerer::new(
+    let LoweringContext {
         gcx,
         module,
         storage,
-        contract_id,
         function_ids,
         immutable_ids,
         child_bytecodes,
         child_runtime_bytecodes,
         invalid_event_topics,
         pointer_registry,
+        ..
+    } = context;
+    let mut mir =
+        Function::new(solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor));
+    mir.attributes.is_constructor = true;
+    let mut lowerer = FunctionLowerer::new(
+        LoweringContext {
+            gcx,
+            module,
+            storage,
+            contract_id,
+            function_ids,
+            immutable_ids,
+            child_bytecodes,
+            child_runtime_bytecodes,
+            invalid_event_topics,
+            pointer_registry,
+        },
         &mut mir,
     );
     lowerer.lower_state_initializers(contract_id)?;
@@ -183,6 +208,12 @@ struct LoopState {
     block: BlockId,
     values: FxHashMap<VariableId, ValueId>,
     storage_refs: FxHashMap<VariableId, StorageAccess>,
+}
+
+struct MergeBranch<T> {
+    block: BlockId,
+    values: FxHashMap<VariableId, T>,
+    terminated: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -255,18 +286,21 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 {
     fn new(
-        gcx: Gcx<'gcx>,
-        module: &'module mut Module,
-        storage: &'mir StorageLayout,
-        contract_id: hir::ContractId,
-        function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
-        immutable_ids: &'ids FxHashMap<VariableId, ImmutableId>,
-        child_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
-        child_runtime_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
-        invalid_event_topics: &'events mut FxHashSet<hir::EventId>,
-        pointer_registry: &'pointers mut InternalFunctionPointerRegistry,
+        context: LoweringContext<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>,
         function: &'mir mut Function,
     ) -> Self {
+        let LoweringContext {
+            gcx,
+            module,
+            storage,
+            contract_id,
+            function_ids,
+            immutable_ids,
+            child_bytecodes,
+            child_runtime_bytecodes,
+            invalid_event_topics,
+            pointer_registry,
+        } = context;
         Self {
             gcx,
             module,
@@ -1040,21 +1074,21 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.switch_to_block(merge_block);
         self.values = self.merge_values(
             before,
-            then_exit,
-            then_values,
-            then_terminated,
-            else_exit,
-            else_values,
-            else_terminated,
+            MergeBranch { block: then_exit, values: then_values, terminated: then_terminated },
+            MergeBranch { block: else_exit, values: else_values, terminated: else_terminated },
         );
         self.storage_refs = self.merge_storage_refs(
             before_storage_refs,
-            then_exit,
-            then_storage_refs,
-            then_terminated,
-            else_exit,
-            else_storage_refs,
-            else_terminated,
+            MergeBranch {
+                block: then_exit,
+                values: then_storage_refs,
+                terminated: then_terminated,
+            },
+            MergeBranch {
+                block: else_exit,
+                values: else_storage_refs,
+                terminated: else_terminated,
+            },
         );
         if then_terminated && else_terminated {
             self.builder.invalid();
@@ -1430,29 +1464,29 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     fn merge_storage_refs(
         &mut self,
         before: FxHashMap<VariableId, StorageAccess>,
-        then_exit: BlockId,
-        then_values: FxHashMap<VariableId, StorageAccess>,
-        then_terminated: bool,
-        else_exit: BlockId,
-        else_values: FxHashMap<VariableId, StorageAccess>,
-        else_terminated: bool,
+        then_branch: MergeBranch<StorageAccess>,
+        else_branch: MergeBranch<StorageAccess>,
     ) -> FxHashMap<VariableId, StorageAccess> {
         let mut merged = FxHashMap::default();
         let ids = before
             .keys()
-            .chain(then_values.keys())
-            .chain(else_values.keys())
+            .chain(then_branch.values.keys())
+            .chain(else_branch.values.keys())
             .copied()
             .collect::<solar_data_structures::map::FxHashSet<_>>();
         for id in ids {
-            let then = then_values.get(&id).copied().or_else(|| before.get(&id).copied());
-            let else_ = else_values.get(&id).copied().or_else(|| before.get(&id).copied());
+            let then = then_branch.values.get(&id).copied().or_else(|| before.get(&id).copied());
+            let else_ = else_branch.values.get(&id).copied().or_else(|| before.get(&id).copied());
             let mut incoming = Vec::with_capacity(2);
-            if !then_terminated && let Some(access) = then {
-                incoming.push((then_exit, access));
+            if !then_branch.terminated
+                && let Some(access) = then
+            {
+                incoming.push((then_branch.block, access));
             }
-            if !else_terminated && let Some(access) = else_ {
-                incoming.push((else_exit, access));
+            if !else_branch.terminated
+                && let Some(access) = else_
+            {
+                incoming.push((else_branch.block, access));
             }
             let access = self.merge_storage_accesses(incoming).or(then.or(else_));
             if let Some(access) = access {
@@ -1497,12 +1531,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.switch_to_block(merge_block);
         self.values = self.merge_values(
             before,
-            then_exit,
-            then_values,
-            then_terminated,
-            else_exit,
-            else_values,
-            else_terminated,
+            MergeBranch { block: then_exit, values: then_values, terminated: then_terminated },
+            MergeBranch { block: else_exit, values: else_values, terminated: else_terminated },
         );
         match (then_terminated, else_terminated) {
             (true, false) => Some(else_value),
@@ -1547,12 +1577,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.switch_to_block(merge_block);
         self.values = self.merge_values(
             before,
-            then_exit,
-            then_values,
-            then_terminated,
-            else_exit,
-            else_values,
-            else_terminated,
+            MergeBranch { block: then_exit, values: then_values, terminated: then_terminated },
+            MergeBranch { block: else_exit, values: else_values, terminated: else_terminated },
         );
         if !then_terminated && !else_terminated && then_result.len() != else_result.len() {
             return report_unsupported(self.gcx, then_expr.span, "ternary value count");
@@ -6987,30 +7013,27 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     fn merge_values(
         &mut self,
         before: FxHashMap<VariableId, ValueId>,
-        then_block: BlockId,
-        then_values: FxHashMap<VariableId, ValueId>,
-        then_terminated: bool,
-        else_block: BlockId,
-        else_values: FxHashMap<VariableId, ValueId>,
-        else_terminated: bool,
+        then_branch: MergeBranch<ValueId>,
+        else_branch: MergeBranch<ValueId>,
     ) -> FxHashMap<VariableId, ValueId> {
         let mut values = before;
         let mut ids = values.keys().copied().collect::<Vec<_>>();
-        ids.extend(then_values.keys().copied());
-        ids.extend(else_values.keys().copied());
+        ids.extend(then_branch.values.keys().copied());
+        ids.extend(else_branch.values.keys().copied());
         ids.sort_unstable();
         ids.dedup();
         for id in ids {
-            let then_value = then_values.get(&id).copied();
-            let else_value = else_values.get(&id).copied();
-            let value = match (then_terminated, else_terminated, then_value, else_value) {
-                (true, false, _, value) | (false, true, value, _) => value,
-                (_, _, Some(lhs), Some(rhs)) if lhs == rhs => Some(lhs),
-                (false, false, Some(lhs), Some(rhs)) => {
-                    Some(self.builder.phi(vec![(then_block, lhs), (else_block, rhs)]))
-                }
-                _ => then_value.or(else_value),
-            };
+            let then_value = then_branch.values.get(&id).copied();
+            let else_value = else_branch.values.get(&id).copied();
+            let value =
+                match (then_branch.terminated, else_branch.terminated, then_value, else_value) {
+                    (true, false, _, value) | (false, true, value, _) => value,
+                    (_, _, Some(lhs), Some(rhs)) if lhs == rhs => Some(lhs),
+                    (false, false, Some(lhs), Some(rhs)) => Some(
+                        self.builder.phi(vec![(then_branch.block, lhs), (else_branch.block, rhs)]),
+                    ),
+                    _ => then_value.or(else_value),
+                };
             if let Some(value) = value {
                 values.insert(id, value);
             }
