@@ -138,8 +138,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * loop-carried scalar and storage-reference environments, including `break` and
   `continue` exits through Solidity and Yul `for` updates, with conservative
   spill-based fallback for nested storage-reference phis;
-* storage-reference branch and loop merges that preserve slot and packed-offset
-  state across differing exits;
+* storage-reference branch, ternary, and loop merges that preserve slot and
+  packed-offset state across differing exits;
 * storage aggregate references copied through memory returns and internal or
   external calls, including fixed and dynamic storage arrays of words, bytes,
   and structs with nested dynamic members;

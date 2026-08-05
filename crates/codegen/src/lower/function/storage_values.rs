@@ -59,6 +59,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 self.bounds_check(index, length);
                 self.storage_array_element_access(base.slot, index, element, dynamic)
             }
+            ExprKind::Ternary(condition, then_expr, else_expr) => {
+                self.storage_access_ternary(condition, then_expr, else_expr)
+            }
             ExprKind::Call(callee, arguments, _)
                 if arguments.is_empty()
                     && self.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0) =>
@@ -71,6 +74,26 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
             _ => None,
         }
+    }
+
+    fn storage_access_ternary(
+        &mut self,
+        condition: &hir::Expr<'_>,
+        then_expr: &hir::Expr<'_>,
+        else_expr: &hir::Expr<'_>,
+    ) -> Option<StorageAccess> {
+        let (then_branch, else_branch) =
+            self.lower_ternary_branches(condition, then_expr, else_expr, |this, expr| {
+                this.storage_access(expr)
+            })?;
+        let mut incoming = Vec::with_capacity(2);
+        if !then_branch.terminated {
+            incoming.push((then_branch.block, then_branch.value));
+        }
+        if !else_branch.terminated {
+            incoming.push((else_branch.block, else_branch.value));
+        }
+        self.merge_storage_accesses(incoming)
     }
 
     pub(super) fn is_storage_reference_binding(&self, expr: &hir::Expr<'_>) -> bool {

@@ -239,6 +239,12 @@ struct MergeBranch<T> {
     terminated: bool,
 }
 
+struct TernaryBranch<T> {
+    block: BlockId,
+    value: T,
+    terminated: bool,
+}
+
 #[derive(Clone, Copy)]
 struct ModifierContext<'gcx> {
     modifiers: &'gcx [hir::Modifier<'gcx>],
@@ -1399,49 +1405,88 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         merged
     }
 
-    fn lower_ternary(
+    fn lower_ternary_branches<T>(
         &mut self,
         condition: &hir::Expr<'_>,
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
-    ) -> Option<ValueId> {
+        mut lower: impl FnMut(&mut Self, &hir::Expr<'_>) -> Option<T>,
+    ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
         let condition = self.lower_expr(condition)?;
         let then_block = self.builder.create_block();
         let else_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
-        let before = self.values.clone();
+        let before_values = self.values.clone();
+        let before_storage_refs = self.storage_refs.clone();
         self.builder.branch(condition, then_block, else_block);
 
+        self.values = before_values.clone();
+        self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(then_block);
-        let then_value = self.lower_expr(then_expr)?;
+        let then_value = lower(self, then_expr)?;
         let then_terminated = self.is_terminated();
         let then_exit = self.builder.current_block();
         let then_values = self.values.clone();
+        let then_storage_refs = self.storage_refs.clone();
         if !then_terminated {
             self.builder.jump(merge_block);
         }
 
-        self.values = before.clone();
+        self.values = before_values.clone();
+        self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(else_block);
-        let else_value = self.lower_expr(else_expr)?;
+        let else_value = lower(self, else_expr)?;
         let else_terminated = self.is_terminated();
         let else_exit = self.builder.current_block();
         let else_values = self.values.clone();
+        let else_storage_refs = self.storage_refs.clone();
         if !else_terminated {
             self.builder.jump(merge_block);
         }
 
         self.builder.switch_to_block(merge_block);
         self.values = self.merge_values(
-            before,
+            before_values,
             MergeBranch { block: then_exit, values: then_values, terminated: then_terminated },
             MergeBranch { block: else_exit, values: else_values, terminated: else_terminated },
         );
-        match (then_terminated, else_terminated) {
-            (true, false) => Some(else_value),
-            (false, true) => Some(then_value),
-            _ if then_value == else_value => Some(then_value),
-            _ => Some(self.builder.phi(vec![(then_exit, then_value), (else_exit, else_value)])),
+        self.storage_refs = self.merge_storage_refs(
+            before_storage_refs,
+            MergeBranch {
+                block: then_exit,
+                values: then_storage_refs,
+                terminated: then_terminated,
+            },
+            MergeBranch {
+                block: else_exit,
+                values: else_storage_refs,
+                terminated: else_terminated,
+            },
+        );
+        Some((
+            TernaryBranch { block: then_exit, value: then_value, terminated: then_terminated },
+            TernaryBranch { block: else_exit, value: else_value, terminated: else_terminated },
+        ))
+    }
+
+    fn lower_ternary(
+        &mut self,
+        condition: &hir::Expr<'_>,
+        then_expr: &hir::Expr<'_>,
+        else_expr: &hir::Expr<'_>,
+    ) -> Option<ValueId> {
+        let (then_branch, else_branch) =
+            self.lower_ternary_branches(condition, then_expr, else_expr, |this, expr| {
+                this.lower_expr(expr)
+            })?;
+        match (then_branch.terminated, else_branch.terminated) {
+            (true, false) => Some(else_branch.value),
+            (false, true) => Some(then_branch.value),
+            _ if then_branch.value == else_branch.value => Some(then_branch.value),
+            _ => Some(self.builder.phi(vec![
+                (then_branch.block, then_branch.value),
+                (else_branch.block, else_branch.value),
+            ])),
         }
     }
 
@@ -1512,53 +1557,30 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
     ) -> Option<Vec<ValueId>> {
-        let condition = self.lower_expr(condition)?;
-        let then_block = self.builder.create_block();
-        let else_block = self.builder.create_block();
-        let merge_block = self.builder.create_block();
-        let before = self.values.clone();
-        self.builder.branch(condition, then_block, else_block);
-
-        self.builder.switch_to_block(then_block);
-        let then_result = self.lower_values(then_expr)?;
-        let then_terminated = self.is_terminated();
-        let then_exit = self.builder.current_block();
-        let then_values = self.values.clone();
-        if !then_terminated {
-            self.builder.jump(merge_block);
-        }
-
-        self.values = before.clone();
-        self.builder.switch_to_block(else_block);
-        let else_result = self.lower_values(else_expr)?;
-        let else_terminated = self.is_terminated();
-        let else_exit = self.builder.current_block();
-        let else_values = self.values.clone();
-        if !else_terminated {
-            self.builder.jump(merge_block);
-        }
-
-        self.builder.switch_to_block(merge_block);
-        self.values = self.merge_values(
-            before,
-            MergeBranch { block: then_exit, values: then_values, terminated: then_terminated },
-            MergeBranch { block: else_exit, values: else_values, terminated: else_terminated },
-        );
-        if !then_terminated && !else_terminated && then_result.len() != else_result.len() {
+        let (then_branch, else_branch) =
+            self.lower_ternary_branches(condition, then_expr, else_expr, |this, expr| {
+                this.lower_values(expr)
+            })?;
+        if !then_branch.terminated
+            && !else_branch.terminated
+            && then_branch.value.len() != else_branch.value.len()
+        {
             return report_unsupported(self.gcx, then_expr.span, "ternary value count");
         }
-        let values = match (then_terminated, else_terminated) {
-            (true, false) => else_result,
-            (false, true) => then_result,
+        let values = match (then_branch.terminated, else_branch.terminated) {
+            (true, false) => else_branch.value,
+            (false, true) => then_branch.value,
             (true, true) => Vec::new(),
-            (false, false) => then_result
+            (false, false) => then_branch
+                .value
                 .into_iter()
-                .zip(else_result)
+                .zip(else_branch.value)
                 .map(|(then, else_)| {
                     if then == else_ {
                         then
                     } else {
-                        self.builder.phi(vec![(then_exit, then), (else_exit, else_)])
+                        self.builder
+                            .phi(vec![(then_branch.block, then), (else_branch.block, else_)])
                     }
                 })
                 .collect(),
