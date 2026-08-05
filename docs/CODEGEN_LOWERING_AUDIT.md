@@ -41,11 +41,14 @@ production callers.
 `crates/codegen/src/lower/mod.rs` exposes only:
 
 * `lower_contract(Gcx, ContractId) -> Module`;
-* `lower_contract_with_bytecodes(Gcx, ContractId, &FxHashMap<ContractId, Bytes>) -> Module`.
+* `lower_contract_with_bytecodes(Gcx, ContractId, &FxHashMap<ContractId, Bytes>) -> Module`;
+* `lower_contract_with_bytecodes_and_runtime` adds child runtime artifacts for
+  `type(...).runtimeCode`.
 
 The first is used by MIR tests. The second is used by contract compilation and
-the benchmark harness. Child bytecodes are deployment bytecode and remain part
-of that boundary for semantic contract creation.
+the benchmark harness. A companion entry point also carries child runtime
+bytecodes for `type(...).runtimeCode`; deployment bytecodes remain part of the
+boundary for semantic contract creation.
 
 ## Replacement shape
 
@@ -148,8 +151,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   constructor ABI encoding, `value`/`salt` options, and forwarding of failed
   creation returndata;
 * `abi.encodePacked` arrays of static word elements, address `code` and
-  `codehash` builtins, `type(...).creationCode`, and fixed-bytes to address
-  conversions;
+  `codehash` builtins, `type(...).creationCode` and `runtimeCode`, and
+  fixed-bytes to address conversions;
 * `try`/`catch` lowering for resolved external calls with scalar and aggregate
   return bindings, ordered selector dispatch for multiple catches, bare
   catches, `catch (bytes memory)` returndata objects, and
@@ -200,7 +203,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    pointers now have runtime coverage for aggregate arguments and returns,
    including aggregate `try` return bindings. Custom error catch clauses are
    rejected by the tracked Solidity type checker and are not a valid lowering
-   target. The Unifap creation fixture now passes the differential Foundry
+   target. Creation and runtime code literals now use compiled child artifacts.
+   The Unifap creation fixture now passes the differential Foundry
    suite; the companion fixture compiles with no Solar-only regressions, but
    retains seven pre-existing failures under both compilers because its
    hard-coded CREATE2 init-code hash does not match the current pair bytecode.
@@ -213,12 +217,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    shapes and constructor/modifier edges. The UI snapshots are now in sync
    with the rewrite, and the full `cargo tq ui` suite passes.
 
-The current intentional boundaries are dynamic-element calldata array slicing
-and `type(...).runtimeCode` lowering. The MIR slice representation keeps only a
-pointer and length, so it cannot recover the original base needed to resolve
-nested dynamic ABI offsets. The contract lowering boundary currently carries
-deployment bytecode, but not runtime bytecode, so `runtimeCode` is rejected
-until the artifact map carries that second representation.
+The current intentional boundary is dynamic-element calldata array slicing.
+Solidity rejects range access for arrays with dynamically encoded base types,
+and the MIR slice representation keeps only a pointer and length, so it cannot
+recover the original base needed to resolve nested dynamic ABI offsets.
 
 Unsupported HIR emits a diagnostic and leaves an `invalid` MIR terminator in the
 rejected function. This is a deliberate fail-closed boundary; it must not be

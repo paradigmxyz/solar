@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+contract RuntimeCodeChild {
+    function value() external pure returns (uint256) {
+        return 7;
+    }
+}
+
 contract AbiEncoding {
     function encodeUint(uint256 a) external pure returns (bytes memory) {
         return abi.encode(a);
@@ -45,5 +51,9 @@ contract AbiEncoding {
 
     function addressFromBytes20(bytes20 value) external pure returns (address) {
         return address(value);
+    }
+
+    function runtimeCodeLength() external pure returns (uint256) {
+        return type(RuntimeCodeChild).runtimeCode.length;
     }
 }

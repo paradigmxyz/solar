@@ -16,6 +16,7 @@ pub(super) fn lower(
     gcx: Gcx<'_>,
     contract_id: ContractId,
     child_bytecodes: &FxHashMap<ContractId, Bytes>,
+    child_runtime_bytecodes: &FxHashMap<ContractId, Bytes>,
 ) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
@@ -162,6 +163,7 @@ pub(super) fn lower(
             &mir_ids,
             &immutable_ids,
             child_bytecodes,
+            child_runtime_bytecodes,
             &mut invalid_event_topics,
             &mut pointer_registry,
         ) else {
@@ -190,6 +192,7 @@ pub(super) fn lower(
             &mir_ids,
             &immutable_ids,
             child_bytecodes,
+            child_runtime_bytecodes,
             &mut invalid_event_topics,
             &mut pointer_registry,
         ) else {

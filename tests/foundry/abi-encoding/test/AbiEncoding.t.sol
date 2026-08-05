@@ -77,4 +77,8 @@ contract AbiEncodingTest {
         bytes20 value = bytes20(0x00112233445566778899AABbCCdDeeFf00112233);
         assert(target.addressFromBytes20(value) == address(value));
     }
+
+    function testRuntimeCode() public view {
+        assert(target.runtimeCodeLength() > 0);
+    }
 }

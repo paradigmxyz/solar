@@ -37,6 +37,7 @@ pub(super) fn lower(
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
     immutable_ids: &FxHashMap<VariableId, ImmutableId>,
     child_bytecodes: &FxHashMap<hir::ContractId, Bytes>,
+    child_runtime_bytecodes: &FxHashMap<hir::ContractId, Bytes>,
     invalid_event_topics: &mut FxHashSet<hir::EventId>,
     pointer_registry: &mut InternalFunctionPointerRegistry,
 ) -> Option<Function> {
@@ -83,6 +84,7 @@ pub(super) fn lower(
         function_ids,
         immutable_ids,
         child_bytecodes,
+        child_runtime_bytecodes,
         invalid_event_topics,
         pointer_registry,
         &mut mir,
@@ -114,6 +116,7 @@ pub(super) fn lower_synthetic_constructor(
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
     immutable_ids: &FxHashMap<VariableId, ImmutableId>,
     child_bytecodes: &FxHashMap<hir::ContractId, Bytes>,
+    child_runtime_bytecodes: &FxHashMap<hir::ContractId, Bytes>,
     invalid_event_topics: &mut FxHashSet<hir::EventId>,
     pointer_registry: &mut InternalFunctionPointerRegistry,
 ) -> Option<Function> {
@@ -128,6 +131,7 @@ pub(super) fn lower_synthetic_constructor(
         function_ids,
         immutable_ids,
         child_bytecodes,
+        child_runtime_bytecodes,
         invalid_event_topics,
         pointer_registry,
         &mut mir,
@@ -153,6 +157,7 @@ struct FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers> {
     function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
     immutable_ids: &'ids FxHashMap<VariableId, ImmutableId>,
     child_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
+    child_runtime_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
     invalid_event_topics: &'events mut FxHashSet<hir::EventId>,
     pointer_registry: &'pointers mut InternalFunctionPointerRegistry,
     builder: FunctionBuilder<'mir>,
@@ -257,6 +262,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
         immutable_ids: &'ids FxHashMap<VariableId, ImmutableId>,
         child_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
+        child_runtime_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
         invalid_event_topics: &'events mut FxHashSet<hir::EventId>,
         pointer_registry: &'pointers mut InternalFunctionPointerRegistry,
         function: &'mir mut Function,
@@ -269,6 +275,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             function_ids,
             immutable_ids,
             child_bytecodes,
+            child_runtime_bytecodes,
             invalid_event_topics,
             pointer_registry,
             builder: FunctionBuilder::new(function),
@@ -5696,7 +5703,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         expr: &hir::Expr<'_>,
         builtin: Builtin,
     ) -> Option<ValueId> {
-        if builtin == Builtin::ContractCreationCode {
+        if matches!(builtin, Builtin::ContractCreationCode | Builtin::ContractRuntimeCode) {
             let ExprKind::Member(receiver, _) = &expr.kind else {
                 return report_unsupported(self.gcx, expr.span, "environment builtin");
             };
@@ -5706,10 +5713,20 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let TyKind::Contract(contract_id) = ty.peel_refs().kind else {
                 return report_unsupported(self.gcx, expr.span, "creation code target");
             };
-            let Some(bytecode) = self.child_bytecodes.get(&contract_id) else {
+            let bytecodes = if builtin == Builtin::ContractCreationCode {
+                self.child_bytecodes
+            } else {
+                self.child_runtime_bytecodes
+            };
+            let Some(bytecode) = bytecodes.get(&contract_id) else {
+                let (kind, name) = if builtin == Builtin::ContractCreationCode {
+                    ("creation", "creationCode")
+                } else {
+                    ("runtime", "runtimeCode")
+                };
                 self.gcx
                     .dcx()
-                    .err("codegen is missing creation bytecode for `creationCode`")
+                    .err(format!("codegen is missing {kind} bytecode for `{name}`"))
                     .span(expr.span)
                     .note("the referenced contract did not compile or was not lowered first")
                     .emit();

@@ -16,7 +16,8 @@ use crate::mir::Module;
 
 /// Lowers a contract from HIR to MIR.
 pub fn lower_contract(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
-    lower_contract_with_bytecodes(gcx, contract_id, &FxHashMap::default())
+    let empty = FxHashMap::default();
+    lower_contract_with_bytecodes_and_runtime(gcx, contract_id, &empty, &empty)
 }
 
 /// Lowers a contract from HIR to MIR with child creation bytecodes available.
@@ -25,5 +26,16 @@ pub fn lower_contract_with_bytecodes(
     contract_id: ContractId,
     child_bytecodes: &FxHashMap<ContractId, Bytes>,
 ) -> Module {
-    contract::lower(gcx, contract_id, child_bytecodes)
+    let empty = FxHashMap::default();
+    contract::lower(gcx, contract_id, child_bytecodes, &empty)
+}
+
+/// Lowers a contract with child creation and runtime bytecodes available.
+pub fn lower_contract_with_bytecodes_and_runtime(
+    gcx: Gcx<'_>,
+    contract_id: ContractId,
+    child_bytecodes: &FxHashMap<ContractId, Bytes>,
+    child_runtime_bytecodes: &FxHashMap<ContractId, Bytes>,
+) -> Module {
+    contract::lower(gcx, contract_id, child_bytecodes, child_runtime_bytecodes)
 }
