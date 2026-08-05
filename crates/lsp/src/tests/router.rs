@@ -6,8 +6,9 @@ use async_lsp::{
 };
 use lsp_types::{
     CallHierarchyIncomingCallsParams, CallHierarchyItem, CallHierarchyOutgoingCallsParams,
-    CallHierarchyPrepareParams, CancelParams, CompletionParams, CompletionResponse,
-    DeleteFilesParams, DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
+    CallHierarchyPrepareParams, CancelParams, CodeActionContext, CodeActionParams,
+    CompletionParams, CompletionResponse, DeleteFilesParams,
+    DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
     DidChangeWorkspaceFoldersParams, DidSaveTextDocumentParams, DocumentFormattingParams,
     DocumentHighlightParams, DocumentLinkParams, DocumentSymbolParams, ExecuteCommandParams,
     FileChangeType, FileDelete, FileEvent, FileRename, FoldingRangeParams, FormattingOptions,
@@ -274,6 +275,30 @@ async fn router_handles_document_link_requests() {
     let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
         "id": 1,
         "method": request::DocumentLinkRequest::METHOD,
+        "params": params,
+    }))
+    .unwrap();
+
+    let response = router.call(request).await.unwrap();
+
+    assert_eq!(response, serde_json::json!([]));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn router_handles_code_action_requests() {
+    let mut router = new_router(ClientSocket::new_closed());
+    let params = CodeActionParams {
+        text_document: TextDocumentIdentifier {
+            uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
+        },
+        range: Range::default(),
+        context: CodeActionContext { diagnostics: Vec::new(), ..Default::default() },
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
+    };
+    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+        "id": 1,
+        "method": request::CodeActionRequest::METHOD,
         "params": params,
     }))
     .unwrap();

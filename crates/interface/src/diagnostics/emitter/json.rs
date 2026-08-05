@@ -105,7 +105,12 @@ impl JsonEmitter {
             .children
             .iter()
             .map(|sub| self.sub_diagnostic(sub))
-            .chain(diagnostic.suggestions.iter().map(|sugg| self.suggestion_to_diagnostic(sugg)))
+            .chain(
+                diagnostic
+                    .suggestions
+                    .iter()
+                    .flat_map(|suggestion| self.suggestion_to_diagnostics(suggestion)),
+            )
             .collect();
 
         JsonDiagnostic {
@@ -132,25 +137,31 @@ impl JsonEmitter {
         }
     }
 
-    fn suggestion_to_diagnostic(&self, sugg: &CodeSuggestion) -> JsonDiagnostic<'static> {
-        // Collect all spans from all substitutions
-        let spans = sugg
-            .substitutions
-            .iter()
-            .flat_map(|sub| sub.parts.iter())
-            .map(|part| {
-                self.span_with_suggestion(part.span, part.snippet.to_string(), sugg.applicability)
-            })
-            .collect();
-
-        JsonDiagnostic {
-            message: Cow::Owned(sugg.msg.as_str().to_string()),
-            code: None,
-            level: Cow::Borrowed("help"),
-            spans,
-            children: vec![],
-            rendered: None,
-        }
+    fn suggestion_to_diagnostics<'a>(
+        &'a self,
+        suggestion: &'a CodeSuggestion,
+    ) -> impl Iterator<Item = JsonDiagnostic<'static>> + 'a {
+        suggestion.substitutions.iter().map(move |substitution| {
+            let spans = substitution
+                .parts
+                .iter()
+                .map(|part| {
+                    self.span_with_suggestion(
+                        part.span,
+                        part.snippet.to_string(),
+                        suggestion.applicability,
+                    )
+                })
+                .collect();
+            JsonDiagnostic {
+                message: Cow::Owned(suggestion.msg.as_str().to_string()),
+                code: None,
+                level: Cow::Borrowed("help"),
+                spans,
+                children: vec![],
+                rendered: None,
+            }
+        })
     }
 
     fn spans(&self, msp: &MultiSpan) -> Vec<JsonDiagnosticSpan<'static>> {
@@ -443,7 +454,7 @@ pub struct JsonDiagnosticCode<'a> {
 pub struct SolcDiagnostic<'a> {
     #[serde(borrow)]
     pub source_location: Option<SourceLocation<'a>>,
-    #[serde(borrow)]
+    #[serde(default, borrow)]
     pub secondary_source_locations: Vec<SourceLocation<'a>>,
     #[serde(borrow)]
     pub r#type: Cow<'a, str>,
@@ -526,11 +537,13 @@ mod tests {
 
     #[test]
     fn solc_diagnostic_serializes_borrowed_strings() {
+        let start = 0_u32;
+        let end = 1_u32;
         let diagnostic = SolcDiagnostic {
             source_location: Some(SourceLocation {
                 file: Cow::Borrowed("input.sol"),
-                start: 0,
-                end: 1,
+                start,
+                end,
                 message: Some(Cow::Borrowed("borrowed \"message\"")),
             }),
             secondary_source_locations: Vec::new(),

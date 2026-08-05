@@ -1,3 +1,4 @@
+use normalize_path::NormalizePath;
 use serde::Deserialize;
 use solar_config::{EvmVersion, ImportRemapping};
 use std::path::{Path, PathBuf};
@@ -19,10 +20,12 @@ struct FoundryProfiles {
     default: Option<FoundryProfile>,
 }
 
-/// A subset of Foundry config relevant to LSP compilation.
+/// A subset of Foundry config relevant to the LSP workspace.
 #[derive(Debug, Default, Deserialize)]
 pub(crate) struct FoundryProfile {
     src: Option<PathBuf>,
+    test: Option<PathBuf>,
+    script: Option<PathBuf>,
     libs: Option<Vec<PathBuf>>,
     auto_detect_remappings: Option<bool>,
     #[serde(default, with = "crate::serde::display_fromstr::vec")]
@@ -33,7 +36,18 @@ pub(crate) struct FoundryProfile {
 
 impl FoundryProfile {
     pub(crate) fn source_roots(&self, root: &Path) -> Vec<PathBuf> {
-        vec![root.join(self.src.as_deref().unwrap_or_else(|| Path::new("src")))]
+        vec![root.join(self.src.as_deref().unwrap_or_else(|| Path::new("src"))).normalize()]
+    }
+
+    pub(crate) fn flycheck_source_roots(&self, root: &Path) -> Vec<PathBuf> {
+        [
+            self.src.as_deref().unwrap_or_else(|| Path::new("src")),
+            self.test.as_deref().unwrap_or_else(|| Path::new("test")),
+            self.script.as_deref().unwrap_or_else(|| Path::new("script")),
+        ]
+        .into_iter()
+        .map(|path| root.join(path).normalize())
+        .collect()
     }
 
     pub(crate) fn include_paths(&self, root: &Path) -> Vec<PathBuf> {

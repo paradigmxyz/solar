@@ -32,6 +32,8 @@ pub(crate) struct Workspace {
     source_roots: Vec<PathBuf>,
     source_watch_roots: Vec<SourceWatchRoot>,
     source_files: Vec<PathBuf>,
+    flycheck_source_roots: Vec<PathBuf>,
+    flycheck_source_files: Vec<PathBuf>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -66,9 +68,11 @@ impl Workspace {
         Self {
             kind: WorkspaceKind::Naked,
             compile_opts: CompileOpts { base_path: Some(root), ..Default::default() },
+            flycheck_source_roots: source_roots.clone(),
             source_roots,
             source_watch_roots: Vec::new(),
             source_files: Vec::new(),
+            flycheck_source_files: Vec::new(),
         }
     }
 
@@ -79,6 +83,8 @@ impl Workspace {
             source_roots: Vec::new(),
             source_watch_roots: Vec::new(),
             source_files: Vec::new(),
+            flycheck_source_roots: Vec::new(),
+            flycheck_source_files: Vec::new(),
         }
     }
 
@@ -102,6 +108,10 @@ impl Workspace {
         &self.source_files
     }
 
+    pub(crate) fn flycheck_source_files(&self) -> &[PathBuf] {
+        &self.flycheck_source_files
+    }
+
     pub(crate) fn import_only_roots(&self) -> &[PathBuf] {
         &self.compile_opts.include_paths
     }
@@ -121,8 +131,14 @@ impl Workspace {
         else {
             return false;
         };
+        let Some(flycheck_source_files) =
+            self.collect_flycheck_source_files(&source_files, policy, cancellation, None)
+        else {
+            return false;
+        };
         self.source_files = source_files;
         self.source_watch_roots = source_watch_roots;
+        self.flycheck_source_files = flycheck_source_files;
         true
     }
 
@@ -140,7 +156,7 @@ impl Workspace {
         {
             let index = WorkspacePathIndex::new(&*workspaces);
             for (idx, workspace) in workspaces.iter().enumerate() {
-                let Some(sources) = workspace.collect_source_files(
+                let Some((source_files, source_watch_roots)) = workspace.collect_source_files(
                     policy,
                     cancellation,
                     metrics,
@@ -148,13 +164,23 @@ impl Workspace {
                 ) else {
                     return false;
                 };
-                collected.push(sources);
+                let Some(flycheck_source_files) = workspace.collect_flycheck_source_files(
+                    &source_files,
+                    policy,
+                    cancellation,
+                    Some((&index, idx)),
+                ) else {
+                    return false;
+                };
+                collected.push((source_files, source_watch_roots, flycheck_source_files));
             }
         }
-        for (workspace, (source_files, source_watch_roots)) in workspaces.iter_mut().zip(collected)
+        for (workspace, (source_files, source_watch_roots, flycheck_source_files)) in
+            workspaces.iter_mut().zip(collected)
         {
             workspace.source_files = source_files;
             workspace.source_watch_roots = source_watch_roots;
+            workspace.flycheck_source_files = flycheck_source_files;
         }
         true
     }
@@ -204,22 +230,65 @@ impl Workspace {
         Some((source_files, source_watch_roots))
     }
 
+    fn collect_flycheck_source_files<'index, 'workspaces>(
+        &self,
+        source_files: &[PathBuf],
+        policy: &WorkspaceIndexPolicy,
+        cancellation: &IndexingCancellation,
+        ownership: Option<(&'index WorkspacePathIndex<'workspaces>, usize)>,
+    ) -> Option<Vec<PathBuf>> {
+        let mut files = source_files.to_vec();
+        for root in &self.flycheck_source_roots {
+            if self.source_roots.contains(root) {
+                continue;
+            }
+            let workspace_root = self.compile_opts.base_path.as_deref().unwrap_or(root);
+            let mut metrics = WorkspaceIndexMetrics::default();
+            let mut watch_roots = Vec::new();
+            match (SourceFileCollector {
+                workspace_root,
+                source_root: root,
+                source_roots: &self.flycheck_source_roots,
+                import_only_roots: self.import_only_roots(),
+                policy,
+                cancellation,
+                metrics: &mut metrics,
+                files: &mut files,
+                watch_roots: &mut watch_roots,
+                ownership,
+            })
+            .collect(root, false)
+            {
+                SourceTreeState::Cancelled => return None,
+                SourceTreeState::Clean | SourceTreeState::Partitioned | SourceTreeState::Pruned => {
+                }
+            }
+        }
+        files.sort_unstable();
+        files.dedup();
+        Some(files)
+    }
+
     pub(crate) fn add_source_file(&mut self, policy: &WorkspaceIndexPolicy, path: PathBuf) {
-        if !self.tracks_disk_file(policy, &path) {
-            return;
+        if self.tracks_disk_file(policy, &path) {
+            insert_sorted(&mut self.source_files, path.clone());
         }
-        match self.source_files.binary_search(&path) {
-            Ok(_) => {}
-            Err(pos) => self.source_files.insert(pos, path),
-        }
+        self.add_flycheck_source_file(policy, &path);
     }
 
     pub(crate) fn remove_source_file(&mut self, path: &Path) {
-        if let Ok(pos) =
-            self.source_files.binary_search_by(|candidate| candidate.as_path().cmp(path))
-        {
-            self.source_files.remove(pos);
+        remove_sorted(&mut self.source_files, path);
+        self.remove_flycheck_source_file(path);
+    }
+
+    pub(crate) fn add_flycheck_source_file(&mut self, policy: &WorkspaceIndexPolicy, path: &Path) {
+        if self.tracks_flycheck_file(policy, path) {
+            insert_sorted(&mut self.flycheck_source_files, path.to_path_buf());
         }
+    }
+
+    pub(crate) fn remove_flycheck_source_file(&mut self, path: &Path) {
+        remove_sorted(&mut self.flycheck_source_files, path);
     }
 
     pub(crate) fn tracks_disk_file(&self, policy: &WorkspaceIndexPolicy, path: &Path) -> bool {
@@ -231,11 +300,22 @@ impl Workspace {
             })
     }
 
+    pub(crate) fn tracks_flycheck_file(&self, policy: &WorkspaceIndexPolicy, path: &Path) -> bool {
+        is_solidity_file(path)
+            && !is_import_only_path(&self.flycheck_source_roots, self.import_only_roots(), path)
+            && self.flycheck_source_roots.iter().any(|root| {
+                let workspace_root = self.compile_opts.base_path.as_deref().unwrap_or(root);
+                path.starts_with(root) && !policy.excludes_file(workspace_root, root, path)
+            })
+    }
+
     pub(crate) fn load_foundry(path: PathBuf) -> Result<Self, WorkspaceError> {
         let root = manifest_root(&path)?;
         let profile = load_foundry_document(&path)?.default_profile();
         let source_roots =
             profile.source_roots(&root).into_iter().map(|path| path.normalize()).collect();
+        let flycheck_source_roots =
+            profile.flycheck_source_roots(&root).into_iter().map(|path| path.normalize()).collect();
         let import_only_roots = profile
             .include_paths(&root)
             .into_iter()
@@ -251,10 +331,24 @@ impl Workspace {
         Ok(Self {
             kind: WorkspaceKind::Foundry,
             source_roots,
+            flycheck_source_roots,
             compile_opts,
             source_watch_roots: Vec::new(),
             source_files: Vec::new(),
+            flycheck_source_files: Vec::new(),
         })
+    }
+}
+
+fn insert_sorted(files: &mut Vec<PathBuf>, path: PathBuf) {
+    if let Err(pos) = files.binary_search(&path) {
+        files.insert(pos, path);
+    }
+}
+
+fn remove_sorted(files: &mut Vec<PathBuf>, path: &Path) {
+    if let Ok(pos) = files.binary_search_by(|candidate| candidate.as_path().cmp(path)) {
+        files.remove(pos);
     }
 }
 
@@ -622,6 +716,73 @@ mod tests {
         refresh_source_files(&mut workspace);
 
         assert_eq!(workspace.source_files(), &[project.path("/Main.sol")]);
+    }
+
+    #[test]
+    fn foundry_flycheck_sources_respect_index_boundaries() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+            test = "."
+            script = "script"
+            libs = ["lib"]
+
+            //- /src/Main.sol
+            contract Main {}
+
+            //- /test/Tracked.t.sol
+            contract TrackedTest {}
+
+            //- /script/Deploy.s.sol
+            contract Deploy {}
+
+            //- /lib/Dependency.sol
+            contract Dependency {}
+
+            //- /out/Generated.sol
+            contract Generated {}
+
+            //- /custom/Excluded.sol
+            contract Excluded {}
+
+            //- /.hidden/Hidden.sol
+            contract Hidden {}
+
+            //- /nested/.git
+            gitdir: elsewhere
+
+            //- /nested/Ignored.sol
+            contract Ignored {}
+            "#,
+        );
+        let policy = WorkspaceIndexPolicy::new(IndexingOptions {
+            exclude: vec!["custom/**".into()],
+            ..Default::default()
+        });
+        let mut workspace = Workspace::load_foundry(project.path("/foundry.toml")).unwrap();
+        let mut metrics = WorkspaceIndexMetrics::default();
+
+        assert!(workspace.refresh_source_files(
+            &policy,
+            &IndexingCancellation::default(),
+            &mut metrics,
+        ));
+
+        assert_eq!(workspace.source_files(), &[project.path("/src/Main.sol")]);
+        assert_eq!(
+            workspace.flycheck_source_files(),
+            &[
+                project.path("/script/Deploy.s.sol"),
+                project.path("/src/Main.sol"),
+                project.path("/test/Tracked.t.sol"),
+            ]
+        );
+        assert!(workspace.tracks_flycheck_file(&policy, &project.path("/test/Tracked.t.sol")));
+        assert!(!workspace.tracks_flycheck_file(&policy, &project.path("/lib/Dependency.sol")));
+        assert!(!workspace.tracks_flycheck_file(&policy, &project.path("/custom/Excluded.sol")));
+        assert_eq!(metrics.eager, 1);
     }
 
     #[test]

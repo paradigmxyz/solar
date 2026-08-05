@@ -19,6 +19,7 @@ use std::ops::ControlFlow;
 use tower::ServiceBuilder;
 
 mod call_hierarchy;
+mod code_actions;
 mod code_lens;
 mod commands;
 mod config;
@@ -81,7 +82,13 @@ fn new_router_with_state(mut this: GlobalState) -> Router<GlobalState> {
 
     // Lifecycle
     router
-        .request::<proto::Initialize, _>(|state, params| state.on_initialize(params.into_inner()))
+        .request::<proto::Initialize, _>(|state, params| {
+            let pull_diagnostic_data_support = params.pull_diagnostic_data_support();
+            state.on_initialize_with_pull_diagnostic_data(
+                params.into_inner(),
+                pull_diagnostic_data_support,
+            )
+        })
         .notification::<notif::Initialized>(GlobalState::on_initialized)
         .event::<global_state::WorkspaceDiscoveryReady>(GlobalState::on_workspace_discovery_ready)
         .event::<global_state::DeferredSourceFileEventsReady>(
@@ -95,6 +102,7 @@ fn new_router_with_state(mut this: GlobalState) -> Router<GlobalState> {
         .request::<req::ExecuteCommand, _>(commands::execute_command)
         .request::<req::DocumentSymbolRequest, _>(handlers::document_symbol)
         .request::<req::DocumentLinkRequest, _>(handlers::document_links)
+        .request::<req::CodeActionRequest, _>(handlers::code_actions)
         .request::<req::WorkspaceSymbolRequest, _>(handlers::workspace_symbol)
         .request::<req::GotoDefinition, _>(handlers::goto_definition)
         .request::<req::GotoTypeDefinition, _>(handlers::goto_type_definition)
@@ -190,3 +198,7 @@ pub async fn run_server_stdio(_args: LspArgs) -> async_lsp::Result<()> {
 #[cfg(test)]
 #[path = "tests/router.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tests/flycheck.rs"]
+mod flycheck_tests;

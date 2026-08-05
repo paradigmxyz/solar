@@ -1,6 +1,9 @@
 use crate::{
     NotifyResult,
-    config::{Config, WatchedFileSpec, WorkspaceDiscoveryResult, negotiate_capabilities},
+    config::{
+        Config, WatchedFileSpec, WorkspaceDiscoveryResult,
+        negotiate_capabilities_with_pull_diagnostic_data,
+    },
     diagnostics::{
         AnalyzedDocuments, DiagnosticMap, DiagnosticOwner, DiagnosticStore, PullReport,
         WorkspacePullReport,
@@ -560,12 +563,22 @@ impl GlobalState {
         false
     }
 
+    #[cfg(test)]
     pub(crate) fn on_initialize(
         &mut self,
         params: InitializeParams,
     ) -> impl Future<Output = Result<proto::InitializeResponse, ResponseError>> + use<> {
+        self.on_initialize_with_pull_diagnostic_data(params, false)
+    }
+
+    pub(crate) fn on_initialize_with_pull_diagnostic_data(
+        &mut self,
+        params: InitializeParams,
+        pull_diagnostic_data_support: bool,
+    ) -> impl Future<Output = Result<proto::InitializeResponse, ResponseError>> + use<> {
         self.protocol_trace.set_level(params.trace.unwrap_or_default());
-        let (capabilities, config) = negotiate_capabilities(params);
+        let (capabilities, config) =
+            negotiate_capabilities_with_pull_diagnostic_data(params, pull_diagnostic_data_support);
 
         self.analysis_progress.set_enabled(config.supports_work_done_progress());
         self.config = Arc::new(config);
@@ -709,6 +722,7 @@ impl GlobalState {
         let refresh_code_lenses =
             self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
         let compare_inlay_hints = self.config.supports_inlay_hint_refresh();
+        let publish_diagnostics_data = self.config.supports_publish_diagnostics_data();
         let (old_symbol_tables, refresh_requests) = {
             let Self {
                 client,
@@ -743,7 +757,7 @@ impl GlobalState {
                     diagnostics: external_refresh.diagnostics || pull_results_changed,
                     inlay_hints: external_refresh.inlay_hints || inlay_hints_changed,
                 };
-                publish_diagnostic_batches(client, update.batches);
+                publish_diagnostic_batches(client, update.batches, publish_diagnostics_data);
 
                 commit.cache_invalidated = true;
                 commit.discovery_pending = false;
@@ -1081,7 +1095,11 @@ impl GlobalState {
             commit.record_external_diagnostics_change(
                 update.pull_reports_changed || update.workspace_documents_changed,
             );
-            publish_diagnostic_batches(&mut self.client, update.batches);
+            publish_diagnostic_batches(
+                &mut self.client,
+                update.batches,
+                self.config.supports_publish_diagnostics_data(),
+            );
             (version, rediscover, progress)
         };
 
@@ -1150,11 +1168,37 @@ impl GlobalState {
             Err(()) => (uri, None),
         };
         let diagnostics = self.diagnostics.clone();
+        let include_data = self.config.supports_pull_diagnostics_data();
         async move {
             if let Some(latest_analysis) = latest_analysis {
                 latest_analysis.await?;
             }
-            Ok(diagnostics.read().pull_report(&uri, previous_result_id.as_deref()))
+            let mut report = diagnostics.read().pull_report(&uri, previous_result_id.as_deref());
+            if !include_data {
+                strip_pull_report_data(&mut report);
+            }
+            Ok(report)
+        }
+    }
+
+    pub(crate) fn code_action_diagnostics(
+        &self,
+        uri: Url,
+    ) -> impl Future<Output = Result<Vec<Diagnostic>, ResponseError>> + use<> {
+        let (uri, latest_analysis) = match uri.to_file_path() {
+            Ok(path) => (Url::from_file_path(path).unwrap_or(uri), Some(self.latest_analysis())),
+            Err(()) => (uri, None),
+        };
+        let diagnostics = self.diagnostics.clone();
+        async move {
+            if let Some(latest_analysis) = latest_analysis {
+                latest_analysis.await?;
+            }
+            let PullReport::Full { diagnostics, .. } = diagnostics.read().pull_report(&uri, None)
+            else {
+                unreachable!("a report without a result ID is full")
+            };
+            Ok(diagnostics)
         }
     }
 
@@ -1165,11 +1209,15 @@ impl GlobalState {
         let latest_analysis = self.latest_analysis();
         let vfs = self.vfs.clone();
         let diagnostics = self.diagnostics.clone();
+        let include_data = self.config.supports_pull_diagnostics_data();
         async move {
             latest_analysis.await?;
             let vfs = vfs.read();
             let mut reports = diagnostics.read().workspace_pull_reports(previous_result_ids);
             for report in &mut reports {
+                if !include_data {
+                    strip_pull_report_data(&mut report.report);
+                }
                 if report.is_stale
                     && let Some(path) = proto::vfs_path(&report.uri)
                     && let Some(version) = vfs.get_file_version(&path)
@@ -1243,6 +1291,13 @@ impl GlobalState {
         self.begin_analysis_epoch(&mut commit, Vec::new(), true);
     }
 
+    #[cfg(test)]
+    pub(crate) fn replace_diagnostics_for_test(&self, diagnostics: DiagnosticMap) {
+        self.diagnostics
+            .write()
+            .replace_and_publish_batches(DiagnosticOwner::Compiler, diagnostics);
+    }
+
     pub(crate) fn run_flychecks_on_save(&mut self, path: PathBuf) {
         let timeout = self.config.flycheck_timeout();
         for flycheck in self.config.flychecks_for_path(&path) {
@@ -1250,10 +1305,11 @@ impl GlobalState {
             let version = self.begin_flycheck_epoch(&owner);
             let id = flycheck.id.clone();
             let mut snapshot = self.snapshot();
+            let source_paths = snapshot.flycheck_source_paths(&flycheck, &path);
             let (cancel, cancelled) = oneshot::channel();
             let task_owner = owner.clone();
             tokio::spawn(async move {
-                let result = flycheck::run(flycheck, timeout, cancelled).await;
+                let result = flycheck::run(flycheck, timeout, cancelled, source_paths).await;
                 if !snapshot.is_current_flycheck(&task_owner, version) {
                     return;
                 }
@@ -1707,10 +1763,24 @@ fn watched_file_registration_params_with_specs(
 fn publish_diagnostic_batches(
     client: &mut ClientSocket,
     batches: impl IntoIterator<Item = (Url, Vec<Diagnostic>)>,
+    include_data: bool,
 ) {
-    for (uri, uri_diagnostics) in batches {
+    for (uri, mut uri_diagnostics) in batches {
+        if !include_data {
+            for diagnostic in &mut uri_diagnostics {
+                diagnostic.data = None;
+            }
+        }
         let _ =
             client.publish_diagnostics(PublishDiagnosticsParams::new(uri, uri_diagnostics, None));
+    }
+}
+
+fn strip_pull_report_data(report: &mut PullReport) {
+    if let PullReport::Full { diagnostics, .. } = report {
+        for diagnostic in diagnostics {
+            diagnostic.data = None;
+        }
     }
 }
 
@@ -1734,6 +1804,34 @@ impl GlobalStateSnapshot {
 
     fn is_current_flycheck(&self, owner: &DiagnosticOwner, version: usize) -> bool {
         self.flycheck_versions.read().get(owner).copied().unwrap_or_default() == version
+    }
+
+    fn flycheck_source_paths(
+        &self,
+        flycheck: &flycheck::FlycheckConfig,
+        saved_path: &Path,
+    ) -> Vec<PathBuf> {
+        let workspaces = self.config.workspaces();
+        let mut paths = workspaces
+            .iter()
+            .flat_map(|workspace| workspace.source_files())
+            .filter(|path| path.starts_with(&flycheck.workspace_root))
+            .cloned()
+            .collect::<Vec<_>>();
+        paths.extend(
+            workspaces
+                .iter()
+                .filter(|workspace| {
+                    workspace.compile_opts().base_path.as_deref()
+                        == Some(flycheck.workspace_root.as_path())
+                })
+                .flat_map(|workspace| workspace.flycheck_source_files())
+                .cloned(),
+        );
+        paths.push(saved_path.to_path_buf());
+        paths.sort_unstable();
+        paths.dedup();
+        paths
     }
 
     #[cfg(test)]
@@ -1904,7 +2002,11 @@ impl GlobalStateSnapshot {
                 diagnostics: external_refresh.diagnostics || update.workspace_documents_changed,
                 inlay_hints: external_refresh.inlay_hints,
             };
-            publish_diagnostic_batches(&mut self.client, update.batches);
+            publish_diagnostic_batches(
+                &mut self.client,
+                update.batches,
+                self.config.supports_publish_diagnostics_data(),
+            );
             self.published_analysis_version.send_replace(version);
             tracing::info!(
                 visited = index_metrics.visited,
@@ -1973,7 +2075,11 @@ impl GlobalStateSnapshot {
 
         let refresh_immediately = update.pull_reports_changed && commit.external_refresh.is_none();
         commit.record_external_diagnostics_change(update.pull_reports_changed);
-        publish_diagnostic_batches(&mut self.client, update.batches);
+        publish_diagnostic_batches(
+            &mut self.client,
+            update.batches,
+            self.config.supports_publish_diagnostics_data(),
+        );
         refresh_immediately
     }
 
@@ -1987,7 +2093,11 @@ impl GlobalStateSnapshot {
 
         let refresh_immediately = update.pull_reports_changed && commit.external_refresh.is_none();
         commit.record_external_diagnostics_change(update.pull_reports_changed);
-        publish_diagnostic_batches(&mut self.client, update.batches);
+        publish_diagnostic_batches(
+            &mut self.client,
+            update.batches,
+            self.config.supports_publish_diagnostics_data(),
+        );
         refresh_immediately
     }
 
@@ -2009,7 +2119,11 @@ impl GlobalStateSnapshot {
                 store.replace_and_publish_batches(owner, diagnostics)
             };
             let pull_reports_changed = update.pull_reports_changed;
-            publish_diagnostic_batches(&mut self.client, update.batches);
+            publish_diagnostic_batches(
+                &mut self.client,
+                update.batches,
+                self.config.supports_publish_diagnostics_data(),
+            );
             pull_reports_changed
         };
         request_pull_result_refreshes(
@@ -2115,6 +2229,7 @@ impl AnalysisBatch {
 #[cfg(test)]
 mod analysis_batch_tests {
     use super::*;
+    use crate::{config::negotiate_capabilities, test_support::TestProject};
 
     #[test]
     fn from_files_tracks_unique_sorted_paths() {
@@ -2133,6 +2248,132 @@ mod analysis_batch_tests {
         assert_eq!(batch.files[0], (a.clone(), "contract A {}".into()));
         assert_eq!(batch.files[1], (b.clone(), "contract B {}".into()));
         assert_eq!(batch.seen_paths, FxHashSet::from_iter([a, b]));
+    }
+
+    #[test]
+    fn flycheck_snapshot_includes_saved_file_and_default_foundry_inputs() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+            //- /src/Tracked.sol
+            contract Tracked {}
+            //- /test/Tracked.t.sol
+            contract TrackedTest {}
+            //- /script/Tracked.s.sol
+            contract TrackedScript {}
+            "#,
+        );
+        let mut params = project.initialize_params();
+        params.initialization_options = Some(serde_json::json!({
+            "flychecks": [{
+                "id": "custom",
+                "command": "custom-lint"
+            }]
+        }));
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+        let saved_path = project.path("/src/SavedAfterDiscovery.sol");
+        project.write_file("/src/SavedAfterDiscovery.sol", "contract SavedAfterDiscovery {}\n");
+        let [flycheck] = config.flychecks_for_path(&saved_path).try_into().unwrap();
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(config);
+
+        let paths = state.snapshot().flycheck_source_paths(&flycheck, &saved_path);
+
+        assert!(paths.contains(&project.path("/src/Tracked.sol")));
+        assert!(paths.contains(&project.path("/test/Tracked.t.sol")));
+        assert!(paths.contains(&project.path("/script/Tracked.s.sol")));
+        assert!(paths.contains(&saved_path));
+    }
+
+    #[test]
+    fn flycheck_snapshot_preserves_nested_workspace_sources() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+            //- /src/Outer.sol
+            contract Outer {}
+            //- /nested/foundry.toml
+            [profile.default]
+            src = "src"
+            //- /nested/src/Nested.sol
+            contract Nested {}
+            "#,
+        );
+        let mut params = project.initialize_params();
+        params.initialization_options = Some(serde_json::json!({
+            "flychecks": [{
+                "id": "custom",
+                "command": "custom-lint"
+            }]
+        }));
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+        let saved_path = project.path("/src/SavedAfterDiscovery.sol");
+        project.write_file("/src/SavedAfterDiscovery.sol", "contract SavedAfterDiscovery {}\n");
+        let [flycheck] = config.flychecks_for_path(&saved_path).try_into().unwrap();
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(config);
+
+        let paths = state.snapshot().flycheck_source_paths(&flycheck, &saved_path);
+
+        assert!(paths.contains(&project.path("/nested/src/Nested.sol")));
+    }
+
+    #[test]
+    fn flycheck_snapshot_includes_all_configured_foundry_input_roots() {
+        let project = TestProject::new();
+        let external_test_root = project.path("/checks");
+        project.write_file(
+            "/workspace/foundry.toml",
+            &format!(
+                r#"
+            [profile.default]
+            src = "contracts"
+            test = '{}'
+            script = "deployments"
+            "#,
+                external_test_root.display()
+            ),
+        );
+        project.write_file("/workspace/contracts/Tracked.sol", "contract Tracked {}");
+        project.write_file("/checks/Tracked.t.sol", "contract TrackedTest {}");
+        project.write_file("/workspace/deployments/Tracked.s.sol", "contract TrackedScript {}");
+        let mut params = project.initialize_params_with_roots(&["/workspace"]);
+        params.initialization_options = Some(serde_json::json!({
+            "flychecks": [{
+                "id": "custom",
+                "command": "custom-lint"
+            }]
+        }));
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+        assert_eq!(
+            config.workspaces()[0].source_files(),
+            &[project.path("/workspace/contracts/Tracked.sol")]
+        );
+        let saved_path = project.path("/checks/SavedAfterDiscovery.t.sol");
+        project
+            .write_file("/checks/SavedAfterDiscovery.t.sol", "contract SavedAfterDiscovery {}\n");
+        let [flycheck] = config.flychecks_for_path(&saved_path).try_into().unwrap();
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(config);
+
+        let paths = state.snapshot().flycheck_source_paths(&flycheck, &saved_path);
+
+        assert_eq!(
+            paths,
+            vec![
+                project.path("/checks/SavedAfterDiscovery.t.sol"),
+                project.path("/checks/Tracked.t.sol"),
+                project.path("/workspace/contracts/Tracked.sol"),
+                project.path("/workspace/deployments/Tracked.s.sol"),
+            ]
+        );
     }
 }
 

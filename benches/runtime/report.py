@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Report Solar codegen benchmark JSON emitted by solar_bench.py.
+"""Report codegen benchmark JSON emitted by the in-repository runners.
 
 This script is intentionally non-gating: runtime benchmarks are useful CI
 signals, but benchmark deltas should be reviewed rather than fail PRs.
@@ -13,32 +13,57 @@ import os
 import platform
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 from typing import Any
 
 
-def load_results(path: Path | None, label: str) -> list[dict[str, Any]]:
+def normalize_timings(timings: Any) -> dict[str, int | float]:
+    if not isinstance(timings, dict):
+        return {}
+    normalized = {}
+    for name, value in timings.items():
+        if isinstance(value, dict):
+            value = value.get("wall_time_seconds")
+        if isinstance(value, (int, float)):
+            normalized["repository" if name == "repo" else str(name)] = value
+    return normalized
+
+
+def load_document(path: Path | None, label: str) -> dict[str, Any]:
+    empty = {"results": [], "timings": {}}
     if path is None:
-        return []
+        return empty
     if not path.exists():
         warning(f"{label} benchmark results not found: {path}")
-        return []
+        return empty
     with path.open() as f:
         data = json.load(f)
-    if not isinstance(data, list):
-        warning(f"{label} benchmark results have unexpected shape: expected list")
-        return []
-    return data
+    if isinstance(data, list):
+        return {"results": data, "timings": {}}
+    if not isinstance(data, dict) or not isinstance(data.get("results"), list):
+        warning(f"{label} benchmark results have unexpected shape: expected result document")
+        return empty
+    return {"results": data["results"], "timings": normalize_timings(data.get("timings"))}
 
 
-def by_test_id(results: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    return {str(result.get("test_id", "<unknown>")): result for result in results}
+def suite_name(result: dict[str, Any]) -> str:
+    suite = str(result.get("suite", "repository"))
+    return "repository" if suite == "repo" else suite
+
+
+def suite_key(result: dict[str, Any]) -> tuple[str, str]:
+    return (suite_name(result), str(result.get("test_id", "<unknown>")))
+
+
+def by_test_id(results: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
+    return {suite_key(result): result for result in results}
 
 
 def compiler_failures(results: list[dict[str, Any]]) -> list[str]:
     failures = []
     for result in results:
-        test_id = result.get("test_id", "<unknown>")
+        test_id = "/".join(suite_key(result))
         compilers = result.get("compilers", {})
         for compiler_id, data in compilers.items():
             if data.get("status") != "ok":
@@ -64,7 +89,7 @@ def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
         status = result.get("runtime_status")
         if status in (None, "skipped", "ok"):
             continue
-        test_id = result.get("test_id", "<unknown>")
+        test_id = "/".join(suite_key(result))
         before = len(details)
 
         for mismatch in result.get("runtime_mismatches") or []:
@@ -92,8 +117,8 @@ def baseline_regression_details(
     details = []
     baseline = by_test_id(baseline_results)
     for result in results:
-        test_id = str(result.get("test_id", "<unknown>"))
-        base = baseline.get(test_id)
+        test_id = "/".join(suite_key(result))
+        base = baseline.get(suite_key(result))
         if base is None:
             continue
 
@@ -125,8 +150,8 @@ def has_baseline_changes(
 ) -> bool:
     baseline = by_test_id(baseline_results)
     for result in results:
-        test_id = str(result.get("test_id", "<unknown>"))
-        base = baseline.get(test_id)
+        test_id = "/".join(suite_key(result))
+        base = baseline.get(suite_key(result))
         if base is None:
             continue
 
@@ -249,12 +274,12 @@ def fmt_value_with_delta_vs_current(
 
 
 def benchmark_rows(
-    results: list[dict[str, Any]], baseline: dict[str, dict[str, Any]]
+    results: list[dict[str, Any]], baseline: dict[tuple[str, str], dict[str, Any]]
 ) -> list[str]:
     rows = []
     for result in results:
         test_id = str(result.get("test_id", "<unknown>"))
-        base = baseline.get(test_id, {})
+        base = baseline.get(suite_key(result), {})
         solar_gas = total_gas(result, "solar")
         solc_gas = total_gas(result, "solc")
         base_solar_gas = total_gas(base, "solar") if base else None
@@ -384,29 +409,19 @@ def report_section(
 
 
 def codegen_report(
-    micro_results: list[dict[str, Any]],
-    repo_results: list[dict[str, Any]],
-    baseline_micro: list[dict[str, Any]],
-    baseline_repo: list[dict[str, Any]],
-    large_results: list[dict[str, Any]] | None = None,
-    baseline_large: list[dict[str, Any]] | None = None,
+    results: list[dict[str, Any]],
+    baseline_results: list[dict[str, Any]],
 ) -> str:
-    return report_section(
-        "Codegen benchmark",
-        [*micro_results, *repo_results, *(large_results or ())],
-        [*baseline_micro, *baseline_repo, *(baseline_large or ())],
-    )
+    return report_section("Codegen benchmark", results, baseline_results)
 
 
-def emit_warnings(
-    label: str, results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]
-) -> None:
+def emit_warnings(results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]) -> None:
     for failure in compiler_failures(results):
-        warning(f"{label} compiler failure recorded: {failure}")
+        warning(f"compiler failure recorded: {failure}")
     for detail in runtime_issue_details(results):
-        warning(f"{label} runtime mismatch recorded: {detail}")
+        warning(f"runtime mismatch recorded: {detail}")
     for detail in baseline_regression_details(results, baseline_results):
-        warning(f"{label} benchmark regression recorded: {detail}")
+        warning(f"benchmark regression recorded: {detail}")
 
 
 def append_step_summary(markdown: str) -> None:
@@ -422,8 +437,9 @@ def append_github_output(name: str, value: str) -> None:
     output_path = os.environ.get("GITHUB_OUTPUT")
     if not output_path:
         return
+    delimiter = f"benchmark_{uuid.uuid4().hex}"
     with open(output_path, "a") as f:
-        f.write(f"{name}={value}\n")
+        f.write(f"{name}<<{delimiter}\n{value}\n{delimiter}\n")
 
 
 def branch_is_behind_main() -> bool:
@@ -469,27 +485,12 @@ def metric(value: int | float, unit: str, statistic: str) -> dict[str, Any]:
     return {"value": value, "unit": unit, "statistic": statistic}
 
 
-def load_timing(path: Path | None, label: str) -> dict[str, Any] | None:
-    if path is None or not path.exists():
-        warning(f"{label} benchmark timing not found: {path}")
-        return None
-    with path.open() as f:
-        timing = json.load(f)
-    if not isinstance(timing, dict):
-        warning(f"{label} benchmark timing has unexpected shape: expected object")
-        return None
-    return timing
-
-
 def common_benchmark(
-    name: str, results: list[dict[str, Any]], timing: dict[str, Any] | None
+    name: str,
+    results: list[dict[str, Any]],
+    timing: int | float | None,
 ) -> dict[str, Any] | None:
     if not results or timing is None:
-        return None
-
-    wall_time = timing.get("wall_time_seconds")
-    if not isinstance(wall_time, (int, float)):
-        warning(f"{name} benchmark timing is missing wall time")
         return None
 
     successful = []
@@ -503,7 +504,7 @@ def common_benchmark(
 
     benchmark = {
         "name": f"codegen_runtime_suite/{name}",
-        "wall_time": metric(wall_time, "second", "total"),
+        "wall_time": metric(timing, "second", "total"),
         "counters": {
             "tests": metric(len(results), "count", "total"),
             "successful_compilations": metric(len(successful), "count", "total"),
@@ -540,6 +541,9 @@ def common_benchmark(
         )
     if compiler_metrics:
         benchmark["compiler"] = compiler_metrics
+    peak_rss_values = complete_values("peak_rss_bytes")
+    if peak_rss_values is not None:
+        benchmark["memory"] = metric(max(peak_rss_values), "byte", "max")
     return benchmark
 
 
@@ -566,20 +570,17 @@ def runner_metadata() -> dict[str, Any]:
 
 def write_common_result(
     output: Path,
-    micro_results: list[dict[str, Any]],
-    repo_results: list[dict[str, Any]],
-    micro_timing: dict[str, Any] | None,
-    repo_timing: dict[str, Any] | None,
-    large_results: list[dict[str, Any]] | None = None,
-    large_timing: dict[str, Any] | None = None,
+    results: list[dict[str, Any]],
+    timings: dict[str, Any],
 ) -> None:
+    timings = normalize_timings(timings)
+    by_suite: dict[str, list[dict[str, Any]]] = {}
+    for result in results:
+        by_suite.setdefault(suite_name(result), []).append(result)
     benchmarks = [
         benchmark
-        for benchmark in (
-            common_benchmark("micro", micro_results, micro_timing),
-            common_benchmark("repo", repo_results, repo_timing),
-            common_benchmark("large", large_results or [], large_timing),
-        )
+        for suite, suite_results in by_suite.items()
+        for benchmark in (common_benchmark(suite, suite_results, timings.get(suite)),)
         if benchmark is not None
     ]
     if not benchmarks:
@@ -604,60 +605,35 @@ def write_common_result(
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--micro", type=Path)
-    parser.add_argument("--repo", type=Path)
-    parser.add_argument("--large", type=Path)
-    parser.add_argument("--baseline-micro", type=Path)
-    parser.add_argument("--baseline-repo", type=Path)
-    parser.add_argument("--baseline-large", type=Path)
-    parser.add_argument("--micro-timing", type=Path)
-    parser.add_argument("--repo-timing", type=Path)
-    parser.add_argument("--large-timing", type=Path)
+    parser.add_argument("--results", type=Path)
+    parser.add_argument("--baseline", type=Path)
     parser.add_argument("--common-output", type=Path)
+    parser.add_argument("--report-output", type=Path)
     args = parser.parse_args()
 
-    micro_results = load_results(args.micro, "micro")
-    repo_results = load_results(args.repo, "repository")
-    large_results = load_results(args.large, "large-contract")
-    baseline_micro = load_results(args.baseline_micro, "baseline micro")
-    baseline_repo = load_results(args.baseline_repo, "baseline repository")
-    baseline_large = load_results(args.baseline_large, "baseline large-contract")
+    document = load_document(args.results, "benchmark")
+    baseline_document = load_document(args.baseline, "baseline")
+    results = document["results"]
+    baseline_results = baseline_document["results"]
 
-    emit_warnings("micro", micro_results, baseline_micro)
-    emit_warnings("repository", repo_results, baseline_repo)
-    emit_warnings("large-contract", large_results, baseline_large)
+    emit_warnings(results, baseline_results)
 
-    if args.micro is not None or args.repo is not None or args.large is not None:
-        report = codegen_report(
-            micro_results,
-            repo_results,
-            baseline_micro,
-            baseline_repo,
-            large_results,
-            baseline_large,
-        )
+    if args.results is not None:
+        report = codegen_report(results, baseline_results)
     else:
         report = "## Codegen benchmark\n\nNo benchmark inputs were configured.\n"
 
-    should_comment = has_baseline_changes(
-        micro_results, baseline_micro
-    ) or has_baseline_changes(repo_results, baseline_repo) or has_baseline_changes(
-        large_results, baseline_large
-    )
+    should_comment = has_baseline_changes(results, baseline_results)
     markdown = format_report(report, should_comment, branch_is_behind_main())
     print(markdown)
     append_step_summary(markdown)
+    append_github_output("report", markdown)
     append_github_output("should_comment", "true" if should_comment else "false")
+    if args.report_output is not None:
+        args.report_output.parent.mkdir(parents=True, exist_ok=True)
+        args.report_output.write_text(markdown)
     if args.common_output is not None:
-        write_common_result(
-            args.common_output,
-            micro_results,
-            repo_results,
-            load_timing(args.micro_timing, "micro"),
-            load_timing(args.repo_timing, "repository"),
-            large_results,
-            load_timing(args.large_timing, "large-contract"),
-        )
+        write_common_result(args.common_output, results, document["timings"])
     return 0
 
 
