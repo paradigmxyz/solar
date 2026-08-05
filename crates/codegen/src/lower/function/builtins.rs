@@ -105,10 +105,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let data_span = data.span;
         let data_ty = self.gcx.type_of_expr(data.id)?;
         let memory_ty = data_ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
-        let data = self.lower_typed_expr(data, memory_ty)?;
-        let data = self.materialize_memory_argument(memory_ty, data, data_span)?;
-        let input = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
-        let input_size = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
         let zero = self.builder.imm_u256(U256::ZERO);
         if capture_returndata && !self.gcx.sess.opts.evm_version.supports_returndata() {
             return report_error(
@@ -129,6 +125,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 }
             }
         }
+        let data = self.lower_typed_expr(data, memory_ty)?;
+        let data = self.materialize_memory_argument(memory_ty, data, data_span)?;
+        let input = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+        let input_size = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
         let success = match builtin {
             Builtin::AddressCall => {
                 self.builder.call(gas, address, value, input, input_size, zero, zero)

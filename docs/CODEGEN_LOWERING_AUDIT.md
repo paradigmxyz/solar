@@ -183,7 +183,7 @@ existing scalar and packed-storage MIR fixtures. It supports:
   right-hand-side evaluation before tuple stores and evaluation of discarded
   tuple values for their side effects;
 * low-level and typed external calls, including contract-typed receiver dispatch,
-  source-order receiver, call-option, and argument evaluation, explicit
+  source-order receiver, low-level call-option, and argument evaluation, explicit
   `gas`/`value` options, contract-address conversions, returndata capture, and
   EVM-version checks;
 * positional and named struct constructors with declaration-order field layout;
