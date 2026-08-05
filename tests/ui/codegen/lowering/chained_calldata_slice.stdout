@@ -28,40 +28,51 @@ fn @bytesChain(arg0: calldataslice) -> memorybytes [abi_args=lazy, abi_params=[b
     v10 = sub v8, 1
     v11 = add v7, 1
     v12 = make_calldata_slice v11, v10
-    v13 = slice_len v12
-    v14 = add v13, 31
-    v15 = lt v14, v13
-    jumpi v15, bb5, bb6
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = add v13, v14
+    v16 = lt v15, v13
+    v17 = calldatasize
+    v18 = gt v15, v17
+    v19 = or v16, v18
+    jumpi v19, bb5, bb6
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb6:
-    v16 = div v14, 32
-    v17 = add v16, 1
-    v18 = lt v17, v16
-    jumpi v18, bb7, bb8
+    v20 = slice_len v12
+    v21 = add v20, 31
+    v22 = lt v21, v20
+    jumpi v22, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v19 = mul v17, 32
-    v20 = iszero 32
-    v21 = div v19, 32
-    v22 = eq v21, v17
-    v23 = or v20, v22
-    v24 = iszero v23
-    jumpi v24, bb9, bb10
+    v23 = div v21, 32
+    v24 = add v23, 1
+    v25 = lt v24, v23
+    jumpi v25, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    v25 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v25, v13
-    memory_object_copy_from_slice memorybytes, v25, v12
-    ret v25
+    v26 = mul v24, 32
+    v27 = iszero 32
+    v28 = div v26, 32
+    v29 = eq v28, v24
+    v30 = or v27, v29
+    v31 = iszero v30
+    jumpi v31, bb11, bb12
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    v32 = alloc memorybytes, exact, uninitialized, infallible, v26
+    set_memory_object_len memorybytes, v32, v20
+    memory_object_copy_from_slice memorybytes, v32, v12
+    ret v32
 }
 
 fn @arrChain(arg0: calldataslice) -> u256 [abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[word]] {

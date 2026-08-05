@@ -10,33 +10,42 @@ fn @unwrap(arg0: calldataptr, arg1: u256) -> memptr {
   bb1:
     jump bb2
   bb2:
-    v34 = phi [bb1: arg0], [bb0: arg0]
-    v35 = phi [bb1: v3], [bb0: arg1]
-    v15 = add v35, 31
-    v16 = lt v15, v35
-    jumpi v16, bb3, bb4
+    v41 = phi [bb1: arg0], [bb0: arg0]
+    v42 = phi [bb1: v3], [bb0: arg1]
+    v16 = add v41, v42
+    v17 = lt v16, v41
+    v18 = calldatasize
+    v19 = gt v16, v18
+    v20 = or v17, v19
+    jumpi v20, bb3, bb4
   bb3:
+    revert 0, 0
+  bb4:
+    v22 = add v42, 31
+    v23 = lt v22, v42
+    jumpi v23, bb5, bb6
+  bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    v17 = shr 5, v15
-    v18 = add v17, 1
-    v19 = lt v18, v17
-    jumpi v19, bb3, bb5
-  bb5:
-    v20 = shl 5, v18
-    v22 = shr 5, v20
-    v23 = eq v22, v18
-    jumpi v23, bb6, bb3
   bb6:
-    v26 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v37 = add v26, v20
-    mstore 64, v37 !metadata(memory=scratch)
-    mstore v26, v35
-    v27 = add v26, 32
-    calldatacopy v27, v34, v35
-    ret v26
+    v24 = shr 5, v22
+    v25 = add v24, 1
+    v26 = lt v25, v24
+    jumpi v26, bb5, bb7
+  bb7:
+    v27 = shl 5, v25
+    v29 = shr 5, v27
+    v30 = eq v29, v25
+    jumpi v30, bb8, bb5
+  bb8:
+    v33 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v44 = add v33, v27
+    mstore 64, v44 !metadata(memory=scratch)
+    mstore v33, v42
+    v34 = add v33, 32
+    calldatacopy v34, v41, v42
+    ret v33
 }
 
 fn @use() {

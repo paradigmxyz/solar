@@ -226,11 +226,15 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     )
                 ) =>
             {
+                self.validate_calldata_bytes_slice(value);
                 Some(self.materialize_memory_slice(value))
             }
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => Some(self.materialize_memory_slice(value)),
+            ) => {
+                self.validate_calldata_bytes_slice(value);
+                Some(self.materialize_memory_slice(value))
+            }
             TyKind::DynArray(element) | TyKind::Slice(element) => {
                 let element_type = self.types.abi_type(element)?;
                 let length = self.builder.slice_len(value);
@@ -630,14 +634,24 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let length = self.calldata_load_word(position);
         let data = self.builder.add(position, word);
         if validate_bounds {
-            let padding = self.builder.imm_u64(31);
-            let rounded = self.checked_add(length, padding);
-            let mask = self.builder.not(padding);
-            let data_size = self.builder.and(rounded, mask);
-            self.check_calldata_range(data, data_size);
+            self.validate_calldata_bytes_range(data, length);
         }
         let slice = self.builder.make_slice(data, length, SliceLocation::Calldata);
         self.materialize_memory_slice(slice)
+    }
+
+    fn validate_calldata_bytes_slice(&mut self, slice: ValueId) {
+        let pointer = self.builder.slice_ptr(slice);
+        let length = self.builder.slice_len(slice);
+        self.check_calldata_range(pointer, length);
+    }
+
+    fn validate_calldata_bytes_range(&mut self, pointer: ValueId, length: ValueId) {
+        let padding = self.builder.imm_u64(31);
+        let rounded = self.checked_add(length, padding);
+        let mask = self.builder.not(padding);
+        let data_size = self.builder.and(rounded, mask);
+        self.check_calldata_range(pointer, data_size);
     }
 
     fn materialize_calldata_fixed_array(
