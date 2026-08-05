@@ -15,8 +15,8 @@
 // - enum: word < member count (`lt(word, count)`)
 // Full-word types (uint256, int256, bytes32) need no canonicalization
 // validator, but still need the short-calldata guard. The validators read the
-// raw word with an explicit `calldataload` so optimization passes may assume
-// `Arg` values of external functions are canonical.
+// raw word through the semantic calldata-slice boundary so optimization
+// passes may assume `Arg` values of external functions are canonical.
 contract CalldataValidation {
     enum Dir {
         Up,
@@ -25,7 +25,8 @@ contract CalldataValidation {
     }
 
     // CHECK-LABEL: fn @vUint8{{[( ]}}
-    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: {{v[0-9]+}} = make_calldata_slice 4, 32
+    // CHECK: [[RAW:v[0-9]+]] = calldata_slice_load_word calldata
     // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[RAW]]
     // CHECK: eq [[RAW]], {{v[0-9]+}}
     function vUint8(uint8 x) external pure returns (uint8) {
@@ -33,7 +34,8 @@ contract CalldataValidation {
     }
 
     // CHECK-LABEL: fn @vInt16{{[( ]}}
-    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: {{v[0-9]+}} = make_calldata_slice 4, 32
+    // CHECK: [[RAW:v[0-9]+]] = calldata_slice_load_word calldata
     // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[RAW]]
     // CHECK: eq [[RAW]], {{v[0-9]+}}
     function vInt16(int16 x) external pure returns (int16) {
@@ -41,7 +43,8 @@ contract CalldataValidation {
     }
 
     // CHECK-LABEL: fn @vBool{{[( ]}}
-    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: {{v[0-9]+}} = make_calldata_slice 4, 32
+    // CHECK: [[RAW:v[0-9]+]] = calldata_slice_load_word calldata
     // CHECK: [[ZERO:v[0-9]+]] = iszero [[RAW]]
     // CHECK: [[CANON:v[0-9]+]] = iszero [[ZERO]]
     // CHECK: eq [[RAW]], [[CANON]]
@@ -50,7 +53,8 @@ contract CalldataValidation {
     }
 
     // CHECK-LABEL: fn @vAddress{{[( ]}}
-    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: {{v[0-9]+}} = make_calldata_slice 4, 32
+    // CHECK: [[RAW:v[0-9]+]] = calldata_slice_load_word calldata
     // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[RAW]]
     // CHECK: eq [[RAW]], {{v[0-9]+}}
     function vAddress(address x) external pure returns (address) {
@@ -58,7 +62,8 @@ contract CalldataValidation {
     }
 
     // CHECK-LABEL: fn @vBytes4{{[( ]}}
-    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: {{v[0-9]+}} = make_calldata_slice 4, 32
+    // CHECK: [[RAW:v[0-9]+]] = calldata_slice_load_word calldata
     // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[RAW]]
     // CHECK: eq [[RAW]], {{v[0-9]+}}
     function vBytes4(bytes4 x) external pure returns (bytes4) {
@@ -66,16 +71,19 @@ contract CalldataValidation {
     }
 
     // CHECK-LABEL: fn @vEnum{{[( ]}}
-    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: {{v[0-9]+}} = make_calldata_slice 4, 32
+    // CHECK: [[RAW:v[0-9]+]] = calldata_slice_load_word calldata
     // CHECK: lt [[RAW]], 3
     function vEnum(Dir x) external pure returns (Dir) {
         return x;
     }
 
     // CHECK-LABEL: fn @vMulti{{[( ]}}
-    // CHECK: [[A:v[0-9]+]] = calldataload 4
+    // CHECK: {{v[0-9]+}} = make_calldata_slice 4, 32
+    // CHECK: [[A:v[0-9]+]] = calldata_slice_load_word calldata
     // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[A]]
-    // CHECK: [[B:v[0-9]+]] = calldataload 36
+    // CHECK: {{v[0-9]+}} = make_calldata_slice 36, 32
+    // CHECK: [[B:v[0-9]+]] = calldata_slice_load_word calldata
     // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[B]]
     function vMulti(uint32 a, int8 b) external pure returns (uint256) {
         return uint256(uint32(a)) + uint256(uint8(int8(b)));

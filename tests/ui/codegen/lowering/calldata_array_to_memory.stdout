@@ -83,7 +83,9 @@ bb11:
   push bb77
   jump bb70
 bb70:
+  push 0
   push 4
+  add
   calldataload
   dup1
   push 160
@@ -197,7 +199,9 @@ bb40:
   gt
   push bb7
   jumpi
+  push 0
   push 36
+  add
   calldataload
   dup1
   push 160
@@ -239,8 +243,10 @@ bb40:
   pop
   push bb7
   jumpi
+  push 0
   push 192
   mload
+  add
   calldataload
   dup1
   push 320
@@ -283,7 +289,9 @@ bb40:
   gt
   push bb7
   jumpi
+  push 0
   push 68
+  add
   calldataload
   dup1
   push 160
@@ -325,8 +333,10 @@ bb40:
   pop
   push bb7
   jumpi
+  push 0
   push 192
   mload
+  add
   calldataload
   dup1
   push 256
@@ -717,8 +727,10 @@ bb76:
   push bb75
   jump bb71
 bb71:
+  push 0
   push 192
   mload
+  add
   calldataload
   dup1
   push 256

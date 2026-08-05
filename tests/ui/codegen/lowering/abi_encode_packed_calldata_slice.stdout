@@ -63,7 +63,9 @@ bb6:
   gt
   push bb5
   jumpi
+  push 0
   push 4
+  add
   calldataload
   dup1
   push 160
@@ -105,8 +107,10 @@ bb6:
   pop
   push bb5
   jumpi
+  push 0
   push 224
   mload
+  add
   calldataload
   dup1
   push 160
@@ -262,7 +266,9 @@ bb21:
   gt
   push bb5
   jumpi
+  push 0
   push 4
+  add
   calldataload
   dup1
   push 160
@@ -304,8 +310,10 @@ bb21:
   pop
   push bb5
   jumpi
+  push 0
   push 192
   mload
+  add
   calldataload
   dup1
   push 160

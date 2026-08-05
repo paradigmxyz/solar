@@ -51,35 +51,37 @@ fn @use() {
     v7 = gt 36, v6
     jumpi v7, bb1, bb3
   bb3:
-    v9 = calldataload 4
-    v10 = add v9, 4
-    v11 = lt v10, 4
-    v12 = calldatasize
-    v13 = gt v10, v12
-    v14 = or v11, v13
-    jumpi v14, bb1, bb4
+    v37 = add 4, 0
+    v10 = calldataload v37
+    v11 = add v10, 4
+    v12 = lt v11, 4
+    v13 = calldatasize
+    v14 = gt v11, v13
+    v15 = or v12, v14
+    jumpi v15, bb1, bb4
   bb4:
-    v15 = add v9, 36
-    v16 = lt v15, v10
-    v17 = calldatasize
-    v18 = gt v15, v17
-    v19 = or v16, v18
-    jumpi v19, bb1, bb5
+    v16 = add v10, 36
+    v17 = lt v16, v11
+    v18 = calldatasize
+    v19 = gt v16, v18
+    v20 = or v17, v19
+    jumpi v20, bb1, bb5
   bb5:
-    v20 = calldataload v10
-    v22 = add v20, 31
-    v23 = lt v22, v20
-    jumpi v23, bb1, bb6
+    v39 = add v11, 0
+    v22 = calldataload v39
+    v24 = add v22, 31
+    v25 = lt v24, v22
+    jumpi v25, bb1, bb6
   bb6:
-    v25 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v26 = add v15, v25
-    v27 = lt v26, v15
-    v28 = calldatasize
-    v29 = gt v26, v28
-    v30 = or v27, v29
-    jumpi v30, bb1, bb7
+    v27 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v28 = add v16, v27
+    v29 = lt v28, v16
+    v30 = calldatasize
+    v31 = gt v28, v30
+    v32 = or v29, v31
+    jumpi v32, bb1, bb7
   bb7:
-    v0 = internal_call @unwrap, 1, v15, v20
+    v0 = internal_call @unwrap, 1, v16, v22
     v1 = mload v0
     mstore 128, v1
     returndata 128, 32

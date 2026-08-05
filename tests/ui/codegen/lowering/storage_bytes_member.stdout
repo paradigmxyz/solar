@@ -78,7 +78,9 @@ bb10:
   gt
   push bb9
   jumpi
+  push 0
   push 4
+  add
   calldataload
   dup1
   push 416
@@ -108,7 +110,9 @@ bb12:
   sub
   push bb9
   jumpi
+  push 0
   push 36
+  add
   calldataload
   dup1
   push 416
@@ -1258,7 +1262,9 @@ bb91:
   gt
   push bb9
   jumpi
+  push 0
   push 36
+  add
   calldataload
   dup1
   push 192

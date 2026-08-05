@@ -1343,6 +1343,13 @@ impl LowerAbiCx {
         Some(values)
     }
 
+    fn load_calldata_word(builder: &mut FunctionBuilder<'_>, position: ValueId) -> ValueId {
+        let size = builder.imm_u64(32);
+        let slice = builder.make_slice(position, size, SliceLocation::Calldata);
+        let zero = builder.imm_u64(0);
+        builder.calldata_slice_load_word(slice, zero)
+    }
+
     fn decode_scalar(
         builder: &mut FunctionBuilder<'_>,
         scalar: MirType,
@@ -1352,7 +1359,7 @@ impl LowerAbiCx {
     ) -> ValueId {
         builder.switch_to_block(*current);
         Self::guard_calldata_range(builder, position, 32, current);
-        let value = builder.calldataload(position);
+        let value = Self::load_calldata_word(builder, position);
         if let Some(validator) = AbiWordValidator::from_mir_type(scalar) {
             let valid = if let Some(helpers) = helpers {
                 validator.condition_with_helpers(builder, value, helpers)
@@ -1379,7 +1386,7 @@ impl LowerAbiCx {
     ) -> ValueId {
         builder.switch_to_block(*current);
         Self::guard_calldata_range(builder, position, 32, current);
-        let value = builder.calldataload(position);
+        let value = Self::load_calldata_word(builder, position);
         let valid = AbiWordValidator::EnumRange(variants).condition(builder, value);
         let next = builder.create_block();
         let revert = builder.create_block();
@@ -1404,7 +1411,7 @@ impl LowerAbiCx {
             let zero = builder.imm_u64(0);
             builder.memory_slice_load_word(slice, zero)
         } else {
-            builder.calldataload(position)
+            Self::load_calldata_word(builder, position)
         }
     }
 

@@ -8,42 +8,22 @@ fn @vUint8() {
     jumpi v1, bb2, bb3
   bb1:
     mstore 128, arg0
-    v5 = add 128, 32
-    v6 = sub v5, 128
-    returndata 128, v6
+    v6 = add 128, 32
+    v7 = sub v6, 128
+    returndata 128, v7
   bb2:
     revert 0, 0
   bb3:
-    v2 = calldataload 4
-    v3 = internal_call @__cleanup0, 1, v2
-    v4 = eq v2, v3
-    jumpi v4, bb4, bb2
+    v2 = make_calldata_slice 4, 32
+    v3 = calldata_slice_load_word calldata, v2, 0
+    v4 = internal_call @__cleanup0, 1, v3
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb2
   bb4:
     jump bb1
 }
 
 fn @vInt16() {
-  bb0:
-    v0 = calldatasize
-    v1 = lt v0, 36
-    jumpi v1, bb2, bb3
-  bb1:
-    mstore 128, arg0
-    v5 = add 128, 32
-    v6 = sub v5, 128
-    returndata 128, v6
-  bb2:
-    revert 0, 0
-  bb3:
-    v2 = calldataload 4
-    v3 = internal_call @__cleanup5, 1, v2
-    v4 = eq v2, v3
-    jumpi v4, bb4, bb2
-  bb4:
-    jump bb1
-}
-
-fn @vBool() {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -56,11 +36,34 @@ fn @vBool() {
   bb2:
     revert 0, 0
   bb3:
-    v2 = calldataload 4
-    v3 = iszero v2
-    v4 = iszero v3
-    v5 = eq v2, v4
+    v2 = make_calldata_slice 4, 32
+    v3 = calldata_slice_load_word calldata, v2, 0
+    v4 = internal_call @__cleanup5, 1, v3
+    v5 = eq v3, v4
     jumpi v5, bb4, bb2
+  bb4:
+    jump bb1
+}
+
+fn @vBool() {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 36
+    jumpi v1, bb2, bb3
+  bb1:
+    mstore 128, arg0
+    v7 = add 128, 32
+    v8 = sub v7, 128
+    returndata 128, v8
+  bb2:
+    revert 0, 0
+  bb3:
+    v2 = make_calldata_slice 4, 32
+    v3 = calldata_slice_load_word calldata, v2, 0
+    v4 = iszero v3
+    v5 = iszero v4
+    v6 = eq v3, v5
+    jumpi v6, bb4, bb2
   bb4:
     jump bb1
 }
@@ -72,16 +75,17 @@ fn @vAddress() {
     jumpi v1, bb2, bb3
   bb1:
     mstore 128, arg0
-    v5 = add 128, 32
-    v6 = sub v5, 128
-    returndata 128, v6
+    v6 = add 128, 32
+    v7 = sub v6, 128
+    returndata 128, v7
   bb2:
     revert 0, 0
   bb3:
-    v2 = calldataload 4
-    v3 = internal_call @__cleanup2, 1, v2
-    v4 = eq v2, v3
-    jumpi v4, bb4, bb2
+    v2 = make_calldata_slice 4, 32
+    v3 = calldata_slice_load_word calldata, v2, 0
+    v4 = internal_call @__cleanup2, 1, v3
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb2
   bb4:
     jump bb1
 }
@@ -93,16 +97,17 @@ fn @vBytes4() {
     jumpi v1, bb2, bb3
   bb1:
     mstore 128, arg0
-    v5 = add 128, 32
-    v6 = sub v5, 128
-    returndata 128, v6
+    v6 = add 128, 32
+    v7 = sub v6, 128
+    returndata 128, v7
   bb2:
     revert 0, 0
   bb3:
-    v2 = calldataload 4
-    v3 = internal_call @__cleanup3, 1, v2
-    v4 = eq v2, v3
-    jumpi v4, bb4, bb2
+    v2 = make_calldata_slice 4, 32
+    v3 = calldata_slice_load_word calldata, v2, 0
+    v4 = internal_call @__cleanup3, 1, v3
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb2
   bb4:
     jump bb1
 }
@@ -114,15 +119,16 @@ fn @vEnum() {
     jumpi v1, bb2, bb3
   bb1:
     mstore 128, arg0
-    v4 = add 128, 32
-    v5 = sub v4, 128
-    returndata 128, v5
+    v5 = add 128, 32
+    v6 = sub v5, 128
+    returndata 128, v6
   bb2:
     revert 0, 0
   bb3:
-    v2 = calldataload 4
-    v3 = lt v2, 3
-    jumpi v3, bb4, bb2
+    v2 = make_calldata_slice 4, 32
+    v3 = calldata_slice_load_word calldata, v2, 0
+    v4 = lt v3, 3
+    jumpi v4, bb4, bb2
   bb4:
     jump bb1
 }
@@ -142,21 +148,23 @@ fn @vMulti() {
     revert 0, 36
   bb3:
     mstore 128, v0
-    v10 = add 128, 32
-    v11 = sub v10, 128
-    returndata 128, v11
+    v12 = add 128, 32
+    v13 = sub v12, 128
+    returndata 128, v13
   bb4:
     revert 0, 0
   bb5:
-    v4 = calldataload 4
-    v5 = internal_call @__cleanup1, 1, v4
-    v6 = eq v4, v5
-    jumpi v6, bb6, bb4
+    v4 = make_calldata_slice 4, 32
+    v5 = calldata_slice_load_word calldata, v4, 0
+    v6 = internal_call @__cleanup1, 1, v5
+    v7 = eq v5, v6
+    jumpi v7, bb6, bb4
   bb6:
-    v7 = calldataload 36
-    v8 = internal_call @__cleanup4, 1, v7
-    v9 = eq v7, v8
-    jumpi v9, bb7, bb4
+    v8 = make_calldata_slice 36, 32
+    v9 = calldata_slice_load_word calldata, v8, 0
+    v10 = internal_call @__cleanup4, 1, v9
+    v11 = eq v9, v10
+    jumpi v11, bb7, bb4
   bb7:
     jump bb1
 }

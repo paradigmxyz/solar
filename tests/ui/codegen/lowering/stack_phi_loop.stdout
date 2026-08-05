@@ -41,7 +41,9 @@ bb7:
   gt
   push bb6
   jumpi
+  push 0
   push 36
+  add
   calldataload
   dup1
   iszero
