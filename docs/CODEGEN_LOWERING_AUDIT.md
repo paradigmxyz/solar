@@ -117,7 +117,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   left-aligned string and hex case words, and branch-local value merging;
 * calldata slice parameters and `.offset`/`.length` access and assignment in
   both ordinary Solidity expressions and inline assembly, including indexed
-  bytes and array slices and internal slice returns;
+  bytes and array slices, internal slice returns, and external `this` calls
+  that ABI-encode memory aggregates;
 * `fallback(bytes calldata) returns (bytes memory)` through an explicit
   argument-free wrapper, full-calldata slice, and raw returndata body;
 * constructor and fallback/function attributes needed by the backend;
