@@ -52,19 +52,18 @@ impl StorageLocation {
 }
 
 /// Storage locations for all state variables visible to the selected contract.
-#[derive(Debug, Default)]
-pub(super) struct StorageLayout {
-    locations: FxHashMap<VariableId, StorageLocation>,
+pub(super) struct StorageLayout<'gcx> {
+    builder: StorageBuilder<'gcx>,
 }
 
-impl StorageLayout {
+impl<'gcx> StorageLayout<'gcx> {
     /// Computes Solidity's base-to-derived storage order once for a module.
-    pub(super) fn for_contract(gcx: Gcx<'_>, contract_id: ContractId) -> Self {
+    pub(super) fn for_contract(gcx: Gcx<'gcx>, contract_id: ContractId) -> Self {
         StorageBuilder::new(gcx).lower(contract_id)
     }
 
     pub(super) fn get(&self, id: VariableId) -> Option<StorageLocation> {
-        self.locations.get(&id).copied()
+        self.builder.locations.get(&id).copied()
     }
 
     pub(super) fn load(
@@ -126,25 +125,20 @@ impl StorageLayout {
         self.store_at_offset(builder, location, slot, offset, value);
     }
 
-    pub(super) fn packed_encoding<'gcx>(
-        &self,
-        gcx: Gcx<'gcx>,
-        ty: Ty<'gcx>,
-    ) -> Option<(TypeSize, StorageEncoding)> {
-        StorageBuilder::new(gcx).packed_encoding(ty)
+    pub(super) fn packed_encoding(&self, ty: Ty<'gcx>) -> Option<(TypeSize, StorageEncoding)> {
+        self.builder.packed_encoding(ty)
     }
 
     pub(super) fn field_location(
         &self,
-        gcx: Gcx<'_>,
         struct_id: solar_sema::hir::StructId,
         field: usize,
     ) -> Option<StorageLocation> {
-        StorageBuilder::new(gcx).locate_field(struct_id, field)
+        self.builder.locate_field(struct_id, field)
     }
 
-    pub(super) fn element_slots<'gcx>(&self, gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> u64 {
-        StorageBuilder::new(gcx).storage_slots(ty, Span::DUMMY)
+    pub(super) fn element_slots(&self, ty: Ty<'gcx>) -> u64 {
+        self.builder.storage_slots(ty, Span::DUMMY)
     }
 
     fn load_at(
@@ -327,7 +321,7 @@ impl<'gcx> StorageBuilder<'gcx> {
         Self { gcx, locations: FxHashMap::default(), cursor: StorageCursor::new() }
     }
 
-    fn lower(mut self, contract_id: ContractId) -> StorageLayout {
+    fn lower(mut self, contract_id: ContractId) -> StorageLayout<'gcx> {
         let contract = self.gcx.hir.contract(contract_id);
         for &base in contract.linearized_bases.iter().rev() {
             for id in self.gcx.hir.contract(base).variables() {
@@ -341,7 +335,7 @@ impl<'gcx> StorageBuilder<'gcx> {
                 }
             }
         }
-        StorageLayout { locations: self.locations }
+        StorageLayout { builder: self }
     }
 
     fn allocate(&mut self, ty: Ty<'gcx>, span: Span) -> Option<StorageLocation> {

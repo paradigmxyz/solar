@@ -30,7 +30,7 @@ use std::sync::Arc;
 pub(super) struct LoweringContext<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers> {
     pub(super) gcx: Gcx<'gcx>,
     pub(super) module: &'module mut Module,
-    pub(super) storage: &'mir StorageLayout,
+    pub(super) storage: &'mir StorageLayout<'gcx>,
     pub(super) contract_id: hir::ContractId,
     pub(super) function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
     pub(super) immutable_ids: &'ids FxHashMap<VariableId, ImmutableId>,
@@ -177,7 +177,7 @@ pub(super) fn lower_synthetic_constructor(
 struct FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers> {
     gcx: Gcx<'gcx>,
     module: &'module mut Module,
-    storage: &'mir StorageLayout,
+    storage: &'mir StorageLayout<'gcx>,
     contract_id: hir::ContractId,
     function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
     immutable_ids: &'ids FxHashMap<VariableId, ImmutableId>,
@@ -2234,7 +2234,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 let field =
                     self.gcx.hir.strukt(struct_id).fields.iter().position(|&field| field == id)?;
                 let base = self.storage_access(receiver)?;
-                let location = self.storage.field_location(self.gcx, struct_id, field)?;
+                let location = self.storage.field_location(struct_id, field)?;
                 let slot = self.add_storage_offset(base.slot, location.slot);
                 Some(StorageAccess { slot, location, offset: None })
             }
@@ -2245,7 +2245,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 let index = self.lower_expr(index)?;
                 if let TyKind::Mapping(_, value) = ty.kind {
                     let slot = self.mapping_slot(index, index_ty, base.slot);
-                    if let Some((size, encoding)) = self.storage.packed_encoding(self.gcx, value) {
+                    if let Some((size, encoding)) = self.storage.packed_encoding(value) {
                         let location =
                             StorageLocation { slot: U256::ZERO, offset: 0, size, encoding };
                         return Some(StorageAccess { slot, location, offset: None });
@@ -2331,7 +2331,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         element: solar_sema::ty::Ty<'gcx>,
         dynamic: bool,
     ) -> Option<StorageAccess> {
-        if let Some((size, encoding)) = self.storage.packed_encoding(self.gcx, element)
+        if let Some((size, encoding)) = self.storage.packed_encoding(element)
             && size.bits() < 256
         {
             let bytes = u64::from(size.bytes());
@@ -2346,7 +2346,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let location = StorageLocation { slot: U256::ZERO, offset: 0, size, encoding };
             return Some(StorageAccess { slot, location, offset: Some(offset) });
         }
-        let element_slots = self.storage.element_slots(self.gcx, element);
+        let element_slots = self.storage.element_slots(element);
         let slot = if dynamic {
             self.builder.storage_array_element_slot(base_slot, index, element_slots)
         } else {
@@ -2464,7 +2464,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
                 for (index, &field) in self.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
                     let field_ty = self.gcx.type_of_item(field.into());
-                    let location = self.storage.field_location(self.gcx, struct_id, index)?;
+                    let location = self.storage.field_location(struct_id, index)?;
                     let field_slot = self.add_storage_offset(slot, location.slot);
                     let value = self.load_storage_value(
                         field_ty,
@@ -2558,7 +2558,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 let layout = MemoryObjectLayout::Struct { fields };
                 for (index, &field) in self.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
                     let field_ty = self.gcx.type_of_item(field.into());
-                    let location = self.storage.field_location(self.gcx, struct_id, index)?;
+                    let location = self.storage.field_location(struct_id, index)?;
                     let field_slot = self.add_storage_offset(slot, location.slot);
                     let value = self.builder.memory_object_load_field(object, layout, index as u64);
                     self.store_storage_value(
@@ -6625,7 +6625,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             TyKind::Struct(struct_id) => {
                 for (index, &field) in self.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
                     let field_ty = self.gcx.type_of_item(field.into());
-                    let location = self.storage.field_location(self.gcx, struct_id, index)?;
+                    let location = self.storage.field_location(struct_id, index)?;
                     let field_slot = self.add_storage_offset(access.slot, location.slot);
                     self.clear_storage_access(
                         field_ty,
