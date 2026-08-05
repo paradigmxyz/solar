@@ -2738,6 +2738,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => Some(size),
             _ => None,
         };
+        if destination_size.is_some()
+            && let Some(abi_type) = self.types.abi_type(from)
+        {
+            self.validate_calldata_bytes_argument(value, &abi_type);
+        }
         let value = if let Some(size) = source_size
             && destination_size.is_none()
             && u64::from(32 - size.bytes()) * 8 != 0

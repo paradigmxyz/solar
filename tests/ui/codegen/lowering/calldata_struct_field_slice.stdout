@@ -34,8 +34,8 @@ fn @factory(arg0: calldataptr, arg1: u256) -> address {
     v28 = or v3, v27
     jumpi v28, bb1, bb7
   bb6:
-    v51 = phi [bb4: 0], [bb11: v50]
-    ret v51
+    v58 = phi [bb4: 0], [bb12: v57]
+    ret v58
   bb7:
     v30 = calldataload v1
     v31 = add arg0, v30
@@ -56,8 +56,17 @@ fn @factory(arg0: calldataptr, arg1: u256) -> address {
     tail_call @__revert_stub0
   bb11:
     v48 = make_calldata_slice v33, 20
-    v49 = shl 96, v48
-    v50 = shr 96, v49
+    v49 = slice_ptr v48
+    v50 = slice_len v48
+    v51 = add v49, v50
+    v52 = lt v51, v49
+    v53 = calldatasize
+    v54 = gt v51, v53
+    v55 = or v52, v54
+    jumpi v55, bb1, bb12
+  bb12:
+    v56 = shl 96, v48
+    v57 = shr 96, v56
     jump bb6
 }
 
@@ -185,6 +194,15 @@ fn @midWord(arg0: calldataptr, arg1: u256) -> bytes32 {
     tail_call @__revert_stub0
   bb6:
     v26 = make_calldata_slice v11, 32
+    v27 = slice_ptr v26
+    v28 = slice_len v26
+    v29 = add v27, v28
+    v30 = lt v29, v27
+    v31 = calldatasize
+    v32 = gt v29, v31
+    v33 = or v30, v32
+    jumpi v33, bb1, bb7
+  bb7:
     ret v26
 }
 
@@ -948,8 +966,8 @@ fn @factory.3(arg0: calldataptr, arg1: u256) -> address {
     v28 = or v3, v27
     jumpi v28, bb1, bb7
   bb6:
-    v51 = phi [bb4: 0], [bb11: v50]
-    ret v51
+    v58 = phi [bb4: 0], [bb12: v57]
+    ret v58
   bb7:
     v30 = calldataload v1
     v31 = add arg0, v30
@@ -970,8 +988,17 @@ fn @factory.3(arg0: calldataptr, arg1: u256) -> address {
     tail_call @__revert_stub1
   bb11:
     v48 = make_calldata_slice v33, 20
-    v49 = shl 96, v48
-    v50 = shr 96, v49
+    v49 = slice_ptr v48
+    v50 = slice_len v48
+    v51 = add v49, v50
+    v52 = lt v51, v49
+    v53 = calldatasize
+    v54 = gt v51, v53
+    v55 = or v52, v54
+    jumpi v55, bb1, bb12
+  bb12:
+    v56 = shl 96, v48
+    v57 = shr 96, v56
     jump bb6
 }
 
@@ -1097,6 +1124,15 @@ fn @midWord.5(arg0: calldataptr, arg1: u256) -> bytes32 {
     tail_call @__revert_stub1
   bb6:
     v26 = make_calldata_slice v11, 32
+    v27 = slice_ptr v26
+    v28 = slice_len v26
+    v29 = add v27, v28
+    v30 = lt v29, v27
+    v31 = calldatasize
+    v32 = gt v29, v31
+    v33 = or v30, v32
+    jumpi v33, bb1, bb7
+  bb7:
     ret v26
 }
 

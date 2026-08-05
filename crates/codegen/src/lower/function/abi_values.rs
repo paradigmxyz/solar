@@ -99,7 +99,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             return Some(self.builder.select(condition, then_selector, else_selector));
         }
 
+        let signature_ty = self.gcx.type_of_expr(signature.id);
         let signature = self.lower_expr(signature)?;
+        if let Some(signature_ty) = signature_ty
+            && let Some(abi_type) = self.types.abi_type(signature_ty)
+        {
+            self.validate_calldata_bytes_argument(signature, &abi_type);
+        }
         let signature = match self.builder.func().value_ty(signature) {
             Some(MirType::Slice(_)) => self.materialize_memory_slice(signature),
             _ => signature,
