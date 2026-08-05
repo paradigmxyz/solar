@@ -76,6 +76,10 @@ reads or updates the free-memory pointer. Contract creation receives compiled
 child deployment bytecode through the public lowering boundary and appends
 semantic ABI-encoded constructor arguments before emitting `create` or
 `create2`.
+Multi-return buffers use the same semantic fixed-array objects and frame-slot
+operations in HIR lowering, ABI lowering, and generated function-pointer
+dispatchers. Their consumers carry the complete logical slice length instead
+of rebuilding a raw address for each word.
 
 ## Verified replacement slice
 
@@ -168,6 +172,9 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * internal function-pointer values and shape-specific dispatchers for exact,
   virtual, and `super` targets, including storage-backed values, higher-order
   returns, memory arrays, and multi-return calls;
+* multi-return values published through semantic frame slots and fixed-array
+  objects across external calls, linked-library calls, ABI decoding, and
+  internal function-pointer dispatch;
 * `abi.decode` scalar, tuple, struct, fixed- and dynamic-array, and
   calldata-slice paths through semantic memory slices and object copies;
 * dynamic calldata arrays of multiword static elements, including storage
@@ -183,6 +190,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   and overflow/range rejection;
 * `ecrecover`, `sha256`, and `ripemd160` through version-aware precompile
   calls and semantic memory objects;
+* ERC-7201 namespace hashing for literal and memory-string arguments through
+  semantic bytes objects, with Solc-backed runtime checks;
 * `string.concat` and `bytes.concat` through one variadic packed-memory path,
   including empty, literal, dynamic, fixed-bytes, and storage-backed pieces;
 * lazy, deduplicated ABI cleanup helpers and outlined revert helpers.
@@ -212,8 +221,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    uses each element's ABI head width, so static elements wider than one word do
    not overlap.
    `abi.decode` is now represented by a semantic MIR operation and lowered by
-   the ABI pass; the remaining work is broader independent differential
-   coverage.
+   the ABI pass; multi-return materialization uses the shared frame/object
+   path. The remaining work is broader independent differential coverage.
 2. Extend base-constructor argument forwarding coverage to the remaining
    unresolved and constructor-modifier edge cases. Inherited constructor
    arguments that call direct or virtual functions now have Solc-backed
@@ -243,12 +252,20 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    nested fixed arrays have an ABI-encoding fixture.
 5. Keep expanding runtime and differential coverage for aggregate allocation
    shapes and constructor/modifier edges. The UI snapshots are now in sync
-   with the rewrite, and the full `cargo tq ui` suite passes.
+   with the rewrite, and the full `cargo tq ui` suite passes. ERC-7201
+   calldata- and storage-string arguments still fail closed because the current
+   backend cannot consume those location-aware slices; literal and memory
+   arguments are covered by the run-call fixture.
 
 The current intentional boundary is dynamic-element calldata array slicing.
 Solidity rejects range access for arrays with dynamically encoded base types,
 and the MIR slice representation keeps only a pointer and length, so it cannot
 recover the original base needed to resolve nested dynamic ABI offsets.
+
+The generated internal function-pointer dispatchers keep `no_inline` as a
+semantic boundary: inlining would duplicate a shape-wide target switch at each
+call site. This does not apply to cleanup or revert helper registries, which
+remain deduplicated by semantic shape.
 
 Unsupported HIR emits a diagnostic and leaves an `invalid` MIR terminator in the
 rejected function. This is a deliberate fail-closed boundary; it must not be
