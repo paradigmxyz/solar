@@ -4,6 +4,7 @@
 //@ run-call: pointerReturnRoundtrip() => 9
 //@ run-call: pointerStructRoundtrip() => 9
 //@ run-call: pointerArrayRoundtrip() => 9
+//@ run-call: calldataPointerRoundtrip() => true
 
 contract ExternalFunctionPointerAggregateTarget {
     function pair() external pure returns (uint256, string memory) {
@@ -91,5 +92,14 @@ contract ExternalFunctionPointerAggregate {
         pointers[0] = this.increment;
         pointers[1] = this.increment;
         return pointers[0](3) + pointers[1](4);
+    }
+
+    function calldataTarget(string calldata text) external pure returns (bool) {
+        return keccak256(bytes(text)) == keccak256("testString");
+    }
+
+    function calldataPointerRoundtrip() external returns (bool) {
+        function(string memory) external returns (bool) pointer = this.calldataTarget;
+        return pointer("testString");
     }
 }

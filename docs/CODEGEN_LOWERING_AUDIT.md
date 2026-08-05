@@ -212,7 +212,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    bindings. Custom error catch clauses are rejected by the tracked Solidity
    type checker and are not a valid lowering target. Creation and runtime code
    literals now use compiled child artifacts. External pointers also have
-   runtime coverage inside memory structs and arrays.
+   runtime coverage inside memory structs and arrays, storage structs and
+   arrays, and memory-signature pointers targeting calldata implementations.
    The Unifap creation fixture now passes the differential Foundry
    suite; the companion fixture compiles with no Solar-only regressions, but
    retains seven pre-existing failures under both compilers because its
