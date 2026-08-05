@@ -137,6 +137,27 @@ struct InlineReturnCtx {
     return_vars: Vec<VariableId>,
 }
 
+/// The code substituted at a modifier placeholder: the remaining modifier
+/// invocations, followed by the function body.
+#[derive(Clone, Copy)]
+struct ModifierContinuation<'hir> {
+    modifiers: &'hir [hir::Modifier<'hir>],
+    body: hir::Block<'hir>,
+    return_vars: &'hir [VariableId],
+}
+
+/// A snapshot of lexical local bindings around an inlined modifier or function
+/// body. Runtime writes remain in their allocated slots; restoring this map only
+/// prevents repeated substitutions of the same HIR variables from shadowing an
+/// enclosing invocation during lowering.
+#[derive(Clone)]
+struct LocalBindings {
+    locals: FxHashMap<VariableId, ValueId>,
+    local_memory_slots: FxHashMap<VariableId, u64>,
+    slice_slot_locals: FxHashSet<VariableId>,
+    storage_ref_locals: GrowableBitSet<VariableId>,
+}
+
 type InternalFunctionPointerShape = (Vec<MirType>, Vec<MirType>);
 
 /// Lowering context for converting HIR to MIR.
@@ -179,6 +200,8 @@ pub(crate) struct Lowerer<'gcx> {
     /// returns cannot ride the one-word-per-value multi-return buffer
     /// (calldata slices). Destructuring consumes them directly.
     pending_inline_returns: Option<Vec<ValueId>>,
+    /// Continuation substituted at `_` while lowering a modifier body.
+    modifier_continuation: Option<ModifierContinuation<'gcx>>,
     /// Next available memory offset for locals.
     next_local_memory_offset: u64,
     /// Bytecodes of other contracts (for `new` expressions).
@@ -297,6 +320,7 @@ impl<'gcx> Lowerer<'gcx> {
             slice_slot_locals: FxHashSet::default(),
             inline_returns: None,
             pending_inline_returns: None,
+            modifier_continuation: None,
             next_local_memory_offset: EvmMemoryLayout::HEAP_START,
             contract_bytecodes: FxHashMap::default(),
             loop_stack: Vec::new(),
@@ -369,6 +393,22 @@ impl<'gcx> Lowerer<'gcx> {
         debug_assert!(popped.is_some());
         self.check_expr_errors = self.inline_expr_error_checks & 1 != 0;
         self.inline_expr_error_checks >>= 1;
+    }
+
+    fn local_bindings(&self) -> LocalBindings {
+        LocalBindings {
+            locals: self.locals.clone(),
+            local_memory_slots: self.local_memory_slots.clone(),
+            slice_slot_locals: self.slice_slot_locals.clone(),
+            storage_ref_locals: self.storage_ref_locals.clone(),
+        }
+    }
+
+    fn restore_local_bindings(&mut self, bindings: LocalBindings) {
+        self.locals = bindings.locals;
+        self.local_memory_slots = bindings.local_memory_slots;
+        self.slice_slot_locals = bindings.slice_slot_locals;
+        self.storage_ref_locals = bindings.storage_ref_locals;
     }
 
     /// Allocates a memory slot for a local variable.
@@ -661,6 +701,7 @@ impl<'gcx> Lowerer<'gcx> {
             let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
             let saved_inline_returns = self.inline_returns.take();
             let saved_pending_inline_returns = self.pending_inline_returns.take();
+            let saved_modifier_continuation = self.modifier_continuation.take();
             let saved_lowering_constructor = self.lowering_constructor;
             let saved_constructor_args_base = self.constructor_args_base;
             let saved_lowering_internal_function = self.lowering_internal_function;
@@ -683,6 +724,7 @@ impl<'gcx> Lowerer<'gcx> {
             self.assigned_vars = saved_assigned_vars;
             self.inline_returns = saved_inline_returns;
             self.pending_inline_returns = saved_pending_inline_returns;
+            self.modifier_continuation = saved_modifier_continuation;
             self.lowering_constructor = saved_lowering_constructor;
             self.constructor_args_base = saved_constructor_args_base;
             self.lowering_internal_function = saved_lowering_internal_function;
@@ -838,6 +880,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
         let saved_inline_returns = self.inline_returns.take();
         let saved_pending_inline_returns = self.pending_inline_returns.take();
+        let saved_modifier_continuation = self.modifier_continuation.take();
         let saved_current_contract_id = self.current_contract_id;
         let saved_lowering_constructor = self.lowering_constructor;
         let saved_constructor_args_base = self.constructor_args_base;
@@ -858,6 +901,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.assigned_vars = saved_assigned_vars;
         self.inline_returns = saved_inline_returns;
         self.pending_inline_returns = saved_pending_inline_returns;
+        self.modifier_continuation = saved_modifier_continuation;
         self.current_contract_id = saved_current_contract_id;
         self.lowering_constructor = saved_lowering_constructor;
         self.constructor_args_base = saved_constructor_args_base;
@@ -945,6 +989,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
         let saved_inline_returns = self.inline_returns.take();
         let saved_pending_inline_returns = self.pending_inline_returns.take();
+        let saved_modifier_continuation = self.modifier_continuation.take();
         let saved_current_contract_id = self.current_contract_id;
         let saved_lowering_constructor = self.lowering_constructor;
         let saved_constructor_args_base = self.constructor_args_base;
@@ -963,6 +1008,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.assigned_vars = saved_assigned_vars;
         self.inline_returns = saved_inline_returns;
         self.pending_inline_returns = saved_pending_inline_returns;
+        self.modifier_continuation = saved_modifier_continuation;
         self.current_contract_id = saved_current_contract_id;
         self.lowering_constructor = saved_lowering_constructor;
         self.constructor_args_base = saved_constructor_args_base;
@@ -1014,6 +1060,8 @@ impl<'gcx> Lowerer<'gcx> {
             mir_func.selector = Some(self.function_selector(func_id));
         }
         let uses_internal_frame = !uses_external_abi && !is_special;
+        let has_modifiers =
+            hir_func.modifiers.iter().any(|modifier| modifier.id.as_function().is_some());
         let current_return_tys =
             hir_func.returns.iter().map(|&id| self.gcx.type_of_item(id.into())).collect::<Vec<_>>();
 
@@ -1072,6 +1120,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(body) = &hir_func.body {
             self.collect_assigned_vars_block(body);
         }
+        self.collect_modifier_assigned_vars(hir_func.modifiers);
 
         {
             let mut builder = FunctionBuilder::new(&mut mir_func);
@@ -1435,7 +1484,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // An unnamed return cannot be assigned or read by the body.
                 // Keep it absent and materialize its default only if control
                 // actually reaches the implicit-return epilogue.
-                if ret_var.name.is_none() {
+                if ret_var.name.is_none() && !has_modifiers {
                     continue;
                 }
                 // Allocate memory for return variables so they can be assigned to
@@ -1463,7 +1512,16 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             if let Some(body) = &hir_func.body {
-                self.lower_block(&mut builder, body);
+                if has_modifiers {
+                    self.lower_modifier_chain(
+                        &mut builder,
+                        hir_func.modifiers,
+                        *body,
+                        hir_func.returns,
+                    );
+                } else {
+                    self.lower_block(&mut builder, body);
+                }
             }
 
             if !builder.func().block(builder.current_block()).is_terminated() {
@@ -1514,6 +1572,187 @@ impl<'gcx> Lowerer<'gcx> {
         *self.module.function_mut(mir_id) = mir_func;
         self.check_expr_errors = check_expr_errors;
         mir_id
+    }
+
+    /// Includes assignments from modifier arguments and bodies in the function's
+    /// local-slot analysis. Modifier arguments execute in the caller's scope,
+    /// while a modifier body's own parameters and locals are bound when the
+    /// invocation is expanded.
+    fn collect_modifier_assigned_vars(&mut self, modifiers: &[hir::Modifier<'gcx>]) {
+        for modifier in modifiers {
+            for arg in modifier.args.kind.exprs() {
+                self.collect_assigned_vars_expr(arg);
+            }
+            let Some(source_id) = modifier.id.as_function() else { continue };
+            let target_id = self.virtual_function_target(source_id);
+            if let Some(body) = self.gcx.hir.function(target_id).body {
+                self.collect_assigned_vars_block(&body);
+            }
+        }
+    }
+
+    /// Lowers the nested modifier expansion represented by `modifiers`. Each
+    /// `_` invokes this continuation again, so conditional, repeated, and absent
+    /// placeholders naturally retain Solidity's control-flow semantics.
+    fn lower_modifier_chain(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        modifiers: &'gcx [hir::Modifier<'gcx>],
+        body: hir::Block<'gcx>,
+        return_vars: &'gcx [VariableId],
+    ) {
+        let Some((modifier, rest)) = modifiers.split_first() else {
+            self.lower_modifier_function_body(builder, body, return_vars);
+            return;
+        };
+        let Some(source_id) = modifier.id.as_function() else {
+            self.lower_modifier_chain(builder, rest, body, return_vars);
+            return;
+        };
+
+        let target_id = self.virtual_function_target(source_id);
+        let target = self.gcx.hir.function(target_id);
+        let parameters = target.parameters;
+        let Some(modifier_body) = target.body else {
+            let guar = self
+                .gcx
+                .dcx()
+                .err("codegen cannot lower an unimplemented modifier")
+                .span(modifier.span)
+                .emit();
+            builder.error_value(guar);
+            builder.invalid();
+            return;
+        };
+
+        let args = match self.ordered_args_for(
+            &modifier.args,
+            Some(CallableParamSource::Function { id: source_id, skips_receiver: false }),
+        ) {
+            Ok(args) => args,
+            Err(guar) => {
+                builder.error_value(guar);
+                builder.invalid();
+                return;
+            }
+        };
+        if args.len() != parameters.len() {
+            let guar = self
+                .gcx
+                .dcx()
+                .err("wrong number of modifier arguments in codegen")
+                .span(modifier.span)
+                .emit();
+            builder.error_value(guar);
+            builder.invalid();
+            return;
+        }
+
+        // Evaluate every invocation argument in the enclosing scope before the
+        // modifier parameters with potentially identical HIR IDs are rebound.
+        let values = args
+            .into_iter()
+            .zip(parameters)
+            .map(|(arg, &param_id)| {
+                if self.param_is_storage_ref(param_id)
+                    && let Some(slot) = self.lower_lvalue_slot(builder, arg)
+                {
+                    slot
+                } else {
+                    let param = self.gcx.hir.variable(param_id);
+                    let value = if self.var_expects_memory_bytes_value(param) {
+                        self.lower_expr_as_memory_bytes(builder, arg)
+                    } else if self.var_expects_memory_dyn_array_value(param) {
+                        self.lower_expr_as_memory_dyn_array(builder, arg)
+                    } else {
+                        self.lower_value_expr(builder, arg)
+                    };
+                    self.coerce_arg_for_param(builder, param_id, arg, value)
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let saved_bindings = self.local_bindings();
+        for (&param_id, value) in parameters.iter().zip(values) {
+            let param = self.gcx.hir.variable(param_id);
+            if Self::calldata_dynamic_var_kind(param).is_some() && self.is_var_assigned(&param_id) {
+                let offset = self.alloc_local_slice_memory(param_id);
+                self.store_slice_slot(builder, offset, value);
+            } else {
+                self.bind_param_value(builder, param_id, value);
+            }
+            if self.param_is_storage_ref(param_id) {
+                self.storage_ref_locals.insert(param_id);
+            }
+        }
+
+        let exit_block = builder.create_block();
+        let saved_inline_returns = self.inline_returns.take();
+        let saved_pending_inline_returns = self.pending_inline_returns.take();
+        let saved_continuation = self.modifier_continuation.replace(ModifierContinuation {
+            modifiers: rest,
+            body,
+            return_vars,
+        });
+        let saved_in_unchecked_block = self.in_unchecked_block;
+        self.inline_returns = Some(InlineReturnCtx { exit_block, return_vars: Vec::new() });
+        self.in_unchecked_block = false;
+
+        self.lower_block(builder, &modifier_body);
+        if !builder.func().block(builder.current_block()).is_terminated() {
+            builder.jump(exit_block);
+        }
+        builder.switch_to_block(exit_block);
+
+        self.in_unchecked_block = saved_in_unchecked_block;
+        self.modifier_continuation = saved_continuation;
+        self.inline_returns = saved_inline_returns;
+        self.pending_inline_returns = saved_pending_inline_returns;
+        self.restore_local_bindings(saved_bindings);
+    }
+
+    /// Lowers one substitution of the function body. Returns join back into the
+    /// enclosing modifier so code after `_` still executes before the function's
+    /// final return is emitted.
+    fn lower_modifier_function_body(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        body: hir::Block<'gcx>,
+        return_vars: &'gcx [VariableId],
+    ) {
+        let saved_bindings = self.local_bindings();
+        let exit_block = builder.create_block();
+        let saved_inline_returns = self.inline_returns.take();
+        let saved_pending_inline_returns = self.pending_inline_returns.take();
+        let saved_continuation = self.modifier_continuation.take();
+        let saved_in_unchecked_block = self.in_unchecked_block;
+        self.inline_returns =
+            Some(InlineReturnCtx { exit_block, return_vars: return_vars.to_vec() });
+        self.in_unchecked_block = false;
+
+        self.lower_block(builder, &body);
+        if !builder.func().block(builder.current_block()).is_terminated() {
+            builder.jump(exit_block);
+        }
+        builder.switch_to_block(exit_block);
+
+        self.in_unchecked_block = saved_in_unchecked_block;
+        self.modifier_continuation = saved_continuation;
+        self.inline_returns = saved_inline_returns;
+        self.pending_inline_returns = saved_pending_inline_returns;
+        self.restore_local_bindings(saved_bindings);
+    }
+
+    /// Substitutes the active continuation at a modifier placeholder.
+    pub(super) fn lower_modifier_placeholder(&mut self, builder: &mut FunctionBuilder<'_>) {
+        if let Some(continuation) = self.modifier_continuation {
+            self.lower_modifier_chain(
+                builder,
+                continuation.modifiers,
+                continuation.body,
+                continuation.return_vars,
+            );
+        }
     }
 
     /// Reverts when calldata does not contain the complete ABI head.

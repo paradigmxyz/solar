@@ -1,0 +1,56 @@
+// === ROOT/tests/ui/codegen/lowering/modifiers.sol:ModifierLowering ===
+@module ModifierLowering
+fn @outer(arg0: u256) {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    sstore 0, 1 !metadata(storage=slot(0))
+    sstore 0, 5 !metadata(storage=slot(0))
+    stop
+}
+
+fn @inner() {
+  bb0:
+    sstore 0, 2 !metadata(storage=slot(0))
+    sstore 0, 4 !metadata(storage=slot(0))
+    stop
+}
+
+fn @run(arg0: u256) -> u256 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = eq arg0, 0
+    v4 = iszero v3
+    v5 = iszero v4
+    jumpi v5, bb4, bb5
+  bb3:
+    v7 = mload 128
+    ret v7
+  bb4:
+    revert 0, 0
+  bb5:
+    sstore 0, 1 !metadata(storage=slot(0))
+    sstore 0, 2 !metadata(storage=slot(0))
+    sstore 0, 3 !metadata(storage=slot(0))
+    v6 = sload 0 !metadata(storage=slot(0))
+    mstore 128, v6
+    jump bb7
+  bb6:
+    sstore 0, 5 !metadata(storage=slot(0))
+    jump bb3
+  bb7:
+    sstore 0, 4 !metadata(storage=slot(0))
+    jump bb6
+}
