@@ -190,7 +190,7 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * one-time l-value resolution for compound assignments and increments, plus
   argument-before-length evaluation for storage-array and storage-bytes pushes;
 * external function-pointer calls with aggregate return decoding through the
-  shared ABI path;
+  shared ABI path and explicit `gas`/`value` options;
 * event emission with overload and named-argument resolution, selector and indexed
   topics, dynamic-topic hashing, static and word-array aggregate-topic hashing,
   nested dynamic array, struct, string, and bytes topic hashing, dynamic
@@ -353,6 +353,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    lazy calldata pointer array crosses an external-call boundary.
    `external_function_pointer_storage_array.sol` covers memory-to-storage and
    storage-to-storage copies of external function pointer arrays.
+   `external_function_pointer_options.sol` checks source-order evaluation and
+   forwarding of `gas`/`value` options on external pointer calls.
    The Unifap creation fixture now passes the differential Foundry
    suite; the companion fixture compiles with no Solar-only regressions, but
    retains seven pre-existing failures under both compilers because its

@@ -1944,7 +1944,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         if let ExprKind::Ternary(condition, then_expr, else_expr) = &expr.kind {
             return self.lower_ternary_values(condition, then_expr, else_expr);
         }
-        if let ExprKind::Call(callee, args, ..) = &expr.kind {
+        if let ExprKind::Call(callee, args, call_opts) = &expr.kind {
             if self.gcx.resolved_builtin(callee) == Some(Builtin::AbiDecode)
                 && let ExprKind::Call(_, args, _) = &expr.kind
                 && let Some(types) = args.exprs().nth(1)
@@ -1979,7 +1979,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 && function.is_external()
                 && function.function_id.is_none()
             {
-                return self.lower_external_function_pointer_call_values(callee, function, *args);
+                return self.lower_external_function_pointer_call_values(
+                    callee, function, *args, *call_opts,
+                );
             }
             if let Some(returns) = returns
                 && returns > 1
@@ -2362,7 +2364,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             && function.is_external()
             && function.function_id.is_none()
         {
-            return self.lower_external_function_pointer_call(callee, function, args);
+            return self.lower_external_function_pointer_call(callee, function, args, call_opts);
         }
         if let Some(TyKind::Fn(function)) = self.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
             && function.is_internal()
@@ -2524,8 +2526,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         callee: &hir::Expr<'_>,
         function: &solar_sema::ty::TyFn<'gcx>,
         args: hir::CallArgs<'_>,
+        call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        let values = self.lower_external_function_pointer_call_values(callee, function, args)?;
+        let values =
+            self.lower_external_function_pointer_call_values(callee, function, args, call_opts)?;
         Some(values.into_iter().next().unwrap_or_else(|| self.builder.imm_u256(U256::ZERO)))
     }
 
@@ -2534,6 +2538,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         callee: &hir::Expr<'_>,
         function: &solar_sema::ty::TyFn<'gcx>,
         args: hir::CallArgs<'_>,
+        call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<Vec<ValueId>> {
         let arg_exprs = self.builtin_arg_exprs(Builtin::AbiEncode, &args)?;
         if arg_exprs.len() != function.parameters.len() {
@@ -2546,6 +2551,20 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let selector = self.builder.shl(selector_shift, selector);
         let address_shift = self.builder.imm_u64(32);
         let address = self.builder.shr(address_shift, function_value);
+
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let mut gas = self.builder.gas();
+        let mut call_value = zero;
+        if let Some(options) = call_opts {
+            for option in options.args {
+                let value = self.lower_expr(&option.value)?;
+                match option.name.name {
+                    kw::Gas => gas = value,
+                    sym::value => call_value = value,
+                    _ => return report_unsupported(self.gcx, option.name.span, "call option"),
+                }
+            }
+        }
 
         let mut values = Vec::with_capacity(arg_exprs.len());
         let mut types = Vec::with_capacity(arg_exprs.len());
@@ -2569,7 +2588,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         } else {
             self.builder.imm_u64((returns as u64).saturating_mul(32))
         };
-        let gas = self.builder.gas();
         let success = if matches!(
             function.state_mutability,
             hir::StateMutability::Pure | hir::StateMutability::View
@@ -2577,7 +2595,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         {
             self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
         } else {
-            self.builder.call(gas, address, zero, input, input_size, ret_offset, ret_size)
+            self.builder.call(gas, address, call_value, input, input_size, ret_offset, ret_size)
         };
         self.revert_external_call(success);
         if returns == 0 {

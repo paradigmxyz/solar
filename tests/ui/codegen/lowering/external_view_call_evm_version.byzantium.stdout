@@ -21,11 +21,11 @@ fn @readPointer(arg0: function) -> u256 [abi_args=lazy, abi_params=[function], a
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
     v2 = shr 32, arg0
-    v3 = abi_encode [], selector v1
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = gas
-    v7 = staticcall v6, v2, v4, v5, 0, 0
+    v3 = gas
+    v4 = abi_encode [], selector v1
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = staticcall v3, v2, v5, v6, 0, 0
     jumpi v7, bb2, bb1
   bb1:
     revert_returndata
