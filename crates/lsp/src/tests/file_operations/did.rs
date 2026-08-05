@@ -145,6 +145,48 @@ async fn did_create_nested_manifest_discovers_the_project() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn did_create_nested_manifest_under_overlapping_source_root_discovers_project() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "lib"
+
+        //- /lib/Existing.sol
+        contract Existing {}
+        "#,
+    );
+    let mut state = state(&project);
+    project.write_file(
+        "/lib/package/foundry.toml",
+        r#"
+        [profile.default]
+        src = "src"
+        "#,
+    );
+    project.write_file("/lib/package/src/Nested.sol", "contract Nested {}");
+    let manifest = project.path("/lib/package/foundry.toml");
+
+    let result = crate::handlers::did_create_files(
+        &mut state,
+        CreateFilesParams {
+            files: vec![FileCreate { uri: Url::from_file_path(manifest).unwrap().to_string() }],
+        },
+    );
+
+    assert!(matches!(result, ControlFlow::Continue(())));
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("nested manifest analysis should finish")
+        .unwrap();
+    assert!(tables.read().workspace_symbols("Nested").iter().any(|symbol| symbol.name == "Nested"));
+    assert!(state.config.workspaces().iter().any(|workspace| {
+        workspace.compile_opts().base_path.as_deref()
+            == Some(project.path("/lib/package").as_path())
+    }));
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn deleting_manifest_directory_with_external_sources_rediscovers_workspace() {
     let project = TestProject::from_fixture(
         r#"

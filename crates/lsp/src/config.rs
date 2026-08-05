@@ -4,7 +4,7 @@ use crate::{
     file_operations::FileMoveBatch,
     flycheck::{FlycheckConfig, FlycheckInitializationOptions},
     workspace::{
-        Workspace, WorkspaceKind, WorkspacePathIndex,
+        SourceWatchRoot, Workspace, WorkspaceKind, WorkspacePathIndex,
         index_policy::{
             IndexingCancellation, IndexingOptions, WorkspaceIndexMetrics, WorkspaceIndexPolicy,
         },
@@ -19,9 +19,9 @@ use lsp_types::{
     ImplementationProviderCapability, InitializeParams, MarkupKind, OneOf, RenameOptions,
     SaveOptions, SelectionRangeProviderCapability, ServerCapabilities, SignatureHelpOptions,
     TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions,
-    WorkspaceFileOperationsServerCapabilities, WorkspaceFolder, WorkspaceFoldersServerCapabilities,
-    WorkspaceServerCapabilities,
+    TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, Url, WatchKind,
+    WorkDoneProgressOptions, WorkspaceFileOperationsServerCapabilities, WorkspaceFolder,
+    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use serde::Deserialize;
 use solar_interface::data_structures::map::FxHashSet;
@@ -69,15 +69,35 @@ pub(crate) struct WorkspaceDiscoveryResult {
     pub(crate) metrics: WorkspaceIndexMetrics,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct WatchedFileSpec {
     pub(crate) base: PathBuf,
     pub(crate) pattern: &'static str,
+    pub(crate) kind: WatchKind,
 }
 
 impl WatchedFileSpec {
-    fn new(base: PathBuf, pattern: &'static str) -> Self {
-        Self { base, pattern }
+    pub(crate) fn new(base: PathBuf, pattern: &'static str) -> Self {
+        Self::with_kind(base, pattern, WatchKind::Create | WatchKind::Change | WatchKind::Delete)
+    }
+
+    fn with_kind(base: PathBuf, pattern: &'static str, kind: WatchKind) -> Self {
+        Self { base, pattern, kind }
+    }
+}
+
+impl PartialOrd for WatchedFileSpec {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for WatchedFileSpec {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.base
+            .cmp(&other.base)
+            .then_with(|| self.pattern.cmp(other.pattern))
+            .then_with(|| self.kind.bits().cmp(&other.kind.bits()))
     }
 }
 
@@ -257,7 +277,7 @@ impl Config {
     pub(crate) fn watched_file_specs(&self) -> Vec<WatchedFileSpec> {
         let mut specs = BTreeSet::new();
         for root in &self.workspace_roots {
-            for pattern in ["**/*.sol", "**/foundry.toml", "**/remappings.txt"] {
+            for pattern in ["foundry.toml", "remappings.txt"] {
                 specs.insert(WatchedFileSpec::new(root.clone(), pattern));
             }
             specs.extend(
@@ -278,22 +298,30 @@ impl Config {
             {
                 continue;
             }
-            if self.is_external_watcher_root(base_path) {
-                specs.insert(WatchedFileSpec::new(base_path.to_path_buf(), "foundry.toml"));
-                specs.insert(WatchedFileSpec::new(base_path.to_path_buf(), "remappings.txt"));
-            }
+            specs.insert(WatchedFileSpec::new(base_path.to_path_buf(), "foundry.toml"));
+            specs.insert(WatchedFileSpec::new(base_path.to_path_buf(), "remappings.txt"));
 
-            for root in workspace.source_roots() {
-                if self.is_external_watcher_root(root) {
-                    specs.insert(WatchedFileSpec::new(root.clone(), "**/*.sol"));
+            for SourceWatchRoot { path, recursive } in workspace.source_watch_roots() {
+                if *recursive {
+                    specs.insert(WatchedFileSpec::new(path.clone(), "**/*.sol"));
+                    specs.insert(WatchedFileSpec::new(path.clone(), "**/foundry.toml"));
+                } else {
+                    // Discover new child directories without recursively watching pruned paths.
+                    specs.insert(WatchedFileSpec::with_kind(
+                        path.clone(),
+                        "*",
+                        WatchKind::Create | WatchKind::Delete,
+                    ));
+                    specs.insert(WatchedFileSpec::with_kind(
+                        path.clone(),
+                        "*.sol",
+                        WatchKind::Change,
+                    ));
+                    specs.insert(WatchedFileSpec::new(path.clone(), "foundry.toml"));
                 }
             }
         }
         specs.into_iter().collect()
-    }
-
-    fn is_external_watcher_root(&self, path: &Path) -> bool {
-        !self.workspace_roots.iter().any(|root| path.starts_with(root))
     }
 
     pub(crate) fn tracks_source_file(&self, path: &Path) -> bool {
@@ -336,8 +364,21 @@ impl Config {
             let workspace_root = workspace.compile_opts().base_path.as_deref().unwrap_or(root);
             let traversal_root =
                 if workspace_root.starts_with(root) { workspace_root } else { root };
-            !workspace.import_only_roots().iter().any(|path| directory.starts_with(path))
-                && !self.index_policy.excludes_directory(workspace_root, traversal_root, directory)
+            let source_root = workspace
+                .source_roots()
+                .iter()
+                .find(|source_root| directory.starts_with(source_root))
+                .map(PathBuf::as_path)
+                .or_else(|| {
+                    workspace
+                        .source_roots()
+                        .iter()
+                        .any(|source_root| source_root.starts_with(directory))
+                        .then_some(directory)
+                })
+                .unwrap_or(traversal_root);
+            !workspace.is_import_only_path(directory)
+                && !self.index_policy.excludes_directory(workspace_root, source_root, directory)
         })
     }
 
@@ -428,15 +469,7 @@ impl Config {
             info!(?root, ?discovered, "discovered projects");
             if discovered.is_empty() {
                 info!(?root, "no project manifests found");
-                if !push_workspace(
-                    &mut workspaces,
-                    Workspace::naked(root.clone()),
-                    &self.index_policy,
-                    cancellation,
-                    &mut metrics,
-                ) {
-                    return None;
-                }
+                workspaces.push(Workspace::naked(root.clone()));
                 continue;
             }
 
@@ -448,29 +481,11 @@ impl Config {
                     ProjectManifest::Foundry(path) => {
                         let fallback_root = path.parent().map(PathBuf::from);
                         match Workspace::load_foundry(path) {
-                            Ok(workspace) => {
-                                if !push_workspace(
-                                    &mut workspaces,
-                                    workspace,
-                                    &self.index_policy,
-                                    cancellation,
-                                    &mut metrics,
-                                ) {
-                                    return None;
-                                }
-                            }
+                            Ok(workspace) => workspaces.push(workspace),
                             Err(error) => {
                                 warn!(%error, "failed to load workspace");
-                                if let Some(root) = fallback_root
-                                    && !push_workspace(
-                                        &mut workspaces,
-                                        Workspace::naked(root),
-                                        &self.index_policy,
-                                        cancellation,
-                                        &mut metrics,
-                                    )
-                                {
-                                    return None;
+                                if let Some(root) = fallback_root {
+                                    workspaces.push(Workspace::naked(root));
                                 }
                             }
                         }
@@ -480,6 +495,14 @@ impl Config {
         }
         info!(workspaces = ?workspaces.iter().map(Workspace::kind).collect::<Vec<_>>(), "loaded workspaces");
         if cancellation.is_cancelled() {
+            return None;
+        }
+        if !Workspace::refresh_all_source_files(
+            &mut workspaces,
+            &self.index_policy,
+            cancellation,
+            &mut metrics,
+        ) {
             return None;
         }
         WorkspacePathIndex::reconcile_source_files(
@@ -571,20 +594,6 @@ impl Config {
         info!(flychecks = ?self.flychecks.iter().map(|it| &it.id).collect::<Vec<_>>(), "loaded flychecks");
         removed_owners
     }
-}
-
-fn push_workspace(
-    workspaces: &mut Vec<Workspace>,
-    mut workspace: Workspace,
-    policy: &WorkspaceIndexPolicy,
-    cancellation: &IndexingCancellation,
-    metrics: &mut WorkspaceIndexMetrics,
-) -> bool {
-    if !workspace.refresh_source_files(policy, cancellation, metrics) {
-        return false;
-    }
-    workspaces.push(workspace);
-    true
 }
 
 fn workspace_file_operation_options() -> FileOperationRegistrationOptions {
@@ -1639,7 +1648,27 @@ mod tests {
     }
 
     #[test]
-    fn watched_file_specs_cover_workspace_and_external_source_paths() {
+    fn workspace_config_events_skip_import_only_source_corridor_manifests() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "lib/contracts"
+
+            //- /lib/contracts/Main.sol
+            contract Main {}
+            "#,
+        );
+        let config = project.config();
+
+        assert!(!config.workspace_config_event_is_relevant(&project.path("/lib/foundry.toml")));
+        assert!(config.workspace_config_event_is_relevant(
+            &project.path("/lib/contracts/nested/foundry.toml")
+        ));
+    }
+
+    #[test]
+    fn watched_file_specs_cover_bounded_source_and_config_paths() {
         let project = TestProject::from_fixture(
             r#"
             //- /repo/foundry.toml
@@ -1654,11 +1683,16 @@ mod tests {
         let explicit_root = project.path("/repo/workspace");
         let config = project.config_with_roots(&["/repo/workspace"]);
         let mut expected = vec![
-            WatchedFileSpec::new(explicit_root.clone(), "**/*.sol"),
-            WatchedFileSpec::new(explicit_root.clone(), "**/foundry.toml"),
-            WatchedFileSpec::new(explicit_root.clone(), "**/remappings.txt"),
+            WatchedFileSpec::new(explicit_root.clone(), "foundry.toml"),
+            WatchedFileSpec::new(explicit_root.clone(), "remappings.txt"),
+            WatchedFileSpec::new(project.path("/repo"), "foundry.toml"),
             WatchedFileSpec::new(project.path("/repo"), "remappings.txt"),
             WatchedFileSpec::new(project.path("/external-src"), "**/*.sol"),
+            WatchedFileSpec::new(project.path("/external-src"), "**/foundry.toml"),
+            WatchedFileSpec::new(project.path("/repo/workspace/nested"), "foundry.toml"),
+            WatchedFileSpec::new(project.path("/repo/workspace/nested"), "remappings.txt"),
+            WatchedFileSpec::new(project.path("/repo/workspace/nested/src"), "**/*.sol"),
+            WatchedFileSpec::new(project.path("/repo/workspace/nested/src"), "**/foundry.toml"),
         ];
         expected.extend(
             explicit_root

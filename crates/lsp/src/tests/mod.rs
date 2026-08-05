@@ -97,6 +97,48 @@ fn watched_file_registration_has_spec(
     })
 }
 
+fn watched_file_registration_spec_kind(
+    params: &RegistrationParams,
+    base: &Path,
+    pattern: &str,
+) -> Option<u64> {
+    let base_uri = Url::from_file_path(base).unwrap().to_string();
+    params.registrations.iter().find_map(|registration| {
+        registration.register_options.as_ref().and_then(|options| {
+            options["watchers"].as_array().and_then(|watchers| {
+                watchers.iter().find_map(|watcher| {
+                    (watcher["globPattern"]["baseUri"].as_str() == Some(&base_uri)
+                        && watcher["globPattern"]["pattern"].as_str() == Some(pattern))
+                    .then(|| watcher["kind"].as_u64())
+                    .flatten()
+                })
+            })
+        })
+    })
+}
+
+fn watched_file_registration_has_recursive_spec_covering(
+    params: &RegistrationParams,
+    path: &Path,
+) -> bool {
+    params.registrations.iter().any(|registration| {
+        registration.register_options.as_ref().is_some_and(|options| {
+            options["watchers"].as_array().is_some_and(|watchers| {
+                watchers.iter().any(|watcher| {
+                    matches!(
+                        watcher["globPattern"]["pattern"].as_str(),
+                        Some("**/*.sol" | "**/foundry.toml")
+                    ) && watcher["globPattern"]["baseUri"]
+                        .as_str()
+                        .and_then(|uri| Url::parse(uri).ok())
+                        .and_then(|uri| uri.to_file_path().ok())
+                        .is_some_and(|base| path.starts_with(base))
+                })
+            })
+        })
+    })
+}
+
 struct WorkDoneClientState {
     events: mpsc::UnboundedSender<WorkDoneEvent>,
     create_ack: Option<oneshot::Receiver<()>>,
@@ -2148,9 +2190,34 @@ fn watched_file_registration_has_global_fallback_patterns() {
 }
 
 #[test]
-fn watched_file_registration_uses_patterns_relative_to_each_workspace_root() {
-    let project = TestProject::new();
-    let mut params = project.initialize_params_with_roots(&["/one", "/two"]);
+fn relative_watched_file_registration_uses_bounded_roots() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /workspace/foundry.toml
+        [profile.default]
+        src = "contracts"
+
+        //- /workspace/contracts/Main.sol
+        contract Main {}
+
+        //- /workspace/node_modules/Dependency.sol
+        contract Dependency {}
+
+        //- /workspace/out/Generated.sol
+        contract Generated {}
+
+        //- /workspace/.hidden/Hidden.sol
+        contract Hidden {}
+
+        //- /workspace/nested/.git/HEAD
+
+        //- /workspace/nested/Nested.sol
+        contract Nested {}
+        "#,
+    );
+    let workspace_root = project.path("/workspace");
+    let source_root = project.path("/workspace/contracts");
+    let mut params = project.initialize_params_with_roots(&["/workspace"]);
     params.capabilities.workspace = Some(WorkspaceClientCapabilities {
         did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
             dynamic_registration: Some(true),
@@ -2158,21 +2225,235 @@ fn watched_file_registration_uses_patterns_relative_to_each_workspace_root() {
         }),
         ..Default::default()
     });
-    let (_, config) = negotiate_capabilities(params);
-    let [registration] =
-        watched_file_registration_params(&config).registrations.try_into().unwrap();
-    let options = registration.register_options.unwrap();
-    let watchers = options["watchers"].as_array().unwrap();
+    let (_, mut config) = negotiate_capabilities(params);
 
-    for root in ["/one", "/two"] {
-        let base_uri = Url::from_file_path(project.path(root)).unwrap().to_string();
-        for pattern in ["**/*.sol", "**/foundry.toml", "**/remappings.txt"] {
-            assert!(watchers.iter().any(|watcher| {
-                watcher["globPattern"]["baseUri"] == base_uri
-                    && watcher["globPattern"]["pattern"] == pattern
-            }));
-        }
+    let initial = watched_file_registration_params(&config);
+    assert!(watched_file_registration_has_spec(&initial, &workspace_root, "foundry.toml"));
+    assert!(watched_file_registration_has_spec(&initial, &workspace_root, "remappings.txt"));
+    for pattern in ["**/*.sol", "**/foundry.toml", "**/remappings.txt"] {
+        assert!(!watched_file_registration_has_spec(&initial, &workspace_root, pattern));
     }
+
+    config.rediscover_workspaces();
+    let discovered = watched_file_registration_params(&config);
+    assert!(watched_file_registration_has_spec(&discovered, &source_root, "**/*.sol"));
+    assert!(watched_file_registration_has_spec(&discovered, &source_root, "**/foundry.toml"));
+    assert!(watched_file_registration_has_spec(&discovered, &workspace_root, "foundry.toml"));
+    assert!(watched_file_registration_has_spec(&discovered, &workspace_root, "remappings.txt"));
+    for pattern in ["**/*.sol", "**/foundry.toml", "**/remappings.txt"] {
+        assert!(!watched_file_registration_has_spec(&discovered, &workspace_root, pattern));
+    }
+}
+
+#[test]
+fn relative_watched_file_registration_partitions_root_sources() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry/foundry.toml
+        [profile.default]
+        src = "."
+
+        //- /foundry/Root.sol
+        contract Root {}
+
+        //- /foundry/contracts/Main.sol
+        contract Main {}
+
+        //- /foundry/contracts/core/Core.sol
+        contract Core {}
+
+        //- /foundry/contracts/node_modules/Dependency.sol
+        contract Dependency {}
+
+        //- /foundry/contracts/out/Generated.sol
+        contract Generated {}
+
+        //- /foundry/contracts/.hidden/Hidden.sol
+        contract Hidden {}
+
+        //- /foundry/contracts/vendor/.git/HEAD
+
+        //- /foundry/contracts/vendor/Nested.sol
+        contract Nested {}
+
+        //- /foundry/lib/Dependency.sol
+        contract Dependency {}
+
+        //- /foundry/out/Generated.sol
+        contract Generated {}
+
+        //- /foundry/.hidden/Hidden.sol
+        contract Hidden {}
+
+        //- /foundry/nested/.git/HEAD
+
+        //- /foundry/nested/Nested.sol
+        contract Nested {}
+
+        //- /naked/Root.sol
+        contract Root {}
+
+        //- /naked/contracts/Main.sol
+        contract Main {}
+
+        //- /naked/node_modules/Dependency.sol
+        contract Dependency {}
+        "#,
+    );
+    let foundry_root = project.path("/foundry");
+    let naked_root = project.path("/naked");
+    let mut params = project.initialize_params_with_roots(&["/foundry", "/naked"]);
+    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
+            dynamic_registration: Some(true),
+            relative_pattern_support: Some(true),
+        }),
+        ..Default::default()
+    });
+    let (_, mut config) = negotiate_capabilities(params);
+    config.rediscover_workspaces();
+
+    let registration = watched_file_registration_params(&config);
+    for root in [&foundry_root, &naked_root] {
+        assert!(watched_file_registration_has_spec(&registration, root, "*"));
+        assert!(watched_file_registration_has_spec(&registration, root, "*.sol"));
+        assert!(!watched_file_registration_has_spec(&registration, root, "**/*.sol"));
+        assert_eq!(watched_file_registration_spec_kind(&registration, root, "*"), Some(5));
+        assert_eq!(watched_file_registration_spec_kind(&registration, root, "*.sol"), Some(2));
+    }
+    assert!(watched_file_registration_has_spec(
+        &registration,
+        &foundry_root.join("contracts"),
+        "*"
+    ));
+    assert!(watched_file_registration_has_spec(
+        &registration,
+        &foundry_root.join("contracts"),
+        "*.sol"
+    ));
+    assert!(watched_file_registration_has_spec(
+        &registration,
+        &foundry_root.join("contracts"),
+        "foundry.toml"
+    ));
+    assert!(watched_file_registration_has_spec(
+        &registration,
+        &foundry_root.join("contracts/core"),
+        "**/*.sol"
+    ));
+    assert!(watched_file_registration_has_spec(
+        &registration,
+        &foundry_root.join("contracts/core"),
+        "**/foundry.toml"
+    ));
+    assert!(watched_file_registration_has_spec(
+        &registration,
+        &naked_root.join("contracts"),
+        "**/*.sol"
+    ));
+    for excluded in [
+        foundry_root.join("lib"),
+        foundry_root.join("out"),
+        foundry_root.join(".hidden"),
+        foundry_root.join("nested"),
+        foundry_root.join("contracts/node_modules"),
+        foundry_root.join("contracts/out"),
+        foundry_root.join("contracts/.hidden"),
+        foundry_root.join("contracts/vendor"),
+        naked_root.join("node_modules"),
+    ] {
+        assert!(!watched_file_registration_has_recursive_spec_covering(&registration, &excluded));
+    }
+}
+
+#[test]
+fn relative_watched_file_registration_respects_nested_workspace_ownership() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "."
+
+        //- /nested/foundry.toml
+        [profile.default]
+        src = "src"
+        libs = ["src/vendor"]
+
+        //- /nested/Outside.sol
+        contract Outside {}
+
+        //- /nested/src/Included.sol
+        contract Included {}
+
+        //- /nested/src/generated/Excluded.sol
+        contract Excluded {}
+
+        //- /nested/src/vendor/Dependency.sol
+        contract Dependency {}
+        "#,
+    );
+    let nested_root = project.path("/nested");
+    let nested_source_root = project.path("/nested/src");
+    let mut params = project.initialize_params();
+    params.initialization_options = Some(serde_json::json!({
+        "indexing": { "exclude": ["src/generated/**"] }
+    }));
+    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
+            dynamic_registration: Some(true),
+            relative_pattern_support: Some(true),
+        }),
+        ..Default::default()
+    });
+    let (_, mut config) = negotiate_capabilities(params);
+    config.rediscover_workspaces();
+
+    let registration = watched_file_registration_params(&config);
+    assert!(watched_file_registration_has_spec(&registration, &nested_source_root, "*"));
+    assert!(watched_file_registration_has_spec(&registration, &nested_source_root, "*.sol"));
+    assert!(watched_file_registration_has_spec(&registration, &nested_source_root, "foundry.toml"));
+    assert!(!watched_file_registration_has_spec(&registration, &nested_root, "*.sol"));
+    for excluded in [
+        project.path("/nested/Outside.sol"),
+        project.path("/nested/src/generated"),
+        project.path("/nested/src/vendor"),
+    ] {
+        assert!(!watched_file_registration_has_recursive_spec_covering(&registration, &excluded));
+    }
+}
+
+#[test]
+fn relative_watched_file_registration_omits_excluded_source_root() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "contracts"
+
+        //- /contracts/Main.sol
+        contract Main {}
+        "#,
+    );
+    let source_root = project.path("/contracts");
+    let mut params = project.initialize_params();
+    params.initialization_options = Some(serde_json::json!({
+        "indexing": { "exclude": ["contracts/**"] }
+    }));
+    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
+            dynamic_registration: Some(true),
+            relative_pattern_support: Some(true),
+        }),
+        ..Default::default()
+    });
+    let (_, mut config) = negotiate_capabilities(params);
+    config.rediscover_workspaces();
+
+    let registration = watched_file_registration_params(&config);
+    for pattern in ["*.sol", "**/*.sol"] {
+        assert!(!watched_file_registration_has_spec(&registration, &source_root, pattern));
+    }
+    assert!(!watched_file_registration_has_recursive_spec_covering(&registration, &source_root));
 }
 
 #[test]
@@ -2226,7 +2507,10 @@ fn watched_file_specs_add_external_analysis_path_parents_once() {
             other_parent.join("Candidate.sol"),
             dependency_parent.join("nested/Deep.sol"),
         ]),
-        missing_candidates: FxHashSet::from_iter([dependency_parent.join("Missing.sol")]),
+        missing_candidates: FxHashSet::from_iter([
+            dependency_parent.join("Missing.sol"),
+            project.path("/workspace/Missing.sol"),
+        ]),
     };
 
     let specs = watched_file_specs(&config, &analysis_paths);
@@ -2234,12 +2518,24 @@ fn watched_file_specs_add_external_analysis_path_parents_once() {
     assert_eq!(
         specs
             .iter()
-            .filter(|spec| spec.base == dependency_parent && spec.pattern == "**/*.sol")
+            .filter(|spec| spec.base == dependency_parent && spec.pattern == "*.sol")
             .count(),
         1
     );
-    assert!(specs.iter().any(|spec| spec.base == other_parent && spec.pattern == "**/*.sol"));
-    assert!(!specs.iter().any(|spec| spec.base == dependency_parent.join("nested")));
+    assert!(specs.iter().any(|spec| spec.base == other_parent && spec.pattern == "*.sol"));
+    assert!(
+        specs
+            .iter()
+            .any(|spec| spec.base == dependency_parent.join("nested") && spec.pattern == "*.sol")
+    );
+    assert!(
+        specs.iter().any(|spec| spec.base == project.path("/workspace") && spec.pattern == "*.sol")
+    );
+    assert!(
+        !specs
+            .iter()
+            .any(|spec| spec.base == project.path("/workspace") && spec.pattern == "**/*.sol")
+    );
 }
 
 #[test]
@@ -2259,8 +2555,8 @@ fn concurrent_watched_file_updates_keep_desired_specs_and_generation_in_sync() {
     let coordinator = Arc::new(WatchedFileRegistrationCoordinator::default());
     let barrier = Arc::new(Barrier::new(3));
     let specs = [
-        vec![WatchedFileSpec { base: project.path("/first"), pattern: "**/*.sol" }],
-        vec![WatchedFileSpec { base: project.path("/second"), pattern: "**/*.sol" }],
+        vec![WatchedFileSpec::new(project.path("/first"), "**/*.sol")],
+        vec![WatchedFileSpec::new(project.path("/second"), "**/*.sol")],
     ];
 
     let updates = std::thread::scope(|scope| {
@@ -2297,13 +2593,13 @@ fn global_fallback_watched_file_update_ignores_spec_changes() {
     });
     let (_, config) = negotiate_capabilities(params);
     let coordinator = WatchedFileRegistrationCoordinator::default();
-    let first_specs = vec![WatchedFileSpec { base: project.path("/first"), pattern: "**/*.sol" }];
+    let first_specs = vec![WatchedFileSpec::new(project.path("/first"), "**/*.sol")];
     let first = prepare_watched_file_registration_update(&config, &coordinator, first_specs, false)
         .unwrap();
 
     assert!(first.desired_specs.is_empty());
     let generation = first.generation;
-    let second_specs = vec![WatchedFileSpec { base: project.path("/second"), pattern: "**/*.sol" }];
+    let second_specs = vec![WatchedFileSpec::new(project.path("/second"), "**/*.sol")];
     assert!(
         prepare_watched_file_registration_update(&config, &coordinator, second_specs, true)
             .is_none()
@@ -2341,6 +2637,44 @@ async fn failed_watched_file_registration_allows_the_same_specs_to_retry() {
     let retry =
         prepare_watched_file_registration_update(&config, &coordinator, specs, false).unwrap();
     assert!(retry.generation > first_generation);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn synchronous_discovery_refreshes_watched_file_specs_before_analysis() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "contracts"
+
+        //- /contracts/Main.sol
+        contract Main {}
+        "#,
+    );
+    let mut params = project.initialize_params();
+    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
+            dynamic_registration: Some(true),
+            relative_pattern_support: Some(true),
+        }),
+        ..Default::default()
+    });
+    let (_, config) = negotiate_capabilities(params);
+    let initial_specs = config.watched_file_specs();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+    *state.watched_file_registration.desired_specs.lock() = Some(initial_specs);
+
+    state.rediscover_workspaces();
+
+    let specs = state.watched_file_registration.desired_specs.lock();
+    assert!(
+        specs
+            .as_ref()
+            .unwrap()
+            .iter()
+            .any(|spec| { spec.base == project.path("/contracts") && spec.pattern == "**/*.sol" })
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -2456,7 +2790,12 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
     assert!(
         published_specs
             .iter()
-            .any(|spec| { spec.base == dependency_parent && spec.pattern == "**/*.sol" })
+            .any(|spec| { spec.base == dependency_parent && spec.pattern == "*.sol" })
+    );
+    assert!(
+        !published_specs
+            .iter()
+            .any(|spec| spec.base == dependency_parent && spec.pattern == "**/*.sol")
     );
     assert!(matches!(
         next_watched_file_client_event(&mut events_rx).await,
@@ -2468,6 +2807,11 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
         panic!("expected analysis watched-file registration")
     };
     assert!(watched_file_registration_has_spec(
+        &published_registration,
+        &dependency_parent,
+        "*.sol"
+    ));
+    assert!(!watched_file_registration_has_spec(
         &published_registration,
         &dependency_parent,
         "**/*.sol"
@@ -2738,6 +3082,151 @@ async fn watched_nested_manifest_create_discovers_the_project() {
         .expect("nested manifest analysis should finish")
         .unwrap();
     assert!(tables.read().workspace_symbols("Nested").iter().any(|symbol| symbol.name == "Nested"));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn created_directory_under_overlapping_source_root_schedules_analysis() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "lib"
+        "#,
+    );
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config());
+    let version = state.analysis_version.load(Ordering::Acquire);
+    let path = project.path("/lib/generated");
+    std::fs::create_dir_all(&path).unwrap();
+
+    let result = crate::handlers::did_create_files(
+        &mut state,
+        CreateFilesParams {
+            files: vec![FileCreate { uri: Url::from_file_path(path).unwrap().to_string() }],
+        },
+    );
+
+    assert!(matches!(result, ControlFlow::Continue(())));
+    let actual_version = state.analysis_version.load(Ordering::Acquire);
+    state.analysis_scheduler.tasks.lock().cancel();
+    assert_eq!(actual_version, version + 1);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watched_created_source_under_overlapping_root_is_tracked() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "lib"
+        "#,
+    );
+    let config = project.config();
+    let path = project.path("/lib/Created.sol");
+    project.write_file("/lib/Created.sol", "contract Created {}");
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+
+    let result = crate::handlers::did_change_watched_files(
+        &mut state,
+        DidChangeWatchedFilesParams {
+            changes: vec![FileEvent {
+                uri: Url::from_file_path(&path).unwrap(),
+                typ: FileChangeType::CREATED,
+            }],
+        },
+    );
+
+    assert!(matches!(result, ControlFlow::Continue(())));
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
+    assert_eq!(state.config.tracked_source_files_under(&[project.path("/lib")]), [path]);
+    state.analysis_scheduler.tasks.lock().cancel();
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watched_created_directory_under_partitioned_root_is_rediscovered() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "."
+
+        //- /lib/Dependency.sol
+        contract Dependency {}
+        "#,
+    );
+    let config = project.config();
+    let directory = project.path("/new");
+    let source = project.path("/new/New.sol");
+    let unrelated = project.path("/README.md");
+    project.write_file("/README.md", "notes");
+    project.write_file("/new/New.sol", "contract New {}");
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+
+    let result = crate::handlers::did_change_watched_files(
+        &mut state,
+        DidChangeWatchedFilesParams {
+            changes: vec![FileEvent {
+                uri: Url::from_file_path(unrelated).unwrap(),
+                typ: FileChangeType::CREATED,
+            }],
+        },
+    );
+    assert!(matches!(result, ControlFlow::Continue(())));
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), 0);
+
+    let result = crate::handlers::did_change_watched_files(
+        &mut state,
+        DidChangeWatchedFilesParams {
+            changes: vec![FileEvent {
+                uri: Url::from_file_path(directory).unwrap(),
+                typ: FileChangeType::CREATED,
+            }],
+        },
+    );
+
+    assert!(matches!(result, ControlFlow::Continue(())));
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
+    assert_eq!(state.config.tracked_source_files_under(&[project.root().to_path_buf()]), [source]);
+    state.analysis_scheduler.tasks.lock().cancel();
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watched_deleted_directory_under_partitioned_root_is_rediscovered() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "."
+
+        //- /lib/Dependency.sol
+        contract Dependency {}
+
+        //- /old/Old.sol
+        contract Old {}
+        "#,
+    );
+    let config = project.config();
+    let directory = project.path("/old");
+    std::fs::remove_dir_all(&directory).unwrap();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+
+    let result = crate::handlers::did_change_watched_files(
+        &mut state,
+        DidChangeWatchedFilesParams {
+            changes: vec![FileEvent {
+                uri: Url::from_file_path(directory).unwrap(),
+                typ: FileChangeType::DELETED,
+            }],
+        },
+    );
+
+    assert!(matches!(result, ControlFlow::Continue(())));
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
+    assert!(state.config.tracked_source_files_under(&[project.root().to_path_buf()]).is_empty());
+    state.analysis_scheduler.tasks.lock().cancel();
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -3905,6 +4394,60 @@ fn analysis_batches_use_cached_workspace_source_files() {
     let batch = batches.pop().unwrap();
     assert!(batch.files.iter().any(|(path, _)| path == &created_after_discovery));
     assert!(!batch.files.iter().any(|(path, _)| path == &outside_source_root));
+}
+
+#[test]
+fn analysis_batches_index_closed_sources_when_source_root_overlaps_library() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "lib"
+
+        //- /lib/Main.sol
+        contract Main {}
+        "#,
+    );
+    let snapshot = snapshot_with_config(project.config(), Vfs::default());
+
+    let mut batches = snapshot.analysis_batches(Vec::new());
+    let batch = batches.pop().unwrap();
+
+    assert_eq!(batch.files, vec![(project.path("/lib/Main.sol"), "contract Main {}".into())]);
+}
+
+#[test]
+fn analysis_batches_keep_sources_below_import_only_manifest_corridors() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "lib/contracts"
+
+        //- /lib/foundry.toml
+        [profile.default]
+        src = "other"
+
+        //- /lib/contracts/Main.sol
+        contract Main {}
+
+        //- /lib/dependency/Dependency.sol
+        contract Dependency {}
+        "#,
+    );
+    let config = project.config();
+    assert!(!config.workspaces().iter().any(|workspace| {
+        workspace.compile_opts().base_path.as_deref() == Some(project.path("/lib").as_path())
+    }));
+    let snapshot = snapshot_with_config(config, Vfs::default());
+
+    let mut batches = snapshot.analysis_batches(Vec::new());
+    let batch = batches.pop().unwrap();
+
+    assert_eq!(
+        batch.files,
+        vec![(project.path("/lib/contracts/Main.sol"), "contract Main {}".into())]
+    );
 }
 
 #[test]

@@ -550,7 +550,7 @@ impl GlobalState {
                     return true;
                 }
                 if path.starts_with(source_root)
-                    && !workspace.import_only_roots().iter().any(|root| path.starts_with(root))
+                    && !workspace.is_import_only_path(path)
                     && !self.config.index_policy().excludes_directory(base_path, source_root, path)
                 {
                     return include_missing;
@@ -1095,6 +1095,7 @@ impl GlobalState {
     fn rediscover_workspaces(&mut self) {
         let removed_owners = Arc::make_mut(&mut self.config).rediscover_workspaces();
         self.clear_removed_flycheck_diagnostics(removed_owners);
+        self.reregister_watched_files();
     }
 
     #[cfg(test)]
@@ -1576,10 +1577,13 @@ fn watched_file_specs(config: &Config, analysis_paths: &AnalysisPathIndex) -> Ve
     dependency_parents.sort_unstable();
     dependency_parents.dedup();
     for (_, parent) in dependency_parents {
-        if specs.iter().any(|spec| spec.pattern == "**/*.sol" && parent.starts_with(&spec.base)) {
+        if specs.iter().any(|spec| {
+            spec.pattern == "**/*.sol" && parent.starts_with(&spec.base)
+                || spec.pattern == "*.sol" && parent == spec.base
+        }) {
             continue;
         }
-        specs.push(WatchedFileSpec { base: parent.to_path_buf(), pattern: "**/*.sol" });
+        specs.push(WatchedFileSpec::new(parent.to_path_buf(), "*.sol"));
     }
     specs.sort_unstable();
     specs.dedup();
@@ -1665,7 +1669,6 @@ fn watched_file_registration_params_with_specs(
     config: &Config,
     specs: &[WatchedFileSpec],
 ) -> RegistrationParams {
-    let kind = Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete);
     let watchers = if config.supports_watched_file_relative_patterns() {
         specs
             .iter()
@@ -1676,11 +1679,12 @@ fn watched_file_registration_params_with_specs(
                         base_uri: OneOf::Right(base_uri),
                         pattern: spec.pattern.into(),
                     }),
-                    kind,
+                    kind: Some(spec.kind),
                 })
             })
             .collect::<Vec<_>>()
     } else {
+        let kind = Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete);
         ["**/*.sol", "**/foundry.toml", "**/remappings.txt"]
             .into_iter()
             .map(|pattern| FileSystemWatcher {

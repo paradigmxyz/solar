@@ -30,7 +30,24 @@ pub(crate) struct Workspace {
     kind: WorkspaceKind,
     compile_opts: CompileOpts,
     source_roots: Vec<PathBuf>,
+    source_watch_roots: Vec<SourceWatchRoot>,
     source_files: Vec<PathBuf>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct SourceWatchRoot {
+    pub(crate) path: PathBuf,
+    pub(crate) recursive: bool,
+}
+
+impl SourceWatchRoot {
+    fn shallow(path: &Path) -> Self {
+        Self { path: path.to_path_buf(), recursive: false }
+    }
+
+    fn recursive(path: &Path) -> Self {
+        Self { path: path.to_path_buf(), recursive: true }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -50,6 +67,7 @@ impl Workspace {
             kind: WorkspaceKind::Naked,
             compile_opts: CompileOpts { base_path: Some(root), ..Default::default() },
             source_roots,
+            source_watch_roots: Vec::new(),
             source_files: Vec::new(),
         }
     }
@@ -59,6 +77,7 @@ impl Workspace {
             kind: WorkspaceKind::Naked,
             compile_opts: CompileOpts::default(),
             source_roots: Vec::new(),
+            source_watch_roots: Vec::new(),
             source_files: Vec::new(),
         }
     }
@@ -75,6 +94,10 @@ impl Workspace {
         &self.source_roots
     }
 
+    pub(crate) fn source_watch_roots(&self) -> &[SourceWatchRoot] {
+        &self.source_watch_roots
+    }
+
     pub(crate) fn source_files(&self) -> &[PathBuf] {
         &self.source_files
     }
@@ -83,33 +106,102 @@ impl Workspace {
         &self.compile_opts.include_paths
     }
 
+    pub(crate) fn is_import_only_path(&self, path: &Path) -> bool {
+        is_import_only_path(&self.source_roots, self.import_only_roots(), path)
+    }
+
     pub(crate) fn refresh_source_files(
         &mut self,
         policy: &WorkspaceIndexPolicy,
         cancellation: &IndexingCancellation,
         metrics: &mut WorkspaceIndexMetrics,
     ) -> bool {
+        let Some((source_files, source_watch_roots)) =
+            self.collect_source_files(policy, cancellation, metrics, None)
+        else {
+            return false;
+        };
+        self.source_files = source_files;
+        self.source_watch_roots = source_watch_roots;
+        true
+    }
+
+    pub(crate) fn refresh_all_source_files(
+        workspaces: &mut [Self],
+        policy: &WorkspaceIndexPolicy,
+        cancellation: &IndexingCancellation,
+        metrics: &mut WorkspaceIndexMetrics,
+    ) -> bool {
+        if let [workspace] = workspaces {
+            return workspace.refresh_source_files(policy, cancellation, metrics);
+        }
+
+        let mut collected = Vec::with_capacity(workspaces.len());
+        {
+            let index = WorkspacePathIndex::new(&*workspaces);
+            for (idx, workspace) in workspaces.iter().enumerate() {
+                let Some(sources) = workspace.collect_source_files(
+                    policy,
+                    cancellation,
+                    metrics,
+                    Some((&index, idx)),
+                ) else {
+                    return false;
+                };
+                collected.push(sources);
+            }
+        }
+        for (workspace, (source_files, source_watch_roots)) in workspaces.iter_mut().zip(collected)
+        {
+            workspace.source_files = source_files;
+            workspace.source_watch_roots = source_watch_roots;
+        }
+        true
+    }
+
+    fn collect_source_files<'index, 'workspaces>(
+        &self,
+        policy: &WorkspaceIndexPolicy,
+        cancellation: &IndexingCancellation,
+        metrics: &mut WorkspaceIndexMetrics,
+        ownership: Option<(&'index WorkspacePathIndex<'workspaces>, usize)>,
+    ) -> Option<(Vec<PathBuf>, Vec<SourceWatchRoot>)> {
         let mut source_files = Vec::new();
+        let mut source_watch_roots = Vec::new();
         for root in &self.source_roots {
             let workspace_root = self.compile_opts.base_path.as_deref().unwrap_or(root);
-            if !(SourceFileCollector {
+            let watch_root_start = source_watch_roots.len();
+            match (SourceFileCollector {
                 workspace_root,
                 source_root: root,
+                source_roots: &self.source_roots,
                 import_only_roots: self.import_only_roots(),
                 policy,
                 cancellation,
                 metrics,
                 files: &mut source_files,
+                watch_roots: &mut source_watch_roots,
+                ownership,
             })
-            .collect(root)
+            .collect(root, root == workspace_root)
             {
-                return false;
+                SourceTreeState::Cancelled => return None,
+                SourceTreeState::Pruned => continue,
+                SourceTreeState::Clean | SourceTreeState::Partitioned => {}
+            }
+            if source_watch_roots.len() == watch_root_start {
+                source_watch_roots.push(if root == workspace_root {
+                    SourceWatchRoot::shallow(root)
+                } else {
+                    SourceWatchRoot::recursive(root)
+                });
             }
         }
         source_files.sort_unstable();
         source_files.dedup();
-        self.source_files = source_files;
-        true
+        source_watch_roots.sort_unstable();
+        source_watch_roots.dedup();
+        Some((source_files, source_watch_roots))
     }
 
     pub(crate) fn add_source_file(&mut self, policy: &WorkspaceIndexPolicy, path: PathBuf) {
@@ -132,7 +224,7 @@ impl Workspace {
 
     pub(crate) fn tracks_disk_file(&self, policy: &WorkspaceIndexPolicy, path: &Path) -> bool {
         is_solidity_file(path)
-            && !self.import_only_roots().iter().any(|root| path.starts_with(root))
+            && !self.is_import_only_path(path)
             && self.source_roots.iter().any(|root| {
                 let workspace_root = self.compile_opts.base_path.as_deref().unwrap_or(root);
                 path.starts_with(root) && !policy.excludes_file(workspace_root, root, path)
@@ -160,6 +252,7 @@ impl Workspace {
             kind: WorkspaceKind::Foundry,
             source_roots,
             compile_opts,
+            source_watch_roots: Vec::new(),
             source_files: Vec::new(),
         })
     }
@@ -211,27 +304,7 @@ impl<'a> WorkspacePathIndex<'a> {
         policy: &WorkspaceIndexPolicy,
         path: &Path,
     ) -> Option<usize> {
-        let idx = self.workspace_idx_containing_path(path).or_else(|| {
-            self.workspaces
-                .iter()
-                .enumerate()
-                .filter_map(|(idx, workspace)| {
-                    let source_depth = workspace
-                        .source_roots()
-                        .iter()
-                        .filter(|root| path.starts_with(root))
-                        .map(|root| root.components().count())
-                        .max()?;
-                    let base_depth = workspace
-                        .compile_opts()
-                        .base_path
-                        .as_deref()
-                        .map_or(0, |base_path| base_path.components().count());
-                    Some((idx, source_depth, base_depth))
-                })
-                .max_by_key(|&(idx, source_depth, base_depth)| (source_depth, base_depth, idx))
-                .map(|(idx, _, _)| idx)
-        })?;
+        let idx = self.workspace_idx_for_source_region(path)?;
         self.workspaces[idx].tracks_disk_file(policy, path).then_some(idx)
     }
 
@@ -261,34 +334,75 @@ impl<'a> WorkspacePathIndex<'a> {
             workspace.source_files = source_files;
         }
     }
+
+    fn workspace_idx_for_source_region(&self, path: &Path) -> Option<usize> {
+        self.workspace_idx_containing_path(path).or_else(|| {
+            self.workspaces
+                .iter()
+                .enumerate()
+                .filter_map(|(idx, workspace)| {
+                    let source_depth = workspace
+                        .source_roots()
+                        .iter()
+                        .filter(|root| path.starts_with(root))
+                        .map(|root| root.components().count())
+                        .max()?;
+                    let base_depth = workspace
+                        .compile_opts()
+                        .base_path
+                        .as_deref()
+                        .map_or(0, |base_path| base_path.components().count());
+                    Some((idx, source_depth, base_depth))
+                })
+                .max_by_key(|&(idx, source_depth, base_depth)| (source_depth, base_depth, idx))
+                .map(|(idx, _, _)| idx)
+        })
+    }
 }
 
-struct SourceFileCollector<'a> {
+struct SourceFileCollector<'a, 'index, 'workspaces> {
     workspace_root: &'a Path,
     source_root: &'a Path,
+    source_roots: &'a [PathBuf],
     import_only_roots: &'a [PathBuf],
     policy: &'a WorkspaceIndexPolicy,
     cancellation: &'a IndexingCancellation,
     metrics: &'a mut WorkspaceIndexMetrics,
     files: &'a mut Vec<PathBuf>,
+    watch_roots: &'a mut Vec<SourceWatchRoot>,
+    ownership: Option<(&'index WorkspacePathIndex<'workspaces>, usize)>,
 }
 
-impl SourceFileCollector<'_> {
-    fn collect(&mut self, path: &Path) -> bool {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SourceTreeState {
+    Clean,
+    Partitioned,
+    Pruned,
+    Cancelled,
+}
+
+impl SourceFileCollector<'_, '_, '_> {
+    fn collect(&mut self, path: &Path, partition_root: bool) -> SourceTreeState {
         if self.cancellation.is_cancelled() {
-            return false;
+            return SourceTreeState::Cancelled;
         }
         self.metrics.visited += 1;
-        if self.import_only_roots.iter().any(|root| path.starts_with(root)) {
+        if let Some((index, workspace_idx)) = self.ownership
+            && index.workspace_idx_for_source_region(path).is_some_and(|idx| idx != workspace_idx)
+        {
             self.metrics.pruned += 1;
-            return true;
+            return SourceTreeState::Pruned;
+        }
+        if is_import_only_path(self.source_roots, self.import_only_roots, path) {
+            self.metrics.pruned += 1;
+            return SourceTreeState::Pruned;
         }
         let Ok(metadata) = std::fs::symlink_metadata(path) else {
-            return true;
+            return SourceTreeState::Partitioned;
         };
         if metadata.is_file() {
             if !is_solidity_file(path) {
-                return true;
+                return SourceTreeState::Clean;
             }
             if self.policy.excludes_file(self.workspace_root, self.source_root, path) {
                 self.metrics.pruned += 1;
@@ -296,24 +410,53 @@ impl SourceFileCollector<'_> {
                 self.files.push(path.to_path_buf());
                 self.metrics.eager += 1;
             }
-            return true;
+            return SourceTreeState::Clean;
         }
-        if metadata.is_dir() {
-            if self.policy.should_prune_directory(self.workspace_root, self.source_root, path) {
-                self.metrics.pruned += 1;
-                return true;
-            }
-            let Ok(entries) = std::fs::read_dir(path) else {
-                return true;
-            };
-            for entry in entries.filter_map(Result::ok) {
-                if !self.collect(&entry.path()) {
-                    return false;
-                }
+        if !metadata.is_dir() {
+            return SourceTreeState::Partitioned;
+        }
+        if self.policy.should_prune_directory(self.workspace_root, self.source_root, path) {
+            self.metrics.pruned += 1;
+            return SourceTreeState::Pruned;
+        }
+
+        let watch_root_start = self.watch_roots.len();
+        let mut partitioned = partition_root;
+        let Ok(entries) = std::fs::read_dir(path) else {
+            self.watch_roots.push(SourceWatchRoot::shallow(path));
+            return SourceTreeState::Partitioned;
+        };
+        for entry in entries.filter_map(Result::ok) {
+            match self.collect(&entry.path(), false) {
+                SourceTreeState::Clean => {}
+                SourceTreeState::Partitioned | SourceTreeState::Pruned => partitioned = true,
+                SourceTreeState::Cancelled => return SourceTreeState::Cancelled,
             }
         }
-        true
+
+        // Recursive watchers are safe only for subtrees with no pruned descendants.
+        if partitioned {
+            self.watch_roots.push(SourceWatchRoot::shallow(path));
+            SourceTreeState::Partitioned
+        } else {
+            self.watch_roots.truncate(watch_root_start);
+            self.watch_roots.push(SourceWatchRoot::recursive(path));
+            SourceTreeState::Clean
+        }
     }
+}
+
+pub(crate) fn is_import_only_path(
+    source_roots: &[PathBuf],
+    import_only_roots: &[PathBuf],
+    path: &Path,
+) -> bool {
+    import_only_roots.iter().any(|import_root| {
+        path.starts_with(import_root)
+            && !source_roots.iter().any(|source_root| {
+                source_root.starts_with(import_root) && path.starts_with(source_root)
+            })
+    })
 }
 
 fn is_solidity_file(path: &Path) -> bool {

@@ -12,10 +12,6 @@ impl FoundryDocument {
     pub(crate) fn default_profile(self) -> FoundryProfile {
         self.profile.and_then(|profiles| profiles.default).or(self.default).unwrap_or_default()
     }
-
-    pub(crate) fn include_paths(self, root: &Path) -> Vec<PathBuf> {
-        self.default_profile().include_paths(root)
-    }
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -115,7 +111,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            document.include_paths(Path::new("workspace")),
+            document.default_profile().include_paths(Path::new("workspace")),
             [PathBuf::from("workspace/lib"), PathBuf::from("workspace/vendor")]
         );
     }

@@ -100,8 +100,8 @@ fn assert_watched_registration_root(params: &RegistrationParams, root: &std::pat
         .iter()
         .filter(|watcher| watcher["globPattern"]["baseUri"].as_str() == Some(&root_uri))
         .collect::<Vec<_>>();
-    assert_eq!(root_watchers.len(), 3, "missing recursive watchers for `{root_uri}`");
-    for pattern in ["**/*.sol", "**/foundry.toml", "**/remappings.txt"] {
+    assert_eq!(root_watchers.len(), 2, "missing targeted config watchers for `{root_uri}`");
+    for pattern in ["foundry.toml", "remappings.txt"] {
         assert!(
             root_watchers.iter().any(|watcher| watcher["globPattern"]["pattern"] == pattern),
             "missing `{pattern}` watcher for `{root_uri}`"

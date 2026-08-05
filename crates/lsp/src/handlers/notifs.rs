@@ -181,6 +181,22 @@ pub(crate) fn did_change_watched_files(
                 }
                 disk_paths.push(path);
             }
+            _ if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED) => {
+                let relevant = if event.typ == FileChangeType::CREATED {
+                    std::fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_dir())
+                        && state.created_file_operation_path_is_relevant(&path)
+                } else {
+                    state.deleted_file_operation_path_is_relevant(&path)
+                };
+                if !relevant {
+                    continue;
+                }
+                should_rediscover = true;
+                if event.typ == FileChangeType::DELETED {
+                    removed_paths.push(path.clone());
+                }
+                state.file_operations.record_watched_events(event.typ, [path]);
+            }
             _ => {}
         }
     }
