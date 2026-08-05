@@ -4366,6 +4366,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             PackedArraySource::Memory { .. } => None,
             PackedArraySource::Slice(_) => Some(self.builder.slice_ptr(value)),
         };
+        let memory_source = match source {
+            PackedArraySource::Slice(SliceLocation::Memory) => Some(self.builder.make_slice(
+                base.expect("slice base"),
+                byte_length,
+                SliceLocation::Memory,
+            )),
+            _ => None,
+        };
 
         let preheader = self.builder.current_block();
         let header = self.builder.create_block();
@@ -4386,14 +4394,16 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             PackedArraySource::Memory { layout } => {
                 self.builder.memory_object_load_element(value, layout, index)
             }
-            PackedArraySource::Slice(location) => {
-                let pointer = self.builder.add(base.expect("slice base"), element_offset);
-                match location {
-                    SliceLocation::Memory => self.builder.mload(pointer),
-                    SliceLocation::Calldata => self.builder.calldataload(pointer),
-                    SliceLocation::Returndata => unreachable!("returndata packed array"),
+            PackedArraySource::Slice(location) => match location {
+                SliceLocation::Memory => self
+                    .builder
+                    .memory_slice_load_word(memory_source.expect("memory slice"), element_offset),
+                SliceLocation::Calldata => {
+                    let pointer = self.builder.add(base.expect("slice base"), element_offset);
+                    self.builder.calldataload(pointer)
                 }
-            }
+                SliceLocation::Returndata => unreachable!("returndata packed array"),
+            },
         };
         self.builder.memory_object_store_word(output, destination, element);
         let one = self.builder.imm_u64(1);
@@ -6191,10 +6201,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     solar_sema::hir::ElementaryType::Bytes
                     | solar_sema::hir::ElementaryType::String,
                 ) => {
-                    let pointer = self.builder.add(base, index);
                     let word = match location {
-                        SliceLocation::Calldata => self.builder.calldataload(pointer),
-                        SliceLocation::Memory => self.builder.mload(pointer),
+                        SliceLocation::Calldata => {
+                            let pointer = self.builder.add(base, index);
+                            self.builder.calldataload(pointer)
+                        }
+                        SliceLocation::Memory => self.builder.memory_slice_load_word(object, index),
                         SliceLocation::Returndata => {
                             return report_unsupported(self.gcx, expr.span, "returndata index");
                         }
