@@ -3942,14 +3942,18 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let function_id = self.gcx.resolved_function(function)?;
         let selector = self.gcx.function_selector(function_id).0;
         let selector = self.builder.imm_u256(U256::from_be_slice(&selector) << 224);
+        let callee = self.gcx.hir.function(function_id);
         let exprs = match tuple.peel_parens().kind {
             ExprKind::Tuple(elements) => elements.iter().flatten().copied().collect::<Vec<_>>(),
             _ => vec![tuple],
         };
+        if exprs.len() != callee.parameters.len() {
+            return report_unsupported(self.gcx, tuple.span, "abi.encodeCall argument list");
+        }
         let mut values = Vec::with_capacity(exprs.len());
         let mut types = Vec::with_capacity(exprs.len());
-        for expr in exprs {
-            let ty = self.gcx.type_of_expr(expr.id)?;
+        for (index, expr) in exprs.into_iter().enumerate() {
+            let ty = self.gcx.type_of_item(callee.parameters[index].into());
             let mut value = self.lower_expr(expr)?;
             let mut abi_type = self.types.abi_type(ty)?;
             abi_type = self.abi_type_for_value(value, abi_type);
