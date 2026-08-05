@@ -3,11 +3,11 @@
 fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_args=lazy, abi_params=[bytes], abi_returns=[word, word, word]] {
   bb0:
     v0 = abi_decode [u256, bool, address], arg0
-    v1 = mload 32 !metadata(memory=scratch)
-    v2 = add v1, 32
-    v3 = mload v2
-    v4 = add v1, 64
-    v5 = mload v4
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = make_memory_slice v1, 96
+    v3 = memory_slice_load_word memory, v2, 32
+    v4 = make_memory_slice v1, 96
+    v5 = memory_slice_load_word memory, v4, 64
     ret v0, v3, v5
 }
 

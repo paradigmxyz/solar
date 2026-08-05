@@ -19,8 +19,8 @@ contract C {
     // Destructuring a multi-value internal call: both `ok` and `c` must bind.
     // CHECK-LABEL: fn @sat{{[( ]}}
     // CHECK: internal_call @tryAdd, 2, arg0, arg1
-    // CHECK: {{v[0-9]+}} = mload 32
-    // CHECK: mload {{v[0-9]+}}
+    // CHECK: frame_load multi_return, word, 0
+    // CHECK: memory_slice_load_word
     function sat(uint256 a, uint256 b) public pure returns (uint256) {
         (bool ok, uint256 c) = Math.tryAdd(a, b);
         if (!ok) return type(uint256).max;
@@ -30,8 +30,8 @@ contract C {
     // `return lib.f()` must return both tuple values, not just the first.
     // CHECK-LABEL: fn @tryA{{[( ]}}
     // CHECK: internal_call @tryAdd, 2, arg0, arg1
-    // CHECK: {{v[0-9]+}} = mload 32
-    // CHECK: mload {{v[0-9]+}}
+    // CHECK: frame_load multi_return, word, 0
+    // CHECK: memory_slice_load_word
     // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
     function tryA(uint256 a, uint256 b) public pure returns (bool, uint256) {
         return Math.tryAdd(a, b);

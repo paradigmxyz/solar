@@ -8,9 +8,9 @@ use super::{
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        AbiLayout, AbiParamLayout, AbiParamType, AbiType, AllocationSemantics, BlockId, Function,
-        FunctionBuilder, FunctionId, ImmutableId, InstKind, MemoryObjectKind, MemoryObjectLayout,
-        MirType, Module, SliceLocation, Value, ValueId,
+        AbiLayout, AbiParamLayout, AbiParamType, AbiType, AllocationSemantics, BlockId, FrameMode,
+        FrameSlotKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind,
+        MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation, Value, ValueId,
     },
 };
 use alloy_primitives::{Bytes, U256, keccak256};
@@ -1881,7 +1881,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 let mut values = Vec::with_capacity(elements.len());
                 values.push(first);
                 for index in 1..elements.len() {
-                    values.push(self.load_multi_return_value(base, index));
+                    values.push(self.load_multi_return_value(base, index, elements.len()));
                 }
                 return Some(values);
             }
@@ -1914,7 +1914,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 let mut values = Vec::with_capacity(returns);
                 values.push(first);
                 for index in 1..returns {
-                    values.push(self.load_multi_return_value(base, index));
+                    values.push(self.load_multi_return_value(base, index, returns));
                 }
                 return Some(values);
             }
@@ -2016,27 +2016,30 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     }
 
     fn multi_return_buffer_base(&mut self) -> ValueId {
-        let slot = self.builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-        self.builder.mload(slot)
+        self.builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word)
     }
 
-    fn ensure_multi_return_buffer(&mut self, words: usize) -> ValueId {
+    fn ensure_multi_return_buffer(
+        &mut self,
+        words: usize,
+    ) -> (ValueId, ValueId, MemoryObjectLayout) {
         debug_assert!(words > 1);
-        let slot = self.builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
         // The published pointer has no capacity, so each producer gets a fresh object.
         let words = u64::try_from(words).unwrap_or(u64::MAX);
         let size = self.builder.imm_u64(words.saturating_mul(32));
         let layout = MemoryObjectLayout::FixedArray { len: words, element_words: 1 };
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         let base = self.builder.memory_object_data(object, MemoryObjectKind::FixedArray);
-        self.builder.mstore(slot, base);
-        base
+        self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, base);
+        (object, base, layout)
     }
 
-    fn load_multi_return_value(&mut self, base: ValueId, index: usize) -> ValueId {
+    fn load_multi_return_value(&mut self, base: ValueId, index: usize, words: usize) -> ValueId {
         let offset = self.builder.imm_u64(u64::try_from(index).unwrap_or(u64::MAX) * 32);
-        let address = self.builder.add(base, offset);
-        self.builder.mload(address)
+        let size =
+            self.builder.imm_u64(u64::try_from(words).unwrap_or(u64::MAX).saturating_mul(32));
+        let slice = self.builder.make_slice(base, size, SliceLocation::Memory);
+        self.builder.memory_slice_load_word(slice, offset)
     }
 
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
@@ -3128,15 +3131,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             return self.lower_abi_decode_values(data, &return_types, callee.span);
         }
         if returns > 1 {
-            let slot = self.builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-            self.builder.mstore(slot, ret_offset);
+            self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, ret_offset);
             let mut values = Vec::with_capacity(returns);
             for index in 0..returns {
-                values.push(self.load_multi_return_value(ret_offset, index));
+                values.push(self.load_multi_return_value(ret_offset, index, returns));
             }
             return Some(values);
         }
-        Some(vec![self.builder.mload(ret_offset)])
+        Some(vec![self.load_multi_return_value(ret_offset, 0, returns)])
     }
 
     fn lower_internal_function_pointer_call(
@@ -3771,8 +3773,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let inner = self.builder.sub(inner, one);
         let zero = self.builder.imm_u256(U256::ZERO);
         let word_size = self.builder.imm_u64(32);
+        let size =
+            self.builder.imm_u64(EvmMemoryLayout::DYNAMIC_HEADER_SIZE + EvmMemoryLayout::WORD_SIZE);
         let object = self.builder.alloc_object(
-            word_size,
+            size,
             MemoryObjectLayout::Bytes,
             AllocationSemantics::INTERNAL,
         );
@@ -4548,7 +4552,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let address = self.builder.imm_u64(if builtin == Builtin::Sha256 { 2 } else { 3 });
         let output_size = self.builder.imm_u64(32);
         self.lower_precompile_call(address, input_ptr, input_len, output_ptr, output_size);
-        let value = self.builder.mload(output_ptr);
+        let zero = self.builder.imm_u64(0);
+        let output_slice = self.builder.make_slice(output_ptr, output_len, SliceLocation::Memory);
+        let value = self.builder.memory_slice_load_word(output_slice, zero);
         Some(if builtin == Builtin::Ripemd160 {
             let scale = self.builder.imm_u256(U256::from(1) << 96);
             self.builder.mul(scale, value)
@@ -4577,22 +4583,28 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let input_len = self.builder.imm_u64(160);
         self.builder.set_memory_object_len(input, input_len, MemoryObjectKind::Bytes);
         let input_ptr = self.builder.memory_object_data(input, MemoryObjectKind::Bytes);
-        self.builder.mstore(input_ptr, hash);
+        let zero = self.builder.imm_u64(0);
+        self.builder.memory_object_store_word(input, zero, hash);
         for (offset, value) in [(32, v), (64, r), (96, s)] {
             let offset = self.builder.imm_u64(offset);
-            let ptr = self.builder.add(input_ptr, offset);
-            self.builder.mstore(ptr, value);
+            self.builder.memory_object_store_word(input, offset, value);
         }
-        let output_offset = self.builder.imm_u64(128);
-        let output_ptr = self.builder.add(input_ptr, output_offset);
-        let zero = self.builder.imm_u256(U256::ZERO);
-        self.builder.mstore(output_ptr, zero);
+        let output_size = self.builder.imm_u64(64);
+        let output = self.builder.alloc_object(
+            output_size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::SOLIDITY_ZEROED,
+        );
+        let output_len = self.builder.imm_u64(32);
+        self.builder.set_memory_object_len(output, output_len, MemoryObjectKind::Bytes);
+        let output_ptr = self.builder.memory_object_data(output, MemoryObjectKind::Bytes);
 
         let address = self.builder.imm_u64(1);
         let input_size = self.builder.imm_u64(128);
         let output_size = self.builder.imm_u64(32);
         self.lower_precompile_call(address, input_ptr, input_size, output_ptr, output_size);
-        Some(self.builder.mload(output_ptr))
+        let output_slice = self.builder.make_slice(output_ptr, output_len, SliceLocation::Memory);
+        Some(self.builder.memory_slice_load_word(output_slice, zero))
     }
 
     fn lower_precompile_call(
@@ -5213,20 +5225,18 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 .collect::<Vec<_>>();
             let values = self.lower_abi_decode_values(data, &return_types, expr.span)?;
             if values.len() > 1 {
-                let base = self.ensure_multi_return_buffer(values.len());
+                let (object, _, layout) = self.ensure_multi_return_buffer(values.len());
                 for (index, value) in values.iter().copied().enumerate().skip(1) {
-                    let offset = self.builder.imm_u64((index as u64).saturating_mul(32));
-                    let address = self.builder.add(base, offset);
-                    self.builder.mstore(address, value);
+                    let index = self.builder.imm_u64(index as u64);
+                    self.builder.memory_object_store_element(object, layout, index, value);
                 }
             }
             return values.into_iter().next().or(Some(zero));
         }
         if returns > 1 {
-            let base = self.builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-            self.builder.mstore(base, ret_offset);
+            self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, ret_offset);
         }
-        Some(self.builder.mload(ret_offset))
+        Some(self.load_multi_return_value(ret_offset, 0, returns))
     }
 
     fn linked_library_address(&self, function_id: hir::FunctionId) -> Option<U256> {
@@ -5312,11 +5322,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             .collect::<Vec<_>>();
         let values = self.lower_abi_decode_values(data, &return_types, expr.span)?;
         if values.len() > 1 {
-            let base = self.ensure_multi_return_buffer(values.len());
+            let (object, _, layout) = self.ensure_multi_return_buffer(values.len());
             for (index, value) in values.iter().copied().enumerate().skip(1) {
-                let offset = self.builder.imm_u64((index as u64).saturating_mul(32));
-                let address = self.builder.add(base, offset);
-                self.builder.mstore(address, value);
+                let index = self.builder.imm_u64(index as u64);
+                self.builder.memory_object_store_element(object, layout, index, value);
             }
         }
         values.into_iter().next().or(Some(zero))
@@ -7135,14 +7144,19 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     let mut values = Vec::with_capacity(shape.returns.len());
                     values.push(result);
                     if shape.returns.len() > 1 {
-                        let slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-                        let base = builder.mload(slot);
+                        let base =
+                            builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
+                        let size = builder.imm_u64(
+                            u64::try_from(shape.returns.len())
+                                .unwrap_or(u64::MAX)
+                                .saturating_mul(EvmMemoryLayout::WORD_SIZE),
+                        );
+                        let slice = builder.make_slice(base, size, SliceLocation::Memory);
                         for index in 1..shape.returns.len() {
                             let offset = builder.imm_u64(
                                 u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32),
                             );
-                            let address = builder.add(base, offset);
-                            values.push(builder.mload(address));
+                            values.push(builder.memory_slice_load_word(slice, offset));
                         }
                     }
                     builder.ret(values);

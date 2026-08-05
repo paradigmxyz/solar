@@ -51,13 +51,13 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) {
 fn @readTwice(arg0: calldataslice) -> (u64, u64) [abi_args=lazy, abi_params=[bytes], abi_returns=[word, word]] {
   bb0:
     v0 = internal_call @readU64, 2, arg0, 0
-    v1 = mload 32 !metadata(memory=scratch)
-    v2 = add v1, 32
-    v3 = mload v2
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = make_memory_slice v1, 64
+    v3 = memory_slice_load_word memory, v2, 32
     v4 = internal_call @readU64, 2, arg0, 8
-    v5 = mload 32 !metadata(memory=scratch)
-    v6 = add v5, 32
-    v7 = mload v6
+    v5 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v6 = make_memory_slice v5, 64
+    v7 = memory_slice_load_word memory, v6, 32
     ret v0, v4
 }
 

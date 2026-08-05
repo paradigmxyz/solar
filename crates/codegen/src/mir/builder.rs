@@ -716,6 +716,16 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::InternalFrameAddr(offset), Some(MirType::MemPtr))
     }
 
+    /// Loads a mutable local through its logical frame slot.
+    pub(crate) fn frame_load(
+        &mut self,
+        offset: u64,
+        mode: FrameMode,
+        kind: FrameSlotKind,
+    ) -> ValueId {
+        self.emit_inst(InstKind::FrameLoad { offset, mode, kind }, Some(kind.result_type()))
+    }
+
     /// Stores a mutable local through its logical frame slot.
     pub(crate) fn frame_store(
         &mut self,

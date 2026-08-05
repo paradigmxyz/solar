@@ -13,8 +13,9 @@ fn @read(arg0: address) -> u256 [abi_args=lazy, abi_params=[address], abi_return
     returndatacopy 0, 0, v5 !metadata(memory=scratch)
     revert 0, v5
   bb2:
-    v6 = mload 0 !metadata(memory=scratch)
-    ret v6
+    v6 = make_memory_slice 0, 32
+    v7 = memory_slice_load_word memory, v6, 0
+    ret v7
 }
 
 fn @readPointer(arg0: function) -> u256 [abi_args=lazy, abi_params=[function], abi_returns=[word]] {

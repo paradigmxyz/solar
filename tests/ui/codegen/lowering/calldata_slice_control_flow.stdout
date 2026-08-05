@@ -215,9 +215,9 @@ fn @_explicitTrim(arg0: calldataslice) -> memorybytes {
 fn @headTail(arg0: calldataslice) -> (u256, u256) [abi_args=lazy, abi_params=[bytes], abi_returns=[word, word]] {
   bb0:
     v0 = internal_call @_split, 2, arg0
-    v1 = mload 32 !metadata(memory=scratch)
-    v2 = add v1, 32
-    v3 = mload v2
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = make_memory_slice v1, 64
+    v3 = memory_slice_load_word memory, v2, 32
     v4 = memory_object_len memorybytes, v0
     v5 = memory_object_len memorybytes, v3
     ret v4, v5

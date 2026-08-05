@@ -97,13 +97,12 @@ fn @pair() -> (u256, u256) [abi_args=lazy, abi_params=[], abi_returns=[word, wor
     v46 = memory_slice_load_word memory, v45, 0
     v47 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v48 = memory_object_data memoryfixedarray, v47
-    mstore 32, v48 !metadata(memory=scratch)
-    v49 = add v48, 32
-    mstore v49, v46
-    v50 = mload 32 !metadata(memory=scratch)
-    v51 = add v50, 32
-    v52 = mload v51
-    ret v38, v52
+    frame_store multi_return, word, 0, v48 !metadata(memory=scratch)
+    memory_object_store_element memoryfixedarray<2, 1>, v47, 1, v46
+    v49 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v50 = make_memory_slice v49, 64
+    v51 = memory_slice_load_word memory, v50, 32
+    ret v38, v51
   bb16:
     revert 0, 0
 }

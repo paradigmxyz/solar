@@ -7,11 +7,11 @@ fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [abi_args=lazy
     v1 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v1, 0
     v2 = abi_decode [u256, bytes, bytes], arg0
-    v3 = mload 32 !metadata(memory=scratch)
-    v4 = add v3, 32
-    v5 = mload v4
-    v6 = add v3, 64
-    v7 = mload v6
+    v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v4 = make_memory_slice v3, 96
+    v5 = memory_slice_load_word memory, v4, 32
+    v6 = make_memory_slice v3, 96
+    v7 = memory_slice_load_word memory, v6, 64
     ret v2, v5, v7
 }
 
@@ -56,11 +56,11 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memory
     set_memory_object_len memorybytes, v15, v3
     memory_object_copy_from_slice memorybytes, v15, v2
     v16 = abi_decode [u256, bytes, bytes], v15
-    v17 = mload 32 !metadata(memory=scratch)
-    v18 = add v17, 32
-    v19 = mload v18
-    v20 = add v17, 64
-    v21 = mload v20
+    v17 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v18 = make_memory_slice v17, 96
+    v19 = memory_slice_load_word memory, v18, 32
+    v20 = make_memory_slice v17, 96
+    v21 = memory_slice_load_word memory, v20, 64
     ret v16, v19, v21
 }
 

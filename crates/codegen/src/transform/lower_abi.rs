@@ -37,9 +37,10 @@
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        AbiParamLayout, AbiParamType, AllocationSemantics, ArgIdx, BlockId, Function,
-        FunctionBuilder, FunctionId, InstKind, MangledSymbol, MemoryObjectKind, MemoryObjectLayout,
-        MirPhase, MirType, Module, SliceLocation, Terminator, ValueId,
+        AbiParamLayout, AbiParamType, AllocationSemantics, ArgIdx, BlockId, FrameMode,
+        FrameSlotKind, Function, FunctionBuilder, FunctionId, InstKind, MangledSymbol,
+        MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, SliceLocation, Terminator,
+        ValueId,
     },
     pass::MirPass,
 };
@@ -538,12 +539,15 @@ impl LowerAbiCx {
                             AllocationSemantics::INTERNAL,
                         );
                         let base = builder.memory_object_data(object, MemoryObjectKind::FixedArray);
-                        let slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-                        builder.mstore(slot, base);
+                        builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, base);
                         for (index, value) in values.iter().copied().enumerate().skip(1) {
-                            let offset = builder.imm_u64((index as u64).saturating_mul(32));
-                            let address = builder.add(base, offset);
-                            builder.mstore(address, value);
+                            let index = builder.imm_u64(index as u64);
+                            builder.memory_object_store_element(
+                                object,
+                                object_layout,
+                                index,
+                                value,
+                            );
                         }
                     }
                     changed = true;
