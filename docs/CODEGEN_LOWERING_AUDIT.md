@@ -292,6 +292,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    garbage. `abi_function_pointer_array_validation.sol` covers the same lazy
    versus eager distinction for dynamic function-pointer arrays and verifies
    that memory arrays re-encode canonical pointer words.
+   `constructor_function_pointer.sol` covers an external function pointer passed
+   through contract creation and called from the child constructor.
    The Unifap creation fixture now passes the differential Foundry
    suite; the companion fixture compiles with no Solar-only regressions, but
    retains seven pre-existing failures under both compilers because its
