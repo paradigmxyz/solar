@@ -267,6 +267,12 @@ impl<'gcx> Lowerer<'gcx> {
                             }
                             if let Some(info) = int_info
                                 && !info.signed
+                                && self.get_expr_type(expr).is_some_and(|ty| {
+                                    matches!(
+                                        ty.peel_refs().kind,
+                                        TyKind::Elementary(ElementaryType::UInt(_))
+                                    )
+                                })
                             {
                                 return self.mask_to_bits(builder, result, info.size);
                             }
