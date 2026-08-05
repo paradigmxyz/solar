@@ -40,6 +40,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 self.types.abi_type(ty)?
             };
             abi_type = self.abi_type_for_value(value, abi_type);
+            self.validate_calldata_bytes_argument(value, &abi_type);
             self.validate_calldata_array_head(value, ty, &abi_type);
             if self.needs_validated_calldata_materialization(value, &abi_type, ty) {
                 value = self.materialize_calldata_argument(ty, value, expr.span)?;
@@ -157,6 +158,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             value = self.coerce_value(value, from_ty, ty);
             let mut abi_type = self.types.abi_type(ty)?;
             abi_type = self.abi_type_for_value(value, abi_type);
+            self.validate_calldata_bytes_argument(value, &abi_type);
             self.validate_calldata_array_head(value, ty, &abi_type);
             if self.needs_validated_calldata_materialization(value, &abi_type, ty) {
                 value = self.materialize_calldata_argument(ty, value, expr.span)?;
@@ -326,6 +328,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
             let mut value = self.lower_typed_expr(expr, memory_ty)?;
             if let Some(abi_type) = self.types.abi_type(ty) {
+                self.validate_calldata_bytes_argument(value, &abi_type);
                 self.validate_calldata_array_head(value, ty, &abi_type);
             }
             if self.needs_calldata_aggregate_validation(value, ty) {

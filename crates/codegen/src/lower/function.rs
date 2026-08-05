@@ -822,6 +822,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let parameter_ty = self.gcx.type_of_item(parameter.into());
             let variable = self.gcx.hir.variable(parameter);
             let mut value = self.lower_typed_expr(argument, parameter_ty)?;
+            if let Some(argument_ty) = self.gcx.type_of_expr(argument.id)
+                && let Some(argument_abi_type) = self.types.abi_type(argument_ty)
+            {
+                self.validate_calldata_bytes_argument(value, &argument_abi_type);
+            }
             if variable.indexed {
                 match parameter_ty.peel_refs().kind {
                     TyKind::Elementary(

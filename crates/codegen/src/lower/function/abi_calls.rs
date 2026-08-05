@@ -66,6 +66,18 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.check_calldata_range(data, byte_length);
     }
 
+    pub(super) fn validate_calldata_bytes_argument(&mut self, value: ValueId, abi_type: &AbiType) {
+        if matches!(
+            (self.builder.func().value_ty(value), abi_type),
+            (
+                Some(MirType::Slice(SliceLocation::Calldata)),
+                AbiType::Bytes(SliceLocation::Calldata),
+            )
+        ) {
+            self.validate_calldata_bytes_slice(value);
+        }
+    }
+
     pub(super) fn calldata_aggregate_requires_validation(&self, ty: Ty<'gcx>) -> bool {
         let ty = ty.peel_refs();
         match ty.kind {
@@ -144,6 +156,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let mut value = self.lower_typed_expr(argument, parameter_ty)?;
         let mut abi_type = self.types.abi_type(parameter_ty)?;
         abi_type = self.abi_type_for_value(value, abi_type);
+        self.validate_calldata_bytes_argument(value, &abi_type);
         if self.needs_validated_calldata_materialization(value, &abi_type, parameter_ty) {
             value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
             abi_type = Self::memory_abi_type(abi_type);
