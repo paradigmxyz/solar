@@ -201,6 +201,7 @@ impl<'gcx> TypeLowerer<'gcx> {
                 })
             }
             TyKind::Elementary(_) => AbiType::Word,
+            TyKind::Fn(function) if function.is_external() => AbiType::Function,
             TyKind::Enum(_) | TyKind::Contract(_) | TyKind::Super(_) => AbiType::Word,
             TyKind::DynArray(element) => AbiType::DynamicArray {
                 element: Box::new(self.abi_type_inner(element)?),

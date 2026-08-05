@@ -243,7 +243,9 @@ fn measure_dynamic_body(
             padded_bytes_size(builder, len)
         }
         AbiType::DynamicArray { element, location }
-            if matches!(element.as_ref(), AbiType::Word) =>
+            if matches!(element.as_ref(), AbiType::Word)
+                || (matches!(element.as_ref(), AbiType::Function)
+                    && location != &SliceLocation::Memory) =>
         {
             let len = match location {
                 SliceLocation::Memory => {
@@ -288,7 +290,7 @@ fn measure_dynamic_body(
             }
             measure_tuple(builder, &values, fields, scratch)
         }
-        AbiType::Word => unreachable!("word ABI values are static"),
+        AbiType::Word | AbiType::Function => unreachable!("word ABI values are static"),
     }
 }
 
@@ -407,6 +409,11 @@ fn encode_static_raw(
                 element_head = offset_ptr(builder, element_head, element.head_size());
             }
         }
+        AbiType::Function => {
+            let shift = builder.imm_u64(64);
+            let value = builder.shl(shift, value);
+            builder.mstore(head, value);
+        }
         _ => builder.mstore(head, value),
     }
 }
@@ -497,6 +504,11 @@ fn encode_static(
                 element_head = offset_ptr(builder, element_head, element.head_size());
             }
         }
+        AbiType::Function => {
+            let shift = builder.imm_u64(64);
+            let value = builder.shl(shift, value);
+            store_word(builder, object, head_offset, value);
+        }
         _ => store_word(builder, object, head_offset, value),
     }
 }
@@ -512,7 +524,9 @@ fn encode_dynamic_body(
     match ty {
         AbiType::Bytes(location) => encode_bytes(builder, object, value, dest_offset, *location),
         AbiType::DynamicArray { element, location }
-            if matches!(element.as_ref(), AbiType::Word) =>
+            if matches!(element.as_ref(), AbiType::Word)
+                || (matches!(element.as_ref(), AbiType::Function)
+                    && location != &SliceLocation::Memory) =>
         {
             encode_word_array(builder, object, value, dest_offset, *location)
         }
@@ -551,7 +565,7 @@ fn encode_dynamic_body(
         } => {
             unreachable!("non-word calldata arrays are materialized before ABI encoding")
         }
-        AbiType::Word => unreachable!("word ABI values are static"),
+        AbiType::Word | AbiType::Function => unreachable!("word ABI values are static"),
     }
 }
 

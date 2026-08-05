@@ -2146,19 +2146,6 @@ fn encode_live_returns(func: &mut Function) -> usize {
         let values = values.clone().into_vec().into_boxed_slice();
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block_id);
-        let values = values
-            .iter()
-            .copied()
-            .map(|value| {
-                if builder.func().value_ty(value) == Some(MirType::Function) {
-                    let shift = builder.imm_u64(64);
-                    builder.shl(shift, value)
-                } else {
-                    value
-                }
-            })
-            .collect::<Vec<_>>()
-            .into_boxed_slice();
         if layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
             let encoded = builder.abi_encode(layout.clone(), None, values);
             let offset = builder.slice_ptr(encoded);

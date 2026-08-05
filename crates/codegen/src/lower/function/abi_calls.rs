@@ -21,7 +21,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             | AbiType::DynamicArray { location: SliceLocation::Memory, .. }
             | AbiType::FixedArray { .. } => true,
             AbiType::DynamicArray { element, location: SliceLocation::Calldata } => {
-                !matches!(element.as_ref(), AbiType::Word)
+                !matches!(element.as_ref(), AbiType::Word | AbiType::Function)
             }
             _ => false,
         }
@@ -75,7 +75,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         parameter_ty: Ty<'gcx>,
     ) -> Option<(ValueId, AbiType)> {
         let mut value = self.lower_typed_expr(argument, parameter_ty)?;
-        value = self.normalize_external_function_pointer_for_abi(parameter_ty, value);
         let mut abi_type = self.types.abi_type(parameter_ty)?;
         abi_type = self.abi_type_for_value(value, abi_type);
         if self.needs_calldata_materialization(value, &abi_type) {
@@ -83,34 +82,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             abi_type = Self::memory_abi_type(abi_type);
         }
         Some((value, abi_type))
-    }
-
-    pub(super) fn normalize_external_function_pointer_for_abi(
-        &mut self,
-        ty: Ty<'gcx>,
-        value: ValueId,
-    ) -> ValueId {
-        if let TyKind::Fn(function) = ty.peel_refs().kind
-            && function.is_external()
-        {
-            let shift = self.builder.imm_u64(64);
-            return self.builder.shl(shift, value);
-        }
-        value
-    }
-
-    pub(super) fn denormalize_external_function_pointer_from_abi(
-        &mut self,
-        ty: Ty<'gcx>,
-        value: ValueId,
-    ) -> ValueId {
-        if let TyKind::Fn(function) = ty.peel_refs().kind
-            && function.is_external()
-        {
-            let shift = self.builder.imm_u64(64);
-            return self.builder.shr(shift, value);
-        }
-        value
     }
 
     pub(super) fn materialize_call_argument(
@@ -143,6 +114,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     pub(super) fn memory_abi_type(ty: AbiType) -> AbiType {
         match ty {
             AbiType::Word => AbiType::Word,
+            AbiType::Function => AbiType::Function,
             AbiType::Bytes(_) => AbiType::Bytes(SliceLocation::Memory),
             AbiType::DynamicArray { element, .. } => AbiType::DynamicArray {
                 element: Box::new(Self::memory_abi_type(*element)),
@@ -370,6 +342,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 span,
                 validate_bounds,
             ),
+            TyKind::Fn(function) if function.is_external() => {
+                Some(self.decode_calldata_function_pointer(value_pos))
+            }
             _ => Some(self.calldata_load_word(value_pos)),
         }
     }
@@ -421,6 +396,19 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let slice = self.builder.make_slice(pointer, length, SliceLocation::Calldata);
         let zero = self.builder.imm_u64(0);
         self.builder.calldata_slice_load_word(slice, zero)
+    }
+
+    fn decode_calldata_function_pointer(&mut self, position: ValueId) -> ValueId {
+        let word = self.builder.imm_u64(32);
+        self.check_calldata_range(position, word);
+        let value = self.calldata_load_word(position);
+        let mask = self.builder.imm_u256(U256::MAX << 64);
+        let canonical = self.builder.and(value, mask);
+        let equal = self.builder.eq(value, canonical);
+        let invalid = self.builder.iszero(equal);
+        self.revert_if_calldata_invalid(invalid);
+        let shift = self.builder.imm_u64(64);
+        self.builder.shr(shift, value)
     }
 
     fn materialize_calldata_bytes_at(&mut self, position: ValueId) -> ValueId {

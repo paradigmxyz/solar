@@ -285,7 +285,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    array decode and re-encoding vector. `abi_function_pointer_validation.sol`
    ports Solc's canonical 24-byte pointer checks: unused calldata structs stay
    lazy, while memory structs and accessed calldata fields reject high-byte
-   garbage.
+   garbage. `abi_function_pointer_array_validation.sol` covers the same lazy
+   versus eager distinction for dynamic function-pointer arrays and verifies
+   that memory arrays re-encode canonical pointer words.
    The Unifap creation fixture now passes the differential Foundry
    suite; the companion fixture compiles with no Solar-only regressions, but
    retains seven pre-existing failures under both compilers because its
