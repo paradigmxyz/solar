@@ -192,6 +192,7 @@ impl AggressiveDeadCodeEliminator {
             }
             Terminator::Return { .. }
             | Terminator::Revert { .. }
+            | Terminator::RevertReturndata
             | Terminator::ReturnData { .. }
             | Terminator::Stop
             | Terminator::SelfDestruct { .. }

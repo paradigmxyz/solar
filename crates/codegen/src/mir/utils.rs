@@ -78,6 +78,7 @@ fn remap_terminator_blocks(terminator: &mut Terminator, remap: &IndexVec<BlockId
         }
         Terminator::Return { .. }
         | Terminator::Revert { .. }
+        | Terminator::RevertReturndata
         | Terminator::ReturnData { .. }
         | Terminator::Stop
         | Terminator::SelfDestruct { .. }
@@ -299,7 +300,10 @@ fn replace_terminator_operands(
     };
 
     match term {
-        Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
+        Terminator::Jump(_)
+        | Terminator::RevertReturndata
+        | Terminator::Stop
+        | Terminator::Invalid => {}
         Terminator::Branch { condition, .. } => replace(condition),
         Terminator::Switch { value, cases, .. } => {
             replace(value);

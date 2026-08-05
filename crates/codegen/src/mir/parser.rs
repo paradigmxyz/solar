@@ -1021,6 +1021,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 builder.set_terminator(Terminator::Revert { offset, size });
                 return Ok(());
             }
+            sym::revert_returndata => {
+                builder.set_terminator(Terminator::RevertReturndata);
+                return Ok(());
+            }
             sym::returndata => {
                 let offset = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;

@@ -1234,6 +1234,7 @@ impl AliasAnalysis {
             | Terminator::Branch { .. }
             | Terminator::Switch { .. }
             | Terminator::Return { .. }
+            | Terminator::RevertReturndata
             | Terminator::Stop
             | Terminator::Invalid
             | Terminator::SelfDestruct { .. } => {}

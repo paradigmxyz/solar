@@ -1137,6 +1137,11 @@ impl<'a> FunctionBuilder<'a> {
         self.set_terminator(Terminator::Revert { offset, size });
     }
 
+    /// Sets a returndata-bubbling revert terminator.
+    pub(crate) fn revert_returndata(&mut self) {
+        self.set_terminator(Terminator::RevertReturndata);
+    }
+
     /// Sets a return-data terminator: `RETURN(offset, size)`.
     pub(crate) fn ret_data(&mut self, offset: ValueId, size: ValueId) {
         self.set_terminator(Terminator::ReturnData { offset, size });

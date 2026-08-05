@@ -136,6 +136,7 @@ pub(crate) fn display_function_dot<'a>(
                 }
                 Terminator::Return { .. }
                 | Terminator::Revert { .. }
+                | Terminator::RevertReturndata
                 | Terminator::ReturnData { .. }
                 | Terminator::Stop
                 | Terminator::SelfDestruct { .. }
@@ -774,6 +775,7 @@ fn display_terminator<'a>(
         Terminator::Revert { offset, size } => {
             write!(f, "revert {}, {}", display_val(*offset, func), display_val(*size, func))
         }
+        Terminator::RevertReturndata => write!(f, "revert_returndata"),
         Terminator::ReturnData { offset, size } => {
             write!(f, "returndata {}, {}", display_val(*offset, func), display_val(*size, func))
         }

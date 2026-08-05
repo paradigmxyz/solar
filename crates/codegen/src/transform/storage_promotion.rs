@@ -283,7 +283,7 @@ impl StorageScalarPromoter {
     fn exit_rolls_back(&self, func: &Function, exit: BlockId) -> bool {
         matches!(
             func.blocks[exit].terminator,
-            Some(Terminator::Revert { .. } | Terminator::Invalid)
+            Some(Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid)
         )
     }
 
@@ -327,6 +327,7 @@ impl StorageScalarPromoter {
                 Some(
                     Terminator::Return { .. }
                         | Terminator::Revert { .. }
+                        | Terminator::RevertReturndata
                         | Terminator::ReturnData { .. }
                         | Terminator::Stop
                         | Terminator::SelfDestruct { .. }

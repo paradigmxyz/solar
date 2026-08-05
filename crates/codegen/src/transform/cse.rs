@@ -1166,7 +1166,10 @@ impl CommonSubexprEliminator {
         };
 
         match term {
-            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
+            Terminator::Jump(_)
+            | Terminator::RevertReturndata
+            | Terminator::Stop
+            | Terminator::Invalid => {}
             Terminator::Branch { condition, .. } => count(*condition),
             Terminator::Switch { value, cases, .. } => {
                 count(*value);

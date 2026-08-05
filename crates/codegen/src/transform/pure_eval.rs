@@ -178,6 +178,7 @@ impl PureEvaluator {
                 }
                 Terminator::ReturnData { .. }
                 | Terminator::Revert { .. }
+                | Terminator::RevertReturndata
                 | Terminator::Stop
                 | Terminator::SelfDestruct { .. }
                 | Terminator::TailCall { .. }

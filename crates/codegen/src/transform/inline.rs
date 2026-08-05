@@ -507,6 +507,11 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 summary.estimated_code_size += term_cost.code_size;
                 summary.estimated_runtime_gas += term_cost.runtime_gas;
             }
+            Some(term @ Terminator::RevertReturndata) => {
+                let term_cost = estimate_terminator_cost(term);
+                summary.estimated_code_size += term_cost.code_size;
+                summary.estimated_runtime_gas += term_cost.runtime_gas;
+            }
             // A void internal function returns via `Stop` (the backend lowers it
             // to an internal return). Treat it as a return point so void callees
             // can be inlined.
@@ -738,7 +743,9 @@ fn estimate_terminator_cost(term: &Terminator) -> MirCost {
         Terminator::Branch { .. } => (13, 4),
         Terminator::Switch { cases, .. } => (13 + (cases.len() as u64) * 10, 4 + cases.len() * 4),
         Terminator::Return { values } => (20 + (values.len() as u64) * 12, 8),
-        Terminator::Revert { .. } | Terminator::ReturnData { .. } => (20, 4),
+        Terminator::Revert { .. }
+        | Terminator::RevertReturndata
+        | Terminator::ReturnData { .. } => (20, 4),
         Terminator::Stop => (0, 1),
         Terminator::SelfDestruct { .. } => (5_000, 1),
         Terminator::TailCall { args, .. } => (8 + 3 * args.len() as u64, 4 + args.len()),
@@ -1198,6 +1205,7 @@ impl<'a> InlineCloner<'a> {
                 offset: self.clone_value(*offset)?,
                 size: self.clone_value(*size)?,
             },
+            Terminator::RevertReturndata => Terminator::RevertReturndata,
             Terminator::TailCall { function, args } => Terminator::TailCall {
                 function: *function,
                 args: args

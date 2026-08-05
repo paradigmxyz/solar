@@ -64,6 +64,11 @@ pub(crate) enum Terminator {
         /// Size of revert data.
         size: ValueId,
     },
+    /// Revert with the returndata produced by the preceding external call.
+    ///
+    /// This keeps returndata bubbling semantic until ABI lowering selects the
+    /// target EVM version and materializes the copy into memory.
+    RevertReturndata,
     /// Return raw, already-encoded data: `RETURN(offset, size)`. Used for
     /// ABI-encoded external returns whose size is computed at runtime.
     ReturnData {
@@ -114,6 +119,7 @@ impl Terminator {
             }
             Self::Return { .. }
             | Self::Revert { .. }
+            | Self::RevertReturndata
             | Self::ReturnData { .. }
             | Self::Stop
             | Self::SelfDestruct { .. }
@@ -131,6 +137,7 @@ impl Terminator {
             Self::Switch { .. } => "switch",
             Self::Return { .. } => "return",
             Self::Revert { .. } => "revert",
+            Self::RevertReturndata => "revert_returndata",
             Self::ReturnData { .. } => "returndata",
             Self::Stop => "stop",
             Self::SelfDestruct { .. } => "selfdestruct",
@@ -158,7 +165,7 @@ impl Terminator {
                 out.push(*offset);
                 out.push(*size);
             }
-            Self::Stop | Self::Invalid => {}
+            Self::RevertReturndata | Self::Stop | Self::Invalid => {}
             Self::SelfDestruct { recipient } => out.push(*recipient),
             Self::TailCall { args, .. } => out.extend(args.iter().copied()),
         }
@@ -199,6 +206,7 @@ impl fmt::Display for Terminator {
             Self::Revert { offset, size } => {
                 write!(f, "revert v{}, v{}", offset.index(), size.index())
             }
+            Self::RevertReturndata => write!(f, "revert_returndata"),
             Self::ReturnData { offset, size } => {
                 write!(f, "returndata v{}, v{}", offset.index(), size.index())
             }

@@ -587,6 +587,7 @@ impl MemoryStoreEliminator {
             // successors already contribute liveness via `live_out`.
             Some(Terminator::Return { .. })
             | Some(Terminator::TailCall { .. })
+            | Some(Terminator::RevertReturndata)
             | Some(Terminator::Stop)
             | Some(Terminator::Invalid)
             | Some(Terminator::SelfDestruct { .. }) => live = MemLive::All,

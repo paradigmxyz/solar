@@ -1107,6 +1107,7 @@ symbols! {
         returndata_array,
         returndata_bytes,
         returndataslice,
+        revert_returndata,
         ripemd160,
         runtime,
         runtimeCode,

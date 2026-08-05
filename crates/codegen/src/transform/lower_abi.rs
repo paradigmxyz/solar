@@ -44,6 +44,7 @@ use crate::{
     pass::MirPass,
 };
 use alloy_primitives::U256;
+use solar_config::EvmVersion;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_interface::{Ident, Span, Symbol, kw};
 
@@ -199,11 +200,11 @@ impl MirPass for LowerAbi {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        LowerAbiCx::default().run(module)
+        LowerAbiCx::default().run(module, gcx.sess.opts.evm_version)
     }
 }
 
@@ -234,7 +235,7 @@ struct LowerAbiCx {
 }
 
 impl LowerAbiCx {
-    fn run(&mut self, module: &mut Module) -> bool {
+    fn run(&mut self, module: &mut Module, evm_version: EvmVersion) -> bool {
         self.stats = LowerAbiStats::default();
 
         // Idempotent: only `built`/`optimized` modules have an implicit ABI
@@ -248,6 +249,7 @@ impl LowerAbiCx {
         let mut wrapped_constructors = Vec::new();
         let mut bytes_fallback = None;
         let mut has_decodes = false;
+        let mut has_revert_returndata = false;
         let mut internally_called = DenseBitSet::new_empty(module.functions.len());
         let mut callvalue = super::utils::DispatchCallvalue::default();
         for (id, func) in module.functions.iter_enumerated() {
@@ -277,6 +279,10 @@ impl LowerAbiCx {
                     internally_called.insert(function);
                 }
             }
+            has_revert_returndata |= func
+                .blocks
+                .iter()
+                .any(|block| matches!(block.terminator, Some(Terminator::RevertReturndata)));
         }
 
         // All-or-nothing: `abi` means *every* bodied external function is a
@@ -291,6 +297,7 @@ impl LowerAbiCx {
             && constructors.is_empty()
             && wrapped_constructors.is_empty()
             && !has_decodes
+            && !has_revert_returndata
             && bytes_fallback.is_none()
         {
             let has_selectorless_entry = module.functions.iter().any(|func| {
@@ -342,6 +349,10 @@ impl LowerAbiCx {
 
         if has_decodes && !self.lower_decode_instructions(module) {
             return false;
+        }
+
+        if has_revert_returndata {
+            self.lower_revert_returndata(module, evm_version);
         }
 
         // A bytes fallback receives the complete calldata blob and returns raw
@@ -409,6 +420,29 @@ impl LowerAbiCx {
 
         module.advance_phase(MirPhase::Abi);
         true
+    }
+
+    /// Materializes a failed external-call revert at the ABI boundary.
+    fn lower_revert_returndata(&self, module: &mut Module, evm_version: EvmVersion) {
+        for func in module.functions.iter_mut() {
+            let blocks: Vec<_> = func.blocks.indices().collect();
+            for block in blocks {
+                if !matches!(func.blocks[block].terminator, Some(Terminator::RevertReturndata)) {
+                    continue;
+                }
+
+                let mut builder = FunctionBuilder::new(func);
+                builder.switch_to_block(block);
+                let zero = builder.imm_u256(U256::ZERO);
+                if evm_version.supports_returndata() {
+                    let size = builder.returndatasize();
+                    builder.returndatacopy(zero, zero, size);
+                    builder.revert(zero, size);
+                } else {
+                    builder.revert(zero, zero);
+                }
+            }
+        }
     }
 
     fn can_decode_constructor_params(func: &Function) -> bool {

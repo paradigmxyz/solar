@@ -9,9 +9,7 @@ fn @forward(arg0: address, arg1: u256, arg2: calldataslice) [abi_args=lazy, abi_
     v4 = call v3, arg0, 0, v1, v2, 0, 0
     jumpi v4, bb2, bb1
   bb1:
-    v5 = returndatasize
-    returndatacopy 0, 0, v5 !metadata(memory=scratch)
-    revert 0, v5
+    revert_returndata
   bb2:
     stop
 }

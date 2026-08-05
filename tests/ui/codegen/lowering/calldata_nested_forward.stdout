@@ -96,9 +96,7 @@ fn @forward(arg0: calldataslice, arg1: address) [abi_args=lazy, abi_params=[arra
     v40 = add v11, 1
     jump bb5
   bb16:
-    v46 = returndatasize
-    returndatacopy 0, 0, v46 !metadata(memory=scratch)
-    revert 0, v46
+    revert_returndata
   bb17:
     stop
 }
@@ -209,9 +207,7 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [abi_args=lazy, abi_param
     v48 = add v11, 1
     jump bb5
   bb16:
-    v54 = returndatasize
-    returndatacopy 0, 0, v54 !metadata(memory=scratch)
-    revert 0, v54
+    revert_returndata
   bb17:
     stop
 }

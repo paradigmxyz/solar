@@ -352,7 +352,7 @@ impl GlobalStackPlan {
     fn is_terminal_block(func: &Function, block: BlockId) -> bool {
         matches!(
             func.blocks[block].terminator,
-            Some(Terminator::Revert { .. } | Terminator::Invalid)
+            Some(Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid)
         )
     }
 }
@@ -1849,7 +1849,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                         continue;
                     };
                     match term {
-                        Terminator::Revert { .. } | Terminator::Invalid => {
+                        Terminator::Revert { .. }
+                        | Terminator::RevertReturndata
+                        | Terminator::Invalid => {
                             saw_exit = true;
                         }
                         Terminator::TailCall { function, .. } if cold.contains(*function) => {
@@ -1914,19 +1916,20 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// reachable exits all abort.
     fn block_aborts(&self, func: &Function, block_id: BlockId) -> bool {
         let block = &func.blocks[block_id];
-        matches!(block.terminator, Some(Terminator::Revert { .. } | Terminator::Invalid))
-            || matches!(
-                block.terminator,
-                Some(Terminator::TailCall { function, .. })
+        matches!(
+            block.terminator,
+            Some(Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid)
+        ) || matches!(
+            block.terminator,
+            Some(Terminator::TailCall { function, .. })
+                if self.cold_functions.contains(function)
+        ) || block.instructions.iter().any(|&inst_id| {
+            matches!(
+                func.inst(inst_id).kind,
+                InstKind::InternalCall { function, .. }
                     if self.cold_functions.contains(function)
             )
-            || block.instructions.iter().any(|&inst_id| {
-                matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::InternalCall { function, .. }
-                        if self.cold_functions.contains(function)
-                )
-            })
+        })
     }
 
     fn block_is_cold(&self, block_id: BlockId) -> bool {
@@ -5703,6 +5706,52 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Emits the backend fallback for a semantic returndata-bubbling revert.
+    ///
+    /// The canonical pipeline lowers this terminator in `lower-abi`; keeping
+    /// the emission here makes ad-hoc MIR pipelines fail closed instead of
+    /// reaching an unreachable arm in the backend.
+    fn emit_revert_returndata(&mut self) {
+        if self.gcx.sess.opts.evm_version.supports_returndata() {
+            self.asm.emit_push(U256::ZERO);
+            self.scheduler.stack.push_unknown();
+            self.asm.emit_push(U256::ZERO);
+            self.scheduler.stack.push_unknown();
+            self.emit_op_with_effect(
+                op::RETURNDATASIZE,
+                StackEffect { pops: 0, pushes: 1 },
+                StackPush::Unknown,
+            );
+            self.emit_op_with_effect(
+                op::RETURNDATACOPY,
+                StackEffect { pops: 3, pushes: 0 },
+                StackPush::None,
+            );
+            self.emit_op_with_effect(
+                op::RETURNDATASIZE,
+                StackEffect { pops: 0, pushes: 1 },
+                StackPush::Unknown,
+            );
+            self.asm.emit_push(U256::ZERO);
+            self.scheduler.stack.push_unknown();
+            self.emit_op_with_effect(
+                op::REVERT,
+                StackEffect { pops: 2, pushes: 0 },
+                StackPush::None,
+            );
+        } else {
+            self.asm.emit_push(U256::ZERO);
+            self.scheduler.stack.push_unknown();
+            self.asm.emit_push(U256::ZERO);
+            self.scheduler.stack.push_unknown();
+            self.emit_op_with_effect(
+                op::REVERT,
+                StackEffect { pops: 2, pushes: 0 },
+                StackPush::None,
+            );
+        }
+    }
+
     /// Generates bytecode for a terminator.
     fn generate_terminator(
         &mut self,
@@ -5878,6 +5927,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_value(func, *size);
                 self.emit_operand(func, *offset);
                 self.asm.emit_op(op::REVERT);
+            }
+
+            Terminator::RevertReturndata => {
+                self.emit_revert_returndata();
             }
 
             Terminator::ReturnData { offset, size } => {

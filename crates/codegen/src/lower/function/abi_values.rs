@@ -238,14 +238,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let continue_block = self.builder.create_block();
         self.builder.branch(success, continue_block, revert);
         self.builder.switch_to_block(revert);
-        let zero = self.builder.imm_u256(U256::ZERO);
-        if self.gcx.sess.opts.evm_version.supports_returndata() {
-            let size = self.builder.returndatasize();
-            self.builder.returndatacopy(zero, zero, size);
-            self.builder.revert(zero, size);
-        } else {
-            self.builder.revert(zero, zero);
-        }
+        self.builder.revert_returndata();
         self.builder.switch_to_block(continue_block);
     }
 
