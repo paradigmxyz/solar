@@ -1,195 +1,120 @@
 // === ROOT/tests/ui/codegen/lowering/mapping_bytes_values.sol:MappingBytesValues ===
 @module MappingBytesValues
-fn @set(arg0: u256, arg1: memorybytes) {
+fn @set(arg0: u256, arg1: memorybytes) [abi_args=lazy, abi_params=[u256, bytes], abi_returns=[]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = memory_object_len memorybytes, arg1
-    v2 = sload v0 !metadata(storage=symbolic(v0))
-    v3 = and v2, 1
-    v4 = eq v3, 1
-    v5 = and v2, 255
-    v6 = shr 1, v5
-    v7 = shr 1, v2
-    v8 = select v4, v7, v6
-    v9 = not 31
-    v10 = add v8, 31
-    v11 = and v10, v9
-    v12 = div v11, 32
-    v13 = select v4, v12, 0
-    v14 = add v1, 31
-    v15 = and v14, v9
-    v16 = div v15, 32
-    v17 = gt v1, 31
-    v18 = select v17, v16, 0
-    jumpi v17, bb2, bb1
+    v2 = lt v1, 32
+    jumpi v2, bb1, bb2
   bb1:
-    v19 = memory_object_load_element memorybytes, arg1, 0
-    v20 = mul v1, 8
-    v21 = shr v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v22 = not v21
-    v23 = and v19, v22
-    v24 = shl 1, v1
-    v25 = or v23, v24
-    sstore v0, v25 !metadata(storage=symbolic(v0))
-    jump bb5
+    v3 = memory_object_load_element memorybytes, arg1, 0
+    v4 = sub 32, v1
+    v5 = mul v4, 8
+    v6 = shl v5, 1
+    v7 = sub v6, 1
+    v8 = not v7
+    v9 = and v3, v8
+    v10 = mul v1, 2
+    v11 = or v9, v10
+    sstore v0, v11 !metadata(storage=symbolic(v0))
+    jump bb3
   bb2:
-    v26 = shl 1, v1
-    v27 = or v26, 1
-    sstore v0, v27 !metadata(storage=symbolic(v0))
-    frame_store scratch, word, 0, 0 !metadata(memory=scratch)
-    jump bb3
+    v12 = shl 1, v1
+    v13 = or v12, 1
+    sstore v0, v13 !metadata(storage=symbolic(v0))
+    v14 = add v1, 31
+    v15 = lt v14, v1
+    jumpi v15, bb4, bb5
   bb3:
-    v28 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v29 = lt v28, v18
-    jumpi v29, bb4, bb5
+    stop
   bb4:
-    v30 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v31 = storage_array_element_slot v0, v30, 1
-    v32 = memory_object_load_element memorybytes, arg1, v30
-    sstore v31, v32 !metadata(storage=symbolic(v31))
-    v33 = add v30, 1
-    frame_store scratch, word, 0, v33 !metadata(memory=scratch)
-    jump bb3
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb5:
-    frame_store scratch, word, 0, v18 !metadata(memory=scratch)
+    v16 = div v14, 32
+    v17 = storage_array_data_slot v0
     jump bb6
   bb6:
-    v34 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v35 = lt v34, v13
-    jumpi v35, bb7, bb8
+    v18 = phi [bb5: 0], [bb7: v23]
+    v19 = lt v18, v16
+    jumpi v19, bb7, bb8
   bb7:
-    v36 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v37 = storage_array_element_slot v0, v36, 1
-    sstore v37, 0 !metadata(storage=symbolic(v37))
-    v38 = add v36, 1
-    frame_store scratch, word, 0, v38 !metadata(memory=scratch)
+    v20 = mul v18, 32
+    v21 = memory_object_load_element memorybytes, arg1, v20
+    v22 = add v17, v18
+    sstore v22, v21 !metadata(storage=symbolic(v22))
+    v23 = add v18, 1
     jump bb6
   bb8:
-    stop
+    jump bb3
 }
 
-fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) {
+fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) [abi_args=lazy, abi_params=[u256, u256, bytes], abi_returns=[]] {
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = mapping_slot arg1, v0
     v2 = memory_object_len memorybytes, arg2
-    v3 = sload v1 !metadata(storage=symbolic(v1))
-    v4 = and v3, 1
-    v5 = eq v4, 1
-    v6 = and v3, 255
-    v7 = shr 1, v6
-    v8 = shr 1, v3
-    v9 = select v5, v8, v7
-    v10 = not 31
-    v11 = add v9, 31
-    v12 = and v11, v10
-    v13 = div v12, 32
-    v14 = select v5, v13, 0
-    v15 = add v2, 31
-    v16 = and v15, v10
-    v17 = div v16, 32
-    v18 = gt v2, 31
-    v19 = select v18, v17, 0
-    jumpi v18, bb2, bb1
+    v3 = lt v2, 32
+    jumpi v3, bb1, bb2
   bb1:
-    v20 = memory_object_load_element memorybytes, arg2, 0
-    v21 = mul v2, 8
-    v22 = shr v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v23 = not v22
-    v24 = and v20, v23
-    v25 = shl 1, v2
-    v26 = or v24, v25
-    sstore v1, v26 !metadata(storage=symbolic(v1))
-    jump bb5
+    v4 = memory_object_load_element memorybytes, arg2, 0
+    v5 = sub 32, v2
+    v6 = mul v5, 8
+    v7 = shl v6, 1
+    v8 = sub v7, 1
+    v9 = not v8
+    v10 = and v4, v9
+    v11 = mul v2, 2
+    v12 = or v10, v11
+    sstore v1, v12 !metadata(storage=symbolic(v1))
+    jump bb3
   bb2:
-    v27 = shl 1, v2
-    v28 = or v27, 1
-    sstore v1, v28 !metadata(storage=symbolic(v1))
-    frame_store scratch, word, 0, 0 !metadata(memory=scratch)
-    jump bb3
+    v13 = shl 1, v2
+    v14 = or v13, 1
+    sstore v1, v14 !metadata(storage=symbolic(v1))
+    v15 = add v2, 31
+    v16 = lt v15, v2
+    jumpi v16, bb4, bb5
   bb3:
-    v29 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v30 = lt v29, v19
-    jumpi v30, bb4, bb5
+    stop
   bb4:
-    v31 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v32 = storage_array_element_slot v1, v31, 1
-    v33 = memory_object_load_element memorybytes, arg2, v31
-    sstore v32, v33 !metadata(storage=symbolic(v32))
-    v34 = add v31, 1
-    frame_store scratch, word, 0, v34 !metadata(memory=scratch)
-    jump bb3
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb5:
-    frame_store scratch, word, 0, v19 !metadata(memory=scratch)
+    v17 = div v15, 32
+    v18 = storage_array_data_slot v1
     jump bb6
   bb6:
-    v35 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v36 = lt v35, v14
-    jumpi v36, bb7, bb8
+    v19 = phi [bb5: 0], [bb7: v24]
+    v20 = lt v19, v17
+    jumpi v20, bb7, bb8
   bb7:
-    v37 = frame_load scratch, word, 0 !metadata(memory=scratch)
-    v38 = storage_array_element_slot v1, v37, 1
-    sstore v38, 0 !metadata(storage=symbolic(v38))
-    v39 = add v37, 1
-    frame_store scratch, word, 0, v39 !metadata(memory=scratch)
+    v21 = mul v19, 32
+    v22 = memory_object_load_element memorybytes, arg2, v21
+    v23 = add v18, v19
+    sstore v23, v22 !metadata(storage=symbolic(v23))
+    v24 = add v19, 1
     jump bb6
   bb8:
-    stop
+    jump bb3
 }
 
-fn @get(arg0: u256) -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
+fn @get(arg0: u256) -> memorybytes [abi_args=lazy, abi_params=[u256], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = mapping_slot arg0, 0
-    v1 = internal_call @__load_storage_bytes, 1, v0
+    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    set_memory_object_len memorybytes, v0, 0
+    v1 = mapping_slot arg0, 0
     ret v1
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memorybytes {
+fn @getNested(arg0: u256, arg1: u256) -> memorybytes [abi_args=lazy, abi_params=[u256, u256], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = sload arg0 !metadata(storage=symbolic(arg0))
-    v1 = and v0, 1
-    v2 = eq v1, 1
-    v3 = and v0, 255
-    v4 = shr 1, v3
-    v5 = shr 1, v0
-    v6 = select v2, v5, v4
-    v7 = not 31
-    v8 = add v6, 31
-    v9 = and v8, v7
-    v10 = iszero v9
-    v11 = select v10, 32, v9
-    v12 = add 32, v11
-    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
-    set_memory_object_len memorybytes, v13, v6
-    jumpi v2, bb2, bb1
-  bb1:
-    v14 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    memory_object_store_element memorybytes, v13, 0, v14
-    jump bb3
-  bb2:
-    v15 = div v9, 32
-    jump bb4
-  bb3:
-    ret v13
-  bb4:
-    v16 = phi [bb2: v15], [bb5: v21]
-    v17 = phi [bb2: 0], [bb5: v22]
-    v18 = gt v16, 0
-    jumpi v18, bb5, bb3
-  bb5:
-    v19 = storage_array_element_slot arg0, v17, 1
-    v20 = sload v19 !metadata(storage=symbolic(v19))
-    memory_object_store_element memorybytes, v13, v17, v20
-    v21 = sub v16, 1
-    v22 = add v17, 1
-    jump bb4
-}
-
-fn @getNested(arg0: u256, arg1: u256) -> memorybytes [abi_args=lazy, abi_returns=[memory_bytes]] {
-  bb0:
-    v0 = mapping_slot arg0, 1
-    v1 = mapping_slot arg1, v0
-    v2 = internal_call @__load_storage_bytes, 1, v1
+    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    set_memory_object_len memorybytes, v0, 0
+    v1 = mapping_slot arg0, 1
+    v2 = mapping_slot arg1, v1
     ret v2
 }
 

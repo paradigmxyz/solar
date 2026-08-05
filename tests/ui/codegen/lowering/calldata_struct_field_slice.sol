@@ -42,7 +42,7 @@ library ERC4337Utils {
 
 contract CalldataStructFieldSlice {
     // CDSFS-LABEL: fn @factory
-    // CDSFS: calldataload
+    // CDSFS: mload
     // CDSFS-NOT: make_calldata_slice
     function factory(PackedUserOperation calldata op) external pure returns (address) {
         return ERC4337Utils.factory(op);

@@ -54,35 +54,57 @@ fn @pair() -> (u256, u256) [abi_args=lazy, abi_params=[], abi_returns=[word, wor
     set_memory_object_len memorybytes, v18, v6
     v19 = make_returndata_slice 0, v6
     memory_object_copy_from_slice memorybytes, v18, v19
-    v20 = memory_object_data memorybytes, v18
-    v21 = memory_object_len memorybytes, v18
-    v22 = lt v21, 64
-    jumpi v22, bb9, bb10
+    v20 = memory_object_len memorybytes, v18
+    v21 = memory_object_data memorybytes, v18
+    v22 = add v21, v20
+    v23 = add v21, v20
+    v24 = lt v23, v21
+    v25 = gt v23, v22
+    v26 = or v24, v25
+    jumpi v26, bb10, bb9
   bb9:
-    revert 0, 0
+    v27 = add v21, 64
+    v28 = lt v27, v21
+    v29 = gt v27, v22
+    v30 = or v28, v29
+    jumpi v30, bb12, bb11
   bb10:
-    v23 = add v20, 0
-    v24 = make_memory_slice v23, 32
-    v25 = memory_slice_load_word memory, v24, 0
-    v26 = iszero 1
-    jumpi v26, bb11, bb12
+    revert 0, 0
   bb11:
-    revert 0, 0
-  bb12:
-    v27 = add v20, 32
-    v28 = make_memory_slice v27, 32
-    v29 = memory_slice_load_word memory, v28, 0
-    v30 = iszero 1
-    jumpi v30, bb13, bb14
-  bb13:
-    revert 0, 0
-  bb14:
-    v31 = mload 32 !metadata(memory=scratch)
+    v31 = add v21, 0
     v32 = add v31, 32
-    mstore v32, v29
-    v33 = mload 32 !metadata(memory=scratch)
-    v34 = add v33, 32
-    v35 = mload v34
-    ret v25, v35
+    v33 = lt v32, v31
+    v34 = gt v32, v22
+    v35 = or v33, v34
+    jumpi v35, bb14, bb13
+  bb12:
+    revert 0, 0
+  bb13:
+    v36 = sub v22, v31
+    v37 = make_memory_slice v31, v36
+    v38 = memory_slice_load_word memory, v37, 0
+    v39 = add v21, 32
+    v40 = add v39, 32
+    v41 = lt v40, v39
+    v42 = gt v40, v22
+    v43 = or v41, v42
+    jumpi v43, bb16, bb15
+  bb14:
+    revert 0, 0
+  bb15:
+    v44 = sub v22, v39
+    v45 = make_memory_slice v39, v44
+    v46 = memory_slice_load_word memory, v45, 0
+    v47 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v48 = memory_object_data memoryfixedarray, v47
+    mstore 32, v48 !metadata(memory=scratch)
+    v49 = add v48, 32
+    mstore v49, v46
+    v50 = mload 32 !metadata(memory=scratch)
+    v51 = add v50, 32
+    v52 = mload v51
+    ret v38, v52
+  bb16:
+    revert 0, 0
 }
 

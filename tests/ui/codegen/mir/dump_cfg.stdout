@@ -5,10 +5,12 @@ digraph "f$" {
 
     bb0 [label="bb0:\l  v0 = eq arg0, 0\l  jumpi v0, bb1, bb2\l"];
     bb1 [label="bb1:\l  ret 1\l"];
-    bb2 [label="bb2:\l  ret arg0\l"];
+    bb2 [label="bb2:\l  jump bb3\l"];
+    bb3 [label="bb3:\l  ret arg0\l"];
 
     bb0 -> bb1 [label="v0 == true", color="green"];
     bb0 -> bb2 [label="false", color="red"];
+    bb2 -> bb3;
 }
 
 
@@ -16,7 +18,7 @@ digraph "storageOps" {
     node [shape=box, fontname="Courier", fontsize=10];
     edge [fontname="Courier", fontsize=9];
 
-    bb0 [label="bb0:\l  frame_store scratch, word, 0, 0\l  sstore arg0, arg1\l  v0 = sload arg0\l  frame_store scratch, word, 0, v0\l  v1 = frame_load scratch, word, 0\l  ret v1\l"];
+    bb0 [label="bb0:\l  sstore arg0, arg1\l  v0 = sload arg0\l  ret v0\l"];
 
 }
 

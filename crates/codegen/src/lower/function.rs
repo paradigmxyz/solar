@@ -55,7 +55,7 @@ pub(super) fn lower(
     let output_shapes = hir_function
         .returns
         .iter()
-        .map(|&ret| type_lowerer.abi_type(gcx.type_of_item(ret.into())))
+        .map(|&ret| type_lowerer.abi_return_type(gcx.type_of_item(ret.into())))
         .collect::<Option<Vec<_>>>();
 
     let has_constructor_params = mir.attributes.is_constructor
@@ -3003,10 +3003,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let input_size = self.builder.slice_len(encoded);
         let zero = self.builder.imm_u256(U256::ZERO);
         let returns = function.returns.len();
-        let decode_returndata =
-            function.returns.iter().any(|&ret| {
-                self.types.abi_type(ret).is_some_and(|ty| !matches!(ty, AbiType::Word))
-            }) || self.gcx.sess.opts.evm_version.supports_returndata();
+        let decode_returndata = function.returns.iter().any(|&ret| {
+            self.types.abi_return_type(ret).is_some_and(|ty| !matches!(ty, AbiType::Word))
+        }) || self.gcx.sess.opts.evm_version.supports_returndata();
         let ret_offset = if !decode_returndata && returns > 1 { input } else { zero };
         let ret_size = if decode_returndata {
             zero
@@ -4865,7 +4864,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let returns = function.returns.len();
         let decode_returndata = function.returns.iter().any(|&ret| {
             self.types
-                .abi_type(self.gcx.type_of_item(ret.into()))
+                .abi_return_type(self.gcx.type_of_item(ret.into()))
                 .is_some_and(|ty| !matches!(ty, AbiType::Word))
         });
         let ret_offset = if !decode_returndata && returns > 1 { input } else { zero };
@@ -5814,18 +5813,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         end: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
         let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
-        let is_bytes = self.is_calldata_dynamic_bytes_type(receiver_ty)
-            || matches!(
-                receiver_ty.peel_refs().kind,
-                TyKind::Elementary(
-                    solar_sema::hir::ElementaryType::Bytes
-                        | solar_sema::hir::ElementaryType::String,
-                )
-            );
-        if !is_bytes {
-            return report_unsupported(self.gcx, expr.span, "slice");
-        }
-
         let value = self.lower_expr(receiver)?;
         let (source, location) = match self.builder.func().value_ty(value) {
             Some(MirType::Slice(location)) => (value, location),
@@ -5842,6 +5829,30 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 )
             }
         };
+        let is_bytes = self.is_calldata_dynamic_bytes_type(receiver_ty)
+            || matches!(
+                receiver_ty.peel_refs().kind,
+                TyKind::Elementary(
+                    solar_sema::hir::ElementaryType::Bytes
+                        | solar_sema::hir::ElementaryType::String,
+                )
+            );
+        let element_stride = if is_bytes {
+            1
+        } else {
+            if !matches!(receiver_ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Slice(_)) {
+                return report_unsupported(self.gcx, expr.span, "slice");
+            }
+            if location != SliceLocation::Calldata {
+                return report_unsupported(self.gcx, expr.span, "slice");
+            }
+            let element = receiver_ty.base_type(self.gcx)?;
+            let element_type = self.types.abi_type(element)?;
+            if element_type.is_dynamic() {
+                return report_unsupported(self.gcx, expr.span, "slice");
+            }
+            element_type.head_size()
+        };
         let base_ptr = self.builder.slice_ptr(source);
         let base_len = self.builder.slice_len(source);
         let start =
@@ -5857,7 +5868,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let backwards = self.builder.lt(end, start);
         self.panic_if(backwards, 0x32);
         let length = self.builder.sub(end, start);
-        let pointer = self.builder.add(base_ptr, start);
+        let start_offset = if element_stride == 1 {
+            start
+        } else {
+            let stride = self.builder.imm_u64(element_stride);
+            self.checked_mul(start, stride)
+        };
+        let pointer = self.builder.add(base_ptr, start_offset);
         Some(self.builder.make_slice(pointer, length, location))
     }
 

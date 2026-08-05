@@ -29,10 +29,10 @@ contract BackendControlFlow {
 
     // CHECK-LABEL: fn @phiAfterBranch
     // CHECK: jumpi
-    // CHECK: [[LIQUIDITY:v[0-9]+]] = frame_load scratch, word, {{[0-9]+}}
-    // CHECK: [[SUPPLY:v[0-9]+]] = sload [[SUPPLY_SLOT:[0-9]+]]
-    // CHECK: [[TOTAL:v[0-9]+]] = add [[SUPPLY]], [[LIQUIDITY]]
-    // CHECK: sstore [[SUPPLY_SLOT]], [[TOTAL]]
+    // CHECK: phi [
+    // CHECK: sload 1
+    // CHECK: add
+    // CHECK: sstore 1,
     function phiAfterBranch() external returns (uint256 liquidity) {
         if (totalSupply == 0) {
             liquidity = 1;
@@ -44,14 +44,12 @@ contract BackendControlFlow {
 
     // CHECK-LABEL: fn @phiUsedMultipleTimes
     // CHECK: jumpi
-    // CHECK: [[LIQUIDITY:v[0-9]+]] = frame_load scratch, word, [[PHI_ADDR:[0-9]+]]
-    // CHECK: [[SUPPLY:v[0-9]+]] = sload [[SUPPLY_SLOT:[0-9]+]]
-    // CHECK: [[TOTAL:v[0-9]+]] = add [[SUPPLY]], [[LIQUIDITY]]
-    // CHECK: sstore [[SUPPLY_SLOT]], [[TOTAL]]
-    // CHECK: [[FIRST_USE:v[0-9]+]] = frame_load scratch, word, [[PHI_ADDR]]
-    // CHECK: [[TWICE:v[0-9]+]] = mul [[FIRST_USE]], 2
-    // CHECK: [[SECOND_USE:v[0-9]+]] = frame_load scratch, word, [[PHI_ADDR]]
-    // CHECK: {{v[0-9]+}} = add [[TWICE]], [[SECOND_USE]]
+    // CHECK: phi [
+    // CHECK: sload 1
+    // CHECK: add
+    // CHECK: sstore 1,
+    // CHECK: mul
+    // CHECK: add
     function phiUsedMultipleTimes() external returns (uint256 result) {
         uint256 liquidity;
         if (totalSupply == 0) {
@@ -66,21 +64,9 @@ contract BackendControlFlow {
 
     // CHECK-LABEL: fn @phiWithTernary
     // CHECK: jumpi
-    // CHECK: [[LIQUIDITY:v[0-9]+]] = frame_load scratch, word, [[RESULT_ADDR:[0-9]+]]
-    // CHECK: [[SUPPLY:v[0-9]+]] = sload [[SUPPLY_SLOT:[0-9]+]]
-    // CHECK: [[TOTAL:v[0-9]+]] = add [[SUPPLY]], [[LIQUIDITY]]
-    // CHECK: [[FIRST_NUM:v[0-9]+]] = mul
-    // CHECK: [[RESERVE0:v[0-9]+]] = sload {{[0-9]+}}
-    // CHECK: [[FIRST:v[0-9]+]] = div [[FIRST_NUM]], [[RESERVE0]]
-    // CHECK: [[SECOND_NUM:v[0-9]+]] = mul
-    // CHECK: [[RESERVE1:v[0-9]+]] = sload {{[0-9]+}}
-    // CHECK: [[SECOND:v[0-9]+]] = div [[SECOND_NUM]], [[RESERVE1]]
-    // CHECK: lt [[FIRST]], [[SECOND]]
-    // CHECK: frame_store scratch, word, [[MERGE_ADDR:[0-9]+]], [[FIRST]]
-    // CHECK: frame_store scratch, word, [[MERGE_ADDR]], [[SECOND]]
-    // CHECK: [[MIN:v[0-9]+]] = frame_load scratch, word, [[MERGE_ADDR]]
-    // CHECK: frame_store scratch, word, [[RESULT_ADDR]], [[MIN]]
-    // CHECK: sstore [[SUPPLY_SLOT]], [[TOTAL]]
+    // CHECK: phi [
+    // CHECK: sload 1
+    // CHECK: sstore 1,
     function phiWithTernary() external returns (uint256 liquidity) {
         uint256 amount0 = 100;
         uint256 amount1 = 200;

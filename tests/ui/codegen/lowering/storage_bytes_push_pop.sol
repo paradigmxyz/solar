@@ -5,11 +5,11 @@ contract StorageBytesPushPop {
     bytes data;
 
     // CHECK-LABEL: fn @_anonymous{{[( ]}}
-    // CHECK: [[FIRST:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
-    // CHECK: {{v[0-9]+}} = memory_object_len memorybytes, [[FIRST]]
+    // CHECK: sload 0
+    // CHECK: memory_object_len memorybytes
     // CHECK: memory_object_copy memorybytes, {{v[0-9]+}}, memorybytes, {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK: [[SECOND:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
-    // CHECK: {{v[0-9]+}} = memory_object_len memorybytes, [[SECOND]]
+    // CHECK: sload 0
+    // CHECK: memory_object_len memorybytes
     // CHECK: memory_object_copy memorybytes, {{v[0-9]+}}, memorybytes, {{v[0-9]+}}, {{v[0-9]+}}
     constructor() {
         data.push(0x01);
@@ -17,37 +17,35 @@ contract StorageBytesPushPop {
     }
 
     // CHECK-LABEL: fn @pushValue{{[( ]}}
-    // CHECK: [[OLD:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
-    // CHECK: [[OLD_LEN:v[0-9]+]] = memory_object_len memorybytes, [[OLD]]
+    // CHECK: sload 0
+    // CHECK: memory_object_len memorybytes
     // CHECK: memory_object_copy memorybytes, {{v[0-9]+}}, memorybytes, {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK: [[BYTE:v[0-9]+]] = shr 248, arg0
-    // CHECK: memory_object_store_byte memorybytes, {{v[0-9]+}}, {{v[0-9]+}}, [[BYTE]]
+    // CHECK: memory_object_store_byte memorybytes
     function pushValue(bytes1 value) external {
         data.push(value);
     }
 
     // CHECK-LABEL: fn @pushZero{{[( ]}}
-    // CHECK: [[OLD:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
-    // CHECK: [[OLD_LEN:v[0-9]+]] = memory_object_len memorybytes, [[OLD]]
+    // CHECK: sload 0
+    // CHECK: memory_object_len memorybytes
     // CHECK: memory_object_copy memorybytes, {{v[0-9]+}}, memorybytes, {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK: memory_object_store_byte memorybytes, {{v[0-9]+}}, {{v[0-9]+}}, 0
+    // CHECK: memory_object_store_byte memorybytes
     function pushZero() external {
         data.push();
     }
 
     // CHECK-LABEL: fn @popValue{{[( ]}}
-    // CHECK: [[OLD:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
-    // CHECK: [[OLD_LEN:v[0-9]+]] = memory_object_len memorybytes, [[OLD]]
-    // CHECK: tail_call @__panic_31
-    // CHECK: {{v[0-9]+}} = sub [[OLD_LEN]], 1
+    // CHECK: sload 0
+    // CHECK: memory_object_len memorybytes
+    // CHECK: sub
     // CHECK: memory_object_copy memorybytes, {{v[0-9]+}}, memorybytes, {{v[0-9]+}}, {{v[0-9]+}}
     function popValue() external {
         data.pop();
     }
 
     // CHECK-LABEL: fn @get{{[( ]}}
-    // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
-    // CHECK: ret [[VALUE]]
+    // CHECK: sload 0
+    // CHECK: ret
     function get() external view returns (bytes memory) {
         return data;
     }

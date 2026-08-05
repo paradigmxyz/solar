@@ -3,10 +3,7 @@
 
 contract AbiDecodeDynamicTuple {
     // CHECK-LABEL: fn @decode{{[( ]}}
-    // CHECK: [[STRING:v[0-9]+]] = alloc memorybytes
-    // CHECK: set_memory_object_len memorybytes, [[STRING]],
-    // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes
-    // CHECK: set_memory_object_len memorybytes, [[BYTES]],
+    // CHECK: abi_decode [u256, bytes, bytes], arg0
     // CHECK: ret
     function decode(bytes memory data)
         external
@@ -17,10 +14,9 @@ contract AbiDecodeDynamicTuple {
     }
 
     // CHECK-LABEL: fn @roundtrip{{[( ]}}
-    // CHECK: set_memory_object_len memorybytes
+    // CHECK: abi_encode [word, memory_bytes, memory_bytes], args arg0, arg1, arg2
     // CHECK: memory_object_copy_from_slice memorybytes
-    // CHECK: set_memory_object_len memorybytes
-    // CHECK: ret
+    // CHECK: abi_decode [u256, bytes, bytes]
     function roundtrip(uint256 a, string memory s, bytes memory b)
         external
         pure
@@ -30,10 +26,8 @@ contract AbiDecodeDynamicTuple {
     }
 
     // CHECK-LABEL: fn @decodeBytes{{[( ]}}
-    // CHECK: memory_object_len memorybytes, arg0
-    // CHECK: [[RESULT:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, {{v[0-9]+}}
-    // CHECK: set_memory_object_len memorybytes, [[RESULT]],
-    // CHECK: ret [[RESULT]]
+    // CHECK: abi_decode [bytes], arg0
+    // CHECK: ret
     function decodeBytes(bytes memory data) external pure returns (bytes memory) {
         return abi.decode(data, (bytes));
     }

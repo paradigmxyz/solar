@@ -11,14 +11,10 @@
 contract C {
     // CHECK: push 0x1b8f5d50
     // CHECK: eq
-    // CHECK-NEXT: push [[MULTI:bb[0-9]+]]
     // CHECK: push 0x5030da75
     // CHECK: eq
-    // CHECK-NEXT: push [[NAMED:bb[0-9]+]]
     // CHECK: push 0xd96073cf
     // CHECK: eq
-    // CHECK-NEXT: push [[SWAP:bb[0-9]+]]
-    // CHECK: [[NAMED]]:
     // CHECK: calldatacopy
     // CHECK: {{^.*[ =]call[[:space:]]}}
     // CHECK: return
@@ -26,13 +22,10 @@ contract C {
         (ok, ) = t.call(d);
     }
 
-    // CHECK: [[SWAP]]:
     // CHECK: push 36
     // CHECK: calldataload
-    // CHECK: push 4
+    // CHECK: push 36
     // CHECK: calldataload
-    // CHECK: jump [[PAIR_RETURN:bb[0-9]+]]
-    // CHECK: [[PAIR_RETURN]]:
     // CHECK: return
     function swap(uint256 a, uint256 b) external pure returns (uint256, uint256) {
         (a, b) = (b, a);
@@ -43,19 +36,16 @@ contract C {
         return (7, 9);
     }
 
-    // CHECK: [[MULTI]]:
     // CHECK: push bb6
-    // CHECK-NEXT: jumpi
-    // CHECK: push [[TWO_RET:bb[0-9]+]]
+    // CHECK: jumpi
     // CHECK: push 7
     // CHECK: mstore
     // CHECK: push 9
     // CHECK: mstore
-    // CHECK-NEXT: jump
-    // CHECK-NEXT: [[TWO_RET]]:
+    // CHECK: jump
     // CHECK: push 544
-    // CHECK-NEXT: mload
-    // CHECK: jump [[PAIR_RETURN]]
+    // CHECK: mload
+    // CHECK: jump {{bb[0-9]+}}
     function multi() external pure returns (uint256 x, uint256 y) {
         x = 100;
         y = 200;

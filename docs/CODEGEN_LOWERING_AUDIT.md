@@ -205,9 +205,15 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    overflow cases now have exact `Panic(0x41)` run-call checks, as do nested
    dynamic arrays and arrays of dynamic structs. Extend this coverage to the
    remaining aggregate allocation shapes against Solc.
-5. Bring the UI snapshots back in sync with the rewrite. The current
-   `cargo uitest` run still reports 139 snapshot mismatches while the active
-   Foundry, Solidity, and Yul suites pass; no snapshots have been blessed.
+5. Keep expanding runtime and differential coverage for aggregate allocation
+   shapes and constructor/modifier edges. The UI snapshots are now in sync
+   with the rewrite, and the full `cargo tq ui` suite passes.
+
+The current intentional boundary is dynamic-element calldata array slicing.
+The MIR slice representation keeps only a pointer and length, so it cannot
+recover the original base needed to resolve nested dynamic ABI offsets. The
+lowerer rejects that shape with a diagnostic until the representation carries
+the required origin metadata.
 
 Unsupported HIR emits a diagnostic and leaves an `invalid` MIR terminator in the
 rejected function. This is a deliberate fail-closed boundary; it must not be

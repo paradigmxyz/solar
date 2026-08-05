@@ -2,14 +2,14 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 151
+  push 429
   codesize
   sub
   dup1
-  push 151
-  push 288
+  push 429
+  push 384
   codecopy
-  push 288
+  push 384
   add
   push 31
   add
@@ -18,17 +18,210 @@ bb0:
   and
   push 64
   mstore
+  push 384
+  dup1
   push 288
+  mstore
+  push 384
+  push 429
+  codesize
+  sub
+  add
+  push 96
+  dup3
+  add
+  dup3
+  dup2
+  lt
+  swap2
+  lt
+  or
+  swap1
+  pop
+  push bb12
+  jumpi
+  push 0
+  push 288
+  mload
+  add
+  mload
+  dup1
+  push 320
+  mstore
+  push 64
+  mload
+  push 160
+  mload
+  dup2
+  push 32
+  add
+  mstore
+  dup2
+  dup2
+  push 64
+  add
+  mstore
+  dup1
+  push 160
+  mstore
+  push 128
+  add
+  push 64
+  mstore
+  pop
+  push bb6
+  push 255
+  jump bb14
+bb14:
+  push 160
+  mload
+  push 64
+  add
+  mload
+  and
+  jump bb13
+bb13:
+  dup1
+  push 160
+  mload
+  push 96
+  add
+  mstore
+  pop
+  jump
+bb12 [cold]:
+  push 0
+  dup1
+  revert
+bb6:
+  push bb16
+  jump bb15
+bb15:
+  push 160
+  mload
+  push 96
+  add
+  mload
+  dup1
+  push 352
+  mstore
+  push 160
+  mload
+  push 64
+  mstore
+  push 160
+  mload
+  push 32
+  add
+  mload
+  push 160
+  mstore
+  dup1
+  push 352
+  mstore
+  push 320
+  mload
+  sub
+  swap1
+  jump
+bb8:
+  push bb17
+  jump bb15
+bb10:
+  push bb18
+  jump bb15
+bb16:
+  push bb12
+  jumpi
+  push 32
+  push 288
+  mload
+  add
+  mload
+  dup1
+  push 320
+  mstore
+  push 64
+  mload
+  push 160
+  mload
+  dup2
+  push 32
+  add
+  mstore
+  dup2
+  dup2
+  push 64
+  add
+  mstore
+  dup1
+  push 160
+  mstore
+  push 128
+  add
+  push 64
+  mstore
+  pop
+  push bb8
+  push 160
+  mload
+  push 64
+  add
+  mload
+  push 0
+  signextend
+  jump bb13
+bb17:
+  push bb12
+  jumpi
+  push 64
+  push 288
+  mload
+  add
+  mload
+  dup1
+  push 320
+  mstore
+  push 64
+  mload
+  push 160
+  mload
+  dup2
+  push 32
+  add
+  mstore
+  dup2
+  dup2
+  push 64
+  add
+  mstore
+  dup1
+  push 160
+  mstore
+  push 128
+  add
+  push 64
+  mstore
+  pop
+  push bb10
+  push 255
+  push 248
+  shl
+  jump bb14
+bb18:
+  push bb12
+  jumpi
+  push 384
   mload
   push 192
   mstore
-  push 288
+  push 384
   push 32
   add
   mload
   push 224
   mstore
-  push 288
+  push 384
   push 64
   add
   mload
@@ -36,7 +229,7 @@ bb0:
   mstore
   push 68
   dup1
-  push 83
+  push 361
   push 0
   codecopy
   push 192

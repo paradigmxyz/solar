@@ -46,24 +46,8 @@ fn @decode(arg0: calldataslice) -> u256 [abi_args=lazy, abi_params=[bytes], abi_
   bb8:
     v18 = alloc memorybytes, exact, uninitialized, infallible, v12
     set_memory_object_len memorybytes, v18, v6
-    v19 = slice_ptr v5
-    v20 = make_calldata_slice v19, v6
-    memory_object_copy_from_slice memorybytes, v18, v20
-    v21 = memory_object_len memorybytes, v18
-    v22 = memory_object_data memorybytes, v18
-    v23 = lt v21, 32
-    jumpi v23, bb9, bb10
-  bb9:
-    revert 0, 0
-  bb10:
-    v24 = add v22, 0
-    v25 = make_memory_slice v24, 32
-    v26 = memory_slice_load_word memory, v25, 0
-    v27 = iszero 1
-    jumpi v27, bb11, bb12
-  bb11:
-    revert 0, 0
-  bb12:
-    ret v26
+    memory_object_copy_from_slice memorybytes, v18, v5
+    v19 = abi_decode [u256], v18
+    ret v19
 }
 

@@ -26,16 +26,16 @@ contract CalldataValidation {
 
     // CHECK-LABEL: fn @vUint8{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: [[CANON:v[0-9]+]] = and [[RAW]], 255
-    // CHECK: eq [[RAW]], [[CANON]]
+    // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[RAW]]
+    // CHECK: eq [[RAW]], {{v[0-9]+}}
     function vUint8(uint8 x) external pure returns (uint8) {
         return x;
     }
 
     // CHECK-LABEL: fn @vInt16{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: [[CANON:v[0-9]+]] = signextend 1, [[RAW]]
-    // CHECK: eq [[RAW]], [[CANON]]
+    // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[RAW]]
+    // CHECK: eq [[RAW]], {{v[0-9]+}}
     function vInt16(int16 x) external pure returns (int16) {
         return x;
     }
@@ -51,16 +51,16 @@ contract CalldataValidation {
 
     // CHECK-LABEL: fn @vAddress{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: [[CANON:v[0-9]+]] = and [[RAW]], 0xffffffffffffffffffffffffffffffffffffffff
-    // CHECK: eq [[RAW]], [[CANON]]
+    // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[RAW]]
+    // CHECK: eq [[RAW]], {{v[0-9]+}}
     function vAddress(address x) external pure returns (address) {
         return x;
     }
 
     // CHECK-LABEL: fn @vBytes4{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: [[CANON:v[0-9]+]] = and [[RAW]], 0xffffffff00000000000000000000000000000000000000000000000000000000
-    // CHECK: eq [[RAW]], [[CANON]]
+    // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[RAW]]
+    // CHECK: eq [[RAW]], {{v[0-9]+}}
     function vBytes4(bytes4 x) external pure returns (bytes4) {
         return x;
     }
@@ -74,9 +74,9 @@ contract CalldataValidation {
 
     // CHECK-LABEL: fn @vMulti{{[( ]}}
     // CHECK: [[A:v[0-9]+]] = calldataload 4
-    // CHECK: and [[A]], 0xffffffff
+    // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[A]]
     // CHECK: [[B:v[0-9]+]] = calldataload 36
-    // CHECK: signextend 0, [[B]]
+    // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[B]]
     function vMulti(uint32 a, int8 b) external pure returns (uint256) {
         return uint256(uint32(a)) + uint256(uint8(int8(b)));
     }

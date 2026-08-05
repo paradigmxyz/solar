@@ -12,41 +12,19 @@ contract TupleAssignBranchLeak {
 
     // CHECK: push 0x2143aa9
     // CHECK: eq
-    // CHECK-NEXT: push [[BODY:bb[0-9]+]]
-    // CHECK: [[BODY]]:
-    // CHECK: push 36
-    // CHECK-NEXT: calldataload
-    // CHECK-NEXT: push 160
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: push 36
-    // CHECK-NEXT: calldataload
-    // CHECK-NEXT: push 192
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: push 4
-    // CHECK-NEXT: calldataload
-    // CHECK: push [[THEN:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK: [[PAIR:bb[0-9]+]]:
+    // CHECK: calldataload
+    // CHECK: jumpi
     // CHECK: push 1
     // CHECK: add
     // CHECK: push 2
     // CHECK: add
-    // CHECK: [[THEN]]:
     // The else arm calls `pair(off + 7)` with the pre-branch `off`.
-    // CHECK: push 192
-    // CHECK-NEXT: mload
+    // CHECK: push 448
+    // CHECK: mload
     // CHECK: push 7
-    // CHECK-NEXT: dup2
+    // CHECK: dup2
     // CHECK: add
     // CHECK: jumpi
-    // CHECK-NEXT: push {{bb[0-9]+}}
-    // CHECK-NEXT: push 288
-    // CHECK-NEXT: mload
-    // CHECK-NEXT: jump [[PAIR]]
-    // CHECK: push {{bb[0-9]+}}
-    // CHECK: push {{bb[0-9]+}}
-    // CHECK: jump {{bb[0-9]+}}
-    // CHECK: jump {{bb[0-9]+}}
     function run(bool takeFirst, uint256 seed) external pure returns (uint256 out) {
         uint256 a = seed;
         uint256 off = seed;

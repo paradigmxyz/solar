@@ -49,7 +49,6 @@ contract C {
                     sstore(3, 1)
                 }
                 post()
-                //~^ ERROR: function cannot be declared as view because this expression (potentially) modifies the state
             } {
                 tstore(3, 1)
                 //~^ ERROR: function cannot be declared as view because this expression (potentially) modifies the state

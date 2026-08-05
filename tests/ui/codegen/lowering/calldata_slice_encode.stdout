@@ -49,9 +49,7 @@ fn @encode(arg0: calldataslice, arg1: u256) -> memorybytes [abi_args=lazy, abi_p
   bb8:
     v20 = alloc memorybytes, exact, uninitialized, infallible, v14
     set_memory_object_len memorybytes, v20, v8
-    v21 = slice_ptr v7
-    v22 = make_memory_slice v21, v8
-    memory_object_copy_from_slice memorybytes, v20, v22
+    memory_object_copy_from_slice memorybytes, v20, v7
     ret v20
 }
 
@@ -69,52 +67,17 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) [abi_args=lazy, abi_
     v3 = sub v1, arg1
     v4 = add v0, arg1
     v5 = make_calldata_slice v4, v3
-    v6 = slice_len v5
-    v7 = add v6, 31
-    v8 = lt v7, v6
-    jumpi v8, bb3, bb4
+    v6 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v5
+    v7 = slice_ptr v6
+    v8 = slice_len v6
+    v9 = gas
+    v10 = call v9, arg2, 0, v7, v8, 0, 0
+    jumpi v10, bb4, bb3
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v11 = returndatasize
+    returndatacopy 0, 0, v11 !metadata(memory=scratch)
+    revert 0, v11
   bb4:
-    v9 = div v7, 32
-    v10 = add v9, 1
-    v11 = lt v10, v9
-    jumpi v11, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v12 = mul v10, 32
-    v13 = iszero 32
-    v14 = div v12, 32
-    v15 = eq v14, v10
-    v16 = or v13, v15
-    v17 = iszero v16
-    jumpi v17, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v18 = alloc memorybytes, exact, uninitialized, infallible, v12
-    set_memory_object_len memorybytes, v18, v6
-    v19 = slice_ptr v5
-    v20 = make_calldata_slice v19, v6
-    memory_object_copy_from_slice memorybytes, v18, v20
-    v21 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v18
-    v22 = slice_ptr v21
-    v23 = slice_len v21
-    v24 = gas
-    v25 = call v24, arg2, 0, v22, v23, 0, 0
-    jumpi v25, bb10, bb9
-  bb9:
-    v26 = returndatasize
-    returndatacopy 0, 0, v26 !metadata(memory=scratch)
-    revert 0, v26
-  bb10:
     stop
 }
 

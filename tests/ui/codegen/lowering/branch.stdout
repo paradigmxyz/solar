@@ -1,44 +1,43 @@
 // === ROOT/tests/ui/codegen/lowering/branch.sol:Branch ===
 @module Branch
-fn @max(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @max(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = gt arg0, arg1
     jumpi v0, bb1, bb2
   bb1:
     ret arg0
   bb2:
+    jump bb3
+  bb3:
     ret arg1
 }
 
-fn @abs_diff(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @abs_diff(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = lt arg0, arg1
     v1 = iszero v0
-    jumpi v1, bb1, bb3
+    jumpi v1, bb1, bb2
   bb1:
     v2 = sub arg0, arg1
     v3 = lt arg0, arg1
     jumpi v3, bb4, bb5
   bb2:
-    ret 0
-  bb3:
     v4 = sub arg1, arg0
     v5 = lt arg1, arg0
     jumpi v5, bb6, bb7
+  bb3:
+    ret 0
   bb4:
-    tail_call @__panic_11
-  bb5:
-    ret v2
-  bb6:
-    tail_call @__panic_11
-  bb7:
-    ret v4
-}
-
-fn @__panic_11() {
-  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
+  bb5:
+    ret v2
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    ret v4
 }
 

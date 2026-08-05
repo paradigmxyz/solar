@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/internal_void_call.sol:InternalVoidCall ===
 @module InternalVoidCall
-fn @value() -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @value() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @set(arg0: u256) [abi_args=lazy] {
+fn @set(arg0: u256) [abi_args=lazy, abi_params=[u256], abi_returns=[]] {
   bb0:
     internal_call @writeIfNonZero, 0, arg0
     stop
@@ -19,34 +19,38 @@ fn @writeIfNonZero(arg0: u256) {
     jumpi v1, bb1, bb2
   bb1:
     sstore 0, arg0 !metadata(storage=slot(0))
-    jump bb2
+    jump bb3
   bb2:
+    jump bb3
+  bb3:
     stop
 }
 
-fn @setUnlessZero(arg0: u256) [abi_args=lazy] {
+fn @setUnlessZero(arg0: u256) [abi_args=lazy, abi_params=[u256], abi_returns=[]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb1:
     stop
   bb2:
+    jump bb3
+  bb3:
     sstore 0, arg0 !metadata(storage=slot(0))
     stop
 }
 
-fn @returnVoidCall(arg0: u256) [abi_args=lazy] {
+fn @returnVoidCall(arg0: u256) [abi_args=lazy, abi_params=[u256], abi_returns=[]] {
   bb0:
     internal_call @writeIfNonZero, 0, arg0
     stop
 }
 
-fn @returnRevert() [abi_args=lazy] {
+fn @returnRevert() [abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb0:
     revert 0, 0
 }
 
-fn @unitTernary(arg0: bool, arg1: u256) [abi_args=lazy] {
+fn @unitTernary(arg0: bool, arg1: u256) [abi_args=lazy, abi_params=[bool, u256], abi_returns=[]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -56,6 +60,7 @@ fn @unitTernary(arg0: bool, arg1: u256) [abi_args=lazy] {
     internal_call @clear, 0
     jump bb3
   bb3:
+    v0 = phi [bb1: 0], [bb2: 0]
     stop
 }
 

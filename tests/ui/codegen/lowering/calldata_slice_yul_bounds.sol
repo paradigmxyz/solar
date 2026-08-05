@@ -48,7 +48,7 @@ contract CalldataSliceYulBounds {
     // A slice reassigned only inside a branch merges through one SSA phi, so
     // the untaken path keeps the original length.
     // CHECK-LABEL: fn @conditional{{[( ]}}
-    // CHECK: phi [bb1:
+    // CHECK: phi [
     // CHECK: slice_len
     function conditional(bytes calldata x) external pure returns (uint256) {
         bytes calldata y = x;

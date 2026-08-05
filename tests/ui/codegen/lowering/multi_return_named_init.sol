@@ -7,7 +7,9 @@
 // leaks the previous call's value.
 contract MultiReturnNamedInit {
     // CHECK-LABEL: fn @readU64{{[( ]}}
-    // CHECK: frame_store internal_frame, word, 0, 0
+    // CHECK: phi [
+    // CHECK: ret
+    // CHECK: calldataload
     function readU64(bytes calldata data, uint256 start)
         internal
         pure

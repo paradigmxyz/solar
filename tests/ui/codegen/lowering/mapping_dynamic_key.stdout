@@ -1,27 +1,22 @@
 // === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKey ===
 @module MappingDynamicKey
-fn @lookup(arg0: memorybytes) -> address [abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @lookup(arg0: calldataslice) -> address [abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot_calldata arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
-    v2 = mul 0, 8
-    v3 = shr v2, v1
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    ret v4
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v2
 }
 
 fn @set(arg0: memorybytes, arg1: address) [abi_args=lazy, abi_params=[bytes, address], abi_returns=[]] {
   bb0:
     v0 = mapping_slot_memory arg0, 0
-    v1 = mul 0, 8
-    v2 = shl v1, 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = sload v0 !metadata(storage=symbolic(v0))
-    v4 = not v2
-    v5 = and v3, v4
-    v6 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = shl v1, v6
-    v8 = or v5, v7
-    sstore v0, v8 !metadata(storage=symbolic(v0))
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = and v1, v2
+    v4 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = or v3, v4
+    sstore v0, v5 !metadata(storage=symbolic(v0))
     stop
 }
 
@@ -29,22 +24,20 @@ fn @get(arg0: memorybytes) -> address [abi_args=lazy, abi_params=[bytes], abi_re
   bb0:
     v0 = mapping_slot_memory arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
-    v2 = mul 0, 8
-    v3 = shr v2, v1
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    ret v4
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v2
 }
 
 // === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKeyPaths ===
 @module MappingDynamicKeyPaths
-fn @flat(arg0: memorybytes) -> u256 [abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @flat(arg0: calldataslice) -> u256 [abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot_calldata arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
     ret v1
 }
 
-fn @nestedFirst(arg0: memorybytes, arg1: address) -> u256 [abi_args=lazy, abi_params=[bytes, address], abi_returns=[word]] {
+fn @nestedFirst(arg0: calldataslice, arg1: address) -> u256 [abi_args=lazy, abi_params=[bytes, address], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot_calldata arg0, 1
     v1 = mapping_slot arg1, v0
@@ -52,7 +45,7 @@ fn @nestedFirst(arg0: memorybytes, arg1: address) -> u256 [abi_args=lazy, abi_pa
     ret v2
 }
 
-fn @nestedSecond(arg0: address, arg1: memorybytes) -> u256 [abi_args=lazy, abi_params=[address, bytes], abi_returns=[word]] {
+fn @nestedSecond(arg0: address, arg1: calldataslice) -> u256 [abi_args=lazy, abi_params=[address, bytes], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot arg0, 2
     v1 = mapping_slot_calldata arg1, v0
@@ -179,17 +172,23 @@ fn @setSkey(arg0: memorybytes) [abi_args=lazy, abi_params=[bytes], abi_returns=[
     jumpi v1, bb1, bb2
   bb1:
     v2 = memory_object_load_element memorybytes, arg0, 0
-    v3 = mul v0, 2
-    v4 = or v2, v3
-    sstore 3, v4 !metadata(storage=slot(3))
+    v3 = sub 32, v0
+    v4 = mul v3, 8
+    v5 = shl v4, 1
+    v6 = sub v5, 1
+    v7 = not v6
+    v8 = and v2, v7
+    v9 = mul v0, 2
+    v10 = or v8, v9
+    sstore 3, v10 !metadata(storage=slot(3))
     jump bb3
   bb2:
-    v5 = shl 1, v0
-    v6 = or v5, 1
-    sstore 3, v6 !metadata(storage=slot(3))
-    v7 = add v0, 31
-    v8 = lt v7, v0
-    jumpi v8, bb4, bb5
+    v11 = shl 1, v0
+    v12 = or v11, 1
+    sstore 3, v12 !metadata(storage=slot(3))
+    v13 = add v0, 31
+    v14 = lt v13, v0
+    jumpi v14, bb4, bb5
   bb3:
     stop
   bb4:
@@ -197,19 +196,19 @@ fn @setSkey(arg0: memorybytes) [abi_args=lazy, abi_params=[bytes], abi_returns=[
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb5:
-    v9 = div v7, 32
-    v10 = storage_array_data_slot 3
+    v15 = div v13, 32
+    v16 = storage_array_data_slot 3
     jump bb6
   bb6:
-    v11 = phi [bb5: 0], [bb7: v16]
-    v12 = lt v11, v9
-    jumpi v12, bb7, bb8
+    v17 = phi [bb5: 0], [bb7: v22]
+    v18 = lt v17, v15
+    jumpi v18, bb7, bb8
   bb7:
-    v13 = mul v11, 32
-    v14 = memory_object_load_element memorybytes, arg0, v13
-    v15 = add v10, v11
-    sstore v15, v14 !metadata(storage=symbolic(v15))
-    v16 = add v11, 1
+    v19 = mul v17, 32
+    v20 = memory_object_load_element memorybytes, arg0, v19
+    v21 = add v16, v17
+    sstore v21, v20 !metadata(storage=symbolic(v21))
+    v22 = add v17, 1
     jump bb6
   bb8:
     jump bb3
@@ -282,7 +281,7 @@ fn @setViaStorageKey(arg0: u256) [abi_args=lazy, abi_params=[u256], abi_returns=
     jump bb9
 }
 
-fn @setThenAlloc(arg0: memorybytes, arg1: u256) -> u256 [abi_args=lazy, abi_params=[bytes, u256], abi_returns=[word]] {
+fn @setThenAlloc(arg0: calldataslice, arg1: u256) -> u256 [abi_args=lazy, abi_params=[bytes, u256], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot_calldata arg0, 0
     sstore v0, arg1 !metadata(storage=symbolic(v0))

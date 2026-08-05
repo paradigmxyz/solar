@@ -15,7 +15,7 @@ fn @vUint8() {
     revert 0, 0
   bb3:
     v2 = calldataload 4
-    v3 = and v2, 255
+    v3 = internal_call @__cleanup0, 1, v2
     v4 = eq v2, v3
     jumpi v4, bb4, bb2
   bb4:
@@ -36,7 +36,7 @@ fn @vInt16() {
     revert 0, 0
   bb3:
     v2 = calldataload 4
-    v3 = signextend 1, v2
+    v3 = internal_call @__cleanup5, 1, v2
     v4 = eq v2, v3
     jumpi v4, bb4, bb2
   bb4:
@@ -79,7 +79,7 @@ fn @vAddress() {
     revert 0, 0
   bb3:
     v2 = calldataload 4
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = internal_call @__cleanup2, 1, v2
     v4 = eq v2, v3
     jumpi v4, bb4, bb2
   bb4:
@@ -100,7 +100,7 @@ fn @vBytes4() {
     revert 0, 0
   bb3:
     v2 = calldataload 4
-    v3 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v3 = internal_call @__cleanup3, 1, v2
     v4 = eq v2, v3
     jumpi v4, bb4, bb2
   bb4:
@@ -129,45 +129,36 @@ fn @vEnum() {
 
 fn @vMulti() {
   bb0:
-    v6 = calldatasize
-    v7 = lt v6, 68
-    jumpi v7, bb4, bb5
+    v2 = calldatasize
+    v3 = lt v2, 68
+    jumpi v3, bb4, bb5
   bb1:
-    v0 = and arg0, 0xffffffff
-    v1 = shl 248, arg1
-    v2 = sar 248, v1
-    v3 = and v2, 255
-    v4 = add v0, v3
-    v5 = lt v4, v0
-    jumpi v5, bb2, bb3
+    v0 = add arg0, arg1
+    v1 = lt v0, arg0
+    jumpi v1, bb2, bb3
   bb2:
-    tail_call @__panic_11
-  bb3:
-    mstore 128, v4
-    v14 = add 128, 32
-    v15 = sub v14, 128
-    returndata 128, v15
-  bb4:
-    revert 0, 0
-  bb5:
-    v8 = calldataload 4
-    v9 = and v8, 0xffffffff
-    v10 = eq v8, v9
-    jumpi v10, bb6, bb4
-  bb6:
-    v11 = calldataload 36
-    v12 = signextend 0, v11
-    v13 = eq v11, v12
-    jumpi v13, bb7, bb4
-  bb7:
-    jump bb1
-}
-
-fn @__panic_11() {
-  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
+  bb3:
+    mstore 128, v0
+    v10 = add 128, 32
+    v11 = sub v10, 128
+    returndata 128, v11
+  bb4:
+    revert 0, 0
+  bb5:
+    v4 = calldataload 4
+    v5 = internal_call @__cleanup1, 1, v4
+    v6 = eq v4, v5
+    jumpi v6, bb6, bb4
+  bb6:
+    v7 = calldataload 36
+    v8 = internal_call @__cleanup4, 1, v7
+    v9 = eq v7, v8
+    jumpi v9, bb7, bb4
+  bb7:
+    jump bb1
 }
 
 fn @vFull() {
@@ -180,13 +171,17 @@ fn @vFull() {
     v1 = lt v0, arg0
     jumpi v1, bb2, bb3
   bb2:
-    tail_call @__panic_11
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb3:
     v2 = add v0, arg2
     v3 = lt v2, v0
     jumpi v3, bb4, bb5
   bb4:
-    tail_call @__panic_11
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb5:
     mstore 128, v2
     v6 = add 128, 32
@@ -196,5 +191,41 @@ fn @vFull() {
     revert 0, 0
   bb7:
     jump bb1
+}
+
+fn @__cleanup0(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 255
+    ret v0
+}
+
+fn @__cleanup1(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 0xffffffff
+    ret v0
+}
+
+fn @__cleanup2(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v0
+}
+
+fn @__cleanup3(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @__cleanup4(arg0: u256) -> u256 {
+  bb0:
+    v0 = signextend 0, arg0
+    ret v0
+}
+
+fn @__cleanup5(arg0: u256) -> u256 {
+  bb0:
+    v0 = signextend 1, arg0
+    ret v0
 }
 

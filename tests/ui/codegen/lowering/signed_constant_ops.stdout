@@ -23,7 +23,7 @@ fn @div() -> i256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
     jumpi v4, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 18 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
     v5 = sdiv v0, 2

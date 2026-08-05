@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/cold_call_fallthrough.sol:ColdCallFallthrough (runtime) ===
 @module runtime
 bb0:
-  push 416
+  push 0x4a0
   push 64
   mstore
   callvalue
@@ -134,13 +134,40 @@ bb18:
   jumpi
   jump bb19
 bb19:
-  push 4
-  push 352
+  push 64
+  mload
+  dup1
+  push 288
   mstore
-  push 0x7a65726f00000000000000000000000000000000000000000000000000000000
-  push 384
+  dup1
+  push 288
   mstore
-  jump bb25
+  push 64
+  dup2
+  add
+  dup1
+  push 0x420
+  mstore
+  dup1
+  push 0x420
+  mstore
+  dup2
+  dup1
+  push 288
+  mstore
+  dup2
+  lt
+  push 0xffffffffffffffff
+  dup3
+  gt
+  dup2
+  or
+  swap1
+  pop
+  iszero
+  push bb33
+  jumpi
+  jump bb34
 bb20:
   push 1
   push 256
@@ -151,13 +178,40 @@ bb20:
   jumpi
   jump bb21
 bb21:
-  push 3
-  push 352
+  push 64
+  mload
+  dup1
+  push 320
   mstore
-  push 0x6f6e650000000000000000000000000000000000000000000000000000000000
-  push 384
+  dup1
+  push 320
   mstore
-  jump bb25
+  push 64
+  dup2
+  add
+  dup1
+  push 0x440
+  mstore
+  dup1
+  push 0x440
+  mstore
+  dup2
+  dup1
+  push 320
+  mstore
+  dup2
+  lt
+  push 0xffffffffffffffff
+  dup3
+  gt
+  dup2
+  or
+  swap1
+  pop
+  iszero
+  push bb35
+  jumpi
+  jump bb36
 bb22:
   push 2
   push 256
@@ -168,36 +222,1080 @@ bb22:
   jumpi
   jump bb23
 bb23:
-  push 3
+  push 64
+  mload
+  dup1
   push 352
   mstore
-  push 0x74776f0000000000000000000000000000000000000000000000000000000000
-  push 384
+  dup1
+  push 352
   mstore
-  jump bb25
+  push 64
+  dup2
+  add
+  dup1
+  push 0x460
+  mstore
+  dup1
+  push 0x460
+  mstore
+  dup2
+  dup1
+  push 352
+  mstore
+  dup2
+  lt
+  push 0xffffffffffffffff
+  dup3
+  gt
+  dup2
+  or
+  swap1
+  pop
+  iszero
+  push bb37
+  jumpi
+  jump bb38
 bb24:
-  push 5
-  push 352
-  mstore
-  push 0x6f74686572000000000000000000000000000000000000000000000000000000
+  push 64
+  mload
+  dup1
   push 384
   mstore
-  jump bb25
-bb25:
-  push 0x8c379a000000000000000000000000000000000000000000000000000000000
-  push 0
+  dup1
+  push 384
   mstore
+  push 64
+  dup2
+  add
+  dup1
+  push 0x480
+  mstore
+  dup1
+  push 0x480
+  mstore
+  dup2
+  dup1
+  push 384
+  mstore
+  dup2
+  lt
+  push 0xffffffffffffffff
+  dup3
+  gt
+  dup2
+  or
+  swap1
+  pop
+  iszero
+  push bb39
+  jumpi
+  jump bb40
+bb25:
+  push 32
+  push 512
+  mload
+  dup1
+  push 512
+  mstore
+  sub
+  push 4
+  push 32
+  add
+  push 32
+  add
+  dup1
+  push 544
+  mstore
+  add
+  push 32
+  push 448
+  mload
+  dup1
+  push 448
+  mstore
+  add
+  add
+  push 0
+  dup2
+  mstore
+  pop
+  jump bb26
+bb26 [cold]:
+  push 32
+  push 288
+  mload
+  add
+  push 512
+  mload
+  dup1
+  push 512
+  mstore
+  push 544
+  mload
+  add
+  pop
+  push 32
+  push 448
+  mload
+  add
+  push 544
+  mload
+  dup1
+  push 544
+  mstore
+  swap1
+  add
+  push 480
+  mload
+  dup1
+  push 480
+  mstore
+  dup3
+  dup3
+  mcopy
+  pop
+  pop
   push 32
   push 4
+  add
+  pop
+  push 32
+  push 448
+  mload
+  add
+  push 416
+  mload
+  dup2
+  revert
+bb27:
+  push 32
+  push 672
+  mload
+  dup1
+  push 672
+  mstore
+  sub
+  push 4
+  push 32
+  add
+  push 32
+  add
+  dup1
+  push 704
+  mstore
+  add
+  push 32
+  push 608
+  mload
+  dup1
+  push 608
+  mstore
+  add
+  add
+  push 0
+  dup2
+  mstore
+  pop
+  jump bb28
+bb28 [cold]:
+  push 32
+  push 320
+  mload
+  add
+  push 672
+  mload
+  dup1
+  push 672
+  mstore
+  push 704
+  mload
+  add
+  pop
+  push 32
+  push 608
+  mload
+  add
+  push 704
+  mload
+  dup1
+  push 704
+  mstore
+  swap1
+  add
+  push 640
+  mload
+  dup1
+  push 640
+  mstore
+  dup3
+  dup3
+  mcopy
+  pop
+  pop
+  push 32
+  push 4
+  add
+  pop
+  push 32
+  push 608
+  mload
+  add
+  push 576
+  mload
+  dup2
+  revert
+bb29:
+  push 32
+  push 832
+  mload
+  dup1
+  push 832
+  mstore
+  sub
+  push 4
+  push 32
+  add
+  push 32
+  add
+  dup1
+  push 864
+  mstore
+  add
+  push 32
+  push 768
+  mload
+  dup1
+  push 768
+  mstore
+  add
+  add
+  push 0
+  dup2
+  mstore
+  pop
+  jump bb30
+bb30 [cold]:
+  push 32
+  push 352
+  mload
+  add
+  push 832
+  mload
+  dup1
+  push 832
+  mstore
+  push 864
+  mload
+  add
+  pop
+  push 32
+  push 768
+  mload
+  add
+  push 864
+  mload
+  dup1
+  push 864
+  mstore
+  swap1
+  add
+  push 800
+  mload
+  dup1
+  push 800
+  mstore
+  dup3
+  dup3
+  mcopy
+  pop
+  pop
+  push 32
+  push 4
+  add
+  pop
+  push 32
+  push 768
+  mload
+  add
+  push 736
+  mload
+  dup2
+  revert
+bb31:
+  push 32
+  push 992
+  mload
+  dup1
+  push 992
+  mstore
+  sub
+  push 4
+  push 32
+  add
+  push 32
+  add
+  dup1
+  push 0x400
+  mstore
+  add
+  push 32
+  push 928
+  mload
+  dup1
+  push 928
+  mstore
+  add
+  add
+  push 0
+  dup2
+  mstore
+  pop
+  jump bb32
+bb32 [cold]:
+  push 32
+  push 384
+  mload
+  add
+  push 992
+  mload
+  dup1
+  push 992
+  mstore
+  push 0x400
+  mload
+  add
+  pop
+  push 32
+  push 928
+  mload
+  add
+  push 0x400
+  mload
+  dup1
+  push 0x400
+  mstore
+  swap1
+  add
+  push 960
+  mload
+  dup1
+  push 960
+  mstore
+  dup3
+  dup3
+  mcopy
+  pop
+  pop
+  push 32
+  push 4
+  add
+  pop
+  push 32
+  push 928
+  mload
+  add
+  push 896
+  mload
+  dup2
+  revert
+bb33:
+  dup1
+  push 0x420
+  mstore
+  push 64
+  mstore
+  calldatasize
+  push 64
+  dup2
+  dup4
+  dup1
+  push 288
+  mstore
+  calldatacopy
+  pop
+  push 4
+  dup2
+  mstore
+  push 32
+  dup2
+  add
+  push 0
+  swap1
+  add
+  push 0x7a65726f00000000000000000000000000000000000000000000000000000000
+  dup2
+  mstore
+  pop
+  dup1
+  push 288
+  mstore
+  mload
+  push 31
+  swap1
+  add
+  push 31
+  not
+  dup2
+  and
+  swap1
+  pop
+  push 32
+  add
+  push 32
+  add
+  push 4
+  swap1
+  add
+  dup1
+  push 416
+  mstore
+  dup1
+  push 416
+  mstore
+  push 31
+  dup2
+  add
+  push 31
+  not
+  dup2
+  and
+  swap1
+  pop
+  push 32
+  swap1
+  add
+  push 64
+  mload
+  dup1
+  push 448
+  mstore
+  dup2
+  dup2
+  add
+  swap2
+  pop
+  dup2
+  push 64
+  mstore
+  swap1
+  pop
+  dup2
+  dup1
+  push 416
+  mstore
+  dup2
+  mstore
+  push 32
+  dup2
+  add
+  push 0
+  swap1
+  add
+  push 0x8c379a000000000000000000000000000000000000000000000000000000000
+  dup2
+  mstore
+  pop
+  push 32
+  push 4
+  add
+  push 4
+  dup2
+  sub
+  push 32
+  dup4
+  add
+  push 4
+  swap1
+  add
+  mstore
+  push 288
+  mload
+  dup1
+  push 288
+  mstore
+  mload
+  dup1
+  push 480
+  mstore
+  push 32
+  dup4
+  add
+  dup3
+  swap1
+  add
+  dup2
+  dup1
+  push 480
+  mstore
+  dup2
+  mstore
+  pop
+  push 31
+  not
+  push 31
+  dup3
+  add
+  and
+  dup1
+  push 512
+  mstore
+  push 32
+  dup4
+  add
+  swap3
+  pop
+  dup3
+  push 544
+  mstore
+  dup1
+  push 512
+  mstore
+  iszero
+  swap1
+  pop
+  swap1
+  pop
+  swap1
+  pop
+  swap1
+  pop
+  iszero
+  push bb25
+  jumpi
+  jump bb26
+bb34 [cold]:
+  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 65
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb35:
+  dup1
+  push 0x440
+  mstore
+  push 64
+  mstore
+  calldatasize
+  push 64
+  dup2
+  dup4
+  dup1
+  push 320
+  mstore
+  calldatacopy
+  pop
+  push 3
+  dup2
+  mstore
+  push 32
+  dup2
+  add
+  push 0
+  swap1
+  add
+  push 0x6f6e650000000000000000000000000000000000000000000000000000000000
+  dup2
+  mstore
+  pop
+  dup1
+  push 320
+  mstore
+  mload
+  push 31
+  swap1
+  add
+  push 31
+  not
+  dup2
+  and
+  swap1
+  pop
+  push 32
+  add
+  push 32
+  add
+  push 4
+  swap1
+  add
+  dup1
+  push 576
+  mstore
+  dup1
+  push 576
+  mstore
+  push 31
+  dup2
+  add
+  push 31
+  not
+  dup2
+  and
+  swap1
+  pop
+  push 32
+  swap1
+  add
+  push 64
+  mload
+  dup1
+  push 608
+  mstore
+  dup2
+  dup2
+  add
+  swap2
+  pop
+  dup2
+  push 64
+  mstore
+  swap1
+  pop
+  dup2
+  dup1
+  push 576
+  mstore
+  dup2
+  mstore
+  push 32
+  dup2
+  add
+  push 0
+  swap1
+  add
+  push 0x8c379a000000000000000000000000000000000000000000000000000000000
+  dup2
+  mstore
+  pop
+  push 32
+  push 4
+  add
+  push 4
+  dup2
+  sub
+  push 32
+  dup4
+  add
+  push 4
+  swap1
+  add
+  mstore
+  push 320
+  mload
+  dup1
+  push 320
+  mstore
+  mload
+  dup1
+  push 640
+  mstore
+  push 32
+  dup4
+  add
+  dup3
+  swap1
+  add
+  dup2
+  dup1
+  push 640
+  mstore
+  dup2
+  mstore
+  pop
+  push 31
+  not
+  push 31
+  dup3
+  add
+  and
+  dup1
+  push 672
+  mstore
+  push 32
+  dup4
+  add
+  swap3
+  pop
+  dup3
+  push 704
+  mstore
+  dup1
+  push 672
+  mstore
+  iszero
+  swap1
+  pop
+  swap1
+  pop
+  swap1
+  pop
+  swap1
+  pop
+  iszero
+  push bb27
+  jumpi
+  jump bb28
+bb36 [cold]:
+  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 65
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb37:
+  dup1
+  push 0x460
+  mstore
+  push 64
+  mstore
+  calldatasize
+  push 64
+  dup2
+  dup4
+  dup1
+  push 352
+  mstore
+  calldatacopy
+  pop
+  push 3
+  dup2
+  mstore
+  push 32
+  dup2
+  add
+  push 0
+  swap1
+  add
+  push 0x74776f0000000000000000000000000000000000000000000000000000000000
+  dup2
+  mstore
+  pop
+  dup1
+  push 352
+  mstore
+  mload
+  push 31
+  swap1
+  add
+  push 31
+  not
+  dup2
+  and
+  swap1
+  pop
+  push 32
+  add
+  push 32
+  add
+  push 4
+  swap1
+  add
+  dup1
+  push 736
+  mstore
+  dup1
+  push 736
+  mstore
+  push 31
+  dup2
+  add
+  push 31
+  not
+  dup2
+  and
+  swap1
+  pop
+  push 32
+  swap1
+  add
+  push 64
+  mload
+  dup1
+  push 768
+  mstore
+  dup2
+  dup2
+  add
+  swap2
+  pop
+  dup2
+  push 64
+  mstore
+  swap1
+  pop
+  dup2
+  dup1
+  push 736
+  mstore
+  dup2
+  mstore
+  push 32
+  dup2
+  add
+  push 0
+  swap1
+  add
+  push 0x8c379a000000000000000000000000000000000000000000000000000000000
+  dup2
+  mstore
+  pop
+  push 32
+  push 4
+  add
+  push 4
+  dup2
+  sub
+  push 32
+  dup4
+  add
+  push 4
+  swap1
+  add
   mstore
   push 352
   mload
+  dup1
+  push 352
+  mstore
+  mload
+  dup1
+  push 800
+  mstore
+  push 32
+  dup4
+  add
+  dup3
+  swap1
+  add
+  dup2
+  dup1
+  push 800
+  mstore
+  dup2
+  mstore
+  pop
+  push 31
+  not
+  push 31
+  dup3
+  add
+  and
+  dup1
+  push 832
+  mstore
+  push 32
+  dup4
+  add
+  swap3
+  pop
+  dup3
+  push 864
+  mstore
+  dup1
+  push 832
+  mstore
+  iszero
+  swap1
+  pop
+  swap1
+  pop
+  swap1
+  pop
+  swap1
+  pop
+  iszero
+  push bb29
+  jumpi
+  jump bb30
+bb38 [cold]:
+  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 65
+  push 4
+  mstore
   push 36
+  push 0
+  revert
+bb39:
+  dup1
+  push 0x480
+  mstore
+  push 64
+  mstore
+  calldatasize
+  push 64
+  dup2
+  dup4
+  dup1
+  push 384
+  mstore
+  calldatacopy
+  pop
+  push 5
+  dup2
+  mstore
+  push 32
+  dup2
+  add
+  push 0
+  swap1
+  add
+  push 0x6f74686572000000000000000000000000000000000000000000000000000000
+  dup2
+  mstore
+  pop
+  dup1
+  push 384
+  mstore
+  mload
+  push 31
+  swap1
+  add
+  push 31
+  not
+  dup2
+  and
+  swap1
+  pop
+  push 32
+  add
+  push 32
+  add
+  push 4
+  swap1
+  add
+  dup1
+  push 896
+  mstore
+  dup1
+  push 896
+  mstore
+  push 31
+  dup2
+  add
+  push 31
+  not
+  dup2
+  and
+  swap1
+  pop
+  push 32
+  swap1
+  add
+  push 64
+  mload
+  dup1
+  push 928
+  mstore
+  dup2
+  dup2
+  add
+  swap2
+  pop
+  dup2
+  push 64
+  mstore
+  swap1
+  pop
+  dup2
+  dup1
+  push 896
+  mstore
+  dup2
+  mstore
+  push 32
+  dup2
+  add
+  push 0
+  swap1
+  add
+  push 0x8c379a000000000000000000000000000000000000000000000000000000000
+  dup2
+  mstore
+  pop
+  push 32
+  push 4
+  add
+  push 4
+  dup2
+  sub
+  push 32
+  dup4
+  add
+  push 4
+  swap1
+  add
   mstore
   push 384
   mload
-  push 68
+  dup1
+  push 384
   mstore
-  push 100
+  mload
+  dup1
+  push 960
+  mstore
+  push 32
+  dup4
+  add
+  dup3
+  swap1
+  add
+  dup2
+  dup1
+  push 960
+  mstore
+  dup2
+  mstore
+  pop
+  push 31
+  not
+  push 31
+  dup3
+  add
+  and
+  dup1
+  push 992
+  mstore
+  push 32
+  dup4
+  add
+  swap3
+  pop
+  dup3
+  push 0x400
+  mstore
+  dup1
+  push 992
+  mstore
+  iszero
+  swap1
+  pop
+  swap1
+  pop
+  swap1
+  pop
+  swap1
+  pop
+  iszero
+  push bb31
+  jumpi
+  jump bb32
+bb40 [cold]:
+  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 65
+  push 4
+  mstore
+  push 36
   push 0
   revert

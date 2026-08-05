@@ -40,11 +40,5 @@ error[8961]: function cannot be declared as view because this expression (potent
 LL │                 tstore(3, 1)
    ╰╴                ━━━━━━━━━━━━
 
-error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
-   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_functions.sol:LL:CC
-   │
-LL │                 post()
-   ╰╴                ━━━━━━
-
-error: aborting due to 8 previous errors
+error: aborting due to 7 previous errors
 

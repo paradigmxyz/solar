@@ -1,75 +1,88 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_named_return.sol:CalldataSliceNamedReturn ===
 @module CalldataSliceNamedReturn
 @phase evm-shaped
+fn @unwrap(arg0: calldataptr, arg1: u256) -> memptr {
+  bb0:
+    v3 = sub arg1, 32
+    v4 = add arg0, v3
+    v5 = calldataload v4
+    jumpi v5, bb1, bb2
+  bb1:
+    jump bb2
+  bb2:
+    v34 = phi [bb1: arg0], [bb0: arg0]
+    v35 = phi [bb1: v3], [bb0: arg1]
+    v15 = add v35, 31
+    v16 = lt v15, v35
+    jumpi v16, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v17 = shr 5, v15
+    v18 = add v17, 1
+    v19 = lt v18, v17
+    jumpi v19, bb3, bb5
+  bb5:
+    v20 = shl 5, v18
+    v22 = shr 5, v20
+    v23 = eq v22, v18
+    jumpi v23, bb6, bb3
+  bb6:
+    v26 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v37 = add v26, v20
+    mstore 64, v37 !metadata(memory=scratch)
+    mstore v26, v35
+    v27 = add v26, 32
+    calldatacopy v27, v34, v35
+    ret v26
+}
+
 fn @use() {
   bb0:
-    v18 = calldatasize
-    v19 = lt v18, 36
-    jumpi v19, bb3, bb4
+    v2 = calldatasize
+    v3 = lt v2, 36
+    jumpi v3, bb1, bb2
   bb1:
-    v53 = add 128, 32
-    v54 = mload v53
-    mstore 128, v54
-    returndata 128, 32
-  bb2:
-    v57 = add 128, 32
-    v58 = mload v57
-    v12 = sub v58, 32
-    v60 = mload 128
-    mstore 128, v60
-    v66 = add 128, 32
-    mstore v66, v12
-    jump bb1
-  bb3:
     revert 0, 0
+  bb2:
+    v6 = calldatasize
+    v7 = gt 36, v6
+    jumpi v7, bb1, bb3
+  bb3:
+    v9 = calldataload 4
+    v10 = add v9, 4
+    v11 = lt v10, 4
+    v12 = calldatasize
+    v13 = gt v10, v12
+    v14 = or v11, v13
+    jumpi v14, bb1, bb4
   bb4:
-    v22 = calldatasize
-    v23 = gt 36, v22
-    jumpi v23, bb3, bb5
+    v15 = add v9, 36
+    v16 = lt v15, v10
+    v17 = calldatasize
+    v18 = gt v15, v17
+    v19 = or v16, v18
+    jumpi v19, bb1, bb5
   bb5:
-    v25 = calldataload 4
-    v26 = add v25, 4
-    v27 = lt v26, 4
+    v20 = calldataload v10
+    v22 = add v20, 31
+    v23 = lt v22, v20
+    jumpi v23, bb1, bb6
+  bb6:
+    v25 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v26 = add v15, v25
+    v27 = lt v26, v15
     v28 = calldatasize
     v29 = gt v26, v28
-    v30 = lt v25, 32
-    v31 = or v27, v29
-    v32 = or v31, v30
-    jumpi v32, bb3, bb6
-  bb6:
-    v33 = add v25, 36
-    v34 = lt v33, v26
-    v35 = calldatasize
-    v36 = gt v33, v35
-    v37 = or v34, v36
-    jumpi v37, bb3, bb7
+    v30 = or v27, v29
+    jumpi v30, bb1, bb7
   bb7:
-    v38 = calldataload v26
-    v40 = add v38, 31
-    v41 = lt v40, v38
-    jumpi v41, bb3, bb8
-  bb8:
-    v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v44 = add v33, v43
-    v45 = lt v44, v33
-    v46 = calldatasize
-    v47 = gt v44, v46
-    v48 = or v45, v47
-    jumpi v48, bb3, bb9
-  bb9:
-    mstore 128, 0
-    v69 = add 128, 32
-    mstore v69, 0
-    mstore 128, v33
-    v72 = add 128, 32
-    mstore v72, v38
-    v73 = mload 128
-    v78 = add 128, 32
-    v79 = mload v78
-    v5 = sub v79, 32
-    v6 = add v73, v5
-    v7 = calldataload v6
-    jumpi v7, bb2, bb1
+    v0 = internal_call @unwrap, 1, v15, v20
+    v1 = mload v0
+    mstore 128, v1
+    returndata 128, 32
 }
 
 fn @entry() [entry] {

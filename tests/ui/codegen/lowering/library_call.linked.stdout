@@ -177,7 +177,7 @@ bb4 [cold]:
   push 0
   dup1
   revert
-bb15 [cold]:
+bb16 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -291,7 +291,7 @@ bb7:
   pop
   pop
   iszero
-  push bb14
+  push bb15
   jumpi
   returndatasize
   dup1
@@ -304,7 +304,7 @@ bb7:
   push 256
   mstore
   lt
-  push bb15
+  push bb16
   jumpi
   push 256
   mload
@@ -317,7 +317,7 @@ bb7:
   push 256
   mstore
   lt
-  push bb15
+  push bb16
   jumpi
   push 256
   mload
@@ -335,7 +335,7 @@ bb7:
   swap1
   pop
   iszero
-  push bb15
+  push bb16
   jumpi
   push 64
   mload
@@ -361,18 +361,36 @@ bb7:
   dup3
   returndatacopy
   pop
+  dup1
+  mload
+  swap1
   push 32
-  dup2
   add
   dup1
   push 224
   mstore
   swap1
-  mload
+  dup2
+  add
+  dup1
+  push 256
+  mstore
+  lt
+  push bb4
+  jumpi
   push 32
-  gt
+  push 224
+  mload
+  add
+  push 224
+  mload
+  dup2
+  lt
   swap1
-  pop
+  push 256
+  mload
+  lt
+  or
   push bb4
   jumpi
   push 0
@@ -385,7 +403,7 @@ bb7:
   push 32
   push 128
   return
-bb14 [cold]:
+bb15 [cold]:
   returndatasize
   dup1
   push 288

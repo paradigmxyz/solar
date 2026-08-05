@@ -3,34 +3,28 @@
 
 contract StorageBytesElements {
     // CHECK-LABEL: fn @b{{[( ]}}
-    // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
-    // CHECK: ret [[VALUE]]
+    // CHECK: sload 0
+    // CHECK: ret
     bytes public b;
 
     // CHECK-LABEL: fn @init{{[( ]}}
     // CHECK: {{v[0-9]+}} = memory_object_len memorybytes
-    // CHECK: sload 0
     // CHECK: sstore 0,
     function init(bytes memory value) public {
         b = value;
     }
 
     // CHECK-LABEL: fn @poke{{[( ]}}
-    // CHECK: [[WORD:v[0-9]+]] = sload 0
-    // CHECK: [[LOW_BIT:v[0-9]+]] = and [[WORD]], 1
-    // CHECK: [[LONG:v[0-9]+]] = eq [[LOW_BIT]], 1
-    // CHECK: jumpi {{v[0-9]+}},
-    // CHECK: jumpi [[LONG]],
-    // CHECK: sstore 0,
-    // CHECK: {{v[0-9]+}} = storage_array_element_slot 0, {{v[0-9]+}}, 1
-    // CHECK: sstore {{v[0-9]+}},
+    // CHECK: sload 0
+    // CHECK: memory_object_store_byte memorybytes
+    // CHECK: stop
     function poke() public {
         b[5] = 0xAA;
     }
 
     // CHECK-LABEL: fn @hashB{{[( ]}}
-    // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
-    // CHECK: keccak256_bytes [[VALUE]]
+    // CHECK: sload 0
+    // CHECK: keccak256_bytes
     function hashB() public view returns (bytes32) {
         return keccak256(b);
     }
@@ -38,11 +32,11 @@ contract StorageBytesElements {
 
 contract StorageStringConstructor {
     // CHECK-LABEL: fn @name{{[( ]}}
-    // CHECK: internal_call @__load_storage_bytes, 1, 0
+    // CHECK: sload 0
     string public name;
 
     // CHECK-LABEL: fn @symbol{{[( ]}}
-    // CHECK: internal_call @__load_storage_bytes, 1, 1
+    // CHECK: sload 1
     string public symbol;
 
     // CHECK-LABEL: fn @_anonymous{{.*abi_args=lazy.*}}
@@ -60,11 +54,11 @@ contract StorageStringConstructor {
 
 contract StorageStringBase {
     // CHECK-LABEL: fn @name{{[( ]}}
-    // CHECK: internal_call @__load_storage_bytes, 1, 0
+    // CHECK: sload 0
     string public name;
 
     // CHECK-LABEL: fn @symbol{{[( ]}}
-    // CHECK: internal_call @__load_storage_bytes, 1, 1
+    // CHECK: sload 1
     string public symbol;
 
     // CHECK-LABEL: fn @_anonymous{{[( ]}}
@@ -83,9 +77,9 @@ contract StorageStringDerived is StorageStringBase {
     // CHECK: sstore 0,
     // CHECK: sstore 1,
     // CHECK-LABEL: fn @name{{[( ]}}
-    // CHECK: internal_call @__load_storage_bytes, 1, 0
+    // CHECK: sload 0
     // CHECK-LABEL: fn @symbol{{[( ]}}
-    // CHECK: internal_call @__load_storage_bytes, 1, 1
+    // CHECK: sload 1
     constructor() StorageStringBase("ERC20Mock", "E20M") {}
 }
 
@@ -94,8 +88,4 @@ contract StorageStringDerived is StorageStringBase {
 // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 3
 // CHECK: sstore 0,
 // CHECK: sstore 1,
-// CHECK-LABEL: fn @name{{[( ]}}
-// CHECK: internal_call @__load_storage_bytes, 1, 0
-// CHECK-LABEL: fn @symbol{{[( ]}}
-// CHECK: internal_call @__load_storage_bytes, 1, 1
 contract StorageStringImplicitDerived is StorageStringBase("Base Literal Name", "BLN") {}

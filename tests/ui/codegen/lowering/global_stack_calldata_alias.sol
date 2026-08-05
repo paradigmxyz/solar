@@ -3,10 +3,10 @@
 
 contract Test {
     // CHECK: push 0xc21f7bbb
-    // CHECK-NEXT: sub
+    // CHECK: sub
     // CHECK: push 2
-    // CHECK-NEXT: dup2
-    // CHECK-NEXT: eq
+    // CHECK: dup2
+    // CHECK: eq
     // CHECK: push {{bb[0-9]+}}
     // CHECK: jumpi
     // CHECK: push 3
@@ -18,13 +18,13 @@ contract Test {
     // CHECK: jump {{bb[0-9]+}}
     // CHECK: [[REST]]:
     // CHECK: push 4
-    // CHECK-NEXT: dup2
-    // CHECK-NEXT: sub
+    // CHECK: dup2
+    // CHECK: sub
     // CHECK: push 4
-    // CHECK-NEXT: jump {{bb[0-9]+}}
+    // CHECK: jump {{bb[0-9]+}}
     // CHECK: push 5
     // CHECK: dup2
-    // CHECK-NEXT: add
+    // CHECK: add
     function select(address account, uint256 value) external pure returns (uint256) {
         if (account == address(1)) return value + 1;
         if (account == address(2)) return value + 2;

@@ -4,21 +4,30 @@ fn @sum_to(arg0: u256) -> u256 [abi_args=lazy, abi_params=[u256], abi_returns=[w
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb5: v6]
-    v1 = phi [bb0: arg0], [bb5: v1]
-    v2 = phi [bb0: 0], [bb5: v5]
-    v3 = phi [bb0: 0], [bb5: v3]
+    v0 = phi [bb0: 0], [bb3: v7]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v5]
+    v3 = phi [bb0: 0], [bb3: v3]
     v4 = lt v0, v1
-    jumpi v4, bb3, bb4
+    jumpi v4, bb4, bb5
   bb2:
     ret v2
   bb3:
-    v5 = add v2, v0
-    v6 = add v0, 1
-    jump bb5
-  bb4:
-    jump bb2
-  bb5:
+    v7 = add v0, 1
     jump bb1
+  bb4:
+    v5 = add v2, v0
+    v6 = lt v5, v2
+    jumpi v6, bb7, bb8
+  bb5:
+    jump bb2
+  bb6:
+    jump bb3
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    jump bb6
 }
 

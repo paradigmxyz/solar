@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/acyclic_stack_phi.sol:AcyclicStackPhi (runtime) ===
 @module runtime
 bb0:
-  push 288
+  push 672
   push 64
   mstore
   callvalue
@@ -17,9 +17,27 @@ bb0:
   shr
   dup1
   push 0x341fda35
-  sub
-  push bb4
+  eq
+  push bb5
   jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+bb22 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 65
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb5:
   calldatasize
   push 36
   gt
@@ -33,13 +51,13 @@ bb0:
   push 4
   calldataload
   dup1
-  push 192
+  push 224
   mstore
   push 4
   dup2
   add
   dup1
-  push 224
+  push 256
   mstore
   push 4
   dup2
@@ -47,11 +65,6 @@ bb0:
   calldatasize
   dup3
   gt
-  push 32
-  dup5
-  lt
-  swap2
-  or
   or
   swap2
   pop
@@ -59,13 +72,13 @@ bb0:
   push bb4
   jumpi
   push 36
-  push 192
+  push 224
   mload
   add
   dup1
-  push 192
-  mstore
   push 224
+  mstore
+  push 256
   mload
   dup2
   lt
@@ -77,30 +90,30 @@ bb0:
   pop
   push bb4
   jumpi
-  push 224
+  push 256
   mload
   calldataload
   dup1
-  push 224
+  push 256
   mstore
   push 31
   dup2
   add
   dup1
-  push 256
+  push 288
   mstore
   lt
   push bb4
   jumpi
   push 31
   not
-  push 256
+  push 288
   mload
   and
-  push 192
+  push 224
   mload
   add
-  push 192
+  push 224
   mload
   dup2
   lt
@@ -111,60 +124,175 @@ bb0:
   or
   push bb4
   jumpi
-  push 0
-  push 128
-  mstore
-  push 32
-  push 128
-  add
-  push 0
-  swap1
-  mstore
-  push 4
   push 224
+  mload
+  push 416
+  mstore
+  push 256
+  mload
+  push 448
+  mstore
+  push bb12
+  push 4
+  push 448
   mload
   gt
-  push bb13
+  iszero
+  push bb19
   jumpi
-  push 192
+  push 4
+  push 448
   mload
-  push 128
+  sub
+  dup1
+  push 512
   mstore
-  push 32
-  push 128
-  add
-  push 224
+  push 4
+  push 416
   mload
+  add
+  dup1
+  push 544
+  mstore
+  push 31
+  dup3
+  add
+  dup1
+  push 576
+  mstore
+  dup3
+  gt
+  swap2
+  pop
+  pop
+  push bb22
+  jumpi
+  push 576
+  mload
+  push 5
+  shr
+  push 1
+  dup2
+  add
+  dup1
+  push 576
+  mstore
+  lt
+  push bb22
+  jumpi
+  push 576
+  mload
+  push 5
+  shl
+  dup1
+  push 608
+  mstore
+  dup1
+  push 5
+  shr
+  push 576
+  mload
+  eq
   swap1
+  pop
+  iszero
+  push bb22
+  jumpi
+  push 64
+  mload
+  dup1
+  push 640
   mstore
-  jump bb12
-bb12:
-  push 32
-  push 128
+  push 608
+  mload
+  dup2
   add
+  push 64
+  mstore
+  push 512
+  mload
+  dup2
+  mstore
+  push 32
+  dup2
+  add
+  push 512
+  mload
+  push 544
+  jump bb23
+bb23:
+  mload
+  dup3
+  calldatacopy
+  pop
+  push 480
+  mstore
+  jump
+bb12:
+  push 480
+  mload
+  dup1
+  push 320
+  mstore
   mload
   push 128
   mstore
   push 32
   push 128
   return
-bb4 [cold]:
-  push 0
-  dup1
-  revert
-bb13:
-  push 4
-  push 224
-  mload
-  sub
-  push 4
-  push 192
+bb19:
+  push 31
+  push 448
   mload
   add
-  push 128
+  push 5
+  shr
+  push 1
+  dup2
+  add
+  dup1
+  push 512
+  mstore
+  lt
+  push bb22
+  jumpi
+  push 512
+  mload
+  push 5
+  shl
+  dup1
+  push 544
+  mstore
+  dup1
+  push 5
+  shr
+  push 512
+  mload
+  eq
+  swap1
+  pop
+  iszero
+  push bb22
+  jumpi
+  push 64
+  mload
+  dup1
+  push 640
+  mstore
+  push 544
+  mload
+  dup2
+  add
+  push 64
+  mstore
+  push 448
+  mload
+  dup2
   mstore
   push 32
-  push 128
+  dup2
   add
-  mstore
-  jump bb12
+  push 448
+  mload
+  push 416
+  jump bb23

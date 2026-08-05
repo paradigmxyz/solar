@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_call.sol:ConstructorInternalCall ===
 @module ConstructorInternalCall
-fn @value() -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @value() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -21,36 +21,37 @@ fn @helper(arg0: u256) -> u256 {
   bb1:
     ret 1
   bb2:
+    jump bb3
+  bb3:
     v1 = mul arg0, 11
     v2 = iszero 11
     v3 = div v1, 11
     v4 = eq v3, arg0
     v5 = or v2, v4
     v6 = iszero v5
-    jumpi v6, bb3, bb4
-  bb3:
-    tail_call @__panic_11
+    jumpi v6, bb4, bb5
   bb4:
-    v7 = sub arg0, 1
-    v8 = lt arg0, 1
-    jumpi v8, bb5, bb6
-  bb5:
-    tail_call @__panic_11
-  bb6:
-    v9 = internal_call @helper, 1, v7
-    v10 = add v1, v9
-    v11 = lt v10, v1
-    jumpi v11, bb7, bb8
-  bb7:
-    tail_call @__panic_11
-  bb8:
-    ret v10
-}
-
-fn @__panic_11() {
-  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
+  bb5:
+    v7 = sub arg0, 1
+    v8 = lt arg0, 1
+    jumpi v8, bb6, bb7
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    v9 = internal_call @helper, 1, v7
+    v10 = add v1, v9
+    v11 = lt v10, v1
+    jumpi v11, bb8, bb9
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    ret v10
 }
 

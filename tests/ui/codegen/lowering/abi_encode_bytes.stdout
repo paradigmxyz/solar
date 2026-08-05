@@ -46,9 +46,7 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [abi_args=lazy, a
   bb6:
     v14 = alloc memorybytes, exact, uninitialized, infallible, v8
     set_memory_object_len memorybytes, v14, v2
-    v15 = slice_ptr v1
-    v16 = make_memory_slice v15, v2
-    memory_object_copy_from_slice memorybytes, v14, v16
+    memory_object_copy_from_slice memorybytes, v14, v1
     ret v14
 }
 
@@ -89,9 +87,7 @@ fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [abi_args=lazy, 
   bb6:
     v14 = alloc memorybytes, exact, uninitialized, infallible, v8
     set_memory_object_len memorybytes, v14, v2
-    v15 = slice_ptr v1
-    v16 = make_memory_slice v15, v2
-    memory_object_copy_from_slice memorybytes, v14, v16
+    memory_object_copy_from_slice memorybytes, v14, v1
     ret v14
 }
 
@@ -139,23 +135,8 @@ fn @roundtrip(arg0: u256) -> u256 [abi_args=lazy, abi_params=[u256], abi_returns
   bb6:
     v13 = alloc memorybytes, exact, uninitialized, infallible, v7
     set_memory_object_len memorybytes, v13, v1
-    v14 = slice_ptr v0
-    v15 = make_memory_slice v14, v1
-    memory_object_copy_from_slice memorybytes, v13, v15
-    v16 = memory_object_len memorybytes, v13
-    v17 = memory_object_data memorybytes, v13
-    v18 = lt v16, 32
-    jumpi v18, bb7, bb8
-  bb7:
-    revert 0, 0
-  bb8:
-    v19 = add v17, 0
-    v20 = mload v19
-    v21 = iszero 1
-    jumpi v21, bb9, bb10
-  bb9:
-    revert 0, 0
-  bb10:
-    ret v20
+    memory_object_copy_from_slice memorybytes, v13, v0
+    v14 = abi_decode [u256], v13
+    ret v14
 }
 

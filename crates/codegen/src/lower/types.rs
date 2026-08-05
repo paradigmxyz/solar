@@ -93,6 +93,12 @@ impl<'gcx> TypeLowerer<'gcx> {
         self.abi_type_inner(ty)
     }
 
+    /// Builds the ABI shape of a return value, which is always encoded from
+    /// memory even when its source HIR type names calldata.
+    pub(super) fn abi_return_type(&mut self, ty: Ty<'gcx>) -> Option<AbiType> {
+        self.abi_type(ty.with_loc_if_ref(self.gcx, DataLocation::Memory))
+    }
+
     /// Returns the semantic object layout for a memory-backed aggregate.
     pub(super) fn memory_layout(&self, ty: Ty<'gcx>) -> Option<MemoryObjectLayout> {
         Some(match ty.peel_refs().kind {

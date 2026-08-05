@@ -1,48 +1,39 @@
 // === ROOT/tests/ui/codegen/lowering/fixed_bytes_canonical.sol:FixedBytesCanonical ===
 @module FixedBytesCanonical
-fn @fromUint(arg0: u8) -> bytes1 [abi_args=lazy, abi_returns=[word]] {
+fn @fromUint(arg0: u8) -> bytes1 [abi_args=lazy, abi_params=[u8], abi_returns=[word]] {
   bb0:
     v0 = shl 248, arg0
-    v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    ret v1
+    ret v0
 }
 
-fn @fromHex() -> bytes1 [abi_args=lazy, abi_returns=[word]] {
+fn @fromHex() -> bytes1 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
-    ret 0x100000000000000000000000000000000000000000000000000000000000000
+    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    set_memory_object_len memorybytes, v0, 1
+    memory_object_store_word memorybytes, v0, 0, 0x100000000000000000000000000000000000000000000000000000000000000
+    ret v0
 }
 
-fn @compareElement(arg0: memorybytes) -> bool [abi_params=[bytes], abi_returns=[word]] {
+fn @compareElement(arg0: memorybytes) -> bool [abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = lt 0, v0
-    jumpi v1, bb2, bb1
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
   bb1:
-    tail_call @__panic_32
-  bb2:
-    v2 = div 0, 32
-    v3 = mod 0, 32
-    v4 = mul v3, 8
-    v5 = memory_object_load_element memorybytes, arg0, v2
-    v6 = shl v4, v5
-    v7 = and v6, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v8 = and 1, 255
-    v9 = shl 248, v8
-    v10 = and v9, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v11 = eq v7, v10
-    ret v11
-}
-
-fn @__panic_32() {
-  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
+  bb2:
+    v3 = memory_object_load_byte memorybytes, arg0, 0
+    v4 = shl 248, v3
+    v5 = shl 248, 1
+    v6 = eq v4, v5
+    ret v6
 }
 
-fn @narrow(arg0: bytes4) -> bytes2 [abi_args=lazy, abi_returns=[word]] {
+fn @narrow(arg0: bytes4) -> bytes2 [abi_args=lazy, abi_params=[bytes4], abi_returns=[word]] {
   bb0:
-    v0 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
-    ret v0
+    ret arg0
 }
 

@@ -7,6 +7,6 @@ contract RuntimeCodeTarget {}
 
 contract LoweringErrorSentinel {
     function runtime() external pure returns (uint256) {
-        return type(RuntimeCodeTarget).runtimeCode.length; //~ ERROR: codegen does not support `type(C).runtimeCode` yet
+        return type(RuntimeCodeTarget).runtimeCode.length; //~ ERROR: codegen rewrite does not support this environment builtin yet
     }
 }

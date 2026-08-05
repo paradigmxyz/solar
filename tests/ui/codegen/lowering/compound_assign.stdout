@@ -1,45 +1,42 @@
 // === ROOT/tests/ui/codegen/lowering/compound_assign.sol:CompoundAssign ===
 @module CompoundAssign
-fn @value() -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @value() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @add_to_value(arg0: u256) [abi_args=lazy] {
+fn @add_to_value(arg0: u256) [abi_args=lazy, abi_params=[u256], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, arg0
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
   bb1:
-    tail_call @__panic_11
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
     stop
 }
 
-fn @__panic_11() {
-  bb0:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-}
-
-fn @sub_from_value(arg0: u256) [abi_args=lazy] {
+fn @sub_from_value(arg0: u256) [abi_args=lazy, abi_params=[u256], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = sub v0, arg0
     v2 = lt v0, arg0
     jumpi v2, bb1, bb2
   bb1:
-    tail_call @__panic_11
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
     stop
 }
 
-fn @mul_value(arg0: u256) [abi_args=lazy] {
+fn @mul_value(arg0: u256) [abi_args=lazy, abi_params=[u256], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = mul v0, arg0
@@ -50,33 +47,39 @@ fn @mul_value(arg0: u256) [abi_args=lazy] {
     v6 = iszero v5
     jumpi v6, bb1, bb2
   bb1:
-    tail_call @__panic_11
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
     stop
 }
 
-fn @bump_post() -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @bump_post() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
   bb1:
-    tail_call @__panic_11
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @bump_pre() -> u256 [abi_args=lazy, abi_returns=[word]] {
+fn @bump_pre() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
   bb1:
-    tail_call @__panic_11
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
     ret v1

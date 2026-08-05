@@ -16,11 +16,18 @@ fn @duration() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
     ret v0
 }
 
-fn @_anonymous(arg0: u256) {
+fn @_anonymous(arg0: u256) [abi_args=lazy, abi_params=[u256]] {
   bb0:
     storeimmutable start, arg0
     v0 = loadimmutable start
     v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
     storeimmutable duration, v1
     stop
 }
@@ -30,6 +37,13 @@ fn @end() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
     v0 = loadimmutable start
     v1 = loadimmutable duration
     v2 = add v0, v1
+    v3 = lt v2, v0
+    jumpi v3, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
     ret v2
 }
 

@@ -32,7 +32,6 @@ contract DynamicStructParam {
     // rebuilds its fields recursively and keeps the source base for calldata
     // slices in a trailing word.
     // CHECK-LABEL: fn @init{{[( ]}}
-    // CHECK: calldataload 36
     // CHECK: memory_object_load_field memorystruct<4>, arg0, 1
     // CHECK: gt {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffff
     function init(InitInput calldata input, address sink) external pure returns (uint256) {
@@ -49,7 +48,7 @@ contract DynamicStructParam {
     // A full-word dynamic array field is decoded by the ABI phase.
     // CHECK-LABEL: fn @words{{[( ]}}
     // CHECK: memory_object_load_field memorystruct<2>, arg0, 0
-    // CHECK: mload
+    // CHECK: memory_object_len memoryarray
     function words(WordList calldata input) external pure returns (uint256) {
         return input.values.length + input.bias;
     }

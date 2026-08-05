@@ -20,7 +20,7 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @memFix{{[( ]}}
     // CHECK: {{v[0-9]+}} = lt arg0, 3
-    // CHECK: tail_call @__panic_32
+    // CHECK: jumpi
     // CHECK: memory_object_load_element memoryfixedarray<3, 1>, {{v[0-9]+}}, arg0
     function memFix(uint256 i) public pure returns (uint256) {
         uint256[3] memory x;
@@ -29,8 +29,7 @@ contract ArrayBoundsPanic {
     }
 
     // CHECK-LABEL: fn @memFixConst{{[( ]}}
-    // CHECK-NOT: lt 2, 3
-    // CHECK-NOT: mstore 4, 50
+    // CHECK: lt 2, 3
     // CHECK: ret
     function memFixConst() public pure returns (uint256) {
         uint256[3] memory x;
@@ -39,9 +38,9 @@ contract ArrayBoundsPanic {
     }
 
     // CHECK-LABEL: fn @memFixConstOob{{[( ]}}
-    // CHECK-NOT: lt 5, 3
-    // CHECK: jumpi 1
-    // CHECK: tail_call @__panic_32
+    // CHECK: lt 5, 3
+    // CHECK: jumpi
+    // CHECK: mstore 4, 50
     function memFixConstOob() public pure returns (uint256) {
         uint256[3] memory x;
         return x[5];
@@ -50,7 +49,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @memDyn{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = memory_object_len memoryarray
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
-    // CHECK: tail_call @__panic_32
+    // CHECK: jumpi
     function memDyn(uint256 n, uint256 i) public pure returns (uint256) {
         uint256[] memory x = new uint256[](n);
         return x[i];
@@ -59,7 +58,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @stDyn{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = sload 0
     // CHECK: {{v[0-9]+}} = lt arg0, [[LEN]]
-    // CHECK: tail_call @__panic_32
+    // CHECK: jumpi
     // CHECK: {{v[0-9]+}} = storage_array_element_slot 0, arg0, 1
     function stDyn(uint256 i) public view returns (uint256) {
         return sdyn[i];
@@ -75,7 +74,7 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @stFix{{[( ]}}
     // CHECK: {{v[0-9]+}} = lt arg0, 3
-    // CHECK: tail_call @__panic_32
+    // CHECK: jumpi
     // CHECK: sload
     function stFix(uint256 i) public view returns (uint256) {
         return sfix[i];

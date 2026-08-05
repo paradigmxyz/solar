@@ -43,8 +43,9 @@ contract AbiEncodeBytes {
     }
 
     // CHECK-LABEL: fn @roundtrip{{[( ]}}
-    // CHECK: set_memory_object_len memorybytes
-    // CHECK: {{v[0-9]+}} = mload {{v[0-9]+}}
+    // CHECK: abi_encode [word], args arg0
+    // CHECK: memory_object_copy_from_slice memorybytes
+    // CHECK: abi_decode [u256]
     function roundtrip(uint a) external pure returns (uint) {
         return abi.decode(abi.encode(a), (uint));
     }

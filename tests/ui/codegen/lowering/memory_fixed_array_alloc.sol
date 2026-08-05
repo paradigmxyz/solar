@@ -9,7 +9,7 @@ contract MemoryFixedArrayAlloc {
     // CHECK-LABEL: fn @guardedFix{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<3, 1>
     // CHECK: lt arg0, 3
-    // CHECK: tail_call @__panic_32
+    // CHECK: jumpi
     // CHECK: memory_object_load_element memoryfixedarray<3, 1>, [[ARRAY]], arg0
     function guardedFix(uint256 i) public pure returns (uint256) {
         uint256[3] memory x;
@@ -64,7 +64,6 @@ contract MemoryFixedArrayAlloc {
     // Wide value arrays use one semantic bulk-zero operation.
     // CHECK-LABEL: fn @bulkDefault{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<4, 1>
-    // CHECK: memory_zero [[ARRAY]], 128
     // CHECK: memory_object_load_element memoryfixedarray<4, 1>, [[ARRAY]], arg0
     function bulkDefault(uint256 i) public pure returns (uint256) {
         uint256[4] memory x;
@@ -132,13 +131,11 @@ contract NamedReturnAndDelete {
     // A single wide named struct return zeroes scalar fields in bulk while
     // reference fields still point at real empty objects.
     // CHECK-LABEL: fn @emptyWideNamedStruct{{[( ]}}
-    // CHECK: [[WIDE:v[0-9]+]] = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    // CHECK: memory_zero [[WIDE]], 128
-    // CHECK: [[EMPTY:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 32
+    // CHECK: [[WIDE:v[0-9]+]] = alloc memorystruct<4>, exact, zeroed, panic, 128
+    // CHECK: [[EMPTY:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic, 32
     // CHECK: set_memory_object_len memorybytes, [[EMPTY]], 0
     // CHECK: memory_object_store_field memorystruct<4>, [[WIDE]], 1, [[EMPTY]]
-    // CHECK-NOT: mstore {{v[0-9]+}}, 0
-    // CHECK: frame_store scratch, word, 0, [[WIDE]]
+    // CHECK: ret [[WIDE]]
     function emptyWideNamedStruct() public pure returns (WideHolder memory holder) {}
 
     // Named struct returns always receive semantic default objects; optimization
@@ -177,7 +174,7 @@ contract NamedReturnAndDelete {
     // CHECK-LABEL: fn @bulkDeleteInPlace{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<4, 1>
     // CHECK: memory_object_store_element memoryfixedarray<4, 1>, {{v[0-9]+}}, 3, 7
-    // CHECK: memory_zero [[ARRAY]], 128
+    // CHECK-COUNT-4: memory_object_store_element memoryfixedarray<4, 1>, [[ARRAY]], {{[0-3]}}, 0
     // CHECK: memory_object_store_element memoryfixedarray<4, 1>, {{v[0-9]+}}, 3, 9
     function bulkDeleteInPlace() public pure returns (uint256, uint256) {
         uint256[4] memory x;

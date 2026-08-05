@@ -9,7 +9,7 @@ fn @owner() -> address [abi_args=lazy, abi_params=[], abi_returns=[word]] {
     ret v0
 }
 
-fn @_anonymous(arg0: address) {
+fn @_anonymous(arg0: address) [abi_args=lazy, abi_params=[address]] {
   bb0:
     storeimmutable owner, arg0
     stop

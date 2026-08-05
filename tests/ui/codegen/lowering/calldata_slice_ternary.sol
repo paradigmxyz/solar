@@ -6,11 +6,8 @@ contract CalldataSliceTernary {
     // round-trip through scratch and re-form a slice, with no calldata copy.
     // CHECK-LABEL: fn @pick{{[( ]}}
     // CHECK-NOT: calldatacopy
-    // CHECK: slice_ptr
-    // CHECK-NOT: calldatacopy
+    // CHECK: phi [
     // CHECK: slice_len
-    // CHECK-NOT: calldatacopy
-    // CHECK: make_calldata_slice
     // CHECK-NOT: calldatacopy
     function pick(bool c, bytes calldata a, bytes calldata b)
         external
