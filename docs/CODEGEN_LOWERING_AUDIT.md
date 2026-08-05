@@ -285,7 +285,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `modifier_return_postlude.sol` vector checks that a return still runs the
    modifier postlude. `constructor_dynamic_array_forwarding.sol` ports the
    dynamic `address[]` path through a derived constructor, a base constructor,
-   and storage before reading it back.
+   and storage before reading it back. The
+   `constructor_nested_aggregate_forwarding.sol` vector extends this to a
+   nested `struct[]` with dynamic `bytes` fields and checks the copied storage
+   values after construction.
 3. Extend function-pointer ABI coverage to the remaining edge cases. External
    pointers now have runtime coverage for aggregate arguments and returns,
    pointer arguments and pointer returns, including aggregate `try` return
