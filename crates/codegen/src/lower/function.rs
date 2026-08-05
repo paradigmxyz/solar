@@ -3592,11 +3592,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     ) -> Option<(ValueId, Option<ValueId>)> {
         let data = &self.builtin_args::<1>(builtin, &args)?[0];
         let address = self.lower_expr(receiver)?;
-        let data = self.lower_expr(data)?;
-        let data = match self.builder.func().value_ty(data) {
-            Some(MirType::Slice(_)) => self.materialize_memory_slice(data),
-            _ => data,
-        };
+        let data_span = data.span;
+        let data_ty = self.gcx.type_of_expr(data.id)?;
+        let memory_ty = data_ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+        let data = self.lower_typed_expr(data, memory_ty)?;
+        let data = self.materialize_memory_argument(memory_ty, data, data_span)?;
         let input = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
         let input_size = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
         let zero = self.builder.imm_u256(U256::ZERO);

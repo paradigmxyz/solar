@@ -59,6 +59,12 @@ contract Hashing {
         return abi.decode(storedMap[key], (uint256));
     }
 
+    function forwardStored(uint256 key) external view returns (bytes memory) {
+        (bool ok, bytes memory result) = address(this).staticcall(storedMap[key]);
+        require(ok);
+        return result;
+    }
+
     function hashStoredSha256() external view returns (bytes32) {
         return sha256(stored);
     }
@@ -67,4 +73,10 @@ contract Hashing {
         return ripemd160(stored);
     }
 
+    fallback() external {
+        assembly {
+            calldatacopy(0, 0, calldatasize())
+            return(0, calldatasize())
+        }
+    }
 }

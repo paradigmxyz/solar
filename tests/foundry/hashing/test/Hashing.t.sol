@@ -102,5 +102,6 @@ contract HashingTest {
         require(h.decodeStoredUint() == 42, "stored decode mismatch");
         h.setStoredMap(7, encoded);
         require(h.decodeStoredMap(7) == 42, "mapped decode mismatch");
+        require(keccak256(h.forwardStored(7)) == keccak256(encoded), "forward mismatch");
     }
 }
