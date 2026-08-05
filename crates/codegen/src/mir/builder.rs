@@ -2,8 +2,8 @@
 
 use super::{
     AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionId, Immediate,
-    ImmutableId, InstId, InstKind, Instruction, MemoryRegion, MirType, SliceLocation, StorageAlias,
-    Terminator, Value, ValueId,
+    ImmutableId, InstId, InstKind, Instruction, MemoryObjectLayout, MemoryRegion, MirType,
+    SliceLocation, StorageAlias, Terminator, Value, ValueId,
 };
 use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
@@ -381,6 +381,18 @@ impl<'a> FunctionBuilder<'a> {
         semantics: AllocationSemantics,
     ) -> ValueId {
         self.alloc_kind(size, crate::mir::AllocationKind::Object(layout), semantics)
+    }
+
+    /// Allocates a fixed array whose elements each occupy one memory word.
+    pub(crate) fn alloc_word_array(
+        &mut self,
+        len: u64,
+        semantics: AllocationSemantics,
+    ) -> (ValueId, MemoryObjectLayout) {
+        let size = self.imm_u64(len.saturating_mul(EvmMemoryLayout::WORD_SIZE));
+        let layout = MemoryObjectLayout::word_fixed_array(len);
+        let object = self.alloc_object(size, layout, semantics);
+        (object, layout)
     }
 
     /// Reads the logical length of a dynamic memory object.

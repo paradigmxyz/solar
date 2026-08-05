@@ -39,8 +39,7 @@ use crate::{
     mir::{
         AbiParamLayout, AbiParamType, AllocationSemantics, ArgIdx, BlockId, FrameMode,
         FrameSlotKind, Function, FunctionBuilder, FunctionId, InstKind, MangledSymbol,
-        MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, SliceLocation, Terminator,
-        ValueId,
+        MemoryObjectKind, MirPhase, MirType, Module, SliceLocation, Terminator, ValueId,
     },
     pass::MirPass,
 };
@@ -530,14 +529,8 @@ impl LowerAbiCx {
 
                     if values.len() > 1 {
                         let words = values.len() as u64;
-                        let size = builder.imm_u64(words.saturating_mul(32));
-                        let object_layout =
-                            MemoryObjectLayout::FixedArray { len: words, element_words: 1 };
-                        let object = builder.alloc_object(
-                            size,
-                            object_layout,
-                            AllocationSemantics::INTERNAL,
-                        );
+                        let (object, object_layout) =
+                            builder.alloc_word_array(words, AllocationSemantics::INTERNAL);
                         let base = builder.memory_object_data(object, MemoryObjectKind::FixedArray);
                         builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, base);
                         for (index, value) in values.iter().copied().enumerate().skip(1) {

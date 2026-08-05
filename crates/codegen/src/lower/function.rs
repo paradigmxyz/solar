@@ -2026,9 +2026,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         debug_assert!(words > 1);
         // The published pointer has no capacity, so each producer gets a fresh object.
         let words = u64::try_from(words).unwrap_or(u64::MAX);
-        let size = self.builder.imm_u64(words.saturating_mul(32));
-        let layout = MemoryObjectLayout::FixedArray { len: words, element_words: 1 };
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        let (object, layout) = self.builder.alloc_word_array(words, AllocationSemantics::INTERNAL);
         let base = self.builder.memory_object_data(object, MemoryObjectKind::FixedArray);
         self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, base);
         (object, base, layout)
