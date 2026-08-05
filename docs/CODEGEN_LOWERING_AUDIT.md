@@ -193,8 +193,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   and overflow/range rejection;
 * `ecrecover`, `sha256`, and `ripemd160` through version-aware precompile
   calls and semantic memory objects;
-* ERC-7201 namespace hashing for literal and memory-string arguments through
-  semantic bytes objects, with Solc-backed runtime checks;
+* ERC-7201 namespace hashing for literal, memory, calldata, and storage-string
+  arguments through semantic bytes objects, with Solc-backed runtime checks;
 * `string.concat` and `bytes.concat` through one variadic packed-memory path,
   including empty, literal, dynamic, fixed-bytes, and storage-backed pieces;
 * lazy, deduplicated ABI cleanup helpers and outlined revert helpers.
@@ -256,9 +256,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
 5. Keep expanding runtime and differential coverage for aggregate allocation
    shapes and constructor/modifier edges. The UI snapshots are now in sync
    with the rewrite, and the full `cargo tq ui` suite passes. ERC-7201
-   calldata- and storage-string arguments still fail closed because the current
-   backend cannot consume those location-aware slices; literal and memory
-   arguments are covered by the run-call fixture.
+   literal, memory, calldata, and empty-storage arguments now have runtime
+   vectors; the remaining work is broader aggregate and constructor coverage.
 
 The current intentional boundary is dynamic-element calldata array slicing.
 Solidity rejects range access for arrays with dynamically encoded base types,
