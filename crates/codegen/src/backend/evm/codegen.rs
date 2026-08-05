@@ -742,8 +742,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Reports MIR constructs the backend cannot emit yet.
     ///
-    /// This includes argument-taking fallbacks and logical slices whose
-    /// aggregate use slice lowering could not fold.
+    /// This includes fallback shapes that ABI lowering did not recognize and
+    /// logical slices whose aggregate use slice lowering could not fold.
     ///
     /// Only live instructions — those still in a block — are checked, since the
     /// instruction arena retains folded-away slices the backend never emits.

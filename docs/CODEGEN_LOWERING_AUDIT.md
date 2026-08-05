@@ -118,6 +118,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * calldata slice parameters and `.offset`/`.length` access and assignment in
   both ordinary Solidity expressions and inline assembly, including indexed
   bytes and array slices and internal slice returns;
+* `fallback(bytes calldata) returns (bytes memory)` through an explicit
+  argument-free wrapper, full-calldata slice, and raw returndata body;
 * constructor and fallback/function attributes needed by the backend;
 * inherited public and internal function discovery with selector de-duplication;
 * reachable internal library calls, including `using for` receiver binding;

@@ -110,8 +110,8 @@ impl LowerDispatchCx {
         }
         routes.sort_by_key(|(selector, _)| *selector);
 
-        // A fallback with the `fallback(bytes) returns (bytes)` shape takes an
-        // argument this switch cannot supply; bail all-or-nothing rather than half-routing.
+        // Any fallback that still takes parameters was outside the ABI pass's
+        // supported wrapper shapes; bail rather than routing it incorrectly.
         for id in [receive, fallback].into_iter().flatten() {
             if !module.function(id).params.is_empty() {
                 return false;

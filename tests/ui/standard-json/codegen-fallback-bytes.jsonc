@@ -1,9 +1,8 @@
 //@ compile-flags: -Zcodegen
 //@ filecheck:
-// CHECK: "errors": [
-// CHECK: "severity": "error"
-// CHECK: "message": "codegen does not support `fallback(bytes) returns (bytes)` yet"
-// CHECK-NOT: "contracts"
+// CHECK-NOT: "errors"
+// CHECK: "contracts": {
+// CHECK: "Fallback.sol"
 {
   "language": "Solidity",
   "sources": {

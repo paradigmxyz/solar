@@ -26,6 +26,10 @@
 //! and does not advance, so an `abi`-phase module always means every external
 //! function is a complete wrapper.
 //!
+//! The `fallback(bytes calldata) returns (bytes memory)` form is a separate
+//! raw-data boundary: it gets an argument-free dispatch wrapper and an
+//! internal body that terminates with unencoded returndata.
+//!
 //! Together with [`super::lower_dispatch::LowerDispatch`], which routes a selector switch
 //! to these argument-free wrappers, this materializes the ABI boundary before
 //! EVM codegen. Both passes must complete before the backend runs.
@@ -41,7 +45,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
-use solar_interface::{Span, Symbol, kw};
+use solar_interface::{Ident, Span, Symbol, kw};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum AbiWordValidator {
@@ -242,6 +246,7 @@ impl LowerAbiCx {
         let mut targets = Vec::new();
         let mut constructors = Vec::new();
         let mut wrapped_constructors = Vec::new();
+        let mut bytes_fallback = None;
         let mut has_decodes = false;
         let mut internally_called = DenseBitSet::new_empty(module.functions.len());
         let mut callvalue = super::utils::DispatchCallvalue::default();
@@ -260,6 +265,12 @@ impl LowerAbiCx {
                     return false;
                 }
             }
+            if func.attributes.is_fallback && is_bytes_fallback(func) {
+                if !can_lower_bytes_fallback_returns(func) {
+                    return false;
+                }
+                bytes_fallback = Some(id);
+            }
             for inst_id in func.instructions() {
                 has_decodes |= matches!(func.inst(inst_id).kind, InstKind::AbiDecode { .. });
                 if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
@@ -275,10 +286,12 @@ impl LowerAbiCx {
         if self.stats.skipped_returns != 0 {
             return false;
         }
+
         if targets.is_empty()
             && constructors.is_empty()
             && wrapped_constructors.is_empty()
             && !has_decodes
+            && bytes_fallback.is_none()
         {
             let has_selectorless_entry = module.functions.iter().any(|func| {
                 is_constructor(func) || func.attributes.is_receive || func.attributes.is_fallback
@@ -328,6 +341,16 @@ impl LowerAbiCx {
         }
 
         if has_decodes && !self.lower_decode_instructions(module) {
+            return false;
+        }
+
+        // A bytes fallback receives the complete calldata blob and returns raw
+        // bytes, rather than an ABI tuple. Keep that boundary explicit: the
+        // external fallback becomes an argument-free dispatcher target, while
+        // its extracted body terminates with the raw returndata operation.
+        if let Some(id) = bytes_fallback
+            && !self.wrap_bytes_fallback(module, id)
+        {
             return false;
         }
 
@@ -701,6 +724,68 @@ impl LowerAbiCx {
         wrapper.abi_params = None;
         wrapper.abi_args_lazy = false;
         body_id
+    }
+
+    /// Rewrites `fallback(bytes calldata) returns (bytes memory)` into an
+    /// argument-free wrapper and an internal body that returns the raw bytes.
+    ///
+    /// Fallback input is the complete calldata, including any selector-like
+    /// prefix. Its return value is not ABI encoded: the body therefore uses a
+    /// `return_data` terminator, and the wrapper's resultless call is reshaped
+    /// into a tail call after slice lowering.
+    fn wrap_bytes_fallback(&mut self, module: &mut Module, fallback_id: FunctionId) -> bool {
+        let original = module.function(fallback_id).clone();
+        let mut body = original.clone();
+        body.name = MangledSymbol::new(Symbol::intern(&format!("{}.body", body.name.symbol)));
+        body.name_span = Span::DUMMY;
+        body.selector = None;
+        body.abi_returns = None;
+        body.abi_params = None;
+        body.abi_args_lazy = false;
+        body.attributes.visibility = solar_sema::hir::Visibility::Internal;
+        body.attributes.is_fallback = false;
+        body.attributes.is_receive = false;
+        if !Self::lower_bytes_fallback_returns(&mut body) {
+            return false;
+        }
+        let body_id = module.add_function(body);
+
+        let mut wrapper = Function::new(Ident::with_dummy_span(original.name.symbol));
+        wrapper.name = original.name;
+        wrapper.name_span = original.name_span;
+        wrapper.attributes = original.attributes;
+        {
+            let mut builder = FunctionBuilder::new(&mut wrapper);
+            let zero = builder.imm_u64(0);
+            let length = builder.calldatasize();
+            let input = builder.make_slice(zero, length, SliceLocation::Calldata);
+            builder.internal_call_void(body_id, vec![input], 0);
+            builder.invalid();
+        }
+        *module.function_mut(fallback_id) = wrapper;
+        true
+    }
+
+    /// Rewrites every value-carrying fallback return into raw returndata.
+    fn lower_bytes_fallback_returns(func: &mut Function) -> bool {
+        let blocks: Vec<_> = func.blocks.indices().collect();
+        for block in blocks {
+            let Some(Terminator::Return { values }) = func.blocks[block].terminator.clone() else {
+                continue;
+            };
+            let Some(&value) = values.first() else { return false };
+            if values.len() != 1
+                || func.value_ty(value) != Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+            {
+                return false;
+            }
+            let mut builder = FunctionBuilder::new(func);
+            builder.switch_to_block(block);
+            let offset = builder.memory_object_data(value, MemoryObjectKind::Bytes);
+            let size = builder.memory_object_len(value, MemoryObjectKind::Bytes);
+            builder.ret_data(offset, size);
+        }
+        true
     }
 
     /// Materializes deferred ABI arguments and their validation checks.
@@ -1746,10 +1831,27 @@ fn collect_validators(ty: &AbiParamType, validators: &mut Vec<AbiWordValidator>)
     }
 }
 
-/// An external entry with a body and a selector — the shape a wrapper is built
-/// for. Receive/fallback entries have no selector and need no ABI wrapper.
+/// An external entry with a body and a selector — the shape a regular wrapper
+/// is built for. Receive/fallback entries have no selector; bytes fallbacks use
+/// the separate raw-data wrapper above.
 fn is_wrappable_external(func: &Function) -> bool {
     func.selector.is_some() && !func.attributes.is_constructor
+}
+
+/// Whether a fallback uses Solidity's raw bytes input/output ABI.
+fn is_bytes_fallback(func: &Function) -> bool {
+    func.params.len() == 1
+        && matches!(func.params[ArgIdx::new(0)], MirType::Slice(SliceLocation::Calldata))
+        && matches!(func.returns.as_slice(), [MirType::MemoryObject(MemoryObjectKind::Bytes)])
+}
+
+/// Whether every value-carrying fallback return can use raw bytes returndata.
+fn can_lower_bytes_fallback_returns(func: &Function) -> bool {
+    func.blocks.iter().all(|block| {
+        let Some(Terminator::Return { values }) = &block.terminator else { return true };
+        values.len() == 1
+            && func.value_ty(values[0]) == Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+    })
 }
 
 /// Constructors produced from HIR carry an attribute. Text MIR uses the
