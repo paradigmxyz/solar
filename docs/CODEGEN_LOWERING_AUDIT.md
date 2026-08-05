@@ -185,7 +185,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * low-level and typed external calls, including contract-typed receiver dispatch,
   source-order receiver, low-level call-option, and argument evaluation, explicit
   `gas`/`value` options, contract-address conversions, returndata capture, and
-  EVM-version checks;
+  EVM-version checks, including modern-EVM returndata length and scalar
+  canonicality validation;
 * positional and named struct constructors with declaration-order field layout;
 * one-time l-value resolution for compound assignments and increments, plus
   argument-before-length evaluation for storage-array and storage-bytes pushes;

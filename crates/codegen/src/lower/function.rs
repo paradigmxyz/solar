@@ -2899,7 +2899,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             self.types
                 .abi_return_type(self.gcx.type_of_item(ret.into()))
                 .is_some_and(|ty| !matches!(ty, AbiType::Word))
-        });
+        }) || self.gcx.sess.opts.evm_version.supports_returndata();
         let ret_offset = if !decode_returndata && returns > 1 { input } else { zero };
         let ret_size = if decode_returndata {
             zero
