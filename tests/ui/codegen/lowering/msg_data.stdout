@@ -68,16 +68,17 @@ fn @environment() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
     v13 = xor v11, v12
     v14 = blobbasefee
     v15 = xor v13, v14
-    v16 = calldataload 0
-    v17 = shr 224, v16
-    v18 = xor v15, v17
-    v19 = origin
-    v20 = xor v18, v19
-    v21 = gasprice
-    v22 = xor v20, v21
-    v23 = gas
-    v24 = xor v22, v23
-    ret v24
+    v16 = make_calldata_slice 0, 32
+    v17 = calldata_slice_load_word calldata, v16, 0
+    v18 = shr 224, v17
+    v19 = xor v15, v18
+    v20 = origin
+    v21 = xor v19, v20
+    v22 = gasprice
+    v23 = xor v21, v22
+    v24 = gas
+    v25 = xor v23, v24
+    ret v25
 }
 
 fn @tail(arg0: u256, arg1: u256) -> memorybytes [abi_args=lazy, abi_params=[u256, u256], abi_returns=[memory_bytes]] {

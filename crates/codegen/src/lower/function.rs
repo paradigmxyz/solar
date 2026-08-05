@@ -6174,7 +6174,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             Builtin::MsgValue => self.builder.callvalue(),
             Builtin::MsgSig => {
                 let offset = self.builder.imm_u64(0);
-                let word = self.builder.calldataload(offset);
+                let word = self.calldata_load_word(offset);
                 let shift = self.builder.imm_u64(224);
                 self.builder.shr(shift, word)
             }
