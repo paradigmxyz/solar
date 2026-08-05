@@ -4042,7 +4042,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             decoded_types.push(ty.with_loc_if_ref(self.gcx, DataLocation::Memory));
         }
 
-        let data = self.lower_expr(&args[0])?;
+        let data_expr = &args[0];
+        let data_ty = self.gcx.type_of_expr(data_expr.id)?;
+        let memory_ty = data_ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+        let data = self.lower_typed_expr(data_expr, memory_ty)?;
+        let data = self.materialize_memory_argument(memory_ty, data, data_expr.span)?;
         let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?;
         Some(self.builder.abi_decode(layout, data))
     }

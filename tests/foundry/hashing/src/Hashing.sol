@@ -46,6 +46,10 @@ contract Hashing {
         return keccak256(bytes.concat(stored, suffix));
     }
 
+    function decodeStoredUint() external view returns (uint256) {
+        return abi.decode(stored, (uint256));
+    }
+
     function hashStoredSha256() external view returns (bytes32) {
         return sha256(stored);
     }

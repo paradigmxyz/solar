@@ -96,5 +96,9 @@ contract HashingTest {
         require(h.hashStoredRipemd160() == ripemd160(longData), "long ripemd160 mismatch");
         assert(h.hashSha256(longData) == sha256(longData));
         assert(h.hashRipemd160(longData) == ripemd160(longData));
+
+        bytes memory encoded = abi.encode(uint256(42));
+        h.setStored(encoded);
+        require(h.decodeStoredUint() == 42, "stored decode mismatch");
     }
 }
