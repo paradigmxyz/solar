@@ -6,7 +6,7 @@ use crate::backend::evm::{
     ir::{self, BlockId},
     op,
 };
-use solar_data_structures::bit_set::DenseBitSet;
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
 impl Assembler<'_> {
     #[tracing::instrument(
@@ -45,11 +45,41 @@ pub(in crate::backend::evm) fn lower_evm_ir(
     module: &mut ir::Module,
     labels: &mut Vec<Option<Label>>,
 ) -> Program {
-    let indexed_jump_lowerings = indexed_jump::materialize_tables(
+    let (mut indexed_jump_lowerings, mut tables) = indexed_jump::materialize_tables_with_metadata(
         module,
         assembler.gcx.sess.opts.evm_version,
         assembler.gcx.sess.opts.optimization.is_size(),
     );
+    indexed_jump::initialize_indexed_jump_widths(
+        &mut indexed_jump_lowerings,
+        &tables,
+        assembler.gcx.sess.opts.evm_version,
+        assembler.gcx.sess.opts.optimization.is_size(),
+    );
+    for _ in 0..=32 {
+        let program = lower_evm_ir_once(assembler, module, labels, &indexed_jump_lowerings);
+        let (label_offsets, _) = assembler.resolve_label_offsets(&program);
+        if !indexed_jump::refine_indexed_jump_widths(
+            module,
+            &mut tables,
+            &mut indexed_jump_lowerings,
+            labels,
+            &label_offsets,
+            assembler.gcx.sess.opts.evm_version,
+            assembler.gcx.sess.opts.optimization.is_size(),
+        ) {
+            return program;
+        }
+    }
+    panic!("indexed jump widths did not reach a fixed point")
+}
+
+fn lower_evm_ir_once(
+    assembler: &mut Assembler<'_>,
+    module: &mut ir::Module,
+    labels: &mut Vec<Option<Label>>,
+    indexed_jump_lowerings: &IndexVec<BlockId, indexed_jump::IndexedJumpLowering>,
+) -> Program {
     allocate_referenced_labels(assembler, module, labels);
 
     let mut program = Program::default();
@@ -146,7 +176,7 @@ fn lower_terminator(
 ) {
     match kind {
         ir::TerminatorKind::Jump(target) => {
-            if let Some(table_target_width) = indexed_jump.entry_width {
+            if let Some(table_target_width) = indexed_jump.outlined_entry_width {
                 let label = label_for_block(assembler, module, *target, labels);
                 program.push(AsmInst::push_label_fixed(label, table_target_width));
                 program.push_op(op::JUMP);

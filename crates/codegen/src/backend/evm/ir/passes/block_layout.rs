@@ -15,11 +15,10 @@ use super::{
 use crate::backend::evm::{
     ir::{
         Block, BlockId, Instruction, Module, PushValue, TerminatorKind,
-        assembly::estimated_indexed_jump_terminator_size,
+        assembly::{estimated_indexed_jump_terminator_size, indexed_jump_target_width_bound},
     },
     op, push_len,
 };
-use solar_config::EvmVersion;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
 
@@ -260,10 +259,12 @@ fn estimated_terminator_size(gcx: Gcx<'_>, kind: &TerminatorKind, next: Option<B
             }
         }
         TerminatorKind::IndexedJump(targets) => {
-            let target_width = if gcx.sess.opts.evm_version < EvmVersion::Shanghai { 3 } else { 2 };
+            // This pass does not know whether the module is runtime or initcode,
+            // so use the larger bound. Final assembly resolves the exact width.
+            let target_width = indexed_jump_target_width_bound(gcx.sess.opts.evm_version, true);
             estimated_indexed_jump_terminator_size(
                 targets.len(),
-                target_width,
+                target_width as u8,
                 gcx.sess.opts.evm_version,
                 gcx.sess.opts.optimization.is_size(),
             )
@@ -311,7 +312,7 @@ fn is_cold_terminal_block(block: &Block) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solar_config::{CompileOpts, OptimizationMode};
+    use solar_config::{CompileOpts, EvmVersion, OptimizationMode};
     use solar_interface::Session;
     use solar_sema::Compiler;
 

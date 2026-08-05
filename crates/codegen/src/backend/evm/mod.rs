@@ -34,8 +34,6 @@ pub(crate) mod assembler;
 
 pub(crate) mod stack;
 
-mod switch;
-
 /// Generates bytecode from finalized EVM IR through the backend pipeline.
 pub fn generate_evm_ir_bytecode(
     gcx: solar_sema::Gcx<'_>,

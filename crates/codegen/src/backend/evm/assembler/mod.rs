@@ -60,6 +60,16 @@ pub(crate) struct AssembledCode {
     pub evm_ir: Option<ir::Module>,
 }
 
+/// The bytecode artifact currently being assembled.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum ArtifactKind {
+    /// Deployed runtime bytecode.
+    #[default]
+    Runtime,
+    /// Creation bytecode that runs during deployment.
+    Constructor,
+}
+
 /// Final EVM IR lowered to reusable primitive assembly.
 #[derive(Clone, Debug, Default)]
 pub(in crate::backend::evm) struct PreparedAssembly {
@@ -75,6 +85,8 @@ pub(in crate::backend::evm) struct PreparedAssembly {
 #[derive(Debug)]
 pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend::evm) gcx: Gcx<'gcx>,
+    /// Artifact whose labels are being laid out.
+    pub(in crate::backend::evm) artifact_kind: ArtifactKind,
     /// EVM IR emitted directly by MIR lowering.
     pub(in crate::backend::evm) program: ir::Module,
     /// Whether `program` already has explicit EVM IR terminators.
@@ -125,6 +137,7 @@ impl<'gcx> Assembler<'gcx> {
     pub(crate) fn new(gcx: Gcx<'gcx>) -> Self {
         Self {
             gcx,
+            artifact_kind: ArtifactKind::Runtime,
             program: Self::new_ir_module(),
             program_is_finalized: false,
             current_block: None,
@@ -164,6 +177,19 @@ impl<'gcx> Assembler<'gcx> {
         self.alloc_relocations.clear();
         self.next_deferred_alloc.clear();
         self.deferred_allocations.clear();
+    }
+
+    /// Sets the artifact context used by conservative layout estimates.
+    pub(crate) fn set_artifact_kind(&mut self, kind: ArtifactKind) {
+        self.artifact_kind = kind;
+    }
+
+    /// Returns the conservative indexed-jump target width for this artifact.
+    pub(crate) fn indexed_jump_target_width_bound(&self) -> usize {
+        assembly::indexed_jump_target_width_bound(
+            self.gcx.sess.opts.evm_version,
+            self.artifact_kind == ArtifactKind::Constructor,
+        )
     }
 
     pub(in crate::backend::evm) fn push_inst(&mut self, value: U256) -> AsmInst {
@@ -262,11 +288,22 @@ impl<'gcx> Assembler<'gcx> {
             return result;
         }
 
+        let (label_offsets, push_widths) = self.resolve_label_offsets(&program);
+        let mut result = self.emit_bytecode(&program, label_offsets, &push_widths);
+        result.evm_ir = evm_ir;
+        result
+    }
+
+    /// Resolves all ordinary label pushes against the complete assembly
+    /// program. Indexed-jump table entries are fixed-width instructions by the
+    /// time this runs; their widths are refined by EVM-IR lowering first.
+    pub(in crate::backend::evm) fn resolve_label_offsets(
+        &self,
+        program: &AssemblyProgram,
+    ) -> (FxHashMap<Label, usize>, FxHashMap<usize, u8>) {
         // Start from the narrowest possible label pushes. Widening pushes can
         // only increase later label offsets, so required widths grow
-        // monotonically to the least fixed point. Starting wide and shrinking
-        // can instead settle on a larger valid encoding at a byte-width
-        // boundary.
+        // monotonically to the least fixed point.
         let mut push_widths: FxHashMap<usize, u8> = FxHashMap::default();
         for (idx, inst) in program.instructions.iter().enumerate() {
             if matches!(inst.kind(), AsmInstKind::PushLabel(_)) {
@@ -275,11 +312,9 @@ impl<'gcx> Assembler<'gcx> {
         }
 
         loop {
-            let (label_offsets, new_widths) = self.compute_offsets(&program, &push_widths);
+            let (label_offsets, new_widths) = self.compute_offsets(program, &push_widths);
             if new_widths == push_widths {
-                let mut result = self.emit_bytecode(&program, label_offsets, &push_widths);
-                result.evm_ir = evm_ir;
-                return result;
+                return (label_offsets, push_widths);
             }
 
             debug_assert!(new_widths.iter().all(|(idx, width)| {
@@ -324,8 +359,14 @@ impl<'gcx> Assembler<'gcx> {
                     let width = usize::from(labels.label_width) * labels.labels.len();
                     offset += out.fixed_push_len(width as u8);
                 }
-                AsmInstKind::PushDeferred(_) => {
-                    unreachable!("deferred values must be resolved before assembly");
+                AsmInstKind::PushDeferred(id) => {
+                    // Deployment offsets may not be known until the prepared
+                    // program is assembled. Reserve the maximum push for
+                    // unknown values, while using known values exactly.
+                    offset += self
+                        .deferred_values
+                        .get(&id)
+                        .map_or(33, |&value| out.encoded_push_len(value));
                 }
                 AsmInstKind::PushImmutable(id) => {
                     offset += 1 + usize::from(self.immutable_push(id).type_size.bytes());
