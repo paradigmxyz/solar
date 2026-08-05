@@ -106,7 +106,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * storage-reference branch and loop merges that preserve slot and packed-offset
   state across differing exits;
 * storage aggregate references copied through memory returns and internal or
-  external calls, including fixed storage arrays of structs;
+  external calls, including fixed and dynamic storage arrays of words, bytes,
+  and structs;
 * constructor-assigned immutable declarations and reads, including inherited
   immutables, typed deployment patching, and narrow immutable widths;
 * split Solidity and Yul builtin lowering with shared positional-argument,
@@ -235,8 +236,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    overflow cases now have exact `Panic(0x41)` run-call checks, as do nested
    dynamic arrays and arrays of dynamic structs. Extend this coverage to the
    remaining aggregate allocation shapes against Solc; dynamic and fixed
-   memory arrays of nested structs now have independent run-call coverage, and
-   storage copies of nested fixed arrays have an ABI-encoding fixture.
+   memory arrays of nested structs now have independent run-call coverage,
+   dynamic storage arrays of words, bytes, and static structs now have typed
+   external-call coverage, and storage copies of nested fixed arrays have an
+   ABI-encoding fixture.
 5. Keep expanding runtime and differential coverage for aggregate allocation
    shapes and constructor/modifier edges. The UI snapshots are now in sync
    with the rewrite, and the full `cargo tq ui` suite passes.
