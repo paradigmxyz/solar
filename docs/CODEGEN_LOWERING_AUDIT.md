@@ -171,8 +171,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * dynamic and fixed memory arrays of structs with nested bytes and dynamic
   arrays, including lazy zero-initialization of aggregate elements from `new`
   allocations and their nested dynamic objects;
-* `abi.encodeCall` arguments typed from the resolved callee, including dynamic
-  structs and string literals;
+* `abi.encodeCall` arguments typed from the resolved callee with scalar
+  coercions, including dynamic structs, string literals, and fixed bytes;
 * string literals coerced to fixed-bytes values in comparisons and byte-array
   element stores, with canonical alignment at each boundary;
 * Solc-compatible dynamic ABI offset bounds, including valid zero offsets

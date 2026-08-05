@@ -3954,7 +3954,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let mut types = Vec::with_capacity(exprs.len());
         for (index, expr) in exprs.into_iter().enumerate() {
             let ty = self.gcx.type_of_item(callee.parameters[index].into());
+            let from_ty = self.gcx.type_of_expr(expr.id)?;
             let mut value = self.lower_expr(expr)?;
+            value = self.coerce_value(value, from_ty, ty);
             let mut abi_type = self.types.abi_type(ty)?;
             abi_type = self.abi_type_for_value(value, abi_type);
             if self.needs_calldata_materialization(value, &abi_type) {
