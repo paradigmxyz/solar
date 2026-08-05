@@ -1134,7 +1134,7 @@ impl AliasAnalysis {
                     effects.write_any(AddressSpace::Transient);
                 }
             }
-            InstKind::InternalCall { function, .. } => {
+            InstKind::InternalCall { function, returns, .. } => {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
@@ -1160,6 +1160,17 @@ impl AliasAnalysis {
                     effects.write_any(AddressSpace::Transient);
                     effects.read_any(AddressSpace::Immutable);
                     effects.write_any(AddressSpace::Immutable);
+                }
+
+                // Additional returns are copied into a fresh buffer and its
+                // pointer is published through the reserved scratch word.
+                // The backend performs that store after the MIR call, so
+                // model it here even when the callee itself is memory-pure.
+                if returns > 1 {
+                    effects.write(Access::Location(Location::Memory(MemoryLocation::new(
+                        MemoryAddress::absolute(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT),
+                        LocationSize::Const(EvmMemoryLayout::WORD_SIZE),
+                    ))));
                 }
             }
             InstKind::Create(_, offset, size) | InstKind::Create2(_, offset, size, _) => {
