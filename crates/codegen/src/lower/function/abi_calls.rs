@@ -27,6 +27,21 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
     }
 
+    pub(super) fn needs_validated_calldata_materialization(
+        &self,
+        value: ValueId,
+        abi_type: &AbiType,
+        ty: Ty<'gcx>,
+    ) -> bool {
+        self.needs_calldata_materialization(value, abi_type)
+            || self.needs_calldata_aggregate_validation(value, ty)
+    }
+
+    pub(super) fn needs_calldata_aggregate_validation(&self, value: ValueId, ty: Ty<'gcx>) -> bool {
+        matches!(self.builder.func().value_ty(value), Some(MirType::Slice(SliceLocation::Calldata)))
+            && self.calldata_aggregate_requires_validation(ty)
+    }
+
     pub(super) fn calldata_aggregate_requires_validation(&self, ty: Ty<'gcx>) -> bool {
         let ty = ty.peel_refs();
         match ty.kind {
@@ -105,7 +120,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let mut value = self.lower_typed_expr(argument, parameter_ty)?;
         let mut abi_type = self.types.abi_type(parameter_ty)?;
         abi_type = self.abi_type_for_value(value, abi_type);
-        if self.needs_calldata_materialization(value, &abi_type) {
+        if self.needs_validated_calldata_materialization(value, &abi_type, parameter_ty) {
             value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
             abi_type = Self::memory_abi_type(abi_type);
         }

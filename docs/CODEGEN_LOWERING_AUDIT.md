@@ -299,6 +299,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    through contract creation and called from the child constructor.
    `abi_packed_function_pointer_array.sol` covers canonical pointer cleanup when
    an external function array is re-encoded with `abi.encodePacked`.
+   `abi_forward_function_pointer_array.sol` covers cleanup and validation when a
+   lazy calldata pointer array crosses an external-call boundary.
    The Unifap creation fixture now passes the differential Foundry
    suite; the companion fixture compiles with no Solar-only regressions, but
    retains seven pre-existing failures under both compilers because its
