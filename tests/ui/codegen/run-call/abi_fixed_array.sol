@@ -26,8 +26,11 @@
 //@ run-call: ConstructorAbiDynamicWords::result(); constructor=[[1, 2, 3]] => 2
 //@ run-call: ConstructorAbiBytes::result(); constructor=[0x010203] => 3
 //@ run-call: ConstructorAbiStruct::result(); constructor=[(7, 0x010203)] => 10
+//@ run-call: fixedArrayLengthSideEffect() => 2, 1
 
 contract AbiFixedArray {
+    uint256 private fixedArrayLengthCalls;
+
     struct Pair {
         uint8 first;
         uint8 second;
@@ -69,6 +72,14 @@ contract AbiFixedArray {
 
     struct NestedBytes {
         bytes[2] values;
+    }
+
+    function makeFixedArray() internal returns (uint256[2] memory values) {
+        fixedArrayLengthCalls += 1;
+    }
+
+    function fixedArrayLengthSideEffect() external returns (uint256, uint256) {
+        return (makeFixedArray().length, fixedArrayLengthCalls);
     }
 
     function read(uint256[3] calldata values, uint256 index) external pure returns (uint256) {

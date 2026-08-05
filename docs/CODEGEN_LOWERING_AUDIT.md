@@ -166,6 +166,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   returns, memory arrays, and multi-return calls;
 * `abi.decode` scalar, tuple, struct, fixed- and dynamic-array, and
   calldata-slice paths through semantic memory slices and object copies;
+* dynamic and fixed memory arrays of structs with nested bytes and dynamic
+  arrays, including zero-initialized aggregate elements from `new` allocations;
 * Solc-compatible dynamic ABI offset bounds, including valid zero offsets
   and overflow/range rejection;
 * `ecrecover`, `sha256`, and `ripemd160` through version-aware precompile
@@ -216,7 +218,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    rebinding, and Yul `.slot`/`.offset` access. Direct dynamic bytes and array
    overflow cases now have exact `Panic(0x41)` run-call checks, as do nested
    dynamic arrays and arrays of dynamic structs. Extend this coverage to the
-   remaining aggregate allocation shapes against Solc.
+   remaining aggregate allocation shapes against Solc; dynamic and fixed
+   memory arrays of nested structs now have independent run-call coverage.
 5. Keep expanding runtime and differential coverage for aggregate allocation
    shapes and constructor/modifier edges. The UI snapshots are now in sync
    with the rewrite, and the full `cargo tq ui` suite passes.
