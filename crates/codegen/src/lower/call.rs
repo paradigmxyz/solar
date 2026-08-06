@@ -2081,7 +2081,7 @@ impl<'gcx> Lowerer<'gcx> {
             && !self.function_is_recursive(func_id)
             && self.try_enter_inline(func_id)
         {
-            let values = self.inline_slice_return_body(builder, func, &body, &arg_vals);
+            let values = self.inline_slice_return_body(builder, func, body, &arg_vals);
             self.exit_inline();
             let Some(first) = values.first().copied() else {
                 return self.err_value(
@@ -2115,8 +2115,8 @@ impl<'gcx> Lowerer<'gcx> {
     fn inline_slice_return_body(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        func: &hir::Function<'_>,
-        body: &hir::Block<'_>,
+        func: &'gcx hir::Function<'gcx>,
+        body: hir::Block<'gcx>,
         arg_vals: &[ValueId],
     ) -> Vec<ValueId> {
         let saved_locals = std::mem::take(&mut self.locals);
@@ -2125,8 +2125,10 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
         let saved_inline_returns = self.inline_returns.take();
         let saved_pending = self.pending_inline_returns.take();
+        let saved_modifier_continuation = self.modifier_continuation.take();
 
-        self.collect_assigned_vars_block(body);
+        self.collect_assigned_vars_block(&body);
+        self.collect_modifier_assigned_vars(func.modifiers);
 
         for &ret_id in func.returns {
             if Self::calldata_dynamic_var_kind(self.gcx.hir.variable(ret_id)).is_some() {
@@ -2152,7 +2154,11 @@ impl<'gcx> Lowerer<'gcx> {
 
         let saved_in_unchecked_block = self.in_unchecked_block;
         self.in_unchecked_block = false;
-        self.lower_block(builder, body);
+        if func.modifiers.iter().any(|modifier| modifier.id.as_function().is_some()) {
+            self.lower_modifier_chain(builder, func.modifiers, body, func.returns);
+        } else {
+            self.lower_block(builder, &body);
+        }
         self.in_unchecked_block = saved_in_unchecked_block;
 
         // Implicit fallthrough joins the explicit returns at the exit block.
@@ -2195,6 +2201,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.slice_slot_locals = saved_slice_slot_locals;
         self.inline_returns = saved_inline_returns;
         self.pending_inline_returns = saved_pending;
+        self.modifier_continuation = saved_modifier_continuation;
 
         values
     }
@@ -2274,10 +2281,12 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
         let saved_inline_returns = self.inline_returns.take();
         let saved_pending = self.pending_inline_returns.take();
+        let saved_modifier_continuation = self.modifier_continuation.take();
 
         if let Some(body) = body {
             self.collect_assigned_vars_block(&body);
         }
+        self.collect_modifier_assigned_vars(func.modifiers);
 
         for (i, &param_id) in parameters.iter().enumerate() {
             if let Some(&arg_val) = arg_vals.get(i) {
@@ -2291,7 +2300,11 @@ impl<'gcx> Lowerer<'gcx> {
                 Some(crate::lower::InlineReturnCtx { exit_block, return_vars: Vec::new() });
             let saved_in_unchecked_block = self.in_unchecked_block;
             self.in_unchecked_block = false;
-            self.lower_block(builder, &body);
+            if func.modifiers.iter().any(|modifier| modifier.id.as_function().is_some()) {
+                self.lower_modifier_chain(builder, func.modifiers, body, func.returns);
+            } else {
+                self.lower_block(builder, &body);
+            }
             self.in_unchecked_block = saved_in_unchecked_block;
             if !builder.func().block(builder.current_block()).is_terminated() {
                 builder.jump(exit_block);
@@ -2309,6 +2322,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.assigned_vars = saved_assigned_vars;
         self.inline_returns = saved_inline_returns;
         self.pending_inline_returns = saved_pending;
+        self.modifier_continuation = saved_modifier_continuation;
         self.exit_inline();
     }
 

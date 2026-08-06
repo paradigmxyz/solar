@@ -82,7 +82,10 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         args: &hir::CallArgs<'_>,
     ) -> bool {
-        if self.current_return_tys.len() != 1 {
+        // An inlined return must jump through its join so modifier suffixes (or
+        // the surrounding inline call) resume before the enclosing function
+        // returns. The normal declaration/return path handles that control flow.
+        if self.inline_returns.is_some() || self.current_return_tys.len() != 1 {
             return false;
         }
         let ty = self.current_return_tys[0];
@@ -160,7 +163,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
 
-            StmtKind::Placeholder => {}
+            StmtKind::Placeholder => self.lower_modifier_placeholder(builder),
 
             StmtKind::UncheckedBlock(block) => self.lower_unchecked_block(builder, block),
 
@@ -882,9 +885,11 @@ impl<'gcx> Lowerer<'gcx> {
         let mut values = Vec::with_capacity(n);
         if let Some(expr) = value {
             if let hir::ExprKind::Tuple(elements) = &expr.kind {
-                for elem in elements.iter().flatten() {
-                    values.push(self.lower_value_expr(builder, elem));
+                for (elem, &ret_id) in elements.iter().flatten().zip(&ctx.return_vars) {
+                    values.push(self.lower_inline_return_value(builder, elem, ret_id));
                 }
+            } else if let [ret_id] = ctx.return_vars.as_slice() {
+                values.push(self.lower_inline_return_value(builder, expr, *ret_id));
             } else {
                 self.pending_inline_returns = None;
                 let first = self.lower_value_expr(builder, expr);
@@ -920,6 +925,25 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
         builder.jump(ctx.exit_block);
+    }
+
+    /// Lowers a value stored into an inlined return slot. Calldata slices stay
+    /// logical slices for the specialized inline-call path; every other return
+    /// uses the function-return coercions, including materializing byte-string
+    /// literals before a modifier suffix resumes.
+    fn lower_inline_return_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+        ret_id: hir::VariableId,
+    ) -> ValueId {
+        let ret = self.gcx.hir.variable(ret_id);
+        if Self::calldata_dynamic_var_kind(ret).is_some() {
+            self.lower_value_expr(builder, expr)
+        } else {
+            let ty = self.gcx.type_of_item(ret_id.into());
+            self.lower_return_value_for_ty(builder, expr, ty)
+        }
     }
 
     /// Gets the tuple arity if this is a ternary expression with tuple branches.
