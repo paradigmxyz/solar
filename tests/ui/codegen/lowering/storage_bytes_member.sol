@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
+//@compile-flags: -Zcodegen -Zdump=evm-ir-runtime -Zswitch-lowering=perfect
 //@ filecheck:
 
 // A `bytes` struct field reached through a storage reference bound from a
@@ -20,24 +20,27 @@ contract StorageBytesMember {
 
     mapping(address => KeccakState) states;
 
+    // CHECK: push 15
+    // CHECK-NEXT: and
+    // CHECK-NEXT: indexed_jump
+    // CHECK: push 0xe0886f90
+    // CHECK-NEXT: eq
+    // CHECK-NEXT: push [[AT:bb[0-9]+]]
     // CHECK: push 0x4407bb95
-    // CHECK: eq
+    // CHECK-NEXT: eq
     // CHECK-NEXT: push [[PUSH_RANGE:bb[0-9]+]]
     // CHECK: push 0x53b8a6c6
-    // CHECK: eq
+    // CHECK-NEXT: eq
     // CHECK-NEXT: push [[POP_ONE:bb[0-9]+]]
     // CHECK: push 0x56d88e27
-    // CHECK: eq
+    // CHECK-NEXT: eq
     // CHECK-NEXT: push [[LEN:bb[0-9]+]]
-    // CHECK: push 0x72bd964d
-    // CHECK: eq
-    // CHECK-NEXT: push [[WHOLE:bb[0-9]+]]
     // CHECK: push 0xbee6975a
-    // CHECK: eq
+    // CHECK-NEXT: eq
     // CHECK-NEXT: push [[SET_AT:bb[0-9]+]]
-    // CHECK: push 0xe0886f90
-    // CHECK: eq
-    // CHECK-NEXT: push [[AT:bb[0-9]+]]
+    // CHECK: push 0x72bd964d
+    // CHECK-NEXT: eq
+    // CHECK-NEXT: push [[WHOLE:bb[0-9]+]]
     // CHECK: [[PUSH_RANGE]]:
     // CHECK: keccak256
     // CHECK: jump [[LOOP:bb[0-9]+]]

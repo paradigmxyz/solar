@@ -177,6 +177,9 @@ impl<'a> Verifier<'a> {
     }
 
     fn verify_terminator_shape(&self, block_id: BlockId, term: &Terminator) {
+        if matches!(&term.kind, TerminatorKind::IndexedJump(targets) if targets.is_empty()) {
+            self.error_in_block(block_id, "`indexed_jump` must have at least one target");
+        }
         if let TerminatorKind::Op(opcode) = &term.kind
             && !op::is_terminal(*opcode)
         {
@@ -251,11 +254,19 @@ impl<'a> Verifier<'a> {
             }
             if valid {
                 let next = Self::next_block(module, block_id);
-                let mut pushes_target = false;
-                term.kind.visit_label_targets(next, |_| pushes_target = true);
-                if pushes_target
+                let lowering_growth = match &term.kind {
+                    TerminatorKind::IndexedJump(_) => 3,
+                    TerminatorKind::Jump(target) => usize::from(Some(*target) != next),
+                    TerminatorKind::JumpI { .. } => 1,
+                    TerminatorKind::Op(_) => 0,
+                };
+                if lowering_growth != 0
                     && self
-                        .ensure_stack_limit(block_id, terminator_name(&term.kind), stack + 1)
+                        .ensure_stack_limit(
+                            block_id,
+                            terminator_name(&term.kind),
+                            stack + lowering_growth,
+                        )
                         .is_err()
                 {
                     valid = false;
@@ -284,9 +295,8 @@ impl<'a> Verifier<'a> {
         entry_depths: &mut IndexVec<BlockId, Option<usize>>,
         pending: &mut Vec<BlockId>,
     ) {
-        let slot = &mut entry_depths[target];
-        if slot.is_none() {
-            *slot = Some(depth);
+        if entry_depths[target].is_none() {
+            entry_depths[target] = Some(depth);
             pending.push(target);
         }
     }
@@ -384,10 +394,36 @@ fn terminator_name(kind: &TerminatorKind) -> &'static str {
     match kind {
         TerminatorKind::Jump(_) => "jump",
         TerminatorKind::JumpI { .. } => "jumpi",
+        TerminatorKind::IndexedJump(_) => "indexed_jump",
         TerminatorKind::Op(opcode) => op::mnemonic(*opcode).unwrap_or("terminal"),
     }
 }
 
 pub(super) fn validate(dcx: &DiagCtxt, module: &Module) {
     Verifier::new(dcx).verify_module(module);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_interface::sym;
+
+    #[test]
+    fn indexed_jump_reserves_lowering_stack() {
+        for (depth, expected_errors) in [(1021, 0), (1022, 1)] {
+            let mut module = Module::new(sym::module);
+            let entry = module.add_block(Block::new(0));
+            let target = module.add_block(Block::new(1));
+            module.blocks[entry]
+                .instructions
+                .extend((0..depth).map(|_| Instruction::push_value(U256::ZERO)));
+            module.blocks[entry].terminator =
+                Some(Terminator::new(TerminatorKind::IndexedJump(vec![target].into_boxed_slice())));
+            module.blocks[target].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+
+            let dcx = DiagCtxt::with_silent_emitter(None);
+            validate(&dcx, &module);
+            assert_eq!(dcx.err_count(), expected_errors);
+        }
+    }
 }

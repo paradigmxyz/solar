@@ -3,7 +3,7 @@
 use super::EvmPass;
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
-    op,
+    op, push_len,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -165,9 +165,9 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let mut values: Vec<_> = sites
         .iter()
         .filter_map(|(&value, occurrences)| {
-            let push_len = push_len(gcx, value);
-            let inline = occurrences.len() * push_len;
-            let outlined = occurrences.len() * SITE_BYTES + push_len + 3;
+            let push_size = push_len(gcx.sess.opts.evm_version, value);
+            let inline = occurrences.len() * push_size;
+            let outlined = occurrences.len() * SITE_BYTES + push_size + 3;
             (occurrences.len() >= 2 && inline >= outlined + MIN_SAVING).then_some(value)
         })
         .collect();
@@ -252,11 +252,6 @@ fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
 
 fn lower_bound(instructions: &[Instruction]) -> usize {
     instructions.iter().map(|inst| if inst.is_encoded_push() { 2 } else { 1 }).sum()
-}
-
-fn push_len(gcx: Gcx<'_>, value: U256) -> usize {
-    let width = value.byte_len();
-    if width == 0 && !gcx.sess.opts.evm_version.has_push0() { 2 } else { width + 1 }
 }
 
 #[derive(Clone, Copy, Debug)]

@@ -5,7 +5,7 @@
 //! keeps the first body and redirects later copies to it. CFG simplification
 //! then redirects references and removes the temporary jump thunks.
 
-use super::{EvmPass, utils::is_evm_terminal};
+use super::{EvmPass, utils::is_terminal_boundary};
 use crate::backend::evm::ir::{
     Block, BlockId, Hotness, Module, PushValue, Terminator, TerminatorKind,
 };
@@ -57,7 +57,7 @@ fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
 
 fn terminal_block_key(block: &Block) -> Option<TerminalBlockKey> {
     let terminator = &block.terminator.as_ref()?.kind;
-    if !is_evm_terminal(terminator) {
+    if !is_terminal_boundary(terminator) {
         return None;
     }
     let instructions = block

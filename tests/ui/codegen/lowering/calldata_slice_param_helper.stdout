@@ -52,19 +52,16 @@ fn @lastWord2() {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb5, bb1
+    jumpi v0, bb4, bb1
   bb1:
-    v1 = calldatasize
-    jumpi v1, bb2, bb5
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb4, [0x3955f902 => bb2, 0x97f495a8 => bb3]
   bb2:
-    v2 = calldataload 0
-    v3 = shr 224, v2
-    switch v3, default bb5, [0x3955f902 => bb3, 0x97f495a8 => bb4]
-  bb3:
     tail_call @lastWord
-  bb4:
+  bb3:
     tail_call @lastWord2
-  bb5:
+  bb4:
     revert 0, 0
 }
 

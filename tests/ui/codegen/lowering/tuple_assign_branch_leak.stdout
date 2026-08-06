@@ -5,11 +5,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb4
-  jumpi
-  calldatasize
-  iszero
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -18,14 +14,14 @@ bb0:
   dup1
   push 0x2143aa9
   eq
-  push bb5
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
+  jump bb3
+bb3 [cold]:
   push 0
   dup1
   revert
-bb23 [cold]:
+bb22 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -37,14 +33,14 @@ bb23 [cold]:
   push 36
   push 0
   revert
-bb5:
+bb4:
   calldatasize
   push 4
   swap1
   sub
   push 64
   sgt
-  push bb4
+  push bb3
   jumpi
   push 4
   calldataload
@@ -52,7 +48,7 @@ bb5:
   iszero
   iszero
   sub
-  push bb4
+  push bb3
   jumpi
   push 0
   push 128
@@ -67,7 +63,7 @@ bb5:
   mstore
   push 4
   calldataload
-  push bb9
+  push bb8
   jumpi
   push 192
   mload
@@ -78,13 +74,13 @@ bb5:
   push 288
   mstore
   lt
-  push bb23
+  push bb22
   jumpi
-  push bb15
+  push bb14
   push 288
   mload
-  jump bb19
-bb19:
+  jump bb18
+bb18:
   push 480
   mstore
   push 1
@@ -97,7 +93,7 @@ bb19:
   push 480
   mload
   gt
-  push bb23
+  push bb22
   jumpi
   push 2
   push 480
@@ -109,7 +105,7 @@ bb19:
   push 480
   mload
   gt
-  push bb23
+  push bb22
   jumpi
   push 576
   mload
@@ -120,15 +116,15 @@ bb19:
   push 544
   mstore
   jump
-bb9:
-  push bb10
+bb8:
+  push bb9
   push 36
   calldataload
-  jump bb19
-bb10:
-  push bb26
-  jump bb25
-bb25:
+  jump bb18
+bb9:
+  push bb25
+  jump bb24
+bb24:
   push 512
   mload
   dup1
@@ -150,10 +146,10 @@ bb25:
   mstore
   swap1
   jump
-bb15:
-  push bb27
-  jump bb25
-bb26:
+bb14:
+  push bb26
+  jump bb24
+bb25:
   push 32
   mload
   push 32
@@ -178,11 +174,11 @@ bb26:
   push 288
   mstore
   lt
-  push bb23
+  push bb22
   jumpi
   push 288
-  jump bb24
-bb24:
+  jump bb23
+bb23:
   mload
   dup1
   push 128
@@ -192,7 +188,7 @@ bb24:
   push 32
   push 128
   return
-bb27:
+bb26:
   push 32
   mload
   push 32
@@ -204,7 +200,7 @@ bb27:
   push 288
   mstore
   lt
-  push bb23
+  push bb22
   jumpi
   push 192
   mload
@@ -217,7 +213,7 @@ bb27:
   push 288
   mload
   gt
-  push bb23
+  push bb22
   jumpi
   push 352
-  jump bb24
+  jump bb23
