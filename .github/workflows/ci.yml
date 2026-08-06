@@ -85,6 +85,9 @@ jobs:
           cache-targets: false
       - name: build
         run: cargo build
+      - name: Fandango Python unit tests
+        if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
+        run: python3 -m unittest fuzz/fandango/test_symbolic_differential.py -v
       - name: test
         run: cargo nextest run --profile ci --workspace
       - name: test C API
@@ -141,6 +144,47 @@ jobs:
         with:
           name: fandango-runtime-fuzz
           path: target/runtime-fuzz
+          if-no-files-found: ignore
+
+  symbolic-differential:
+    name: symbolic differential
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+      - name: Checkout submodules
+        run: git submodule update --checkout
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
+        with:
+          toolchain: stable
+      - uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          cache-on-failure: true
+      - name: Build Solar
+        run: cargo build -p solar-compiler --bin solar
+      - name: Install pinned symbolic Foundry
+        uses: foundry-rs/foundry-toolchain@b00af27efadbc7b4ca8b82abbd903b17cc874d2a # v1.9.0
+        with:
+          # Verified against this suite; pin the release so required CI cannot
+          # drift with Foundry's moving `nightly` alias.
+          version: nightly-6902a96211da7bcc3d9c4d8e97910ac5c9d5d2c6
+      - name: Install Z3
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends z3=4.8.12-3.1build1
+      - name: Solc-vs-Solar symbolic differentials
+        run: .github/scripts/run_symbolic_differential_checks.sh
+      - name: Upload symbolic differential artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: symbolic-differential
+          path: target/symbolic-differential
           if-no-files-found: ignore
 
   feature-checks:
@@ -288,6 +332,7 @@ jobs:
     permissions: {}
     needs:
       - test
+      - symbolic-differential
       - feature-checks
       - wasm
       - typos

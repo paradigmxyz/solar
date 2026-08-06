@@ -20,6 +20,8 @@ use lsp_types::{
     WorkspaceFoldersChangeEvent, WorkspaceSymbol, notification, notification::Notification,
     request,
 };
+#[cfg(unix)]
+use std::io::Read;
 use std::{
     future::Future,
     path::Path,
@@ -1966,8 +1968,7 @@ async fn saving_again_cancels_in_flight_flychecks() {
     state.config = Arc::new(config);
 
     state.run_flychecks_on_save(project.path("/src/Test.sol"));
-    wait_for_path(&first_pid_path).await;
-    let first_pid = project.read_file("/first-flycheck-pid.txt").parse().unwrap();
+    let first_pid = wait_for_pid(&first_pid_path).await;
 
     state.run_flychecks_on_save(project.path("/src/Test.sol"));
     wait_for_path(&second_pid_path).await;
@@ -2049,6 +2050,20 @@ fn goto_implementation_finds_unopened_naked_workspace_files() {
         .collect::<Vec<_>>();
 
     assert_eq!(paths, ["First.sol", "Second.sol"]);
+}
+
+#[cfg(unix)]
+async fn wait_for_pid(path: &Path) -> u32 {
+    for _ in 0..100 {
+        let mut contents = String::new();
+        if std::fs::File::open(path).and_then(|mut file| file.read_to_string(&mut contents)).is_ok()
+            && let Ok(pid) = contents.parse()
+        {
+            return pid;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    panic!("timed out waiting for PID in {}", path.display());
 }
 
 #[cfg(unix)]

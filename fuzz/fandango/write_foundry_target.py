@@ -6,6 +6,9 @@ from __future__ import annotations
 import argparse
 import pathlib
 
+import evm_runtime as evm
+import symbolic_differential as symbolic
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -43,6 +46,80 @@ def write_target(
     (out_dir / "foundry.toml").write_text(_FOUNDRY_TOML)
 
 
+def write_symbolic_target(
+    out_dir: pathlib.Path,
+    solc_runtime: str,
+    solar_runtime: str,
+    function: dict[str, object],
+    max_returndata_bytes: int,
+    evm_version: str,
+    dynamic_lengths: tuple[int, ...] = symbolic.DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS,
+) -> None:
+    """Write a single bounded pure-function symbolic differential target."""
+    if max_returndata_bytes <= 0:
+        raise ValueError("max returndata bytes must be positive")
+    if (
+        not dynamic_lengths
+        or any(
+            not isinstance(length, int)
+            or isinstance(length, bool)
+            or length < 0
+            or length > symbolic.MAX_SYMBOLIC_DYNAMIC_LENGTH
+            for length in dynamic_lengths
+        )
+        or len(set(dynamic_lengths)) != len(dynamic_lengths)
+    ):
+        raise ValueError(
+            "dynamic lengths must be unique integers from 0 through "
+            f"{symbolic.MAX_SYMBOLIC_DYNAMIC_LENGTH}"
+        )
+    src_dir = out_dir / "src"
+    test_dir = out_dir / "test"
+    src_dir.mkdir(parents=True, exist_ok=True)
+    test_dir.mkdir(parents=True, exist_ok=True)
+
+    input_types = list(function["inputs"])
+    abi = function.get("abi")
+    abi_inputs = (
+        abi.get("inputs")
+        if isinstance(abi, dict) and isinstance(abi.get("inputs"), list)
+        else [{"type": abi_type} for abi_type in input_types]
+    )
+    struct_declarations, parameter_declarations = (
+        symbolic.solidity_symbolic_parameters(abi_inputs)
+    )
+    declarations = ", ".join(parameter_declarations)
+    arguments = ", ".join(f"arg{index}" for index in range(len(input_types)))
+    encode = f"abi.encodeWithSelector(TARGET_SELECTOR{', ' if arguments else ''}{arguments})"
+    word_checks = "\n".join(
+        "        "
+        f"if (retA.length > {offset}) "
+        f"assert(_word(retA, {offset}) == _word(retB, {offset}));"
+        for offset in range(0, max_returndata_bytes, 32)
+    )
+    test_source = _SYMBOLIC_DIFFERENTIAL_TEST_SOURCE_TEMPLATE.format(
+        solc_runtime=_hex_literal(solc_runtime),
+        solar_runtime=_hex_literal(solar_runtime),
+        selector=function["selector"],
+        test_name=function["test"],
+        struct_declarations=struct_declarations,
+        declarations=declarations,
+        encode=encode,
+        max_returndata_bytes=max_returndata_bytes,
+        word_checks=word_checks,
+        router_address=evm.SYMBOLIC_ROUTER_ADDRESS,
+        solc_runtime_address=evm.SYMBOLIC_SOLC_RUNTIME_ADDRESS,
+        solar_runtime_address=evm.SYMBOLIC_SOLAR_RUNTIME_ADDRESS,
+    )
+    (test_dir / "SymbolicDifferential.t.sol").write_text(test_source)
+    (out_dir / "foundry.toml").write_text(
+        _SYMBOLIC_FOUNDRY_TOML.format(
+            evm_version=evm_version,
+            dynamic_lengths=", ".join(str(length) for length in dynamic_lengths),
+        )
+    )
+
+
 _FOUNDRY_TOML = """\
 [profile.default]
 src = "src"
@@ -56,6 +133,25 @@ via_ir = true
 [fuzz]
 runs = 64
 max_test_rejects = 65536
+"""
+
+
+_SYMBOLIC_FOUNDRY_TOML = """\
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+cache_path = "cache"
+libs = []
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "{evm_version}"
+code_size_limit = 1000000
+
+[symbolic]
+default_array_lengths = [{dynamic_lengths}]
+default_bytes_lengths = [{dynamic_lengths}]
 """
 
 
@@ -353,6 +449,92 @@ contract FandangoRuntimeDifferentialTest {{
     function _bound(uint256 value, uint256 min, uint256 max) internal pure returns (uint256) {{
         uint256 size = max - min + 1;
         return min + (value % size);
+    }}
+}}
+"""
+
+
+_SYMBOLIC_DIFFERENTIAL_TEST_SOURCE_TEMPLATE = """\
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+interface Vm {{
+    function etch(address target, bytes calldata newRuntimeBytecode) external;
+}}
+
+contract RuntimeRouter {{
+    fallback() external payable {{
+        assembly ("memory-safe") {{
+            if lt(calldatasize(), 20) {{ revert(0, 0) }}
+            let target := shr(96, calldataload(0))
+            let targetCalldataSize := sub(calldatasize(), 20)
+            calldatacopy(0, 20, targetCalldataSize)
+            let ok := delegatecall(gas(), target, 0, targetCalldataSize, 0, 0)
+            returndatacopy(0, 0, returndatasize())
+            switch ok
+            case 0 {{ revert(0, returndatasize()) }}
+            default {{ return(0, returndatasize()) }}
+        }}
+    }}
+}}
+
+contract SymbolicDifferentialTest {{
+{struct_declarations}
+    Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
+
+    RuntimeRouter internal constant ROUTER =
+        RuntimeRouter(payable({router_address}));
+    address internal constant SOLC_IMPLEMENTATION =
+        address({solc_runtime_address});
+    address internal constant SOLAR_IMPLEMENTATION =
+        address({solar_runtime_address});
+    bytes4 internal constant TARGET_SELECTOR = bytes4({selector});
+    uint256 internal constant MAX_RETURNDATA_BYTES = {max_returndata_bytes};
+
+    bytes internal constant SOLC_RUNTIME = hex"{solc_runtime}";
+    bytes internal constant SOLAR_RUNTIME = hex"{solar_runtime}";
+
+    function setUp() public {{
+        vm.etch(address(ROUTER), type(RuntimeRouter).runtimeCode);
+        vm.etch(SOLC_IMPLEMENTATION, SOLC_RUNTIME);
+        vm.etch(SOLAR_IMPLEMENTATION, SOLAR_RUNTIME);
+    }}
+
+    function {test_name}({declarations}) public {{
+        bytes memory callData = {encode};
+        _warmRouter();
+        (bool okA, bytes memory retA) = _routedStaticCall(SOLC_IMPLEMENTATION, callData);
+        (bool okB, bytes memory retB) = _routedStaticCall(SOLAR_IMPLEMENTATION, callData);
+
+        assert(okA == okB);
+        assert(retA.length == retB.length);
+
+        // This is an explicit soundness sentinel, not a mismatch claim. If a
+        // candidate reaches it, the runner independently replays both calls.
+        // Equal concrete outcomes are classified as incomplete and tell the
+        // caller to raise --max-returndata-bytes.
+        if (retA.length > MAX_RETURNDATA_BYTES) assert(false);
+{word_checks}
+    }}
+
+    function _warmRouter() internal {{
+        (bool ok,) = address(ROUTER).staticcall("");
+        assert(!ok);
+    }}
+
+    function _routedStaticCall(
+        address target,
+        bytes memory callData
+    ) internal returns (bool ok, bytes memory result) {{
+        return address(ROUTER).staticcall(abi.encodePacked(target, callData));
+    }}
+
+    function _word(bytes memory value, uint256 offset) internal pure returns (uint256 result) {{
+        assembly ("memory-safe") {{
+            result := mload(add(add(value, 0x20), offset))
+        }}
+        uint256 remaining = value.length - offset;
+        if (remaining < 32) result >>= (32 - remaining) * 8;
     }}
 }}
 """
