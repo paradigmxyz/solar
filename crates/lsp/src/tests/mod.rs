@@ -42,6 +42,8 @@ mod folding_range;
 mod goto_definition;
 mod hover;
 mod implementation;
+mod import_completion;
+mod import_definition;
 mod inlay_hint;
 #[path = "protocol_trace.rs"]
 mod protocol_trace_tests;
