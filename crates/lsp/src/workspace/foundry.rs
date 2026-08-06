@@ -107,3 +107,26 @@ fn read_remappings_txt(root: &Path) -> Vec<ImportRemapping> {
         .filter_map(|line| line.parse().ok())
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn document_reports_configured_include_paths_directly() {
+        let document = toml_edit::de::from_str::<FoundryDocument>(
+            r#"
+            [profile.default]
+            libs = ["lib", "vendor"]
+            auto_detect_remappings = true
+            remappings = ["@example/=vendor/example/src/"]
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            document.default_profile().include_paths(Path::new("workspace")),
+            [PathBuf::from("workspace/lib"), PathBuf::from("workspace/vendor")]
+        );
+    }
+}

@@ -58,7 +58,7 @@ mod workspace;
 pub use global_state::benchmark::{
     BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit,
     BenchmarkError, BenchmarkProject, BenchmarkRequest, BenchmarkResponse,
-    BenchmarkWorkspaceReports,
+    BenchmarkWorkspaceDiscovery, BenchmarkWorkspaceReports,
 };
 
 /// Runs the selection-range kernel for Criterion benchmarks.
@@ -76,7 +76,8 @@ mod test_support;
 
 pub(crate) type NotifyResult = ControlFlow<async_lsp::Result<()>>;
 
-fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
+fn new_router_with_state(mut this: GlobalState) -> Router<GlobalState> {
+    this.enable_background_discovery();
     let mut router = Router::new(this);
 
     // Lifecycle
@@ -89,6 +90,10 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
             )
         })
         .notification::<notif::Initialized>(GlobalState::on_initialized)
+        .event::<global_state::WorkspaceDiscoveryReady>(GlobalState::on_workspace_discovery_ready)
+        .event::<global_state::DeferredSourceFileEventsReady>(
+            GlobalState::on_deferred_source_file_events_ready,
+        )
         .request::<req::Shutdown, _>(|_, _| std::future::ready(Ok(())))
         .notification::<notif::Exit>(|_, _| ControlFlow::Break(Ok(())));
 

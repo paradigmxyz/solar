@@ -11,14 +11,16 @@ use crate::{
 use async_lsp::ClientSocket;
 use crop::Rope;
 use lsp_types::{
-    CreateFilesParams, DeleteFilesParams, FileChangeType, FileCreate, FileDelete, FileEvent,
-    FileRename, InitializedParams, RenameFilesParams, Url,
+    CreateFilesParams, DeleteFilesParams, DidChangeWatchedFilesClientCapabilities, FileChangeType,
+    FileCreate, FileDelete, FileEvent, FileRename, InitializedParams, RenameFilesParams, Url,
+    WorkspaceClientCapabilities,
 };
 use std::{
     fs,
     ops::ControlFlow,
     path::Path,
     sync::{Arc, atomic::Ordering},
+    time::{Duration, Instant},
 };
 
 fn rename_watcher_events(old_root: &Path, new_root: &Path, paths: &[&str]) -> Vec<FileEvent> {
@@ -52,6 +54,7 @@ async fn initialized_indexes_workspace_before_the_first_file_operation() {
     );
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.on_initialize(project.initialize_params()).await.unwrap();
+    assert!(state.config.workspaces().is_empty());
     assert!(matches!(state.on_initialized(InitializedParams {}), ControlFlow::Continue(())));
 
     let edit = crate::handlers::will_rename_files(
@@ -79,7 +82,7 @@ async fn did_create_files_rediscovers_files_and_folder_descendants_once() {
     );
     let mut state = state(&project);
     project.write_file("/Direct.sol", "contract Direct {}");
-    project.write_file("/created/Nested.sol", "contract Nested {}");
+    project.write_file("/created.v2/Nested.sol", "contract Nested {}");
     let previous_version = state.analysis_version.load(Ordering::Relaxed);
 
     let result = crate::handlers::did_create_files(
@@ -90,7 +93,7 @@ async fn did_create_files_rediscovers_files_and_folder_descendants_once() {
                     uri: Url::from_file_path(project.path("/Direct.sol")).unwrap().to_string(),
                 },
                 FileCreate {
-                    uri: Url::from_file_path(project.path("/created")).unwrap().to_string(),
+                    uri: Url::from_file_path(project.path("/created.v2")).unwrap().to_string(),
                 },
             ],
         },
@@ -105,6 +108,184 @@ async fn did_create_files_rediscovers_files_and_folder_descendants_once() {
     let tables = tables.read();
     assert!(tables.workspace_symbols("Direct").iter().any(|symbol| symbol.name == "Direct"));
     assert!(tables.workspace_symbols("Nested").iter().any(|symbol| symbol.name == "Nested"));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn did_create_nested_manifest_discovers_the_project() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Main.sol
+        contract Main {}
+        "#,
+    );
+    let mut state = state(&project);
+    project.write_file(
+        "/package/foundry.toml",
+        r#"
+        [profile.default]
+        src = "src"
+        "#,
+    );
+    project.write_file("/package/src/Nested.sol", "contract Nested {}");
+    let manifest = project.path("/package/foundry.toml");
+
+    let result = crate::handlers::did_create_files(
+        &mut state,
+        CreateFilesParams {
+            files: vec![FileCreate { uri: Url::from_file_path(manifest).unwrap().to_string() }],
+        },
+    );
+
+    assert!(matches!(result, ControlFlow::Continue(())));
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("nested manifest analysis should finish")
+        .unwrap();
+    assert!(tables.read().workspace_symbols("Nested").iter().any(|symbol| symbol.name == "Nested"));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn did_create_nested_manifest_under_overlapping_source_root_discovers_project() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "lib"
+
+        //- /lib/Existing.sol
+        contract Existing {}
+        "#,
+    );
+    let mut state = state(&project);
+    project.write_file(
+        "/lib/package/foundry.toml",
+        r#"
+        [profile.default]
+        src = "src"
+        "#,
+    );
+    project.write_file("/lib/package/src/Nested.sol", "contract Nested {}");
+    let manifest = project.path("/lib/package/foundry.toml");
+
+    let result = crate::handlers::did_create_files(
+        &mut state,
+        CreateFilesParams {
+            files: vec![FileCreate { uri: Url::from_file_path(manifest).unwrap().to_string() }],
+        },
+    );
+
+    assert!(matches!(result, ControlFlow::Continue(())));
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("nested manifest analysis should finish")
+        .unwrap();
+    assert!(tables.read().workspace_symbols("Nested").iter().any(|symbol| symbol.name == "Nested"));
+    assert!(state.config.workspaces().iter().any(|workspace| {
+        workspace.compile_opts().base_path.as_deref()
+            == Some(project.path("/lib/package").as_path())
+    }));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn deleting_manifest_directory_with_external_sources_rediscovers_workspace() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /project/foundry.toml
+        [profile.default]
+        src = "../shared"
+
+        //- /shared/Main.sol
+        contract Main {}
+        "#,
+    );
+    let mut state = state(&project);
+    let manifest_directory = project.path("/project");
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+    fs::remove_dir_all(&manifest_directory).unwrap();
+
+    let result = crate::handlers::did_delete_files(
+        &mut state,
+        DeleteFilesParams {
+            files: vec![FileDelete {
+                uri: Url::from_file_path(manifest_directory).unwrap().to_string(),
+            }],
+        },
+    );
+
+    assert!(matches!(result, ControlFlow::Continue(())));
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("manifest-directory deletion analysis should finish")
+        .unwrap();
+    assert!(tables.read().workspace_symbols("Main").iter().any(|symbol| symbol.name == "Main"));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn deleting_parent_of_missing_candidate_does_not_schedule_analysis() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Main.sol
+        import "./generated/Missing.sol";
+        contract Main is Missing {}
+        "#,
+    );
+    let mut state = state(&project);
+    state
+        .analysis_commit
+        .lock()
+        .analysis_paths
+        .missing_candidates
+        .insert(project.path("/generated/Missing.sol"));
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    let result = crate::handlers::did_delete_files(
+        &mut state,
+        DeleteFilesParams {
+            files: vec![FileDelete {
+                uri: Url::from_file_path(project.path("/generated")).unwrap().to_string(),
+            }],
+        },
+    );
+
+    assert!(matches!(result, ControlFlow::Continue(())));
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn excluded_folder_rename_watcher_echo_does_not_schedule_analysis() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Main.sol
+        contract Main {}
+
+        //- /node_modules/old/Ignored.sol
+        contract Ignored {}
+        "#,
+    );
+    let old_root = project.path("/node_modules/old");
+    let new_root = project.path("/node_modules/new");
+    let mut state = state(&project);
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+    let params = RenameFilesParams {
+        files: vec![FileRename {
+            old_uri: Url::from_file_path(&old_root).unwrap().to_string(),
+            new_uri: Url::from_file_path(&new_root).unwrap().to_string(),
+        }],
+    };
+
+    let edit = crate::handlers::will_rename_files(&mut state, params).await.unwrap();
+    assert!(edit.is_none());
+    fs::rename(&old_root, &new_root).unwrap();
+    let result = crate::handlers::did_change_watched_files(
+        &mut state,
+        lsp_types::DidChangeWatchedFilesParams {
+            changes: rename_watcher_events(&old_root, &new_root, &["Ignored.sol"]),
+        },
+    );
+
+    assert!(matches!(result, ControlFlow::Continue(())));
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1471,6 +1652,57 @@ async fn did_rename_workspace_root_preserves_foundry_configuration_and_closed_fi
     assert_eq!(
         state.config.workspaces()[0].compile_opts().base_path.as_deref(),
         Some(new_root.as_path())
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn workspace_root_rename_advances_epoch_before_watcher_reregistration() {
+    let project = TestProject::new();
+    let old_root = project.path("/project");
+    let new_root = project.path("/renamed");
+    fs::create_dir(&old_root).unwrap();
+    let mut params = project.initialize_params_with_roots(&["/project"]);
+    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
+            dynamic_registration: Some(true),
+            relative_pattern_support: Some(true),
+        }),
+        ..Default::default()
+    });
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.on_initialize(params).await.unwrap();
+    fs::rename(&old_root, &new_root).unwrap();
+    let rename = RenameFilesParams {
+        files: vec![FileRename {
+            old_uri: Url::from_file_path(old_root).unwrap().to_string(),
+            new_uri: Url::from_file_path(new_root).unwrap().to_string(),
+        }],
+    };
+    let initial_version = state.analysis_version.load(Ordering::Acquire);
+    let registration = state.watched_file_registration.clone();
+    let desired_specs = registration.desired_specs.lock();
+    let analysis_version = state.analysis_version.clone();
+    let runtime = tokio::runtime::Handle::current();
+    let worker = std::thread::spawn(move || {
+        let _runtime = runtime.enter();
+        let result = crate::handlers::did_rename_files(&mut state, rename);
+        assert!(matches!(result, ControlFlow::Continue(())));
+        state
+    });
+
+    let deadline = Instant::now() + Duration::from_millis(100);
+    while analysis_version.load(Ordering::Acquire) == initial_version && Instant::now() < deadline {
+        std::thread::yield_now();
+    }
+    let advanced_before_reregistration =
+        analysis_version.load(Ordering::Acquire) != initial_version;
+
+    drop(desired_specs);
+    let state = worker.join().unwrap();
+    state.analysis_scheduler.tasks.lock().cancel();
+    assert!(
+        advanced_before_reregistration,
+        "workspace-root rename queued watchers before invalidating the old analysis epoch"
     );
 }
 
