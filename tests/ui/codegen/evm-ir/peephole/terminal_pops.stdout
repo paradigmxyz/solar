@@ -1,0 +1,53 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/terminal_pops.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/terminal_pops.evmir (after peephole) ===
+  @module module
+  bb0:
+    push 0
+    calldataload
+    jumpi bb1, bb3
+  bb1:
+    caller
+-   pop
+    jump bb12
+  bb12:
+    jump bb2
+  bb2:
+    stop
+  bb3:
+    push 0
+    calldataload
+    jumpi bb4, bb6
+  bb4:
+    push 0
+    push 0
+    caller
+    pop
+    jump bb5
+  bb5:
+    return
+  bb6:
+    push 0
+    calldataload
+    jumpi bb7, bb9
+  bb7:
+    caller
+-   pop
+    jump bb8
+  bb8:
+    push 0
+    push 0
+    return
+  bb9:
+    push 1
+    caller
+    pop
+    jumpi bb10, bb11
+  bb10:
+    caller
+-   pop
+    stop
+  bb11:
+    caller
+-   pop
+    invalid
+  

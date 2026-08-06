@@ -1,0 +1,88 @@
+//@compile-flags: -Zevm-ir-pipeline=peephole
+//@filecheck:
+@module module
+
+bb0:
+  push 0
+  calldataload
+  jumpi bb1, bb3
+
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}caller
+// CHECK-NEXT: -   pop
+// CHECK-NEXT: {{^[ +].*}}jump bb12
+bb1:
+  caller
+  pop
+  jump bb12
+bb12:
+  jump bb2
+bb2:
+  stop
+
+bb3:
+  push 0
+  calldataload
+  jumpi bb4, bb6
+
+// The return operands come from the predecessor, so this pop is required.
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: {{^[ +].*}}caller
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}jump bb5
+bb4:
+  push 0
+  push 0
+  caller
+  pop
+  jump bb5
+bb5:
+  return
+
+bb6:
+  push 0
+  calldataload
+  jumpi bb7, bb9
+
+// The terminating block materializes its own return operands.
+// CHECK-LABEL: {{^[ +].*}}bb7:
+// CHECK: {{^[ +].*}}caller
+// CHECK-NEXT: -   pop
+// CHECK-NEXT: {{^[ +].*}}jump bb8
+bb7:
+  caller
+  pop
+  jump bb8
+bb8:
+  push 0
+  push 0
+  return
+
+// The conditional branch still consumes the word exposed by this pop.
+// CHECK-LABEL: {{^[ +].*}}bb9:
+// CHECK: {{^[ +].*}}caller
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}jumpi bb10, bb11
+bb9:
+  push 1
+  caller
+  pop
+  jumpi bb10, bb11
+
+// CHECK-LABEL: {{^[ +].*}}bb10:
+// CHECK: {{^[ +].*}}caller
+// CHECK-NEXT: -   pop
+// CHECK-NEXT: {{^[ +].*}}stop
+bb10:
+  caller
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb11:
+// CHECK: {{^[ +].*}}caller
+// CHECK-NEXT: -   pop
+// CHECK-NEXT: {{^[ +].*}}invalid
+bb11:
+  caller
+  pop
+  invalid
