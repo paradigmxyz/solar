@@ -128,13 +128,13 @@ impl AbiParamSource {
 /// Where an inlined callee's `return` statements deliver their values: each
 /// value is stored into the matching return variable's local slot, then control
 /// jumps to `exit_block`, where the call site reads the slots back.
-#[derive(Clone)]
-struct InlineReturnCtx {
+#[derive(Clone, Copy)]
+struct InlineReturnCtx<'gcx> {
     /// Join block the call site continues from after the inlined body.
     exit_block: BlockId,
     /// The callee's return variables, in declaration order. Each has a local
     /// slot allocated before the body is lowered.
-    return_vars: Vec<VariableId>,
+    return_vars: &'gcx [VariableId],
 }
 
 type InternalFunctionPointerShape = (Vec<MirType>, Vec<MirType>);
@@ -174,7 +174,7 @@ pub(crate) struct Lowerer<'gcx> {
     /// call site, an explicit `return` stores its values into the callee's
     /// return-variable slots and jumps here, instead of terminating the
     /// enclosing MIR function.
-    inline_returns: Option<InlineReturnCtx>,
+    inline_returns: Option<InlineReturnCtx<'gcx>>,
     /// Return values of the most recently inlined multi-return callee whose
     /// returns cannot ride the one-word-per-value multi-return buffer
     /// (calldata slices). Destructuring consumes them directly.
@@ -761,8 +761,9 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let TyKind::Struct(struct_id) = ty.peel_refs().kind else { return None };
         let (_, index) = self.get_memory_struct_field_info(base, *member)?;
-        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
-        let field_ty = field_tys.get(index)?.peel_refs();
+        let field_ids = self.gcx.hir.strukt(struct_id).fields;
+        let field_id = *field_ids.get(index)?;
+        let field_ty = self.gcx.type_of_item(field_id.into()).peel_refs();
         // Only a member that *is* a slice: an array, or `bytes`/`string`. A
         // nested struct member is dynamic too, but it is its own copy, which
         // carries its own base and answers its own members.
@@ -778,10 +779,12 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         let ptr = self.lower_value_expr(builder, base);
-        let struct_base = self.calldata_base_of_copy(builder, ptr, field_tys.len() as u64);
-        let head_offset = match self
-            .abi_head_size_sum(field_tys[..index].iter().map(|&field| field.peel_refs()))
-        {
+        let struct_base = self.calldata_base_of_copy(builder, ptr, field_ids.len() as u64);
+        let head_offset = match self.abi_head_size_sum(
+            field_ids[..index]
+                .iter()
+                .map(|&field_id| self.gcx.type_of_item(field_id.into()).peel_refs()),
+        ) {
             Ok(size) => size,
             Err(guar) => return Some(builder.error_value(guar)),
         };
@@ -1472,7 +1475,7 @@ impl<'gcx> Lowerer<'gcx> {
                 } else {
                     // Load each return variable's word (the value for value types,
                     // a memory pointer for reference types).
-                    let mut items: Vec<(ValueId, Ty<'gcx>)> = Vec::new();
+                    let mut items = Vec::with_capacity(hir_func.returns.len());
                     for &ret_id in hir_func.returns {
                         let ret_var = self.gcx.hir.variable(ret_id);
                         let ret_val = if let Some(offset) = self.get_local_memory_offset(&ret_id) {

@@ -43,10 +43,10 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         match ty.peel_refs().kind {
             TyKind::Struct(struct_id) => {
-                let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+                let field_tys = self.gcx.struct_field_types(struct_id);
                 let fields = field_tys.len() as u64;
                 let mut storage_offset = 0;
-                for (index, field_ty) in field_tys.into_iter().enumerate() {
+                for (index, &field_ty) in field_tys.iter().enumerate() {
                     let memory = builder.memory_object_field_addr(
                         value,
                         MemoryObjectLayout::structure(fields),
@@ -98,9 +98,9 @@ impl<'gcx> Lowerer<'gcx> {
         let ty = ty.peel_refs();
         match ty.kind {
             TyKind::Struct(struct_id) => {
-                let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+                let field_tys = self.gcx.struct_field_types(struct_id);
                 let mut storage_offset = 0;
-                for field_ty in field_tys {
+                for &field_ty in field_tys {
                     let field_slot = self.offset_storage_slot(builder, slot, storage_offset);
                     self.clear_storage_value_at(builder, field_ty, field_slot);
                     storage_offset += self.calculate_storage_slots_for_ty(field_ty, Span::DUMMY);
@@ -371,11 +371,12 @@ impl<'gcx> Lowerer<'gcx> {
             return Arc::clone(layout);
         }
 
-        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
-        let fields = field_tys
-            .into_iter()
-            .map(|field_ty| self.storage_field_for_ty(field_ty))
-            .collect::<Vec<_>>();
+        let field_ids = self.gcx.hir.strukt(struct_id).fields;
+        let mut fields = Vec::with_capacity(field_ids.len());
+        for &field_id in field_ids {
+            let field_ty = self.gcx.type_of_item(field_id.into());
+            fields.push(self.storage_field_for_ty(field_ty));
+        }
         let layout = self.module.intern_storage_layout(StorageLayout::Struct(fields.into()));
         self.struct_storage_layouts.insert(struct_id, Arc::clone(&layout));
         layout
@@ -500,7 +501,7 @@ impl<'gcx> Lowerer<'gcx> {
         base_slot: ValueId,
         mem_base: ValueId,
     ) {
-        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        let field_tys = self.gcx.struct_field_types(struct_id);
         for (i, &field_ty) in field_tys.iter().enumerate() {
             let field_slot_off = self.get_struct_field_slot_offset(struct_id, i);
             let field_slot = if field_slot_off == 0 {

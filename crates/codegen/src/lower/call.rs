@@ -498,23 +498,20 @@ impl<'gcx> Lowerer<'gcx> {
             Ok(exprs) => exprs,
             Err(guar) => return self.call_error_result(builder, callee, guar),
         };
-        let mut arg_values = arg_exprs
-            .into_iter()
-            .enumerate()
-            .map(|(index, arg)| {
-                let parameter = function.parameters.get(index).copied();
-                if parameter.is_some_and(|ty| {
-                    matches!(ty.kind, TyKind::Mapping(..) | TyKind::Ref(_, DataLocation::Storage))
-                }) && let Some(slot) = self.lower_lvalue_slot(builder, arg)
-                {
-                    slot
-                } else {
-                    let value = self.lower_value_expr(builder, arg);
-                    self.coerce_memory_slice_value(builder, value)
-                }
-            })
-            .collect::<Vec<_>>();
-        arg_values.insert(0, function_value);
+        let mut arg_values = Vec::with_capacity(arg_exprs.len() + 1);
+        arg_values.push(function_value);
+        arg_values.extend(arg_exprs.into_iter().enumerate().map(|(index, arg)| {
+            let parameter = function.parameters.get(index).copied();
+            if parameter.is_some_and(|ty| {
+                matches!(ty.kind, TyKind::Mapping(..) | TyKind::Ref(_, DataLocation::Storage))
+            }) && let Some(slot) = self.lower_lvalue_slot(builder, arg)
+            {
+                slot
+            } else {
+                let value = self.lower_value_expr(builder, arg);
+                self.coerce_memory_slice_value(builder, value)
+            }
+        }));
 
         let dispatcher = self.ensure_internal_function_pointer_dispatcher(function);
         let returns = function.returns.len();
@@ -571,11 +568,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
 
-        let dispatchers = self
-            .internal_function_pointer_dispatchers
-            .iter()
-            .map(|(shape, &function_id)| (shape.clone(), function_id))
-            .collect::<Vec<_>>();
+        let dispatchers = std::mem::take(&mut self.internal_function_pointer_dispatchers);
         for (shape, dispatcher) in dispatchers {
             self.generate_internal_function_pointer_dispatcher(shape, dispatcher);
         }
@@ -1916,7 +1909,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         let sig = format!("{}()", member.name);
         let hash = alloy_primitives::keccak256(sig.as_bytes());
-        u32::from_be_bytes(hash[..4].try_into().unwrap())
+        u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]])
     }
 
     /// Gets the number of return values for a member function call.
@@ -2115,7 +2108,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn inline_slice_return_body(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        func: &hir::Function<'_>,
+        func: &'gcx hir::Function<'gcx>,
         body: &hir::Block<'_>,
         arg_vals: &[ValueId],
     ) -> Vec<ValueId> {
@@ -2148,7 +2141,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         let exit_block = builder.create_block();
         self.inline_returns =
-            Some(crate::lower::InlineReturnCtx { exit_block, return_vars: func.returns.to_vec() });
+            Some(crate::lower::InlineReturnCtx { exit_block, return_vars: func.returns });
 
         let saved_in_unchecked_block = self.in_unchecked_block;
         self.in_unchecked_block = false;
@@ -2288,7 +2281,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(body) = body {
             let exit_block = builder.create_block();
             self.inline_returns =
-                Some(crate::lower::InlineReturnCtx { exit_block, return_vars: Vec::new() });
+                Some(crate::lower::InlineReturnCtx { exit_block, return_vars: &[] });
             let saved_in_unchecked_block = self.in_unchecked_block;
             self.in_unchecked_block = false;
             self.lower_block(builder, &body);
@@ -2586,9 +2579,8 @@ impl<'gcx> Lowerer<'gcx> {
         // matching the delegatecall execution model without requiring a
         // separately deployed library.
         if func.body.is_some() {
-            let mut arg_vals: Vec<ValueId> = Vec::new();
-
             let bound_offset = bound_arg.is_some() as usize;
+            let mut arg_vals = Vec::with_capacity(arg_exprs.len() + bound_offset);
             if let Some(bound_val) = bound_arg {
                 arg_vals.push(bound_val);
             }

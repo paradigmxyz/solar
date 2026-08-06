@@ -438,8 +438,8 @@ impl<'gcx> Lowerer<'gcx> {
                 self.materialize_calldata_fixed_array_at(builder, source, elem, len, pos)
             }
             TyKind::Struct(id) => {
-                let fields = self.gcx.struct_field_types(id).to_vec();
-                self.materialize_calldata_fields_at(builder, source, &fields, pos)
+                let fields = self.gcx.struct_field_types(id);
+                self.materialize_calldata_fields_at(builder, source, fields, pos)
             }
             TyKind::Tuple(fields) => {
                 self.materialize_calldata_fields_at(builder, source, fields, pos)

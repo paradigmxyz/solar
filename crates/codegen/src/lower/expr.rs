@@ -973,7 +973,7 @@ impl<'gcx> Lowerer<'gcx> {
             crate::mir::MemoryObjectKind::Struct,
         );
         let layout = crate::mir::MemoryObjectLayout::structure(field_tys.len() as u64);
-        for (i, field_ty) in field_tys.into_iter().enumerate() {
+        for (i, &field_ty) in field_tys.iter().enumerate() {
             if field_ty.peel_refs().is_value_type() {
                 continue;
             }

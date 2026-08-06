@@ -371,9 +371,9 @@ impl<'gcx> Lowerer<'gcx> {
         ptr: ValueId,
         span: Span,
     ) {
-        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        let field_tys = self.gcx.struct_field_types(struct_id);
         let layout = crate::mir::MemoryObjectLayout::structure(field_tys.len() as u64);
-        for (i, field_ty) in field_tys.into_iter().enumerate() {
+        for (i, &field_ty) in field_tys.iter().enumerate() {
             let value = self.zero_memory_field_value_ty(builder, field_ty, span);
             let field_addr = builder.memory_object_field_addr(ptr, layout, i as u64);
             builder.mstore(field_addr, value);
@@ -845,8 +845,8 @@ impl<'gcx> Lowerer<'gcx> {
         // call site: store them into the callee's return-variable slots and
         // jump to the inline exit block. This must precede the external check —
         // the inlined body may live inside a public function's lowering.
-        if let Some(ctx) = self.inline_returns.clone() {
-            self.lower_inline_return(builder, &ctx, value);
+        if self.inline_returns.is_some() {
+            self.lower_inline_return(builder, value);
             return;
         }
         let external = builder.func().is_public() && !self.lowering_internal_function;
@@ -875,10 +875,13 @@ impl<'gcx> Lowerer<'gcx> {
     fn lower_inline_return(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        ctx: &crate::lower::InlineReturnCtx,
         value: Option<&hir::Expr<'_>>,
     ) {
-        let n = ctx.return_vars.len();
+        let Some((n, exit_block)) =
+            self.inline_returns.as_ref().map(|ctx| (ctx.return_vars.len(), ctx.exit_block))
+        else {
+            return;
+        };
         let mut values = Vec::with_capacity(n);
         if let Some(expr) = value {
             if let hir::ExprKind::Tuple(elements) = &expr.kind {
@@ -906,7 +909,12 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
         }
-        for (i, &ret_id) in ctx.return_vars.iter().enumerate() {
+        for i in 0..n {
+            let Some(ret_id) =
+                self.inline_returns.as_ref().and_then(|ctx| ctx.return_vars.get(i)).copied()
+            else {
+                continue;
+            };
             let Some(&val) = values.get(i) else { continue };
             if let Some(offset) = self.get_local_memory_offset(&ret_id) {
                 if self.is_slice_slot_local(&ret_id) {
@@ -919,7 +927,7 @@ impl<'gcx> Lowerer<'gcx> {
                 self.locals.insert(ret_id, val);
             }
         }
-        builder.jump(ctx.exit_block);
+        builder.jump(exit_block);
     }
 
     /// Gets the tuple arity if this is a ternary expression with tuple branches.
