@@ -8,6 +8,10 @@ use solar_ast::{
     token::{BinOpToken, Delimiter},
 };
 use solar_data_structures::hint::{likely, unlikely};
+#[cfg(target_arch = "aarch64")]
+use std::arch::aarch64::*;
+#[cfg(target_arch = "aarch64")]
+use std::ptr;
 use std::sync::OnceLock;
 
 pub mod token;
@@ -26,13 +30,19 @@ mod tests;
 #[derive(Clone, Debug)]
 pub struct Cursor<'a> {
     bytes: std::slice::Iter<'a, u8>,
+    #[cfg(target_arch = "aarch64")]
+    masks: ChunkMasks,
 }
 
 impl<'a> Cursor<'a> {
     /// Creates a new cursor over the given input string slice.
     #[inline]
     pub fn new(input: &'a str) -> Self {
-        Cursor { bytes: input.as_bytes().iter() }
+        Cursor {
+            bytes: input.as_bytes().iter(),
+            #[cfg(target_arch = "aarch64")]
+            masks: ChunkMasks::default(),
+        }
     }
 
     /// Creates a new iterator that also returns the position of each token in the input string.
@@ -313,7 +323,7 @@ impl<'a> Cursor<'a> {
 
     fn whitespace(&mut self) -> RawTokenKind {
         debug_assert!(is_whitespace_byte(self.prev()));
-        self.eat_while(is_whitespace_byte);
+        self.eat_whitespace();
         RawTokenKind::Whitespace
     }
 
@@ -322,7 +332,7 @@ impl<'a> Cursor<'a> {
 
         // Start is already eaten, eat the rest of identifier.
         let start = self.as_ptr();
-        self.eat_while(is_id_continue_byte);
+        self.eat_id_continue();
 
         // Check if the identifier is a string literal prefix.
         if unlikely(matches!(first, b'h' | b'u')) {
@@ -571,6 +581,163 @@ impl<'a> Cursor<'a> {
         while predicate(self.first()) {
             self.bump();
         }
+    }
+
+    /// Eats whitespace bytes.
+    #[inline]
+    #[cfg(not(target_arch = "aarch64"))]
+    fn eat_whitespace(&mut self) {
+        self.eat_while(is_whitespace_byte);
+    }
+
+    /// Eats whitespace bytes.
+    #[inline]
+    #[cfg(target_arch = "aarch64")]
+    fn eat_whitespace(&mut self) {
+        for _ in 0..16 {
+            if !is_whitespace_byte(self.first()) {
+                return;
+            }
+            self.bump();
+        }
+
+        self.eat_masked_run(MaskKind::Whitespace, is_whitespace_byte);
+    }
+
+    /// Eats identifier continuation bytes.
+    #[inline]
+    #[cfg(not(target_arch = "aarch64"))]
+    fn eat_id_continue(&mut self) {
+        self.eat_while(is_id_continue_byte);
+    }
+
+    /// Eats identifier continuation bytes.
+    #[inline]
+    #[cfg(target_arch = "aarch64")]
+    fn eat_id_continue(&mut self) {
+        for _ in 0..16 {
+            if !is_id_continue_byte(self.first()) {
+                return;
+            }
+            self.bump();
+        }
+
+        self.eat_masked_run(MaskKind::IdContinue, is_id_continue_byte);
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    #[inline]
+    fn eat_masked_run(&mut self, kind: MaskKind, scalar: impl Fn(u8) -> bool) {
+        while let Some((offset, masks)) = self.current_chunk_masks() {
+            let mask = match kind {
+                MaskKind::IdContinue => masks.id_continue,
+                MaskKind::Whitespace => masks.whitespace,
+            };
+            let invalid = (!mask) >> (offset * 4);
+            if invalid != 0 {
+                self.ignore_bytes(invalid.trailing_zeros() as usize / 4);
+                return;
+            }
+
+            self.ignore_bytes(16 - offset);
+        }
+
+        self.eat_while(scalar);
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    #[inline]
+    fn current_chunk_masks(&mut self) -> Option<(usize, ChunkMasks)> {
+        let bytes = self.as_bytes();
+        let ptr = bytes.as_ptr();
+        if let Some(offset) = self.masks.offset(ptr) {
+            return Some((offset, self.masks));
+        }
+
+        if bytes.len() < 16 {
+            return None;
+        }
+
+        // SAFETY: `bytes.len() >= 16`.
+        self.masks = unsafe { classify_chunk(ptr) };
+        Some((0, self.masks))
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+#[derive(Clone, Copy, Debug)]
+struct ChunkMasks {
+    base: *const u8,
+    id_continue: u64,
+    whitespace: u64,
+}
+
+#[cfg(target_arch = "aarch64")]
+impl Default for ChunkMasks {
+    fn default() -> Self {
+        Self { base: ptr::null(), id_continue: 0, whitespace: 0 }
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+impl ChunkMasks {
+    #[inline]
+    fn offset(self, ptr: *const u8) -> Option<usize> {
+        let base = self.base as usize;
+        if base == 0 {
+            return None;
+        }
+        let current = ptr as usize;
+        (base..base + 16).contains(&current).then_some(current - base)
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+#[derive(Clone, Copy, Debug)]
+enum MaskKind {
+    IdContinue,
+    Whitespace,
+}
+
+#[cfg(target_arch = "aarch64")]
+#[inline]
+unsafe fn classify_chunk(ptr: *const u8) -> ChunkMasks {
+    // SAFETY: the caller guarantees that `ptr` points to at least 16 readable bytes.
+    unsafe {
+        let bytes = vld1q_u8(ptr);
+
+        let lower = vcleq_u8(vsubq_u8(bytes, vdupq_n_u8(b'a')), vdupq_n_u8(25));
+        let upper = vcleq_u8(vsubq_u8(bytes, vdupq_n_u8(b'A')), vdupq_n_u8(25));
+        let digit = vcleq_u8(vsubq_u8(bytes, vdupq_n_u8(b'0')), vdupq_n_u8(9));
+        let underscore = vceqq_u8(bytes, vdupq_n_u8(b'_'));
+        let dollar = vceqq_u8(bytes, vdupq_n_u8(b'$'));
+
+        let valid = vorrq_u8(
+            vorrq_u8(lower, upper),
+            vorrq_u8(digit, vorrq_u8(underscore, dollar)),
+        );
+
+        let space = vceqq_u8(bytes, vdupq_n_u8(b' '));
+        let tab = vceqq_u8(bytes, vdupq_n_u8(b'\t'));
+        let newline = vceqq_u8(bytes, vdupq_n_u8(b'\n'));
+        let carriage_return = vceqq_u8(bytes, vdupq_n_u8(b'\r'));
+        let whitespace = vorrq_u8(vorrq_u8(space, tab), vorrq_u8(newline, carriage_return));
+
+        ChunkMasks {
+            base: ptr,
+            id_continue: bitmask64(valid),
+            whitespace: bitmask64(whitespace),
+        }
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+#[inline]
+unsafe fn bitmask64(mask: uint8x16_t) -> u64 {
+    // SAFETY: the caller passes a valid NEON vector.
+    unsafe {
+        let groups = vshrn_n_u16::<4>(vreinterpretq_u16_u8(mask));
+        vget_lane_u64::<0>(vreinterpret_u64_u8(groups))
     }
 }
 
