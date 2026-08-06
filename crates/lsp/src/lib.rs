@@ -59,7 +59,7 @@ mod workspace;
 pub use global_state::benchmark::{
     BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit,
     BenchmarkError, BenchmarkProject, BenchmarkRequest, BenchmarkResponse,
-    BenchmarkWorkspaceReports,
+    BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
 };
 
 /// Runs the selection-range kernel for Criterion benchmarks.

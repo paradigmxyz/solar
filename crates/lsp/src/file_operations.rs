@@ -460,7 +460,7 @@ impl FileOperationCoordinator {
         let mut matched = false;
         for transaction in &mut self.direct_events {
             if transaction.typ == typ {
-                matched |= transaction.matches(&path);
+                matched |= transaction.consume_match(&path);
             } else {
                 transaction.remove_overlapping(&path);
             }
@@ -532,9 +532,11 @@ impl DirectFileEventTransaction {
         self.paths.is_empty() && self.roots.is_empty()
     }
 
-    fn matches(&self, path: &Path) -> bool {
-        self.paths.binary_search_by(|candidate| candidate.as_path().cmp(path)).is_ok()
-            || self.roots.iter().any(|root| path.starts_with(root))
+    fn consume_match(&mut self, path: &Path) -> bool {
+        let exact = self.paths.binary_search_by(|candidate| candidate.as_path().cmp(path)).is_ok();
+        let roots_len = self.roots.len();
+        self.roots.retain(|root| !path.starts_with(root));
+        exact || self.roots.len() != roots_len
     }
 
     fn remove_overlapping(&mut self, path: &Path) {
@@ -1088,6 +1090,48 @@ mod tests {
         );
         assert_eq!(
             coordinator.observe_watcher_event(&child, FileChangeType::CREATED),
+            WatchedFileAction::Process
+        );
+    }
+
+    #[test]
+    fn direct_directory_event_root_only_suppresses_one_unknown_descendant() {
+        let root = path("/workspace/created");
+        let first = path("/workspace/created/nested/First.sol");
+        let later = path("/workspace/created/nested/Later.sol");
+        let mut coordinator = FileOperationCoordinator::default();
+
+        coordinator.record_direct_events_under(FileChangeType::CREATED, [], [root]);
+
+        assert_eq!(
+            coordinator.observe_watcher_event(&first, FileChangeType::CREATED),
+            WatchedFileAction::Ignore
+        );
+        assert_eq!(
+            coordinator.observe_watcher_event(&later, FileChangeType::CREATED),
+            WatchedFileAction::Process
+        );
+    }
+
+    #[test]
+    fn direct_directory_event_known_descendant_consumes_root_guard() {
+        let root = path("/workspace/created");
+        let known = path("/workspace/created/Known.sol");
+        let later = path("/workspace/created/Later.sol");
+        let mut coordinator = FileOperationCoordinator::default();
+
+        coordinator.record_direct_events_under(FileChangeType::CREATED, [known.clone()], [root]);
+
+        assert_eq!(
+            coordinator.observe_watcher_event(&known, FileChangeType::CREATED),
+            WatchedFileAction::Ignore
+        );
+        assert_eq!(
+            coordinator.observe_watcher_event(&known, FileChangeType::CREATED),
+            WatchedFileAction::Ignore
+        );
+        assert_eq!(
+            coordinator.observe_watcher_event(&later, FileChangeType::CREATED),
             WatchedFileAction::Process
         );
     }

@@ -4,7 +4,10 @@ use crate::{
     file_operations::FileMoveBatch,
     flycheck::{FlycheckConfig, FlycheckInitializationOptions},
     import_resolution::ImportResolutionContext,
-    workspace::{Workspace, WorkspaceKind, WorkspacePathIndex, manifest::ProjectManifest},
+    workspace::{
+        Workspace, WorkspaceKind, WorkspacePathIndex, manifest::ProjectManifest,
+        workspace_idx_containing_path,
+    },
 };
 use lsp_types::{
     CallHierarchyServerCapability, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
@@ -315,8 +318,7 @@ impl Config {
                 ProjectManifest::Foundry(path) => path.parent().map(Path::to_path_buf),
             })
             .or_else(|| {
-                WorkspacePathIndex::new(&self.workspaces)
-                    .workspace_idx_containing_path(path)
+                workspace_idx_containing_path(&self.workspaces, path)
                     .and_then(|idx| self.workspaces[idx].compile_opts().base_path.clone())
             })
             .or_else(|| path.parent().map(Path::to_path_buf))

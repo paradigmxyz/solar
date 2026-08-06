@@ -1196,17 +1196,24 @@ impl GlobalStateSnapshot {
         let source_map = SourceMap::empty();
 
         for (path, contents, version) in vfs_files {
-            let mut indices = workspace_path_index.workspace_idxs_for_import_path(&path);
-            if indices.is_empty() {
-                indices.push(0);
-            }
-            let primary = workspace_path_index.workspace_idx_for_path(&path);
+            let query = workspace_path_index.query(&path);
+            let mut indices = query.workspace_idxs_for_import_path();
+            let Some(last_idx) = indices.next_back() else {
+                batches[0].push_open_file(path, contents, version);
+                continue;
+            };
+            let primary = query.workspace_idx_for_path();
             for idx in indices {
                 if idx == primary {
                     batches[idx].push_open_file(path.clone(), contents.clone(), version);
                 } else {
                     batches[idx].push_preloaded_file(path.clone(), contents.clone(), version);
                 }
+            }
+            if last_idx == primary {
+                batches[last_idx].push_open_file(path, contents, version);
+            } else {
+                batches[last_idx].push_preloaded_file(path, contents, version);
             }
         }
 

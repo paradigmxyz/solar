@@ -160,6 +160,7 @@ fn has_unescaped_line_break(bytes: &[u8]) -> bool {
             {
                 index += 3;
             }
+            b'\\' if bytes.get(index + 1) == Some(&b'\r') => return true,
             b'\\' => index += 2,
             b'\r' | b'\n' => return true,
             _ => index += 1,
@@ -535,6 +536,18 @@ mod tests {
     fn import_cursor_does_not_use_a_quote_on_the_next_line_as_the_terminator() {
         let (source, offset) =
             marked_source("import \"./Dep$0\ncontract C { string value = \"ordinary\"; }\n");
+
+        let cursor = ImportCursor::at(&source, offset).unwrap();
+
+        assert_eq!(cursor.path_prefix(), "./Dep");
+        assert_eq!(&source[cursor.replacement_range()], "./Dep");
+        assert_eq!(cursor.complete_path(), None);
+    }
+
+    #[test]
+    fn import_cursor_treats_backslash_bare_cr_as_an_unescaped_line_break() {
+        let (source, offset) =
+            marked_source("import \"./Dep$0\\\rcontract C { string value = \"ordinary\"; }\r");
 
         let cursor = ImportCursor::at(&source, offset).unwrap();
 

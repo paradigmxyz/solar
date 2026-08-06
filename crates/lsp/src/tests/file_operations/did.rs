@@ -11,8 +11,10 @@ use crate::{
 use async_lsp::ClientSocket;
 use crop::Rope;
 use lsp_types::{
-    CreateFilesParams, DeleteFilesParams, FileChangeType, FileCreate, FileDelete, FileEvent,
-    FileRename, InitializedParams, RenameFilesParams, Url,
+    CreateFilesParams, DeleteFilesParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    FileChangeType, FileCreate, FileDelete, FileEvent, FileRename, InitializedParams,
+    RenameFilesParams, TextDocumentContentChangeEvent, TextDocumentIdentifier, Url,
+    VersionedTextDocumentIdentifier,
 };
 use std::{
     fs,
@@ -286,6 +288,8 @@ async fn watcher_delete_followed_by_did_delete_starts_one_epoch() {
         ),
         ControlFlow::Continue(())
     ));
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version);
+    assert!(state.vfs.read().exists(&VfsPath::from(deleted.clone())));
     assert!(matches!(
         crate::handlers::did_delete_files(
             &mut state,
@@ -301,7 +305,69 @@ async fn watcher_delete_followed_by_did_delete_starts_one_epoch() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn watcher_delete_of_an_open_file_publishes_fresh_tables_once() {
+async fn watcher_delete_preserves_open_file_for_later_changes() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Deleted.sol open
+        contract BeforeDelete {}
+        "#,
+    );
+    let deleted = project.path("/Deleted.sol");
+    let uri = Url::from_file_path(&deleted).unwrap();
+    let vfs_path = VfsPath::from(deleted.clone());
+    let mut state = state(&project);
+    fs::remove_file(&deleted).unwrap();
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: vec![FileEvent { uri: uri.clone(), typ: FileChangeType::DELETED }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version);
+    assert!(matches!(
+        crate::handlers::did_change_text_document(
+            &mut state,
+            DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(uri, 1),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "contract AfterDelete {}".into(),
+                }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+
+    {
+        let vfs = state.vfs.read();
+        assert_eq!(vfs.get_file_version(&vfs_path), Some(1));
+        assert_eq!(
+            vfs.get_file_contents(&vfs_path).map(ToString::to_string).as_deref(),
+            Some("contract AfterDelete {}")
+        );
+    }
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("document-change analysis should finish")
+        .unwrap();
+    assert!(
+        tables
+            .read()
+            .workspace_symbols("AfterDelete")
+            .iter()
+            .any(|symbol| symbol.name == "AfterDelete")
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watcher_delete_followed_later_by_did_delete_starts_one_epoch() {
     let project = TestProject::from_fixture(
         r#"
         //- /Deleted.sol open
@@ -325,9 +391,11 @@ async fn watcher_delete_of_an_open_file_publishes_fresh_tables_once() {
         ),
         ControlFlow::Continue(())
     ));
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version);
+    assert!(state.vfs.read().exists(&VfsPath::from(deleted.clone())));
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
         .await
-        .expect("watcher delete analysis should finish")
+        .expect("current analysis should remain available")
         .unwrap();
     assert!(matches!(
         crate::handlers::did_delete_files(
@@ -350,7 +418,51 @@ async fn watcher_delete_of_an_open_file_publishes_fresh_tables_once() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn mixed_watcher_batch_removes_an_unrelated_deleted_open_file() {
+async fn watcher_delete_preserves_open_file_until_did_close() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Deleted.sol open
+        contract Deleted {}
+        "#,
+    );
+    let deleted = project.path("/Deleted.sol");
+    let uri = Url::from_file_path(&deleted).unwrap();
+    let vfs_path = VfsPath::from(deleted.clone());
+    let mut state = state(&project);
+    fs::remove_file(&deleted).unwrap();
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: vec![FileEvent { uri: uri.clone(), typ: FileChangeType::DELETED }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version);
+    assert!(state.vfs.read().exists(&vfs_path));
+
+    assert!(matches!(
+        crate::handlers::did_close_text_document(
+            &mut state,
+            DidCloseTextDocumentParams { text_document: TextDocumentIdentifier::new(uri) },
+        ),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+    assert!(!state.vfs.read().exists(&vfs_path));
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("document-close analysis should finish")
+        .unwrap();
+    assert!(tables.read().workspace_symbols("Deleted").is_empty());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn mixed_watcher_batch_preserves_an_unrelated_deleted_open_file() {
     let project = TestProject::from_fixture(
         r#"
         //- /Deleted.sol open
@@ -381,14 +493,14 @@ async fn mixed_watcher_batch_removes_an_unrelated_deleted_open_file() {
         ),
         ControlFlow::Continue(())
     ));
-    assert!(!state.vfs.read().exists(&VfsPath::from(deleted)));
+    assert!(state.vfs.read().exists(&VfsPath::from(deleted)));
 
     let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
         .await
         .expect("mixed watcher analysis should finish")
         .unwrap();
     let tables = tables.read();
-    assert!(tables.workspace_symbols("Deleted").is_empty());
+    assert!(tables.workspace_symbols("Deleted").iter().any(|symbol| symbol.name == "Deleted"));
     assert!(tables.workspace_symbols("Created").iter().any(|symbol| symbol.name == "Created"));
 }
 
@@ -1204,7 +1316,7 @@ async fn failed_will_rename_does_not_leave_a_watcher_transaction() {
 
     assert!(matches!(watched, ControlFlow::Continue(())));
     assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
-    assert!(!state.vfs.read().exists(&VfsPath::from(project.path("/old/Target.sol"))));
+    assert!(state.vfs.read().exists(&VfsPath::from(project.path("/old/Target.sol"))));
     assert!(!state.vfs.read().exists(&VfsPath::from(project.path("/new/Target.sol"))));
 }
 
@@ -1246,7 +1358,7 @@ async fn cancelled_will_rename_does_not_leave_a_watcher_transaction() {
 
     assert!(matches!(watched, ControlFlow::Continue(())));
     assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
-    assert!(!state.vfs.read().exists(&VfsPath::from(project.path("/old/Target.sol"))));
+    assert!(state.vfs.read().exists(&VfsPath::from(project.path("/old/Target.sol"))));
     assert!(!state.vfs.read().exists(&VfsPath::from(project.path("/new/Target.sol"))));
 }
 

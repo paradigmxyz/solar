@@ -2358,6 +2358,67 @@ fn analysis_batches_share_external_open_files_across_matching_contexts() {
 }
 
 #[test]
+fn analysis_batches_share_external_open_files_across_overlapping_contexts() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /first/foundry.toml
+        [profile.default]
+        libs = ["../shared"]
+        auto_detect_remappings = false
+
+        //- /second/foundry.toml
+        [profile.default]
+        libs = ["../shared/nested"]
+        auto_detect_remappings = false
+
+        //- /first/src/Main.sol
+        import "nested/Overlay.sol";
+        contract First is Overlay {}
+
+        //- /second/src/Main.sol
+        import "Overlay.sol";
+        contract Second is Overlay {}
+
+        //- /shared/nested/Overlay.sol open
+        contract DiskOverlay {}
+        "#,
+    );
+    let overlay_contents = "contract Overlay {}";
+    let overlay = project.path("/shared/nested/Overlay.sol");
+    let mut vfs = project.vfs();
+    vfs.set_file_contents(
+        crate::vfs::VfsPath::from(overlay.clone()),
+        Some(crop::Rope::from(overlay_contents)),
+    );
+    let config = project.config_with_roots(&["/first", "/second"]);
+    let snapshot = snapshot_with_config(config, vfs);
+
+    let batches = snapshot.analysis_batches(Vec::new());
+    let primary = batches
+        .iter()
+        .position(|batch| batch.files.iter().any(|(path, _)| path == &overlay))
+        .unwrap();
+
+    assert_eq!(
+        batches[primary]
+            .files
+            .iter()
+            .filter(|(path, _)| path == &overlay)
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![(overlay.clone(), overlay_contents.into())]
+    );
+    let secondary = 1 - primary;
+    assert_eq!(batches[secondary].preloaded_files, vec![(overlay, overlay_contents.into())]);
+    assert!(
+        batches
+            .into_iter()
+            .map(analyze)
+            .all(|result| { result.diagnostics.values().all(Vec::is_empty) })
+    );
+}
+
+#[test]
 fn analysis_uses_workspace_remappings_for_import_resolution() {
     let project = TestProject::from_fixture(
         r#"
