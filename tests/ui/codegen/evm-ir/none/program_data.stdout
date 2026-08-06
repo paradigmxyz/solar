@@ -1,0 +1,13 @@
+- // === ROOT/tests/ui/codegen/evm-ir/none/program_data.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/evm-ir/none/program_data.evmir (after none) ===
+  @module data
+  bb0:
+    push 4
+    push_data 0
+    push 0
+    codecopy
+    push 4
+    push 0
+    return
+  @code_data 0 hex"11223344"
+  

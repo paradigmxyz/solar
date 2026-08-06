@@ -4,6 +4,7 @@
 //! - Deferred immediate and immutable materialization.
 //! - Label relocation.
 //! - Exact PUSH-width relaxation to a least fixed point.
+//! - Opaque program-data placement.
 //! - Byte emission.
 
 use super::EVM_WORD_BYTES;
@@ -281,16 +282,21 @@ impl<'gcx> Assembler<'gcx> {
                     | AsmInstKind::PushLabel(_)
                     | AsmInstKind::PushLabelFixed(_, _)
                     | AsmInstKind::PushPackedLabels(_)
+                    | AsmInstKind::PushData(_)
             )
         }) {
-            let mut result =
-                self.emit_bytecode(&program, FxHashMap::default(), &FxHashMap::default());
+            let mut result = self.emit_bytecode(
+                &program,
+                FxHashMap::default(),
+                FxHashMap::default(),
+                &FxHashMap::default(),
+            );
             result.evm_ir = evm_ir;
             return result;
         }
 
-        let (label_offsets, push_widths) = self.resolve_label_offsets(&program);
-        let mut result = self.emit_bytecode(&program, label_offsets, &push_widths);
+        let (label_offsets, data_offsets, push_widths) = self.resolve_offsets(&program);
+        let mut result = self.emit_bytecode(&program, label_offsets, data_offsets, &push_widths);
         result.evm_ir = evm_ir;
         result
     }
@@ -302,20 +308,29 @@ impl<'gcx> Assembler<'gcx> {
         &self,
         program: &AssemblyProgram,
     ) -> (FxHashMap<Label, usize>, FxHashMap<usize, u8>) {
+        let (label_offsets, _, push_widths) = self.resolve_offsets(program);
+        (label_offsets, push_widths)
+    }
+
+    fn resolve_offsets(
+        &self,
+        program: &AssemblyProgram,
+    ) -> (FxHashMap<Label, usize>, FxHashMap<ir::DataId, usize>, FxHashMap<usize, u8>) {
         // Start from the narrowest possible label pushes. Widening pushes can
         // only increase later label offsets, so required widths grow
         // monotonically to the least fixed point.
         let mut push_widths: FxHashMap<usize, u8> = FxHashMap::default();
         for (idx, inst) in program.instructions.iter().enumerate() {
-            if matches!(inst.kind(), AsmInstKind::PushLabel(_)) {
+            if matches!(inst.kind(), AsmInstKind::PushLabel(_) | AsmInstKind::PushData(_)) {
                 push_widths.insert(idx, 0);
             }
         }
 
         loop {
-            let (label_offsets, new_widths) = self.compute_offsets(program, &push_widths);
+            let (label_offsets, data_offsets, new_widths) =
+                self.compute_offsets(program, &push_widths);
             if new_widths == push_widths {
-                return (label_offsets, push_widths);
+                return (label_offsets, data_offsets, push_widths);
             }
 
             debug_assert!(new_widths.iter().all(|(idx, width)| {
@@ -330,9 +345,10 @@ impl<'gcx> Assembler<'gcx> {
         &self,
         program: &AssemblyProgram,
         push_widths: &FxHashMap<usize, u8>,
-    ) -> (FxHashMap<Label, usize>, FxHashMap<usize, u8>) {
+    ) -> (FxHashMap<Label, usize>, FxHashMap<ir::DataId, usize>, FxHashMap<usize, u8>) {
         let mut offset = 0usize;
         let mut label_offsets = FxHashMap::default();
+        let mut data_offsets = FxHashMap::default();
         let mut new_widths = FxHashMap::default();
         let out = BytecodeAssembler::new(self.gcx);
 
@@ -347,7 +363,7 @@ impl<'gcx> Assembler<'gcx> {
                 AsmInstKind::Push(index) => {
                     offset += out.encoded_push_len(self.push_value(index));
                 }
-                AsmInstKind::PushLabel(_) => {
+                AsmInstKind::PushLabel(_) | AsmInstKind::PushData(_) => {
                     // Use current estimated width
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
                     offset += out.fixed_push_len(width);
@@ -376,6 +392,10 @@ impl<'gcx> Assembler<'gcx> {
                     label_offsets.insert(label, offset);
                     offset += 1;
                 }
+                AsmInstKind::Data(data) => {
+                    data_offsets.insert(data, offset);
+                    offset += program.data[data].len();
+                }
             }
         }
 
@@ -386,10 +406,15 @@ impl<'gcx> Assembler<'gcx> {
             {
                 let width = out.push_width(U256::from(target_offset));
                 new_widths.insert(idx, width);
+            } else if let AsmInstKind::PushData(data) = inst.kind()
+                && let Some(&target_offset) = data_offsets.get(&data)
+            {
+                let width = out.push_width(U256::from(target_offset));
+                new_widths.insert(idx, width);
             }
         }
 
-        (label_offsets, new_widths)
+        (label_offsets, data_offsets, new_widths)
     }
 
     /// Emits the final bytecode.
@@ -397,6 +422,7 @@ impl<'gcx> Assembler<'gcx> {
         &self,
         program: &AssemblyProgram,
         label_offsets: FxHashMap<Label, usize>,
+        data_offsets: FxHashMap<ir::DataId, usize>,
         push_widths: &FxHashMap<usize, u8>,
     ) -> AssembledCode {
         let mut out = BytecodeAssembler::new(self.gcx);
@@ -454,6 +480,14 @@ impl<'gcx> Assembler<'gcx> {
                     let width = labels.labels.len() * usize::from(labels.label_width);
                     out.emit_push_fixed_width(value, width as u8);
                 }
+                AsmInstKind::PushData(data) => {
+                    let target_offset = data_offsets
+                        .get(&data)
+                        .copied()
+                        .unwrap_or_else(|| panic!("program data {data:?} was never emitted"));
+                    let width = push_widths.get(&idx).copied().unwrap_or(2);
+                    out.emit_push_fixed_width(U256::from(target_offset), width);
+                }
                 AsmInstKind::PushDeferred(_) => {
                     unreachable!("deferred values must be resolved before assembly");
                 }
@@ -462,6 +496,9 @@ impl<'gcx> Assembler<'gcx> {
                 }
                 AsmInstKind::Label(_) => {
                     out.emit_op(op::JUMPDEST);
+                }
+                AsmInstKind::Data(data) => {
+                    out.bytecode.extend_from_slice(&program.data[data]);
                 }
             }
         }

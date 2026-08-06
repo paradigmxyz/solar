@@ -93,6 +93,18 @@ impl<'a> Verifier<'a> {
                 encoding if encoding == Instruction::ENCODED_PUSH | Instruction::IMMUTABLE => {
                     self.verify_immutable_id(block_id, inst, value);
                 }
+                encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DATA => {
+                    let PushValue::Data(data) = value else {
+                        self.error_in_block(block_id, "`push_data` must carry a data ID");
+                        return;
+                    };
+                    if data.index() >= module.data.len() {
+                        self.error_in_block(
+                            block_id,
+                            format_args!("program data `{}` is out of range", data.index()),
+                        );
+                    }
+                }
                 _ => {
                     self.error_in_block(block_id, "invalid encoded push kind");
                 }
