@@ -280,23 +280,38 @@ fn workspace_path_queries(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("lsp/workspace-path-queries");
     group.throughput(Throughput::Elements(PATH_INDEX_QUERY_COUNT as u64));
-    group.bench_function(PATH_INDEX_WORKSPACE_COUNT.to_string(), |b| {
-        b.iter(|| black_box(queries.run()));
-    });
+    group.bench_function(
+        BenchmarkId::from_parameter(format!(
+            "{PATH_INDEX_WORKSPACE_COUNT}-workspaces-{PATH_INDEX_QUERY_COUNT}-queries"
+        )),
+        |b| {
+            b.iter(|| black_box(queries.run()));
+        },
+    );
     group.finish();
 
     let mut group = c.benchmark_group("lsp/workspace-path-single-query");
     group.throughput(Throughput::Elements(1));
-    group.bench_function(PATH_INDEX_WORKSPACE_COUNT.to_string(), |b| {
-        b.iter(|| black_box(queries.run_one()));
-    });
+    group.bench_function(
+        BenchmarkId::from_parameter(format!(
+            "{PATH_INDEX_WORKSPACE_COUNT}-workspaces-single-query"
+        )),
+        |b| {
+            b.iter(|| black_box(queries.run_one()));
+        },
+    );
     group.finish();
 
     let mut group = c.benchmark_group("lsp/workspace-path-containment-query");
     group.throughput(Throughput::Elements(1));
-    group.bench_function(PATH_INDEX_WORKSPACE_COUNT.to_string(), |b| {
-        b.iter(|| black_box(queries.run_containment_one()));
-    });
+    group.bench_function(
+        BenchmarkId::from_parameter(format!(
+            "{PATH_INDEX_WORKSPACE_COUNT}-workspaces-containment-query"
+        )),
+        |b| {
+            b.iter(|| black_box(queries.run_containment_one()));
+        },
+    );
     group.finish();
 }
 
