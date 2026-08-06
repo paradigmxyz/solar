@@ -214,7 +214,7 @@ impl<'gcx> Lowerer<'gcx> {
 
             let size = self.get_packed_size_from_expr(arg, ty);
             let left_aligned = self.expr_is_fixed_bytes(arg);
-            let signed = ty.is_signed();
+            let signed = matches!(self.lower_type_from_ty(ty), crate::mir::MirType::Int(_));
             let value = self.lower_value_expr(builder, arg);
             packed_args.push(PackedAbiArg::Value { value, size, left_aligned, signed });
         }

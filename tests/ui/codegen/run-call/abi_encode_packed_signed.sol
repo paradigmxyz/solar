@@ -1,7 +1,10 @@
 //@ run-call: firstByteInt8(uint8,int8) 0, -1 => 0x00
 //@ run-call: firstByteInt16(uint8,int16) 0, -1 => 0x00
 //@ run-call: firstByteInt32(uint8,int32) 0, -1 => 0x00
+//@ run-call: firstByteSigned16() => 0x00
 //@ run-call: packedHash(uint8,int16,bytes3) 0, -1, 0x000000 => 0xb6a3d3257d6e2bc9006a983edcb917248decccd41807b311f1d9317609a2bb05
+
+type Signed16 is int16;
 
 contract AbiEncodePackedSigned {
     function firstByteInt8(uint8 prefix, int8 value) external pure returns (bytes1) {
@@ -16,6 +19,11 @@ contract AbiEncodePackedSigned {
 
     function firstByteInt32(uint8 prefix, int32 value) external pure returns (bytes1) {
         bytes memory encoded = abi.encodePacked(prefix, value);
+        return encoded[0];
+    }
+
+    function firstByteSigned16() external pure returns (bytes1) {
+        bytes memory encoded = abi.encodePacked(uint8(0), Signed16.wrap(int16(-1)));
         return encoded[0];
     }
 
