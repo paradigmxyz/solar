@@ -106,6 +106,23 @@ struct StackArgRetentionPlan {
     shuffle_ops: Vec<StackOp>,
 }
 
+/// Stack arguments whose static-frame stores are delayed until their first instruction use.
+///
+/// `args` follows physical stack order, highest argument index first. Values in `frame_values` are
+/// used again and therefore receive a store immediately before that use; the others die on the
+/// stack without ever occupying their declared frame slot.
+#[derive(Clone, Debug)]
+struct LazyStackArgPlan {
+    args: Vec<(ArgIdx, ValueId)>,
+    frame_values: DenseBitSet<ValueId>,
+}
+
+impl LazyStackArgPlan {
+    fn values(&self) -> impl Iterator<Item = ValueId> + '_ {
+        self.args.iter().map(|&(_, value)| value)
+    }
+}
+
 /// A profitable static-call layout whose caller words stay below the
 /// untracked return address until control returns.
 #[derive(Clone, Debug)]
@@ -613,6 +630,9 @@ pub struct EvmCodegen<'gcx> {
     /// Static callees whose stack-passed arguments are consumed once in the entry block and can
     /// therefore remain on the physical stack instead of being copied into their frame.
     direct_stack_args: FxHashMap<FunctionId, Vec<ValueId>>,
+    /// Static callees whose incoming stack arguments feed the first instruction directly. Stores
+    /// for repeated arguments are emitted immediately before that instruction.
+    lazy_stack_args: FxHashMap<FunctionId, LazyStackArgPlan>,
     /// Non-recursive one-word callees whose return value stays on the EVM stack instead of being
     /// staged through their static memory frame.
     stack_return_functions: DenseBitSet<FunctionId>,
@@ -724,6 +744,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             pending_frame_size_consts: Vec::new(),
             stack_arg_masks: FxHashMap::default(),
             direct_stack_args: FxHashMap::default(),
+            lazy_stack_args: FxHashMap::default(),
             stack_return_functions: DenseBitSet::new_empty(0),
             stack_return_local_bases: FxHashMap::default(),
             preserve_caller_stack: false,
@@ -1211,6 +1232,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.static_frame_functions = DenseBitSet::new_empty(module.functions.len());
             self.stack_arg_masks.clear();
             self.direct_stack_args.clear();
+            self.lazy_stack_args.clear();
             self.stack_return_functions = DenseBitSet::new_empty(module.functions.len());
             self.stack_return_local_bases.clear();
             self.runtime_stack_args = false;
@@ -1416,6 +1438,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.stack_phi_sources.clear();
         self.stack_arg_masks.clear();
         self.direct_stack_args.clear();
+        self.lazy_stack_args.clear();
         self.stack_return_functions = DenseBitSet::new_empty(module.functions.len());
         self.stack_return_local_bases.clear();
         self.recursive_stack_functions = DenseBitSet::new_empty(module.functions.len());
@@ -1569,6 +1592,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         self.compute_stack_arg_masks(module);
+        self.compute_lazy_stack_args(module);
         self.compute_direct_stack_args(module);
         self.compute_stack_return_functions(module);
 
@@ -1696,6 +1720,9 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // Reset scheduler
         self.scheduler = StackScheduler::new();
+        let stack_only_values =
+            self.lazy_stack_args.get(&func_id).into_iter().flat_map(|p| p.values());
+        self.scheduler.set_stack_only_values(func.num_values(), stack_only_values);
         self.spill_addr_consts.clear();
 
         self.preallocate_cross_block_spills(func, liveness);
@@ -1763,6 +1790,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             {
                 debug_assert_eq!(self.scheduler.stack.depth(), 0);
                 self.set_stack_to_values(&values);
+            } else if block_id == BlockId::ENTRY
+                && let Some(plan) = self.lazy_stack_args.get(&func_id).cloned()
+            {
+                debug_assert_eq!(self.scheduler.stack.depth(), 0);
+                self.set_stack_to_values(&plan.values().collect::<Vec<_>>());
             }
 
             // Generate instructions
@@ -1904,6 +1936,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         let mut peak = self.scheduler.stack.max_depth();
         if !self.direct_stack_args.contains_key(&func_id)
+            && !self.lazy_stack_args.contains_key(&func_id)
             && let Some(mask) = self.stack_arg_masks.get(&func_id)
         {
             peak = peak.max(mask.count());
@@ -3014,6 +3047,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         result_value: Option<ValueId>,
     ) {
         let operands = kind.operands();
+        self.materialize_lazy_stack_args(func_id, kind, block, inst_idx);
         // Keep one lazy stack copy of an argument when this instruction is not
         // its last use. The consuming occurrence uses a DUP of that copy, so
         // later blocks can inherit it without an eager prologue load.
@@ -4205,6 +4239,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         for (&func_id, mask) in &self.stack_arg_masks {
+            if self.lazy_stack_args.contains_key(&func_id) {
+                continue;
+            }
             let func = &module.functions[func_id];
             if mask.domain_size() != func.params.len() {
                 continue;
@@ -4263,6 +4300,86 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Selects stack arguments whose first memory materialization can move past their first use.
+    ///
+    /// The whole mask must qualify because the incoming words are contiguous above the return
+    /// address. Each selected argument needs an identity used by the entry block's first
+    /// instruction. A repeated argument gets a frame home immediately before that instruction; a
+    /// single-use argument is consumed directly from the incoming stack. This restriction keeps
+    /// the rewrite local and prevents it from changing later stack scheduling or CFG layout.
+    fn compute_lazy_stack_args(&mut self, module: &Module) {
+        self.lazy_stack_args.clear();
+        if !self.gcx.sess.opts.optimization.is_gas() {
+            return;
+        }
+
+        for (&func_id, mask) in &self.stack_arg_masks {
+            let func = &module.functions[func_id];
+            if mask.domain_size() != func.params.len() {
+                continue;
+            }
+
+            let arg_uses = func.arg_uses();
+            let mut use_counts = FxHashMap::default();
+            let mut entry_first_uses = FxHashMap::default();
+            let mut first_call = None;
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
+                    if block_id == BlockId::ENTRY
+                        && first_call.is_none()
+                        && matches!(func.inst(inst_id).kind, InstKind::InternalCall { .. })
+                    {
+                        first_call = Some(inst_idx);
+                    }
+                    for operand in func.inst(inst_id).kind.operands() {
+                        *use_counts.entry(operand).or_insert(0usize) += 1;
+                        if block_id == BlockId::ENTRY {
+                            entry_first_uses.entry(operand).or_insert(inst_idx);
+                        }
+                    }
+                }
+                if let Some(term) = &block.terminator {
+                    for operand in term.operands() {
+                        *use_counts.entry(operand).or_insert(0usize) += 1;
+                    }
+                }
+            }
+            let mut args = Vec::with_capacity(mask.count());
+            let mut frame_values = DenseBitSet::new_empty(func.num_values());
+            let mut eligible = true;
+            for index in (0..mask.domain_size()).rev().filter(|&index| mask.contains(index)) {
+                let values = &arg_uses[ArgIdx::new(index)];
+                let Some((&value, &first_use)) = values
+                    .iter()
+                    .filter_map(|value| entry_first_uses.get(value).map(|first| (value, first)))
+                    .min_by_key(|(_, first)| *first)
+                else {
+                    eligible = false;
+                    break;
+                };
+                if first_call.is_some_and(|call| first_use >= call) {
+                    eligible = false;
+                    break;
+                }
+                if first_use != 0 {
+                    eligible = false;
+                    break;
+                }
+                args.push((ArgIdx::new(index), value));
+                let total_uses = values
+                    .iter()
+                    .map(|value| use_counts.get(value).copied().unwrap_or(0))
+                    .sum::<usize>();
+                if total_uses > 1 {
+                    frame_values.insert(value);
+                }
+            }
+            if eligible && !args.is_empty() {
+                self.lazy_stack_args.insert(func_id, LazyStackArgPlan { args, frame_values });
+            }
+        }
+    }
+
     /// Returns true when the caller can re-emit `val` raw (untracked) after
     /// its stack drain: an immediate, or a caller argument whose reload is
     /// position independent.
@@ -4316,7 +4433,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         if !self.runtime_stack_args {
             return;
         }
-        if self.direct_stack_args.contains_key(&func_id) {
+        if self.direct_stack_args.contains_key(&func_id)
+            || self.lazy_stack_args.contains_key(&func_id)
+        {
             return;
         }
         let Some(mask) = self.stack_arg_masks.get(&func_id).cloned() else { return };
@@ -4332,6 +4451,51 @@ impl<'gcx> EvmCodegen<'gcx> {
                 );
                 self.asm.emit_push_deferred(addr);
                 self.asm.emit_op(op::MSTORE);
+            }
+        }
+    }
+
+    /// Gives a repeated argument a valid frame home while retaining its first-use stack copy.
+    fn materialize_lazy_stack_arg(&mut self, func_id: FunctionId, index: ArgIdx, value: ValueId) {
+        if !self.scheduler.is_stack_only_value(value) {
+            return;
+        }
+        let depth =
+            self.scheduler.stack.find(value).unwrap_or_else(|| {
+                panic!("lazy stack argument {value:?} was lost in its entry block")
+            });
+        assert!(depth < MAX_STACK_ACCESS, "lazy stack argument exceeded DUP16 reach");
+        self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
+
+        let addr = self.static_frame_addr(
+            func_id,
+            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE,
+        );
+        self.asm.emit_push_deferred(addr);
+        self.scheduler.stack.push_unknown();
+        self.asm.emit_op(op::MSTORE);
+        self.scheduler.instruction_executed(2, None);
+        self.scheduler.materialize_stack_only_value(value);
+    }
+
+    /// Materializes repeated arguments immediately before the entry block's first instruction.
+    fn materialize_lazy_stack_args(
+        &mut self,
+        func_id: FunctionId,
+        kind: &InstKind,
+        block: BlockId,
+        inst_idx: usize,
+    ) {
+        if block != BlockId::ENTRY || inst_idx != 0 {
+            return;
+        }
+        let Some(plan) = self.lazy_stack_args.get(&func_id).cloned() else { return };
+        let operands = kind.operands();
+        for (index, value) in plan.args {
+            debug_assert!(operands.contains(&value));
+            if plan.frame_values.contains(value) {
+                self.materialize_lazy_stack_arg(func_id, index, value);
             }
         }
     }
