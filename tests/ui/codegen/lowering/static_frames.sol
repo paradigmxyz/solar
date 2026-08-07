@@ -35,7 +35,6 @@ contract SF {
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // CHECK-NEXT: pop
-    // CHECK-NEXT: pop
     // CHECK-NEXT: push [[TOP_REC_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[REC_ENTRY:bb[0-9]+]]
     // CHECK-NEXT: [[REC_ENTRY]]:

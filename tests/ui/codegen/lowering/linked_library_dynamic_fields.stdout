@@ -99,15 +99,11 @@ bb4:
   swap1
   push 32
   add
-  dup1
   push 256
   mstore
-  dup2
   push 251
   shr
-  swap4
-  pop
-  pop
+  swap2
   pop
   pop
   push bb12
@@ -165,7 +161,6 @@ bb4:
   dup1
   push 224
   mstore
-  dup1
   calldataload
   dup1
   push 256
@@ -177,8 +172,6 @@ bb4:
   push 320
   mstore
   lt
-  swap1
-  pop
   push bb12
   jumpi
   push 31
@@ -403,7 +396,6 @@ bb17:
   mul
   add
   mload
-  dup1
   push 192
   mstore
   push 160
@@ -415,8 +407,6 @@ bb17:
   push 224
   mstore
   lt
-  swap1
-  pop
   push bb24
   jumpi
   push 224
@@ -596,15 +586,10 @@ bb9:
   push 36
   calldataload
   add
-  dup1
   push 192
   mstore
-  dup2
   push 251
   shr
-  swap2
-  pop
-  pop
   push bb17
   jumpi
   push 160
