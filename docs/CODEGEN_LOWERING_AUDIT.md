@@ -401,6 +401,11 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    while the base constructor expands its modifier.
    `constructor_modifier_storage_virtual.sol` combines a storage modifier
    argument with virtual dispatch during base construction.
+   `constructor_modifier_virtual_initializer.sol` records the supported
+   base-before-derived initialization order. Solar and Solc's via-IR pipeline
+   return zero when the virtual call reads the derived initializer; Solc 0.8.35
+   legacy codegen returns 42 for the same source, so matching that legacy-only
+   result remains an explicit gap.
    `modifier_return_in_loop.sol` covers an explicit modifier return that
    exits after the preceding placeholder expansions.
    `modifier_return_parameter_complex.sol` covers return bindings forwarded
