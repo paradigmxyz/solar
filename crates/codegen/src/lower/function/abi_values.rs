@@ -186,7 +186,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         match ty.peel_refs().kind {
             TyKind::DynArray(_) | TyKind::Array(_, _) => self.canonicalize_abi_array(ty, value),
             TyKind::Struct(_) => self.canonicalize_abi_struct(ty, value),
-            _ => value,
+            _ => self.normalize_abi_scalar(value, ty),
         }
     }
 
