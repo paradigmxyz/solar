@@ -185,7 +185,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
 
         let continuation = self.builder.create_block();
-        self.return_targets.push(continuation);
+        let before_values = self.values.clone();
+        let before_storage_refs = self.storage_refs.clone();
+        self.push_return_target(continuation);
         if let Some(contract_id) = contract_id {
             self.lower_implicit_base_constructors_inner(contract_id, lowered)?;
             if has_ancestors {
@@ -193,12 +195,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
         }
         let result = self.lower_function_body(constructor.modifiers, body);
-        self.return_targets.pop();
         result?;
         if !self.is_terminated() {
+            self.record_return_state();
             self.builder.jump(continuation);
         }
-        self.builder.switch_to_block(continuation);
+        self.finish_return_target(before_values, before_storage_refs);
         for (parameter, previous) in saved_parameters {
             if let Some(value) = previous {
                 self.values.insert(parameter, value);
@@ -214,14 +216,16 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             return report_unsupported(self.gcx, span, "modifier placeholder");
         };
         let continuation = self.builder.create_block();
-        self.return_targets.push(continuation);
+        let before_values = self.values.clone();
+        let before_storage_refs = self.storage_refs.clone();
+        self.push_return_target(continuation);
         let result = self.lower_modifier_at(context.modifiers, context.body, context.next);
-        self.return_targets.pop();
         result?;
         if !self.is_terminated() {
+            self.record_return_state();
             self.builder.jump(continuation);
         }
-        self.builder.switch_to_block(continuation);
+        self.finish_return_target(before_values, before_storage_refs);
         Some(())
     }
 }

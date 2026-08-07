@@ -366,6 +366,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    before the body runs. `modifier_named_arguments.sol` covers named modifier
    argument binding. `modifier_multiple_invocations.sol` checks that each
    modifier invocation gets an independent local-variable scope.
+   `modifier_return_parameter_complex.sol` covers return bindings forwarded
+   through several modifiers, and `modifier_stacked_return.sol` covers nested
+   modifier postludes after a function-body return.
    Solc's via-IR-only `function_modifier_multi_invocation_viair.sol` remains a
    gap: repeated `_` expansion currently shares function return bindings,
    while Solc gives each expanded body fresh return variables.

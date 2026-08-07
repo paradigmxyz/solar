@@ -215,7 +215,7 @@ struct FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers> {
     returns: Vec<VariableId>,
     loops: Vec<LoopTargets>,
     modifiers: Vec<ModifierContext<'gcx>>,
-    return_targets: Vec<BlockId>,
+    return_targets: Vec<ReturnTarget>,
     unchecked: bool,
 }
 
@@ -250,6 +250,11 @@ struct ModifierContext<'gcx> {
     modifiers: &'gcx [hir::Modifier<'gcx>],
     body: hir::Block<'gcx>,
     next: usize,
+}
+
+struct ReturnTarget {
+    block: BlockId,
+    states: Vec<LoopState>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -519,6 +524,32 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.func().block(self.builder.current_block()).terminator.is_some()
     }
 
+    fn push_return_target(&mut self, block: BlockId) {
+        self.return_targets.push(ReturnTarget { block, states: Vec::new() });
+    }
+
+    fn record_return_state(&mut self) {
+        let state = LoopState {
+            block: self.builder.current_block(),
+            values: self.values.clone(),
+            storage_refs: self.storage_refs.clone(),
+        };
+        if let Some(target) = self.return_targets.last_mut() {
+            target.states.push(state);
+        }
+    }
+
+    fn finish_return_target(
+        &mut self,
+        before_values: FxHashMap<VariableId, ValueId>,
+        before_storage_refs: FxHashMap<VariableId, StorageAccess>,
+    ) {
+        let target = self.return_targets.pop().expect("return target exists");
+        self.builder.switch_to_block(target.block);
+        self.values = self.merge_many_values(before_values, &target.states);
+        self.storage_refs = self.merge_many_storage_refs(before_storage_refs, &target.states);
+    }
+
     fn lower_function_body(
         &mut self,
         modifiers: &'gcx [hir::Modifier<'gcx>],
@@ -528,14 +559,16 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             self.lower_block(body)
         } else {
             let return_block = self.builder.create_block();
-            self.return_targets.push(return_block);
+            let before_values = self.values.clone();
+            let before_storage_refs = self.storage_refs.clone();
+            self.push_return_target(return_block);
             let result = self.lower_modifier_chain(modifiers, body);
-            self.return_targets.pop();
             result?;
             if !self.is_terminated() {
+                self.record_return_state();
                 self.builder.jump(return_block);
             }
-            self.builder.switch_to_block(return_block);
+            self.finish_return_target(before_values, before_storage_refs);
             Some(())
         }
     }
@@ -716,7 +749,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                         self.lower_return_values(expr)
                     },
                 )?;
-                if let Some(&target) = self.return_targets.last() {
+                if let Some(target) = self.return_targets.last().map(|target| target.block) {
                     if !values.is_empty() {
                         if values.len() != self.returns.len() {
                             return report_unsupported(self.gcx, stmt.span, "return value count");
@@ -740,6 +773,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                             }
                         }
                     }
+                    self.record_return_state();
                     self.builder.jump(target);
                 } else if !self.is_terminated() {
                     if values.is_empty() {
