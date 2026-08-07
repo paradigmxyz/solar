@@ -398,6 +398,17 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.store_storage_value(ty, access, value, expr.span)
     }
 
+    pub(super) fn store_storage_access_with_source(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        access: StorageAccess,
+        value: ValueId,
+        source_ty: Ty<'gcx>,
+    ) -> Option<()> {
+        let ty = self.gcx.type_of_expr(expr.id)?;
+        self.store_storage_value_with_source(ty, source_ty, access, value, expr.span)
+    }
+
     pub(super) fn load_storage_value(
         &mut self,
         ty: solar_sema::ty::Ty<'gcx>,
@@ -426,8 +437,19 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         value: ValueId,
         span: Span,
     ) -> Option<()> {
+        self.store_storage_value_with_source(ty, ty, access, value, span)
+    }
+
+    fn store_storage_value_with_source(
+        &mut self,
+        ty: solar_sema::ty::Ty<'gcx>,
+        source_ty: solar_sema::ty::Ty<'gcx>,
+        access: StorageAccess,
+        value: ValueId,
+        span: Span,
+    ) -> Option<()> {
         if self.types.memory_layout(ty).is_some() {
-            return self.store_storage_object(ty, access.slot, value, span);
+            return self.store_storage_object_with_source(ty, source_ty, access.slot, value, span);
         }
         if let Some(offset) = access.offset {
             self.storage.store_packed_at_slot(
@@ -546,43 +568,96 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         object: ValueId,
         span: Span,
     ) -> Option<()> {
+        self.store_storage_object_with_source(ty, ty, slot, object, span)
+    }
+
+    pub(super) fn store_storage_object_with_source(
+        &mut self,
+        ty: solar_sema::ty::Ty<'gcx>,
+        source_ty: solar_sema::ty::Ty<'gcx>,
+        slot: ValueId,
+        object: ValueId,
+        span: Span,
+    ) -> Option<()> {
+        // MIR object values retain only their coarse kind; HIR types preserve
+        // the nested shape needed when fixed arrays convert to storage arrays.
         match ty.peel_refs().kind {
             solar_sema::ty::TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
             ) => self.store_storage_bytes(slot, object),
             solar_sema::ty::TyKind::Struct(struct_id) => {
+                let solar_sema::ty::TyKind::Struct(source_struct_id) = source_ty.peel_refs().kind
+                else {
+                    return report_unsupported(self.gcx, span, "storage struct conversion");
+                };
                 let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
-                let layout = MemoryObjectLayout::Struct { fields };
+                let source_fields = self.gcx.hir.strukt(source_struct_id).fields.len() as u64;
+                if fields != source_fields {
+                    return report_unsupported(self.gcx, span, "storage struct conversion");
+                }
+                let layout = self.types.memory_layout(source_ty)?;
                 for (index, &field) in self.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
                     let field_ty = self.gcx.type_of_item(field.into());
                     let location = self.storage.field_location(struct_id, index)?;
                     let field_slot = self.add_storage_offset(slot, location.slot);
                     let value = self.builder.memory_object_load_field(object, layout, index as u64);
-                    self.store_storage_value(
-                        field_ty,
-                        StorageAccess { slot: field_slot, location, offset: None },
-                        value,
-                        span,
-                    )?;
+                    let source_field = self.gcx.hir.strukt(source_struct_id).fields[index];
+                    let source_field_ty = self.gcx.type_of_item(source_field.into());
+                    let access = StorageAccess { slot: field_slot, location, offset: None };
+                    if self.types.memory_layout(field_ty).is_some() {
+                        self.store_storage_object_with_source(
+                            field_ty,
+                            source_field_ty,
+                            field_slot,
+                            value,
+                            span,
+                        )?;
+                    } else {
+                        self.store_storage_value(field_ty, access, value, span)?;
+                    }
                 }
                 Some(())
             }
             solar_sema::ty::TyKind::Array(element, len) => {
+                let solar_sema::ty::TyKind::Array(source_element, source_len) =
+                    source_ty.peel_refs().kind
+                else {
+                    return report_unsupported(self.gcx, span, "storage array conversion");
+                };
                 let len = u64::try_from(len).ok()?;
-                let element_words = self.types.element_words(element);
-                let layout = MemoryObjectLayout::FixedArray { len, element_words };
+                let source_len = u64::try_from(source_len).ok()?;
+                let layout = self.types.memory_layout(source_ty)?;
                 for index in 0..len {
                     let index_value = self.builder.imm_u64(index);
-                    let value =
-                        self.builder.memory_object_load_element(object, layout, index_value);
                     let access =
                         self.storage_array_element_access(slot, index_value, element, false)?;
-                    self.store_storage_value(element, access, value, span)?;
+                    if index < source_len {
+                        let value =
+                            self.builder.memory_object_load_element(object, layout, index_value);
+                        if self.types.memory_layout(element).is_some() {
+                            self.store_storage_object_with_source(
+                                element,
+                                source_element,
+                                access.slot,
+                                value,
+                                span,
+                            )?;
+                        } else {
+                            self.store_storage_value(element, access, value, span)?;
+                        }
+                    } else {
+                        let value = self.default_value(element);
+                        if self.types.memory_layout(element).is_some() {
+                            self.store_storage_object(element, access.slot, value, span)?;
+                        } else {
+                            self.store_storage_value(element, access, value, span)?;
+                        }
+                    }
                 }
                 Some(())
             }
             solar_sema::ty::TyKind::DynArray(element) => {
-                self.store_dynamic_storage_object(element, slot, object, span)
+                self.store_dynamic_storage_object(element, source_ty, slot, object, span)
             }
             _ => report_unsupported(self.gcx, span, "storage object copy"),
         }
@@ -756,14 +831,25 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     fn store_dynamic_storage_object(
         &mut self,
         element: solar_sema::ty::Ty<'gcx>,
+        source_ty: solar_sema::ty::Ty<'gcx>,
         slot: ValueId,
         object: ValueId,
         span: Span,
     ) -> Option<()> {
-        let length = self.builder.memory_object_len(object, MemoryObjectKind::DynamicArray);
+        let source_ty = source_ty.peel_refs();
+        let source_layout = self.types.memory_layout(source_ty)?;
+        let (source_element, length) = match source_ty.kind {
+            solar_sema::ty::TyKind::DynArray(source_element)
+            | solar_sema::ty::TyKind::Slice(source_element) => {
+                (source_element, self.builder.memory_object_len(object, source_layout.kind()))
+            }
+            solar_sema::ty::TyKind::Array(source_element, source_len) => {
+                let source_len = self.builder.imm_u64(u64::try_from(source_len).ok()?);
+                (source_element, source_len)
+            }
+            _ => return report_unsupported(self.gcx, span, "storage array conversion"),
+        };
         self.builder.sstore(slot, length);
-        let element_words = self.types.element_words(element);
-        let array_layout = MemoryObjectLayout::DynamicArray { element_words };
 
         let preheader = self.builder.current_block();
         let header = self.builder.create_block();
@@ -777,9 +863,19 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.branch(condition, body, exit);
 
         self.builder.switch_to_block(body);
-        let value = self.builder.memory_object_load_element(object, array_layout, index);
+        let value = self.builder.memory_object_load_element(object, source_layout, index);
         let access = self.storage_array_element_access(slot, index, element, true)?;
-        self.store_storage_value(element, access, value, span)?;
+        if self.types.memory_layout(element).is_some() {
+            self.store_storage_object_with_source(
+                element,
+                source_element,
+                access.slot,
+                value,
+                span,
+            )?;
+        } else {
+            self.store_storage_value(element, access, value, span)?;
+        }
         let one = self.builder.imm_u64(1);
         let next = self.builder.add(index, one);
         let backedge = self.builder.current_block();

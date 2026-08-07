@@ -400,12 +400,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
             let Some(initializer) = variable.initializer else { continue };
             let ty = self.gcx.type_of_item(id.into());
+            let source_ty = self.gcx.type_of_expr(initializer.id)?;
             let value = self.lower_typed_expr(initializer, ty)?;
-            let value = self.coerce_value(value, self.gcx.type_of_expr(initializer.id)?, ty);
+            let value = self.coerce_value(value, source_ty, ty);
             if let Some(&immutable_id) = self.immutable_ids.get(&id) {
                 self.builder.store_immutable(immutable_id, value);
             } else {
-                self.store_state_variable(id, value, initializer.span)?;
+                self.store_state_variable(id, value, source_ty, initializer.span)?;
             }
         }
         Some(())
@@ -2267,7 +2268,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     self.materialize_memory_argument(lhs_ty, rhs_value, rhs.span)?
                 };
                 let value = self.coerce_value(value, rhs_ty, lhs_ty);
-                self.store_lvalue(lhs, value)?;
+                self.store_lvalue_with_source(lhs, value, Some(rhs_ty))?;
                 Some(value)
             }
             ExprKind::Ternary(cond, then_expr, else_expr) => {
@@ -3903,14 +3904,20 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         report_unsupported(self.gcx, span, "assignment target")
     }
 
-    fn store_state_variable(&mut self, id: VariableId, value: ValueId, span: Span) -> Option<()> {
+    fn store_state_variable(
+        &mut self,
+        id: VariableId,
+        value: ValueId,
+        source_ty: Ty<'gcx>,
+        span: Span,
+    ) -> Option<()> {
         let ty = self.gcx.type_of_item(id.into());
         let Some(location) = self.storage.get(id) else {
             return report_unsupported(self.gcx, span, "state initializer target");
         };
         if self.types.memory_layout(ty).is_some() {
             let slot = self.builder.imm_u256(location.slot);
-            self.store_storage_object(ty, slot, value, span)
+            self.store_storage_object_with_source(ty, source_ty, slot, value, span)
         } else {
             self.storage.store(&mut self.builder, location, value);
             Some(())
@@ -3918,8 +3925,21 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     }
 
     fn store_lvalue(&mut self, expr: &hir::Expr<'_>, value: ValueId) -> Option<()> {
+        self.store_lvalue_with_source(expr, value, None)
+    }
+
+    fn store_lvalue_with_source(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        value: ValueId,
+        source_ty: Option<Ty<'gcx>>,
+    ) -> Option<()> {
         if let Some(access) = self.storage_access(expr) {
-            return self.store_storage_access(expr, access, value);
+            return if let Some(source_ty) = source_ty {
+                self.store_storage_access_with_source(expr, access, value, source_ty)
+            } else {
+                self.store_storage_access(expr, access, value)
+            };
         }
         if let Some(id) = self.gcx.resolved_variable(expr)
             && self.gcx.hir.variable(id).is_state_variable()
@@ -3930,7 +3950,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     return report_unsupported(self.gcx, expr.span, "storage assignment target");
                 };
                 let slot = self.builder.imm_u256(location.slot);
-                return self.store_storage_object(ty, slot, value, expr.span);
+                return if let Some(source_ty) = source_ty {
+                    self.store_storage_object_with_source(ty, source_ty, slot, value, expr.span)
+                } else {
+                    self.store_storage_object(ty, slot, value, expr.span)
+                };
             }
         }
         if let Some(id) = self.gcx.resolved_variable(expr) {

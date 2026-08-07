@@ -312,6 +312,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    dynamic structs with word-array members.
    `calldata_struct_dynamic_memory.sol` checks copying the same aggregate
    shape from calldata into memory before reading nested values.
+   `calldata_nested_element_memory.sol` covers nested dynamic and fixed-array
+   elements selected from calldata and copied into memory before indexing.
    `abi.decode`, external return decoding, and `catch Error(string)` payload
    decoding are represented by semantic MIR operations and lowered by the ABI
    pass; multi-return materialization uses the shared frame/object path. The
@@ -399,6 +401,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    Solc's 24-byte packed storage representation, and internal pointers use its
    8-byte representation; following fields and fixed pointer arrays share the
    remaining bytes in each word.
+   `nested_array_memory_storage.sol` covers memory-to-storage copies where
+   fixed nested arrays widen into dynamic or larger fixed storage arrays, and
+   `nested_array_element_memory_storage.sol` covers selected nested fixed-array
+   elements copied into storage.
    `storage_delete_packed_array.sol` checks that deleting packed fixed-array
    storage references preserves the runtime element offset while clearing.
    `storage_delete_packed_struct.sol` extends that check through packed struct
