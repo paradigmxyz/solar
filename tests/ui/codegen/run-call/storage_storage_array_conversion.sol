@@ -1,11 +1,14 @@
 //@ run-call: dynamic => 9
 //@ run-call: nested => 7
+//@ run-call: fixedToDynamic => 13
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_storage_storage_different_base.sol
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_storage_storage_different_base_nested.sol
 
 contract StorageStorageArrayConversion {
     uint64[] dynamicSource;
     uint256[] dynamicTarget;
+    uint256[9] fixedSource;
+    uint256[] fixedDynamicTarget;
     uint48[5][2] nestedSource;
     uint120[6][3] nestedTarget;
 
@@ -32,5 +35,11 @@ contract StorageStorageArrayConversion {
         nestedSource[1][0] = 3;
         nestedTarget = nestedSource;
         return 3 + nestedTarget[0][4];
+    }
+
+    function fixedToDynamic() external returns (uint256) {
+        fixedSource[8] = 4;
+        fixedDynamicTarget = fixedSource;
+        return fixedDynamicTarget.length + fixedDynamicTarget[8];
     }
 }
