@@ -9,8 +9,11 @@
 //@ run-call: ExternalReturnValidation::dirtyMemoryStruct() => true
 //@ run-call: ExternalReturnValidation::dirtyMemoryLvalue() => true
 //@ run-call-fail: ExternalReturnValidation::dirtyEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@ run-call-fail: ExternalReturnValidation::dirtyEnumStorage() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_static_array.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_dynamic_array.sol
+// ported-from: test/libsolidity/semanticTests/reverts/invalid_enum_as_external_ret.sol
+// ported-from: test/libsolidity/semanticTests/reverts/invalid_enum_stored.sol
 
 contract ExternalReturnValidation {
     struct Pair {
@@ -26,6 +29,8 @@ contract ExternalReturnValidation {
         A,
         B
     }
+
+    State state;
 
     function short() external view returns (uint256) {
         return this.shortTarget();
@@ -131,5 +136,14 @@ contract ExternalReturnValidation {
         assembly {
             value := 2
         }
+    }
+
+    function dirtyEnumStorage() external returns (uint256) {
+        State value;
+        assembly {
+            value := 2
+        }
+        state = value;
+        return 1;
     }
 }

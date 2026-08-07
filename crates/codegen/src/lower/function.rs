@@ -4302,6 +4302,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             return Some(());
         }
         if let Some(location) = self.storage.get(id) {
+            let ty = self.gcx.type_of_item(id.into());
+            self.validate_enum_value(ty, value);
             self.storage.store(&mut self.builder, location, value);
             return Some(());
         }
@@ -4323,6 +4325,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let slot = self.builder.imm_u256(location.slot);
             self.store_storage_object_with_source(ty, source_ty, slot, value, span)
         } else {
+            self.validate_enum_value(ty, value);
             self.storage.store(&mut self.builder, location, value);
             Some(())
         }

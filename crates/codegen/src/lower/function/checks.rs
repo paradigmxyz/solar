@@ -9,6 +9,15 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.panic_if(condition, code);
     }
 
+    pub(super) fn validate_enum_value(&mut self, ty: solar_sema::ty::Ty<'gcx>, value: ValueId) {
+        let TyKind::Enum(id) = ty.peel_refs().kind else { return };
+        let variants = self.gcx.hir.enumm(id).variants.len() as u64;
+        let limit = self.builder.imm_u64(variants);
+        let valid = self.builder.lt(value, limit);
+        let invalid = self.builder.iszero(valid);
+        self.panic_if(invalid, 0x21);
+    }
+
     pub(super) fn checked_add(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
         let result = self.builder.add(lhs, rhs);
         let overflow = self.builder.lt(result, lhs);

@@ -179,24 +179,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let one = self.builder.imm_u64(1);
         let new_length = self.checked_add(length, one);
         let element_access = self.storage_array_element_access(base.slot, length, element, true)?;
-        if self.types.memory_layout(element).is_some() {
-            self.store_storage_object(element, element_access.slot, value, expr.span)?;
-        } else if let Some(offset) = element_access.offset {
-            self.storage.store_packed_at_slot(
-                &mut self.builder,
-                element_access.location,
-                element_access.slot,
-                offset,
-                value,
-            );
-        } else {
-            self.storage.store_at_slot(
-                &mut self.builder,
-                element_access.location,
-                element_access.slot,
-                value,
-            );
-        }
+        self.store_storage_value(element, element_access, value, expr.span)?;
         self.builder.sstore(base.slot, new_length);
         Some(self.builder.imm_u256(U256::ZERO))
     }
@@ -293,19 +276,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.sstore(base.slot, last);
         let access = self.storage_array_element_access(base.slot, last, element, true)?;
         let value = self.default_value(element);
-        if self.types.memory_layout(element).is_some() {
-            self.store_storage_object(element, access.slot, value, expr.span)?;
-        } else if let Some(offset) = access.offset {
-            self.storage.store_packed_at_slot(
-                &mut self.builder,
-                access.location,
-                access.slot,
-                offset,
-                value,
-            );
-        } else {
-            self.storage.store_at_slot(&mut self.builder, access.location, access.slot, value);
-        }
+        self.store_storage_value(element, access, value, expr.span)?;
         Some(zero)
     }
 
@@ -469,6 +440,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         if self.types.memory_layout(ty).is_some() {
             return self.store_storage_object_with_source(ty, source_ty, access.slot, value, span);
         }
+        self.validate_enum_value(ty, value);
         if let Some(offset) = access.offset {
             self.storage.store_packed_at_slot(
                 &mut self.builder,
