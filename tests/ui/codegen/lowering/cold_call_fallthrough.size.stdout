@@ -77,14 +77,10 @@ bb25 [cold]:
   push 32
   push 4
   mstore
+  push 64
   push 192
-  mload
   push 36
-  mstore
-  push 224
-  mload
-  push 68
-  mstore
+  mcopy
   push 100
   push 0
   revert

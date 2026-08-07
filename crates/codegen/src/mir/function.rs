@@ -297,6 +297,19 @@ impl Function {
         self.instructions[id].result()
     }
 
+    /// Removes an unused instruction result while keeping the instruction and its effects.
+    ///
+    /// The allocated value remains in the arena as an undefined value because IDs are stable for
+    /// the lifetime of a function. Callers must prove that the result has no remaining active uses.
+    pub(crate) fn remove_inst_result(&mut self, id: InstId) -> Option<ValueId> {
+        let ty = self.instructions[id].result_ty.take()?;
+        let result = self.instructions[id]
+            .set_result(None)
+            .expect("value-producing instruction must have an allocated result");
+        self.values[result] = Value::Undef(ty);
+        Some(result)
+    }
+
     /// Returns a map from each instruction to the block containing it.
     #[must_use]
     pub(crate) fn inst_blocks(&self) -> FxHashMap<InstId, BlockId> {

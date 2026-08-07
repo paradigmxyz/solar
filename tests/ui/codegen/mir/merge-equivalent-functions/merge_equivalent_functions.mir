@@ -53,3 +53,37 @@ fn @entry() -> u256 [selector=0x01020304] {
     v4 = add v3, v2
     ret v4
 }
+
+// Direct self-recursion is alpha-equivalent across function IDs.
+// CHECK-LABEL: fn @recursive_a(arg0: bool, arg1: u256) -> u256
+fn @recursive_a(arg0: bool, arg1: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = internal_call fn6, 1, false, arg1
+    ret v0
+  bb2:
+    ret arg1
+}
+
+// CHECK-LABEL: fn @recursive_b(arg0: bool, arg1: u256) -> u256
+// CHECK: {{^\+.*}}internal_call @recursive_a, 1, 0, arg1
+fn @recursive_b(arg0: bool, arg1: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = internal_call fn7, 1, false, arg1
+    ret v0
+  bb2:
+    ret arg1
+}
+
+// CHECK-LABEL: fn @recursive_entry()
+// CHECK: internal_call @recursive_a, 1, 1, 1
+// CHECK: {{^\+.*}}internal_call @recursive_a, 1, 1, 2
+fn @recursive_entry() [selector=0x01020306] {
+  bb0:
+    v0 = internal_call fn6, 1, true, 1
+    v1 = internal_call fn7, 1, true, 2
+    stop
+}

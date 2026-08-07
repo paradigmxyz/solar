@@ -1,0 +1,48 @@
+- // === ROOT/tests/ui/codegen/mir/prune-unused-returns/prune_unused_returns.mir (before prune-unused-returns) ===
++ // === ROOT/tests/ui/codegen/mir/prune-unused-returns/prune_unused_returns.mir (after prune-unused-returns) ===
+  @module PruneUnusedReturns
+- fn @discarded(arg0: u256) -> u256 {
++ fn @discarded(arg0: u256) {
+    bb0:
+      sstore 0, arg0
+-     ret arg0
++     ret
+  }
+  
+- fn @recursive(arg0: bool, arg1: u256) -> u256 {
++ fn @recursive(arg0: bool, arg1: u256) {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb1:
+-     v0 = internal_call @recursive, 1, 0, arg1
+-     ret v0
++     internal_call @recursive, 0, 0, arg1
++     ret
+    bb2:
+      sstore 1, arg1
+-     ret arg1
++     ret
+  }
+  
+  fn @kept(arg0: u256) -> u256 {
+    bb0:
+      ret arg0
+  }
+  
+  fn @entry() -> u256 {
+    bb0:
+-     v0 = internal_call @discarded, 1, 7
+-     v1 = internal_call @recursive, 1, 1, 8
+-     v2 = internal_call @kept, 1, 9
+-     ret v2
++     internal_call @discarded, 0, 7
++     internal_call @recursive, 0, 1, 8
++     v0 = internal_call @kept, 1, 9
++     ret v0
+  }
+  
+  fn @external_keeps_abi(arg0: u256) -> u256 {
+    bb0:
+      ret arg0
+  }
+  
