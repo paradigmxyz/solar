@@ -468,6 +468,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    assignment into a fixed storage reference.
    `storage_boundary_array_packing_not_overlapping_variable.sol` checks packed
    boundary cleanup without clobbering the following storage slot.
+   `storage_boundary_array_overlap.sol` covers the deliberate overlapping
+   fixed-array/state-variable boundary and its cleanup behavior.
    `storage_return_pointer_multi.sol` checks tuple assignment from an internal
    call returning multiple storage references before mutating both targets.
    `storage_return_pointer_mixed.sol` and
