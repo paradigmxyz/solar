@@ -245,6 +245,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   slice to an external calldata parameter.
 * dynamic calldata arrays of multiword static elements, including storage
   copies and ABI encoding of nested fixed arrays;
+* nested dynamic calldata arrays copied to memory, including Solc's truncated
+  inner-array length failure;
 * calldata fixed-array indexing of structs without eagerly validating unused
   dynamic fields;
 * dynamic and fixed memory arrays of structs with nested bytes and dynamic
