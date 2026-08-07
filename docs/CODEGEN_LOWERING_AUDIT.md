@@ -540,6 +540,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `storage_array_push_references.sol` covers storage references returned by
    `push()`, nested push chaining, and the empty-element transition for storage
    bytes.
+   `storage_array_push_calldata.sol` covers copying nested dynamic arrays and
+   structs with dynamic members through `push()` from calldata.
+   `user_defined_storage_conversion.sol` covers user-defined integer and
+   fixed-bytes types through calldata and memory aggregate copies into storage.
 5. Keep expanding runtime and differential coverage for aggregate allocation
    shapes and constructor/modifier edges. The UI snapshots are now in sync
    with the rewrite, and the full `cargo tq ui` suite passes. ERC-7201
