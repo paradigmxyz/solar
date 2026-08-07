@@ -73,11 +73,14 @@ The replacement is split into stateful, private components:
   of the main expression walker.
   L-value place resolution and semantic load/store operations live in the
   sibling `function/lvalues` module, so assignment paths share one place model.
+  Variable bindings, aggregate assignment, and deletion use that same module.
   Memory-backed arrays, tuples, literals, and zero-initialized aggregate
   defaults live in `function/memory_values`.
   Storage-reference access, packed indexing, array push/pop, and aggregate
   storage copies live in the child `function/storage_values` module instead of
   in the main HIR expression walker.
+  Recursive storage clearing also lives there, keeping storage cleanup beside
+  its packed and aggregate access rules.
 * `TypeLowerer` owns recursive aggregate-shape state and produces MIR types and
   ABI descriptors. Recursive structs fail closed instead of recursing forever.
 * `StorageBuilder` computes one base-to-derived layout through a stateful
