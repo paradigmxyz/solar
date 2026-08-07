@@ -46,7 +46,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 value = self.materialize_calldata_argument(ty, value, expr.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
             } else {
-                value = self.canonicalize_abi_array(ty, value);
+                value = self.canonicalize_abi_value(ty, value);
             }
             values.push(value);
             types.push(abi_type);
@@ -172,7 +172,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 value = self.materialize_calldata_argument(ty, value, expr.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
             } else {
-                value = self.canonicalize_abi_array(ty, value);
+                value = self.canonicalize_abi_value(ty, value);
             }
             values.push(value);
             types.push(abi_type);
@@ -180,6 +180,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
         Some(self.materialize_memory_slice(encoded))
+    }
+
+    fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
+        match ty.peel_refs().kind {
+            TyKind::DynArray(_) | TyKind::Array(_, _) => self.canonicalize_abi_array(ty, value),
+            TyKind::Struct(_) => self.canonicalize_abi_struct(ty, value),
+            _ => value,
+        }
     }
 
     fn canonicalize_abi_array(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
@@ -244,12 +252,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 
         self.builder.switch_to_block(body);
         let element_value = self.builder.memory_object_load_element(value, layout, index);
-        let element_value = match element_ty.peel_refs().kind {
-            TyKind::DynArray(_) | TyKind::Array(_, _) => {
-                self.canonicalize_abi_array(element_ty, element_value)
-            }
-            _ => self.normalize_abi_scalar(element_value, element_ty),
-        };
+        let element_value = self.canonicalize_abi_child(element_ty, element_value);
         self.builder.memory_object_store_element(output, layout, index, element_value);
         let one = self.builder.imm_u64(1);
         let next = self.builder.add(index, one);
@@ -261,11 +264,58 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         output
     }
 
+    fn canonicalize_abi_struct(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
+        if !self.abi_value_needs_normalization(ty) {
+            return value;
+        }
+        let Some(layout @ MemoryObjectLayout::Struct { .. }) = self.types.memory_layout(ty) else {
+            return value;
+        };
+        let value_is_memory_object = matches!(
+            self.builder.func().value_ty(value),
+            Some(MirType::MemoryObject(MemoryObjectKind::Struct))
+        ) || matches!(
+            self.builder.func().value_ty(value),
+            Some(MirType::UInt(size)) if size.bits() == 256
+        );
+        if !value_is_memory_object {
+            return value;
+        }
+
+        let TyKind::Struct(id) = ty.peel_refs().kind else { unreachable!("struct layout checked") };
+        let fields = self.gcx.hir.strukt(id).fields.to_vec();
+        let Some(size) = u64::try_from(fields.len()).ok().and_then(|len| len.checked_mul(32))
+        else {
+            return value;
+        };
+        let size = self.builder.imm_u64(size);
+        let output = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        for (index, &field) in fields.iter().enumerate() {
+            let field_ty = self.gcx.type_of_item(field.into());
+            let field_value = self.builder.memory_object_load_field(value, layout, index as u64);
+            let field_value = self.canonicalize_abi_child(field_ty, field_value);
+            self.builder.memory_object_store_field(output, layout, index as u64, field_value);
+        }
+        output
+    }
+
+    fn canonicalize_abi_child(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
+        match ty.peel_refs().kind {
+            TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Struct(_) => {
+                self.canonicalize_abi_value(ty, value)
+            }
+            _ => self.normalize_abi_scalar(value, ty),
+        }
+    }
+
     fn abi_value_needs_normalization(&self, ty: Ty<'gcx>) -> bool {
         match ty.peel_refs().kind {
             TyKind::DynArray(element) | TyKind::Array(element, _) => {
                 self.abi_value_needs_normalization(element)
             }
+            TyKind::Struct(id) => self.gcx.hir.strukt(id).fields.iter().any(|&field| {
+                self.abi_value_needs_normalization(self.gcx.type_of_item(field.into()))
+            }),
             TyKind::Udvt(inner, _) => self.abi_value_needs_normalization(inner),
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::UInt(size)
