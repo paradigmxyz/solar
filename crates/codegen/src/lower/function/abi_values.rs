@@ -491,6 +491,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 
             let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
             let mut value = self.lower_typed_expr(expr, memory_ty)?;
+            self.validate_enum_value(ty, value);
             if let Some(abi_type) = self.types.abi_type(ty) {
                 self.validate_calldata_bytes_argument(value, &abi_type);
                 self.validate_calldata_array_head(value, ty, &abi_type);
@@ -1018,6 +1019,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                         SliceLocation::Returndata => unreachable!("returndata packed array"),
                     },
                 };
+                self.validate_enum_value(element.ty, element_value);
                 let element_value = self.normalize_abi_scalar(element_value, element.ty);
                 let element_value = if matches!(&element.abi, AbiType::Function)
                     && matches!(source, PackedArraySource::Memory { .. })
