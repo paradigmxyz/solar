@@ -460,7 +460,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `nested_struct_memory_alias.sol` checks that nested memory aggregate
    assignment preserves Solidity's reference aliasing.
    `require_modulo_chain.sol` checks modulo inside chained `require` conditions,
-   including the divide-by-zero panic and short-circuit paths.
+   including the divide-by-zero panic and short-circuit paths; the same cases
+   now run in the control-flow Foundry differential project.
 
 The current intentional boundary is dynamic-element calldata array slicing.
 Solidity rejects range access for arrays with dynamically encoded base types,
