@@ -137,17 +137,28 @@ pub(crate) fn did_change_watched_files(
         };
 
         match path.file_name().and_then(|name| name.to_str()) {
-            Some("foundry.toml") => {
+            Some("foundry.toml" | "remappings.txt") => {
                 should_rediscover = true;
                 if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED) {
                     state.file_operations.record_watched_events(event.typ, [path]);
                 }
             }
             Some(_) if path.extension().is_some_and(|ext| ext == "sol") => {
-                // Open documents are sourced from the VFS, and `didChange` already schedules their
-                // analysis. The watched change emitted after saving one is redundant.
-                if event.typ == FileChangeType::CHANGED && state.vfs.read().exists(&vfs_path) {
+                let is_open = state.vfs.read().exists(&vfs_path);
+                // Open documents are sourced from the VFS. A save echo is redundant, while a
+                // watcher-only delete only removes the disk copy; `didClose` or `didDelete` ends
+                // the open-document overlay.
+                if is_open && matches!(event.typ, FileChangeType::CHANGED | FileChangeType::DELETED)
+                {
+                    if event.typ == FileChangeType::DELETED {
+                        Arc::make_mut(&mut state.config).remove_source_file(&path);
+                    }
                     continue;
+                }
+                if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED)
+                    && state.config.is_import_only_path(&path)
+                {
+                    should_rediscover = true;
                 }
                 if event.typ == FileChangeType::CREATED {
                     Arc::make_mut(&mut state.config).add_source_file(path.clone());

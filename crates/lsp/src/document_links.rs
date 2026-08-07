@@ -108,7 +108,7 @@ impl PlannedImportEdits {
     }
 }
 
-fn import_path_from_bytes(bytes: &[u8]) -> Option<PathBuf> {
+pub(crate) fn import_path_from_bytes(bytes: &[u8]) -> Option<PathBuf> {
     #[cfg(unix)]
     {
         Some(PathBuf::from(OsString::from_vec(bytes.to_vec())))
@@ -149,6 +149,26 @@ fn import_path_bytes(path: &Path) -> Cow<'_, [u8]> {
     {
         Cow::Borrowed(path.as_os_str().as_encoded_bytes())
     }
+}
+
+pub(crate) fn solidity_string_contents(bytes: &[u8], delimiter: u8) -> String {
+    debug_assert!(matches!(delimiter, b'\'' | b'"'));
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+
+    let mut contents = String::with_capacity(bytes.len());
+    for &byte in bytes {
+        let is_safe =
+            byte == b' ' || (byte.is_ascii_graphic() && byte != delimiter && byte != b'\\');
+        if is_safe {
+            contents.push(char::from(byte));
+        } else {
+            contents.push('\\');
+            contents.push('x');
+            contents.push(char::from(HEX[(byte >> 4) as usize]));
+            contents.push(char::from(HEX[(byte & 0x0f) as usize]));
+        }
+    }
+    contents
 }
 
 fn components_to_import_path(components: &[Component<'_>]) -> PathBuf {

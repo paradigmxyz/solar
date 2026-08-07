@@ -6,7 +6,7 @@ use super::SourceFile;
 use crate::{Session, SourceMap};
 use itertools::Itertools;
 use normalize_path::NormalizePath;
-use solar_config::ImportRemapping;
+use solar_config::{CompileOpts, ImportRemapping};
 use solar_data_structures::smallvec::SmallVec;
 use std::{
     borrow::Cow,
@@ -62,13 +62,18 @@ impl<'a> FileResolver<'a> {
 
     /// Configures the file resolver from a session.
     pub fn configure_from_sess(&mut self, sess: &Session) {
-        self.add_include_paths(sess.opts.include_paths.iter().cloned());
-        self.add_import_remappings(sess.opts.import_remappings.iter().cloned());
+        self.configure_from_opts(&sess.opts);
+    }
+
+    /// Configures the file resolver from compiler options.
+    pub fn configure_from_opts(&mut self, opts: &CompileOpts) {
+        self.add_include_paths(opts.include_paths.iter().cloned());
+        self.add_import_remappings(opts.import_remappings.iter().cloned());
         if let Ok(current_dir) = std::env::current_dir() {
             self.set_current_dir(&current_dir);
         }
         'b: {
-            if let Some(base_path) = &sess.opts.base_path {
+            if let Some(base_path) = &opts.base_path {
                 let base_path = if base_path.is_absolute() {
                     base_path.as_path()
                 } else {
@@ -204,6 +209,72 @@ impl<'a> FileResolver<'a> {
         }
     }
 
+    /// Returns the normalized filesystem paths that may satisfy `path`, in resolution order.
+    ///
+    /// This does not perform I/O or consult the source map. A returned path may remain relative if
+    /// the resolver has no current directory. Use [`Self::resolve_file`] for exact resolution,
+    /// including preloaded source-unit names and ambiguity detection.
+    pub fn candidate_paths(&self, path: &Path, parent: Option<&Path>) -> Vec<PathBuf> {
+        let parent = self.import_parent(parent);
+        let is_relative = path.starts_with("./") || path.starts_with("../");
+        let mut candidates = Vec::with_capacity(1 + self.include_paths.len());
+        let mut push_candidate = |path: &Path| {
+            let absolute = self.make_absolute(path);
+            let normalized = self.normalize(&absolute).into_owned();
+            if !candidates.contains(&normalized) {
+                candidates.push(normalized);
+            }
+        };
+
+        if is_relative {
+            if let Some(parent_dir) = parent.and_then(Path::parent) {
+                push_candidate(&parent_dir.join(path));
+            } else {
+                push_candidate(path);
+            }
+            return candidates;
+        }
+
+        // Top-level inputs first try the path as written before applying import configuration.
+        if parent.is_none() {
+            push_candidate(path);
+        }
+
+        let remapped = self.remap_path(path, parent);
+        if remapped.is_absolute() {
+            push_candidate(&remapped);
+            return candidates;
+        }
+
+        let mut searched = false;
+        for search_root in
+            self.try_base_path().into_iter().chain(self.include_paths.iter().map(PathBuf::as_path))
+        {
+            searched = true;
+            push_candidate(&search_root.join(&remapped));
+        }
+        if !searched {
+            push_candidate(&remapped);
+        }
+        candidates
+    }
+
+    fn import_parent<'b>(&self, parent: Option<&'b Path>) -> Option<&'b Path> {
+        let parent = parent?;
+        if let Some(base_path) = self.try_base_path() {
+            if let Ok(parent) = parent.strip_prefix(base_path) {
+                return Some(parent);
+            }
+            trace!(?parent, ?base_path, "parent is not a subpath of the base path");
+        }
+        Some(parent)
+    }
+
+    /// Applies import remappings after normalizing `parent` relative to the base path.
+    pub fn remap_import_path<'b>(&self, path: &'b Path, parent: Option<&Path>) -> Cow<'b, Path> {
+        self.remap_path(path, self.import_parent(parent))
+    }
+
     /// Resolves an import path.
     ///
     /// `parent` is the path of the file that contains the import, if any.
@@ -211,19 +282,11 @@ impl<'a> FileResolver<'a> {
     pub fn resolve_file(
         &self,
         path: &Path,
-        mut parent: Option<&Path>,
+        parent: Option<&Path>,
     ) -> Result<Arc<SourceFile>, ResolveError> {
         // `parent` comes from `FileName::Real` so it should be an absolute path.
         // Make it relative to the base path.
-        if let Some(parent) = &mut parent
-            && let Some(base_path) = self.try_base_path()
-        {
-            if let Ok(new_parent) = parent.strip_prefix(base_path) {
-                *parent = new_parent;
-            } else {
-                trace!(?parent, ?base_path, "parent is not a subpath of the base path");
-            }
-        }
+        let parent = self.import_parent(parent);
 
         // https://docs.soliditylang.org/en/latest/path-resolution.html
         // Only when the path starts with ./ or ../ are relative paths considered; this means
@@ -380,7 +443,8 @@ pub fn apply_import_remappings<'a>(
     path: &'a Path,
     parent: Option<&Path>,
 ) -> Cow<'a, Path> {
-    let context_path = &*parent.map(|path| path.to_string_lossy()).unwrap_or_default();
+    let context_path = parent.map(Path::to_string_lossy).unwrap_or_default();
+    let context_path = sanitize_path(&context_path);
 
     let mut longest_prefix = 0;
     let mut longest_context = 0;
@@ -420,14 +484,32 @@ pub fn apply_import_remappings<'a>(
     }
 }
 
-fn sanitize_path(s: &str) -> impl std::ops::Deref<Target = str> + '_ {
-    // TODO: Equivalent of: `boost::filesystem::path(_path).generic_string()`
-    s
+fn sanitize_path(s: &str) -> Cow<'_, str> {
+    #[cfg(windows)]
+    {
+        if s.contains('\\') {
+            return Cow::Owned(s.replace('\\', "/"));
+        }
+    }
+    Cow::Borrowed(s)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn remapping_contexts_use_generic_windows_separators() {
+        let remappings = ["src:pkg/=lib/source/".parse().unwrap()];
+        let remapped = apply_import_remappings(
+            &remappings,
+            Path::new("pkg/Target.sol"),
+            Some(Path::new(r"src\nested\Main.sol")),
+        );
+
+        assert_eq!(remapped, Path::new("lib/source/Target.sol"));
+    }
 
     struct TestCase<'a> {
         remappings: &'a [&'a str],
@@ -658,6 +740,75 @@ mod tests {
             file_resolver.resolve_file(Path::new("src/B.sol"), Some(Path::new("test/A.sol")));
 
         assert!(Arc::ptr_eq(&resolved.unwrap(), &imported));
+    }
+
+    #[test]
+    fn candidate_paths_follow_remapping_and_search_order() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let base_path = tmp.path().to_path_buf();
+        let source = base_path.join("src/Main.sol");
+
+        let sm = SourceMap::empty();
+        sm.set_base_path(Some(base_path.clone()));
+        let mut resolver = FileResolver::new(&sm);
+        resolver.set_current_dir(&base_path);
+        resolver.add_include_path(base_path.join("vendor"));
+        resolver.add_import_remapping("oz=packages/openzeppelin".parse().unwrap());
+
+        assert_eq!(
+            resolver.candidate_paths(Path::new("oz/contracts/Token.sol"), Some(&source)),
+            vec![
+                base_path.join("packages/openzeppelin/contracts/Token.sol"),
+                base_path.join("vendor/packages/openzeppelin/contracts/Token.sol"),
+            ]
+        );
+    }
+
+    #[test]
+    fn candidate_paths_keep_relative_imports_local() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let base_path = tmp.path().to_path_buf();
+        let source = base_path.join("src/nested/Main.sol");
+
+        let sm = SourceMap::empty();
+        sm.set_base_path(Some(base_path.clone()));
+        let mut resolver = FileResolver::new(&sm);
+        resolver.set_current_dir(&base_path);
+        resolver.add_include_path(base_path.join("vendor"));
+        resolver.add_import_remapping("src:pkg/=packages/pkg/".parse().unwrap());
+
+        assert_eq!(
+            resolver.candidate_paths(Path::new("../Shared.sol"), Some(&source)),
+            vec![base_path.join("src/Shared.sol")]
+        );
+    }
+
+    #[test]
+    fn candidate_paths_apply_context_dependent_remappings() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let base_path = tmp.path().to_path_buf();
+
+        let sm = SourceMap::empty();
+        sm.set_base_path(Some(base_path.clone()));
+        let mut resolver = FileResolver::new(&sm);
+        resolver.set_current_dir(&base_path);
+        resolver.add_import_remapping("src:pkg/=lib/source/".parse().unwrap());
+        resolver.add_import_remapping("test:pkg/=lib/test/".parse().unwrap());
+
+        assert_eq!(
+            resolver.candidate_paths(
+                Path::new("pkg/Dependency.sol"),
+                Some(&base_path.join("src/Main.sol")),
+            ),
+            vec![base_path.join("lib/source/Dependency.sol")]
+        );
+        assert_eq!(
+            resolver.candidate_paths(
+                Path::new("pkg/Dependency.sol"),
+                Some(&base_path.join("test/Main.t.sol")),
+            ),
+            vec![base_path.join("lib/test/Dependency.sol")]
+        );
     }
 }
 

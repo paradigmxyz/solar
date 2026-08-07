@@ -32,6 +32,7 @@ mod folding_range;
 mod formatter;
 mod global_state;
 mod handlers;
+mod import_resolution;
 mod inlay_hints;
 mod natspec_completion;
 mod override_index;
@@ -58,7 +59,7 @@ mod workspace;
 pub use global_state::benchmark::{
     BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit,
     BenchmarkError, BenchmarkProject, BenchmarkRequest, BenchmarkResponse,
-    BenchmarkWorkspaceReports,
+    BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
 };
 
 /// Runs the selection-range kernel for Criterion benchmarks.
