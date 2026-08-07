@@ -371,6 +371,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    modifier postludes after a function-body return.
    `modifier_loop_return_binding.sol` covers repeated placeholder expansion
    inside a modifier loop while preserving the named return value.
+   `modifier_repeated_placeholder.sol` covers the default lowering's
+   non-via-IR behavior when a conditional modifier expands the function body
+   twice: the second expansion observes the first expansion's return binding.
    Solc's via-IR-only `function_modifier_multi_invocation_viair.sol` remains a
    gap: repeated `_` expansion currently shares function return bindings,
    while Solc gives each expanded body fresh return variables.
