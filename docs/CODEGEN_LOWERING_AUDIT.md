@@ -169,6 +169,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   both ordinary Solidity expressions and inline assembly, including indexed
   bytes and array slices, internal slice returns, and external `this` calls
   that ABI-encode memory aggregates;
+* direct range slicing and indexing of static-element calldata arrays, including
+  chained slices and Solc's bounds panics;
 * `fallback(bytes calldata) returns (bytes memory)` through an explicit
   argument-free wrapper, full-calldata slice, and raw returndata body;
 * constructor and fallback/function attributes needed by the backend;
@@ -234,6 +236,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   calldata-slice paths through semantic memory slices and object copies,
   including direct decoding from `bytes calldata` and bounded calldata slices
   in `abi_decode_calldata_slice.sol`;
+  `calldata_array_slicing.sol` checks direct static-element range indexing and
+  its exact out-of-bounds panic payloads against Solc.
 * dynamic calldata arrays of multiword static elements, including storage
   copies and ABI encoding of nested fixed arrays;
 * calldata fixed-array indexing of structs without eagerly validating unused

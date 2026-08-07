@@ -3922,10 +3922,15 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     let byte = self.builder.byte(zero, word);
                     Some(self.normalize_byte_value(expr, byte))
                 }
-                TyKind::DynArray(element) | TyKind::Slice(element) | TyKind::Array(element, _) => {
+                TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Slice(_) => {
                     if location != SliceLocation::Calldata {
                         return report_unsupported(self.gcx, expr.span, "memory array slice index");
                     }
+                    let element = match receiver_ty.peel_refs().kind {
+                        TyKind::DynArray(element) | TyKind::Array(element, _) => element,
+                        TyKind::Slice(_) => receiver_ty.base_type(self.gcx)?,
+                        _ => return report_unsupported(self.gcx, expr.span, "slice index"),
+                    };
                     let element = if matches!(element.peel_refs().kind, TyKind::Struct(_)) {
                         element.with_loc_if_ref(self.gcx, DataLocation::Calldata)
                     } else {
@@ -3937,12 +3942,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     let head = self.builder.add(base, offset);
                     // Dynamic-array slices retain their element base for nested offsets;
                     // arbitrary slices still cannot validate offsets relative to the tuple.
-                    let validate_bounds = matches!(
-                        receiver_ty.peel_refs().kind,
-                        TyKind::DynArray(_) | TyKind::Slice(_) | TyKind::Array(_, _)
-                    ) && self.types.abi_type(element)?.is_dynamic();
-                    let validate_bounds = validate_bounds
-                        && !matches!(receiver.peel_parens().kind, ExprKind::Slice(..));
+                    let validate_bounds =
+                        !matches!(receiver.peel_parens().kind, ExprKind::Slice(..))
+                            && self.types.abi_type(element)?.is_dynamic();
                     self.materialize_calldata_index_value_at(
                         element,
                         head,
