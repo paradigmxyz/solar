@@ -417,7 +417,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `array_struct_memory_storage.sol` covers memory-to-storage copies of
    structs with packed fixed arrays and nested dynamic arrays, while
    `storage_memory_nested_struct.sol` covers the reverse copy through a
-   packed struct array.
+   packed struct array. `storage_storage_array_conversion.sol` covers
+   storage-to-storage copies across scalar widths and nested packed fixed-array
+   bases.
    `storage_delete_packed_array.sol` checks that deleting packed fixed-array
    storage references preserves the runtime element offset while clearing.
    `storage_delete_packed_struct.sol` extends that check through packed struct
