@@ -229,7 +229,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 self.lower_state_initializers(contract_id)?;
             }
         }
+        let parameter_start = self.parameters.len();
+        self.parameters.extend_from_slice(constructor.parameters);
         let result = self.lower_function_body(constructor.modifiers, body);
+        self.parameters.truncate(parameter_start);
         result?;
         if !self.is_terminated() {
             self.record_return_state();

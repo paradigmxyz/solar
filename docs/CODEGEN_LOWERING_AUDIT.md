@@ -467,6 +467,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    return zero when the virtual call reads the derived initializer; Solc 0.8.35
    legacy codegen returns 42 for the same source, so matching that legacy-only
    result remains an explicit gap.
+   `constructor_modifier_parameter_frame_viair.sol` checks that repeated
+   placeholders in an inlined base constructor reset the base constructor's
+   parameters for each expansion.
    `modifier_return_in_loop.sol` covers an explicit modifier return that
    exits after the preceding placeholder expansions.
    `modifier_return_parameter_complex.sol` covers return bindings forwarded
