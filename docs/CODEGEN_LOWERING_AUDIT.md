@@ -524,7 +524,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `storage_return_pointer_direct.sol` covers direct single-reference returns
    through conditional storage rebinding and member writes.
    `storage_string_bytes_conversion.sol` covers a constructor string copied to
-   storage and then converted to `bytes` before reading its length.
+   storage and then converted to `bytes` before reading its length or returning
+   the materialized memory object.
 5. Keep expanding runtime and differential coverage for aggregate allocation
    shapes and constructor/modifier edges. The UI snapshots are now in sync
    with the rewrite, and the full `cargo tq ui` suite passes. ERC-7201

@@ -135,14 +135,15 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         expr: &hir::Expr<'_>,
         ty: Ty<'gcx>,
     ) -> Option<ValueId> {
+        let source_expr = self.peel_bytes_conversion(expr);
         if !ty.is_ref_at(DataLocation::Storage)
             && self.types.memory_layout(ty).is_some()
             && self
                 .gcx
-                .type_of_expr(expr.id)
+                .type_of_expr(source_expr.id)
                 .is_some_and(|source| source.is_ref_at(DataLocation::Storage))
         {
-            let access = self.storage_access(expr)?;
+            let access = self.storage_access(source_expr)?;
             return self.load_storage_object(ty, access.slot, expr.span);
         }
         self.lower_expr(expr)
