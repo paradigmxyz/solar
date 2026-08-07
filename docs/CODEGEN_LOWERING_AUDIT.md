@@ -426,7 +426,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `fixed_bytes_conversions.sol` checks fixed-byte widening, narrowing, and
    numeric conversions; the remaining work is broader aggregate and
    constructor coverage. `memory_nested_arrays.sol` adds Solc-backed
-   three-dimensional dynamic memory allocation and assignment coverage.
+   three-dimensional dynamic memory allocation and assignment coverage, and
+   `memory_aggregate_allocation.sol` covers zero-initialized arrays of fixed
+   arrays and structs with nested dynamic byte objects.
 
 The current intentional boundary is dynamic-element calldata array slicing.
 Solidity rejects range access for arrays with dynamically encoded base types,
