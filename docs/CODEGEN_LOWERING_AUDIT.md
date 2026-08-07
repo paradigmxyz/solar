@@ -437,6 +437,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    stored through a higher-order internal callback and a newly created target.
    `external_function_pointer_struct_copy.sol` covers an external-pointer
    array copied through a struct over an external call and compared on return.
+   `function_pointer_mutability_conversion.sol` covers storage arrays of
+   internal and external pointers receiving narrower mutability targets.
    `function_pointer_delete.sol` and `external_function_pointer_delete.sol`
    cover clearing internal and external storage pointers, including Solc's
    zero-internal-pointer panic.
