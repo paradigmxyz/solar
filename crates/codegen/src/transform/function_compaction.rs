@@ -19,6 +19,8 @@ use solar_data_structures::{
 };
 use std::hash::{Hash, Hasher};
 
+type ArgDependents = IndexVec<FunctionId, IndexVec<ArgIdx, Vec<(FunctionId, ArgIdx)>>>;
+
 /// Removes parameters that are unused throughout the direct internal-call graph.
 pub(crate) struct PruneUnusedArgs;
 
@@ -93,67 +95,79 @@ fn has_rewritable_signature(func: &Function, is_called: bool) -> bool {
 /// Computes the least fixed point of argument liveness and removes every argument outside it.
 fn prune_unused_args(module: &mut Module) -> usize {
     let mut called = DenseBitSet::new_empty(module.functions.len());
-    for func in &module.functions {
+    let mut live = module
+        .functions
+        .iter()
+        .map(|func| vec![false; func.params.len()])
+        .collect::<IndexVec<FunctionId, _>>();
+    let mut dependents = module
+        .functions
+        .iter()
+        .map(|func| {
+            let mut args = IndexVec::with_capacity(func.params.len());
+            for _ in &func.params {
+                args.push(Vec::<(FunctionId, ArgIdx)>::new());
+            }
+            args
+        })
+        .collect::<IndexVec<FunctionId, IndexVec<ArgIdx, _>>>();
+
+    // Record direct uses and argument-forwarding dependencies in one scan. A dependency points
+    // from the callee argument whose liveness is required to the caller argument that supplies it.
+    for (func_id, func) in module.functions.iter_enumerated() {
         for inst_id in func.instructions() {
-            if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
-                called.insert(function);
+            let kind = &func.inst(inst_id).kind;
+            if let InstKind::InternalCall { function, args, .. } = kind {
+                called.insert(*function);
+                record_arg_dependencies(func_id, func, *function, args, &mut live, &mut dependents);
+            } else {
+                for operand in kind.operands() {
+                    mark_arg_live(func, operand, &mut live[func_id]);
+                }
             }
         }
         for block in &func.blocks {
-            if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+            let Some(term) = &block.terminator else { continue };
+            if let Terminator::TailCall { function, args } = term {
                 called.insert(*function);
+                record_arg_dependencies(func_id, func, *function, args, &mut live, &mut dependents);
+            } else {
+                for operand in term.operands() {
+                    mark_arg_live(func, operand, &mut live[func_id]);
+                }
             }
         }
     }
-    let mut live = module
-        .functions
-        .iter_enumerated()
-        .map(|(func_id, func)| {
-            vec![!has_rewritable_signature(func, called.contains(func_id)); func.params.len()]
-        })
-        .collect::<IndexVec<FunctionId, _>>();
 
     // An argument is live when it participates in a non-call operation, or when it is forwarded
     // into a live callee argument. Starting candidate arguments dead computes transitive deadness,
     // including arguments forwarded around an otherwise-unused recursive cycle.
-    loop {
-        let mut changed = false;
-        for (func_id, func) in module.functions.iter_enumerated() {
-            for inst_id in func.instructions() {
-                let kind = &func.inst(inst_id).kind;
-                if let InstKind::InternalCall { function, args, .. } = kind {
-                    for (index, &arg) in args.iter().enumerate() {
-                        if live[*function].get(index).copied().unwrap_or(true) {
-                            changed |= mark_arg_live(func, arg, &mut live[func_id]);
-                        }
-                    }
-                } else {
-                    for operand in kind.operands() {
-                        changed |= mark_arg_live(func, operand, &mut live[func_id]);
-                    }
-                }
-            }
-            for block in &func.blocks {
-                let Some(term) = &block.terminator else { continue };
-                if let Terminator::TailCall { function, args } = term {
-                    for (index, &arg) in args.iter().enumerate() {
-                        if live[*function].get(index).copied().unwrap_or(true) {
-                            changed |= mark_arg_live(func, arg, &mut live[func_id]);
-                        }
-                    }
-                } else {
-                    for operand in term.operands() {
-                        changed |= mark_arg_live(func, operand, &mut live[func_id]);
-                    }
-                }
+    for (func_id, func) in module.functions.iter_enumerated() {
+        if !has_rewritable_signature(func, called.contains(func_id)) {
+            live[func_id].fill(true);
+        }
+    }
+    let mut worklist = Vec::new();
+    for (func_id, args) in live.iter_enumerated() {
+        for (index, &is_live) in args.iter().enumerate() {
+            if is_live {
+                worklist.push((func_id, ArgIdx::new(index)));
             }
         }
-        if live.iter().all(|args| args.iter().all(|&is_live| is_live)) {
-            return 0;
+    }
+    while let Some((func_id, index)) = worklist.pop() {
+        for &(dependent_func, dependent_arg) in &dependents[func_id][index] {
+            let Some(is_live) = live[dependent_func].get_mut(dependent_arg.index()) else {
+                continue;
+            };
+            if !*is_live {
+                *is_live = true;
+                worklist.push((dependent_func, dependent_arg));
+            }
         }
-        if !changed {
-            break;
-        }
+    }
+    if live.iter().all(|args| args.iter().all(|&is_live| is_live)) {
+        return 0;
     }
 
     let removed = live.iter().map(|args| args.iter().filter(|&&live| !live).count()).sum();
@@ -229,6 +243,26 @@ fn mark_arg_live(func: &Function, value: ValueId, live: &mut [bool]) -> bool {
     let changed = !*is_live;
     *is_live = true;
     changed
+}
+
+fn record_arg_dependencies(
+    caller_id: FunctionId,
+    caller: &Function,
+    callee_id: FunctionId,
+    args: &[ValueId],
+    live: &mut IndexVec<FunctionId, Vec<bool>>,
+    dependents: &mut ArgDependents,
+) {
+    for (index, &arg) in args.iter().enumerate() {
+        let Value::Arg(caller_arg) = caller.value(arg) else { continue };
+        if let Some(callee_dependents) = dependents[callee_id].get_mut(ArgIdx::new(index)) {
+            callee_dependents.push((caller_id, *caller_arg));
+        } else {
+            // A malformed extra call operand was conservatively treated as live by the fixed-point
+            // implementation. Validation rejects it later, but preserve that behavior here.
+            mark_arg_live(caller, arg, &mut live[caller_id]);
+        }
+    }
 }
 
 /// Removes a one-word result when every direct caller discards it.

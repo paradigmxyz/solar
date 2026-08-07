@@ -57,12 +57,14 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             }
             let mut delta = 0i32;
             let mut inputs = 0i32;
+            let mut run_size = 0usize;
             for end in start..block.instructions.len() {
                 let inst = &block.instructions[end];
                 if !hashes.repeats(block_id, end) {
                     break;
                 }
                 let Some((reads, pops, pushes)) = whitelisted_effect(inst) else { break };
+                run_size += if inst.is_encoded_push() { 2 } else { 1 };
                 inputs = inputs.max(i32::from(reads) - delta);
                 delta = delta - i32::from(pops) + i32::from(pushes);
                 let outputs = inputs + delta;
@@ -74,7 +76,11 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                 let open_size_run = gcx.sess.opts.optimization.is_size()
                     && (0..=16).contains(&inputs)
                     && (0..=16).contains(&outputs);
-                if len >= MIN_MACHINE_RUN && (closed || open_size_run) {
+                // An outlined site costs at least seven bytes plus one stack shuffle per input,
+                // before the shared stub's fixed overhead. A run no larger than that site can
+                // never save bytes regardless of its occurrence count, so do not intern it.
+                let can_amortize = run_size > 7 + inputs as usize;
+                if len >= MIN_MACHINE_RUN && can_amortize && (closed || open_size_run) {
                     let key = MachineInstSlice {
                         hash: hashes.range(block_id, start, end),
                         insts: &block.instructions[start..=end],
@@ -358,6 +364,7 @@ impl InstHashes {
         for index in 0..longest {
             powers.push(powers[index].wrapping_mul(Self::BASE));
         }
+
         Self { prefixes, repeats, powers }
     }
 
