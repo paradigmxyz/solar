@@ -3270,6 +3270,25 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             };
         }
 
+        if let TyKind::Fn(function) = receiver_ty.peel_refs().kind
+            && function.is_external()
+        {
+            let value = self.lower_expr(receiver)?;
+            return match name.name {
+                kw::Address => {
+                    let shift = self.builder.imm_u64(32);
+                    let address = self.builder.shr(shift, value);
+                    let mask = self.builder.imm_u256(U256::MAX >> 96);
+                    Some(self.builder.and(address, mask))
+                }
+                sym::selector => {
+                    let mask = self.builder.imm_u256(U256::from(u32::MAX));
+                    Some(self.builder.and(value, mask))
+                }
+                _ => report_unsupported(self.gcx, expr.span, "Yul function member"),
+            };
+        }
+
         let Some(access) = self.storage_access(receiver) else {
             return report_unsupported(self.gcx, expr.span, "Yul storage member");
         };
@@ -4155,6 +4174,34 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 _ => return report_unsupported(self.gcx, span, "Yul calldata assignment"),
             };
             return self.store_lvalue(receiver, slice);
+        }
+
+        if let TyKind::Fn(function) = receiver_ty.peel_refs().kind
+            && function.is_external()
+        {
+            let Some(id) = self.gcx.resolved_variable(receiver) else {
+                return report_unsupported(self.gcx, span, "Yul function assignment target");
+            };
+            let pointer = self.load_variable(id, span)?;
+            let mask = self.builder.imm_u256(U256::from(u32::MAX));
+            let value = match name.name {
+                kw::Address => {
+                    let address_mask = self.builder.imm_u256(U256::MAX >> 96);
+                    let address = self.builder.and(value, address_mask);
+                    let shift = self.builder.imm_u64(32);
+                    let address = self.builder.shl(shift, address);
+                    let selector = self.builder.and(pointer, mask);
+                    self.builder.or(address, selector)
+                }
+                sym::selector => {
+                    let selector = self.builder.and(value, mask);
+                    let address_mask = self.builder.not(mask);
+                    let address = self.builder.and(pointer, address_mask);
+                    self.builder.or(address, selector)
+                }
+                _ => return report_unsupported(self.gcx, span, "Yul function assignment"),
+            };
+            return self.store_variable(id, value, span);
         }
 
         if name.name != sym::slot {

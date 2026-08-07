@@ -305,6 +305,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi_calldata_fixed_middle_short.sol` covers a truncated nested dynamic
    array whose fixed-array head is wider than one word; indexed access rejects
    the short payload while the valid Solc vectors still decode.
+   `abi_calldata_fixed_middle_short_reencode.sol` forwards the same canonical
+   long and Solc-short payloads through an external self-call and rejects a
+   missing fixed-array head word.
    `abi_calldata_fixed_dynamic.sol` covers a top-level fixed array of dynamic
    bytes, including exact unpadded tails and a missing nested tail.
    `abi_calldata_unused_aggregate_validation.sol` covers the other lazy
@@ -382,6 +385,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    storage-to-storage copies of external function pointer arrays.
    `external_function_pointer_options.sol` checks source-order evaluation and
    forwarding of `gas`/`value` options on external pointer calls.
+   `function_pointer_inline_array_options.sol` covers an external pointer
+   selected from an inline array before forwarding a `value` option, and
+   `function_pointer_dirty_bits.sol` covers Yul `.address`/`.selector`
+   assignments that must clean high bits before pointer comparison.
    `function_pointer_delete.sol` and `external_function_pointer_delete.sol`
    cover clearing internal and external storage pointers, including Solc's
    zero-internal-pointer panic.

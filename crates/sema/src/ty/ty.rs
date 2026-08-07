@@ -595,6 +595,7 @@ impl<'gcx> Ty<'gcx> {
         matches!(
             self.peel_refs().kind,
             TyKind::Elementary(_)
+                | TyKind::Fn(_)
                 | TyKind::Array(..)
                 | TyKind::DynArray(_)
                 | TyKind::Contract(_)
