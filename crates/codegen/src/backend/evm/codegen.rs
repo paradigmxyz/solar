@@ -4542,17 +4542,39 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !eligible {
                 continue;
             }
-            let liveness = Liveness::compute(func);
-            let Some(plan) = GlobalStackPlan::analyze_resident_args(
-                func,
-                &liveness,
-                &values,
-                self.preserve_caller_stack,
-            ) else {
+
+            // Reject shapes the resident-layout analysis cannot represent
+            // before paying for whole-function liveness. Single-block leaves
+            // have no inter-block layout to solve at all.
+            if func.blocks.iter().any(|block| {
+                matches!(block.terminator, Some(Terminator::Switch { .. }))
+                    || (!self.preserve_caller_stack
+                        && block.instructions.iter().any(|&inst_id| {
+                            matches!(func.inst(inst_id).kind, InstKind::InternalCall { .. })
+                        }))
+            }) {
                 continue;
-            };
+            }
             let has_phis =
                 func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Phi(_)));
+            let liveness = (func.blocks.len() != 1 || has_phis).then(|| Liveness::compute(func));
+            let plan = if let Some(liveness) = &liveness {
+                let Some(plan) = GlobalStackPlan::analyze_resident_args(
+                    func,
+                    liveness,
+                    &values,
+                    self.preserve_caller_stack,
+                ) else {
+                    continue;
+                };
+                plan
+            } else {
+                GlobalStackPlan {
+                    entries: FxHashMap::default(),
+                    aliases: FxHashMap::default(),
+                    terminal_sensitive: true,
+                }
+            };
             if has_phis {
                 let phi_plan = StackPhiPlan::analyze(func);
                 let cfg = CfgInfo::new(func);
@@ -4575,7 +4597,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .entries
                 .iter()
                 .map(|(block, entry)| {
-                    entry.iter().filter(|&&value| !liveness.live_in(*block).contains(value)).count()
+                    entry
+                        .iter()
+                        .filter(|&&value| {
+                            !liveness
+                                .as_ref()
+                                .expect("non-empty resident plans compute liveness")
+                                .live_in(*block)
+                                .contains(value)
+                        })
+                        .count()
                 })
                 .sum::<usize>();
             if padding != 0 {

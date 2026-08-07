@@ -12,7 +12,12 @@ use crate::{
     },
     pass::{MirPass, ModuleAnalyses},
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::IndexVec,
+    map::{FxHashMap, FxHasher},
+};
+use std::hash::{Hash, Hasher};
 
 /// Removes parameters that are unused throughout the direct internal-call graph.
 pub(crate) struct PruneUnusedArgs;
@@ -142,6 +147,9 @@ fn prune_unused_args(module: &mut Module) -> usize {
                     }
                 }
             }
+        }
+        if live.iter().all(|args| args.iter().all(|&is_live| is_live)) {
+            return 0;
         }
         if !changed {
             break;
@@ -417,7 +425,7 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
     let mut merged_instructions = 0usize;
 
     loop {
-        let mut groups = FxHashMap::<String, Vec<FunctionId>>::default();
+        let mut groups = FxHashMap::<u64, Vec<FunctionId>>::default();
         for (func_id, func) in module.functions.iter_enumerated() {
             if !merged[func_id.index()] && is_merge_candidate(func_id, func, &recursive) {
                 groups.entry(equivalence_bucket(func)).or_default().push(func_id);
@@ -504,26 +512,22 @@ fn has_only_direct_self_recursion(
 }
 
 /// Cheaply partitions functions before the exact pairwise alpha-equivalence check.
-fn equivalence_bucket(func: &Function) -> String {
-    let mut key = format!(
-        "{:?}|{:?}|{}|{}|{}",
-        func.params,
-        func.returns,
-        func.internal_frame_size,
-        func.external_static_return_size,
-        func.blocks.len()
-    );
+fn equivalence_bucket(func: &Function) -> u64 {
+    let mut key = FxHasher::default();
+    func.params.hash(&mut key);
+    func.returns.hash(&mut key);
+    func.internal_frame_size.hash(&mut key);
+    func.external_static_return_size.hash(&mut key);
+    func.blocks.len().hash(&mut key);
     for block in &func.blocks {
-        key.push('|');
         for &inst_id in &block.instructions {
             let inst = func.inst(inst_id);
-            key.push_str(inst.kind.mnemonic());
-            key.push(':');
-            key.push_str(&format!("{:?};", inst.result_ty));
+            inst.kind.mnemonic().hash(&mut key);
+            inst.result_ty.hash(&mut key);
         }
-        key.push_str(block.terminator.as_ref().map_or("none", Terminator::mnemonic));
+        block.terminator.as_ref().map_or("none", Terminator::mnemonic).hash(&mut key);
     }
-    key
+    key.finish()
 }
 
 fn equivalent_functions(

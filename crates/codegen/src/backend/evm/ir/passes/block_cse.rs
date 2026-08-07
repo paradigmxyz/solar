@@ -40,6 +40,10 @@ struct StackValue {
 }
 
 fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
+    if !may_regenerate(instructions) {
+        return false;
+    }
+
     let original = std::mem::take(instructions);
     instructions.reserve(original.len());
 
@@ -173,6 +177,30 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
     }
 
     changed
+}
+
+/// Returns whether a block contains two operations that could possibly intern
+/// to the same expression. This linear, allocation-free screen avoids building
+/// expression tables for the common case where regeneration cannot change the
+/// block.
+fn may_regenerate(instructions: &[Instruction]) -> bool {
+    let mut seen = [false; 256];
+    for inst in instructions {
+        let candidate = if inst.is_encoded_push() {
+            inst.deferred_push().is_none()
+                && inst.pushed_value().is_some_and(|value| !value.is_zero())
+        } else {
+            expression_inputs(inst.opcode, 0, 0).is_some()
+        };
+        if candidate {
+            let opcode = usize::from(inst.opcode);
+            if seen[opcode] {
+                return true;
+            }
+            seen[opcode] = true;
+        }
+    }
+    false
 }
 
 fn append_unknown(
