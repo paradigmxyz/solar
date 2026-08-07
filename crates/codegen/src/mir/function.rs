@@ -248,6 +248,49 @@ impl Function {
         replaced
     }
 
+    /// Reuses one value identity for active uses of each function argument.
+    ///
+    /// Arguments are immutable for the duration of a MIR function. Keeping a
+    /// canonical identity lets the backend recognize that independently
+    /// lowered operand occurrences denote the same physical word, which is
+    /// required for carrying an argument through stack layouts without first
+    /// materializing a memory home.
+    pub(crate) fn canonicalize_argument_uses(&mut self) -> usize {
+        if self.arg_types.is_empty() {
+            return 0;
+        }
+
+        let mut canonical =
+            IndexVec::<ArgIdx, Option<ValueId>>::with_capacity(self.arg_types.len());
+        for _ in self.arg_types.indices() {
+            canonical.push(None);
+        }
+
+        let values = &self.values;
+        let instructions = &mut self.instructions;
+        let mut replaced = 0;
+        let mut canonicalize = |value: &mut ValueId| {
+            let Value::Arg(index) = values[*value] else { return };
+            if let Some(existing) = canonical[index] {
+                if existing != *value {
+                    *value = existing;
+                    replaced += 1;
+                }
+            } else {
+                canonical[index] = Some(*value);
+            }
+        };
+        for block in &mut self.blocks {
+            for &inst_id in &block.instructions {
+                instructions[inst_id].kind.visit_operands_mut(&mut canonicalize);
+            }
+            if let Some(term) = &mut block.terminator {
+                term.visit_operands_mut(&mut canonicalize);
+            }
+        }
+        replaced
+    }
+
     /// Calls `f` for every active instruction in block order.
     pub(crate) fn for_each_instruction_mut(&mut self, mut f: impl FnMut(InstId, &mut Instruction)) {
         let blocks = &self.blocks;
@@ -272,6 +315,19 @@ impl Function {
     #[must_use]
     pub(crate) fn inst_result_value(&self, id: InstId) -> Option<ValueId> {
         self.instructions[id].result()
+    }
+
+    /// Removes an unused instruction result while keeping the instruction and its effects.
+    ///
+    /// The allocated value remains in the arena as an undefined value because IDs are stable for
+    /// the lifetime of a function. Callers must prove that the result has no remaining active uses.
+    pub(crate) fn remove_inst_result(&mut self, id: InstId) -> Option<ValueId> {
+        let ty = self.instructions[id].result_ty.take()?;
+        let result = self.instructions[id]
+            .set_result(None)
+            .expect("value-producing instruction must have an allocated result");
+        self.values[result] = Value::Undef(ty);
+        Some(result)
     }
 
     /// Returns a map from each instruction to the block containing it.
@@ -559,7 +615,7 @@ impl fmt::Display for Function {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::FunctionBuilder;
+    use crate::mir::{FunctionBuilder, Terminator};
 
     #[test]
     fn live_values_include_terminator_operands() {
@@ -602,6 +658,28 @@ mod tests {
         assert_eq!(func.canonicalize_immediate_uses(), 1);
         let Value::Inst(inst) = func.value(result) else { panic!("expected instruction result") };
         assert_eq!(func.inst(*inst).kind.operands().as_slice(), [first, first]);
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn canonicalizes_argument_instruction_and_terminator_uses() {
+        let mut func = Function::new(Ident::DUMMY);
+        let (first, second, result) = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let first = builder.add_param(MirType::uint256());
+            let second = builder.alloc_value(Value::Arg(ArgIdx::new(0)));
+            let result = builder.add(first, second);
+            builder.ret([second, result]);
+            (first, second, result)
+        };
+
+        assert_eq!(func.canonicalize_argument_uses(), 2);
+        let Value::Inst(inst) = func.value(result) else { panic!("expected instruction result") };
+        assert_eq!(func.inst(*inst).kind.operands().as_slice(), [first, first]);
+        let Some(Terminator::Return { values }) = &func.blocks[BlockId::ENTRY].terminator else {
+            panic!("expected return terminator");
+        };
+        assert_eq!(values.as_slice(), [first, result]);
         assert_ne!(first, second);
     }
 }

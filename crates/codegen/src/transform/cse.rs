@@ -280,13 +280,6 @@ impl CommonSubexprEliminator {
     }
 
     fn run_with_cfg(&mut self, func: &mut Function, cfg: &CfgInfo) -> usize {
-        self.eliminated_count = 0;
-
-        // One provenance snapshot per run: eliminating expressions only removes
-        // instructions, which keeps the allocation facts conservative. Only the
-        // value-address memo can go stale, so it is dropped between phases and
-        // blocks instead of recomputing the whole analysis each time.
-        self.refresh_alias(func);
         self.sink_redundant_phi_expressions(func, cfg);
 
         self.alias().clear_cached_addresses();
@@ -304,16 +297,23 @@ impl CommonSubexprEliminator {
 
     /// Runs CSE iteratively until no more changes.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
-        let mut total = 0;
+        self.eliminated_count = 0;
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
+
+        // Eliminating expressions only removes instructions and rewrites operands, so one
+        // provenance snapshot remains conservative across the complete fixed point. Drop only
+        // its value-address memo between iterations instead of rebuilding alias analysis after
+        // every productive round.
+        self.refresh_alias(func);
         loop {
-            let eliminated = self.run_with_cfg(func, &cfg);
-            if eliminated == 0 {
+            let before = self.eliminated_count;
+            self.alias().clear_cached_addresses();
+            self.run_with_cfg(func, &cfg);
+            if self.eliminated_count == before {
                 break;
             }
-            total += eliminated;
         }
-        total
+        self.eliminated_count
     }
 
     fn process_global_pure(&mut self, func: &mut Function, cfg: &CfgInfo) {

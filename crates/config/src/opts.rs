@@ -98,6 +98,9 @@ pub struct CompileOpts {
     /// MIR optimization objective.
     #[cfg_attr(feature = "clap", arg(short = 'O', long = "optimize", value_enum, default_value_t))]
     pub optimization: OptimizationMode,
+    /// Expected executions per deployment used by lifetime-aware optimizer decisions.
+    #[cfg_attr(feature = "clap", arg(skip))]
+    pub optimizer_runs: Option<u64>,
 
     /// Library addresses for linking, as `LibraryName=0xADDRESS`.
     ///

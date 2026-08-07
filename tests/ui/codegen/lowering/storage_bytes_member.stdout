@@ -153,15 +153,12 @@ bb22:
   mload
   jump bb20
 bb24:
+  push bb25
   push 256
   mload
-  push 544
-  mstore
-  push bb25
   jump bb70
 bb70:
-  push 544
-  mload
+  dup1
   sload
   dup1
   push 576
@@ -246,6 +243,7 @@ bb70:
   pop
   push bb72
   jumpi
+  pop
   push 255
   not
   push 576
@@ -603,9 +601,8 @@ bb37:
   dup1
   push 192
   mstore
-  push 544
-  mstore
   push bb38
+  swap1
   jump bb70
 bb38:
   dup1
@@ -897,9 +894,8 @@ bb49:
   keccak256
   push 1
   add
-  push 544
-  mstore
   push bb50
+  swap1
   jump bb70
 bb50:
   dup1
@@ -933,9 +929,8 @@ bb51:
   keccak256
   push 1
   add
-  push 544
-  mstore
   push bb53
+  swap1
   jump bb70
 bb53:
   dup1
@@ -1115,9 +1110,8 @@ bb66:
   keccak256
   push 1
   add
-  push 544
-  mstore
   push bb67
+  swap1
   jump bb70
 bb67:
   dup1
@@ -1216,8 +1210,6 @@ bb69:
   dup2
   return
 bb72:
-  push 544
-  mload
   push 640
   mload
   mstore
