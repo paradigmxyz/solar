@@ -444,6 +444,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `internal_function_pointer_dynamic_storage_copy.sol` extends that coverage
    to dynamic storage arrays allocated with `new` and copied between storage
    variables before dispatch.
+   `internal_function_pointer_void.sol` covers dispatch through an internal
+   pointer whose target has no return values.
    `internal_function_pointer_storage_struct.sol` covers packed internal
    function pointers embedded between scalar fields in storage structs, and
    `external_function_pointer_parameter.sol` covers direct and internal calls
