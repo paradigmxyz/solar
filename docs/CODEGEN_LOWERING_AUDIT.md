@@ -408,6 +408,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    an internal callback and a memory-array argument.
    `constructor_function_pointer_dispatch.sol` covers internal callback
    dispatch during construction, including a fixed-byte return value.
+   `constructor_store_function.sol` covers initializing a storage-backed
+   internal function pointer before using it from the constructor and runtime.
    `external_function_pointer_calldata_array.sol` adds a Solc-checked calldata
    array decode and re-encoding vector. `abi_function_pointer_validation.sol`
    ports Solc's canonical 24-byte pointer checks: unused calldata structs stay
