@@ -45,6 +45,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             if self.needs_validated_calldata_materialization(value, &abi_type, ty) {
                 value = self.materialize_calldata_argument(ty, value, expr.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
+            } else {
+                value = self.canonicalize_abi_scalar_array(ty, value);
             }
             values.push(value);
             types.push(abi_type);
@@ -169,6 +171,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             if self.needs_validated_calldata_materialization(value, &abi_type, ty) {
                 value = self.materialize_calldata_argument(ty, value, expr.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
+            } else {
+                value = self.canonicalize_abi_scalar_array(ty, value);
             }
             values.push(value);
             types.push(abi_type);
@@ -176,6 +180,98 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
         Some(self.materialize_memory_slice(encoded))
+    }
+
+    fn canonicalize_abi_scalar_array(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
+        let element_ty = match ty.peel_refs().kind {
+            TyKind::DynArray(element) | TyKind::Array(element, _) => element,
+            _ => return value,
+        };
+        if !self.abi_scalar_needs_normalization(element_ty) {
+            return value;
+        }
+
+        let layout = match self.types.memory_layout(ty) {
+            Some(layout @ MemoryObjectLayout::DynamicArray { element_words: 1 })
+            | Some(layout @ MemoryObjectLayout::FixedArray { element_words: 1, .. }) => layout,
+            _ => return value,
+        };
+        let value_is_memory_object = matches!(
+            self.builder.func().value_ty(value),
+            Some(MirType::MemoryObject(kind)) if kind == layout.kind()
+        ) || matches!(
+            self.builder.func().value_ty(value),
+            Some(MirType::UInt(size)) if size.bits() == 256
+        );
+        if !value_is_memory_object {
+            return value;
+        }
+
+        let (kind, length) = match layout {
+            MemoryObjectLayout::DynamicArray { .. } => {
+                let length = self.builder.memory_object_len(value, MemoryObjectKind::DynamicArray);
+                (MemoryObjectKind::DynamicArray, length)
+            }
+            MemoryObjectLayout::FixedArray { len, .. } => {
+                (MemoryObjectKind::FixedArray, self.builder.imm_u64(len))
+            }
+            _ => unreachable!("scalar array layout checked above"),
+        };
+        let word = self.builder.imm_u64(32);
+        let words = if kind == MemoryObjectKind::DynamicArray {
+            let one = self.builder.imm_u64(1);
+            self.checked_add(length, one)
+        } else {
+            length
+        };
+        let size = self.checked_mul(words, word);
+        let output = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        if kind == MemoryObjectKind::DynamicArray {
+            self.builder.set_memory_object_len(output, length, kind);
+        }
+
+        let preheader = self.builder.current_block();
+        let header = self.builder.create_block();
+        let body = self.builder.create_block();
+        let exit = self.builder.create_block();
+        self.builder.jump(header);
+
+        self.builder.switch_to_block(header);
+        let zero = self.builder.imm_u64(0);
+        let index = self.builder.phi(vec![(preheader, zero)]);
+        let more = self.builder.lt(index, length);
+        self.builder.branch(more, body, exit);
+
+        self.builder.switch_to_block(body);
+        let element_value = self.builder.memory_object_load_element(value, layout, index);
+        let element_value = self.normalize_abi_scalar(element_value, element_ty);
+        self.builder.memory_object_store_element(output, layout, index, element_value);
+        let one = self.builder.imm_u64(1);
+        let next = self.builder.add(index, one);
+        let backedge = self.builder.current_block();
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(index, backedge, next);
+
+        self.builder.switch_to_block(exit);
+        output
+    }
+
+    fn abi_scalar_needs_normalization(&self, ty: Ty<'gcx>) -> bool {
+        match ty.peel_refs().kind {
+            TyKind::Udvt(inner, _) => self.abi_scalar_needs_normalization(inner),
+            TyKind::Elementary(
+                solar_sema::hir::ElementaryType::UInt(size)
+                | solar_sema::hir::ElementaryType::Int(size),
+            ) => size.bits() < 256,
+            TyKind::Elementary(solar_sema::hir::ElementaryType::Address(_))
+            | TyKind::Contract(_)
+            | TyKind::Enum(_)
+            | TyKind::Elementary(solar_sema::hir::ElementaryType::Bool) => true,
+            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => {
+                size.bytes() < 32
+            }
+            _ => false,
+        }
     }
 
     pub(super) fn lower_abi_decode(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
@@ -860,7 +956,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                         SliceLocation::Returndata => unreachable!("returndata packed array"),
                     },
                 };
-                let element_value = self.normalize_packed_scalar(element_value, element.ty);
+                let element_value = self.normalize_abi_scalar(element_value, element.ty);
                 let element_value = if matches!(&element.abi, AbiType::Function)
                     && matches!(source, PackedArraySource::Memory { .. })
                 {

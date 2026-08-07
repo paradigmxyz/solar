@@ -337,8 +337,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi_encode_empty_string.sol` checks that empty string literals retain a
    dynamic `bytes` ABI shape in both full and packed encoding.
    `abi_packed_complex_types.sol` ports Solc's narrow `uint120` array case for
-   both storage and memory; the packed encoder normalizes scalar array elements
-   before copying their words.
+   both storage and memory; packed and regular ABI encoders normalize scalar
+   array elements before copying their words.
    `abi_decode_storage_struct.sol` covers decoding a storage-backed ABI blob
    into a memory struct with a dynamic array field.
    `abi.decode`, external return decoding, and `catch Error(string)` payload

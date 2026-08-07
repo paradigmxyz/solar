@@ -3007,9 +3007,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.shl(shift, value)
     }
 
-    fn normalize_packed_scalar(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
+    fn normalize_abi_scalar(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
         match ty.peel_refs().kind {
-            TyKind::Udvt(inner, _) => self.normalize_packed_scalar(value, inner),
+            TyKind::Udvt(inner, _) => self.normalize_abi_scalar(value, inner),
             TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(size))
                 if size.bits() < 256 =>
             {
