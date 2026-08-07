@@ -534,6 +534,12 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `storage_string_bytes_conversion.sol` covers a constructor string copied to
    storage and then converted to `bytes` before reading its length or returning
    the materialized memory object.
+   `storage_array_push_nested.sol` covers nested dynamic-array pushes, aggregate
+   struct pushes with nested dynamic members, and short-to-long storage-byte
+   array pushes.
+   `storage_array_push_references.sol` covers storage references returned by
+   `push()`, nested push chaining, and the empty-element transition for storage
+   bytes.
 5. Keep expanding runtime and differential coverage for aggregate allocation
    shapes and constructor/modifier edges. The UI snapshots are now in sync
    with the rewrite, and the full `cargo tq ui` suite passes. ERC-7201
