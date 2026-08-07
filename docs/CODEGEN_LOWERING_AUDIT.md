@@ -373,6 +373,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `-32` is a valid wrapped pointer, `-64` still fails its oversized tail, and
    an out-of-range `-96` pointer reads a zero length through EVM calldata
    zero-fill.
+   `abi_calldata_dynamic_bytes_array.sol` checks indexed reads from a nested
+   `bytes[]` calldata value against the same Solc vector; both compilers return
+   the two lengths and all five selected bytes.
    `abi_calldata_lazy_struct_array.sol` checks that indexing a calldata struct
    array leaves an unused sibling dynamic field lazy while selected dynamic
    fields still enforce their payload bounds.
