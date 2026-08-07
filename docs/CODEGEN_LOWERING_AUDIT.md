@@ -321,6 +321,11 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    shape from calldata into memory before reading nested values.
    `calldata_nested_element_memory.sol` covers nested dynamic and fixed-array
    elements selected from calldata and copied into memory before indexing.
+   `abi_encode_memory_calldata_v1.sol` checks the mixed memory-array and
+   calldata-bytes encoder through Solc's v1 ABI mode, and
+   `abi_encode_rational.sol` checks signed rational literal encoding.
+   `abi_encode_empty_string.sol` checks that empty string literals retain a
+   dynamic `bytes` ABI shape in both full and packed encoding.
    `abi.decode`, external return decoding, and `catch Error(string)` payload
    decoding are represented by semantic MIR operations and lowered by the ABI
    pass; multi-return materialization uses the shared frame/object path. The
