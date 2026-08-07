@@ -309,8 +309,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi_decode_offset_overflow.sol` ports Solc's nested fixed-array offset
    overflow cases and checks that decoding fails before it can alias an earlier
    memory allocation.
-   `abi_decode_structs.sol` adds Solc's nested static-array decode and
-   overlapping dynamic-array copy cases.
+   `abi_decode_structs.sol` adds nested static and dynamic arrays, fixed arrays
+   of dynamic arrays, and Solc's overlapping dynamic-array copy case.
    `abi_packed_calldata_scalar_validation.sol` applies the same check to
    `abi.encodePacked`, which must clean each array element instead of copying
    dirty calldata words.
