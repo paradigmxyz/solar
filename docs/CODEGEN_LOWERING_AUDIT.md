@@ -395,6 +395,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    modifier invocation gets an independent local-variable scope.
    `modifier_init_return.sol` covers a conditional modifier that skips the
    body while preserving the zero-initialized fixed-array return object.
+   `modifier_virtual_empty.sol` covers a virtual modifier override that
+   conditionally skips the inherited function body.
    `modifier_return_parameter_complex.sol` covers return bindings forwarded
    through several modifiers, and `modifier_stacked_return.sol` covers nested
    modifier postludes after a function-body return.
