@@ -435,6 +435,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    assignments that must clean high bits before pointer comparison.
    `external_function_pointer_higher_order.sol` covers an external pointer
    stored through a higher-order internal callback and a newly created target.
+   `external_function_pointer_struct_copy.sol` covers an external-pointer
+   array copied through a struct over an external call and compared on return.
    `function_pointer_delete.sol` and `external_function_pointer_delete.sol`
    cover clearing internal and external storage pointers, including Solc's
    zero-internal-pointer panic.
