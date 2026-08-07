@@ -396,6 +396,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    arguments with multiword static elements through external self-calls, and
    `abi_calldata_dynamic_static_dynamic.sol` covers narrow and full-width
    dynamic/static/dynamic arrays plus Solc's exact via-IR bounds panic.
+   `abi_calldata_struct_array_static.sol` covers a dynamic calldata array of
+   static structs and reads every multiword element.
    `abi_calldata_v1_validation.sol` adds the ABI coder v1 short-array and
    oversized-offset failures, which both compilers reject with empty revert
    data under the default revert-string mode.
