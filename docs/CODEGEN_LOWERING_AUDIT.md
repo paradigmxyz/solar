@@ -65,6 +65,8 @@ The replacement is split into stateful, private components:
   call-target resolution live in `function/calls`.
   Statement dispatch, revert payloads, custom errors, and event emission live
   in `function/statements`.
+  Signature binding, constructor/state initialization, return targets, and
+  function-body orchestration live in `function/entry`.
   Branches, loops, ternaries, Yul switches, and storage-reference merges live
   in `function/control_flow`.
   Tuple assignments, return values, and multi-value buffers live in
