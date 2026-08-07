@@ -959,4 +959,101 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         };
         Some(StorageAccess { slot, location: first.location, offset })
     }
+
+    pub(super) fn merge_values(
+        &mut self,
+        before: FxHashMap<VariableId, ValueId>,
+        then_branch: MergeBranch<ValueId>,
+        else_branch: MergeBranch<ValueId>,
+    ) -> FxHashMap<VariableId, ValueId> {
+        let mut values = before;
+        let mut ids = values.keys().copied().collect::<Vec<_>>();
+        ids.extend(then_branch.values.keys().copied());
+        ids.extend(else_branch.values.keys().copied());
+        ids.sort_unstable();
+        ids.dedup();
+        for id in ids {
+            let then_value = then_branch.values.get(&id).copied();
+            let else_value = else_branch.values.get(&id).copied();
+            let value =
+                match (then_branch.terminated, else_branch.terminated, then_value, else_value) {
+                    (true, false, _, value) | (false, true, value, _) => value,
+                    (_, _, Some(lhs), Some(rhs)) if lhs == rhs => Some(lhs),
+                    (false, false, Some(lhs), Some(rhs)) => Some(
+                        self.builder.phi(vec![(then_branch.block, lhs), (else_branch.block, rhs)]),
+                    ),
+                    _ => then_value.or(else_value),
+                };
+            if let Some(value) = value {
+                values.insert(id, value);
+            }
+        }
+        values
+    }
+
+    pub(super) fn merge_many_values(
+        &mut self,
+        mut before: FxHashMap<VariableId, ValueId>,
+        states: &[LoopState],
+    ) -> FxHashMap<VariableId, ValueId> {
+        let mut ids = before.keys().copied().collect::<Vec<_>>();
+        ids.extend(states.iter().flat_map(|state| state.values.keys().copied()));
+        ids.sort_unstable();
+        ids.dedup();
+        for id in ids {
+            let incoming = states
+                .iter()
+                .filter_map(|state| {
+                    state
+                        .values
+                        .get(&id)
+                        .copied()
+                        .or_else(|| before.get(&id).copied())
+                        .map(|value| (state.block, value))
+                })
+                .collect::<Vec<_>>();
+            let value = match incoming.as_slice() {
+                [] => None,
+                [(_, value)] => Some(*value),
+                [(_, first), rest @ ..] if rest.iter().all(|(_, value)| value == first) => {
+                    Some(*first)
+                }
+                _ => Some(self.builder.phi(incoming)),
+            };
+            if let Some(value) = value {
+                before.insert(id, value);
+            }
+        }
+        before
+    }
+
+    pub(super) fn merge_many_storage_refs(
+        &mut self,
+        mut before: FxHashMap<VariableId, StorageAccess>,
+        states: &[LoopState],
+    ) -> FxHashMap<VariableId, StorageAccess> {
+        let ids = before
+            .keys()
+            .chain(states.iter().flat_map(|state| state.storage_refs.keys()))
+            .copied()
+            .collect::<solar_data_structures::map::FxHashSet<_>>();
+        for id in ids {
+            let fallback = before.get(&id).copied();
+            let incoming = states
+                .iter()
+                .filter_map(|state| {
+                    state
+                        .storage_refs
+                        .get(&id)
+                        .copied()
+                        .or(fallback)
+                        .map(|access| (state.block, access))
+                })
+                .collect::<Vec<_>>();
+            if let Some(access) = self.merge_storage_accesses(incoming).or(fallback) {
+                before.insert(id, access);
+            }
+        }
+        before
+    }
 }
