@@ -13,8 +13,10 @@
 //@ run-call-fail: ExternalReturnValidation::dirtyEnumStorageRead() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 //@ run-call-fail: ExternalReturnValidation::dirtyEnumExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 //@ run-call-fail: ExternalReturnValidation::dirtyEnumStructExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@ run-call-fail: ExternalReturnValidation::dirtyEnumArrayExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 //@ run-call-fail: ExternalReturnValidation::dirtyEnumPacked() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 //@ run-call-fail: ExternalReturnValidation::dirtyEnumPackedArray() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@ run-call-fail: ExternalReturnValidation::dirtyEnumNested() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 //@ run-call: ExternalReturnValidation::dirtyBoolPacked() => 0x01
 //@ run-call-fail: ExternalReturnValidation::dynamicShort(uint256) 0x60
 //@ run-call: ExternalReturnValidation::dynamicShort(uint256) 0x61 => true
@@ -192,6 +194,18 @@ contract ExternalReturnValidation {
         return 1;
     }
 
+    function dirtyEnumArrayExternalArg() external view returns (uint256) {
+        State[] memory values = new State[](1);
+        assembly {
+            mstore(add(values, 0x20), 2)
+        }
+        return this.enumArrayTarget(values);
+    }
+
+    function enumArrayTarget(State[] memory) external pure returns (uint256) {
+        return 1;
+    }
+
     function dirtyEnumPacked() external pure returns (bytes memory) {
         State value;
         assembly {
@@ -206,6 +220,14 @@ contract ExternalReturnValidation {
             mstore(values, 2)
         }
         return abi.encodePacked(values);
+    }
+
+    function dirtyEnumNested() external pure returns (bytes memory) {
+        State[1][1] memory values;
+        assembly {
+            mstore(add(values, 0x20), 2)
+        }
+        return abi.encode(values);
     }
 
     function dirtyBoolPacked() external pure returns (bytes memory) {
