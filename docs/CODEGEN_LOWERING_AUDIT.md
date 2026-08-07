@@ -351,7 +351,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    linearized order. `constructor_diamond_forwarding.sol` covers argument
    forwarding through a diamond with a shared base. `modifier_return_reference.sol`
    covers modifier arguments that assign the function's named return variables
-   before the body runs.
+   before the body runs. `constructor_fixed_array_forwarding.sol` covers
+   fixed-array constructor decoding and the memory-to-storage copy.
 3. Extend function-pointer ABI coverage to the remaining edge cases. External
    pointers now have runtime coverage for aggregate arguments and returns,
    pointer arguments and pointer returns, including aggregate `try` return
