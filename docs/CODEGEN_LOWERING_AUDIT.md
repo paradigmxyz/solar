@@ -480,6 +480,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `storage_struct_dynamic_copy.sol` vector covers storage structs and dynamic
    storage-array elements with `bytes` members, including indexed read/write
    isolation after an aggregate copy.
+   `storage_struct_bytes_index.sol` covers indexed reads through an explicit
+   `bytes(storage)` conversion on a nested storage field.
    `bytes_memory_storage.sol` vector checks memory-to-storage bytes writes with
    dirty unused memory bytes, matching Solc's truncation.
    `storage_delete_packed_array.sol` checks that deleting packed fixed-array
