@@ -25,7 +25,7 @@ fn @vBytes4(arg0: bytes4) -> bytes4 [abi_args=lazy, abi_params=[bytes4], abi_ret
     ret arg0
 }
 
-fn @vEnum(arg0: u8) -> u8 [abi_args=lazy, abi_params=[enum<3, u8>], abi_returns=[word]] {
+fn @vEnum(arg0: u8) -> u8 [abi_args=lazy, abi_params=[enum<3, u8>], abi_returns=[word], abi_return_params=[enum<3, u8>]] {
   bb0:
     ret arg0
 }

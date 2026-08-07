@@ -2154,7 +2154,13 @@ fn canonicalize_return_value(
     }
 
     match ty {
-        AbiParamType::Scalar(ty) | AbiParamType::Enum { ty, .. } => {
+        AbiParamType::Scalar(ty) => AbiWordValidator::from_return_mir_type(*ty)
+            .map_or(value, |validator| validator.cleanup_with_helpers(builder, value, helpers)),
+        AbiParamType::Enum { ty, variants } => {
+            let limit = builder.imm_u64(*variants);
+            let valid = builder.lt(value, limit);
+            let invalid = builder.iszero(valid);
+            builder.panic_if(invalid, 0x21);
             AbiWordValidator::from_return_mir_type(*ty)
                 .map_or(value, |validator| validator.cleanup_with_helpers(builder, value, helpers))
         }

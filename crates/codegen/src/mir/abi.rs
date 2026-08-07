@@ -157,7 +157,9 @@ impl AbiParamType {
     #[must_use]
     pub(crate) fn needs_nested_return_cleanup(&self) -> bool {
         match self {
-            Self::Scalar(..) | Self::Enum { .. } | Self::Bytes => false,
+            Self::Scalar(..) | Self::Bytes => false,
+            // Return encoding needs the variant count to validate the raw word.
+            Self::Enum { .. } => true,
             Self::FixedArray { .. } | Self::DynamicArray(..) | Self::Tuple(..) => {
                 self.needs_return_cleanup()
             }

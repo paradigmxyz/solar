@@ -6,19 +6,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 {
     pub(super) fn panic_if(&mut self, condition: ValueId, code: u64) {
-        let panic_block = self.builder.create_block();
-        let continue_block = self.builder.create_block();
-        self.builder.branch(condition, panic_block, continue_block);
-        self.builder.switch_to_block(panic_block);
-        let selector = self.builder.imm_u256(U256::from(0x4e48_7b71_u64) << 224);
-        let code = self.builder.imm_u256(U256::from(code));
-        let zero = self.builder.imm_u256(U256::ZERO);
-        self.builder.mstore(zero, selector);
-        let four = self.builder.imm_u256(U256::from(4));
-        self.builder.mstore(four, code);
-        let size = self.builder.imm_u256(U256::from(36));
-        self.builder.revert(zero, size);
-        self.builder.switch_to_block(continue_block);
+        self.builder.panic_if(condition, code);
     }
 
     pub(super) fn checked_add(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {

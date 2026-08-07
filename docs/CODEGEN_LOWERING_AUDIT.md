@@ -346,7 +346,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    External return wrappers also recursively clean typed scalar words before
    encoding returndata; `external_return_validation.sol` checks dirty scalar
    fields in a returned memory struct against Solc, and the dynamic `bool[]`
-   return path is covered by `abi_decode_dynamic_arrays.sol`.
+   return path is covered by `abi_decode_dynamic_arrays.sol`. The same wrapper
+   validates dirty enum values and emits Solc's `Panic(0x21)`.
    `abi_decode_storage_struct.sol` covers decoding a storage-backed ABI blob
    into a memory struct with a dynamic array field.
    `abi.decode`, external return decoding, and `catch Error(string)` payload

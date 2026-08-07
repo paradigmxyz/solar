@@ -8,6 +8,7 @@
 //@ run-call: ExternalReturnValidation::dirtyMemoryDynamicArray() => true
 //@ run-call: ExternalReturnValidation::dirtyMemoryStruct() => true
 //@ run-call: ExternalReturnValidation::dirtyMemoryLvalue() => true
+//@ run-call-fail: ExternalReturnValidation::dirtyEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_static_array.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_dynamic_array.sol
 
@@ -19,6 +20,11 @@ contract ExternalReturnValidation {
 
     struct Scalar {
         uint8 value;
+    }
+
+    enum State {
+        A,
+        B
     }
 
     function short() external view returns (uint256) {
@@ -119,5 +125,11 @@ contract ExternalReturnValidation {
         }
         values[0] += 1;
         return values[0] == 2;
+    }
+
+    function dirtyEnum() external pure returns (State value) {
+        assembly {
+            value := 2
+        }
     }
 }
