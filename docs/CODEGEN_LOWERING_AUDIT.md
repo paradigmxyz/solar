@@ -231,7 +231,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   objects across external calls, linked-library calls, ABI decoding, and
   internal function-pointer dispatch;
 * `abi.decode` scalar, tuple, struct, fixed- and dynamic-array, and
-  calldata-slice paths through semantic memory slices and object copies;
+  calldata-slice paths through semantic memory slices and object copies,
+  including direct decoding from `bytes calldata`;
 * dynamic calldata arrays of multiword static elements, including storage
   copies and ABI encoding of nested fixed arrays;
 * calldata fixed-array indexing of structs without eagerly validating unused
