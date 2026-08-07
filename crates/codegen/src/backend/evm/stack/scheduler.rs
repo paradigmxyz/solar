@@ -125,6 +125,7 @@ const SEARCH_STACK_INLINE_CAPACITY: usize = MAX_STACK_ACCESS + 4;
 type SearchStack = SmallVec<[Option<ValueId>; SEARCH_STACK_INLINE_CAPACITY]>;
 
 /// Tracks physical stack state and plans operand preparation.
+#[derive(Clone)]
 pub(crate) struct StackScheduler {
     /// Current stack state.
     pub stack: StackModel,
@@ -203,6 +204,23 @@ impl ScheduleCost {
         self.key(optimization).cmp(&other.key(optimization))
     }
 
+    /// Cost of draining `words` without accounting for any required stores or
+    /// later reloads. This is a strict lower bound for the ordinary call path.
+    pub(crate) fn stack_drain_lower_bound(words: usize) -> Self {
+        let words = u32::try_from(words).unwrap_or(u32::MAX);
+        Self { static_gas: words.saturating_mul(2), encoded_bytes: words, actions: words }
+    }
+
+    /// Estimated cost of duplicating a resident value and storing it through
+    /// the active spill-address convention.
+    pub(crate) fn spill_store(cost_model: OperandCostModel) -> Self {
+        Self {
+            static_gas: cost_model.load_static_gas.saturating_add(3),
+            encoded_bytes: cost_model.load_encoded_bytes.saturating_add(1),
+            actions: 2,
+        }
+    }
+
     fn with_op(
         mut self,
         op: &ScheduledOp,
@@ -232,7 +250,7 @@ impl ScheduleCost {
         self
     }
 
-    fn plus(self, other: Self) -> Self {
+    pub(crate) fn plus(self, other: Self) -> Self {
         Self {
             static_gas: self.static_gas.saturating_add(other.static_gas),
             encoded_bytes: self.encoded_bytes.saturating_add(other.encoded_bytes),
