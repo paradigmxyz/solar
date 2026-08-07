@@ -64,12 +64,8 @@ impl<'a> FunctionBuilder<'a> {
         self.alloc_value(Value::Immediate(Immediate::bool(value)))
     }
 
-    /// Reverts with Solidity's `Panic(uint256)` payload when `condition` is true.
-    pub(crate) fn panic_if(&mut self, condition: ValueId, code: u64) {
-        let panic_block = self.create_block();
-        let continue_block = self.create_block();
-        self.branch(condition, panic_block, continue_block);
-        self.switch_to_block(panic_block);
+    /// Reverts with Solidity's `Panic(uint256)` payload.
+    pub(crate) fn panic(&mut self, code: u64) {
         let selector = self.imm_u256(U256::from(0x4e48_7b71_u64) << 224);
         let code = self.imm_u256(U256::from(code));
         let zero = self.imm_u256(U256::ZERO);
@@ -78,6 +74,15 @@ impl<'a> FunctionBuilder<'a> {
         self.mstore(four, code);
         let size = self.imm_u256(U256::from(36));
         self.revert(zero, size);
+    }
+
+    /// Reverts with Solidity's `Panic(uint256)` payload when `condition` is true.
+    pub(crate) fn panic_if(&mut self, condition: ValueId, code: u64) {
+        let panic_block = self.create_block();
+        let continue_block = self.create_block();
+        self.branch(condition, panic_block, continue_block);
+        self.switch_to_block(panic_block);
+        self.panic(code);
         self.switch_to_block(continue_block);
     }
 

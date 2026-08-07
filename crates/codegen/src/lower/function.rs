@@ -647,14 +647,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 builder.switch_to_block(next_block);
             }
 
-            let zero = builder.imm_u256(U256::ZERO);
-            let selector = builder.imm_u256(U256::from(0x4e48_7b71_u64) << 224);
-            builder.mstore(zero, selector);
-            let four = builder.imm_u256(U256::from(4));
-            let code = builder.imm_u256(U256::from(0x51));
-            builder.mstore(four, code);
-            let size = builder.imm_u256(U256::from(36));
-            builder.revert(zero, size);
+            builder.panic(0x51);
         }
         *module.function_mut(dispatcher) = function;
     }
