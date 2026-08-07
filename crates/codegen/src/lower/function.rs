@@ -273,11 +273,28 @@ enum LValuePlace<'gcx> {
     StorageByte { slot: ValueId, object: ValueId, index: ValueId, ty: Ty<'gcx> },
 }
 
-enum PackedPiece {
+enum PackedPiece<'gcx> {
     Bytes(Vec<u8>),
-    Static { value: ValueId, length: u64, fixed_bytes: bool },
-    Dynamic { source: ValueId, length: ValueId },
-    Array { value: ValueId, length: ValueId, element: AbiType, source: PackedArraySource },
+    Static {
+        value: ValueId,
+        length: u64,
+        fixed_bytes: bool,
+    },
+    Dynamic {
+        source: ValueId,
+        length: ValueId,
+    },
+    Array {
+        value: ValueId,
+        length: ValueId,
+        element: PackedArrayElement<'gcx>,
+        source: PackedArraySource,
+    },
+}
+
+struct PackedArrayElement<'gcx> {
+    abi: AbiType,
+    ty: Ty<'gcx>,
 }
 
 #[derive(Clone, Copy)]
@@ -2988,6 +3005,53 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
         let shift = self.builder.imm_u64(u64::from(32 - size.bytes()) * 8);
         self.builder.shl(shift, value)
+    }
+
+    fn normalize_packed_scalar(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
+        match ty.peel_refs().kind {
+            TyKind::Udvt(inner, _) => self.normalize_packed_scalar(value, inner),
+            TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(size))
+                if size.bits() < 256 =>
+            {
+                let mask = U256::MAX >> (256 - usize::from(size.bits()));
+                let mask = self.builder.imm_u256(mask);
+                self.builder.and(value, mask)
+            }
+            TyKind::Elementary(solar_sema::hir::ElementaryType::Int(size)) if size.bits() < 256 => {
+                let byte = self.builder.imm_u64(u64::from(size.bits() / 8 - 1));
+                self.builder.signextend(byte, value)
+            }
+            TyKind::Elementary(solar_sema::hir::ElementaryType::Address(_)) => {
+                let mask = U256::MAX >> 96;
+                let mask = self.builder.imm_u256(mask);
+                self.builder.and(value, mask)
+            }
+            TyKind::Contract(_) => {
+                let mask = U256::MAX >> 96;
+                let mask = self.builder.imm_u256(mask);
+                self.builder.and(value, mask)
+            }
+            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size))
+                if size.bytes() < 32 =>
+            {
+                let mask = U256::MAX << (256 - usize::from(size.bytes()) * 8);
+                let mask = self.builder.imm_u256(mask);
+                self.builder.and(value, mask)
+            }
+            TyKind::Enum(id) => {
+                let variants = self.gcx.hir.enumm(id).variants.len().max(1);
+                let bits = (usize::BITS - (variants - 1).leading_zeros()).max(1);
+                let mask = U256::MAX >> (256 - bits as usize);
+                let mask = self.builder.imm_u256(mask);
+                self.builder.and(value, mask)
+            }
+            TyKind::Elementary(solar_sema::hir::ElementaryType::Bool) => {
+                let zero = self.builder.imm_u256(U256::ZERO);
+                let is_zero = self.builder.eq(value, zero);
+                self.builder.iszero(is_zero)
+            }
+            _ => value,
+        }
     }
 
     fn coerce_call_argument(

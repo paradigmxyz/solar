@@ -333,6 +333,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi_encode_rational.sol` checks signed rational literal encoding.
    `abi_encode_empty_string.sol` checks that empty string literals retain a
    dynamic `bytes` ABI shape in both full and packed encoding.
+   `abi_packed_complex_types.sol` ports Solc's narrow `uint120` array case for
+   both storage and memory; the packed encoder normalizes scalar array elements
+   before copying their words.
    `abi.decode`, external return decoding, and `catch Error(string)` payload
    decoding are represented by semantic MIR operations and lowered by the ABI
    pass; multi-return materialization uses the shared frame/object path. The

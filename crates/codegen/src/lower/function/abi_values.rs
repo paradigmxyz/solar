@@ -376,7 +376,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 let element_bytes_value = self.builder.imm_u64(element_bytes);
                 let byte_length = self.checked_mul(length, element_bytes_value);
                 total = self.checked_add(total, byte_length);
-                pieces.push(PackedPiece::Array { value, length, element, source });
+                pieces.push(PackedPiece::Array {
+                    value,
+                    length,
+                    element: PackedArrayElement { abi: element.abi, ty: element.ty },
+                    source,
+                });
                 continue;
             }
 
@@ -459,7 +464,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         &mut self,
         ty: Ty<'gcx>,
         value: ValueId,
-    ) -> Option<(ValueId, AbiType, u64, PackedArraySource)> {
+    ) -> Option<(ValueId, PackedArrayElement<'gcx>, u64, PackedArraySource)> {
+        let element_ty = match ty.peel_refs().kind {
+            TyKind::DynArray(element) | TyKind::Array(element, _) | TyKind::Slice(element) => {
+                element
+            }
+            _ => return None,
+        };
         let array_abi = self.types.abi_type(ty)?;
         let element_abi = match array_abi {
             AbiType::DynamicArray { element, .. } | AbiType::FixedArray { element, .. } => *element,
@@ -495,7 +506,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             PackedArraySource::Memory { .. } => return None,
             PackedArraySource::Slice(_) => self.builder.slice_len(value),
         };
-        Some((length, element_abi, element_bytes, source))
+        Some((
+            length,
+            PackedArrayElement { abi: element_abi, ty: element_ty },
+            element_bytes,
+            source,
+        ))
     }
 
     fn packed_array_element_bytes(element: &AbiType) -> Option<u64> {
@@ -791,10 +807,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         offset: ValueId,
         value: ValueId,
         length: ValueId,
-        element: &AbiType,
+        element: &PackedArrayElement<'gcx>,
         source: PackedArraySource,
     ) -> ValueId {
-        let element_bytes = Self::packed_array_element_bytes(element).expect("packed array shape");
+        let element_bytes =
+            Self::packed_array_element_bytes(&element.abi).expect("packed array shape");
         let element_bytes_value = self.builder.imm_u64(element_bytes);
         let byte_length = self.checked_mul(length, element_bytes_value);
         let end_offset = self.checked_add(offset, byte_length);
@@ -826,7 +843,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.switch_to_block(body);
         let element_offset = self.checked_mul(index, element_bytes_value);
         let destination = self.checked_add(offset, element_offset);
-        match element {
+        match &element.abi {
             AbiType::Word | AbiType::Function => {
                 let element_value = match source {
                     PackedArraySource::Memory { layout } => {
@@ -843,7 +860,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                         SliceLocation::Returndata => unreachable!("returndata packed array"),
                     },
                 };
-                let element_value = if matches!(element, AbiType::Function)
+                let element_value = self.normalize_packed_scalar(element_value, element.ty);
+                let element_value = if matches!(&element.abi, AbiType::Function)
                     && matches!(source, PackedArraySource::Memory { .. })
                 {
                     let shift = self.builder.imm_u64(64);
@@ -870,12 +888,17 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                         (nested_value, PackedArraySource::Slice(location))
                     }
                 };
+                let nested_ty = match element.ty.peel_refs().kind {
+                    TyKind::Array(nested_ty, _) => nested_ty,
+                    _ => element.ty,
+                };
+                let nested_element = PackedArrayElement { abi: (**nested).clone(), ty: nested_ty };
                 self.copy_packed_array(
                     output,
                     destination,
                     nested_value,
                     nested_length,
-                    nested,
+                    &nested_element,
                     nested_source,
                 );
             }
@@ -920,7 +943,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         &mut self,
         output: ValueId,
         offset: ValueId,
-        pieces: &[PackedPiece],
+        pieces: &[PackedPiece<'gcx>],
     ) -> Option<(usize, u64)> {
         let mut constant = U256::ZERO;
         let mut terms = Vec::new();
