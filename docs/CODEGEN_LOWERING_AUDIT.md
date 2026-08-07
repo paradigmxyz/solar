@@ -445,7 +445,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `function_pointer_inline_array_options.sol` covers an external pointer
    selected from an inline array before forwarding a `value` option, and
    `function_pointer_dirty_bits.sol` covers Yul `.address`/`.selector`
-   assignments that must clean high bits before pointer comparison.
+   assignments that must clean high bits before pointer comparison or ABI
+   encoding.
    `external_function_pointer_higher_order.sol` covers an external pointer
    stored through a higher-order internal callback and a newly created target.
    `external_function_pointer_struct_copy.sol` covers an external-pointer
