@@ -295,12 +295,16 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    calldata `uint8[]` values are checked when indexed and when re-encoded.
    `abi_calldata_stride_validation.sol` checks the element stride for full-word
    calldata arrays when they are read or re-encoded.
+   `abi_calldata_array_size_validation.sol` checks that a dynamic calldata array
+   rejects a length whose element payload exceeds the available calldata.
    `abi_packed_calldata_scalar_validation.sol` applies the same check to
    `abi.encodePacked`, which must clean each array element instead of copying
    dirty calldata words.
    `abi_calldata_static_tuple_lazy_validation.sol` covers static calldata
    structs: field reads validate only the selected scalar, unused dirty fields
    remain lazy, and full-word tuples materialize before ABI encoding.
+   `abi_calldata_static_struct_validation.sol` checks canonical int16, uint8,
+   and bytes2 words in a static memory-struct parameter.
    `abi_calldata_fixed_middle_short.sol` covers a truncated nested dynamic
    array whose fixed-array head is wider than one word; indexed access rejects
    the short payload while the valid Solc vectors still decode.
