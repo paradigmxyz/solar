@@ -407,6 +407,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `function_pointer_delete.sol` and `external_function_pointer_delete.sol`
    cover clearing internal and external storage pointers, including Solc's
    zero-internal-pointer panic.
+   `internal_function_pointer_storage_copy.sol` covers copying a fixed array of
+   internal function pointers from memory into storage and the zero-pointer
+   panic on a subsequent storage dispatch.
    The Unifap creation fixture now passes the differential Foundry
    suite; the companion fixture compiles with no Solar-only regressions, but
    retains seven pre-existing failures under both compilers because its
@@ -424,6 +427,13 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    and arrays now have typed external-call coverage, and storage copies of
    nested fixed arrays have an ABI-encoding fixture. `storage_nested_struct_calldata.sol`
    adds a nested calldata struct-array copy with dynamic and fixed members.
+   `storage_nested_struct_memory.sol` covers the same three nested struct-array
+   shapes through memory-to-storage assignment. `storage_array_to_mapping.sol`
+   covers nested dynamic arrays copied from storage and memory into mapping
+   elements. `storage_nested_dynamic_calldata_to_storage.sol` covers nested
+   dynamic calldata arrays assigned to storage, including the second-level
+   array shape. `storage_struct_two_bytes.sol` covers a packed struct with two
+   dynamic byte fields whose lengths cross the short and long storage boundary.
    `storage_struct_dynamic_words_calldata.sol` adds a dynamic struct-array
    copy whose nested arrays use full-width words. The
    `storage_nested_dynamic_words_calldata.sol` vector covers dynamic and fixed
