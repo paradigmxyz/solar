@@ -403,6 +403,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    lazy calldata pointer array crosses an external-call boundary.
    `external_function_pointer_storage_array.sol` covers memory-to-storage and
    storage-to-storage copies of external function pointer arrays.
+   `external_function_pointer_storage_struct.sol` covers packed external
+   function pointers embedded between scalar fields in storage structs.
    `external_function_pointer_options.sol` checks source-order evaluation and
    forwarding of `gas`/`value` options on external pointer calls.
    `function_pointer_inline_array_options.sol` covers an external pointer
@@ -418,6 +420,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `internal_function_pointer_dynamic_storage_copy.sol` extends that coverage
    to dynamic storage arrays allocated with `new` and copied between storage
    variables before dispatch.
+   `internal_function_pointer_storage_struct.sol` covers packed internal
+   function pointers embedded between scalar fields in storage structs, and
+   `external_function_pointer_parameter.sol` covers direct and internal calls
+   that pass external pointers as parameters.
    The Unifap creation fixture now passes the differential Foundry
    suite; the companion fixture compiles with no Solar-only regressions, but
    retains seven pre-existing failures under both compilers because its
