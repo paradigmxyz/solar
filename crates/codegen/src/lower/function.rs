@@ -579,6 +579,41 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 self.values.insert(*id, value);
             }
             StmtKind::DeclMulti(ids, expr) => {
+                if ids
+                    .iter()
+                    .flatten()
+                    .any(|&id| self.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Storage))
+                    && let Some(values) = self.lower_storage_reference_call(expr.peel_parens())
+                {
+                    if values.len() != ids.len() {
+                        return report_unsupported(self.gcx, expr.span, "storage reference tuple");
+                    }
+                    for (id, (value, access)) in ids.iter().zip(values) {
+                        let Some(id) = id else { continue };
+                        if let Some(access) = access {
+                            if !self.gcx.type_of_item((*id).into()).is_ref_at(DataLocation::Storage)
+                            {
+                                return report_unsupported(
+                                    self.gcx,
+                                    self.gcx.hir.variable(*id).span,
+                                    "mixed storage tuple",
+                                );
+                            }
+                            self.storage_refs.insert(*id, access);
+                        } else {
+                            if self.gcx.type_of_item((*id).into()).is_ref_at(DataLocation::Storage)
+                            {
+                                return report_unsupported(
+                                    self.gcx,
+                                    self.gcx.hir.variable(*id).span,
+                                    "mixed storage tuple",
+                                );
+                            }
+                            self.values.insert(*id, value);
+                        }
+                    }
+                    return Some(());
+                }
                 if let ExprKind::Tuple(values) = &expr.peel_parens().kind
                     && values.len() == ids.len()
                 {
@@ -2058,7 +2093,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 .map(|(value, id)| {
                     let value = (*value)?;
                     let ty = self.gcx.type_of_item(id.into());
-                    self.lower_typed_expr(value, ty)
+                    if ty.is_ref_at(DataLocation::Storage) {
+                        self.storage_access(value).map(|access| access.slot)
+                    } else {
+                        self.lower_typed_expr(value, ty)
+                    }
                 })
                 .collect();
         }
@@ -2073,20 +2112,31 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     ) -> Option<()> {
         let rhs = rhs.peel_parens();
         if elements.iter().flatten().any(|element| self.is_storage_reference_binding(element))
-            && let Some(accesses) = self.lower_storage_reference_call(rhs)
+            && let Some(values) = self.lower_storage_reference_call(rhs)
         {
-            if accesses.len() != elements.len() {
+            if values.len() != elements.len() {
                 return report_unsupported(self.gcx, rhs.span, "storage reference tuple");
             }
-            for (element, access) in elements.iter().zip(accesses) {
+            for (element, (value, access)) in elements.iter().zip(values) {
                 let Some(element) = element else { continue };
-                if !self.is_storage_reference_binding(element) {
-                    return report_unsupported(self.gcx, element.span, "mixed storage tuple");
+                if let Some(access) = access {
+                    if !self.is_storage_reference_binding(element) {
+                        return report_unsupported(self.gcx, element.span, "mixed storage tuple");
+                    }
+                    let Some(id) = self.gcx.resolved_variable(element) else {
+                        return report_unsupported(
+                            self.gcx,
+                            element.span,
+                            "storage reference target",
+                        );
+                    };
+                    self.storage_refs.insert(id, access);
+                } else {
+                    if self.is_storage_reference_binding(element) {
+                        return report_unsupported(self.gcx, element.span, "mixed storage tuple");
+                    }
+                    self.store_lvalue(element, value)?;
                 }
-                let Some(id) = self.gcx.resolved_variable(element) else {
-                    return report_unsupported(self.gcx, element.span, "storage reference target");
-                };
-                self.storage_refs.insert(id, access);
             }
             return Some(());
         }
@@ -2167,25 +2217,37 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         Some(())
     }
 
-    fn lower_storage_reference_call(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<StorageAccess>> {
+    fn lower_storage_reference_call(
+        &mut self,
+        expr: &hir::Expr<'_>,
+    ) -> Option<Vec<(ValueId, Option<StorageAccess>)>> {
         let ExprKind::Call(callee, ..) = &expr.kind else { return None };
         let function_id = self.gcx.resolved_function(callee)?;
         let returns = self.gcx.hir.function(function_id).returns;
-        if returns.is_empty()
-            || returns
-                .iter()
-                .any(|&id| !self.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Storage))
-        {
+        if returns.is_empty() {
+            return None;
+        }
+        let has_storage_return = returns
+            .iter()
+            .any(|&id| self.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Storage));
+        if !has_storage_return {
             return None;
         }
         let values = self.lower_values(expr)?;
         (values.len() == returns.len()).then(|| {
             values
                 .into_iter()
-                .map(|slot| StorageAccess {
-                    slot,
-                    location: StorageLocation::word(U256::ZERO),
-                    offset: None,
+                .zip(returns)
+                .map(|(value, id)| {
+                    let access =
+                        self.gcx.type_of_item((*id).into()).is_ref_at(DataLocation::Storage).then(
+                            || StorageAccess {
+                                slot: value,
+                                location: StorageLocation::word(U256::ZERO),
+                                offset: None,
+                            },
+                        );
+                    (value, access)
                 })
                 .collect()
         })

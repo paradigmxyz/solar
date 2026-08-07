@@ -468,6 +468,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    boundary cleanup without clobbering the following storage slot.
    `storage_return_pointer_multi.sol` checks tuple assignment from an internal
    call returning multiple storage references before mutating both targets.
+   `storage_return_pointer_mixed.sol` and
+   `storage_return_pointer_mixed_decl.sol` cover mixed scalar/storage returns
+   through tuple assignment and multi-variable declarations.
    `storage_string_bytes_conversion.sol` covers a constructor string copied to
    storage and then converted to `bytes` before reading its length.
 5. Keep expanding runtime and differential coverage for aggregate allocation
