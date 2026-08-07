@@ -8,7 +8,7 @@
 use crate::global_state::GlobalState;
 use async_lsp::{
     ClientSocket, LspService, ResponseError, client_monitor::ClientProcessMonitorLayer,
-    router::Router, server::LifecycleLayer, tracing::TracingLayer,
+    router::Router, tracing::TracingLayer,
 };
 #[cfg(test)]
 use criterion as _;
@@ -33,6 +33,7 @@ mod formatter;
 mod global_state;
 mod handlers;
 mod inlay_hints;
+mod lifecycle;
 mod natspec_completion;
 mod override_index;
 mod progress;
@@ -162,7 +163,7 @@ fn new_server_service(
     let protocol_trace = state.protocol_trace();
     ServiceBuilder::new()
         .layer(TracingLayer::default())
-        .layer(LifecycleLayer::default())
+        .layer(lifecycle::LifecycleLayer)
         .layer(protocol_trace::ProtocolTraceLayer::new(protocol_trace))
         .layer(request_layer(client.clone()))
         .layer(ClientProcessMonitorLayer::new(client))

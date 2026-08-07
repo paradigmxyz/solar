@@ -1,0 +1,130 @@
+[
+  {
+    "name": "VS Code",
+    "version": "vscode-languageclient 10.1.0",
+    "source": "https://github.com/microsoft/vscode-languageserver-node/blob/release/client/10.1.0/client/src/common/client.ts",
+    "expectsWatchedFilesRegistration": true,
+    "expectsCodeActionProvider": true,
+    "capabilities": {
+      "general": {
+        "positionEncodings": ["utf-16"]
+      },
+      "window": {
+        "workDoneProgress": true
+      },
+      "workspace": {
+        "didChangeWatchedFiles": {
+          "dynamicRegistration": true
+        },
+        "workspaceEdit": {
+          "documentChanges": true
+        },
+        "codeLens": {
+          "refreshSupport": true
+        },
+        "diagnostics": {
+          "refreshSupport": true
+        },
+        "inlayHint": {
+          "refreshSupport": true
+        }
+      },
+      "textDocument": {
+        "codeAction": {
+          "codeActionLiteralSupport": {
+            "codeActionKind": {
+              "valueSet": ["", "quickfix", "refactor", "source"]
+            }
+          }
+        },
+        "documentSymbol": {
+          "hierarchicalDocumentSymbolSupport": true
+        },
+        "hover": {
+          "contentFormat": ["markdown", "plaintext"]
+        }
+      }
+    }
+  },
+  {
+    "name": "Neovim (Darwin/Windows)",
+    "version": "0.12.4",
+    "source": "https://github.com/neovim/neovim/blob/v0.12.4/runtime/lua/vim/lsp/protocol.lua",
+    "expectsWatchedFilesRegistration": true,
+    "expectsCodeActionProvider": true,
+    "capabilities": {
+      "general": {
+        "positionEncodings": ["utf-8", "utf-16", "utf-32"]
+      },
+      "window": {
+        "workDoneProgress": true
+      },
+      "workspace": {
+        "didChangeWatchedFiles": {
+          "dynamicRegistration": true
+        }
+      },
+      "textDocument": {
+        "codeAction": {
+          "codeActionLiteralSupport": {
+            "codeActionKind": {
+              "valueSet": ["", "quickfix", "refactor", "source"]
+            }
+          }
+        },
+        "documentSymbol": {
+          "hierarchicalDocumentSymbolSupport": true
+        },
+        "hover": {
+          "contentFormat": ["markdown", "plaintext"]
+        }
+      }
+    }
+  },
+  {
+    "name": "Zed",
+    "version": "1.14.2",
+    "source": "https://github.com/zed-industries/zed/blob/v1.14.2/crates/lsp/src/lsp.rs",
+    "expectsWatchedFilesRegistration": true,
+    "expectsCodeActionProvider": true,
+    "capabilities": {
+      "general": {
+        "positionEncodings": ["utf-16"]
+      },
+      "window": {
+        "workDoneProgress": true
+      },
+      "workspace": {
+        "didChangeWatchedFiles": {
+          "dynamicRegistration": true
+        },
+        "workspaceEdit": {
+          "documentChanges": true
+        }
+      },
+      "textDocument": {
+        "codeAction": {
+          "codeActionLiteralSupport": {
+            "codeActionKind": {
+              "valueSet": ["", "quickfix", "refactor", "source"]
+            }
+          }
+        },
+        "documentSymbol": {
+          "hierarchicalDocumentSymbolSupport": true
+        },
+        "hover": {
+          "contentFormat": ["markdown", "plaintext"]
+        }
+      }
+    }
+  },
+  {
+    "name": "Minimal LSP client",
+    "version": "3.17",
+    "source": "https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/",
+    "expectsWatchedFilesRegistration": false,
+    "expectsCodeActionProvider": false,
+    "capabilities": {}
+  }
+]
