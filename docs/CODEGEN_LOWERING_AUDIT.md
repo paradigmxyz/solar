@@ -366,6 +366,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    before the body runs. `modifier_named_arguments.sol` covers named modifier
    argument binding. `modifier_multiple_invocations.sol` checks that each
    modifier invocation gets an independent local-variable scope.
+   Solc's via-IR-only `function_modifier_multi_invocation_viair.sol` remains a
+   gap: repeated `_` expansion currently shares function return bindings,
+   while Solc gives each expanded body fresh return variables.
    `constructor_fixed_array_forwarding.sol` covers
    fixed-array constructor decoding and the memory-to-storage copy.
    `constructor_external_arguments.sol` covers direct deployment decoding of
