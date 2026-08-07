@@ -544,6 +544,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    an external function array is re-encoded with `abi.encodePacked`.
    `abi_forward_function_pointer_array.sol` covers cleanup and validation when a
    lazy calldata pointer array crosses an external-call boundary.
+   `external_function_pointer_nested_array.sol` covers nested external function
+   pointers through a memory array, a cross-contract call, and returned arrays.
    `external_function_pointer_storage_array.sol` covers memory-to-storage and
    storage-to-storage copies of external function pointer arrays.
    `external_function_pointer_storage_struct.sol` covers packed external
