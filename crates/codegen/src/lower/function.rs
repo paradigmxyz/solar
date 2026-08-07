@@ -701,6 +701,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     |expr| {
                         if self.returns.len() == 1 {
                             let ty = self.gcx.type_of_item(self.returns[0].into());
+                            if ty.is_ref_at(DataLocation::Storage) {
+                                return Some(vec![self.storage_access(expr)?.slot]);
+                            }
                             if self
                                 .gcx
                                 .type_of_expr(expr.id)
