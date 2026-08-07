@@ -625,11 +625,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         ty: Ty<'gcx>,
         value: ValueId,
     ) -> Option<(ValueId, PackedArrayElement<'gcx>, u64, PackedArraySource)> {
-        let element_ty = match ty.peel_refs().kind {
-            TyKind::DynArray(element) | TyKind::Array(element, _) => element,
-            TyKind::Slice(_) => ty.base_type(self.gcx)?,
-            _ => return None,
-        };
+        let element_ty = self.array_element_type(ty)?;
         let array_abi = self.types.abi_type(ty)?;
         let element_abi = match array_abi {
             AbiType::DynamicArray { element, .. } | AbiType::FixedArray { element, .. } => *element,

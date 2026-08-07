@@ -3090,6 +3090,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         source_ty.map_or(value, |source_ty| self.coerce_value(value, source_ty, parameter_ty))
     }
 
+    fn array_element_type(&self, ty: Ty<'gcx>) -> Option<Ty<'gcx>> {
+        match ty.peel_refs().kind {
+            TyKind::DynArray(element) | TyKind::Array(element, _) => Some(element),
+            TyKind::Slice(_) => ty.base_type(self.gcx),
+            _ => None,
+        }
+    }
+
     fn lower_function_call(
         &mut self,
         expr: &hir::Expr<'_>,
@@ -3926,11 +3934,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     if location != SliceLocation::Calldata {
                         return report_unsupported(self.gcx, expr.span, "memory array slice index");
                     }
-                    let element = match receiver_ty.peel_refs().kind {
-                        TyKind::DynArray(element) | TyKind::Array(element, _) => element,
-                        TyKind::Slice(_) => receiver_ty.base_type(self.gcx)?,
-                        _ => return report_unsupported(self.gcx, expr.span, "slice index"),
-                    };
+                    let element = self.array_element_type(receiver_ty)?;
                     let element = if matches!(element.peel_refs().kind, TyKind::Struct(_)) {
                         element.with_loc_if_ref(self.gcx, DataLocation::Calldata)
                     } else {

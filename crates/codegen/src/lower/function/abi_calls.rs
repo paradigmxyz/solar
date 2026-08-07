@@ -267,17 +267,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 Some(self.materialize_memory_slice(value))
             }
             TyKind::DynArray(_) | TyKind::Slice(_) => {
-                let element = match ty.peel_refs().kind {
-                    TyKind::DynArray(element) => element,
-                    TyKind::Slice(_) => ty.base_type(self.gcx)?,
-                    _ => {
-                        return report_unsupported(
-                            self.gcx,
-                            span,
-                            "calldata argument materialization",
-                        );
-                    }
-                };
+                let element = self.array_element_type(ty).or_else(|| {
+                    report_unsupported(self.gcx, span, "calldata argument materialization")
+                })?;
                 let element_type = self.types.abi_type(element)?;
                 let length = self.builder.slice_len(value);
                 let data = self.builder.slice_ptr(value);
