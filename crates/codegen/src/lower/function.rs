@@ -265,6 +265,7 @@ enum LValuePlace<'gcx> {
     MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64 },
     MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId },
     MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
+    StorageByte { slot: ValueId, object: ValueId, index: ValueId, ty: Ty<'gcx> },
 }
 
 enum PackedPiece {
@@ -2246,9 +2247,16 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     self.storage_refs.insert(id, access);
                     return Some(self.builder.imm_u256(U256::ZERO));
                 }
-                let rhs_value = self.lower_expr(rhs)?;
                 let lhs_ty = self.type_of_expr_or_variable(lhs)?;
                 let rhs_ty = self.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
+                let memory_rhs_ty = rhs_ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+                let rhs_value = if self.types.memory_layout(memory_rhs_ty).is_some()
+                    && rhs_ty.is_ref_at(DataLocation::Storage)
+                {
+                    self.lower_typed_expr(rhs, memory_rhs_ty)?
+                } else {
+                    self.lower_expr(rhs)?
+                };
                 if let Some(kind) = op.map(|op| op.kind) {
                     let place = self.resolve_lvalue_place(lhs)?;
                     let lhs_value = self.load_lvalue_place(&place)?;
@@ -2323,12 +2331,29 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let [arg] = arguments.as_slice() else {
                 return report_unsupported(self.gcx, expr.span, "type conversion");
             };
-            let value = self.lower_expr(arg)?;
-            return Some(self.coerce_value(
-                value,
-                self.gcx.type_of_expr(arg.id)?,
-                self.gcx.type_of_expr(expr.id)?,
-            ));
+            let source_ty = self.gcx.type_of_expr(arg.id)?;
+            let target_ty = self.gcx.type_of_expr(expr.id)?;
+            let value = if source_ty.is_ref_at(DataLocation::Storage)
+                && matches!(
+                    source_ty.peel_refs().kind,
+                    TyKind::Elementary(
+                        solar_sema::hir::ElementaryType::Bytes
+                            | solar_sema::hir::ElementaryType::String
+                    )
+                )
+                && matches!(
+                    target_ty.peel_refs().kind,
+                    TyKind::Elementary(
+                        solar_sema::hir::ElementaryType::Bytes
+                            | solar_sema::hir::ElementaryType::String
+                    )
+                ) {
+                let access = self.storage_access(arg)?;
+                self.load_storage_bytes(access.slot)?
+            } else {
+                self.lower_expr(arg)?
+            };
+            return Some(self.coerce_value(value, source_ty, target_ty));
         }
         if let ExprKind::New(ty) = &callee.kind {
             if let TyKind::Contract(contract_id) = self.gcx.type_of_hir_ty(ty).kind {
@@ -3141,14 +3166,22 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 return Some(self.builder.imm_u64(u64::try_from(len).ok()?));
             }
             if receiver_ty.is_ref_at(DataLocation::Storage) {
-                let access = self.storage_access(receiver)?;
-                return match receiver_ty.peel_refs().kind {
-                    TyKind::DynArray(_) => Some(self.builder.sload(access.slot)),
-                    TyKind::Elementary(
-                        solar_sema::hir::ElementaryType::Bytes
-                        | solar_sema::hir::ElementaryType::String,
-                    ) => {
-                        let object = self.load_storage_bytes(access.slot)?;
+                if let Some(access) = self.storage_access(receiver) {
+                    return match receiver_ty.peel_refs().kind {
+                        TyKind::DynArray(_) => Some(self.builder.sload(access.slot)),
+                        TyKind::Elementary(
+                            solar_sema::hir::ElementaryType::Bytes
+                            | solar_sema::hir::ElementaryType::String,
+                        ) => {
+                            let object = self.load_storage_bytes(access.slot)?;
+                            Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
+                        }
+                        _ => report_unsupported(self.gcx, expr.span, "length member"),
+                    };
+                }
+                let object = self.lower_expr(receiver)?;
+                return match self.builder.func().value_ty(object) {
+                    Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => {
                         Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
                     }
                     _ => report_unsupported(self.gcx, expr.span, "length member"),
@@ -3436,14 +3469,22 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 return Some(self.builder.imm_u64(u64::try_from(len).ok()?));
             }
             if receiver_ty.is_ref_at(DataLocation::Storage) {
-                let access = self.storage_access(receiver)?;
-                return match receiver_ty.peel_refs().kind {
-                    TyKind::DynArray(_) => Some(self.builder.sload(access.slot)),
-                    TyKind::Elementary(
-                        solar_sema::hir::ElementaryType::Bytes
-                        | solar_sema::hir::ElementaryType::String,
-                    ) => {
-                        let object = self.load_storage_bytes(access.slot)?;
+                if let Some(access) = self.storage_access(receiver) {
+                    return match receiver_ty.peel_refs().kind {
+                        TyKind::DynArray(_) => Some(self.builder.sload(access.slot)),
+                        TyKind::Elementary(
+                            solar_sema::hir::ElementaryType::Bytes
+                            | solar_sema::hir::ElementaryType::String,
+                        ) => {
+                            let object = self.load_storage_bytes(access.slot)?;
+                            Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
+                        }
+                        _ => report_unsupported(self.gcx, expr.span, "array length"),
+                    };
+                }
+                let object = self.lower_expr(receiver)?;
+                return match self.builder.func().value_ty(object) {
+                    Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => {
                         Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
                     }
                     _ => report_unsupported(self.gcx, expr.span, "array length"),
@@ -3547,15 +3588,21 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         receiver: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
+        if let Some(LValuePlace::StorageByte { object, index, ty, .. }) =
+            self.resolve_storage_byte_place(expr)
+        {
+            let value = self.builder.memory_object_load_byte(object, index);
+            return Some(self.normalize_byte_type(ty, value));
+        }
         if let Some(access) = self.storage_access(expr) {
             return self.load_storage_access(expr, access);
         }
         let Some(index) = index else {
             return report_unsupported(self.gcx, expr.span, "index");
         };
-        let object = self.lower_expr(receiver)?;
         let index = self.lower_expr(index)?;
         let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
+        let object = self.lower_expr(receiver)?;
         if let Some(MirType::Slice(location)) = self.builder.func().value_ty(object) {
             let length = self.builder.slice_len(object);
             self.bounds_check(index, length);
@@ -3779,7 +3826,27 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.shl(shift, value)
     }
 
+    fn peel_bytes_conversion<'b>(&self, expr: &'b hir::Expr<'b>) -> &'b hir::Expr<'b> {
+        if let ExprKind::Call(callee, args, _) = &expr.kind
+            && let ExprKind::Type(ty) = &callee.kind
+            && matches!(
+                ty.kind,
+                hir::TypeKind::Elementary(
+                    solar_sema::hir::ElementaryType::Bytes
+                        | solar_sema::hir::ElementaryType::String
+                )
+            )
+            && let hir::CallArgsKind::Unnamed([inner]) = args.kind
+        {
+            return inner;
+        }
+        expr
+    }
+
     fn resolve_lvalue_place(&mut self, expr: &hir::Expr<'_>) -> Option<LValuePlace<'gcx>> {
+        if let Some(place) = self.resolve_storage_byte_place(expr) {
+            return Some(place);
+        }
         if let Some(access) = self.storage_access(expr) {
             let ty = self.type_of_expr_or_variable(expr)?;
             return Some(LValuePlace::Storage { ty, access, span: expr.span });
@@ -3864,6 +3931,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 let value = self.builder.memory_object_load_byte(object, index);
                 Some(self.normalize_byte_type(ty, value))
             }
+            LValuePlace::StorageByte { object, index, ty, .. } => {
+                let value = self.builder.memory_object_load_byte(object, index);
+                Some(self.normalize_byte_type(ty, value))
+            }
         }
     }
 
@@ -3887,7 +3958,36 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 self.builder.memory_object_store_byte(object, index, value);
                 Some(())
             }
+            LValuePlace::StorageByte { slot, object, index, .. } => {
+                let zero = self.builder.imm_u256(U256::ZERO);
+                let value = self.builder.byte(zero, value);
+                self.builder.memory_object_store_byte(object, index, value);
+                self.store_storage_bytes(slot, object)
+            }
         }
+    }
+
+    fn resolve_storage_byte_place(&mut self, expr: &hir::Expr<'_>) -> Option<LValuePlace<'gcx>> {
+        let ExprKind::Index(receiver, Some(index)) = &expr.peel_parens().kind else { return None };
+        let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
+        if !receiver_ty.is_ref_at(DataLocation::Storage)
+            || !matches!(
+                receiver_ty.peel_refs().kind,
+                TyKind::Elementary(
+                    solar_sema::hir::ElementaryType::Bytes
+                        | solar_sema::hir::ElementaryType::String
+                )
+            )
+        {
+            return None;
+        }
+        let access = self.storage_access(self.peel_bytes_conversion(receiver))?;
+        let object = self.load_storage_bytes(access.slot)?;
+        let index = self.lower_expr(index)?;
+        let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
+        self.bounds_check(index, length);
+        let ty = self.type_of_expr_or_variable(expr)?;
+        Some(LValuePlace::StorageByte { slot: access.slot, object, index, ty })
     }
 
     fn store_variable(&mut self, id: VariableId, value: ValueId, span: Span) -> Option<()> {
@@ -3936,6 +4036,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         value: ValueId,
         source_ty: Option<Ty<'gcx>>,
     ) -> Option<()> {
+        if let Some(place) = self.resolve_storage_byte_place(expr) {
+            return self.store_lvalue_place(&place, value);
+        }
         if let Some(access) = self.storage_access(expr) {
             return if let Some(source_ty) = source_ty {
                 self.store_storage_access_with_source(expr, access, value, source_ty)

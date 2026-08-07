@@ -251,7 +251,96 @@ fn @poke() [abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb16:
     v33 = byte 0, v0
     memory_object_store_byte memorybytes, v21, 5, v33
+    v34 = sload 0 !metadata(storage=slot(0))
+    v35 = and v34, 1
+    v36 = eq v35, 1
+    v37 = and v34, 254
+    v38 = div v37, 2
+    v39 = div v34, 2
+    v40 = select v36, v39, v38
+    v41 = lt v40, 32
+    v42 = eq v36, v41
+    jumpi v42, bb17, bb18
+  bb17:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 34 !metadata(memory=scratch)
+    revert 0, 36
+  bb18:
+    v43 = memory_object_len memorybytes, v21
+    v44 = memory_object_data memorybytes, v21
+    v45 = make_memory_slice v44, v43
+    v46 = add v40, 31
+    v47 = lt v46, v40
+    jumpi v47, bb19, bb20
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb20:
+    v48 = div v46, 32
+    v49 = add v43, 31
+    v50 = lt v49, v43
+    jumpi v50, bb21, bb22
+  bb21:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb22:
+    v51 = div v49, 32
+    v52 = lt v43, 32
+    v53 = select v52, 0, v51
+    v54 = gt v40, v43
+    v55 = and v36, v54
+    jumpi v55, bb23, bb24
+  bb23:
+    v56 = storage_array_data_slot 0
+    jump bb25
+  bb24:
+    jumpi v52, bb28, bb29
+  bb25:
+    v57 = phi [bb23: v53], [bb26: v60]
+    v58 = lt v57, v48
+    jumpi v58, bb26, bb27
+  bb26:
+    v59 = add v56, v57
+    sstore v59, 0 !metadata(storage=symbolic(v59))
+    v60 = add v57, 1
+    jump bb25
+  bb27:
+    jump bb24
+  bb28:
+    v61 = memory_slice_load_word memory, v45, 0
+    v62 = sub 32, v43
+    v63 = mul v62, 8
+    v64 = shl v63, 1
+    v65 = sub v64, 1
+    v66 = not v65
+    v67 = and v61, v66
+    v68 = mul v43, 2
+    v69 = or v67, v68
+    sstore 0, v69 !metadata(storage=slot(0))
+    jump bb30
+  bb29:
+    v70 = shl 1, v43
+    v71 = or v70, 1
+    sstore 0, v71 !metadata(storage=slot(0))
+    v72 = storage_array_data_slot 0
+    jump bb31
+  bb30:
     stop
+  bb31:
+    v73 = phi [bb29: 0], [bb32: v78]
+    v74 = lt v73, v51
+    jumpi v74, bb32, bb33
+  bb32:
+    v75 = mul v73, 32
+    v76 = memory_slice_load_word memory, v45, v75
+    v77 = add v72, v73
+    sstore v77, v76 !metadata(storage=symbolic(v77))
+    v78 = add v73, 1
+    jump bb31
+  bb33:
+    jump bb30
 }
 
 fn @hashB() -> bytes32 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
