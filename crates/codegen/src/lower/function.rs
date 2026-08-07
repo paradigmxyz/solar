@@ -279,8 +279,8 @@ struct StorageAccess {
 enum LValuePlace<'gcx> {
     Variable { id: VariableId, span: Span },
     Storage { ty: Ty<'gcx>, access: StorageAccess, span: Span },
-    MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64 },
-    MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId },
+    MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64, ty: Ty<'gcx> },
+    MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId, ty: Ty<'gcx> },
     MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
     StorageByte { slot: ValueId, object: ValueId, index: ValueId, ty: Ty<'gcx> },
 }
@@ -3066,6 +3066,16 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
     }
 
+    fn normalize_memory_scalar(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
+        if let TyKind::Fn(function) = ty.peel_refs().kind
+            && function.is_external()
+        {
+            let mask = self.builder.imm_u256(U256::MAX >> 64);
+            return self.builder.and(value, mask);
+        }
+        self.normalize_abi_scalar(value, ty)
+    }
+
     fn coerce_call_argument(
         &mut self,
         argument: &hir::Expr<'_>,
@@ -3500,8 +3510,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
         let layout = self.types.memory_layout(receiver_ty)?;
         let value = self.builder.memory_object_load_field(object, layout, field as u64);
+        let field_ty = self.gcx.type_of_item(id.into());
         if receiver_ty.is_ref_at(DataLocation::Calldata)
-            && let TyKind::Fn(function) = self.gcx.type_of_item(id.into()).peel_refs().kind
+            && let TyKind::Fn(function) = field_ty.peel_refs().kind
             && function.is_external()
         {
             let inst = match self.builder.func().value(value) {
@@ -3512,7 +3523,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 self.builder.func_mut().inst_mut(inst).metadata.set_abi_validation(true);
             }
         }
-        Some(value)
+        Some(self.normalize_memory_scalar(field_ty, value))
     }
 
     fn lower_yul_member(
@@ -3946,26 +3957,28 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let layout = self.types.memory_layout(receiver_ty)?;
         match layout {
             MemoryObjectLayout::DynamicArray { .. } => {
+                let TyKind::DynArray(element) = receiver_ty.peel_refs().kind else {
+                    return report_unsupported(self.gcx, expr.span, "array index");
+                };
                 let length = self.builder.memory_object_len(object, layout.kind());
                 self.bounds_check(index, length);
                 let value = self.builder.memory_object_load_element(object, layout, index);
-                if let TyKind::DynArray(element) = receiver_ty.peel_refs().kind
-                    && self.types.memory_layout(element).is_some()
-                {
+                if self.types.memory_layout(element).is_some() {
                     return self.materialize_array_element(object, layout, index, element, value);
                 }
-                Some(value)
+                Some(self.normalize_memory_scalar(element, value))
             }
             MemoryObjectLayout::FixedArray { len, .. } => {
+                let TyKind::Array(element, _) = receiver_ty.peel_refs().kind else {
+                    return report_unsupported(self.gcx, expr.span, "array index");
+                };
                 let length = self.builder.imm_u64(len);
                 self.bounds_check(index, length);
                 let value = self.builder.memory_object_load_element(object, layout, index);
-                if let TyKind::Array(element, _) = receiver_ty.peel_refs().kind
-                    && self.types.memory_layout(element).is_some()
-                {
+                if self.types.memory_layout(element).is_some() {
                     return self.materialize_array_element(object, layout, index, element, value);
                 }
-                Some(value)
+                Some(self.normalize_memory_scalar(element, value))
             }
             MemoryObjectLayout::Bytes => {
                 let length = self.builder.memory_object_len(object, layout.kind());
@@ -4161,7 +4174,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 let object = self.lower_expr(receiver)?;
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;
                 let layout = self.types.memory_layout(receiver_ty)?;
-                Some(LValuePlace::MemoryField { object, layout, field: field as u64 })
+                let ty = self.gcx.type_of_item(id.into());
+                Some(LValuePlace::MemoryField { object, layout, field: field as u64, ty })
             }
             ExprKind::Index(receiver, index) => {
                 let Some(index) = index else {
@@ -4173,14 +4187,20 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 let layout = self.types.memory_layout(receiver_ty)?;
                 match layout {
                     MemoryObjectLayout::DynamicArray { .. } => {
+                        let TyKind::DynArray(ty) = receiver_ty.peel_refs().kind else {
+                            return report_unsupported(self.gcx, expr.span, "index l-value");
+                        };
                         let length = self.builder.memory_object_len(object, layout.kind());
                         self.bounds_check(index, length);
-                        Some(LValuePlace::MemoryElement { object, layout, index })
+                        Some(LValuePlace::MemoryElement { object, layout, index, ty })
                     }
                     MemoryObjectLayout::FixedArray { len, .. } => {
+                        let TyKind::Array(ty, _) = receiver_ty.peel_refs().kind else {
+                            return report_unsupported(self.gcx, expr.span, "index l-value");
+                        };
                         let length = self.builder.imm_u64(len);
                         self.bounds_check(index, length);
-                        Some(LValuePlace::MemoryElement { object, layout, index })
+                        Some(LValuePlace::MemoryElement { object, layout, index, ty })
                     }
                     MemoryObjectLayout::Bytes => {
                         let length = self.builder.memory_object_len(object, layout.kind());
@@ -4201,11 +4221,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         match *place {
             LValuePlace::Variable { id, span } => self.load_variable(id, span),
             LValuePlace::Storage { ty, access, span } => self.load_storage_value(ty, access, span),
-            LValuePlace::MemoryField { object, layout, field } => {
-                Some(self.builder.memory_object_load_field(object, layout, field))
+            LValuePlace::MemoryField { object, layout, field, ty } => {
+                let value = self.builder.memory_object_load_field(object, layout, field);
+                Some(self.normalize_memory_scalar(ty, value))
             }
-            LValuePlace::MemoryElement { object, layout, index } => {
-                Some(self.builder.memory_object_load_element(object, layout, index))
+            LValuePlace::MemoryElement { object, layout, index, ty } => {
+                let value = self.builder.memory_object_load_element(object, layout, index);
+                Some(self.normalize_memory_scalar(ty, value))
             }
             LValuePlace::MemoryByte { object, index, ty } => {
                 let value = self.builder.memory_object_load_byte(object, index);
@@ -4224,11 +4246,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             LValuePlace::Storage { ty, access, span } => {
                 self.store_storage_value(ty, access, value, span)
             }
-            LValuePlace::MemoryField { object, layout, field } => {
+            LValuePlace::MemoryField { object, layout, field, .. } => {
                 self.builder.memory_object_store_field(object, layout, field, value);
                 Some(())
             }
-            LValuePlace::MemoryElement { object, layout, index } => {
+            LValuePlace::MemoryElement { object, layout, index, .. } => {
                 self.builder.memory_object_store_element(object, layout, index, value);
                 Some(())
             }

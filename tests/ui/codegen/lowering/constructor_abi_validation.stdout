@@ -44,13 +44,13 @@ fn @second() {
 
 fn @_anonymous(arg0: bool, arg1: bool, arg2: bool) {
   bb0:
-    v15 = constructor_args_base
-    v16 = constructor_args_end
-    v17 = add v15, 96
-    v18 = lt v17, v15
-    v19 = gt v17, v16
-    v20 = or v18, v19
-    jumpi v20, bb5, bb4
+    v17 = constructor_args_base
+    v18 = constructor_args_end
+    v19 = add v17, 96
+    v20 = lt v19, v17
+    v21 = gt v19, v18
+    v22 = or v20, v21
+    jumpi v22, bb5, bb4
   bb1:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255
@@ -66,41 +66,43 @@ fn @_anonymous(arg0: bool, arg1: bool, arg2: bool) {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb3:
-    v7 = memory_object_load_element memoryfixedarray<2, 1>, v24, 1
-    v8 = shl 8, 255
-    v9 = sload 0 !metadata(storage=slot(0))
-    v10 = not v8
-    v11 = and v9, v10
-    v12 = and v7, 255
-    v13 = shl 8, v12
-    v14 = or v11, v13
-    sstore 0, v14 !metadata(storage=slot(0))
+    v7 = memory_object_load_element memoryfixedarray<2, 1>, v26, 1
+    v8 = eq v7, 0
+    v9 = iszero v8
+    v10 = shl 8, 255
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = not v10
+    v13 = and v11, v12
+    v14 = and v9, 255
+    v15 = shl 8, v14
+    v16 = or v13, v15
+    sstore 0, v16 !metadata(storage=slot(0))
     stop
   bb4:
-    v21 = iszero arg0
-    v22 = iszero v21
-    v23 = eq arg0, v22
-    jumpi v23, bb6, bb7
+    v23 = iszero arg0
+    v24 = iszero v23
+    v25 = eq arg0, v24
+    jumpi v25, bb6, bb7
   bb5:
     revert 0, 0
   bb6:
-    v24 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v25 = iszero arg1
-    v26 = iszero v25
-    v27 = eq arg1, v26
-    jumpi v27, bb8, bb9
+    v26 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v27 = iszero arg1
+    v28 = iszero v27
+    v29 = eq arg1, v28
+    jumpi v29, bb8, bb9
   bb7:
     revert 0, 0
   bb8:
-    memory_object_store_element memoryfixedarray<2, 1>, v24, 0, arg1
-    v28 = iszero arg2
-    v29 = iszero v28
-    v30 = eq arg2, v29
-    jumpi v30, bb10, bb11
+    memory_object_store_element memoryfixedarray<2, 1>, v26, 0, arg1
+    v30 = iszero arg2
+    v31 = iszero v30
+    v32 = eq arg2, v31
+    jumpi v32, bb10, bb11
   bb9:
     revert 0, 0
   bb10:
-    memory_object_store_element memoryfixedarray<2, 1>, v24, 1, arg2
+    memory_object_store_element memoryfixedarray<2, 1>, v26, 1, arg2
     jump bb1
   bb11:
     revert 0, 0

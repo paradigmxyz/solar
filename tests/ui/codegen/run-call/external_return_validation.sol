@@ -4,11 +4,21 @@
 //@ run-call: ExternalReturnValidation::dirtyBool() => true
 //@ run-call: ExternalReturnValidation::dirtyStruct() => (0, true)
 //@ run-call: ExternalReturnValidation::dirtyArray() => [true, true]
+//@ run-call: ExternalReturnValidation::dirtyMemoryFixedArray() => true
+//@ run-call: ExternalReturnValidation::dirtyMemoryDynamicArray() => true
+//@ run-call: ExternalReturnValidation::dirtyMemoryStruct() => true
+//@ run-call: ExternalReturnValidation::dirtyMemoryLvalue() => true
+// ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_static_array.sol
+// ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_dynamic_array.sol
 
 contract ExternalReturnValidation {
     struct Pair {
         uint8 value;
         bool flag;
+    }
+
+    struct Scalar {
+        uint8 value;
     }
 
     function short() external view returns (uint256) {
@@ -61,5 +71,53 @@ contract ExternalReturnValidation {
             mstore(add(values, 0x20), 2)
             mstore(add(values, 0x40), 0x100)
         }
+    }
+
+    function dirtyMemoryFixedArray() external pure returns (bool) {
+        uint8[1] memory values;
+        assembly {
+            mstore(values, 0x101)
+        }
+        uint8 value = values[0];
+        uint256 raw;
+        assembly {
+            raw := value
+        }
+        return value == 1 && raw == 1;
+    }
+
+    function dirtyMemoryDynamicArray() external pure returns (bool) {
+        uint8[] memory values = new uint8[](1);
+        assembly {
+            mstore(add(values, 0x20), 0x102)
+        }
+        uint8 value = values[0];
+        uint256 raw;
+        assembly {
+            raw := value
+        }
+        return value == 2 && raw == 2;
+    }
+
+    function dirtyMemoryStruct() external pure returns (bool) {
+        Scalar memory value;
+        assembly {
+            mstore(value, 0x101)
+        }
+        uint8 field = value.value;
+        uint256 raw;
+        assembly {
+            raw := field
+        }
+        return field == 1 && raw == 1;
+    }
+
+    function dirtyMemoryLvalue() external pure returns (bool) {
+        uint8[1] memory values;
+        assembly {
+            mstore(values, 0x101)
+        }
+        values[0] += 1;
+        return values[0] == 2;
     }
 }

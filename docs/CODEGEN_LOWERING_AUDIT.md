@@ -235,6 +235,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * dynamic and fixed memory arrays of structs with nested bytes and dynamic
   arrays, including lazy zero-initialization of aggregate elements from `new`
   allocations and their nested dynamic objects;
+* typed scalar loads from dirty memory-array elements and struct fields,
+  including the narrow integer paths ported from Solc's via-Yul tests;
 * calldata structs and dynamic arrays with `bytes` members copied to memory,
   including checked length and exact payload bounds; direct `bytes` and
   `string` calldata slices copied to memory, indexed, converted to fixed bytes,

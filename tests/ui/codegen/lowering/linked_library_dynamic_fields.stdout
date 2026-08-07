@@ -528,6 +528,11 @@ bb26:
   mload
   add
   mload
+  push 0
+  not
+  push 96
+  shr
+  and
   push 64
   mload
   dup1
