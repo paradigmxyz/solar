@@ -108,11 +108,29 @@ fn is_watched_path(path: &Path) -> bool {
             .is_some_and(|name| matches!(name.to_str(), Some("foundry.toml" | "remappings.txt")))
 }
 
+fn collect_watched_disk_paths(path: &Path, paths: &mut Vec<PathBuf>) {
+    let Ok(metadata) = std::fs::symlink_metadata(path) else { return };
+    if is_watched_path(path) {
+        paths.push(path.to_path_buf());
+    }
+    if !metadata.is_dir() {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(path) else { return };
+    for entry in entries.filter_map(Result::ok) {
+        collect_watched_disk_paths(&entry.path(), paths);
+    }
+}
+
 pub(crate) fn did_create_files(state: &mut GlobalState, params: CreateFilesParams) -> NotifyResult {
     let created_paths =
         params.files.into_iter().filter_map(|file| parse_file_uri(&file.uri)).collect::<Vec<_>>();
     let mut watched_paths =
         watched_paths_under(&state.config, &state.vfs, &state.symbol_tables, &created_paths);
+    // Snapshot concrete echoes now so a directory guard cannot hide descendants created later.
+    for path in &created_paths {
+        collect_watched_disk_paths(path, &mut watched_paths);
+    }
     watched_paths.extend(
         state.file_operations.watched_event_paths_under(FileChangeType::CREATED, &created_paths),
     );
@@ -131,15 +149,17 @@ pub(crate) fn did_create_files(state: &mut GlobalState, params: CreateFilesParam
         schedule_analysis,
     );
     if schedule_analysis {
-        watched_paths =
-            watched_paths_under(&state.config, &state.vfs, &state.symbol_tables, &created_paths);
+        watched_paths.extend(watched_paths_under(
+            &state.config,
+            &state.vfs,
+            &state.symbol_tables,
+            &created_paths,
+        ));
+        watched_paths.sort_unstable();
+        watched_paths.dedup();
         watched_paths.retain(|path| path.exists());
     }
-    state.file_operations.record_direct_events_under(
-        FileChangeType::CREATED,
-        watched_paths,
-        created_paths,
-    );
+    state.file_operations.record_direct_create_events(watched_paths);
     ControlFlow::Continue(())
 }
 
@@ -181,11 +201,7 @@ pub(crate) fn did_delete_files(state: &mut GlobalState, params: DeleteFilesParam
         deleted_paths.clone(),
         schedule_analysis,
     );
-    state.file_operations.record_direct_events_under(
-        FileChangeType::DELETED,
-        watched_paths,
-        deleted_paths,
-    );
+    state.file_operations.record_direct_delete_events(watched_paths, deleted_paths);
     ControlFlow::Continue(())
 }
 

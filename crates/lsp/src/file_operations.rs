@@ -330,16 +330,19 @@ impl FileOperationCoordinator {
         true
     }
 
-    #[cfg(test)]
-    pub(crate) fn record_direct_events(
-        &mut self,
-        typ: FileChangeType,
-        paths: impl IntoIterator<Item = PathBuf>,
-    ) {
-        self.record_direct_events_under(typ, paths, []);
+    pub(crate) fn record_direct_create_events(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
+        self.record_direct_events(FileChangeType::CREATED, paths, []);
     }
 
-    pub(crate) fn record_direct_events_under(
+    pub(crate) fn record_direct_delete_events(
+        &mut self,
+        paths: impl IntoIterator<Item = PathBuf>,
+        roots: impl IntoIterator<Item = PathBuf>,
+    ) {
+        self.record_direct_events(FileChangeType::DELETED, paths, roots);
+    }
+
+    fn record_direct_events(
         &mut self,
         typ: FileChangeType,
         paths: impl IntoIterator<Item = PathBuf>,
@@ -1042,7 +1045,7 @@ mod tests {
         let unrelated = path("/workspace/Unrelated.sol");
         let mut coordinator = FileOperationCoordinator::default();
 
-        coordinator.record_direct_events(FileChangeType::CREATED, [a.clone(), b.clone()]);
+        coordinator.record_direct_create_events([a.clone(), b.clone()]);
         assert_eq!(
             coordinator.observe_watcher_event(&a, FileChangeType::CREATED),
             WatchedFileAction::Ignore
@@ -1074,38 +1077,37 @@ mod tests {
     }
 
     #[test]
-    fn direct_directory_event_echoes_match_descendants_and_expire_on_opposite_activity() {
-        let root = path("/workspace/created");
-        let child = path("/workspace/created/nested/Target.sol");
+    fn direct_delete_directory_echoes_match_descendants_and_expire_on_opposite_activity() {
+        let root = path("/workspace/deleted");
+        let child = path("/workspace/deleted/nested/Target.sol");
         let mut coordinator = FileOperationCoordinator::default();
 
-        coordinator.record_direct_events_under(FileChangeType::CREATED, [], [root]);
+        coordinator.record_direct_delete_events([], [root]);
         assert_eq!(
-            coordinator.observe_watcher_event(&child, FileChangeType::CREATED),
+            coordinator.observe_watcher_event(&child, FileChangeType::DELETED),
             WatchedFileAction::Ignore
         );
         assert_eq!(
-            coordinator.observe_watcher_event(&child, FileChangeType::CHANGED),
+            coordinator.observe_watcher_event(&child, FileChangeType::CREATED),
             WatchedFileAction::Process
         );
         assert_eq!(
-            coordinator.observe_watcher_event(&child, FileChangeType::CREATED),
+            coordinator.observe_watcher_event(&child, FileChangeType::DELETED),
             WatchedFileAction::Process
         );
     }
 
     #[test]
-    fn direct_directory_event_root_only_suppresses_one_unknown_descendant() {
-        let root = path("/workspace/created");
+    fn empty_direct_create_does_not_suppress_later_events() {
         let first = path("/workspace/created/nested/First.sol");
         let later = path("/workspace/created/nested/Later.sol");
         let mut coordinator = FileOperationCoordinator::default();
 
-        coordinator.record_direct_events_under(FileChangeType::CREATED, [], [root]);
+        coordinator.record_direct_create_events([]);
 
         assert_eq!(
             coordinator.observe_watcher_event(&first, FileChangeType::CREATED),
-            WatchedFileAction::Ignore
+            WatchedFileAction::Process
         );
         assert_eq!(
             coordinator.observe_watcher_event(&later, FileChangeType::CREATED),
@@ -1114,13 +1116,12 @@ mod tests {
     }
 
     #[test]
-    fn direct_directory_event_known_descendant_consumes_root_guard() {
-        let root = path("/workspace/created");
+    fn direct_create_event_matches_only_known_paths() {
         let known = path("/workspace/created/Known.sol");
         let later = path("/workspace/created/Later.sol");
         let mut coordinator = FileOperationCoordinator::default();
 
-        coordinator.record_direct_events_under(FileChangeType::CREATED, [known.clone()], [root]);
+        coordinator.record_direct_create_events([known.clone()]);
 
         assert_eq!(
             coordinator.observe_watcher_event(&known, FileChangeType::CREATED),
@@ -1154,7 +1155,7 @@ mod tests {
         assert!(!coordinator.consume_watched_events(FileChangeType::CREATED, &[a.clone(), b]));
 
         coordinator.record_watched_events(FileChangeType::CREATED, [a.clone()]);
-        coordinator.record_direct_events(FileChangeType::DELETED, [a.clone()]);
+        coordinator.record_direct_delete_events([a.clone()], []);
         assert!(!coordinator.consume_watched_events(FileChangeType::CREATED, &[a]));
     }
 
@@ -1167,7 +1168,7 @@ mod tests {
 
         assert!(coordinator.apply_rename(&batch));
         assert!(!coordinator.apply_rename(&batch));
-        coordinator.record_direct_events(FileChangeType::CREATED, [a]);
+        coordinator.record_direct_create_events([a]);
         assert!(coordinator.apply_rename(&batch));
     }
 

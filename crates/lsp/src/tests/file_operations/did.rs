@@ -110,6 +110,56 @@ async fn did_create_files_rediscovers_files_and_folder_descendants_once() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn delayed_create_after_empty_folder_did_create_is_processed() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Existing.sol
+        contract Existing {}
+        "#,
+    );
+    let folder = project.path("/created");
+    let later = project.path("/created/Later.sol");
+    let mut state = state(&project);
+    fs::create_dir(&folder).unwrap();
+
+    assert!(matches!(
+        crate::handlers::did_create_files(
+            &mut state,
+            CreateFilesParams {
+                files: vec![FileCreate { uri: Url::from_file_path(&folder).unwrap().to_string() }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("empty-folder create analysis should finish")
+        .unwrap();
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    project.write_file("/created/Later.sol", "contract Later {}");
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: vec![FileEvent {
+                    uri: Url::from_file_path(&later).unwrap(),
+                    typ: FileChangeType::CREATED,
+                }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("delayed file create analysis should finish")
+        .unwrap();
+    assert!(tables.read().workspace_symbols("Later").iter().any(|symbol| symbol.name == "Later"));
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn did_create_watcher_echo_does_not_start_another_epoch() {
     let project = TestProject::from_fixture(
         r#"
