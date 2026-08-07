@@ -684,6 +684,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    boundary cleanup without clobbering the following storage slot.
    `storage_boundary_array_overlap.sol` covers the deliberate overlapping
    fixed-array/state-variable boundary and its cleanup behavior.
+   `storage_packed_array_elements.sol` checks direct packed writes and reads
+   across `uint8`, `uint32`, and `uint120` arrays at slot boundaries.
    `storage_return_pointer_multi.sol` checks tuple assignment from an internal
    call returning multiple storage references before mutating both targets.
    `storage_return_pointer_mixed.sol` and
