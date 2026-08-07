@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/static_frames.sol:SF (runtime) ===
 @module runtime
 bb0:
-  push 0x440
+  push 896
   push 64
   mstore
   callvalue
@@ -77,39 +77,39 @@ bb6:
   jumpi
   push 4
   calldataload
-  push 448
+  push 384
   mstore
   push bb9
   push 1
-  push 448
+  push 384
   mload
   add
   dup1
-  push 512
-  mstore
   push 448
+  mstore
+  push 384
   mload
   gt
   push bb70
   jumpi
-  push 512
-  mload
-  push 672
-  mstore
   push 448
   mload
-  push 704
+  push 544
+  mstore
+  push 384
+  mload
+  push 576
   mstore
   push bb20
-  push 704
+  push 576
   mload
-  push 672
+  push 544
   mload
   xor
   dup1
-  push 768
+  push 640
   mstore
-  push 960
+  push 768
   mstore
   push bb25
   push 0
@@ -118,43 +118,43 @@ bb6:
   dup2
   add
   dup1
-  push 0x420
+  push 864
   mstore
   lt
   push bb70
   jumpi
-  push 0x420
+  push 864
   mload
   push 0
   sstore
   push 3
-  push 960
+  push 768
   mload
   div
   push 1
   dup2
   add
   dup1
-  push 0x420
+  push 864
   mstore
   lt
   push bb70
   jumpi
   push 5
-  push 960
+  push 768
   mload
   mod
   push 2
   add
-  push 0x420
+  push 864
   mload
-  push 992
+  push 800
   mstore
-  push 0x400
+  push 832
   mstore
   jump
 bb9:
-  push 480
+  push 416
   mload
   push 224
   mstore
@@ -228,52 +228,52 @@ bb35:
   push 160
   add
   mload
-  push 448
+  push 384
   mstore
   push bb37
   jump bb46
 bb46:
-  push 448
+  push 384
   mload
   push 1
   shl
   dup1
-  push 512
+  push 448
   mstore
   push 1
   shr
-  push 448
+  push 384
   mload
   eq
   iszero
   push bb70
   jumpi
   push 1
-  push 512
+  push 448
   mload
   add
   dup1
-  push 544
+  push 480
   mstore
-  push 512
+  push 448
   mload
   gt
   push bb70
   jumpi
   push 0
   sload
-  push 544
+  push 480
   mload
   xor
   push 0
   sstore
   push 0x3e8
-  push 544
+  push 480
   jump bb71
 bb71:
   mload
   mod
-  push 480
+  push 416
   mstore
   jump
 bb10:
@@ -312,54 +312,54 @@ bb11:
   push bb80
   jump bb78
 bb20:
-  push 736
+  push 608
   mload
-  push 544
+  push 480
   mstore
-  push 512
+  push 448
   mload
   push 1
   shl
   dup1
-  push 576
+  push 512
   mstore
   push 1
   shr
-  push 512
+  push 448
   mload
   eq
   iszero
   push bb70
   jumpi
-  push 544
+  push 480
   mload
-  push 576
+  push 512
   mload
   add
   dup1
-  push 512
+  push 448
   mstore
-  push 576
+  push 512
   mload
   gt
   push bb70
   jumpi
-  push 512
+  push 448
   mload
-  push 480
+  push 416
   mstore
   jump
 bb25:
-  push 992
+  push 800
   mload
   dup1
-  push 800
+  push 672
   mstore
   push 64
   mload
   push 32
   mstore
-  push 0x400
+  push 832
   mload
   push 32
   mload
@@ -367,14 +367,14 @@ bb25:
   add
   mstore
   dup1
-  push 800
+  push 672
   mstore
   push 32
   mload
   push 32
   add
   mload
-  push 832
+  push 704
   mstore
   push 0
   sload
@@ -382,65 +382,65 @@ bb25:
   dup2
   add
   dup1
-  push 864
+  push 736
   mstore
   lt
   swap1
   pop
   push bb70
   jumpi
-  push 864
+  push 736
   mload
   push 0
   sstore
-  push 800
+  push 672
   mload
   push 1
   shl
   dup1
-  push 864
+  push 736
   mstore
   push 1
   shr
-  push 800
+  push 672
   mload
   eq
   iszero
   push bb70
   jumpi
-  push 864
-  mload
-  push 768
-  mload
-  add
-  dup1
-  push 800
-  mstore
-  push 768
-  mload
-  gt
-  push bb70
-  jumpi
-  push 832
-  mload
-  push 800
-  mload
-  add
-  dup1
-  push 768
-  mstore
-  push 800
-  mload
-  gt
-  push bb70
-  jumpi
-  push 768
-  mload
   push 736
+  mload
+  push 640
+  mload
+  add
+  dup1
+  push 672
+  mstore
+  push 640
+  mload
+  gt
+  push bb70
+  jumpi
+  push 704
+  mload
+  push 672
+  mload
+  add
+  dup1
+  push 640
+  mstore
+  push 672
+  mload
+  gt
+  push bb70
+  jumpi
+  push 640
+  mload
+  push 608
   mstore
   jump
 bb37:
-  push 480
+  push 416
   mload
   dup1
   push 160
@@ -515,7 +515,7 @@ bb42:
   push bb83
   jump bb78
 bb44:
-  push 480
+  push 416
   mload
   dup1
   push 160
@@ -556,7 +556,7 @@ bb44:
   push bb70
   jump bb74
 bb52:
-  push 480
+  push 416
   mload
   dup1
   push 160
@@ -596,13 +596,13 @@ bb54:
   push 96
   add
   mload
-  push 448
+  push 384
   mstore
   push bb55
   jump bb60
 bb60:
   push 3
-  push 448
+  push 384
   mload
   mod
   push 0
@@ -611,7 +611,7 @@ bb60:
   dup2
   add
   dup1
-  push 512
+  push 448
   mstore
   swap1
   dup2
@@ -619,15 +619,15 @@ bb60:
   push bb70
   jumpi
   dup1
-  push 512
+  push 448
   mstore
   push 0
   sstore
   push 97
-  push 448
+  push 384
   jump bb71
 bb55:
-  push 480
+  push 416
   mload
   dup1
   push 160
@@ -734,7 +734,7 @@ bb50:
   push 96
   add
   mload
-  push 448
+  push 384
   mstore
   push bb52
   jump bb60
@@ -908,7 +908,7 @@ bb83:
   push 192
   add
   mload
-  push 448
+  push 384
   mstore
   push bb44
   jump bb46
