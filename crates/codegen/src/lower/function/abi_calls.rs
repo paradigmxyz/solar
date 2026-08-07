@@ -413,6 +413,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 }
                 let length = self.calldata_load_word(value_pos);
                 let data = self.builder.add(value_pos, word);
+                if validate_bounds {
+                    self.check_calldata_range(data, length);
+                }
                 Some(self.builder.make_slice(data, length, SliceLocation::Calldata))
             }
             TyKind::Elementary(

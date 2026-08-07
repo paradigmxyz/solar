@@ -306,7 +306,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    boundary: unused dynamic bytes and structs validate their immediate heads,
    while nested dynamic offsets remain lazy like Solc.
    `abi_calldata_lazy_struct_array.sol` checks that indexing a calldata struct
-   array leaves an unused sibling dynamic field lazy.
+   array leaves an unused sibling dynamic field lazy while selected dynamic
+   fields still enforce their payload bounds.
    `abi_calldata_struct_dynamic.sol` checks ABI re-encoding of one and two
    dynamic structs with word-array members.
    `calldata_struct_dynamic_memory.sol` checks copying the same aggregate
