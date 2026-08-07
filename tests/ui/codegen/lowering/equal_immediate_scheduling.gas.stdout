@@ -32,7 +32,7 @@ bb0:
   push 4
   calldataload
   push 0x123456789abcde
-  push 0x123456789abcde
+  dup1
   addmod
   push 128
   mstore

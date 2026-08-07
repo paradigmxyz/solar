@@ -159,26 +159,22 @@ bb4:
   sub
   push bb3
   jumpi
+  push bb7
   push 0
-  push 192
-  mstore
   push 4
   calldataload
-  push 224
-  mstore
   push 36
   calldataload
-  push 256
-  mstore
-  push bb7
-  push 224
-  mload
+  dup2
   push 0
   mstore
-  push 192
-  mload
+  swap1
+  pop
+  dup2
   push 32
   mstore
+  swap1
+  pop
   push 64
   push 0
   keccak256
@@ -186,14 +182,17 @@ bb4:
   push 320
   mstore
   sload
-  push 256
-  mload
+  swap1
   dup2
   add
   dup1
   push 288
   mstore
+  swap1
+  dup2
   lt
+  swap1
+  pop
   push bb12
   jumpi
   push 288

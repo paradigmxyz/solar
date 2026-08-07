@@ -25,7 +25,7 @@ bb0:
   push bb3
   jumpi
   push 4
-  push 4
+  dup1
   calldataload
   add
   calldataload

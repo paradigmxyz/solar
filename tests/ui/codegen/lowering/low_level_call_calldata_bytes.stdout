@@ -176,7 +176,7 @@ bb22:
   swap1
   mstore
   push 36
-  push 36
+  dup1
   calldataload
   add
   push 192
@@ -248,7 +248,7 @@ bb23:
   swap1
   mstore
   push 36
-  push 36
+  dup1
   calldataload
   add
   push 192

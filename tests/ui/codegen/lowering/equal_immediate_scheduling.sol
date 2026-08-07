@@ -8,7 +8,9 @@
 
 contract EqualImmediateScheduling {
     // NONE-COUNT-2: push 0x123456789abcde
-    // GAS-COUNT-2: push 0x123456789abcde
+    // GAS: push 0x123456789abcde
+    // GAS-NOT: push 0x123456789abcde
+    // GAS: dup1
     // SIZE: push 0x123456789abcde
     // SIZE-NOT: push 0x123456789abcde
     // SIZE: dup1

@@ -1,0 +1,74 @@
+//@ compile-flags: -Zevm-ir-pipeline=block-cse
+//@ filecheck:
+@module module
+
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: push 2
+// CHECK: push 3
+// CHECK: add
+// CHECK: +   dup1
+// CHECK: add
+bb0:
+  push 2
+  push 3
+  add
+  push 3
+  push 2
+  add
+  add
+  stop
+
+// Non-commutative operands must retain their original order.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK-COUNT-2: sub
+bb1:
+  push 2
+  push 3
+  sub
+  push 3
+  push 2
+  sub
+  add
+  stop
+
+// Reuse an unchanged memory load, but invalidate it at a memory write.
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: push 32
+// CHECK: mload
+// CHECK: +   dup1
+// CHECK: add
+bb2:
+  push 32
+  mload
+  push 32
+  mload
+  add
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK-COUNT-2: mload
+bb3:
+  push 32
+  mload
+  push 1
+  push 32
+  mstore
+  push 32
+  mload
+  add
+  stop
+
+// Fold a repeated nonzero push, but keep PUSH0 gas-neutral.
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: push 5
+// CHECK: +   dup1
+// CHECK: add
+// CHECK-COUNT-2: push 0
+bb4:
+  push 5
+  push 5
+  add
+  push 0
+  push 0
+  mstore
+  stop

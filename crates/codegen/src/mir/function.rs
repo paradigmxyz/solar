@@ -248,6 +248,29 @@ impl Function {
         replaced
     }
 
+    /// Reuses one value identity for active uses of each function argument.
+    ///
+    /// Arguments are immutable for the duration of a MIR function. Keeping a
+    /// canonical identity lets the backend recognize that independently
+    /// lowered operand occurrences denote the same physical word, which is
+    /// required for carrying an argument through stack layouts without first
+    /// materializing a memory home.
+    pub(crate) fn canonicalize_argument_uses(&mut self) -> usize {
+        let uses = self.arg_uses();
+        let mut replacements = FxHashMap::default();
+        for values in uses {
+            let Some((&canonical, rest)) = values.split_first() else { continue };
+            replacements.extend(rest.iter().copied().map(|value| (value, canonical)));
+        }
+        if replacements.is_empty() {
+            return 0;
+        }
+
+        let replaced = self.live_values().filter(|value| replacements.contains_key(value)).count();
+        self.replace_uses(&replacements);
+        replaced
+    }
+
     /// Calls `f` for every active instruction in block order.
     pub(crate) fn for_each_instruction_mut(&mut self, mut f: impl FnMut(InstId, &mut Instruction)) {
         let blocks = &self.blocks;

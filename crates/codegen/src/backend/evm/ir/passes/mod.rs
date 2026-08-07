@@ -4,6 +4,7 @@
 //! transforms live in their own modules so their implementation and invariants
 //! remain local, matching the organization of the MIR transforms.
 
+mod block_cse;
 mod block_layout;
 mod cfg_simplify;
 pub(in crate::backend::evm) mod compact_pushes;
@@ -48,6 +49,7 @@ pub trait EvmPass: Sync {
 
 /// All EVM IR passes exposed by `-Zevm-ir-pipeline`.
 pub static ALL_PASSES: &[&dyn EvmPass] = &[
+    &block_cse::BlockCse,
     &peephole::Peephole,
     &share_reverts::ShareReverts,
     &compact_pushes::CompactPushes,
@@ -80,6 +82,11 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &outline::Outline,
     &cfg_simplify::CfgSimplify,
     &compact_pushes::CompactPushes,
+    &peephole::Peephole,
+    // Regenerate only after structural sharing is fixed. Doing this before
+    // tail merging can make otherwise-identical blocks context-dependent and
+    // lose more shared bytes than the local CSE removes.
+    &block_cse::BlockCse,
     &peephole::Peephole,
     &dce::Dce,
     // Pack address-sensitive terminal blocks, then clean up any adjacent

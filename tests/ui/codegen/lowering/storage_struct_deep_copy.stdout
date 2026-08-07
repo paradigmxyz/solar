@@ -172,13 +172,6 @@ fn @pop() {
     stop
 }
 
-fn @__revert_stub0() {
-  bb0:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-}
-
 fn @entry() [entry] {
   bb0:
     v0 = callvalue

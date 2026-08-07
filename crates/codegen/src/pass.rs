@@ -60,6 +60,8 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
     &frame_promotion::FrameSlotPromotion,
+    &function_compaction::PruneUnusedArgs,
+    &function_compaction::MergeEquivalentFunctions,
     &memory_dse::MemoryDse,
     &static_alloc::StaticAlloc,
     &sroa::Sroa,
@@ -183,6 +185,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // Keep this separate from general inlining, whose larger candidates regress measured gas.
     &GasOnly(inline::InlineTinyLeaves),
     &inline::SpecializeFunctionPointers,
+    &function_compaction::PruneUnusedArgs,
     &cfg_simplify::FunctionDce,
     &sccp::Sccp,
     &inst_simplify::InstSimplify,
@@ -194,10 +197,16 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &frame_promotion::FrameSlotPromotion,
     &memory_dse::MemoryDse,
     &adce::Adce,
+    &function_compaction::MergeEquivalentFunctions,
+    &cfg_simplify::FunctionDce,
     // Progressive lowering materializes ABI wrappers, selector routing, and
     // tail-call edges as MIR. Each pass bails without advancing the phase
     // when the module is outside its scope.
     &lower_abi::LowerAbi,
+    &function_compaction::PruneUnusedArgs,
+    &dce::Dce,
+    &function_compaction::MergeEquivalentFunctions,
+    &cfg_simplify::FunctionDce,
     &static_alloc::DeferAlloc,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
