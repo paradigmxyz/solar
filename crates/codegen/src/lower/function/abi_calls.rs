@@ -162,6 +162,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         if self.needs_validated_calldata_materialization(value, &abi_type, parameter_ty) {
             value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
             abi_type = Self::memory_abi_type(abi_type);
+        } else {
+            value = self.canonicalize_abi_value(parameter_ty, value);
         }
         Some((value, abi_type))
     }

@@ -339,6 +339,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi_packed_complex_types.sol` ports Solc's narrow `uint120` array case for
    both storage and memory; packed and regular ABI encoders normalize scalar
    words at the boundary, including nested fixed arrays and struct fields.
+   The same cleanup runs for external and constructor call arguments, including
+   dirty narrow scalar words forwarded through an external self-call.
    `abi_decode_storage_struct.sol` covers decoding a storage-backed ABI blob
    into a memory struct with a dynamic array field.
    `abi.decode`, external return decoding, and `catch Error(string)` payload

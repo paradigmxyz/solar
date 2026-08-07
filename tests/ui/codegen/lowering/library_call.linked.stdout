@@ -224,6 +224,13 @@ bb7:
   sub
   push bb4
   jumpi
+  push 0
+  not
+  push 96
+  shr
+  push 4
+  calldataload
+  and
   push 64
   mload
   dup1
@@ -258,10 +265,11 @@ bb7:
   add
   push 36
   add
-  push 4
-  calldataload
+  dup3
   swap1
   mstore
+  swap1
+  pop
   push 32
   dup2
   add

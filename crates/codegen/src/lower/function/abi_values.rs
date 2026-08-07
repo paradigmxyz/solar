@@ -182,7 +182,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         Some(self.materialize_memory_slice(encoded))
     }
 
-    fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
+    pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
         match ty.peel_refs().kind {
             TyKind::DynArray(_) | TyKind::Array(_, _) => self.canonicalize_abi_array(ty, value),
             TyKind::Struct(_) => self.canonicalize_abi_struct(ty, value),
