@@ -212,7 +212,9 @@ existing scalar and packed-storage MIR fixtures. It supports:
   overridden modifiers, while retaining shadowed public bodies as internal MIR
   targets;
 * explicit and synthetic base-constructor lowering in linearized order, including
-  constructor argument binding and storage-to-memory aggregate copies;
+  most-derived-to-most-base argument evaluation, base-to-derived state
+  initialization and constructor execution, constructor argument binding, and
+  storage-to-memory aggregate copies;
 * block, transaction, message, `blockhash`, `blobhash`, and enum/integer
   `type(...).min`/`type(...).max` builtins through typed MIR operations;
 * enum member constants and checked integer-to-enum conversions with Solidity's
@@ -470,6 +472,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `constructor_modifier_parameter_frame_viair.sol` checks that repeated
    placeholders in an inlined base constructor reset the base constructor's
    parameters for each expansion.
+   `constructor_virtual_argument_initialization_viair.sol` checks that a base
+   constructor argument runs before that base's state initializer, matching
+   the via-IR initialization order.
    `modifier_return_in_loop.sol` covers an explicit modifier return that
    exits after the preceding placeholder expansions.
    `modifier_return_parameter_complex.sol` covers return bindings forwarded

@@ -73,8 +73,70 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         &mut self,
         contract_id: hir::ContractId,
     ) -> Option<()> {
+        self.prepare_base_constructor_arguments(contract_id)?;
         let mut lowered = FxHashSet::default();
         self.lower_implicit_base_constructors_inner(contract_id, &mut lowered)
+    }
+
+    fn prepare_base_constructor_arguments(&mut self, contract_id: hir::ContractId) -> Option<()> {
+        let bases = self.gcx.hir.contract(contract_id).linearized_bases;
+        let mut prepared = FxHashSet::default();
+        let mut saved_parameters = Vec::new();
+        for (index, &base_id) in bases.iter().skip(1).enumerate() {
+            if !prepared.insert(base_id) {
+                continue;
+            }
+            let Some(constructor_id) = self.gcx.hir.contract(base_id).ctor else {
+                continue;
+            };
+            let constructor = self.gcx.hir.function(constructor_id);
+            let Some(args) = self
+                .base_constructor_args(contract_id, base_id, index)
+                .or_else(|| constructor.parameters.is_empty().then(hir::CallArgs::default))
+            else {
+                continue;
+            };
+            if args.len() != constructor.parameters.len() {
+                return report_unsupported(
+                    self.gcx,
+                    constructor.span,
+                    "base constructor arguments",
+                );
+            }
+            let parameter_names = self.gcx.callable_param_names(CallableParamSource::Function {
+                id: constructor_id,
+                skips_receiver: false,
+            });
+            let mut values = Vec::with_capacity(constructor.parameters.len());
+            for (index, &parameter) in constructor.parameters.iter().enumerate() {
+                let Some(argument) =
+                    args.argument_for_parameter(index, Some(parameter_names.as_slice()))
+                else {
+                    return report_unsupported(
+                        self.gcx,
+                        constructor.span,
+                        "named base constructor argument",
+                    );
+                };
+                let parameter_ty = self.gcx.type_of_item(parameter.into());
+                let value = self.lower_typed_expr(argument, parameter_ty)?;
+                let value = self.coerce_call_argument(argument, parameter_ty, value);
+                values.push(value);
+            }
+            self.constructor_arguments.insert(constructor_id, values.clone());
+            for (&parameter, value) in constructor.parameters.iter().zip(values) {
+                let previous = self.values.insert(parameter, value);
+                saved_parameters.push((parameter, previous));
+            }
+        }
+        for (parameter, previous) in saved_parameters.into_iter().rev() {
+            if let Some(value) = previous {
+                self.values.insert(parameter, value);
+            } else {
+                self.values.remove(&parameter);
+            }
+        }
+        Some(())
     }
 
     pub(super) fn lower_implicit_base_constructors_inner(
@@ -83,14 +145,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         lowered: &mut FxHashSet<hir::ContractId>,
     ) -> Option<()> {
         let bases = self.gcx.hir.contract(contract_id).linearized_bases;
-        for (index, &base_id) in bases.iter().skip(1).enumerate() {
-            if lowered.contains(&base_id) {
+        for (index, &base_id) in bases.iter().skip(1).enumerate().rev() {
+            if !lowered.insert(base_id) {
                 continue;
             }
             let Some(constructor_id) = self.gcx.hir.contract(base_id).ctor else {
-                self.lower_implicit_base_constructors_inner(base_id, lowered)?;
                 self.lower_state_initializers(base_id)?;
-                lowered.insert(base_id);
                 continue;
             };
             let constructor = self.gcx.hir.function(constructor_id);
@@ -106,8 +166,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 id: hir::ItemId::Contract(base_id),
                 args,
             };
-            lowered.insert(base_id);
-            self.lower_base_constructor(&modifier, constructor_id, constructor, lowered)?;
+            self.lower_base_constructor(&modifier, constructor_id, constructor)?;
         }
         Some(())
     }

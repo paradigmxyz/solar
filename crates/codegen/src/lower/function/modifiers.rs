@@ -182,7 +182,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         modifier: &hir::Modifier<'_>,
         constructor_id: hir::FunctionId,
         constructor: &'gcx hir::Function<'gcx>,
-        lowered: &mut FxHashSet<hir::ContractId>,
     ) -> Option<()> {
         let Some(body) = constructor.body else {
             return report_unsupported(self.gcx, modifier.span, "base constructor body");
@@ -191,31 +190,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             return report_unsupported(self.gcx, modifier.span, "base constructor arguments");
         }
         let contract_id = constructor.contract;
-        // Root base initializers run before their constructor arguments; derived
-        // initializers wait until ancestor constructors finish.
-        let has_ancestors =
-            contract_id.is_some_and(|id| self.gcx.hir.contract(id).linearized_bases.len() > 1);
-        if !has_ancestors && let Some(contract_id) = contract_id {
-            self.lower_state_initializers(contract_id)?;
+        let Some(values) = self.constructor_arguments.remove(&constructor_id) else {
+            return report_unsupported(self.gcx, modifier.span, "base constructor arguments");
+        };
+        if values.len() != constructor.parameters.len() {
+            return report_unsupported(self.gcx, modifier.span, "base constructor arguments");
         }
-        let parameter_names = self.gcx.callable_param_names(CallableParamSource::Function {
-            id: constructor_id,
-            skips_receiver: false,
-        });
         let mut saved_parameters = Vec::with_capacity(constructor.parameters.len());
-        for (index, &parameter) in constructor.parameters.iter().enumerate() {
-            let Some(argument) =
-                modifier.args.argument_for_parameter(index, Some(parameter_names.as_slice()))
-            else {
-                return report_unsupported(
-                    self.gcx,
-                    modifier.span,
-                    "named base constructor argument",
-                );
-            };
-            let parameter_ty = self.gcx.type_of_item(parameter.into());
-            let value = self.lower_typed_expr(argument, parameter_ty)?;
-            let value = self.coerce_call_argument(argument, parameter_ty, value);
+        for (&parameter, value) in constructor.parameters.iter().zip(values) {
             saved_parameters.push((parameter, self.values.insert(parameter, value)));
         }
 
@@ -224,10 +206,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let before_storage_refs = self.storage_refs.clone();
         self.push_return_target(continuation);
         if let Some(contract_id) = contract_id {
-            self.lower_implicit_base_constructors_inner(contract_id, lowered)?;
-            if has_ancestors {
-                self.lower_state_initializers(contract_id)?;
-            }
+            self.lower_state_initializers(contract_id)?;
         }
         let parameter_start = self.parameters.len();
         self.parameters.extend_from_slice(constructor.parameters);
