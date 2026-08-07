@@ -81,8 +81,22 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     pub(super) fn calldata_aggregate_requires_validation(&self, ty: Ty<'gcx>) -> bool {
         let ty = ty.peel_refs();
         match ty.kind {
-            TyKind::DynArray(element) | TyKind::Slice(element) | TyKind::Array(element, _) => {
+            TyKind::DynArray(element) | TyKind::Array(element, _) => {
                 self.calldata_aggregate_requires_validation(element)
+            }
+            TyKind::Slice(underlying) => {
+                if matches!(
+                    underlying.peel_refs().kind,
+                    TyKind::Elementary(
+                        solar_sema::hir::ElementaryType::Bytes
+                            | solar_sema::hir::ElementaryType::String,
+                    )
+                ) {
+                    false
+                } else {
+                    ty.base_type(self.gcx)
+                        .is_some_and(|element| self.calldata_aggregate_requires_validation(element))
+                }
             }
             TyKind::Struct(id) => self.gcx.hir.strukt(id).fields.iter().any(|&field| {
                 self.calldata_aggregate_requires_validation(self.gcx.type_of_item(field.into()))
@@ -252,7 +266,18 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 self.validate_calldata_bytes_slice(value);
                 Some(self.materialize_memory_slice(value))
             }
-            TyKind::DynArray(element) | TyKind::Slice(element) => {
+            TyKind::DynArray(_) | TyKind::Slice(_) => {
+                let element = match ty.peel_refs().kind {
+                    TyKind::DynArray(element) => element,
+                    TyKind::Slice(_) => ty.base_type(self.gcx)?,
+                    _ => {
+                        return report_unsupported(
+                            self.gcx,
+                            span,
+                            "calldata argument materialization",
+                        );
+                    }
+                };
                 let element_type = self.types.abi_type(element)?;
                 let length = self.builder.slice_len(value);
                 let data = self.builder.slice_ptr(value);
