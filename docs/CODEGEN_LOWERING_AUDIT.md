@@ -439,6 +439,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    three-dimensional dynamic memory allocation and assignment coverage, and
    `memory_aggregate_allocation.sol` covers zero-initialized arrays of fixed
    arrays and structs with nested dynamic byte objects.
+   `nested_struct_memory_alias.sol` checks that nested memory aggregate
+   assignment preserves Solidity's reference aliasing.
 
 The current intentional boundary is dynamic-element calldata array slicing.
 Solidity rejects range access for arrays with dynamically encoded base types,
