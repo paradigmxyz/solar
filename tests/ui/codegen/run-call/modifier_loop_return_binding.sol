@@ -1,5 +1,5 @@
-//@ run-call: f => 10
-// ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_loop.sol
+//@ run-call: f => 1
+// ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_loop_viair.sol
 
 contract ModifierLoopReturnBinding {
     modifier repeat(uint256 count) {

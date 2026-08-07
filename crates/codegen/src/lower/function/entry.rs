@@ -6,6 +6,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 {
     pub(super) fn bind_signature(&mut self, function: &hir::Function<'_>) {
+        self.parameters.extend_from_slice(function.parameters);
         for &param in function.parameters {
             let value = self
                 .builder

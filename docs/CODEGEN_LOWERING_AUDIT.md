@@ -468,18 +468,21 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    modifier postludes after a function-body return.
    `modifier_loop_return_binding.sol` covers repeated placeholder expansion
    inside a modifier loop while preserving the named return value.
-   `modifier_repeated_placeholder.sol` covers the default lowering's
-   non-via-IR behavior when a conditional modifier expands the function body
-   twice: the second expansion observes the first expansion's return binding.
-   Solc's via-IR-only `function_modifier_multi_invocation_viair.sol` remains a
-   gap. With Solc 0.8.35, the non-via-IR test returns `2` for `f(true)`, while
-   `--via-ir` returns `1`; Solar currently matches the former. Repeated `_`
-   expansion shares `self.returns` in
-   `crates/codegen/src/lower/function/modifiers.rs`, while Solc's via-IR path
-   gives each expanded body fresh return variables. Changing this state now
-   would break the supported non-via-IR behavior, so the fix needs an explicit
-   return-binding model for the future via-IR-compatible mode rather than a
-   silent change to the current lowering.
+   `modifier_multi_return.sol` checks explicit returns through repeated
+   placeholders, and `modifier_constructor_evaluation_order.sol` checks the
+   Solc order of modifier, base-constructor, and constructor-body arguments.
+   `modifier_local_variables.sol` covers modifier-local scope and an early
+   return, while `modifier_empty_virtual.sol` covers a virtual modifier that
+   skips the function body.
+   `modifier_repeated_placeholder.sol` covers the via-IR behavior when a
+   conditional modifier expands the function body twice. The parameter and
+   return snapshots in `crates/codegen/src/lower/function/modifiers.rs` give
+   every `_` expansion fresh function bindings while preserving modifier-local
+   values and storage effects. `modifier_parameter_frame_viair.sol` checks
+   parameter reset, and `modifier_skipped_placeholder_viair.sol` checks that a
+   skipped placeholder preserves incoming returns. Solc 0.8.35 legacy
+   codegen returns `2` for the repeated-placeholder case while `--via-ir`
+   returns `1`; this compiler now follows the via-IR model deliberately.
    `constructor_fixed_array_forwarding.sol` covers
    fixed-array constructor decoding and the memory-to-storage copy.
    `constructor_external_arguments.sol` covers direct deployment decoding of

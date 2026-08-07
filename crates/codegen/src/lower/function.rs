@@ -233,6 +233,7 @@ struct FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers> {
     types: types::TypeLowerer<'gcx>,
     values: FxHashMap<VariableId, ValueId>,
     storage_refs: FxHashMap<VariableId, StorageAccess>,
+    parameters: Vec<VariableId>,
     returns: Vec<VariableId>,
     loops: Vec<LoopTargets>,
     modifiers: Vec<ModifierContext<'gcx>>,
@@ -266,11 +267,21 @@ struct TernaryBranch<T> {
     terminated: bool,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Default)]
+struct BindingSnapshot {
+    ids: Vec<VariableId>,
+    values: FxHashMap<VariableId, ValueId>,
+    storage_refs: FxHashMap<VariableId, StorageAccess>,
+}
+
+#[derive(Clone)]
 struct ModifierContext<'gcx> {
     modifiers: &'gcx [hir::Modifier<'gcx>],
     body: hir::Block<'gcx>,
     next: usize,
+    parameters: BindingSnapshot,
+    returns: BindingSnapshot,
+    incoming_returns: BindingSnapshot,
 }
 
 struct ReturnTarget {
@@ -397,6 +408,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
             storage_refs: FxHashMap::default(),
+            parameters: Vec::new(),
             returns: Vec::new(),
             loops: Vec::new(),
             modifiers: Vec::new(),

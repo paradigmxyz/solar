@@ -28,6 +28,29 @@ impl<'hir> hir::Visit<'hir> for ModifierLocalIds<'hir> {
 impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 {
+    fn snapshot_bindings(&self, ids: &[hir::VariableId]) -> BindingSnapshot {
+        BindingSnapshot {
+            ids: ids.to_vec(),
+            values: ids
+                .iter()
+                .filter_map(|&id| self.values.get(&id).copied().map(|value| (id, value)))
+                .collect(),
+            storage_refs: ids
+                .iter()
+                .filter_map(|&id| self.storage_refs.get(&id).copied().map(|access| (id, access)))
+                .collect(),
+        }
+    }
+
+    fn restore_bindings(&mut self, snapshot: &BindingSnapshot) {
+        for &id in &snapshot.ids {
+            self.values.remove(&id);
+            self.storage_refs.remove(&id);
+        }
+        self.values.extend(snapshot.values.iter().map(|(&id, &value)| (id, value)));
+        self.storage_refs.extend(snapshot.storage_refs.iter().map(|(&id, &access)| (id, access)));
+    }
+
     pub(super) fn lower_modifier_chain(
         &mut self,
         modifiers: &'gcx [hir::Modifier<'gcx>],
@@ -65,6 +88,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         if modifier.args.len() != modifier_function.parameters.len() {
             return report_unsupported(self.gcx, modifier.span, "modifier argument list");
         }
+        let incoming_returns = self.snapshot_bindings(&self.returns);
         let local_ids = self.modifier_local_ids(modifier_body);
         let mut saved_locals = Vec::with_capacity(local_ids.len());
         let mut saved_storage_locals = Vec::new();
@@ -100,7 +124,18 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
         }
 
-        self.modifiers.push(ModifierContext { modifiers, body, next: index + 1 });
+        let context = ModifierContext {
+            modifiers,
+            body,
+            next: index + 1,
+            parameters: self.snapshot_bindings(&self.parameters),
+            returns: self.snapshot_bindings(&self.returns),
+            incoming_returns,
+        };
+        // A modifier's output starts with the incoming return bindings. Its
+        // argument expressions still form the input frame used by each `_`.
+        self.restore_bindings(&context.incoming_returns);
+        self.modifiers.push(context);
         let result = self.lower_block(modifier_body);
         self.modifiers.pop();
         for (parameter, previous) in saved_parameters {
@@ -212,12 +247,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     }
 
     pub(super) fn lower_modifier_placeholder(&mut self, span: Span) -> Option<()> {
-        let Some(context) = self.modifiers.last().copied() else {
+        let Some(context) = self.modifiers.last().cloned() else {
             return report_unsupported(self.gcx, span, "modifier placeholder");
         };
         let continuation = self.builder.create_block();
         let before_values = self.values.clone();
         let before_storage_refs = self.storage_refs.clone();
+        self.restore_bindings(&context.parameters);
+        self.restore_bindings(&context.returns);
         self.push_return_target(continuation);
         let result = self.lower_modifier_at(context.modifiers, context.body, context.next);
         result?;
@@ -226,6 +263,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             self.builder.jump(continuation);
         }
         self.finish_return_target(before_values, before_storage_refs);
+        // Function parameters are inputs to every body expansion. Return
+        // bindings, in contrast, carry the selected body's result onward.
+        self.restore_bindings(&context.parameters);
         Some(())
     }
 }

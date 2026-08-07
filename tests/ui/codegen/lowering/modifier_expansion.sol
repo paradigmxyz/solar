@@ -3,7 +3,7 @@
 //@ run-call: valueWithTwo() => 2
 //@ run-call: valueWithTwoPlaceholders() => 2
 //@ run-call: repeatFalse() => 1
-//@ run-call: repeatTrue() => 3
+//@ run-call: repeatTrue() => 2
 //@ run-call: modifierMutates 1 => 1
 
 contract ModifierExpansion {
