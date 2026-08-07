@@ -61,6 +61,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &cfg_simplify::CfgSimplify,
     &frame_promotion::FrameSlotPromotion,
     &function_compaction::PruneUnusedArgs,
+    &function_compaction::PruneUnusedReturns,
     &function_compaction::MergeEquivalentFunctions,
     &memory_dse::MemoryDse,
     &static_alloc::StaticAlloc,
@@ -186,6 +187,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &GasOnly(inline::InlineTinyLeaves),
     &inline::SpecializeFunctionPointers,
     &function_compaction::PruneUnusedArgs,
+    &SizeOnly(function_compaction::PruneUnusedReturns),
     &cfg_simplify::FunctionDce,
     &sccp::Sccp,
     &inst_simplify::InstSimplify,
@@ -204,6 +206,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // when the module is outside its scope.
     &lower_abi::LowerAbi,
     &function_compaction::PruneUnusedArgs,
+    &SizeOnly(function_compaction::PruneUnusedReturns),
     &dce::Dce,
     &function_compaction::MergeEquivalentFunctions,
     &cfg_simplify::FunctionDce,

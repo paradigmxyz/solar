@@ -106,14 +106,10 @@ bb18:
   gt
   push bb22
   jumpi
+  push 64
   push 448
-  mload
   push 384
-  mstore
-  push 480
-  mload
-  push 416
-  mstore
+  mcopy
   jump
 bb8:
   push bb9

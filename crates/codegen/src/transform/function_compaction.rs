@@ -1,8 +1,8 @@
 //! Interprocedural MIR function compaction.
 //!
-//! This module removes unused internal parameters and combines equivalent internal function
-//! bodies. Both transforms preserve external ABI entry signatures: only direct MIR call edges are
-//! rewritten.
+//! This module removes unused internal parameters and results and combines equivalent internal
+//! function bodies. These transforms preserve external ABI entry signatures: only direct MIR call
+//! edges are rewritten.
 
 use crate::{
     analysis::CallGraphInfo,
@@ -29,6 +29,24 @@ impl MirPass for PruneUnusedArgs {
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
         prune_unused_args(module) != 0
+    }
+}
+
+/// Removes unused one-word results from direct internal-call signatures.
+pub(crate) struct PruneUnusedReturns;
+
+impl MirPass for PruneUnusedReturns {
+    fn name(&self) -> &'static str {
+        "prune-unused-returns"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut ModuleAnalyses,
+    ) -> bool {
+        prune_unused_returns(module) != 0
     }
 }
 
@@ -138,23 +156,28 @@ fn prune_unused_args(module: &mut Module) -> usize {
     // Rewrite every edge before rewriting argument identities in the callees. Any computation
     // that fed a removed argument remains in the caller; ordinary DCE may remove it only when its
     // effects permit that.
+    let mut removed_call_operands = 0usize;
     for func in &mut module.functions {
         func.for_each_instruction_mut(|_, inst| {
             if let InstKind::InternalCall { function, args, .. } = &mut inst.kind {
+                let old_len = args.len();
                 *args = args
                     .iter()
                     .zip(&live[*function])
                     .filter_map(|(&arg, &keep)| keep.then_some(arg))
                     .collect();
+                removed_call_operands += old_len - args.len();
             }
         });
         for block in &mut func.blocks {
             if let Some(Terminator::TailCall { function, args }) = &mut block.terminator {
+                let old_len = args.len();
                 *args = args
                     .iter()
                     .zip(&live[*function])
                     .filter_map(|(&arg, &keep)| keep.then_some(arg))
                     .collect();
+                removed_call_operands += old_len - args.len();
             }
         }
     }
@@ -183,6 +206,12 @@ fn prune_unused_args(module: &mut Module) -> usize {
         func.set_params(new_params);
     }
 
+    tracing::debug!(
+        target: "solar::codegen::function_compaction",
+        removed_parameters = removed,
+        removed_call_operands,
+        "pruned unused internal arguments"
+    );
     removed
 }
 
@@ -192,6 +221,136 @@ fn mark_arg_live(func: &Function, value: ValueId, live: &mut [bool]) -> bool {
     let changed = !*is_live;
     *is_live = true;
     changed
+}
+
+/// Removes a one-word result when every direct caller discards it.
+///
+/// MIR represents only the first internal-call result as an SSA value. Additional results travel
+/// through the ephemeral multi-return buffer, so changing an arbitrary component would require
+/// making that buffer protocol explicit in the IR. Restricting this transform to one-word
+/// signatures keeps the proof local and still removes the complete return slot and call-result
+/// protocol for common effect-only helpers.
+fn prune_unused_returns(module: &mut Module) -> usize {
+    let mut called = DenseBitSet::new_empty(module.functions.len());
+    for func in &module.functions {
+        for inst_id in func.instructions() {
+            if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
+                called.insert(function);
+            }
+        }
+        for block in &func.blocks {
+            if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                called.insert(*function);
+            }
+        }
+    }
+
+    let candidates = module
+        .functions
+        .iter_enumerated()
+        .map(|(func_id, func)| {
+            called.contains(func_id) && func.returns.len() == 1 && is_internal_body(func)
+        })
+        .collect::<IndexVec<FunctionId, _>>();
+    let mut live = candidates.iter().map(|&candidate| !candidate).collect::<Vec<_>>();
+
+    // Tail calls forward their caller's result contract. Direct calls require a result only when
+    // its SSA value has a material use. A return in a candidate whose own result is still dead is
+    // not a material use, which lets discarded forwarding chains collapse to a fixed point.
+    loop {
+        let mut changed = false;
+        for (caller_id, caller) in module.functions.iter_enumerated() {
+            for inst_id in caller.instructions() {
+                let InstKind::InternalCall { function, .. } = caller.inst(inst_id).kind else {
+                    continue;
+                };
+                if !candidates[function] || live[function.index()] {
+                    continue;
+                }
+                let Some(result) = caller.inst_result_value(inst_id) else { continue };
+                if has_material_use(caller, result, live[caller_id.index()]) {
+                    live[function.index()] = true;
+                    changed = true;
+                }
+            }
+            for block in &caller.blocks {
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
+                    && candidates[*function]
+                    && !live[function.index()]
+                    && live[caller_id.index()]
+                {
+                    live[function.index()] = true;
+                    changed = true;
+                }
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+
+    let removed = candidates
+        .iter_enumerated()
+        .filter(|&(func_id, &candidate)| candidate && !live[func_id.index()])
+        .map(|(func_id, _)| func_id)
+        .collect::<Vec<_>>();
+    if removed.is_empty() {
+        return 0;
+    }
+    let mut removed_set = DenseBitSet::new_empty(module.functions.len());
+    for &func_id in &removed {
+        removed_set.insert(func_id);
+    }
+
+    for func in &mut module.functions {
+        let calls = func
+            .instructions()
+            .filter(|&inst_id| {
+                matches!(
+                    func.inst(inst_id).kind,
+                    InstKind::InternalCall { function, .. } if removed_set.contains(function)
+                )
+            })
+            .collect::<Vec<_>>();
+        for inst_id in calls {
+            let InstKind::InternalCall { returns, .. } = &mut func.inst_mut(inst_id).kind else {
+                unreachable!()
+            };
+            *returns = 0;
+            func.remove_inst_result(inst_id);
+        }
+    }
+
+    for &func_id in &removed {
+        let func = module.function_mut(func_id);
+        func.returns.clear();
+        for block in &mut func.blocks {
+            if let Some(Terminator::Return { values }) = &mut block.terminator {
+                values.clear();
+            }
+        }
+    }
+
+    tracing::debug!(
+        target: "solar::codegen::function_compaction",
+        removed_returns = removed.len(),
+        "pruned unused internal results"
+    );
+    removed.len()
+}
+
+fn has_material_use(func: &Function, value: ValueId, function_result_live: bool) -> bool {
+    if func.instructions().any(|inst_id| func.inst(inst_id).kind.operands().contains(&value)) {
+        return true;
+    }
+    func.blocks.iter().any(|block| {
+        block.terminator.as_ref().is_some_and(|term| match term {
+            Terminator::Return { values } if !function_result_live => {
+                values.contains(&value) && values.len() != 1
+            }
+            _ => term.operands().contains(&value),
+        })
+    })
 }
 
 /// A source-independent operand identity used for alpha-equivalence.
@@ -255,6 +414,7 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
     let recursive = CallGraphInfo::new(module);
     let mut merged = vec![false; module.functions.len()];
     let mut total = 0;
+    let mut merged_instructions = 0usize;
 
     loop {
         let mut groups = FxHashMap::<String, Vec<FunctionId>>::default();
@@ -270,7 +430,9 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
             for &candidate in candidates {
                 if let Some(&representative) = representatives.iter().find(|&&representative| {
                     equivalent_functions(
+                        representative,
                         module.function(representative),
+                        candidate,
                         module.function(candidate),
                     )
                 }) {
@@ -285,17 +447,60 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
         }
 
         total += replacements.len();
+        merged_instructions += replacements
+            .keys()
+            .map(|&duplicate| module.function(duplicate).instructions().count())
+            .sum::<usize>();
         for &duplicate in replacements.keys() {
             merged[duplicate.index()] = true;
         }
         redirect_calls(module, &replacements);
     }
 
+    if total != 0 {
+        tracing::debug!(
+            target: "solar::codegen::function_compaction",
+            merged_functions = total,
+            merged_instructions,
+            "merged equivalent internal functions"
+        );
+    }
     total
 }
 
 fn is_merge_candidate(func_id: FunctionId, func: &Function, calls: &CallGraphInfo) -> bool {
-    !func.blocks.is_empty() && is_internal_body(func) && !calls.is_recursive(func_id)
+    !func.blocks.is_empty()
+        && is_internal_body(func)
+        && (!calls.is_recursive(func_id) || has_only_direct_self_recursion(func_id, func, calls))
+}
+
+/// Recursive equivalence is local when every recursive edge is a direct self edge. Mutual SCCs
+/// need a whole-component isomorphism proof and remain conservatively excluded.
+fn has_only_direct_self_recursion(
+    func_id: FunctionId,
+    func: &Function,
+    calls: &CallGraphInfo,
+) -> bool {
+    let mut saw_self = false;
+    for inst_id in func.instructions() {
+        if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
+            if function == func_id {
+                saw_self = true;
+            } else if calls.is_recursive(function) {
+                return false;
+            }
+        }
+    }
+    for block in &func.blocks {
+        if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+            if *function == func_id {
+                saw_self = true;
+            } else if calls.is_recursive(*function) {
+                return false;
+            }
+        }
+    }
+    saw_self
 }
 
 /// Cheaply partitions functions before the exact pairwise alpha-equivalence check.
@@ -321,7 +526,12 @@ fn equivalence_bucket(func: &Function) -> String {
     key
 }
 
-fn equivalent_functions(lhs: &Function, rhs: &Function) -> bool {
+fn equivalent_functions(
+    lhs_id: FunctionId,
+    lhs: &Function,
+    rhs_id: FunctionId,
+    rhs: &Function,
+) -> bool {
     if lhs.params != rhs.params
         || lhs.returns != rhs.returns
         || lhs.abi_returns != rhs.abi_returns
@@ -353,7 +563,7 @@ fn equivalent_functions(lhs: &Function, rhs: &Function) -> bool {
                     &rhs_values,
                     rhs_inst.kind.operands(),
                 )
-                || !equivalent_inst_payload(&lhs_inst.kind, &rhs_inst.kind)
+                || !equivalent_inst_payload(lhs_id, &lhs_inst.kind, rhs_id, &rhs_inst.kind)
                 || lhs_inst.metadata.memory_region() != rhs_inst.metadata.memory_region()
                 || lhs_inst.metadata.effect() != rhs_inst.metadata.effect()
                 || lhs_inst.metadata.unchecked() != rhs_inst.metadata.unchecked()
@@ -375,7 +585,7 @@ fn equivalent_functions(lhs: &Function, rhs: &Function) -> bool {
             _ => return false,
         };
         if !equivalent_operands(&lhs_values, lhs_term.operands(), &rhs_values, rhs_term.operands())
-            || !equivalent_terminator_payload(lhs_term, rhs_term)
+            || !equivalent_terminator_payload(lhs_id, lhs_term, rhs_id, rhs_term)
         {
             return false;
         }
@@ -423,17 +633,36 @@ fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
 
 /// Compares the non-operand fields of two instructions. Operands are zeroed because their
 /// alpha-equivalent identities were compared separately.
-fn equivalent_inst_payload(lhs: &InstKind, rhs: &InstKind) -> bool {
+fn equivalent_inst_payload(
+    lhs_id: FunctionId,
+    lhs: &InstKind,
+    rhs_id: FunctionId,
+    rhs: &InstKind,
+) -> bool {
     let mut lhs = lhs.clone();
     let mut rhs = rhs.clone();
     let zero = ValueId::from_usize(0);
     lhs.visit_operands_mut(|value| *value = zero);
     rhs.visit_operands_mut(|value| *value = zero);
+    if let (
+        InstKind::InternalCall { function: lhs_target, .. },
+        InstKind::InternalCall { function: rhs_target, .. },
+    ) = (&lhs, &mut rhs)
+        && *lhs_target == lhs_id
+        && *rhs_target == rhs_id
+    {
+        *rhs_target = lhs_id;
+    }
     lhs == rhs
 }
 
 /// Compares CFG targets and other non-operand terminator fields.
-fn equivalent_terminator_payload(lhs: &Terminator, rhs: &Terminator) -> bool {
+fn equivalent_terminator_payload(
+    lhs_id: FunctionId,
+    lhs: &Terminator,
+    rhs_id: FunctionId,
+    rhs: &Terminator,
+) -> bool {
     let mut lhs = lhs.clone();
     let mut rhs = rhs.clone();
     let zero = ValueId::from_usize(0);
@@ -441,6 +670,15 @@ fn equivalent_terminator_payload(lhs: &Terminator, rhs: &Terminator) -> bool {
     let rhs_replacements = rhs.operands().into_iter().map(|value| (value, zero)).collect();
     crate::mir::utils::replace_terminator_uses(&mut lhs, &lhs_replacements);
     crate::mir::utils::replace_terminator_uses(&mut rhs, &rhs_replacements);
+    if let (
+        Terminator::TailCall { function: lhs_target, .. },
+        Terminator::TailCall { function: rhs_target, .. },
+    ) = (&lhs, &mut rhs)
+        && *lhs_target == lhs_id
+        && *rhs_target == rhs_id
+    {
+        *rhs_target = lhs_id;
+    }
     lhs == rhs
 }
 
