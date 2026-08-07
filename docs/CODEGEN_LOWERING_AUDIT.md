@@ -422,7 +422,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi_decode_storage_struct.sol` covers decoding a storage-backed ABI blob
    into a memory struct with a dynamic array field, while
    `abi_decode_storage_simple.sol` covers the mixed scalar-and-bytes storage
-   path independently.
+   path independently, and `abi_decode_storage_invalid.sol` checks a truncated
+   dynamic-array payload after it crosses the storage boundary.
    `abi.decode`, external return decoding, and `catch Error(string)` payload
    decoding are represented by semantic MIR operations and lowered by the ABI
    pass; multi-return materialization uses the shared frame/object path. The
