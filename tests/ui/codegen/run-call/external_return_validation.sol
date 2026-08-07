@@ -2,8 +2,15 @@
 //@ run-call-fail: ExternalReturnValidation::dirty()
 //@ run-call: ExternalReturnValidation::dirtyValue() => 0
 //@ run-call: ExternalReturnValidation::dirtyBool() => true
+//@ run-call: ExternalReturnValidation::dirtyStruct() => (0, true)
+//@ run-call: ExternalReturnValidation::dirtyArray() => [true, true]
 
 contract ExternalReturnValidation {
+    struct Pair {
+        uint8 value;
+        bool flag;
+    }
+
     function short() external view returns (uint256) {
         return this.shortTarget();
     }
@@ -39,5 +46,20 @@ contract ExternalReturnValidation {
             value := 2
         }
         return value;
+    }
+
+    function dirtyStruct() external pure returns (Pair memory pair) {
+        assembly {
+            mstore(pair, 0x100)
+            mstore(add(pair, 0x20), 2)
+        }
+    }
+
+    function dirtyArray() external pure returns (bool[] memory values) {
+        values = new bool[](2);
+        assembly {
+            mstore(add(values, 0x20), 2)
+            mstore(add(values, 0x40), 0x100)
+        }
     }
 }

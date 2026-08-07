@@ -32,6 +32,8 @@ pub(crate) struct Function {
     /// ABI layout of values returned by an external entry before `lower-abi`
     /// materializes returndata encoding.
     pub(crate) abi_returns: Option<AbiLayoutRef>,
+    /// ABI return shape with scalar type information retained until `lower-abi`.
+    pub(crate) abi_return_params: Option<AbiParamLayout>,
     /// ABI input layout retained until `lower-abi` materializes aggregate parameters.
     pub(crate) abi_params: Option<AbiParamLayout>,
     /// Source locations for the ABI parameters retained until `lower-abi`.
@@ -85,6 +87,7 @@ impl Function {
             params: IndexVec::new(),
             returns: Vec::new(),
             abi_returns: None,
+            abi_return_params: None,
             abi_params: None,
             abi_param_locations: None,
             abi_args_lazy: false,

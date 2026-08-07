@@ -135,6 +135,35 @@ impl fmt::Display for AbiParamType {
 }
 
 impl AbiParamType {
+    /// Returns whether ABI return encoding must canonicalize a value in this shape.
+    #[must_use]
+    pub(crate) fn needs_return_cleanup(&self) -> bool {
+        match self {
+            Self::Scalar(ty) | Self::Enum { ty, .. } => match ty {
+                MirType::UInt(size) | MirType::Int(size) => size.bits() < 256,
+                MirType::Address | MirType::Bool | MirType::Function => true,
+                MirType::FixedBytes(size) => size.bytes() < 32,
+                _ => false,
+            },
+            Self::Bytes => false,
+            Self::FixedArray { element, .. } | Self::DynamicArray(element) => {
+                element.needs_return_cleanup()
+            }
+            Self::Tuple(fields) => fields.iter().any(Self::needs_return_cleanup),
+        }
+    }
+
+    /// Returns whether a nested ABI value needs return-word canonicalization.
+    #[must_use]
+    pub(crate) fn needs_nested_return_cleanup(&self) -> bool {
+        match self {
+            Self::Scalar(..) | Self::Enum { .. } | Self::Bytes => false,
+            Self::FixedArray { .. } | Self::DynamicArray(..) | Self::Tuple(..) => {
+                self.needs_return_cleanup()
+            }
+        }
+    }
+
     /// Returns the memory representation used for an aggregate child.
     #[must_use]
     pub(crate) fn mir_type(&self) -> MirType {

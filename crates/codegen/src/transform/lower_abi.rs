@@ -39,7 +39,8 @@ use crate::{
     mir::{
         AbiParamLayout, AbiParamLocation, AbiParamType, AllocationSemantics, ArgIdx, BlockId,
         FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstKind, MangledSymbol,
-        MemoryObjectKind, MirPhase, MirType, Module, SliceLocation, Terminator, ValueId,
+        MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, SliceLocation, Terminator,
+        ValueId,
     },
     pass::MirPass,
 };
@@ -376,6 +377,9 @@ impl LowerAbiCx {
                 if let Some(validator) = AbiWordValidator::from_return_mir_type(ty) {
                     validators.push(validator);
                 }
+            }
+            if let Some(layout) = &func.abi_return_params {
+                collect_return_validators(&layout.types, &mut validators);
             }
             if let Some(layout) = &func.abi_params {
                 for ty in &layout.types {
@@ -831,6 +835,7 @@ impl LowerAbiCx {
             body.name_span = Span::DUMMY;
             body.selector = None;
             body.abi_returns = None;
+            body.abi_return_params = None;
             body.abi_params = None;
             body.abi_param_locations = None;
             body.abi_args_lazy = false;
@@ -847,8 +852,12 @@ impl LowerAbiCx {
                 false,
             );
         }
-        self.stats.encoded_returns +=
-            encode_live_returns(module.function_mut(wrapper_id), &self.helpers);
+        let return_params = module.function(wrapper_id).abi_return_params.clone();
+        self.stats.encoded_returns += encode_live_returns(
+            module.function_mut(wrapper_id),
+            return_params.as_ref(),
+            &self.helpers,
+        );
 
         // External wrappers take no MIR arguments; constructor parameters
         // retain their physical ABI head words for deployment codegen.
@@ -856,6 +865,7 @@ impl LowerAbiCx {
         wrapper.params.clear();
         wrapper.returns.clear();
         wrapper.abi_returns = None;
+        wrapper.abi_return_params = None;
         wrapper.abi_params = None;
         wrapper.abi_param_locations = None;
         wrapper.abi_args_lazy = false;
@@ -876,6 +886,7 @@ impl LowerAbiCx {
         body.name_span = Span::DUMMY;
         body.selector = None;
         body.abi_returns = None;
+        body.abi_return_params = None;
         body.abi_params = None;
         body.abi_param_locations = None;
         body.abi_args_lazy = false;
@@ -2074,6 +2085,23 @@ fn collect_validators(ty: &AbiParamType, validators: &mut Vec<AbiWordValidator>)
     }
 }
 
+fn collect_return_validators(types: &[AbiParamType], validators: &mut Vec<AbiWordValidator>) {
+    for ty in types {
+        match ty {
+            AbiParamType::Scalar(scalar) | AbiParamType::Enum { ty: scalar, .. } => {
+                if let Some(validator) = AbiWordValidator::from_return_mir_type(*scalar) {
+                    validators.push(validator);
+                }
+            }
+            AbiParamType::FixedArray { element, .. } | AbiParamType::DynamicArray(element) => {
+                collect_return_validators(std::slice::from_ref(element.as_ref()), validators);
+            }
+            AbiParamType::Tuple(fields) => collect_return_validators(fields, validators),
+            AbiParamType::Bytes => {}
+        }
+    }
+}
+
 /// An external entry with a body and a selector — the shape a regular wrapper
 /// is built for. Receive/fallback entries have no selector; bytes fallbacks use
 /// the separate raw-data wrapper above.
@@ -2115,9 +2143,93 @@ fn can_encode_live_returns(func: &Function) -> bool {
     })
 }
 
+fn canonicalize_return_value(
+    builder: &mut FunctionBuilder<'_>,
+    ty: &AbiParamType,
+    value: ValueId,
+    helpers: &CleanupHelpers,
+) -> ValueId {
+    if !ty.needs_return_cleanup() {
+        return value;
+    }
+
+    match ty {
+        AbiParamType::Scalar(ty) | AbiParamType::Enum { ty, .. } => {
+            AbiWordValidator::from_return_mir_type(*ty)
+                .map_or(value, |validator| validator.cleanup_with_helpers(builder, value, helpers))
+        }
+        AbiParamType::Bytes => value,
+        AbiParamType::Tuple(fields) => {
+            let fields_len = fields.len() as u64;
+            let size = builder.imm_u64(fields_len.saturating_mul(EvmMemoryLayout::WORD_SIZE));
+            let layout = MemoryObjectLayout::structure(fields_len);
+            let output = builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+            for (index, field_ty) in fields.iter().enumerate() {
+                let field_value = builder.memory_object_load_field(value, layout, index as u64);
+                let field_value =
+                    canonicalize_return_value(builder, field_ty, field_value, helpers);
+                builder.memory_object_store_field(output, layout, index as u64, field_value);
+            }
+            output
+        }
+        AbiParamType::FixedArray { element, len } => {
+            let size = builder.imm_u64(len.saturating_mul(EvmMemoryLayout::WORD_SIZE));
+            let layout = MemoryObjectLayout::word_fixed_array(*len);
+            let output = builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+            for index in 0..*len {
+                let index_value = builder.imm_u64(index);
+                let element_value = builder.memory_object_load_element(value, layout, index_value);
+                let element_value =
+                    canonicalize_return_value(builder, element, element_value, helpers);
+                builder.memory_object_store_element(output, layout, index_value, element_value);
+            }
+            output
+        }
+        AbiParamType::DynamicArray(element) => {
+            let layout = MemoryObjectLayout::WORD_ARRAY;
+            let length = builder.memory_object_len(value, MemoryObjectKind::DynamicArray);
+            let one = builder.imm_u64(1);
+            let mut current = builder.current_block();
+            let words = LowerAbiCx::checked_add(builder, length, one, &mut current);
+            let word = builder.imm_u64(EvmMemoryLayout::WORD_SIZE);
+            let size = LowerAbiCx::checked_mul(builder, words, word, &mut current);
+            let output = builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+            builder.set_memory_object_len(output, length, MemoryObjectKind::DynamicArray);
+
+            let preheader = builder.current_block();
+            let header = builder.create_block();
+            let body = builder.create_block();
+            let exit = builder.create_block();
+            builder.jump(header);
+
+            builder.switch_to_block(header);
+            let zero = builder.imm_u64(0);
+            let index = builder.phi(vec![(preheader, zero)]);
+            let more = builder.lt(index, length);
+            builder.branch(more, body, exit);
+
+            builder.switch_to_block(body);
+            let element_value = builder.memory_object_load_element(value, layout, index);
+            let element_value = canonicalize_return_value(builder, element, element_value, helpers);
+            builder.memory_object_store_element(output, layout, index, element_value);
+            let next = builder.add(index, one);
+            let backedge = builder.current_block();
+            builder.jump(header);
+            builder.add_phi_incoming(index, backedge, next);
+
+            builder.switch_to_block(exit);
+            output
+        }
+    }
+}
+
 /// Rewrites value-carrying returns into a semantic ABI encode followed by
 /// `returndata(slice_ptr(encoded), slice_len(encoded))`.
-fn encode_live_returns(func: &mut Function, helpers: &CleanupHelpers) -> usize {
+fn encode_live_returns(
+    func: &mut Function,
+    return_params: Option<&AbiParamLayout>,
+    helpers: &CleanupHelpers,
+) -> usize {
     let Some(layout) = func.abi_returns.clone() else { return 0 };
     if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
         // Static return data occupies the low-memory ABI buffer. Keep the
@@ -2136,15 +2248,23 @@ fn encode_live_returns(func: &mut Function, helpers: &CleanupHelpers) -> usize {
         }
         let values = values.clone().into_vec();
         let return_types = func.returns.clone();
+        let return_params = return_params.map(|layout| layout.types.clone());
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block_id);
         let values = values
             .into_iter()
-            .zip(return_types)
-            .map(|(value, ty)| {
-                AbiWordValidator::from_return_mir_type(ty).map_or(value, |validator| {
-                    validator.cleanup_with_helpers(&mut builder, value, helpers)
-                })
+            .enumerate()
+            .map(|(index, value)| {
+                if let Some(return_params) = &return_params
+                    && let Some(ty) = return_params.get(index)
+                {
+                    canonicalize_return_value(&mut builder, ty, value, helpers)
+                } else {
+                    let Some(ty) = return_types.get(index).copied() else { return value };
+                    AbiWordValidator::from_return_mir_type(ty).map_or(value, |validator| {
+                        validator.cleanup_with_helpers(&mut builder, value, helpers)
+                    })
+                }
             })
             .collect::<Vec<_>>()
             .into_boxed_slice();

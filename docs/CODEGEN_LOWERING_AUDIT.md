@@ -341,9 +341,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    words at the boundary, including nested fixed arrays and struct fields.
    The same cleanup runs for external and constructor call arguments, including
    dirty narrow scalar words forwarded through an external self-call.
-   External return wrappers also clean typed scalar words before encoding
-   returndata; `external_return_validation.sol` checks a dirty `uint8` returned
-   from inline assembly against Solc.
+   External return wrappers also recursively clean typed scalar words before
+   encoding returndata; `external_return_validation.sol` checks dirty scalar
+   fields in a returned memory struct against Solc, and the dynamic `bool[]`
+   return path is covered by `abi_decode_dynamic_arrays.sol`.
    `abi_decode_storage_struct.sol` covers decoding a storage-backed ABI blob
    into a memory struct with a dynamic array field.
    `abi.decode`, external return decoding, and `catch Error(string)` payload

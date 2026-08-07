@@ -84,6 +84,11 @@ pub(super) fn lower(
         .iter()
         .map(|&ret| type_lowerer.abi_return_type(gcx.type_of_item(ret.into())))
         .collect::<Option<Vec<_>>>();
+    let output_param_shapes = hir_function
+        .returns
+        .iter()
+        .map(|&ret| type_lowerer.abi_return_param_type(gcx.type_of_item(ret.into())))
+        .collect::<Option<Vec<_>>>();
 
     let has_constructor_params = mir.attributes.is_constructor
         && input_shapes.as_ref().is_some_and(|shapes| !shapes.is_empty());
@@ -111,8 +116,15 @@ pub(super) fn lower(
             let Some(output_shapes) = output_shapes else {
                 return report_unsupported(gcx, hir_function.span, "function return shape");
             };
+            let Some(output_param_shapes) = output_param_shapes else {
+                return report_unsupported(gcx, hir_function.span, "function return ABI shape");
+            };
             mir.abi_returns =
                 Some(module.intern_abi_layout(AbiLayout::new(output_shapes.into_boxed_slice())));
+            if output_param_shapes.iter().any(AbiParamType::needs_nested_return_cleanup) {
+                mir.abi_return_params =
+                    Some(AbiParamLayout::new(output_param_shapes.into_boxed_slice()));
+            }
         }
     }
 

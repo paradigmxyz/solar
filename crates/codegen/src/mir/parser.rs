@@ -459,6 +459,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parser.expect(TokenKind::Eq)?;
                     builder.func_mut().abi_returns = Some(self.parse_abi_layout()?);
                 }
+                sym::abi_return_params => {
+                    self.parser.expect(TokenKind::Eq)?;
+                    builder.func_mut().abi_return_params = Some(self.parse_abi_param_layout()?);
+                }
                 sym::abi_params => {
                     self.parser.expect(TokenKind::Eq)?;
                     builder.func_mut().abi_params = Some(self.parse_abi_param_layout()?);

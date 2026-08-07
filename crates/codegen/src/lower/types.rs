@@ -101,6 +101,11 @@ impl<'gcx> TypeLowerer<'gcx> {
         self.abi_type(ty.with_loc_if_ref(self.gcx, DataLocation::Memory))
     }
 
+    /// Builds the ABI return shape while retaining scalar MIR types for the ABI phase.
+    pub(super) fn abi_return_param_type(&mut self, ty: Ty<'gcx>) -> Option<AbiParamType> {
+        self.abi_param_type(ty.with_loc_if_ref(self.gcx, DataLocation::Memory))
+    }
+
     /// Returns the semantic object layout for a memory-backed aggregate.
     pub(super) fn memory_layout(&self, ty: Ty<'gcx>) -> Option<MemoryObjectLayout> {
         Some(match ty.peel_refs().kind {

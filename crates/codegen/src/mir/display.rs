@@ -272,6 +272,9 @@ pub(crate) fn display_function_text<'a>(
             if let Some(layout) = &func.abi_returns {
                 write!(f, ", abi_returns={layout}")?;
             }
+            if let Some(layout) = &func.abi_return_params {
+                write!(f, ", abi_return_params={layout}")?;
+            }
             write!(f, "]")?;
         } else if func.attributes.is_function_pointer_dispatcher {
             write!(f, " [function_pointer_dispatcher")?;
@@ -284,8 +287,14 @@ pub(crate) fn display_function_text<'a>(
             if let Some(layout) = &func.abi_returns {
                 write!(f, ", abi_returns={layout}")?;
             }
+            if let Some(layout) = &func.abi_return_params {
+                write!(f, ", abi_return_params={layout}")?;
+            }
             write!(f, "]")?;
-        } else if func.abi_args_lazy || func.abi_returns.is_some() {
+        } else if func.abi_args_lazy
+            || func.abi_returns.is_some()
+            || func.abi_return_params.is_some()
+        {
             write!(f, " [")?;
             let mut comma = false;
             if func.abi_args_lazy {
@@ -304,6 +313,13 @@ pub(crate) fn display_function_text<'a>(
                     write!(f, ", ")?;
                 }
                 write!(f, "abi_returns={layout}")?;
+                comma = true;
+            }
+            if let Some(layout) = &func.abi_return_params {
+                if comma {
+                    write!(f, ", ")?;
+                }
+                write!(f, "abi_return_params={layout}")?;
             }
             write!(f, "]")?;
         }
