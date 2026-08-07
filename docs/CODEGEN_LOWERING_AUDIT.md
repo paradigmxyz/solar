@@ -356,6 +356,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi_calldata_nested_dynamic_memory.sol` port Solc's direct nested-array
    copies, including truncated inner-array failures for dynamic and fixed
    nested elements.
+   `abi_calldata_v1_validation.sol` adds the ABI coder v1 short-array and
+   oversized-offset failures, which both compilers reject with empty revert
+   data under the default revert-string mode.
    `abi_encode_memory_calldata_v1.sol` checks the mixed memory-array and
    calldata-bytes encoder through Solc's v1 ABI mode, and
    `abi_encode_rational.sol` checks signed rational literal encoding.
