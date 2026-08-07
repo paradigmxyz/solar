@@ -459,6 +459,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    arrays and structs with nested dynamic byte objects.
    `nested_struct_memory_alias.sol` checks that nested memory aggregate
    assignment preserves Solidity's reference aliasing.
+   `require_modulo_chain.sol` checks modulo inside chained `require` conditions,
+   including the divide-by-zero panic and short-circuit paths.
 
 The current intentional boundary is dynamic-element calldata array slicing.
 Solidity rejects range access for arrays with dynamically encoded base types,
