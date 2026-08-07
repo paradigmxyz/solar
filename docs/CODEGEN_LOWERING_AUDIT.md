@@ -466,6 +466,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    assignment into a fixed storage reference.
    `storage_boundary_array_packing_not_overlapping_variable.sol` checks packed
    boundary cleanup without clobbering the following storage slot.
+   `storage_return_pointer_multi.sol` checks tuple assignment from an internal
+   call returning multiple storage references before mutating both targets.
    `storage_string_bytes_conversion.sol` covers a constructor string copied to
    storage and then converted to `bytes` before reading its length.
 5. Keep expanding runtime and differential coverage for aggregate allocation

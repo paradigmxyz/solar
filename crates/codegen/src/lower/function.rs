@@ -2072,6 +2072,24 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         rhs: &hir::Expr<'_>,
     ) -> Option<()> {
         let rhs = rhs.peel_parens();
+        if elements.iter().flatten().any(|element| self.is_storage_reference_binding(element))
+            && let Some(accesses) = self.lower_storage_reference_call(rhs)
+        {
+            if accesses.len() != elements.len() {
+                return report_unsupported(self.gcx, rhs.span, "storage reference tuple");
+            }
+            for (element, access) in elements.iter().zip(accesses) {
+                let Some(element) = element else { continue };
+                if !self.is_storage_reference_binding(element) {
+                    return report_unsupported(self.gcx, element.span, "mixed storage tuple");
+                }
+                let Some(id) = self.gcx.resolved_variable(element) else {
+                    return report_unsupported(self.gcx, element.span, "storage reference target");
+                };
+                self.storage_refs.insert(id, access);
+            }
+            return Some(());
+        }
         if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind
             && rhs_elements.len() == elements.len()
             && elements.iter().flatten().any(|element| self.is_storage_reference_binding(element))
@@ -2147,6 +2165,30 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
         }
         Some(())
+    }
+
+    fn lower_storage_reference_call(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<StorageAccess>> {
+        let ExprKind::Call(callee, ..) = &expr.kind else { return None };
+        let function_id = self.gcx.resolved_function(callee)?;
+        let returns = self.gcx.hir.function(function_id).returns;
+        if returns.is_empty()
+            || returns
+                .iter()
+                .any(|&id| !self.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Storage))
+        {
+            return None;
+        }
+        let values = self.lower_values(expr)?;
+        (values.len() == returns.len()).then(|| {
+            values
+                .into_iter()
+                .map(|slot| StorageAccess {
+                    slot,
+                    location: StorageLocation::word(U256::ZERO),
+                    offset: None,
+                })
+                .collect()
+        })
     }
 
     fn multi_return_buffer_base(&mut self) -> ValueId {
