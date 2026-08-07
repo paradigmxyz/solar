@@ -282,6 +282,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    not overlap.
    `abi_calldata_nested_reencode.sol` adds Solc-checked hashes for a three-level
    dynamic array and an outer dynamic array of fixed pairs of dynamic arrays.
+   `abi_calldata_overlapping.sol` adds the Solc aliasing case where two nested
+   dynamic-array heads share a tail, alongside its malformed-tail rejection.
    `abi_calldata_nested_validation.sol` now checks Solc's distinction between
    shallow validation for an unused nested array and deep validation when an
    inner element is read.
