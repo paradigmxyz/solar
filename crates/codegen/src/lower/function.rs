@@ -4080,11 +4080,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             if ty.is_ref_at(DataLocation::Storage) {
                 return Some(access.slot);
             }
-            return Some(self.storage.load_at_slot(
-                &mut self.builder,
-                access.location,
-                access.slot,
-            ));
+            let value = self.storage.load_at_slot(&mut self.builder, access.location, access.slot);
+            self.validate_enum_value(ty, value);
+            return Some(value);
         }
         let var = self.gcx.hir.variable(id);
         if var.is_constant() {
@@ -4099,7 +4097,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             if matches!(ty.peel_refs().kind, solar_sema::ty::TyKind::Mapping(..)) {
                 return report_unsupported(self.gcx, span, "mapping value");
             }
-            return Some(self.storage.load(&mut self.builder, location));
+            let value = self.storage.load(&mut self.builder, location);
+            self.validate_enum_value(ty, value);
+            return Some(value);
         }
         report_unsupported(self.gcx, span, "identifier")
     }

@@ -125,8 +125,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   memory-shaped dynamic calldata returns;
 * state-variable reads and writes through the shared storage-location object;
 * packed unsigned, signed, address, enum, and fixed-bytes storage fields;
-* typed enum storage writes validate the variant range before full-word or
-  packed storage updates;
+* typed enum storage reads and writes validate the variant range before values
+  cross the storage boundary;
 * left-aligned fixed-bytes values from literals, storage, state initializers,
   and `msg.sig`, with canonical narrowing and explicit integer and address
   conversions;

@@ -407,7 +407,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         if self.types.memory_layout(ty).is_some() {
             return self.load_storage_object(ty, access.slot, span);
         }
-        Some(if let Some(offset) = access.offset {
+        let value = if let Some(offset) = access.offset {
             self.storage.load_packed_at_slot(
                 &mut self.builder,
                 access.location,
@@ -416,7 +416,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             )
         } else {
             self.storage.load_at_slot(&mut self.builder, access.location, access.slot)
-        })
+        };
+        self.validate_enum_value(ty, value);
+        Some(value)
     }
 
     pub(super) fn store_storage_value(

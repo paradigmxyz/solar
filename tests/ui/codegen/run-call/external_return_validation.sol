@@ -10,6 +10,7 @@
 //@ run-call: ExternalReturnValidation::dirtyMemoryLvalue() => true
 //@ run-call-fail: ExternalReturnValidation::dirtyEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 //@ run-call-fail: ExternalReturnValidation::dirtyEnumStorage() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@ run-call-fail: ExternalReturnValidation::dirtyEnumStorageRead() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_static_array.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_dynamic_array.sol
 // ported-from: test/libsolidity/semanticTests/reverts/invalid_enum_as_external_ret.sol
@@ -145,5 +146,12 @@ contract ExternalReturnValidation {
         }
         state = value;
         return 1;
+    }
+
+    function dirtyEnumStorageRead() external returns (uint256) {
+        assembly {
+            sstore(0, 2)
+        }
+        return uint256(state);
     }
 }
