@@ -120,15 +120,17 @@ fn @viaCall() {
     jumpi v12, bb4, bb1
   bb4:
     v15 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v48 = add v15, v9
-    mstore 64, v48 !metadata(memory=scratch)
+    v50 = add v15, v9
+    mstore 64, v50 !metadata(memory=scratch)
     mstore v15, 68
-    v37 = add v15, 32
-    mcopy v37, v35, 68
+    v39 = add v15, 32
+    mcopy v39, v37, 68
     v17 = mload v15
     v16 = add v15, 32
     v18 = call v0, arg0, 0, v16, v17, 0, 0
-    mstore 128, v18
+    v29 = iszero v18
+    v30 = iszero v29
+    mstore 128, v30
     returndata 128, 32
   bb5:
     revert 0, 0
@@ -145,20 +147,20 @@ fn @viaCall() {
   bb8:
     v0 = gas
     v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
-    v31 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v49 = add v31, 128
-    mstore 64, v49 !metadata(memory=scratch)
-    mstore v31, 68
-    v42 = add v31, 32
-    v43 = add v42, 0
-    mstore v43, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v44 = add v31, 32
-    v45 = add v44, 4
-    mstore v45, v1
-    v46 = add v31, 32
-    v47 = add v46, 36
-    mstore v47, arg2
-    v35 = add v31, 32
+    v33 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v51 = add v33, 128
+    mstore 64, v51 !metadata(memory=scratch)
+    mstore v33, 68
+    v44 = add v33, 32
+    v45 = add v44, 0
+    mstore v45, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v46 = add v33, 32
+    v47 = add v46, 4
+    mstore v47, v1
+    v48 = add v33, 32
+    v49 = add v48, 36
+    mstore v49, arg2
+    v37 = add v33, 32
     v4 = add 68, 31
     v5 = lt v4, 68
     jumpi v5, bb1, bb2

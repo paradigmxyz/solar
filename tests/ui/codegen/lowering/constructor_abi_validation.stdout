@@ -9,10 +9,12 @@ fn @flag() {
   bb1:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
-    mstore 128, v1
-    v4 = add 128, 32
-    v5 = sub v4, 128
-    returndata 128, v5
+    v4 = iszero v1
+    v5 = iszero v4
+    mstore 128, v5
+    v6 = add 128, 32
+    v7 = sub v6, 128
+    returndata 128, v7
   bb2:
     revert 0, 0
   bb3:
@@ -28,10 +30,12 @@ fn @second() {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
     v2 = and v1, 255
-    mstore 128, v2
-    v5 = add 128, 32
-    v6 = sub v5, 128
-    returndata 128, v6
+    v5 = iszero v2
+    v6 = iszero v5
+    mstore 128, v6
+    v7 = add 128, 32
+    v8 = sub v7, 128
+    returndata 128, v8
   bb2:
     revert 0, 0
   bb3:

@@ -2,11 +2,11 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 427
+  push 542
   codesize
   sub
   dup1
-  push 427
+  push 542
   push 384
   codecopy
   push 384
@@ -23,7 +23,7 @@ bb0:
   push 288
   mstore
   push 384
-  push 427
+  push 542
   codesize
   sub
   add
@@ -225,24 +225,24 @@ bb18:
   mload
   push 256
   mstore
-  push 68
+  push 183
   dup1
   push 359
   push 0
   codecopy
   push 192
   mload
-  push 37
+  push 38
   mstore8
   push 224
   mload
-  push 39
+  push 40
   mstore8
   push 256
   mload
   push 0
   byte
-  push 43
+  push 44
   mstore8
   push 0
   return
@@ -250,7 +250,7 @@ bb18:
 // === runtime ===
 @module runtime
 bb0:
-  push 224
+  push 576
   push 64
   mstore
   callvalue
@@ -281,19 +281,86 @@ bb0:
   push_immutable 2, 1
   push 248
   shl
+  dup1
+  push 384
+  mstore
+  dup2
+  push 416
+  mstore
   dup3
+  push 512
+  mstore
+  pop
+  pop
+  pop
+  push bb7
+  push 255
+  jump bb10
+bb10:
+  push 512
+  mload
+  and
+  push 544
+  mstore
+  jump
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+bb7:
+  push 544
+  mload
+  dup1
+  push 288
+  mstore
+  push 416
+  mload
+  push 512
+  mstore
+  pop
+  push bb8
+  push 512
+  mload
+  push 0
+  signextend
+  push 544
+  mstore
+  jump
+bb8:
+  push 544
+  mload
+  dup1
+  push 320
+  mstore
+  push 384
+  mload
+  push 512
+  mstore
+  pop
+  push bb9
+  push 255
+  push 248
+  shl
+  jump bb10
+bb9:
+  push 544
+  mload
+  dup1
+  push 352
+  mstore
+  push 288
+  mload
   push 128
   mstore
-  swap2
-  pop
+  push 320
+  mload
   push 160
+  mstore
+  dup1
+  push 352
   mstore
   push 192
   mstore
   push 96
   push 128
   return
-bb4 [cold]:
-  push 0
-  dup1
-  revert

@@ -7,10 +7,11 @@ fn @vUint8() {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    mstore 128, arg0
-    v6 = add 128, 32
-    v7 = sub v6, 128
-    returndata 128, v7
+    v6 = internal_call @__cleanup0, 1, arg0
+    mstore 128, v6
+    v7 = add 128, 32
+    v8 = sub v7, 128
+    returndata 128, v8
   bb2:
     revert 0, 0
   bb3:
@@ -29,10 +30,11 @@ fn @vInt16() {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    mstore 128, arg0
-    v6 = add 128, 32
-    v7 = sub v6, 128
-    returndata 128, v7
+    v6 = internal_call @__cleanup5, 1, arg0
+    mstore 128, v6
+    v7 = add 128, 32
+    v8 = sub v7, 128
+    returndata 128, v8
   bb2:
     revert 0, 0
   bb3:
@@ -51,10 +53,12 @@ fn @vBool() {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    mstore 128, arg0
-    v7 = add 128, 32
-    v8 = sub v7, 128
-    returndata 128, v8
+    v7 = iszero arg0
+    v8 = iszero v7
+    mstore 128, v8
+    v9 = add 128, 32
+    v10 = sub v9, 128
+    returndata 128, v10
   bb2:
     revert 0, 0
   bb3:
@@ -74,10 +78,11 @@ fn @vAddress() {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    mstore 128, arg0
-    v6 = add 128, 32
-    v7 = sub v6, 128
-    returndata 128, v7
+    v6 = internal_call @__cleanup2, 1, arg0
+    mstore 128, v6
+    v7 = add 128, 32
+    v8 = sub v7, 128
+    returndata 128, v8
   bb2:
     revert 0, 0
   bb3:
@@ -96,10 +101,11 @@ fn @vBytes4() {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    mstore 128, arg0
-    v6 = add 128, 32
-    v7 = sub v6, 128
-    returndata 128, v7
+    v6 = internal_call @__cleanup3, 1, arg0
+    mstore 128, v6
+    v7 = add 128, 32
+    v8 = sub v7, 128
+    returndata 128, v8
   bb2:
     revert 0, 0
   bb3:
@@ -118,10 +124,11 @@ fn @vEnum() {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    mstore 128, arg0
-    v5 = add 128, 32
-    v6 = sub v5, 128
-    returndata 128, v6
+    v5 = internal_call @__cleanup0, 1, arg0
+    mstore 128, v5
+    v6 = add 128, 32
+    v7 = sub v6, 128
+    returndata 128, v7
   bb2:
     revert 0, 0
   bb3:

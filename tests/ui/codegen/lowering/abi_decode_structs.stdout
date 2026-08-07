@@ -18,8 +18,8 @@ fn @dFlat() {
     jumpi v14, bb2, bb4
   bb4:
     v20 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v102 = add v20, 96
-    mstore 64, v102 !metadata(memory=scratch)
+    v105 = add v20, 96
+    mstore 64, v105 !metadata(memory=scratch)
     v22 = add v4, 32
     v23 = lt v22, v4
     v24 = gt v22, v6
@@ -39,8 +39,8 @@ fn @dFlat() {
     v38 = eq v36, v37
     jumpi v38, bb7, bb2
   bb7:
-    v92 = add v20, 32
-    mstore v92, v36
+    v95 = add v20, 32
+    mstore v95, v36
     v41 = lt v11, v30
     v43 = or v41, v13
     jumpi v43, bb2, bb8
@@ -51,16 +51,19 @@ fn @dFlat() {
     v49 = eq v46, v48
     jumpi v49, bb9, bb2
   bb9:
-    v94 = add v20, 64
-    mstore v94, v46
-    v95 = add v20, 32
-    v2 = mload v95
-    v96 = add v20, 64
-    v3 = mload v96
+    v97 = add v20, 64
+    mstore v97, v46
     v1 = mload v20
+    v99 = add v20, 64
+    v3 = mload v99
+    v98 = add v20, 32
+    v2 = mload v98
+    v86 = internal_call @__cleanup0, 1, v2
+    v87 = iszero v3
+    v88 = iszero v87
     mstore 128, v1
-    mstore 160, v2
-    mstore 192, v3
+    mstore 160, v86
+    mstore 192, v88
     returndata 128, 96
   bb10:
     v54 = calldatasize
@@ -100,11 +103,11 @@ fn @dFlat() {
     jumpi v82, bb2, bb16
   bb16:
     v83 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v103 = add v83, v81
-    mstore 64, v103 !metadata(memory=scratch)
+    v106 = add v83, v81
+    mstore 64, v106 !metadata(memory=scratch)
     mstore v83, v70
-    v99 = add v83, 32
-    calldatacopy v99, v64, v70
+    v102 = add v83, 32
+    calldatacopy v102, v64, v70
     v4 = add v83, 32
     v5 = mload v83
     v6 = add v4, v5

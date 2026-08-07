@@ -273,8 +273,8 @@ fn @factory.0() {
     jumpi v18, bb1, bb4
   bb4:
     v20 = calldataload v3
-    v181 = add v1, 32
-    mstore v181, v20
+    v182 = add v1, 32
+    mstore v182, v20
     v22 = add v166, 96
     v23 = lt v22, v14
     v24 = calldatasize
@@ -319,13 +319,13 @@ fn @factory.0() {
     jumpi v54, bb12, bb9
   bb12:
     v57 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v209 = add v57, v51
-    mstore 64, v209 !metadata(memory=scratch)
+    v210 = add v57, v51
+    mstore 64, v210 !metadata(memory=scratch)
     mstore v57, v37
-    v184 = add v57, 32
-    calldatacopy v184, v31, v37
-    v187 = add v1, 64
-    mstore v187, v57
+    v185 = add v57, 32
+    calldatacopy v185, v31, v37
+    v188 = add v1, 64
+    mstore v188, v57
     v59 = add v166, 128
     v60 = lt v59, v22
     v61 = calldatasize
@@ -368,13 +368,13 @@ fn @factory.0() {
     jumpi v91, bb19, bb9
   bb19:
     v94 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v210 = add v94, v88
-    mstore 64, v210 !metadata(memory=scratch)
+    v211 = add v94, v88
+    mstore 64, v211 !metadata(memory=scratch)
     mstore v94, v74
-    v190 = add v94, 32
-    calldatacopy v190, v68, v74
-    v193 = add v1, 96
-    mstore v193, v94
+    v191 = add v94, 32
+    calldatacopy v191, v68, v74
+    v194 = add v1, 96
+    mstore v194, v94
     v96 = add v166, 160
     v97 = lt v96, v59
     v98 = calldatasize
@@ -383,8 +383,8 @@ fn @factory.0() {
     jumpi v100, bb1, bb20
   bb20:
     v102 = calldataload v59
-    v195 = add v1, 128
-    mstore v195, v102
+    v196 = add v1, 128
+    mstore v196, v102
     v104 = add v166, 192
     v105 = lt v104, v96
     v106 = calldatasize
@@ -393,8 +393,8 @@ fn @factory.0() {
     jumpi v108, bb1, bb21
   bb21:
     v110 = calldataload v96
-    v197 = add v1, 160
-    mstore v197, v110
+    v198 = add v1, 160
+    mstore v198, v110
     v112 = add v166, 224
     v113 = lt v112, v104
     v114 = calldatasize
@@ -403,8 +403,8 @@ fn @factory.0() {
     jumpi v116, bb1, bb22
   bb22:
     v118 = calldataload v104
-    v199 = add v1, 192
-    mstore v199, v118
+    v200 = add v1, 192
+    mstore v200, v118
     v120 = add v166, 256
     v121 = lt v120, v112
     v122 = calldatasize
@@ -447,17 +447,18 @@ fn @factory.0() {
     jumpi v152, bb29, bb9
   bb29:
     v155 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v211 = add v155, v149
-    mstore 64, v211 !metadata(memory=scratch)
+    v212 = add v155, v149
+    mstore 64, v212 !metadata(memory=scratch)
     mstore v155, v135
-    v202 = add v155, 32
-    calldatacopy v202, v129, v135
-    v205 = add v1, 224
-    mstore v205, v155
-    v208 = slice_len v1
-    v207 = slice_ptr v1
-    v156 = internal_call @factory.3, 1, v207, v208
-    mstore 128, v156
+    v203 = add v155, 32
+    calldatacopy v203, v129, v135
+    v206 = add v1, 224
+    mstore v206, v155
+    v209 = slice_len v1
+    v208 = slice_ptr v1
+    v156 = internal_call @factory.3, 1, v208, v209
+    v177 = internal_call @__cleanup0, 1, v156
+    mstore 128, v177
     returndata 128, 32
   bb30:
     v161 = calldatasize
@@ -480,8 +481,8 @@ fn @factory.0() {
     jumpi v175, bb1, bb33
   bb33:
     v1 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v212 = add v1, 256
-    mstore 64, v212 !metadata(memory=scratch)
+    v213 = add v1, 256
+    mstore 64, v213 !metadata(memory=scratch)
     v3 = add v166, 32
     v4 = lt v3, v166
     v5 = calldatasize

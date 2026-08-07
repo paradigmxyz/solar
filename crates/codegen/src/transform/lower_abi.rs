@@ -87,6 +87,13 @@ impl AbiWordValidator {
         })
     }
 
+    fn from_return_mir_type(ty: MirType) -> Option<Self> {
+        if ty == MirType::Function {
+            return Some(Self::Mask(U256::MAX >> 64));
+        }
+        Self::from_mir_type(ty)
+    }
+
     fn condition(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
         match self {
             Self::Mask(mask) => {
@@ -116,6 +123,43 @@ impl AbiWordValidator {
             Self::Mask(mask) => Some(CleanupKey::Mask(mask)),
             Self::SignExtend(byte_index) => Some(CleanupKey::SignExtend(byte_index)),
             Self::Bool | Self::EnumRange(_) => None,
+        }
+    }
+
+    fn cleanup(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
+        match self {
+            Self::Mask(mask) => {
+                let mask = builder.imm_u256(mask);
+                builder.and(word, mask)
+            }
+            Self::SignExtend(byte_index) => {
+                let byte_index = builder.imm_u64(byte_index);
+                builder.signextend(byte_index, word)
+            }
+            Self::Bool => {
+                let zero = builder.iszero(word);
+                builder.iszero(zero)
+            }
+            Self::EnumRange(variants) => {
+                let variants = variants.max(1);
+                let bits = (u64::BITS - (variants - 1).leading_zeros()).max(1);
+                let mask = U256::MAX >> bits as usize;
+                let mask = builder.imm_u256(mask);
+                builder.and(word, mask)
+            }
+        }
+    }
+
+    fn cleanup_with_helpers(
+        self,
+        builder: &mut FunctionBuilder<'_>,
+        word: ValueId,
+        helpers: &CleanupHelpers,
+    ) -> ValueId {
+        if let Some(key) = self.cleanup_key() {
+            helpers.cleanup(builder, key, word)
+        } else {
+            self.cleanup(builder, word)
         }
     }
 
@@ -325,6 +369,11 @@ impl LowerAbiCx {
             let func = module.function(id);
             for &ty in &func.params {
                 if let Some(validator) = AbiWordValidator::from_mir_type(ty) {
+                    validators.push(validator);
+                }
+            }
+            for &ty in &func.returns {
+                if let Some(validator) = AbiWordValidator::from_return_mir_type(ty) {
                     validators.push(validator);
                 }
             }
@@ -798,7 +847,8 @@ impl LowerAbiCx {
                 false,
             );
         }
-        self.stats.encoded_returns += encode_live_returns(module.function_mut(wrapper_id));
+        self.stats.encoded_returns +=
+            encode_live_returns(module.function_mut(wrapper_id), &self.helpers);
 
         // External wrappers take no MIR arguments; constructor parameters
         // retain their physical ABI head words for deployment codegen.
@@ -2067,7 +2117,7 @@ fn can_encode_live_returns(func: &Function) -> bool {
 
 /// Rewrites value-carrying returns into a semantic ABI encode followed by
 /// `returndata(slice_ptr(encoded), slice_len(encoded))`.
-fn encode_live_returns(func: &mut Function) -> usize {
+fn encode_live_returns(func: &mut Function, helpers: &CleanupHelpers) -> usize {
     let Some(layout) = func.abi_returns.clone() else { return 0 };
     if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
         // Static return data occupies the low-memory ABI buffer. Keep the
@@ -2084,9 +2134,20 @@ fn encode_live_returns(func: &mut Function) -> usize {
         if values.is_empty() {
             continue;
         }
-        let values = values.clone().into_vec().into_boxed_slice();
+        let values = values.clone().into_vec();
+        let return_types = func.returns.clone();
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block_id);
+        let values = values
+            .into_iter()
+            .zip(return_types)
+            .map(|(value, ty)| {
+                AbiWordValidator::from_return_mir_type(ty).map_or(value, |validator| {
+                    validator.cleanup_with_helpers(&mut builder, value, helpers)
+                })
+            })
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
         if layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
             let encoded = builder.abi_encode(layout.clone(), None, values);
             let offset = builder.slice_ptr(encoded);

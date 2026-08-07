@@ -197,6 +197,8 @@ bb36:
   swap2
   pop
   pop
+  iszero
+  iszero
   push 128
   mstore
   push 32
