@@ -1,6 +1,29 @@
 //! Modifier and base-constructor expansion.
 
 use super::*;
+use solar_data_structures::Never;
+use solar_sema::hir::Visit;
+use std::ops::ControlFlow;
+
+struct ModifierLocalIds<'hir> {
+    hir: &'hir hir::Hir<'hir>,
+    ids: FxHashSet<hir::VariableId>,
+}
+
+impl<'hir> hir::Visit<'hir> for ModifierLocalIds<'hir> {
+    type BreakValue = Never;
+
+    fn hir(&self) -> &'hir hir::Hir<'hir> {
+        self.hir
+    }
+
+    fn visit_nested_var(&mut self, id: hir::VariableId) -> ControlFlow<Self::BreakValue> {
+        if matches!(self.hir.variable(id).kind, hir::VarKind::Statement | hir::VarKind::TryCatch) {
+            self.ids.insert(id);
+        }
+        ControlFlow::Continue(())
+    }
+}
 
 impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
@@ -111,60 +134,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         result
     }
 
-    fn modifier_local_ids(&self, body: hir::Block<'_>) -> Vec<hir::VariableId> {
-        let mut ids = FxHashSet::default();
+    fn modifier_local_ids(&self, body: hir::Block<'gcx>) -> Vec<hir::VariableId> {
+        let mut visitor = ModifierLocalIds { hir: &self.gcx.hir, ids: FxHashSet::default() };
         for stmt in body.stmts {
-            Self::collect_modifier_stmt_ids(stmt, &mut ids);
+            let _ = visitor.visit_stmt(stmt);
         }
-        ids.into_iter().collect()
-    }
-
-    fn collect_modifier_stmt_ids(stmt: &hir::Stmt<'_>, ids: &mut FxHashSet<hir::VariableId>) {
-        match &stmt.kind {
-            hir::StmtKind::DeclSingle(id) => {
-                ids.insert(*id);
-            }
-            hir::StmtKind::DeclMulti(declarations, _) => {
-                ids.extend(declarations.iter().flatten().copied());
-            }
-            hir::StmtKind::Block(block)
-            | hir::StmtKind::UncheckedBlock(block)
-            | hir::StmtKind::AssemblyBlock(block)
-            | hir::StmtKind::Loop(block, _) => {
-                for stmt in block.stmts {
-                    Self::collect_modifier_stmt_ids(stmt, ids);
-                }
-            }
-            hir::StmtKind::If(_, then_stmt, else_stmt) => {
-                Self::collect_modifier_stmt_ids(then_stmt, ids);
-                if let Some(else_stmt) = else_stmt {
-                    Self::collect_modifier_stmt_ids(else_stmt, ids);
-                }
-            }
-            hir::StmtKind::Switch(switch) => {
-                for case in switch.cases {
-                    for stmt in case.body.stmts {
-                        Self::collect_modifier_stmt_ids(stmt, ids);
-                    }
-                }
-            }
-            hir::StmtKind::Try(try_stmt) => {
-                for clause in try_stmt.clauses {
-                    ids.extend(clause.args.iter().copied());
-                    for stmt in clause.block.stmts {
-                        Self::collect_modifier_stmt_ids(stmt, ids);
-                    }
-                }
-            }
-            hir::StmtKind::Emit(_)
-            | hir::StmtKind::Revert(_)
-            | hir::StmtKind::Return(_)
-            | hir::StmtKind::Break
-            | hir::StmtKind::Continue
-            | hir::StmtKind::Expr(_)
-            | hir::StmtKind::Placeholder
-            | hir::StmtKind::Err(_) => {}
-        }
+        visitor.ids.into_iter().collect()
     }
 
     pub(super) fn lower_base_constructor(
