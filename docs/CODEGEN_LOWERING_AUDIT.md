@@ -240,7 +240,9 @@ existing scalar and packed-storage MIR fixtures. It supports:
   its exact out-of-bounds panic payloads against Solc. The
   `array_slice_calldata_to_memory.sol` and
   `array_slice_calldata_to_storage.sol` vectors cover direct and internal-call
-  copies of a range slice into memory and storage.
+  copies of a range slice into memory and storage, while
+  `array_slice_calldata_external_call.sol` checks ABI forwarding of a range
+  slice to an external calldata parameter.
 * dynamic calldata arrays of multiword static elements, including storage
   copies and ABI encoding of nested fixed arrays;
 * calldata fixed-array indexing of structs without eagerly validating unused
