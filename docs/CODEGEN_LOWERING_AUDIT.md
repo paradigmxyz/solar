@@ -507,10 +507,14 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `array_copy_clear_storage_packed.sol` port Solc's stale-tail cleanup checks
    for full-word and packed dynamic arrays. `array_copy_cleanup_uint40.sol`
    extends the packed case across multiple storage words.
-   `storage_array_pop.sol`, `storage_bytes_pop.sol`,
+   `storage_array_pop.sol`, `storage_array_pop_empty.sol`,
+   `storage_bytes_pop.sol`, `storage_bytes_pop_long.sol`,
+   `storage_bytes_pop_copy_long.sol`,
    `storage_array_pop_packed_transition.sol`, and
    `storage_nested_array_pop.sol` add scalar, byte-array, packed-element, and
    nested-array `pop()` coverage, including packed-slot cleanup transitions.
+   The long byte-copy vector also keeps raw numeric `bytes.push` arguments
+   byte-aligned before storage materialization.
    `storage_memory_nested_bytes.sol`
    covers short and long storage-byte elements copied through a dynamic storage
    array into memory. The
