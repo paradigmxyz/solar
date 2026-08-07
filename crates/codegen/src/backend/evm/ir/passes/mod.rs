@@ -7,6 +7,7 @@
 mod block_cse;
 mod block_layout;
 mod cfg_simplify;
+mod coalesce_copies;
 pub(in crate::backend::evm) mod compact_pushes;
 mod constant_data;
 mod dce;
@@ -53,6 +54,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &peephole::Peephole,
     &share_reverts::ShareReverts,
     &compact_pushes::CompactPushes,
+    &coalesce_copies::CoalesceCopies,
     &constant_data::ConstantData,
     &dce::Dce,
     &cfg_simplify::CfgSimplify,
@@ -66,6 +68,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
 static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
     &peephole::Peephole,
+    &coalesce_copies::CoalesceCopies,
     &constant_data::ConstantData,
     &compact_pushes::CompactPushes,
     &peephole::Peephole,
