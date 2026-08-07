@@ -392,6 +392,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi_calldata_nested_dynamic_memory.sol` port Solc's direct nested-array
    copies, including truncated inner-array failures for dynamic and fixed
    nested elements.
+   `abi_calldata_static_dynamic_static.sol` ports nested fixed/dynamic array
+   arguments with multiword static elements through external self-calls, and
+   `abi_calldata_dynamic_static_dynamic.sol` covers narrow and full-width
+   dynamic/static/dynamic arrays plus Solc's exact via-IR bounds panic.
    `abi_calldata_v1_validation.sol` adds the ABI coder v1 short-array and
    oversized-offset failures, which both compilers reject with empty revert
    data under the default revert-string mode.
