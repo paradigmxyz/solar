@@ -105,6 +105,9 @@ The replacement is split into stateful, private components:
   `OutlineRevertsCx` owns the corresponding registry for shared revert paths.
   Both registries key helpers by their semantic shape and leave trivial `u256`
   operations inline.
+  The unconditional `Panic(uint256)` payload used by generated
+  function-pointer dispatchers also goes through the shared MIR builder
+  primitive, so lowering does not duplicate its scratch-memory layout.
 * `contract` only discovers functions, assigns function attributes and
   selectors, and assembles the module.
 
