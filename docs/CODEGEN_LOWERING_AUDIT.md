@@ -302,6 +302,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi_calldata_static_tuple_lazy_validation.sol` covers static calldata
    structs: field reads validate only the selected scalar, unused dirty fields
    remain lazy, and full-word tuples materialize before ABI encoding.
+   `abi_calldata_fixed_middle_short.sol` covers a truncated nested dynamic
+   array whose fixed-array head is wider than one word; indexed access rejects
+   the short payload while the valid Solc vectors still decode.
    `abi_calldata_fixed_dynamic.sol` covers a top-level fixed array of dynamic
    bytes, including exact unpadded tails and a missing nested tail.
    `abi_calldata_unused_aggregate_validation.sol` covers the other lazy
@@ -421,12 +424,17 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    storage-to-storage copies across scalar widths and nested packed fixed-array
    bases. `storage_memory_nested_bytes.sol` covers short and long storage-byte
    elements copied through a dynamic storage array into memory. The
+   `storage_struct_dynamic_copy.sol` vector covers storage structs and dynamic
+   storage-array elements with `bytes` members, including indexed read/write
+   isolation after an aggregate copy.
    `bytes_memory_storage.sol` vector checks memory-to-storage bytes writes with
    dirty unused memory bytes, matching Solc's truncation.
    `storage_delete_packed_array.sol` checks that deleting packed fixed-array
    storage references preserves the runtime element offset while clearing.
    `storage_delete_packed_struct.sol` extends that check through packed struct
    fields in dynamic arrays and mappings, including aggregate assignment.
+   `storage_string_bytes_conversion.sol` covers a constructor string copied to
+   storage and then converted to `bytes` before reading its length.
 5. Keep expanding runtime and differential coverage for aggregate allocation
    shapes and constructor/modifier edges. The UI snapshots are now in sync
    with the rewrite, and the full `cargo tq ui` suite passes. ERC-7201
