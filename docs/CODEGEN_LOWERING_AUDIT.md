@@ -393,6 +393,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    before the body runs. `modifier_named_arguments.sol` covers named modifier
    argument binding. `modifier_multiple_invocations.sol` checks that each
    modifier invocation gets an independent local-variable scope.
+   `modifier_init_return.sol` covers a conditional modifier that skips the
+   body while preserving the zero-initialized fixed-array return object.
    `modifier_return_parameter_complex.sol` covers return bindings forwarded
    through several modifiers, and `modifier_stacked_return.sol` covers nested
    modifier postludes after a function-body return.
