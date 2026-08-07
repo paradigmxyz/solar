@@ -864,6 +864,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 
         self.builder.switch_to_block(body);
         let value = self.builder.memory_object_load_element(object, source_layout, index);
+        let value = if self.types.memory_layout(source_element).is_some() {
+            self.materialize_array_element(object, source_layout, index, source_element, value)?
+        } else {
+            value
+        };
         let access = self.storage_array_element_access(slot, index, element, true)?;
         if self.types.memory_layout(element).is_some() {
             self.store_storage_object_with_source(
