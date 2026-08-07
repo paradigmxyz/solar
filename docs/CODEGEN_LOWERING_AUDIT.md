@@ -459,6 +459,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    two independently returned storage references and an aggregate copy across
    that boundary. `storage_boundary_struct_array_multislot.sol` covers the
    same returned-reference path for structs spanning multiple storage slots.
+   `storage_boundary_struct_array_packed.sol` covers packed four-field structs
+   across the same boundary, including copying, deletion, and canary
+   preservation.
    `storage_boundary_array_partial_assignment.sol` covers short array-literal
    assignment into a fixed storage reference.
    `storage_boundary_array_packing_not_overlapping_variable.sol` checks packed
