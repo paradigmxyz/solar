@@ -1,0 +1,41 @@
+//@compile-flags: -Zmir-pipeline=inline-tiny-leaves
+//@filecheck:
+@module InlineTinyLeaves
+
+// CHECK-LABEL: {{^[ +].*}}fn @tiny_caller{{[( ]}}
+// CHECK: - {{.*}}internal_call @tiny
+// CHECK: + {{v[0-9]+}} = add arg0, 1
+// CHECK: + {{v[0-9]+}} = sub {{v[0-9]+}}, 4
+fn @tiny_caller(arg0: u256) -> u256 {
+  bb0:
+    v1 = internal_call @tiny, 1, arg0
+    ret v1
+}
+
+fn @tiny(arg0: u256) -> u256 {
+  bb0:
+    v1 = add arg0, 1
+    v2 = xor v1, 2
+    v3 = mul v2, 3
+    v4 = sub v3, 4
+    ret v4
+}
+
+// Five-instruction leaves stay behind the measured profitability boundary.
+// CHECK-LABEL: {{^[ +].*}}fn @large_caller{{[( ]}}
+// CHECK: {{.*}}internal_call @large
+fn @large_caller(arg0: u256) -> u256 {
+  bb0:
+    v1 = internal_call @large, 1, arg0
+    ret v1
+}
+
+fn @large(arg0: u256) -> u256 {
+  bb0:
+    v1 = add arg0, 1
+    v2 = xor v1, 2
+    v3 = mul v2, 3
+    v4 = sub v3, 4
+    v5 = and v4, 5
+    ret v5
+}
