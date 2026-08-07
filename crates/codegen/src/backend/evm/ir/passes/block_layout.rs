@@ -238,6 +238,7 @@ fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
         match &inst.value {
             Some(PushValue::Immediate(value)) => push_len(gcx.sess.opts.evm_version, *value),
             Some(PushValue::Block(_)) => 3,
+            Some(PushValue::Data(_)) => 4,
             _ => 1,
         }
     } else {

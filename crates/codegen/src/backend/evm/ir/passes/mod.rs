@@ -7,6 +7,7 @@
 mod block_layout;
 mod cfg_simplify;
 pub(in crate::backend::evm) mod compact_pushes;
+mod constant_data;
 mod dce;
 mod outline;
 mod peephole;
@@ -50,6 +51,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &peephole::Peephole,
     &share_reverts::ShareReverts,
     &compact_pushes::CompactPushes,
+    &constant_data::ConstantData,
     &dce::Dce,
     &cfg_simplify::CfgSimplify,
     &outline::Outline,
@@ -62,6 +64,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
 static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
     &peephole::Peephole,
+    &constant_data::ConstantData,
     &compact_pushes::CompactPushes,
     &peephole::Peephole,
     &cfg_simplify::CfgSimplify,

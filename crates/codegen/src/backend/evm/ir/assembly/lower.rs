@@ -82,6 +82,15 @@ fn lower_evm_ir_once(
 ) -> Program {
     allocate_referenced_labels(assembler, module, labels);
 
+    let mut referenced_data = DenseBitSet::new_empty(module.data.len());
+    for block in &module.blocks {
+        for inst in &block.instructions {
+            if let Some(ir::PushValue::Data(data)) = inst.value {
+                referenced_data.insert(data);
+            }
+        }
+    }
+
     let mut program = Program::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         let original = block.label as usize;
@@ -105,6 +114,17 @@ fn lower_evm_ir_once(
                 indexed_jump_lowerings[block_id],
             );
         }
+    }
+    if !referenced_data.is_empty()
+        && let Some(block) = module.blocks.last()
+        && let Some(terminator) = &block.terminator
+        && matches!(&terminator.kind, ir::TerminatorKind::Op(opcode) if *opcode == op::STOP)
+    {
+        program.push_op(op::STOP);
+    }
+    program.data.clone_from(&module.data);
+    for data in referenced_data.iter() {
+        program.append_data(data);
     }
     program
 }
@@ -153,12 +173,13 @@ fn lower_instruction(
         let type_size = inst.immutable_type_size().expect("validated immutable width");
         assembler.immutable_push_inst(id, type_size)
     } else if inst.is_encoded_push() {
-        if let Some(value) = inst.pushed_value() {
-            assembler.push_inst(value)
-        } else if let Some(block) = inst.pushed_block() {
-            AsmInst::push_label(label_for_block(assembler, module, block, labels))
-        } else {
-            unreachable!("push must have one immediate or block operand")
+        match &inst.value {
+            Some(ir::PushValue::Immediate(value)) => assembler.push_inst(*value),
+            Some(ir::PushValue::Block(block)) => {
+                AsmInst::push_label(label_for_block(assembler, module, *block, labels))
+            }
+            Some(ir::PushValue::Data(data)) => AsmInst::push_data(*data),
+            _ => unreachable!("push must have one immediate, block, or data operand"),
         }
     } else {
         AsmInst::op(inst.opcode)
