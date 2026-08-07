@@ -3601,8 +3601,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     // arbitrary slices still cannot validate offsets relative to the tuple.
                     let validate_bounds = matches!(
                         receiver_ty.peel_refs().kind,
-                        TyKind::DynArray(_) | TyKind::Array(_, _)
+                        TyKind::DynArray(_) | TyKind::Slice(_) | TyKind::Array(_, _)
                     ) && self.types.abi_type(element)?.is_dynamic();
+                    let validate_bounds = validate_bounds
+                        && !matches!(receiver.peel_parens().kind, ExprKind::Slice(..));
                     self.materialize_calldata_index_value_at(
                         element,
                         head,

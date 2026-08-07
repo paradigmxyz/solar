@@ -353,14 +353,15 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         validate_bounds: bool,
     ) -> Option<ValueId> {
         let base_ty = ty.peel_refs();
-        if let TyKind::Array(_, length) = base_ty.kind
+        if let TyKind::Array(element, length) = base_ty.kind
             && self.types.abi_type(base_ty)?.is_dynamic()
         {
             let value_pos =
                 self.calldata_value_position(base_ty, head, tuple_base, validate_bounds)?;
             let length = u64::try_from(length).ok()?;
             if validate_bounds {
-                let size = self.builder.imm_u64(self.types.abi_type(base_ty)?.head_size());
+                let element_head_size = self.types.abi_type(element)?.head_size();
+                let size = self.builder.imm_u64(element_head_size.checked_mul(length)?);
                 self.check_calldata_range(value_pos, size);
             }
             let length = self.builder.imm_u64(length);
