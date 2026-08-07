@@ -474,6 +474,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    three-dimensional dynamic memory allocation and assignment coverage, and
    `memory_aggregate_allocation.sol` covers zero-initialized arrays of fixed
    arrays and structs with nested dynamic byte objects.
+   `memory_multiple_dynamic_arrays.sol` checks that separate nested dynamic
+   allocations stay independent while their untouched elements remain zeroed.
    `nested_struct_memory_alias.sol` checks that nested memory aggregate
    assignment preserves Solidity's reference aliasing.
    `storage_array_assignment_cleanup.sol` checks the raw storage tail after a
