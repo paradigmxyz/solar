@@ -1,0 +1,50 @@
+- // === ROOT/tests/ui/codegen/evm-ir/block-cse/regenerate.evmir (before block-cse) ===
++ // === ROOT/tests/ui/codegen/evm-ir/block-cse/regenerate.evmir (after block-cse) ===
+  @module module
+  bb0:
+    push 2
+    push 3
+    add
+-   push 3
+-   push 2
++   dup1
+    add
+-   add
+    stop
+  bb1:
+    push 2
+    push 3
+    sub
+    push 3
+    push 2
+    sub
+    add
+    stop
+  bb2:
+    push 32
+    mload
+-   push 32
+-   mload
++   dup1
+    add
+    stop
+  bb3:
+    push 32
+    mload
+    push 1
+    push 32
+    mstore
+    push 32
+    mload
+    add
+    stop
+  bb4:
+    push 5
+-   push 5
++   dup1
+    add
+    push 0
+    push 0
+    mstore
+    stop
+  

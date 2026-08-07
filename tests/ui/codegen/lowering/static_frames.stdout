@@ -92,18 +92,10 @@ bb6:
   gt
   push bb70
   jumpi
+  push bb20
   push 448
   mload
-  push 544
-  mstore
   push 384
-  mload
-  push 576
-  mstore
-  push bb20
-  push 576
-  mload
-  push 544
   mload
   xor
   dup1
@@ -223,18 +215,15 @@ bb35:
   gt
   push bb70
   jumpi
+  push bb37
   push 160
   mload
   push 160
   add
   mload
-  push 384
-  mstore
-  push bb37
   jump bb46
 bb46:
-  push 384
-  mload
+  dup1
   push 1
   shl
   dup1
@@ -242,8 +231,7 @@ bb46:
   mstore
   push 1
   shr
-  push 384
-  mload
+  swap1
   eq
   iszero
   push bb70
@@ -903,14 +891,12 @@ bb83:
   gt
   push bb70
   jumpi
+  push bb44
   push 160
   mload
   push 192
   add
   mload
-  push 384
-  mstore
-  push bb44
   jump bb46
 bb84:
   push 256

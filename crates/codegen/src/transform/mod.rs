@@ -8,6 +8,7 @@ pub(crate) mod cse;
 pub(crate) mod dce;
 pub(crate) mod evm_inst_schedule;
 pub(crate) mod frame_promotion;
+pub(crate) mod function_compaction;
 pub(crate) mod gvn;
 pub(crate) mod indvar_simplify;
 pub(crate) mod inline;

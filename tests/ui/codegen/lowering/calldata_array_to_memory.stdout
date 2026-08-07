@@ -78,7 +78,7 @@ bb8:
   push bb6
   jumpi
   push 4
-  push 4
+  dup1
   calldataload
   add
   calldataload
@@ -244,7 +244,7 @@ bb21:
   push 128
   mstore
   push 4
-  push 4
+  dup1
   calldataload
   add
   calldataload
@@ -341,7 +341,7 @@ bb26:
   push 192
   mstore
   push 36
-  push 36
+  dup1
   calldataload
   add
   push 224
