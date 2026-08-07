@@ -61,4 +61,21 @@ contract RequireTest {
         vm.expectRevert();
         req.divideChecked(10, 0);
     }
+
+    // ========== requireChain tests ==========
+
+    function test_RequireChainSuccess() public view {
+        assert(req.requireChain(12, 3) == 15);
+        assert(req.requireChain(0, 1) == 1);
+    }
+
+    function test_RequireChainConditionReverts() public {
+        vm.expectRevert();
+        req.requireChain(11, 3);
+    }
+
+    function test_RequireChainModuloByZeroReverts() public {
+        vm.expectRevert();
+        req.requireChain(12, 0);
+    }
 }
