@@ -891,4 +891,50 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
         self.gcx.resolve_virtual_function(self.contract_id, function)
     }
+    pub(super) fn is_low_level_call_expr(&self, expr: &hir::Expr<'_>) -> bool {
+        let ExprKind::Call(callee, ..) = &expr.kind else { return false };
+        matches!(
+            self.gcx.resolved_builtin(callee),
+            Some(Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall)
+        ) && matches!(callee.kind, ExprKind::Member(..))
+    }
+
+    pub(super) fn lower_low_level_call_values(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        count: usize,
+        first_is_omitted: bool,
+    ) -> Option<Vec<ValueId>> {
+        let ExprKind::Call(callee, args, call_opts) = &expr.kind else { return None };
+        let builtin = self.gcx.resolved_builtin(callee)?;
+        if !matches!(
+            builtin,
+            Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall
+        ) {
+            return None;
+        }
+        let ExprKind::Member(receiver, _) = callee.kind else { return None };
+        let capture_returndata = count > 1 || first_is_omitted;
+        let (success, returndata) = self.lower_address_call_result(
+            callee.span,
+            receiver,
+            builtin,
+            *args,
+            *call_opts,
+            capture_returndata,
+        )?;
+        if count <= 1 && !first_is_omitted {
+            return Some(vec![success]);
+        }
+        if count != 2 {
+            let Some(returndata) = returndata else {
+                return report_unsupported(self.gcx, expr.span, "low-level call return values");
+            };
+            return Some(vec![returndata]);
+        }
+        let Some(returndata) = returndata else {
+            return report_unsupported(self.gcx, expr.span, "low-level call return values");
+        };
+        Some(vec![success, returndata])
+    }
 }

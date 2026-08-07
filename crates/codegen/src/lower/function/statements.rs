@@ -448,4 +448,38 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
         Some(())
     }
+    pub(super) fn lower_word_value(
+        &mut self,
+        ty: Ty<'gcx>,
+        expr: &hir::Expr<'_>,
+        value: ValueId,
+    ) -> ValueId {
+        let expr = expr.peel_parens();
+        if let TyKind::Fn(function) = ty.peel_refs().kind
+            && function.is_external()
+        {
+            let shift = self.builder.imm_u64(64);
+            return self.builder.shl(shift, value);
+        }
+        if !matches!(
+            ty.peel_refs().kind,
+            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
+        ) {
+            return value;
+        }
+        if let ExprKind::Lit(lit) = &expr.kind
+            && let LitKind::Str(_, bytes, _) = &lit.kind
+        {
+            let bytes = bytes.as_byte_str();
+            return self.builder.imm_u256(U256::from_be_slice(bytes) << ((32 - bytes.len()) * 8));
+        }
+        if matches!(
+            self.builder.func().value_ty(value),
+            Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+        ) {
+            let zero = self.builder.imm_u64(0);
+            return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
+        }
+        value
+    }
 }
