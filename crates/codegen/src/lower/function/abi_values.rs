@@ -547,6 +547,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let Some((length, fixed_bytes)) = self.packed_static_shape(ty) else {
                 return report_unsupported(self.gcx, expr.span, "abi.encodePacked argument");
             };
+            let value = self.normalize_abi_scalar(value, ty);
             let length_value = self.builder.imm_u64(length);
             total = self.checked_add(total, length_value);
             pieces.push(PackedPiece::Static { value, length, fixed_bytes });

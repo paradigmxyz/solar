@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_packed_calldata_bytes.sol:P (runtime) ===
 @module runtime
 bb0:
-  push 608
+  push 640
   push 64
   mstore
   callvalue
@@ -246,28 +246,28 @@ bb19:
   push 36
   calldataload
   dup1
-  push 416
+  push 448
   mstore
-  push 544
+  push 576
   mstore
   push bb21
   push 0
   not
   push 96
   shr
-  push 544
+  push 576
   mload
   and
-  push 576
+  push 608
   mstore
   jump
 bb21:
-  push 576
+  push 608
   mload
   dup1
-  push 448
+  push 480
   mstore
-  push 416
+  push 448
   mload
   sub
   push bb5
@@ -280,13 +280,13 @@ bb21:
   push 4
   calldataload
   dup1
-  push 320
+  push 288
   mstore
   push 4
   dup2
   add
   dup1
-  push 224
+  push 320
   mstore
   push 4
   dup2
@@ -301,13 +301,13 @@ bb21:
   push bb5
   jumpi
   push 36
-  push 320
+  push 288
   mload
   add
   dup1
-  push 256
-  mstore
   push 224
+  mstore
+  push 320
   mload
   dup2
   lt
@@ -319,17 +319,17 @@ bb21:
   pop
   push bb5
   jumpi
-  push 224
+  push 320
   mload
   calldataload
   dup1
-  push 288
+  push 256
   mstore
   dup1
-  push 256
+  push 224
   mload
   add
-  push 256
+  push 224
   mload
   dup2
   lt
@@ -342,12 +342,12 @@ bb21:
   pop
   push bb5
   jumpi
-  push 288
-  mload
   push 256
+  mload
+  push 224
   mload
   add
-  push 256
+  push 224
   mload
   dup2
   lt
@@ -359,36 +359,48 @@ bb21:
   push bb5
   jumpi
   push 3
-  push 288
+  push 256
   mload
   add
   dup1
-  push 320
+  push 288
   mstore
   push 3
   gt
   push bb35
   jumpi
+  push 0
+  not
+  push 96
+  shr
+  push 36
+  calldataload
+  and
+  dup1
+  push 320
+  mstore
   push 23
-  push 288
+  push 256
   mload
   add
   dup1
-  push 224
+  push 384
   mstore
-  push 320
+  push 288
   mload
   gt
+  swap1
+  pop
   push bb35
   jumpi
   push 54
-  push 288
+  push 256
   mload
   add
   dup1
   push 352
   mstore
-  push 224
+  push 384
   mload
   gt
   push bb35
@@ -411,7 +423,7 @@ bb21:
   push 5
   shl
   dup1
-  push 384
+  push 416
   mstore
   dup1
   push 5
@@ -427,15 +439,15 @@ bb21:
   push 64
   mload
   dup1
-  push 416
+  push 448
   mstore
-  push 384
+  push 416
   mload
   dup2
   add
   push 64
   mstore
-  push 224
+  push 384
   mload
   dup2
   mstore
@@ -452,21 +464,21 @@ bb21:
   add
   push 3
   add
-  push 288
-  mload
   push 256
+  mload
+  push 224
   mload
   dup3
   calldatacopy
   pop
-  push 36
-  calldataload
+  push 320
+  mload
   push 96
   shl
   push 32
   dup3
   add
-  push 320
+  push 288
   mload
   add
   jump bb36

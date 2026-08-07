@@ -15,6 +15,7 @@
 //@ run-call-fail: ExternalReturnValidation::dirtyEnumStructExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 //@ run-call-fail: ExternalReturnValidation::dirtyEnumPacked() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 //@ run-call-fail: ExternalReturnValidation::dirtyEnumPackedArray() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@ run-call: ExternalReturnValidation::dirtyBoolPacked() => 0x01
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_static_array.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_dynamic_array.sol
 // ported-from: test/libsolidity/semanticTests/reverts/invalid_enum_as_external_ret.sol
@@ -202,5 +203,13 @@ contract ExternalReturnValidation {
             mstore(values, 2)
         }
         return abi.encodePacked(values);
+    }
+
+    function dirtyBoolPacked() external pure returns (bytes memory) {
+        bool value;
+        assembly {
+            value := 2
+        }
+        return abi.encodePacked(value);
     }
 }
