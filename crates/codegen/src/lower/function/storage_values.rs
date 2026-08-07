@@ -72,8 +72,24 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 self.builder.sstore(base_slot, new_length);
                 Some(access)
             }
+            ExprKind::Call(callee, ..) if self.call_returns_storage_ref(callee) => {
+                let slot = self.lower_expr(expr)?;
+                Some(StorageAccess {
+                    slot,
+                    location: StorageLocation::word(U256::ZERO),
+                    offset: None,
+                })
+            }
             _ => None,
         }
+    }
+
+    fn call_returns_storage_ref(&self, callee: &hir::Expr<'_>) -> bool {
+        self.gcx.resolved_function(callee).is_some_and(|function_id| {
+            self.gcx.hir.function(function_id).returns.first().is_some_and(|&ret| {
+                self.gcx.type_of_item(ret.into()).is_ref_at(DataLocation::Storage)
+            })
+        })
     }
 
     fn storage_access_ternary(

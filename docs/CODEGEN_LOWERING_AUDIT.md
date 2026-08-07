@@ -449,6 +449,13 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `storage_nested_element_copy.sol` covers selected nested storage-array
    elements copied into dynamic and fixed-shaped storage targets, including
    empty nested objects from a zero-initialized memory array.
+   `storage_packed_array_copy.sol` checks packed fixed-array copies across
+   different element widths, and `storage_boundary_array_assignment.sol`
+   checks fixed multi-slot storage references returned from Yul and rebound at
+   a negative slot boundary. `storage_boundary_array_copy.sol` extends this to
+   two independently returned storage references and an aggregate copy across
+   that boundary. `storage_boundary_struct_array_multislot.sol` covers the
+   same returned-reference path for structs spanning multiple storage slots.
    `storage_string_bytes_conversion.sol` covers a constructor string copied to
    storage and then converted to `bytes` before reading its length.
 5. Keep expanding runtime and differential coverage for aggregate allocation

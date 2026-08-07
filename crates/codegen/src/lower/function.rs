@@ -385,8 +385,20 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             self.builder
                 .add_return(types::TypeLowerer::mir_return_type(self.gcx.type_of_item(ret.into())));
             let ty = self.gcx.type_of_item(ret.into());
-            let value = self.default_binding_value(ty);
-            self.values.insert(ret, value);
+            if ty.is_ref_at(DataLocation::Storage) {
+                let zero = self.builder.imm_u256(U256::ZERO);
+                self.storage_refs.insert(
+                    ret,
+                    StorageAccess {
+                        slot: zero,
+                        location: StorageLocation::word(U256::ZERO),
+                        offset: None,
+                    },
+                );
+            } else {
+                let value = self.default_binding_value(ty);
+                self.values.insert(ret, value);
+            }
         }
         self.returns.extend_from_slice(function.returns);
     }
@@ -486,9 +498,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         } else {
             let mut values = Vec::with_capacity(returns.len());
             for &id in returns {
-                let value = self.values.get(&id).copied()?;
+                let ty = self.gcx.type_of_item(id.into());
+                let value = if ty.is_ref_at(DataLocation::Storage) {
+                    self.storage_refs.get(&id).copied()?.slot
+                } else {
+                    self.values.get(&id).copied()?
+                };
                 values.push(self.materialize_memory_argument(
-                    self.gcx.type_of_item(id.into()),
+                    ty,
                     value,
                     self.gcx.hir.variable(id).span,
                 )?);
@@ -668,12 +685,21 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                         }
                         let return_ids = self.returns.clone();
                         for (id, value) in return_ids.into_iter().zip(values) {
-                            let value = self.materialize_memory_argument(
-                                self.gcx.type_of_item(id.into()),
-                                value,
-                                stmt.span,
-                            )?;
-                            self.values.insert(id, value);
+                            let ty = self.gcx.type_of_item(id.into());
+                            if ty.is_ref_at(DataLocation::Storage) {
+                                let access =
+                                    self.storage_refs.get(&id).copied().unwrap_or(StorageAccess {
+                                        slot: value,
+                                        location: StorageLocation::word(U256::ZERO),
+                                        offset: None,
+                                    });
+                                self.storage_refs
+                                    .insert(id, StorageAccess { slot: value, ..access });
+                            } else {
+                                let value =
+                                    self.materialize_memory_argument(ty, value, stmt.span)?;
+                                self.values.insert(id, value);
+                            }
                         }
                     }
                     self.builder.jump(target);
@@ -689,11 +715,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                             .into_iter()
                             .zip(values)
                             .map(|(id, value)| {
-                                self.materialize_memory_argument(
-                                    self.gcx.type_of_item(id.into()),
-                                    value,
-                                    stmt.span,
-                                )
+                                let ty = self.gcx.type_of_item(id.into());
+                                if ty.is_ref_at(DataLocation::Storage) {
+                                    Some(value)
+                                } else {
+                                    self.materialize_memory_argument(ty, value, stmt.span)
+                                }
                             })
                             .collect::<Option<Vec<_>>>()?;
                         self.builder.ret(values);
