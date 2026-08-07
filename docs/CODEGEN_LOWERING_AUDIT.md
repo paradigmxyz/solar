@@ -364,7 +364,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    forwarding through a diamond with a shared base. `modifier_return_reference.sol`
    covers modifier arguments that assign the function's named return variables
    before the body runs. `modifier_named_arguments.sol` covers named modifier
-   argument binding. `constructor_fixed_array_forwarding.sol` covers
+   argument binding. `modifier_multiple_invocations.sol` checks that each
+   modifier invocation gets an independent local-variable scope.
+   `constructor_fixed_array_forwarding.sol` covers
    fixed-array constructor decoding and the memory-to-storage copy.
    `constructor_external_arguments.sol` covers direct deployment decoding of
    packed `bytes3` and boolean constructor parameters.
