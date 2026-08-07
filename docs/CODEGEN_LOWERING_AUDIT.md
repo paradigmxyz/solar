@@ -645,6 +645,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `storage_array_pop_packed_transition.sol`, and
    `storage_nested_array_pop.sol` add scalar, byte-array, packed-element, and
    nested-array `pop()` coverage, including packed-slot cleanup transitions.
+   `storage_array_index_boundary.sol` checks dynamic storage-array length
+   changes, zeroed new elements, and exact out-of-bounds panics.
    The long byte-copy vector also keeps raw numeric `bytes.push` arguments
    byte-aligned before storage materialization.
    `storage_memory_nested_bytes.sol`
