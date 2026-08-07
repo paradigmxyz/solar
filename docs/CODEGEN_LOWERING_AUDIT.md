@@ -478,6 +478,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `constructor_virtual_argument_initialization_viair.sol` checks that a base
    constructor argument runs before that base's state initializer, matching
    the via-IR initialization order.
+   `constructor_multiple_base_argument_initialization_viair.sol` extends that
+   check to two independent bases whose argument expressions mutate the other
+   base's state.
    `modifier_return_in_loop.sol` covers an explicit modifier return that
    exits after the preceding placeholder expansions.
    `modifier_return_parameter_complex.sol` covers return bindings forwarded
