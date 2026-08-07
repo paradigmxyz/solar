@@ -372,6 +372,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    checks mapping-backed internal pointer state transitions.
    `internal_function_pointer_multislot.sol` covers internal dispatch with
    function-pointer parameters occupying multiple argument slots.
+   `internal_function_pointer_library.sol` covers a library reducer receiving
+   an internal callback and a memory-array argument.
    `external_function_pointer_calldata_array.sol` adds a Solc-checked calldata
    array decode and re-encoding vector. `abi_function_pointer_validation.sol`
    ports Solc's canonical 24-byte pointer checks: unused calldata structs stay
