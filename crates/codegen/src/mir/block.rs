@@ -170,6 +170,35 @@ impl Terminator {
         }
         out
     }
+
+    /// Visits every value operand mutably.
+    pub(crate) fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
+        match self {
+            Self::Jump(_) | Self::Stop | Self::Invalid => {}
+            Self::Branch { condition, .. } => f(condition),
+            Self::Switch { value, cases, .. } => {
+                f(value);
+                for (case_value, _) in cases {
+                    f(case_value);
+                }
+            }
+            Self::Return { values } => {
+                for value in values {
+                    f(value);
+                }
+            }
+            Self::Revert { offset, size } | Self::ReturnData { offset, size } => {
+                f(offset);
+                f(size);
+            }
+            Self::SelfDestruct { recipient } => f(recipient),
+            Self::TailCall { args, .. } => {
+                for arg in args {
+                    f(arg);
+                }
+            }
+        }
+    }
 }
 
 impl fmt::Display for Terminator {

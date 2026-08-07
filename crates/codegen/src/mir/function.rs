@@ -256,18 +256,38 @@ impl Function {
     /// required for carrying an argument through stack layouts without first
     /// materializing a memory home.
     pub(crate) fn canonicalize_argument_uses(&mut self) -> usize {
-        let uses = self.arg_uses();
-        let mut replacements = FxHashMap::default();
-        for values in uses {
-            let Some((&canonical, rest)) = values.split_first() else { continue };
-            replacements.extend(rest.iter().copied().map(|value| (value, canonical)));
-        }
-        if replacements.is_empty() {
+        if self.arg_types.is_empty() {
             return 0;
         }
 
-        let replaced = self.live_values().filter(|value| replacements.contains_key(value)).count();
-        self.replace_uses(&replacements);
+        let mut canonical =
+            IndexVec::<ArgIdx, Option<ValueId>>::with_capacity(self.arg_types.len());
+        for _ in self.arg_types.indices() {
+            canonical.push(None);
+        }
+
+        let values = &self.values;
+        let instructions = &mut self.instructions;
+        let mut replaced = 0;
+        let mut canonicalize = |value: &mut ValueId| {
+            let Value::Arg(index) = values[*value] else { return };
+            if let Some(existing) = canonical[index] {
+                if existing != *value {
+                    *value = existing;
+                    replaced += 1;
+                }
+            } else {
+                canonical[index] = Some(*value);
+            }
+        };
+        for block in &mut self.blocks {
+            for &inst_id in &block.instructions {
+                instructions[inst_id].kind.visit_operands_mut(&mut canonicalize);
+            }
+            if let Some(term) = &mut block.terminator {
+                term.visit_operands_mut(&mut canonicalize);
+            }
+        }
         replaced
     }
 
@@ -595,7 +615,7 @@ impl fmt::Display for Function {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::FunctionBuilder;
+    use crate::mir::{FunctionBuilder, Terminator};
 
     #[test]
     fn live_values_include_terminator_operands() {
@@ -638,6 +658,28 @@ mod tests {
         assert_eq!(func.canonicalize_immediate_uses(), 1);
         let Value::Inst(inst) = func.value(result) else { panic!("expected instruction result") };
         assert_eq!(func.inst(*inst).kind.operands().as_slice(), [first, first]);
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn canonicalizes_argument_instruction_and_terminator_uses() {
+        let mut func = Function::new(Ident::DUMMY);
+        let (first, second, result) = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let first = builder.add_param(MirType::uint256());
+            let second = builder.alloc_value(Value::Arg(ArgIdx::new(0)));
+            let result = builder.add(first, second);
+            builder.ret([second, result]);
+            (first, second, result)
+        };
+
+        assert_eq!(func.canonicalize_argument_uses(), 2);
+        let Value::Inst(inst) = func.value(result) else { panic!("expected instruction result") };
+        assert_eq!(func.inst(*inst).kind.operands().as_slice(), [first, first]);
+        let Some(Terminator::Return { values }) = &func.blocks[BlockId::ENTRY].terminator else {
+            panic!("expected return terminator");
+        };
+        assert_eq!(values.as_slice(), [first, result]);
         assert_ne!(first, second);
     }
 }
