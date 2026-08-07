@@ -175,53 +175,96 @@ fn @setNestedSecond(arg0: address, arg1: memorybytes, arg2: u256) [abi_args=lazy
 
 fn @setSkey(arg0: memorybytes) [abi_args=lazy, abi_params=[bytes], abi_returns=[]] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
-    v1 = memory_object_data memorybytes, arg0
-    v2 = make_memory_slice v1, v0
-    v3 = lt v0, 32
-    jumpi v3, bb1, bb2
+    v0 = sload 3 !metadata(storage=slot(3))
+    v1 = and v0, 1
+    v2 = eq v1, 1
+    v3 = and v0, 254
+    v4 = div v3, 2
+    v5 = div v0, 2
+    v6 = select v2, v5, v4
+    v7 = lt v6, 32
+    v8 = eq v2, v7
+    jumpi v8, bb1, bb2
   bb1:
-    v4 = memory_slice_load_word memory, v2, 0
-    v5 = sub 32, v0
-    v6 = mul v5, 8
-    v7 = shl v6, 1
-    v8 = sub v7, 1
-    v9 = not v8
-    v10 = and v4, v9
-    v11 = mul v0, 2
-    v12 = or v10, v11
-    sstore 3, v12 !metadata(storage=slot(3))
-    jump bb3
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 34 !metadata(memory=scratch)
+    revert 0, 36
   bb2:
-    v13 = shl 1, v0
-    v14 = or v13, 1
-    sstore 3, v14 !metadata(storage=slot(3))
-    v15 = add v0, 31
-    v16 = lt v15, v0
-    jumpi v16, bb4, bb5
+    v9 = memory_object_len memorybytes, arg0
+    v10 = memory_object_data memorybytes, arg0
+    v11 = make_memory_slice v10, v9
+    v12 = add v6, 31
+    v13 = lt v12, v6
+    jumpi v13, bb3, bb4
   bb3:
-    stop
-  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
+  bb4:
+    v14 = div v12, 32
+    v15 = add v9, 31
+    v16 = lt v15, v9
+    jumpi v16, bb5, bb6
   bb5:
-    v17 = div v15, 32
-    v18 = storage_array_data_slot 3
-    jump bb6
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb6:
-    v19 = phi [bb5: 0], [bb7: v24]
-    v20 = lt v19, v17
-    jumpi v20, bb7, bb8
+    v17 = div v15, 32
+    v18 = lt v9, 32
+    v19 = select v18, 0, v17
+    v20 = gt v6, v9
+    v21 = and v2, v20
+    jumpi v21, bb7, bb8
   bb7:
-    v21 = mul v19, 32
-    v22 = memory_slice_load_word memory, v2, v21
-    v23 = add v18, v19
-    sstore v23, v22 !metadata(storage=symbolic(v23))
-    v24 = add v19, 1
-    jump bb6
+    v22 = storage_array_data_slot 3
+    jump bb9
   bb8:
-    jump bb3
+    jumpi v18, bb12, bb13
+  bb9:
+    v23 = phi [bb7: v19], [bb10: v26]
+    v24 = lt v23, v14
+    jumpi v24, bb10, bb11
+  bb10:
+    v25 = add v22, v23
+    sstore v25, 0 !metadata(storage=symbolic(v25))
+    v26 = add v23, 1
+    jump bb9
+  bb11:
+    jump bb8
+  bb12:
+    v27 = memory_slice_load_word memory, v11, 0
+    v28 = sub 32, v9
+    v29 = mul v28, 8
+    v30 = shl v29, 1
+    v31 = sub v30, 1
+    v32 = not v31
+    v33 = and v27, v32
+    v34 = mul v9, 2
+    v35 = or v33, v34
+    sstore 3, v35 !metadata(storage=slot(3))
+    jump bb14
+  bb13:
+    v36 = shl 1, v9
+    v37 = or v36, 1
+    sstore 3, v37 !metadata(storage=slot(3))
+    v38 = storage_array_data_slot 3
+    jump bb15
+  bb14:
+    stop
+  bb15:
+    v39 = phi [bb13: 0], [bb16: v44]
+    v40 = lt v39, v17
+    jumpi v40, bb16, bb17
+  bb16:
+    v41 = mul v39, 32
+    v42 = memory_slice_load_word memory, v11, v41
+    v43 = add v38, v39
+    sstore v43, v42 !metadata(storage=symbolic(v43))
+    v44 = add v39, 1
+    jump bb15
+  bb17:
+    jump bb14
 }
 
 fn @setViaStorageKey(arg0: u256) [abi_args=lazy, abi_params=[u256], abi_returns=[]] {

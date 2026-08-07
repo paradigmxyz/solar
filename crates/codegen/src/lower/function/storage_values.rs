@@ -589,21 +589,9 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     }
 
     pub(super) fn load_storage_bytes(&mut self, slot: ValueId) -> Option<ValueId> {
-        let header = self.builder.sload(slot);
+        let (header, is_long, length) = self.load_storage_bytes_header(slot);
         let one = self.builder.imm_u64(1);
-        let flag = self.builder.and(header, one);
-        let is_long = self.builder.eq(flag, one);
-        let two = self.builder.imm_u64(2);
         let short_mask = self.builder.imm_u256(U256::MAX << 8);
-        let short_tag = self.builder.imm_u64(0xfe);
-        let short_len_tag = self.builder.and(header, short_tag);
-        let short_len = self.builder.div(short_len_tag, two);
-        let long_len = self.builder.div(header, two);
-        let length = self.builder.select(is_long, long_len, short_len);
-        let thirty_two = self.builder.imm_u64(32);
-        let short_length = self.builder.lt(length, thirty_two);
-        let invalid_encoding = self.builder.eq(is_long, short_length);
-        self.panic_if(invalid_encoding, 0x22);
         let thirty_one = self.builder.imm_u64(31);
         let rounded = self.checked_add(length, thirty_one);
         let word_size = self.builder.imm_u64(32);
@@ -652,19 +640,73 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         Some(object)
     }
 
+    fn load_storage_bytes_header(&mut self, slot: ValueId) -> (ValueId, ValueId, ValueId) {
+        let header = self.builder.sload(slot);
+        let one = self.builder.imm_u64(1);
+        let flag = self.builder.and(header, one);
+        let is_long = self.builder.eq(flag, one);
+        let two = self.builder.imm_u64(2);
+        let short_tag = self.builder.imm_u64(0xfe);
+        let short_len_tag = self.builder.and(header, short_tag);
+        let short_len = self.builder.div(short_len_tag, two);
+        let long_len = self.builder.div(header, two);
+        let length = self.builder.select(is_long, long_len, short_len);
+        let thirty_two = self.builder.imm_u64(32);
+        let short_length = self.builder.lt(length, thirty_two);
+        let invalid_encoding = self.builder.eq(is_long, short_length);
+        self.panic_if(invalid_encoding, 0x22);
+        (header, is_long, length)
+    }
+
     pub(super) fn store_storage_bytes(&mut self, slot: ValueId, object: ValueId) -> Option<()> {
+        let (_, old_is_long, old_length) = self.load_storage_bytes_header(slot);
         let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
         let data_ptr = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
         let data = self.builder.make_slice(data_ptr, length, SliceLocation::Memory);
         let word_size = self.builder.imm_u64(32);
+        let thirty_one = self.builder.imm_u64(31);
+        let old_rounded = self.checked_add(old_length, thirty_one);
+        let old_words = self.builder.div(old_rounded, word_size);
+        let rounded = self.checked_add(length, thirty_one);
+        let words = self.builder.div(rounded, word_size);
+        let zero = self.builder.imm_u64(0);
         let short = self.builder.lt(length, word_size);
+        let new_words = self.builder.select(short, zero, words);
+        let shrunk = self.builder.gt(old_length, length);
+        let needs_cleanup = self.builder.and(old_is_long, shrunk);
+        let cleanup_block = self.builder.create_block();
+        let write_block = self.builder.create_block();
+        self.builder.branch(needs_cleanup, cleanup_block, write_block);
+
+        self.builder.switch_to_block(cleanup_block);
+        let data_slot = self.builder.storage_array_data_slot(slot);
+        let preheader = self.builder.current_block();
+        let header_block = self.builder.create_block();
+        let body = self.builder.create_block();
+        let exit = self.builder.create_block();
+        self.builder.jump(header_block);
+        self.builder.switch_to_block(header_block);
+        let index = self.builder.phi(vec![(preheader, new_words)]);
+        let condition = self.builder.lt(index, old_words);
+        self.builder.branch(condition, body, exit);
+        self.builder.switch_to_block(body);
+        let element_slot = self.builder.add(data_slot, index);
+        self.builder.sstore(element_slot, zero);
+        let one = self.builder.imm_u64(1);
+        let next = self.builder.add(index, one);
+        let backedge = self.builder.current_block();
+        self.builder.jump(header_block);
+        self.builder.add_phi_incoming(index, backedge, next);
+        self.builder.switch_to_block(exit);
+        self.builder.jump(write_block);
+
+        self.builder.switch_to_block(write_block);
         let short_block = self.builder.create_block();
         let long_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
         self.builder.branch(short, short_block, long_block);
 
         self.builder.switch_to_block(short_block);
-        let zero = self.builder.imm_u64(0);
         let data_word = self.builder.memory_slice_load_word(data, zero);
         let unused_bytes = self.builder.sub(word_size, length);
         let bits = self.builder.imm_u64(8);
@@ -685,9 +727,6 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let shifted = self.builder.shl(one, length);
         let tag = self.builder.or(shifted, one);
         self.builder.sstore(slot, tag);
-        let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.checked_add(length, thirty_one);
-        let words = self.builder.div(rounded, word_size);
         let data_slot = self.builder.storage_array_data_slot(slot);
         let preheader = self.builder.current_block();
         let header_block = self.builder.create_block();
