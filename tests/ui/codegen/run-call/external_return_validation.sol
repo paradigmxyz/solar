@@ -11,10 +11,13 @@
 //@ run-call-fail: ExternalReturnValidation::dirtyEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 //@ run-call-fail: ExternalReturnValidation::dirtyEnumStorage() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 //@ run-call-fail: ExternalReturnValidation::dirtyEnumStorageRead() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@ run-call-fail: ExternalReturnValidation::dirtyEnumExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@ run-call-fail: ExternalReturnValidation::dirtyEnumStructExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_static_array.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_dynamic_array.sol
 // ported-from: test/libsolidity/semanticTests/reverts/invalid_enum_as_external_ret.sol
 // ported-from: test/libsolidity/semanticTests/reverts/invalid_enum_stored.sol
+// ported-from: test/libsolidity/semanticTests/reverts/invalid_enum_as_external_arg.sol
 
 contract ExternalReturnValidation {
     struct Pair {
@@ -24,6 +27,10 @@ contract ExternalReturnValidation {
 
     struct Scalar {
         uint8 value;
+    }
+
+    struct EnumPair {
+        State state;
     }
 
     enum State {
@@ -153,5 +160,29 @@ contract ExternalReturnValidation {
             sstore(0, 2)
         }
         return uint256(state);
+    }
+
+    function dirtyEnumExternalArg() external view returns (uint256) {
+        State value;
+        assembly {
+            value := 2
+        }
+        return this.enumTarget(value);
+    }
+
+    function enumTarget(State) external pure returns (uint256) {
+        return 1;
+    }
+
+    function dirtyEnumStructExternalArg() external view returns (uint256) {
+        EnumPair memory pair;
+        assembly {
+            mstore(pair, 2)
+        }
+        return this.enumStructTarget(pair);
+    }
+
+    function enumStructTarget(EnumPair memory) external pure returns (uint256) {
+        return 1;
     }
 }

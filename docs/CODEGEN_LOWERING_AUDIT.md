@@ -123,6 +123,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * typed external ABI metadata for scalar, enum, byte, array, and tuple shapes;
 * nested ABI parameter locations, fixed-array constructor word decoding, and
   memory-shaped dynamic calldata returns;
+* external ABI arguments validate enum values before scalar or aggregate
+  encoding;
 * state-variable reads and writes through the shared storage-location object;
 * packed unsigned, signed, address, enum, and fixed-bytes storage fields;
 * typed enum storage reads and writes validate the variant range before values

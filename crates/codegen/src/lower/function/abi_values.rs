@@ -183,6 +183,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     }
 
     pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
+        self.validate_enum_value(ty, value);
         match ty.peel_refs().kind {
             TyKind::DynArray(_) | TyKind::Array(_, _) => self.canonicalize_abi_array(ty, value),
             TyKind::Struct(_) => self.canonicalize_abi_struct(ty, value),
@@ -304,7 +305,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Struct(_) => {
                 self.canonicalize_abi_value(ty, value)
             }
-            _ => self.normalize_abi_scalar(value, ty),
+            _ => {
+                self.validate_enum_value(ty, value);
+                self.normalize_abi_scalar(value, ty)
+            }
         }
     }
 
