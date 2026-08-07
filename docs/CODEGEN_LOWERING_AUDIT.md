@@ -352,6 +352,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    shape from calldata into memory before reading nested values.
    `calldata_nested_element_memory.sol` covers nested dynamic and fixed-array
    elements selected from calldata and copied into memory before indexing.
+   `abi_calldata_dynamic_array_memory.sol` and
+   `abi_calldata_nested_dynamic_memory.sol` port Solc's direct nested-array
+   copies, including truncated inner-array failures for dynamic and fixed
+   nested elements.
    `abi_encode_memory_calldata_v1.sol` checks the mixed memory-array and
    calldata-bytes encoder through Solc's v1 ABI mode, and
    `abi_encode_rational.sol` checks signed rational literal encoding.
