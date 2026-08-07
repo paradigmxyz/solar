@@ -237,7 +237,10 @@ existing scalar and packed-storage MIR fixtures. It supports:
   including direct decoding from `bytes calldata` and bounded calldata slices
   in `abi_decode_calldata_slice.sol`;
   `calldata_array_slicing.sol` checks direct static-element range indexing and
-  its exact out-of-bounds panic payloads against Solc.
+  its exact out-of-bounds panic payloads against Solc. The
+  `array_slice_calldata_to_memory.sol` and
+  `array_slice_calldata_to_storage.sol` vectors cover direct and internal-call
+  copies of a range slice into memory and storage.
 * dynamic calldata arrays of multiword static elements, including storage
   copies and ABI encoding of nested fixed arrays;
 * calldata fixed-array indexing of structs without eagerly validating unused
