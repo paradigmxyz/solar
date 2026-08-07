@@ -2202,6 +2202,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             return Vec::new();
         }
 
+        // Consuming the branch condition removes the top stack word. A resident argument has no
+        // frame fallback, so every stack-only live-out must already have another carried copy
+        // below the condition. Otherwise let the global stack-edge planner duplicate and arrange
+        // the condition together with the successor layout.
+        if liveness
+            .live_out(block_id)
+            .iter()
+            .any(|value| self.scheduler.is_stack_only_value(value) && !carried.contains(&value))
+        {
+            return Vec::new();
+        }
+
         let targets = [*then_block, *else_block];
         let mut live_in_any_target = DenseBitSet::new_empty(func.num_values());
         for target in targets {
@@ -5418,11 +5430,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        self.internal_call_stack_edges.push(InternalCallStackEdge {
-            caller: func_id,
-            callee,
-            preserved_words: 0,
-        });
+        let resident_call_values: Vec<_> = if self.preserve_caller_stack {
+            self.resident_stack_args
+                .get(&func_id)
+                .into_iter()
+                .flatten()
+                .copied()
+                .filter(|&value| liveness.is_used_at_or_after(value, block, inst_idx + 1))
+                .collect()
+        } else {
+            Vec::new()
+        };
 
         // Frame layout: [reserved][saved frame ptr][args][returns][locals][spills].
         // The first slot is reserved (the return address used to live there;
@@ -5460,7 +5478,38 @@ impl<'gcx> EvmCodegen<'gcx> {
         // free_ptr += frame_size
         self.emit_store_new_free_pointer_from_frame_base(frame_size);
 
-        self.pop_all_stack_values();
+        // Resident arguments have no frame home to reload after the nested
+        // call. Keep their canonical prefix below the return address just as
+        // the static-frame call path does. The callee's scheduler models only
+        // words above this hidden prefix, and the whole-program stack-depth
+        // validation accounts for the preserved words after emission.
+        let caller_stack = if resident_call_values.is_empty() {
+            None
+        } else {
+            self.pop_stack_values_not_needed_by(&resident_call_values);
+            let target: Vec<_> =
+                resident_call_values.iter().copied().map(TargetSlot::Value).collect();
+            let shuffle = self.scheduler.shuffle_to_layout(&target).unwrap_or_else(|| {
+                panic!(
+                    "could not preserve resident arguments across a dynamic internal call in \
+                     `{}`: stack={:?}, target={target:?}",
+                    func.name, self.scheduler.stack
+                )
+            });
+            for op in shuffle.ops {
+                self.asm.emit_op(op.opcode());
+            }
+            Some(self.scheduler.stack.clone())
+        };
+        let preserved_words = caller_stack.as_ref().map_or(0, StackModel::depth);
+        self.internal_call_stack_edges.push(InternalCallStackEdge {
+            caller: func_id,
+            callee,
+            preserved_words,
+        });
+        if caller_stack.is_none() {
+            self.pop_all_stack_values();
+        }
         self.scheduler.clear_stack();
 
         // The return address travels on the EVM stack, not in the frame: it is
@@ -5476,7 +5525,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_op(op::JUMP);
 
         self.asm.define_label(return_label);
-        self.scheduler.clear_stack();
+        if let Some(caller_stack) = caller_stack {
+            self.scheduler.stack = caller_stack;
+        } else {
+            self.scheduler.clear_stack();
+        }
 
         if let Some(result) =
             Self::live_internal_call_result(result, returns, liveness, block, inst_idx)
