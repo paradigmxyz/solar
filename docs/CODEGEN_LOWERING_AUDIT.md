@@ -433,6 +433,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    storage references preserves the runtime element offset while clearing.
    `storage_delete_packed_struct.sol` extends that check through packed struct
    fields in dynamic arrays and mappings, including aggregate assignment.
+   `storage_nested_element_copy.sol` covers selected nested storage-array
+   elements copied into dynamic and fixed-shaped storage targets, including
+   empty nested objects from a zero-initialized memory array.
    `storage_string_bytes_conversion.sol` covers a constructor string copied to
    storage and then converted to `bytes` before reading its length.
 5. Keep expanding runtime and differential coverage for aggregate allocation
