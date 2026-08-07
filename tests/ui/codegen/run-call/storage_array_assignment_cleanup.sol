@@ -1,4 +1,4 @@
-//@ run-call: cleanup() => 3, 2
+//@ run-call: cleanup() => 3, 0
 
 contract StorageArrayAssignmentCleanup {
     uint256[] private values;

@@ -132,8 +132,7 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * canonical short-storage bytes writes with unspecified memory padding masked
   before the length tag is persisted;
 * storage `bytes` assignments that clear stale long-storage words when a value
-  shrinks, while dynamic-array assignment keeps its separately tested
-  unreachable-slot behavior;
+  shrinks, and dynamic-array assignments that clear truncated element slots;
 * storage `delete` for dynamic and fixed arrays, packed elements, structs, and
   nested storage objects through one recursive location-aware path;
 * memory `delete` for dynamic and fixed arrays, bytes, and structs by rebinding
@@ -431,8 +430,13 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    storage-to-storage copies across scalar widths and nested packed fixed-array
    bases. `storage_array_different_packing.sol` covers a `bytes8[]` to
    `bytes10[]` storage conversion with elements spanning different packing
-   widths. `storage_memory_nested_bytes.sol` covers short and long storage-byte
-   elements copied through a dynamic storage array into memory. The
+   widths. `array_copy_clear_storage.sol` and
+   `array_copy_clear_storage_packed.sol` port Solc's stale-tail cleanup checks
+   for full-word and packed dynamic arrays. `array_copy_cleanup_uint40.sol`
+   extends the packed case across multiple storage words.
+   `storage_memory_nested_bytes.sol`
+   covers short and long storage-byte elements copied through a dynamic storage
+   array into memory. The
    `storage_struct_dynamic_copy.sol` vector covers storage structs and dynamic
    storage-array elements with `bytes` members, including indexed read/write
    isolation after an aggregate copy.
@@ -461,6 +465,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    arrays and structs with nested dynamic byte objects.
    `nested_struct_memory_alias.sol` checks that nested memory aggregate
    assignment preserves Solidity's reference aliasing.
+   `storage_array_assignment_cleanup.sol` checks the raw storage tail after a
+   dynamic-array replacement, matching Solc's cleared slots.
+   `nested_dynamic_storage_cleanup.sol` checks recursive cleanup when a
+   truncated array contains dynamic-array elements.
    `require_modulo_chain.sol` checks modulo inside chained `require` conditions,
    including the divide-by-zero panic and short-circuit paths; the same cases
    now run in the control-flow Foundry differential project.

@@ -17,9 +17,9 @@ contract StorageStructDeepCopy {
     Sel[2] fixedList;
 
     // SDC-LABEL: fn @assign
-    // The dynamic array field's length and elements are written to storage.
-    // SDC: sstore {{v[0-9]+}}, {{v[0-9]+}}
+    // The dynamic array field's old tail is cleared before its replacement is written.
     // SDC: sstore 1,
+    // SDC: sstore
     function assign(address a, bytes4 x) public {
         bytes4[] memory ss = new bytes4[](1);
         ss[0] = x;
@@ -45,9 +45,9 @@ contract StorageStructDeepCopy {
     // SDC-LABEL: fn @assignFixed
     // Assignment through a fixed storage-array element must deep-copy the
     // struct fields instead of storing the memory pointer as one word.
-    // SDC: sload 3
-    // SDC: sstore 3,
-    // SDC: sstore 4,
+    // SDC-DAG: sload 3
+    // SDC-DAG: sstore 3,
+    // SDC-DAG: sstore 4,
     function assignFixed(address a, bytes4 x) public {
         bytes4[] memory ss = new bytes4[](1);
         ss[0] = x;

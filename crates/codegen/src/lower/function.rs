@@ -4258,9 +4258,31 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         match ty.peel_refs().kind {
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            )
-            | TyKind::DynArray(_) => {
+            ) => self.clear_storage_bytes(access.slot),
+            TyKind::DynArray(element) => {
+                let length = self.builder.sload(access.slot);
                 self.builder.sstore(access.slot, zero);
+
+                let preheader = self.builder.current_block();
+                let header = self.builder.create_block();
+                let body = self.builder.create_block();
+                let exit = self.builder.create_block();
+                self.builder.jump(header);
+                self.builder.switch_to_block(header);
+                let index = self.builder.phi(vec![(preheader, zero)]);
+                let condition = self.builder.lt(index, length);
+                self.builder.branch(condition, body, exit);
+
+                self.builder.switch_to_block(body);
+                let element_access =
+                    self.storage_array_element_access(access.slot, index, element, true)?;
+                self.clear_storage_access(element, element_access)?;
+                let one = self.builder.imm_u64(1);
+                let next = self.builder.add(index, one);
+                let backedge = self.builder.current_block();
+                self.builder.jump(header);
+                self.builder.add_phi_incoming(index, backedge, next);
+                self.builder.switch_to_block(exit);
             }
             TyKind::Struct(struct_id) => {
                 for (index, &field) in self.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
@@ -4302,6 +4324,52 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
         }
         Some(())
+    }
+
+    fn clear_storage_bytes(&mut self, slot: ValueId) {
+        let header_value = self.builder.sload(slot);
+        let one = self.builder.imm_u64(1);
+        let flag = self.builder.and(header_value, one);
+        let is_long = self.builder.eq(flag, one);
+        let two = self.builder.imm_u64(2);
+        let short_tag = self.builder.imm_u64(0xfe);
+        let short_len_tag = self.builder.and(header_value, short_tag);
+        let short_length = self.builder.div(short_len_tag, two);
+        let long_length = self.builder.div(header_value, two);
+        let length = self.builder.select(is_long, long_length, short_length);
+        let zero = self.builder.imm_u64(0);
+        let word_size = self.builder.imm_u64(32);
+        let thirty_one = self.builder.imm_u64(31);
+        let rounded = self.checked_add(length, thirty_one);
+        let words = self.builder.div(rounded, word_size);
+        let cleanup_block = self.builder.create_block();
+        let write_block = self.builder.create_block();
+        self.builder.branch(is_long, cleanup_block, write_block);
+
+        self.builder.switch_to_block(cleanup_block);
+        let data_slot = self.builder.storage_array_data_slot(slot);
+        let preheader = self.builder.current_block();
+        let header = self.builder.create_block();
+        let body = self.builder.create_block();
+        let exit = self.builder.create_block();
+        self.builder.jump(header);
+        self.builder.switch_to_block(header);
+        let index = self.builder.phi(vec![(preheader, zero)]);
+        let condition = self.builder.lt(index, words);
+        self.builder.branch(condition, body, exit);
+        self.builder.switch_to_block(body);
+        let element_slot = self.builder.add(data_slot, index);
+        self.builder.sstore(element_slot, zero);
+        let one = self.builder.imm_u64(1);
+        let next = self.builder.add(index, one);
+        let backedge = self.builder.current_block();
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(index, backedge, next);
+        self.builder.switch_to_block(exit);
+        self.builder.jump(write_block);
+
+        self.builder.switch_to_block(write_block);
+        self.builder.sstore(slot, zero);
     }
 
     fn lower_constant(

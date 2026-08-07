@@ -849,6 +849,36 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
             _ => return report_unsupported(self.gcx, span, "storage array conversion"),
         };
+
+        let old_length = self.builder.sload(slot);
+        let needs_cleanup = self.builder.gt(old_length, length);
+        let cleanup_block = self.builder.create_block();
+        let write_block = self.builder.create_block();
+        self.builder.branch(needs_cleanup, cleanup_block, write_block);
+
+        self.builder.switch_to_block(cleanup_block);
+        let preheader = self.builder.current_block();
+        let header = self.builder.create_block();
+        let body = self.builder.create_block();
+        let exit = self.builder.create_block();
+        self.builder.jump(header);
+        self.builder.switch_to_block(header);
+        let index = self.builder.phi(vec![(preheader, length)]);
+        let condition = self.builder.lt(index, old_length);
+        self.builder.branch(condition, body, exit);
+
+        self.builder.switch_to_block(body);
+        let access = self.storage_array_element_access(slot, index, element, true)?;
+        self.clear_storage_access(element, access)?;
+        let one = self.builder.imm_u64(1);
+        let next = self.builder.add(index, one);
+        let backedge = self.builder.current_block();
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(index, backedge, next);
+        self.builder.switch_to_block(exit);
+        self.builder.jump(write_block);
+
+        self.builder.switch_to_block(write_block);
         self.builder.sstore(slot, length);
 
         let preheader = self.builder.current_block();
