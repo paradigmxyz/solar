@@ -713,6 +713,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    arrays and structs with nested dynamic byte objects.
    `memory_multiple_dynamic_arrays.sol` checks that separate nested dynamic
    allocations stay independent while their untouched elements remain zeroed.
+   `memory_zeroed_allocation.sol` checks zero-initialized dynamic, nested,
+   fixed, and dynamic-of-fixed memory arrays, including Solc's exact bounds
+   panic at each allocation boundary.
    `nested_struct_memory_alias.sol` checks that nested memory aggregate
    assignment preserves Solidity's reference aliasing.
    `storage_array_assignment_cleanup.sol` checks the raw storage tail after a
