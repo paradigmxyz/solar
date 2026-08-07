@@ -1,7 +1,7 @@
 //! Module-level call graph facts for MIR.
 
 use crate::mir::{Function, FunctionId, InstKind, Module, Terminator};
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::collections::VecDeque;
 
 /// Module-level internal-call graph facts.
@@ -122,29 +122,71 @@ impl CallGraphInfo {
         callees: &FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
         function_count: usize,
     ) -> DenseBitSet<FunctionId> {
+        // Find strongly connected components with Kosaraju's algorithm. The previous search
+        // started a fresh DFS at every function, making repeated call-graph analyses quadratic on
+        // large modules even when their call graph was sparse.
+        let mut reverse = IndexVec::<FunctionId, Vec<FunctionId>>::with_capacity(function_count);
+        for _ in 0..function_count {
+            reverse.push(Vec::new());
+        }
+        for (&caller, direct_callees) in callees {
+            for callee in direct_callees {
+                reverse[callee].push(caller);
+            }
+        }
+
+        let mut visited = DenseBitSet::new_empty(function_count);
+        let mut finish_order = Vec::with_capacity(function_count);
+        for root in (0..function_count).map(FunctionId::from_usize) {
+            if visited.contains(root) {
+                continue;
+            }
+            let mut stack = vec![(root, false)];
+            while let Some((func, expanded)) = stack.pop() {
+                if expanded {
+                    finish_order.push(func);
+                    continue;
+                }
+                // Mark a node when its DFS frame is entered, not when the parent discovers it.
+                // Pre-marking all siblings can violate postorder when one sibling reaches another.
+                if !visited.insert(func) {
+                    continue;
+                }
+                stack.push((func, true));
+                if let Some(direct_callees) = callees.get(&func) {
+                    for callee in direct_callees {
+                        if !visited.contains(callee) {
+                            stack.push((callee, false));
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut assigned = DenseBitSet::new_empty(function_count);
         let mut recursive = DenseBitSet::new_empty(function_count);
-        for func_id in (0..function_count).map(FunctionId::from_usize) {
-            let mut visited = DenseBitSet::new_empty(function_count);
-            visited.insert(func_id);
-            if Self::reaches(func_id, func_id, callees, &mut visited) {
-                recursive.insert(func_id);
+        for root in finish_order.into_iter().rev() {
+            if !assigned.insert(root) {
+                continue;
+            }
+            let mut component = Vec::new();
+            let mut stack = vec![root];
+            while let Some(func) = stack.pop() {
+                component.push(func);
+                for &caller in &reverse[func] {
+                    if assigned.insert(caller) {
+                        stack.push(caller);
+                    }
+                }
+            }
+            if component.len() > 1 || callees.get(&root).is_some_and(|direct| direct.contains(root))
+            {
+                for func in component {
+                    recursive.insert(func);
+                }
             }
         }
         recursive
-    }
-
-    fn reaches(
-        current: FunctionId,
-        target: FunctionId,
-        callees: &FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
-        visited: &mut DenseBitSet<FunctionId>,
-    ) -> bool {
-        callees.get(&current).is_some_and(|direct_callees| {
-            direct_callees.iter().any(|callee| {
-                callee == target
-                    || (visited.insert(callee) && Self::reaches(callee, target, callees, visited))
-            })
-        })
     }
 }
 
@@ -166,5 +208,19 @@ mod tests {
         assert!(!recursive.contains(FunctionId::from_usize(0)));
         assert!(recursive.contains(FunctionId::from_usize(1)));
         assert!(recursive.contains(FunctionId::from_usize(2)));
+    }
+
+    #[test]
+    fn recursion_excludes_reachable_siblings_in_acyclic_graph() {
+        let mut callees = FxHashMap::default();
+        for (caller, callee) in [(0, 1), (0, 2), (2, 1)] {
+            callees
+                .entry(FunctionId::from_usize(caller))
+                .or_insert_with(|| DenseBitSet::new_empty(3))
+                .insert(FunctionId::from_usize(callee));
+        }
+
+        let recursive = CallGraphInfo::recursive_functions_in_graph(&callees, 3);
+        assert!(recursive.is_empty());
     }
 }
