@@ -297,6 +297,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    calldata arrays when they are read or re-encoded.
    `abi_calldata_array_size_validation.sol` checks that a dynamic calldata array
    rejects a length whose element payload exceeds the available calldata.
+   `abi_calldata_size_limit_validation.sol` covers the ABI decoder's overflow
+   and size-limit check for a huge dynamic-array length in an otherwise unused
+   argument.
    `abi_packed_calldata_scalar_validation.sol` applies the same check to
    `abi.encodePacked`, which must clean each array element instead of copying
    dirty calldata words.
