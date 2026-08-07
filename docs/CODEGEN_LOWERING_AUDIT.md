@@ -377,6 +377,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    storage-to-storage copies of external function pointer arrays.
    `external_function_pointer_options.sol` checks source-order evaluation and
    forwarding of `gas`/`value` options on external pointer calls.
+   `function_pointer_delete.sol` and `external_function_pointer_delete.sol`
+   cover clearing internal and external storage pointers, including Solc's
+   zero-internal-pointer panic.
    The Unifap creation fixture now passes the differential Foundry
    suite; the companion fixture compiles with no Solar-only regressions, but
    retains seven pre-existing failures under both compilers because its
