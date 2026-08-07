@@ -439,4 +439,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
         Some(())
     }
+    pub(super) fn lower_block(&mut self, block: hir::Block<'_>) -> Option<()> {
+        for stmt in block.stmts {
+            if self.is_terminated() {
+                break;
+            }
+            self.lower_stmt(stmt)?;
+        }
+        Some(())
+    }
 }
