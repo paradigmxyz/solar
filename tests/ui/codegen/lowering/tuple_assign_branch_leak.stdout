@@ -81,11 +81,10 @@ bb4:
   mload
   jump bb18
 bb18:
+  dup1
   push 352
   mstore
   push 1
-  push 352
-  mload
   add
   dup1
   push 448

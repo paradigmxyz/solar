@@ -106,7 +106,10 @@ use crate::{
 };
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
-use solar_data_structures::map::{FxHashMap, StdEntry};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, StdEntry},
+};
 use std::{cell::Cell, cmp::Ordering, collections::BinaryHeap, mem::size_of};
 
 const MAX_OPERAND_SEARCH_EXPANSIONS: usize = 1024;
@@ -131,6 +134,11 @@ pub(crate) struct StackScheduler {
     pub stack: StackModel,
     /// Spill slots and their current reloadability.
     pub spills: SpillManager,
+    /// Values whose ordinary memory home was deliberately omitted.
+    ///
+    /// These values may only be reached through their physical stack copy. Treating them like
+    /// ordinary MIR arguments would emit a load from an uninitialized static-frame slot.
+    stack_only_values: DenseBitSet<ValueId>,
     /// Operations to emit.
     ops: Vec<ScheduledOp>,
     /// Remaining bounded-search work for this function.
@@ -403,10 +411,36 @@ impl StackScheduler {
         Self {
             stack: StackModel::new(),
             spills: SpillManager::new(),
+            stack_only_values: DenseBitSet::new_empty(0),
             ops: Vec::new(),
             operand_search_budget: Cell::new(OperandSearchBudget::default()),
             #[cfg(test)]
             operand_search_stats: Cell::new(OperandSearchStats::default()),
+        }
+    }
+
+    /// Marks values whose argument frame slots are not materialized by the active calling
+    /// convention.
+    pub(crate) fn set_stack_only_values(
+        &mut self,
+        domain_size: usize,
+        values: impl IntoIterator<Item = ValueId>,
+    ) {
+        self.stack_only_values = DenseBitSet::new_empty(domain_size);
+        for value in values {
+            self.stack_only_values.insert(value);
+        }
+    }
+
+    /// Returns whether `value` has no valid memory materialization in this function.
+    pub(crate) fn is_stack_only_value(&self, value: ValueId) -> bool {
+        !self.stack_only_values.is_empty() && self.stack_only_values.contains(value)
+    }
+
+    /// Records that `value` now has a valid memory home and may be reloaded normally.
+    pub(crate) fn materialize_stack_only_value(&mut self, value: ValueId) {
+        if self.is_stack_only_value(value) {
+            self.stack_only_values.remove(value);
         }
     }
 
@@ -1723,6 +1757,9 @@ impl StackScheduler {
     }
 
     fn materialize_operand(&self, value: ValueId, func: &Function) -> Option<ScheduledOp> {
+        if self.is_stack_only_value(value) {
+            return None;
+        }
         if let Some(slot) = self.reloadable_spill(value) {
             return Some(ScheduledOp::LoadSpill(slot));
         }
@@ -1792,6 +1829,11 @@ impl StackScheduler {
             return &self.ops;
         }
 
+        assert!(
+            !self.is_stack_only_value(value),
+            "stack-only value {value:?} was lost before its final use"
+        );
+
         match func.value(value) {
             crate::mir::Value::Immediate(imm) => {
                 // Push an immediate directly.
@@ -1827,6 +1869,9 @@ impl StackScheduler {
         // Check if on stack and reachable by DUP.
         if let Some(depth) = self.stack.find(value) {
             return depth < MAX_STACK_ACCESS || self.reloadable_spill(value).is_some();
+        }
+        if self.is_stack_only_value(value) {
+            return false;
         }
         // Check whether the value is spilled.
         if self.reloadable_spill(value).is_some() {
