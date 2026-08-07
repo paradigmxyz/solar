@@ -426,6 +426,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    selected from an inline array before forwarding a `value` option, and
    `function_pointer_dirty_bits.sol` covers Yul `.address`/`.selector`
    assignments that must clean high bits before pointer comparison.
+   `external_function_pointer_higher_order.sol` covers an external pointer
+   stored through a higher-order internal callback and a newly created target.
    `function_pointer_delete.sol` and `external_function_pointer_delete.sol`
    cover clearing internal and external storage pointers, including Solc's
    zero-internal-pointer panic.
