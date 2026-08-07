@@ -389,8 +389,14 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    non-via-IR behavior when a conditional modifier expands the function body
    twice: the second expansion observes the first expansion's return binding.
    Solc's via-IR-only `function_modifier_multi_invocation_viair.sol` remains a
-   gap: repeated `_` expansion currently shares function return bindings,
-   while Solc gives each expanded body fresh return variables.
+   gap. With Solc 0.8.35, the non-via-IR test returns `2` for `f(true)`, while
+   `--via-ir` returns `1`; Solar currently matches the former. Repeated `_`
+   expansion shares `self.returns` in
+   `crates/codegen/src/lower/function/modifiers.rs`, while Solc's via-IR path
+   gives each expanded body fresh return variables. Changing this state now
+   would break the supported non-via-IR behavior, so the fix needs an explicit
+   return-binding model for the future via-IR-compatible mode rather than a
+   silent change to the current lowering.
    `constructor_fixed_array_forwarding.sol` covers
    fixed-array constructor decoding and the memory-to-storage copy.
    `constructor_external_arguments.sol` covers direct deployment decoding of
