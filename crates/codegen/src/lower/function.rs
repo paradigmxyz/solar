@@ -4039,7 +4039,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             if location != SliceLocation::Calldata {
                 return report_unsupported(self.gcx, expr.span, "slice");
             }
-            let element = receiver_ty.base_type(self.gcx)?;
+            let element = self.array_element_type(receiver_ty)?;
             let element_type = self.types.abi_type(element)?;
             if element_type.is_dynamic() {
                 return report_unsupported(self.gcx, expr.span, "slice");
