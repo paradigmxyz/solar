@@ -300,6 +300,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi_calldata_size_limit_validation.sol` covers the ABI decoder's overflow
    and size-limit check for a huge dynamic-array length in an otherwise unused
    argument.
+   `abi_decode_offset_overflow.sol` ports Solc's nested fixed-array offset
+   overflow case and checks that decoding fails before it can alias an earlier
+   memory allocation.
    `abi_packed_calldata_scalar_validation.sol` applies the same check to
    `abi.encodePacked`, which must clean each array element instead of copying
    dirty calldata words.
