@@ -68,6 +68,9 @@ The replacement is split into stateful, private components:
   Checked arithmetic, allocation overflow, and index bounds checks live in the
   shared `function/checks` module instead of being repeated by each lowering
   path.
+  Calldata and memory array indexing and range slices live in the sibling
+  `function/indexing` module, keeping their location-specific access rules out
+  of the main expression walker.
   Memory-backed arrays, tuples, literals, and zero-initialized aggregate
   defaults live in `function/memory_values`.
   Storage-reference access, packed indexing, array push/pop, and aggregate
