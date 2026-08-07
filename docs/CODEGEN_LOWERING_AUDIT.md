@@ -71,6 +71,8 @@ The replacement is split into stateful, private components:
   Calldata and memory array indexing and range slices live in the sibling
   `function/indexing` module, keeping their location-specific access rules out
   of the main expression walker.
+  L-value place resolution and semantic load/store operations live in the
+  sibling `function/lvalues` module, so assignment paths share one place model.
   Memory-backed arrays, tuples, literals, and zero-initialized aggregate
   defaults live in `function/memory_values`.
   Storage-reference access, packed indexing, array push/pop, and aggregate
