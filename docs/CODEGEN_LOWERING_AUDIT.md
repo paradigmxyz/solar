@@ -370,6 +370,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `internal_function_pointer_calldata.sol` checks calldata slices through
    internal pointer dispatch, and `mapping_internal_function_pointer.sol`
    checks mapping-backed internal pointer state transitions.
+   `internal_function_pointer_multislot.sol` covers internal dispatch with
+   function-pointer parameters occupying multiple argument slots.
    `external_function_pointer_calldata_array.sol` adds a Solc-checked calldata
    array decode and re-encoding vector. `abi_function_pointer_validation.sol`
    ports Solc's canonical 24-byte pointer checks: unused calldata structs stay
