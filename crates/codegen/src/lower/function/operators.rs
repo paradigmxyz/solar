@@ -1,0 +1,327 @@
+//! Checked arithmetic and scalar operator lowering.
+
+use super::*;
+
+impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
+    FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
+{
+    pub(super) fn signed_add_overflow(
+        &mut self,
+        lhs: ValueId,
+        rhs: ValueId,
+        result: ValueId,
+        bits: u16,
+    ) -> ValueId {
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let lhs_negative = self.builder.slt(lhs, zero);
+        let rhs_negative = self.builder.slt(rhs, zero);
+        let result_negative = self.builder.slt(result, zero);
+        let signs_differ = self.builder.xor(lhs_negative, rhs_negative);
+        let result_changed_sign = self.builder.xor(result_negative, lhs_negative);
+        let same_sign = self.builder.iszero(signs_differ);
+        let mut overflow = self.builder.and(same_sign, result_changed_sign);
+        if bits < 256 {
+            let (min, max) = signed_bounds(bits, &mut self.builder);
+            let below = self.builder.slt(result, min);
+            let above = self.builder.sgt(result, max);
+            let out_of_range = self.builder.or(below, above);
+            overflow = self.builder.or(overflow, out_of_range);
+        }
+        overflow
+    }
+
+    pub(super) fn signed_sub_overflow(
+        &mut self,
+        lhs: ValueId,
+        rhs: ValueId,
+        result: ValueId,
+        bits: u16,
+    ) -> ValueId {
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let lhs_negative = self.builder.slt(lhs, zero);
+        let rhs_negative = self.builder.slt(rhs, zero);
+        let result_negative = self.builder.slt(result, zero);
+        let signs_differ = self.builder.xor(lhs_negative, rhs_negative);
+        let result_changed_sign = self.builder.xor(result_negative, lhs_negative);
+        let mut overflow = self.builder.and(signs_differ, result_changed_sign);
+        if bits < 256 {
+            let (min, max) = signed_bounds(bits, &mut self.builder);
+            let below = self.builder.slt(result, min);
+            let above = self.builder.sgt(result, max);
+            let out_of_range = self.builder.or(below, above);
+            overflow = self.builder.or(overflow, out_of_range);
+        }
+        overflow
+    }
+
+    pub(super) fn mul_overflow(
+        &mut self,
+        lhs: ValueId,
+        rhs: ValueId,
+        result: ValueId,
+        kind: ArithmeticKind,
+    ) -> ValueId {
+        let rhs_zero = self.builder.iszero(rhs);
+        let quotient = match kind {
+            ArithmeticKind::Unsigned(_) => self.builder.div(result, rhs),
+            ArithmeticKind::Signed(_) => self.builder.sdiv(result, rhs),
+        };
+        let exact = self.builder.eq(quotient, lhs);
+        let valid = self.builder.or(rhs_zero, exact);
+        let mut overflow = self.builder.iszero(valid);
+        if let ArithmeticKind::Signed(bits) = kind {
+            let (min, max) = signed_bounds(bits, &mut self.builder);
+            let below = self.builder.slt(result, min);
+            let above = self.builder.sgt(result, max);
+            let out_of_range = self.builder.or(below, above);
+            overflow = self.builder.or(overflow, out_of_range);
+            let minus_one = self.builder.imm_u256(U256::MAX);
+            let lhs_is_min = self.builder.eq(lhs, min);
+            let rhs_is_minus_one = self.builder.eq(rhs, minus_one);
+            let special = self.builder.and(lhs_is_min, rhs_is_minus_one);
+            overflow = self.builder.or(overflow, special);
+        } else if let ArithmeticKind::Unsigned(bits) = kind
+            && bits < 256
+        {
+            let max = self.builder.imm_u256((U256::from(1) << bits) - U256::ONE);
+            let too_wide = self.builder.gt(result, max);
+            overflow = self.builder.or(overflow, too_wide);
+        }
+        overflow
+    }
+
+    pub(super) fn truncate_wrapping_result(
+        &mut self,
+        value: ValueId,
+        kind: Option<ArithmeticKind>,
+    ) -> ValueId {
+        match kind {
+            Some(ArithmeticKind::Unsigned(bits)) if bits < 256 => {
+                let max = self.builder.imm_u256((U256::from(1) << bits) - U256::ONE);
+                self.builder.and(value, max)
+            }
+            Some(ArithmeticKind::Signed(bits)) if (8..256).contains(&bits) => {
+                let byte = self.builder.imm_u64(u64::from(bits / 8 - 1));
+                self.builder.signextend(byte, value)
+            }
+            _ => value,
+        }
+    }
+
+    pub(super) fn checked_pow(
+        &mut self,
+        base: ValueId,
+        exponent: ValueId,
+        kind: ArithmeticKind,
+    ) -> ValueId {
+        let one = self.builder.imm_u256(U256::ONE);
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let preheader = self.builder.current_block();
+        let header = self.builder.create_block();
+        let body = self.builder.create_block();
+        let exit = self.builder.create_block();
+        self.builder.jump(header);
+
+        self.builder.switch_to_block(header);
+        let power = self.builder.phi(vec![(preheader, one)]);
+        let current_base = self.builder.phi(vec![(preheader, base)]);
+        let current_exponent = self.builder.phi(vec![(preheader, exponent)]);
+        let has_exponent = self.builder.gt(current_exponent, zero);
+        self.builder.branch(has_exponent, body, exit);
+
+        self.builder.switch_to_block(body);
+        let odd = self.builder.and(current_exponent, one);
+        let product = self.builder.mul(power, current_base);
+        let product_overflow = self.mul_overflow(power, current_base, product, kind);
+        let product_check = self.builder.and(odd, product_overflow);
+        self.panic_if(product_check, 0x11);
+        let next_power = self.builder.select(odd, product, power);
+
+        let next_exponent = self.builder.shr(one, current_exponent);
+        let square = self.builder.mul(current_base, current_base);
+        let square_overflow = self.mul_overflow(current_base, current_base, square, kind);
+        let has_next_exponent = self.builder.gt(next_exponent, zero);
+        let square_check = self.builder.and(has_next_exponent, square_overflow);
+        self.panic_if(square_check, 0x11);
+        let latch = self.builder.current_block();
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(power, latch, next_power);
+        self.builder.add_phi_incoming(current_base, latch, square);
+        self.builder.add_phi_incoming(current_exponent, latch, next_exponent);
+
+        self.builder.switch_to_block(exit);
+        power
+    }
+
+    pub(super) fn binary(
+        &mut self,
+        op: BinOpKind,
+        lhs: ValueId,
+        rhs: ValueId,
+        ty: Option<Ty<'gcx>>,
+    ) -> ValueId {
+        let arithmetic = ty.and_then(arithmetic_kind);
+        match op {
+            BinOpKind::Add => {
+                let result = self.builder.add(lhs, rhs);
+                if self.unchecked {
+                    self.truncate_wrapping_result(result, arithmetic)
+                } else {
+                    if let Some(kind) = arithmetic {
+                        let overflow = match kind {
+                            ArithmeticKind::Unsigned(bits) => {
+                                if bits == 256 {
+                                    self.builder.lt(result, lhs)
+                                } else {
+                                    let max =
+                                        self.builder.imm_u256((U256::from(1) << bits) - U256::ONE);
+                                    self.builder.gt(result, max)
+                                }
+                            }
+                            ArithmeticKind::Signed(bits) => {
+                                self.signed_add_overflow(lhs, rhs, result, bits)
+                            }
+                        };
+                        self.panic_if(overflow, 0x11);
+                    }
+                    result
+                }
+            }
+            BinOpKind::Sub => {
+                let result = self.builder.sub(lhs, rhs);
+                if self.unchecked {
+                    self.truncate_wrapping_result(result, arithmetic)
+                } else {
+                    if let Some(kind) = arithmetic {
+                        let overflow = match kind {
+                            ArithmeticKind::Unsigned(_) => self.builder.lt(lhs, rhs),
+                            ArithmeticKind::Signed(bits) => {
+                                self.signed_sub_overflow(lhs, rhs, result, bits)
+                            }
+                        };
+                        self.panic_if(overflow, 0x11);
+                    }
+                    result
+                }
+            }
+            BinOpKind::Mul => {
+                let result = self.builder.mul(lhs, rhs);
+                if self.unchecked {
+                    self.truncate_wrapping_result(result, arithmetic)
+                } else {
+                    if let Some(kind) = arithmetic {
+                        let overflow = self.mul_overflow(lhs, rhs, result, kind);
+                        self.panic_if(overflow, 0x11);
+                    }
+                    result
+                }
+            }
+            BinOpKind::Div => {
+                if !self.unchecked {
+                    let zero = self.builder.iszero(rhs);
+                    self.panic_if(zero, 0x12);
+                    if let Some(ArithmeticKind::Signed(bits)) = arithmetic {
+                        let (min, _) = signed_bounds(bits, &mut self.builder);
+                        let lhs_is_min = self.builder.eq(lhs, min);
+                        let minus_one = self.builder.imm_u256(U256::MAX);
+                        let rhs_is_minus_one = self.builder.eq(rhs, minus_one);
+                        let overflow = self.builder.and(lhs_is_min, rhs_is_minus_one);
+                        self.panic_if(overflow, 0x11);
+                    }
+                }
+                match arithmetic {
+                    Some(ArithmeticKind::Signed(_)) => self.builder.sdiv(lhs, rhs),
+                    _ => self.builder.div(lhs, rhs),
+                }
+            }
+            BinOpKind::Rem => {
+                if !self.unchecked {
+                    let zero = self.builder.iszero(rhs);
+                    self.panic_if(zero, 0x12);
+                }
+                match arithmetic {
+                    Some(ArithmeticKind::Signed(_)) => self.builder.smod(lhs, rhs),
+                    _ => self.builder.mod_(lhs, rhs),
+                }
+            }
+            BinOpKind::Lt => match arithmetic {
+                Some(ArithmeticKind::Signed(_)) => self.builder.slt(lhs, rhs),
+                _ => self.builder.lt(lhs, rhs),
+            },
+            BinOpKind::Gt => match arithmetic {
+                Some(ArithmeticKind::Signed(_)) => self.builder.sgt(lhs, rhs),
+                _ => self.builder.gt(lhs, rhs),
+            },
+            BinOpKind::Eq => self.builder.eq(lhs, rhs),
+            BinOpKind::Ne => {
+                let eq = self.builder.eq(lhs, rhs);
+                self.builder.iszero(eq)
+            }
+            BinOpKind::Le => {
+                let gt = match arithmetic {
+                    Some(ArithmeticKind::Signed(_)) => self.builder.sgt(lhs, rhs),
+                    _ => self.builder.gt(lhs, rhs),
+                };
+                self.builder.iszero(gt)
+            }
+            BinOpKind::Ge => {
+                let lt = match arithmetic {
+                    Some(ArithmeticKind::Signed(_)) => self.builder.slt(lhs, rhs),
+                    _ => self.builder.lt(lhs, rhs),
+                };
+                self.builder.iszero(lt)
+            }
+            BinOpKind::And | BinOpKind::BitAnd => self.builder.and(lhs, rhs),
+            BinOpKind::Or | BinOpKind::BitOr => self.builder.or(lhs, rhs),
+            BinOpKind::BitXor => self.builder.xor(lhs, rhs),
+            BinOpKind::Shl => self.builder.shl(rhs, lhs),
+            BinOpKind::Shr => match arithmetic {
+                Some(ArithmeticKind::Signed(_)) => self.builder.sar(rhs, lhs),
+                _ => self.builder.shr(rhs, lhs),
+            },
+            BinOpKind::Sar => self.builder.sar(rhs, lhs),
+            BinOpKind::Pow => {
+                if self.unchecked {
+                    let result = self.builder.exp(lhs, rhs);
+                    self.truncate_wrapping_result(result, arithmetic)
+                } else if let Some(kind) = arithmetic {
+                    self.checked_pow(lhs, rhs, kind)
+                } else {
+                    self.builder.exp(lhs, rhs)
+                }
+            }
+        }
+    }
+
+    pub(super) fn unary(
+        &mut self,
+        op: UnOpKind,
+        value: ValueId,
+        span: Span,
+        ty: Option<Ty<'gcx>>,
+    ) -> Option<ValueId> {
+        Some(match op {
+            UnOpKind::Not => self.builder.iszero(value),
+            UnOpKind::Neg => {
+                if !self.unchecked
+                    && let Some(ArithmeticKind::Signed(bits)) = ty.and_then(arithmetic_kind)
+                {
+                    let (min, _) = signed_bounds(bits, &mut self.builder);
+                    let overflow = self.builder.eq(value, min);
+                    self.panic_if(overflow, 0x11);
+                }
+                let zero = self.builder.imm_u256(U256::ZERO);
+                let result = self.builder.sub(zero, value);
+                if self.unchecked {
+                    self.truncate_wrapping_result(result, ty.and_then(arithmetic_kind))
+                } else {
+                    result
+                }
+            }
+            UnOpKind::BitNot => self.builder.not(value),
+            UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec => {
+                return report_unsupported(self.gcx, span, "increment or decrement");
+            }
+        })
+    }
+}
