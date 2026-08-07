@@ -61,6 +61,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     .push((parameter, self.storage_refs.insert(parameter, access)));
             } else {
                 let value = self.lower_typed_expr(argument, parameter_ty)?;
+                let value = self.coerce_call_argument(argument, parameter_ty, value);
                 let value = self.materialize_call_argument(parameter_ty, value, argument.span)?;
                 saved_parameters.push((parameter, self.values.insert(parameter, value)));
             }
@@ -124,6 +125,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             };
             let parameter_ty = self.gcx.type_of_item(parameter.into());
             let value = self.lower_typed_expr(argument, parameter_ty)?;
+            let value = self.coerce_call_argument(argument, parameter_ty, value);
             saved_parameters.push((parameter, self.values.insert(parameter, value)));
         }
 

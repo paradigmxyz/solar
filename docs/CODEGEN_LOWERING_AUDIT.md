@@ -353,6 +353,13 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    covers modifier arguments that assign the function's named return variables
    before the body runs. `constructor_fixed_array_forwarding.sol` covers
    fixed-array constructor decoding and the memory-to-storage copy.
+   `constructor_bytes_forwarding.sol` covers dynamic bytes forwarded through an
+   internal base-constructor helper, while `constructor_internal_arguments.sol`
+   covers fixed-byte literals and booleans through child creation. The
+   `constructor_base_fixed_bytes.sol` vector covers the same fixed-byte literal
+   conversion through an inherited base constructor, and
+   `constructor_function_call_fixed_bytes.sol` covers a direct internal call
+   from a constructor.
 3. Extend function-pointer ABI coverage to the remaining edge cases. External
    pointers now have runtime coverage for aggregate arguments and returns,
    pointer arguments and pointer returns, including aggregate `try` return
@@ -374,6 +381,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    function-pointer parameters occupying multiple argument slots.
    `internal_function_pointer_library.sol` covers a library reducer receiving
    an internal callback and a memory-array argument.
+   `constructor_function_pointer_dispatch.sol` covers internal callback
+   dispatch during construction, including a fixed-byte return value.
    `external_function_pointer_calldata_array.sol` adds a Solc-checked calldata
    array decode and re-encoding vector. `abi_function_pointer_validation.sol`
    ports Solc's canonical 24-byte pointer checks: unused calldata structs stay

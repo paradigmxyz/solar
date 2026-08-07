@@ -154,6 +154,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         parameter_ty: Ty<'gcx>,
     ) -> Option<(ValueId, AbiType)> {
         let mut value = self.lower_typed_expr(argument, parameter_ty)?;
+        value = self.coerce_call_argument(argument, parameter_ty, value);
         let mut abi_type = self.types.abi_type(parameter_ty)?;
         abi_type = self.abi_type_for_value(value, abi_type);
         self.validate_calldata_bytes_argument(value, &abi_type);
