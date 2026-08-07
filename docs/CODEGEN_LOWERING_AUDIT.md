@@ -67,6 +67,8 @@ The replacement is split into stateful, private components:
   in `function/statements`.
   Branches, loops, ternaries, Yul switches, and storage-reference merges live
   in `function/control_flow`.
+  Tuple assignments, return values, and multi-value buffers live in
+  `function/values`.
   Solidity, Yul, and address builtin dispatch live in `function/builtins`,
   with raw op emission limited to the explicit inline-assembly boundary.
   Modifier and base-constructor expansion live in `function/modifiers`, with
