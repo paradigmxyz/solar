@@ -118,20 +118,23 @@ bb6:
   pop
   push bb5
   jumpi
+  push 0
+  not
+  push 192
+  shr
   push 192
   mload
-  push 256
-  mload
-  add
-  push 256
-  mload
-  dup2
-  lt
-  calldatasize
-  swap1
-  swap2
   gt
-  or
+  push bb5
+  jumpi
+  calldatasize
+  push 192
+  mload
+  swap1
+  sub
+  push 256
+  mload
+  sgt
   push bb5
   jumpi
   push 32
@@ -141,11 +144,6 @@ bb6:
   dup1
   push 224
   mstore
-  push 192
-  mload
-  gt
-  push bb35
-  jumpi
   push 63
   push 192
   mload
@@ -153,9 +151,7 @@ bb6:
   dup1
   push 160
   mstore
-  push 224
-  mload
-  gt
+  lt
   push bb35
   jumpi
   push 160
@@ -280,13 +276,13 @@ bb21:
   push 4
   calldataload
   dup1
-  push 288
+  push 352
   mstore
   push 4
   dup2
   add
   dup1
-  push 320
+  push 256
   mstore
   push 4
   dup2
@@ -301,13 +297,13 @@ bb21:
   push bb5
   jumpi
   push 36
-  push 288
+  push 352
   mload
   add
   dup1
-  push 224
-  mstore
   push 320
+  mstore
+  push 256
   mload
   dup2
   lt
@@ -319,17 +315,17 @@ bb21:
   pop
   push bb5
   jumpi
-  push 320
+  push 256
   mload
   calldataload
   dup1
-  push 256
+  push 224
   mstore
   dup1
-  push 224
+  push 320
   mload
   add
-  push 224
+  push 320
   mload
   dup2
   lt
@@ -342,33 +338,32 @@ bb21:
   pop
   push bb5
   jumpi
-  push 256
-  mload
+  push 0
+  not
+  push 192
+  shr
   push 224
   mload
-  add
-  push 224
-  mload
-  dup2
-  lt
-  calldatasize
-  swap1
-  swap2
   gt
-  or
+  push bb5
+  jumpi
+  calldatasize
+  push 224
+  mload
+  swap1
+  sub
+  push 320
+  mload
+  sgt
   push bb5
   jumpi
   push 3
-  push 256
+  push 224
   mload
   add
   dup1
-  push 288
+  push 352
   mstore
-  push 3
-  gt
-  push bb35
-  jumpi
   push 0
   not
   push 96
@@ -377,35 +372,35 @@ bb21:
   calldataload
   and
   dup1
-  push 320
+  push 256
   mstore
   push 23
-  push 256
+  push 224
   mload
   add
   dup1
   push 384
   mstore
-  push 288
-  mload
+  dup3
   gt
-  swap1
+  swap2
+  pop
   pop
   push bb35
   jumpi
   push 54
-  push 256
+  push 224
   mload
   add
   dup1
-  push 352
+  push 288
   mstore
   push 384
   mload
   gt
   push bb35
   jumpi
-  push 352
+  push 288
   mload
   push 5
   shr
@@ -413,12 +408,12 @@ bb21:
   dup2
   add
   dup1
-  push 352
+  push 288
   mstore
   lt
   push bb35
   jumpi
-  push 352
+  push 288
   mload
   push 5
   shl
@@ -428,7 +423,7 @@ bb21:
   dup1
   push 5
   shr
-  push 352
+  push 288
   mload
   eq
   swap1
@@ -464,21 +459,21 @@ bb21:
   add
   push 3
   add
-  push 256
-  mload
   push 224
+  mload
+  push 320
   mload
   dup3
   calldatacopy
   pop
-  push 320
+  push 256
   mload
   push 96
   shl
   push 32
   dup3
   add
-  push 288
+  push 352
   mload
   add
   jump bb36

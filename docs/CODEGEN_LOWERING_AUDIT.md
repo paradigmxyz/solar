@@ -289,8 +289,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   coercions, including dynamic structs, string literals, and fixed bytes;
 * string literals coerced to fixed-bytes values in comparisons and byte-array
   element stores, with canonical alignment at each boundary;
-* Solc-compatible dynamic ABI offset bounds, including valid zero offsets
-  and overflow/range rejection;
+* Solc-compatible dynamic ABI offset bounds, including valid zero offsets,
+  wrapped negative offsets, and overflow/range rejection;
 * `ecrecover`, `sha256`, and `ripemd160` through version-aware precompile
   calls and semantic memory objects;
 * ERC-7201 namespace hashing for literal, memory, calldata, and storage-string
@@ -369,6 +369,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi_calldata_unused_aggregate_validation.sol` covers the other lazy
    boundary: unused dynamic bytes and structs validate their immediate heads,
    while nested dynamic offsets remain lazy like Solc.
+   `abi_calldata_offset_wrap.sol` checks Solc's signed nested-tail offset rule:
+   `-32` is a valid wrapped pointer, `-64` still fails its oversized tail, and
+   an out-of-range `-96` pointer reads a zero length through EVM calldata
+   zero-fill.
    `abi_calldata_lazy_struct_array.sol` checks that indexing a calldata struct
    array leaves an unused sibling dynamic field lazy while selected dynamic
    fields still enforce their payload bounds.

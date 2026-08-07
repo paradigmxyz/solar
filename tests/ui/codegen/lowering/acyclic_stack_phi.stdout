@@ -143,36 +143,31 @@ bb5:
   dup1
   push 512
   mstore
-  dup2
-  dup2
-  add
-  dup2
-  dup2
-  lt
-  calldatasize
-  swap1
-  swap2
+  push 0
+  not
+  push 192
+  shr
+  dup3
   gt
-  or
   swap2
   pop
   pop
+  push bb4
+  jumpi
+  calldatasize
+  push 480
+  mload
+  swap1
+  sub
+  push 512
+  mload
+  sgt
   push bb4
   jumpi
   push 31
   push 480
   mload
   add
-  dup1
-  push 544
-  mstore
-  push 480
-  mload
-  gt
-  push bb24
-  jumpi
-  push 544
-  mload
   push 5
   shr
   push 1
@@ -245,20 +240,14 @@ bb11:
   push 128
   return
 bb19:
+  calldatasize
   push 416
   mload
-  push 384
-  mload
-  add
-  push 384
-  mload
-  dup2
-  lt
-  calldatasize
   swap1
-  swap2
-  gt
-  or
+  sub
+  push 384
+  mload
+  sgt
   push bb4
   jumpi
   push 31

@@ -5,23 +5,26 @@ fn @forward(arg0: address, arg1: u256, arg2: calldataslice) [abi_args=lazy, abi_
     v0 = gas
     v1 = slice_ptr arg2
     v2 = slice_len arg2
-    v3 = add v1, v2
-    v4 = lt v3, v1
-    v5 = calldatasize
-    v6 = gt v3, v5
-    v7 = or v4, v6
-    jumpi v7, bb1, bb2
+    v3 = gt v2, 0xffffffffffffffff
+    jumpi v3, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = abi_encode [word, calldata_bytes], selector 0x37650e7800000000000000000000000000000000000000000000000000000000, args arg1, arg2
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = call v0, arg0, 0, v9, v10, 0, 0
-    jumpi v11, bb4, bb3
+    v4 = calldatasize
+    v5 = sub v4, v2
+    v6 = sgt v1, v5
+    jumpi v6, bb3, bb4
   bb3:
-    revert_returndata
+    revert 0, 0
   bb4:
+    v7 = abi_encode [word, calldata_bytes], selector 0x37650e7800000000000000000000000000000000000000000000000000000000, args arg1, arg2
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = call v0, arg0, 0, v8, v9, 0, 0
+    jumpi v10, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
     stop
 }
 

@@ -44,57 +44,60 @@ fn @calldataParam(arg0: calldataslice) -> u256 [abi_args=lazy, abi_params=[bytes
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
-    v2 = add v0, v1
-    v3 = lt v2, v0
-    v4 = calldatasize
-    v5 = gt v2, v4
-    v6 = or v3, v5
-    jumpi v6, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v7 = slice_len arg0
-    v8 = add v7, 31
-    v9 = lt v8, v7
-    jumpi v9, bb3, bb4
+    v3 = calldatasize
+    v4 = sub v3, v1
+    v5 = sgt v0, v4
+    jumpi v5, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
-    v10 = div v8, 32
-    v11 = add v10, 1
-    v12 = lt v11, v10
-    jumpi v12, bb5, bb6
+    v6 = slice_len arg0
+    v7 = add v6, 31
+    v8 = lt v7, v6
+    jumpi v8, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v13 = mul v11, 32
-    v14 = iszero 32
-    v15 = div v13, 32
-    v16 = eq v15, v11
-    v17 = or v14, v16
-    v18 = iszero v17
-    jumpi v18, bb7, bb8
+    v9 = div v7, 32
+    v10 = add v9, 1
+    v11 = lt v10, v9
+    jumpi v11, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v19 = alloc memorybytes, exact, uninitialized, infallible, v13
-    set_memory_object_len memorybytes, v19, v7
-    memory_object_copy_from_slice memorybytes, v19, arg0
-    v20 = keccak256_bytes v19
-    v21 = sub v20, 1
-    v22 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v22, 32
-    memory_object_store_word memorybytes, v22, 0, v21
-    v23 = memory_object_data memorybytes, v22
-    v24 = keccak256 v23, 32
-    v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    ret v25
+    v12 = mul v10, 32
+    v13 = iszero 32
+    v14 = div v12, 32
+    v15 = eq v14, v10
+    v16 = or v13, v15
+    v17 = iszero v16
+    jumpi v17, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v18, v6
+    memory_object_copy_from_slice memorybytes, v18, arg0
+    v19 = keccak256_bytes v18
+    v20 = sub v19, 1
+    v21 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v21, 32
+    memory_object_store_word memorybytes, v21, 0, v20
+    v22 = memory_object_data memorybytes, v21
+    v23 = keccak256 v22, 32
+    v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    ret v24
 }
 
 fn @storageValue() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {

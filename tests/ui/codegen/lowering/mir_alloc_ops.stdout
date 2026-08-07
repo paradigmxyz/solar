@@ -30,49 +30,52 @@ fn @dynamic(arg0: calldataslice) -> memorybytes [abi_args=lazy, abi_params=[byte
     set_memory_object_len memorybytes, v0, 0
     v1 = slice_ptr arg0
     v2 = slice_len arg0
-    v3 = add v1, v2
-    v4 = lt v3, v1
-    v5 = calldatasize
-    v6 = gt v3, v5
-    v7 = or v4, v6
-    jumpi v7, bb1, bb2
+    v3 = gt v2, 0xffffffffffffffff
+    jumpi v3, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = slice_len arg0
-    v9 = add v8, 31
-    v10 = lt v9, v8
-    jumpi v10, bb3, bb4
+    v4 = calldatasize
+    v5 = sub v4, v2
+    v6 = sgt v1, v5
+    jumpi v6, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
-    v11 = div v9, 32
-    v12 = add v11, 1
-    v13 = lt v12, v11
-    jumpi v13, bb5, bb6
+    v7 = slice_len arg0
+    v8 = add v7, 31
+    v9 = lt v8, v7
+    jumpi v9, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v14 = mul v12, 32
-    v15 = iszero 32
-    v16 = div v14, 32
-    v17 = eq v16, v12
-    v18 = or v15, v17
-    v19 = iszero v18
-    jumpi v19, bb7, bb8
+    v10 = div v8, 32
+    v11 = add v10, 1
+    v12 = lt v11, v10
+    jumpi v12, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v14
-    set_memory_object_len memorybytes, v20, v8
-    memory_object_copy_from_slice memorybytes, v20, arg0
-    ret v20
+    v13 = mul v11, 32
+    v14 = iszero 32
+    v15 = div v13, 32
+    v16 = eq v15, v11
+    v17 = or v14, v16
+    v18 = iszero v17
+    jumpi v18, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    v19 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v19, v7
+    memory_object_copy_from_slice memorybytes, v19, arg0
+    ret v19
 }
 
 fn @frameShadow() -> (u256, u256, u256, u256) [abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word]] {

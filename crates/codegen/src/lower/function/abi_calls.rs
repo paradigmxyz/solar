@@ -383,7 +383,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             if validate_bounds {
                 let element_head_size = self.types.abi_type(element)?.head_size();
                 let size = self.builder.imm_u64(element_head_size.checked_mul(length)?);
-                self.check_calldata_range(value_pos, size);
+                self.check_calldata_tail_range(value_pos, size);
             }
             let length = self.builder.imm_u64(length);
             return Some(self.builder.make_slice(value_pos, length, SliceLocation::Calldata));
@@ -430,14 +430,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
             ) if is_calldata => {
-                if validate_bounds {
-                    self.check_calldata_range(value_pos, word);
-                }
                 let length = self.calldata_load_word(value_pos);
-                let data = self.builder.add(value_pos, word);
                 if validate_bounds {
-                    self.check_calldata_range(data, length);
+                    let byte_stride = self.builder.imm_u64(1);
+                    self.validate_calldata_dynamic_tail(value_pos, length, byte_stride);
                 }
+                let data = self.builder.add(value_pos, word);
                 Some(self.builder.make_slice(data, length, SliceLocation::Calldata))
             }
             TyKind::Elementary(
@@ -445,40 +443,27 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             ) => Some(self.materialize_calldata_bytes_at(value_pos, validate_bounds)),
             TyKind::DynArray(element) | TyKind::Slice(element) => {
                 if is_calldata {
-                    if validate_bounds {
-                        self.check_calldata_range(value_pos, word);
-                    }
                     let length = self.calldata_load_word(value_pos);
-                    let data = self.builder.add(value_pos, word);
                     if validate_bounds {
                         let element_head_size =
                             self.builder.imm_u64(self.types.abi_type(element)?.head_size());
-                        let head_size = self.checked_mul(length, element_head_size);
-                        self.check_calldata_range(data, head_size);
+                        self.validate_calldata_dynamic_tail(value_pos, length, element_head_size);
                     }
+                    let data = self.builder.add(value_pos, word);
                     return Some(self.builder.make_slice(data, length, SliceLocation::Calldata));
                 }
-                if validate_bounds {
-                    self.check_calldata_range(value_pos, word);
-                }
                 let length = self.calldata_load_word(value_pos);
-                let data = self.builder.add(value_pos, word);
                 let element_type = self.types.abi_type(element)?;
+                if validate_bounds {
+                    let element_head_size = self.builder.imm_u64(element_type.head_size());
+                    self.validate_calldata_dynamic_tail(value_pos, length, element_head_size);
+                }
+                let data = self.builder.add(value_pos, word);
                 if matches!(element_type, AbiType::Word)
                     && Self::calldata_word_is_full_width(element)
                 {
-                    if validate_bounds {
-                        let element_head_size = self.builder.imm_u64(element_type.head_size());
-                        let head_size = self.checked_mul(length, element_head_size);
-                        self.check_calldata_range(data, head_size);
-                    }
                     Some(self.copy_calldata_word_array(data, length))
                 } else {
-                    if validate_bounds {
-                        let element_head_size = self.builder.imm_u64(element_type.head_size());
-                        let head_size = self.checked_mul(length, element_head_size);
-                        self.check_calldata_range(data, head_size);
-                    }
                     self.materialize_calldata_nested_array(
                         element,
                         data,
@@ -495,7 +480,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     let head_size = length.checked_mul(element_head_size)?;
                     if validate_bounds {
                         let head_size = self.builder.imm_u64(head_size);
-                        self.check_calldata_range(value_pos, head_size);
+                        self.check_calldata_tail_range(value_pos, head_size);
                     }
                     let length = self.builder.imm_u64(length);
                     return Some(self.builder.make_slice(
@@ -516,7 +501,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 if is_calldata {
                     let head_size = self.builder.imm_u64(self.types.abi_type(ty)?.head_size());
                     if validate_bounds {
-                        self.check_calldata_range(value_pos, head_size);
+                        self.check_calldata_tail_range(value_pos, head_size);
                     }
                     return Some(self.builder.make_slice(
                         value_pos,
@@ -561,8 +546,16 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let offset = self.calldata_load_word(head);
         let value_pos = self.builder.add(tuple_base, offset);
         if validate_bounds {
-            let overflow = self.builder.lt(value_pos, tuple_base);
-            self.revert_if_calldata_invalid(overflow);
+            // Solidity's calldata tail helper uses a signed offset bound. Negative ABI
+            // offsets may therefore wrap to a valid EVM calldata load, whose missing bytes
+            // read as zero; the tail checks below decide whether the resulting value is valid.
+            let calldata_size = self.builder.calldatasize();
+            let thirty_one = self.builder.imm_u64(31);
+            let available = self.builder.sub(calldata_size, tuple_base);
+            let bound = self.builder.sub(available, thirty_one);
+            let valid = self.builder.slt(offset, bound);
+            let invalid = self.builder.iszero(valid);
+            self.revert_if_calldata_invalid(invalid);
         }
         Some(value_pos)
     }
@@ -574,6 +567,32 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let out_of_bounds = self.builder.gt(end, calldata_size);
         let invalid = self.builder.or(overflow, out_of_bounds);
         self.revert_if_calldata_invalid(invalid);
+    }
+
+    fn check_calldata_tail_range(&mut self, start: ValueId, size: ValueId) {
+        let end = self.builder.add(start, size);
+        let calldata_size = self.builder.calldatasize();
+        let out_of_bounds = self.builder.gt(end, calldata_size);
+        self.revert_if_calldata_invalid(out_of_bounds);
+    }
+
+    fn validate_calldata_dynamic_tail(
+        &mut self,
+        value_pos: ValueId,
+        length: ValueId,
+        stride: ValueId,
+    ) {
+        let max_length = self.builder.imm_u64(u64::MAX);
+        let too_large = self.builder.gt(length, max_length);
+        self.revert_if_calldata_invalid(too_large);
+
+        let size = self.builder.mul(length, stride);
+        let word = self.builder.imm_u64(32);
+        let data = self.builder.add(value_pos, word);
+        let calldata_size = self.builder.calldatasize();
+        let limit = self.builder.sub(calldata_size, size);
+        let out_of_bounds = self.builder.sgt(data, limit);
+        self.revert_if_calldata_invalid(out_of_bounds);
     }
 
     fn revert_if_calldata_invalid(&mut self, condition: ValueId) {
@@ -666,14 +685,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         validate_bounds: bool,
     ) -> ValueId {
         let word = self.builder.imm_u64(32);
-        if validate_bounds {
-            self.check_calldata_range(position, word);
-        }
         let length = self.calldata_load_word(position);
-        let data = self.builder.add(position, word);
         if validate_bounds {
-            self.validate_calldata_bytes_range(data, length);
+            let byte_stride = self.builder.imm_u64(1);
+            self.validate_calldata_dynamic_tail(position, length, byte_stride);
         }
+        let data = self.builder.add(position, word);
         let slice = self.builder.make_slice(data, length, SliceLocation::Calldata);
         self.materialize_memory_slice(slice)
     }
@@ -681,11 +698,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     fn validate_calldata_bytes_slice(&mut self, slice: ValueId) {
         let pointer = self.builder.slice_ptr(slice);
         let length = self.builder.slice_len(slice);
-        self.check_calldata_range(pointer, length);
-    }
-
-    fn validate_calldata_bytes_range(&mut self, pointer: ValueId, length: ValueId) {
-        self.check_calldata_range(pointer, length);
+        let max_length = self.builder.imm_u64(u64::MAX);
+        let too_large = self.builder.gt(length, max_length);
+        self.revert_if_calldata_invalid(too_large);
+        let calldata_size = self.builder.calldatasize();
+        let limit = self.builder.sub(calldata_size, length);
+        let out_of_bounds = self.builder.sgt(pointer, limit);
+        self.revert_if_calldata_invalid(out_of_bounds);
     }
 
     fn materialize_calldata_fixed_array(
