@@ -63,8 +63,10 @@ The replacement is split into stateful, private components:
   `function/abi_calls` module.
   Function calls, conversions, function pointers, constructor creation, and
   call-target resolution live in `function/calls`.
+  Low-level call return capture and result shaping use that same module.
   Statement dispatch, revert payloads, custom errors, and event emission live
   in `function/statements`.
+  Event word normalization uses the statement module's shared helper.
   Signature binding, constructor/state initialization, return targets, and
   function-body orchestration live in `function/entry`.
   Branches, loops, ternaries, Yul switches, and storage-reference merges live
