@@ -358,6 +358,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    covers modifier arguments that assign the function's named return variables
    before the body runs. `constructor_fixed_array_forwarding.sol` covers
    fixed-array constructor decoding and the memory-to-storage copy.
+   `constructor_external_arguments.sol` covers direct deployment decoding of
+   packed `bytes3` and boolean constructor parameters.
    `constructor_bytes_forwarding.sol` covers dynamic bytes forwarded through an
    internal base-constructor helper, while `constructor_internal_arguments.sol`
    covers fixed-byte literals and booleans through child creation. The
