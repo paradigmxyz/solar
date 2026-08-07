@@ -307,8 +307,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    and size-limit check for a huge dynamic-array length in an otherwise unused
    argument.
    `abi_decode_offset_overflow.sol` ports Solc's nested fixed-array offset
-   overflow case and checks that decoding fails before it can alias an earlier
+   overflow cases and checks that decoding fails before it can alias an earlier
    memory allocation.
+   `abi_decode_structs.sol` adds Solc's nested static-array decode and
+   overlapping dynamic-array copy cases.
    `abi_packed_calldata_scalar_validation.sol` applies the same check to
    `abi.encodePacked`, which must clean each array element instead of copying
    dirty calldata words.
@@ -349,9 +351,10 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    dirty narrow scalar words forwarded through an external self-call.
    External return wrappers also recursively clean typed scalar words before
    encoding returndata; `external_return_validation.sol` checks dirty scalar
-   fields in a returned memory struct against Solc, and the dynamic `bool[]`
-   return path is covered by `abi_decode_dynamic_arrays.sol`. The same wrapper
-   validates dirty enum values and emits Solc's `Panic(0x21)`.
+   fields in a returned memory struct against Solc, malformed dynamic return
+   lengths across the post-Homestead external-call boundary, and the dynamic
+   `bool[]` return path covered by `abi_decode_dynamic_arrays.sol`. The same
+   wrapper validates dirty enum values and emits Solc's `Panic(0x21)`.
    `abi_decode_storage_struct.sol` covers decoding a storage-backed ABI blob
    into a memory struct with a dynamic array field.
    `abi.decode`, external return decoding, and `catch Error(string)` payload
@@ -366,7 +369,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    validation for shapes beyond the covered nested-array heads needs a separate
    design so it does not force materialization.
 2. Extend base-constructor argument forwarding coverage to the remaining
-   unresolved and constructor-modifier edge cases. Inherited constructor
+   unresolved and constructor-modifier edge cases. The
+   `constructor_function_base_argument.sol` vector checks a base constructor
+   argument that calls a function declared on that base. Inherited constructor
    arguments that call direct or virtual functions now have Solc-backed
    run-call coverage. Virtual constructor modifiers and library modifiers with
    storage parameters now have differential runtime coverage as well. The

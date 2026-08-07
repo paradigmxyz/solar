@@ -16,11 +16,14 @@
 //@ run-call-fail: ExternalReturnValidation::dirtyEnumPacked() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 //@ run-call-fail: ExternalReturnValidation::dirtyEnumPackedArray() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 //@ run-call: ExternalReturnValidation::dirtyBoolPacked() => 0x01
+//@ run-call-fail: ExternalReturnValidation::dynamicShort(uint256) 0x60
+//@ run-call: ExternalReturnValidation::dynamicShort(uint256) 0x61 => true
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_static_array.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_dynamic_array.sol
 // ported-from: test/libsolidity/semanticTests/reverts/invalid_enum_as_external_ret.sol
 // ported-from: test/libsolidity/semanticTests/reverts/invalid_enum_stored.sol
 // ported-from: test/libsolidity/semanticTests/reverts/invalid_enum_as_external_arg.sol
+// ported-from: test/libsolidity/semanticTests/abicoder/return_dynamic_types_cross_call_out_of_range_post_homestead.sol
 
 contract ExternalReturnValidation {
     struct Pair {
@@ -211,5 +214,18 @@ contract ExternalReturnValidation {
             value := 2
         }
         return abi.encodePacked(value);
+    }
+
+    function dynamicShort(uint256 length) external view returns (bool) {
+        this.dynamicTarget(length);
+        return true;
+    }
+
+    function dynamicTarget(uint256 length) external pure returns (bytes memory) {
+        assembly {
+            mstore(0, 0x20)
+            mstore(0x20, 0x21)
+            return(0, length)
+        }
     }
 }
