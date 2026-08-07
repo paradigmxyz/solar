@@ -180,6 +180,28 @@ str_enum! {
     }
 }
 
+str_enum! {
+    /// Switch lowering strategy.
+    #[derive(Default)]
+    #[strum(serialize_all = "kebab-case")]
+    #[non_exhaustive]
+    pub enum SwitchLowering {
+        /// Select a lowering from the optimization objective and cost model.
+        #[default]
+        Auto,
+        /// Test every case in source order.
+        Linear,
+        /// Recursively split sorted cases.
+        Binary,
+        /// Dispatch through modulo buckets.
+        Buckets,
+        /// Dispatch through a dense indexed table.
+        Dense,
+        /// Dispatch through a collision-free indexed table.
+        Perfect,
+    }
+}
+
 impl OptimizationMode {
     /// Returns whether codegen should favor bytecode size over runtime gas (`-O size`).
     #[inline]

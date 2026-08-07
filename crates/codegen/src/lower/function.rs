@@ -312,6 +312,7 @@ enum PackedPiece<'gcx> {
         value: ValueId,
         length: u64,
         fixed_bytes: bool,
+        signed: bool,
     },
     Dynamic {
         source: ValueId,
@@ -687,6 +688,14 @@ fn arithmetic_kind(ty: Ty<'_>) -> Option<ArithmeticKind> {
             _ => None,
         },
         _ => None,
+    }
+}
+
+fn is_signed_packed_scalar(ty: Ty<'_>) -> bool {
+    match ty.peel_refs().kind {
+        TyKind::Udvt(inner, _) => is_signed_packed_scalar(inner),
+        TyKind::Elementary(solar_sema::hir::ElementaryType::Int(_)) => true,
+        _ => false,
     }
 }
 

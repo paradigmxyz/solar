@@ -21,3 +21,16 @@
       stop
   }
   
+  fn @entry() {
+    bb0:
+-     storeimmutable first, 2
++     mstore 192, 2
+      stop
+  }
+  
+  fn @router() [entry] {
+    bb0:
+      storeimmutable first, 3
+      stop
+  }
+  

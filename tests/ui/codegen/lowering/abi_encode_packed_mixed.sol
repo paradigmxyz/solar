@@ -38,4 +38,19 @@ contract AbiEncodePackedMixed {
     function hashArray(bytes32[] memory values) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(values));
     }
+
+    // Signed packed values are sign-extended words. Coalescing them with a
+    // preceding field must mask the sign extension before shifting, or the
+    // high bits overwrite that field.
+    // CHECK-LABEL: fn @signedStaticRun{{[( ]}}
+    // CHECK: [[CLEAN:v[0-9]+]] = and {{v[0-9]+}}, 0xffff
+    // CHECK: [[SIGNED:v[0-9]+]] = shl 232, [[CLEAN]]
+    // CHECK: keccak256_bytes
+    function signedStaticRun(uint8 prefix, int16 value, bytes3 suffix)
+        external
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(prefix, value, suffix));
+    }
 }

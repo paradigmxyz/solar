@@ -16,6 +16,7 @@ use alloy_primitives::U256;
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
 use solar_interface::Symbol;
 
+pub(in crate::backend::evm) mod builder;
 mod display;
 mod parse;
 mod passes;
@@ -23,6 +24,7 @@ mod verify;
 
 pub(in crate::backend::evm) mod assembly;
 
+pub(in crate::backend::evm) use passes::compact_pushes::immediate_materialization_cost;
 pub use passes::{ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_pipeline};
 
 /// Validates the invariants of an EVM IR module.
@@ -327,6 +329,10 @@ pub(crate) enum TerminatorKind {
         /// Target when condition is zero.
         else_block: BlockId,
     },
+    /// Jump through a dense zero-based table using an index from the stack.
+    ///
+    /// The index must be in range; lowering intentionally emits no bounds check.
+    IndexedJump(Box<[BlockId]>),
     /// Terminal EVM opcode.
     Op(u8),
 }
@@ -340,6 +346,7 @@ impl TerminatorKind {
                 visit(*then_block);
                 visit(*else_block);
             }
+            Self::IndexedJump(targets) => targets.iter().copied().for_each(visit),
             Self::Op(_) => {}
         }
     }
@@ -366,6 +373,7 @@ impl TerminatorKind {
                     visit(*else_block);
                 }
             }
+            Self::IndexedJump(targets) => targets.iter().copied().for_each(visit),
             Self::Op(_) => {}
         }
     }
@@ -378,6 +386,7 @@ impl TerminatorKind {
                 visit(then_block);
                 visit(else_block);
             }
+            Self::IndexedJump(targets) => targets.iter_mut().for_each(visit),
             Self::Op(_) => {}
         }
     }
@@ -434,6 +443,7 @@ pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> Option<Sta
 fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {
     match kind {
         TerminatorKind::JumpI { .. } => Some(StackEffect::new(1, 0)),
+        TerminatorKind::IndexedJump(_) => Some(StackEffect::new(1, 0)),
         TerminatorKind::Jump(_) => Some(StackEffect::new(0, 0)),
         TerminatorKind::Op(opcode) => {
             op::stack_io(*opcode).map(|(inputs, outputs)| StackEffect::new(inputs, outputs))

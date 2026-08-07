@@ -2,7 +2,7 @@
 
 use crate::{
     ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
-    ImportRemapping, Language, LibraryAddress, OptimizationMode, Threads,
+    ImportRemapping, Language, LibraryAddress, OptimizationMode, SwitchLowering, Threads,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -398,6 +398,28 @@ pub struct UnstableOpts {
     /// benchmarks and compiler debugging.
     #[cfg_attr(feature = "clap", arg(long))]
     pub codegen_all_functions: bool,
+
+    /// Force a switch lowering strategy for benchmarking (default: `auto`; values: `auto`,
+    /// `linear`, `binary`, `buckets`, `dense`, or `perfect`).
+    #[cfg_attr(
+        feature = "clap",
+        arg(
+            long,
+            value_enum,
+            default_value_t,
+            hide_default_value = true,
+            hide_possible_values = true
+        )
+    )]
+    pub switch_lowering: SwitchLowering,
+
+    /// Override the artifact-wide bytecode growth budget for gas-optimized switches.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub switch_max_gas_code_growth: Option<usize>,
+
+    /// Override the per-switch bit-slice table growth limit for benchmarking.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub switch_max_bit_slice_gas_code_growth: Option<usize>,
 
     // ----------------------------------------
     // Please add new options above this point!

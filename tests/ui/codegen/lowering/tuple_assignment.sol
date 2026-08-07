@@ -36,8 +36,8 @@ contract C {
         return (7, 9);
     }
 
-    // CHECK: push bb6
-    // CHECK: jumpi
+    // CHECK: bb23:
+    // CHECK: push bb25
     // CHECK: push 7
     // CHECK: mstore
     // CHECK: push 9

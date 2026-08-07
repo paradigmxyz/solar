@@ -32,18 +32,15 @@
 + fn @entry() [entry] {
 +   bb0:
 +     v0 = callvalue
-+     jumpi v0, bb4, bb1
++     jumpi v0, bb3, bb1
 +   bb1:
-+     v1 = calldatasize
-+     jumpi v1, bb2, bb4
++     v1 = make_calldata_slice 0, 32
++     v2 = calldata_slice_load_word calldata, v1, 0
++     v3 = shr 224, v2
++     switch v3, default bb3, [0x9507d39a => bb2]
 +   bb2:
-+     v2 = make_calldata_slice 0, 32
-+     v3 = calldata_slice_load_word calldata, v2, 0
-+     v4 = shr 224, v3
-+     switch v4, default bb4, [0x9507d39a => bb3]
-+   bb3:
 +     tail_call @get
-+   bb4:
++   bb3:
 +     revert 0, 0
   }
   
@@ -60,18 +57,15 @@
   fn @entry() [entry] {
     bb0:
       v0 = callvalue
-      jumpi v0, bb4, bb1
+      jumpi v0, bb3, bb1
     bb1:
-      v1 = calldatasize
-      jumpi v1, bb2, bb4
+      v1 = make_calldata_slice 0, 32
+      v2 = calldata_slice_load_word calldata, v1, 0
+      v3 = shr 224, v2
+      switch v3, default bb3, [0x9507d39a => bb2]
     bb2:
-      v2 = make_calldata_slice 0, 32
-      v3 = calldata_slice_load_word calldata, v2, 0
-      v4 = shr 224, v3
-      switch v4, default bb4, [0x9507d39a => bb3]
-    bb3:
       tail_call @get
-    bb4:
+    bb3:
       revert 0, 0
   }
   

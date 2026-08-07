@@ -5,11 +5,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb4
-  jumpi
-  calldatasize
-  iszero
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -18,14 +14,14 @@ bb0:
   dup1
   push 0x341fda35
   eq
-  push bb5
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
+  jump bb3
+bb3 [cold]:
   push 0
   dup1
   revert
-bb24 [cold]:
+bb23 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -37,16 +33,16 @@ bb24 [cold]:
   push 36
   push 0
   revert
-bb5:
+bb4:
   calldatasize
   push 36
   gt
-  push bb4
+  push bb3
   jumpi
   calldatasize
   push 36
   gt
-  push bb4
+  push bb3
   jumpi
   push 4
   calldataload
@@ -69,7 +65,7 @@ bb5:
   swap2
   pop
   pop
-  push bb4
+  push bb3
   jumpi
   push 36
   push 224
@@ -88,7 +84,7 @@ bb5:
   or
   swap1
   pop
-  push bb4
+  push bb3
   jumpi
   push 256
   mload
@@ -111,7 +107,7 @@ bb5:
   or
   swap1
   pop
-  push bb4
+  push bb3
   jumpi
   push 224
   mload
@@ -121,13 +117,13 @@ bb5:
   mload
   push 416
   mstore
-  push bb11
+  push bb10
   push 4
   push 416
   mload
   gt
   iszero
-  push bb19
+  push bb18
   jumpi
   push 4
   push 416
@@ -152,7 +148,7 @@ bb5:
   swap2
   pop
   pop
-  push bb4
+  push bb3
   jumpi
   calldatasize
   push 480
@@ -162,7 +158,7 @@ bb5:
   push 512
   mload
   sgt
-  push bb4
+  push bb3
   jumpi
   push 31
   push 480
@@ -177,7 +173,7 @@ bb5:
   push 544
   mstore
   lt
-  push bb24
+  push bb23
   jumpi
   push 544
   mload
@@ -195,7 +191,7 @@ bb5:
   swap1
   pop
   iszero
-  push bb24
+  push bb23
   jumpi
   push 64
   mload
@@ -218,8 +214,8 @@ bb5:
   push 480
   mload
   push 512
-  jump bb25
-bb25:
+  jump bb24
+bb24:
   mload
   dup3
   calldatacopy
@@ -227,7 +223,7 @@ bb25:
   push 448
   mstore
   jump
-bb11:
+bb10:
   push 448
   mload
   dup1
@@ -239,7 +235,7 @@ bb11:
   push 32
   push 128
   return
-bb19:
+bb18:
   calldatasize
   push 416
   mload
@@ -248,7 +244,7 @@ bb19:
   push 384
   mload
   sgt
-  push bb4
+  push bb3
   jumpi
   push 31
   push 416
@@ -263,7 +259,7 @@ bb19:
   push 480
   mstore
   lt
-  push bb24
+  push bb23
   jumpi
   push 480
   mload
@@ -281,7 +277,7 @@ bb19:
   swap1
   pop
   iszero
-  push bb24
+  push bb23
   jumpi
   push 64
   mload
@@ -304,4 +300,4 @@ bb19:
   push 416
   mload
   push 384
-  jump bb25
+  jump bb24

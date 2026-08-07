@@ -1,4 +1,5 @@
 // === sparse_label (runtime) ===
 PUSH1 0x03
 POP
+; bb0
 JUMPDEST

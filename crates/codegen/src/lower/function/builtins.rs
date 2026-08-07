@@ -257,6 +257,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
             Builtin::AddMod | Builtin::MulMod => {
                 let [a, b, modulus] = self.lower_builtin_args(builtin, &args)?;
+                let zero = self.builder.iszero(modulus);
+                self.panic_if(zero, 0x12);
                 Some(if builtin == Builtin::AddMod {
                     self.builder.addmod(a, b, modulus)
                 } else {

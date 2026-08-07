@@ -548,9 +548,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 return report_unsupported(self.gcx, expr.span, "abi.encodePacked argument");
             };
             let value = self.normalize_abi_scalar(value, ty);
+            let signed = is_signed_packed_scalar(ty);
             let length_value = self.builder.imm_u64(length);
             total = self.checked_add(total, length_value);
-            pieces.push(PackedPiece::Static { value, length, fixed_bytes });
+            pieces.push(PackedPiece::Static { value, length, fixed_bytes, signed });
         }
 
         let thirty_one = self.builder.imm_u64(31);
@@ -603,7 +604,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     offset =
                         self.copy_packed_array(output, offset, *value, *length, element, *source);
                 }
-                PackedPiece::Static { value, length, fixed_bytes } => {
+                PackedPiece::Static { value, length, fixed_bytes, .. } => {
                     let value = if *fixed_bytes || *length == 32 {
                         *value
                     } else {
@@ -1122,7 +1123,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     length += piece_length;
                     consumed += 1;
                 }
-                PackedPiece::Static { value, length: piece_length, fixed_bytes: false }
+                PackedPiece::Static { value, length: piece_length, fixed_bytes: false, signed }
                     if *piece_length < 32 =>
                 {
                     if *piece_length == 0 {
@@ -1133,7 +1134,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                         break;
                     }
                     let shift = (32 - length - *piece_length) * 8;
-                    terms.push((*value, shift));
+                    terms.push((*value, shift, *piece_length, *signed));
                     length += *piece_length;
                     consumed += 1;
                 }
@@ -1146,7 +1147,8 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         }
 
         let mut value = self.builder.imm_u256(constant);
-        for (term, shift) in terms {
+        for (term, shift, size, signed) in terms {
+            let term = if signed { self.mask_to_bits(term, (size * 8) as u16) } else { term };
             let term = if shift == 0 {
                 term
             } else {

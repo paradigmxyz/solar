@@ -2,7 +2,7 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 844
+  push 839
   dup1
   push 10
   push 0
@@ -17,11 +17,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb4
-  jumpi
-  calldatasize
-  iszero
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -30,14 +26,14 @@ bb0:
   dup1
   push 0x188b85b4
   eq
-  push bb5
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
+  jump bb3
+bb3 [cold]:
   push 0
   dup1
   revert
-bb49 [cold]:
+bb48 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -49,11 +45,11 @@ bb49 [cold]:
   push 36
   push 0
   revert
-bb5:
+bb4:
   calldatasize
   push 36
   gt
-  push bb4
+  push bb3
   jumpi
   push 1
   push 4
@@ -65,7 +61,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 2
   push 4
@@ -77,7 +73,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 3
   push 4
@@ -89,7 +85,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 4
   push 4
@@ -101,7 +97,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 5
   push 4
@@ -113,7 +109,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 6
   push 4
@@ -125,7 +121,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 7
   push 4
@@ -137,7 +133,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 8
   push 4
@@ -149,7 +145,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 9
   push 4
@@ -161,7 +157,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 10
   push 4
@@ -173,7 +169,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 11
   push 4
@@ -185,7 +181,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 12
   push 4
@@ -197,7 +193,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 13
   push 4
@@ -209,7 +205,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 14
   push 4
@@ -221,7 +217,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 15
   push 4
@@ -233,7 +229,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 16
   push 4
@@ -245,7 +241,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 17
   push 4
@@ -257,7 +253,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 18
   push 4
@@ -269,7 +265,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 19
   push 4
@@ -281,7 +277,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 20
   push 4
@@ -293,7 +289,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 21
   push 4
@@ -305,7 +301,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 160
   mload
@@ -318,7 +314,7 @@ bb5:
   push 4
   calldataload
   gt
-  push bb49
+  push bb48
   jumpi
   push 192
   mload
@@ -331,7 +327,7 @@ bb5:
   push 160
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 224
   mload
@@ -344,7 +340,7 @@ bb5:
   push 192
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 256
   mload
@@ -357,7 +353,7 @@ bb5:
   push 160
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 288
   mload
@@ -370,7 +366,7 @@ bb5:
   push 192
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 320
   mload
@@ -383,7 +379,7 @@ bb5:
   push 160
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 352
   mload
@@ -396,7 +392,7 @@ bb5:
   push 192
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 384
   mload
@@ -409,7 +405,7 @@ bb5:
   push 160
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 416
   mload
@@ -422,7 +418,7 @@ bb5:
   push 192
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 448
   mload
@@ -435,7 +431,7 @@ bb5:
   push 160
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 480
   mload
@@ -448,7 +444,7 @@ bb5:
   push 192
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 512
   mload
@@ -461,7 +457,7 @@ bb5:
   push 160
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 544
   mload
@@ -474,7 +470,7 @@ bb5:
   push 192
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 576
   mload
@@ -487,7 +483,7 @@ bb5:
   push 160
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 608
   mload
@@ -500,7 +496,7 @@ bb5:
   push 192
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 640
   mload
@@ -513,7 +509,7 @@ bb5:
   push 160
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 672
   mload
@@ -526,7 +522,7 @@ bb5:
   push 192
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 704
   mload
@@ -539,7 +535,7 @@ bb5:
   push 160
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 736
   mload
@@ -552,7 +548,7 @@ bb5:
   push 192
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 768
   mload
@@ -565,7 +561,7 @@ bb5:
   push 160
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 800
   mload
@@ -578,7 +574,7 @@ bb5:
   push 192
   mload
   gt
-  push bb49
+  push bb48
   jumpi
   push 160
   mload

@@ -1,0 +1,250 @@
+// === ROOT/tests/ui/codegen/lowering/switch/bucket_dispatch.sol:SwitchBucketDispatch (runtime) ===
+@module runtime
+bb0:
+  push 128
+  push 64
+  mstore
+  callvalue
+  push bb58
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 40
+  swap1
+  mod
+  indexed_jump bb155, bb156, bb157, bb158, bb159, bb160, bb161, bb162, bb163, bb164, bb165, bb166, bb167, bb168, bb169, bb170, bb171, bb172, bb173, bb174, bb175, bb176, bb177, bb178, bb179, bb180, bb181, bb182, bb183, bb184, bb185, bb186, bb187, bb188, bb189, bb190, bb191, bb192, bb193, bb194
+bb153:
+  calldatasize
+  push 4
+  gt
+  push bb58
+  jumpi
+  stop
+bb2:
+  dup1
+  push 0xcbf99d38
+  jump bb154
+bb154:
+  eq
+  push bb153
+  jumpi
+  jump bb58
+bb58 [cold]:
+  push 0
+  dup1
+  revert
+bb3:
+  dup1
+  push 0x87d912cb
+  eq
+  push bb153
+  jumpi
+  dup1
+  push 0x920f5c73
+  jump bb154
+bb4:
+  dup1
+  push 0x41052a0d
+  jump bb154
+bb5:
+  dup1
+  push 0x7238232f
+  eq
+  push bb153
+  jumpi
+  dup1
+  push 0x905f7d67
+  jump bb154
+bb6:
+  dup1
+  push 0x3b88f6c2
+  jump bb154
+bb7:
+  dup1
+  push 0xaa66aa63
+  jump bb154
+bb8:
+  dup1
+  push 0x24a75cfd
+  eq
+  push bb153
+  jumpi
+  dup1
+  push 0x98e9a73d
+  jump bb154
+bb9:
+  dup1
+  push 0xebd25c8f
+  jump bb154
+bb10:
+  dup1
+  push 0x8a67ee70
+  eq
+  push bb153
+  jumpi
+  dup1
+  push 0xc43b1a78
+  jump bb154
+bb11:
+  dup1
+  push 0xebbd40a9
+  jump bb154
+bb12:
+  dup1
+  push 0x1eb6457a
+  eq
+  push bb153
+  jumpi
+  dup1
+  push 0xdca2fb5a
+  jump bb154
+bb13:
+  dup1
+  push 0x67e648b5
+  jump bb154
+bb14:
+  dup1
+  push 0xe6e0ae36
+  jump bb154
+bb15:
+  dup1
+  push 0xcba58af7
+  jump bb154
+bb16:
+  dup1
+  push 0x6d4975a2
+  eq
+  push bb153
+  jumpi
+  dup1
+  push 0x8dc714ba
+  jump bb154
+bb17:
+  dup1
+  push 0x54eaadab
+  jump bb154
+bb18:
+  dup1
+  push 0x10c772cc
+  eq
+  push bb153
+  jumpi
+  dup1
+  push 0x4e580bc4
+  jump bb154
+bb19:
+  dup1
+  push 0x965a68f5
+  jump bb154
+bb20:
+  dup1
+  push 0xd758c88e
+  jump bb154
+bb21:
+  dup1
+  push 0x6d738a50
+  jump bb154
+bb22:
+  dup1
+  push 0xf02a00c9
+  jump bb154
+bb23:
+  dup1
+  push 0x40bcff2a
+  eq
+  push bb153
+  jumpi
+  dup1
+  push 0x5fb43592
+  jump bb154
+bb24:
+  dup1
+  push 0x3d492ec4
+  jump bb154
+bb25:
+  dup1
+  push 0x1f49dbe7
+  jump bb154
+bb155:
+  jump bb2
+bb156:
+  jump bb58
+bb157:
+  jump bb58
+bb158:
+  jump bb3
+bb159:
+  jump bb58
+bb160:
+  jump bb4
+bb161:
+  jump bb58
+bb162:
+  jump bb5
+bb163:
+  jump bb58
+bb164:
+  jump bb58
+bb165:
+  jump bb6
+bb166:
+  jump bb7
+bb167:
+  jump bb58
+bb168:
+  jump bb8
+bb169:
+  jump bb58
+bb170:
+  jump bb9
+bb171:
+  jump bb10
+bb172:
+  jump bb11
+bb173:
+  jump bb12
+bb174:
+  jump bb58
+bb175:
+  jump bb58
+bb176:
+  jump bb13
+bb177:
+  jump bb14
+bb178:
+  jump bb15
+bb179:
+  jump bb58
+bb180:
+  jump bb58
+bb181:
+  jump bb16
+bb182:
+  jump bb17
+bb183:
+  jump bb18
+bb184:
+  jump bb19
+bb185:
+  jump bb20
+bb186:
+  jump bb58
+bb187:
+  jump bb21
+bb188:
+  jump bb22
+bb189:
+  jump bb23
+bb190:
+  jump bb58
+bb191:
+  jump bb24
+bb192:
+  jump bb58
+bb193:
+  jump bb58
+bb194:
+  jump bb25

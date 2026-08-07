@@ -1830,6 +1830,40 @@ help: consider changing visibility and mutability
         );
     }
 
+    #[test]
+    #[cfg(feature = "json")]
+    fn test_json_suggestion_alternatives_are_separate_children() {
+        let public = Span::new(BytePos(36), BytePos(42));
+        let view = Span::new(BytePos(43), BytePos(47));
+        let mut diag = Diag::new(Level::Warning, "inefficient visibility and mutability");
+        diag.span(vec![public, view]).multipart_suggestions(
+            "consider changing visibility and mutability",
+            [
+                vec![(public, "external".into()), (view, "pure".into())],
+                vec![(public, "internal".into()), (view, "payable".into())],
+            ],
+            Applicability::MaybeIncorrect,
+        );
+
+        let diagnostic: serde_json::Value =
+            serde_json::from_str(&emit_json_diagnostics(diag)).unwrap();
+        let replacements = diagnostic["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|child| {
+                child["spans"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|span| span["suggested_replacement"].as_str().unwrap())
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(replacements, [["external", "pure"], ["internal", "payable"]]);
+    }
+
     // --- HELPERS -------------------------------------------------------------
 
     const CONTRACT: &str = r#"

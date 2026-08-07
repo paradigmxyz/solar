@@ -4,7 +4,7 @@
 // Mapping values that are structs use a runtime-computed base slot. Copy the
 // complete value in both directions, following nested memory-struct pointers,
 // and clear every occupied slot on delete. Runtime-verified against the Lil
-// Fractional and Nitro cold-path scenarios in solidity-compiler-benchmarks.
+// Fractional and Nitro cold-path scenarios in the vendored codegen runtime corpus.
 contract MappingNestedStructCopy {
     struct Inner {
         uint256 left;

@@ -718,21 +718,18 @@ fn @__cleanup0(arg0: u256) -> u256 {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb6, bb1
+    jumpi v0, bb5, bb1
   bb1:
-    v1 = calldatasize
-    jumpi v1, bb2, bb6
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb5, [0x6644232b => bb2, 0xaca542ca => bb3, 0xfc7ec666 => bb4]
   bb2:
-    v3 = calldataload 0
-    v4 = shr 224, v3
-    switch v4, default bb6, [0x6644232b => bb3, 0xaca542ca => bb4, 0xfc7ec666 => bb5]
-  bb3:
     tail_call @dFlat
-  bb4:
+  bb3:
     tail_call @dDynArr
-  bb5:
+  bb4:
     tail_call @dNested
-  bb6:
+  bb5:
     revert 0, 0
 }
 

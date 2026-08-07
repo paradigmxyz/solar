@@ -5,11 +5,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb6
-  jumpi
-  calldatasize
-  iszero
-  push bb6
+  push bb5
   jumpi
   push 0
   calldataload
@@ -18,24 +14,24 @@ bb0:
   dup1
   push 0x1b8f5d50
   eq
-  push bb24
+  push bb23
   jumpi
   dup1
   push 0x5030da75
   eq
-  push bb7
+  push bb6
   jumpi
   dup1
   push 0xd96073cf
   eq
-  push bb21
+  push bb20
   jumpi
-  jump bb6
-bb6 [cold]:
+  jump bb5
+bb5 [cold]:
   push 0
   dup1
   revert
-bb20 [cold]:
+bb19 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -47,11 +43,11 @@ bb20 [cold]:
   push 36
   push 0
   revert
-bb7:
+bb6:
   calldatasize
   push 68
   gt
-  push bb6
+  push bb5
   jumpi
   push 4
   calldataload
@@ -60,7 +56,7 @@ bb7:
   mstore
   push 544
   mstore
-  push bb9
+  push bb8
   push 0
   not
   push 96
@@ -71,7 +67,7 @@ bb7:
   push 576
   mstore
   jump
-bb9:
+bb8:
   push 576
   mload
   dup1
@@ -80,12 +76,12 @@ bb9:
   push 384
   mload
   sub
-  push bb6
+  push bb5
   jumpi
   calldatasize
   push 68
   gt
-  push bb6
+  push bb5
   jumpi
   push 36
   calldataload
@@ -108,7 +104,7 @@ bb9:
   swap2
   pop
   pop
-  push bb6
+  push bb5
   jumpi
   push 36
   push 320
@@ -127,7 +123,7 @@ bb9:
   or
   swap1
   pop
-  push bb6
+  push bb5
   jumpi
   push 256
   mload
@@ -150,7 +146,7 @@ bb9:
   or
   swap1
   pop
-  push bb6
+  push bb5
   jumpi
   gas
   dup1
@@ -165,7 +161,7 @@ bb9:
   gt
   swap1
   pop
-  push bb6
+  push bb5
   jumpi
   calldatasize
   push 224
@@ -175,7 +171,7 @@ bb9:
   push 288
   mload
   sgt
-  push bb6
+  push bb5
   jumpi
   push 31
   push 224
@@ -190,7 +186,7 @@ bb9:
   push 256
   mstore
   lt
-  push bb20
+  push bb19
   jumpi
   push 256
   mload
@@ -208,7 +204,7 @@ bb9:
   swap1
   pop
   iszero
-  push bb20
+  push bb19
   jumpi
   push 64
   mload
@@ -266,11 +262,11 @@ bb9:
   push 32
   push 128
   return
-bb21:
+bb20:
   calldatasize
   push 68
   gt
-  push bb6
+  push bb5
   jumpi
   push 36
   calldataload
@@ -278,20 +274,20 @@ bb21:
   mstore
   push 4
   calldataload
-  jump bb27
-bb27:
+  jump bb26
+bb26:
   push 160
   mstore
   push 64
   push 128
   return
-bb24:
+bb23:
   calldatasize
   push 4
   gt
-  push bb6
+  push bb5
   jumpi
-  push bb26
+  push bb25
   push 7
   push 544
   mstore
@@ -299,7 +295,7 @@ bb24:
   push 576
   mstore
   jump
-bb26:
+bb25:
   push 544
   mload
   dup1
@@ -332,4 +328,4 @@ bb26:
   mstore
   swap1
   pop
-  jump bb27
+  jump bb26

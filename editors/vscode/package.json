@@ -83,6 +83,15 @@
           "default": true,
           "description": "Format files on save using Solar LSP"
         },
+        "solarLsp.trace.server": {
+          "type": "string",
+          "enum": [
+            "messages",
+            "verbose"
+          ],
+          "default": "messages",
+          "description": "Server execution trace detail. Set the Solar LSP output channel log level to Trace to enable tracing."
+        },
         "solarLsp.codeLens.enable": {
           "type": "boolean",
           "default": true,

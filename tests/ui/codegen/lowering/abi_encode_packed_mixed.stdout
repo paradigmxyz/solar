@@ -371,3 +371,90 @@ fn @hashArray(arg0: memoryarray) -> bytes32 [abi_args=lazy, abi_params=[array<_,
     jump bb15
 }
 
+fn @signedStaticRun(arg0: u8, arg1: i16, arg2: bytes3) -> bytes32 [abi_args=lazy, abi_params=[u8, i16, bytes3], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 255
+    v1 = add 0, 1
+    v2 = lt v1, 0
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = signextend 1, arg1
+    v4 = add v1, 2
+    v5 = lt v4, v1
+    jumpi v5, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v6 = and arg2, 0xffffff0000000000000000000000000000000000000000000000000000000000
+    v7 = add v4, 3
+    v8 = lt v7, v4
+    jumpi v8, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v9 = add v7, 31
+    v10 = lt v9, v7
+    jumpi v10, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v11 = div v9, 32
+    v12 = add v11, 1
+    v13 = lt v12, v11
+    jumpi v13, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    v14 = mul v12, 32
+    v15 = iszero 32
+    v16 = div v14, 32
+    v17 = eq v16, v12
+    v18 = or v15, v17
+    v19 = iszero v18
+    jumpi v19, bb11, bb12
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    v20 = alloc memorybytes, exact, uninitialized, infallible, v14
+    set_memory_object_len memorybytes, v20, v7
+    v21 = shl 248, v0
+    v22 = or 0, v21
+    v23 = and v3, 0xffff
+    v24 = shl 232, v23
+    v25 = or v22, v24
+    memory_object_store_word memorybytes, v20, 0, v25
+    v26 = add 0, 3
+    v27 = lt v26, 0
+    jumpi v27, bb13, bb14
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    memory_object_store_word memorybytes, v20, v26, v6
+    v28 = add v26, 3
+    v29 = lt v28, v26
+    jumpi v29, bb15, bb16
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb16:
+    v30 = keccak256_bytes v20
+    ret v30
+}
+

@@ -96,16 +96,29 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         kind: Option<ArithmeticKind>,
     ) -> ValueId {
         match kind {
-            Some(ArithmeticKind::Unsigned(bits)) if bits < 256 => {
-                let max = self.builder.imm_u256((U256::from(1) << bits) - U256::ONE);
-                self.builder.and(value, max)
-            }
+            Some(ArithmeticKind::Unsigned(bits)) if bits < 256 => self.mask_to_bits(value, bits),
             Some(ArithmeticKind::Signed(bits)) if (8..256).contains(&bits) => {
                 let byte = self.builder.imm_u64(u64::from(bits / 8 - 1));
                 self.builder.signextend(byte, value)
             }
             _ => value,
         }
+    }
+
+    pub(super) fn mask_to_bits(&mut self, value: ValueId, bits: u16) -> ValueId {
+        if bits >= 256 {
+            return value;
+        }
+        let mask = self.builder.imm_u256((U256::from(1) << bits) - U256::ONE);
+        self.builder.and(value, mask)
+    }
+
+    fn clean_fixed_bytes(&mut self, value: ValueId, bytes: u8) -> ValueId {
+        if bytes >= 32 {
+            return value;
+        }
+        let mask = self.builder.imm_u256(U256::MAX << (256 - usize::from(bytes) * 8));
+        self.builder.and(value, mask)
     }
 
     pub(super) fn checked_pow(
@@ -274,7 +287,10 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             BinOpKind::And | BinOpKind::BitAnd => self.builder.and(lhs, rhs),
             BinOpKind::Or | BinOpKind::BitOr => self.builder.or(lhs, rhs),
             BinOpKind::BitXor => self.builder.xor(lhs, rhs),
-            BinOpKind::Shl => self.builder.shl(rhs, lhs),
+            BinOpKind::Shl => {
+                let result = self.builder.shl(rhs, lhs);
+                self.truncate_wrapping_result(result, arithmetic)
+            }
             BinOpKind::Shr => match arithmetic {
                 Some(ArithmeticKind::Signed(_)) => self.builder.sar(rhs, lhs),
                 _ => self.builder.shr(rhs, lhs),
@@ -318,10 +334,27 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     result
                 }
             }
-            UnOpKind::BitNot => self.builder.not(value),
+            UnOpKind::BitNot => {
+                let result = self.builder.not(value);
+                let Some(ty) = ty else { return Some(result) };
+                self.clean_bit_not_result(result, ty)
+            }
             UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec => {
                 return report_unsupported(self.gcx, span, "increment or decrement");
             }
         })
+    }
+
+    fn clean_bit_not_result(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
+        match ty.peel_refs().kind {
+            TyKind::Udvt(inner, _) => self.clean_bit_not_result(value, inner),
+            TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(size)) => {
+                self.mask_to_bits(value, size.bits())
+            }
+            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => {
+                self.clean_fixed_bytes(value, size.bytes())
+            }
+            _ => value,
+        }
     }
 }

@@ -35,11 +35,11 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 113
+  push 108
   codesize
   sub
   dup1
-  push 113
+  push 108
   push 192
   codecopy
   push 192
@@ -53,7 +53,7 @@ bb0:
   mstore
   push 192
   push 192
-  push 113
+  push 108
   codesize
   sub
   add
@@ -72,7 +72,7 @@ bb0:
   mload
   push 0
   sstore
-  push 50
+  push 45
   dup1
   push 63
   push 0
@@ -91,11 +91,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb4
-  jumpi
-  calldatasize
-  iszero
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -104,12 +100,12 @@ bb0:
   dup1
   push 0xc55699c
   sub
-  push bb4
+  push bb3
   jumpi
   calldatasize
   push 4
   gt
-  push bb4
+  push bb3
   jumpi
   push 0
   sload
@@ -118,7 +114,7 @@ bb0:
   push 32
   push 128
   return
-bb4 [cold]:
+bb3 [cold]:
   push 0
   dup1
   revert
@@ -129,11 +125,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb4
-  jumpi
-  calldatasize
-  iszero
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -142,12 +134,12 @@ bb0:
   dup1
   push 0xc55699c
   sub
-  push bb4
+  push bb3
   jumpi
   calldatasize
   push 4
   gt
-  push bb4
+  push bb3
   jumpi
   push 0
   sload
@@ -156,7 +148,7 @@ bb0:
   push 32
   push 128
   return
-bb4 [cold]:
+bb3 [cold]:
   push 0
   dup1
   revert

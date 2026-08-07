@@ -10,10 +10,10 @@ fn @value() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
 fn @runtime() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 128
-    set_memory_object_len memorybytes, v0, 79
-    memory_object_store_word memorybytes, v0, 0, 0x60a06040523460245736156024575f3560e01c80633fa4f24514602057602456
-    memory_object_store_word memorybytes, v0, 32, 0x5b6028565b5f80fd5b366004901015604b576047565b60076080526020608001
-    memory_object_store_word memorybytes, v0, 64, 0x608090036080f35b5f80fd5b6035560000000000000000000000000000000000
+    set_memory_object_len memorybytes, v0, 74
+    memory_object_store_word memorybytes, v0, 0, 0x60a060405234601f575f3560e01c80633fa4f24514601b57601f565b6023565b
+    memory_object_store_word memorybytes, v0, 32, 0x5f80fd5b3660049010156046576042565b600760805260206080016080900360
+    memory_object_store_word memorybytes, v0, 64, 0x80f35b5f80fd5b60305600000000000000000000000000000000000000000000
     v1 = memory_object_len memorybytes, v0
     ret v1
 }

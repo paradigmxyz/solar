@@ -212,3 +212,49 @@ fn @umul192(arg0: u192, arg1: u192) -> u192 [abi_args=lazy, abi_params=[u192, u1
     ret v0
 }
 
+fn @leftU8(arg0: u8, arg1: u8) -> u8 [abi_args=lazy, abi_params=[u8, u8], abi_returns=[word]] {
+  bb0:
+    v0 = shl arg1, arg0
+    v1 = and v0, 255
+    ret v1
+}
+
+fn @leftU16(arg0: u16, arg1: u8) -> u16 [abi_args=lazy, abi_params=[u16, u8], abi_returns=[word]] {
+  bb0:
+    v0 = shl arg1, arg0
+    v1 = and v0, 0xffff
+    ret v1
+}
+
+fn @leftI8(arg0: i8, arg1: u8) -> i8 [abi_args=lazy, abi_params=[i8, u8], abi_returns=[word]] {
+  bb0:
+    v0 = shl arg1, arg0
+    v1 = signextend 0, v0
+    ret v1
+}
+
+fn @leftI16(arg0: i16, arg1: u8) -> i16 [abi_args=lazy, abi_params=[i16, u8], abi_returns=[word]] {
+  bb0:
+    v0 = shl arg1, arg0
+    v1 = signextend 1, v0
+    ret v1
+}
+
+fn @leftU256(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = shl arg1, arg0
+    ret v0
+}
+
+fn @rightU8(arg0: u8, arg1: u8) -> u8 [abi_args=lazy, abi_params=[u8, u8], abi_returns=[word]] {
+  bb0:
+    v0 = shr arg1, arg0
+    ret v0
+}
+
+fn @rightI8(arg0: i8, arg1: u8) -> i8 [abi_args=lazy, abi_params=[i8, u8], abi_returns=[word]] {
+  bb0:
+    v0 = sar arg1, arg0
+    ret v0
+}
+

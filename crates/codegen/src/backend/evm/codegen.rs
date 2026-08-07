@@ -8,7 +8,10 @@
 
 use super::{
     EVM_WORD_BYTES,
-    assembler::{Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label, PreparedAssembly},
+    assembler::{
+        ArtifactKind, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
+        PreparedAssembly,
+    },
     ir,
     layout::{RelayoutAddress, preserves_push_width},
     op,
@@ -43,6 +46,10 @@ use solar_data_structures::{
 };
 use solar_interface::sym;
 use solar_sema::Gcx;
+
+mod switch;
+
+use self::switch::MAX_GAS_CODE_GROWTH;
 
 const STACK_PHI_LAYOUT_LIMIT: usize = 8;
 const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
@@ -602,6 +609,8 @@ pub struct EvmCodegen<'gcx> {
     /// Functions whose reachable exits all abort. Calls to these functions
     /// make their containing block cold as well.
     cold_functions: DenseBitSet<FunctionId>,
+    /// Functions consisting only of an empty block terminated by `stop`.
+    empty_stop_functions: DenseBitSet<FunctionId>,
     /// Cold blocks in the function currently being emitted, including blocks
     /// that only forward control to other cold blocks.
     cold_blocks: DenseBitSet<BlockId>,
@@ -681,6 +690,8 @@ pub struct EvmCodegen<'gcx> {
     /// runs once and every arm terminates externally, so the leftover word can
     /// neither accumulate nor disturb an internal return.
     emitting_entry: bool,
+    /// Gas-mode switch growth still available in the current deployment artifact.
+    switch_gas_code_growth_remaining: usize,
     capture_mir: bool,
     capture_evm_ir: bool,
 }
@@ -689,6 +700,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Creates a new EVM code generator.
     #[must_use]
     pub fn new(gcx: Gcx<'gcx>) -> Self {
+        let switch_gas_code_growth_remaining = Self::switch_gas_code_growth_limit(gcx);
         Self {
             gcx,
             asm: Assembler::new(gcx),
@@ -696,6 +708,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
             cold_functions: DenseBitSet::new_empty(0),
+            empty_stop_functions: DenseBitSet::new_empty(0),
             cold_blocks: DenseBitSet::new_empty(0),
             function_spill_sizes: FxHashMap::default(),
             pending_frame_size_consts: Vec::new(),
@@ -725,9 +738,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             constructor_param_count: 0,
             in_internal_function: false,
             emitting_entry: false,
+            switch_gas_code_growth_remaining,
             capture_mir: false,
             capture_evm_ir: false,
         }
+    }
+
+    fn reset_switch_gas_code_growth(&mut self) {
+        self.switch_gas_code_growth_remaining = Self::switch_gas_code_growth_limit(self.gcx);
+    }
+
+    fn switch_gas_code_growth_limit(gcx: Gcx<'_>) -> usize {
+        gcx.sess.opts.unstable.switch_max_gas_code_growth.unwrap_or(MAX_GAS_CODE_GROWTH)
     }
 
     /// Whether a function is an external interface of its module: an ABI entry,
@@ -1147,6 +1169,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         immutable_refs: &[ImmutableRef],
     ) -> PreparedDeploymentPrefix {
         self.asm.clear();
+        self.asm.set_artifact_kind(ArtifactKind::Constructor);
         let runtime_offset = self.asm.new_deferred_const();
 
         // Find constructor function if it exists
@@ -1324,6 +1347,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             "EVM codegen requires MIR in the final phase"
         );
         self.asm.clear();
+        self.asm.set_artifact_kind(ArtifactKind::Runtime);
         self.block_labels.clear();
         self.function_labels.clear();
         self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
@@ -1331,6 +1355,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else {
             Self::collect_cold_functions(module)
         };
+        self.empty_stop_functions = DenseBitSet::new_empty(module.functions.len());
         self.function_spill_sizes.clear();
         self.pending_frame_size_consts.clear();
         self.restorable_internal_frames = DenseBitSet::new_empty(module.functions.len());
@@ -1346,6 +1371,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.stack_arg_masks.clear();
         self.runtime_stack_args = true;
         self.emitting_entry = false;
+        self.reset_switch_gas_code_growth();
 
         if !module.functions.is_empty() {
             self.emit_runtime(module);
@@ -1372,6 +1398,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
 
         let call_graph = CallGraphInfo::new(module);
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if func.blocks.len() == 1
+                && func.blocks[BlockId::ENTRY].instructions.is_empty()
+                && matches!(func.blocks[BlockId::ENTRY].terminator, Some(Terminator::Stop))
+            {
+                self.empty_stop_functions.insert(func_id);
+            }
+        }
         let internal_targets = call_graph.reachable_callees_from(
             module.functions.iter_enumerated().filter_map(|(func_id, func)| {
                 (func_id == entry_id || Self::is_external_entry(func)).then_some(func_id)
@@ -5756,7 +5790,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Generates bytecode for a terminator.
     fn generate_terminator(
         &mut self,
         func: &Function,
@@ -5869,52 +5902,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             Terminator::Switch { value, default, cases } => {
-                if self.emitting_entry {
-                    // The entry's just-computed selector stays on the stack
-                    // through the case chain — no spill, clear, and reload —
-                    // and is left inert below the taken arm instead of paying
-                    // a POP. Every successor terminates externally and the
-                    // entry runs once, so the leftover word cannot accumulate.
-                    self.emit_value(func, *value);
-                    while self.scheduler.depth() > 1 {
-                        self.emit_stack_op(StackOp::Swap(1));
-                        self.emit_stack_op(StackOp::Pop);
-                    }
-                } else {
-                    let mut operands = Vec::with_capacity(cases.len() + 1);
-                    operands.push(*value);
-                    operands.extend(cases.iter().map(|(case_val, _)| *case_val));
-                    self.spill_values_before_stack_clear(func, &operands);
-
-                    // Pop all stack values first (live-out values are already
-                    // spilled)
-                    self.pop_all_stack_values();
-
-                    // Emit the switch value (will reload from spill if needed)
-                    self.emit_value(func, *value);
-                }
-
-                for (case_val, target) in cases {
-                    // DUP the value, compare, jump if equal
-                    self.asm.emit_op(op::DUP1);
-                    self.scheduler.stack.dup(1);
-                    self.emit_operand(func, *case_val);
-                    self.asm.emit_op(op::EQ);
-                    self.scheduler.instruction_executed_untracked(2);
-                    self.asm.emit_push_label(self.block_labels[target]);
-                    self.asm.emit_op(op::JUMPI);
-                    self.scheduler.instruction_executed(1, None); // JUMPI consumes condition
-                }
-
-                if !self.emitting_entry {
-                    // Pop the value before the default edge.
-                    self.asm.emit_op(op::POP);
-                    self.scheduler.stack.pop();
-                }
-                if Some(*default) != fallthrough {
-                    self.asm.emit_push_label(self.block_labels[default]);
-                    self.asm.emit_op(op::JUMP);
-                }
+                self.emit_switch_terminator(func, *value, *default, cases, fallthrough);
             }
 
             Terminator::Return { values } => {
