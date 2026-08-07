@@ -483,6 +483,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    skipped placeholder preserves incoming returns. Solc 0.8.35 legacy
    codegen returns `2` for the repeated-placeholder case while `--via-ir`
    returns `1`; this compiler now follows the via-IR model deliberately.
+   `modifier_skipped_argument_return_viair.sol` also checks that a return
+   assignment made while evaluating modifier arguments is discarded when the
+   modifier returns before `_`.
    `constructor_fixed_array_forwarding.sol` covers
    fixed-array constructor decoding and the memory-to-storage copy.
    `constructor_external_arguments.sol` covers direct deployment decoding of
