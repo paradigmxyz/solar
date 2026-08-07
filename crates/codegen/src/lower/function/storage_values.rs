@@ -298,6 +298,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::String | solar_sema::hir::ElementaryType::Bytes
             ) | TyKind::Slice(_)
+                | TyKind::StringLiteral(..)
         );
         if is_dynamic {
             if is_calldata {

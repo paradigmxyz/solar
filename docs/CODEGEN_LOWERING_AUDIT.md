@@ -159,6 +159,9 @@ existing scalar and packed-storage MIR fixtures. It supports:
   and `msg.sig`, with canonical narrowing and explicit integer and address
   conversions;
 * nested structs, mappings, dynamic arrays, and short and long storage bytes;
+* dynamic mapping keys from short and long string literals, with the same
+  byte-based slot hash as calldata and storage strings, covered by
+  `mapping_dynamic_literal.sol`;
 * canonical short-storage bytes writes with unspecified memory padding masked
   before the length tag is persisted;
 * storage `bytes` assignments that clear stale long-storage words when a value

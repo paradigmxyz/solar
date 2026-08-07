@@ -49,14 +49,14 @@ contract MappingDynamicKeyPaths {
     // as the equivalent runtime key.
     // CHECK-LABEL: fn @setLit{{[( ]}}
     // CHECK: memory_object_store_word memorybytes, {{v[0-9]+}}, 0, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot {{v[0-9]+}}, 0
+    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_memory {{v[0-9]+}}, 0
     // CHECK: sstore [[SLOT]], arg0
     function setLit(uint256 v) public {
         flat["hello"] = v;
     }
 
     // CHECK-LABEL: fn @setLitLong{{[( ]}}
-    // CHECK: [[SLOT_LONG:v[0-9]+]] = mapping_slot {{v[0-9]+}}, 0
+    // CHECK: [[SLOT_LONG:v[0-9]+]] = mapping_slot_memory {{v[0-9]+}}, 0
     // CHECK: sstore [[SLOT_LONG]], arg0
     function setLitLong(uint256 v) public {
         flat["a literal key longer than thirty-two bytes, hashed in full"] = v;
