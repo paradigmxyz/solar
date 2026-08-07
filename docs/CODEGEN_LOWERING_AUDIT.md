@@ -429,7 +429,9 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `storage_memory_nested_struct.sol` covers the reverse copy through a
    packed struct array. `storage_storage_array_conversion.sol` covers
    storage-to-storage copies across scalar widths and nested packed fixed-array
-   bases. `storage_memory_nested_bytes.sol` covers short and long storage-byte
+   bases. `storage_array_different_packing.sol` covers a `bytes8[]` to
+   `bytes10[]` storage conversion with elements spanning different packing
+   widths. `storage_memory_nested_bytes.sol` covers short and long storage-byte
    elements copied through a dynamic storage array into memory. The
    `storage_struct_dynamic_copy.sol` vector covers storage structs and dynamic
    storage-array elements with `bytes` members, including indexed read/write
