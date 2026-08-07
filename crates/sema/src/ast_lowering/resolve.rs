@@ -373,6 +373,12 @@ impl<'gcx> ResolveContext<'gcx> {
                 hir::VarKind::FunctionParam,
             );
 
+            self.hir.functions[id].returns = self.lower_variables(
+                ast_func.header.returns(),
+                Some(hir::ItemId::Function(id)),
+                hir::VarKind::FunctionReturn,
+            );
+
             self.hir.functions[id].modifiers = {
                 let mut modifiers = SmallVec::<[_; 8]>::new();
                 for modifier in ast_func.header.modifiers.iter() {
@@ -425,12 +431,6 @@ impl<'gcx> ResolveContext<'gcx> {
                 }
                 self.arena.alloc_smallvec(modifiers)
             };
-
-            self.hir.functions[id].returns = self.lower_variables(
-                ast_func.header.returns(),
-                Some(hir::ItemId::Function(id)),
-                hir::VarKind::FunctionReturn,
-            );
 
             if let Some(body) = &ast_func.body {
                 self.hir.functions[id].body = Some(self.lower_block(body));
