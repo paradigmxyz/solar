@@ -46,7 +46,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 value = self.materialize_calldata_argument(ty, value, expr.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
             } else {
-                value = self.canonicalize_abi_scalar_array(ty, value);
+                value = self.canonicalize_abi_array(ty, value);
             }
             values.push(value);
             types.push(abi_type);
@@ -172,7 +172,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 value = self.materialize_calldata_argument(ty, value, expr.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
             } else {
-                value = self.canonicalize_abi_scalar_array(ty, value);
+                value = self.canonicalize_abi_array(ty, value);
             }
             values.push(value);
             types.push(abi_type);
@@ -182,12 +182,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         Some(self.materialize_memory_slice(encoded))
     }
 
-    fn canonicalize_abi_scalar_array(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
+    fn canonicalize_abi_array(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
         let element_ty = match ty.peel_refs().kind {
             TyKind::DynArray(element) | TyKind::Array(element, _) => element,
             _ => return value,
         };
-        if !self.abi_scalar_needs_normalization(element_ty) {
+        if !self.abi_value_needs_normalization(element_ty) {
             return value;
         }
 
@@ -244,7 +244,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 
         self.builder.switch_to_block(body);
         let element_value = self.builder.memory_object_load_element(value, layout, index);
-        let element_value = self.normalize_abi_scalar(element_value, element_ty);
+        let element_value = match element_ty.peel_refs().kind {
+            TyKind::DynArray(_) | TyKind::Array(_, _) => {
+                self.canonicalize_abi_array(element_ty, element_value)
+            }
+            _ => self.normalize_abi_scalar(element_value, element_ty),
+        };
         self.builder.memory_object_store_element(output, layout, index, element_value);
         let one = self.builder.imm_u64(1);
         let next = self.builder.add(index, one);
@@ -256,9 +261,12 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         output
     }
 
-    fn abi_scalar_needs_normalization(&self, ty: Ty<'gcx>) -> bool {
+    fn abi_value_needs_normalization(&self, ty: Ty<'gcx>) -> bool {
         match ty.peel_refs().kind {
-            TyKind::Udvt(inner, _) => self.abi_scalar_needs_normalization(inner),
+            TyKind::DynArray(element) | TyKind::Array(element, _) => {
+                self.abi_value_needs_normalization(element)
+            }
+            TyKind::Udvt(inner, _) => self.abi_value_needs_normalization(inner),
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::UInt(size)
                 | solar_sema::hir::ElementaryType::Int(size),
