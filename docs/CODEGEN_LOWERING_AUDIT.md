@@ -369,6 +369,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `modifier_return_parameter_complex.sol` covers return bindings forwarded
    through several modifiers, and `modifier_stacked_return.sol` covers nested
    modifier postludes after a function-body return.
+   `modifier_loop_return_binding.sol` covers repeated placeholder expansion
+   inside a modifier loop while preserving the named return value.
    Solc's via-IR-only `function_modifier_multi_invocation_viair.sol` remains a
    gap: repeated `_` expansion currently shares function return bindings,
    while Solc gives each expanded body fresh return variables.
