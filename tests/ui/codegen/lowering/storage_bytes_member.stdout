@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_member.sol:StorageBytesMember (runtime) ===
 @module runtime
 bb0:
-  push 992
+  push 960
   push 64
   mstore
   callvalue
@@ -164,7 +164,7 @@ bb70:
   mload
   sload
   dup1
-  push 736
+  push 704
   mstore
   push 1
   dup2
@@ -194,7 +194,7 @@ bb70:
   not
   and
   dup1
-  push 768
+  push 736
   mstore
   dup1
   iszero
@@ -213,7 +213,7 @@ bb70:
   push 64
   mload
   dup1
-  push 800
+  push 768
   mstore
   push 32
   dup2
@@ -222,7 +222,7 @@ bb70:
   push 64
   mstore
   dup1
-  push 832
+  push 800
   mstore
   swap2
   dup3
@@ -237,7 +237,7 @@ bb70:
   push 32
   dup2
   add
-  push 864
+  push 832
   mstore
   pop
   pop
@@ -248,22 +248,19 @@ bb70:
   jumpi
   push 255
   not
-  push 736
+  push 704
   mload
   and
-  push 864
+  push 832
   mload
   mstore
   jump bb73
 bb73:
-  push 832
+  push 800
   mload
-  push 704
-  mstore
+  swap1
   jump
 bb25:
-  push 704
-  mload
   dup1
   push 224
   mstore
@@ -611,8 +608,6 @@ bb37:
   push bb38
   jump bb70
 bb38:
-  push 704
-  mload
   dup1
   push 288
   mstore
@@ -907,8 +902,6 @@ bb49:
   push bb50
   jump bb70
 bb50:
-  push 704
-  mload
   dup1
   push 224
   mstore
@@ -945,8 +938,6 @@ bb51:
   push bb53
   jump bb70
 bb53:
-  push 704
-  mload
   dup1
   push 224
   mstore
@@ -1129,8 +1120,6 @@ bb66:
   push bb67
   jump bb70
 bb67:
-  push 704
-  mload
   dup1
   push 288
   mstore
@@ -1229,31 +1218,31 @@ bb69:
 bb72:
   push 672
   mload
-  push 800
+  push 768
   mload
   mstore
   push 32
-  push 800
+  push 768
   mload
   keccak256
-  push 768
+  push 736
   mload
   push 5
   shr
-  push 864
+  push 832
   mload
   swap2
   swap1
   jump bb74
 bb74:
   dup1
-  push 800
+  push 768
   mstore
   dup2
-  push 896
+  push 864
   mstore
   dup3
-  push 928
+  push 896
   mstore
   swap2
   pop
@@ -1261,22 +1250,22 @@ bb74:
   iszero
   push bb73
   jumpi
-  push 896
+  push 864
   mload
   sload
-  push 928
+  push 896
   mload
   mstore
   push 1
-  push 896
+  push 864
   mload
   add
   push 32
-  push 928
+  push 896
   mload
   add
   push 1
-  push 800
+  push 768
   mload
   sub
   swap1
