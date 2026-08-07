@@ -399,6 +399,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    conditionally skips the inherited function body.
    `constructor_modifier_override.sol` covers a derived override selected
    while the base constructor expands its modifier.
+   `modifier_return_in_loop.sol` covers an explicit modifier return that
+   exits after the preceding placeholder expansions.
    `modifier_return_parameter_complex.sol` covers return bindings forwarded
    through several modifiers, and `modifier_stacked_return.sol` covers nested
    modifier postludes after a function-body return.
