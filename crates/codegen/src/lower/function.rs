@@ -3587,6 +3587,11 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     if location != SliceLocation::Calldata {
                         return report_unsupported(self.gcx, expr.span, "memory array slice index");
                     }
+                    let element = if matches!(element.peel_refs().kind, TyKind::Struct(_)) {
+                        element.with_loc_if_ref(self.gcx, DataLocation::Calldata)
+                    } else {
+                        element
+                    };
                     let head_size = self.types.abi_type(element)?.head_size();
                     let head_size = self.builder.imm_u64(head_size);
                     let offset = self.checked_mul(index, head_size);

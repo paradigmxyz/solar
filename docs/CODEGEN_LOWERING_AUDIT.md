@@ -131,6 +131,9 @@ existing scalar and packed-storage MIR fixtures. It supports:
 * nested structs, mappings, dynamic arrays, and short and long storage bytes;
 * canonical short-storage bytes writes with unspecified memory padding masked
   before the length tag is persisted;
+* storage `bytes` assignments that clear stale long-storage words when a value
+  shrinks, while dynamic-array assignment keeps its separately tested
+  unreachable-slot behavior;
 * storage `delete` for dynamic and fixed arrays, packed elements, structs, and
   nested storage objects through one recursive location-aware path;
 * memory `delete` for dynamic and fixed arrays, bytes, and structs by rebinding
@@ -228,6 +231,8 @@ existing scalar and packed-storage MIR fixtures. It supports:
   calldata-slice paths through semantic memory slices and object copies;
 * dynamic calldata arrays of multiword static elements, including storage
   copies and ABI encoding of nested fixed arrays;
+* calldata fixed-array indexing of structs without eagerly validating unused
+  dynamic fields;
 * dynamic and fixed memory arrays of structs with nested bytes and dynamic
   arrays, including lazy zero-initialization of aggregate elements from `new`
   allocations and their nested dynamic objects;
@@ -300,6 +305,8 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    `abi_calldata_unused_aggregate_validation.sol` covers the other lazy
    boundary: unused dynamic bytes and structs validate their immediate heads,
    while nested dynamic offsets remain lazy like Solc.
+   `abi_calldata_lazy_struct_array.sol` checks that indexing a calldata struct
+   array leaves an unused sibling dynamic field lazy.
    `abi_calldata_struct_dynamic.sol` checks ABI re-encoding of one and two
    dynamic structs with word-array members.
    `calldata_struct_dynamic_memory.sol` checks copying the same aggregate
