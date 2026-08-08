@@ -190,69 +190,28 @@ impl<S> Layer<S> for LifecycleLayer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_lsp::{
-        AnyEvent, AnyNotification, AnyRequest, Error, ErrorCode, LspService, ResponseError, Result,
-    };
+    use crate::test_support::start_request;
     use lsp_types::{
         notification::{DidOpenTextDocument, Exit, Initialized, Notification},
         request::{HoverRequest, Initialize, Request, Shutdown},
     };
     use serde_json::Value;
     use std::{
-        future::{Future, Ready, pending, ready},
-        ops::ControlFlow,
-        pin::Pin,
+        future::{pending, ready},
         sync::{Arc, Mutex},
-        task::{Context, Poll, Waker},
     };
-    use tower::{Layer, Service};
 
-    #[derive(Clone, Default)]
-    struct NotificationLog(Arc<Mutex<Vec<String>>>);
+    type NotificationLog = Arc<Mutex<Vec<String>>>;
 
-    impl NotificationLog {
-        fn methods(&self) -> Vec<String> {
-            self.0.lock().unwrap().clone()
-        }
-    }
-
-    struct TestService {
-        notifications: NotificationLog,
-    }
-
-    impl Service<AnyRequest> for TestService {
-        type Response = Value;
-        type Error = ResponseError;
-        type Future = Ready<Result<Value, ResponseError>>;
-
-        fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-            Poll::Ready(Ok(()))
-        }
-
-        fn call(&mut self, _request: AnyRequest) -> Self::Future {
-            ready(Ok(Value::Null))
-        }
-    }
-
-    impl LspService for TestService {
-        fn notify(&mut self, notification: AnyNotification) -> ControlFlow<Result<()>> {
-            let exits = notification.method == Exit::METHOD;
-            self.notifications.0.lock().unwrap().push(notification.method);
-            if exits { ControlFlow::Break(Ok(())) } else { ControlFlow::Continue(()) }
-        }
-
-        fn emit(&mut self, _event: AnyEvent) -> ControlFlow<Result<()>> {
-            ControlFlow::Continue(())
-        }
-    }
-
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Default)]
     enum ResponseBehavior {
+        #[default]
         Ok,
         Error,
         Pending,
     }
 
+    #[derive(Default)]
     struct ControlledService {
         notifications: NotificationLog,
         initialize: ResponseBehavior,
@@ -262,7 +221,7 @@ mod tests {
     impl Service<AnyRequest> for ControlledService {
         type Response = Value;
         type Error = ResponseError;
-        type Future = Pin<Box<dyn Future<Output = Result<Value, ResponseError>> + Send>>;
+        type Future = BoxFuture<Result<Value, ResponseError>>;
 
         fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
             Poll::Ready(Ok(()))
@@ -288,7 +247,7 @@ mod tests {
     impl LspService for ControlledService {
         fn notify(&mut self, notification: AnyNotification) -> ControlFlow<Result<()>> {
             let exits = notification.method == Exit::METHOD;
-            self.notifications.0.lock().unwrap().push(notification.method);
+            self.notifications.lock().unwrap().push(notification.method);
             if exits { ControlFlow::Break(Ok(())) } else { ControlFlow::Continue(()) }
         }
 
@@ -305,50 +264,49 @@ mod tests {
         serde_json::from_value(serde_json::json!({ "id": 1, "method": method })).unwrap()
     }
 
-    async fn initialize_and_shutdown(service: &mut Lifecycle<TestService>) {
+    fn service(
+        initialize: ResponseBehavior,
+        shutdown: ResponseBehavior,
+    ) -> (Lifecycle<ControlledService>, NotificationLog) {
+        let notifications = NotificationLog::default();
+        let inner =
+            ControlledService { notifications: notifications.clone(), initialize, shutdown };
+        (LifecycleLayer.layer(inner), notifications)
+    }
+
+    fn logged(notifications: &NotificationLog) -> Vec<String> {
+        notifications.lock().unwrap().clone()
+    }
+
+    async fn initialize(service: &mut Lifecycle<ControlledService>) {
         service.call(request(Initialize::METHOD)).await.unwrap();
         assert!(service.notify(notification(Initialized::METHOD)).is_continue());
+    }
+
+    async fn initialize_and_shutdown(service: &mut Lifecycle<ControlledService>) {
+        initialize(service).await;
         service.call(request(Shutdown::METHOD)).await.unwrap();
     }
 
     #[test]
-    fn notification_before_initialize_is_dropped() {
-        let notifications = NotificationLog::default();
-        let mut service =
-            LifecycleLayer.layer(TestService { notifications: notifications.clone() });
+    fn notifications_before_initialize_are_dropped() {
+        let (mut service, notifications) = service(ResponseBehavior::Ok, ResponseBehavior::Ok);
 
-        let result = service.notify(notification(DidOpenTextDocument::METHOD));
-
-        assert!(result.is_continue());
-        assert!(notifications.methods().is_empty());
-    }
-
-    #[test]
-    fn initialized_before_initialize_is_dropped() {
-        let notifications = NotificationLog::default();
-        let mut service =
-            LifecycleLayer.layer(TestService { notifications: notifications.clone() });
-
-        let result = service.notify(notification(Initialized::METHOD));
-
-        assert!(result.is_continue());
-        assert!(notifications.methods().is_empty());
+        for method in [DidOpenTextDocument::METHOD, Initialized::METHOD] {
+            assert!(service.notify(notification(method)).is_continue());
+        }
+        assert!(logged(&notifications).is_empty());
     }
 
     #[tokio::test]
     async fn failed_initialize_does_not_accept_initialized() {
-        let notifications = NotificationLog::default();
-        let mut service = LifecycleLayer.layer(ControlledService {
-            notifications: notifications.clone(),
-            initialize: ResponseBehavior::Error,
-            shutdown: ResponseBehavior::Ok,
-        });
+        let (mut service, notifications) = service(ResponseBehavior::Error, ResponseBehavior::Ok);
 
         let error = service.call(request(Initialize::METHOD)).await.unwrap_err();
         assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
 
         assert!(service.notify(notification(Initialized::METHOD)).is_continue());
-        assert!(notifications.methods().is_empty());
+        assert!(logged(&notifications).is_empty());
         assert_eq!(
             service.call(request(HoverRequest::METHOD)).await.unwrap_err().code,
             ErrorCode::SERVER_NOT_INITIALIZED
@@ -357,15 +315,8 @@ mod tests {
 
     #[tokio::test]
     async fn pending_initialize_does_not_accept_initialized() {
-        let notifications = NotificationLog::default();
-        let mut service = LifecycleLayer.layer(ControlledService {
-            notifications,
-            initialize: ResponseBehavior::Pending,
-            shutdown: ResponseBehavior::Ok,
-        });
-        let mut initialize = Box::pin(service.call(request(Initialize::METHOD)));
-        let mut cx = Context::from_waker(Waker::noop());
-        assert!(initialize.as_mut().poll(&mut cx).is_pending());
+        let (mut service, _) = service(ResponseBehavior::Pending, ResponseBehavior::Ok);
+        let _initialize = start_request(service.call(request(Initialize::METHOD)));
 
         assert!(service.notify(notification(Initialized::METHOD)).is_continue());
         assert_eq!(
@@ -376,75 +327,45 @@ mod tests {
 
     #[tokio::test]
     async fn dropped_unpolled_initialize_future_allows_retry() {
-        let notifications = NotificationLog::default();
-        let mut service = LifecycleLayer.layer(ControlledService {
-            notifications,
-            initialize: ResponseBehavior::Pending,
-            shutdown: ResponseBehavior::Ok,
-        });
+        let (mut service, _) = service(ResponseBehavior::Pending, ResponseBehavior::Ok);
 
         drop(service.call(request(Initialize::METHOD)));
         service.service.initialize = ResponseBehavior::Ok;
 
-        service.call(request(Initialize::METHOD)).await.unwrap();
-        assert!(service.notify(notification(Initialized::METHOD)).is_continue());
+        initialize(&mut service).await;
         service.call(request(HoverRequest::METHOD)).await.unwrap();
     }
 
     #[tokio::test]
     async fn dropped_initialize_future_allows_retry() {
-        let notifications = NotificationLog::default();
-        let mut service = LifecycleLayer.layer(ControlledService {
-            notifications,
-            initialize: ResponseBehavior::Pending,
-            shutdown: ResponseBehavior::Ok,
-        });
-        let mut initialize = Box::pin(service.call(request(Initialize::METHOD)));
-        let mut cx = Context::from_waker(Waker::noop());
-        assert!(initialize.as_mut().poll(&mut cx).is_pending());
-
-        drop(initialize);
+        let (mut service, _) = service(ResponseBehavior::Pending, ResponseBehavior::Ok);
+        drop(start_request(service.call(request(Initialize::METHOD))));
         service.service.initialize = ResponseBehavior::Ok;
 
-        service.call(request(Initialize::METHOD)).await.unwrap();
-        assert!(service.notify(notification(Initialized::METHOD)).is_continue());
+        initialize(&mut service).await;
         service.call(request(HoverRequest::METHOD)).await.unwrap();
     }
 
     #[tokio::test]
     async fn pending_shutdown_blocks_requests_and_exits_gracefully() {
-        let notifications = NotificationLog::default();
-        let mut service = LifecycleLayer.layer(ControlledService {
-            notifications: notifications.clone(),
-            initialize: ResponseBehavior::Ok,
-            shutdown: ResponseBehavior::Pending,
-        });
-        service.call(request(Initialize::METHOD)).await.unwrap();
-        assert!(service.notify(notification(Initialized::METHOD)).is_continue());
+        let (mut service, notifications) = service(ResponseBehavior::Ok, ResponseBehavior::Pending);
+        initialize(&mut service).await;
 
-        let mut shutdown = Box::pin(service.call(request(Shutdown::METHOD)));
-        let mut cx = Context::from_waker(Waker::noop());
-        assert!(shutdown.as_mut().poll(&mut cx).is_pending());
+        let _shutdown = start_request(service.call(request(Shutdown::METHOD)));
         assert_eq!(
             service.call(request(HoverRequest::METHOD)).await.unwrap_err().code,
             ErrorCode::INVALID_REQUEST
         );
-        let methods_before = notifications.methods();
+        let methods_before = logged(&notifications);
         assert!(service.notify(notification(DidOpenTextDocument::METHOD)).is_continue());
-        assert_eq!(notifications.methods(), methods_before);
+        assert_eq!(logged(&notifications), methods_before);
         assert!(matches!(service.notify(notification(Exit::METHOD)), ControlFlow::Break(Ok(()))));
     }
 
     #[tokio::test]
     async fn failed_shutdown_still_exits_gracefully() {
-        let notifications = NotificationLog::default();
-        let mut service = LifecycleLayer.layer(ControlledService {
-            notifications,
-            initialize: ResponseBehavior::Ok,
-            shutdown: ResponseBehavior::Error,
-        });
-        service.call(request(Initialize::METHOD)).await.unwrap();
-        assert!(service.notify(notification(Initialized::METHOD)).is_continue());
+        let (mut service, _) = service(ResponseBehavior::Ok, ResponseBehavior::Error);
+        initialize(&mut service).await;
 
         let error = service.call(request(Shutdown::METHOD)).await.unwrap_err();
         assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
@@ -452,44 +373,23 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn notification_after_shutdown_is_dropped() {
-        let notifications = NotificationLog::default();
-        let mut service =
-            LifecycleLayer.layer(TestService { notifications: notifications.clone() });
-        initialize_and_shutdown(&mut service).await;
-        let methods_before = notifications.methods();
-
-        let result = service.notify(notification(DidOpenTextDocument::METHOD));
-
-        assert!(result.is_continue());
-        assert_eq!(notifications.methods(), methods_before);
-    }
-
-    #[tokio::test]
-    async fn request_before_initialize_returns_server_not_initialized() {
-        let mut service =
-            LifecycleLayer.layer(TestService { notifications: NotificationLog::default() });
-
-        let error = service.call(request(HoverRequest::METHOD)).await.unwrap_err();
-
-        assert_eq!(error.code, ErrorCode::SERVER_NOT_INITIALIZED);
-    }
-
-    #[tokio::test]
-    async fn request_after_shutdown_returns_invalid_request() {
-        let mut service =
-            LifecycleLayer.layer(TestService { notifications: NotificationLog::default() });
+    async fn requests_follow_lifecycle_state() {
+        let (mut service, _) = service(ResponseBehavior::Ok, ResponseBehavior::Ok);
+        assert_eq!(
+            service.call(request(HoverRequest::METHOD)).await.unwrap_err().code,
+            ErrorCode::SERVER_NOT_INITIALIZED
+        );
         initialize_and_shutdown(&mut service).await;
 
-        let error = service.call(request(HoverRequest::METHOD)).await.unwrap_err();
-
-        assert_eq!(error.code, ErrorCode::INVALID_REQUEST);
+        assert_eq!(
+            service.call(request(HoverRequest::METHOD)).await.unwrap_err().code,
+            ErrorCode::INVALID_REQUEST
+        );
     }
 
     #[test]
     fn exit_before_shutdown_returns_an_error() {
-        let mut service =
-            LifecycleLayer.layer(TestService { notifications: NotificationLog::default() });
+        let (mut service, _) = service(ResponseBehavior::Ok, ResponseBehavior::Ok);
 
         let result = service.notify(notification(Exit::METHOD));
 
@@ -497,13 +397,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn exit_after_shutdown_succeeds() {
-        let mut service =
-            LifecycleLayer.layer(TestService { notifications: NotificationLog::default() });
+    async fn notifications_after_shutdown_are_dropped_before_exit() {
+        let (mut service, notifications) = service(ResponseBehavior::Ok, ResponseBehavior::Ok);
         initialize_and_shutdown(&mut service).await;
+        let methods_before = logged(&notifications);
 
-        let result = service.notify(notification(Exit::METHOD));
-
-        assert!(matches!(result, ControlFlow::Break(Ok(()))));
+        assert!(service.notify(notification(DidOpenTextDocument::METHOD)).is_continue());
+        assert_eq!(logged(&notifications), methods_before);
+        assert!(matches!(service.notify(notification(Exit::METHOD)), ControlFlow::Break(Ok(()))));
     }
 }
