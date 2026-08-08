@@ -1,12 +1,12 @@
 use crate::{
     global_state::GlobalState,
+    lifecycle::LifecycleLayer,
     new_router_with_state, new_server_service, request_layer,
     test_support::{assert_request_cancelled, start_request},
 };
 use async_lsp::{
     AnyEvent, AnyNotification, AnyRequest, ClientSocket, LanguageServer, LspService, ResponseError,
-    client_monitor::ClientProcessMonitorLayer, router::Router, server::LifecycleLayer,
-    tracing::TracingLayer,
+    client_monitor::ClientProcessMonitorLayer, router::Router, tracing::TracingLayer,
 };
 use lsp_types::{
     CancelParams, InitializeParams, InitializedParams, LogTraceParams, NumberOrString,
@@ -155,7 +155,7 @@ fn new_protocol_trace_test_service(
     let router = ProtocolTraceTestRouter { inner: new_router_with_state(state), pending };
     ServiceBuilder::new()
         .layer(TracingLayer::default())
-        .layer(LifecycleLayer::default())
+        .layer(LifecycleLayer)
         .layer(crate::protocol_trace::ProtocolTraceLayer::new(protocol_trace))
         .layer(request_layer(client.clone()))
         .layer(ClientProcessMonitorLayer::new(client))
