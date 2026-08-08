@@ -5361,7 +5361,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         values: &[ValueId],
         preserve_across_calls: bool,
         has_phis: bool,
-    ) -> Option<(GlobalStackPlan, usize, usize)> {
+    ) -> Option<(GlobalStackPlan, ScheduleCost)> {
         let plan =
             GlobalStackPlan::analyze_resident_args(func, liveness, values, preserve_across_calls)?;
         if has_phis {
@@ -5413,6 +5413,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 entry.iter().filter(|&&value| !liveness.live_in(*block).contains(value)).count()
             })
             .sum::<usize>();
+        // Without execution frequencies, the exact opcode cost below still cannot account for
+        // padding paid repeatedly on hot edges. Require enough static uses to amortize every
+        // padded word before comparing otherwise realizable layouts.
         let uses = func
             .blocks
             .iter()
@@ -5423,19 +5426,58 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .flat_map(|&inst| func.inst(inst).kind.operands())
                     .chain(block.terminator.iter().flat_map(Terminator::operands))
             })
-            .filter(|value| values.contains(value))
+            .filter(|operand| values.contains(operand))
             .count();
-        // Every padded word needs at least a POP on the arm where it is dead and often a SWAP to
-        // expose it. Require two real argument uses per padded entry before replacing the memory
-        // fallback with that branch traffic.
-        (uses >= padding * 2).then_some((plan, padding, uses))
+        if uses < padding * 2 {
+            return None;
+        }
+        let padded_entry =
+            ScheduleCost::stack_op(StackOp::Swap(1)).plus(ScheduleCost::stack_op(StackOp::Pop));
+        let mut overhead = padded_entry.times(padding);
+        for block in &func.blocks {
+            match block.terminator.as_ref() {
+                Some(term @ Terminator::Branch { then_block, else_block, .. }) => {
+                    let Some((then_layout, else_layout)) = plan.branch_layouts(term) else {
+                        continue;
+                    };
+                    let union = Self::global_branch_union(then_layout, else_layout);
+                    let terminal_cleanup = (then_layout.is_empty()
+                        && else_layout == union
+                        && GlobalStackPlan::is_terminal_block(func, *then_block))
+                        || (else_layout.is_empty()
+                            && then_layout == union
+                            && GlobalStackPlan::is_terminal_block(func, *else_block));
+                    if then_layout != else_layout && !terminal_cleanup {
+                        overhead = overhead.plus(ScheduleCost::control_flow_jump());
+                    }
+                }
+                Some(term @ Terminator::Switch { .. }) => {
+                    let Some(layouts) = plan.switch_layouts(term) else { continue };
+                    let union = layouts.iter().fold(Vec::new(), |mut union, (_, layout)| {
+                        for &value in *layout {
+                            if !union.contains(&value) {
+                                union.push(value);
+                            }
+                        }
+                        union
+                    });
+                    let trampolines = layouts.iter().filter(|(_, layout)| *layout != union).count();
+                    overhead = overhead.plus(
+                        ScheduleCost::control_flow_jump()
+                            .plus(ScheduleCost::jumpdest())
+                            .times(trampolines),
+                    );
+                }
+                _ => {}
+            }
+        }
+        Some((plan, overhead))
     }
 
-    /// Finds a profitable spill boundary when the complete argument tuple has no realizable
-    /// cross-block stack layout. This is deliberately exhaustive: the static ABI is capped at
-    /// eight values, so all subsets are cheap to evaluate and a difficult argument need not force
-    /// every independent word back into memory.
-    fn select_resident_subset(
+    /// Finds the least-cost realizable resident layout. This is deliberately exhaustive: the
+    /// static ABI is capped at eight values, so all subsets are cheap to evaluate and a difficult
+    /// argument need not force every independent word back into memory.
+    fn select_resident_layout(
         &self,
         func: &Function,
         liveness: &Liveness,
@@ -5445,26 +5487,48 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         debug_assert!(values.len() <= GLOBAL_STACK_LAYOUT_LIMIT);
         let mut use_counts = FxHashMap::default();
-        for operand in func.blocks.iter().flat_map(|block| {
-            block
+        let mut use_blocks = FxHashMap::default();
+        for block in &func.blocks {
+            let mut used_here = FxHashSet::default();
+            for operand in block
                 .instructions
                 .iter()
                 .flat_map(|&inst| func.inst(inst).kind.operands())
                 .chain(block.terminator.iter().flat_map(Terminator::operands))
-        }) {
-            if values.contains(&operand) {
-                *use_counts.entry(operand).or_insert(0usize) += 1;
+            {
+                if values.contains(&operand) {
+                    *use_counts.entry(operand).or_insert(0usize) += 1;
+                    used_here.insert(operand);
+                }
+            }
+            for operand in used_here {
+                *use_blocks.entry(operand).or_insert(0usize) += 1;
             }
         }
 
-        let mut best: Option<(usize, Vec<ValueId>, GlobalStackPlan)> = None;
-        for bits in 1usize..(1usize << values.len()) - 1 {
+        let frame_store = ScheduleCost::memory_store(OperandCostModel::DIRECT);
+        let frame_load = ScheduleCost::memory_load(OperandCostModel::DIRECT);
+        let resident_access = ScheduleCost::stack_op(StackOp::Dup(1));
+        let memory_cost = |value: ValueId| {
+            let uses = use_counts.get(&value).copied().unwrap_or_default();
+            let blocks = use_blocks.get(&value).copied().unwrap_or_default();
+            frame_store
+                .plus(frame_load.times(blocks))
+                .plus(resident_access.times(uses.saturating_sub(blocks)))
+        };
+        let baseline = values
+            .iter()
+            .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
+        let optimization = self.gcx.sess.opts.optimization;
+        let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
+        let mut best: Option<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)> = None;
+        for bits in 1usize..(1usize << values.len()) {
             let subset: Vec<_> = values
                 .iter()
                 .enumerate()
                 .filter_map(|(index, &value)| ((bits >> index) & 1 != 0).then_some(value))
                 .collect();
-            let Some((plan, padding, _)) = self.analyze_resident_subset(
+            let Some((plan, mut candidate)) = self.analyze_resident_subset(
                 func,
                 liveness,
                 &subset,
@@ -5474,22 +5538,27 @@ impl<'gcx> EvmCodegen<'gcx> {
                 continue;
             };
 
-            // One prologue store plus one direct-address load per use disappear for each resident
-            // word. Charge one very-low operation for every padded entry; exact shuffles remain
-            // the scheduler's responsibility, but this rejects marginal layout expansion.
-            let savings = subset
-                .iter()
-                .map(|value| 6 + use_counts.get(value).copied().unwrap_or(0) * 6)
-                .sum::<usize>();
-            let cost = padding * 3;
-            let gain = savings.saturating_sub(cost);
-            if gain == 0 {
+            // A resident word is accessed with a DUP/SWAP-class stack operation instead of a
+            // direct-address load. Charge every use rather than assuming the last one is free;
+            // this is conservative when a return shuffle consumes the final copy. A padded entry
+            // pays both the exposure swap and final pop that codegen may need on its dead arm.
+            for &value in values {
+                candidate = candidate.plus(if subset.contains(&value) {
+                    resident_access.times(
+                        use_counts.get(&value).copied().unwrap_or_default().saturating_sub(1),
+                    )
+                } else {
+                    memory_cost(value)
+                });
+            }
+            if !candidate.cmp_lifetime_for(baseline, optimization, expected_executions).is_lt() {
                 continue;
             }
-            if best.as_ref().is_none_or(|(best_gain, best_values, _)| {
-                gain > *best_gain || (gain == *best_gain && subset.len() > best_values.len())
+            if best.as_ref().is_none_or(|(best_cost, best_values, _)| {
+                candidate.cmp_lifetime_for(*best_cost, optimization, expected_executions).is_lt()
+                    || (candidate == *best_cost && subset.len() > best_values.len())
             }) {
-                best = Some((gain, subset, plan));
+                best = Some((candidate, subset, plan));
             }
         }
         best.map(|(_, values, plan)| (values, plan))
@@ -5610,9 +5679,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             // The layout keeps arguments in descending index order.
             values.reverse();
 
-            // Reject shapes the resident-layout analysis cannot represent
-            // before paying for whole-function liveness. Single-block leaves
-            // have no inter-block layout to solve at all.
+            // Reject shapes the resident-layout analysis cannot represent before paying for
+            // whole-function liveness. Single-block leaves have no inter-block layout to solve.
             if func.blocks.iter().any(|block| {
                 !self.preserve_caller_stack
                     && block.instructions.iter().any(|&inst_id| {
@@ -5625,15 +5693,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                 func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Phi(_)));
             let liveness = (func.blocks.len() != 1 || has_phis).then(|| Liveness::compute(func));
             let plan = if let Some(liveness) = &liveness {
-                if let Some((plan, _, _)) = self.analyze_resident_subset(
+                if let Some((plan, _)) = self.analyze_resident_subset(
                     func,
                     liveness,
                     &values,
                     self.preserve_caller_stack,
                     has_phis,
                 ) {
+                    // Preserve the established full-tuple layout when it passes the structural
+                    // amortization guard. Costed subset selection is a fallback for tuples where
+                    // one difficult value would otherwise disable every independent resident
+                    // argument.
                     plan
-                } else if let Some((subset, plan)) = self.select_resident_subset(
+                } else if let Some((subset, plan)) = self.select_resident_layout(
                     func,
                     liveness,
                     &values,
