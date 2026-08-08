@@ -111,3 +111,15 @@ fn @returndata_size() -> u256 {
     v0 = returndata_size
     ret v0
 }
+
+// CHECK: {{^ +}}fn @pure() [pure] {
+fn @pure() [pure] {
+  bb0:
+    stop
+}
+
+// CHECK: {{^ +}}fn @view() [view] {
+fn @view() [view] {
+  bb0:
+    stop
+}

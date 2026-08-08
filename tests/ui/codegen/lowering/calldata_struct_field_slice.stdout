@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_field_slice.sol:ERC4337Utils ===
 @module ERC4337Utils
 @phase optimized
-fn @factory(arg0: calldataptr, arg1: u256) -> address {
+fn @factory(arg0: calldataptr, arg1: u256) -> address [pure] {
   bb0:
     v1 = add arg0, 64
     v2 = add arg0, 96
@@ -81,7 +81,7 @@ fn @factory(arg0: calldataptr, arg1: u256) -> address {
     jump bb7
 }
 
-fn @tailHash(arg0: calldataptr, arg1: u256) -> bytes32 {
+fn @tailHash(arg0: calldataptr, arg1: u256) -> bytes32 [pure] {
   bb0:
     v1 = add arg0, 64
     v2 = add arg0, 96
@@ -182,7 +182,7 @@ fn @tailHash(arg0: calldataptr, arg1: u256) -> bytes32 {
     jump bb7
 }
 
-fn @midWord(arg0: calldataptr, arg1: u256) -> bytes32 {
+fn @midWord(arg0: calldataptr, arg1: u256) -> bytes32 [pure] {
   bb0:
     v1 = add arg0, 96
     v2 = add arg0, 128
@@ -241,7 +241,7 @@ fn @__revert_stub0() {
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_field_slice.sol:CalldataStructFieldSlice ===
 @module CalldataStructFieldSlice
 @phase memory-lowered
-fn @factory.0() [selector=0x1af91295] {
+fn @factory.0() [selector=0x1af91295, pure] {
   bb0:
     v157 = calldatasize
     v158 = lt v157, 36
@@ -475,7 +475,7 @@ fn @factory.0() [selector=0x1af91295] {
     jumpi v7, bb1, bb2
 }
 
-fn @tailHash.1() [selector=0x9850c81b] {
+fn @tailHash.1() [selector=0x9850c81b, pure] {
   bb0:
     v157 = calldatasize
     v158 = lt v157, 36
@@ -708,7 +708,7 @@ fn @tailHash.1() [selector=0x9850c81b] {
     jumpi v7, bb1, bb2
 }
 
-fn @midWord.2() [selector=0xbb6106d2] {
+fn @midWord.2() [selector=0xbb6106d2, pure] {
   bb0:
     v157 = calldatasize
     v158 = lt v157, 36
@@ -941,7 +941,7 @@ fn @midWord.2() [selector=0xbb6106d2] {
     jumpi v7, bb1, bb2
 }
 
-fn @factory.3(arg0: calldataptr, arg1: u256) -> address {
+fn @factory.3(arg0: calldataptr, arg1: u256) -> address [pure] {
   bb0:
     v1 = add arg0, 64
     v2 = add arg0, 96
@@ -1021,7 +1021,7 @@ fn @factory.3(arg0: calldataptr, arg1: u256) -> address {
     jump bb7
 }
 
-fn @tailHash.4(arg0: calldataptr, arg1: u256) -> bytes32 {
+fn @tailHash.4(arg0: calldataptr, arg1: u256) -> bytes32 [pure] {
   bb0:
     v1 = add arg0, 64
     v2 = add arg0, 96
@@ -1120,7 +1120,7 @@ fn @tailHash.4(arg0: calldataptr, arg1: u256) -> bytes32 {
     jump bb7
 }
 
-fn @midWord.5(arg0: calldataptr, arg1: u256) -> bytes32 {
+fn @midWord.5(arg0: calldataptr, arg1: u256) -> bytes32 [pure] {
   bb0:
     v1 = add arg0, 96
     v2 = add arg0, 128

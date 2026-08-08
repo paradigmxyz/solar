@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return.sol:MultiReturn ===
 @module MultiReturn
-fn @div_mod(arg0: u256, arg1: u256) -> (u256, u256) [selector=0xebf2447f, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word, word]] {
+fn @div_mod(arg0: u256, arg1: u256) -> (u256, u256) [selector=0xebf2447f, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word, word]] {
   bb0:
     jumpi arg1, bb2, bb1
   bb1:
@@ -19,7 +19,7 @@ fn @div_mod(arg0: u256, arg1: u256) -> (u256, u256) [selector=0xebf2447f, abi_ar
     ret v0, v1
 }
 
-fn @min_max(arg0: u256, arg1: u256) -> (u256, u256) [selector=0xaef50db3, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word, word]] {
+fn @min_max(arg0: u256, arg1: u256) -> (u256, u256) [selector=0xaef50db3, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word, word]] {
   bb0:
     v0 = lt arg0, arg1
     jumpi v0, bb1, bb2
@@ -31,7 +31,7 @@ fn @min_max(arg0: u256, arg1: u256) -> (u256, u256) [selector=0xaef50db3, abi_ar
     ret arg1, arg0
 }
 
-fn @triple(arg0: u256) -> (u256, u256, u256) [selector=0xf40a049d, abi_args=lazy, abi_params=[u256], abi_returns=[word, word, word]] {
+fn @triple(arg0: u256) -> (u256, u256, u256) [selector=0xf40a049d, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word, word, word]] {
   bb0:
     v0 = add arg0, arg0
     v1 = lt v0, arg0

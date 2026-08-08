@@ -475,6 +475,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 kw::Constructor => builder.func_mut().attributes.is_constructor = true,
                 kw::Receive => builder.func_mut().attributes.is_receive = true,
                 kw::Fallback => builder.func_mut().attributes.is_fallback = true,
+                kw::Pure => {
+                    builder.func_mut().attributes.state_mutability = hir::StateMutability::Pure;
+                }
+                kw::View => {
+                    builder.func_mut().attributes.state_mutability = hir::StateMutability::View;
+                }
                 kw::Payable => {
                     builder.func_mut().attributes.state_mutability = hir::StateMutability::Payable;
                 }

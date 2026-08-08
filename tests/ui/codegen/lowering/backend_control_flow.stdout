@@ -1,24 +1,24 @@
 // === ROOT/tests/ui/codegen/lowering/backend_control_flow.sol:BackendControlFlow ===
 @module BackendControlFlow
-fn @value() -> u256 [selector=0x3fa4f245, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @value() -> u256 [selector=0x3fa4f245, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @totalSupply() -> u256 [selector=0x18160ddd, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @totalSupply() -> u256 [selector=0x18160ddd, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
 
-fn @reserve0() -> u256 [selector=0x443cb4bc, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @reserve0() -> u256 [selector=0x443cb4bc, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     ret v0
 }
 
-fn @reserve1() -> u256 [selector=0x5a76f25e, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @reserve1() -> u256 [selector=0x5a76f25e, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
     ret v0

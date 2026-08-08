@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKey ===
 @module MappingDynamicKey
-fn @lookup(arg0: calldataslice) -> address [selector=0xf67187ac, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @lookup(arg0: calldataslice) -> address [selector=0xf67187ac, view, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot_calldata arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -20,7 +20,7 @@ fn @set(arg0: memorybytes, arg1: address) [selector=0xa815ff15, abi_args=lazy, a
     stop
 }
 
-fn @get(arg0: memorybytes) -> address [selector=0x693ec85e, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @get(arg0: memorybytes) -> address [selector=0x693ec85e, view, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot_memory arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -30,14 +30,14 @@ fn @get(arg0: memorybytes) -> address [selector=0x693ec85e, abi_args=lazy, abi_p
 
 // === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKeyPaths ===
 @module MappingDynamicKeyPaths
-fn @flat(arg0: calldataslice) -> u256 [selector=0x0b893d9c, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @flat(arg0: calldataslice) -> u256 [selector=0x0b893d9c, view, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot_calldata arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
     ret v1
 }
 
-fn @nestedFirst(arg0: calldataslice, arg1: address) -> u256 [selector=0xe8f9d84d, abi_args=lazy, abi_params=[bytes, address], abi_returns=[word]] {
+fn @nestedFirst(arg0: calldataslice, arg1: address) -> u256 [selector=0xe8f9d84d, view, abi_args=lazy, abi_params=[bytes, address], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot_calldata arg0, 1
     v1 = mapping_slot arg1, v0
@@ -45,7 +45,7 @@ fn @nestedFirst(arg0: calldataslice, arg1: address) -> u256 [selector=0xe8f9d84d
     ret v2
 }
 
-fn @nestedSecond(arg0: address, arg1: calldataslice) -> u256 [selector=0xf7453cb9, abi_args=lazy, abi_params=[address, bytes], abi_returns=[word]] {
+fn @nestedSecond(arg0: address, arg1: calldataslice) -> u256 [selector=0xf7453cb9, view, abi_args=lazy, abi_params=[address, bytes], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot arg0, 2
     v1 = mapping_slot_calldata arg1, v0
@@ -53,7 +53,7 @@ fn @nestedSecond(arg0: address, arg1: calldataslice) -> u256 [selector=0xf7453cb
     ret v2
 }
 
-fn @skey() -> memorybytes [selector=0x8cd2a1c2, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @skey() -> memorybytes [selector=0x8cd2a1c2, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -157,7 +157,7 @@ fn @setNestedFirst(arg0: memorybytes, arg1: address, arg2: u256) [selector=0xf7d
     stop
 }
 
-fn @getNestedFirst(arg0: memorybytes, arg1: address) -> u256 [selector=0x95cfa550, abi_args=lazy, abi_params=[bytes, address], abi_returns=[word]] {
+fn @getNestedFirst(arg0: memorybytes, arg1: address) -> u256 [selector=0x95cfa550, view, abi_args=lazy, abi_params=[bytes, address], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot_memory arg0, 1
     v1 = mapping_slot arg1, v0

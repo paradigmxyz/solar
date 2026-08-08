@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/revert_payloads.sol:RevertPayloads ===
 @module RevertPayloads
-fn @assert_panic(arg0: bool) [selector=0x727ee374, abi_args=lazy, abi_params=[bool], abi_returns=[]] {
+fn @assert_panic(arg0: bool) [selector=0x727ee374, pure, abi_args=lazy, abi_params=[bool], abi_returns=[]] {
   bb0:
     v0 = iszero arg0
     jumpi v0, bb1, bb2
@@ -12,7 +12,7 @@ fn @assert_panic(arg0: bool) [selector=0x727ee374, abi_args=lazy, abi_params=[bo
     stop
 }
 
-fn @require_message(arg0: bool) [selector=0x79cfb63f, abi_args=lazy, abi_params=[bool], abi_returns=[]] {
+fn @require_message(arg0: bool) [selector=0x79cfb63f, pure, abi_args=lazy, abi_params=[bool], abi_returns=[]] {
   bb0:
     v0 = iszero arg0
     jumpi v0, bb1, bb2
@@ -28,7 +28,7 @@ fn @require_message(arg0: bool) [selector=0x79cfb63f, abi_args=lazy, abi_params=
     stop
 }
 
-fn @revert_message() [selector=0x0900437f, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @revert_message() [selector=0x0900437f, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 64
     set_memory_object_len memorybytes, v0, 3

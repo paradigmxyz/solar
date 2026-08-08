@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_named_init.sol:MultiReturnNamedInit ===
 @module MultiReturnNamedInit
-fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) {
+fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) [pure] {
   bb0:
     jump bb1
   bb1:
@@ -63,7 +63,7 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) {
     jump bb6
 }
 
-fn @readTwice(arg0: calldataslice) -> (u64, u64) [selector=0xc62a8eb2, abi_args=lazy, abi_params=[bytes], abi_returns=[word, word]] {
+fn @readTwice(arg0: calldataslice) -> (u64, u64) [selector=0xc62a8eb2, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word, word]] {
   bb0:
     v0 = internal_call @readU64, 2, arg0, 0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)

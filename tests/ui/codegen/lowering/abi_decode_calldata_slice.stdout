@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_calldata_slice.sol:AbiDecodeCalldataSlice ===
 @module AbiDecodeCalldataSlice
-fn @decode(arg0: calldataslice) -> u256 [selector=0xe5c5e9a3, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @decode(arg0: calldataslice) -> u256 [selector=0xe5c5e9a3, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0

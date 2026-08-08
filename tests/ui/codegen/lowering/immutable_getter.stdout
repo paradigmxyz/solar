@@ -3,7 +3,7 @@
 immutables:
   owner: address
 
-fn @owner() -> address [selector=0x8da5cb5b, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @owner() -> address [selector=0x8da5cb5b, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = loadimmutable owner
     ret v0

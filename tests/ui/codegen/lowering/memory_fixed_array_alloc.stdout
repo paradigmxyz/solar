@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:MemoryFixedArrayAlloc ===
 @module MemoryFixedArrayAlloc
-fn @guardedFix(arg0: u256) -> u256 [selector=0x93390577, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @guardedFix(arg0: u256) -> u256 [selector=0x93390577, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, zeroed, panic, 96
     v1 = lt arg0, 3
@@ -15,7 +15,7 @@ fn @guardedFix(arg0: u256) -> u256 [selector=0x93390577, abi_args=lazy, abi_para
     ret v3
 }
 
-fn @structArr(arg0: u256) -> u256 [selector=0x40b8037f, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @structArr(arg0: u256) -> u256 [selector=0x40b8037f, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, zeroed, panic, 32
     v1 = alloc memoryfixedarray<3, 1>, exact, zeroed, panic, 96
@@ -33,7 +33,7 @@ fn @structArr(arg0: u256) -> u256 [selector=0x40b8037f, abi_args=lazy, abi_param
     ret v5
 }
 
-fn @nested(arg0: u256, arg1: u256) -> u256 [selector=0x50d1f082, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @nested(arg0: u256, arg1: u256) -> u256 [selector=0x50d1f082, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, zeroed, panic, 96
     v1 = alloc memoryfixedarray<2, 1>, exact, zeroed, panic, 64
@@ -97,7 +97,7 @@ fn @nested(arg0: u256, arg1: u256) -> u256 [selector=0x50d1f082, abi_args=lazy, 
     ret v20
 }
 
-fn @fmpIntegrity() -> (u256, u256) [selector=0xe547cb4d, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @fmpIntegrity() -> (u256, u256) [selector=0xe547cb4d, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, zeroed, panic, 96
     v1 = lt 2, 3
@@ -175,7 +175,7 @@ fn @fmpIntegrity() -> (u256, u256) [selector=0xe547cb4d, abi_args=lazy, abi_para
     ret v23, v27
 }
 
-fn @literal() -> u256 [selector=0x1373185e, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @literal() -> u256 [selector=0x1373185e, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, zeroed, panic, 96
     memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 1
@@ -193,7 +193,7 @@ fn @literal() -> u256 [selector=0x1373185e, abi_args=lazy, abi_params=[], abi_re
     ret v3
 }
 
-fn @bulkDefault(arg0: u256) -> u256 [selector=0xbe4421b6, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @bulkDefault(arg0: u256) -> u256 [selector=0xbe4421b6, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<4, 1>, exact, zeroed, panic, 128
     v1 = lt arg0, 4
@@ -210,7 +210,7 @@ fn @bulkDefault(arg0: u256) -> u256 [selector=0xbe4421b6, abi_args=lazy, abi_par
 
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
 @module NamedReturnAndDelete
-fn @namedReturn() -> (memoryfixedarray, u256) [selector=0xf76de570, abi_args=lazy, abi_params=[], abi_returns=[array<3, word>, word]] {
+fn @namedReturn() -> (memoryfixedarray, u256) [selector=0xf76de570, pure, abi_args=lazy, abi_params=[], abi_returns=[array<3, word>, word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, zeroed, panic, 96
     v1 = lt 0, 3
@@ -289,7 +289,7 @@ fn @namedReturn() -> (memoryfixedarray, u256) [selector=0xf76de570, abi_args=laz
     ret v0, v27
 }
 
-fn @emptyMemoryReferences() -> u256 [selector=0xc82d0745, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @emptyMemoryReferences() -> u256 [selector=0xc82d0745, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
     set_memory_object_len memoryarray, v0, 0
@@ -335,7 +335,7 @@ fn @emptyMemoryReferences() -> u256 [selector=0xc82d0745, abi_args=lazy, abi_par
     ret v15
 }
 
-fn @emptyNamedReturns() -> (memoryarray, memorybytes) [selector=0xf4994cb3, abi_args=lazy, abi_params=[], abi_returns=[memory_array<word>, memory_bytes]] {
+fn @emptyNamedReturns() -> (memoryarray, memorybytes) [selector=0xf4994cb3, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_array<word>, memory_bytes]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
     set_memory_object_len memoryarray, v0, 0
@@ -344,7 +344,7 @@ fn @emptyNamedReturns() -> (memoryarray, memorybytes) [selector=0xf4994cb3, abi_
     ret v0, v1
 }
 
-fn @emptyWideNamedStruct() -> memorystruct [selector=0x27d08cee, abi_args=lazy, abi_params=[], abi_returns=[tuple<word, memory_bytes, word, word>]] {
+fn @emptyWideNamedStruct() -> memorystruct [selector=0x27d08cee, pure, abi_args=lazy, abi_params=[], abi_returns=[tuple<word, memory_bytes, word, word>]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, zeroed, panic, 128
     v1 = alloc memorybytes, exact, zeroed, panic, 32
@@ -353,7 +353,7 @@ fn @emptyWideNamedStruct() -> memorystruct [selector=0x27d08cee, abi_args=lazy, 
     ret v0
 }
 
-fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, abi_args=lazy, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>]] {
+fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, pure, abi_args=lazy, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, zeroed, panic, 64
     v1 = alloc memoryarray<1>, exact, zeroed, panic, 32
@@ -432,7 +432,7 @@ fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, abi_args
     ret v0
 }
 
-fn @deleteRebind() -> (u256, u256) [selector=0x81e51eb1, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @deleteRebind() -> (u256, u256) [selector=0x81e51eb1, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, zeroed, panic, 96
     v1 = lt 0, 3
@@ -493,7 +493,7 @@ fn @deleteRebind() -> (u256, u256) [selector=0x81e51eb1, abi_args=lazy, abi_para
     ret v12, v15
 }
 
-fn @bulkDeleteRebind() -> (u256, u256) [selector=0x535bf203, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @bulkDeleteRebind() -> (u256, u256) [selector=0x535bf203, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<4, 1>, exact, zeroed, panic, 128
     v1 = lt 0, 4

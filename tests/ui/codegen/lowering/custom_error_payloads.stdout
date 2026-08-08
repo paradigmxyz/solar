@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/custom_error_payloads.sol:CustomErrorPayloads ===
 @module CustomErrorPayloads
-fn @revert_empty() [selector=0xc8567119, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @revert_empty() [selector=0xc8567119, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = abi_encode [], selector 0x4f3d7def00000000000000000000000000000000000000000000000000000000
     v1 = slice_ptr v0
@@ -8,7 +8,7 @@ fn @revert_empty() [selector=0xc8567119, abi_args=lazy, abi_params=[], abi_retur
     revert v1, v2
 }
 
-fn @revert_args() [selector=0x3a185347, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @revert_args() [selector=0x3a185347, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 64
     set_memory_object_len memorybytes, v0, 6
@@ -19,7 +19,7 @@ fn @revert_args() [selector=0x3a185347, abi_args=lazy, abi_params=[], abi_return
     revert v2, v3
 }
 
-fn @require_empty(arg0: bool) [selector=0xfa8d4a29, abi_args=lazy, abi_params=[bool], abi_returns=[]] {
+fn @require_empty(arg0: bool) [selector=0xfa8d4a29, pure, abi_args=lazy, abi_params=[bool], abi_returns=[]] {
   bb0:
     v0 = iszero arg0
     jumpi v0, bb1, bb2
@@ -32,7 +32,7 @@ fn @require_empty(arg0: bool) [selector=0xfa8d4a29, abi_args=lazy, abi_params=[b
     stop
 }
 
-fn @require_named(arg0: bool) [selector=0x868ff2e0, abi_args=lazy, abi_params=[bool], abi_returns=[]] {
+fn @require_named(arg0: bool) [selector=0x868ff2e0, pure, abi_args=lazy, abi_params=[bool], abi_returns=[]] {
   bb0:
     v0 = iszero arg0
     jumpi v0, bb1, bb2

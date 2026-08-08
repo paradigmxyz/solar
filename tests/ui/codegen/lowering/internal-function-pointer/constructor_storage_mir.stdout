@@ -11,7 +11,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @onlyStored() -> u256 {
+fn @onlyStored() -> u256 [pure] {
   bb0:
     ret 7
 }

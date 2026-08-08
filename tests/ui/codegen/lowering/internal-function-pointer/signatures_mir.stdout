@@ -39,7 +39,7 @@ fn @callPair(arg0: u256) -> (u256, u256) [selector=0x85ead1f5, abi_args=lazy, ab
     ret v0, v3
 }
 
-fn @pair(arg0: u256) -> (u256, u256) {
+fn @pair(arg0: u256) -> (u256, u256) [pure] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
@@ -58,7 +58,7 @@ fn @callZero() [selector=0x46e2b562, abi_args=lazy, abi_params=[], abi_returns=[
     stop
 }
 
-fn @sum(arg0: u256, arg1: u256) -> u256 {
+fn @sum(arg0: u256, arg1: u256) -> u256 [pure] {
   bb0:
     v0 = add arg0, arg1
     v1 = lt v0, arg0

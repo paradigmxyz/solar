@@ -26,7 +26,7 @@ fn @__internal_dispatch_0(arg0: function) -> u256 [function_pointer_dispatcher] 
 
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/inheritance_mir.sol:PointerDerived ===
 @module PointerDerived
-fn @target.0() -> u256 {
+fn @target.0() -> u256 [pure] {
   bb0:
     ret 2
 }

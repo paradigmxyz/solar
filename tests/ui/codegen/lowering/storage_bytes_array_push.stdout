@@ -261,7 +261,7 @@ fn @popStr() [selector=0x5d7696c3] {
     revert 0, 36
 }
 
-fn @blobAt() [selector=0x8f236983] {
+fn @blobAt() [selector=0x8f236983, view] {
   bb0:
     v36 = calldatasize
     v37 = lt v36, 36

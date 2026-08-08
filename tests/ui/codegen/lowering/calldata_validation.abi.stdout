@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_validation.sol:CalldataValidation ===
 @module CalldataValidation
 @phase abi
-fn @vUint8() [selector=0xd5f6949e] {
+fn @vUint8() [selector=0xd5f6949e, pure] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -24,7 +24,7 @@ fn @vUint8() [selector=0xd5f6949e] {
     jump bb1
 }
 
-fn @vInt16() [selector=0xe9697b4d] {
+fn @vInt16() [selector=0xe9697b4d, pure] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -47,7 +47,7 @@ fn @vInt16() [selector=0xe9697b4d] {
     jump bb1
 }
 
-fn @vBool() [selector=0x18a11c47] {
+fn @vBool() [selector=0x18a11c47, pure] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -72,7 +72,7 @@ fn @vBool() [selector=0x18a11c47] {
     jump bb1
 }
 
-fn @vAddress() [selector=0x23347413] {
+fn @vAddress() [selector=0x23347413, pure] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -95,7 +95,7 @@ fn @vAddress() [selector=0x23347413] {
     jump bb1
 }
 
-fn @vBytes4() [selector=0x2c920949] {
+fn @vBytes4() [selector=0x2c920949, pure] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -118,7 +118,7 @@ fn @vBytes4() [selector=0x2c920949] {
     jump bb1
 }
 
-fn @vEnum() [selector=0x5aa5e60a] {
+fn @vEnum() [selector=0x5aa5e60a, pure] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -148,7 +148,7 @@ fn @vEnum() [selector=0x5aa5e60a] {
     returndata 128, v9
 }
 
-fn @vMulti() [selector=0x403ecab4] {
+fn @vMulti() [selector=0x403ecab4, pure] {
   bb0:
     v2 = calldatasize
     v3 = lt v2, 68
@@ -184,7 +184,7 @@ fn @vMulti() [selector=0x403ecab4] {
     jump bb1
 }
 
-fn @vFull() [selector=0x76fef307] {
+fn @vFull() [selector=0x76fef307, pure] {
   bb0:
     v4 = calldatasize
     v5 = lt v4, 100

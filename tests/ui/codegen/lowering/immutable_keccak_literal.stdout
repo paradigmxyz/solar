@@ -3,7 +3,7 @@
 immutables:
   value: bytes32
 
-fn @get() -> bytes32 [selector=0x6d4ce63c, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @get() -> bytes32 [selector=0x6d4ce63c, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = loadimmutable value
     ret v0

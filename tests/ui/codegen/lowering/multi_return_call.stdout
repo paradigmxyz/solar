@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_call.sol:Math ===
 @module Math
-fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
+fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) [pure] {
   bb0:
     v0 = add arg0, arg1
     v1 = lt v0, arg0
@@ -10,7 +10,7 @@ fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
 
 // === ROOT/tests/ui/codegen/lowering/multi_return_call.sol:C ===
 @module C
-fn @sat(arg0: u256, arg1: u256) -> u256 [selector=0xf4c11983, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @sat(arg0: u256, arg1: u256) -> u256 [selector=0xf4c11983, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = internal_call @tryAdd, 2, arg0, arg1
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -26,7 +26,7 @@ fn @sat(arg0: u256, arg1: u256) -> u256 [selector=0xf4c11983, abi_args=lazy, abi
     ret v3
 }
 
-fn @tryA(arg0: u256, arg1: u256) -> (bool, u256) [selector=0xcc81ee27, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word, word]] {
+fn @tryA(arg0: u256, arg1: u256) -> (bool, u256) [selector=0xcc81ee27, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word, word]] {
   bb0:
     v0 = internal_call @tryAdd, 2, arg0, arg1
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -35,7 +35,7 @@ fn @tryA(arg0: u256, arg1: u256) -> (bool, u256) [selector=0xcc81ee27, abi_args=
     ret v0, v3
 }
 
-fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
+fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) [pure] {
   bb0:
     v0 = add arg0, arg1
     v1 = lt v0, arg0

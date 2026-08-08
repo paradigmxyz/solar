@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_dynamic_tuple.sol:AbiDecodeDynamicTuple ===
 @module AbiDecodeDynamicTuple
-fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [selector=0xe5c5e9a3, abi_args=lazy, abi_params=[bytes], abi_returns=[word, memory_bytes, memory_bytes]] {
+fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [selector=0xe5c5e9a3, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word, memory_bytes, memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -15,7 +15,7 @@ fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [selector=0xe5
     ret v2, v5, v7
 }
 
-fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memorybytes, memorybytes) [selector=0x7403d1b5, abi_args=lazy, abi_params=[u256, bytes, bytes], abi_returns=[word, memory_bytes, memory_bytes]] {
+fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memorybytes, memorybytes) [selector=0x7403d1b5, pure, abi_args=lazy, abi_params=[u256, bytes, bytes], abi_returns=[word, memory_bytes, memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -64,7 +64,7 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memory
     ret v16, v19, v21
 }
 
-fn @decodeBytes(arg0: memorybytes) -> memorybytes [selector=0x197621ce, abi_args=lazy, abi_params=[bytes], abi_returns=[memory_bytes]] {
+fn @decodeBytes(arg0: memorybytes) -> memorybytes [selector=0x197621ce, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0

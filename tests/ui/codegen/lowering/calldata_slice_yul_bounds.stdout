@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_yul_bounds.sol:CalldataSliceYulBounds ===
 @module CalldataSliceYulBounds
-fn @_empty() -> memorybytes {
+fn @_empty() -> memorybytes [pure] {
   bb0:
     v0 = make_calldata_slice 0, 0
     v1 = slice_ptr v0
@@ -56,20 +56,20 @@ fn @_empty() -> memorybytes {
     ret v22
 }
 
-fn @emptyLen() -> u256 [selector=0x24046374, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @emptyLen() -> u256 [selector=0x24046374, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @_empty, 1
     v1 = internal_call @_sink, 1, v0
     ret v1
 }
 
-fn @_sink(arg0: calldataslice) -> u256 {
+fn @_sink(arg0: calldataslice) -> u256 [pure] {
   bb0:
     v0 = slice_len arg0
     ret v0
 }
 
-fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -132,7 +132,7 @@ fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, abi_args=lazy, ab
     ret v29
 }
 
-fn @conditional(arg0: calldataslice) -> u256 [selector=0x1a013c9e, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @conditional(arg0: calldataslice) -> u256 [selector=0x1a013c9e, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0

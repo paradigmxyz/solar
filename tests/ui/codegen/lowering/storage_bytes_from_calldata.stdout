@@ -282,7 +282,7 @@ fn @setBlob(arg0: calldataslice) [selector=0xdd7d5edb, abi_args=lazy, abi_params
     jump bb24
 }
 
-fn @getText() -> memorybytes [selector=0xe00fe2eb, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @getText() -> memorybytes [selector=0xe00fe2eb, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -357,7 +357,7 @@ fn @getText() -> memorybytes [selector=0xe00fe2eb, abi_args=lazy, abi_params=[],
     jump bb11
 }
 
-fn @getBlob() -> memorybytes [selector=0x32db030e, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @getBlob() -> memorybytes [selector=0x32db030e, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0

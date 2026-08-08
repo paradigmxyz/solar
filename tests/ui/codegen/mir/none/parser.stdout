@@ -75,3 +75,13 @@
       ret v0
   }
   
+  fn @pure() [pure] {
+    bb0:
+      stop
+  }
+  
+  fn @view() [view] {
+    bb0:
+      stop
+  }
+  

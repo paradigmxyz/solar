@@ -1019,7 +1019,7 @@ fn @popValue() [selector=0x2aea892f, abi_args=lazy, abi_params=[], abi_returns=[
     jump bb36
 }
 
-fn @get() -> memorybytes [selector=0x6d4ce63c, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @get() -> memorybytes [selector=0x6d4ce63c, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0

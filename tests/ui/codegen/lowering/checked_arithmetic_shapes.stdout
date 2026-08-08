@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/checked_arithmetic_shapes.sol:CheckedArithmeticShapes ===
 @module CheckedArithmeticShapes
-fn @sadd(arg0: i256, arg1: i256) -> i256 [selector=0x16495fa8, abi_args=lazy, abi_params=[i256, i256], abi_returns=[word]] {
+fn @sadd(arg0: i256, arg1: i256) -> i256 [selector=0x16495fa8, pure, abi_args=lazy, abi_params=[i256, i256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, arg1
     v1 = slt arg0, 0
@@ -19,7 +19,7 @@ fn @sadd(arg0: i256, arg1: i256) -> i256 [selector=0x16495fa8, abi_args=lazy, ab
     ret v0
 }
 
-fn @ssub(arg0: i256, arg1: i256) -> i256 [selector=0xb1e83b76, abi_args=lazy, abi_params=[i256, i256], abi_returns=[word]] {
+fn @ssub(arg0: i256, arg1: i256) -> i256 [selector=0xb1e83b76, pure, abi_args=lazy, abi_params=[i256, i256], abi_returns=[word]] {
   bb0:
     v0 = sub arg0, arg1
     v1 = slt arg0, 0
@@ -37,7 +37,7 @@ fn @ssub(arg0: i256, arg1: i256) -> i256 [selector=0xb1e83b76, abi_args=lazy, ab
     ret v0
 }
 
-fn @smul(arg0: i256, arg1: i256) -> i256 [selector=0x95701bd4, abi_args=lazy, abi_params=[i256, i256], abi_returns=[word]] {
+fn @smul(arg0: i256, arg1: i256) -> i256 [selector=0x95701bd4, pure, abi_args=lazy, abi_params=[i256, i256], abi_returns=[word]] {
   bb0:
     v0 = mul arg0, arg1
     v1 = iszero arg1
@@ -62,7 +62,7 @@ fn @smul(arg0: i256, arg1: i256) -> i256 [selector=0x95701bd4, abi_args=lazy, ab
     ret v0
 }
 
-fn @sdiv(arg0: i256, arg1: i256) -> i256 [selector=0x397b3a49, abi_args=lazy, abi_params=[i256, i256], abi_returns=[word]] {
+fn @sdiv(arg0: i256, arg1: i256) -> i256 [selector=0x397b3a49, pure, abi_args=lazy, abi_params=[i256, i256], abi_returns=[word]] {
   bb0:
     jumpi arg1, bb2, bb1
   bb1:
@@ -83,7 +83,7 @@ fn @sdiv(arg0: i256, arg1: i256) -> i256 [selector=0x397b3a49, abi_args=lazy, ab
     ret v3
 }
 
-fn @smod(arg0: i256, arg1: i256) -> i256 [selector=0x75df4bb9, abi_args=lazy, abi_params=[i256, i256], abi_returns=[word]] {
+fn @smod(arg0: i256, arg1: i256) -> i256 [selector=0x75df4bb9, pure, abi_args=lazy, abi_params=[i256, i256], abi_returns=[word]] {
   bb0:
     jumpi arg1, bb2, bb1
   bb1:
@@ -95,7 +95,7 @@ fn @smod(arg0: i256, arg1: i256) -> i256 [selector=0x75df4bb9, abi_args=lazy, ab
     ret v0
 }
 
-fn @neg(arg0: i256) -> i256 [selector=0x54a53dc1, abi_args=lazy, abi_params=[i256], abi_returns=[word]] {
+fn @neg(arg0: i256) -> i256 [selector=0x54a53dc1, pure, abi_args=lazy, abi_params=[i256], abi_returns=[word]] {
   bb0:
     v0 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     jumpi v0, bb1, bb2
@@ -108,7 +108,7 @@ fn @neg(arg0: i256) -> i256 [selector=0x54a53dc1, abi_args=lazy, abi_params=[i25
     ret v1
 }
 
-fn @inc(arg0: u256) -> u256 [selector=0x812600df, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @inc(arg0: u256) -> u256 [selector=0x812600df, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
@@ -121,7 +121,7 @@ fn @inc(arg0: u256) -> u256 [selector=0x812600df, abi_args=lazy, abi_params=[u25
     ret v0
 }
 
-fn @dec(arg0: u256) -> u256 [selector=0xc20efb90, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @dec(arg0: u256) -> u256 [selector=0xc20efb90, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = sub arg0, 1
     v1 = lt arg0, 1
@@ -134,7 +134,7 @@ fn @dec(arg0: u256) -> u256 [selector=0xc20efb90, abi_args=lazy, abi_params=[u25
     ret v0
 }
 
-fn @uadd128(arg0: u128, arg1: u128) -> u128 [selector=0xb6edec74, abi_args=lazy, abi_params=[u128, u128], abi_returns=[word]] {
+fn @uadd128(arg0: u128, arg1: u128) -> u128 [selector=0xb6edec74, pure, abi_args=lazy, abi_params=[u128, u128], abi_returns=[word]] {
   bb0:
     v0 = add arg0, arg1
     v1 = gt v0, 0xffffffffffffffffffffffffffffffff
@@ -147,7 +147,7 @@ fn @uadd128(arg0: u128, arg1: u128) -> u128 [selector=0xb6edec74, abi_args=lazy,
     ret v0
 }
 
-fn @umul128(arg0: u128, arg1: u128) -> u128 [selector=0x664cefee, abi_args=lazy, abi_params=[u128, u128], abi_returns=[word]] {
+fn @umul128(arg0: u128, arg1: u128) -> u128 [selector=0x664cefee, pure, abi_args=lazy, abi_params=[u128, u128], abi_returns=[word]] {
   bb0:
     v0 = mul arg0, arg1
     v1 = iszero arg1
@@ -166,7 +166,7 @@ fn @umul128(arg0: u128, arg1: u128) -> u128 [selector=0x664cefee, abi_args=lazy,
     ret v0
 }
 
-fn @smul128(arg0: i128, arg1: i128) -> i128 [selector=0xaf26a496, abi_args=lazy, abi_params=[i128, i128], abi_returns=[word]] {
+fn @smul128(arg0: i128, arg1: i128) -> i128 [selector=0xaf26a496, pure, abi_args=lazy, abi_params=[i128, i128], abi_returns=[word]] {
   bb0:
     v0 = mul arg0, arg1
     v1 = iszero arg1
@@ -191,7 +191,7 @@ fn @smul128(arg0: i128, arg1: i128) -> i128 [selector=0xaf26a496, abi_args=lazy,
     ret v0
 }
 
-fn @umul192(arg0: u192, arg1: u192) -> u192 [selector=0xcf392d15, abi_args=lazy, abi_params=[u192, u192], abi_returns=[word]] {
+fn @umul192(arg0: u192, arg1: u192) -> u192 [selector=0xcf392d15, pure, abi_args=lazy, abi_params=[u192, u192], abi_returns=[word]] {
   bb0:
     v0 = mul arg0, arg1
     v1 = iszero arg1
@@ -210,47 +210,47 @@ fn @umul192(arg0: u192, arg1: u192) -> u192 [selector=0xcf392d15, abi_args=lazy,
     ret v0
 }
 
-fn @leftU8(arg0: u8, arg1: u8) -> u8 [selector=0xb0f599fc, abi_args=lazy, abi_params=[u8, u8], abi_returns=[word]] {
+fn @leftU8(arg0: u8, arg1: u8) -> u8 [selector=0xb0f599fc, pure, abi_args=lazy, abi_params=[u8, u8], abi_returns=[word]] {
   bb0:
     v0 = shl arg1, arg0
     v1 = and v0, 255
     ret v1
 }
 
-fn @leftU16(arg0: u16, arg1: u8) -> u16 [selector=0x091a4010, abi_args=lazy, abi_params=[u16, u8], abi_returns=[word]] {
+fn @leftU16(arg0: u16, arg1: u8) -> u16 [selector=0x091a4010, pure, abi_args=lazy, abi_params=[u16, u8], abi_returns=[word]] {
   bb0:
     v0 = shl arg1, arg0
     v1 = and v0, 0xffff
     ret v1
 }
 
-fn @leftI8(arg0: i8, arg1: u8) -> i8 [selector=0xf8edc0fc, abi_args=lazy, abi_params=[i8, u8], abi_returns=[word]] {
+fn @leftI8(arg0: i8, arg1: u8) -> i8 [selector=0xf8edc0fc, pure, abi_args=lazy, abi_params=[i8, u8], abi_returns=[word]] {
   bb0:
     v0 = shl arg1, arg0
     v1 = signextend 0, v0
     ret v1
 }
 
-fn @leftI16(arg0: i16, arg1: u8) -> i16 [selector=0xde5140b9, abi_args=lazy, abi_params=[i16, u8], abi_returns=[word]] {
+fn @leftI16(arg0: i16, arg1: u8) -> i16 [selector=0xde5140b9, pure, abi_args=lazy, abi_params=[i16, u8], abi_returns=[word]] {
   bb0:
     v0 = shl arg1, arg0
     v1 = signextend 1, v0
     ret v1
 }
 
-fn @leftU256(arg0: u256, arg1: u256) -> u256 [selector=0xb89f4ea2, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @leftU256(arg0: u256, arg1: u256) -> u256 [selector=0xb89f4ea2, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = shl arg1, arg0
     ret v0
 }
 
-fn @rightU8(arg0: u8, arg1: u8) -> u8 [selector=0xf8942fcd, abi_args=lazy, abi_params=[u8, u8], abi_returns=[word]] {
+fn @rightU8(arg0: u8, arg1: u8) -> u8 [selector=0xf8942fcd, pure, abi_args=lazy, abi_params=[u8, u8], abi_returns=[word]] {
   bb0:
     v0 = shr arg1, arg0
     ret v0
 }
 
-fn @rightI8(arg0: i8, arg1: u8) -> i8 [selector=0x06a33d87, abi_args=lazy, abi_params=[i8, u8], abi_returns=[word]] {
+fn @rightI8(arg0: i8, arg1: u8) -> i8 [selector=0x06a33d87, pure, abi_args=lazy, abi_params=[i8, u8], abi_returns=[word]] {
   bb0:
     v0 = sar arg1, arg0
     ret v0

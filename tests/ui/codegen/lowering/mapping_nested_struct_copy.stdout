@@ -25,7 +25,7 @@ fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) [selector=0x
     stop
 }
 
-fn @get(arg0: u256) -> (u256, u256, u256, u256) [selector=0x9507d39a, abi_args=lazy, abi_params=[u256], abi_returns=[word, word, word, word]] {
+fn @get(arg0: u256) -> (u256, u256, u256, u256) [selector=0x9507d39a, view, abi_args=lazy, abi_params=[u256], abi_returns=[word, word, word, word]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = alloc memorystruct<3>, exact, zeroed, panic, 96

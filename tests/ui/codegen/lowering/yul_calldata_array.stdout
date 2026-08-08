@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/yul_calldata_array.sol:C ===
 @module C
-fn @probe(arg0: calldataslice) -> (u256, u256) [selector=0xaf74ef39, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[word, word]] {
+fn @probe(arg0: calldataslice) -> (u256, u256) [selector=0xaf74ef39, pure, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[word, word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0

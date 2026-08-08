@@ -13,7 +13,7 @@ fn @choose(arg0: bool, arg1: u256) -> u256 [selector=0xced8609d, abi_args=lazy, 
     ret v1
 }
 
-fn @increment(arg0: u256) -> u256 {
+fn @increment(arg0: u256) -> u256 [pure] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
@@ -26,7 +26,7 @@ fn @increment(arg0: u256) -> u256 {
     ret v0
 }
 
-fn @decrement(arg0: u256) -> u256 {
+fn @decrement(arg0: u256) -> u256 [pure] {
   bb0:
     v0 = sub arg0, 1
     v1 = lt arg0, 1
@@ -45,19 +45,19 @@ fn @callConstant(arg0: u256) -> u256 [selector=0x0560cf94, abi_args=lazy, abi_pa
     ret v0
 }
 
-fn @throughCast(arg0: u256) -> u256 [selector=0x090ff363, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @throughCast(arg0: u256) -> u256 [selector=0x090ff363, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = internal_call @castViewToPure, 1, 7
     v1 = internal_call @__internal_dispatch_0, 1, v0, arg0
     ret v1
 }
 
-fn @castViewToPure(arg0: function) -> function {
+fn @castViewToPure(arg0: function) -> function [pure] {
   bb0:
     ret arg0
 }
 
-fn @incrementView(arg0: u256) -> u256 {
+fn @incrementView(arg0: u256) -> u256 [view] {
   bb0:
     v0 = number
     v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

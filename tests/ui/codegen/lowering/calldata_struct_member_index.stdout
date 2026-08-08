@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_member_index.sol:CalldataStructMemberIndex ===
 @module CalldataStructMemberIndex
 @phase evm-shaped
-fn @plain() [selector=0xc2dcee6a] {
+fn @plain() [selector=0xc2dcee6a, pure] {
   bb0:
     v21 = calldatasize
     v22 = lt v21, 68
@@ -67,7 +67,7 @@ fn @plain() [selector=0xc2dcee6a] {
     jumpi v1, bb2, bb1
 }
 
-fn @member() [selector=0x49eb8b89] {
+fn @member() [selector=0x49eb8b89, pure] {
   bb0:
     v46 = calldatasize
     v47 = lt v46, 68
@@ -147,7 +147,7 @@ fn @member() [selector=0x49eb8b89] {
     jumpi v6, bb1, bb2
 }
 
-fn @word() [selector=0xd192e846] {
+fn @word() [selector=0xd192e846, pure] {
   bb0:
     v43 = calldatasize
     v44 = lt v43, 68
@@ -226,7 +226,7 @@ fn @word() [selector=0xd192e846] {
     jumpi v6, bb1, bb2
 }
 
-fn @lengths() [selector=0xb7a3bd0f] {
+fn @lengths() [selector=0xb7a3bd0f, pure] {
   bb0:
     v78 = calldatasize
     v79 = lt v78, 36

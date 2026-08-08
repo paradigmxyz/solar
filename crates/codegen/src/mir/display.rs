@@ -301,8 +301,11 @@ fn display_function_attributes(func: &Function) -> impl fmt::Display + '_ {
         if func.attributes.is_fallback {
             write_function_attribute(f, &mut first, "fallback")?;
         }
-        if func.attributes.state_mutability == hir::StateMutability::Payable {
-            write_function_attribute(f, &mut first, "payable")?;
+        match func.attributes.state_mutability {
+            hir::StateMutability::Pure => write_function_attribute(f, &mut first, "pure")?,
+            hir::StateMutability::View => write_function_attribute(f, &mut first, "view")?,
+            hir::StateMutability::Payable => write_function_attribute(f, &mut first, "payable")?,
+            hir::StateMutability::NonPayable => {}
         }
         if func.abi_args_lazy {
             write_function_attribute(f, &mut first, "abi_args=lazy")?;

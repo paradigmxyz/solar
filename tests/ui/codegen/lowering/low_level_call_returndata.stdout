@@ -106,7 +106,7 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [selector=0xd1660f99,
     stop
 }
 
-fn @balanceOf(arg0: address) -> u256 [selector=0x70a08231, abi_args=lazy, abi_params=[address], abi_returns=[word]] {
+fn @balanceOf(arg0: address) -> u256 [selector=0x70a08231, view, abi_args=lazy, abi_params=[address], abi_returns=[word]] {
   bb0:
     v0 = gas
     v1 = address

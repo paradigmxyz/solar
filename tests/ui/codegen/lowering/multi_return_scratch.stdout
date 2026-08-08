@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_scratch.sol:MultiReturnScratch ===
 @module MultiReturnScratch
-fn @stored(arg0: u256) -> u256 [selector=0x8c396222, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @stored(arg0: u256) -> u256 [selector=0x8c396222, view, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
     ret v1
 }
 
-fn @triple(arg0: u256) -> (u256, u256, u256) {
+fn @triple(arg0: u256) -> (u256, u256, u256) [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -50,7 +50,7 @@ fn @assign(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [selector=0xf0991
     ret v4, v6, v0, v8
 }
 
-fn @ternary(arg0: bool, arg1: u256) -> (u256, u256) [selector=0x09a143f6, abi_args=lazy, abi_params=[bool, u256], abi_returns=[word, word]] {
+fn @ternary(arg0: bool, arg1: u256) -> (u256, u256) [selector=0x09a143f6, pure, abi_args=lazy, abi_params=[bool, u256], abi_returns=[word, word]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

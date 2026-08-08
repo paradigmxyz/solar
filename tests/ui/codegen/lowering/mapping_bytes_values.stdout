@@ -191,7 +191,7 @@ fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) [selector=0x82c2cb5e, a
     jump bb14
 }
 
-fn @get(arg0: u256) -> memorybytes [selector=0x9507d39a, abi_args=lazy, abi_params=[u256], abi_returns=[memory_bytes]] {
+fn @get(arg0: u256) -> memorybytes [selector=0x9507d39a, view, abi_args=lazy, abi_params=[u256], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -267,7 +267,7 @@ fn @get(arg0: u256) -> memorybytes [selector=0x9507d39a, abi_args=lazy, abi_para
     jump bb11
 }
 
-fn @getNested(arg0: u256, arg1: u256) -> memorybytes [selector=0xf7c930ae, abi_args=lazy, abi_params=[u256, u256], abi_returns=[memory_bytes]] {
+fn @getNested(arg0: u256, arg1: u256) -> memorybytes [selector=0xf7c930ae, view, abi_args=lazy, abi_params=[u256, u256], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0

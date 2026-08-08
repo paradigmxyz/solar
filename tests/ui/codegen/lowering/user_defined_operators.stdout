@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/user_defined_operators.sol:UserDefinedOperators ===
 @module UserDefinedOperators
 @phase evm-shaped
-fn @doAdd() [selector=0xe9148a2a] {
+fn @doAdd() [selector=0xe9148a2a, pure] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 68
@@ -14,7 +14,7 @@ fn @doAdd() [selector=0xe9148a2a] {
     returndata 128, 32
 }
 
-fn @doNeg() [selector=0x8fa81b4e] {
+fn @doNeg() [selector=0x8fa81b4e, pure] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -27,7 +27,7 @@ fn @doNeg() [selector=0x8fa81b4e] {
     returndata 128, 32
 }
 
-fn @doFlip() [selector=0x7cf9d6d4] {
+fn @doFlip() [selector=0x7cf9d6d4, pure] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -40,7 +40,7 @@ fn @doFlip() [selector=0x7cf9d6d4] {
     returndata 128, 32
 }
 
-fn @add(arg0: i256, arg1: i256) -> i256 {
+fn @add(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = add arg0, arg1
     v1 = slt arg0, 0
@@ -57,7 +57,7 @@ fn @add(arg0: i256, arg1: i256) -> i256 {
     ret v0
 }
 
-fn @neg(arg0: i256) -> i256 {
+fn @neg(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     jumpi v0, bb1, bb2
@@ -68,7 +68,7 @@ fn @neg(arg0: i256) -> i256 {
     ret v1
 }
 
-fn @flip(arg0: i256) -> i256 {
+fn @flip(arg0: i256) -> i256 [pure] {
   bb0:
     ret 7
 }

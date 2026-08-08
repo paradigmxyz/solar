@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_static_tuple.sol:AbiDecodeStaticTuple ===
 @module AbiDecodeStaticTuple
-fn @decode(arg0: memorybytes) -> (u256, bool, address) [selector=0xe5c5e9a3, abi_args=lazy, abi_params=[bytes], abi_returns=[word, word, word]] {
+fn @decode(arg0: memorybytes) -> (u256, bool, address) [selector=0xe5c5e9a3, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word, word, word]] {
   bb0:
     v0 = abi_decode [u256, bool, address], arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)

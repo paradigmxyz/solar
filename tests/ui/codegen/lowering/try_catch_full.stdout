@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/try_catch_full.sol:TryCatchFull ===
 @module TryCatchFull
 @phase evm-shaped
-fn @full() [selector=0xd17b272f] {
+fn @full() [selector=0xd17b272f, view] {
   bb0:
     v188 = calldatasize
     v189 = lt v188, 36
@@ -424,7 +424,7 @@ fn @full() [selector=0xd17b272f] {
     revert 0, 36
 }
 
-fn @rethrows() [selector=0x0d7fadfb] {
+fn @rethrows() [selector=0x0d7fadfb, view] {
   bb0:
     v170 = calldatasize
     v171 = lt v170, 36
