@@ -25,9 +25,7 @@ impl<'hir> hir::Visit<'hir> for ModifierLocalIds<'hir> {
     }
 }
 
-impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
-    FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
-{
+impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn snapshot_bindings(&self, ids: &[hir::VariableId]) -> BindingSnapshot {
         BindingSnapshot {
             ids: ids.to_vec(),

@@ -2,9 +2,7 @@
 
 use super::*;
 
-impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
-    FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
-{
+impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
         match &expr.peel_parens().kind {
             ExprKind::Ident(_) => {

@@ -45,37 +45,43 @@ mod storage_values;
 mod values;
 
 /// Shared inputs for one contract's function lowering.
-pub(super) struct LoweringContext<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers> {
+pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) gcx: Gcx<'gcx>,
-    pub(super) module: &'module mut Module,
-    pub(super) storage: &'mir StorageLayout<'gcx>,
+    pub(super) module: &'ctx mut Module,
+    pub(super) storage: &'ctx StorageLayout<'gcx>,
     pub(super) contract_id: hir::ContractId,
-    pub(super) function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
-    pub(super) immutable_ids: &'ids FxHashMap<VariableId, ImmutableId>,
-    pub(super) child_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
-    pub(super) child_runtime_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
-    pub(super) invalid_event_topics: &'events mut FxHashSet<hir::EventId>,
-    pub(super) pointer_registry: &'pointers mut InternalFunctionPointerRegistry,
+    pub(super) function_ids: &'ctx FxHashMap<hir::FunctionId, FunctionId>,
+    pub(super) immutable_ids: &'ctx FxHashMap<VariableId, ImmutableId>,
+    pub(super) child_bytecodes: &'ctx FxHashMap<hir::ContractId, Bytes>,
+    pub(super) child_runtime_bytecodes: &'ctx FxHashMap<hir::ContractId, Bytes>,
+    pub(super) invalid_event_topics: &'ctx mut FxHashSet<hir::EventId>,
+    pub(super) pointer_registry: &'ctx mut InternalFunctionPointerRegistry,
+}
+
+impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
+    fn reborrow<'a>(&'a mut self) -> LoweringContext<'gcx, 'a> {
+        LoweringContext {
+            gcx: self.gcx,
+            module: &mut *self.module,
+            storage: self.storage,
+            contract_id: self.contract_id,
+            function_ids: self.function_ids,
+            immutable_ids: self.immutable_ids,
+            child_bytecodes: self.child_bytecodes,
+            child_runtime_bytecodes: self.child_runtime_bytecodes,
+            invalid_event_topics: &mut *self.invalid_event_topics,
+            pointer_registry: &mut *self.pointer_registry,
+        }
+    }
 }
 
 /// Lowers one HIR function into a typed MIR function.
 pub(super) fn lower(
-    context: LoweringContext<'_, '_, '_, '_, '_, '_, '_>,
+    mut context: LoweringContext<'_, '_>,
     id: hir::FunctionId,
     expose_selector: bool,
 ) -> Option<Function> {
-    let LoweringContext {
-        gcx,
-        module,
-        storage,
-        contract_id,
-        function_ids,
-        immutable_ids,
-        child_bytecodes,
-        child_runtime_bytecodes,
-        invalid_event_topics,
-        pointer_registry,
-    } = context;
+    let gcx = context.gcx;
     let hir_function = gcx.hir.function(id);
     let mut mir = contract::declaration(gcx, id, hir_function);
     if !expose_selector {
@@ -128,8 +134,9 @@ pub(super) fn lower(
             let Some(output_param_shapes) = output_param_shapes else {
                 return report_unsupported(gcx, hir_function.span, "function return ABI shape");
             };
-            mir.abi_returns =
-                Some(module.intern_abi_layout(AbiLayout::new(output_shapes.into_boxed_slice())));
+            mir.abi_returns = Some(
+                context.module.intern_abi_layout(AbiLayout::new(output_shapes.into_boxed_slice())),
+            );
             if output_param_shapes.iter().any(AbiParamType::needs_nested_return_cleanup) {
                 mir.abi_return_params =
                     Some(AbiParamLayout::new(output_param_shapes.into_boxed_slice()));
@@ -137,21 +144,7 @@ pub(super) fn lower(
         }
     }
 
-    let mut lowerer = FunctionLowerer::new(
-        LoweringContext {
-            gcx,
-            module,
-            storage,
-            contract_id,
-            function_ids,
-            immutable_ids,
-            child_bytecodes,
-            child_runtime_bytecodes,
-            invalid_event_topics,
-            pointer_registry,
-        },
-        &mut mir,
-    );
+    let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     lowerer.bind_signature(hir_function);
     if hir_function.kind == hir::FunctionKind::Constructor {
         let Some(contract_id) = hir_function.contract else {
@@ -172,39 +165,13 @@ pub(super) fn lower(
 /// Lowers the synthetic constructor used when state initializers exist without
 /// an explicit constructor body.
 pub(super) fn lower_synthetic_constructor(
-    context: LoweringContext<'_, '_, '_, '_, '_, '_, '_>,
+    mut context: LoweringContext<'_, '_>,
     contract_id: hir::ContractId,
 ) -> Option<Function> {
-    let LoweringContext {
-        gcx,
-        module,
-        storage,
-        function_ids,
-        immutable_ids,
-        child_bytecodes,
-        child_runtime_bytecodes,
-        invalid_event_topics,
-        pointer_registry,
-        ..
-    } = context;
     let mut mir =
         Function::new(solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor));
     mir.attributes.is_constructor = true;
-    let mut lowerer = FunctionLowerer::new(
-        LoweringContext {
-            gcx,
-            module,
-            storage,
-            contract_id,
-            function_ids,
-            immutable_ids,
-            child_bytecodes,
-            child_runtime_bytecodes,
-            invalid_event_topics,
-            pointer_registry,
-        },
-        &mut mir,
-    );
+    let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     lowerer.lower_implicit_base_constructors(contract_id)?;
     lowerer.lower_state_initializers(contract_id)?;
     if !lowerer.is_terminated() {
@@ -218,18 +185,18 @@ pub(super) fn lower_synthetic_constructor(
 /// Keeping the HIR context, variable environment, loop targets, and builder in
 /// one object makes scope changes explicit. Child lowering methods do not need
 /// to pass a growing collection of loosely related maps and flags.
-struct FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers> {
+struct FunctionLowerer<'gcx, 'ctx> {
     gcx: Gcx<'gcx>,
-    module: &'module mut Module,
-    storage: &'mir StorageLayout<'gcx>,
+    module: &'ctx mut Module,
+    storage: &'ctx StorageLayout<'gcx>,
     contract_id: hir::ContractId,
-    function_ids: &'ids FxHashMap<hir::FunctionId, FunctionId>,
-    immutable_ids: &'ids FxHashMap<VariableId, ImmutableId>,
-    child_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
-    child_runtime_bytecodes: &'bytes FxHashMap<hir::ContractId, Bytes>,
-    invalid_event_topics: &'events mut FxHashSet<hir::EventId>,
-    pointer_registry: &'pointers mut InternalFunctionPointerRegistry,
-    builder: FunctionBuilder<'mir>,
+    function_ids: &'ctx FxHashMap<hir::FunctionId, FunctionId>,
+    immutable_ids: &'ctx FxHashMap<VariableId, ImmutableId>,
+    child_bytecodes: &'ctx FxHashMap<hir::ContractId, Bytes>,
+    child_runtime_bytecodes: &'ctx FxHashMap<hir::ContractId, Bytes>,
+    invalid_event_topics: &'ctx mut FxHashSet<hir::EventId>,
+    pointer_registry: &'ctx mut InternalFunctionPointerRegistry,
+    builder: FunctionBuilder<'ctx>,
     types: types::TypeLowerer<'gcx>,
     values: FxHashMap<VariableId, ValueId>,
     storage_refs: FxHashMap<VariableId, StorageAccess>,
@@ -376,13 +343,8 @@ fn internal_function_pointer_id(function_id: hir::FunctionId) -> u64 {
     function_id.index() as u64 + 1
 }
 
-impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
-    FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
-{
-    fn new(
-        context: LoweringContext<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>,
-        function: &'mir mut Function,
-    ) -> Self {
+impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
+    fn new(context: LoweringContext<'gcx, 'ctx>, function: &'ctx mut Function) -> Self {
         let LoweringContext {
             gcx,
             module,

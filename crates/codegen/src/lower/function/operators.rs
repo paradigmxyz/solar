@@ -2,9 +2,7 @@
 
 use super::*;
 
-impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
-    FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
-{
+impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn signed_add_overflow(
         &mut self,
         lhs: ValueId,

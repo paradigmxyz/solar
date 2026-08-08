@@ -2,9 +2,7 @@
 
 use super::*;
 
-impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
-    FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
-{
+impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
         if let ExprKind::Ternary(condition, then_expr, else_expr) = &expr.kind {
             return self.lower_ternary_values(condition, then_expr, else_expr);

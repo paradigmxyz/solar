@@ -2,9 +2,7 @@
 
 use super::*;
 
-impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
-    FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
-{
+impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn array_element_type(&self, ty: Ty<'gcx>) -> Option<Ty<'gcx>> {
         match ty.peel_refs().kind {
             TyKind::DynArray(element) | TyKind::Array(element, _) => Some(element),

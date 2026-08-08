@@ -2,9 +2,7 @@
 
 use super::*;
 
-impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
-    FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
-{
+impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn panic_if(&mut self, condition: ValueId, code: PanicCode) {
         self.builder.panic_if(condition, code);
     }
