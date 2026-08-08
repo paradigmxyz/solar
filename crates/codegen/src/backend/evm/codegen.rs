@@ -2181,20 +2181,31 @@ impl<'gcx> EvmCodegen<'gcx> {
         // common phi-free function.
         let mut stack_phi_plan =
             if has_phis { StackPhiPlan::analyze(func) } else { StackPhiPlan::default() };
-        let global_stack_plan = self
-            .resident_stack_plan(func_id)
-            .cloned()
+        let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
+        let mut global_stack_plan = resident_stack_plan
+            .clone()
             .unwrap_or_else(|| GlobalStackPlan::analyze(func, liveness, &stack_phi_plan));
-        if self.resident_stack_plan(func_id).is_some()
-            && !stack_phi_plan.merge_resident(func, &global_stack_plan)
+        let mut stack_phi_sources = stack_phi_plan.edge_sources.clone();
+        if resident_stack_plan.is_some() {
+            if !stack_phi_plan.merge_resident(func, &global_stack_plan) {
+                // Selection preflights this exact composition. If a future transform invalidates
+                // that proof, regenerate the runtime with the ordinary frame-backed convention
+                // instead of emitting a partial stack ABI or panicking.
+                self.disabled_stack_only_functions.insert(func_id);
+                return;
+            }
+            stack_phi_sources = stack_phi_plan.edge_sources.clone();
+        } else if global_stack_plan.is_empty()
+            && let Some(plan) = self.compute_cross_block_stack_layout(func, liveness, has_phis)
+            // Phi layouts own their incoming stack on planned joins. Extend those layouts with
+            // the invariant computed values, but keep their ordinary spill stores as a fallback:
+            // unlike resident arguments, these values have allocated memory homes. Adopt the
+            // layout only when that composition is proven, mirroring the resident arm.
+            && stack_phi_plan.merge_resident(func, &plan)
         {
-            // Selection preflights this exact composition. If a future transform invalidates that
-            // proof, regenerate the runtime with the ordinary frame-backed convention instead of
-            // emitting a partial stack ABI or panicking.
-            self.disabled_stack_only_functions.insert(func_id);
-            return;
+            global_stack_plan = plan;
         }
-        self.stack_phi_sources = stack_phi_plan.edge_sources.clone();
+        self.stack_phi_sources = stack_phi_sources;
         self.global_stack_active = !global_stack_plan.is_empty();
         self.global_stack_aliases = global_stack_plan.aliases.clone();
 
@@ -5547,6 +5558,181 @@ impl<'gcx> EvmCodegen<'gcx> {
                     resident_access.times(
                         use_counts.get(&value).copied().unwrap_or_default().saturating_sub(1),
                     )
+                } else {
+                    memory_cost(value)
+                });
+            }
+            if !candidate.cmp_lifetime_for(baseline, optimization, expected_executions).is_lt() {
+                continue;
+            }
+            if best.as_ref().is_none_or(|(best_cost, best_values, _)| {
+                candidate.cmp_lifetime_for(*best_cost, optimization, expected_executions).is_lt()
+                    || (candidate == *best_cost && subset.len() > best_values.len())
+            }) {
+                best = Some((candidate, subset, plan));
+            }
+        }
+        best.map(|(_, values, plan)| (values, plan))
+    }
+
+    /// Retains profitable computed words across acyclic joins while preserving their ordinary
+    /// spill slots as a conservative fallback. The current global argument planner owns external
+    /// entry layouts when it applies, so this incremental planner runs only when that plan is
+    /// empty and limits its search to eight cross-block definitions.
+    fn compute_cross_block_stack_layout(
+        &self,
+        func: &Function,
+        liveness: &Liveness,
+        has_phis: bool,
+    ) -> Option<GlobalStackPlan> {
+        if !self.gcx.sess.opts.optimization.is_gas()
+            || !Self::is_external_entry(func)
+            || func.blocks.len() < 3
+        {
+            return None;
+        }
+
+        let inst_blocks = func.inst_blocks();
+        let cross_block = Self::cross_block_live_values(func, liveness);
+        let mut uses =
+            FxHashMap::<ValueId, (BlockId, usize, FxHashSet<BlockId>, bool, bool, bool)>::default();
+        for value in &cross_block {
+            let crate::mir::Value::Inst(inst_id) = func.value(value) else { continue };
+            if matches!(func.inst(*inst_id).kind, InstKind::Phi(_))
+                || Self::is_cross_block_recomputable_inst(func, value)
+            {
+                continue;
+            }
+            let Some(&definition) = inst_blocks.get(inst_id) else { continue };
+            uses.insert(value, (definition, 0, FxHashSet::default(), false, false, false));
+        }
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &user in &block.instructions {
+                let phi = matches!(func.inst(user).kind, InstKind::Phi(_));
+                for operand in func.inst(user).kind.operands() {
+                    if let Some((definition, count, blocks, used_in_definition, used_by_phi, _)) =
+                        uses.get_mut(&operand)
+                    {
+                        *used_in_definition |= block_id == *definition;
+                        *used_by_phi |= phi;
+                        *count += 1;
+                        blocks.insert(block_id);
+                    }
+                }
+            }
+            for operand in block.terminator.iter().flat_map(Terminator::operands) {
+                if let Some((definition, count, blocks, used_in_definition, _, _)) =
+                    uses.get_mut(&operand)
+                {
+                    *used_in_definition |= block_id == *definition;
+                    *count += 1;
+                    blocks.insert(block_id);
+                }
+            }
+            if block.predecessors.len() > 1 {
+                for value in liveness.live_in(block_id) {
+                    if let Some((_, _, _, _, _, crosses_join)) = uses.get_mut(&value) {
+                        *crosses_join = true;
+                    }
+                }
+            }
+        }
+
+        let mut ranked = Vec::new();
+        for (value, (_, use_count, use_blocks, used_in_definition, used_by_phi, crosses_join)) in
+            uses
+        {
+            // Definition-block and phi-edge uses need position-sensitive accounting. Leave those
+            // to the existing spill/phi planners until this plan models individual program points.
+            if used_in_definition || used_by_phi || !crosses_join || use_count < 2 {
+                continue;
+            }
+            ranked.push((value, use_blocks.len(), use_count));
+        }
+        ranked.sort_by_key(|&(value, blocks, uses)| {
+            (std::cmp::Reverse(blocks), std::cmp::Reverse(uses), value.index())
+        });
+        let values: Vec<_> =
+            ranked.into_iter().take(GLOBAL_STACK_LAYOUT_LIMIT).map(|(value, _, _)| value).collect();
+        self.select_cross_block_stack_layout(func, liveness, &values, has_phis)
+            .map(|(_, plan)| plan)
+    }
+
+    fn select_cross_block_stack_layout(
+        &self,
+        func: &Function,
+        liveness: &Liveness,
+        values: &[ValueId],
+        has_phis: bool,
+    ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
+        if values.is_empty() {
+            return None;
+        }
+        debug_assert!(values.len() <= GLOBAL_STACK_LAYOUT_LIMIT);
+
+        let mut use_counts = FxHashMap::default();
+        let mut use_blocks = FxHashMap::<ValueId, FxHashSet<BlockId>>::default();
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for operand in block
+                .instructions
+                .iter()
+                .flat_map(|&inst| func.inst(inst).kind.operands())
+                .chain(block.terminator.iter().flat_map(Terminator::operands))
+            {
+                if values.contains(&operand) {
+                    *use_counts.entry(operand).or_insert(0usize) += 1;
+                    use_blocks.entry(operand).or_default().insert(block_id);
+                }
+            }
+        }
+
+        let spill_store = ScheduleCost::spill_store(OperandCostModel::DIRECT);
+        let spill_load = ScheduleCost::memory_load(OperandCostModel::DIRECT);
+        let resident_access = ScheduleCost::stack_op(StackOp::Dup(1));
+        let memory_cost = |value: ValueId| {
+            let uses = use_counts.get(&value).copied().unwrap_or_default();
+            let blocks = use_blocks.get(&value).map_or(0, FxHashSet::len);
+            spill_store
+                .plus(spill_load.times(blocks))
+                .plus(resident_access.times(uses.saturating_sub(blocks)))
+        };
+        let baseline = values
+            .iter()
+            .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
+        let optimization = self.gcx.sess.opts.optimization;
+        let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
+        let cfg = CfgInfo::new(func);
+        let mut best: Option<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)> = None;
+        for bits in 1usize..(1usize << values.len()) {
+            let subset: Vec<_> = values
+                .iter()
+                .enumerate()
+                .filter_map(|(index, &value)| ((bits >> index) & 1 != 0).then_some(value))
+                .collect();
+            let Some((plan, mut candidate)) = self.analyze_resident_subset(
+                func,
+                liveness,
+                &subset,
+                self.preserve_caller_stack,
+                has_phis,
+            ) else {
+                continue;
+            };
+            if plan.entries.iter().any(|(&block, _)| {
+                func.blocks[block]
+                    .predecessors
+                    .iter()
+                    .any(|&pred| cfg.dominators().dominates(block, pred))
+            }) {
+                continue;
+            }
+
+            for &value in values {
+                candidate = candidate.plus(if subset.contains(&value) {
+                    let uses = use_counts.get(&value).copied().unwrap_or_default();
+                    // The spill store remains in both plans. A carried SSA copy can be consumed
+                    // on its final use; all earlier uses retain it with a stack operation.
+                    spill_store.plus(resident_access.times(uses.saturating_sub(1)))
                 } else {
                     memory_cost(value)
                 });
