@@ -1,4 +1,3 @@
-use lsp_types::{InitializeParams, Url, WorkspaceFolder};
 use serde_json::Value;
 use std::{
     io::{self, BufRead, BufReader, Write},
@@ -17,7 +16,7 @@ struct LspProcess {
     stdin: Option<ChildStdin>,
     messages: Receiver<io::Result<Value>>,
     reader: Option<JoinHandle<()>>,
-    workspace: TempDir,
+    _workspace: TempDir,
 }
 
 impl LspProcess {
@@ -52,7 +51,7 @@ impl LspProcess {
             }
         });
 
-        Self { child, stdin: Some(stdin), messages, reader: Some(reader), workspace }
+        Self { child, stdin: Some(stdin), messages, reader: Some(reader), _workspace: workspace }
     }
 
     fn send(&mut self, message: Value) {
@@ -180,22 +179,16 @@ fn exit_without_shutdown_returns_failure_status() {
 #[test]
 fn shutdown_then_exit_returns_success_status() {
     let mut server = LspProcess::spawn();
-    let workspace_uri =
-        Url::from_directory_path(server.workspace.path()).expect("temporary workspace file URI");
-    #[allow(deprecated)]
-    let initialize_params = InitializeParams {
-        root_uri: Some(workspace_uri.clone()),
-        workspace_folders: Some(vec![WorkspaceFolder {
-            uri: workspace_uri,
-            name: "workspace".into(),
-        }]),
-        ..Default::default()
-    };
     server.send(serde_json::json!({
         "jsonrpc": "2.0",
         "id": 1,
         "method": "initialize",
-        "params": initialize_params,
+        "params": {
+            "processId": null,
+            "rootUri": null,
+            "workspaceFolders": null,
+            "capabilities": {},
+        },
     }));
     let initialize = server.receive_response(1);
     assert!(initialize.get("result").is_some(), "initialize failed: {initialize}");
@@ -217,4 +210,35 @@ fn shutdown_then_exit_returns_success_status() {
     server.send(serde_json::json!({ "jsonrpc": "2.0", "method": "exit" }));
     let status = server.wait_for_exit();
     assert_eq!(status.code(), Some(0));
+}
+
+#[test]
+fn failed_initialize_does_not_allow_graceful_exit() {
+    let mut server = LspProcess::spawn();
+    server.send(serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": { "capabilities": [] },
+    }));
+    let initialize = server.receive_response(1);
+    assert_eq!(initialize["error"]["code"], -32602);
+
+    server.send(serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "initialized",
+        "params": {},
+    }));
+    server.send(serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "shutdown",
+        "params": null,
+    }));
+    let shutdown = server.receive_response(2);
+    assert_eq!(shutdown["error"]["code"], -32002);
+
+    server.send(serde_json::json!({ "jsonrpc": "2.0", "method": "exit" }));
+    let status = server.wait_for_exit();
+    assert_eq!(status.code(), Some(1));
 }

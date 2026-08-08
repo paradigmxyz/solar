@@ -1,12 +1,13 @@
-use crate::{new_server_service, test_support::TestProject};
+use crate::{
+    new_server_service,
+    test_support::{TestProject, read_lsp_frame, write_lsp_frame},
+};
 use async_lsp::ClientSocket;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::time::Duration;
 use tokio::{
-    io::{
-        AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, DuplexStream, ReadHalf, WriteHalf,
-    },
+    io::{AsyncWriteExt, BufReader, DuplexStream, ReadHalf, WriteHalf},
     task::JoinHandle,
 };
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
@@ -153,41 +154,13 @@ impl RawSession {
     }
 
     async fn write_message(&mut self, message: Value) {
-        let body = serde_json::to_vec(&message).unwrap();
-        self.writer
-            .write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes())
-            .await
-            .unwrap();
-        self.writer.write_all(&body).await.unwrap();
-        self.writer.flush().await.unwrap();
+        write_lsp_frame(&mut self.writer, message).await;
     }
 
     async fn read_message(&mut self) -> Value {
-        tokio::time::timeout(SESSION_TIMEOUT, async {
-            let mut content_length = None;
-            loop {
-                let mut line = String::new();
-                assert_ne!(
-                    self.reader.read_line(&mut line).await.unwrap(),
-                    0,
-                    "unexpected end of LSP stream"
-                );
-                if line == "\r\n" {
-                    break;
-                }
-                if let Some(length) =
-                    line.strip_prefix("Content-Length: ").and_then(|line| line.strip_suffix("\r\n"))
-                {
-                    content_length = Some(length.parse::<usize>().unwrap());
-                }
-            }
-
-            let mut body = vec![0; content_length.expect("LSP frame should have a content length")];
-            self.reader.read_exact(&mut body).await.unwrap();
-            serde_json::from_slice(&body).unwrap()
-        })
-        .await
-        .expect("LSP message should arrive")
+        tokio::time::timeout(SESSION_TIMEOUT, read_lsp_frame(&mut self.reader))
+            .await
+            .expect("LSP message should arrive")
     }
 }
 
