@@ -36,16 +36,22 @@ contract C {
         return (7, 9);
     }
 
-    // CHECK: bb23:
-    // CHECK: push bb25
-    // CHECK: push 7
+    // CHECK: [[MULTI:bb[0-9]+]]:
+    // CHECK-NEXT: calldatasize
+    // CHECK-NEXT: push 4
+    // CHECK-NEXT: gt
+    // CHECK-NEXT: push [[GUARD_TARGET:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: push [[RETURN_BLOCK:bb[0-9]+]]
+    // CHECK-NEXT: push 7
     // CHECK: mstore
     // CHECK: push 9
     // CHECK: mstore
     // CHECK: jump
+    // CHECK: [[RETURN_BLOCK]]:
     // CHECK: push 544
     // CHECK: mload
-    // CHECK: jump {{bb[0-9]+}}
+    // CHECK: jump
     function multi() external pure returns (uint256 x, uint256 y) {
         x = 100;
         y = 200;

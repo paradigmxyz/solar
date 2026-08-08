@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_push_pop.sol:StorageBytesPushPop ===
 @module StorageBytesPushPop
-fn @_anonymous() {
+fn @_anonymous() [constructor] {
   bb0:
     v0 = shl 248, 1
     v1 = shr 248, v0
@@ -407,7 +407,7 @@ fn @_anonymous() {
     jump bb75
 }
 
-fn @pushValue(arg0: bytes1) [abi_args=lazy, abi_params=[bytes1], abi_returns=[]] {
+fn @pushValue(arg0: bytes1) [selector=0x0217b939, abi_args=lazy, abi_params=[bytes1], abi_returns=[]] {
   bb0:
     v0 = shr 248, arg0
     v1 = sload 0 !metadata(storage=slot(0))
@@ -612,7 +612,7 @@ fn @pushValue(arg0: bytes1) [abi_args=lazy, abi_params=[bytes1], abi_returns=[]]
     jump bb36
 }
 
-fn @pushZero() [abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @pushZero() [selector=0xe83b401e, abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -816,7 +816,7 @@ fn @pushZero() [abi_args=lazy, abi_params=[], abi_returns=[]] {
     jump bb36
 }
 
-fn @popValue() [abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @popValue() [selector=0x2aea892f, abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -1019,7 +1019,7 @@ fn @popValue() [abi_args=lazy, abi_params=[], abi_returns=[]] {
     jump bb36
 }
 
-fn @get() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @get() -> memorybytes [selector=0x6d4ce63c, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0

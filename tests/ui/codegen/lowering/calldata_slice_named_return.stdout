@@ -46,7 +46,7 @@ fn @unwrap(arg0: calldataptr, arg1: u256) -> memptr {
     ret v32
 }
 
-fn @use() {
+fn @use() [selector=0x01bd03f7] {
   bb0:
     v2 = calldatasize
     v3 = lt v2, 36

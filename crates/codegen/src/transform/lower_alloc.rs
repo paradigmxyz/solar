@@ -9,7 +9,8 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationSemantics,
-        BlockId, Function, FunctionBuilder, InstId, InstKind, MemoryRegion, Module, ValueId,
+        BlockId, Function, FunctionBuilder, InstId, InstKind, MemoryRegion, Module, PanicCode,
+        ValueId,
     },
     pass::MirPass,
     transform::utils::redirect_successor_predecessors,
@@ -165,14 +166,7 @@ fn lower_checked_alloc(
     builder.func_mut().blocks[continuation].instructions.extend(tail);
 
     builder.switch_to_block(panic);
-    let zero = builder.imm_u64(0);
-    let four = builder.imm_u64(4);
-    let selector = builder.imm_u256(U256::from(0x4e48_7b71_u64) << 224);
-    let code = builder.imm_u64(0x41);
-    builder.mstore(zero, selector);
-    builder.mstore(four, code);
-    let size = builder.imm_u64(36);
-    builder.revert(zero, size);
+    builder.panic(PanicCode::MemoryAllocationOverflow);
 }
 
 fn aligned_size(

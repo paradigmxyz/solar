@@ -3,8 +3,7 @@
 
 contract AddmodMulmod {
     // CHECK-LABEL: fn @am{{[( ]}}
-    // CHECK: {{v[0-9]+}} = iszero arg2
-    // CHECK: jumpi {{v[0-9]+}},
+    // CHECK: jumpi arg2,
     // CHECK: mstore 4, 18
     // CHECK: {{v[0-9]+}} = addmod arg0, arg1, arg2
     function am(uint x, uint y, uint n) public pure returns (uint) {
@@ -12,8 +11,7 @@ contract AddmodMulmod {
     }
 
     // CHECK-LABEL: fn @mm{{[( ]}}
-    // CHECK: {{v[0-9]+}} = iszero arg2
-    // CHECK: jumpi {{v[0-9]+}},
+    // CHECK: jumpi arg2,
     // CHECK: mstore 4, 18
     // CHECK: {{v[0-9]+}} = mulmod arg0, arg1, arg2
     function mm(uint x, uint y, uint n) public pure returns (uint) {

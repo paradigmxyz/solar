@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/linear.sol:Linear ===
 @module Linear
-fn @add(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @add(arg0: u256, arg1: u256) -> u256 [selector=0x771602f7, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, arg1
     v1 = lt v0, arg0
@@ -13,7 +13,7 @@ fn @add(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_params=[u256, u256],
     ret v0
 }
 
-fn @sub(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @sub(arg0: u256, arg1: u256) -> u256 [selector=0xb67d77c5, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = sub arg0, arg1
     v1 = lt arg0, arg1
@@ -26,7 +26,7 @@ fn @sub(arg0: u256, arg1: u256) -> u256 [abi_args=lazy, abi_params=[u256, u256],
     ret v0
 }
 
-fn @add_one(arg0: u256) -> u256 [abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @add_one(arg0: u256) -> u256 [selector=0xdde38a34, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0

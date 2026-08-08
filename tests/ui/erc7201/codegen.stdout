@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/erc7201/codegen.sol:Erc7201Builtin ===
 @module Erc7201Builtin
-fn @literal() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @literal() -> u256 [selector=0x1373185e, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sub 0xb0ae1bb16fc1b16f3e2fb344bef6b08581bbec9f0228f7dd5fd38a8c141b3425, 1
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -12,7 +12,7 @@ fn @literal() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
     ret v4
 }
 
-fn @zeroLastByteLiteral() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @zeroLastByteLiteral() -> u256 [selector=0xe2eaca9d, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sub 0x17157e479612de6088d957c64aca858964825e74089b3c7dacc26409e6d53000, 1
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -24,7 +24,7 @@ fn @zeroLastByteLiteral() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[wo
     ret v4
 }
 
-fn @memoryParam() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @memoryParam() -> u256 [selector=0x21aa88e0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 64
     set_memory_object_len memorybytes, v0, 12
@@ -40,7 +40,7 @@ fn @memoryParam() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
     ret v6
 }
 
-fn @calldataParam(arg0: calldataslice) -> u256 [abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @calldataParam(arg0: calldataslice) -> u256 [selector=0x7d4a24fb, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -100,7 +100,7 @@ fn @calldataParam(arg0: calldataslice) -> u256 [abi_args=lazy, abi_params=[bytes
     ret v24
 }
 
-fn @storageValue() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @storageValue() -> u256 [selector=0xa977a973, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1

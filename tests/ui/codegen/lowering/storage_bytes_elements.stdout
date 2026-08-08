@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageBytesElements ===
 @module StorageBytesElements
-fn @b() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @b() -> memorybytes [selector=0x4df7e3d0, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -75,7 +75,7 @@ fn @b() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]
     jump bb11
 }
 
-fn @init(arg0: memorybytes) [abi_args=lazy, abi_params=[bytes], abi_returns=[]] {
+fn @init(arg0: memorybytes) [selector=0x4ddf47d4, abi_args=lazy, abi_params=[bytes], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -169,7 +169,7 @@ fn @init(arg0: memorybytes) [abi_args=lazy, abi_params=[bytes], abi_returns=[]] 
     jump bb14
 }
 
-fn @poke() [abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @poke() [selector=0x18178358, abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = shl 248, 170
     v1 = sload 0 !metadata(storage=slot(0))
@@ -343,7 +343,7 @@ fn @poke() [abi_args=lazy, abi_params=[], abi_returns=[]] {
     jump bb30
 }
 
-fn @hashB() -> bytes32 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @hashB() -> bytes32 [selector=0xdf45d88e, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -419,7 +419,7 @@ fn @hashB() -> bytes32 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringConstructor ===
 @module StorageStringConstructor
-fn @name() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @name() -> memorybytes [selector=0x06fdde03, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -494,7 +494,7 @@ fn @name() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_byt
     jump bb11
 }
 
-fn @symbol() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @symbol() -> memorybytes [selector=0x95d89b41, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -569,7 +569,7 @@ fn @symbol() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_b
     jump bb11
 }
 
-fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [abi_args=lazy, abi_params=[bytes, bytes]] {
+fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [constructor, abi_args=lazy, abi_params=[bytes, bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -754,7 +754,7 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [abi_args=lazy, abi_params=
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringBase ===
 @module StorageStringBase
-fn @name() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @name() -> memorybytes [selector=0x06fdde03, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -829,7 +829,7 @@ fn @name() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_byt
     jump bb11
 }
 
-fn @symbol() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @symbol() -> memorybytes [selector=0x95d89b41, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -904,7 +904,7 @@ fn @symbol() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_b
     jump bb11
 }
 
-fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [abi_args=lazy, abi_params=[bytes, bytes]] {
+fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [constructor, abi_args=lazy, abi_params=[bytes, bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -1089,7 +1089,7 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [abi_args=lazy, abi_params=
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringDerived ===
 @module StorageStringDerived
-fn @_anonymous() {
+fn @_anonymous() [constructor] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 64
     set_memory_object_len memorybytes, v0, 9
@@ -1282,7 +1282,7 @@ fn @_anonymous() {
     stop
 }
 
-fn @name() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @name() -> memorybytes [selector=0x06fdde03, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -1357,7 +1357,7 @@ fn @name() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_byt
     jump bb11
 }
 
-fn @symbol() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @symbol() -> memorybytes [selector=0x95d89b41, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -1434,7 +1434,7 @@ fn @symbol() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_b
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringImplicitDerived ===
 @module StorageStringImplicitDerived
-fn @name() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @name() -> memorybytes [selector=0x06fdde03, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -1509,7 +1509,7 @@ fn @name() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_byt
     jump bb11
 }
 
-fn @symbol() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @symbol() -> memorybytes [selector=0x95d89b41, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -1584,7 +1584,7 @@ fn @symbol() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_b
     jump bb11
 }
 
-fn @constructor() {
+fn @constructor() [constructor] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 64
     set_memory_object_len memorybytes, v0, 17

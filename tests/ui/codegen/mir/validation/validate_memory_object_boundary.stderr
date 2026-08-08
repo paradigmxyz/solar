@@ -8,5 +8,7 @@ error: [fn0] [bb0, inst1] memory-object instruction `memory_object_len` survives
 
 error: [fn0] [bb0, inst2] memory-object instruction `set_memory_object_len` survives the `memory-lowered` phase boundary
 
-error: aborting due to 5 previous errors
+error: [fn0] [bb0, inst3] memory-object instruction `memory_object_load_byte` survives the `memory-lowered` phase boundary
+
+error: aborting due to 6 previous errors
 

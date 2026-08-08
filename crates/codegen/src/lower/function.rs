@@ -10,8 +10,8 @@ use crate::{
     mir::{
         AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AllocationSemantics,
         BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, ImmutableId,
-        InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation, Value,
-        ValueId,
+        InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, Module, PanicCode, SliceLocation,
+        Value, ValueId,
     },
 };
 use alloy_primitives::{Bytes, U256, keccak256};
@@ -438,6 +438,14 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 if matches!(op.kind, BinOpKind::And | BinOpKind::Or) {
                     return self.lower_logical(lhs, op.kind, rhs);
                 }
+                if let Some(function_id) = self.gcx.user_operator(expr.id) {
+                    let lhs = self.lower_expr(lhs)?;
+                    let rhs = self.lower_expr(rhs)?;
+                    return self.lower_user_operator(expr.span, function_id, &[lhs, rhs]);
+                }
+                if self.gcx.unsupported_udvt_operator(expr.id) {
+                    return self.report_unsupported_udvt_operator(expr.span);
+                }
                 let lhs_ty = self.gcx.type_of_expr(lhs.id);
                 let lhs = self.lower_expr(lhs)?;
                 let rhs_ty = self.gcx.type_of_expr(rhs.id);
@@ -472,7 +480,16 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                     | BinOpKind::Sar => lhs_ty,
                     _ => self.gcx.type_of_expr(expr.id),
                 };
-                Some(self.binary(op.kind, lhs, rhs, ty))
+                let result = self.binary(op.kind, lhs, rhs, ty);
+                Some(
+                    if let Some(bytes) =
+                        self.gcx.type_of_expr(expr.id).and_then(operators::fixed_bytes_width)
+                    {
+                        self.clean_fixed_bytes(result, bytes)
+                    } else {
+                        result
+                    },
+                )
             }
             ExprKind::Call(callee, args, call_opts) => {
                 self.lower_call(expr, callee, *args, *call_opts)
@@ -502,10 +519,20 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                         old
                     });
                 }
+                if let Some(function_id) = self.gcx.user_operator(expr.id) {
+                    let value = self.lower_expr(value)?;
+                    return self.lower_user_operator(expr.span, function_id, &[value]);
+                }
+                if self.gcx.unsupported_udvt_operator(expr.id) {
+                    return self.report_unsupported_udvt_operator(expr.span);
+                }
                 let value = self.lower_expr(value)?;
                 self.unary(op.kind, value, expr.span, self.gcx.type_of_expr(expr.id))
             }
             ExprKind::Assign(lhs, op, rhs) => {
+                if op.is_some() && self.gcx.unsupported_udvt_operator(expr.id) {
+                    return self.report_unsupported_udvt_operator(expr.span);
+                }
                 if op.is_none()
                     && let ExprKind::Tuple(elements) = &lhs.peel_parens().kind
                 {
@@ -565,6 +592,16 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             _ if self.gcx.dcx().has_errors().is_err() => Some(self.builder.imm_u256(U256::ZERO)),
             _ => report_unsupported(self.gcx, expr.span, "expression"),
         }
+    }
+
+    fn report_unsupported_udvt_operator(&self, span: Span) -> Option<ValueId> {
+        self.gcx
+            .dcx()
+            .err("user-defined operators are not supported in this codegen path")
+            .span(span)
+            .help("unwrap the user-defined value type before using this operator")
+            .emit();
+        None
     }
 }
 
@@ -662,7 +699,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 builder.switch_to_block(next_block);
             }
 
-            builder.panic(0x51);
+            builder.panic(PanicCode::InvalidInternalFunction);
         }
         *module.function_mut(dispatcher) = function;
     }

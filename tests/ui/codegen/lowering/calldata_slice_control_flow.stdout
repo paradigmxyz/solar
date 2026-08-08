@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_control_flow.sol:CalldataSliceControlFlow ===
 @module CalldataSliceControlFlow
-fn @trimLen(arg0: calldataslice) -> u256 [abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = internal_call @_trim, 1, arg0
     v1 = memory_object_len memorybytes, v0
@@ -79,7 +79,7 @@ fn @_trim(arg0: calldataslice) -> memorybytes {
     ret v32
 }
 
-fn @forward(arg0: calldataslice) -> u256 [abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @forward(arg0: calldataslice) -> u256 [selector=0xd948d468, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -127,7 +127,7 @@ fn @_sum(arg0: calldataslice, arg1: calldataslice) -> u256 {
     ret v8
 }
 
-fn @explicitTrim(arg0: calldataslice) -> u256 [abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @explicitTrim(arg0: calldataslice) -> u256 [selector=0xc127ee09, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = internal_call @_explicitTrim, 1, arg0
     v1 = memory_object_len memorybytes, v0
@@ -254,7 +254,7 @@ fn @_explicitTrim(arg0: calldataslice) -> memorybytes {
     ret v46
 }
 
-fn @headTail(arg0: calldataslice) -> (u256, u256) [abi_args=lazy, abi_params=[bytes], abi_returns=[word, word]] {
+fn @headTail(arg0: calldataslice) -> (u256, u256) [selector=0xdd941f9b, abi_args=lazy, abi_params=[bytes], abi_returns=[word, word]] {
   bb0:
     v0 = internal_call @_split, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)

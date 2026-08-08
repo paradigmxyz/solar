@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_long_bytes_return.sol:StorageLongBytesReturn ===
 @module StorageLongBytesReturn
-fn @s() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @s() -> memorybytes [selector=0x86b714e2, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -75,7 +75,7 @@ fn @s() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]
     jump bb11
 }
 
-fn @b() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @b() -> memorybytes [selector=0x4df7e3d0, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -150,7 +150,7 @@ fn @b() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]
     jump bb11
 }
 
-fn @_anonymous() {
+fn @_anonymous() [constructor] {
   bb0:
     sstore 0, 65 !metadata(storage=slot(0))
     mstore 0, 0 !metadata(memory=scratch)
@@ -165,7 +165,7 @@ fn @_anonymous() {
     stop
 }
 
-fn @getS() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @getS() -> memorybytes [selector=0xe93314ab, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -240,7 +240,7 @@ fn @getS() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_byt
     jump bb11
 }
 
-fn @getB() -> memorybytes [abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @getB() -> memorybytes [selector=0xa1c51915, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0

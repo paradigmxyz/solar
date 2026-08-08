@@ -41,7 +41,7 @@ mod module;
 pub use module::{MirPhase, Module};
 
 mod builder;
-pub(crate) use builder::FunctionBuilder;
+pub(crate) use builder::{FunctionBuilder, PanicCode};
 
 mod display;
 

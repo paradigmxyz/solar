@@ -669,6 +669,7 @@ impl<'a> Validator<'a> {
                             | InstKind::MemoryObjectLoadField { .. }
                             | InstKind::MemoryObjectStoreField { .. }
                             | InstKind::MemoryObjectLoadElement { .. }
+                            | InstKind::MemoryObjectLoadByte { .. }
                             | InstKind::MemoryObjectStoreElement { .. }
                             | InstKind::MemoryObjectStoreByte { .. }
                             | InstKind::MemoryObjectStoreWord { .. }
@@ -718,6 +719,11 @@ impl<'a> Validator<'a> {
                         InstKind::StorageToMemory { .. }
                         | InstKind::MemoryToStorage { .. }
                         | InstKind::ClearStorage { .. } => Some("aggregate"),
+                        InstKind::MappingSlot(_, _)
+                        | InstKind::MappingSlotMemory(_, _)
+                        | InstKind::MappingSlotCalldata(_, _)
+                        | InstKind::StorageArrayDataSlot(_)
+                        | InstKind::StorageArrayElementSlot { .. } => Some("storage slot"),
                         InstKind::StoreImmutable(..) => Some("immutable assignment"),
                         InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => {
                             Some("frame slot")

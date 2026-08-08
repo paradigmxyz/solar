@@ -1,36 +1,36 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_validation.sol:CalldataValidation ===
 @module CalldataValidation
-fn @vUint8(arg0: u8) -> u8 [abi_args=lazy, abi_params=[u8], abi_returns=[word]] {
+fn @vUint8(arg0: u8) -> u8 [selector=0xd5f6949e, abi_args=lazy, abi_params=[u8], abi_returns=[word]] {
   bb0:
     ret arg0
 }
 
-fn @vInt16(arg0: i16) -> i16 [abi_args=lazy, abi_params=[i16], abi_returns=[word]] {
+fn @vInt16(arg0: i16) -> i16 [selector=0xe9697b4d, abi_args=lazy, abi_params=[i16], abi_returns=[word]] {
   bb0:
     ret arg0
 }
 
-fn @vBool(arg0: bool) -> bool [abi_args=lazy, abi_params=[bool], abi_returns=[word]] {
+fn @vBool(arg0: bool) -> bool [selector=0x18a11c47, abi_args=lazy, abi_params=[bool], abi_returns=[word]] {
   bb0:
     ret arg0
 }
 
-fn @vAddress(arg0: address) -> address [abi_args=lazy, abi_params=[address], abi_returns=[word]] {
+fn @vAddress(arg0: address) -> address [selector=0x23347413, abi_args=lazy, abi_params=[address], abi_returns=[word]] {
   bb0:
     ret arg0
 }
 
-fn @vBytes4(arg0: bytes4) -> bytes4 [abi_args=lazy, abi_params=[bytes4], abi_returns=[word]] {
+fn @vBytes4(arg0: bytes4) -> bytes4 [selector=0x2c920949, abi_args=lazy, abi_params=[bytes4], abi_returns=[word]] {
   bb0:
     ret arg0
 }
 
-fn @vEnum(arg0: u8) -> u8 [abi_args=lazy, abi_params=[enum<3, u8>], abi_returns=[word], abi_return_params=[enum<3, u8>]] {
+fn @vEnum(arg0: u8) -> u8 [selector=0x5aa5e60a, abi_args=lazy, abi_params=[enum<3, u8>], abi_returns=[word], abi_return_params=[enum<3, u8>]] {
   bb0:
     ret arg0
 }
 
-fn @vMulti(arg0: u32, arg1: i8) -> u256 [abi_args=lazy, abi_params=[u32, i8], abi_returns=[word]] {
+fn @vMulti(arg0: u32, arg1: i8) -> u256 [selector=0x403ecab4, abi_args=lazy, abi_params=[u32, i8], abi_returns=[word]] {
   bb0:
     v0 = add arg0, arg1
     v1 = lt v0, arg0
@@ -43,7 +43,7 @@ fn @vMulti(arg0: u32, arg1: i8) -> u256 [abi_args=lazy, abi_params=[u32, i8], ab
     ret v0
 }
 
-fn @vFull(arg0: u256, arg1: bytes32, arg2: i256) -> u256 [abi_args=lazy, abi_params=[u256, bytes32, i256], abi_returns=[word]] {
+fn @vFull(arg0: u256, arg1: bytes32, arg2: i256) -> u256 [selector=0x76fef307, abi_args=lazy, abi_params=[u256, bytes32, i256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, arg1
     v1 = lt v0, arg0

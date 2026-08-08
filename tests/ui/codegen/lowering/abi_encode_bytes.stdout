@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_bytes.sol:AbiEncodeBytes ===
 @module AbiEncodeBytes
-fn @hash3(arg0: u256, arg1: u256, arg2: u256) -> bytes32 [abi_args=lazy, abi_params=[u256, u256, u256], abi_returns=[word]] {
+fn @hash3(arg0: u256, arg1: u256, arg2: u256) -> bytes32 [selector=0x2dbf86c6, abi_args=lazy, abi_params=[u256, u256, u256], abi_returns=[word]] {
   bb0:
     v0 = abi_encode [word, word, word], args arg0, arg1, arg2
     v1 = slice_ptr v0
@@ -9,7 +9,7 @@ fn @hash3(arg0: u256, arg1: u256, arg2: u256) -> bytes32 [abi_args=lazy, abi_par
     ret v3
 }
 
-fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [abi_args=lazy, abi_params=[u256, u256, u256], abi_returns=[memory_bytes]] {
+fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [selector=0x536b260f, abi_args=lazy, abi_params=[u256, u256, u256], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -50,7 +50,7 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [abi_args=lazy, a
     ret v14
 }
 
-fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [abi_args=lazy, abi_params=[u256, bytes], abi_returns=[memory_bytes]] {
+fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [selector=0x925bff47, abi_args=lazy, abi_params=[u256, bytes], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -91,7 +91,7 @@ fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [abi_args=lazy, 
     ret v14
 }
 
-fn @hashDynamic(arg0: u256, arg1: memorybytes) -> bytes32 [abi_args=lazy, abi_params=[u256, bytes], abi_returns=[word]] {
+fn @hashDynamic(arg0: u256, arg1: memorybytes) -> bytes32 [selector=0xf58325b2, abi_args=lazy, abi_params=[u256, bytes], abi_returns=[word]] {
   bb0:
     v0 = abi_encode [word, memory_bytes], args arg0, arg1
     v1 = slice_ptr v0
@@ -100,7 +100,7 @@ fn @hashDynamic(arg0: u256, arg1: memorybytes) -> bytes32 [abi_args=lazy, abi_pa
     ret v3
 }
 
-fn @roundtrip(arg0: u256) -> u256 [abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @roundtrip(arg0: u256) -> u256 [selector=0x33cddcf6, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = abi_encode [word], args arg0
     v1 = slice_len v0

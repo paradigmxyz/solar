@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_call.sol:AbiEncodeCall ===
 @module AbiEncodeCall
 @phase evm-shaped
-fn @asValue() {
+fn @asValue() [selector=0x440a9300] {
   bb0:
     v16 = calldatasize
     v17 = lt v16, 68
@@ -101,7 +101,7 @@ fn @asValue() {
     revert 0, 36
 }
 
-fn @viaCall() {
+fn @viaCall() [selector=0x23d014a1] {
   bb0:
     v19 = calldatasize
     v20 = lt v19, 100

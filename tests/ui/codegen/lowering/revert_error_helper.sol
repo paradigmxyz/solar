@@ -20,9 +20,13 @@ library Errors {
 contract R {
     string constant LOCAL = "local-const-msg";
 
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: revert_error_helper.sol:R (runtime)
+    // CHECK-NEXT: @module runtime
     // CHECK: indexed_jump
     // CHECK: push 0x3339
+    // CHECK: push 240
+    // CHECK: jump [[SHORT_HELPER:bb[0-9]+]]
+    // CHECK: [[SHORT_HELPER]] [cold]:
     // CHECK: push 0x8c379a0
     // CHECK: mcopy
     // CHECK: revert
@@ -32,24 +36,28 @@ contract R {
     }
 
     // CHECK: push 0x6c69746572616c206d7367
+    // CHECK: jump [[SHORT_HELPER]]
     function viaLiteral(uint256 x) external pure returns (uint256) {
         require(x > 5, "literal msg");
         return x;
     }
 
     // CHECK: push 0x6c6f63616c2d636f6e73742d6d7367
+    // CHECK: jump [[SHORT_HELPER]]
     function viaLocalConst(uint256 x) external pure returns (uint256) {
         require(x > 5, LOCAL);
         return x;
     }
 
     // CHECK: push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
+    // CHECK: jump [[SHORT_HELPER]]
     function viaLong(uint256 x) external pure returns (uint256) {
         require(x > 5, Errors.LONG);
         return x;
     }
 
     // CHECK: push 0x7265766572742d70617468
+    // CHECK: jump [[SHORT_HELPER]]
     function viaRevertMsg(uint256 x) external pure returns (uint256) {
         if (x <= 5) {
             revert("revert-path");

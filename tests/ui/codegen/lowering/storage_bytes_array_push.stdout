@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_array_push.sol:StorageBytesArrayPush ===
 @module StorageBytesArrayPush
 @phase evm-shaped
-fn @pushStr() {
+fn @pushStr() [selector=0xe6e6accc] {
   bb0:
     v51 = calldatasize
     v52 = lt v51, 36
@@ -143,7 +143,7 @@ fn @pushStr() {
     jumpi v2, bb1, bb2
 }
 
-fn @popStr() {
+fn @popStr() [selector=0x5d7696c3] {
   bb0:
     v52 = calldatasize
     v53 = lt v52, 4
@@ -261,7 +261,7 @@ fn @popStr() {
     revert 0, 36
 }
 
-fn @blobAt() {
+fn @blobAt() [selector=0x8f236983] {
   bb0:
     v36 = calldatasize
     v37 = lt v36, 36
@@ -400,7 +400,7 @@ fn @blobAt() {
     revert 0, 36
 }
 
-fn @pushEmpty() {
+fn @pushEmpty() [selector=0x19d30117] {
   bb0:
     v52 = calldatasize
     v53 = lt v52, 4

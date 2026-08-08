@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/mir_alloc_ops.sol:MirAllocOps ===
 @module MirAllocOps
-fn @fixedArray(arg0: u256) -> u256 [abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @fixedArray(arg0: u256) -> u256 [selector=0x9a5009ac, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, zeroed, panic, 64
     v1 = lt 0, 2
@@ -24,7 +24,7 @@ fn @fixedArray(arg0: u256) -> u256 [abi_args=lazy, abi_params=[u256], abi_return
     ret v5
 }
 
-fn @dynamic(arg0: calldataslice) -> memorybytes [abi_args=lazy, abi_params=[bytes], abi_returns=[memory_bytes]] {
+fn @dynamic(arg0: calldataslice) -> memorybytes [selector=0xd543852a, abi_args=lazy, abi_params=[bytes], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -78,12 +78,12 @@ fn @dynamic(arg0: calldataslice) -> memorybytes [abi_args=lazy, abi_params=[byte
     ret v19
 }
 
-fn @frameShadow() -> (u256, u256, u256, u256) [abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @frameShadow() -> (u256, u256, u256, u256) [selector=0x7953faf2, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word]] {
   bb0:
     ret 1, 2, 3, 4
 }
 
-fn @rawAssembly() -> u256 [abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @rawAssembly() -> u256 [selector=0x89eb38b4, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore 64, v0 !metadata(memory=scratch)

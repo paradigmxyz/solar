@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_structs.sol:AbiDecodeStructs ===
 @module AbiDecodeStructs
 @phase evm-shaped
-fn @dFlat() {
+fn @dFlat() [selector=0x6644232b] {
   bb0:
     v53 = calldatasize
     v54 = lt v53, 36
@@ -118,7 +118,7 @@ fn @dFlat() {
     jumpi v13, bb2, bb1
 }
 
-fn @dNested() {
+fn @dNested() [selector=0xfc7ec666] {
   bb0:
     v196 = calldatasize
     v197 = lt v196, 36
@@ -461,7 +461,7 @@ fn @dNested() {
     revert 0, 36
 }
 
-fn @dDynArr() {
+fn @dDynArr() [selector=0xaca542ca] {
   bb0:
     v152 = calldatasize
     v153 = lt v152, 36

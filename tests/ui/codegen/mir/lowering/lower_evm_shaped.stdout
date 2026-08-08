@@ -14,7 +14,7 @@
       revert 0, 0
   }
   
-  fn @caller() {
+  fn @caller() [selector=0x00000007] {
     bb0:
       v0 = calldataload 4
 -     internal_call @fused, 0, v0

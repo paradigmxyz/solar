@@ -5,6 +5,24 @@ use super::*;
 impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
     FunctionLowerer<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
 {
+    pub(super) fn lower_user_operator(
+        &mut self,
+        span: Span,
+        function_id: hir::FunctionId,
+        values: &[ValueId],
+    ) -> Option<ValueId> {
+        let function = self.gcx.hir.function(function_id);
+        if function.parameters.len() != values.len() || function.returns.len() != 1 {
+            return report_unsupported(self.gcx, span, "user-defined operator signature");
+        }
+        let Some(&mir_id) = self.function_ids.get(&function_id) else {
+            return report_unsupported(self.gcx, span, "user-defined operator function");
+        };
+        let result_ty =
+            types::TypeLowerer::mir_return_type(self.gcx.type_of_item(function.returns[0].into()));
+        Some(self.builder.internal_call(mir_id, values.to_vec(), result_ty, 1))
+    }
+
     pub(super) fn lower_call(
         &mut self,
         expr: &hir::Expr<'_>,
@@ -484,7 +502,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 let limit = self.builder.imm_u64(limit);
                 let valid = self.builder.lt(value, limit);
                 let invalid = self.builder.iszero(valid);
-                self.panic_if(invalid, 0x21);
+                self.panic_if(invalid, PanicCode::EnumConversion);
             }
             return value;
         }

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_semantic.sol:AbiEncodeSemantic ===
 @module AbiEncodeSemantic
-fn @forward(arg0: address, arg1: u256, arg2: calldataslice) [abi_args=lazy, abi_params=[address, u256, bytes], abi_returns=[]] {
+fn @forward(arg0: address, arg1: u256, arg2: calldataslice) [selector=0xd7f31eb9, abi_args=lazy, abi_params=[address, u256, bytes], abi_returns=[]] {
   bb0:
     v0 = gas
     v1 = slice_ptr arg2

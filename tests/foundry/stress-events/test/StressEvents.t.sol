@@ -12,6 +12,7 @@ contract StressEventsTest {
     StressEvents se;
 
     event IndexedDynamicArray(uint256[] indexed values);
+    event IndexedStaticArray(uint256[2] indexed values);
     event IndexedNestedDynamicArray(uint256[][] indexed values);
     event IndexedStringArray(string[] indexed values);
     event IndexedExternalFunction(function() external indexed target);
@@ -59,6 +60,8 @@ contract StressEventsTest {
 
     function test_EmitIndexedStaticArray() public {
         uint256[2] memory values = [uint256(100), uint256(200)];
+        vm.expectEmit(true, false, false, false);
+        emit IndexedStaticArray(values);
         se.emitIndexedStaticArray(values);
     }
 

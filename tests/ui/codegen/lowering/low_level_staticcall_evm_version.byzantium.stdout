@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_staticcall_evm_version.sol:Caller ===
 @module Caller
-fn @probe(arg0: address) -> bool [abi_args=lazy, abi_params=[address], abi_returns=[word]] {
+fn @probe(arg0: address) -> bool [selector=0x275e5da5, abi_args=lazy, abi_params=[address], abi_returns=[word]] {
   bb0:
     v0 = gas
     v1 = alloc memorybytes, exact, zeroed, panic, 32
@@ -11,7 +11,7 @@ fn @probe(arg0: address) -> bool [abi_args=lazy, abi_params=[address], abi_retur
     ret v4
 }
 
-fn @probeCall(arg0: address) -> u256 [abi_args=lazy, abi_params=[address], abi_returns=[word]] {
+fn @probeCall(arg0: address) -> u256 [selector=0x9c6db033, abi_args=lazy, abi_params=[address], abi_returns=[word]] {
   bb0:
     v0 = gas
     v1 = alloc memorybytes, exact, zeroed, panic, 32

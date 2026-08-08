@@ -15,4 +15,3 @@ contract AbiCalldataOverlapping {
         return abi.encode(values).length;
     }
 }
-

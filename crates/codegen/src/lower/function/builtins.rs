@@ -158,7 +158,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 let condition = &self.builtin_args::<1>(builtin, &args)?[0];
                 let condition = self.lower_expr(condition)?;
                 let invalid = self.builder.iszero(condition);
-                self.panic_if(invalid, 0x01);
+                self.panic_if(invalid, PanicCode::Assert);
             }
             Builtin::Require => {
                 let (required, message) = self.builtin_args_with_optional::<1>(builtin, &args)?;
@@ -257,8 +257,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
             Builtin::AddMod | Builtin::MulMod => {
                 let [a, b, modulus] = self.lower_builtin_args(builtin, &args)?;
-                let zero = self.builder.iszero(modulus);
-                self.panic_if(zero, 0x12);
+                self.panic_if_zero(modulus, PanicCode::DivisionByZero);
                 Some(if builtin == Builtin::AddMod {
                     self.builder.addmod(a, b, modulus)
                 } else {

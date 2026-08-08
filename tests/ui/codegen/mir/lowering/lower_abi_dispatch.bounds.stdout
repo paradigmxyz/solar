@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (before lower-dispatch) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after lower-dispatch) ===
   @module LowerAbiDispatch
-  fn @get(arg0: u256) {
+  fn @get(arg0: u256) [selector=0x9507d39a] {
     bb0:
       mstore 128, arg0
       returndata 128, 32
@@ -10,9 +10,9 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after lower-abi) ===
   @module LowerAbiDispatch
-- fn @get(arg0: u256) {
+- fn @get(arg0: u256) [selector=0x9507d39a] {
 + @phase abi
-+ fn @get() {
++ fn @get() [selector=0x9507d39a] {
     bb0:
       mstore 128, arg0
       returndata 128, 32
@@ -23,7 +23,7 @@
   @module LowerAbiDispatch
 - @phase abi
 + @phase dispatch
-  fn @get() {
+  fn @get() [selector=0x9507d39a] {
     bb0:
       mstore 128, arg0
       returndata 128, 32
@@ -48,7 +48,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after dce) ===
   @module LowerAbiDispatch
   @phase dispatch
-  fn @get() {
+  fn @get() [selector=0x9507d39a] {
     bb0:
       mstore 128, arg0
       returndata 128, 32

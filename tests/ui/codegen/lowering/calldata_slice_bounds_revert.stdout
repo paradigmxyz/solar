@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_bounds_revert.sol:CalldataSliceBoundsRevert ===
 @module CalldataSliceBoundsRevert
 @phase evm-shaped
-fn @endPastLength() {
+fn @endPastLength() [selector=0x8063d43b] {
   bb0:
     v27 = calldatasize
     v28 = lt v27, 68
@@ -122,7 +122,7 @@ fn @endPastLength() {
     revert 0, 36
 }
 
-fn @startAfterEnd() {
+fn @startAfterEnd() [selector=0x598bfb30] {
   bb0:
     v27 = calldatasize
     v28 = lt v27, 100

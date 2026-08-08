@@ -14,6 +14,7 @@
 //@ run-call: notBytes1(bytes1) 0xa5 => 0x5a
 //@ run-call: notBytes2(bytes2) 0x0000 => 0xffff
 //@ run-call: notBytes2(bytes2) 0xa55a => 0x5aa5
+//@ run-call: compareBytes1(bytes1) 0xff => true
 //@ run-call: notBytes32(bytes32) 0x0000000000000000000000000000000000000000000000000000000000000000 => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 //@ run-call: notLiteral() => -1
 //@ run-call: notLiteralEqualsNegativeOne() => true
@@ -45,6 +46,10 @@ contract NarrowBitwiseNot {
 
     function notBytes2(bytes2 value) external pure returns (bytes2) {
         return ~value;
+    }
+
+    function compareBytes1(bytes1 value) external pure returns (bool) {
+        return (value >> 4) == bytes1(0x0f);
     }
 
     function notBytes32(bytes32 value) external pure returns (bytes32) {

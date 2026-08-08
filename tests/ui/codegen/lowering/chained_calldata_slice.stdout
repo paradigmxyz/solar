@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/chained_calldata_slice.sol:ChainedCalldataSlice ===
 @module ChainedCalldataSlice
-fn @bytesChain(arg0: calldataslice) -> memorybytes [abi_args=lazy, abi_params=[bytes], abi_returns=[memory_bytes]] {
+fn @bytesChain(arg0: calldataslice) -> memorybytes [selector=0x2007c472, abi_args=lazy, abi_params=[bytes], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -78,7 +78,7 @@ fn @bytesChain(arg0: calldataslice) -> memorybytes [abi_args=lazy, abi_params=[b
     ret v31
 }
 
-fn @arrChain(arg0: calldataslice) -> u256 [abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[word]] {
+fn @arrChain(arg0: calldataslice) -> u256 [selector=0x65df4193, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0

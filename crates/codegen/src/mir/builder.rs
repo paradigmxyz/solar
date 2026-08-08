@@ -9,6 +9,27 @@ use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 
+/// Solidity's built-in `Panic(uint256)` error codes.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub(crate) enum PanicCode {
+    Assert = 0x01,
+    ArithmeticOverflowUnderflow = 0x11,
+    DivisionByZero = 0x12,
+    EnumConversion = 0x21,
+    StorageEncoding = 0x22,
+    EmptyArrayPop = 0x31,
+    ArrayOutOfBounds = 0x32,
+    MemoryAllocationOverflow = 0x41,
+    InvalidInternalFunction = 0x51,
+}
+
+impl PanicCode {
+    const fn as_u64(self) -> u64 {
+        self as u64
+    }
+}
+
 /// A builder for constructing MIR functions.
 pub(crate) struct FunctionBuilder<'a> {
     /// The function being built.
@@ -65,9 +86,9 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Reverts with Solidity's `Panic(uint256)` payload.
-    pub(crate) fn panic(&mut self, code: u64) {
+    pub(crate) fn panic(&mut self, code: PanicCode) {
         let selector = self.imm_u256(U256::from(0x4e48_7b71_u64) << 224);
-        let code = self.imm_u256(U256::from(code));
+        let code = self.imm_u64(code.as_u64());
         let zero = self.imm_u256(U256::ZERO);
         self.mstore(zero, selector);
         let four = self.imm_u256(U256::from(4));
@@ -77,10 +98,20 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Reverts with Solidity's `Panic(uint256)` payload when `condition` is true.
-    pub(crate) fn panic_if(&mut self, condition: ValueId, code: u64) {
+    pub(crate) fn panic_if(&mut self, condition: ValueId, code: PanicCode) {
         let panic_block = self.create_block();
         let continue_block = self.create_block();
         self.branch(condition, panic_block, continue_block);
+        self.switch_to_block(panic_block);
+        self.panic(code);
+        self.switch_to_block(continue_block);
+    }
+
+    /// Reverts with Solidity's `Panic(uint256)` payload when `condition` is zero.
+    pub(crate) fn panic_if_zero(&mut self, condition: ValueId, code: PanicCode) {
+        let panic_block = self.create_block();
+        let continue_block = self.create_block();
+        self.branch(condition, continue_block, panic_block);
         self.switch_to_block(panic_block);
         self.panic(code);
         self.switch_to_block(continue_block);

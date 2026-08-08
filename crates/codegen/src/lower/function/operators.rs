@@ -113,7 +113,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         self.builder.and(value, mask)
     }
 
-    fn clean_fixed_bytes(&mut self, value: ValueId, bytes: u8) -> ValueId {
+    pub(super) fn clean_fixed_bytes(&mut self, value: ValueId, bytes: u8) -> ValueId {
         if bytes >= 32 {
             return value;
         }
@@ -147,7 +147,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let product = self.builder.mul(power, current_base);
         let product_overflow = self.mul_overflow(power, current_base, product, kind);
         let product_check = self.builder.and(odd, product_overflow);
-        self.panic_if(product_check, 0x11);
+        self.panic_if(product_check, PanicCode::ArithmeticOverflowUnderflow);
         let next_power = self.builder.select(odd, product, power);
 
         let next_exponent = self.builder.shr(one, current_exponent);
@@ -155,7 +155,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let square_overflow = self.mul_overflow(current_base, current_base, square, kind);
         let has_next_exponent = self.builder.gt(next_exponent, zero);
         let square_check = self.builder.and(has_next_exponent, square_overflow);
-        self.panic_if(square_check, 0x11);
+        self.panic_if(square_check, PanicCode::ArithmeticOverflowUnderflow);
         let latch = self.builder.current_block();
         self.builder.jump(header);
         self.builder.add_phi_incoming(power, latch, next_power);
@@ -195,7 +195,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                                 self.signed_add_overflow(lhs, rhs, result, bits)
                             }
                         };
-                        self.panic_if(overflow, 0x11);
+                        self.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                     }
                     result
                 }
@@ -212,7 +212,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                                 self.signed_sub_overflow(lhs, rhs, result, bits)
                             }
                         };
-                        self.panic_if(overflow, 0x11);
+                        self.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                     }
                     result
                 }
@@ -224,22 +224,21 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 } else {
                     if let Some(kind) = arithmetic {
                         let overflow = self.mul_overflow(lhs, rhs, result, kind);
-                        self.panic_if(overflow, 0x11);
+                        self.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                     }
                     result
                 }
             }
             BinOpKind::Div => {
                 if !self.unchecked {
-                    let zero = self.builder.iszero(rhs);
-                    self.panic_if(zero, 0x12);
+                    self.panic_if_zero(rhs, PanicCode::DivisionByZero);
                     if let Some(ArithmeticKind::Signed(bits)) = arithmetic {
                         let (min, _) = signed_bounds(bits, &mut self.builder);
                         let lhs_is_min = self.builder.eq(lhs, min);
                         let minus_one = self.builder.imm_u256(U256::MAX);
                         let rhs_is_minus_one = self.builder.eq(rhs, minus_one);
                         let overflow = self.builder.and(lhs_is_min, rhs_is_minus_one);
-                        self.panic_if(overflow, 0x11);
+                        self.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                     }
                 }
                 match arithmetic {
@@ -249,8 +248,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
             BinOpKind::Rem => {
                 if !self.unchecked {
-                    let zero = self.builder.iszero(rhs);
-                    self.panic_if(zero, 0x12);
+                    self.panic_if_zero(rhs, PanicCode::DivisionByZero);
                 }
                 match arithmetic {
                     Some(ArithmeticKind::Signed(_)) => self.builder.smod(lhs, rhs),
@@ -324,7 +322,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
                 {
                     let (min, _) = signed_bounds(bits, &mut self.builder);
                     let overflow = self.builder.eq(value, min);
-                    self.panic_if(overflow, 0x11);
+                    self.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                 }
                 let zero = self.builder.imm_u256(U256::ZERO);
                 let result = self.builder.sub(zero, value);
@@ -356,5 +354,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             }
             _ => value,
         }
+    }
+}
+
+pub(super) fn fixed_bytes_width(ty: Ty<'_>) -> Option<u8> {
+    match ty.peel_refs().kind {
+        TyKind::Udvt(inner, _) => fixed_bytes_width(inner),
+        TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => Some(size.bytes()),
+        _ => None,
     }
 }

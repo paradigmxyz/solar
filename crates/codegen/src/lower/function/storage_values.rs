@@ -246,7 +246,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
             let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
             let zero = self.builder.imm_u64(0);
             let empty = self.builder.eq(old_length, zero);
-            self.panic_if(empty, 0x31);
+            self.panic_if(empty, PanicCode::EmptyArrayPop);
             let one = self.builder.imm_u64(1);
             let length = self.builder.sub(old_length, one);
             let word_size = self.builder.imm_u64(32);
@@ -270,7 +270,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let length = self.builder.sload(base.slot);
         let zero = self.builder.imm_u64(0);
         let empty = self.builder.eq(length, zero);
-        self.panic_if(empty, 0x31);
+        self.panic_if(empty, PanicCode::EmptyArrayPop);
         let one = self.builder.imm_u64(1);
         let last = self.builder.sub(length, one);
         self.builder.sstore(base.slot, last);
@@ -722,7 +722,7 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let thirty_two = self.builder.imm_u64(32);
         let short_length = self.builder.lt(length, thirty_two);
         let invalid_encoding = self.builder.eq(is_long, short_length);
-        self.panic_if(invalid_encoding, 0x22);
+        self.panic_if(invalid_encoding, PanicCode::StorageEncoding);
         (header, is_long, length)
     }
 

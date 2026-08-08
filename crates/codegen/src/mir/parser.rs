@@ -297,6 +297,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let func_ident = Ident::with_dummy_span(name.symbol);
         let mut func = Function::new(func_ident);
         func.name = name;
+        func.attributes.is_constructor = name.symbol == kw::Constructor;
         let block_remap = {
             let mut builder = FunctionBuilder::new(&mut func);
 
@@ -471,6 +472,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::function_pointer_dispatcher => {
                     builder.func_mut().attributes.is_function_pointer_dispatcher = true;
                 }
+                kw::Constructor => builder.func_mut().attributes.is_constructor = true,
                 kw::Receive => builder.func_mut().attributes.is_receive = true,
                 kw::Fallback => builder.func_mut().attributes.is_fallback = true,
                 kw::Payable => {

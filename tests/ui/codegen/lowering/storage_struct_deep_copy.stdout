@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/storage_struct_deep_copy.sol:StorageStructDeepCopy ===
 @module StorageStructDeepCopy
 @phase evm-shaped
-fn @assign() {
+fn @assign() [selector=0x4bd0273c] {
   bb0:
     v65 = calldatasize
     v66 = lt v65, 68
@@ -122,7 +122,7 @@ fn @assign() {
     revert 0, 36
 }
 
-fn @push() {
+fn @push() [selector=0xa60249a3] {
   bb0:
     v69 = calldatasize
     v70 = lt v69, 68
@@ -258,7 +258,7 @@ fn @push() {
     revert 0, 36
 }
 
-fn @pop() {
+fn @pop() [selector=0xa4ece52c] {
   bb0:
     v52 = calldatasize
     v53 = lt v52, 4
@@ -378,7 +378,7 @@ fn @pop() {
     revert 0, 36
 }
 
-fn @assignFixed() {
+fn @assignFixed() [selector=0xb7ffd825] {
   bb0:
     v69 = calldatasize
     v70 = lt v69, 68

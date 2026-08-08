@@ -39,8 +39,8 @@ use crate::{
     mir::{
         AbiParamLayout, AbiParamLocation, AbiParamType, AllocationSemantics, ArgIdx, BlockId,
         FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstKind, MangledSymbol,
-        MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, SliceLocation, Terminator,
-        ValueId,
+        MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode, SliceLocation,
+        Terminator, ValueId,
     },
     pass::MirPass,
 };
@@ -2125,9 +2125,8 @@ fn can_lower_bytes_fallback_returns(func: &Function) -> bool {
     })
 }
 
-/// Constructors produced from HIR carry an attribute. Text MIR uses the
-/// reserved constructor name, matching validation and other constructor-only
-/// operations.
+/// Keep the reserved-name fallback for text MIR produced before constructor
+/// attributes were serialized.
 fn is_constructor(func: &Function) -> bool {
     func.attributes.is_constructor || func.name.symbol == kw::Constructor
 }
@@ -2160,7 +2159,7 @@ fn canonicalize_return_value(
             let limit = builder.imm_u64(*variants);
             let valid = builder.lt(value, limit);
             let invalid = builder.iszero(valid);
-            builder.panic_if(invalid, 0x21);
+            builder.panic_if(invalid, PanicCode::EnumConversion);
             AbiWordValidator::from_return_mir_type(*ty)
                 .map_or(value, |validator| validator.cleanup_with_helpers(builder, value, helpers))
         }

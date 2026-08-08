@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/recursive.sol:Recursive ===
 @module Recursive
-fn @fact(arg0: u256) -> u256 [abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @fact(arg0: u256) -> u256 [selector=0x0b95d228, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = gt arg0, 1
     v1 = iszero v0
@@ -34,7 +34,7 @@ fn @fact(arg0: u256) -> u256 [abi_args=lazy, abi_params=[u256], abi_returns=[wor
     ret v5
 }
 
-fn @fib(arg0: u256) -> u256 [abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @fib(arg0: u256) -> u256 [selector=0xc6c2ea17, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = gt arg0, 1
     v1 = iszero v0
@@ -73,7 +73,7 @@ fn @fib(arg0: u256) -> u256 [abi_args=lazy, abi_params=[u256], abi_returns=[word
     ret v8
 }
 
-fn @isEven(arg0: u256) -> bool [abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @isEven(arg0: u256) -> bool [selector=0x2a2e1320, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -94,7 +94,7 @@ fn @isEven(arg0: u256) -> bool [abi_args=lazy, abi_params=[u256], abi_returns=[w
     ret v3
 }
 
-fn @isOdd(arg0: u256) -> bool [abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @isOdd(arg0: u256) -> bool [selector=0xd8b3a2eb, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2

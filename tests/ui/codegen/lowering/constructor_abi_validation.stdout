@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_abi_validation.sol:ConstructorAbiValidation ===
 @module ConstructorAbiValidation
 @phase abi
-fn @flag() {
+fn @flag() [selector=0x890eba68] {
   bb0:
     v2 = calldatasize
     v3 = lt v2, 4
@@ -21,7 +21,7 @@ fn @flag() {
     jump bb1
 }
 
-fn @second() {
+fn @second() [selector=0x5a8ac02d] {
   bb0:
     v3 = calldatasize
     v4 = lt v3, 4
@@ -42,7 +42,7 @@ fn @second() {
     jump bb1
 }
 
-fn @_anonymous(arg0: bool, arg1: bool, arg2: bool) {
+fn @_anonymous(arg0: bool, arg1: bool, arg2: bool) [constructor] {
   bb0:
     v17 = constructor_args_base
     v18 = constructor_args_end

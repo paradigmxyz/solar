@@ -37,8 +37,6 @@ bb4:
 bb5:
   push 4
   calldataload
-  iszero
-  iszero
   push bb7
   jumpi
   jump bb6

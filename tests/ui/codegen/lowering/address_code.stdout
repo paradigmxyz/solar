@@ -1,18 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/address_code.sol:AddressCode ===
 @module AddressCode
-fn @codeLength(arg0: address) -> u256 [abi_args=lazy, abi_params=[address], abi_returns=[word]] {
+fn @codeLength(arg0: address) -> u256 [selector=0xbd3736e3, abi_args=lazy, abi_params=[address], abi_returns=[word]] {
   bb0:
     v0 = extcodesize arg0
     ret v0
 }
 
-fn @codeHash(arg0: address) -> bytes32 [abi_args=lazy, abi_params=[address], abi_returns=[word]] {
+fn @codeHash(arg0: address) -> bytes32 [selector=0x3dc44827, abi_args=lazy, abi_params=[address], abi_returns=[word]] {
   bb0:
     v0 = extcodehash arg0
     ret v0
 }
 
-fn @code(arg0: address) -> memorybytes [abi_args=lazy, abi_params=[address], abi_returns=[memory_bytes]] {
+fn @code(arg0: address) -> memorybytes [selector=0x5b90b752, abi_args=lazy, abi_params=[address], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
@@ -53,7 +53,7 @@ fn @code(arg0: address) -> memorybytes [abi_args=lazy, abi_params=[address], abi
     ret v13
 }
 
-fn @addressFromBytes20(arg0: bytes20) -> address [abi_args=lazy, abi_params=[bytes20], abi_returns=[word]] {
+fn @addressFromBytes20(arg0: bytes20) -> address [selector=0x247e14fa, abi_args=lazy, abi_params=[bytes20], abi_returns=[word]] {
   bb0:
     v0 = shr 96, arg0
     ret v0

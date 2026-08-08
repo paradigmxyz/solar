@@ -3,12 +3,12 @@
   @module DispatchHoisted
 - @phase abi
 + @phase dispatch
-  fn @a() {
+  fn @a() [selector=0x00000001] {
     bb0:
       stop
   }
   
-  fn @b() {
+  fn @b() [selector=0x00000002] {
     bb0:
       stop
 + }

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_returndata.sol:LowLevelCallReturndata ===
 @module LowLevelCallReturndata
-fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [abi_args=lazy, abi_params=[address, address, u256], abi_returns=[]] {
+fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [selector=0xd1660f99, abi_args=lazy, abi_params=[address, address, u256], abi_returns=[]] {
   bb0:
     v0 = gas
     v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
@@ -106,7 +106,7 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [abi_args=lazy, abi_p
     stop
 }
 
-fn @balanceOf(arg0: address) -> u256 [abi_args=lazy, abi_params=[address], abi_returns=[word]] {
+fn @balanceOf(arg0: address) -> u256 [selector=0x70a08231, abi_args=lazy, abi_params=[address], abi_returns=[word]] {
   bb0:
     v0 = gas
     v1 = address
@@ -191,7 +191,7 @@ fn @balanceOf(arg0: address) -> u256 [abi_args=lazy, abi_params=[address], abi_r
     ret v35
 }
 
-fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [abi_args=lazy, abi_params=[address, bytes], abi_returns=[memory_bytes]] {
+fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [selector=0x6fadcf72, abi_args=lazy, abi_params=[address, bytes], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0

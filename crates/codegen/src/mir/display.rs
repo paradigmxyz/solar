@@ -261,68 +261,7 @@ pub(crate) fn display_function_text<'a>(
                 write!(f, "({})", func.returns.iter().format(", "))?;
             }
         }
-        if func.attributes.is_dispatch_entry {
-            write!(f, " [entry")?;
-            if func.abi_args_lazy {
-                write!(f, ", abi_args=lazy")?;
-            }
-            if let Some(layout) = &func.abi_params {
-                write!(f, ", abi_params={layout}")?;
-            }
-            if let Some(layout) = &func.abi_returns {
-                write!(f, ", abi_returns={layout}")?;
-            }
-            if let Some(layout) = &func.abi_return_params {
-                write!(f, ", abi_return_params={layout}")?;
-            }
-            write!(f, "]")?;
-        } else if func.attributes.is_function_pointer_dispatcher {
-            write!(f, " [function_pointer_dispatcher")?;
-            if func.abi_args_lazy {
-                write!(f, ", abi_args=lazy")?;
-            }
-            if let Some(layout) = &func.abi_params {
-                write!(f, ", abi_params={layout}")?;
-            }
-            if let Some(layout) = &func.abi_returns {
-                write!(f, ", abi_returns={layout}")?;
-            }
-            if let Some(layout) = &func.abi_return_params {
-                write!(f, ", abi_return_params={layout}")?;
-            }
-            write!(f, "]")?;
-        } else if func.abi_args_lazy
-            || func.abi_returns.is_some()
-            || func.abi_return_params.is_some()
-        {
-            write!(f, " [")?;
-            let mut comma = false;
-            if func.abi_args_lazy {
-                write!(f, "abi_args=lazy")?;
-                comma = true;
-            }
-            if let Some(layout) = &func.abi_params {
-                if comma {
-                    write!(f, ", ")?;
-                }
-                write!(f, "abi_params={layout}")?;
-                comma = true;
-            }
-            if let Some(layout) = &func.abi_returns {
-                if comma {
-                    write!(f, ", ")?;
-                }
-                write!(f, "abi_returns={layout}")?;
-                comma = true;
-            }
-            if let Some(layout) = &func.abi_return_params {
-                if comma {
-                    write!(f, ", ")?;
-                }
-                write!(f, "abi_return_params={layout}")?;
-            }
-            write!(f, "]")?;
-        }
+        write!(f, "{}", display_function_attributes(func))?;
         writeln!(f, " {{")?;
 
         write!(
@@ -335,6 +274,67 @@ pub(crate) fn display_function_text<'a>(
 
         writeln!(f, "}}")
     })
+}
+
+fn display_function_attributes(func: &Function) -> impl fmt::Display + '_ {
+    fmt::from_fn(move |f| {
+        let mut first = true;
+        if let Some(selector) = func.selector {
+            write_function_attribute(
+                f,
+                &mut first,
+                format_args!("selector=0x{:08x}", u32::from_be_bytes(selector)),
+            )?;
+        }
+        if func.attributes.is_constructor {
+            write_function_attribute(f, &mut first, "constructor")?;
+        }
+        if func.attributes.is_dispatch_entry {
+            write_function_attribute(f, &mut first, "entry")?;
+        }
+        if func.attributes.is_function_pointer_dispatcher {
+            write_function_attribute(f, &mut first, "function_pointer_dispatcher")?;
+        }
+        if func.attributes.is_receive {
+            write_function_attribute(f, &mut first, "receive")?;
+        }
+        if func.attributes.is_fallback {
+            write_function_attribute(f, &mut first, "fallback")?;
+        }
+        if func.attributes.state_mutability == hir::StateMutability::Payable {
+            write_function_attribute(f, &mut first, "payable")?;
+        }
+        if func.abi_args_lazy {
+            write_function_attribute(f, &mut first, "abi_args=lazy")?;
+        }
+        if let Some(layout) = &func.abi_params {
+            write_function_attribute(f, &mut first, format_args!("abi_params={layout}"))?;
+        }
+        if let Some(layout) = &func.abi_returns {
+            write_function_attribute(f, &mut first, format_args!("abi_returns={layout}"))?;
+        }
+        if let Some(layout) = &func.abi_return_params {
+            write_function_attribute(f, &mut first, format_args!("abi_return_params={layout}"))?;
+        }
+        if !first {
+            f.write_str("]")?;
+        }
+        Ok(())
+    })
+}
+
+fn write_function_attribute(
+    f: &mut fmt::Formatter<'_>,
+    first: &mut bool,
+    attribute: impl fmt::Display,
+) -> fmt::Result {
+    if *first {
+        f.write_str(" [")?;
+        *first = false;
+    } else {
+        f.write_str(", ")?;
+    }
+    attribute.fmt(f)
 }
 
 fn function_prints_return_values(func: &Function) -> bool {

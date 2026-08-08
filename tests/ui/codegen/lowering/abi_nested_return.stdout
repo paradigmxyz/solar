@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_nested_return.sol:AbiNestedReturn ===
 @module AbiNestedReturn
-fn @structArray(arg0: u256) -> memoryarray [abi_args=lazy, abi_params=[u256], abi_returns=[memory_array<tuple<word, word>>]] {
+fn @structArray(arg0: u256) -> memoryarray [selector=0x0f634b74, abi_args=lazy, abi_params=[u256], abi_returns=[memory_array<tuple<word, word>>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
     set_memory_object_len memoryarray, v0, 0
@@ -62,7 +62,7 @@ fn @structArray(arg0: u256) -> memoryarray [abi_args=lazy, abi_params=[u256], ab
     ret v15
 }
 
-fn @nestedArray(arg0: u256) -> memoryarray [abi_args=lazy, abi_params=[u256], abi_returns=[memory_array<memory_array<word>>]] {
+fn @nestedArray(arg0: u256) -> memoryarray [selector=0x5abcbd75, abi_args=lazy, abi_params=[u256], abi_returns=[memory_array<memory_array<word>>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
     set_memory_object_len memoryarray, v0, 0

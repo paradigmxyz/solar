@@ -3,12 +3,12 @@
   @module LowerDispatch
 - @phase abi
 + @phase dispatch
-  fn @ping() {
+  fn @ping() [selector=0x12000000] {
     bb0:
       stop
   }
   
-  fn @pong() {
+  fn @pong() [selector=0x8d3a3e57] {
     bb0:
       stop
 + }

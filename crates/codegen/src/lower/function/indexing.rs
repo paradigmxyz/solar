@@ -185,13 +185,13 @@ impl<'gcx, 'mir, 'ids, 'bytes, 'events, 'module, 'pointers>
         let end = if let Some(end) = end {
             let end = self.lower_expr(end)?;
             let past_end = self.builder.gt(end, base_len);
-            self.panic_if(past_end, 0x32);
+            self.panic_if(past_end, PanicCode::ArrayOutOfBounds);
             end
         } else {
             base_len
         };
         let backwards = self.builder.lt(end, start);
-        self.panic_if(backwards, 0x32);
+        self.panic_if(backwards, PanicCode::ArrayOutOfBounds);
         let length = self.builder.sub(end, start);
         let start_offset = if element_stride == 1 {
             start
