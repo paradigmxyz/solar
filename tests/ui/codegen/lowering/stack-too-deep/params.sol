@@ -6,16 +6,21 @@ pragma solidity ^0.8.0;
 contract StackTooDeepParams {
     // CHECK-LABEL: @module runtime
     // CHECK: push 0x8c4ee692
-    // CHECK: eq
-    // CHECK-NEXT: push [[BODY:bb[0-9]+]]
-    // CHECK: [[BODY]]:
+    // CHECK: sub
+    // CHECK-NEXT: push bb
+    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: calldatasize
     // CHECK: push 640
     // CHECK-NEXT: sgt
-    // CHECK: push 36
+    // CHECK: push 580
     // CHECK-NEXT: calldataload
     // CHECK: push 612
     // CHECK-NEXT: calldataload
     // CHECK: add
+    // CHECK: push 36
+    // CHECK-NEXT: calldataload
+    // CHECK: or
+    // CHECK: jumpi
     // CHECK: return
     function sum(
         uint256 a0,

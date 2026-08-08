@@ -47,6 +47,76 @@ pub(super) enum DecodeStrategy<'gcx> {
 }
 
 impl<'gcx> Lowerer<'gcx> {
+    /// Collects the leaves of a checked `uint256` addition tree.
+    ///
+    /// This deliberately accepts only identifiers: reassociating an addition tree is
+    /// semantically valid for unsigned values, but lowering all leaves before checking the
+    /// aggregate carry must not move side effects across an arithmetic panic.
+    fn collect_checked_uint256_add_leaves<'hir>(
+        &self,
+        expr: &'hir hir::Expr<'hir>,
+        leaves: &mut Vec<&'hir hir::Expr<'hir>>,
+    ) -> bool {
+        let ExprKind::Binary(lhs, op, rhs) = &expr.kind else {
+            if matches!(expr.kind, ExprKind::Ident(_)) {
+                leaves.push(expr);
+                return true;
+            }
+            return false;
+        };
+        let Some(info) = self.integer_info_for_expr(expr) else { return false };
+        if op.kind != hir::BinOpKind::Add
+            || info.signed
+            || info.size.bits() != 256
+            || self.gcx.user_operator(expr.id).is_some()
+            || self.gcx.unsupported_udvt_operator(expr.id)
+        {
+            return false;
+        }
+        self.collect_checked_uint256_add_leaves(lhs, leaves)
+            && self.collect_checked_uint256_add_leaves(rhs, leaves)
+    }
+
+    /// Lowers a checked `uint256` addition tree with one aggregate overflow branch.
+    fn lower_checked_uint256_add_tree(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> Option<ValueId> {
+        if self.in_unchecked_block {
+            return None;
+        }
+        let mut leaves = Vec::new();
+        if !self.collect_checked_uint256_add_leaves(expr, &mut leaves) || leaves.len() < 3 {
+            return None;
+        }
+        if leaves.iter().enumerate().any(|(index, leaf)| {
+            let Some(res) = self.gcx.resolved_expr(leaf) else { return true };
+            leaves[..index].iter().any(|previous| self.gcx.resolved_expr(previous) == Some(res))
+        }) {
+            return None;
+        }
+
+        // Resolve leaves in source order, then consume them in reverse order. Locals are commonly
+        // produced in source order, so this gives the stack scheduler shallow operands while
+        // preserving expression evaluation order.
+        let mut values =
+            leaves.into_iter().map(|leaf| self.lower_value_expr(builder, leaf)).collect::<Vec<_>>();
+        let mut sum = values.pop().unwrap();
+        let next = values.pop().unwrap();
+        let new_sum = builder.add(sum, next);
+        let mut overflow = builder.lt(new_sum, sum);
+        sum = new_sum;
+        while let Some(next) = values.pop() {
+            let new_sum = builder.add(sum, next);
+            let carry = builder.lt(new_sum, sum);
+            overflow = builder.or(overflow, carry);
+            sum = new_sum;
+        }
+        self.emit_panic_if(builder, overflow, PanicCode::ArithmeticOverflowUnderflow);
+        Some(sum)
+    }
+
     /// Lowers an expression, preserving whether it produces one MIR value.
     pub(super) fn lower_expr(
         &mut self,
@@ -124,6 +194,11 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Binary(lhs, op, rhs) => {
+                if op.kind == hir::BinOpKind::Add
+                    && let Some(result) = self.lower_checked_uint256_add_tree(builder, expr)
+                {
+                    return result;
+                }
                 // Constant operations are not special-cased here: lowering
                 // emits the plain instruction and the MIR pass pipeline folds
                 // it uniformly, with checked-arithmetic semantics intact.

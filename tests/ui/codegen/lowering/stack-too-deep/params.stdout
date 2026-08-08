@@ -2,7 +2,7 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 426
+  push 266
   dup1
   push 10
   push 0
@@ -13,7 +13,7 @@ bb0:
 // === runtime ===
 @module runtime
 bb0:
-  push 224
+  push 192
   push 64
   mstore
   callvalue
@@ -25,15 +25,188 @@ bb0:
   shr
   dup1
   push 0x8c4ee692
-  eq
-  push bb4
+  sub
+  push bb3
   jumpi
-  jump bb3
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 640
+  sgt
+  push bb3
+  jumpi
+  push 580
+  calldataload
+  push 612
+  calldataload
+  add
+  push 612
+  calldataload
+  dup2
+  lt
+  push 548
+  calldataload
+  dup3
+  add
+  swap2
+  dup3
+  lt
+  or
+  push 516
+  calldataload
+  dup3
+  add
+  swap2
+  dup3
+  lt
+  or
+  push 484
+  calldataload
+  dup3
+  add
+  swap2
+  dup3
+  lt
+  or
+  push 452
+  calldataload
+  dup3
+  add
+  swap2
+  dup3
+  lt
+  or
+  push 420
+  calldataload
+  dup3
+  add
+  swap2
+  dup3
+  lt
+  or
+  push 388
+  calldataload
+  dup3
+  add
+  swap2
+  dup3
+  lt
+  or
+  push 356
+  calldataload
+  dup3
+  add
+  swap2
+  dup3
+  lt
+  or
+  push 324
+  calldataload
+  dup3
+  add
+  swap2
+  dup3
+  lt
+  or
+  push 292
+  calldataload
+  dup3
+  add
+  swap2
+  dup3
+  lt
+  or
+  push 260
+  calldataload
+  dup3
+  add
+  swap2
+  dup3
+  lt
+  or
+  push 228
+  calldataload
+  dup3
+  add
+  swap2
+  dup3
+  lt
+  or
+  push 196
+  calldataload
+  dup3
+  add
+  swap2
+  dup3
+  lt
+  or
+  push 164
+  calldataload
+  dup3
+  add
+  swap2
+  dup3
+  lt
+  or
+  push 132
+  calldataload
+  dup3
+  add
+  swap2
+  dup3
+  lt
+  or
+  push 100
+  calldataload
+  dup3
+  add
+  swap2
+  dup3
+  lt
+  or
+  push 68
+  calldataload
+  dup3
+  add
+  swap2
+  dup3
+  lt
+  or
+  push 36
+  calldataload
+  dup3
+  add
+  swap2
+  dup3
+  lt
+  or
+  push 4
+  calldataload
+  dup3
+  add
+  dup1
+  push 160
+  mstore
+  swap2
+  dup3
+  lt
+  or
+  push bb8
+  jumpi
+  dup1
+  push 160
+  mstore
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb3 [cold]:
   push 0
   dup1
   revert
-bb26 [cold]:
+bb8 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -45,266 +218,3 @@ bb26 [cold]:
   push 36
   push 0
   revert
-bb4:
-  calldatasize
-  push 4
-  swap1
-  sub
-  push 640
-  sgt
-  push bb3
-  jumpi
-  push 36
-  calldataload
-  push 4
-  calldataload
-  add
-  dup1
-  push 160
-  mstore
-  push 4
-  calldataload
-  gt
-  push bb26
-  jumpi
-  push 68
-  calldataload
-  push 160
-  mload
-  add
-  dup1
-  push 192
-  mstore
-  push 160
-  mload
-  gt
-  push bb26
-  jumpi
-  push 100
-  calldataload
-  push 192
-  mload
-  add
-  dup1
-  push 160
-  mstore
-  push 192
-  mload
-  gt
-  push bb26
-  jumpi
-  push 132
-  calldataload
-  push 160
-  mload
-  add
-  dup1
-  push 192
-  mstore
-  push 160
-  mload
-  gt
-  push bb26
-  jumpi
-  push 164
-  calldataload
-  push 192
-  mload
-  add
-  dup1
-  push 160
-  mstore
-  push 192
-  mload
-  gt
-  push bb26
-  jumpi
-  push 196
-  calldataload
-  push 160
-  mload
-  add
-  dup1
-  push 192
-  mstore
-  push 160
-  mload
-  gt
-  push bb26
-  jumpi
-  push 228
-  calldataload
-  push 192
-  mload
-  add
-  dup1
-  push 160
-  mstore
-  push 192
-  mload
-  gt
-  push bb26
-  jumpi
-  push 260
-  calldataload
-  push 160
-  mload
-  add
-  dup1
-  push 192
-  mstore
-  push 160
-  mload
-  gt
-  push bb26
-  jumpi
-  push 292
-  calldataload
-  push 192
-  mload
-  add
-  dup1
-  push 160
-  mstore
-  push 192
-  mload
-  gt
-  push bb26
-  jumpi
-  push 324
-  calldataload
-  push 160
-  mload
-  add
-  dup1
-  push 192
-  mstore
-  push 160
-  mload
-  gt
-  push bb26
-  jumpi
-  push 356
-  calldataload
-  push 192
-  mload
-  add
-  dup1
-  push 160
-  mstore
-  push 192
-  mload
-  gt
-  push bb26
-  jumpi
-  push 388
-  calldataload
-  push 160
-  mload
-  add
-  dup1
-  push 192
-  mstore
-  push 160
-  mload
-  gt
-  push bb26
-  jumpi
-  push 420
-  calldataload
-  push 192
-  mload
-  add
-  dup1
-  push 160
-  mstore
-  push 192
-  mload
-  gt
-  push bb26
-  jumpi
-  push 452
-  calldataload
-  push 160
-  mload
-  add
-  dup1
-  push 192
-  mstore
-  push 160
-  mload
-  gt
-  push bb26
-  jumpi
-  push 484
-  calldataload
-  push 192
-  mload
-  add
-  dup1
-  push 160
-  mstore
-  push 192
-  mload
-  gt
-  push bb26
-  jumpi
-  push 516
-  calldataload
-  push 160
-  mload
-  add
-  dup1
-  push 192
-  mstore
-  push 160
-  mload
-  gt
-  push bb26
-  jumpi
-  push 548
-  calldataload
-  push 192
-  mload
-  add
-  dup1
-  push 160
-  mstore
-  push 192
-  mload
-  gt
-  push bb26
-  jumpi
-  push 580
-  calldataload
-  push 160
-  mload
-  add
-  dup1
-  push 192
-  mstore
-  push 160
-  mload
-  gt
-  push bb26
-  jumpi
-  push 612
-  calldataload
-  push 192
-  mload
-  add
-  dup1
-  push 160
-  mstore
-  push 192
-  mload
-  gt
-  push bb26
-  jumpi
-  push 160
-  mload
-  push 128
-  mstore
-  push 32
-  push 128
-  return
