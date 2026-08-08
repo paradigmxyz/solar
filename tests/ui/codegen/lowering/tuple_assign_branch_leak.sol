@@ -1,5 +1,8 @@
-//@ compile-flags: -Zdump=evm-ir-runtime
-//@ filecheck:
+//@ revisions: ir run
+//@[ir] compile-flags: -Zdump=evm-ir-runtime
+//@[ir] filecheck:
+//@[run] run-call: run true, 10 => 23
+//@[run] run-call: run false, 10 => 47
 // A multi-return tuple assignment inside one branch arm must not leak its
 // values into the sibling arm: `off` below is reassigned only in the `then`
 // arm, so the `else` arm must read the pre-branch value, not the pickup from
@@ -12,11 +15,8 @@ contract TupleAssignBranchLeak {
 
     // CHECK: push 0x2143aa9
     // CHECK: eq
-    // CHECK-NEXT: push [[BODY:bb[0-9]+]]
-    // CHECK: [[BODY]]:
-    // CHECK: push 36
-    // CHECK-NEXT: calldataload
-    // CHECK-NEXT: push 160
+    // The else arm computes `pair(off + 7)` from the pre-branch `off`.
+    // CHECK: push 160
     // CHECK-NEXT: mstore
     // CHECK-NEXT: push 36
     // CHECK-NEXT: calldataload
@@ -26,13 +26,14 @@ contract TupleAssignBranchLeak {
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: push [[THEN:bb[0-9]+]]
     // CHECK-NEXT: jumpi
-    // The else arm calls `pair(off + 7)` with the pre-branch `off`.
-    // CHECK: push 192
+    // CHECK-NEXT: push 192
     // CHECK-NEXT: mload
     // CHECK: push 7
     // CHECK-NEXT: dup2
     // CHECK: add
-    // CHECK: jumpi
+    // CHECK: lt
+    // CHECK-NEXT: push [[OVERFLOW:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
     // CHECK-NEXT: push [[ELSE_RET:bb[0-9]+]]
     // CHECK-NEXT: push 224
     // CHECK-NEXT: mload
@@ -40,29 +41,18 @@ contract TupleAssignBranchLeak {
     // CHECK: [[PAIR]]:
     // CHECK: push 1
     // CHECK: add
-    // CHECK: push 2
-    // CHECK: add
+    // The then arm calls the same helper with `seed`.
     // CHECK: [[THEN]]:
     // CHECK-NEXT: push [[THEN_RET:bb[0-9]+]]
-    // CHECK: jump [[PAIR]]
-    // CHECK: [[THEN_RET]]:
-    // CHECK-NEXT: push [[THEN_CONT:bb[0-9]+]]
-    // CHECK-NEXT: jump [[PICKUP:bb[0-9]+]]
-    // CHECK: [[PICKUP]]:
-    // CHECK: [[ELSE_RET]]:
-    // CHECK-NEXT: push [[ELSE_CONT:bb[0-9]+]]
-    // CHECK-NEXT: jump [[PICKUP]]
-    // CHECK: [[THEN_CONT]]:
-    // CHECK: jump [[RETURN:bb[0-9]+]]
-    // CHECK: [[RETURN]]:
-    // CHECK: return
-    // The else continuation combines both call results with the original
-    // `off` slot, rather than a value assigned only in the then arm.
-    // CHECK: [[ELSE_CONT]]:
-    // CHECK: push 192
-    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 36
+    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: jump [[PAIR]]
+    // The two-word return rotates the hidden return label over both results.
+    // CHECK: push 2
     // CHECK: add
-    // CHECK: jump [[RETURN]]
+    // CHECK: swap1
+    // CHECK-NEXT: swap2
+    // CHECK-NEXT: jump
     function run(bool takeFirst, uint256 seed) external pure returns (uint256 out) {
         uint256 a = seed;
         uint256 off = seed;

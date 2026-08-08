@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/empty_external_return.sol:EmptyExternalReturn (runtime) ===
 @module runtime
 bb0:
-  push 128
-  push 64
-  mstore
   callvalue
   push bb2
   jumpi

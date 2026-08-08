@@ -520,8 +520,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
         block_count: func.blocks.len(),
         param_count: func.params.len(),
         internal_frame_size: func.internal_frame_size,
-        is_entry_point: func.is_public()
-            || func.attributes.is_fallback
+        is_entry_point: func.attributes.is_fallback
             || func.attributes.is_receive
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,

@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_member.sol:StorageBytesMember (runtime) ===
 @module runtime
 bb0:
-  push 832
-  push 64
-  mstore
   callvalue
   push bb19
   jumpi
@@ -84,6 +81,9 @@ bb7:
   jumpi
   jump bb19
 bb15:
+  push 832
+  push 64
+  mstore
   calldatasize
   push 4
   swap1
@@ -587,6 +587,9 @@ bb32:
   mload
   jump bb32
 bb37:
+  push 832
+  push 64
+  mstore
   caller
   push 0
   mstore
@@ -883,6 +886,9 @@ bb43:
   mload
   jump bb43
 bb49:
+  push 832
+  push 64
+  mstore
   caller
   push 0
   mstore
@@ -910,6 +916,9 @@ bb78:
   push 128
   return
 bb51:
+  push 832
+  push 64
+  mstore
   calldatasize
   push 4
   swap1
@@ -1099,6 +1108,9 @@ bb64:
   sstore
   jump bb48
 bb66:
+  push 832
+  push 64
+  mstore
   caller
   push 0
   mstore

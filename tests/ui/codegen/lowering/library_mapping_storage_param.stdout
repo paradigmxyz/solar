@@ -2,9 +2,6 @@
 // === ROOT/tests/ui/codegen/lowering/library_mapping_storage_param.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 288
-  push 64
-  mstore
   callvalue
   push bb3
   jumpi

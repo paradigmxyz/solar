@@ -2,11 +2,11 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 433
+  push 394
   codesize
   sub
   dup1
-  push 433
+  push 394
   push 192
   codecopy
   push 192
@@ -32,13 +32,15 @@ bb0:
   jumpi
   pop
   push 301
+  jump bb18
+bb18:
   push 0
   sstore
   jump bb17
 bb17:
-  push 239
+  push 211
   dup1
-  push 194
+  push 183
   push 0
   codecopy
   push 0
@@ -51,9 +53,7 @@ bb1:
   jumpi
   pop
   push 305
-  push 0
-  sstore
-  jump bb17
+  jump bb18
 bb2:
   dup1
   push 0x920f5c73
@@ -62,9 +62,7 @@ bb2:
   jumpi
   pop
   push 302
-  push 0
-  sstore
-  jump bb17
+  jump bb18
 bb3:
   dup1
   push 0xcbf99d38
@@ -73,9 +71,7 @@ bb3:
   jumpi
   pop
   push 300
-  push 0
-  sstore
-  jump bb17
+  jump bb18
 bb4:
   pop
   jump bb17
@@ -87,9 +83,7 @@ bb5:
   jumpi
   pop
   push 306
-  push 0
-  sstore
-  jump bb17
+  jump bb18
 bb6:
   dup1
   push 0x41052a0d
@@ -98,9 +92,7 @@ bb6:
   jumpi
   pop
   push 303
-  push 0
-  sstore
-  jump bb17
+  jump bb18
 bb7:
   dup1
   push 0x7238232f
@@ -109,9 +101,7 @@ bb7:
   jumpi
   pop
   push 304
-  push 0
-  sstore
-  jump bb17
+  jump bb18
 bb8:
   pop
   jump bb17
@@ -119,9 +109,6 @@ bb8:
 // === runtime ===
 @module runtime
 bb0:
-  push 160
-  push 64
-  mstore
   callvalue
   push bb3
   jumpi
@@ -160,12 +147,11 @@ bb6:
   jumpi
   pop
   push 306
+  jump bb16
+bb16:
+  dup1
   push 128
   mstore
-  jump bb15
-bb15:
-  push 128
-  mload
   push 128
   mstore
   push 32
@@ -179,9 +165,7 @@ bb7:
   jumpi
   pop
   push 302
-  push 128
-  mstore
-  jump bb15
+  jump bb16
 bb8:
   dup1
   push 0x905f7d67
@@ -190,9 +174,7 @@ bb8:
   jumpi
   pop
   push 305
-  push 128
-  mstore
-  jump bb15
+  jump bb16
 bb9:
   dup1
   push 0xcbf99d38
@@ -201,9 +183,7 @@ bb9:
   jumpi
   pop
   push 300
-  push 128
-  mstore
-  jump bb15
+  jump bb16
 bb10:
   dup1
   push 0x87d912cb
@@ -212,9 +192,7 @@ bb10:
   jumpi
   pop
   push 301
-  push 128
-  mstore
-  jump bb15
+  jump bb16
 bb11:
   dup1
   push 0x41052a0d
@@ -223,9 +201,7 @@ bb11:
   jumpi
   pop
   push 303
-  push 128
-  mstore
-  jump bb15
+  jump bb16
 bb12:
   dup1
   push 0x7238232f
@@ -234,12 +210,8 @@ bb12:
   jumpi
   pop
   push 304
-  push 128
-  mstore
-  jump bb15
+  jump bb16
 bb13:
   pop
   push 999
-  push 128
-  mstore
-  jump bb15
+  jump bb16

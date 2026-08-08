@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:Errors (runtime) ===
 @module runtime
 bb0:
-  push 288
-  push 64
-  mstore
   callvalue
   push bb4
   jumpi
@@ -21,8 +18,10 @@ bb0:
   sub
   push bb4
   jumpi
+  push 288
+  dup1
   push 64
-  mload
+  mstore
   dup1
   push 224
   mstore
@@ -122,8 +121,10 @@ bb4 [cold]:
   dup1
   revert
 bb8:
+  push 288
+  dup1
   push 64
-  mload
+  mstore
   dup1
   push 224
   mstore
@@ -193,9 +194,6 @@ bb14:
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:R (runtime) ===
 @module runtime
 bb0:
-  push 256
-  push 64
-  mstore
   callvalue
   push bb12
   jumpi
@@ -272,16 +270,13 @@ bb39:
   push 128
   return
 bb17 [cold]:
-  push 2
-  push 192
-  mstore
   push 0x3339
   push 240
-  jump bb40
-bb40 [cold]:
   shl
-  push 224
-  mstore
+  push 2
+  swap1
+  jump bb38
+bb38 [cold]:
   push 0x8c379a0
   push 224
   shl
@@ -290,10 +285,13 @@ bb40 [cold]:
   push 32
   push 4
   mstore
-  push 64
-  push 192
+  dup2
   push 36
-  mcopy
+  mstore
+  swap1
+  pop
+  push 68
+  mstore
   push 100
   push 0
   revert
@@ -314,12 +312,14 @@ bb18:
   push bb22
   jump bb39
 bb22 [cold]:
-  push 11
-  push 192
-  mstore
   push 0x6c69746572616c206d7367
-  push 168
   jump bb40
+bb40 [cold]:
+  push 168
+  shl
+  push 11
+  swap1
+  jump bb38
 bb23:
   calldatasize
   push 4
@@ -337,13 +337,16 @@ bb23:
   push bb27
   jump bb39
 bb27 [cold]:
-  push 15
-  push 192
-  mstore
   push 0x6c6f63616c2d636f6e73742d6d7367
   push 136
-  jump bb40
+  shl
+  push 15
+  swap1
+  jump bb38
 bb28:
+  push 192
+  push 64
+  mstore
   calldatasize
   push 4
   swap1
@@ -376,11 +379,7 @@ bb33:
   push bb37
   jump bb39
 bb37 [cold]:
-  push 11
-  push 192
-  mstore
   push 0x7265766572742d70617468
-  push 168
   jump bb40
 bb32 [cold]:
   push 64

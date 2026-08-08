@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:ProxyResult (runtime) ===
 @module runtime
-bb0:
-  push 160
-  push 64
-  mstore
+bb1:
   push 0
   calldataload
   dup1
@@ -21,9 +18,6 @@ bb2:
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:Base64Remainder (runtime) ===
 @module runtime
 bb0:
-  push 160
-  push 64
-  mstore
   callvalue
   push bb2
   jumpi
@@ -70,9 +64,6 @@ bb2 [cold]:
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:SignatureLength (runtime) ===
 @module runtime
 bb0:
-  push 160
-  push 64
-  mstore
   callvalue
   push bb2
   jumpi
@@ -119,9 +110,6 @@ bb2 [cold]:
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:RpowEdges (runtime) ===
 @module runtime
 bb0:
-  push 192
-  push 64
-  mstore
   callvalue
   push bb2
   jumpi
