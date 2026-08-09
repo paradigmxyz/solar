@@ -1,0 +1,85 @@
+//@ compile-flags: -Zevm-ir-pipeline=block-cse
+//@ filecheck:
+@module module
+
+// Re-storing the word already known at a constant address is a no-op; the
+// store and its two operand copies are removed.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: push 160
+// CHECK-NEXT: mstore
+// CHECK-NEXT: - dup1
+// CHECK-NEXT: - push 128
+// CHECK-NEXT: - mstore
+// CHECK-NEXT: pop
+bb0:
+  push 7
+  dup1
+  push 128
+  mstore
+  dup1
+  push 160
+  mstore
+  dup1
+  push 128
+  mstore
+  pop
+  stop
+
+// A load of a known constant-address word reuses the live stack copy.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: push 192
+// CHECK-NEXT: mstore
+// CHECK-NEXT: - push 192
+// CHECK-NEXT: - mload
+// CHECK-NEXT: + dup1
+// CHECK-NEXT: add
+bb1:
+  push 9
+  dup1
+  push 192
+  mstore
+  push 192
+  mload
+  add
+  push 0
+  mstore
+  stop
+
+// A memory clobber between the stores forgets the known word.
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: calldatacopy
+// CHECK-NEXT: push 224
+// CHECK-NEXT: mstore
+bb2:
+  push 5
+  dup1
+  push 224
+  mstore
+  push 32
+  push 0
+  push 224
+  calldatacopy
+  push 224
+  mstore
+  stop
+
+// An overlapping store to another address evicts the known word.
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: push 144
+// CHECK-NEXT: mstore
+// CHECK-NEXT: dup1
+// CHECK-NEXT: push 128
+// CHECK-NEXT: mstore
+bb3:
+  push 3
+  dup1
+  push 128
+  mstore
+  push 4
+  push 144
+  mstore
+  dup1
+  push 128
+  mstore
+  pop
+  stop

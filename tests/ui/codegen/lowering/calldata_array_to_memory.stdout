@@ -114,9 +114,6 @@ bb8:
   push 64
   mstore
   dup4
-  dup1
-  push 256
-  mstore
   dup2
   mstore
   swap3
@@ -126,9 +123,6 @@ bb8:
   add
   dup2
   dup4
-  dup1
-  push 288
-  mstore
   dup3
   calldatacopy
   pop
@@ -241,9 +235,6 @@ bb21:
   push 0
   dup2
   mstore
-  dup1
-  push 160
-  mstore
   push 128
   mstore
   push 4
@@ -283,9 +274,6 @@ bb21:
   push 64
   mstore
   dup4
-  dup1
-  push 192
-  mstore
   dup2
   mstore
   swap3

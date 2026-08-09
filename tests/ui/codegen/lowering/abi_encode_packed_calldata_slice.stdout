@@ -243,9 +243,6 @@ bb23:
   mstore
   dup2
   dup4
-  dup1
-  push 288
-  mstore
   mcopy
   pop
   push 320
