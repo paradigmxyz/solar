@@ -671,6 +671,30 @@ impl GlobalStackPlan {
         (!union.is_empty() && union.len() <= GLOBAL_STACK_LAYOUT_LIMIT).then_some(layouts)
     }
 
+    fn carried_values(&self, func: &Function, term: &Terminator) -> Vec<ValueId> {
+        if let Some((then_layout, else_layout)) = self.branch_layouts(term) {
+            let mut values = then_layout.to_vec();
+            for &value in else_layout {
+                if !values.contains(&value) {
+                    values.push(value);
+                }
+            }
+            return values;
+        }
+        if let Some(layouts) = self.switch_layouts(term) {
+            let mut values = Vec::new();
+            for (_, layout) in layouts {
+                for &value in layout {
+                    if !values.contains(&value) {
+                        values.push(value);
+                    }
+                }
+            }
+            return values;
+        }
+        self.edge_layout(func, term).unwrap_or_default().to_vec()
+    }
+
     fn is_terminal_block(func: &Function, block: BlockId) -> bool {
         matches!(
             func.blocks[block].terminator,
@@ -1018,7 +1042,7 @@ pub struct EvmCodegen<'gcx> {
     current_internal_function: Option<FunctionId>,
     /// Copies to insert at block exits (from phi elimination).
     block_copies: FxHashMap<BlockId, Vec<ParallelCopy>>,
-    /// Values carried by planned stack-resident phi edges, keyed by predecessor block.
+    /// Values carried by planned stack-resident edges, keyed by predecessor block.
     stack_phi_sources: FxHashMap<BlockId, Vec<ValueId>>,
     /// Whether the current function has canonical cross-block argument layouts.
     global_stack_active: bool,
@@ -2196,14 +2220,27 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             stack_phi_sources = stack_phi_plan.edge_sources.clone();
         } else if global_stack_plan.is_empty()
-            && let Some(plan) = self.compute_cross_block_stack_layout(func, liveness, has_phis)
-            // Phi layouts own their incoming stack on planned joins. Extend those layouts with
-            // the invariant computed values, but keep their ordinary spill stores as a fallback:
-            // unlike resident arguments, these values have allocated memory homes. Adopt the
-            // layout only when that composition is proven, mirroring the resident arm.
+            && let Some((values, plan)) =
+                self.compute_cross_block_stack_layout(func, liveness, has_phis)
+            // Phi layouts own their incoming stack on planned joins. Adopt the layout only when
+            // that composition is proven, mirroring the resident arm.
             && stack_phi_plan.merge_resident(func, &plan)
         {
             global_stack_plan = plan;
+            // Record every planned source so the early spill store can be omitted. The reserved
+            // spill slot remains available if edge emission ever falls back to the ordinary
+            // memory convention.
+            stack_phi_sources = stack_phi_plan.edge_sources.clone();
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                let Some(term) = block.terminator.as_ref() else { continue };
+                let carried = global_stack_plan.carried_values(func, term);
+                let sources = stack_phi_sources.entry(block_id).or_default();
+                for &value in &values {
+                    if carried.contains(&value) && !sources.contains(&value) {
+                        sources.push(value);
+                    }
+                }
+            }
         }
         self.stack_phi_sources = stack_phi_sources;
         self.global_stack_active = !global_stack_plan.is_empty();
@@ -5575,16 +5612,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         best.map(|(_, values, plan)| (values, plan))
     }
 
-    /// Retains profitable computed words across acyclic joins while preserving their ordinary
-    /// spill slots as a conservative fallback. The current global argument planner owns external
-    /// entry layouts when it applies, so this incremental planner runs only when that plan is
-    /// empty and limits its search to eight cross-block definitions.
+    /// Retains profitable computed words across acyclic joins while reserving ordinary spill slots
+    /// as an edge-time fallback. The current global argument planner owns external entry layouts
+    /// when it applies, so this incremental planner runs only when that plan is empty and limits
+    /// its search to eight cross-block definitions.
     fn compute_cross_block_stack_layout(
         &self,
         func: &Function,
         liveness: &Liveness,
         has_phis: bool,
-    ) -> Option<GlobalStackPlan> {
+    ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         if !self.gcx.sess.opts.optimization.is_gas()
             || !Self::is_external_entry(func)
             || func.blocks.len() < 3
@@ -5655,7 +5692,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         let values: Vec<_> =
             ranked.into_iter().take(GLOBAL_STACK_LAYOUT_LIMIT).map(|(value, _, _)| value).collect();
         self.select_cross_block_stack_layout(func, liveness, &values, has_phis)
-            .map(|(_, plan)| plan)
     }
 
     fn select_cross_block_stack_layout(
@@ -5730,9 +5766,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             for &value in values {
                 candidate = candidate.plus(if subset.contains(&value) {
                     let uses = use_counts.get(&value).copied().unwrap_or_default();
-                    // The spill store remains in both plans. A carried SSA copy can be consumed
-                    // on its final use; all earlier uses retain it with a stack operation.
-                    spill_store.plus(resident_access.times(uses.saturating_sub(1)))
+                    // A carried SSA copy can be consumed on its final use; all earlier uses retain
+                    // it with a stack operation. Its spill store is emitted only if an edge falls
+                    // back to memory, so it does not belong to the selected layout's hot cost.
+                    resident_access.times(uses.saturating_sub(1))
                 } else {
                     memory_cost(value)
                 });

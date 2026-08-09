@@ -6,11 +6,11 @@
 //@[run] run-call: carry(uint256) 42 => 65
 
 contract CrossBlockStackJoin {
-    // `kept` is defined before the diamond and reused after its join. Keep its ordinary spill
-    // slot valid while carrying the live copy through both predecessors.
+    // `kept` is defined before the diamond and reused after its join. Reserve its ordinary spill
+    // slot as fallback, but carry the live copy through both predecessors without storing it.
     // CHECK-LABEL: @module runtime
     // CHECK: div
-    // CHECK: mstore
+    // CHECK-NEXT: push 1
     // CHECK: jump [[JOIN:bb[0-9]+]]
     // CHECK: jump [[JOIN]]
     // CHECK: [[JOIN]]:
