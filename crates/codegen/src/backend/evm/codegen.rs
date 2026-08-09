@@ -596,6 +596,15 @@ pub struct EvmCodegen<'gcx> {
     /// the return address instead of being stored to the callee frame at
     /// each site. The callee prologue stores them once.
     stack_arg_masks: FxHashMap<FunctionId, DenseBitSet<usize>>,
+    /// Static callees whose stack-passed arguments are consumed once in the entry block and can
+    /// therefore remain on the physical stack instead of being copied into their frame.
+    direct_stack_args: FxHashMap<FunctionId, Vec<ValueId>>,
+    /// Non-recursive one-word callees whose return value stays on the EVM stack instead of being
+    /// staged through their static memory frame.
+    stack_return_functions: DenseBitSet<FunctionId>,
+    /// First local/spill byte in each stack-return function's original MIR frame layout. Offsets
+    /// at or above this boundary shift down over the removed return word.
+    stack_return_local_bases: FxHashMap<FunctionId, u64>,
     /// Whether the current assembly is the runtime (stack-passed arguments
     /// apply). The constructor assembly emits its own copies of internal
     /// functions with the plain frame-store convention.
@@ -684,6 +693,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             function_spill_sizes: FxHashMap::default(),
             pending_frame_size_consts: Vec::new(),
             stack_arg_masks: FxHashMap::default(),
+            direct_stack_args: FxHashMap::default(),
+            stack_return_functions: DenseBitSet::new_empty(0),
+            stack_return_local_bases: FxHashMap::default(),
             runtime_stack_args: false,
             spill_addr_consts: FxHashMap::default(),
             external_spill_addr_consts: FxHashMap::default(),
@@ -1163,6 +1175,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.restorable_internal_frames = DenseBitSet::new_empty(module.functions.len());
             self.static_frame_functions = DenseBitSet::new_empty(module.functions.len());
             self.stack_arg_masks.clear();
+            self.direct_stack_args.clear();
+            self.stack_return_functions = DenseBitSet::new_empty(module.functions.len());
+            self.stack_return_local_bases.clear();
             self.runtime_stack_args = false;
             self.static_frame_addr_consts.clear();
             self.external_spill_addr_consts.clear();
@@ -1337,6 +1352,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.block_copies.clear();
         self.stack_phi_sources.clear();
         self.stack_arg_masks.clear();
+        self.direct_stack_args.clear();
+        self.stack_return_functions = DenseBitSet::new_empty(module.functions.len());
+        self.stack_return_local_bases.clear();
         self.runtime_stack_args = true;
         self.emitting_entry = false;
         self.reset_switch_gas_code_growth();
@@ -1394,6 +1412,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         self.compute_stack_arg_masks(module);
+        self.compute_direct_stack_args(module);
+        self.compute_stack_return_functions(module);
 
         // Labels for every tail-call and internal-call target.
         for (func_id, func) in module.functions.iter_enumerated() {
@@ -1578,6 +1598,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.scheduler.clear_stack();
                     self.mark_live_in_spills(func, liveness, block_id);
                 }
+            }
+            if block_id == BlockId::ENTRY
+                && let Some(values) = self.direct_stack_args.get(&func_id).cloned()
+            {
+                debug_assert_eq!(self.scheduler.stack.depth(), 0);
+                self.set_stack_to_values(&values);
             }
 
             // Generate instructions
@@ -3785,6 +3811,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if let Some(func_id) = self.current_internal_function
             && self.static_frame_functions.contains(func_id)
         {
+            let offset = self.compact_stack_return_frame_offset(func_id, offset);
             let addr = self.static_frame_addr(func_id, offset);
             self.asm.emit_push_deferred(addr);
             return;
@@ -3794,6 +3821,72 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
         self.emit_current_internal_frame_addr(offset);
+    }
+
+    /// Removes the unused one-word return slot from a stack-return function's physical frame.
+    fn compact_stack_return_frame_offset(&self, func_id: FunctionId, offset: u64) -> u64 {
+        let Some(&local_base) = self.stack_return_local_bases.get(&func_id) else { return offset };
+        let return_base = local_base - EvmMemoryLayout::WORD_SIZE;
+        debug_assert_ne!(offset, return_base, "removed stack-return slot is still referenced");
+        if offset >= local_base { offset - EvmMemoryLayout::WORD_SIZE } else { offset }
+    }
+
+    /// Selects static-frame helpers that can return one word directly on the EVM stack.
+    ///
+    /// Tail-call edges keep the memory convention because an external dispatch path does not
+    /// necessarily carry an internal return address. Calls whose MIR return arity disagrees with
+    /// the callee are also excluded defensively. This convention is runtime-gas-only: size mode
+    /// retains shared frame slots rather than adding stack shuffles at every return.
+    fn compute_stack_return_functions(&mut self, module: &Module) {
+        self.stack_return_functions = DenseBitSet::new_empty(module.functions.len());
+        self.stack_return_local_bases.clear();
+        if !self.gcx.sess.opts.optimization.is_gas() {
+            return;
+        }
+
+        for (func_id, func) in module.functions.iter_enumerated() {
+            let mut has_return = false;
+            let has_consistent_returns = func.blocks.iter().all(|block| match &block.terminator {
+                Some(Terminator::Return { values }) => {
+                    has_return = true;
+                    values.len() == 1
+                }
+                // The backend treats `stop` in an internal function as a void return, which is
+                // incompatible with the one-word stack-return convention.
+                Some(Terminator::Stop) => false,
+                _ => true,
+            });
+            if self.static_frame_functions.contains(func_id)
+                && func.returns.len() == 1
+                && has_return
+                && has_consistent_returns
+            {
+                self.stack_return_functions.insert(func_id);
+            }
+        }
+
+        for (caller, func) in module.functions.iter_enumerated() {
+            for inst_id in func.instructions() {
+                if let InstKind::InternalCall { function, returns, .. } = &func.inst(inst_id).kind
+                    && *returns != 1
+                {
+                    self.stack_return_functions.remove(*function);
+                }
+            }
+            for block in &func.blocks {
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                    self.stack_return_functions.remove(caller);
+                    self.stack_return_functions.remove(*function);
+                }
+            }
+        }
+
+        for func_id in self.stack_return_functions.iter() {
+            let func = &module.functions[func_id];
+            let local_base = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                + ((func.params.len() + 1) as u64) * EvmMemoryLayout::WORD_SIZE;
+            self.stack_return_local_bases.insert(func_id, local_base);
+        }
     }
 
     /// Computes which arguments of each static-frame callee pass on the
@@ -3923,6 +4016,77 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.stack_arg_masks = masks;
     }
 
+    /// Selects stack-passed arguments that the callee can consume directly.
+    ///
+    /// This deliberately requires every selected argument to have one active value and one
+    /// operand occurrence in the entry block. The value cannot then cross a control-flow edge or
+    /// require a frame reload after it has been consumed. Requiring the entire stack-argument mask
+    /// to qualify also lets the prologue omit every store without shuffling around retained words.
+    fn compute_direct_stack_args(&mut self, module: &Module) {
+        self.direct_stack_args.clear();
+        if !self.gcx.sess.opts.optimization.is_gas() {
+            return;
+        }
+
+        for (&func_id, mask) in &self.stack_arg_masks {
+            let func = &module.functions[func_id];
+            if mask.domain_size() != func.params.len() {
+                continue;
+            }
+
+            let arg_uses = func.arg_uses();
+            let mut use_counts = FxHashMap::default();
+            let mut entry_uses = DenseBitSet::new_empty(func.num_values());
+            let mut call_uses = DenseBitSet::new_empty(func.num_values());
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                for &inst_id in &block.instructions {
+                    let is_call = matches!(func.inst(inst_id).kind, InstKind::InternalCall { .. });
+                    for operand in func.inst(inst_id).kind.operands() {
+                        *use_counts.entry(operand).or_insert(0usize) += 1;
+                        if block_id == BlockId::ENTRY {
+                            entry_uses.insert(operand);
+                        }
+                        if is_call {
+                            call_uses.insert(operand);
+                        }
+                    }
+                }
+                if let Some(term) = &block.terminator {
+                    let is_call = matches!(term, Terminator::TailCall { .. });
+                    for operand in term.operands() {
+                        *use_counts.entry(operand).or_insert(0usize) += 1;
+                        if block_id == BlockId::ENTRY {
+                            entry_uses.insert(operand);
+                        }
+                        if is_call {
+                            call_uses.insert(operand);
+                        }
+                    }
+                }
+            }
+
+            let mut values = Vec::with_capacity(mask.count());
+            let mut eligible = true;
+            for index in (0..mask.domain_size()).rev().filter(|&index| mask.contains(index)) {
+                let [value] = arg_uses[ArgIdx::new(index)].as_slice() else {
+                    eligible = false;
+                    break;
+                };
+                if use_counts.get(value) != Some(&1)
+                    || !entry_uses.contains(*value)
+                    || call_uses.contains(*value)
+                {
+                    eligible = false;
+                    break;
+                }
+                values.push(*value);
+            }
+            if eligible && !values.is_empty() {
+                self.direct_stack_args.insert(func_id, values);
+            }
+        }
+    }
+
     /// Returns true when the caller can re-emit `val` raw (untracked) after
     /// its stack drain: an immediate, or a caller argument whose reload is
     /// position independent.
@@ -3974,6 +4138,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// caller's drained stack.
     fn emit_stack_arg_prologue(&mut self, func_id: FunctionId, func: &Function) {
         if !self.runtime_stack_args {
+            return;
+        }
+        if self.direct_stack_args.contains_key(&func_id) {
             return;
         }
         let Some(mask) = self.stack_arg_masks.get(&func_id).cloned() else { return };
@@ -4140,10 +4307,15 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// area recorded after its body emitted.
     fn emitted_frame_size(&self, module: &Module, func_id: FunctionId) -> u64 {
         let func = &module.functions[func_id];
-        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+        let size = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
             + ((func.params.len() + func.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE
             + func.internal_frame_size
-            + self.function_spill_size(func_id)
+            + self.function_spill_size(func_id);
+        if self.stack_return_functions.contains(func_id) {
+            size - EvmMemoryLayout::WORD_SIZE
+        } else {
+            size
+        }
     }
 
     /// Places every referenced static frame and resolves the address and
@@ -4699,6 +4871,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.define_label(return_label);
         self.scheduler.clear_stack();
 
+        if self.stack_return_functions.contains(callee) {
+            debug_assert_eq!(returns, 1);
+            if let Some(result) =
+                Self::live_internal_call_result(result, returns, liveness, block, inst_idx)
+            {
+                // The callee left this word physically on the stack; adopt it into the caller's
+                // model without emitting a load.
+                self.scheduler.stack.push(result);
+                self.spill_top_value_if_live(func, liveness, block, inst_idx, result);
+            } else {
+                self.asm.emit_op(op::POP);
+            }
+            return;
+        }
+
         if let Some(result) =
             Self::live_internal_call_result(result, returns, liveness, block, inst_idx)
         {
@@ -4892,6 +5079,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             crate::mir::Value::Arg(index) => {
+                if let Some(depth) = self.scheduler.stack.find(val)
+                    && depth < MAX_STACK_ACCESS
+                {
+                    self.emit_stack_op(StackOp::Dup(depth as u8 + 1));
+                    return;
+                }
                 if self.in_internal_function {
                     self.emit_internal_arg_load(*index);
                 } else if self.in_constructor {
@@ -5577,6 +5770,28 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_internal_return(&mut self, func: &Function, values: &[ValueId]) {
+        if self
+            .current_internal_function
+            .is_some_and(|func_id| self.stack_return_functions.contains(func_id))
+        {
+            let [value] = values else {
+                panic!("stack-return function `{}` did not return exactly one value", func.name)
+            };
+            self.pop_stack_values_not_needed_by(values);
+            self.emit_value(func, *value);
+            while self.scheduler.stack.depth() > 1 {
+                self.emit_stack_op(StackOp::Swap(1));
+                self.emit_stack_op(StackOp::Pop);
+            }
+
+            // The return address is the only untracked word immediately below the result. Put it
+            // on top for JUMP and leave the result as the caller's physical stack input.
+            self.asm.emit_op(op::SWAP1);
+            self.asm.emit_op(op::JUMP);
+            self.scheduler.clear_stack();
+            return;
+        }
+
         let return_base = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
             + (func.params.len() as u64) * EvmMemoryLayout::WORD_SIZE;
         for (i, &value) in values.iter().enumerate() {
