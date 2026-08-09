@@ -31,8 +31,8 @@ use crate::{
     },
     memory::EvmMemoryLayout,
     mir::{
-        ArgIdx, BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind,
-        MirPhase, Module, Terminator, ValueId,
+        ArgIdx, BlockId, EffectKind, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
+        InstKind, MirPhase, Module, Terminator, ValueId,
     },
     pass::run_pipeline,
 };
@@ -147,6 +147,16 @@ struct StackReturnPlan {
     arity: usize,
     /// First local/spill byte in the original MIR frame layout.
     local_base: u64,
+}
+
+/// Caller-side binding of stack-returned tuple words to their multi-return
+/// protocol loads.
+struct StackResultProjection {
+    /// The buffer-pointer read, its offset additions, and the extra-return
+    /// loads; all skipped during emission.
+    elided: Vec<InstId>,
+    /// The adopted load result for each extra return index `1..arity`.
+    extras: Vec<ValueId>,
 }
 
 /// Complete stack calling convention selected for one non-recursive static callee.
@@ -1044,6 +1054,9 @@ pub struct EvmCodegen<'gcx> {
     block_copies: FxHashMap<BlockId, Vec<ParallelCopy>>,
     /// Values carried by planned stack-resident edges, keyed by predecessor block.
     stack_phi_sources: FxHashMap<BlockId, Vec<ValueId>>,
+    /// Multi-return protocol instructions satisfied directly from adopted
+    /// stack-return words; the emission loop skips them.
+    elided_insts: FxHashSet<InstId>,
     /// Whether the current function has canonical cross-block argument layouts.
     global_stack_active: bool,
     /// Calldata words physically identical to arguments in the active global
@@ -1115,6 +1128,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             current_internal_function: None,
             block_copies: FxHashMap::default(),
             stack_phi_sources: FxHashMap::default(),
+            elided_insts: FxHashSet::default(),
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
             runtime_immutable_refs: Vec::new(),
@@ -2195,6 +2209,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // Eliminate phis.
         self.block_copies.clear();
+        self.elided_insts.clear();
         let phi_result = PhiEliminator::analyze(func);
         let has_phis = !phi_result.phis_to_remove.is_empty();
         for (block_id, copies) in phi_result.block_copies {
@@ -2357,6 +2372,12 @@ impl<'gcx> EvmCodegen<'gcx> {
 
                 // Skip phi instructions (they're handled by copies)
                 if matches!(inst.kind, InstKind::Phi(_)) {
+                    continue;
+                }
+
+                // Skip multi-return protocol instructions already satisfied
+                // from adopted stack-return words.
+                if self.elided_insts.remove(&inst_id) {
                     continue;
                 }
 
@@ -7713,8 +7734,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Adopts a static callee's stack-native return tuple.
     ///
     /// MIR names only the first result; later results are consumed through the multi-return
-    /// buffer. The callee leaves result `N - 1` on top, so stage those anonymous tail words in
-    /// reverse order and then attach result zero to the caller's scheduler model.
+    /// buffer. When the caller's protocol reads project cleanly, every returned word binds
+    /// directly to its consumer and the buffer never materializes. Otherwise the callee leaves
+    /// result `N - 1` on top, so stage those anonymous tail words in reverse order and then
+    /// attach result zero to the caller's scheduler model.
     #[allow(clippy::too_many_arguments)]
     fn adopt_stack_call_results(
         &mut self,
@@ -7729,6 +7752,26 @@ impl<'gcx> EvmCodegen<'gcx> {
         assert_eq!(returns, plan.arity, "stack-return call arity changed after ABI planning");
 
         if plan.arity > 1 {
+            if let Some(result) =
+                Self::live_internal_call_result(result, returns, liveness, block, inst_idx)
+                && let Some(projection) =
+                    Self::plan_stack_result_projection(func, block, inst_idx, plan.arity)
+            {
+                // The words already sit in tuple order with result `N - 1` on
+                // top; bind each to its protocol load and skip the republish
+                // and the loads entirely.
+                self.scheduler.stack.push(result);
+                for &extra in &projection.extras {
+                    self.scheduler.stack.push(extra);
+                }
+                self.elided_insts.extend(projection.elided);
+                self.spill_adopted_call_result(func, liveness, block, inst_idx, result);
+                for &extra in &projection.extras {
+                    self.spill_adopted_call_result(func, liveness, block, inst_idx, extra);
+                }
+                return;
+            }
+
             self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
             self.asm.emit_op(op::MLOAD);
             self.asm.emit_push(U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT));
@@ -7751,6 +7794,130 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.spill_top_value_if_live(func, liveness, block, inst_idx, result);
         } else {
             self.asm.emit_op(op::POP);
+        }
+    }
+
+    /// Plans direct adoption of a stack-returned tuple's anonymous tail words.
+    ///
+    /// MIR consumes returns `1..N` through the ephemeral buffer published at
+    /// the scratch pointer slot. When the complete protocol — the pointer read
+    /// and one offset load per extra return — follows the call with only pure
+    /// instructions between, each load observes exactly the word the callee
+    /// left on the stack, so the loads' results can adopt those words and the
+    /// buffer never needs to exist. Any other consumer of the pointer or its
+    /// offset addresses keeps the memory protocol.
+    fn plan_stack_result_projection(
+        func: &Function,
+        block: BlockId,
+        call_idx: usize,
+        arity: usize,
+    ) -> Option<StackResultProjection> {
+        let tail = func.blocks[block].instructions.get(call_idx + 1..)?;
+
+        // The first effectful instruction after the call must be the buffer
+        // pointer read; nothing may intervene that could publish or clobber.
+        let mut base = None;
+        for (offset, &inst_id) in tail.iter().enumerate() {
+            let inst = func.inst(inst_id);
+            if let InstKind::MLoad(addr) = inst.kind
+                && func.value_u64(addr) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT)
+            {
+                base = Some((offset, inst_id));
+                break;
+            }
+            if inst.kind.effect_kind() != EffectKind::Pure {
+                return None;
+            }
+        }
+        let (base_offset, base_inst) = base?;
+        let base_value = func.inst_result_value(base_inst)?;
+
+        let mut elided = vec![base_inst];
+        let mut addresses = FxHashMap::default();
+        let mut extras = vec![None; arity - 1];
+        for &inst_id in &tail[base_offset + 1..] {
+            let inst = func.inst(inst_id);
+            match &inst.kind {
+                InstKind::Add(a, b) if *a == base_value || *b == base_value => {
+                    let imm = if *a == base_value { *b } else { *a };
+                    let index = func
+                        .value_u64(imm)
+                        .filter(|offset| offset % EvmMemoryLayout::WORD_SIZE == 0)
+                        .map(|offset| (offset / EvmMemoryLayout::WORD_SIZE) as usize)?;
+                    let address = func.inst_result_value(inst_id)?;
+                    if !(1..arity).contains(&index) || addresses.insert(address, index).is_some()
+                    {
+                        return None;
+                    }
+                    elided.push(inst_id);
+                }
+                InstKind::MLoad(addr) if addresses.contains_key(addr) => {
+                    let result = func.inst_result_value(inst_id)?;
+                    if extras[addresses[addr] - 1].replace(result).is_some() {
+                        return None;
+                    }
+                    elided.push(inst_id);
+                    if extras.iter().all(Option::is_some) {
+                        break;
+                    }
+                }
+                kind if kind.effect_kind() == EffectKind::Pure => {}
+                _ => return None,
+            }
+        }
+        let extras = extras.into_iter().collect::<Option<Vec<_>>>()?;
+
+        // The pointer and its offset addresses must have no consumers beyond
+        // the elided protocol; anything else still expects the buffer.
+        let tracked: FxHashSet<ValueId> = addresses.keys().copied().chain([base_value]).collect();
+        let elided_set: FxHashSet<InstId> = elided.iter().copied().collect();
+        for check_block in func.blocks.iter() {
+            for &inst_id in &check_block.instructions {
+                if !elided_set.contains(&inst_id)
+                    && func.inst(inst_id).kind.operands().iter().any(|op| tracked.contains(op))
+                {
+                    return None;
+                }
+            }
+            if let Some(terminator) = &check_block.terminator
+                && terminator.operands().iter().any(|op| tracked.contains(op))
+            {
+                return None;
+            }
+        }
+
+        Some(StackResultProjection { elided, extras })
+    }
+
+    /// Applies the eager-spill contract to a call result adopted mid-stack.
+    ///
+    /// Mirrors [`Self::spill_top_value_if_live`] without requiring the value
+    /// on top: adopted tuple words sit in return order, so earlier results
+    /// spill from beneath the later ones.
+    fn spill_adopted_call_result(
+        &mut self,
+        func: &Function,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+        value: ValueId,
+    ) {
+        if Self::is_rematerializable_value(func, value) {
+            return;
+        }
+        let has_reserved_cross_block_slot = self.scheduler.spills.get(value).is_some();
+        if liveness.is_dead_after(value, block, inst_idx) && !has_reserved_cross_block_slot {
+            return;
+        }
+        if !self.spill_value_to_reserved_slot(func, value) {
+            self.spill_value_if_needed(func, value);
+        }
+        if has_reserved_cross_block_slot {
+            assert!(
+                self.scheduler.reloadable_spill(value).is_some(),
+                "reserved operand {value:?} was not stored before consumption in `{}`",
+                func.name
+            );
         }
     }
 
