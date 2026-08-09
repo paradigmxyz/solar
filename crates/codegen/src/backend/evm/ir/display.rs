@@ -15,7 +15,15 @@ impl Module {
                 self.blocks
                     .iter()
                     .format_with("", |f, block| { write!(f, "{}", display_block(self, block)) })
-            )
+            )?;
+            for (id, data) in self.data.iter_enumerated() {
+                write!(f, "@code_data {} hex\"", id.index())?;
+                for byte in data {
+                    write!(f, "{byte:02x}")?;
+                }
+                writeln!(f, "\"")?;
+            }
+            Ok(())
         })
     }
 }
@@ -107,6 +115,7 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
     fmt::from_fn(move |f| match value {
         PushValue::Immediate(value) => write!(f, "{}", display_u256(*value)),
         PushValue::Block(block) => write!(f, "{}", display_block_id(module, *block)),
+        PushValue::Data(data) => write!(f, "{}", data.index()),
     })
 }
 

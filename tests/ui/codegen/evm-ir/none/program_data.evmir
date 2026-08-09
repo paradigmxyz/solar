@@ -1,0 +1,18 @@
+//@ filecheck:
+@module data
+
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}push 4
+// CHECK-NEXT: {{^[ +].*}}push_data 0
+// CHECK: {{^[ +].*}}codecopy
+bb0:
+  push 4
+  push_data 0
+  push 0
+  codecopy
+  push 4
+  push 0
+  return
+
+// CHECK: @code_data 0 hex"11223344"
+@code_data 0 hex"11223344"
