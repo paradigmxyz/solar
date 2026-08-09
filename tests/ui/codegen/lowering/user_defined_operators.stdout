@@ -29,14 +29,13 @@ fn @doNeg() [selector=0x8fa81b4e, pure] {
 
 fn @doFlip() [selector=0x7cf9d6d4, pure] {
   bb0:
-    v1 = calldatasize
-    v2 = lt v1, 36
-    jumpi v2, bb1, bb2
+    v2 = calldatasize
+    v3 = lt v2, 36
+    jumpi v3, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v0 = internal_call @flip, 1, arg0
-    mstore 128, v0
+    mstore 128, 7
     returndata 128, 32
 }
 
@@ -66,11 +65,6 @@ fn @neg(arg0: i256) -> i256 [pure] {
   bb2:
     v1 = sub 0, arg0
     ret v1
-}
-
-fn @flip(arg0: i256) -> i256 [pure] {
-  bb0:
-    ret 7
 }
 
 fn @__revert_stub0() {

@@ -247,13 +247,11 @@ bb39:
   dup1
   push 160
   mstore
-  dup1
   push 5
   shr
-  dup3
+  dup2
   eq
-  swap2
-  pop
+  swap1
   pop
   iszero
   push bb6
@@ -327,7 +325,6 @@ bb39:
   dup1
   push 256
   mstore
-  dup1
   push 288
   mload
   add
@@ -340,8 +337,6 @@ bb39:
   swap2
   gt
   or
-  swap1
-  pop
   push bb6
   jumpi
   push 64
@@ -392,14 +387,12 @@ bb39:
   dup1
   push 192
   mstore
-  dup1
   push 5
   shr
   push 352
   mload
   eq
-  swap2
-  pop
+  swap1
   pop
   iszero
   push bb65
@@ -492,14 +485,11 @@ bb39:
   dup1
   push 224
   mstore
-  dup1
   push 5
   shr
   push 192
   mload
   eq
-  swap1
-  pop
   iszero
   push bb65
   jumpi
@@ -542,7 +532,6 @@ bb39:
   push 160
   mload
   mload
-  dup1
   push 192
   mstore
   push 32
@@ -563,8 +552,7 @@ bb39:
   swap1
   swap2
   eq
-  swap2
-  pop
+  swap1
   pop
   iszero
   push bb66
@@ -694,14 +682,11 @@ bb72:
   dup1
   push 160
   mstore
-  dup1
   push 5
   shr
   push 256
   mload
   eq
-  swap1
-  pop
   iszero
   swap1
   jump
@@ -723,13 +708,11 @@ bb70:
   dup1
   push 160
   mstore
-  dup1
   push 5
   shr
-  dup3
+  dup2
   eq
-  swap2
-  pop
+  swap1
   pop
   iszero
   swap1

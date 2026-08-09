@@ -215,14 +215,11 @@ bb7:
   dup1
   push 256
   mstore
-  dup1
   push 5
   shr
   push 160
   mload
   eq
-  swap1
-  pop
   iszero
   push bb16
   jumpi
@@ -447,14 +444,11 @@ bb4:
   dup1
   push 256
   mstore
-  dup1
   push 5
   shr
   push 160
   mload
   eq
-  swap1
-  pop
   iszero
   push bb14
   jumpi

@@ -92,6 +92,14 @@ fn push(value: U256) -> Instruction {
 }
 
 fn select(evm_version: EvmVersion, value: U256) -> CompactPush {
+    select_with_len(evm_version, value).1
+}
+
+pub(super) fn selected_len(gcx: Gcx<'_>, value: U256) -> usize {
+    select_with_len(gcx.sess.opts.evm_version, value).0
+}
+
+fn select_with_len(evm_version: EvmVersion, value: U256) -> (usize, CompactPush) {
     let width = push_width(evm_version, value);
     let normal_len = fixed_push_len(evm_version, width);
     let mut best = (normal_len, CompactPush::Literal);
@@ -138,7 +146,7 @@ fn select(evm_version: EvmVersion, value: U256) -> CompactPush {
         );
     }
 
-    best.1
+    best
 }
 
 /// Returns the byte length and gas cost of the selected immediate materialization.

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/global_stack_calldata_alias.sol:Test (runtime) ===
 @module runtime
 bb0:
-  push 448
+  push 288
   push 64
   mstore
   callvalue
@@ -27,9 +27,9 @@ bb0:
   push 4
   calldataload
   dup1
-  push 256
+  push 192
   mstore
-  push 384
+  push 256
   mstore
   pop
   push bb6
@@ -37,23 +37,20 @@ bb0:
   not
   push 96
   shr
-  push 384
+  push 256
   mload
   and
-  push 416
-  mstore
+  swap1
   jump
 bb3 [cold]:
   push 0
   dup1
   revert
 bb6:
-  push 416
-  mload
   dup1
-  push 288
+  push 224
   mstore
-  push 256
+  push 192
   mload
   eq
   push 4
@@ -75,19 +72,19 @@ bb26:
   dup3
   add
   dup1
-  push 224
+  push 160
   mstore
   swap1
   pop
   jump bb25
 bb25:
   dup1
-  push 224
+  push 160
   mstore
   lt
   push bb11
   jumpi
-  push 224
+  push 160
   mload
   jump bb24
 bb24:

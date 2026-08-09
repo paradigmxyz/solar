@@ -1,9 +1,11 @@
 //! Primitive layout-linear assembly form.
 //!
 //! All control-flow and code-size transforms run on block EVM IR. This compact
-//! form only records labels, relocations, deferred pushes, and opcodes for byte
-//! encoding.
+//! form only records labels, relocations, deferred pushes, opcodes, and opaque
+//! program data for byte encoding.
 
+use super::DataId;
+use alloy_primitives::Bytes;
 use solar_data_structures::index::IndexVec;
 
 mod indexed_jump;
@@ -32,6 +34,7 @@ pub(in crate::backend::evm) struct PackedLabels {
 pub(in crate::backend::evm) struct Program {
     pub(in crate::backend::evm) instructions: Vec<AsmInst>,
     pub(in crate::backend::evm) packed_labels: IndexVec<PackedLabelsId, PackedLabels>,
+    pub(in crate::backend::evm) data: IndexVec<DataId, Bytes>,
 }
 
 impl Program {
@@ -64,5 +67,9 @@ impl Program {
 
     pub(in crate::backend::evm) fn define_label(&mut self, label: Label) {
         self.push(AsmInst::label(label));
+    }
+
+    pub(in crate::backend::evm) fn append_data(&mut self, data: DataId) {
+        self.push(AsmInst::data(data));
     }
 }

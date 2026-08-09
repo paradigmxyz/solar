@@ -253,16 +253,14 @@ bb28:
   dup1
   push 192
   mstore
-  dup1
   push 1
   shr
-  dup4
-  eq
   dup3
+  eq
+  dup2
   push 160
   mstore
-  swap3
-  pop
+  swap2
   pop
   pop
   iszero

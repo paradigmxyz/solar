@@ -1,5 +1,6 @@
 //! Compact instructions for finalized, layout-linear EVM IR.
 
+use crate::backend::evm::ir::DataId;
 use solar_data_structures::{index::Idx, newtype_index};
 
 newtype_index! {
@@ -65,6 +66,10 @@ impl AsmIndex for PackedLabelsId {
     const NAME: &'static str = "assembler packed labels index";
 }
 
+impl AsmIndex for DataId {
+    const NAME: &'static str = "assembler program data index";
+}
+
 /// An instruction in the assembler.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(in crate::backend::evm) struct AsmInst(u32);
@@ -80,9 +85,14 @@ impl AsmInst {
     const TAG_PUSH_IMMUTABLE: u32 = 0xc000_0000;
     const TAG_LABEL: u32 = 0xd000_0000;
     const TAG_PUSH_LABEL_FIXED: u32 = 0xe000_0000;
-    const TAG_PUSH_PACKED_LABELS: u32 = 0xf000_0000;
+    const TAG_EXTENDED: u32 = 0xf000_0000;
     const FIXED_LABEL_MASK: u32 = 0x007f_ffff;
     const FIXED_WIDTH_SHIFT: u32 = 23;
+    const EXTENDED_KIND_MASK: u32 = 0x0c00_0000;
+    const EXTENDED_PAYLOAD_MASK: u32 = 0x03ff_ffff;
+    const EXTENDED_PUSH_PACKED_LABELS: u32 = 0;
+    const EXTENDED_PUSH_DATA: u32 = 0x0400_0000;
+    const EXTENDED_DATA: u32 = 0x0800_0000;
 
     pub(in crate::backend::evm) fn op(opcode: u8) -> Self {
         Self(Self::TAG_OP | u32::from(opcode))
@@ -109,7 +119,7 @@ impl AsmInst {
     }
 
     pub(in crate::backend::evm) fn push_packed_labels(labels: PackedLabelsId) -> Self {
-        Self::tagged(Self::TAG_PUSH_PACKED_LABELS, labels.inst_payload())
+        Self::extended(Self::EXTENDED_PUSH_PACKED_LABELS, labels.inst_payload())
     }
 
     pub(in crate::backend::evm) fn push_deferred(id: DeferredConst) -> Self {
@@ -122,6 +132,19 @@ impl AsmInst {
 
     pub(in crate::backend::evm) fn label(label: Label) -> Self {
         Self::tagged(Self::TAG_LABEL, label.inst_payload())
+    }
+
+    pub(in crate::backend::evm) fn push_data(data: DataId) -> Self {
+        Self::extended(Self::EXTENDED_PUSH_DATA, data.inst_payload())
+    }
+
+    pub(in crate::backend::evm) fn data(data: DataId) -> Self {
+        Self::extended(Self::EXTENDED_DATA, data.inst_payload())
+    }
+
+    fn extended(kind: u32, payload: u32) -> Self {
+        assert!(payload <= Self::EXTENDED_PAYLOAD_MASK, "assembler extended index overflow");
+        Self(Self::TAG_EXTENDED | kind | payload)
     }
 
     fn tagged(tag: u32, payload: u32) -> Self {
@@ -151,8 +174,18 @@ impl AsmInst {
                 let width = ((payload >> Self::FIXED_WIDTH_SHIFT) + 1) as u8;
                 AsmInstKind::PushLabelFixed(label, width)
             }
-            Self::TAG_PUSH_PACKED_LABELS => {
-                AsmInstKind::PushPackedLabels(PackedLabelsId::from_inst_payload(payload))
+            Self::TAG_EXTENDED => {
+                let index = payload & Self::EXTENDED_PAYLOAD_MASK;
+                match payload & Self::EXTENDED_KIND_MASK {
+                    Self::EXTENDED_PUSH_PACKED_LABELS => {
+                        AsmInstKind::PushPackedLabels(PackedLabelsId::from_inst_payload(index))
+                    }
+                    Self::EXTENDED_PUSH_DATA => {
+                        AsmInstKind::PushData(DataId::from_inst_payload(index))
+                    }
+                    Self::EXTENDED_DATA => AsmInstKind::Data(DataId::from_inst_payload(index)),
+                    _ => unreachable!("invalid extended assembler instruction tag"),
+                }
             }
             _ => unreachable!("invalid assembler instruction tag"),
         }
@@ -170,4 +203,6 @@ pub(in crate::backend::evm) enum AsmInstKind {
     PushDeferred(DeferredConst),
     PushImmutable(ImmutablePushId),
     Label(Label),
+    PushData(DataId),
+    Data(DataId),
 }

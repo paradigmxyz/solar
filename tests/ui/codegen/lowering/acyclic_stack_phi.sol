@@ -4,14 +4,10 @@
 contract AcyclicStackPhi {
     // CHECK-LABEL: @module runtime
     // CHECK: push 0x341fda35
-    // CHECK: calldataload
-    // CHECK: push 224
-    // CHECK: mload
-    // CHECK: gt
-    // CHECK: jumpi
+    // CHECK: push 352
     // CHECK: jump [[MERGE:bb[0-9]+]]
     // CHECK: [[MERGE]]:
-    // CHECK: dup1
+    // CHECK: mload
     function trimLen(bytes calldata data) external pure returns (uint256) {
         return trim(data).length;
     }

@@ -386,6 +386,7 @@ def report_section(
     title: str,
     results: list[dict[str, Any]],
     baseline_results: list[dict[str, Any]],
+    baseline_ref: str = "main",
 ) -> str:
     lines = [f"## {title}", ""]
     if not results:
@@ -393,12 +394,15 @@ def report_section(
         return "\n".join(lines)
 
     baseline = by_test_id(baseline_results)
+    baseline_label = markdown_cell(baseline_ref)
     if not baseline:
-        lines.extend(["No `main` baseline artifact was available for comparison.", ""])
+        lines.extend(
+            [f"No `{baseline_ref}` baseline artifact was available for comparison.", ""]
+        )
 
     lines.extend(
         [
-            "| bench | gas (vs main) | solc | size (vs main) | solc |",
+            f"| bench | gas (vs {baseline_label}) | solc | size (vs {baseline_label}) | solc |",
             "| ----- | ------------- | ---- | -------------- | ---- |",
             *benchmark_rows(results, baseline),
             "",
@@ -411,8 +415,9 @@ def report_section(
 def codegen_report(
     results: list[dict[str, Any]],
     baseline_results: list[dict[str, Any]],
+    baseline_ref: str = "main",
 ) -> str:
-    return report_section("Codegen benchmark", results, baseline_results)
+    return report_section("Codegen benchmark", results, baseline_results, baseline_ref)
 
 
 def emit_warnings(results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]) -> None:
@@ -442,35 +447,37 @@ def append_github_output(name: str, value: str) -> None:
         f.write(f"{name}<<{delimiter}\n{value}\n{delimiter}\n")
 
 
-def branch_is_behind_main() -> bool:
+def branch_is_behind(base_ref: str = "main") -> bool:
     head_sha = os.environ.get("BENCHMARK_PR_HEAD_SHA")
     if not head_sha:
         return False
     try:
         count = subprocess.check_output(
-            ["git", "rev-list", "--count", f"{head_sha}..origin/main"],
+            ["git", "rev-list", "--count", f"{head_sha}..origin/{base_ref}"],
             text=True,
             stderr=subprocess.DEVNULL,
         )
     except (OSError, subprocess.CalledProcessError):
-        warning("could not determine whether the branch is behind main")
+        warning(f"could not determine whether the branch is behind {base_ref}")
         return False
     return int(count) > 0
 
 
-def format_report(markdown: str, has_changes: bool, behind_main: bool) -> str:
-    if has_changes and not behind_main:
+def format_report(
+    markdown: str, has_changes: bool, behind_base: bool, base_ref: str = "main"
+) -> str:
+    if has_changes and not behind_base:
         return markdown
     notices = ""
-    if behind_main:
+    if behind_base:
         notices += (
             "> [!WARNING]\n"
-            "> This branch is behind `main`, so these benchmark results may be incorrect.\n\n"
+            f"> This branch is behind `{base_ref}`, so these benchmark results may be incorrect.\n\n"
         )
     if not has_changes:
         notices += (
             "> [!NOTE]\n"
-            "> Codegen benchmark output is unchanged from `main`.\n\n"
+            f"> Codegen benchmark output is unchanged from `{base_ref}`.\n\n"
         )
     details = (
         "<details>\n"
@@ -615,16 +622,17 @@ def main() -> int:
     baseline_document = load_document(args.baseline, "baseline")
     results = document["results"]
     baseline_results = baseline_document["results"]
+    base_ref = os.environ.get("BENCHMARK_BASE_REF") or "main"
 
     emit_warnings(results, baseline_results)
 
     if args.results is not None:
-        report = codegen_report(results, baseline_results)
+        report = codegen_report(results, baseline_results, base_ref)
     else:
         report = "## Codegen benchmark\n\nNo benchmark inputs were configured.\n"
 
     should_comment = has_baseline_changes(results, baseline_results)
-    markdown = format_report(report, should_comment, branch_is_behind_main())
+    markdown = format_report(report, should_comment, branch_is_behind(base_ref), base_ref)
     print(markdown)
     append_step_summary(markdown)
     append_github_output("report", markdown)

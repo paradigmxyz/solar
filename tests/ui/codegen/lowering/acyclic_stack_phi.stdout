@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/acyclic_stack_phi.sol:AcyclicStackPhi (runtime) ===
 @module runtime
 bb0:
-  push 640
+  push 480
   push 64
   mstore
   callvalue
@@ -47,13 +47,13 @@ bb4:
   push 4
   calldataload
   dup1
-  push 224
+  push 160
   mstore
   push 4
   dup2
   add
   dup1
-  push 256
+  push 192
   mstore
   push 4
   dup2
@@ -68,13 +68,13 @@ bb4:
   push bb3
   jumpi
   push 36
-  push 224
+  push 160
   mload
   add
   dup1
-  push 224
+  push 160
   mstore
-  push 256
+  push 192
   mload
   dup2
   lt
@@ -86,17 +86,16 @@ bb4:
   pop
   push bb3
   jumpi
-  push 256
+  push 192
   mload
   calldataload
   dup1
-  push 256
+  push 192
   mstore
-  dup1
-  push 224
+  push 160
   mload
   add
-  push 224
+  push 160
   mload
   dup2
   lt
@@ -105,63 +104,59 @@ bb4:
   swap2
   gt
   or
-  swap1
-  pop
   push bb3
   jumpi
-  push 224
+  push 160
   mload
-  push 384
-  mstore
   push 256
+  mstore
+  push 192
   mload
-  push 416
+  push 288
   mstore
   push bb10
   push 4
-  push 416
+  push 288
   mload
   gt
   iszero
   push bb18
   jumpi
   push 4
-  push 416
+  push 288
   mload
   sub
   dup1
-  push 480
+  push 320
   mstore
   push 4
-  push 384
+  push 256
   mload
   add
-  dup1
-  push 512
+  push 352
   mstore
   push 0
   not
   push 192
   shr
-  dup3
+  dup2
   gt
-  swap2
-  pop
+  swap1
   pop
   push bb3
   jumpi
   calldatasize
-  push 480
+  push 320
   mload
   swap1
   sub
-  push 512
+  push 352
   mload
   sgt
   push bb3
   jumpi
   push 31
-  push 480
+  push 320
   mload
   add
   push 5
@@ -170,64 +165,58 @@ bb4:
   dup2
   add
   dup1
-  push 544
+  push 384
   mstore
   lt
   push bb23
   jumpi
-  push 544
+  push 384
   mload
   push 5
   shl
   dup1
-  push 576
+  push 416
   mstore
-  dup1
   push 5
   shr
-  push 544
+  push 384
   mload
   eq
-  swap1
-  pop
   iszero
   push bb23
   jumpi
   push 64
   mload
   dup1
-  push 608
+  push 448
   mstore
-  push 576
+  push 416
   mload
   dup2
   add
   push 64
   mstore
-  push 480
+  push 320
   mload
   dup2
   mstore
   push 32
   dup2
   add
-  push 480
+  push 320
   mload
-  push 512
+  push 352
   jump bb24
 bb24:
   mload
   dup3
   calldatacopy
   pop
-  push 448
-  mstore
+  swap1
   jump
 bb10:
-  push 448
-  mload
   dup1
-  push 288
+  push 224
   mstore
   mload
   push 128
@@ -237,17 +226,17 @@ bb10:
   return
 bb18:
   calldatasize
-  push 416
+  push 288
   mload
   swap1
   sub
-  push 384
+  push 256
   mload
   sgt
   push bb3
   jumpi
   push 31
-  push 416
+  push 288
   mload
   add
   push 5
@@ -256,48 +245,45 @@ bb18:
   dup2
   add
   dup1
-  push 480
+  push 320
   mstore
   lt
   push bb23
   jumpi
-  push 480
+  push 320
   mload
   push 5
   shl
   dup1
-  push 512
+  push 352
   mstore
-  dup1
   push 5
   shr
-  push 480
+  push 320
   mload
   eq
-  swap1
-  pop
   iszero
   push bb23
   jumpi
   push 64
   mload
   dup1
-  push 608
+  push 448
   mstore
-  push 512
+  push 352
   mload
   dup2
   add
   push 64
   mstore
-  push 416
+  push 288
   mload
   dup2
   mstore
   push 32
   dup2
   add
-  push 416
+  push 288
   mload
-  push 384
+  push 256
   jump bb24

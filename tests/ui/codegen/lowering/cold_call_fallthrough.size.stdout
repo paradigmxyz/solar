@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/cold_call_fallthrough.sol:ColdCallFallthrough (runtime) ===
 @module runtime
 bb0:
-  push 0x420
+  push 960
   push 64
   mstore
   callvalue
@@ -64,20 +64,20 @@ bb33 [cold]:
   push 4
   calldataload
   dup1
-  push 256
+  push 160
   mstore
   push bb17
   jumpi
   push 64
   mload
   dup1
-  push 288
+  push 192
   mstore
   push 64
   dup2
   add
   dup1
-  push 928
+  push 832
   mstore
   dup2
   dup2
@@ -92,7 +92,7 @@ bb33 [cold]:
   push bb31
   jumpi
   dup1
-  push 928
+  push 832
   mstore
   push 64
   mstore
@@ -101,7 +101,7 @@ bb33 [cold]:
   dup2
   dup4
   dup1
-  push 288
+  push 192
   mstore
   calldatacopy
   pop
@@ -127,7 +127,7 @@ bb33 [cold]:
   dup2
   add
   dup1
-  push 416
+  push 320
   mstore
   swap1
   push 99
@@ -140,7 +140,7 @@ bb33 [cold]:
   push 64
   mload
   dup1
-  push 448
+  push 352
   mstore
   swap1
   dup2
@@ -149,7 +149,7 @@ bb33 [cold]:
   mstore
   dup2
   dup1
-  push 416
+  push 320
   mstore
   dup2
   mstore
@@ -172,7 +172,7 @@ bb33 [cold]:
   dup3
   mload
   dup1
-  push 480
+  push 384
   mstore
   push 32
   dup3
@@ -181,7 +181,7 @@ bb33 [cold]:
   add
   dup2
   dup1
-  push 480
+  push 384
   mstore
   swap1
   mstore
@@ -192,7 +192,7 @@ bb33 [cold]:
   not
   and
   dup1
-  push 512
+  push 416
   mstore
   swap4
   pop
@@ -204,16 +204,16 @@ bb33 [cold]:
   jump bb23
 bb23 [cold]:
   push 32
-  push 288
+  push 192
   mload
   add
   push 32
-  push 448
+  push 352
   mload
   add
   push 68
   add
-  push 480
+  push 384
   mload
   dup3
   dup3
@@ -221,10 +221,10 @@ bb23 [cold]:
   pop
   pop
   push 32
-  push 448
+  push 352
   mload
   add
-  push 416
+  push 320
   mload
   dup2
   revert
@@ -244,7 +244,7 @@ bb13 [cold]:
   jump bb33
 bb17 [cold]:
   push 1
-  push 256
+  push 160
   mload
   sub
   push bb19
@@ -252,13 +252,13 @@ bb17 [cold]:
   push 64
   mload
   dup1
-  push 320
+  push 224
   mstore
   push 64
   dup2
   add
   dup1
-  push 960
+  push 864
   mstore
   dup2
   dup2
@@ -273,7 +273,7 @@ bb17 [cold]:
   push bb31
   jumpi
   dup1
-  push 960
+  push 864
   mstore
   push 64
   mstore
@@ -282,7 +282,7 @@ bb17 [cold]:
   dup2
   dup4
   dup1
-  push 320
+  push 224
   mstore
   calldatacopy
   pop
@@ -308,7 +308,7 @@ bb17 [cold]:
   dup2
   add
   dup1
-  push 544
+  push 448
   mstore
   swap1
   push 99
@@ -321,7 +321,7 @@ bb17 [cold]:
   push 64
   mload
   dup1
-  push 576
+  push 480
   mstore
   swap1
   dup2
@@ -330,7 +330,7 @@ bb17 [cold]:
   mstore
   dup2
   dup1
-  push 544
+  push 448
   mstore
   dup2
   mstore
@@ -353,7 +353,7 @@ bb17 [cold]:
   dup3
   mload
   dup1
-  push 608
+  push 512
   mstore
   push 32
   dup3
@@ -362,7 +362,7 @@ bb17 [cold]:
   add
   dup2
   dup1
-  push 608
+  push 512
   mstore
   swap1
   mstore
@@ -373,7 +373,7 @@ bb17 [cold]:
   not
   and
   dup1
-  push 640
+  push 544
   mstore
   swap4
   pop
@@ -385,16 +385,16 @@ bb17 [cold]:
   jump bb25
 bb25 [cold]:
   push 32
-  push 320
+  push 224
   mload
   add
   push 32
-  push 576
+  push 480
   mload
   add
   push 68
   add
-  push 608
+  push 512
   mload
   dup3
   dup3
@@ -402,16 +402,16 @@ bb25 [cold]:
   pop
   pop
   push 32
-  push 576
+  push 480
   mload
   add
-  push 544
+  push 448
   mload
   dup2
   revert
 bb19 [cold]:
   push 2
-  push 256
+  push 160
   mload
   sub
   push bb21
@@ -419,13 +419,13 @@ bb19 [cold]:
   push 64
   mload
   dup1
-  push 352
+  push 256
   mstore
   push 64
   dup2
   add
   dup1
-  push 992
+  push 896
   mstore
   dup2
   dup2
@@ -440,7 +440,7 @@ bb19 [cold]:
   push bb31
   jumpi
   dup1
-  push 992
+  push 896
   mstore
   push 64
   mstore
@@ -449,7 +449,7 @@ bb19 [cold]:
   dup2
   dup4
   dup1
-  push 352
+  push 256
   mstore
   calldatacopy
   pop
@@ -475,7 +475,7 @@ bb19 [cold]:
   dup2
   add
   dup1
-  push 672
+  push 576
   mstore
   swap1
   push 99
@@ -488,7 +488,7 @@ bb19 [cold]:
   push 64
   mload
   dup1
-  push 704
+  push 608
   mstore
   swap1
   dup2
@@ -497,7 +497,7 @@ bb19 [cold]:
   mstore
   dup2
   dup1
-  push 672
+  push 576
   mstore
   dup2
   mstore
@@ -520,7 +520,7 @@ bb19 [cold]:
   dup3
   mload
   dup1
-  push 736
+  push 640
   mstore
   push 32
   dup3
@@ -529,7 +529,7 @@ bb19 [cold]:
   add
   dup2
   dup1
-  push 736
+  push 640
   mstore
   swap1
   mstore
@@ -540,7 +540,7 @@ bb19 [cold]:
   not
   and
   dup1
-  push 768
+  push 672
   mstore
   swap4
   pop
@@ -552,16 +552,16 @@ bb19 [cold]:
   jump bb27
 bb27 [cold]:
   push 32
-  push 352
+  push 256
   mload
   add
   push 32
-  push 704
+  push 608
   mload
   add
   push 68
   add
-  push 736
+  push 640
   mload
   dup3
   dup3
@@ -569,10 +569,10 @@ bb27 [cold]:
   pop
   pop
   push 32
-  push 704
+  push 608
   mload
   add
-  push 672
+  push 576
   mload
   dup2
   revert
@@ -580,13 +580,13 @@ bb21 [cold]:
   push 64
   mload
   dup1
-  push 384
+  push 288
   mstore
   push 64
   dup2
   add
   dup1
-  push 0x400
+  push 928
   mstore
   dup2
   dup2
@@ -601,7 +601,7 @@ bb21 [cold]:
   push bb31
   jumpi
   dup1
-  push 0x400
+  push 928
   mstore
   push 64
   mstore
@@ -610,7 +610,7 @@ bb21 [cold]:
   dup2
   dup4
   dup1
-  push 384
+  push 288
   mstore
   calldatacopy
   pop
@@ -636,7 +636,7 @@ bb21 [cold]:
   dup2
   add
   dup1
-  push 800
+  push 704
   mstore
   swap1
   push 99
@@ -649,7 +649,7 @@ bb21 [cold]:
   push 64
   mload
   dup1
-  push 832
+  push 736
   mstore
   swap1
   dup2
@@ -658,7 +658,7 @@ bb21 [cold]:
   mstore
   dup2
   dup1
-  push 800
+  push 704
   mstore
   dup2
   mstore
@@ -681,7 +681,7 @@ bb21 [cold]:
   dup3
   mload
   dup1
-  push 864
+  push 768
   mstore
   push 32
   dup3
@@ -690,7 +690,7 @@ bb21 [cold]:
   add
   dup2
   dup1
-  push 864
+  push 768
   mstore
   swap1
   mstore
@@ -701,7 +701,7 @@ bb21 [cold]:
   not
   and
   dup1
-  push 896
+  push 800
   mstore
   swap4
   pop
@@ -713,16 +713,16 @@ bb21 [cold]:
   jump bb29
 bb29 [cold]:
   push 32
-  push 384
+  push 288
   mload
   add
   push 32
-  push 832
+  push 736
   mload
   add
   push 68
   add
-  push 864
+  push 768
   mload
   dup3
   dup3
@@ -730,20 +730,20 @@ bb29 [cold]:
   pop
   pop
   push 32
-  push 832
+  push 736
   mload
   add
-  push 800
+  push 704
   mload
   dup2
   revert
 bb22 [cold]:
   push 36
-  push 512
+  push 416
   mload
   add
   push 32
-  push 448
+  push 352
   mload
   add
   add
@@ -753,11 +753,11 @@ bb22 [cold]:
   jump bb23
 bb24 [cold]:
   push 36
-  push 640
+  push 544
   mload
   add
   push 32
-  push 576
+  push 480
   mload
   add
   add
@@ -767,11 +767,11 @@ bb24 [cold]:
   jump bb25
 bb26 [cold]:
   push 36
-  push 768
+  push 672
   mload
   add
   push 32
-  push 704
+  push 608
   mload
   add
   add
@@ -781,11 +781,11 @@ bb26 [cold]:
   jump bb27
 bb28 [cold]:
   push 36
-  push 896
+  push 800
   mload
   add
   push 32
-  push 832
+  push 736
   mload
   add
   add

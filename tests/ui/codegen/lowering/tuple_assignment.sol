@@ -11,10 +11,14 @@
 contract C {
     // CHECK: push 0x1b8f5d50
     // CHECK: eq
+    // CHECK-NEXT: push [[MULTI:bb[0-9]+]]
     // CHECK: push 0x5030da75
     // CHECK: eq
+    // CHECK-NEXT: push [[NAMED:bb[0-9]+]]
     // CHECK: push 0xd96073cf
     // CHECK: eq
+    // CHECK-NEXT: push [[SWAP:bb[0-9]+]]
+    // CHECK: [[NAMED]]:
     // CHECK: calldatacopy
     // CHECK: {{^.*[ =]call[[:space:]]}}
     // CHECK: return
@@ -22,10 +26,13 @@ contract C {
         (ok, ) = t.call(d);
     }
 
+    // CHECK: [[SWAP]]:
     // CHECK: push 36
-    // CHECK: calldataload
+    // CHECK-NEXT: calldataload
     // CHECK: push 4
-    // CHECK: calldataload
+    // CHECK-NEXT: calldataload
+    // CHECK: jump [[PAIR_RETURN:bb[0-9]+]]
+    // CHECK: [[PAIR_RETURN]]:
     // CHECK: return
     function swap(uint256 a, uint256 b) external pure returns (uint256, uint256) {
         (a, b) = (b, a);
@@ -36,22 +43,17 @@ contract C {
         return (7, 9);
     }
 
-    // CHECK: [[MULTI:bb[0-9]+]]:
-    // CHECK-NEXT: calldatasize
-    // CHECK-NEXT: push 4
-    // CHECK-NEXT: gt
-    // CHECK-NEXT: push [[GUARD_TARGET:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK-NEXT: push [[RETURN_BLOCK:bb[0-9]+]]
-    // CHECK-NEXT: push 7
-    // CHECK: mstore
+    // CHECK: [[MULTI]]:
+    // The tiny-leaf inliner exposes `two()` as constants and removes its call frame.
+    // CHECK: push 64
+    // CHECK-NEXT: mload
     // CHECK: push 9
+    // CHECK-NEXT: swap1
     // CHECK: mstore
-    // CHECK: jump
-    // CHECK: [[RETURN_BLOCK]]:
-    // CHECK: push 544
-    // CHECK: mload
-    // CHECK: jump
+    // CHECK: push 7
+    // CHECK-NEXT: push 128
+    // CHECK-NEXT: mstore
+    // CHECK: jump [[PAIR_RETURN]]
     function multi() external pure returns (uint256 x, uint256 y) {
         x = 100;
         y = 200;

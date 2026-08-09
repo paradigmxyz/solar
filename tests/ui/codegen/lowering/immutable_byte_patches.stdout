@@ -2,11 +2,11 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 537
+  push 529
   codesize
   sub
   dup1
-  push 537
+  push 529
   push 384
   codecopy
   push 384
@@ -23,7 +23,7 @@ bb0:
   push 288
   mstore
   push 384
-  push 537
+  push 529
   codesize
   sub
   add
@@ -79,13 +79,11 @@ bb14:
   and
   jump bb13
 bb13:
-  dup1
   push 160
   mload
   push 96
   add
   mstore
-  pop
   jump
 bb12 [cold]:
   push 0
@@ -225,9 +223,9 @@ bb18:
   mload
   push 256
   mstore
-  push 178
+  push 172
   dup1
-  push 359
+  push 357
   push 0
   codecopy
   push 192
@@ -250,7 +248,7 @@ bb18:
 // === runtime ===
 @module runtime
 bb0:
-  push 576
+  push 448
   push 64
   mstore
   callvalue
@@ -278,13 +276,13 @@ bb0:
   push 248
   shl
   dup1
-  push 384
+  push 320
   mstore
   dup2
-  push 416
+  push 352
   mstore
   dup3
-  push 512
+  push 384
   mstore
   pop
   pop
@@ -293,10 +291,10 @@ bb0:
   push 255
   jump bb9
 bb9:
-  push 512
+  push 384
   mload
   and
-  push 544
+  push 416
   mstore
   jump
 bb3 [cold]:
@@ -304,56 +302,52 @@ bb3 [cold]:
   dup1
   revert
 bb6:
-  push 544
-  mload
-  dup1
-  push 288
-  mstore
   push 416
   mload
-  push 512
+  push 224
   mstore
-  pop
+  push 352
+  mload
+  push 384
+  mstore
   push bb7
-  push 512
+  push 384
   mload
   push 0
   signextend
-  push 544
+  push 416
   mstore
   jump
 bb7:
-  push 544
+  push 416
   mload
-  dup1
+  push 256
+  mstore
   push 320
-  mstore
-  push 384
   mload
-  push 512
+  push 384
   mstore
-  pop
   push bb8
   push 255
   push 248
   shl
   jump bb9
 bb8:
-  push 544
+  push 416
   mload
   dup1
-  push 352
-  mstore
   push 288
+  mstore
+  push 224
   mload
   push 128
   mstore
-  push 320
+  push 256
   mload
   push 160
   mstore
   dup1
-  push 352
+  push 288
   mstore
   push 192
   mstore
