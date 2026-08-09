@@ -37,6 +37,18 @@ class ReportFormattingTests(unittest.TestCase):
     def test_changed_report_has_no_details(self):
         self.assertEqual(benchmark.format_report("## Results", True, False), "## Results")
 
+    def test_unchanged_report_uses_base_branch(self):
+        report = benchmark.format_report("## Results", False, False, "feat/base")
+        self.assertEqual(
+            report,
+            "> [!NOTE]\n"
+            "> Codegen benchmark output is unchanged from `feat/base`.\n\n"
+            "<details>\n"
+            "<summary>Codegen benchmark output</summary>\n\n"
+            "## Results\n\n"
+            "</details>\n",
+        )
+
     def test_behind_main_report_has_warning(self):
         report = benchmark.format_report("## Results", True, True)
         self.assertEqual(
@@ -123,6 +135,17 @@ class ReportFormattingTests(unittest.TestCase):
             "| micro | 10 (~0%) | n/a (n/a) | 20B (~0%) | n/a (n/a) |\n"
             "| repository | 30 (~0%) | n/a (n/a) | 40B (~0%) | n/a (n/a) |\n"
             "| large | 50 (~0%) | n/a (n/a) | 60B (~0%) | n/a (n/a) |\n"
+        )
+
+    def test_codegen_report_uses_base_branch(self):
+        micro = result("micro", suite="micro", status="ok", total_gas=10, runtime_size=20)
+        self.assertEqual(
+            benchmark.codegen_report([micro], [micro], "feat/base"),
+            "## Codegen benchmark\n"
+            "\n"
+            "| bench | gas (vs feat/base) | solc | size (vs feat/base) | solc |\n"
+            "| ----- | ------------- | ---- | -------------- | ---- |\n"
+            "| micro | 10 (~0%) | n/a (n/a) | 20B (~0%) | n/a (n/a) |\n",
         )
 
 

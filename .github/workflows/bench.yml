@@ -48,6 +48,8 @@ jobs:
       contents: read
       issues: write
       pull-requests: write
+    env:
+      BASE_BRANCH: ${{ github.base_ref || 'main' }}
     steps:
       - name: Checkout Solar
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -90,7 +92,7 @@ jobs:
       - name: Build Solar
         run: cargo build -p solar-compiler --bin solar
 
-      - name: Download baseline (main branch)
+      - name: Download baseline (${{ env.BASE_BRANCH }} branch)
         id: baseline
         env:
           GH_TOKEN: ${{ github.token }}
@@ -98,27 +100,37 @@ jobs:
           set -euo pipefail
           mkdir -p target/codegen-bench/baseline
 
-          run_id="$(
+          run_ids="$(
             gh run list \
               --workflow bench.yml \
-              --branch main \
-              --event push \
+              --branch "$BASE_BRANCH" \
               --status success \
-              --limit 1 \
+              --limit 20 \
               --json databaseId \
-              --jq '.[0].databaseId // ""' \
+              --jq '.[].databaseId' \
               2>/dev/null || true
           )"
-          if [[ -z "$run_id" ]]; then
-            echo "::warning::No successful main benchmark run was found for baseline comparison"
+          if [[ -z "$run_ids" ]]; then
+            echo "::warning::No successful $BASE_BRANCH benchmark run was found for baseline comparison"
             exit 0
           fi
 
-          if ! gh run download "$run_id" \
-            --name codegen-runtime-baseline \
-            --dir target/codegen-bench/baseline; then
-            echo "::warning::No main baseline artifact was available for comparison"
-          fi
+          for run_id in $run_ids; do
+            if gh run download "$run_id" \
+              --name codegen-runtime-baseline \
+              --dir target/codegen-bench/baseline \
+              2>/dev/null && [[ -f target/codegen-bench/baseline/results.json ]]; then
+              exit 0
+            fi
+            if gh run download "$run_id" \
+              --name codegen-runtime-results \
+              --dir target/codegen-bench/baseline \
+              2>/dev/null && [[ -f target/codegen-bench/baseline/results.json ]]; then
+              exit 0
+            fi
+          done
+
+          echo "::warning::No $BASE_BRANCH baseline artifact was available for comparison"
 
       - name: Run codegen benchmark
         id: codegen-bench
@@ -143,6 +155,7 @@ jobs:
         env:
           BENCHMARK_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BENCHMARK_PR_NUMBER: ${{ github.event.pull_request.number }}
+          BENCHMARK_BASE_REF: ${{ env.BASE_BRANCH }}
         run: |
           set -euo pipefail
           mkdir -p target/codegen-bench
