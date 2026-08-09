@@ -7,14 +7,14 @@ use crate::{
 };
 use async_lsp::{ClientSocket, ErrorCode, ResponseError, ServerSocket, router::Router};
 use lsp_types::{
-    CodeLensWorkspaceClientCapabilities, Diagnostic, DiagnosticWorkspaceClientCapabilities,
-    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
-    DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DidSaveTextDocumentParams, DocumentDiagnosticParams, DocumentDiagnosticReport,
-    DocumentDiagnosticReportResult, DocumentSymbol, FileChangeType, FileEvent,
-    InlayHintWorkspaceClientCapabilities, PartialResultParams, Position, ProgressParams,
-    ProgressParamsValue, PublishDiagnosticsParams, Range, SymbolKind,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
+    CodeLensWorkspaceClientCapabilities, Diagnostic, DiagnosticClientCapabilities,
+    DiagnosticWorkspaceClientCapabilities, DidChangeConfigurationParams,
+    DidChangeTextDocumentParams, DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
+    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
+    DocumentSymbol, FileChangeType, FileEvent, InlayHintWorkspaceClientCapabilities,
+    PartialResultParams, Position, ProgressParams, ProgressParamsValue, PublishDiagnosticsParams,
+    Range, SymbolKind, TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
     VersionedTextDocumentIdentifier, WatchKind, WorkDoneProgress, WorkDoneProgressCreateParams,
     WorkDoneProgressParams, WorkspaceClientCapabilities, WorkspaceFolder,
     WorkspaceFoldersChangeEvent, WorkspaceSymbol, notification, notification::Notification,

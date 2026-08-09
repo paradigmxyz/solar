@@ -14,6 +14,18 @@ use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 const SESSION_TIMEOUT: Duration = Duration::from_secs(5);
 const SESSION_SOURCE: &str = "/*😀*/ contract Before { function ping() external {} }\n";
+const DIAGNOSTIC_SOURCE: &str = r#"contract Diagnostics {
+    function value() external pure returns (uint256) {
+        return missingValue;
+    }
+}
+"#;
+const CLEARED_DIAGNOSTIC_SOURCE: &str = r#"contract Diagnostics {
+    function value() external pure returns (uint256) {
+        return 0;
+    }
+}
+"#;
 const PROJECT_FIXTURE: &str = r#"
     //- /foundry.toml
     [profile.default]
@@ -32,6 +44,8 @@ struct ClientProfile {
     version: &'static str,
     position_encodings: Option<&'static [&'static str]>,
     document_changes: bool,
+    document_diagnostics: bool,
+    publish_diagnostic_data: bool,
     refresh_capabilities: &'static [&'static str],
 }
 
@@ -53,21 +67,30 @@ impl ClientProfile {
             workspace.insert((*capability).into(), json!({ "refreshSupport": true }));
         }
 
+        let mut text_document = json!({
+            "codeAction": {
+                "codeActionLiteralSupport": {
+                    "codeActionKind": {
+                        "valueSet": ["", "quickfix", "refactor", "source"],
+                    },
+                },
+            },
+            "documentSymbol": { "hierarchicalDocumentSymbolSupport": true },
+            "hover": { "contentFormat": ["markdown", "plaintext"] },
+        });
+        let text_document = text_document.as_object_mut().unwrap();
+        if self.document_diagnostics {
+            text_document.insert("diagnostic".into(), json!({}));
+        }
+        if self.publish_diagnostic_data {
+            text_document.insert("publishDiagnostics".into(), json!({ "dataSupport": true }));
+        }
+
         json!({
             "general": { "positionEncodings": position_encodings },
             "window": { "workDoneProgress": true },
             "workspace": workspace,
-            "textDocument": {
-                "codeAction": {
-                    "codeActionLiteralSupport": {
-                        "codeActionKind": {
-                            "valueSet": ["", "quickfix", "refactor", "source"],
-                        },
-                    },
-                },
-                "documentSymbol": { "hierarchicalDocumentSymbolSupport": true },
-                "hover": { "contentFormat": ["markdown", "plaintext"] },
-            },
+            "textDocument": text_document,
         })
     }
 }
@@ -79,6 +102,8 @@ const CLIENT_PROFILES: [ClientProfile; 4] = [
         version: "vscode-languageclient 10.1.0",
         position_encodings: Some(&["utf-16"]),
         document_changes: true,
+        document_diagnostics: false,
+        publish_diagnostic_data: false,
         refresh_capabilities: &["codeLens", "diagnostics", "inlayHint"],
     },
     // https://github.com/neovim/neovim/blob/v0.12.4/runtime/lua/vim/lsp/protocol.lua
@@ -87,6 +112,8 @@ const CLIENT_PROFILES: [ClientProfile; 4] = [
         version: "0.12.4",
         position_encodings: Some(&["utf-8", "utf-16", "utf-32"]),
         document_changes: false,
+        document_diagnostics: false,
+        publish_diagnostic_data: false,
         refresh_capabilities: &["codeLens", "diagnostics", "inlayHint"],
     },
     // https://github.com/zed-industries/zed/blob/v1.14.2/crates/lsp/src/lsp.rs
@@ -95,7 +122,9 @@ const CLIENT_PROFILES: [ClientProfile; 4] = [
         version: "1.14.2",
         position_encodings: Some(&["utf-16"]),
         document_changes: true,
-        refresh_capabilities: &["codeLens", "inlayHint"],
+        document_diagnostics: true,
+        publish_diagnostic_data: true,
+        refresh_capabilities: &["codeLens", "diagnostics", "inlayHint"],
     },
     // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/
     ClientProfile {
@@ -103,6 +132,8 @@ const CLIENT_PROFILES: [ClientProfile; 4] = [
         version: "3.17",
         position_encodings: None,
         document_changes: false,
+        document_diagnostics: false,
+        publish_diagnostic_data: false,
         refresh_capabilities: &[],
     },
 ];
@@ -112,6 +143,7 @@ struct RawSession {
     writer: WriteHalf<DuplexStream>,
     next_request_id: u64,
     watched_files_registered: bool,
+    server_messages: Vec<Value>,
     server_task: JoinHandle<async_lsp::Result<()>>,
     _client: ClientSocket,
 }
@@ -131,6 +163,7 @@ impl RawSession {
             writer,
             next_request_id: 1,
             watched_files_registered: false,
+            server_messages: Vec::new(),
             server_task,
             _client: client,
         }
@@ -224,6 +257,17 @@ impl RawSession {
         .await;
     }
 
+    async fn replace_document(&mut self, uri: &Url, version: i32, text: &str) {
+        self.notify(
+            "textDocument/didChange",
+            json!({
+                "textDocument": { "uri": uri, "version": version },
+                "contentChanges": [{ "text": text }],
+            }),
+        )
+        .await;
+    }
+
     async fn document_request(&mut self, method: &str, uri: &Url) -> Value {
         self.request(method, json!({ "textDocument": { "uri": uri } })).await
     }
@@ -251,11 +295,12 @@ impl RawSession {
     }
 
     async fn handle_server_message(&mut self, message: Value) {
-        let Some(id) = message.get("id").cloned() else { return };
         let method = message
             .get("method")
             .and_then(Value::as_str)
             .expect("server request should have a method");
+        self.server_messages.push(message.clone());
+        let Some(id) = message.get("id").cloned() else { return };
         let result = match method {
             "workspace/configuration" => {
                 let count =
@@ -283,10 +328,93 @@ impl RawSession {
             .await;
     }
 
+    fn server_message_count(&self, method: &str) -> usize {
+        self.server_messages
+            .iter()
+            .filter(|message| message.get("method").and_then(Value::as_str) == Some(method))
+            .count()
+    }
+
+    fn server_messages(&self, method: &str) -> Vec<&Value> {
+        self.server_messages
+            .iter()
+            .filter(|message| message.get("method").and_then(Value::as_str) == Some(method))
+            .collect()
+    }
+
+    async fn wait_for_server_message_count(&mut self, method: &str, expected: usize) {
+        while self.server_message_count(method) < expected {
+            let message = self.read_message().await;
+            assert!(
+                message.get("method").is_some(),
+                "unexpected response while waiting for server method `{method}`: {message}"
+            );
+            self.handle_server_message(message).await;
+        }
+    }
+
     async fn read_message(&mut self) -> Value {
         tokio::time::timeout(SESSION_TIMEOUT, read_lsp_frame(&mut self.reader))
             .await
             .expect("LSP message should arrive")
+    }
+}
+
+fn diagnostic_client_capabilities(document_pull: bool, refresh: bool, pull_data: bool) -> Value {
+    assert!(!pull_data || document_pull);
+    let mut capabilities = json!({
+        "textDocument": {
+            "publishDiagnostics": { "dataSupport": true },
+        },
+    });
+    let capabilities_object = capabilities.as_object_mut().unwrap();
+    if document_pull {
+        capabilities_object.get_mut("textDocument").unwrap().as_object_mut().unwrap().insert(
+            "diagnostic".into(),
+            if pull_data { json!({ "dataSupport": true }) } else { json!({}) },
+        );
+    }
+    if refresh {
+        capabilities_object
+            .insert("workspace".into(), json!({ "diagnostics": { "refreshSupport": true } }));
+    }
+    capabilities
+}
+
+fn assert_one_unresolved_diagnostic(
+    diagnostics: &Value,
+    uri: &Url,
+    include_data: bool,
+    profile: &str,
+) {
+    let diagnostics = diagnostics
+        .as_array()
+        .unwrap_or_else(|| panic!("{profile}: diagnostics are not an array: {diagnostics}"));
+    let [diagnostic] = diagnostics.as_slice() else {
+        panic!("{profile}: expected one diagnostic, got {diagnostics:?}");
+    };
+    assert_eq!(
+        diagnostic.get("message").and_then(Value::as_str),
+        Some("unresolved symbol `missingValue`"),
+        "{profile}: unexpected diagnostic: {diagnostic}"
+    );
+    assert_eq!(
+        diagnostic.get("range"),
+        Some(&json!({
+            "start": { "line": 2, "character": 15 },
+            "end": { "line": 2, "character": 27 },
+        })),
+        "{profile}: unexpected diagnostic range"
+    );
+    assert_eq!(diagnostic.get("severity"), Some(&Value::from(1)));
+    assert_eq!(diagnostic.get("source"), Some(&Value::from("solar")));
+    assert_eq!(
+        diagnostic.get("data").is_some(),
+        include_data,
+        "{profile}: unexpected diagnostic data support: {diagnostic}"
+    );
+    if include_data {
+        assert_eq!(diagnostic.pointer("/data/uri").and_then(Value::as_str), Some(uri.as_str()));
     }
 }
 
@@ -373,6 +501,11 @@ async fn client_profiles_complete_a_raw_lsp_session() {
             expects_code_action_provider,
             "{profile_label}: CodeAction provider did not match the client profile"
         );
+        assert_eq!(
+            capabilities.get("diagnosticProvider").is_some(),
+            profile.document_diagnostics,
+            "{profile_label}: diagnostic delivery did not match the client profile"
+        );
 
         session.notify("initialized", json!({})).await;
         session.open(&document_uri, SESSION_SOURCE).await;
@@ -423,6 +556,167 @@ async fn client_profiles_complete_a_raw_lsp_session() {
         );
         session.exit().await;
     }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn push_diagnostic_clients_publish_and_clear_without_pull() {
+    for (profile, document_pull) in [("legacy push", false), ("pull without refresh", true)] {
+        let project = TestProject::new();
+        let root_uri = Url::from_file_path(project.root()).unwrap();
+        let document_uri = Url::from_file_path(project.path("/Diagnostics.sol")).unwrap();
+        let capabilities = diagnostic_client_capabilities(document_pull, false, false);
+        let mut session = RawSession::start();
+
+        let initialize = session.initialize(&CLIENT_PROFILES[3], &root_uri, &capabilities).await;
+        assert!(
+            initialize.pointer("/capabilities/diagnosticProvider").is_none(),
+            "{profile}: push delivery must not advertise pull diagnostics: {initialize}"
+        );
+
+        session.notify("initialized", json!({})).await;
+        session.open(&document_uri, DIAGNOSTIC_SOURCE).await;
+        session.document_request("textDocument/documentSymbol", &document_uri).await;
+        session.wait_for_server_message_count("textDocument/publishDiagnostics", 1).await;
+
+        {
+            let publications = session
+                .server_messages("textDocument/publishDiagnostics")
+                .into_iter()
+                .filter(|message| {
+                    message.pointer("/params/uri").and_then(Value::as_str)
+                        == Some(document_uri.as_str())
+                })
+                .collect::<Vec<_>>();
+            let [publication] = publications.as_slice() else {
+                panic!("{profile}: expected one diagnostic publication, got {publications:?}");
+            };
+            assert_one_unresolved_diagnostic(
+                &publication["params"]["diagnostics"],
+                &document_uri,
+                true,
+                profile,
+            );
+        }
+
+        session.replace_document(&document_uri, 2, CLEARED_DIAGNOSTIC_SOURCE).await;
+        session.document_request("textDocument/documentSymbol", &document_uri).await;
+        session.wait_for_server_message_count("textDocument/publishDiagnostics", 2).await;
+
+        let publications = session
+            .server_messages("textDocument/publishDiagnostics")
+            .into_iter()
+            .filter(|message| {
+                message.pointer("/params/uri").and_then(Value::as_str)
+                    == Some(document_uri.as_str())
+            })
+            .collect::<Vec<_>>();
+        let [_, cleared] = publications.as_slice() else {
+            panic!(
+                "{profile}: expected diagnostic and clearing publications, got {publications:?}"
+            );
+        };
+        assert_eq!(cleared["params"]["diagnostics"], json!([]));
+        assert_eq!(session.server_message_count("workspace/diagnostic/refresh"), 0);
+
+        session.shutdown().await;
+        session.exit().await;
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn pull_diagnostic_client_refreshes_and_clears_without_push() {
+    let project = TestProject::new();
+    let root_uri = Url::from_file_path(project.root()).unwrap();
+    let document_uri = Url::from_file_path(project.path("/Diagnostics.sol")).unwrap();
+    let profile = &CLIENT_PROFILES[2];
+    let profile_label = profile.label();
+    let capabilities = profile.capabilities();
+    let mut session = RawSession::start();
+
+    let initialize = session.initialize(profile, &root_uri, &capabilities).await;
+    assert_eq!(
+        initialize.pointer("/capabilities/diagnosticProvider"),
+        Some(&json!({
+            "interFileDependencies": true,
+            "workDoneProgress": true,
+            "workspaceDiagnostics": true,
+        })),
+        "pull delivery must advertise the exact diagnostic provider"
+    );
+
+    session.notify("initialized", json!({})).await;
+    session.open(&document_uri, DIAGNOSTIC_SOURCE).await;
+    let initial = session.document_request("textDocument/diagnostic", &document_uri).await;
+    assert_eq!(initial.get("kind").and_then(Value::as_str), Some("full"));
+    assert_one_unresolved_diagnostic(&initial["items"], &document_uri, false, &profile_label);
+    assert!(
+        initial["items"][0].get("data").is_none(),
+        "pull diagnostic data must follow pull dataSupport, not push dataSupport: {initial}"
+    );
+    let initial_result_id = initial
+        .get("resultId")
+        .and_then(Value::as_str)
+        .expect("full diagnostic report should have a result ID")
+        .to_owned();
+
+    let diagnostic = initial["items"][0].clone();
+    let code_actions = session
+        .request(
+            "textDocument/codeAction",
+            json!({
+                "textDocument": { "uri": document_uri },
+                "range": diagnostic["range"],
+                "context": { "diagnostics": [diagnostic] },
+            }),
+        )
+        .await;
+    assert_eq!(
+        code_actions,
+        json!([]),
+        "the unresolved-symbol diagnostic should not produce a quick fix"
+    );
+
+    session.wait_for_server_message_count("workspace/diagnostic/refresh", 1).await;
+    assert_eq!(session.server_message_count("textDocument/publishDiagnostics"), 0);
+
+    session.replace_document(&document_uri, 2, CLEARED_DIAGNOSTIC_SOURCE).await;
+    let cleared = session
+        .request(
+            "textDocument/diagnostic",
+            json!({
+                "textDocument": { "uri": document_uri },
+                "previousResultId": initial_result_id,
+            }),
+        )
+        .await;
+    assert_eq!(cleared.get("kind").and_then(Value::as_str), Some("full"));
+    assert_eq!(cleared.get("items"), Some(&json!([])));
+    assert_eq!(session.server_message_count("workspace/diagnostic/refresh"), 1);
+    assert_eq!(session.server_message_count("textDocument/publishDiagnostics"), 0);
+
+    session.shutdown().await;
+    session.exit().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn pull_diagnostic_data_support_is_used_on_the_wire() {
+    let project = TestProject::new();
+    let root_uri = Url::from_file_path(project.root()).unwrap();
+    let document_uri = Url::from_file_path(project.path("/Diagnostics.sol")).unwrap();
+    let capabilities = diagnostic_client_capabilities(true, true, true);
+    let mut session = RawSession::start();
+
+    let initialize = session.initialize(&CLIENT_PROFILES[3], &root_uri, &capabilities).await;
+    assert!(initialize.pointer("/capabilities/diagnosticProvider").is_some());
+
+    session.notify("initialized", json!({})).await;
+    session.open(&document_uri, DIAGNOSTIC_SOURCE).await;
+    let report = session.document_request("textDocument/diagnostic", &document_uri).await;
+    assert_one_unresolved_diagnostic(&report["items"], &document_uri, true, "pull data");
+    assert_eq!(session.server_message_count("textDocument/publishDiagnostics"), 0);
+
+    session.shutdown().await;
+    session.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
