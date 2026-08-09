@@ -85,11 +85,9 @@ fn @dNested() {
     v15 = mload v10
     v16 = add v10, v15
     v17 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v121 = add v17, 96
+    v121 = add v17, 192
     mstore 64, v121 !metadata(memory=scratch)
-    v18 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v122 = add v18, 96
-    mstore 64, v122 !metadata(memory=scratch)
+    v18 = add v17, 96
     v19 = mload v16
     mstore v18, v19
     v20 = add v16, 32
@@ -114,8 +112,8 @@ fn @dNested() {
     v32 = mload v31
     v33 = add v16, v32
     v34 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v123 = add v34, 96
-    mstore 64, v123 !metadata(memory=scratch)
+    v122 = add v34, 96
+    mstore 64, v122 !metadata(memory=scratch)
     v35 = mload v33
     mstore v34, v35
     v36 = add v33, 32
@@ -136,8 +134,8 @@ fn @dNested() {
     jumpi v47, bb6, bb8
   bb8:
     v48 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v124 = add v48, v46
-    mstore 64, v124 !metadata(memory=scratch)
+    v123 = add v48, v46
+    mstore 64, v123 !metadata(memory=scratch)
     mstore v48, v39
     v49 = add v48, 32
     v50 = sub v45, 32
@@ -158,8 +156,8 @@ fn @dNested() {
     v60 = shl 5, v57
     v61 = add v60, 32
     v62 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v125 = add v62, v61
-    mstore 64, v125 !metadata(memory=scratch)
+    v124 = add v62, v61
+    mstore 64, v124 !metadata(memory=scratch)
     mstore v62, v57
     v63 = add v62, 32
     mcopy v63, v58, v60
@@ -183,8 +181,8 @@ fn @dNested() {
     jumpi v77, bb6, bb11
   bb11:
     v78 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v126 = add v78, v76
-    mstore 64, v126 !metadata(memory=scratch)
+    v125 = add v78, v76
+    mstore 64, v125 !metadata(memory=scratch)
     mstore v78, v69
     v79 = add v78, 32
     v80 = sub v75, 32
@@ -228,8 +226,8 @@ fn @dNested() {
     v115 = add v113, 31
     v117 = and v115, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v118 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v127 = add v118, v117
-    mstore 64, v127 !metadata(memory=scratch)
+    v126 = add v118, v117
+    mstore 64, v126 !metadata(memory=scratch)
     returndata v118, v113
 }
 

@@ -1,0 +1,50 @@
+//@compile-flags: -Zmir-pipeline=coalesce-allocs
+//@filecheck:
+@module CoalesceAllocsBasic
+
+// Three consecutive constant-size allocations fuse into one bump of the
+// summed size; later members become constant offsets from the fused base.
+// Interleaved stores through heap pointers do not break the group.
+// CHECK-LABEL: fn @fuse_consecutive
+// CHECK: + v0 = alloc raw, exact, uninitialized, infallible, 160
+// CHECK: + v1 = add v0, 64
+// CHECK: + v2 = add v0, 96
+fn @fuse_consecutive() -> u256 {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 64
+    mstore v0, 1
+    v1 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = alloc raw, exact, uninitialized, infallible, 64
+    mstore v1, 2
+    mstore v2, 3
+    v3 = mload v1
+    ret v3
+}
+
+// A fused zeroed group keeps zero initialization over the whole range and
+// keeps the overflow panic when any member carried one.
+// CHECK-LABEL: fn @fuse_zeroed
+// CHECK: + v0 = alloc raw, exact, zeroed, panic, 96
+// CHECK: + v1 = add v0, 64
+fn @fuse_zeroed() -> u256 {
+  bb0:
+    v0 = alloc raw, exact, zeroed, panic, 64
+    v1 = alloc raw, exact, zeroed, infallible, 32
+    v2 = mload v1
+    ret v2
+}
+
+// Reading the free-memory pointer between two allocations observes the
+// intermediate frontier, so the allocations on either side stay separate.
+// A call may allocate in the callee, which is the same barrier.
+// CHECK-LABEL: fn @keep_across_fmp
+// CHECK-NOT: +
+fn @keep_across_fmp() -> memptr {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = fmp
+    v2 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v0, 1
+    mstore v2, 2
+    ret v1
+}
