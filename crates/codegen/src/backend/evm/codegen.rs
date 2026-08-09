@@ -5451,9 +5451,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             if resident_is_phi_source {
                 return None;
             }
-            // A resident prefix on a planned backedge pays its shuffle on every loop iteration.
-            // Keep loop phis on the established layout until the planner has
-            // execution-frequency-aware costing; acyclic join edges compose without that
+            // A resident prefix on a planned backedge pays its shuffle on every loop iteration
+            // and the composed emission is not yet correct for loop-carried prefixes: lifting
+            // this gate miscompiled the nitro cold-prover paths (deep nested-loop deserialize
+            // callees) and cost gas even where output stayed correct. Keep loop phis on the
+            // established layout until the planner has execution-frequency-aware costing and
+            // the loop composition is fixed; acyclic join edges compose without that
             // multiplier.
             let carries_planned_backedge = phi_plan.edges.keys().any(|&pred| {
                 let Some(Terminator::Jump(target)) = func.blocks[pred].terminator.as_ref() else {
@@ -7845,8 +7848,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         .filter(|offset| offset % EvmMemoryLayout::WORD_SIZE == 0)
                         .map(|offset| (offset / EvmMemoryLayout::WORD_SIZE) as usize)?;
                     let address = func.inst_result_value(inst_id)?;
-                    if !(1..arity).contains(&index) || addresses.insert(address, index).is_some()
-                    {
+                    if !(1..arity).contains(&index) || addresses.insert(address, index).is_some() {
                         return None;
                     }
                     elided.push(inst_id);
