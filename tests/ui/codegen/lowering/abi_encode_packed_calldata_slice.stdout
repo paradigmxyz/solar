@@ -90,19 +90,17 @@ bb5:
   push 160
   mload
   add
-  dup1
   push 160
   mstore
   push 31
-  dup3
+  dup2
   add
   dup1
   push 224
   mstore
-  dup3
+  dup2
   gt
-  swap2
-  pop
+  swap1
   pop
   push bb20
   jumpi
@@ -150,7 +148,6 @@ bb13:
   push 4
   calldataload
   add
-  dup1
   push 192
   mstore
   push 4
@@ -164,8 +161,6 @@ bb13:
   push 36
   calldataload
   gt
-  swap1
-  pop
   push bb4
   jumpi
   push 36
@@ -181,19 +176,17 @@ bb13:
   push 192
   mload
   add
-  dup1
   push 192
   mstore
   push 31
-  dup3
+  dup2
   add
   dup1
   push 224
   mstore
-  dup3
+  dup2
   gt
-  swap2
-  pop
+  swap1
   pop
   push bb20
   jumpi

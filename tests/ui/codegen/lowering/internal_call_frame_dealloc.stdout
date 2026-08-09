@@ -161,7 +161,6 @@ bb15:
   push bb22
   jump bb19
 bb20:
-  dup1
   push 256
   mstore
   push 1
@@ -174,8 +173,6 @@ bb20:
   push 4
   calldataload
   gt
-  swap1
-  pop
   push bb18
   jumpi
   push 64
@@ -257,11 +254,9 @@ bb22:
   lt
   push bb18
   jumpi
-  dup1
   push 160
   mload
   push 96
   add
   mstore
-  pop
   jump

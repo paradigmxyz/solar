@@ -238,13 +238,11 @@ bb30:
   dup1
   push 224
   mstore
-  dup1
   push 1
   shr
-  dup3
+  dup2
   eq
-  swap2
-  pop
+  swap1
   pop
   iszero
   push bb46
