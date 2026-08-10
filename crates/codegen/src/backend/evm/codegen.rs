@@ -159,6 +159,16 @@ struct StackResultProjection {
     extras: Vec<ValueId>,
 }
 
+/// Subset-invariant analyses shared by one resident-layout subset search.
+struct ResidentSearchContext {
+    /// Planned stack-phi edges, present when the function has phis.
+    phi_plan: Option<StackPhiPlan>,
+    /// CFG facts whose memoized dominators persist across candidates.
+    cfg: CfgInfo,
+    /// Operand occurrences per candidate value across the whole function.
+    value_uses: FxHashMap<ValueId, usize>,
+}
+
 /// Complete stack calling convention selected for one non-recursive static callee.
 #[derive(Clone, Debug)]
 struct StaticCallAbi {
@@ -5423,19 +5433,46 @@ impl<'gcx> EvmCodegen<'gcx> {
         all_values
     }
 
+    /// Builds the subset-invariant analyses shared by one resident-layout
+    /// search. The exhaustive subset loop evaluates up to `2^8` candidates;
+    /// recomputing the CFG, its dominators, the phi plan, or operand counts
+    /// per candidate made the search quadratic on large functions.
+    fn resident_search_context(
+        func: &Function,
+        values: &[ValueId],
+        has_phis: bool,
+    ) -> ResidentSearchContext {
+        let mut value_uses = FxHashMap::default();
+        for block in &func.blocks {
+            for operand in block
+                .instructions
+                .iter()
+                .flat_map(|&inst| func.inst(inst).kind.operands())
+                .chain(block.terminator.iter().flat_map(Terminator::operands))
+            {
+                if values.contains(&operand) {
+                    *value_uses.entry(operand).or_insert(0usize) += 1;
+                }
+            }
+        }
+        ResidentSearchContext {
+            phi_plan: has_phis.then(|| StackPhiPlan::analyze(func)),
+            cfg: CfgInfo::new(func),
+            value_uses,
+        }
+    }
+
     fn analyze_resident_subset(
         &self,
         func: &Function,
         liveness: &Liveness,
         values: &[ValueId],
         preserve_across_calls: bool,
-        has_phis: bool,
+        context: &ResidentSearchContext,
     ) -> Option<(GlobalStackPlan, ScheduleCost)> {
         let plan =
             GlobalStackPlan::analyze_resident_args(func, liveness, values, preserve_across_calls)?;
-        if has_phis {
-            let phi_plan = StackPhiPlan::analyze(func);
-            let cfg = CfgInfo::new(func);
+        if let Some(phi_plan) = &context.phi_plan {
             // One physical word cannot be both a phi input and an invariant resident prefix word.
             // `merge_resident` would otherwise extend only the result side of that edge, leaving a
             // non-square layout and a phantom word at the successor entry. Reject the complete or
@@ -5462,7 +5499,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let Some(Terminator::Jump(target)) = func.blocks[pred].terminator.as_ref() else {
                     return false;
                 };
-                plan.entry(*target).is_some() && cfg.dominators().dominates(*target, pred)
+                plan.entry(*target).is_some()
+                    && context.cfg.dominators().dominates(*target, pred)
             });
             if carries_planned_backedge {
                 return None;
@@ -5488,18 +5526,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Without execution frequencies, the exact opcode cost below still cannot account for
         // padding paid repeatedly on hot edges. Require enough static uses to amortize every
         // padded word before comparing otherwise realizable layouts.
-        let uses = func
-            .blocks
+        let uses = values
             .iter()
-            .flat_map(|block| {
-                block
-                    .instructions
-                    .iter()
-                    .flat_map(|&inst| func.inst(inst).kind.operands())
-                    .chain(block.terminator.iter().flat_map(Terminator::operands))
-            })
-            .filter(|operand| values.contains(operand))
-            .count();
+            .map(|value| context.value_uses.get(value).copied().unwrap_or_default())
+            .sum::<usize>();
         if uses < padding * 2 {
             return None;
         }
@@ -5593,6 +5623,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
         let optimization = self.gcx.sess.opts.optimization;
         let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
+        let context = Self::resident_search_context(func, values, has_phis);
         let mut best: Option<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)> = None;
         for bits in 1usize..(1usize << values.len()) {
             let subset: Vec<_> = values
@@ -5605,7 +5636,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 liveness,
                 &subset,
                 preserve_across_calls,
-                has_phis,
+                &context,
             ) else {
                 continue;
             };
@@ -5761,7 +5792,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
         let optimization = self.gcx.sess.opts.optimization;
         let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
-        let cfg = CfgInfo::new(func);
+        let context = Self::resident_search_context(func, values, has_phis);
         let mut best: Option<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)> = None;
         for bits in 1usize..(1usize << values.len()) {
             let subset: Vec<_> = values
@@ -5774,7 +5805,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 liveness,
                 &subset,
                 self.preserve_caller_stack,
-                has_phis,
+                &context,
             ) else {
                 continue;
             };
@@ -5782,7 +5813,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 func.blocks[block]
                     .predecessors
                     .iter()
-                    .any(|&pred| cfg.dominators().dominates(block, pred))
+                    .any(|&pred| context.cfg.dominators().dominates(block, pred))
             }) {
                 continue;
             }
@@ -5940,12 +5971,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Phi(_)));
             let liveness = (func.blocks.len() != 1 || has_phis).then(|| Liveness::compute(func));
             let plan = if let Some(liveness) = &liveness {
+                let context = Self::resident_search_context(func, &values, has_phis);
                 if let Some((plan, _)) = self.analyze_resident_subset(
                     func,
                     liveness,
                     &values,
                     self.preserve_caller_stack,
-                    has_phis,
+                    &context,
                 ) {
                     // Preserve the established full-tuple layout when it passes the structural
                     // amortization guard. Costed subset selection is a fallback for tuples where
