@@ -58,7 +58,7 @@ impl ClientProfile {
 
 // These fixtures pin the capability subset exercised by this module.
 // They are not complete initialize payloads.
-const CLIENT_PROFILES: [ClientProfile; 4] = [
+const CLIENT_PROFILES: [ClientProfile; 5] = [
     // https://github.com/microsoft/vscode-languageserver-node/blob/release/client/10.1.0/client/src/common/client.ts
     // https://github.com/microsoft/vscode-languageserver-node/blob/release/client/10.1.0/client/src/common/codeAction.ts
     // https://github.com/microsoft/vscode-languageserver-node/blob/release/client/10.1.0/client/src/common/diagnostic.ts
@@ -70,11 +70,20 @@ const CLIENT_PROFILES: [ClientProfile; 4] = [
         ),
     },
     // https://github.com/neovim/neovim/blob/v0.12.4/runtime/lua/vim/lsp/protocol.lua
+    // Watched-file dynamic registration is enabled only on Darwin and Windows.
+    // https://github.com/neovim/neovim/blob/v0.12.4/runtime/lua/vim/lsp/protocol.lua#L606-L612
     ClientProfile {
         name: "Neovim (Darwin/Windows)",
         version: "0.12.4",
         capabilities_json: include_str!(
             "fixtures/client_capabilities/neovim-0.12.4-darwin-windows.json"
+        ),
+    },
+    ClientProfile {
+        name: "Neovim (Linux/BSD)",
+        version: "0.12.4",
+        capabilities_json: include_str!(
+            "fixtures/client_capabilities/neovim-0.12.4-linux-bsd.json"
         ),
     },
     // https://github.com/zed-industries/zed/blob/v1.14.2/crates/lsp/src/lsp.rs
@@ -91,12 +100,21 @@ const CLIENT_PROFILES: [ClientProfile; 4] = [
     },
 ];
 
+fn client_profile(name: &str) -> &'static ClientProfile {
+    CLIENT_PROFILES
+        .iter()
+        .find(|profile| profile.name == name)
+        .unwrap_or_else(|| panic!("missing `{name}` client profile"))
+}
+
 #[test]
 fn named_client_profiles_match_pinned_diagnostic_capabilities() {
-    for profile in &CLIENT_PROFILES[..3] {
+    for profile in &CLIENT_PROFILES[..4] {
         let expected = match (profile.name, profile.version) {
             ("VS Code", "vscode-languageclient 10.1.0") => (true, Some(true), true, true),
-            ("Neovim (Darwin/Windows)", "0.12.4") => (true, Some(true), true, true),
+            ("Neovim (Darwin/Windows)" | "Neovim (Linux/BSD)", "0.12.4") => {
+                (true, Some(true), true, true)
+            }
             ("Zed", "1.14.2") => (true, None, true, true),
             _ => unreachable!("unexpected named client profile"),
         };
@@ -123,6 +141,22 @@ fn named_client_profiles_match_pinned_diagnostic_capabilities() {
             capabilities.pointer("/workspace/diagnostics/refreshSupport").and_then(Value::as_bool),
             Some(expected.3),
             "{label}: workspace diagnostic refresh support mismatch"
+        );
+    }
+}
+
+#[test]
+fn neovim_profiles_match_pinned_watched_file_capabilities() {
+    for (name, expected) in [("Neovim (Darwin/Windows)", true), ("Neovim (Linux/BSD)", false)] {
+        let profile = client_profile(name);
+        let capabilities = profile.capabilities();
+        assert_eq!(
+            capabilities
+                .pointer("/workspace/didChangeWatchedFiles/dynamicRegistration")
+                .and_then(Value::as_bool),
+            Some(expected),
+            "{}: watched-file capability mismatch",
+            profile.label()
         );
     }
 }
@@ -538,7 +572,7 @@ async fn client_profiles_complete_a_raw_lsp_session() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn watched_manifest_change_reloads_workspace_symbols_on_the_wire() {
-    let profile = &CLIENT_PROFILES[0];
+    let profile = client_profile("VS Code");
     let profile_label = profile.label();
     let project = TestProject::from_fixture(PROJECT_FIXTURE);
     let root_uri = Url::from_file_path(project.root()).unwrap();
@@ -571,7 +605,7 @@ async fn watched_manifest_change_reloads_workspace_symbols_on_the_wire() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn configuration_change_reloads_workspace_symbols_on_the_wire() {
-    let profile = &CLIENT_PROFILES[3];
+    let profile = client_profile("Minimal LSP client");
     let profile_label = profile.label();
     let project = TestProject::from_fixture(PROJECT_FIXTURE);
     let root_uri = Url::from_file_path(project.root()).unwrap();
@@ -605,7 +639,9 @@ async fn push_diagnostic_clients_publish_and_clear_without_pull() {
         let capabilities = diagnostic_client_capabilities(document_pull, false, false);
         let mut session = RawSession::start();
 
-        let initialize = session.initialize(&CLIENT_PROFILES[3], &root_uri, &capabilities).await;
+        let initialize = session
+            .initialize(client_profile("Minimal LSP client"), &root_uri, &capabilities)
+            .await;
         assert!(
             initialize.pointer("/capabilities/diagnosticProvider").is_none(),
             "{profile}: push delivery must not advertise pull diagnostics: {initialize}"
@@ -666,7 +702,7 @@ async fn pull_diagnostic_client_refreshes_and_clears_without_push() {
     let project = TestProject::new();
     let root_uri = Url::from_file_path(project.root()).unwrap();
     let document_uri = Url::from_file_path(project.path("/Diagnostics.sol")).unwrap();
-    let profile = &CLIENT_PROFILES[2];
+    let profile = client_profile("Zed");
     let profile_label = profile.label();
     let capabilities = profile.capabilities();
     let mut session = RawSession::start();
@@ -744,7 +780,8 @@ async fn pull_diagnostic_data_support_is_used_on_the_wire() {
     let capabilities = diagnostic_client_capabilities(true, true, true);
     let mut session = RawSession::start();
 
-    let initialize = session.initialize(&CLIENT_PROFILES[3], &root_uri, &capabilities).await;
+    let initialize =
+        session.initialize(client_profile("Minimal LSP client"), &root_uri, &capabilities).await;
     assert!(initialize.pointer("/capabilities/diagnosticProvider").is_some());
 
     session.notify("initialized", json!({})).await;
