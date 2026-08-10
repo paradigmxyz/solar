@@ -67,10 +67,10 @@ fn coalesce_function(func: &mut Function) -> bool {
     }
 
     let mut changed = false;
-    let blocks: Vec<_> = func.blocks.indices().collect();
+    let blocks = func.blocks.indices().collect::<Vec<_>>();
     for block in blocks {
         let instructions = func.blocks[block].instructions.clone();
-        let mut group: Vec<Member> = Vec::new();
+        let mut group = Vec::<Member>::new();
         for inst_id in instructions {
             if let Some(member) = fusable_alloc(func, inst_id) {
                 let compatible = group.last().is_none_or(|last| {

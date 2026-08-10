@@ -510,8 +510,8 @@ fn is_removable_copy(inst: &Instruction) -> bool {
 /// than one store or from a store and a load, the shapes the known-store
 /// model can simplify.
 fn has_repeated_const_memory_addr(instructions: &[Instruction]) -> bool {
-    let mut stores: SmallVec<[u64; 8]> = SmallVec::new();
-    let mut loads: SmallVec<[u64; 8]> = SmallVec::new();
+    let mut stores = SmallVec::<[u64; 8]>::new();
+    let mut loads = SmallVec::<[u64; 8]>::new();
     for pair in instructions.windows(2) {
         let [producer, consumer] = pair else { continue };
         if !producer.is_encoded_push() || producer.deferred_push().is_some() {

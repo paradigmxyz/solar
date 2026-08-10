@@ -337,7 +337,7 @@ impl GlobalStackPlan {
                 continue;
             }
 
-            let values: Vec<_> = liveness
+            let values = liveness
                 .live_in(block_id)
                 .iter()
                 .filter(|&value| {
@@ -347,7 +347,7 @@ impl GlobalStackPlan {
                         })
                 })
                 .take(GLOBAL_STACK_LAYOUT_LIMIT)
-                .collect();
+                .collect::<Vec<_>>();
             if !values.is_empty() {
                 entries.insert(block_id, values);
             }
@@ -5499,8 +5499,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let Some(Terminator::Jump(target)) = func.blocks[pred].terminator.as_ref() else {
                     return false;
                 };
-                plan.entry(*target).is_some()
-                    && context.cfg.dominators().dominates(*target, pred)
+                plan.entry(*target).is_some() && context.cfg.dominators().dominates(*target, pred)
             });
             if carries_planned_backedge {
                 return None;
@@ -5624,13 +5623,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         let optimization = self.gcx.sess.opts.optimization;
         let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
         let context = Self::resident_search_context(func, values, has_phis);
-        let mut best: Option<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)> = None;
+        let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {
-            let subset: Vec<_> = values
+            let subset = values
                 .iter()
                 .enumerate()
                 .filter_map(|(index, &value)| ((bits >> index) & 1 != 0).then_some(value))
-                .collect();
+                .collect::<Vec<_>>();
             let Some((plan, mut candidate)) = self.analyze_resident_subset(
                 func,
                 liveness,
@@ -5744,8 +5743,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         ranked.sort_by_key(|&(value, blocks, uses)| {
             (std::cmp::Reverse(blocks), std::cmp::Reverse(uses), value.index())
         });
-        let values: Vec<_> =
-            ranked.into_iter().take(GLOBAL_STACK_LAYOUT_LIMIT).map(|(value, _, _)| value).collect();
+        let values = ranked
+            .into_iter()
+            .take(GLOBAL_STACK_LAYOUT_LIMIT)
+            .map(|(value, _, _)| value)
+            .collect::<Vec<_>>();
         self.select_cross_block_stack_layout(func, liveness, &values, has_phis)
     }
 
@@ -5793,13 +5795,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         let optimization = self.gcx.sess.opts.optimization;
         let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
         let context = Self::resident_search_context(func, values, has_phis);
-        let mut best: Option<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)> = None;
+        let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {
-            let subset: Vec<_> = values
+            let subset = values
                 .iter()
                 .enumerate()
                 .filter_map(|(index, &value)| ((bits >> index) & 1 != 0).then_some(value))
-                .collect();
+                .collect::<Vec<_>>();
             let Some((plan, mut candidate)) = self.analyze_resident_subset(
                 func,
                 liveness,
@@ -7903,8 +7905,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // The pointer and its offset addresses must have no consumers beyond
         // the elided protocol; anything else still expects the buffer.
-        let tracked: FxHashSet<ValueId> = addresses.keys().copied().chain([base_value]).collect();
-        let elided_set: FxHashSet<InstId> = elided.iter().copied().collect();
+        let tracked = addresses.keys().copied().chain([base_value]).collect::<FxHashSet<_>>();
+        let elided_set = elided.iter().copied().collect::<FxHashSet<_>>();
         for check_block in func.blocks.iter() {
             for &inst_id in &check_block.instructions {
                 if !elided_set.contains(&inst_id)
