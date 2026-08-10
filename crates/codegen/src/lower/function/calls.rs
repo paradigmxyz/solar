@@ -528,7 +528,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(source_size) = source_size {
             if source_size.bytes() > size.bytes() {
                 let shift = u64::from(32 - size.bytes()) * 8;
-                let mask = self.builder.imm_u256(U256::MAX << shift);
+                let mask = self.builder.imm_u256(U256::MAX << usize::try_from(shift).unwrap());
                 return self.builder.and(value, mask);
             }
             return value;

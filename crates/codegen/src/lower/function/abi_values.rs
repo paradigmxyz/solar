@@ -1117,7 +1117,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         break;
                     }
                     let shift = (32 - length - piece_length) * 8;
-                    constant |= U256::from_be_slice(bytes) << shift;
+                    constant |= U256::from_be_slice(bytes) << usize::try_from(shift).unwrap();
                     length += piece_length;
                     consumed += 1;
                 }

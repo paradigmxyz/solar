@@ -46,9 +46,9 @@ pub fn get_srcs() -> &'static [Source] {
         // (`test/benchmarks/external-setup.sh` upstream): pinned Foundry
         // projects compiled with their full test suites.
         //
-        // OpenZeppelin, v4-core, and PRBMath currently stop before codegen
-        // on unsupported compiler behavior. Only project codegen cases that
-        // keep the full simulated suite under ten minutes opt in below.
+        // These projects are useful for parsing and lowering, but their full
+        // codegen suites include unsupported constructs. Keep project codegen
+        // out of CodSpeed until those constructs are supported.
         sources.extend([
             include_source("../testdata/projects/seaport-1.6.json.gz", Capabilities::all()),
             include_source(
@@ -63,18 +63,14 @@ pub fn get_srcs() -> &'static [Source] {
                 "../testdata/projects/v4-core-4.0.0.json.gz",
                 Capabilities::no_codegen(),
             ),
-            include_source("../testdata/projects/morpho-blue-1.0.0.json.gz", Capabilities::all())
-                .with_codspeed_codegen(),
-            include_source("../testdata/projects/forge-std-1.16.1.json.gz", Capabilities::all())
-                .with_codspeed_codegen(),
+            include_source("../testdata/projects/morpho-blue-1.0.0.json.gz", Capabilities::all()),
+            include_source("../testdata/projects/forge-std-1.16.1.json.gz", Capabilities::all()),
             include_source(
                 "../testdata/projects/prb-math-4.1.1.json.gz",
                 Capabilities::no_codegen(),
             ),
-            include_source("../testdata/projects/solmate-6.json.gz", Capabilities::all())
-                .with_codspeed_codegen(),
-            include_source("../testdata/projects/solarray-a547630.json.gz", Capabilities::all())
-                .with_codspeed_codegen(),
+            include_source("../testdata/projects/solmate-6.json.gz", Capabilities::all()),
+            include_source("../testdata/projects/solarray-a547630.json.gz", Capabilities::all()),
         ]);
 
         sources
@@ -115,8 +111,11 @@ fn common_sources() -> Vec<Source> {
         include_source("../testdata/console.sol", Capabilities::all()),
         include_source("../testdata/Vm.sol", Capabilities::all()),
         include_source("../testdata/safeconsole.sol", Capabilities::all()),
-        include_source("../testdata/Seaport.sol", Capabilities::all()),
-        include_source("../testdata/Solady.sol", Capabilities::all()),
+        // External function arguments and targets are not lowered by the
+        // codegen rewrite yet, so keep these large parser/lowering workloads
+        // out of CodSpeed's codegen stage until that support lands.
+        include_source("../testdata/Seaport.sol", Capabilities::no_codegen()),
+        include_source("../testdata/Solady.sol", Capabilities::no_codegen()),
         // Multi-file concatenation: top-level redeclarations fail symbol
         // resolution in `lower_asts`, so parsing is this source's ceiling.
         include_source("../testdata/Optimism.sol", Capabilities::lex_and_parse()),
@@ -294,11 +293,6 @@ pub struct Source {
 }
 
 impl Source {
-    fn with_codspeed_codegen(mut self) -> Self {
-        self.codspeed_codegen = true;
-        self
-    }
-
     fn single_file(&self) -> (&str, &str) {
         let [(name, content)] = self.files.as_slice() else {
             panic!("`{}` is not a single-file source", self.name)
