@@ -299,7 +299,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn failed_initialize_does_not_accept_initialized() {
+    async fn failed_initialize_allows_retry() {
         let (mut service, notifications) = service(ResponseBehavior::Error, ResponseBehavior::Ok);
 
         let error = service.call(request(Initialize::METHOD)).await.unwrap_err();
@@ -311,6 +311,33 @@ mod tests {
             service.call(request(HoverRequest::METHOD)).await.unwrap_err().code,
             ErrorCode::SERVER_NOT_INITIALIZED
         );
+
+        service.service.initialize = ResponseBehavior::Ok;
+        initialize(&mut service).await;
+        service.call(request(HoverRequest::METHOD)).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn successful_initialize_gates_traffic_until_initialized() {
+        let (mut service, notifications) = service(ResponseBehavior::Ok, ResponseBehavior::Ok);
+
+        service.call(request(Initialize::METHOD)).await.unwrap();
+        assert_eq!(
+            service.call(request(HoverRequest::METHOD)).await.unwrap_err().code,
+            ErrorCode::SERVER_NOT_INITIALIZED
+        );
+        let methods_before = logged(&notifications);
+        assert!(service.notify(notification(DidOpenTextDocument::METHOD)).is_continue());
+        assert_eq!(logged(&notifications), methods_before);
+        assert_eq!(
+            service.call(request(Shutdown::METHOD)).await.unwrap_err().code,
+            ErrorCode::SERVER_NOT_INITIALIZED
+        );
+
+        assert!(service.notify(notification(Initialized::METHOD)).is_continue());
+        assert_eq!(logged(&notifications), vec![Initialized::METHOD.to_owned()]);
+        service.call(request(HoverRequest::METHOD)).await.unwrap();
+        service.call(request(Shutdown::METHOD)).await.unwrap();
     }
 
     #[tokio::test]
