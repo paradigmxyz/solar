@@ -1962,8 +1962,19 @@ impl<'gcx> EvmCodegen<'gcx> {
             operands.extend(cases.iter().map(|(case_val, _)| *case_val));
             self.spill_values_before_stack_clear(func, &operands);
 
-            self.pop_all_stack_values();
-            self.emit_value(func, value);
+            if self.scheduler.is_stack_only_value(value) {
+                // A stack-only scrutinee has no memory home to reload after
+                // the drain. Copy it to the top while it is still tracked and
+                // pop the rest from beneath, like the entry dispatch path.
+                self.emit_value(func, value);
+                while self.scheduler.depth() > 1 {
+                    self.emit_stack_op(StackOp::Swap(1));
+                    self.emit_stack_op(StackOp::Pop);
+                }
+            } else {
+                self.pop_all_stack_values();
+                self.emit_value(func, value);
+            }
         }
 
         match (plan, constant_entries) {
