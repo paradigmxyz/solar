@@ -10,7 +10,9 @@
 //! detector.
 
 mod finding;
+mod provenance;
 
+mod arbitrary_send;
 mod controlled_delegatecall;
 mod tx_origin;
 
@@ -22,5 +24,6 @@ pub(crate) fn analyze(gcx: Gcx<'_>, module: &Module) {
     for func in module.functions.iter() {
         tx_origin::check(gcx, func);
         controlled_delegatecall::check(gcx, func);
+        arbitrary_send::check(gcx, func);
     }
 }

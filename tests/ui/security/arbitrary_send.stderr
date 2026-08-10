@@ -1,0 +1,16 @@
+warning[SEC-ARBITRARY-SEND-ETH]: ether sent to an attacker-controlled address
+   ╭▸ ROOT/tests/ui/security/arbitrary_send.sol:LL:CC
+   │
+LL │         to.transfer(amount);
+   │         ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: restrict who can call this or fix the recipient; sending to a calldata or argument address lets anyone drain the contract
+
+warning[SEC-ARBITRARY-SEND-ETH]: ether sent to an attacker-controlled address
+   ╭▸ ROOT/tests/ui/security/arbitrary_send.sol:LL:CC
+   │
+LL │         (bool ok, ) = to.call{value: msg.value}("");
+   │                       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: restrict who can call this or fix the recipient; sending to a calldata or argument address lets anyone drain the contract
+
