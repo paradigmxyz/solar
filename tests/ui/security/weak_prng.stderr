@@ -1,0 +1,16 @@
+warning[SEC-WEAK-PRNG]: randomness derived from a block value
+   ╭▸ ROOT/tests/ui/security/weak_prng.sol:LL:CC
+   │
+LL │         return block.prevrandao % n;
+   │                ━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: block.prevrandao, blockhash, and block.coinbase are observable and block-producer-influenceable; use a commit-reveal scheme or a VRF
+
+warning[SEC-WEAK-PRNG]: randomness derived from a block value
+   ╭▸ ROOT/tests/ui/security/weak_prng.sol:LL:CC
+   │
+LL │         return uint256(blockhash(block.number - 1)) % n;
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: block.prevrandao, blockhash, and block.coinbase are observable and block-producer-influenceable; use a commit-reveal scheme or a VRF
+

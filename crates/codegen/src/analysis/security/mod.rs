@@ -15,6 +15,7 @@ mod provenance;
 mod arbitrary_send;
 mod controlled_delegatecall;
 mod tx_origin;
+mod weak_prng;
 
 use crate::mir::Module;
 use solar_sema::Gcx;
@@ -25,5 +26,6 @@ pub(crate) fn analyze(gcx: Gcx<'_>, module: &Module) {
         tx_origin::check(gcx, func);
         controlled_delegatecall::check(gcx, func);
         arbitrary_send::check(gcx, func);
+        weak_prng::check(gcx, func);
     }
 }
