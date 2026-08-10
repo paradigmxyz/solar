@@ -405,6 +405,7 @@ struct StackPhiPlanner<'a> {
     func: &'a Function,
     loops: Vec<Loop>,
     header_results: FxHashMap<BlockId, Vec<ValueId>>,
+    definitions: IndexVec<ValueId, Option<BlockId>>,
 }
 
 impl<'a> StackPhiPlanner<'a> {
@@ -414,7 +415,15 @@ impl<'a> StackPhiPlanner<'a> {
         let mut loops: Vec<_> = loop_info.all_loops().cloned().collect();
         loops.sort_by_key(|loop_info| loop_info.header.index());
 
-        let mut planner = Self { func, loops, header_results: FxHashMap::default() };
+        let mut definitions = index_vec![None; func.num_values()];
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                if let Some(value) = func.inst_result_value(inst_id) {
+                    definitions[value] = Some(block_id);
+                }
+            }
+        }
+        let mut planner = Self { func, loops, header_results: FxHashMap::default(), definitions };
         planner.collect_header_results();
         planner
     }
@@ -473,7 +482,14 @@ impl<'a> StackPhiPlanner<'a> {
         if carry_through.len() + results.len() > STACK_PHI_LAYOUT_LIMIT {
             return;
         }
-
+        // A loop edge changes the scheduler's identity for every phi source to
+        // its result. Keep the optimization only when values defined outside
+        // the loop are either explicitly carried or are rematerializable
+        // arguments/immediates. Otherwise the source would disappear from the
+        // physical stack while a loop body still uses it.
+        if self.has_unpreserved_live_through(loop_info, &carry_through, &results) {
+            return;
+        }
         let mut entry = carry_through.clone();
         entry.extend(results.iter().copied());
 
@@ -509,7 +525,10 @@ impl<'a> StackPhiPlanner<'a> {
 
     fn plan_join(&self, block_id: BlockId, plan: &mut StackPhiPlan) {
         let block = &self.func.blocks[block_id];
-        if plan.entries.contains_key(&block_id) || block.predecessors.len() < 2 {
+        if plan.entries.contains_key(&block_id)
+            || self.loops.iter().any(|loop_info| loop_info.header == block_id)
+            || block.predecessors.len() < 2
+        {
             return;
         }
 
@@ -596,6 +615,55 @@ impl<'a> StackPhiPlanner<'a> {
             }
         }
         false
+    }
+
+    fn has_unpreserved_live_through(
+        &self,
+        loop_info: &Loop,
+        carry_through: &[ValueId],
+        results: &[ValueId],
+    ) -> bool {
+        for block_id in &loop_info.blocks {
+            let block = &self.func.blocks[block_id];
+            for &inst_id in &block.instructions {
+                let inst = self.func.inst(inst_id);
+                if matches!(inst.kind, InstKind::Phi(_)) {
+                    continue;
+                }
+                if inst.kind.operands().iter().any(|&value| {
+                    self.is_unpreserved_live_through(loop_info, value, carry_through, results)
+                }) {
+                    return true;
+                }
+            }
+            if block.terminator.as_ref().is_some_and(|term| {
+                term.operands().iter().any(|&value| {
+                    self.is_unpreserved_live_through(loop_info, value, carry_through, results)
+                })
+            }) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn is_unpreserved_live_through(
+        &self,
+        loop_info: &Loop,
+        value: ValueId,
+        carry_through: &[ValueId],
+        results: &[ValueId],
+    ) -> bool {
+        match self.func.value(value) {
+            crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_) => false,
+            crate::mir::Value::Undef(_) | crate::mir::Value::Error(_) => true,
+            crate::mir::Value::Inst(_) => {
+                let Some(definition) = self.definitions[value] else { return true };
+                !loop_info.blocks.contains(definition)
+                    && !carry_through.contains(&value)
+                    && !results.contains(&value)
+            }
+        }
     }
 
     fn phi_result_values(&self, phi_insts: &[InstId]) -> Option<Vec<ValueId>> {

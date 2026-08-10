@@ -43,8 +43,8 @@ bb65 [cold]:
   push 0
   mstore
   push 65
-  jump bb68
-bb68 [cold]:
+  jump bb69
+bb69 [cold]:
   push 4
   mstore
   push 36
@@ -76,9 +76,9 @@ bb10:
   gt
   push bb6
   jumpi
-  push bb76
-  jump bb69
-bb69:
+  push bb77
+  jump bb70
+bb70:
   push 4
   calldataload
   dup1
@@ -107,56 +107,54 @@ bb22:
   push 160
   mload
   add
+  dup1
+  push 352
+  mstore
+  dup1
+  push 160
+  mstore
   push 320
   mload
-  swap1
-  jump bb20
-bb20:
+  jump bb68
+bb68:
+  push 192
+  mstore
+  pop
   push 288
   mload
   mload
-  dup2
   push 160
-  mstore
-  dup2
+  mload
   lt
   push bb23
   jumpi
-  dup2
-  dup1
   push 192
-  mstore
+  mload
   push 0
   sstore
-  pop
-  dup1
   push 192
-  mstore
+  mload
   jump bb67
 bb23:
   push 32
   push 288
   mload
   add
-  dup2
-  push 160
-  mstore
   push 32
-  dup3
+  push 160
+  mload
   mul
   add
   mload
-  dup3
+  push 192
+  mload
   add
   dup1
   push 320
   mstore
-  swap2
-  dup3
-  lt
-  swap2
-  pop
-  pop
+  push 192
+  mload
+  gt
   iszero
   push bb22
   jumpi
@@ -168,7 +166,7 @@ bb66 [cold]:
   push 0
   mstore
   push 17
-  jump bb68
+  jump bb69
 bb26:
   calldatasize
   push 36
@@ -180,8 +178,8 @@ bb26:
   gt
   push bb6
   jumpi
-  push bb80
-  jump bb69
+  push bb81
+  jump bb70
 bb39:
   calldatasize
   push 100
@@ -609,7 +607,7 @@ bb39:
   push 160
   mload
   jump bb67
-bb73:
+bb74:
   push bb65
   jumpi
   push 32
@@ -648,12 +646,12 @@ bb73:
   dup3
   calldatacopy
   pop
-  pop
   push 0
+  push 160
+  mstore
   push 0
-  swap1
-  jump bb20
-bb74:
+  jump bb68
+bb75:
   push bb6
   jumpi
   push 160
@@ -672,9 +670,9 @@ bb74:
   or
   push bb6
   jumpi
-  push bb73
-  jump bb72
-bb72:
+  push bb74
+  jump bb73
+bb73:
   push 256
   mload
   push 5
@@ -690,12 +688,12 @@ bb72:
   iszero
   swap1
   jump
-bb75:
+bb76:
   push bb6
   jumpi
-  push bb74
-  jump bb70
-bb70:
+  push bb75
+  jump bb71
+bb71:
   push 192
   mload
   calldataload
@@ -717,12 +715,12 @@ bb70:
   iszero
   swap1
   jump
-bb76:
+bb77:
   push bb6
   jumpi
-  push bb75
-  jump bb71
-bb71:
+  push bb76
+  jump bb72
+bb72:
   push 36
   push 160
   mload
@@ -742,7 +740,7 @@ bb71:
   pop
   swap1
   jump
-bb77:
+bb78:
   push bb65
   jumpi
   push 32
@@ -783,7 +781,7 @@ bb77:
   pop
   mload
   jump bb67
-bb78:
+bb79:
   push bb6
   jumpi
   push 160
@@ -840,15 +838,15 @@ bb78:
   calldatacopy
   pop
   pop
-  push bb77
-  jump bb72
-bb79:
-  push bb6
-  jumpi
   push bb78
-  jump bb70
+  jump bb73
 bb80:
   push bb6
   jumpi
   push bb79
   jump bb71
+bb81:
+  push bb6
+  jumpi
+  push bb80
+  jump bb72
