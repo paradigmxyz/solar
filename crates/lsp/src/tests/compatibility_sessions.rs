@@ -42,11 +42,7 @@ const PROJECT_FIXTURE: &str = r#"
 struct ClientProfile {
     name: &'static str,
     version: &'static str,
-    position_encodings: Option<&'static [&'static str]>,
-    document_changes: bool,
-    document_diagnostics: bool,
-    publish_diagnostic_data: bool,
-    refresh_capabilities: &'static [&'static str],
+    capabilities_json: &'static str,
 }
 
 impl ClientProfile {
@@ -55,88 +51,81 @@ impl ClientProfile {
     }
 
     fn capabilities(&self) -> Value {
-        let Some(position_encodings) = self.position_encodings else { return json!({}) };
-        let mut workspace = json!({
-            "didChangeWatchedFiles": { "dynamicRegistration": true },
-        });
-        let workspace = workspace.as_object_mut().unwrap();
-        if self.document_changes {
-            workspace.insert("workspaceEdit".into(), json!({ "documentChanges": true }));
-        }
-        for capability in self.refresh_capabilities {
-            workspace.insert((*capability).into(), json!({ "refreshSupport": true }));
-        }
-
-        let mut text_document = json!({
-            "codeAction": {
-                "codeActionLiteralSupport": {
-                    "codeActionKind": {
-                        "valueSet": ["", "quickfix", "refactor", "source"],
-                    },
-                },
-            },
-            "documentSymbol": { "hierarchicalDocumentSymbolSupport": true },
-            "hover": { "contentFormat": ["markdown", "plaintext"] },
-        });
-        let text_document = text_document.as_object_mut().unwrap();
-        if self.document_diagnostics {
-            text_document.insert("diagnostic".into(), json!({}));
-        }
-        if self.publish_diagnostic_data {
-            text_document.insert("publishDiagnostics".into(), json!({ "dataSupport": true }));
-        }
-
-        json!({
-            "general": { "positionEncodings": position_encodings },
-            "window": { "workDoneProgress": true },
-            "workspace": workspace,
-            "textDocument": text_document,
-        })
+        serde_json::from_str(self.capabilities_json)
+            .unwrap_or_else(|error| panic!("{}: invalid capability fixture: {error}", self.label()))
     }
 }
 
+// These fixtures pin the capability subset exercised by this module.
+// They are not complete initialize payloads.
 const CLIENT_PROFILES: [ClientProfile; 4] = [
     // https://github.com/microsoft/vscode-languageserver-node/blob/release/client/10.1.0/client/src/common/client.ts
+    // https://github.com/microsoft/vscode-languageserver-node/blob/release/client/10.1.0/client/src/common/codeAction.ts
+    // https://github.com/microsoft/vscode-languageserver-node/blob/release/client/10.1.0/client/src/common/diagnostic.ts
     ClientProfile {
         name: "VS Code",
         version: "vscode-languageclient 10.1.0",
-        position_encodings: Some(&["utf-16"]),
-        document_changes: true,
-        document_diagnostics: false,
-        publish_diagnostic_data: false,
-        refresh_capabilities: &["codeLens", "diagnostics", "inlayHint"],
+        capabilities_json: include_str!(
+            "fixtures/client_capabilities/vscode-languageclient-10.1.0.json"
+        ),
     },
     // https://github.com/neovim/neovim/blob/v0.12.4/runtime/lua/vim/lsp/protocol.lua
     ClientProfile {
         name: "Neovim (Darwin/Windows)",
         version: "0.12.4",
-        position_encodings: Some(&["utf-8", "utf-16", "utf-32"]),
-        document_changes: false,
-        document_diagnostics: false,
-        publish_diagnostic_data: false,
-        refresh_capabilities: &["codeLens", "diagnostics", "inlayHint"],
+        capabilities_json: include_str!(
+            "fixtures/client_capabilities/neovim-0.12.4-darwin-windows.json"
+        ),
     },
     // https://github.com/zed-industries/zed/blob/v1.14.2/crates/lsp/src/lsp.rs
     ClientProfile {
         name: "Zed",
         version: "1.14.2",
-        position_encodings: Some(&["utf-16"]),
-        document_changes: true,
-        document_diagnostics: true,
-        publish_diagnostic_data: true,
-        refresh_capabilities: &["codeLens", "diagnostics", "inlayHint"],
+        capabilities_json: include_str!("fixtures/client_capabilities/zed-1.14.2.json"),
     },
     // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/
     ClientProfile {
         name: "Minimal LSP client",
         version: "3.17",
-        position_encodings: None,
-        document_changes: false,
-        document_diagnostics: false,
-        publish_diagnostic_data: false,
-        refresh_capabilities: &[],
+        capabilities_json: include_str!("fixtures/client_capabilities/lsp-3.17-minimal.json"),
     },
 ];
+
+#[test]
+fn named_client_profiles_match_pinned_diagnostic_capabilities() {
+    for profile in &CLIENT_PROFILES[..3] {
+        let expected = match (profile.name, profile.version) {
+            ("VS Code", "vscode-languageclient 10.1.0") => (true, Some(true), true, true),
+            ("Neovim (Darwin/Windows)", "0.12.4") => (true, Some(true), true, true),
+            ("Zed", "1.14.2") => (true, None, true, true),
+            _ => unreachable!("unexpected named client profile"),
+        };
+        let capabilities = profile.capabilities();
+        let label = profile.label();
+        assert_eq!(
+            capabilities.pointer("/textDocument/diagnostic").is_some(),
+            expected.0,
+            "{label}: document diagnostic capability mismatch"
+        );
+        assert_eq!(
+            capabilities.pointer("/textDocument/diagnostic/dataSupport").and_then(Value::as_bool),
+            expected.1,
+            "{label}: pull diagnostic data support mismatch"
+        );
+        assert_eq!(
+            capabilities
+                .pointer("/textDocument/publishDiagnostics/dataSupport")
+                .and_then(Value::as_bool),
+            Some(expected.2),
+            "{label}: publish diagnostic data support mismatch"
+        );
+        assert_eq!(
+            capabilities.pointer("/workspace/diagnostics/refreshSupport").and_then(Value::as_bool),
+            Some(expected.3),
+            "{label}: workspace diagnostic refresh support mismatch"
+        );
+    }
+}
 
 struct RawSession {
     reader: BufReader<ReadHalf<DuplexStream>>,
@@ -503,7 +492,7 @@ async fn client_profiles_complete_a_raw_lsp_session() {
         );
         assert_eq!(
             capabilities.get("diagnosticProvider").is_some(),
-            profile.document_diagnostics,
+            client_capabilities.pointer("/textDocument/diagnostic").is_some(),
             "{profile_label}: diagnostic delivery did not match the client profile"
         );
 
@@ -538,17 +527,6 @@ async fn client_profiles_complete_a_raw_lsp_session() {
         session.document_notification("textDocument/didClose", &document_uri).await;
         wait_for_workspace_symbols(&mut session, "Before", "After", &profile_label).await;
 
-        project.write_file("/foundry.toml", "[profile.default]\nsrc = \"after\"\n");
-        session
-            .notify(
-                "workspace/didChangeConfiguration",
-                json!({
-                    "settings": {},
-                }),
-            )
-            .await;
-        wait_for_workspace_symbols(&mut session, "After", "Before", &profile_label).await;
-
         session.shutdown().await;
         assert_eq!(
             session.watched_files_registered, expects_watched_files_registration,
@@ -556,6 +534,66 @@ async fn client_profiles_complete_a_raw_lsp_session() {
         );
         session.exit().await;
     }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watched_manifest_change_reloads_workspace_symbols_on_the_wire() {
+    let profile = &CLIENT_PROFILES[0];
+    let profile_label = profile.label();
+    let project = TestProject::from_fixture(PROJECT_FIXTURE);
+    let root_uri = Url::from_file_path(project.root()).unwrap();
+    let manifest_uri = Url::from_file_path(project.path("/foundry.toml")).unwrap();
+    let mut session = RawSession::start();
+    let capabilities = profile.capabilities();
+
+    session.initialize(profile, &root_uri, &capabilities).await;
+    session.notify("initialized", json!({})).await;
+    session.wait_for_server_message_count("client/registerCapability", 1).await;
+    assert!(
+        session.watched_files_registered,
+        "{profile_label}: server did not register the manifest watcher"
+    );
+
+    project.write_file("/foundry.toml", "[profile.default]\nsrc = \"after\"\n");
+    session
+        .notify(
+            "workspace/didChangeWatchedFiles",
+            json!({
+                "changes": [{ "uri": manifest_uri, "type": 2 }],
+            }),
+        )
+        .await;
+    wait_for_workspace_symbols(&mut session, "After", "Before", &profile_label).await;
+
+    session.shutdown().await;
+    session.exit().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn configuration_change_reloads_workspace_symbols_on_the_wire() {
+    let profile = &CLIENT_PROFILES[3];
+    let profile_label = profile.label();
+    let project = TestProject::from_fixture(PROJECT_FIXTURE);
+    let root_uri = Url::from_file_path(project.root()).unwrap();
+    let mut session = RawSession::start();
+    let capabilities = profile.capabilities();
+
+    session.initialize(profile, &root_uri, &capabilities).await;
+    session.notify("initialized", json!({})).await;
+
+    project.write_file("/foundry.toml", "[profile.default]\nsrc = \"after\"\n");
+    session
+        .notify(
+            "workspace/didChangeConfiguration",
+            json!({
+                "settings": {},
+            }),
+        )
+        .await;
+    wait_for_workspace_symbols(&mut session, "After", "Before", &profile_label).await;
+
+    session.shutdown().await;
+    session.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
