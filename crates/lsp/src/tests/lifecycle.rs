@@ -1,14 +1,22 @@
 use super::*;
-use crate::test_support::start_request;
+use crate::{
+    new_server_service_with_router,
+    test_support::{read_lsp_frame, start_request, write_lsp_frame},
+};
+use async_lsp::router::Router;
 use lsp_types::{
-    notification::{DidOpenTextDocument, Exit, Initialized, Notification},
+    InitializeParams, InitializeResult,
+    notification::{Cancel, DidOpenTextDocument, Exit, Initialized, Notification},
     request::{HoverRequest, Initialize, Request, Shutdown},
 };
 use serde_json::Value;
 use std::{
     future::{pending, ready},
     sync::{Arc, Mutex},
+    time::Duration,
 };
+use tokio::io::BufReader;
+use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 type NotificationLog = Arc<Mutex<Vec<String>>>;
 
@@ -106,6 +114,23 @@ fn notifications_before_initialize_are_dropped() {
     assert!(logged(&notifications).is_empty());
 }
 
+#[test]
+fn cancellation_notifications_are_forwarded_in_every_state() {
+    for state in [
+        State::Uninitialized,
+        State::Initializing,
+        State::AwaitingInitialized,
+        State::Ready,
+        State::ShuttingDown,
+    ] {
+        let (mut service, notifications) = service(ResponseBehavior::Ok, ResponseBehavior::Ok);
+        service.set_state(state);
+
+        assert!(service.notify(notification(Cancel::METHOD)).is_continue());
+        assert_eq!(logged(&notifications), vec![Cancel::METHOD.to_owned()], "{state:?}");
+    }
+}
+
 #[tokio::test]
 async fn failed_initialize_allows_retry() {
     let (mut service, notifications) = service(ResponseBehavior::Error, ResponseBehavior::Ok);
@@ -157,6 +182,123 @@ async fn pending_initialize_does_not_accept_initialized() {
     assert_eq!(
         service.call(request(HoverRequest::METHOD)).await.unwrap_err().code,
         ErrorCode::SERVER_NOT_INITIALIZED
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn cancelled_initialize_allows_retry_over_the_wire() {
+    const TIMEOUT: Duration = Duration::from_secs(1);
+
+    let (main_loop, _client) = async_lsp::MainLoop::new_server(|client| {
+        new_server_service_with_router(client, |_| {
+            let mut router = Router::new(0);
+            router
+                .request::<Initialize, _>(|attempts, _| {
+                    let attempt = *attempts;
+                    *attempts += 1;
+                    async move {
+                        if attempt == 0 {
+                            pending::<()>().await;
+                        }
+                        Ok(InitializeResult::default())
+                    }
+                })
+                .notification::<Initialized>(|_, _| ControlFlow::Continue(()))
+                .request::<Shutdown, _>(|_, _| ready(Ok(())))
+                .notification::<Exit>(|_, _| ControlFlow::Break(Ok(())));
+            router
+        })
+    });
+    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
+    let (server_reader, server_writer) = tokio::io::split(server_stream);
+    let server_task =
+        tokio::spawn(main_loop.run_buffered(server_reader.compat(), server_writer.compat_write()));
+    let (client_reader, mut client_writer) = tokio::io::split(client_stream);
+    let mut client_reader = BufReader::new(client_reader);
+    let initialize_params = serde_json::to_value(InitializeParams::default()).unwrap();
+
+    write_lsp_frame(
+        &mut client_writer,
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": Initialize::METHOD,
+            "params": initialize_params,
+        }),
+    )
+    .await;
+    write_lsp_frame(
+        &mut client_writer,
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": Cancel::METHOD,
+            "params": { "id": 1 },
+        }),
+    )
+    .await;
+
+    let cancelled = tokio::time::timeout(TIMEOUT, read_lsp_frame(&mut client_reader))
+        .await
+        .expect("initialize cancellation response should arrive");
+    assert_eq!(cancelled["id"], 1);
+    assert_eq!(cancelled["error"]["code"], ErrorCode::REQUEST_CANCELLED.0);
+
+    write_lsp_frame(
+        &mut client_writer,
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": Initialize::METHOD,
+            "params": serde_json::to_value(InitializeParams::default()).unwrap(),
+        }),
+    )
+    .await;
+    let initialized = tokio::time::timeout(TIMEOUT, read_lsp_frame(&mut client_reader))
+        .await
+        .expect("retried initialize response should arrive");
+    assert_eq!(initialized["id"], 2);
+    assert!(initialized.get("result").is_some());
+
+    write_lsp_frame(
+        &mut client_writer,
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": Initialized::METHOD,
+            "params": {},
+        }),
+    )
+    .await;
+    write_lsp_frame(
+        &mut client_writer,
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": Shutdown::METHOD,
+            "params": null,
+        }),
+    )
+    .await;
+    let shutdown = tokio::time::timeout(TIMEOUT, read_lsp_frame(&mut client_reader))
+        .await
+        .expect("shutdown response should arrive");
+    assert_eq!(shutdown["id"], 3);
+    assert_eq!(shutdown.get("result"), Some(&Value::Null));
+
+    write_lsp_frame(
+        &mut client_writer,
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": Exit::METHOD,
+            "params": null,
+        }),
+    )
+    .await;
+    assert!(
+        tokio::time::timeout(TIMEOUT, server_task)
+            .await
+            .expect("server should exit")
+            .unwrap()
+            .is_ok()
     );
 }
 

@@ -136,6 +136,8 @@ where
                     ControlFlow::Break(Err(Error::Protocol("exit received before shutdown".into())))
                 }
             }
+            // Cancellation controls an in-flight request and is not ordinary lifecycle traffic.
+            (_, notification::Cancel::METHOD) => self.service.notify(notification),
             (State::ShuttingDown, _) => {
                 // Clients must not send ordinary notifications after shutdown. Dropping them here
                 // is a local hardening contract for invalid client behavior.
