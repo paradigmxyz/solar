@@ -11,6 +11,7 @@
 
 mod finding;
 
+mod controlled_delegatecall;
 mod tx_origin;
 
 use crate::mir::Module;
@@ -20,5 +21,6 @@ use solar_sema::Gcx;
 pub(crate) fn analyze(gcx: Gcx<'_>, module: &Module) {
     for func in module.functions.iter() {
         tx_origin::check(gcx, func);
+        controlled_delegatecall::check(gcx, func);
     }
 }

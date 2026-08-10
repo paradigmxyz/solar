@@ -1,0 +1,16 @@
+warning[SEC-CONTROLLED-DELEGATECALL]: `delegatecall` to an attacker-controlled address
+   ╭▸ ROOT/tests/ui/security/controlled_delegatecall.sol:LL:CC
+   │
+LL │         (ok, ) = impl.delegatecall(data);
+   │                  ━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: delegatecall runs the target's code in this contract's context; never derive its target from calldata or an external argument
+
+warning[SEC-CONTROLLED-DELEGATECALL]: `delegatecall` to an attacker-controlled address
+   ╭▸ ROOT/tests/ui/security/controlled_delegatecall.sol:LL:CC
+   │
+LL │         (ok, ) = target.delegatecall(data);
+   │                  ━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: delegatecall runs the target's code in this contract's context; never derive its target from calldata or an external argument
+
