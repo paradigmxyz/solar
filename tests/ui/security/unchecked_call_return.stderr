@@ -1,0 +1,16 @@
+warning[SEC-UNCHECKED-CALL]: return value of low-level call is ignored
+   ╭▸ ROOT/tests/ui/security/unchecked_call_return.sol:LL:CC
+   │
+LL │         stored.call("");
+   │         ━━━━━━━━━━━━━━━
+   │
+   ╰ help: check the boolean success value and revert on failure; a failed `.call`/`.send`/`.staticcall`/`.delegatecall` otherwise looks like success
+
+warning[SEC-UNCHECKED-CALL]: return value of low-level call is ignored
+   ╭▸ ROOT/tests/ui/security/unchecked_call_return.sol:LL:CC
+   │
+LL │         payable(stored).send(1);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: check the boolean success value and revert on failure; a failed `.call`/`.send`/`.staticcall`/`.delegatecall` otherwise looks like success
+
