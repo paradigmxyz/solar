@@ -301,7 +301,11 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
             ensure_depth(&mut stack, inputs, &mut next_expr);
             stack.truncate(stack.len() - inputs);
             for _ in 0..effect.outputs {
-                stack.push(StackValue { expr: fresh(&mut next_expr), span: None, origin: Some(origin) });
+                stack.push(StackValue {
+                    expr: fresh(&mut next_expr),
+                    span: None,
+                    origin: Some(origin),
+                });
             }
         } else {
             // An unknown stack effect is a hard analysis boundary. Values
@@ -558,8 +562,7 @@ fn ensure_depth(stack: &mut Vec<StackValue>, depth: usize, next_expr: &mut usize
     if missing != 0 {
         stack.splice(
             0..0,
-            (0..missing)
-                .map(|_| StackValue { expr: fresh(next_expr), span: None, origin: None }),
+            (0..missing).map(|_| StackValue { expr: fresh(next_expr), span: None, origin: None }),
         );
     }
 }

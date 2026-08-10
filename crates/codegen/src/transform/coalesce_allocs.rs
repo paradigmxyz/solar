@@ -129,9 +129,7 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
             InstKind::MLoad(addr) => {
                 range_avoids_fmp(func, *addr, Some(EvmMemoryLayout::WORD_SIZE))
             }
-            InstKind::Keccak256(addr, len) => {
-                range_avoids_fmp(func, *addr, func.value_u64(*len))
-            }
+            InstKind::Keccak256(addr, len) => range_avoids_fmp(func, *addr, func.value_u64(*len)),
             // `Fmp` and `MSize` observe the allocation frontier; the object
             // and mapping forms are gone by this point in the pipeline.
             _ => false,
@@ -173,9 +171,9 @@ fn range_avoids_fmp(func: &Function, addr: ValueId, len: Option<u64>) -> bool {
         if base >= EvmMemoryLayout::ZERO_SLOT {
             return true;
         }
-        return len.and_then(|len| base.checked_add(len)).is_some_and(|end| {
-            end <= EvmMemoryLayout::FMP_SLOT
-        });
+        return len
+            .and_then(|len| base.checked_add(len))
+            .is_some_and(|end| end <= EvmMemoryLayout::FMP_SLOT);
     }
     is_heap_address(func, addr, MAX_ADDRESS_DEPTH)
 }
