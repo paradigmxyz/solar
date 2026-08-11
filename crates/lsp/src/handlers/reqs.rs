@@ -1,9 +1,10 @@
 use super::workspace_edit::{validated_code_actions, validated_rename_workspace_edit};
 use crate::{
     diagnostics::PullReport,
+    document_links::solidity_string_contents,
     formatter::{self, FormatterError},
     global_state::GlobalState,
-    import_resolution::{ImportCandidateKind, ImportCursor, ImportResolver},
+    import_resolution::{ImportCandidateKind, ImportResolver, decode_import_path, import_path_at},
     natspec_completion::{self, NatSpecCompletionResult},
     progress::send_progress,
     symbols::{CompletionContext, CompletionItemData, SymbolTables},
@@ -548,7 +549,6 @@ pub(crate) fn goto_definition(
             if !analysis_revision.is_current(import_request.vfs_content_revision) {
                 return Ok(None);
             }
-            let Some(raw_path) = import_request.raw_path else { return Ok(None) };
             let Some(context) = config.import_resolution_context(&import_request.importer) else {
                 return Ok(None);
             };
@@ -558,7 +558,7 @@ pub(crate) fn goto_definition(
                 return Ok(Some(response));
             }
             if let Some(target) = ImportResolver::new(context, &import_request.overlay_paths)
-                .resolve(&import_request.importer, &raw_path)
+                .resolve(&import_request.importer, &import_request.raw_path)
                 && let Ok(uri) = Url::from_file_path(target)
             {
                 let location = lsp_types::Location::new(uri, lsp_types::Range::default());
@@ -574,7 +574,7 @@ pub(crate) fn goto_definition(
 
 struct ImportDefinitionRequest {
     importer: PathBuf,
-    raw_path: Option<String>,
+    raw_path: String,
     overlay_paths: Vec<PathBuf>,
     vfs_content_revision: u64,
 }
@@ -604,8 +604,9 @@ fn import_definition_request(
     let cursor_offset =
         crate::proto::checked_text_range(&contents, lsp_types::Range::new(position, position))?
             .start;
-    let source = import_cursor_source(&contents, cursor_offset)?;
-    let raw_path = ImportCursor::at(&source, cursor_offset)?.complete_path().map(str::to_owned);
+    let source = contents.to_string();
+    let import = import_path_at(&source, cursor_offset)?;
+    let raw_path = import.raw_path;
     Some(ImportDefinitionRequest { importer, raw_path, overlay_paths, vfs_content_revision })
 }
 
@@ -918,12 +919,15 @@ fn import_completion(
     let cursor_offset =
         crate::proto::checked_text_range(contents, lsp_types::Range::new(position, position))?
             .start;
-    let source = import_cursor_source(contents, cursor_offset)?;
-    let cursor = ImportCursor::at(&source, cursor_offset)?;
-    let Some(path_prefix) = cursor.decoded_path_prefix() else {
+    let source = contents.to_string();
+    let import = import_path_at(&source, cursor_offset)?;
+    let prefix_end = cursor_offset.max(import.content_range.start);
+    let raw_path_prefix = source.get(import.content_range.start..prefix_end).map(str::to_owned)?;
+    let replacement = import.content_range;
+    let delimiter = import.delimiter;
+    let Some(path_prefix) = decode_import_path(&raw_path_prefix) else {
         return Some(CompletionResponse::Array(Vec::new()));
     };
-    let replacement = cursor.replacement_range();
     if !(replacement.start..=replacement.end).contains(&cursor_offset) {
         return Some(CompletionResponse::Array(Vec::new()));
     }
@@ -944,8 +948,17 @@ fn import_completion(
         .iter()
         .map(|candidate| {
             let import_path = candidate.import_path().to_string();
-            let new_text = cursor.escaped_path(&import_path);
-            let filter_text = cursor.filter_text(&import_path, &path_prefix);
+            let new_text = solidity_string_contents(import_path.as_bytes(), delimiter);
+            let filter_text = if raw_path_prefix.bytes().any(|byte| matches!(byte, b'\r' | b'\n')) {
+                new_text.clone()
+            } else if let Some(suffix) = import_path.strip_prefix(&path_prefix) {
+                let mut filter_text = String::with_capacity(raw_path_prefix.len() + suffix.len());
+                filter_text.push_str(&raw_path_prefix);
+                filter_text.push_str(&solidity_string_contents(suffix.as_bytes(), delimiter));
+                filter_text
+            } else {
+                new_text.clone()
+            };
             CompletionItem {
                 label: import_path,
                 kind: Some(match candidate.kind() {
@@ -999,34 +1012,6 @@ fn byte_range_to_lsp(contents: &Rope, range: std::ops::Range<usize>) -> Option<l
         crate::proto::position_at_byte(contents, range.start)?,
         crate::proto::position_at_byte(contents, range.end)?,
     ))
-}
-
-fn import_cursor_source(contents: &Rope, cursor: usize) -> Option<String> {
-    let line = contents.line_of_byte(cursor);
-    let mut first_line = line.min(contents.line_len());
-    while first_line > 0 && line_continues(contents, first_line - 1) {
-        first_line -= 1;
-    }
-    let line_start = contents.byte_of_line(first_line);
-    let before_cursor = contents.byte_slice(line_start..cursor);
-    let cursor_is_quote =
-        cursor < contents.byte_len() && matches!(contents.byte(cursor), b'\'' | b'"');
-    if !cursor_is_quote && !before_cursor.bytes().any(|byte| matches!(byte, b'\'' | b'"')) {
-        return None;
-    }
-
-    let mut last_line = line.min(contents.line_len());
-    while last_line < contents.line_len() && line_continues(contents, last_line) {
-        last_line += 1;
-    }
-    let end = contents.byte_of_line(last_line.saturating_add(1).min(contents.line_len()));
-    Some(contents.byte_slice(..end).to_string())
-}
-
-fn line_continues(contents: &Rope, line: usize) -> bool {
-    let start = contents.byte_of_line(line);
-    let end = line_content_end(contents, line);
-    end > start && contents.byte(end - 1) == b'\\'
 }
 
 fn line_content_end(contents: &Rope, line: usize) -> usize {

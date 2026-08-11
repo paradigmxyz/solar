@@ -1,210 +1,95 @@
 use crate::{
-    document_links::{import_path_from_bytes, solidity_string_contents},
+    document_links::import_path_from_bytes,
     workspace::{Workspace, WorkspacePathIndex},
 };
 use normalize_path::NormalizePath;
 use solar_config::CompileOpts;
-use solar_interface::source_map::{FileResolver, SourceMap};
+use solar_interface::{
+    Session,
+    source_map::{FileName, FileResolver, SourceMap},
+};
 use solar_parse::{
-    Cursor,
-    ast::{
-        StrKind,
-        token::{BinOpToken, Delimiter},
-    },
-    lexer::{
-        token::{RawLiteralKind, RawTokenKind},
-        unescape::try_parse_string_literal,
-    },
+    Parser,
+    ast::{self, StrKind},
+    lexer::unescape::try_parse_string_literal,
 };
 use std::{
     collections::BTreeMap,
     fs,
-    ops::Range as ByteRange,
+    ops::Range,
     path::{Path, PathBuf},
 };
 
 const MAX_IMPORT_CANDIDATES: usize = 256;
 
+/// The source range and raw contents of an import path at a cursor position.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ImportCursor<'a> {
-    path_prefix: &'a str,
-    complete_path: Option<&'a str>,
-    replacement_range: ByteRange<usize>,
-    delimiter: u8,
+pub(crate) struct ImportPathAt {
+    pub(crate) raw_path: String,
+    pub(crate) content_range: Range<usize>,
+    pub(crate) delimiter: u8,
 }
 
-impl<'a> ImportCursor<'a> {
-    pub(crate) fn at(source: &'a str, cursor: usize) -> Option<Self> {
-        if cursor > source.len() || !source.is_char_boundary(cursor) {
-            return None;
-        }
-
-        let mut brace_depth = 0usize;
-        let mut import_tokens = None::<Vec<SyntaxToken>>;
-        for (start, token) in Cursor::new(source).with_position() {
-            if start > cursor {
-                break;
-            }
-            let end = start + token.len as usize;
-            if token.kind.is_trivial() {
-                continue;
-            }
-
-            if let Some(tokens) = &mut import_tokens {
-                if token.kind == RawTokenKind::Ident && source[start..end] == *"import" {
-                    tokens.clear();
-                    continue;
-                }
-                if token.kind == RawTokenKind::Semi {
-                    import_tokens = None;
-                    continue;
-                }
-                if let RawTokenKind::Literal {
-                    kind: RawLiteralKind::Str { kind: StrKind::Str, terminated },
-                } = token.kind
-                    && import_path_follows(source, tokens)
-                {
-                    let content_start = start + 1;
-                    let raw_content_end = if terminated { end - 1 } else { end };
-                    if (start..=raw_content_end).contains(&cursor) {
-                        let prefix_end = cursor.max(content_start);
-                        let path_prefix = &source[content_start..prefix_end];
-                        // The raw lexer permits newlines in strings and may consume a quote on a
-                        // later line. Only escaped LF/CRLF continuations are legal Solidity string
-                        // contents, so an unescaped line break keeps recovery edits local.
-                        let terminated = terminated
-                            && !has_unescaped_line_break(
-                                &source.as_bytes()[content_start..raw_content_end],
-                            );
-                        let content_end =
-                            if terminated { end - 1 } else { cursor.max(content_start) };
-                        return Some(Self {
-                            path_prefix,
-                            complete_path: terminated.then(|| &source[content_start..content_end]),
-                            replacement_range: content_start..content_end,
-                            delimiter: source.as_bytes()[start],
-                        });
-                    }
-                }
-                tokens.push(SyntaxToken { kind: token.kind, start, end });
-                continue;
-            }
-
-            if brace_depth == 0
-                && token.kind == RawTokenKind::Ident
-                && source[start..end] == *"import"
-            {
-                import_tokens = Some(Vec::new());
-                continue;
-            }
-            match token.kind {
-                RawTokenKind::OpenDelim(Delimiter::Brace) => brace_depth += 1,
-                RawTokenKind::CloseDelim(Delimiter::Brace) => {
-                    brace_depth = brace_depth.saturating_sub(1);
-                }
-                _ => {}
-            }
-        }
-        None
+/// Finds the parser AST import path containing `cursor` in the current source.
+pub(crate) fn import_path_at(source: &str, cursor: usize) -> Option<ImportPathAt> {
+    if cursor > source.len() || !source.is_char_boundary(cursor) {
+        return None;
     }
 
-    pub(crate) fn decoded_path_prefix(&self) -> Option<String> {
-        let mut invalid_escape = false;
-        let bytes = try_parse_string_literal(self.path_prefix, StrKind::Str, |_, _| {
-            invalid_escape = true;
-        });
-        if invalid_escape {
-            return None;
-        }
-        String::from_utf8(bytes.into_owned()).ok()
-    }
+    let mut opts = CompileOpts::default();
+    opts.unstable.recover_incomplete_input = true;
+    let sess = Session::builder().opts(opts).with_silent_emitter(None).single_threaded().build();
 
-    pub(crate) fn escaped_path(&self, path: &str) -> String {
-        solidity_string_contents(path.as_bytes(), self.delimiter)
-    }
-
-    pub(crate) fn filter_text(&self, path: &str, decoded_prefix: &str) -> String {
-        if self.path_prefix.bytes().any(|byte| matches!(byte, b'\r' | b'\n')) {
-            return self.escaped_path(path);
-        }
-        let Some(suffix) = path.strip_prefix(decoded_prefix) else {
-            return self.escaped_path(path);
+    sess.enter_sequential(|| {
+        let arena = ast::Arena::new();
+        let mut parser = match Parser::from_source_code(
+            &sess,
+            &arena,
+            FileName::Custom("lsp-import-resolution.sol".into()),
+            source,
+        ) {
+            Ok(parser) => parser,
+            Err(_) => return None,
         };
-        let mut filter_text = String::with_capacity(self.path_prefix.len() + suffix.len());
-        filter_text.push_str(self.path_prefix);
-        filter_text.push_str(&self.escaped_path(suffix));
-        filter_text
-    }
-
-    pub(crate) fn complete_path(&self) -> Option<&'a str> {
-        self.complete_path
-    }
-
-    pub(crate) fn replacement_range(&self) -> ByteRange<usize> {
-        self.replacement_range.clone()
-    }
-}
-
-fn has_unescaped_line_break(bytes: &[u8]) -> bool {
-    let mut index = 0;
-    while index < bytes.len() {
-        match bytes[index] {
-            b'\\' if bytes.get(index + 1) == Some(&b'\n') => index += 2,
-            b'\\'
-                if bytes.get(index + 1) == Some(&b'\r') && bytes.get(index + 2) == Some(&b'\n') =>
-            {
-                index += 3;
+        let source_unit = match parser.parse_file() {
+            Ok(source_unit) => source_unit,
+            Err(error) => {
+                error.emit();
+                return None;
             }
-            b'\\' if bytes.get(index + 1) == Some(&b'\r') => return true,
-            b'\\' => index += 2,
-            b'\r' | b'\n' => return true,
-            _ => index += 1,
+        };
+        drop(parser);
+
+        let files = sess.source_map().files();
+        let file = files.first()?;
+        let (start, end, raw_path) = source_unit.imports().find_map(|(_, import)| {
+            let start = file.relative_position(import.path.span.lo()).to_usize();
+            let end = file.relative_position(import.path.span.hi()).to_usize();
+            (start..end).contains(&cursor).then(|| (start, end, import.path.value.as_str()))
+        })?;
+        let delimiter = *source.as_bytes().get(start)?;
+        let content_start = start.checked_add(1)?;
+        let content_end = end.checked_sub(1)?;
+        if !matches!(delimiter, b'\'' | b'"')
+            || source.as_bytes().get(content_end).copied() != Some(delimiter)
+        {
+            return None;
         }
-    }
-    false
+        let content_range = content_start..content_end;
+        source.get(content_range.clone())?;
+        Some(ImportPathAt { raw_path: raw_path.to_owned(), content_range, delimiter })
+    })
 }
 
-#[derive(Clone, Copy, Debug)]
-struct SyntaxToken {
-    kind: RawTokenKind,
-    start: usize,
-    end: usize,
-}
-
-fn import_path_follows(source: &str, tokens: &[SyntaxToken]) -> bool {
-    if tokens.is_empty() {
-        return true;
+pub(crate) fn decode_import_path(path: &str) -> Option<String> {
+    let mut invalid_escape = false;
+    let bytes = try_parse_string_literal(path, StrKind::Str, |_, _| {
+        invalid_escape = true;
+    });
+    if invalid_escape {
+        return None;
     }
-    if let [star, as_kw, alias, from_kw] = tokens
-        && star.kind == RawTokenKind::BinOp(BinOpToken::Star)
-    {
-        return token_is_ident(source, as_kw, "as")
-            && alias.kind == RawTokenKind::Ident
-            && token_is_ident(source, from_kw, "from");
-    }
-    if tokens.len() >= 3
-        && tokens[0].kind == RawTokenKind::OpenDelim(Delimiter::Brace)
-        && tokens[tokens.len() - 2].kind == RawTokenKind::CloseDelim(Delimiter::Brace)
-        && token_is_ident(source, &tokens[tokens.len() - 1], "from")
-    {
-        let mut depth = 0usize;
-        for token in &tokens[..tokens.len() - 1] {
-            match token.kind {
-                RawTokenKind::OpenDelim(Delimiter::Brace) => depth += 1,
-                RawTokenKind::CloseDelim(Delimiter::Brace) => {
-                    let Some(next) = depth.checked_sub(1) else { return false };
-                    depth = next;
-                }
-                _ => {}
-            }
-        }
-        return depth == 0;
-    }
-    false
-}
-
-fn token_is_ident(source: &str, token: &SyntaxToken, expected: &str) -> bool {
-    token.kind == RawTokenKind::Ident && source[token.start..token.end] == *expected
+    String::from_utf8(bytes.into_owned()).ok()
 }
 
 /// The compiler import configuration owned by one workspace.

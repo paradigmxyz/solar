@@ -478,7 +478,7 @@ fn opening_quote_completion_does_not_return_an_out_of_range_edit() {
 }
 
 #[test]
-fn unterminated_import_completion_does_not_replace_the_next_line() {
+fn unterminated_import_completion_requires_an_import_ast() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /foundry.toml
@@ -493,20 +493,7 @@ fn unterminated_import_completion_does_not_replace_the_next_line() {
         "/src/Main.sol",
     );
 
-    fixture.check_completion_details(
-        "$1",
-        str![[r#"
-label=./Dependency.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:8-0:13
-insert_text_format=<none>
-new_text:
-./Dependency.sol
-
-"#]],
-    );
+    fixture.check_completion_details("$1", str![""]);
 }
 
 #[test]
