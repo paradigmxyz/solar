@@ -1,6 +1,6 @@
 //! Type-directed storage locations used by HIR lowering.
 
-use std::sync::OnceLock;
+use std::{cell::RefCell, sync::OnceLock};
 
 use crate::mir::{FunctionBuilder, TypeSize, ValueId};
 use alloy_primitives::U256;
@@ -264,7 +264,8 @@ impl<'gcx> StorageLayout<'gcx> {
 struct StorageBuilder<'gcx> {
     gcx: Gcx<'gcx>,
     locations: FxHashMap<VariableId, StorageLocation>,
-    field_locations: IndexVec<StructId, OnceLock<Box<[StorageLocation]>>>,
+    field_types: IndexVec<StructId, OnceLock<&'gcx [Ty<'gcx>]>>,
+    field_locations: RefCell<FxHashMap<StructId, Option<Box<[StorageLocation]>>>>,
     cursor: StorageCursor,
 }
 
@@ -284,38 +285,39 @@ impl StorageCursor {
         &mut self,
         encoding: Option<(TypeSize, StorageEncoding)>,
         slots: u64,
-    ) -> StorageLocation {
+    ) -> Option<StorageLocation> {
         if let Some((size, encoding)) = encoding
             && size < StorageLocation::WORD
         {
             let bytes = size.bytes();
-            if self.offset.saturating_add(bytes) > StorageLocation::word_bytes() {
-                self.finish_word();
+            if self.offset.checked_add(bytes)? > StorageLocation::word_bytes() {
+                self.finish_word()?;
             }
             let location = StorageLocation { slot: self.slot, offset: self.offset, size, encoding };
-            self.offset = self.offset.saturating_add(bytes);
+            self.offset += bytes;
             if self.offset == StorageLocation::word_bytes() {
-                self.finish_word();
+                self.finish_word()?;
             }
-            return location;
+            return Some(location);
         }
 
-        self.finish_word();
+        self.finish_word()?;
         let location = StorageLocation::word(self.slot);
-        self.slot = self.slot.saturating_add(U256::from(slots));
-        location
+        self.slot = self.slot.checked_add(U256::from(slots))?;
+        Some(location)
     }
 
-    fn finish_word(&mut self) {
+    fn finish_word(&mut self) -> Option<()> {
         if self.offset != 0 {
-            self.slot = self.slot.saturating_add(U256::from(1));
+            self.slot = self.slot.checked_add(U256::from(1))?;
             self.offset = 0;
         }
+        Some(())
     }
 
-    fn slots(&mut self) -> u64 {
-        self.finish_word();
-        self.slot.try_into().unwrap_or(u64::MAX)
+    fn slots(&mut self) -> Option<u64> {
+        self.finish_word()?;
+        self.slot.try_into().ok()
     }
 }
 
@@ -324,7 +326,8 @@ impl<'gcx> StorageBuilder<'gcx> {
         Self {
             gcx,
             locations: FxHashMap::default(),
-            field_locations: gcx.hir.strukt_ids().map(|_| OnceLock::new()).collect(),
+            field_types: gcx.hir.strukt_ids().map(|_| OnceLock::new()).collect(),
+            field_locations: RefCell::new(FxHashMap::default()),
             cursor: StorageCursor::new(),
         }
     }
@@ -349,26 +352,40 @@ impl<'gcx> StorageBuilder<'gcx> {
     fn allocate(&mut self, ty: Ty<'gcx>, span: Span) -> Option<StorageLocation> {
         let encoding = self.packed_encoding(ty);
         let slots = self.storage_slots(ty, span);
-        Some(self.cursor.take(encoding, slots))
+        self.cursor.take(encoding, slots).or_else(|| {
+            self.gcx
+                .dcx()
+                .err("contract storage layout exceeds the addressable storage space")
+                .span(span)
+                .emit();
+            None
+        })
     }
 
     fn locate_field(&self, struct_id: StructId, field: usize) -> Option<StorageLocation> {
-        let locations = self.field_locations[struct_id].get_or_init(|| {
-            let mut cursor = StorageCursor::new();
-            self.gcx
-                .hir
-                .strukt(struct_id)
-                .fields
-                .iter()
-                .map(|&field_id| {
-                    let ty = self.gcx.type_of_item(field_id.into());
-                    let encoding = self.packed_encoding(ty);
-                    let slots = self.storage_slots(ty, Span::DUMMY);
-                    cursor.take(encoding, slots)
-                })
-                .collect::<Box<_>>()
-        });
-        locations.get(field).copied()
+        if let Some(locations) = self.field_locations.borrow().get(&struct_id) {
+            return locations.as_ref()?.get(field).copied();
+        }
+
+        let mut cursor = StorageCursor::new();
+        let locations = self
+            .struct_field_types(struct_id)
+            .iter()
+            .map(|&ty| {
+                let encoding = self.packed_encoding(ty);
+                let slots = self.storage_slots(ty, Span::DUMMY);
+                cursor.take(encoding, slots)
+            })
+            .collect::<Option<Box<_>>>();
+        if locations.is_none() {
+            self.unsupported_size(Span::DUMMY, "storage struct");
+        }
+        let mut cached = self.field_locations.borrow_mut();
+        cached.entry(struct_id).or_insert(locations).as_ref()?.get(field).copied()
+    }
+
+    fn struct_field_types(&self, struct_id: StructId) -> &'gcx [Ty<'gcx>] {
+        self.field_types[struct_id].get_or_init(|| self.gcx.struct_field_types(struct_id))
     }
 
     fn packed_encoding(&self, ty: Ty<'gcx>) -> Option<(TypeSize, StorageEncoding)> {
@@ -399,37 +416,63 @@ impl<'gcx> StorageBuilder<'gcx> {
     }
 
     fn storage_slots(&self, ty: Ty<'gcx>, span: Span) -> u64 {
+        self.storage_slots_inner(ty, span).unwrap_or(1)
+    }
+
+    fn storage_slots_inner(&self, ty: Ty<'gcx>, span: Span) -> Option<u64> {
         match ty.peel_refs().kind {
             TyKind::Struct(id) => {
-                let fields = self.gcx.hir.strukt(id).fields;
-                self.sequence_slots(
-                    fields.iter().map(|&field| self.gcx.type_of_item(field.into())),
-                    span,
-                )
+                self.sequence_slots(self.struct_field_types(id).iter().copied(), span)
             }
             TyKind::Array(element, len) => {
                 let Ok(len) = u64::try_from(len) else {
-                    return self.unsupported_size(span, "fixed-size storage array");
+                    self.unsupported_size(span, "fixed-size storage array");
+                    return None;
                 };
                 if let Some((size, _)) = self.packed_encoding(element)
                     && size < StorageLocation::WORD
                 {
-                    return u64::from(size.bytes()).saturating_mul(len).div_ceil(32).max(1);
+                    let bytes = u64::from(size.bytes());
+                    let Some(full_words) = (len / 32).checked_mul(bytes) else {
+                        self.unsupported_size(span, "fixed-size storage array");
+                        return None;
+                    };
+                    let Some(partial_bytes) = (len % 32).checked_mul(bytes) else {
+                        self.unsupported_size(span, "fixed-size storage array");
+                        return None;
+                    };
+                    let Some(slots) = full_words.checked_add(partial_bytes.div_ceil(32)) else {
+                        self.unsupported_size(span, "fixed-size storage array");
+                        return None;
+                    };
+                    return Some(slots.max(1));
                 }
-                len.saturating_mul(self.storage_slots(element, span)).max(1)
+                let slots = self.storage_slots_inner(element, span)?;
+                let Some(slots) = len.checked_mul(slots) else {
+                    self.unsupported_size(span, "fixed-size storage array");
+                    return None;
+                };
+                Some(slots.max(1))
             }
-            _ => 1,
+            _ => Some(1),
         }
     }
 
-    fn sequence_slots(&self, tys: impl Iterator<Item = Ty<'gcx>>, span: Span) -> u64 {
+    fn sequence_slots(&self, tys: impl Iterator<Item = Ty<'gcx>>, span: Span) -> Option<u64> {
         let mut cursor = StorageCursor::new();
         for ty in tys {
             let encoding = self.packed_encoding(ty);
-            let slots = self.storage_slots(ty, span);
-            cursor.take(encoding, slots);
+            let slots = self.storage_slots_inner(ty, span)?;
+            if cursor.take(encoding, slots).is_none() {
+                self.unsupported_size(span, "storage struct");
+                return None;
+            }
         }
-        cursor.slots().max(1)
+        let Some(slots) = cursor.slots() else {
+            self.unsupported_size(span, "storage struct");
+            return None;
+        };
+        Some(slots.max(1))
     }
 
     fn unsupported_size(&self, span: Span, kind: &str) -> u64 {
