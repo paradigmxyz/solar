@@ -1902,13 +1902,18 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // Reset scheduler
         self.scheduler = StackScheduler::new();
+        // Direct stack arguments keep no frame home just like resident and lazy ones, so they must
+        // be marked stack-only too: an unmarked argument is an ordinary `Arg`, which the scheduler
+        // treats as rematerializable and may drop under stack pressure and reload from its
+        // never-written frame slot. A function appears in at most one of these maps.
         let stack_only_values = self
             .resident_stack_args
             .get(&func_id)
             .into_iter()
             .flatten()
             .copied()
-            .chain(self.lazy_stack_args.get(&func_id).into_iter().flat_map(|p| p.values()));
+            .chain(self.lazy_stack_args.get(&func_id).into_iter().flat_map(|p| p.values()))
+            .chain(self.direct_stack_args.get(&func_id).into_iter().flatten().copied());
         self.scheduler.set_stack_only_values(func.num_values(), stack_only_values);
         self.spill_addr_consts.clear();
 
@@ -4649,6 +4654,25 @@ impl<'gcx> EvmCodegen<'gcx> {
             if has_phis {
                 let phi_plan = StackPhiPlan::analyze(func);
                 let cfg = CfgInfo::new(func);
+                // `merge_resident` lets the invariant resident prefix ride below the changing phi
+                // words on each edge, extending `edge.sources` and `edge.results` with the resident
+                // values each side is missing. A resident argument is never a phi result, so the
+                // result side always gains the whole prefix; if that same argument is already a phi
+                // *source* on some edge, the source side gains one fewer, and the edge stops being
+                // square. One physical word cannot serve both as that phi input and as the
+                // invariant prefix word, so the combination is unsound: the edge
+                // would fall back to memory phi copies while the join still models
+                // the resident-extended entry, leaving a phantom stack word on that
+                // path. Reject residency here and keep the memory-frame convention
+                // rather than miscompile.
+                let resident_is_phi_source = phi_plan.edges.iter().any(|(&pred, edge)| {
+                    let Some(term) = func.blocks[pred].terminator.as_ref() else { return false };
+                    let Some(layout) = plan.edge_layout(func, term) else { return false };
+                    layout.iter().any(|value| edge.sources.contains(value))
+                });
+                if resident_is_phi_source {
+                    continue;
+                }
                 // A resident prefix on a planned backedge pays its shuffle on
                 // every loop iteration. Keep loop phis on the established
                 // layout until the planner has execution-frequency-aware
@@ -4701,10 +4725,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                     continue;
                 }
             }
-            self.stack_arg_masks
-                .entry(func_id)
-                .or_insert_with(|| DenseBitSet::new_empty(func.params.len()))
-                .union(&mask);
+            // A resident callee passes exactly its resident arguments on the stack; every other
+            // parameter stays frame-passed, and the prologue that would store stack args is skipped
+            // (`emit_stack_arg_prologue`). `compute_stack_arg_masks` scored this callee
+            // independently and may have set bits outside the resident set — high
+            // indices dropped by the layout limit, or args a per-caller pass removed
+            // here. Unioning them in would make the caller push more raw words than the
+            // entry models (which sets the stack to `values` alone), leaving the return
+            // address deeper than tracked. Overwrite with the resident mask so the
+            // caller's raw pushes and the callee's modeled entry stay in lockstep.
+            self.stack_arg_masks.insert(func_id, mask);
             self.resident_stack_args.insert(func_id, values);
             self.resident_stack_plans.insert(func_id, plan);
         }
@@ -4796,6 +4826,21 @@ impl<'gcx> EvmCodegen<'gcx> {
                 continue;
             }
             if mask.count() > 4 {
+                continue;
+            }
+            // A direct stack argument has no frame home and cannot own a spill slot, so a
+            // stack-draining internal or tail call between the entry stack and a later use would
+            // drop it and reload it from its never-written frame slot. `use_info` only rejects
+            // arguments consumed *by* a call, not ones merely live across one, so exclude any
+            // callee that makes a call at all. Resident and lazy selection already
+            // cover the callee shapes that survive a drain.
+            if func.blocks.iter().any(|block| {
+                block
+                    .instructions
+                    .iter()
+                    .any(|&inst| matches!(func.inst(inst).kind, InstKind::InternalCall { .. }))
+                    || matches!(block.terminator, Some(Terminator::TailCall { .. }))
+            }) {
                 continue;
             }
 
