@@ -239,6 +239,36 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_custom_error_revert(error_id, *args);
         }
 
+        let literal = expr.peel_parens();
+        if let ExprKind::Lit(lit) = &literal.kind
+            && let LitKind::Str(StrKind::Str | StrKind::Unicode | StrKind::Hex, bytes, _) =
+                &lit.kind
+            && let Ok(byte_len) = u64::try_from(bytes.as_byte_str().len())
+            && byte_len <= 32
+        {
+            let bytes = bytes.as_byte_str();
+            let data_size = if bytes.is_empty() { 0 } else { 32 };
+            let size = 68u64.checked_add(data_size)?;
+            let selector = keccak256("Error(string)");
+            let selector = self.builder.imm_u256(U256::from_be_slice(&selector[..4]) << 224);
+            let zero = self.builder.imm_u64(0);
+            self.builder.mstore(zero, selector);
+            let offset = self.builder.imm_u64(4);
+            let tuple_offset = self.builder.imm_u64(32);
+            self.builder.mstore(offset, tuple_offset);
+            let length = self.builder.imm_u64(36);
+            let byte_len = self.builder.imm_u64(byte_len);
+            self.builder.mstore(length, byte_len);
+            if !bytes.is_empty() {
+                let value = self.lower_word_literal(lit)?;
+                let offset = self.builder.imm_u64(68);
+                self.builder.mstore(offset, value);
+            }
+            let size = self.builder.imm_u64(size);
+            self.builder.revert(zero, size);
+            return Some(());
+        }
+
         let value = self.lower_expr(expr)?;
         let ty = self.gcx.type_of_expr(expr.id)?;
         let value =

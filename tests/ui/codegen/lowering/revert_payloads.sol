@@ -13,24 +13,32 @@ contract RevertPayloads {
 
     // CHECK-LABEL: fn @require_message{{[( ]}}
     // CHECK: {{v[0-9]+}} = iszero arg0
-    // CHECK: [[MESSAGE:v[0-9]+]] = alloc memorybytes
-    // CHECK: set_memory_object_len memorybytes, [[MESSAGE]], 3
-    // CHECK: [[PAYLOAD:v[0-9]+]] = abi_encode [memory_bytes], selector 0x8c379a0{{[0]+}}, args [[MESSAGE]]
-    // CHECK: [[PTR:v[0-9]+]] = slice_ptr [[PAYLOAD]]
-    // CHECK: [[LEN:v[0-9]+]] = slice_len [[PAYLOAD]]
-    // CHECK: revert [[PTR]], [[LEN]]
+    // CHECK: mstore 0, 0x8c379a0{{[0]+}}
+    // CHECK: mstore 4, 32
+    // CHECK: mstore 36, 3
+    // CHECK: mstore 68, 0x626164{{[0]+}}
+    // CHECK: revert 0, 100
     function require_message(bool ok) public pure {
         require(ok, "bad");
     }
 
     // CHECK-LABEL: fn @revert_message{{[( ]}}
-    // CHECK: [[MESSAGE:v[0-9]+]] = alloc memorybytes
-    // CHECK: set_memory_object_len memorybytes, [[MESSAGE]], 3
-    // CHECK: [[PAYLOAD:v[0-9]+]] = abi_encode [memory_bytes], selector 0x8c379a0{{[0]+}}, args [[MESSAGE]]
-    // CHECK: [[PTR:v[0-9]+]] = slice_ptr [[PAYLOAD]]
-    // CHECK: [[LEN:v[0-9]+]] = slice_len [[PAYLOAD]]
-    // CHECK: revert [[PTR]], [[LEN]]
+    // CHECK: mstore 0, 0x8c379a0{{[0]+}}
+    // CHECK: mstore 4, 32
+    // CHECK: mstore 36, 3
+    // CHECK: mstore 68, 0x626164{{[0]+}}
+    // CHECK: revert 0, 100
     function revert_message() public pure {
         revert("bad");
+    }
+
+    // CHECK-LABEL: fn @revert_hex_message{{[( ]}}
+    // CHECK: mstore 0, 0x8c379a0{{[0]+}}
+    // CHECK: mstore 4, 32
+    // CHECK: mstore 36, 3
+    // CHECK: mstore 68, 0x626164{{[0]+}}
+    // CHECK: revert 0, 100
+    function revert_hex_message() public pure {
+        revert(hex"626164");
     }
 }

@@ -95,13 +95,11 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [selector=0xd1660f99,
     v36 = phi [bb16: v35], [bb17: 1]
     jump bb15
   bb19:
-    v39 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v39, 2
-    memory_object_store_word memorybytes, v39, 0, 0x5446000000000000000000000000000000000000000000000000000000000000
-    v40 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v39
-    v41 = slice_ptr v40
-    v42 = slice_len v40
-    revert v41, v42
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, 2 !metadata(memory=scratch)
+    mstore 68, 0x5446000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    revert 0, 100
   bb20:
     stop
 }

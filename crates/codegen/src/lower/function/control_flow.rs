@@ -80,7 +80,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for case in switch.cases {
             let block = self.builder.create_block();
             if let Some(constant) = case.constant {
-                let value = self.lower_yul_word_literal(constant)?;
+                let value = self.lower_word_literal(constant)?;
                 case_blocks.push((value, block));
             } else {
                 default_block = block;
@@ -471,7 +471,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    pub(super) fn lower_yul_word_literal(&mut self, lit: &hir::Lit<'_>) -> Option<ValueId> {
+    pub(super) fn lower_word_literal(&mut self, lit: &hir::Lit<'_>) -> Option<ValueId> {
         if let LitKind::Str(_, bytes, _) = &lit.kind {
             let bytes = bytes.as_byte_str();
             if bytes.len() > 32 {
@@ -492,7 +492,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_yul_word_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         if let ExprKind::Lit(lit) = expr.peel_parens().kind {
-            return self.lower_yul_word_literal(lit);
+            return self.lower_word_literal(lit);
         }
         self.lower_expr(expr)
     }
