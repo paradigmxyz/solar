@@ -138,9 +138,9 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
             for _ in 0..inputs {
                 operands.push(stack.pop().expect("stack depth was extended"));
             }
-            let mut operand_exprs: SmallVec<[usize; 3]> =
-                operands.iter().map(|value| value.expr).collect();
-            if is_commutative(opcode) {
+            let mut operand_exprs =
+                operands.iter().map(|value| value.expr).collect::<SmallVec<[usize; 3]>>();
+            if op::is_commutative(opcode) {
                 operand_exprs.sort_unstable();
             }
             let expression = if let Some(epoch) = read_epoch {
@@ -180,10 +180,10 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
 
         let effect = default_instruction_stack_effect(&inst);
         instructions.push(inst);
-        if clobbers_memory(opcode) {
+        if op::writes_memory(opcode) {
             memory_epoch = memory_epoch.wrapping_add(1);
         }
-        if clobbers_storage(opcode) {
+        if op::writes_storage(opcode) {
             storage_epoch = storage_epoch.wrapping_add(1);
         }
         if let Some(effect) = effect {
@@ -261,9 +261,9 @@ fn may_regenerate(instructions: &[Instruction]) -> bool {
             for _ in 0..inputs {
                 operands.push(stack.pop().expect("stack depth was extended"));
             }
-            let mut operand_exprs: SmallVec<[u64; 3]> =
-                operands.iter().map(|value| value.expr).collect();
-            if is_commutative(opcode) {
+            let mut operand_exprs =
+                operands.iter().map(|value| value.expr).collect::<SmallVec<[u64; 3]>>();
+            if op::is_commutative(opcode) {
                 operand_exprs.sort_unstable();
             }
             let expr = operation_fingerprint(opcode, read_epoch, &operand_exprs);
@@ -280,10 +280,10 @@ fn may_regenerate(instructions: &[Instruction]) -> bool {
             continue;
         }
 
-        if clobbers_memory(opcode) {
+        if op::writes_memory(opcode) {
             memory_epoch = memory_epoch.wrapping_add(1);
         }
-        if clobbers_storage(opcode) {
+        if op::writes_storage(opcode) {
             storage_epoch = storage_epoch.wrapping_add(1);
         }
         if let Some(effect) = default_instruction_stack_effect(inst) {
@@ -304,7 +304,8 @@ fn may_regenerate(instructions: &[Instruction]) -> bool {
 /// expressions necessarily have the same opcode, so this allocation-free screen rejects most
 /// already-optimized blocks before symbolic execution.
 fn has_repeated_candidate_opcode(instructions: &[Instruction]) -> bool {
-    let mut seen = [false; 256];
+    // An inline 256-bit set over the opcode domain, keeping the screen allocation-free.
+    let mut seen = [0u64; 4];
     for inst in instructions {
         let candidate = if inst.is_encoded_push() {
             inst.deferred_push().is_none()
@@ -314,10 +315,11 @@ fn has_repeated_candidate_opcode(instructions: &[Instruction]) -> bool {
         };
         if candidate {
             let opcode = usize::from(inst.opcode);
-            if seen[opcode] {
+            let bit = 1u64 << (opcode % 64);
+            if seen[opcode / 64] & bit != 0 {
                 return true;
             }
-            seen[opcode] = true;
+            seen[opcode / 64] |= bit;
         }
     }
     false
@@ -330,18 +332,19 @@ fn push_fingerprint(opcode: u8, encoding: u8, value: PushValue) -> u64 {
 }
 
 fn operation_fingerprint(opcode: u8, epoch: Option<u64>, operands: &[u64]) -> u64 {
-    let mut hash = 0x9e37_79b9_7f4a_7c15u64 ^ u64::from(opcode);
-    hash ^= epoch.unwrap_or(u64::MAX).wrapping_mul(0xbf58_476d_1ce4_e5b9);
-    for &operand in operands {
-        hash = hash.rotate_left(17) ^ operand.wrapping_mul(0x94d0_49bb_1331_11eb);
-    }
-    hash
+    let mut hasher = FxHasher::default();
+    (opcode, epoch, operands).hash(&mut hasher);
+    hasher.finish()
 }
 
 fn fresh_hash(next_fresh: &mut usize) -> u64 {
-    let hash = 0xd6e8_feb8_6659_fd93u64 ^ (*next_fresh as u64).wrapping_mul(0xa076_1d64_78bd_642f);
+    let id = *next_fresh;
     *next_fresh += 1;
-    hash
+    // A distinct namespace from `operation_fingerprint` so fresh values never collide with a real
+    // expression fingerprint.
+    let mut hasher = FxHasher::default();
+    ("fresh", id).hash(&mut hasher);
+    hasher.finish()
 }
 
 fn ensure_hash_depth(stack: &mut Vec<FingerprintValue>, depth: usize, next_fresh: &mut usize) {
@@ -389,12 +392,7 @@ fn ensure_depth(stack: &mut Vec<StackValue>, depth: usize, next_expr: &mut usize
 }
 
 fn intern(expr: Expr, expressions: &mut FxHashMap<Expr, usize>, next_expr: &mut usize) -> usize {
-    if let Some(&id) = expressions.get(&expr) {
-        return id;
-    }
-    let id = fresh(next_expr);
-    expressions.insert(expr, id);
-    id
+    *expressions.entry(expr).or_insert_with(|| fresh(next_expr))
 }
 
 fn fresh(next_expr: &mut usize) -> usize {
@@ -403,14 +401,19 @@ fn fresh(next_expr: &mut usize) -> usize {
     id
 }
 
+/// Returns the input count and cache epoch of an opcode this pass value-numbers, or `None` when
+/// the opcode is not a tracked pure expression. The input count comes from [`op::stack_io`]; the
+/// epoch keys a memory or storage read to the current clobber generation so it is only reused
+/// until the next write. Pure arithmetic has no epoch.
 const fn expression_inputs(
     opcode: u8,
     memory_epoch: u64,
     storage_epoch: u64,
 ) -> Option<(usize, Option<u64>)> {
-    let pure = match opcode {
-        op::ISZERO | op::NOT => Some(1),
-        op::ADD
+    let epoch = match opcode {
+        op::ISZERO
+        | op::NOT
+        | op::ADD
         | op::MUL
         | op::SUB
         | op::DIV
@@ -430,53 +433,16 @@ const fn expression_inputs(
         | op::BYTE
         | op::SHL
         | op::SHR
-        | op::SAR => Some(2),
-        op::ADDMOD | op::MULMOD => Some(3),
-        _ => None,
+        | op::SAR
+        | op::ADDMOD
+        | op::MULMOD => None,
+        op::MLOAD | op::KECCAK256 => Some(memory_epoch << 1),
+        op::SLOAD | op::TLOAD => Some((storage_epoch << 1) | 1),
+        op::CALLDATALOAD => Some(0),
+        _ => return None,
     };
-    if let Some(inputs) = pure {
-        return Some((inputs, None));
+    match op::stack_io(opcode) {
+        Some((inputs, _)) => Some((inputs as usize, epoch)),
+        None => None,
     }
-    match opcode {
-        op::MLOAD => Some((1, Some(memory_epoch << 1))),
-        op::KECCAK256 => Some((2, Some(memory_epoch << 1))),
-        op::SLOAD | op::TLOAD => Some((1, Some((storage_epoch << 1) | 1))),
-        op::CALLDATALOAD => Some((1, Some(0))),
-        _ => None,
-    }
-}
-
-const fn clobbers_memory(opcode: u8) -> bool {
-    matches!(
-        opcode,
-        op::MSTORE
-            | op::MSTORE8
-            | op::MCOPY
-            | op::CALLDATACOPY
-            | op::CODECOPY
-            | op::EXTCODECOPY
-            | op::RETURNDATACOPY
-            | op::CALL
-            | op::CALLCODE
-            | op::DELEGATECALL
-            | op::STATICCALL
-    )
-}
-
-const fn clobbers_storage(opcode: u8) -> bool {
-    matches!(
-        opcode,
-        op::SSTORE
-            | op::TSTORE
-            | op::CALL
-            | op::CALLCODE
-            | op::DELEGATECALL
-            | op::STATICCALL
-            | op::CREATE
-            | op::CREATE2
-    )
-}
-
-const fn is_commutative(opcode: u8) -> bool {
-    matches!(opcode, op::ADD | op::MUL | op::EQ | op::AND | op::OR | op::XOR)
 }

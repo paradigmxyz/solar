@@ -5543,14 +5543,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        let resident_call_values: Vec<_> = if self.preserve_caller_stack {
+        let resident_call_values = if self.preserve_caller_stack {
             self.resident_stack_args
                 .get(&func_id)
                 .into_iter()
                 .flatten()
                 .copied()
                 .filter(|&value| liveness.is_used_at_or_after(value, block, inst_idx + 1))
-                .collect()
+                .collect::<Vec<_>>()
         } else {
             Vec::new()
         };
@@ -5600,8 +5600,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             None
         } else {
             self.pop_stack_values_not_needed_by(&resident_call_values);
-            let target: Vec<_> =
-                resident_call_values.iter().copied().map(TargetSlot::Value).collect();
+            let target =
+                resident_call_values.iter().copied().map(TargetSlot::Value).collect::<Vec<_>>();
             let shuffle = self.scheduler.shuffle_to_layout(&target).unwrap_or_else(|| {
                 panic!(
                     "could not preserve resident arguments across a dynamic internal call in \
@@ -6005,8 +6005,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let caller_stack = if carries_resident_stack {
             self.pop_stack_values_not_needed_by(&resident_call_values);
-            let target: Vec<_> =
-                resident_call_values.iter().copied().map(TargetSlot::Value).collect();
+            let target =
+                resident_call_values.iter().copied().map(TargetSlot::Value).collect::<Vec<_>>();
             let shuffle = self.scheduler.shuffle_to_layout(&target).unwrap_or_else(|| {
                 panic!(
                     "could not preserve resident arguments across an internal call in `{}`: \

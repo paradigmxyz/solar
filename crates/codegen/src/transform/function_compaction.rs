@@ -98,7 +98,7 @@ fn prune_unused_args(module: &mut Module) -> usize {
     let mut live = module
         .functions
         .iter()
-        .map(|func| vec![false; func.params.len()])
+        .map(|func| DenseBitSet::<ArgIdx>::new_empty(func.params.len()))
         .collect::<IndexVec<FunctionId, _>>();
     let mut dependents = module
         .functions
@@ -144,33 +144,29 @@ fn prune_unused_args(module: &mut Module) -> usize {
     // including arguments forwarded around an otherwise-unused recursive cycle.
     for (func_id, func) in module.functions.iter_enumerated() {
         if !has_rewritable_signature(func, called.contains(func_id)) {
-            live[func_id].fill(true);
+            live[func_id].insert_all();
         }
     }
     let mut worklist = Vec::new();
     for (func_id, args) in live.iter_enumerated() {
-        for (index, &is_live) in args.iter().enumerate() {
-            if is_live {
-                worklist.push((func_id, ArgIdx::new(index)));
-            }
+        for index in args.iter() {
+            worklist.push((func_id, index));
         }
     }
     while let Some((func_id, index)) = worklist.pop() {
         for &(dependent_func, dependent_arg) in &dependents[func_id][index] {
-            let Some(is_live) = live[dependent_func].get_mut(dependent_arg.index()) else {
-                continue;
-            };
-            if !*is_live {
-                *is_live = true;
+            if dependent_arg.index() < live[dependent_func].domain_size()
+                && live[dependent_func].insert(dependent_arg)
+            {
                 worklist.push((dependent_func, dependent_arg));
             }
         }
     }
-    if live.iter().all(|args| args.iter().all(|&is_live| is_live)) {
+    if live.iter().all(|args| args.count() == args.domain_size()) {
         return 0;
     }
 
-    let removed = live.iter().map(|args| args.iter().filter(|&&live| !live).count()).sum();
+    let removed = live.iter().map(|args| args.domain_size() - args.count()).sum();
     if removed == 0 {
         return 0;
     }
@@ -185,8 +181,10 @@ fn prune_unused_args(module: &mut Module) -> usize {
                 let old_len = args.len();
                 *args = args
                     .iter()
-                    .zip(&live[*function])
-                    .filter_map(|(&arg, &keep)| keep.then_some(arg))
+                    .enumerate()
+                    .filter_map(|(index, &arg)| {
+                        live[*function].contains(ArgIdx::new(index)).then_some(arg)
+                    })
                     .collect();
                 removed_call_operands += old_len - args.len();
             }
@@ -196,8 +194,10 @@ fn prune_unused_args(module: &mut Module) -> usize {
                 let old_len = args.len();
                 *args = args
                     .iter()
-                    .zip(&live[*function])
-                    .filter_map(|(&arg, &keep)| keep.then_some(arg))
+                    .enumerate()
+                    .filter_map(|(index, &arg)| {
+                        live[*function].contains(ArgIdx::new(index)).then_some(arg)
+                    })
                     .collect();
                 removed_call_operands += old_len - args.len();
             }
@@ -206,7 +206,7 @@ fn prune_unused_args(module: &mut Module) -> usize {
 
     let function_ids = module.functions.indices().collect::<Vec<_>>();
     for func_id in function_ids {
-        if live[func_id].iter().all(|&keep| keep) {
+        if live[func_id].count() == live[func_id].domain_size() {
             continue;
         }
         let func = module.function_mut(func_id);
@@ -215,7 +215,7 @@ fn prune_unused_args(module: &mut Module) -> usize {
         let mut remap = IndexVec::<ArgIdx, Option<ArgIdx>>::with_capacity(old_params.len());
         let mut new_params = IndexVec::with_capacity(old_params.len());
         for (index, &ty) in old_params.iter_enumerated() {
-            remap.push(live[func_id][index.index()].then(|| new_params.push(ty)));
+            remap.push(live[func_id].contains(index).then(|| new_params.push(ty)));
         }
 
         for index in 0..func.num_values() {
@@ -237,12 +237,12 @@ fn prune_unused_args(module: &mut Module) -> usize {
     removed
 }
 
-fn mark_arg_live(func: &Function, value: ValueId, live: &mut [bool]) -> bool {
+fn mark_arg_live(func: &Function, value: ValueId, live: &mut DenseBitSet<ArgIdx>) -> bool {
     let Value::Arg(index) = func.value(value) else { return false };
-    let Some(is_live) = live.get_mut(index.index()) else { return false };
-    let changed = !*is_live;
-    *is_live = true;
-    changed
+    if index.index() >= live.domain_size() {
+        return false;
+    }
+    live.insert(*index)
 }
 
 fn record_arg_dependencies(
@@ -250,7 +250,7 @@ fn record_arg_dependencies(
     caller: &Function,
     callee_id: FunctionId,
     args: &[ValueId],
-    live: &mut IndexVec<FunctionId, Vec<bool>>,
+    live: &mut IndexVec<FunctionId, DenseBitSet<ArgIdx>>,
     dependents: &mut ArgDependents,
 ) {
     for (index, &arg) in args.iter().enumerate() {
@@ -287,14 +287,19 @@ fn prune_unused_returns(module: &mut Module) -> usize {
         }
     }
 
-    let candidates = module
-        .functions
-        .iter_enumerated()
-        .map(|(func_id, func)| {
-            called.contains(func_id) && func.returns.len() == 1 && is_internal_body(func)
-        })
-        .collect::<IndexVec<FunctionId, _>>();
-    let mut live = candidates.iter().map(|&candidate| !candidate).collect::<Vec<_>>();
+    let mut candidates = DenseBitSet::new_empty(module.functions.len());
+    for (func_id, func) in module.functions.iter_enumerated() {
+        if called.contains(func_id) && func.returns.len() == 1 && is_internal_body(func) {
+            candidates.insert(func_id);
+        }
+    }
+    // A result is required (`live`) for every function except the candidates whose result the
+    // fixed point may still discard.
+    let mut live = DenseBitSet::new_empty(module.functions.len());
+    live.insert_all();
+    for func_id in candidates.iter() {
+        live.remove(func_id);
+    }
 
     // Tail calls forward their caller's result contract. Direct calls require a result only when
     // its SSA value has a material use. A return in a candidate whose own result is still dead is
@@ -306,22 +311,22 @@ fn prune_unused_returns(module: &mut Module) -> usize {
                 let InstKind::InternalCall { function, .. } = caller.inst(inst_id).kind else {
                     continue;
                 };
-                if !candidates[function] || live[function.index()] {
+                if !candidates.contains(function) || live.contains(function) {
                     continue;
                 }
                 let Some(result) = caller.inst_result_value(inst_id) else { continue };
-                if has_material_use(caller, result, live[caller_id.index()]) {
-                    live[function.index()] = true;
+                if has_material_use(caller, result, live.contains(caller_id)) {
+                    live.insert(function);
                     changed = true;
                 }
             }
             for block in &caller.blocks {
                 if let Some(Terminator::TailCall { function, .. }) = &block.terminator
-                    && candidates[*function]
-                    && !live[function.index()]
-                    && live[caller_id.index()]
+                    && candidates.contains(*function)
+                    && !live.contains(*function)
+                    && live.contains(caller_id)
                 {
-                    live[function.index()] = true;
+                    live.insert(*function);
                     changed = true;
                 }
             }
@@ -331,17 +336,14 @@ fn prune_unused_returns(module: &mut Module) -> usize {
         }
     }
 
-    let removed = candidates
-        .iter_enumerated()
-        .filter(|&(func_id, &candidate)| candidate && !live[func_id.index()])
-        .map(|(func_id, _)| func_id)
-        .collect::<Vec<_>>();
-    if removed.is_empty() {
-        return 0;
-    }
     let mut removed_set = DenseBitSet::new_empty(module.functions.len());
-    for &func_id in &removed {
-        removed_set.insert(func_id);
+    for func_id in candidates.iter() {
+        if !live.contains(func_id) {
+            removed_set.insert(func_id);
+        }
+    }
+    if removed_set.is_empty() {
+        return 0;
     }
 
     for func in &mut module.functions {
@@ -363,7 +365,7 @@ fn prune_unused_returns(module: &mut Module) -> usize {
         }
     }
 
-    for &func_id in &removed {
+    for func_id in removed_set.iter() {
         let func = module.function_mut(func_id);
         func.returns.clear();
         for block in &mut func.blocks {
@@ -373,12 +375,13 @@ fn prune_unused_returns(module: &mut Module) -> usize {
         }
     }
 
+    let removed = removed_set.count();
     tracing::debug!(
         target: "solar::codegen::function_compaction",
-        removed_returns = removed.len(),
+        removed_returns = removed,
         "pruned unused internal results"
     );
-    removed.len()
+    removed
 }
 
 fn has_material_use(func: &Function, value: ValueId, function_result_live: bool) -> bool {
@@ -454,14 +457,14 @@ impl<'a> CanonValues<'a> {
 /// canonical pipeline and removes redirected bodies.
 fn merge_equivalent_functions(module: &mut Module) -> usize {
     let recursive = CallGraphInfo::new(module);
-    let mut merged = vec![false; module.functions.len()];
+    let mut merged = DenseBitSet::new_empty(module.functions.len());
     let mut total = 0;
     let mut merged_instructions = 0usize;
 
     loop {
         let mut groups = FxHashMap::<u64, Vec<FunctionId>>::default();
         for (func_id, func) in module.functions.iter_enumerated() {
-            if !merged[func_id.index()] && is_merge_candidate(func_id, func, &recursive) {
+            if !merged.contains(func_id) && is_merge_candidate(func_id, func, &recursive) {
                 groups.entry(equivalence_bucket(func)).or_default().push(func_id);
             }
         }
@@ -494,7 +497,7 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
             .map(|&duplicate| module.function(duplicate).instructions().count())
             .sum::<usize>();
         for &duplicate in replacements.keys() {
-            merged[duplicate.index()] = true;
+            merged.insert(duplicate);
         }
         redirect_calls(module, &replacements);
     }

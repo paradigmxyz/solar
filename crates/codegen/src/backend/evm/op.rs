@@ -292,3 +292,35 @@ pub(crate) const fn swap(n: u8) -> u8 {
 pub(crate) const fn is_terminal(op: u8) -> bool {
     matches!(op, STOP | JUMP | RETURN | REVERT | INVALID | SELFDESTRUCT)
 }
+
+/// Returns whether an opcode's operands may be swapped without changing its result.
+#[must_use]
+pub(crate) const fn is_commutative(op: u8) -> bool {
+    matches!(op, ADD | MUL | EQ | AND | OR | XOR)
+}
+
+/// Returns whether an opcode may write to memory, invalidating cached memory reads.
+#[must_use]
+pub(crate) const fn writes_memory(op: u8) -> bool {
+    matches!(
+        op,
+        MSTORE
+            | MSTORE8
+            | MCOPY
+            | CALLDATACOPY
+            | CODECOPY
+            | EXTCODECOPY
+            | RETURNDATACOPY
+            | CALL
+            | CALLCODE
+            | DELEGATECALL
+            | STATICCALL
+    )
+}
+
+/// Returns whether an opcode may write to storage or transient storage, invalidating cached
+/// storage reads.
+#[must_use]
+pub(crate) const fn writes_storage(op: u8) -> bool {
+    matches!(op, SSTORE | TSTORE | CALL | CALLCODE | DELEGATECALL | STATICCALL | CREATE | CREATE2)
+}
