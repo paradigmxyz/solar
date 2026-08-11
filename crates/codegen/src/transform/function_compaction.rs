@@ -112,11 +112,30 @@ fn rebase_frame_offsets(func: &mut Function, removed_slots: u64) {
         return;
     }
     let shift = removed_slots * EvmMemoryLayout::WORD_SIZE;
+    let local_start = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+        .checked_add(((func.params.len() + func.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE)
+        .expect("MIR frame prefix overflow");
+    let old_local_start = local_start.checked_add(shift).expect("MIR frame prefix overflow");
+    let local_end = (func.internal_frame_size != 0).then(|| {
+        local_start.checked_add(func.internal_frame_size).expect("MIR local frame region overflow")
+    });
     func.for_each_instruction_mut(|_, inst| {
         if let InstKind::InternalFrameAddr(offset) = &mut inst.kind {
+            assert!(
+                *offset >= old_local_start,
+                "frame-local offset precedes the old signature prefix"
+            );
             *offset = offset
                 .checked_sub(shift)
                 .expect("frame-local offset precedes the removed signature prefix");
+            assert!(
+                *offset >= local_start,
+                "rebased frame-local offset precedes the locals region"
+            );
+            assert!(
+                local_end.is_none_or(|end| *offset < end),
+                "rebased frame-local offset exceeds the locals region"
+            );
         }
     });
 }

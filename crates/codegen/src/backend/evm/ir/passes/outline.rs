@@ -242,6 +242,12 @@ fn apply_outline_edits(module: &mut Module, mut edits: OutlineEdits, state: &mut
     for block in blocks {
         let block_edits = edits.get_mut(&block).expect("edit block came from the map");
         block_edits.sort_unstable_by_key(|(start, ..)| std::cmp::Reverse(*start));
+        let mut next_start = module.blocks[block].instructions.len();
+        for &(start, len, ..) in block_edits.iter() {
+            let end = start.checked_add(len).expect("outline edit range overflow");
+            assert!(len != 0 && end <= next_start, "outline edits overlap or exceed their block");
+            next_start = start;
+        }
         for &(start, len, stub, inputs) in block_edits.iter() {
             split_outline_site(module, block, start, len, stub, inputs, state);
         }

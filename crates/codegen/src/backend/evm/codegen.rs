@@ -4446,11 +4446,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                         score[i] += if Self::raw_arg_emittable(func, raw_leaves_ok, arg) {
                             // The frame store disappears outright.
                             4
-                        } else if !raw_leaves_ok {
-                            // A dynamic-frame caller cannot reload a spill
-                            // slot without its frame pointer; it can only
-                            // deliver raw values, so this argument must stay
-                            // frame-passed everywhere.
+                        } else if !Self::stack_arg_site_eligible(func, raw_leaves_ok, arg) {
+                            // This site can neither emit the argument raw nor
+                            // reload it through the computed-value spill path,
+                            // so the argument must stay frame-passed everywhere.
                             -100_000
                         } else {
                             match func.value(arg) {
@@ -4579,9 +4578,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         continue;
                     }
                     for (index, &arg) in args.iter().enumerate() {
-                        if !Self::raw_arg_emittable(caller, raw_leaves_ok, arg)
-                            && !matches!(caller.value(arg), crate::mir::Value::Inst(_))
-                        {
+                        if !Self::stack_arg_site_eligible(caller, raw_leaves_ok, arg) {
                             mask.remove(index);
                         }
                     }
@@ -4945,6 +4942,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             crate::mir::Value::Arg(_) => raw_leaves_ok,
             _ => false,
         }
+    }
+
+    /// Returns whether one call site can participate in a stack-argument convention. Computed
+    /// values reload from a validated spill after draining the modeled stack; this remains valid
+    /// for a dynamic-frame caller because a static call does not replace its frame pointer and the
+    /// reload is emitted before control transfers to the callee. Caller arguments do not own spill
+    /// slots, so they still require the position-independent raw path. Both ordinary and resident
+    /// selection use this predicate to keep their call-site eligibility invariant identical.
+    fn stack_arg_site_eligible(func: &Function, raw_leaves_ok: bool, val: ValueId) -> bool {
+        Self::raw_arg_emittable(func, raw_leaves_ok, val)
+            || matches!(func.value(val), crate::mir::Value::Inst(_))
     }
 
     /// Emits a mask-qualified argument without touching the scheduler model:
@@ -6016,11 +6024,29 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.scheduler.instruction_executed(2, None);
         }
 
-        let retention_plan = (!carries_resident_stack)
+        let mut retention_plan = (!carries_resident_stack)
             .then(|| {
                 stack_mask.as_ref().and_then(|mask| self.plan_retained_stack_args(func, args, mask))
             })
             .flatten();
+
+        // A retention plan is tied to the exact modeled stack it was built from. If any computed,
+        // non-retained argument still needs materialization, reject retention before that
+        // materialization can mutate the stack and use the conservative spill/drain/reload path.
+        // This makes the ordering invariant structural instead of relying on
+        // `spill_live_stack_values` having happened to store every such value already.
+        if retention_plan.as_ref().is_some_and(|plan| {
+            stack_mask.as_ref().is_some_and(|mask| {
+                args.iter().enumerate().any(|(i, &arg)| {
+                    mask.contains(i)
+                        && !plan.retained.contains(i)
+                        && matches!(func.value(arg), crate::mir::Value::Inst(_))
+                        && self.scheduler.reloadable_spill(arg).is_none()
+                })
+            })
+        }) {
+            retention_plan = None;
+        }
 
         // A computed argument not retained physically survives the drain in
         // its spill slot and is reloaded raw after it. Validate and retain the
@@ -7370,6 +7396,23 @@ mod tests {
             codegen.function_stack_peaks.insert(callee, MAX_STACK_DEPTH - 2);
             assert!(codegen.caller_stack_prefixes_fit(&module));
         });
+    }
+
+    #[test]
+    fn dynamic_frame_stack_args_require_reloadable_values() {
+        let mut function = Function::new(Ident::DUMMY);
+        let argument = function.alloc_param(MirType::uint256());
+        let immediate = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
+        let (_, computed) = function.alloc_value_inst(Instruction::new(
+            InstKind::Add(argument, immediate),
+            Some(MirType::uint256()),
+        ));
+
+        assert!(EvmCodegen::stack_arg_site_eligible(&function, false, immediate));
+        assert!(!EvmCodegen::stack_arg_site_eligible(&function, false, argument));
+        assert!(EvmCodegen::stack_arg_site_eligible(&function, false, computed));
+        assert!(EvmCodegen::stack_arg_site_eligible(&function, true, argument));
+        assert!(EvmCodegen::stack_arg_site_eligible(&function, true, computed));
     }
 
     #[test]
