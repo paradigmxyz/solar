@@ -363,6 +363,10 @@ impl CommonSubexprEliminator {
     }
 
     fn sink_redundant_phi_expressions(&mut self, func: &mut Function, cfg: &CfgInfo) {
+        if !func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_))) {
+            return;
+        }
+
         let inst_blocks = func.inst_blocks();
         let use_counts = Self::value_use_counts(func);
         let replacements = FxHashMap::default();
