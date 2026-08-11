@@ -4,7 +4,6 @@ fn @vUint8(arg0: u8) -> u8 [selector=0xd5f6949e, pure, abi_args=lazy, abi_params
   bb0:
     ret arg0
 }
-
 fn @vInt16(arg0: i16) -> i16 [selector=0xe9697b4d, pure, abi_args=lazy, abi_params=[i16], abi_returns=[word]] {
   bb0:
     ret arg0
@@ -63,4 +62,3 @@ fn @vFull(arg0: u256, arg1: bytes32, arg2: i256) -> u256 [selector=0x76fef307, p
   bb4:
     ret v2
 }
-

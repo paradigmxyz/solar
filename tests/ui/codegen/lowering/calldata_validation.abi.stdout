@@ -23,7 +23,6 @@ fn @vUint8() [selector=0xd5f6949e, pure] {
   bb4:
     jump bb1
 }
-
 fn @vInt16() [selector=0xe9697b4d, pure] {
   bb0:
     v0 = calldatasize
@@ -251,4 +250,3 @@ fn @__cleanup5(arg0: u256) -> u256 {
     v0 = signextend 1, arg0
     ret v0
 }
-

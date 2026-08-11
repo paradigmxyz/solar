@@ -5,7 +5,6 @@ fn @codeLength(arg0: address) -> u256 [selector=0xbd3736e3, view, abi_args=lazy,
     v0 = extcodesize arg0
     ret v0
 }
-
 fn @codeHash(arg0: address) -> bytes32 [selector=0x3dc44827, view, abi_args=lazy, abi_params=[address], abi_returns=[word]] {
   bb0:
     v0 = extcodehash arg0
@@ -58,4 +57,3 @@ fn @addressFromBytes20(arg0: bytes20) -> address [selector=0x247e14fa, pure, abi
     v0 = shr 96, arg0
     ret v0
 }
-

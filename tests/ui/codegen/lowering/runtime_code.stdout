@@ -4,7 +4,6 @@ fn @value() -> u256 [selector=0x3fa4f245, pure, abi_args=lazy, abi_params=[], ab
   bb0:
     ret 7
 }
-
 // === ROOT/tests/ui/codegen/lowering/runtime_code.sol:RuntimeCode ===
 @module RuntimeCode
 fn @runtime() -> u256 [selector=0x54d75aa6, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
@@ -16,4 +15,3 @@ fn @runtime() -> u256 [selector=0x54d75aa6, pure, abi_args=lazy, abi_params=[], 
     v1 = memory_object_len memorybytes, v0
     ret v1
 }
-
