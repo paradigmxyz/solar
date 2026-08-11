@@ -206,14 +206,6 @@ impl ValueUses {
                 }
             }
         }
-        for users in &mut instructions {
-            users.sort_unstable();
-            users.dedup();
-        }
-        for users in &mut terminators {
-            users.sort_unstable();
-            users.dedup();
-        }
         Self { instructions, terminators }
     }
 }
@@ -222,34 +214,34 @@ impl ValueUses {
 fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate, uses: &ValueUses) -> bool {
     // In-bounds address derivations from the pointer, to a fixpoint so
     // definition order does not matter.
-    let mut derived = index_vec![None::<u64>; func.num_values()];
-    derived[cand.ptr] = Some(0);
+    let mut derived: FxHashMap<ValueId, u64> = FxHashMap::default();
+    derived.insert(cand.ptr, 0);
     let mut pending = vec![cand.ptr];
     while let Some(value) = pending.pop() {
         for &inst_id in &uses.instructions[value] {
             let Some(result) = func.inst_result_value(inst_id) else { continue };
-            if derived[result].is_some() {
+            if derived.contains_key(&result) {
                 continue;
             }
             let InstKind::Add(a, b) = func.inst(inst_id).kind else { continue };
-            let (base, offset) = if derived[a].is_some() { (a, b) } else { (b, a) };
-            let (Some(base_offset), Some(offset)) = (derived[base], func.value_u64(offset)) else {
+            let (base, offset) = if derived.contains_key(&a) { (a, b) } else { (b, a) };
+            let (Some(base_offset), Some(offset)) =
+                (derived.get(&base).copied(), func.value_u64(offset))
+            else {
                 return false;
             };
             let Some(total) = base_offset.checked_add(offset) else { return false };
             if total >= cand.size {
                 return false;
             }
-            derived[result] = Some(total);
+            derived.insert(result, total);
             pending.push(result);
         }
     }
 
     // Every use of every derived address must be a bounded memory access.
     let in_range = |off: u64, len: u64| off.checked_add(len).is_some_and(|end| end <= cand.size);
-    for (operand, off) in
-        derived.iter_enumerated().filter_map(|(value, offset)| offset.map(|offset| (value, offset)))
-    {
+    for (&operand, &off) in &derived {
         for &inst_id in &uses.instructions[operand] {
             if inst_id == cand.alloc {
                 continue;
@@ -281,7 +273,7 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate, uses: &
                 // In-bounds derivations were collected above; anything
                 // else consuming an address is an escape.
                 InstKind::Add(_, _) => {
-                    func.inst_result_value(inst_id).is_some_and(|r| derived[r].is_some())
+                    func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
                 }
                 _ => false,
             };
