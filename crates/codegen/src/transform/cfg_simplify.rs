@@ -404,6 +404,19 @@ impl CfgSimplifier {
 
     /// Runs CFG simplification iteratively until no more changes.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> CfgSimplifyStats {
+        if func.blocks.len() == 1
+            && !func.blocks[BlockId::ENTRY]
+                .instructions
+                .iter()
+                .any(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+            && !matches!(
+                func.blocks[BlockId::ENTRY].terminator,
+                Some(Terminator::Branch { .. } | Terminator::Switch { .. })
+            )
+        {
+            return CfgSimplifyStats::default();
+        }
+
         let mut total_stats = CfgSimplifyStats::default();
         loop {
             let changed = self.run(func);
