@@ -377,11 +377,6 @@ impl ModuleAnalyses {
         self.call_summaries = Some(summaries);
     }
 
-    /// Returns the current module call summaries, if available.
-    pub(crate) fn call_summaries(&self) -> Option<Arc<MemoryCallSummaries>> {
-        self.call_summaries.clone()
-    }
-
     fn retain(&mut self, func_id: FunctionId, keep_alias: bool, keep_cfg: bool) {
         if keep_alias {
             if let Some(alias) = self.alias.get(&func_id) {
