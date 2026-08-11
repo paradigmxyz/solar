@@ -195,7 +195,7 @@ struct ExprCache {
     /// Entries a memory, storage, transient-storage, or account-environment
     /// write may invalidate, per
     /// [`CommonSubexprEliminator::is_path_sensitive_expr`].
-    stateful: FxHashMap<ExprKey, ValueId>,
+    stateful: Rc<FxHashMap<ExprKey, ValueId>>,
 }
 
 impl ExprCache {
@@ -209,7 +209,7 @@ impl ExprCache {
 
     fn insert(&mut self, key: ExprKey, value: ValueId) {
         if CommonSubexprEliminator::is_path_sensitive_expr(&key) {
-            self.stateful.insert(key, value);
+            Rc::make_mut(&mut self.stateful).insert(key, value);
         } else {
             Rc::make_mut(&mut self.pure).insert(key, value);
         }
@@ -223,7 +223,7 @@ impl ExprCache {
     /// Retains the state-dependent entries matching `keep`. The pure entries are
     /// untouched, which is why no clobber has to walk them.
     fn retain_stateful(&mut self, keep: impl FnMut(&ExprKey, &mut ValueId) -> bool) {
-        self.stateful.retain(keep);
+        Rc::make_mut(&mut self.stateful).retain(keep);
     }
 }
 
