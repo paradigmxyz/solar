@@ -91,27 +91,15 @@ pub(super) fn lower(
     if !expose_selector {
         mir.selector = None;
     }
-    let mut type_lowerer = types::TypeLowerer::new(gcx);
-
-    let input_shapes = hir_function
-        .parameters
-        .iter()
-        .map(|&param| type_lowerer.abi_param_type(gcx.type_of_item(param.into())))
-        .collect::<Option<Vec<_>>>();
-    let output_shapes = hir_function
-        .returns
-        .iter()
-        .map(|&ret| type_lowerer.abi_return_type(gcx.type_of_item(ret.into())))
-        .collect::<Option<Vec<_>>>();
-    let output_param_shapes = hir_function
-        .returns
-        .iter()
-        .map(|&ret| type_lowerer.abi_return_param_type(gcx.type_of_item(ret.into())))
-        .collect::<Option<Vec<_>>>();
-
-    let has_constructor_params = mir.attributes.is_constructor
-        && input_shapes.as_ref().is_some_and(|shapes| !shapes.is_empty());
+    let has_constructor_params =
+        mir.attributes.is_constructor && !hir_function.parameters.is_empty();
     if mir.selector.is_some() || has_constructor_params {
+        let mut type_lowerer = types::TypeLowerer::new(gcx);
+        let input_shapes = hir_function
+            .parameters
+            .iter()
+            .map(|&param| type_lowerer.abi_param_type(gcx.type_of_item(param.into())))
+            .collect::<Option<Vec<_>>>();
         let Some(input_shapes) = input_shapes else {
             return report_unsupported(gcx, hir_function.span, "function parameter shape");
         };
@@ -132,6 +120,16 @@ pub(super) fn lower(
         );
         mir.abi_args_lazy = true;
         if mir.selector.is_some() {
+            let output_shapes = hir_function
+                .returns
+                .iter()
+                .map(|&ret| type_lowerer.abi_return_type(gcx.type_of_item(ret.into())))
+                .collect::<Option<Vec<_>>>();
+            let output_param_shapes = hir_function
+                .returns
+                .iter()
+                .map(|&ret| type_lowerer.abi_return_param_type(gcx.type_of_item(ret.into())))
+                .collect::<Option<Vec<_>>>();
             let Some(output_shapes) = output_shapes else {
                 return report_unsupported(gcx, hir_function.span, "function return shape");
             };
