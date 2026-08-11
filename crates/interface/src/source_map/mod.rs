@@ -302,6 +302,20 @@ impl SourceMap {
         self.new_source_file_with(name.into(), || Ok(src.into()))
     }
 
+    /// Creates a new `SourceFile` that retains the given shared source string.
+    pub fn new_source_file_shared(
+        &self,
+        name: impl Into<FileName>,
+        src: Arc<String>,
+    ) -> io::Result<Arc<SourceFile>> {
+        let filename = name.into();
+        let id = SourceFileId::new(&filename);
+        self.id_to_file.try_insert_cloned(id, |&id| {
+            let file = SourceFile::new_shared(filename, id, src)?;
+            self.append_source_file(file)
+        })
+    }
+
     /// Creates a new `SourceFile` with the given name and source string closure.
     ///
     /// If a file already exists in the `SourceMap` with the same ID, that file is returned

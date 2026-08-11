@@ -245,6 +245,28 @@ impl SourceFile {
         })
     }
 
+    /// Creates a new `SourceFile` from shared source text.
+    pub(crate) fn new_shared(
+        name: FileName,
+        id: SourceFileId,
+        src: Arc<String>,
+    ) -> Result<Self, OffsetOverflowError> {
+        debug_assert_eq!(id, SourceFileId::new(&name));
+        let source_len = src.len();
+        let source_len = u32::try_from(source_len).map_err(|_| OffsetOverflowError(()))?;
+
+        let (lines, multibyte_chars) = super::analyze::analyze_source_file(&src);
+
+        Ok(Self {
+            name,
+            src,
+            start_pos: BytePos::from_u32(0),
+            source_len: RelativeBytePos::from_u32(source_len),
+            lines,
+            multibyte_chars,
+        })
+    }
+
     pub fn lines(&self) -> &[RelativeBytePos] {
         &self.lines
     }

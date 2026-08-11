@@ -1179,11 +1179,12 @@ impl GlobalStateSnapshot {
             let vfs = self.vfs.read();
             vfs.iter()
                 .filter_map(|(path, contents)| {
-                    Some((
-                        path.as_path()?.to_path_buf(),
-                        contents.to_string(),
-                        vfs.get_file_version(path),
-                    ))
+                    let disk_path = path.as_path()?.to_path_buf();
+                    let mut src = String::with_capacity(contents.byte_len());
+                    for chunk in contents.chunks() {
+                        src.push_str(chunk);
+                    }
+                    Some((disk_path, Arc::new(src), vfs.get_file_version(path)))
                 })
                 .collect::<Vec<_>>()
         };
@@ -1445,8 +1446,8 @@ fn request_inlay_hint_refresh(client: &ClientSocket) {
 
 struct AnalysisBatch {
     opts: CompileOpts,
-    files: Vec<(PathBuf, String)>,
-    preloaded_files: Vec<(PathBuf, String)>,
+    files: Vec<(PathBuf, Arc<String>)>,
+    preloaded_files: Vec<(PathBuf, Arc<String>)>,
     preloaded_paths: FxHashSet<PathBuf>,
     open_file_versions: FxHashMap<Url, i64>,
     seen_paths: FxHashSet<PathBuf>,
@@ -1474,7 +1475,15 @@ impl AnalysisBatch {
         batch
     }
 
-    fn push_file(&mut self, path: PathBuf, contents: String) {
+    fn push_file(&mut self, path: PathBuf, mut contents: String) {
+        if self.seen_paths.contains(&path) {
+            return;
+        }
+        contents.shrink_to_fit();
+        self.push_shared_file(path, Arc::new(contents));
+    }
+
+    fn push_shared_file(&mut self, path: PathBuf, contents: Arc<String>) {
         if self.seen_paths.insert(path.clone()) {
             if self.preloaded_paths.remove(&path) {
                 self.preloaded_files.retain(|(preloaded, _)| preloaded != &path);
@@ -1483,16 +1492,16 @@ impl AnalysisBatch {
         }
     }
 
-    fn push_open_file(&mut self, path: PathBuf, contents: String, version: Option<i32>) {
+    fn push_open_file(&mut self, path: PathBuf, contents: Arc<String>, version: Option<i32>) {
         if let Some(version) = version
             && let Ok(uri) = Url::from_file_path(&path)
         {
             self.open_file_versions.insert(uri, i64::from(version));
         }
-        self.push_file(path, contents);
+        self.push_shared_file(path, contents);
     }
 
-    fn push_preloaded_file(&mut self, path: PathBuf, contents: String, version: Option<i32>) {
+    fn push_preloaded_file(&mut self, path: PathBuf, contents: Arc<String>, version: Option<i32>) {
         if self.seen_paths.contains(&path) || !self.preloaded_paths.insert(path.clone()) {
             return;
         }
@@ -1529,8 +1538,8 @@ mod analysis_batch_tests {
         );
 
         assert_eq!(batch.files.len(), 2);
-        assert_eq!(batch.files[0], (a.clone(), "contract A {}".into()));
-        assert_eq!(batch.files[1], (b.clone(), "contract B {}".into()));
+        assert_eq!(batch.files[0], (a.clone(), Arc::new("contract A {}".into())));
+        assert_eq!(batch.files[1], (b.clone(), Arc::new("contract B {}".into())));
         assert_eq!(batch.seen_paths, FxHashSet::from_iter([a, b]));
     }
 
@@ -1692,7 +1701,7 @@ fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> 
                 if let Err(error) = parsing_context
                     .sess
                     .source_map()
-                    .new_source_file(FileName::real(path), contents)
+                    .new_source_file_shared(FileName::real(path), contents)
                 {
                     parsing_context.dcx().err(format!("failed to preload source: {error}")).emit();
                 }
@@ -1703,7 +1712,7 @@ fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> 
                     parsing_context
                         .sess
                         .source_map()
-                        .new_source_file(FileName::real(path), contents)
+                        .new_source_file_shared(FileName::real(path), contents)
                         .map_err(|error| {
                             parsing_context
                                 .dcx()

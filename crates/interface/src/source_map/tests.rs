@@ -1,5 +1,17 @@
 use super::*;
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
+
+#[test]
+fn new_source_file_shared_preserves_source_allocation() {
+    let sm = SourceMap::empty();
+    let mut src = String::with_capacity(128);
+    src.push_str("contract C {}\n");
+    let src = Arc::new(src);
+
+    let file = sm.new_source_file_shared(PathBuf::from("C.sol"), src.clone()).unwrap();
+
+    assert!(Arc::ptr_eq(&file.src, &src));
+}
 
 fn init_source_map() -> SourceMap {
     let sm = SourceMap::empty();

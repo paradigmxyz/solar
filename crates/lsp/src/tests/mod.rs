@@ -1997,7 +1997,10 @@ fn analysis_batches_read_tracked_disk_files() {
     let mut batches = snapshot.analysis_batches(vec![path.clone()]);
     let batch = batches.pop().unwrap();
 
-    assert_eq!(batch.files, vec![(path, "contract C { function f() public { number+; } }".into())]);
+    assert_eq!(
+        batch.files,
+        vec![(path, Arc::new("contract C { function f() public { number+; } }".into()))]
+    );
 }
 
 #[test]
@@ -2096,8 +2099,8 @@ fn analysis_batches_include_created_naked_workspace_disk_files() {
     assert_eq!(
         batch.files,
         vec![
-            (disk_path, "contract Disk {}".into()),
-            (open_path, "contract Open { function f() public { number+; } }".into()),
+            (disk_path, Arc::new("contract Disk {}".into())),
+            (open_path, Arc::new("contract Open { function f() public { number+; } }".into()),),
         ]
     );
 }
@@ -2127,7 +2130,7 @@ fn analysis_batches_scan_workspace_source_roots_and_apply_vfs_overlay() {
 
     assert_eq!(
         batch.files,
-        vec![(source_path, "contract A { function f() public { number+; } }".into())]
+        vec![(source_path, Arc::new("contract A { function f() public { number+; } }".into()))]
     );
     assert_eq!(batch.opts.base_path.as_deref(), Some(project.root()));
 }
@@ -2184,7 +2187,7 @@ fn analysis_batches_use_cached_workspace_source_files() {
 
     let mut batches = snapshot.analysis_batches(Vec::new());
     let batch = batches.pop().unwrap();
-    assert_eq!(batch.files, vec![(cached_path, "contract Cached {}".into())]);
+    assert_eq!(batch.files, vec![(cached_path, Arc::new("contract Cached {}".into()))]);
 
     config.add_source_file(created_after_discovery.clone());
     let outside_source_root = project.path("/test/Outside.sol");
@@ -2222,7 +2225,7 @@ fn analysis_batches_assign_open_files_to_most_specific_workspace() {
         .unwrap();
 
     assert!(!outer_batch.files.iter().any(|(path, _)| path == &source_path));
-    assert_eq!(inner_batch.files, vec![(source_path, "contract A {}".into())]);
+    assert_eq!(inner_batch.files, vec![(source_path, Arc::new("contract A {}".into()))]);
 }
 
 #[test]
@@ -2343,7 +2346,7 @@ fn analysis_batches_share_external_open_files_across_matching_contexts() {
     assert!(batches[secondary].files.iter().all(|(path, _)| path != &overlay));
     assert_eq!(
         batches[secondary].preloaded_files,
-        vec![(overlay.clone(), overlay_contents.into())]
+        vec![(overlay.clone(), Arc::new(overlay_contents.into()))]
     );
 
     let mut results = AnalysisResultAccumulator::default();
@@ -2408,10 +2411,13 @@ fn analysis_batches_share_external_open_files_across_overlapping_contexts() {
             .filter(|(path, _)| path == &overlay)
             .cloned()
             .collect::<Vec<_>>(),
-        vec![(overlay.clone(), overlay_contents.into())]
+        vec![(overlay.clone(), Arc::new(overlay_contents.into()))]
     );
     let secondary = 1 - primary;
-    assert_eq!(batches[secondary].preloaded_files, vec![(overlay, overlay_contents.into())]);
+    assert_eq!(
+        batches[secondary].preloaded_files,
+        vec![(overlay, Arc::new(overlay_contents.into()))]
+    );
     assert!(
         batches
             .into_iter()
