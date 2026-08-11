@@ -41,7 +41,7 @@ contract CalldataStructFieldSlice {
     // CDSFS-LABEL: fn @factory{{[.][0-9]+}}
     // CDSFS: internal_call @factory
     // CDSFS-LABEL: fn @factory{{[.][0-9]+}}
-    // CDSFS: make_calldata_slice
+    // CDSFS: calldataload
     function factory(PackedUserOperation calldata op) external pure returns (address) {
         return ERC4337Utils.factory(op);
     }
@@ -53,7 +53,7 @@ contract CalldataStructFieldSlice {
     }
 
     // CDSFS-LABEL: fn @midWord{{[.][0-9]+}}
-    // CDSFS: make_calldata_slice
+    // CDSFS: calldataload
     function midWord(PackedUserOperation calldata op) external pure returns (bytes32) {
         return ERC4337Utils.midWord(op);
     }

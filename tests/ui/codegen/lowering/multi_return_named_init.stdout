@@ -4,18 +4,19 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) [pure] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb3: v23]
-    v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v22]
-    v3 = phi [bb0: 0], [bb3: v25]
-    v4 = phi [bb0: arg1], [bb3: v4]
+    v0 = phi [bb0: arg1], [bb16: v23]
+    v1 = phi [bb0: arg0], [bb16: v1]
+    v2 = phi [bb0: 0], [bb16: v22]
+    v3 = phi [bb0: 0], [bb16: v25]
+    v4 = phi [bb0: arg1], [bb16: v4]
     v5 = lt v3, 8
     jumpi v5, bb4, bb5
   bb2:
     ret v2, v0
   bb3:
     v25 = add v3, 1
-    jump bb1
+    v26 = lt v25, v3
+    jumpi v26, bb15, bb16
   bb4:
     v6 = shl 8, v2
     v7 = and v6, 0xffffffffffffffff
@@ -61,6 +62,12 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) [pure] {
     revert 0, 36
   bb14:
     jump bb6
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb16:
+    jump bb1
 }
 
 fn @readTwice(arg0: calldataslice) -> (u64, u64) [selector=0xc62a8eb2, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word, word]] {

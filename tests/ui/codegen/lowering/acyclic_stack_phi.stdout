@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/acyclic_stack_phi.sol:AcyclicStackPhi (runtime) ===
 @module runtime
 bb0:
-  push 480
+  push 512
   push 64
   mstore
   callvalue
@@ -268,7 +268,7 @@ bb18:
   push 64
   mload
   dup1
-  push 448
+  push 480
   mstore
   push 352
   mload

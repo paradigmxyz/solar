@@ -8,11 +8,9 @@ fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [selector=0xe5
     set_memory_object_len memorybytes, v1, 0
     v2 = abi_decode [u256, bytes, bytes], arg0
     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v4 = make_memory_slice v3, 96
-    v5 = memory_slice_load_word memory, v4, 32
-    v6 = make_memory_slice v3, 96
-    v7 = memory_slice_load_word memory, v6, 64
-    ret v2, v5, v7
+    v4 = memory_object_load_element memoryfixedarray<3, 1>, v3, 1
+    v5 = memory_object_load_element memoryfixedarray<3, 1>, v3, 2
+    ret v2, v4, v5
 }
 
 fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memorybytes, memorybytes) [selector=0x7403d1b5, pure, abi_args=lazy, abi_params=[u256, bytes, bytes], abi_returns=[word, memory_bytes, memory_bytes]] {
@@ -57,11 +55,9 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memory
     memory_object_copy_from_slice memorybytes, v15, v2
     v16 = abi_decode [u256, bytes, bytes], v15
     v17 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v18 = make_memory_slice v17, 96
-    v19 = memory_slice_load_word memory, v18, 32
-    v20 = make_memory_slice v17, 96
-    v21 = memory_slice_load_word memory, v20, 64
-    ret v16, v19, v21
+    v18 = memory_object_load_element memoryfixedarray<3, 1>, v17, 1
+    v19 = memory_object_load_element memoryfixedarray<3, 1>, v17, 2
+    ret v16, v18, v19
 }
 
 fn @decodeBytes(arg0: memorybytes) -> memorybytes [selector=0x197621ce, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[memory_bytes]] {
