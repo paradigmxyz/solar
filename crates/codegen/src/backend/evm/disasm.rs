@@ -2,6 +2,7 @@
 
 use super::op;
 use solar_config::EvmVersion;
+use solar_data_structures::bit_set::DenseBitSet;
 use std::{
     collections::{BTreeMap, VecDeque},
     fmt::Write,
@@ -63,13 +64,13 @@ fn reachable_jumpdest_labels(instructions: &[DecodedInstruction<'_>]) -> BTreeMa
         .enumerate()
         .filter_map(|(index, inst)| (inst.opcode == op::JUMPDEST).then_some(index))
         .collect::<Vec<_>>();
-    let mut reachable = vec![false; instructions.len()];
+    let mut reachable = DenseBitSet::<usize>::new_empty(instructions.len());
     let mut pending = VecDeque::from([0]);
     let mut all_jumpdests_pending = false;
 
     while let Some(index) = pending.pop_front() {
         let Some(instruction) = instructions.get(index) else { continue };
-        if std::mem::replace(&mut reachable[index], true) {
+        if !reachable.insert(index) {
             continue;
         }
 
@@ -100,7 +101,7 @@ fn reachable_jumpdest_labels(instructions: &[DecodedInstruction<'_>]) -> BTreeMa
     instructions
         .iter()
         .enumerate()
-        .filter(|&(index, inst)| reachable[index] && inst.opcode == op::JUMPDEST)
+        .filter(|&(index, inst)| reachable.contains(index) && inst.opcode == op::JUMPDEST)
         .enumerate()
         .map(|(label, (_, inst))| (inst.offset, label))
         .collect()

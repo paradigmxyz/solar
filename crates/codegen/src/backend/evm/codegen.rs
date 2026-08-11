@@ -4413,11 +4413,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             let raw_leaves_ok = caller_is_entry || caller_static;
             // Where each instruction result is defined, to spot cross-block
             // arguments (already stored at their definition).
-            let mut inst_block: FxHashMap<InstId, usize> = FxHashMap::default();
+            let mut inst_block = index_vec![None; func.num_insts()];
             let mut use_counts: FxHashMap<ValueId, usize> = FxHashMap::default();
             for (block_idx, block) in func.blocks.iter().enumerate() {
                 for &inst_id in &block.instructions {
-                    inst_block.insert(inst_id, block_idx);
+                    inst_block[inst_id] = Some(block_idx);
                     for operand in func.inst(inst_id).kind.operands() {
                         *use_counts.entry(operand).or_default() += 1;
                     }
@@ -4455,7 +4455,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         } else {
                             match func.value(arg) {
                                 crate::mir::Value::Inst(def)
-                                    if inst_block.get(def) != Some(&block_idx) =>
+                                    if inst_block[*def] != Some(block_idx) =>
                                 {
                                     // Cross-block values are stored at their
                                     // definition; the site keeps only the
