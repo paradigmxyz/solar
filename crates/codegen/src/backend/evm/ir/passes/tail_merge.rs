@@ -2,17 +2,12 @@
 
 use super::{EvmPass, utils::is_terminal_boundary};
 use crate::backend::evm::ir::{
-    Block, BlockId, Hotness, Instruction, Module, PushValue, Terminator, TerminatorKind,
+    Block, BlockId, Hotness, Instruction, Module, Terminator, TerminatorKind,
 };
-use solar_data_structures::{index::IndexVec, map::FxHashMap, newtype_index};
+use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
 
 pub(super) struct TailMerge;
-
-newtype_index! {
-    /// An EVM tail suffix trie node.
-    struct SuffixNodeId;
-}
 
 impl EvmPass for TailMerge {
     fn name(&self) -> &'static str {
@@ -49,8 +44,7 @@ fn merge_tails(_gcx: Gcx<'_>, module: &mut Module) -> bool {
 
 #[derive(Default)]
 struct RunState {
-    roots: FxHashMap<TerminatorKind, SuffixNodeId>,
-    nodes: IndexVec<SuffixNodeId, SuffixNode>,
+    representatives: Vec<BlockId>,
     merges: Vec<Merge>,
     group_indices: FxHashMap<BlockId, usize>,
     groups: Vec<MergeGroup>,
@@ -60,59 +54,35 @@ struct RunState {
 
 impl RunState {
     fn plan_merges(&mut self, module: &Module) {
-        self.roots.clear();
-        self.nodes.clear();
+        self.representatives.clear();
         self.merges.clear();
         for (block_id, block) in module.blocks.iter_enumerated() {
             if !is_candidate(block) {
                 continue;
             }
 
-            if let Some((representative, common)) = self.find_match(block)
+            let mut matched = None;
+            for &representative in &self.representatives {
+                let representative_block = &module.blocks[representative];
+                if block.terminator.as_ref().map(|term| &term.kind)
+                    != representative_block.terminator.as_ref().map(|term| &term.kind)
+                {
+                    continue;
+                }
+                let common = common_suffix(block, representative_block);
+                if common > matched.map_or(0, |(_, common)| common) {
+                    matched = Some((representative, common));
+                }
+            }
+
+            if let Some((representative, common)) = matched
                 && common > 0
                 && suffix_lower_bound(block, common) > 5
             {
                 self.merges.push(Merge { representative, block: block_id, common });
             } else {
-                self.insert_representative(block_id, block);
+                self.representatives.push(block_id);
             }
-        }
-    }
-
-    fn find_match(&self, block: &Block) -> Option<(BlockId, usize)> {
-        let terminator = &block.terminator.as_ref().expect("candidate must have a terminator").kind;
-        let mut node = *self.roots.get(terminator)?;
-        let mut matched = None;
-        for (common, inst) in block.instructions.iter().rev().enumerate() {
-            let Some(&next) = self.nodes[node].children.get(&InstructionKey::new(inst)) else {
-                break;
-            };
-            node = next;
-            matched =
-                self.nodes[node].representative.map(|representative| (representative, common + 1));
-        }
-        matched
-    }
-
-    fn insert_representative(&mut self, block_id: BlockId, block: &Block) {
-        let terminator = &block.terminator.as_ref().expect("candidate must have a terminator").kind;
-        let mut node = if let Some(&root) = self.roots.get(terminator) {
-            root
-        } else {
-            let root = self.nodes.push(SuffixNode::default());
-            self.roots.insert(terminator.clone(), root);
-            root
-        };
-        for inst in block.instructions.iter().rev() {
-            let key = InstructionKey::new(inst);
-            node = if let Some(&next) = self.nodes[node].children.get(&key) {
-                next
-            } else {
-                let next = self.nodes.push(SuffixNode::default());
-                self.nodes[node].children.insert(key, next);
-                next
-            };
-            self.nodes[node].representative.get_or_insert(block_id);
         }
     }
 
@@ -207,6 +177,19 @@ fn is_candidate(block: &Block) -> bool {
     })
 }
 
+fn common_suffix(a: &Block, b: &Block) -> usize {
+    a.instructions
+        .iter()
+        .rev()
+        .zip(b.instructions.iter().rev())
+        .take_while(|(a, b)| machine_instructions_equal(a, b))
+        .count()
+}
+
+fn machine_instructions_equal(a: &Instruction, b: &Instruction) -> bool {
+    a.opcode == b.opcode && a.encoding == b.encoding && a.value == b.value
+}
+
 fn suffix_lower_bound(block: &Block, common: usize) -> usize {
     let terminator = &block.terminator.as_ref().expect("candidate must have a terminator").kind;
     terminator_lower_bound(terminator)
@@ -222,25 +205,6 @@ fn terminator_lower_bound(kind: &TerminatorKind) -> usize {
 
 fn instruction_lower_bound(inst: &Instruction) -> usize {
     if inst.is_encoded_push() { 2 } else { 1 }
-}
-
-#[derive(Default)]
-struct SuffixNode {
-    children: FxHashMap<InstructionKey, SuffixNodeId>,
-    representative: Option<BlockId>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct InstructionKey {
-    opcode: u8,
-    encoding: u8,
-    value: Option<PushValue>,
-}
-
-impl InstructionKey {
-    fn new(inst: &Instruction) -> Self {
-        Self { opcode: inst.opcode, encoding: inst.encoding, value: inst.value }
-    }
 }
 
 #[derive(Clone, Copy)]
