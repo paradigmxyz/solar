@@ -38,6 +38,12 @@ impl MirPass for LowerFrameSlots {
 }
 
 fn lower_function(func: &mut Function) -> bool {
+    if !func.instructions().any(|inst| {
+        matches!(func.inst(inst).kind, InstKind::FrameLoad { .. } | InstKind::FrameStore { .. })
+    }) {
+        return false;
+    }
+
     let mut replacements = FxHashMap::default();
     let mut changed = false;
     let blocks: Vec<_> = func.blocks.indices().collect();
