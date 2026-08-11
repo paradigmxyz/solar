@@ -66,6 +66,7 @@ struct RenameWatcherPath {
 struct DirectFileEventTransaction {
     typ: FileChangeType,
     paths: Vec<PathBuf>,
+    roots: Vec<PathBuf>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -329,36 +330,55 @@ impl FileOperationCoordinator {
         true
     }
 
-    pub(crate) fn record_direct_events(
+    pub(crate) fn record_direct_create_events(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
+        self.record_direct_events(FileChangeType::CREATED, paths, []);
+    }
+
+    pub(crate) fn record_direct_delete_events(
+        &mut self,
+        paths: impl IntoIterator<Item = PathBuf>,
+        roots: impl IntoIterator<Item = PathBuf>,
+    ) {
+        self.record_direct_events(FileChangeType::DELETED, paths, roots);
+    }
+
+    fn record_direct_events(
         &mut self,
         typ: FileChangeType,
         paths: impl IntoIterator<Item = PathBuf>,
+        roots: impl IntoIterator<Item = PathBuf>,
     ) {
         debug_assert!(matches!(typ, FileChangeType::CREATED | FileChangeType::DELETED));
         let mut paths = paths.into_iter().map(|path| path.normalize()).collect::<Vec<_>>();
         paths.sort_unstable();
         paths.dedup();
-        if paths.is_empty() {
+        let mut roots = roots.into_iter().map(|path| path.normalize()).collect::<Vec<_>>();
+        roots.sort_unstable();
+        roots.dedup();
+        if paths.is_empty() && roots.is_empty() {
             return;
         }
 
         self.renames.retain(|transaction| {
             transaction.state != RenameTransactionState::Applied
-                || !paths.iter().any(|path| transaction.watcher.is_opposite(path, typ))
+                || !paths
+                    .iter()
+                    .chain(&roots)
+                    .any(|path| transaction.watcher.is_opposite(path, typ))
         });
         for transaction in &mut self.direct_events {
             if transaction.typ != typ {
-                transaction.paths.retain(|path| paths.binary_search(path).is_err());
+                transaction.retain_non_overlapping(&paths, &roots);
             }
         }
         for transaction in &mut self.watched_events {
             if transaction.typ != typ {
-                transaction.paths.retain(|path| paths.binary_search(path).is_err());
+                transaction.retain_non_overlapping(&paths, &roots);
             }
         }
-        self.direct_events.retain(|transaction| !transaction.paths.is_empty());
-        self.watched_events.retain(|transaction| !transaction.paths.is_empty());
-        self.direct_events.push(DirectFileEventTransaction { typ, paths });
+        self.direct_events.retain(|transaction| !transaction.is_empty());
+        self.watched_events.retain(|transaction| !transaction.is_empty());
+        self.direct_events.push(DirectFileEventTransaction { typ, paths, roots });
         if self.direct_events.len() > DIRECT_EVENT_HISTORY_LIMIT {
             self.direct_events.remove(0);
         }
@@ -391,7 +411,7 @@ impl FileOperationCoordinator {
             transaction.paths.dedup();
             return;
         }
-        self.watched_events.push(DirectFileEventTransaction { typ, paths });
+        self.watched_events.push(DirectFileEventTransaction { typ, paths, roots: Vec::new() });
         if self.watched_events.len() > DIRECT_EVENT_HISTORY_LIMIT {
             self.watched_events.remove(0);
         }
@@ -442,14 +462,13 @@ impl FileOperationCoordinator {
         let path = path.normalize();
         let mut matched = false;
         for transaction in &mut self.direct_events {
-            let Ok(index) = transaction.paths.binary_search(&path) else { continue };
             if transaction.typ == typ {
-                matched = true;
+                matched |= transaction.consume_match(&path);
             } else {
-                transaction.paths.remove(index);
+                transaction.remove_overlapping(&path);
             }
         }
-        self.direct_events.retain(|transaction| !transaction.paths.is_empty());
+        self.direct_events.retain(|transaction| !transaction.is_empty());
         matched
     }
 
@@ -508,6 +527,31 @@ impl FileOperationCoordinator {
             };
             self.renames.remove(index);
         }
+    }
+}
+
+impl DirectFileEventTransaction {
+    fn is_empty(&self) -> bool {
+        self.paths.is_empty() && self.roots.is_empty()
+    }
+
+    fn consume_match(&mut self, path: &Path) -> bool {
+        let exact = self.paths.binary_search_by(|candidate| candidate.as_path().cmp(path)).is_ok();
+        let roots_len = self.roots.len();
+        self.roots.retain(|root| !path.starts_with(root));
+        exact || self.roots.len() != roots_len
+    }
+
+    fn remove_overlapping(&mut self, path: &Path) {
+        self.paths.retain(|candidate| !paths_overlap(candidate, path));
+        self.roots.retain(|root| !paths_overlap(root, path));
+    }
+
+    fn retain_non_overlapping(&mut self, paths: &[PathBuf], roots: &[PathBuf]) {
+        let overlaps =
+            |candidate: &Path| paths.iter().chain(roots).any(|path| paths_overlap(candidate, path));
+        self.paths.retain(|path| !overlaps(path));
+        self.roots.retain(|root| !overlaps(root));
     }
 }
 
@@ -1001,7 +1045,7 @@ mod tests {
         let unrelated = path("/workspace/Unrelated.sol");
         let mut coordinator = FileOperationCoordinator::default();
 
-        coordinator.record_direct_events(FileChangeType::CREATED, [a.clone(), b.clone()]);
+        coordinator.record_direct_create_events([a.clone(), b.clone()]);
         assert_eq!(
             coordinator.observe_watcher_event(&a, FileChangeType::CREATED),
             WatchedFileAction::Ignore
@@ -1033,6 +1077,67 @@ mod tests {
     }
 
     #[test]
+    fn direct_delete_directory_echoes_match_descendants_and_expire_on_opposite_activity() {
+        let root = path("/workspace/deleted");
+        let child = path("/workspace/deleted/nested/Target.sol");
+        let mut coordinator = FileOperationCoordinator::default();
+
+        coordinator.record_direct_delete_events([], [root]);
+        assert_eq!(
+            coordinator.observe_watcher_event(&child, FileChangeType::DELETED),
+            WatchedFileAction::Ignore
+        );
+        assert_eq!(
+            coordinator.observe_watcher_event(&child, FileChangeType::CREATED),
+            WatchedFileAction::Process
+        );
+        assert_eq!(
+            coordinator.observe_watcher_event(&child, FileChangeType::DELETED),
+            WatchedFileAction::Process
+        );
+    }
+
+    #[test]
+    fn empty_direct_create_does_not_suppress_later_events() {
+        let first = path("/workspace/created/nested/First.sol");
+        let later = path("/workspace/created/nested/Later.sol");
+        let mut coordinator = FileOperationCoordinator::default();
+
+        coordinator.record_direct_create_events([]);
+
+        assert_eq!(
+            coordinator.observe_watcher_event(&first, FileChangeType::CREATED),
+            WatchedFileAction::Process
+        );
+        assert_eq!(
+            coordinator.observe_watcher_event(&later, FileChangeType::CREATED),
+            WatchedFileAction::Process
+        );
+    }
+
+    #[test]
+    fn direct_create_event_matches_only_known_paths() {
+        let known = path("/workspace/created/Known.sol");
+        let later = path("/workspace/created/Later.sol");
+        let mut coordinator = FileOperationCoordinator::default();
+
+        coordinator.record_direct_create_events([known.clone()]);
+
+        assert_eq!(
+            coordinator.observe_watcher_event(&known, FileChangeType::CREATED),
+            WatchedFileAction::Ignore
+        );
+        assert_eq!(
+            coordinator.observe_watcher_event(&known, FileChangeType::CREATED),
+            WatchedFileAction::Ignore
+        );
+        assert_eq!(
+            coordinator.observe_watcher_event(&later, FileChangeType::CREATED),
+            WatchedFileAction::Process
+        );
+    }
+
+    #[test]
     fn watched_event_history_requires_complete_batch_and_expires_on_direct_opposite() {
         let a = path("/workspace/A.sol");
         let b = path("/workspace/B.sol");
@@ -1050,7 +1155,7 @@ mod tests {
         assert!(!coordinator.consume_watched_events(FileChangeType::CREATED, &[a.clone(), b]));
 
         coordinator.record_watched_events(FileChangeType::CREATED, [a.clone()]);
-        coordinator.record_direct_events(FileChangeType::DELETED, [a.clone()]);
+        coordinator.record_direct_delete_events([a.clone()], []);
         assert!(!coordinator.consume_watched_events(FileChangeType::CREATED, &[a]));
     }
 
@@ -1063,7 +1168,7 @@ mod tests {
 
         assert!(coordinator.apply_rename(&batch));
         assert!(!coordinator.apply_rename(&batch));
-        coordinator.record_direct_events(FileChangeType::CREATED, [a]);
+        coordinator.record_direct_create_events([a]);
         assert!(coordinator.apply_rename(&batch));
     }
 

@@ -94,7 +94,7 @@ struct AnalysisCommitState {
     /// VFS content revision captured when the current analysis epoch began.
     vfs_content_revision: u64,
     /// Last version that actually replaced the symbol tables.
-    natspec_symbol_tables_version: usize,
+    symbol_tables_version: usize,
     natspec_pending_source_changes: FxHashSet<PathBuf>,
     natspec_context_change_version: usize,
 }
@@ -183,6 +183,23 @@ pub(crate) struct GlobalState {
     diagnostics: Arc<RwLock<DiagnosticStore>>,
 }
 
+pub(crate) struct AnalysisRevision {
+    version: usize,
+    current: Arc<AtomicUsize>,
+    commit: Arc<Mutex<AnalysisCommitState>>,
+    vfs: Arc<RwLock<Vfs>>,
+}
+
+impl AnalysisRevision {
+    pub(crate) fn is_current(&self, vfs_content_revision: u64) -> bool {
+        let commit = self.commit.lock();
+        self.current.load(Ordering::Acquire) == self.version
+            && commit.symbol_tables_version == self.version
+            && commit.vfs_content_revision == vfs_content_revision
+            && self.vfs.read().content_revision() == vfs_content_revision
+    }
+}
+
 impl GlobalState {
     pub(crate) fn new(client: ClientSocket) -> Self {
         let (published_analysis_version, _) = watch::channel(0);
@@ -215,6 +232,15 @@ impl GlobalState {
 
     pub(crate) fn client_socket(&self) -> ClientSocket {
         self.client.clone()
+    }
+
+    pub(crate) fn analysis_revision(&self) -> AnalysisRevision {
+        AnalysisRevision {
+            version: self.analysis_version.load(Ordering::Acquire),
+            current: self.analysis_version.clone(),
+            commit: self.analysis_commit.clone(),
+            vfs: self.vfs.clone(),
+        }
     }
 
     pub(crate) fn update_analyzed_document_version(&self, uri: Url, version: i32) {
@@ -373,7 +399,7 @@ impl GlobalState {
         let refresh_code_lenses =
             self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
         let compare_inlay_hints = self.config.supports_inlay_hint_refresh();
-        let publish_diagnostics_data = self.config.supports_publish_diagnostics_data();
+        let config = self.config.clone();
         let (old_symbol_tables, refresh_requests) = {
             let Self {
                 client,
@@ -408,10 +434,10 @@ impl GlobalState {
                     diagnostics: external_refresh.diagnostics || pull_results_changed,
                     inlay_hints: external_refresh.inlay_hints || inlay_hints_changed,
                 };
-                publish_diagnostic_batches(client, update.batches, publish_diagnostics_data);
+                publish_diagnostic_batches(client, update.batches, &config);
 
                 commit.cache_invalidated = true;
-                commit.natspec_symbol_tables_version = version;
+                commit.symbol_tables_version = version;
                 commit.natspec_pending_source_changes.clear();
                 commit.natspec_context_change_version = version;
                 published_analysis_version.send_replace(version);
@@ -565,11 +591,7 @@ impl GlobalState {
             commit.record_external_diagnostics_change(
                 update.pull_reports_changed || update.workspace_documents_changed,
             );
-            publish_diagnostic_batches(
-                &mut self.client,
-                update.batches,
-                self.config.supports_publish_diagnostics_data(),
-            );
+            publish_diagnostic_batches(&mut self.client, update.batches, &self.config);
             (version, rediscover, progress)
         };
 
@@ -707,7 +729,7 @@ impl GlobalState {
             let commit = self.analysis_commit.lock();
             (
                 self.analysis_version.load(Ordering::Acquire),
-                commit.natspec_symbol_tables_version,
+                commit.symbol_tables_version,
                 commit.natspec_context_change_version,
                 commit.natspec_pending_source_changes.iter().cloned().collect::<Vec<_>>(),
             )
@@ -1059,6 +1081,10 @@ fn watched_file_registration_params() -> RegistrationParams {
         watchers: vec![
             FileSystemWatcher { glob_pattern: GlobPattern::String("**/*.sol".into()), kind },
             FileSystemWatcher { glob_pattern: GlobPattern::String("**/foundry.toml".into()), kind },
+            FileSystemWatcher {
+                glob_pattern: GlobPattern::String("**/remappings.txt".into()),
+                kind,
+            },
         ],
     };
 
@@ -1074,8 +1100,12 @@ fn watched_file_registration_params() -> RegistrationParams {
 fn publish_diagnostic_batches(
     client: &mut ClientSocket,
     batches: impl IntoIterator<Item = (Url, Vec<Diagnostic>)>,
-    include_data: bool,
+    config: &Config,
 ) {
+    if !config.uses_push_diagnostics() {
+        return;
+    }
+    let include_data = config.supports_publish_diagnostics_data();
     for (uri, mut uri_diagnostics) in batches {
         if !include_data {
             for diagnostic in &mut uri_diagnostics {
@@ -1149,11 +1179,12 @@ impl GlobalStateSnapshot {
             let vfs = self.vfs.read();
             vfs.iter()
                 .filter_map(|(path, contents)| {
-                    Some((
-                        path.as_path()?.to_path_buf(),
-                        contents.to_string(),
-                        vfs.get_file_version(path),
-                    ))
+                    let disk_path = path.as_path()?.to_path_buf();
+                    let mut src = String::with_capacity(contents.byte_len());
+                    for chunk in contents.chunks() {
+                        src.push_str(chunk);
+                    }
+                    Some((disk_path, Arc::new(src), vfs.get_file_version(path)))
                 })
                 .collect::<Vec<_>>()
         };
@@ -1166,8 +1197,25 @@ impl GlobalStateSnapshot {
         let source_map = SourceMap::empty();
 
         for (path, contents, version) in vfs_files {
-            let idx = workspace_path_index.workspace_idx_for_path(&path);
-            batches[idx].push_open_file(path, contents, version);
+            let query = workspace_path_index.query(&path);
+            let mut indices = query.workspace_idxs_for_import_path();
+            let Some(last_idx) = indices.next_back() else {
+                batches[0].push_open_file(path, contents, version);
+                continue;
+            };
+            let primary = query.workspace_idx_for_path();
+            for idx in indices {
+                if idx == primary {
+                    batches[idx].push_open_file(path.clone(), contents.clone(), version);
+                } else {
+                    batches[idx].push_preloaded_file(path.clone(), contents.clone(), version);
+                }
+            }
+            if last_idx == primary {
+                batches[last_idx].push_open_file(path, contents, version);
+            } else {
+                batches[last_idx].push_preloaded_file(path, contents, version);
+            }
         }
 
         for path in disk_paths {
@@ -1233,7 +1281,7 @@ impl GlobalStateSnapshot {
                 && symbol_tables.inlay_hints_changed(&new_tables);
             let old_symbol_tables = mem::replace(&mut *symbol_tables, new_tables);
             drop(symbol_tables);
-            commit.natspec_symbol_tables_version = version;
+            commit.symbol_tables_version = version;
             commit.natspec_pending_source_changes.clear();
             let update = self
                 .diagnostics
@@ -1246,11 +1294,7 @@ impl GlobalStateSnapshot {
                 diagnostics: external_refresh.diagnostics || update.workspace_documents_changed,
                 inlay_hints: external_refresh.inlay_hints,
             };
-            publish_diagnostic_batches(
-                &mut self.client,
-                update.batches,
-                self.config.supports_publish_diagnostics_data(),
-            );
+            publish_diagnostic_batches(&mut self.client, update.batches, &self.config);
             self.published_analysis_version.send_replace(version);
             (old_symbol_tables, refresh_requests)
         };
@@ -1294,11 +1338,7 @@ impl GlobalStateSnapshot {
 
         let refresh_immediately = update.pull_reports_changed && commit.external_refresh.is_none();
         commit.record_external_diagnostics_change(update.pull_reports_changed);
-        publish_diagnostic_batches(
-            &mut self.client,
-            update.batches,
-            self.config.supports_publish_diagnostics_data(),
-        );
+        publish_diagnostic_batches(&mut self.client, update.batches, &self.config);
         refresh_immediately
     }
 
@@ -1312,11 +1352,7 @@ impl GlobalStateSnapshot {
 
         let refresh_immediately = update.pull_reports_changed && commit.external_refresh.is_none();
         commit.record_external_diagnostics_change(update.pull_reports_changed);
-        publish_diagnostic_batches(
-            &mut self.client,
-            update.batches,
-            self.config.supports_publish_diagnostics_data(),
-        );
+        publish_diagnostic_batches(&mut self.client, update.batches, &self.config);
         refresh_immediately
     }
 
@@ -1338,11 +1374,7 @@ impl GlobalStateSnapshot {
                 store.replace_and_publish_batches(owner, diagnostics)
             };
             let pull_reports_changed = update.pull_reports_changed;
-            publish_diagnostic_batches(
-                &mut self.client,
-                update.batches,
-                self.config.supports_publish_diagnostics_data(),
-            );
+            publish_diagnostic_batches(&mut self.client, update.batches, &self.config);
             pull_reports_changed
         };
         request_pull_result_refreshes(
@@ -1368,7 +1400,10 @@ fn request_pull_result_refreshes(
     config: &Config,
     requests: RefreshRequests,
 ) {
-    if requests.diagnostics && config.supports_diagnostic_refresh() {
+    if requests.diagnostics
+        && config.uses_pull_diagnostics()
+        && config.supports_diagnostic_refresh()
+    {
         request_diagnostic_refresh(client);
     }
     if requests.inlay_hints && config.supports_inlay_hint_refresh() {
@@ -1398,7 +1433,9 @@ fn request_inlay_hint_refresh(client: &ClientSocket) {
 
 struct AnalysisBatch {
     opts: CompileOpts,
-    files: Vec<(PathBuf, String)>,
+    files: Vec<(PathBuf, Arc<String>)>,
+    preloaded_files: Vec<(PathBuf, Arc<String>)>,
+    preloaded_paths: FxHashSet<PathBuf>,
     open_file_versions: FxHashMap<Url, i64>,
     seen_paths: FxHashSet<PathBuf>,
 }
@@ -1408,6 +1445,8 @@ impl AnalysisBatch {
         Self {
             opts,
             files: Vec::new(),
+            preloaded_files: Vec::new(),
+            preloaded_paths: FxHashSet::default(),
             open_file_versions: FxHashMap::default(),
             seen_paths: FxHashSet::default(),
         }
@@ -1423,25 +1462,47 @@ impl AnalysisBatch {
         batch
     }
 
-    fn push_file(&mut self, path: PathBuf, contents: String) {
-        if self.seen_paths.insert(path.clone()) {
-            self.files.push((path, contents));
+    fn push_file(&mut self, path: PathBuf, mut contents: String) {
+        if self.seen_paths.contains(&path) {
+            return;
         }
+        contents.shrink_to_fit();
+        self.push_shared_file(path, Arc::new(contents));
     }
 
-    fn push_open_file(&mut self, path: PathBuf, contents: String, version: Option<i32>) {
+    fn push_shared_file(&mut self, path: PathBuf, contents: Arc<String>) {
         if self.seen_paths.insert(path.clone()) {
-            if let Some(version) = version
-                && let Ok(uri) = Url::from_file_path(&path)
-            {
-                self.open_file_versions.insert(uri, i64::from(version));
+            if self.preloaded_paths.remove(&path) {
+                self.preloaded_files.retain(|(preloaded, _)| preloaded != &path);
             }
             self.files.push((path, contents));
         }
     }
 
+    fn push_open_file(&mut self, path: PathBuf, contents: Arc<String>, version: Option<i32>) {
+        if let Some(version) = version
+            && let Ok(uri) = Url::from_file_path(&path)
+        {
+            self.open_file_versions.insert(uri, i64::from(version));
+        }
+        self.push_shared_file(path, contents);
+    }
+
+    fn push_preloaded_file(&mut self, path: PathBuf, contents: Arc<String>, version: Option<i32>) {
+        if self.seen_paths.contains(&path) || !self.preloaded_paths.insert(path.clone()) {
+            return;
+        }
+        if let Some(version) = version
+            && let Ok(uri) = Url::from_file_path(&path)
+        {
+            self.open_file_versions.insert(uri, i64::from(version));
+        }
+        self.preloaded_files.push((path, contents));
+    }
+
     fn finish(&mut self) {
         self.files.sort_by(|(lhs, _), (rhs, _)| lhs.cmp(rhs));
+        self.preloaded_files.sort_by(|(lhs, _), (rhs, _)| lhs.cmp(rhs));
     }
 }
 
@@ -1464,8 +1525,8 @@ mod analysis_batch_tests {
         );
 
         assert_eq!(batch.files.len(), 2);
-        assert_eq!(batch.files[0], (a.clone(), "contract A {}".into()));
-        assert_eq!(batch.files[1], (b.clone(), "contract B {}".into()));
+        assert_eq!(batch.files[0], (a.clone(), Arc::new("contract A {}".into())));
+        assert_eq!(batch.files[1], (b.clone(), Arc::new("contract B {}".into())));
         assert_eq!(batch.seen_paths, FxHashSet::from_iter([a, b]));
     }
 
@@ -1602,8 +1663,14 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
 
 fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> AnalysisResult {
     let (emitter, diag_buffer) = InMemoryEmitter::new();
-    let AnalysisBatch { mut opts, files, open_file_versions, seen_paths: document_link_sources } =
-        batch;
+    let AnalysisBatch {
+        mut opts,
+        files,
+        preloaded_files,
+        preloaded_paths: _,
+        open_file_versions,
+        seen_paths: document_link_sources,
+    } = batch;
     debug_assert_eq!(files.len(), document_link_sources.len());
     debug_assert!(files.iter().all(|(path, _)| document_link_sources.contains(path)));
     opts.unstable.recover_incomplete_input = true;
@@ -1617,13 +1684,22 @@ fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> 
     compiler.enter_mut(move |compiler| {
         {
             let mut parsing_context = compiler.parse();
+            for (path, contents) in preloaded_files {
+                if let Err(error) = parsing_context
+                    .sess
+                    .source_map()
+                    .new_source_file_shared(FileName::real(path), contents)
+                {
+                    parsing_context.dcx().err(format!("failed to preload source: {error}")).emit();
+                }
+            }
             let files = files
                 .into_iter()
                 .map(|(path, contents)| {
                     parsing_context
                         .sess
                         .source_map()
-                        .new_source_file(FileName::real(path), contents)
+                        .new_source_file_shared(FileName::real(path), contents)
                         .map_err(|error| {
                             parsing_context
                                 .dcx()

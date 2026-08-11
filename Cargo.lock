@@ -4395,6 +4395,7 @@ version = "0.2.0"
 dependencies = [
  "alloy-primitives",
  "idna_adapter",
+ "serde_json",
  "solar-ast",
  "solar-cli",
  "solar-codegen",
@@ -4406,6 +4407,7 @@ dependencies = [
  "solar-parse",
  "solar-sema",
  "solar-tester",
+ "tempfile",
 ]
 
 [[package]]

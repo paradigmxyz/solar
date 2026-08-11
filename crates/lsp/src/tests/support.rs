@@ -726,6 +726,7 @@ impl RequestFixture {
         state.config = Arc::new(config);
         *state.vfs.write() = self.marked.project().vfs();
         *state.symbol_tables.write() = self.result.symbol_tables.clone();
+        state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
         state
     }
 

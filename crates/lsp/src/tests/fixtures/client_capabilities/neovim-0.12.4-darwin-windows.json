@@ -1,0 +1,53 @@
+{
+  "general": {
+    "positionEncodings": ["utf-8", "utf-16", "utf-32"]
+  },
+  "window": {
+    "workDoneProgress": true
+  },
+  "workspace": {
+    "didChangeWatchedFiles": {
+      "dynamicRegistration": true
+    },
+    "codeLens": {
+      "refreshSupport": true
+    },
+    "diagnostics": {
+      "refreshSupport": true
+    },
+    "inlayHint": {
+      "refreshSupport": true
+    }
+  },
+  "textDocument": {
+    "codeAction": {
+      "codeActionLiteralSupport": {
+        "codeActionKind": {
+          "valueSet": [
+            "",
+            "quickfix",
+            "refactor",
+            "refactor.extract",
+            "refactor.inline",
+            "refactor.rewrite",
+            "source",
+            "source.organizeImports"
+          ]
+        }
+      }
+    },
+    "documentSymbol": {
+      "hierarchicalDocumentSymbolSupport": true
+    },
+    "hover": {
+      "contentFormat": ["markdown", "plaintext"]
+    },
+    "diagnostic": {
+      "dynamicRegistration": true,
+      "dataSupport": true
+    },
+    "publishDiagnostics": {
+      "dataSupport": true
+    }
+  }
+}

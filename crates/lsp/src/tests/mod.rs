@@ -7,14 +7,14 @@ use crate::{
 };
 use async_lsp::{ClientSocket, ErrorCode, ResponseError, ServerSocket, router::Router};
 use lsp_types::{
-    CodeLensWorkspaceClientCapabilities, Diagnostic, DiagnosticWorkspaceClientCapabilities,
-    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
-    DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DidSaveTextDocumentParams, DocumentDiagnosticParams, DocumentDiagnosticReport,
-    DocumentDiagnosticReportResult, DocumentSymbol, FileChangeType, FileEvent,
-    InlayHintWorkspaceClientCapabilities, PartialResultParams, Position, ProgressParams,
-    ProgressParamsValue, PublishDiagnosticsParams, Range, SymbolKind,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
+    CodeLensWorkspaceClientCapabilities, Diagnostic, DiagnosticClientCapabilities,
+    DiagnosticWorkspaceClientCapabilities, DidChangeConfigurationParams,
+    DidChangeTextDocumentParams, DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
+    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
+    DocumentSymbol, FileChangeType, FileEvent, InlayHintWorkspaceClientCapabilities,
+    PartialResultParams, Position, ProgressParams, ProgressParamsValue, PublishDiagnosticsParams,
+    Range, SymbolKind, TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
     VersionedTextDocumentIdentifier, WatchKind, WorkDoneProgress, WorkDoneProgressCreateParams,
     WorkDoneProgressParams, WorkspaceClientCapabilities, WorkspaceFolder,
     WorkspaceFoldersChangeEvent, WorkspaceSymbol, notification, notification::Notification,
@@ -33,6 +33,7 @@ use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 mod call_hierarchy;
 mod code_action;
 mod code_lens;
+mod compatibility_sessions;
 mod completion;
 mod completion_resolve;
 mod document_highlight;
@@ -42,6 +43,8 @@ mod folding_range;
 mod goto_definition;
 mod hover;
 mod implementation;
+mod import_completion;
+mod import_definition;
 mod inlay_hint;
 #[path = "protocol_trace.rs"]
 mod protocol_trace_tests;
@@ -1373,7 +1376,7 @@ fn flycheck_owner(workspace: impl Into<PathBuf>) -> DiagnosticOwner {
 }
 
 #[test]
-fn watched_file_registration_watches_solidity_and_foundry_manifests() {
+fn watched_file_registration_watches_solidity_and_foundry_configuration() {
     let [registration] = watched_file_registration_params().registrations.try_into().unwrap();
     assert_eq!(registration.id, "solar-watched-files");
     assert_eq!(registration.method, lsp_types::notification::DidChangeWatchedFiles::METHOD);
@@ -1384,6 +1387,7 @@ fn watched_file_registration_watches_solidity_and_foundry_manifests() {
             "watchers": [
                 { "globPattern": "**/*.sol", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
                 { "globPattern": "**/foundry.toml", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
+                { "globPattern": "**/remappings.txt", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
             ],
         }))
     );
@@ -1780,7 +1784,7 @@ fn publishing_current_epoch_clears_pending_source_changes() {
     assert!(snapshot.publish_symbol_tables(1, SymbolTables::default()));
 
     let commit = snapshot.analysis_commit.lock();
-    assert_eq!(commit.natspec_symbol_tables_version, 1);
+    assert_eq!(commit.symbol_tables_version, 1);
     assert!(commit.natspec_pending_source_changes.is_empty());
 }
 
@@ -1994,7 +1998,10 @@ fn analysis_batches_read_tracked_disk_files() {
     let mut batches = snapshot.analysis_batches(vec![path.clone()]);
     let batch = batches.pop().unwrap();
 
-    assert_eq!(batch.files, vec![(path, "contract C { function f() public { number+; } }".into())]);
+    assert_eq!(
+        batch.files,
+        vec![(path, Arc::new("contract C { function f() public { number+; } }".into()))]
+    );
 }
 
 #[test]
@@ -2093,8 +2100,8 @@ fn analysis_batches_include_created_naked_workspace_disk_files() {
     assert_eq!(
         batch.files,
         vec![
-            (disk_path, "contract Disk {}".into()),
-            (open_path, "contract Open { function f() public { number+; } }".into()),
+            (disk_path, Arc::new("contract Disk {}".into())),
+            (open_path, Arc::new("contract Open { function f() public { number+; } }".into()),),
         ]
     );
 }
@@ -2124,7 +2131,7 @@ fn analysis_batches_scan_workspace_source_roots_and_apply_vfs_overlay() {
 
     assert_eq!(
         batch.files,
-        vec![(source_path, "contract A { function f() public { number+; } }".into())]
+        vec![(source_path, Arc::new("contract A { function f() public { number+; } }".into()))]
     );
     assert_eq!(batch.opts.base_path.as_deref(), Some(project.root()));
 }
@@ -2181,7 +2188,7 @@ fn analysis_batches_use_cached_workspace_source_files() {
 
     let mut batches = snapshot.analysis_batches(Vec::new());
     let batch = batches.pop().unwrap();
-    assert_eq!(batch.files, vec![(cached_path, "contract Cached {}".into())]);
+    assert_eq!(batch.files, vec![(cached_path, Arc::new("contract Cached {}".into()))]);
 
     config.add_source_file(created_after_discovery.clone());
     let outside_source_root = project.path("/test/Outside.sol");
@@ -2219,7 +2226,205 @@ fn analysis_batches_assign_open_files_to_most_specific_workspace() {
         .unwrap();
 
     assert!(!outer_batch.files.iter().any(|(path, _)| path == &source_path));
-    assert_eq!(inner_batch.files, vec![(source_path, "contract A {}".into())]);
+    assert_eq!(inner_batch.files, vec![(source_path, Arc::new("contract A {}".into()))]);
+}
+
+#[test]
+fn analysis_batches_use_import_ownership_for_external_files() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /first/foundry.toml
+        [profile.default]
+        auto_detect_remappings = false
+        remappings = ["pkg/=lib/first/"]
+
+        //- /second/foundry.toml
+        [profile.default]
+        src = "../external/src"
+        libs = ["../external/include"]
+        auto_detect_remappings = false
+        remappings = ["pkg/=lib/second/"]
+
+        //- /external/src/Main.sol open
+        import "pkg/Target.sol";
+
+        //- /external/include/Overlay.sol open
+        import "pkg/Target.sol";
+
+        //- /first/lib/first/Target.sol
+        contract FirstTarget {}
+
+        //- /second/lib/second/Target.sol
+        contract SecondTarget {}
+        "#,
+    );
+    let mut config = project.config_with_roots(&["/first", "/second"]);
+    let main_path = project.path("/external/src/Main.sol");
+    let overlay_path = project.path("/external/include/Overlay.sol");
+    let cached_path = project.path("/external/src/Cached.sol");
+    let disk_path = project.path("/external/src/Disk.sol");
+    project.write_file("/external/src/Cached.sol", "contract Cached {}");
+    project.write_file("/external/src/Disk.sol", "contract Disk {}");
+    config.add_source_file(cached_path.clone());
+    let snapshot = snapshot_with_config(config, project.vfs());
+
+    let mut batches = snapshot.analysis_batches(vec![disk_path.clone()]);
+    let second_idx = batches
+        .iter()
+        .position(|batch| {
+            batch.opts.base_path.as_deref() == Some(project.path("/second").as_path())
+        })
+        .unwrap();
+    let second_batch = batches.remove(second_idx);
+
+    let mut expected_paths = vec![&main_path, &overlay_path, &cached_path, &disk_path];
+    expected_paths.sort_unstable();
+    assert_eq!(second_batch.files.iter().map(|(path, _)| path).collect::<Vec<_>>(), expected_paths);
+    assert!(batches.iter().all(|batch| {
+        batch
+            .files
+            .iter()
+            .all(|(path, _)| ![&main_path, &overlay_path, &cached_path, &disk_path].contains(&path))
+    }));
+    let result = analyze(second_batch);
+    let expected =
+        Some(Url::from_file_path(project.path("/second/lib/second/Target.sol")).unwrap());
+    for path in [main_path, overlay_path] {
+        let links = result.symbol_tables.document_links(&path);
+        assert_eq!(links.len(), 1);
+        assert_eq!(links[0].target, expected);
+    }
+}
+
+#[test]
+fn analysis_batches_share_external_open_files_across_matching_contexts() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /first/foundry.toml
+        [profile.default]
+        libs = ["../shared"]
+        auto_detect_remappings = false
+
+        //- /second/foundry.toml
+        [profile.default]
+        libs = ["../shared"]
+        auto_detect_remappings = false
+
+        //- /first/src/Main.sol
+        import "Overlay.sol";
+        contract First is Overlay {}
+
+        //- /second/src/Main.sol
+        import "Overlay.sol";
+        contract Second is Overlay {}
+
+        //- /shared/Overlay.sol open
+        contract DiskOverlay {}
+
+        //- /shared/Dependency.sol
+        contract Dependency {}
+        "#,
+    );
+    let overlay_contents = "import \"./Dependency.sol\"; contract Overlay is Dependency {}";
+    let mut vfs = project.vfs();
+    vfs.set_file_contents(
+        crate::vfs::VfsPath::from(project.path("/shared/Overlay.sol")),
+        Some(crop::Rope::from(overlay_contents)),
+    );
+    let config = project.config_with_roots(&["/first", "/second"]);
+    let overlay = project.path("/shared/Overlay.sol");
+    let snapshot = snapshot_with_config(config, vfs);
+
+    let mut batches = snapshot.analysis_batches(Vec::new());
+    let primary = batches
+        .iter()
+        .position(|batch| batch.files.iter().any(|(path, _)| path == &overlay))
+        .unwrap();
+
+    assert_eq!(batches[primary].files.iter().filter(|(path, _)| path == &overlay).count(), 1);
+    assert!(batches[primary].preloaded_files.iter().all(|(path, _)| path != &overlay));
+    let secondary = 1 - primary;
+    assert!(batches[secondary].files.iter().all(|(path, _)| path != &overlay));
+    assert_eq!(
+        batches[secondary].preloaded_files,
+        vec![(overlay.clone(), Arc::new(overlay_contents.into()))]
+    );
+
+    let mut results = AnalysisResultAccumulator::default();
+    for batch in batches.drain(..) {
+        results.push(analyze(batch));
+    }
+    let result = results.finish();
+    assert!(result.diagnostics.values().all(Vec::is_empty));
+    let [link] = result.symbol_tables.document_links(&overlay).try_into().unwrap();
+    assert_eq!(
+        link.target,
+        Some(Url::from_file_path(project.path("/shared/Dependency.sol")).unwrap())
+    );
+}
+
+#[test]
+fn analysis_batches_share_external_open_files_across_overlapping_contexts() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /first/foundry.toml
+        [profile.default]
+        libs = ["../shared"]
+        auto_detect_remappings = false
+
+        //- /second/foundry.toml
+        [profile.default]
+        libs = ["../shared/nested"]
+        auto_detect_remappings = false
+
+        //- /first/src/Main.sol
+        import "nested/Overlay.sol";
+        contract First is Overlay {}
+
+        //- /second/src/Main.sol
+        import "Overlay.sol";
+        contract Second is Overlay {}
+
+        //- /shared/nested/Overlay.sol open
+        contract DiskOverlay {}
+        "#,
+    );
+    let overlay_contents = "contract Overlay {}";
+    let overlay = project.path("/shared/nested/Overlay.sol");
+    let mut vfs = project.vfs();
+    vfs.set_file_contents(
+        crate::vfs::VfsPath::from(overlay.clone()),
+        Some(crop::Rope::from(overlay_contents)),
+    );
+    let config = project.config_with_roots(&["/first", "/second"]);
+    let snapshot = snapshot_with_config(config, vfs);
+
+    let batches = snapshot.analysis_batches(Vec::new());
+    let primary = batches
+        .iter()
+        .position(|batch| batch.files.iter().any(|(path, _)| path == &overlay))
+        .unwrap();
+
+    assert_eq!(
+        batches[primary]
+            .files
+            .iter()
+            .filter(|(path, _)| path == &overlay)
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![(overlay.clone(), Arc::new(overlay_contents.into()))]
+    );
+    let secondary = 1 - primary;
+    assert_eq!(
+        batches[secondary].preloaded_files,
+        vec![(overlay, Arc::new(overlay_contents.into()))]
+    );
+    assert!(
+        batches
+            .into_iter()
+            .map(analyze)
+            .all(|result| { result.diagnostics.values().all(Vec::is_empty) })
+    );
 }
 
 #[test]
