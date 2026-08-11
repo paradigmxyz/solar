@@ -311,7 +311,7 @@ impl SourceMap {
         let filename = name.into();
         let id = SourceFileId::new(&filename);
         self.id_to_file.try_insert_cloned(id, |&id| {
-            let file = SourceFile::new_shared(filename, id, src)?;
+            let file = SourceFile::new(filename, id, src)?;
             self.append_source_file(file)
         })
     }
@@ -333,7 +333,7 @@ impl SourceMap {
     ) -> io::Result<Arc<SourceFile>> {
         let id = SourceFileId::new(&filename);
         self.id_to_file.try_insert_cloned(id, |&id| {
-            let file = SourceFile::new(filename, id, get_src()?)?;
+            let file = SourceFile::new(filename, id, Arc::new(get_src()?))?;
             self.append_source_file(file)
         })
     }

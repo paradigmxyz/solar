@@ -7,10 +7,23 @@ fn new_source_file_shared_preserves_source_allocation() {
     let mut src = String::with_capacity(128);
     src.push_str("contract C {}\n");
     let src = Arc::new(src);
+    let capacity = src.capacity();
 
     let file = sm.new_source_file_shared(PathBuf::from("C.sol"), src.clone()).unwrap();
 
     assert!(Arc::ptr_eq(&file.src, &src));
+    assert_eq!(file.src.capacity(), capacity);
+}
+
+#[test]
+fn new_source_file_shrinks_unique_source_allocation() {
+    let sm = SourceMap::empty();
+    let mut src = String::with_capacity(128);
+    src.push_str("contract C {}\n");
+
+    let file = sm.new_source_file(PathBuf::from("C.sol"), src).unwrap();
+
+    assert_eq!(file.src.capacity(), file.src.len());
 }
 
 fn init_source_map() -> SourceMap {
