@@ -286,7 +286,15 @@ impl MirInliner {
                         .saturating_sub(old_size)
                         .saturating_add(new_summary.estimated_code_size);
                     summaries.insert(caller_id, new_summary);
-                    call_counts = self.call_counts(module);
+                    if self.tiny_leaves_only {
+                        // Tiny-leaf candidates cannot contain internal calls, so inlining removes
+                        // exactly one call to the callee and cannot introduce another call site.
+                        if let Some(count) = call_counts.get_mut(&site.callee) {
+                            *count = count.saturating_sub(1);
+                        }
+                    } else {
+                        call_counts = self.call_counts(module);
+                    }
                     cursor = (site.block.index(), 0);
                 } else {
                     stats.skipped += 1;
