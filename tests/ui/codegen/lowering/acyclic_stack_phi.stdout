@@ -42,9 +42,6 @@ bb0:
   mstore
   jump bb7
 bb7:
-  dup1
-  push 224
-  mstore
   push 128
   mstore
   push 32

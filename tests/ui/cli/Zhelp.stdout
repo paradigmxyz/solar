@@ -69,6 +69,9 @@ Options:
       -Zswitch-max-bit-slice-gas-code-growth <SWITCH_MAX_BIT_SLICE_GAS_CODE_GROWTH>
           Override the per-switch bit-slice table growth limit for benchmarking
 
+      -Zevm-no-specialized-operand-plans
+          Disable local operand planning for store and copy instructions
+
       -Zhelp
           Print help
 
