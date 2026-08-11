@@ -603,6 +603,8 @@ impl CommonSubexprEliminator {
         matches!(
             kind,
             InstKind::MLoad(_)
+                | InstKind::Fmp
+                | InstKind::MemoryObjectLen(_, _)
                 | InstKind::Keccak256(_, _)
                 | InstKind::Keccak256Bytes(_)
                 | InstKind::MappingSlotMemory(_, _)
