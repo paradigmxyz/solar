@@ -485,14 +485,14 @@ impl CommonSubexprEliminator {
                     self.invalidate_for_side_effect(
                         func,
                         inst_id,
-                        &kind,
+                        kind,
                         ctx.replacements,
                         &mut cache,
                     );
                     continue;
                 }
 
-                let Some(key) = self.make_expr_key(func, inst_id, &kind, ctx.replacements) else {
+                let Some(key) = self.make_expr_key(func, inst_id, kind, ctx.replacements) else {
                     continue;
                 };
 
@@ -629,7 +629,7 @@ impl CommonSubexprEliminator {
                 self.invalidate_for_side_effect(
                     func,
                     inst_id,
-                    &kind,
+                    kind,
                     &replacements,
                     &mut expr_cache,
                 );
@@ -637,7 +637,7 @@ impl CommonSubexprEliminator {
             }
 
             // Try to create an expression key
-            if let Some(key) = self.make_expr_key(func, inst_id, &kind, &replacements)
+            if let Some(key) = self.make_expr_key(func, inst_id, kind, &replacements)
                 && let Some(result) = func.inst_result_value(inst_id)
             {
                 if let Some(&cached_value) = expr_cache.get(&key) {
