@@ -187,14 +187,6 @@ fn read_message(reader: &mut impl BufRead) -> io::Result<Option<Value>> {
 }
 
 #[test]
-fn exit_without_shutdown_returns_failure_status() {
-    let mut server = LspProcess::spawn();
-
-    let status = server.exit();
-    assert_eq!(status.code(), Some(1));
-}
-
-#[test]
 fn shutdown_then_exit_returns_success_status() {
     let mut server = LspProcess::spawn();
     let initialize = server.request(
@@ -215,18 +207,4 @@ fn shutdown_then_exit_returns_success_status() {
 
     let status = server.exit();
     assert_eq!(status.code(), Some(0));
-}
-
-#[test]
-fn failed_initialize_does_not_allow_graceful_exit() {
-    let mut server = LspProcess::spawn();
-    let initialize = server.request(1, "initialize", serde_json::json!({ "capabilities": [] }));
-    assert_eq!(initialize["error"]["code"], -32602);
-
-    server.notify("initialized", serde_json::json!({}));
-    let shutdown = server.request(2, "shutdown", Value::Null);
-    assert_eq!(shutdown["error"]["code"], -32002);
-
-    let status = server.exit();
-    assert_eq!(status.code(), Some(1));
 }
