@@ -169,7 +169,7 @@ impl<'a> Validator<'a> {
             }
 
             // Check terminator operands are in range.
-            for op in term.operands() {
+            term.for_each_operand(|op| {
                 if op.index() >= num_values {
                     self.emit_at_block(
                         format_args!(
@@ -180,7 +180,7 @@ impl<'a> Validator<'a> {
                         block_id,
                     );
                 }
-            }
+            });
 
             // ----- Walk instructions in this block -----
             let block_preds: Vec<BlockId> = block.predecessors.iter().copied().collect();
@@ -426,7 +426,7 @@ impl<'a> Validator<'a> {
                 }
             }
             if let Some(term) = &block.terminator {
-                for &operand in term.operands().iter() {
+                term.for_each_operand(|operand| {
                     if let Some((def, _)) = def_location_of[operand]
                         && def != block_id
                         && !reaches(def, block_id)
@@ -440,7 +440,7 @@ impl<'a> Validator<'a> {
                             block_id,
                         );
                     }
-                }
+                });
             }
         }
     }

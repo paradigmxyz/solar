@@ -148,6 +148,36 @@ impl Terminator {
         }
     }
 
+    /// Visits the value operands of this terminator without allocating.
+    pub(crate) fn for_each_operand(&self, mut visit: impl FnMut(ValueId)) {
+        match self {
+            Self::Jump(_) => {}
+            Self::Branch { condition, .. } => visit(*condition),
+            Self::Switch { value, cases, .. } => {
+                visit(*value);
+                for &(case_value, _) in cases {
+                    visit(case_value);
+                }
+            }
+            Self::Return { values } => {
+                for &value in values {
+                    visit(value);
+                }
+            }
+            Self::Revert { offset, size } | Self::ReturnData { offset, size } => {
+                visit(*offset);
+                visit(*size);
+            }
+            Self::RevertReturndata | Self::Stop | Self::Invalid => {}
+            Self::SelfDestruct { recipient } => visit(*recipient),
+            Self::TailCall { args, .. } => {
+                for &arg in args {
+                    visit(arg);
+                }
+            }
+        }
+    }
+
     /// Returns the successor blocks of this terminator.
     #[must_use]
     pub(crate) fn successors(&self) -> SmallVec<[BlockId; 2]> {
@@ -181,25 +211,12 @@ impl Terminator {
     /// Block targets are NOT included; use [`Self::successors`] for those.
     #[must_use]
     pub(crate) fn operands(&self) -> SmallVec<[ValueId; 4]> {
-        let mut out = SmallVec::new();
-        match self {
-            Self::Jump(_) => {}
-            Self::Branch { condition, .. } => out.push(*condition),
-            Self::Switch { value, cases, .. } => {
-                out.push(*value);
-                for (case_val, _) in cases {
-                    out.push(*case_val);
-                }
-            }
-            Self::Return { values } => out.extend(values.iter().copied()),
-            Self::Revert { offset, size } | Self::ReturnData { offset, size } => {
-                out.push(*offset);
-                out.push(*size);
-            }
-            Self::RevertReturndata | Self::Stop | Self::Invalid => {}
-            Self::SelfDestruct { recipient } => out.push(*recipient),
-            Self::TailCall { args, .. } => out.extend(args.iter().copied()),
-        }
+        let mut out = match self {
+            Self::Return { values } => SmallVec::with_capacity(values.len()),
+            Self::TailCall { args, .. } => SmallVec::with_capacity(args.len()),
+            _ => SmallVec::new(),
+        };
+        self.for_each_operand(|value| out.push(value));
         out
     }
 }
