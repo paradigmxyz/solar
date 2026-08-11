@@ -10,7 +10,7 @@ fn @revert_empty() [selector=0xc8567119, pure, abi_args=lazy, abi_params=[], abi
 
 fn @revert_args() [selector=0x3a185347, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 6
     memory_object_store_word memorybytes, v0, 0, 0x6661696c65640000000000000000000000000000000000000000000000000000
     v1 = abi_encode [word, memory_bytes], selector 0xb9344e200000000000000000000000000000000000000000000000000000000, args 7, v0
@@ -37,7 +37,7 @@ fn @require_named(arg0: bool) [selector=0x868ff2e0, pure, abi_args=lazy, abi_par
     v0 = iszero arg0
     jumpi v0, bb1, bb2
   bb1:
-    v1 = alloc memorybytes, exact, zeroed, panic, 64
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v1, 6
     memory_object_store_word memorybytes, v1, 0, 0x6661696c65640000000000000000000000000000000000000000000000000000
     v2 = abi_encode [word, memory_bytes], selector 0xb9344e200000000000000000000000000000000000000000000000000000000, args 7, v1

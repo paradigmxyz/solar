@@ -38,19 +38,21 @@ library ERC4337Utils {
 }
 
 contract CalldataStructFieldSlice {
-    // CDSFS-LABEL: fn @factory
+    // CDSFS-LABEL: fn @factory{{[.][0-9]+}}
+    // CDSFS: internal_call @factory
+    // CDSFS-LABEL: fn @factory{{[.][0-9]+}}
     // CDSFS: make_calldata_slice
     function factory(PackedUserOperation calldata op) external pure returns (address) {
         return ERC4337Utils.factory(op);
     }
 
-    // CDSFS-LABEL: fn @tailHash
+    // CDSFS-LABEL: fn @tailHash{{[.][0-9]+}}
     // CDSFS: keccak256
     function tailHash(PackedUserOperation calldata op) external pure returns (bytes32) {
         return ERC4337Utils.tailHash(op);
     }
 
-    // CDSFS-LABEL: fn @midWord
+    // CDSFS-LABEL: fn @midWord{{[.][0-9]+}}
     // CDSFS: make_calldata_slice
     function midWord(PackedUserOperation calldata op) external pure returns (bytes32) {
         return ERC4337Utils.midWord(op);

@@ -3,11 +3,10 @@
 @module LowerAbiEncode
 
 // CHECK-LABEL: {{^[ +].*}}fn @static{{[( ]}}
-// CHECK: + [[STATIC_MEMORY:v[0-9]+]] = alloc memorybytes
-// CHECK: + set_memory_object_len memorybytes, [[STATIC_MEMORY]], 36
-// CHECK: + memory_object_store_word memorybytes, [[STATIC_MEMORY]], 0, 0x12345678
-// CHECK: + {{v[0-9]+}} = memory_object_data memorybytes, [[STATIC_MEMORY]]
-// CHECK: + {{v[0-9]+}} = make_memory_slice {{v[0-9]+}}, 36
+// CHECK: + [[STATIC_MEMORY:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 64
+// CHECK: + mstore [[STATIC_MEMORY]], 0x1234567800000000000000000000000000000000000000000000000000000000
+// CHECK: + mstore {{v[0-9]+}}, arg0
+// CHECK: + {{v[0-9]+}} = make_memory_slice [[STATIC_MEMORY]], 36
 fn @static(arg0: u256) -> memoryslice {
   bb0:
     v0 = abi_encode [word], selector 0x1234567800000000000000000000000000000000000000000000000000000000, args arg0
@@ -16,9 +15,10 @@ fn @static(arg0: u256) -> memoryslice {
 
 // CHECK-LABEL: {{^[ +].*}}fn @dynamic{{[( ]}}
 // CHECK: + [[LENGTH:v[0-9]+]] = slice_len arg0
-// CHECK: + [[DYNAMIC_MEMORY:v[0-9]+]] = alloc memorybytes
-// CHECK: + memory_object_store_word memorybytes, [[DYNAMIC_MEMORY]], 0
-// CHECK: + memory_object_copy_from_slice_at memorybytes, [[DYNAMIC_MEMORY]], {{v[0-9]+}}, arg0
+// CHECK: + [[DYNAMIC_MEMORY:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, {{v[0-9]+}}
+// CHECK: + mstore [[DYNAMIC_MEMORY]], {{v[0-9]+}}
+// CHECK: + calldatacopy
+// CHECK: + {{v[0-9]+}} = make_memory_slice [[DYNAMIC_MEMORY]], {{v[0-9]+}}
 fn @dynamic(arg0: calldataslice) -> memoryslice {
   bb0:
     v0 = abi_encode [calldata_bytes], args arg0
@@ -26,8 +26,8 @@ fn @dynamic(arg0: calldataslice) -> memoryslice {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @nested_dynamic_array{{[( ]}}
-// CHECK-NOT: + {{v[0-9]+}} = memory_object_data memoryarray, arg0
 // CHECK: + {{v[0-9]+}} = memory_object_load_element memoryarray<1>, arg0
+// CHECK: + {{v[0-9]+}} = memory_object_data memoryarray, arg0
 fn @nested_dynamic_array(arg0: memoryarray) -> memoryslice {
   bb0:
     v0 = abi_encode [memory_array<memory_array<word>>], args arg0

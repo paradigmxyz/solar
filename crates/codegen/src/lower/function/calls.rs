@@ -654,6 +654,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .gcx
                 .type_of_expr(receiver.id)
                 .is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::Contract(_)))
+            && !matches!(
+                function.contract.map(|id| self.gcx.hir.contract(id).kind),
+                Some(hir::ContractKind::Library)
+            )
         {
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         }

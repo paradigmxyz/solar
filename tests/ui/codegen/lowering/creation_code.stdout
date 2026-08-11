@@ -11,7 +11,7 @@ fn @creationCode() -> memorybytes [selector=0x7213edad, pure, abi_args=lazy, abi
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
-    v1 = alloc memorybytes, exact, zeroed, panic, 160
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 160
     set_memory_object_len memorybytes, v1, 104
     memory_object_store_word memorybytes, v1, 0, 0x6068380380606860c03960c001601f017fffffffffffffffffffffffffffffff
     memory_object_store_word memorybytes, v1, 32, 0xffffffffffffffffffffffffffffffffe01660405260c060c060683803016020

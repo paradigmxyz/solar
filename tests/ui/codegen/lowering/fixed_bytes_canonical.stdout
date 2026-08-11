@@ -8,7 +8,7 @@ fn @fromUint(arg0: u8) -> bytes1 [selector=0x0b5b6892, pure, abi_args=lazy, abi_
 
 fn @fromHex() -> bytes1 [selector=0x7b05e034, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 1
     memory_object_store_word memorybytes, v0, 0, 0x100000000000000000000000000000000000000000000000000000000000000
     ret v0

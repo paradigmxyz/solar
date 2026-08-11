@@ -95,7 +95,7 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [selector=0xd1660f99,
     v36 = phi [bb16: v35], [bb17: 1]
     jump bb15
   bb19:
-    v39 = alloc memorybytes, exact, zeroed, panic, 64
+    v39 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v39, 2
     memory_object_store_word memorybytes, v39, 0, 0x5446000000000000000000000000000000000000000000000000000000000000
     v40 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v39

@@ -27,7 +27,7 @@ fn @emitIndexedBytes(arg0: memorybytes) [selector=0xcc07e605, abi_args=lazy, abi
 
 fn @emitIndexedFixedBytes() [selector=0x25daad67, abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 3
     memory_object_store_word memorybytes, v0, 0, 0x6162630000000000000000000000000000000000000000000000000000000000
     log2 0, 0, 0xd6843e74884f95c39ee4c0ac08d559101bead98aa590038d667afad12f9006bb, 0x6162630000000000000000000000000000000000000000000000000000000000

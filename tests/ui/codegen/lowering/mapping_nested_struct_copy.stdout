@@ -2,9 +2,9 @@
 @module MappingNestedStructCopy
 fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) [selector=0xeccd65dc, abi_args=lazy, abi_params=[u256, u256, u256, u256, u256], abi_returns=[]] {
   bb0:
-    v0 = alloc memorystruct<3>, exact, zeroed, panic, 96
+    v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     memory_object_store_field memorystruct<3>, v0, 0, arg1
-    v1 = alloc memorystruct<2>, exact, zeroed, panic, 64
+    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v1, 0, arg2
     memory_object_store_field memorystruct<2>, v1, 1, arg3
     memory_object_store_field memorystruct<3>, v0, 1, v1

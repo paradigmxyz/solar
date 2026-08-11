@@ -26,7 +26,7 @@ fn @zeroLastByteLiteral() -> u256 [selector=0xe2eaca9d, pure, abi_args=lazy, abi
 
 fn @memoryParam() -> u256 [selector=0x21aa88e0, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 12
     memory_object_store_word memorybytes, v0, 0, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
     v1 = keccak256_bytes v0

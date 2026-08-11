@@ -21,7 +21,7 @@ contract BytesMemoryElements {
     }
 
     // CHECK-LABEL: fn @literal{{[( ]}}
-    // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic, 64
+    // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 64
     // CHECK: set_memory_object_len memorybytes, [[BUF]], 10
     // CHECK: memory_object_store_byte memorybytes, {{.*}}, {{.*}}, {{.*}}
     // CHECK: keccak256_bytes [[BUF]]

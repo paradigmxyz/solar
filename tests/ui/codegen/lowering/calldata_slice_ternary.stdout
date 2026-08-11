@@ -64,7 +64,7 @@ fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [selector=0x7b54f632, 
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
-    v1 = alloc memorybytes, exact, zeroed, panic, 64
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v1, 2
     memory_object_store_word memorybytes, v1, 0, 0xaabb000000000000000000000000000000000000000000000000000000000000
     jumpi arg0, bb1, bb2

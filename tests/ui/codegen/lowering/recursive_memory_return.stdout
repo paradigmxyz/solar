@@ -6,7 +6,7 @@ fn @build(arg0: u256) -> memorystruct [selector=0x77fc2b19, pure, abi_args=lazy,
     v1 = eq arg0, 0
     jumpi v1, bb1, bb2
   bb1:
-    v2 = alloc memorystruct<2>, exact, zeroed, panic, 64
+    v2 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v2, 0, 0
     memory_object_store_field memorystruct<2>, v2, 1, 0
     ret v2
@@ -22,7 +22,7 @@ fn @build(arg0: u256) -> memorystruct [selector=0x77fc2b19, pure, abi_args=lazy,
     revert 0, 36
   bb5:
     v5 = internal_call @build, 1, v3
-    v6 = alloc memorystruct<2>, exact, zeroed, panic, 64
+    v6 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v7 = memory_object_load_field memorystruct<2>, v5, 0
     v8 = add v7, arg0
     v9 = lt v8, v7

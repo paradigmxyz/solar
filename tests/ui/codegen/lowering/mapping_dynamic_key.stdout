@@ -130,7 +130,7 @@ fn @skey() -> memorybytes [selector=0x8cd2a1c2, view, abi_args=lazy, abi_params=
 
 fn @setLit(arg0: u256) [selector=0x3fffd95e, abi_args=lazy, abi_params=[u256], abi_returns=[]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 5
     memory_object_store_word memorybytes, v0, 0, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     v1 = mapping_slot_memory v0, 0
@@ -140,7 +140,7 @@ fn @setLit(arg0: u256) [selector=0x3fffd95e, abi_args=lazy, abi_params=[u256], a
 
 fn @setLitLong(arg0: u256) [selector=0x7490efc0, abi_args=lazy, abi_params=[u256], abi_returns=[]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 96
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v0, 58
     memory_object_store_word memorybytes, v0, 0, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
     memory_object_store_word memorybytes, v0, 32, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000

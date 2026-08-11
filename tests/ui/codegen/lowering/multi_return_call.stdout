@@ -1,12 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_call.sol:Math ===
 @module Math
-fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) [pure] {
-  bb0:
-    v0 = add arg0, arg1
-    v1 = lt v0, arg0
-    v2 = iszero v1
-    ret v2, v0
-}
 
 // === ROOT/tests/ui/codegen/lowering/multi_return_call.sol:C ===
 @module C

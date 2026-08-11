@@ -264,49 +264,47 @@ fn @blobAt() [selector=0x8f236983, view] {
     revert 0, 36
   bb2:
     mstore 0, 2 !metadata(memory=scratch)
-    v38 = keccak256 0, 32 !metadata(memory=scratch)
-    v39 = add v38, arg0
-    v5 = internal_call @__load_storage_bytes, 1, v39
+    v36 = keccak256 0, 32 !metadata(memory=scratch)
+    v37 = add v36, arg0
+    v5 = internal_call @__load_storage_bytes, 1, v37
     v11 = mload v5
     v12 = add v11, 31
     v14 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v16 = add v14, 64
     v18 = add v14, 95
     v20 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v21 = add v20, 32
-    v22 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v54 = add v22, v21
-    mstore 64, v54 !metadata(memory=scratch)
-    mstore v22, v16
-    v40 = add v22, 32
-    mstore v40, 32
-    v25 = mload v5
-    v43 = add v40, 32
-    mstore v43, v25
-    v27 = add v25, 31
-    v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    jumpi v28, bb5, bb6
+    v21 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v42 = add v21, v20
+    mstore 64, v42 !metadata(memory=scratch)
+    v22 = add v21, 32
+    v23 = sub v22, v21
+    mstore v21, v23
+    v24 = mload v5
+    mstore v22, v24
+    v26 = add v24, 31
+    v27 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v28 = add v21, 64
+    jumpi v27, bb5, bb6
   bb3:
     revert 0, 0
   bb4:
     v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v50 = add v0, 32
-    v51 = lt v50, v0
-    v52 = gt v50, 0xffffffffffffffff
-    v53 = or v51, v52
-    jumpi v53, bb8, bb7
+    v38 = add v0, 32
+    v39 = lt v38, v0
+    v40 = gt v38, 0xffffffffffffffff
+    v41 = or v39, v40
+    jumpi v41, bb8, bb7
   bb5:
-    v32 = add v28, 32
-    v45 = add v40, v32
-    mstore v45, 0
+    v30 = sub v27, 32
+    v31 = add v28, v30
+    mstore v31, 0
     jump bb6
   bb6:
-    v33 = add v5, 32
-    v47 = add v40, 64
-    mcopy v47, v33, v25
-    returndata v40, v16
+    v32 = add v5, 32
+    mcopy v28, v32, v24
+    returndata v21, v16
   bb7:
-    mstore 64, v50 !metadata(memory=scratch)
+    mstore 64, v38 !metadata(memory=scratch)
     mstore v0, 0
     v1 = sload 2 !metadata(storage=slot(2))
     v2 = lt arg0, v1

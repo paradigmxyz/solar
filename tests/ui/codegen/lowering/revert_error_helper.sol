@@ -23,13 +23,16 @@ contract R {
     // CHECK-LABEL: revert_error_helper.sol:R (runtime)
     // CHECK-NEXT: @module runtime
     // CHECK: indexed_jump
+    // CHECK: push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
+    // CHECK: jump [[LONG_HELPER:bb[0-9]+]]
+    // CHECK: push 0x8c379a0
+    // CHECK: mcopy
+    // CHECK: revert
     // CHECK: push 0x3339
     // CHECK: push 240
     // CHECK: jump [[SHORT_HELPER:bb[0-9]+]]
     // CHECK: [[SHORT_HELPER]] [cold]:
-    // CHECK: push 0x8c379a0
-    // CHECK: mcopy
-    // CHECK: revert
+    // CHECK: shl
     function viaLibConst(uint256 x) external pure returns (uint256) {
         require(x > 5, Errors.SHORT);
         return x;
@@ -49,8 +52,6 @@ contract R {
         return x;
     }
 
-    // CHECK: push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
-    // CHECK: jump [[LONG_HELPER:bb[0-9]+]]
     function viaLong(uint256 x) external pure returns (uint256) {
         require(x > 5, Errors.LONG);
         return x;

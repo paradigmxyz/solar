@@ -45,7 +45,7 @@ fn @alloc() -> bytes32 [selector=0xbbc001c3, pure, abi_args=lazy, abi_params=[],
   bb8:
     v16 = byte 0, v12
     memory_object_store_byte memorybytes, v11, 5, v16
-    v17 = alloc memorybytes, exact, zeroed, panic, 64
+    v17 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v17, 1
     memory_object_store_word memorybytes, v17, 0, 0xff00000000000000000000000000000000000000000000000000000000000000
     v18 = memory_object_load_element memorybytes, v17, 0
@@ -66,7 +66,7 @@ fn @alloc() -> bytes32 [selector=0xbbc001c3, pure, abi_args=lazy, abi_params=[],
 
 fn @literal() -> bytes32 [selector=0x1373185e, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 10
     memory_object_store_word memorybytes, v0, 0, 0x1020304050607080900000000000000000000000000000000000000000000
     v1 = shl 248, 170

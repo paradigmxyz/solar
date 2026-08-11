@@ -17,7 +17,7 @@ fn @require_message(arg0: bool) [selector=0x79cfb63f, pure, abi_args=lazy, abi_p
     v0 = iszero arg0
     jumpi v0, bb1, bb2
   bb1:
-    v1 = alloc memorybytes, exact, zeroed, panic, 64
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v1, 3
     memory_object_store_word memorybytes, v1, 0, 0x6261640000000000000000000000000000000000000000000000000000000000
     v2 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v1
@@ -30,7 +30,7 @@ fn @require_message(arg0: bool) [selector=0x79cfb63f, pure, abi_args=lazy, abi_p
 
 fn @revert_message() [selector=0x0900437f, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 3
     memory_object_store_word memorybytes, v0, 0, 0x6261640000000000000000000000000000000000000000000000000000000000
     v1 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v0

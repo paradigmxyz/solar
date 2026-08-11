@@ -3,7 +3,7 @@
 fn @probe(arg0: address) -> bool [selector=0x275e5da5, view, abi_args=lazy, abi_params=[address], abi_returns=[word]] {
   bb0:
     v0 = gas
-    v1 = alloc memorybytes, exact, zeroed, panic, 32
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v1, 0
     v2 = memory_object_data memorybytes, v1
     v3 = memory_object_len memorybytes, v1
@@ -14,7 +14,7 @@ fn @probe(arg0: address) -> bool [selector=0x275e5da5, view, abi_args=lazy, abi_
 fn @probeCall(arg0: address) -> u256 [selector=0x9c6db033, abi_args=lazy, abi_params=[address], abi_returns=[word]] {
   bb0:
     v0 = gas
-    v1 = alloc memorybytes, exact, zeroed, panic, 32
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v1, 0
     v2 = memory_object_data memorybytes, v1
     v3 = memory_object_len memorybytes, v1

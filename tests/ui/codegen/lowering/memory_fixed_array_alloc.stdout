@@ -177,7 +177,7 @@ fn @fmpIntegrity() -> (u256, u256) [selector=0xe547cb4d, pure, abi_args=lazy, ab
 
 fn @literal() -> u256 [selector=0x1373185e, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memoryfixedarray<3, 1>, exact, zeroed, panic, 96
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 1
     memory_object_store_element memoryfixedarray<3, 1>, v0, 1, 2
     memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 3
