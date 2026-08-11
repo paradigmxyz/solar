@@ -12,7 +12,7 @@ use solar_sema::hir;
 use std::fmt;
 
 /// Extra information attached to a MIR instruction by lowering or analysis passes.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub(crate) struct InstructionMetadata {
     /// Proven storage alias key for `sload`/`sstore` instructions.
     storage_alias: Option<Box<StorageAlias>>,
@@ -125,7 +125,7 @@ impl InstructionMetadata {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 struct MetadataFlags(u16);
 
 impl MetadataFlags {
