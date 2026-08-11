@@ -160,23 +160,36 @@ type SpillRanges = SmallVec<[(BlockId, SpillLiveRange); 2]>;
 
 #[derive(Default)]
 struct SpillColor {
-    ranges: FxHashMap<BlockId, SmallVec<[SpillLiveRange; 4]>>,
+    ranges: SmallVec<[(BlockId, SmallVec<[SpillLiveRange; 4]>); 4]>,
 }
 
 impl SpillColor {
     fn accepts(&self, ranges: &[(BlockId, SpillLiveRange)]) -> bool {
         ranges.iter().all(|(block, candidate)| {
-            self.ranges.get(block).is_none_or(|assigned| {
-                assigned
-                    .iter()
-                    .all(|range| candidate.end < range.start || range.end < candidate.start)
-            })
+            self.ranges
+                .iter()
+                .find_map(|(assigned_block, assigned)| {
+                    (*assigned_block == *block).then_some(assigned)
+                })
+                .is_none_or(|assigned| {
+                    assigned
+                        .iter()
+                        .all(|range| candidate.end < range.start || range.end < candidate.start)
+                })
         })
     }
 
     fn insert(&mut self, ranges: &[(BlockId, SpillLiveRange)]) {
         for &(block, range) in ranges {
-            self.ranges.entry(block).or_default().push(range);
+            if let Some((_, assigned)) =
+                self.ranges.iter_mut().find(|(assigned_block, _)| *assigned_block == block)
+            {
+                assigned.push(range);
+            } else {
+                let mut assigned = SmallVec::new();
+                assigned.push(range);
+                self.ranges.push((block, assigned));
+            }
         }
     }
 }
