@@ -75,6 +75,17 @@ impl MemoryCallSummaries {
     /// Computes summaries to a monotone fixpoint over the module call graph.
     #[must_use]
     pub(crate) fn new(module: &Module) -> Self {
+        if !module.functions.iter().any(|func| {
+            func.instructions()
+                .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::InternalCall { .. }))
+                || func
+                    .blocks
+                    .iter()
+                    .any(|block| matches!(block.terminator, Some(Terminator::TailCall { .. })))
+        }) {
+            return Self { summaries: IndexVec::new() };
+        }
+
         let mut local = IndexVec::with_capacity(module.functions.len());
         for func in &module.functions {
             local.push(local_summary(func));
