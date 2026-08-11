@@ -85,6 +85,14 @@ impl MirPass for DeferAlloc {
             analyses.call_summaries().unwrap_or_else(|| Arc::new(MemoryCallSummaries::new(module)));
         let mut candidates = Vec::new();
         for (func_id, func) in module.functions.iter_enumerated() {
+            if !func.instructions().any(|inst_id| {
+                matches!(
+                    func.inst(inst_id).kind,
+                    InstKind::Alloc { semantics: crate::mir::AllocationSemantics::INTERNAL, .. }
+                )
+            }) {
+                continue;
+            }
             let aa = AliasAnalysis::with_call_summaries(func, Arc::clone(&summaries));
             candidates.extend(
                 eligible_static_allocations(func, &aa)

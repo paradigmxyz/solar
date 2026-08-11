@@ -70,6 +70,14 @@ impl MirPass for Cse {
     ) -> bool {
         analyses.set_call_summaries(Arc::new(MemoryCallSummaries::new(module)));
         let changed = run_function_pass(module, analyses, |func, analyses| {
+            if func
+                .instructions()
+                .filter(|&inst_id| func.inst(inst_id).result_ty.is_some())
+                .nth(1)
+                .is_none()
+            {
+                return false;
+            }
             let mut eliminator = match &analyses.call_summaries {
                 Some(summaries) => {
                     CommonSubexprEliminator::with_call_summaries(Arc::clone(summaries))

@@ -216,7 +216,6 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_mapping_slots::LowerMappingSlots,
     &lower_memory_objects::LowerMemoryObjects,
     &GasOnly(cse::Cse),
-    &SizeOnly(cse::Cse),
     // Revisit allocations after semantic memory accesses become bounded raw
     // operations, so fixed-size hash buffers can use backend-known static
     // regions.
