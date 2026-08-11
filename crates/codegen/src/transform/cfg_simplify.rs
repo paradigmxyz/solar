@@ -554,7 +554,7 @@ impl CfgSimplifier {
                 }
 
                 if self.is_empty_forwarder(func, block_id)
-                    && !self.is_loop_preheader_forwarder(func, block_id)
+                    && !self.is_loop_preheader_forwarder(func, block_id, &cfg)
                     && self.forwarder_elimination_preserves_phis(func, block_id)
                 {
                     self.eliminate_forwarder(func, block_id);
@@ -578,7 +578,12 @@ impl CfgSimplifier {
         matches!(&block.terminator, Some(Terminator::Jump(target)) if *target != block_id)
     }
 
-    fn is_loop_preheader_forwarder(&self, func: &Function, block_id: BlockId) -> bool {
+    fn is_loop_preheader_forwarder(
+        &self,
+        func: &Function,
+        block_id: BlockId,
+        cfg: &CfgInfo,
+    ) -> bool {
         let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator else {
             return false;
         };
@@ -589,7 +594,6 @@ impl CfgSimplifier {
             return false;
         }
 
-        let cfg = CfgInfo::new(func);
         func.blocks[target]
             .predecessors
             .iter()
