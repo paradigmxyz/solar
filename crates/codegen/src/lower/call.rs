@@ -965,12 +965,15 @@ impl<'gcx> Lowerer<'gcx> {
 
         // ABI-encode constructor arguments before laying out the creation
         // payload. This matters for dynamic parameters: CREATE receives the
-        // full tuple head and tails, not one memory pointer per argument.
-        let (encoded_args, encoded_args_size) =
-            match self.abi_encode_call_payload(builder, None, arg_exprs.iter().copied()) {
+        // full tuple head and tails, not one memory pointer per arg.
+        let encoded_args = if arg_exprs.is_empty() {
+            None
+        } else {
+            Some(match self.abi_encode_call_payload(builder, None, arg_exprs.iter().copied()) {
                 Ok(payload) => payload,
                 Err(guar) => return builder.error_value(guar),
-            };
+            })
+        };
 
         // Allocate memory for bytecode + constructor args from free memory pointer
         let mem_offset = builder.fmp();
@@ -987,13 +990,14 @@ impl<'gcx> Lowerer<'gcx> {
             builder.mstore(dest, val_id);
         }
 
-        // Append the ABI-encoded constructor arguments after bytecode.
         let bytecode_len_value = builder.imm_u64(bytecode_len as u64);
-        let args_dest = builder.add(mem_offset, bytecode_len_value);
-        builder.mcopy(args_dest, encoded_args, encoded_args_size);
-
-        // Total size = bytecode + args
-        let total_size = builder.add(bytecode_len_value, encoded_args_size);
+        let total_size = if let Some((encoded_args, encoded_args_size)) = encoded_args {
+            let args_dest = builder.add(mem_offset, bytecode_len_value);
+            builder.mcopy(args_dest, encoded_args, encoded_args_size);
+            builder.add(bytecode_len_value, encoded_args_size)
+        } else {
+            bytecode_len_value
+        };
 
         // Update free memory pointer: new_free = mem_offset + ((total_size + 31) & ~31)
         let thirty_one = builder.imm_u64(31);
