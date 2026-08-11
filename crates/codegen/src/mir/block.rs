@@ -151,7 +151,10 @@ impl Terminator {
     /// Returns the successor blocks of this terminator.
     #[must_use]
     pub(crate) fn successors(&self) -> SmallVec<[BlockId; 2]> {
-        let mut successors = SmallVec::new();
+        let mut successors = match self {
+            Self::Switch { cases, .. } => SmallVec::with_capacity(cases.len() + 1),
+            _ => SmallVec::new(),
+        };
         self.for_each_successor(|block| successors.push(block));
         successors
     }
