@@ -1,6 +1,7 @@
-//@ compile-flags: -Zcodegen
 //@ filecheck:
-// CHECK-NOT: "errors"
+// CHECK: "errors": [
+// CHECK: "errorCode": "2264"
+// CHECK: "message": "code generation is experimental"
 // CHECK: "contracts": {
 // CHECK: "Selected": {
 // CHECK: "bytecode": {

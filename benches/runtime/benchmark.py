@@ -242,7 +242,7 @@ def compile_case(spec: CompilerSpec, test_case: TestCase) -> Dict[str, object]:
 
     cmd = [str(spec.path)]
     if spec.kind != "solc":
-        # Solar gates its experimental code generator behind `-Zcodegen`.
+        # Keep the legacy flag to acknowledge the experimental code generator.
         cmd.append("-Zcodegen")
     cmd.append("--standard-json")
     started = time.monotonic()
