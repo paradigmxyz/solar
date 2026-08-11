@@ -79,9 +79,10 @@ impl MirPass for DeferAlloc {
         &self,
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::pass::ModuleAnalyses,
+        analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        let summaries = Arc::new(MemoryCallSummaries::new(module));
+        let summaries =
+            analyses.call_summaries().unwrap_or_else(|| Arc::new(MemoryCallSummaries::new(module)));
         let mut candidates = Vec::new();
         for (func_id, func) in module.functions.iter_enumerated() {
             let aa = AliasAnalysis::with_call_summaries(func, Arc::clone(&summaries));

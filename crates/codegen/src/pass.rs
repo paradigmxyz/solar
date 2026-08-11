@@ -377,9 +377,9 @@ impl ModuleAnalyses {
         self.call_summaries = Some(summaries);
     }
 
-    /// Withdraws module call summaries after the consuming pass completes.
-    pub(crate) fn clear_call_summaries(&mut self) {
-        self.call_summaries = None;
+    /// Returns the current module call summaries, if available.
+    pub(crate) fn call_summaries(&self) -> Option<Arc<MemoryCallSummaries>> {
+        self.call_summaries.clone()
     }
 
     fn retain(&mut self, func_id: FunctionId, keep_alias: bool, keep_cfg: bool) {

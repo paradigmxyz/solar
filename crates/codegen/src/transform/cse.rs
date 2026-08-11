@@ -79,7 +79,8 @@ impl MirPass for Cse {
             eliminator.cfg = Some(Rc::clone(&analyses.cfg));
             eliminator.run_to_fixpoint(func) != 0
         });
-        analyses.clear_call_summaries();
+        // CSE removes only side-effect-free instructions, so these summaries remain valid for
+        // the following allocation pass and avoid recomputing the module call graph.
         changed
     }
 }
