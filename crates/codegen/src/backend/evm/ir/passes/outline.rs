@@ -107,13 +107,29 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     for (_, sites) in groups {
         let mut free = SmallVec::<[Site; 2]>::new();
         for site in sites {
+            let end = site.start + site.len;
             let instruction_count = module.blocks[site.block].instructions.len();
             let claimed = claimed
                 .entry(site.block)
                 .or_insert_with(|| DenseBitSet::new_empty(instruction_count));
-            if !claimed.contains_any(site.start..site.start + site.len) {
-                free.push(site);
+            if claimed.contains_any(site.start..end) {
+                continue;
             }
+            // `claimed` only carries sites fixed by earlier groups; this group's sites are marked
+            // below, after the profitability check, so it cannot catch two occurrences of the same
+            // run that overlap each other. Periodic runs produce exactly that — window `[0, L)` and
+            // window `[p, p + L)` are byte-identical when the period `p < L` divides the pattern,
+            // so both land here. Two overlapping occurrences cannot both be replaced,
+            // and the descending-order edit application would split the block at a
+            // stale index (panicking in `split_off`), so keep every chosen site
+            // pairwise disjoint.
+            if free
+                .iter()
+                .any(|f| f.block == site.block && f.start < end && site.start < f.start + f.len)
+            {
+                continue;
+            }
+            free.push(site);
         }
         if free.len() < 2 {
             continue;
