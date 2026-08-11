@@ -46,7 +46,11 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::IndexVec,
+    map::{FxHashMap, StdEntry},
+};
 use solar_interface::{Ident, Span, Symbol, kw};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -190,9 +194,7 @@ pub(crate) struct CleanupHelpers {
 
 impl CleanupHelpers {
     fn ensure(&mut self, module: &mut Module, key: CleanupKey) {
-        if self.ids.contains_key(&key) {
-            return;
-        }
+        let StdEntry::Vacant(entry) = self.ids.entry(key) else { return };
         let name = format!("__cleanup{}", self.next);
         self.next += 1;
         let mut func =
@@ -214,7 +216,7 @@ impl CleanupHelpers {
         }
         func.returns.push(MirType::uint256());
         let id = module.add_function(func);
-        self.ids.insert(key, id);
+        entry.insert(id);
     }
 
     fn cleanup(
@@ -580,13 +582,7 @@ impl LowerAbiCx {
     }
 
     fn is_constructor_param_type(ty: &AbiParamType) -> bool {
-        Self::is_constructor_word(ty)
-            || matches!(
-                ty,
-                AbiParamType::FixedArray { element, len }
-                    if *len <= u64::from(u16::MAX)
-                        && Self::is_constructor_array_element(element)
-            )
+        Self::is_constructor_array_element(ty)
     }
 
     fn is_constructor_array_element(ty: &AbiParamType) -> bool {
@@ -2395,6 +2391,8 @@ fn encode_live_returns(
         func.external_static_return_size = layout.head_size();
     }
     let block_ids: Vec<_> = func.blocks.indices().collect();
+    let return_types = func.returns.clone();
+    let return_params = return_params.map(|layout| layout.types.clone());
     let mut encoded_returns = 0;
     for block_id in block_ids {
         let values = match func.blocks[block_id].terminator.take() {
@@ -2405,8 +2403,6 @@ fn encode_live_returns(
             }
             None => continue,
         };
-        let return_types = func.returns.clone();
-        let return_params = return_params.map(|layout| layout.types.clone());
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block_id);
         let values = values

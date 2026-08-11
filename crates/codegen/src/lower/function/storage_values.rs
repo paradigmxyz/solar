@@ -1025,11 +1025,11 @@ fn lower_storage_bytes_inline(builder: &mut FunctionBuilder<'_>, slot: ValueId) 
 
     let rounded = {
         let thirty_one = builder.imm_u64(31);
-        checked_add(builder, length, thirty_one)
+        builder.checked_add(length, thirty_one)
     };
     let words = builder.div(rounded, thirty_two);
-    let total_words = checked_add(builder, words, one);
-    let size = checked_mul(builder, total_words, thirty_two);
+    let total_words = builder.checked_add(words, one);
+    let size = builder.checked_mul(total_words, thirty_two);
     let object =
         builder.alloc_object(size, MemoryObjectLayout::Bytes, AllocationSemantics::SOLIDITY_ZEROED);
     builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
@@ -1071,22 +1071,4 @@ fn lower_storage_bytes_inline(builder: &mut FunctionBuilder<'_>, slot: ValueId) 
 
     builder.switch_to_block(merge_block);
     object
-}
-
-fn checked_add(builder: &mut FunctionBuilder<'_>, lhs: ValueId, rhs: ValueId) -> ValueId {
-    let result = builder.add(lhs, rhs);
-    let overflow = builder.lt(result, lhs);
-    builder.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
-    result
-}
-
-fn checked_mul(builder: &mut FunctionBuilder<'_>, lhs: ValueId, rhs: ValueId) -> ValueId {
-    let result = builder.mul(lhs, rhs);
-    let rhs_zero = builder.iszero(rhs);
-    let quotient = builder.div(result, rhs);
-    let exact = builder.eq(quotient, lhs);
-    let valid = builder.or(rhs_zero, exact);
-    let overflow = builder.iszero(valid);
-    builder.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
-    result
 }

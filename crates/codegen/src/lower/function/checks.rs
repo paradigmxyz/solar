@@ -21,21 +21,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn checked_add(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
-        let result = self.builder.add(lhs, rhs);
-        let overflow = self.builder.lt(result, lhs);
-        self.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
-        result
+        self.builder.checked_add(lhs, rhs)
     }
 
     pub(super) fn checked_mul(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
-        let result = self.builder.mul(lhs, rhs);
-        let rhs_zero = self.builder.iszero(rhs);
-        let quotient = self.builder.div(result, rhs);
-        let exact = self.builder.eq(quotient, lhs);
-        let valid = self.builder.or(rhs_zero, exact);
-        let overflow = self.builder.iszero(valid);
-        self.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
-        result
+        self.builder.checked_mul(lhs, rhs)
     }
 
     pub(super) fn bounds_check(&mut self, index: ValueId, length: ValueId) {

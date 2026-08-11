@@ -117,6 +117,26 @@ impl<'a> FunctionBuilder<'a> {
         self.switch_to_block(continue_block);
     }
 
+    /// Adds two words and reverts when the result overflows.
+    pub(crate) fn checked_add(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
+        let result = self.add(lhs, rhs);
+        let overflow = self.lt(result, lhs);
+        self.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
+        result
+    }
+
+    /// Multiplies two words and reverts when the result overflows.
+    pub(crate) fn checked_mul(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
+        let result = self.mul(lhs, rhs);
+        let rhs_zero = self.iszero(rhs);
+        let quotient = self.div(result, rhs);
+        let exact = self.eq(quotient, lhs);
+        let valid = self.or(rhs_zero, exact);
+        let overflow = self.iszero(valid);
+        self.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
+        result
+    }
+
     /// Creates an undefined value.
     pub(crate) fn undef(&mut self, ty: MirType) -> ValueId {
         self.alloc_value(Value::Undef(ty))

@@ -121,11 +121,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = self.coerce_call_argument(argument, parameter_ty, value);
                 values.push(value);
             }
-            self.constructor_arguments.insert(constructor_id, values.clone());
-            for (&parameter, value) in constructor.parameters.iter().zip(values) {
+            for (&parameter, &value) in constructor.parameters.iter().zip(&values) {
                 let previous = self.values.insert(parameter, value);
                 saved_parameters.push((parameter, previous));
             }
+            self.constructor_arguments.insert(constructor_id, values);
         }
         for (parameter, previous) in saved_parameters.into_iter().rev() {
             if let Some(value) = previous {

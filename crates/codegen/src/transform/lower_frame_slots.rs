@@ -8,6 +8,12 @@ use crate::{
 use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
 
+#[derive(Clone, Copy)]
+enum FrameOp {
+    Load { offset: u64, mode: FrameMode, kind: FrameSlotKind },
+    Store { offset: u64, mode: FrameMode, kind: FrameSlotKind, value: crate::mir::ValueId },
+}
+
 /// Lowers logical mutable-local slots after ABI and dispatch lowering.
 pub(crate) struct LowerFrameSlots;
 
@@ -54,9 +60,20 @@ fn lower_function(func: &mut Function) -> bool {
         builder.switch_to_block(block);
 
         for inst in instructions {
-            let kind = builder.func().inst(inst).kind.clone();
-            match kind {
+            let op = match &builder.func().inst(inst).kind {
                 InstKind::FrameLoad { offset, mode, kind } => {
+                    Some(FrameOp::Load { offset: *offset, mode: *mode, kind: *kind })
+                }
+                InstKind::FrameStore { offset, mode, kind, value } => Some(FrameOp::Store {
+                    offset: *offset,
+                    mode: *mode,
+                    kind: *kind,
+                    value: *value,
+                }),
+                _ => None,
+            };
+            match op {
+                Some(FrameOp::Load { offset, mode, kind }) => {
                     let address = frame_address(&mut builder, offset, mode);
                     let value = match (mode, kind) {
                         (FrameMode::MultiReturn, FrameSlotKind::Word) => builder.mload(address),
@@ -79,7 +96,7 @@ fn lower_function(func: &mut Function) -> bool {
                     replacements.insert(old, value);
                     changed = true;
                 }
-                InstKind::FrameStore { offset, mode, kind, value } => {
+                Some(FrameOp::Store { offset, mode, kind, value }) => {
                     let address = frame_address(&mut builder, offset, mode);
                     match (mode, kind) {
                         (FrameMode::MultiReturn, FrameSlotKind::Word) => {
@@ -101,7 +118,7 @@ fn lower_function(func: &mut Function) -> bool {
                     }
                     changed = true;
                 }
-                _ => builder.func_mut().blocks[block].instructions.push(inst),
+                None => builder.func_mut().blocks[block].instructions.push(inst),
             }
         }
     }
