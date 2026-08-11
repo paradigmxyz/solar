@@ -189,8 +189,9 @@ struct GlobalCseContext<'a> {
 /// entries alone, which are themselves the ones clobbers keep removing.
 #[derive(Clone, Debug, Default)]
 struct ExprCache {
-    /// Entries no side effect can invalidate: pure arithmetic and constants.
-    pure: FxHashMap<ExprKey, ValueId>,
+    /// Entries no side effect can invalidate: pure arithmetic and constants. Branch caches share
+    /// this map until one of them inserts an entry.
+    pure: Rc<FxHashMap<ExprKey, ValueId>>,
     /// Entries a memory, storage, transient-storage, or account-environment
     /// write may invalidate, per
     /// [`CommonSubexprEliminator::is_path_sensitive_expr`].
@@ -210,7 +211,7 @@ impl ExprCache {
         if CommonSubexprEliminator::is_path_sensitive_expr(&key) {
             self.stateful.insert(key, value);
         } else {
-            self.pure.insert(key, value);
+            Rc::make_mut(&mut self.pure).insert(key, value);
         }
     }
 
