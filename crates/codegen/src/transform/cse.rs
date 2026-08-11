@@ -172,7 +172,7 @@ type MemRangeKey = MemoryLocation;
 
 struct GlobalCseContext<'a> {
     dom_tree: &'a DominatorTree,
-    block_clobbers: &'a FxHashMap<BlockId, Vec<Clobber>>,
+    block_clobbers: &'a [(BlockId, Vec<Clobber>)],
     reachability: &'a FxHashMap<BlockId, DenseBitSet<BlockId>>,
     replacements: &'a mut FxHashMap<ValueId, ValueId>,
     dead: &'a mut DenseBitSet<InstId>,
@@ -331,11 +331,8 @@ impl CommonSubexprEliminator {
         let has_path_sensitive_expr = func
             .instructions()
             .any(|inst_id| Self::is_path_sensitive_kind(&func.inst(inst_id).kind));
-        let block_clobbers = if has_path_sensitive_expr {
-            self.block_clobber_summaries(func)
-        } else {
-            FxHashMap::default()
-        };
+        let block_clobbers =
+            if has_path_sensitive_expr { self.block_clobber_summaries(func) } else { Vec::new() };
         let empty_reachability = FxHashMap::default();
         let (dom_tree, reachability) = if block_clobbers.is_empty() {
             (cfg.dominators(), &empty_reachability)
@@ -550,15 +547,15 @@ impl CommonSubexprEliminator {
             return;
         }
         let Some(reachable_from_parent) = ctx.reachability.get(&parent) else { return };
-        for (&mid, clobbers) in ctx.block_clobbers {
+        for (mid, clobbers) in ctx.block_clobbers {
             if !cache.has_stateful() {
                 break;
             }
             // Clobbers in `parent` itself were already applied while processing it sequentially.
-            if mid == parent || !reachable_from_parent.contains(mid) {
+            if *mid == parent || !reachable_from_parent.contains(*mid) {
                 continue;
             }
-            if !ctx.reachability.get(&mid).is_some_and(|reachable| reachable.contains(child)) {
+            if !ctx.reachability.get(mid).is_some_and(|reachable| reachable.contains(child)) {
                 continue;
             }
             for clobber in clobbers {
@@ -571,9 +568,9 @@ impl CommonSubexprEliminator {
     }
 
     /// Returns the per-block invalidation summaries for blocks with clobbering effects.
-    fn block_clobber_summaries(&self, func: &Function) -> FxHashMap<BlockId, Vec<Clobber>> {
+    fn block_clobber_summaries(&self, func: &Function) -> Vec<(BlockId, Vec<Clobber>)> {
         let no_replacements = FxHashMap::default();
-        let mut summaries = FxHashMap::default();
+        let mut summaries = Vec::new();
         for (block_id, block) in func.blocks.iter_enumerated() {
             let mut clobbers = Vec::new();
             for &inst_id in &block.instructions {
@@ -583,7 +580,7 @@ impl CommonSubexprEliminator {
                 }
             }
             if !clobbers.is_empty() {
-                summaries.insert(block_id, clobbers);
+                summaries.push((block_id, clobbers));
             }
         }
         summaries
