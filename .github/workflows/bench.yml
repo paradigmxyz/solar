@@ -137,17 +137,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p target/codegen-bench
-          if ! python3 benches/runtime/benchmark.py --verbose \
+          python3 benches/runtime/benchmark.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
             --solar target/debug/solar \
             --suite all \
-            --gas \
-            --gas-profile hot \
-            --start-anvil \
-            --allow-failures \
-            --output target/codegen-bench/results.json; then
-            echo "::warning::Codegen benchmark failed to complete"
-          fi
+            --output target/codegen-bench/results.json
 
       - name: Generate runtime benchmark report
         id: runtime-report
