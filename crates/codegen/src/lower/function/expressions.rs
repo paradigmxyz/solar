@@ -97,6 +97,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         let id = self.gcx.resolved_variable(expr)?;
         let variable = self.gcx.hir.variable(id);
+        if variable.is_constant() {
+            return self.lower_constant(variable.initializer, expr.span);
+        }
         if let Some(hir::ItemId::Enum(enum_id)) = variable.parent {
             let Some(index) =
                 self.gcx.hir.enumm(enum_id).variants.iter().position(|&variant| variant == id)
