@@ -556,7 +556,7 @@ impl LowerAbiCx {
         func.abi_args_lazy
             && func.params.len() == layout.types.len()
             && layout.types.iter().zip(&func.params).all(|(abi_ty, &param_ty)| {
-                Self::is_constructor_param_type(abi_ty) && abi_ty.mir_type() == param_ty
+                Self::is_constructor_array_element(abi_ty) && abi_ty.mir_type() == param_ty
             })
             && layout.types.iter().any(|ty| matches!(ty, AbiParamType::FixedArray { .. }))
             && layout
@@ -579,10 +579,6 @@ impl LowerAbiCx {
                 (Self::is_constructor_word(abi_ty) || Self::is_supported_aggregate(abi_ty))
                     && abi_ty.mir_type() == param_ty
             })
-    }
-
-    fn is_constructor_param_type(ty: &AbiParamType) -> bool {
-        Self::is_constructor_array_element(ty)
     }
 
     fn is_constructor_array_element(ty: &AbiParamType) -> bool {

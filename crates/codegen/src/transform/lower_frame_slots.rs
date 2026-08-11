@@ -8,7 +8,6 @@ use crate::{
 use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
 
-#[derive(Clone, Copy)]
 enum FrameOp {
     Load { offset: u64, mode: FrameMode, kind: FrameSlotKind },
     Store { offset: u64, mode: FrameMode, kind: FrameSlotKind, value: crate::mir::ValueId },
