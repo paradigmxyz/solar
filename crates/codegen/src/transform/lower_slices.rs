@@ -108,6 +108,108 @@ fn new_slice_inst(
 }
 
 impl LowerSlicesCx {
+    /// Splits a physical memory pointer phi whose incoming values still mix
+    /// memory objects and logical slices. Inlining can create this shape when
+    /// a calldata parameter is replaced by an already-materialized memory
+    /// object. Keep the pointer and length paths separate at the backend
+    /// boundary.
+    fn lower_mixed_slice_phis(&mut self, func: &mut Function) -> bool {
+        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+        let mut replacements = FxHashMap::default();
+        let mut phi_replacements = FxHashMap::default();
+        let mut removed = FxHashSet::default();
+        let mut insertions = FxHashMap::default();
+        let mut projection_users: FxHashMap<ValueId, Vec<(InstId, ValueId, bool)>> =
+            FxHashMap::default();
+        for user in func.instructions() {
+            let Some(user_result) = func.inst_result_value(user) else { continue };
+            match func.inst(user).kind {
+                InstKind::SlicePtr(slice) => {
+                    projection_users.entry(slice).or_default().push((user, user_result, true));
+                }
+                InstKind::SliceLen(slice) => {
+                    projection_users.entry(slice).or_default().push((user, user_result, false));
+                }
+                _ => {}
+            }
+        }
+
+        for block_id in &block_ids {
+            let block_id = *block_id;
+            let instructions = func.blocks[block_id].instructions.clone();
+            for inst_id in instructions {
+                let InstKind::Phi(incoming) = func.inst(inst_id).kind.clone() else { continue };
+                let Some(result) = func.inst_result_value(inst_id) else { continue };
+                if !matches!(func.value_ty(result), Some(MirType::MemPtr))
+                    || !incoming
+                        .iter()
+                        .any(|(_, value)| value_slice_location(func, *value).is_some())
+                    || !incoming.iter().all(|(_, value)| {
+                        value_slice_location(func, *value).is_some()
+                            || matches!(func.value_ty(*value), Some(MirType::MemPtr))
+                    })
+                {
+                    continue;
+                }
+
+                let mut ptr_incoming = Vec::with_capacity(incoming.len());
+                let mut len_incoming = Vec::with_capacity(incoming.len());
+                for (pred, value) in incoming {
+                    let (pointer, length) = if value_slice_location(func, value).is_some() {
+                        let (ptr_inst, pointer) = new_word_inst(func, InstKind::SlicePtr(value));
+                        let (len_inst, length) = new_word_inst(func, InstKind::SliceLen(value));
+                        func.blocks[pred].instructions.push(ptr_inst);
+                        func.blocks[pred].instructions.push(len_inst);
+                        (pointer, length)
+                    } else {
+                        let (len_inst, length) = new_word_inst(func, InstKind::MLoad(value));
+                        func.blocks[pred].instructions.push(len_inst);
+                        (value, length)
+                    };
+                    ptr_incoming.push((pred, pointer));
+                    len_incoming.push((pred, length));
+                }
+
+                let (ptr_phi, pointer) = new_word_inst(func, InstKind::Phi(ptr_incoming));
+                let (len_phi, length) = new_word_inst(func, InstKind::Phi(len_incoming));
+                insertions.insert(inst_id, (ptr_phi, len_phi));
+                phi_replacements.insert(result, pointer);
+                if let Some(users) = projection_users.get(&result) {
+                    for &(user, user_result, is_pointer) in users {
+                        if is_pointer {
+                            replacements.insert(user_result, pointer);
+                            removed.insert(user);
+                        } else {
+                            replacements.insert(user_result, length);
+                            removed.insert(user);
+                        }
+                    }
+                }
+                removed.insert(inst_id);
+            }
+        }
+
+        if insertions.is_empty() {
+            return false;
+        }
+        func.replace_uses_canonicalized(&replacements);
+        func.replace_uses_canonicalized(&phi_replacements);
+        for block in func.blocks.iter_mut() {
+            let mut instructions = Vec::with_capacity(block.instructions.len());
+            for inst_id in std::mem::take(&mut block.instructions) {
+                if let Some(&(ptr_phi, len_phi)) = insertions.get(&inst_id) {
+                    instructions.push(ptr_phi);
+                    instructions.push(len_phi);
+                } else if !removed.contains(&inst_id) {
+                    instructions.push(inst_id);
+                }
+            }
+            block.instructions = instructions;
+        }
+        self.stats.projections += replacements.len();
+        true
+    }
+
     /// Rewrites slice-typed `select` and `phi` into paired pointer/length
     /// operations over a `make_slice`, so no two-word slice value survives an
     /// aggregate use. Each operand slice is then consumed only by projections
@@ -155,14 +257,24 @@ impl LowerSlicesCx {
             for &inst_id in &func.blocks[block_id].instructions {
                 match &func.inst(inst_id).kind {
                     InstKind::Phi(incoming) => {
-                        if let Some(location) = incoming
-                            .first()
-                            .and_then(|(_, value)| value_slice_location(func, *value))
-                        {
+                        let Some(location) = func
+                            .inst_result_value(inst_id)
+                            .and_then(|result| value_slice_location(func, result))
+                        else {
+                            continue;
+                        };
+                        let can_split = incoming
+                            .iter()
+                            .any(|(_, value)| value_slice_location(func, *value).is_some())
+                            && incoming.iter().all(|(_, value)| {
+                                value_slice_location(func, *value).is_some()
+                                    || matches!(func.value_ty(*value), Some(MirType::MemPtr))
+                            });
+                        if can_split {
                             slice_phis.push((inst_id, incoming.clone(), location));
                         }
                     }
-                    _ => break,
+                    _ => continue,
                 }
             }
             let mut splits: Vec<(InstId, InstId, InstId, InstId)> = Vec::new();
@@ -170,10 +282,17 @@ impl LowerSlicesCx {
                 let mut ptr_incoming = Vec::with_capacity(incoming.len());
                 let mut len_incoming = Vec::with_capacity(incoming.len());
                 for (pred, value) in incoming {
-                    let (pi, pv) = new_word_inst(func, InstKind::SlicePtr(value));
-                    let (li, lv) = new_word_inst(func, InstKind::SliceLen(value));
-                    func.blocks[pred].instructions.push(pi);
-                    func.blocks[pred].instructions.push(li);
+                    let (pv, lv) = if value_slice_location(func, value).is_some() {
+                        let (pi, pv) = new_word_inst(func, InstKind::SlicePtr(value));
+                        let (li, lv) = new_word_inst(func, InstKind::SliceLen(value));
+                        func.blocks[pred].instructions.push(pi);
+                        func.blocks[pred].instructions.push(li);
+                        (pv, lv)
+                    } else {
+                        let (li, lv) = new_word_inst(func, InstKind::MLoad(value));
+                        func.blocks[pred].instructions.push(li);
+                        (value, lv)
+                    };
                     ptr_incoming.push((pred, pv));
                     len_incoming.push((pred, lv));
                 }
@@ -505,6 +624,8 @@ impl LowerSlicesCx {
         let live_insts: FxHashSet<_> = func.instructions().collect();
         let mut components = FxHashMap::<ValueId, (ValueId, ValueId, InstId)>::default();
         let mut projections = FxHashMap::<ValueId, (ValueId, InstId, bool)>::default();
+        let mut replacements = FxHashMap::default();
+        let mut removed = FxHashSet::default();
         for &inst in &live_insts {
             let Some(result) = func.inst_result_value(inst) else { continue };
             match func.inst(inst).kind {
@@ -520,8 +641,46 @@ impl LowerSlicesCx {
                 _ => {}
             }
         }
+
+        // Inlining can substitute an already-materialized memory object for a
+        // logical calldata slice parameter. Once memory-object lowering has
+        // erased the nominal object type, the projections must use the
+        // physical object representation.
+        for &(slice, inst, is_ptr) in projections.values() {
+            let physical_object = matches!(func.value_ty(slice), Some(MirType::MemPtr));
+            let physical_word = matches!(func.value_ty(slice), Some(MirType::UInt(_)))
+                && matches!(func.value(slice), Value::Inst(def) if matches!(func.inst(*def).kind, InstKind::MLoad(_)));
+            let changed = if physical_object {
+                if is_ptr {
+                    let result =
+                        func.inst_result_value(inst).expect("slice projection has a result");
+                    replacements.insert(result, slice);
+                    removed.insert(inst);
+                } else {
+                    func.inst_mut(inst).kind = InstKind::MLoad(slice);
+                }
+                true
+            } else if physical_word {
+                let result = func.inst_result_value(inst).expect("slice projection has a result");
+                replacements.insert(result, slice);
+                removed.insert(inst);
+                true
+            } else {
+                false
+            };
+            if changed {
+                self.stats.projections += 1;
+            }
+        }
         if components.is_empty() {
-            return false;
+            if replacements.is_empty() {
+                return false;
+            }
+            func.replace_uses_canonicalized(&replacements);
+            for block in func.blocks.iter_mut() {
+                block.instructions.retain(|inst| !removed.contains(inst));
+            }
+            return true;
         }
 
         // Aggregate uses need a future explicit lowering rule. Keep those
@@ -548,8 +707,6 @@ impl LowerSlicesCx {
             return false;
         }
 
-        let mut replacements = FxHashMap::default();
-        let mut removed = FxHashSet::default();
         for (&slice, &(ptr, len, constructor)) in &components {
             if removable.contains(&slice) {
                 removed.insert(constructor);
@@ -601,7 +758,9 @@ impl LowerSlicesCx {
             // Eliminate slice-typed `select`/`phi` first, so every remaining
             // slice is a `make_slice` result or a projection that the later
             // stages can expand or fold.
-            changed |= self.split_slice_aggregates(func);
+            while self.split_slice_aggregates(func) {
+                changed = true;
+            }
         }
         for func in module.functions.iter_mut() {
             changed |= self.expand_call_args(func, &signatures);
@@ -611,6 +770,10 @@ impl LowerSlicesCx {
             let func = module.function_mut(id);
             changed |= self.lower_external_args(func);
             changed |= self.lower_params(func, &signatures[&id]);
+            while self.split_slice_aggregates(func) {
+                changed = true;
+            }
+            changed |= self.lower_mixed_slice_phis(func);
             changed |= self.lower_projections(func);
         }
         changed

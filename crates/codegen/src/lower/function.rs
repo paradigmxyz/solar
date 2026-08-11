@@ -404,7 +404,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(value);
                 }
                 let id = self.gcx.resolved_variable(expr)?;
-                self.load_variable(id, expr.span)
+                let value = self.load_variable(id, expr.span)?;
+                if self.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type())
+                    && self.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Calldata)
+                    && matches!(
+                        self.builder.func().value_ty(value),
+                        Some(MirType::Slice(SliceLocation::Calldata))
+                    )
+                {
+                    Some(self.builder.slice_ptr(value))
+                } else {
+                    Some(value)
+                }
             }
             ExprKind::Binary(lhs, op, rhs) => {
                 if matches!(op.kind, BinOpKind::And | BinOpKind::Or) {

@@ -393,7 +393,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if types.len() > 1 {
             let base = self.multi_return_buffer_base();
             for index in 1..types.len() {
-                values.push(self.load_multi_return_value(base, index, types.len()));
+                values.push(self.load_multi_return_value_as(
+                    base,
+                    index,
+                    types.len(),
+                    types[index],
+                ));
             }
         }
         Some(values)

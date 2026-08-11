@@ -472,7 +472,6 @@ impl<'a> StackPhiPlanner<'a> {
         }) {
             return;
         }
-
         let block = &self.func.blocks[loop_info.header];
         let phi_insts = self.phi_insts(block);
         if phi_insts.is_empty() || phi_insts.len() > STACK_PHI_LAYOUT_LIMIT {
@@ -2549,6 +2548,20 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.scheduler.spills.reserve(val);
                     self.scheduler.spills.mark_reloadable(val);
                 }
+            }
+        }
+
+        // A deferred allocation is materialized as a placeholder whose final form is chosen
+        // after the whole function has been laid out. Reserve its result before block emission:
+        // layout order may visit a use block before the defining block, so waiting until the
+        // `alloc` instruction runs would leave that use without a reload route.
+        for inst_id in func.instructions() {
+            if func.inst(inst_id).metadata.deferred_alloc()
+                && let Some(value) = func.inst_result_value(inst_id)
+            {
+                self.scheduler.spills.reserve(value);
+                self.scheduler.spills.require_store(value);
+                self.scheduler.spills.mark_reloadable(value);
             }
         }
     }

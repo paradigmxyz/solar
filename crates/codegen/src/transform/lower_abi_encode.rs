@@ -241,7 +241,9 @@ fn measure_dynamic_body(
         AbiType::DynamicArray {
             location: SliceLocation::Calldata | SliceLocation::Returndata,
             ..
-        } => unreachable!("non-word calldata arrays are materialized before ABI encoding"),
+        } => {
+            unreachable!("non-word calldata arrays are materialized before ABI encoding")
+        }
         AbiType::FixedArray { element, len } => {
             let mut values = Vec::with_capacity(*len as usize);
             for index in 0..*len {

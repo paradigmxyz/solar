@@ -410,11 +410,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, ret_offset);
             let mut values = Vec::with_capacity(returns);
             for index in 0..returns {
-                values.push(self.load_multi_return_value(ret_offset, index, returns));
+                values.push(self.load_multi_return_value_as(
+                    ret_offset,
+                    index,
+                    returns,
+                    function.returns[index],
+                ));
             }
             return Some(values);
         }
-        Some(vec![self.load_multi_return_value(ret_offset, 0, returns)])
+        Some(vec![self.load_multi_return_value_as(ret_offset, 0, returns, function.returns[0])])
     }
 
     pub(super) fn lower_internal_function_pointer_call(
@@ -505,6 +510,39 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => Some(size),
             _ => None,
         };
+        if let TyKind::Slice(underlying) = from.peel_refs().kind
+            && let Some(size) = destination_size
+            && matches!(
+                underlying.peel_refs().kind,
+                TyKind::Elementary(
+                    solar_sema::hir::ElementaryType::Bytes
+                        | solar_sema::hir::ElementaryType::String,
+                )
+            )
+            && let Some(location) = self.builder.func().value_ty(value).and_then(|ty| match ty {
+                MirType::Slice(location) => Some(location),
+                _ => None,
+            })
+        {
+            let zero = self.builder.imm_u64(0);
+            let word = match location {
+                SliceLocation::Calldata => self.builder.calldata_slice_load_word(value, zero),
+                SliceLocation::Memory => self.builder.memory_slice_load_word(value, zero),
+                SliceLocation::Returndata => return value,
+            };
+            let width = u64::from(size.bytes());
+            let fixed_mask =
+                self.builder.imm_u256(U256::MAX << (256 - usize::from(size.bytes()) * 8));
+            let length = self.builder.slice_len(value);
+            let width_value = self.builder.imm_u64(width);
+            let short = self.builder.lt(length, width_value);
+            let missing = self.builder.sub(width_value, length);
+            let bits_per_byte = self.builder.imm_u64(8);
+            let shift = self.builder.mul(bits_per_byte, missing);
+            let short_mask = self.builder.shl(shift, fixed_mask);
+            let mask = self.builder.select(short, short_mask, fixed_mask);
+            return self.builder.and(word, mask);
+        }
         if destination_size.is_some()
             && let Some(abi_type) = self.types.abi_type(from)
         {
@@ -857,7 +895,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if returns > 1 {
             self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, ret_offset);
         }
-        Some(self.load_multi_return_value(ret_offset, 0, returns))
+        let ty = self.gcx.type_of_item(function.returns[0].into());
+        Some(self.load_multi_return_value_as(ret_offset, 0, returns, ty))
     }
 
     pub(super) fn linked_library_address(&self, function_id: hir::FunctionId) -> Option<U256> {

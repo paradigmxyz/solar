@@ -4,10 +4,26 @@ use super::*;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
+        let expr = expr.peel_parens();
         if let ExprKind::Ternary(condition, then_expr, else_expr) = &expr.kind {
             return self.lower_ternary_values(condition, then_expr, else_expr);
         }
         if let ExprKind::Call(callee, args, call_opts) = &expr.kind {
+            if let Some(builtin) = self.gcx.resolved_builtin(callee)
+                && matches!(
+                    builtin,
+                    Builtin::AddressCall
+                        | Builtin::AddressStaticcall
+                        | Builtin::AddressDelegatecall
+                )
+                && let ExprKind::Member(receiver, _) = callee.kind
+            {
+                let (success, returndata) = self.lower_address_call_result(
+                    expr.span, receiver, builtin, *args, *call_opts, true,
+                )?;
+                let returndata = returndata?;
+                return Some(vec![success, returndata]);
+            }
             if self.gcx.resolved_builtin(callee) == Some(Builtin::AbiDecode)
                 && let ExprKind::Call(_, args, _) = &expr.kind
                 && let Some(types) = args.exprs().nth(1)
@@ -19,7 +35,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let mut values = Vec::with_capacity(elements.len());
                 values.push(first);
                 for index in 1..elements.len() {
-                    values.push(self.load_multi_return_value(base, index, elements.len()));
+                    let ty = elements[index].and_then(|element| {
+                        let TyKind::Type(ty) = self.gcx.type_of_expr(element.id)?.kind else {
+                            return None;
+                        };
+                        Some(ty)
+                    });
+                    let value = match ty {
+                        Some(ty) => {
+                            self.load_multi_return_value_as(base, index, elements.len(), ty)
+                        }
+                        None => self.load_multi_return_value(base, index, elements.len()),
+                    };
+                    values.push(value);
                 }
                 return Some(values);
             }
@@ -54,7 +82,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let mut values = Vec::with_capacity(returns);
                 values.push(first);
                 for index in 1..returns {
-                    values.push(self.load_multi_return_value(base, index, returns));
+                    let ty = self
+                        .gcx
+                        .resolved_function(callee)
+                        .and_then(|function_id| {
+                            self.gcx
+                                .hir
+                                .function(function_id)
+                                .returns
+                                .get(index)
+                                .map(|&id| self.gcx.type_of_item(id.into()))
+                        })
+                        .or_else(|| {
+                            self.gcx.type_of_expr(callee.id).and_then(|ty| match ty.kind {
+                                TyKind::Fn(function) => function.returns.get(index).copied(),
+                                _ => None,
+                            })
+                        });
+                    let value = match ty {
+                        Some(ty) => self.load_multi_return_value_as(base, index, returns, ty),
+                        None => self.load_multi_return_value(base, index, returns),
+                    };
+                    values.push(value);
                 }
                 return Some(values);
             }
@@ -180,6 +229,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(());
         }
         if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind {
+            if rhs_elements.iter().filter(|element| element.is_some()).count() == 1
+                && rhs_elements.iter().any(Option::is_none)
+                && let Some(rhs) = rhs_elements.iter().flatten().next()
+            {
+                let values = self.lower_values(rhs)?;
+                if values.len() >= elements.len() {
+                    for (element, value) in elements.iter().zip(values) {
+                        if let Some(element) = element {
+                            self.store_lvalue(element, value)?;
+                        }
+                    }
+                    return Some(());
+                }
+            }
             if rhs_elements.len() < elements.len() {
                 return report_unsupported(self.gcx, rhs.span, "tuple assignment arity");
             }
@@ -275,5 +338,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.imm_u64(u64::try_from(words).unwrap_or(u64::MAX).saturating_mul(32));
         let slice = self.builder.make_slice(base, size, SliceLocation::Memory);
         self.builder.memory_slice_load_word(slice, offset)
+    }
+
+    pub(super) fn load_multi_return_value_as(
+        &mut self,
+        base: ValueId,
+        index: usize,
+        returns: usize,
+        ty: Ty<'gcx>,
+    ) -> ValueId {
+        let kind = match types::TypeLowerer::mir_type(ty) {
+            MirType::MemoryObject(kind) => kind,
+            _ => return self.load_multi_return_value(base, index, returns),
+        };
+        let index = self.builder.imm_u64(u64::try_from(index).unwrap_or(u64::MAX));
+        self.builder.memory_object_load_object(
+            base,
+            MemoryObjectLayout::word_fixed_array(u64::try_from(returns).unwrap_or(u64::MAX)),
+            index,
+            kind,
+        )
     }
 }

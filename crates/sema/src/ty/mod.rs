@@ -1384,6 +1384,9 @@ impl<'gcx> Gcx<'gcx> {
         self,
         id: hir::ContractId,
     ) -> &'gcx DenseBitSet<hir::FunctionId> {
+        if self.sess.opts.unstable.codegen_all_functions {
+            return self.all_contract_reachable_functions(id);
+        }
         let items = self.interface_items(id);
         let mut functions = DenseBitSet::new_empty(self.hir.function_ids().len());
         for function in items.creation.functions.iter().chain(items.deployed.functions.iter()) {
@@ -1573,6 +1576,14 @@ fn all_contract_bytecode_dependencies(
 ) -> &'gcx DenseBitSet<hir::ContractId> {
     assert!(gcx.has_typeck_results(), "contract dependencies require type checking");
     call_graph::all_bytecode_dependencies(gcx, id)
+}
+
+fn all_contract_reachable_functions(
+    gcx: _,
+    id: hir::ContractId
+) -> &'gcx DenseBitSet<hir::FunctionId> {
+    assert!(gcx.has_typeck_results(), "contract functions require type checking");
+    call_graph::all_reachable_functions(gcx, id)
 }
 
 /// Returns the [ERC-165] interface ID of the given contract.

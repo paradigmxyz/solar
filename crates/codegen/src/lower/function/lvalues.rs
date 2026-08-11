@@ -7,6 +7,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         expr: &hir::Expr<'_>,
     ) -> Option<LValuePlace<'gcx>> {
+        let expr = expr.peel_parens();
         if let Some(place) = self.resolve_storage_byte_place(expr) {
             return Some(place);
         }

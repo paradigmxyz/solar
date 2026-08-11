@@ -233,12 +233,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return report_unsupported(self.gcx, try_stmt.expr.span, "try/catch clauses");
         }
         let creation_binding = if creation.is_some() {
-            if returns_clause.name.is_some() || returns_clause.args.len() != 1 {
+            if returns_clause.name.is_some() || returns_clause.args.len() > 1 {
                 return report_unsupported(self.gcx, returns_clause.span, "try return bindings");
             }
-            Some(returns_clause.args[0])
+            returns_clause.args.first().copied()
         } else {
-            if returns_clause.name.is_some() || returns_clause.args.len() != return_types.len() {
+            if returns_clause.name.is_some()
+                || (!returns_clause.args.is_empty()
+                    && returns_clause.args.len() != return_types.len())
+            {
                 return report_unsupported(self.gcx, returns_clause.span, "try return bindings");
             }
             None
@@ -361,7 +364,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return report_unsupported(self.gcx, returns_clause.span, "try return bindings");
             };
             self.values.insert(binding, value);
-        } else if !return_types.is_empty() {
+        } else if !return_types.is_empty() && !returns_clause.args.is_empty() {
             let data = self.materialize_returndata_bytes();
             let return_types = return_types
                 .iter()

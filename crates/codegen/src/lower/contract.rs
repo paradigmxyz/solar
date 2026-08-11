@@ -124,6 +124,9 @@ pub(super) fn lower(
             continue;
         }
         for function_id in library.functions() {
+            if library_id != contract_id && !reachable.contains(function_id) {
+                continue;
+            }
             let function = gcx.hir.function(function_id);
             if matches!(function.visibility, hir::Visibility::Public | hir::Visibility::External)
                 && function.body.is_some()

@@ -139,16 +139,18 @@ impl<'gcx> CallGraphBuilder<'gcx> {
     fn collect_call(&mut self, callee: &'gcx hir::Expr<'gcx>) -> bool {
         let Some(ty) = self.gcx.type_of_expr(callee.id) else { return false };
         match ty.kind {
-            TyKind::Fn(function) if function.is_internal() => {
-                if let Some(function) =
+            TyKind::Fn(function) => {
+                let Some(function_id) =
                     function.function_id.or_else(|| self.gcx.resolved_function(callee))
-                {
-                    let function = self.resolve_call_target(callee, function);
-                    self.enqueue(function);
-                    true
-                } else {
-                    false
+                else {
+                    return false;
+                };
+                if !function.is_internal() && !self.is_unlinked_library_function(function_id) {
+                    return false;
                 }
+                let function = self.resolve_call_target(callee, function_id);
+                self.enqueue(function);
+                true
             }
             TyKind::Error(_, error) => {
                 self.graph.errors.insert(error);
@@ -156,6 +158,19 @@ impl<'gcx> CallGraphBuilder<'gcx> {
             }
             _ => false,
         }
+    }
+
+    fn is_unlinked_library_function(&self, function_id: hir::FunctionId) -> bool {
+        let Some(contract_id) = self.gcx.hir.function(function_id).contract else { return false };
+        let contract = self.gcx.hir.contract(contract_id);
+        if contract.kind != hir::ContractKind::Library {
+            return false;
+        }
+        let source = self.gcx.hir.source(contract.source).file.name.display().to_string();
+        !self.gcx.sess.opts.libraries.iter().any(|spec| {
+            spec.name == contract.name.as_str_in(self.gcx.sess)
+                && spec.source.as_ref().is_none_or(|path| source.ends_with(path))
+        })
     }
 
     fn collect_function_reference(&mut self, expr: &'gcx hir::Expr<'gcx>) {
@@ -299,4 +314,12 @@ pub(super) fn all_bytecode_dependencies<'gcx>(
 ) -> &'gcx DenseBitSet<hir::ContractId> {
     let graph = CallGraphBuilder::build_all(gcx, id);
     gcx.alloc(graph.bytecode_dependencies)
+}
+
+pub(super) fn all_reachable_functions<'gcx>(
+    gcx: Gcx<'gcx>,
+    id: hir::ContractId,
+) -> &'gcx DenseBitSet<hir::FunctionId> {
+    let graph = CallGraphBuilder::build_all(gcx, id);
+    gcx.alloc(graph.functions)
 }

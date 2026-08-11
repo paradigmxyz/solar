@@ -1,5 +1,6 @@
 //@ run-call: TryCatchReturn::success() => 13
 //@ run-call: TryCatchReturn::failure() => 9
+//@ run-call: TryCatchReturn::ignored() => 13
 
 contract TryCatchReturnTarget {
     function value(bool ok) external pure returns (uint256) {
@@ -28,6 +29,14 @@ contract TryCatchReturn {
             result = value;
         } catch {
             result = 9;
+        }
+    }
+
+    function ignored() external view returns (uint256) {
+        try target.value(true) {
+            return 13;
+        } catch {
+            return 9;
         }
     }
 }

@@ -2,8 +2,8 @@
 
 use super::{
     AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionId, Immediate,
-    ImmutableId, InstId, InstKind, Instruction, MemoryObjectLayout, MemoryRegion, MirType,
-    SliceLocation, StorageAlias, Terminator, Value, ValueId,
+    ImmutableId, InstId, InstKind, Instruction, MemoryObjectKind, MemoryObjectLayout, MemoryRegion,
+    MirType, SliceLocation, StorageAlias, Terminator, Value, ValueId,
 };
 use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
@@ -541,6 +541,20 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(
             InstKind::MemoryObjectLoadElement { object, layout, index },
             Some(MirType::uint256()),
+        )
+    }
+
+    /// Loads a memory-object pointer stored in a one-word array.
+    pub(crate) fn memory_object_load_object(
+        &mut self,
+        object: ValueId,
+        layout: MemoryObjectLayout,
+        index: ValueId,
+        kind: MemoryObjectKind,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::MemoryObjectLoadElement { object, layout, index },
+            Some(MirType::MemoryObject(kind)),
         )
     }
 
