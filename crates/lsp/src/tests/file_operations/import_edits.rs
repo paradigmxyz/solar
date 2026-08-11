@@ -128,13 +128,13 @@ fn rename_file_escapes_quote_and_control_import_bytes() {
     );
     let tables = analyze_project(&project);
     let target = project.path("/src/Target.sol");
-    let renamed = project.path("/src").join("Renamed-\"\u{8}\u{c}.sol");
+    let renamed = project.path("/src").join("Renamed-\"\n\r\t\u{8}\u{c}.sol");
     let moves = move_batch([(target.clone(), renamed.clone())]);
     let edits = tables.import_rename_edits(&moves);
     let edit = edits.first_edit().unwrap();
 
-    assert_eq!(edit.new_text, r#""./Renamed-\x22\x08\x0C.sol""#);
-    assert_import_literal_round_trips(&edit.new_text, b"./Renamed-\"\x08\x0c.sol");
+    assert_eq!(edit.new_text, r#""./Renamed-\"\n\r\t\x08\x0C.sol""#);
+    assert_import_literal_round_trips(&edit.new_text, b"./Renamed-\"\n\r\t\x08\x0c.sol");
 
     #[cfg(unix)]
     {
@@ -168,7 +168,7 @@ fn rename_file_escapes_backslash_import_byte() {
     let edits = tables.import_rename_edits(&moves);
     let edit = edits.first_edit().unwrap();
 
-    assert_eq!(edit.new_text, r#""./Renamed-\x5C.sol""#);
+    assert_eq!(edit.new_text, r#""./Renamed-\\.sol""#);
     assert_import_literal_round_trips(&edit.new_text, b"./Renamed-\\.sol");
 
     fs::rename(target, &renamed).unwrap();
@@ -345,7 +345,7 @@ fn rename_file_to_verbatim_drive_preserves_absolute_import() {
     let edits = index.rename_edits(&move_batch([(target, renamed)]));
     let edit = edits.first_edit().unwrap();
 
-    assert_eq!(edit.new_text, r#""\x5C\x5C?\x5CD:\x5Ccontracts\x5CRenamed.sol""#);
+    assert_eq!(edit.new_text, r#""\\\\?\\D:\\contracts\\Renamed.sol""#);
     assert_import_literal_round_trips(&edit.new_text, br"\\?\D:\contracts\Renamed.sol");
 }
 
@@ -367,10 +367,7 @@ fn rename_file_to_verbatim_unc_preserves_absolute_import() {
     let edits = index.rename_edits(&move_batch([(target, renamed)]));
     let edit = edits.first_edit().unwrap();
 
-    assert_eq!(
-        edit.new_text,
-        r#""\x5C\x5C?\x5CUNC\x5Cserver\x5Cdestination\x5Ccontracts\x5CRenamed.sol""#
-    );
+    assert_eq!(edit.new_text, r#""\\\\?\\UNC\\server\\destination\\contracts\\Renamed.sol""#);
     assert_import_literal_round_trips(
         &edit.new_text,
         br"\\?\UNC\server\destination\contracts\Renamed.sol",

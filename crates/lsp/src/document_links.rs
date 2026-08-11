@@ -157,12 +157,17 @@ pub(crate) fn solidity_string_contents(bytes: &[u8], delimiter: u8) -> impl fmt:
 
     fmt::from_fn(move |f| {
         for &byte in bytes {
-            let is_safe =
-                byte == b' ' || (byte.is_ascii_graphic() && byte != delimiter && byte != b'\\');
-            if is_safe {
-                f.write_char(char::from(byte))?;
-            } else {
-                write!(f, "\\x{byte:02X}")?;
+            match byte {
+                _ if byte == delimiter => {
+                    f.write_char('\\')?;
+                    f.write_char(char::from(byte))?;
+                }
+                b'\\' => f.write_str("\\\\")?,
+                b'\n' => f.write_str("\\n")?,
+                b'\r' => f.write_str("\\r")?,
+                b'\t' => f.write_str("\\t")?,
+                b' '..=b'~' => f.write_char(char::from(byte))?,
+                _ => write!(f, "\\x{byte:02X}")?,
             }
         }
         Ok(())

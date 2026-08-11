@@ -735,7 +735,7 @@ sort_text=<none>
 text_edit=edit 0:8-0:15
 insert_text_format=<none>
 new_text:
-./Owner\x27sToken.sol
+./Owner\'sToken.sol
 
 "#]]
         .raw(),
