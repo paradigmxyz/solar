@@ -106,6 +106,15 @@ impl<'gcx> TypeLowerer<'gcx> {
         self.abi_param_type(ty.with_loc_if_ref(self.gcx, DataLocation::Memory))
     }
 
+    /// Builds both ABI shapes for a return value in one recursive walk.
+    pub(super) fn abi_return_shapes(&mut self, ty: Ty<'gcx>) -> Option<(AbiType, AbiParamType)> {
+        self.seen_structs.clear();
+        self.abi_return_shapes_inner(
+            ty.with_loc_if_ref(self.gcx, DataLocation::Memory),
+            DataLocation::Memory,
+        )
+    }
+
     /// Returns the semantic object layout for a memory-backed aggregate.
     pub(super) fn memory_layout(&self, ty: Ty<'gcx>) -> Option<MemoryObjectLayout> {
         Some(match ty.peel_refs().kind {
@@ -195,6 +204,106 @@ impl<'gcx> TypeLowerer<'gcx> {
             }
             TyKind::Contract(_) | TyKind::Super(_) => AbiParamType::Scalar(MirType::Address),
             _ => AbiParamType::Scalar(Self::mir_type(ty)),
+        })
+    }
+
+    fn abi_return_shapes_inner(
+        &mut self,
+        ty: Ty<'gcx>,
+        location: DataLocation,
+    ) -> Option<(AbiType, AbiParamType)> {
+        let param_ty = ty.with_loc_if_ref(self.gcx, location);
+        if param_ty.is_ref_at(DataLocation::Storage)
+            || matches!(param_ty.peel_refs().kind, TyKind::Mapping(..))
+        {
+            return Some((AbiType::Word, AbiParamType::Scalar(MirType::StoragePtr)));
+        }
+
+        Some(match ty.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes) => (
+                AbiType::Bytes(if ty.is_ref_at(DataLocation::Calldata) {
+                    SliceLocation::Calldata
+                } else {
+                    SliceLocation::Memory
+                }),
+                AbiParamType::Bytes,
+            ),
+            TyKind::Elementary(_) => {
+                (AbiType::Word, AbiParamType::Scalar(Self::mir_type(param_ty)))
+            }
+            TyKind::Fn(function) => (
+                if function.is_external() { AbiType::Function } else { AbiType::Word },
+                AbiParamType::Scalar(Self::mir_type(param_ty)),
+            ),
+            TyKind::Enum(id) => (
+                AbiType::Word,
+                AbiParamType::Enum {
+                    ty: Self::mir_type(param_ty),
+                    variants: self.gcx.hir.enumm(id).variants.len() as u64,
+                },
+            ),
+            TyKind::Contract(_) | TyKind::Super(_) => {
+                (AbiType::Word, AbiParamType::Scalar(MirType::Address))
+            }
+            TyKind::DynArray(element) => {
+                let (abi_element, param_element) =
+                    self.abi_return_shapes_inner(element, location)?;
+                (
+                    AbiType::DynamicArray {
+                        element: Box::new(abi_element),
+                        location: if ty.is_ref_at(DataLocation::Calldata) {
+                            SliceLocation::Calldata
+                        } else {
+                            SliceLocation::Memory
+                        },
+                    },
+                    AbiParamType::DynamicArray(Box::new(param_element)),
+                )
+            }
+            TyKind::Slice(element) => {
+                let (abi_element, param_element) =
+                    self.abi_return_shapes_inner(element, location)?;
+                (abi_element, AbiParamType::DynamicArray(Box::new(param_element)))
+            }
+            TyKind::Array(element, len) => {
+                let (abi_element, param_element) =
+                    self.abi_return_shapes_inner(element, location)?;
+                (
+                    AbiType::FixedArray {
+                        element: Box::new(abi_element),
+                        len: u64::try_from(len).ok()?,
+                    },
+                    AbiParamType::FixedArray {
+                        element: Box::new(param_element),
+                        len: u64::try_from(len).ok()?,
+                    },
+                )
+            }
+            TyKind::Struct(id) => {
+                if !self.seen_structs.insert(id) {
+                    return None;
+                }
+                let fields = self
+                    .gcx
+                    .hir
+                    .strukt(id)
+                    .fields
+                    .iter()
+                    .map(|&field| {
+                        self.abi_return_shapes_inner(self.gcx.type_of_item(field.into()), location)
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                self.seen_structs.remove(&id);
+                let (abi_fields, param_fields): (Vec<_>, Vec<_>) = fields.into_iter().unzip();
+                (
+                    AbiType::Tuple(abi_fields.into_boxed_slice()),
+                    AbiParamType::Tuple(param_fields.into_boxed_slice()),
+                )
+            }
+            TyKind::Udvt(underlying, _) => {
+                return self.abi_return_shapes_inner(underlying, location);
+            }
+            _ => (AbiType::Word, AbiParamType::Scalar(Self::mir_type(param_ty))),
         })
     }
 

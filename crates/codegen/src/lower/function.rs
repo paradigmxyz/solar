@@ -120,22 +120,17 @@ pub(super) fn lower(
         );
         mir.abi_args_lazy = true;
         if mir.selector.is_some() {
-            let output_shapes = hir_function
-                .returns
-                .iter()
-                .map(|&ret| type_lowerer.abi_return_type(gcx.type_of_item(ret.into())))
-                .collect::<Option<Vec<_>>>();
-            let output_param_shapes = hir_function
-                .returns
-                .iter()
-                .map(|&ret| type_lowerer.abi_return_param_type(gcx.type_of_item(ret.into())))
-                .collect::<Option<Vec<_>>>();
-            let Some(output_shapes) = output_shapes else {
-                return report_unsupported(gcx, hir_function.span, "function return shape");
-            };
-            let Some(output_param_shapes) = output_param_shapes else {
-                return report_unsupported(gcx, hir_function.span, "function return ABI shape");
-            };
+            let mut output_shapes = Vec::with_capacity(hir_function.returns.len());
+            let mut output_param_shapes = Vec::with_capacity(hir_function.returns.len());
+            for &ret in hir_function.returns {
+                let Some((output_shape, output_param_shape)) =
+                    type_lowerer.abi_return_shapes(gcx.type_of_item(ret.into()))
+                else {
+                    return report_unsupported(gcx, hir_function.span, "function return shape");
+                };
+                output_shapes.push(output_shape);
+                output_param_shapes.push(output_param_shape);
+            }
             mir.abi_returns = Some(
                 context.module.intern_abi_layout(AbiLayout::new(output_shapes.into_boxed_slice())),
             );
