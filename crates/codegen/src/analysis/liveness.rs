@@ -294,6 +294,13 @@ impl Liveness {
         self.last_use_in_block.get(&(val, block)).copied()
     }
 
+    /// Returns the last use location recorded for every value and block pair.
+    pub(crate) fn last_uses(
+        &self,
+    ) -> impl Iterator<Item = ((ValueId, BlockId), Option<usize>)> + '_ {
+        self.last_use_in_block.iter().map(|(&(value, block), &last_use)| ((value, block), last_use))
+    }
+
     /// Returns whether a value defined before `inst_idx` is used at or after that instruction.
     #[must_use]
     pub(crate) fn is_used_at_or_after(

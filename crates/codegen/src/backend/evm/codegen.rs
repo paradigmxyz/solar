@@ -2575,24 +2575,27 @@ impl<'gcx> EvmCodegen<'gcx> {
         colorable: &DenseBitSet<ValueId>,
     ) -> IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>> {
         let mut ranges = index_vec![FxHashMap::default(); func.num_values()];
-        let mut operands = SmallVec::<[ValueId; 8]>::new();
 
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for block_id in func.blocks.indices() {
             for value in liveness.live_in(block_id) {
                 Self::extend_spill_live_range(&mut ranges, colorable, value, block_id, 0);
             }
+            let point = func.blocks[block_id].instructions.len() * 2 + 1;
+            for value in liveness.live_out(block_id) {
+                Self::extend_spill_live_range(&mut ranges, colorable, value, block_id, point);
+            }
+        }
+
+        // Liveness already collected the final use in every block. Reuse that
+        // map instead of walking and collecting every instruction operand again.
+        for ((value, block_id), last_use) in liveness.last_uses() {
+            let point =
+                last_use.map_or(func.blocks[block_id].instructions.len() * 2, |index| index * 2);
+            Self::extend_spill_live_range(&mut ranges, colorable, value, block_id, point);
+        }
+
+        for (block_id, block) in func.blocks.iter_enumerated() {
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
-                operands.clear();
-                func.inst(inst_id).kind.collect_operands(&mut operands);
-                for &value in &operands {
-                    Self::extend_spill_live_range(
-                        &mut ranges,
-                        colorable,
-                        value,
-                        block_id,
-                        inst_idx * 2,
-                    );
-                }
                 if let Some(value) = func.inst_result_value(inst_id) {
                     Self::extend_spill_live_range(
                         &mut ranges,
@@ -2602,16 +2605,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                         inst_idx * 2 + 1,
                     );
                 }
-            }
-            if let Some(terminator) = &block.terminator {
-                let point = block.instructions.len() * 2;
-                for value in terminator.operands() {
-                    Self::extend_spill_live_range(&mut ranges, colorable, value, block_id, point);
-                }
-            }
-            let point = block.instructions.len() * 2 + 1;
-            for value in liveness.live_out(block_id) {
-                Self::extend_spill_live_range(&mut ranges, colorable, value, block_id, point);
             }
         }
         ranges
