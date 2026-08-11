@@ -386,11 +386,13 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub time_passes: bool,
 
-    /// Acknowledge the experimental EVM code generator (MIR lowering and backend).
+    /// Legacy acknowledgement for the experimental EVM code generator (MIR lowering and backend).
     ///
-    /// Codegen runs whenever bytecode or IR output is requested. This flag preserves the
-    /// old opt-in behavior and suppresses the experimental warning.
-    #[cfg_attr(feature = "clap", arg(long))]
+    /// Codegen runs whenever bytecode or IR output is requested. This flag only suppresses the
+    /// experimental warning and is retained for compatibility.
+    ///
+    /// TODO(codegen): Remove this compatibility flag once downstream callers stop passing it.
+    #[cfg_attr(feature = "clap", arg(long, hide = true))]
     pub codegen: bool,
 
     /// Lower all contract functions instead of only reachable ones. This is intended for

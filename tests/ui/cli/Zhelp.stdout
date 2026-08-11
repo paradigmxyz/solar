@@ -57,11 +57,6 @@ Options:
       -Ztime-passes
           Print the time spent in each MIR and EVM IR pass
 
-      -Zcodegen
-          Acknowledge the experimental EVM code generator (MIR lowering and backend).
-          
-          Codegen runs whenever bytecode or IR output is requested. This flag preserves the old opt-in behavior and suppresses the experimental warning.
-
       -Zcodegen-all-functions
           Lower all contract functions instead of only reachable ones. This is intended for benchmarks and compiler debugging
 
