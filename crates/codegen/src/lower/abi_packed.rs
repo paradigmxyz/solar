@@ -6,7 +6,7 @@ use crate::{
     mir::{FunctionBuilder, MemoryObjectKind, Value, ValueId},
 };
 use alloy_primitives::U256;
-use solar_ast::{ElementaryType, LitKind};
+use solar_ast::{ElementaryType, LitKind, TypeSize};
 use solar_interface::{Symbol, diagnostics::ErrorGuaranteed, sym};
 use solar_sema::{
     builtins::Builtin,
@@ -18,7 +18,7 @@ enum PackedAbiArg {
     /// Compile-time literal bytes, packed without padding.
     Bytes(Vec<u8>),
     /// A single value occupying the top `size` bytes of its word.
-    Value { value: ValueId, size: usize, left_aligned: bool },
+    Value { value: ValueId, size: usize, left_aligned: bool, signed: bool },
     /// A memory `bytes`/`string` pointer (`[length][data...]`) whose data is
     /// copied without padding.
     DynamicBytes(ValueId),
@@ -214,8 +214,9 @@ impl<'gcx> Lowerer<'gcx> {
 
             let size = self.get_packed_size_from_expr(arg, ty);
             let left_aligned = self.expr_is_fixed_bytes(arg);
+            let signed = matches!(self.lower_type_from_ty(ty), crate::mir::MirType::Int(_));
             let value = self.lower_value_expr(builder, arg);
-            packed_args.push(PackedAbiArg::Value { value, size, left_aligned });
+            packed_args.push(PackedAbiArg::Value { value, size, left_aligned, signed });
         }
 
         Ok(packed_args)
@@ -314,7 +315,7 @@ impl<'gcx> Lowerer<'gcx> {
                     builder.mstore(dest, value);
                     offset += size as u64;
                 }
-                &PackedAbiArg::Value { value, size, left_aligned } => {
+                &PackedAbiArg::Value { value, size, left_aligned, .. } => {
                     // Less than 32 bytes: the word's top `size` bytes are
                     // written. Fixed-bytes values are already left-aligned;
                     // every other value type is right-aligned and shifts up.
@@ -394,7 +395,7 @@ impl<'gcx> Lowerer<'gcx> {
                     len += bytes.len();
                     consumed += 1;
                 }
-                &PackedAbiArg::Value { value, size, left_aligned: false } if size < 32 => {
+                &PackedAbiArg::Value { value, size, left_aligned: false, signed } if size < 32 => {
                     if size == 0 {
                         consumed += 1;
                         continue;
@@ -403,7 +404,7 @@ impl<'gcx> Lowerer<'gcx> {
                         break;
                     }
                     let shift = (32 - len - size) * 8;
-                    terms.push((value, shift));
+                    terms.push((value, shift, size, signed));
                     len += size;
                     consumed += 1;
                 }
@@ -416,7 +417,12 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         let mut value = builder.imm_u256(const_word);
-        for (term, shift) in terms {
+        for (term, shift, size, signed) in terms {
+            let term = if signed {
+                self.mask_to_bits(builder, term, TypeSize::new_int_bits((size * 8) as u16))
+            } else {
+                term
+            };
             let shifted = if shift == 0 {
                 term
             } else {

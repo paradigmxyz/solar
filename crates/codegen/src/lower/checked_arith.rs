@@ -177,7 +177,10 @@ impl<'gcx> Lowerer<'gcx> {
             BinOpKind::BitAnd => builder.and(lhs, rhs),
             BinOpKind::BitOr => builder.or(lhs, rhs),
             BinOpKind::BitXor => builder.xor(lhs, rhs),
-            BinOpKind::Shl => builder.shl(rhs, lhs),
+            BinOpKind::Shl => {
+                let result = builder.shl(rhs, lhs);
+                self.truncate_wrapping_result(builder, result, arithmetic.integer)
+            }
             BinOpKind::Shr => {
                 // For signed types, >> is arithmetic shift (SAR)
                 if arithmetic.is_signed { builder.sar(rhs, lhs) } else { builder.shr(rhs, lhs) }
@@ -223,10 +226,9 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Truncates a wrapping result back into its sub-word type. The checked
-    /// paths prove the result in range, but unchecked sub-word arithmetic can
-    /// wrap past the type's width, and the checked shapes (and ABI encoding)
-    /// rely on values of type `uintN`/`intN` being clean.
+    /// Truncates a wrapping result back into its sub-word type. Left shifts and unchecked
+    /// arithmetic can wrap past the type's width, while later operations and ABI encoding rely on
+    /// values of type `uintN`/`intN` being clean.
     fn truncate_wrapping_result(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -986,17 +988,31 @@ impl<'gcx> Lowerer<'gcx> {
         op: hir::UnOp,
         operand: ValueId,
         int_info: Option<IntegerInfo>,
-        span: Span,
+        expr: &hir::Expr<'_>,
     ) -> ValueId {
         use hir::UnOpKind;
 
         match op.kind {
             UnOpKind::Not => builder.iszero(operand),
-            UnOpKind::BitNot => builder.not(operand),
+            UnOpKind::BitNot => {
+                let result = builder.not(operand);
+                if let Some(width) = self.fixed_bytes_width_of_expr(expr) {
+                    return self.clean_fixed_bytes(builder, result, TypeSize::new_fb_bytes(width));
+                }
+                if let Some(info) = int_info
+                    && !info.signed
+                    && self.get_expr_type(expr).is_some_and(|ty| {
+                        matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::UInt(_)))
+                    })
+                {
+                    return self.mask_to_bits(builder, result, info.size);
+                }
+                result
+            }
             UnOpKind::Neg => {
                 let zero = builder.imm_u256(U256::ZERO);
                 if !self.in_unchecked_block {
-                    let int_info = self.require_checked_arithmetic_info(int_info, span);
+                    let int_info = self.require_checked_arithmetic_info(int_info, expr.span);
                     if let Some(info) = int_info
                         && info.signed
                     {

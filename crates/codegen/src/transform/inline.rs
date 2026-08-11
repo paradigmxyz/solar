@@ -41,6 +41,25 @@ impl MirPass for Inline {
     }
 }
 
+/// Module pass for inlining only trivial leaf helpers in gas mode.
+pub(crate) struct InlineTinyLeaves;
+
+impl MirPass for InlineTinyLeaves {
+    fn name(&self) -> &'static str {
+        "inline-tiny-leaves"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        let mut inliner = MirInliner::for_tiny_leaves();
+        inliner.run(gcx, module).inlined != 0
+    }
+}
+
 /// Module pass for specializing calls through constant internal function pointers.
 pub(crate) struct SpecializeFunctionPointers;
 
@@ -91,6 +110,8 @@ struct MirInliner {
     /// under the EIP-170 deployable-code limit. Small contracts never reach it
     /// and inline normally.
     max_module_code_size: usize,
+    /// Restrict candidates to single-block leaf helpers with at most four MIR instructions.
+    tiny_leaves_only: bool,
 }
 
 impl Default for MirInliner {
@@ -110,6 +131,7 @@ impl Default for MirInliner {
             // emits 15,225 bytes, so 12,000 units leave a conservative margin
             // below EIP-170's 24,576-byte limit.
             max_module_code_size: 12_000,
+            tiny_leaves_only: false,
         }
     }
 }
@@ -123,6 +145,26 @@ impl MirInliner {
     #[must_use]
     fn for_size() -> Self {
         Self { max_module_code_size: 0, ..Self::default() }
+    }
+
+    /// Creates the gas-focused tiny-leaf inliner. A four-instruction leaf is smaller than the
+    /// static internal-call protocol it replaces, even when shared by several callers. Keeping
+    /// this policy separate avoids the code-growth cascades of general MIR inlining.
+    #[must_use]
+    fn for_tiny_leaves() -> Self {
+        Self {
+            max_instructions: 4,
+            max_single_call_sanity_instructions: 4,
+            max_blocks: 1,
+            max_shared_callee_blocks: 1,
+            inline_single_call: true,
+            max_cold_code_growth: 8,
+            max_hot_code_growth: 8,
+            max_caller_inlined_instructions: 64,
+            min_call_savings: 0,
+            max_module_code_size: usize::MAX,
+            tiny_leaves_only: true,
+        }
     }
 }
 
@@ -373,6 +415,16 @@ impl MirInliner {
             || summary.has_phi
             || summary.has_unsupported_terminator
             || summary.return_count == 0
+        {
+            return false;
+        }
+
+        if self.tiny_leaves_only
+            && (summary.block_count != 1
+                || summary.instruction_count > 4
+                || summary.return_count != 1
+                || summary.has_internal_call
+                || summary.has_control_flow)
         {
             return false;
         }

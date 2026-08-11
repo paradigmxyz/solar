@@ -255,7 +255,7 @@ impl<'gcx> Lowerer<'gcx> {
                             let guar = self.emit_unsupported_udvt_operator(expr.span);
                             return builder.error_value(guar);
                         }
-                        self.lower_unary_op(builder, *op, operand_val, int_info, expr.span)
+                        self.lower_unary_op(builder, *op, operand_val, int_info, expr)
                     }
                 }
             }

@@ -44,7 +44,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_interface::{diagnostics::DiagCtxt, kw, sym};
+use solar_interface::{diagnostics::DiagCtxt, kw};
 use std::fmt;
 
 /// Stateful MIR verifier.
@@ -587,10 +587,21 @@ impl<'a> Validator<'a> {
     /// the phase is a real contract rather than a label.
     fn validate_module_phase(&mut self, module: &Module) {
         // From the `dispatch` phase on, routing is materialized: a module with
-        // selector functions must contain the synthesized `entry`.
-        if module.phase >= crate::mir::MirPhase::Dispatch
-            && module.functions.iter().any(|f| f.selector.is_some())
-            && !module.functions.iter().any(|f| f.name.symbol == sym::entry)
+        // a runtime interface must contain exactly one synthesized `entry`.
+        if module.phase < crate::mir::MirPhase::Dispatch {
+            return;
+        }
+        let dispatch_entries =
+            module.functions.iter().filter(|f| f.attributes.is_dispatch_entry).count();
+        if dispatch_entries > 1 {
+            self.emit(format_args!(
+                "module is in the `{}` phase but has multiple `entry` routing functions",
+                module.phase.name()
+            ));
+        } else if dispatch_entries == 0
+            && module.functions.iter().any(|f| {
+                f.selector.is_some() || f.attributes.is_receive || f.attributes.is_fallback
+            })
         {
             self.emit(format_args!(
                 "module is in the `{}` phase but has no `entry` routing function",
@@ -736,6 +747,30 @@ mod tests {
 
     fn make_func() -> Function {
         Function::new(Ident::DUMMY)
+    }
+
+    #[test]
+    fn multiple_dispatch_entries_are_caught_without_runtime_attributes() {
+        with_session(|sess| {
+            let mut module = Module::new(Ident::DUMMY);
+            module.phase = crate::mir::MirPhase::EvmShaped;
+            for _ in 0..2 {
+                let mut func = make_func();
+                func.attributes.is_dispatch_entry = true;
+                FunctionBuilder::new(&mut func).stop();
+                module.functions.push(func);
+            }
+            Validator::new(&sess.dcx).validate_module(&module);
+            assert!(sess.dcx.has_errors().is_err());
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: module is in the `evm-shaped` phase but has multiple `entry` routing functions
+
+
+"#]]
+            );
+        });
     }
 
     #[test]

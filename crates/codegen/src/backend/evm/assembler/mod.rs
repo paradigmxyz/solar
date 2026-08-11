@@ -1,9 +1,10 @@
-//! Primitive EVM relocation and byte encoding.
+//! Final relocation and EVM byte encoding.
 //!
 //! The assembler handles:
 //! - Deferred immediate and immutable materialization.
 //! - Label relocation.
 //! - Exact PUSH-width relaxation to a least fixed point.
+//! - Opaque program-data placement.
 //! - Byte emission.
 
 use super::EVM_WORD_BYTES;
@@ -12,12 +13,10 @@ use crate::{
         ir::{self, assembly},
         op,
     },
-    memory::EvmMemoryLayout,
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
-use solar_interface::{diagnostics::DiagCtxt, sym};
 use solar_sema::Gcx;
 
 mod id_counter;
@@ -62,58 +61,73 @@ pub(crate) struct AssembledCode {
     pub evm_ir: Option<ir::Module>,
 }
 
+/// The bytecode artifact currently being assembled.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum ArtifactKind {
+    /// Deployed runtime bytecode.
+    #[default]
+    Runtime,
+    /// Creation bytecode that runs during deployment.
+    Constructor,
+}
+
 /// Final EVM IR lowered to reusable primitive assembly.
 #[derive(Clone, Debug, Default)]
 pub(in crate::backend::evm) struct PreparedAssembly {
-    program: AssemblyProgram,
-    evm_ir: Option<ir::Module>,
-    push_values: LocalInterner<U256, PushValueId>,
-    immutable_pushes: LocalInterner<ImmutablePush, ImmutablePushId>,
-    next_label: IdCounter<Label>,
-    deferred_values: FxHashMap<DeferredConst, U256>,
+    pub(in crate::backend::evm) program: AssemblyProgram,
+    pub(in crate::backend::evm) evm_ir: Option<ir::Module>,
+    pub(in crate::backend::evm) push_values: LocalInterner<U256, PushValueId>,
+    pub(in crate::backend::evm) immutable_pushes: LocalInterner<ImmutablePush, ImmutablePushId>,
+    pub(in crate::backend::evm) next_label: IdCounter<Label>,
+    pub(in crate::backend::evm) deferred_values: FxHashMap<DeferredConst, U256>,
 }
 
 /// Relocating assembler for finalized EVM IR.
 #[derive(Debug)]
 pub(crate) struct Assembler<'gcx> {
-    gcx: Gcx<'gcx>,
+    pub(in crate::backend::evm) gcx: Gcx<'gcx>,
+    /// Artifact whose labels are being laid out.
+    pub(in crate::backend::evm) artifact_kind: ArtifactKind,
     /// EVM IR emitted directly by MIR lowering.
-    program: ir::Module,
+    pub(in crate::backend::evm) program: ir::Module,
     /// Whether `program` already has explicit EVM IR terminators.
-    program_is_finalized: bool,
+    pub(in crate::backend::evm) program_is_finalized: bool,
     /// Block currently receiving emitted instructions.
-    current_block: Option<ir::BlockId>,
+    pub(in crate::backend::evm) current_block: Option<ir::BlockId>,
     /// Original assembler label attached to each EVM IR block.
-    block_labels: Vec<Option<Label>>,
+    pub(in crate::backend::evm) block_labels: Vec<Option<Label>>,
     /// Defined assembler labels and their EVM IR blocks.
-    label_blocks: FxHashMap<Label, ir::BlockId>,
+    pub(in crate::backend::evm) label_blocks: FxHashMap<Label, ir::BlockId>,
     /// Labels marked cold before or after their definition.
-    cold_labels: GrowableBitSet<Label>,
+    pub(in crate::backend::evm) cold_labels: GrowableBitSet<Label>,
     /// Unresolved block references emitted as push operands.
-    label_relocations: Vec<(ir::BlockId, usize, Label)>,
+    pub(in crate::backend::evm) label_relocations: Vec<(ir::BlockId, usize, Label)>,
     /// Unresolved deferred constants emitted as push operands.
-    deferred_relocations: Vec<(ir::BlockId, usize, DeferredConst)>,
+    pub(in crate::backend::evm) deferred_relocations: Vec<(ir::BlockId, usize, DeferredConst)>,
+    /// Indexed jumps whose possible targets are assembler labels.
+    pub(in crate::backend::evm) indexed_jump_relocations: Vec<(ir::BlockId, Vec<Label>)>,
     /// Interned push immediates too large for inline storage.
-    push_values: LocalInterner<U256, PushValueId>,
+    pub(in crate::backend::evm) push_values: LocalInterner<U256, PushValueId>,
     /// Interned immutable placeholders.
-    immutable_pushes: LocalInterner<ImmutablePush, ImmutablePushId>,
+    pub(in crate::backend::evm) immutable_pushes: LocalInterner<ImmutablePush, ImmutablePushId>,
     /// Next label ID.
-    next_label: IdCounter<Label>,
+    pub(in crate::backend::evm) next_label: IdCounter<Label>,
     /// Next deferred constant ID.
-    next_deferred: IdCounter<DeferredConst>,
+    pub(in crate::backend::evm) next_deferred: IdCounter<DeferredConst>,
     /// Resolved values for deferred constants.
-    deferred_values: FxHashMap<DeferredConst, U256>,
+    pub(in crate::backend::evm) deferred_values: FxHashMap<DeferredConst, U256>,
     /// Unresolved deferred allocations emitted as push operands.
-    alloc_relocations: Vec<(ir::BlockId, usize, DeferredAlloc)>,
+    pub(in crate::backend::evm) alloc_relocations: Vec<(ir::BlockId, usize, DeferredAlloc)>,
     /// Next deferred allocation ID.
-    next_deferred_alloc: IdCounter<DeferredAlloc>,
+    pub(in crate::backend::evm) next_deferred_alloc: IdCounter<DeferredAlloc>,
     /// Final placement of deferred allocations.
-    deferred_allocations: FxHashMap<DeferredAlloc, DeferredAllocResolution>,
+    pub(in crate::backend::evm) deferred_allocations:
+        FxHashMap<DeferredAlloc, DeferredAllocResolution>,
 }
 
 /// Final lowering selected for a deferred allocation.
 #[derive(Clone, Copy, Debug)]
-enum DeferredAllocResolution {
+pub(in crate::backend::evm) enum DeferredAllocResolution {
     Static(U256),
     Dynamic(U256),
 }
@@ -124,6 +138,7 @@ impl<'gcx> Assembler<'gcx> {
     pub(crate) fn new(gcx: Gcx<'gcx>) -> Self {
         Self {
             gcx,
+            artifact_kind: ArtifactKind::Runtime,
             program: Self::new_ir_module(),
             program_is_finalized: false,
             current_block: None,
@@ -132,6 +147,7 @@ impl<'gcx> Assembler<'gcx> {
             cold_labels: GrowableBitSet::new_empty(),
             label_relocations: Vec::new(),
             deferred_relocations: Vec::new(),
+            indexed_jump_relocations: Vec::new(),
             push_values: LocalInterner::new(),
             immutable_pushes: LocalInterner::new(),
             next_label: IdCounter::new(),
@@ -143,34 +159,9 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
-    /// Creates an assembler with finalized EVM IR loaded into the ordinary backend pipeline.
-    pub(in crate::backend::evm) fn from_evm_ir(
-        gcx: Gcx<'gcx>,
-        mut module: ir::Module,
-    ) -> solar_interface::Result<Self> {
-        if module
-            .blocks
-            .iter()
-            .any(|block| block.instructions.iter().any(|inst| inst.deferred_push().is_some()))
-        {
-            return Err(gcx
-                .dcx()
-                .err("cannot assemble unresolved `push_deferred` instruction")
-                .emit());
-        }
-
-        debug_assert!(is_valid_evm_ir(&module));
-
-        // Parsed block labels may be sparse, but assembly indexes labels with a vector.
-        for (index, block) in module.blocks.iter_mut().enumerate() {
-            block.label = u32::try_from(index).expect("EVM IR block index should fit in u32");
-        }
-        let block_labels = vec![None; module.blocks.len()];
-        Ok(Self { program: module, program_is_finalized: true, block_labels, ..Self::new(gcx) })
-    }
-
     /// Clears all emitted instructions and local identifiers.
     pub(crate) fn clear(&mut self) {
+        self.artifact_kind = ArtifactKind::Runtime;
         self.program = Self::new_ir_module();
         self.program_is_finalized = false;
         self.current_block = None;
@@ -179,6 +170,7 @@ impl<'gcx> Assembler<'gcx> {
         self.cold_labels.clear();
         self.label_relocations.clear();
         self.deferred_relocations.clear();
+        self.indexed_jump_relocations.clear();
         self.push_values.clear();
         self.immutable_pushes.clear();
         self.next_label.clear();
@@ -189,114 +181,17 @@ impl<'gcx> Assembler<'gcx> {
         self.deferred_allocations.clear();
     }
 
-    /// Creates a new label.
-    pub(crate) fn new_label(&mut self) -> Label {
-        self.next_label.next()
+    /// Sets the artifact context used by conservative layout estimates.
+    pub(crate) fn set_artifact_kind(&mut self, kind: ArtifactKind) {
+        self.artifact_kind = kind;
     }
 
-    /// Creates a new deferred constant.
-    pub(crate) fn new_deferred_const(&mut self) -> DeferredConst {
-        self.next_deferred.next()
-    }
-
-    /// Emits a raw opcode.
-    pub(crate) fn emit_op(&mut self, opcode: u8) {
-        self.push_ir_instruction(ir::Instruction::opcode(opcode));
-    }
-
-    /// Emits a push instruction with an immediate value.
-    pub(crate) fn emit_push(&mut self, value: U256) {
-        self.push_ir_instruction(ir::Instruction::push_value(value));
-    }
-
-    /// Emits a push instruction that will be resolved to a label's offset.
-    pub(crate) fn emit_push_label(&mut self, label: Label) {
-        let (block, instruction) = self.push_ir_instruction(ir::Instruction::push_relocation());
-        self.label_relocations.push((block, instruction, label));
-    }
-
-    /// Emits a push instruction for a deferred constant.
-    pub(crate) fn emit_push_deferred(&mut self, id: DeferredConst) {
-        let (block, instruction) = self.push_ir_instruction(ir::Instruction::push_relocation());
-        self.deferred_relocations.push((block, instruction, id));
-    }
-
-    /// Sets the value of a deferred constant.
-    pub(crate) fn set_deferred_const(&mut self, id: DeferredConst, value: U256) {
-        self.deferred_values.insert(id, value);
-    }
-
-    /// Emits an allocation whose static or dynamic placement is chosen after
-    /// exact backend frame layout is known.
-    pub(in crate::backend::evm) fn emit_deferred_alloc(&mut self) -> DeferredAlloc {
-        let id = self.next_deferred_alloc.next();
-        let (block, instruction) = self.push_ir_instruction(ir::Instruction::push_relocation());
-        self.alloc_relocations.push((block, instruction, id));
-        id
-    }
-
-    /// Resolves an allocation to a compile-time address.
-    pub(in crate::backend::evm) fn set_deferred_alloc_static(
-        &mut self,
-        id: DeferredAlloc,
-        address: U256,
-    ) {
-        self.deferred_allocations.insert(id, DeferredAllocResolution::Static(address));
-    }
-
-    /// Resolves an allocation to the ordinary free-memory-pointer bump.
-    pub(in crate::backend::evm) fn set_deferred_alloc_dynamic(
-        &mut self,
-        id: DeferredAlloc,
-        size: U256,
-    ) {
-        self.deferred_allocations.insert(id, DeferredAllocResolution::Dynamic(size));
-    }
-
-    /// Emits a `PUSH<N>` zero placeholder for the immutable identified by `id`.
-    pub(crate) fn emit_push_immutable(&mut self, id: ImmutableId, type_size: TypeSize) {
-        self.push_ir_instruction(ir::Instruction::push_immutable(id, type_size));
-    }
-
-    /// Defines a label and emits a `JUMPDEST` at the current position.
-    pub(crate) fn define_label(&mut self, label: Label) {
-        let mut block = ir::Block::new(self.program.blocks.len() as u32);
-        if self.cold_labels.contains(label) {
-            block.metadata.hotness = ir::Hotness::Cold;
-        }
-        let block = self.program.add_block(block);
-        self.current_block = Some(block);
-        self.block_labels.push(Some(label));
-        self.label_blocks.insert(label, block);
-    }
-
-    /// Marks a label-started block as cold for EVM IR layout passes.
-    pub(in crate::backend::evm) fn mark_label_cold(&mut self, label: Label) {
-        self.cold_labels.insert(label);
-        if let Some(&block) = self.label_blocks.get(&label) {
-            self.program.blocks[block].metadata.hotness = ir::Hotness::Cold;
-        }
-    }
-
-    fn new_ir_module() -> ir::Module {
-        ir::Module::new(sym::asm)
-    }
-
-    fn current_block(&mut self) -> ir::BlockId {
-        if let Some(block) = self.current_block {
-            return block;
-        }
-        let block = self.program.add_block(ir::Block::new(self.program.blocks.len() as u32));
-        self.current_block = Some(block);
-        self.block_labels.push(None);
-        block
-    }
-
-    fn push_ir_instruction(&mut self, instruction: ir::Instruction) -> (ir::BlockId, usize) {
-        let block = self.current_block();
-        let index = self.program.blocks[block].instructions.len();
-        self.program.blocks[block].instructions.push(instruction);
-        (block, index)
+    /// Returns the conservative indexed-jump target width for this artifact.
+    pub(crate) fn indexed_jump_target_width_bound(&self) -> usize {
+        assembly::indexed_jump_target_width_bound(
+            self.gcx.sess.opts.evm_version,
+            self.artifact_kind == ArtifactKind::Constructor,
+        )
     }
 
     pub(in crate::backend::evm) fn push_inst(&mut self, value: U256) -> AsmInst {
@@ -325,94 +220,6 @@ impl<'gcx> Assembler<'gcx> {
         *self.immutable_pushes.get(index)
     }
 
-    fn finish_evm_ir(&mut self) -> Option<(ir::Module, Vec<Option<Label>>)> {
-        let mut module = std::mem::replace(&mut self.program, Self::new_ir_module());
-        self.current_block = None;
-        if module.blocks.is_empty() {
-            return None;
-        }
-
-        for (block, instruction, label) in self.label_relocations.drain(..) {
-            let target = self
-                .label_blocks
-                .get(&label)
-                .copied()
-                .unwrap_or_else(|| panic!("label {label:?} was never defined"));
-            module.blocks[block].instructions[instruction] = ir::Instruction::push_block(target);
-        }
-        for (block, instruction, id) in self.deferred_relocations.drain(..) {
-            module.blocks[block].instructions[instruction] = ir::Instruction::push_deferred(id);
-        }
-        // Allocation placeholders expand to more than one instruction, so they
-        // splice after every in-place relocation patch above. Descending
-        // instruction order keeps earlier indices in the same block valid.
-        let mut alloc_relocations = std::mem::take(&mut self.alloc_relocations);
-        alloc_relocations
-            .sort_by_key(|&(block, instruction, _)| std::cmp::Reverse((block, instruction)));
-        for (block, instruction, id) in alloc_relocations {
-            let resolution = self
-                .deferred_allocations
-                .get(&id)
-                .copied()
-                .unwrap_or_else(|| panic!("deferred allocation {id:?} was never resolved"));
-            let push = |value: U256| ir::Instruction::push_value(value);
-            let replacement = match resolution {
-                DeferredAllocResolution::Static(address) => vec![push(address)],
-                DeferredAllocResolution::Dynamic(size) => vec![
-                    push(U256::from(EvmMemoryLayout::FMP_SLOT)),
-                    ir::Instruction::opcode(op::MLOAD),
-                    ir::Instruction::opcode(op::DUP1),
-                    push(size),
-                    ir::Instruction::opcode(op::ADD),
-                    push(U256::from(EvmMemoryLayout::FMP_SLOT)),
-                    ir::Instruction::opcode(op::MSTORE),
-                ],
-            };
-            module.blocks[block].instructions.splice(instruction..=instruction, replacement);
-        }
-        self.deferred_allocations.clear();
-        self.label_blocks.clear();
-        self.cold_labels.clear();
-
-        if self.program_is_finalized {
-            self.program_is_finalized = false;
-        } else {
-            Self::finalize_evm_ir(&mut module);
-        }
-        Some((module, std::mem::take(&mut self.block_labels)))
-    }
-
-    fn finalize_evm_ir(module: &mut ir::Module) {
-        for index in 0..module.blocks.len() {
-            let block_id = ir::BlockId::from_usize(index);
-            let next =
-                (index + 1 < module.blocks.len()).then(|| ir::BlockId::from_usize(index + 1));
-            let block = &mut module.blocks[block_id];
-            let (kind, remove) = if let [.., push, jump] = block.instructions.as_slice()
-                && !jump.is_encoded_push()
-                && jump.opcode == op::JUMP
-                && let Some(target) = push.pushed_block()
-                && push.is_encoded_push()
-            {
-                (ir::TerminatorKind::Jump(target), 2)
-            } else if let Some(last) = block.instructions.last()
-                && !last.is_encoded_push()
-                && last.opcode == op::STOP
-            {
-                (ir::TerminatorKind::Op(op::STOP), 1)
-            } else if let Some(last) = block.instructions.last()
-                && !last.is_encoded_push()
-                && op::is_terminal(last.opcode)
-            {
-                (ir::TerminatorKind::Op(last.opcode), 1)
-            } else {
-                (next.map_or(ir::TerminatorKind::Op(op::STOP), ir::TerminatorKind::Jump), 0)
-            };
-            block.instructions.truncate(block.instructions.len() - remove);
-            block.terminator = Some(ir::Terminator::new(kind));
-        }
-    }
-
     /// Resolves relocations and encodes finalized EVM IR as bytecode.
     #[must_use]
     #[cfg(test)]
@@ -426,49 +233,6 @@ impl<'gcx> Assembler<'gcx> {
         let result = self.assemble_prepared(&prepared, &[]);
         self.clear();
         result
-    }
-
-    #[tracing::instrument(
-        name = "evm_ir_pipeline",
-        level = "debug",
-        skip_all,
-        fields(program = %self.program.name()),
-    )]
-    pub(in crate::backend::evm) fn prepare(&mut self, capture_evm_ir: bool) -> PreparedAssembly {
-        let Some((mut ir_program, mut labels)) = self.finish_evm_ir() else {
-            return PreparedAssembly::default();
-        };
-
-        Self::resolve_known_deferred_constants(&mut ir_program, &self.deferred_values);
-
-        let input_is_valid = cfg!(debug_assertions) && is_valid_evm_ir(&ir_program);
-        let _changed = ir::run_pipeline(self.gcx, &mut ir_program, None);
-        debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
-
-        let evm_ir = capture_evm_ir.then(|| ir_program.clone());
-        let program = assembly::lower_evm_ir(&ir_program, &mut labels, self);
-        PreparedAssembly {
-            evm_ir,
-            program,
-            push_values: std::mem::take(&mut self.push_values),
-            immutable_pushes: std::mem::take(&mut self.immutable_pushes),
-            next_label: std::mem::take(&mut self.next_label),
-            deferred_values: std::mem::take(&mut self.deferred_values),
-        }
-    }
-
-    fn resolve_known_deferred_constants(
-        module: &mut ir::Module,
-        values: &FxHashMap<DeferredConst, U256>,
-    ) {
-        for block in &mut module.blocks {
-            for inst in &mut block.instructions {
-                let Some(id) = inst.deferred_push() else { continue };
-                if let Some(&value) = values.get(&id) {
-                    *inst = ir::Instruction::push_value(value);
-                }
-            }
-        }
     }
 
     pub(in crate::backend::evm) fn assemble_prepared(
@@ -511,35 +275,62 @@ impl<'gcx> Assembler<'gcx> {
 
         // Label-free constructor and deployment snippets need neither offset
         // discovery nor push-width relaxation.
-        if !program
-            .instructions
-            .iter()
-            .any(|inst| matches!(inst.kind(), AsmInstKind::Label(_) | AsmInstKind::PushLabel(_)))
-        {
-            let mut result =
-                self.emit_bytecode(&program, FxHashMap::default(), &FxHashMap::default());
+        if !program.instructions.iter().any(|inst| {
+            matches!(
+                inst.kind(),
+                AsmInstKind::Label(_)
+                    | AsmInstKind::PushLabel(_)
+                    | AsmInstKind::PushLabelFixed(_, _)
+                    | AsmInstKind::PushPackedLabels(_)
+                    | AsmInstKind::PushData(_)
+            )
+        }) {
+            let mut result = self.emit_bytecode(
+                &program,
+                FxHashMap::default(),
+                FxHashMap::default(),
+                &FxHashMap::default(),
+            );
             result.evm_ir = evm_ir;
             return result;
         }
 
+        let (label_offsets, data_offsets, push_widths) = self.resolve_offsets(&program);
+        let mut result = self.emit_bytecode(&program, label_offsets, data_offsets, &push_widths);
+        result.evm_ir = evm_ir;
+        result
+    }
+
+    /// Resolves all ordinary label pushes against the complete assembly
+    /// program. Indexed-jump table entries are fixed-width instructions by the
+    /// time this runs; their widths are refined by EVM-IR lowering first.
+    pub(in crate::backend::evm) fn resolve_label_offsets(
+        &self,
+        program: &AssemblyProgram,
+    ) -> (FxHashMap<Label, usize>, FxHashMap<usize, u8>) {
+        let (label_offsets, _, push_widths) = self.resolve_offsets(program);
+        (label_offsets, push_widths)
+    }
+
+    fn resolve_offsets(
+        &self,
+        program: &AssemblyProgram,
+    ) -> (FxHashMap<Label, usize>, FxHashMap<ir::DataId, usize>, FxHashMap<usize, u8>) {
         // Start from the narrowest possible label pushes. Widening pushes can
         // only increase later label offsets, so required widths grow
-        // monotonically to the least fixed point. Starting wide and shrinking
-        // can instead settle on a larger valid encoding at a byte-width
-        // boundary.
+        // monotonically to the least fixed point.
         let mut push_widths: FxHashMap<usize, u8> = FxHashMap::default();
         for (idx, inst) in program.instructions.iter().enumerate() {
-            if matches!(inst.kind(), AsmInstKind::PushLabel(_)) {
+            if matches!(inst.kind(), AsmInstKind::PushLabel(_) | AsmInstKind::PushData(_)) {
                 push_widths.insert(idx, 0);
             }
         }
 
         loop {
-            let (label_offsets, new_widths) = self.compute_offsets(&program, &push_widths);
+            let (label_offsets, data_offsets, new_widths) =
+                self.compute_offsets(program, &push_widths);
             if new_widths == push_widths {
-                let mut result = self.emit_bytecode(&program, label_offsets, &push_widths);
-                result.evm_ir = evm_ir;
-                return result;
+                return (label_offsets, data_offsets, push_widths);
             }
 
             debug_assert!(new_widths.iter().all(|(idx, width)| {
@@ -554,9 +345,10 @@ impl<'gcx> Assembler<'gcx> {
         &self,
         program: &AssemblyProgram,
         push_widths: &FxHashMap<usize, u8>,
-    ) -> (FxHashMap<Label, usize>, FxHashMap<usize, u8>) {
+    ) -> (FxHashMap<Label, usize>, FxHashMap<ir::DataId, usize>, FxHashMap<usize, u8>) {
         let mut offset = 0usize;
         let mut label_offsets = FxHashMap::default();
+        let mut data_offsets = FxHashMap::default();
         let mut new_widths = FxHashMap::default();
         let out = BytecodeAssembler::new(self.gcx);
 
@@ -571,13 +363,27 @@ impl<'gcx> Assembler<'gcx> {
                 AsmInstKind::Push(index) => {
                     offset += out.encoded_push_len(self.push_value(index));
                 }
-                AsmInstKind::PushLabel(_) => {
+                AsmInstKind::PushLabel(_) | AsmInstKind::PushData(_) => {
                     // Use current estimated width
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
                     offset += out.fixed_push_len(width);
                 }
-                AsmInstKind::PushDeferred(_) => {
-                    unreachable!("deferred values must be resolved before assembly");
+                AsmInstKind::PushLabelFixed(_, width) => {
+                    offset += out.fixed_push_len(width);
+                }
+                AsmInstKind::PushPackedLabels(labels) => {
+                    let labels = &program.packed_labels[labels];
+                    let width = usize::from(labels.label_width) * labels.labels.len();
+                    offset += out.fixed_push_len(width as u8);
+                }
+                AsmInstKind::PushDeferred(id) => {
+                    // Deployment offsets may not be known until the prepared
+                    // program is assembled. Reserve the maximum push for
+                    // unknown values, while using known values exactly.
+                    offset += self
+                        .deferred_values
+                        .get(&id)
+                        .map_or(33, |&value| out.encoded_push_len(value));
                 }
                 AsmInstKind::PushImmutable(id) => {
                     offset += 1 + usize::from(self.immutable_push(id).type_size.bytes());
@@ -585,6 +391,10 @@ impl<'gcx> Assembler<'gcx> {
                 AsmInstKind::Label(label) => {
                     label_offsets.insert(label, offset);
                     offset += 1;
+                }
+                AsmInstKind::Data(data) => {
+                    data_offsets.insert(data, offset);
+                    offset += program.data[data].len();
                 }
             }
         }
@@ -596,10 +406,15 @@ impl<'gcx> Assembler<'gcx> {
             {
                 let width = out.push_width(U256::from(target_offset));
                 new_widths.insert(idx, width);
+            } else if let AsmInstKind::PushData(data) = inst.kind()
+                && let Some(&target_offset) = data_offsets.get(&data)
+            {
+                let width = out.push_width(U256::from(target_offset));
+                new_widths.insert(idx, width);
             }
         }
 
-        (label_offsets, new_widths)
+        (label_offsets, data_offsets, new_widths)
     }
 
     /// Emits the final bytecode.
@@ -607,10 +422,10 @@ impl<'gcx> Assembler<'gcx> {
         &self,
         program: &AssemblyProgram,
         label_offsets: FxHashMap<Label, usize>,
+        data_offsets: FxHashMap<ir::DataId, usize>,
         push_widths: &FxHashMap<usize, u8>,
     ) -> AssembledCode {
         let mut out = BytecodeAssembler::new(self.gcx);
-
         for (idx, inst) in program.instructions.iter().enumerate() {
             match inst.kind() {
                 AsmInstKind::Op(opcode) => {
@@ -630,6 +445,49 @@ impl<'gcx> Assembler<'gcx> {
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
                     out.emit_push_fixed_width(U256::from(target_offset), width);
                 }
+                AsmInstKind::PushLabelFixed(label, width) => {
+                    let target_offset = label_offsets
+                        .get(&label)
+                        .copied()
+                        .unwrap_or_else(|| panic!("label {label:?} was never defined"));
+                    out.emit_push_fixed_width(U256::from(target_offset), width);
+                }
+                AsmInstKind::PushPackedLabels(labels) => {
+                    let labels = &program.packed_labels[labels];
+                    let base_offset = labels.base.map_or(0, |base| {
+                        label_offsets
+                            .get(&base)
+                            .copied()
+                            .unwrap_or_else(|| panic!("label {base:?} was never defined"))
+                    });
+                    let mut value = U256::ZERO;
+                    for (index, &label) in labels.labels.iter().enumerate() {
+                        let target_offset = label_offsets
+                            .get(&label)
+                            .copied()
+                            .unwrap_or_else(|| panic!("label {label:?} was never defined"));
+                        let target = U256::from(
+                            target_offset
+                                .checked_sub(base_offset)
+                                .expect("packed label must not precede its base"),
+                        );
+                        assert!(
+                            target.byte_len() <= usize::from(labels.label_width),
+                            "label offset does not fit packed labels entry"
+                        );
+                        value |= target << (index * usize::from(labels.label_width) * 8);
+                    }
+                    let width = labels.labels.len() * usize::from(labels.label_width);
+                    out.emit_push_fixed_width(value, width as u8);
+                }
+                AsmInstKind::PushData(data) => {
+                    let target_offset = data_offsets
+                        .get(&data)
+                        .copied()
+                        .unwrap_or_else(|| panic!("program data {data:?} was never emitted"));
+                    let width = push_widths.get(&idx).copied().unwrap_or(2);
+                    out.emit_push_fixed_width(U256::from(target_offset), width);
+                }
                 AsmInstKind::PushDeferred(_) => {
                     unreachable!("deferred values must be resolved before assembly");
                 }
@@ -639,9 +497,11 @@ impl<'gcx> Assembler<'gcx> {
                 AsmInstKind::Label(_) => {
                     out.emit_op(op::JUMPDEST);
                 }
+                AsmInstKind::Data(data) => {
+                    out.bytecode.extend_from_slice(&program.data[data]);
+                }
             }
         }
-
         out.finish()
     }
 
@@ -650,12 +510,6 @@ impl<'gcx> Assembler<'gcx> {
     fn push_width(value: U256) -> u8 {
         value.byte_len() as u8
     }
-}
-
-fn is_valid_evm_ir(module: &ir::Module) -> bool {
-    let dcx = DiagCtxt::with_silent_emitter(None);
-    ir::validate(&dcx, module);
-    dcx.has_errors().is_ok()
 }
 
 #[derive(Debug)]
@@ -696,6 +550,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
 
     /// Emits a PUSH instruction with a specific width.
     fn emit_push_fixed_width(&mut self, value: U256, width: u8) {
+        assert!(self.push_width(value) <= width, "value does not fit fixed PUSH width");
         if width == 0 {
             self.emit_push_zero();
             return;
@@ -739,6 +594,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
     }
 }
 
+// DO NOT ADD CODEGEN TESTS HERE. USE UI TESTS UNDER tests/ui/codegen INSTEAD.
 #[cfg(test)]
 mod tests {
     use super::*;

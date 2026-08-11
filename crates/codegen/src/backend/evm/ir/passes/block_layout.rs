@@ -10,13 +10,15 @@
 
 use super::{
     EvmPass,
-    utils::{is_evm_terminal, remap_block_order},
+    utils::{is_terminal_boundary, remap_block_order},
 };
 use crate::backend::evm::{
-    ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
-    op,
+    ir::{
+        Block, BlockId, Instruction, Module, PushValue, TerminatorKind,
+        assembly::{estimated_indexed_jump_terminator_size, indexed_jump_target_width_bound},
+    },
+    op, push_len,
 };
-use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
 
@@ -221,7 +223,10 @@ fn estimated_block_size(
 ) -> usize {
     usize::from(addressed)
         + block.instructions.iter().map(|inst| estimated_instruction_size(gcx, inst)).sum::<usize>()
-        + block.terminator.as_ref().map_or(0, |term| estimated_terminator_size(&term.kind, next))
+        + block
+            .terminator
+            .as_ref()
+            .map_or(0, |term| estimated_terminator_size(gcx, &term.kind, next))
 }
 
 fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
@@ -231,8 +236,9 @@ fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
         3
     } else if inst.is_encoded_push() {
         match &inst.value {
-            Some(PushValue::Immediate(value)) => push_len(gcx, *value),
+            Some(PushValue::Immediate(value)) => push_len(gcx.sess.opts.evm_version, *value),
             Some(PushValue::Block(_)) => 3,
+            Some(PushValue::Data(_)) => 4,
             _ => 1,
         }
     } else {
@@ -240,7 +246,7 @@ fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
     }
 }
 
-fn estimated_terminator_size(kind: &TerminatorKind, next: Option<BlockId>) -> usize {
+fn estimated_terminator_size(gcx: Gcx<'_>, kind: &TerminatorKind, next: Option<BlockId>) -> usize {
     match kind {
         TerminatorKind::Jump(target) => usize::from(Some(*target) != next) * 4,
         TerminatorKind::Op(op::STOP) => usize::from(next.is_some()),
@@ -253,22 +259,28 @@ fn estimated_terminator_size(kind: &TerminatorKind, next: Option<BlockId>) -> us
                 8
             }
         }
+        TerminatorKind::IndexedJump(targets) => {
+            // This pass does not know whether the module is runtime or initcode,
+            // so use the larger bound. Final assembly resolves the exact width.
+            let target_width = indexed_jump_target_width_bound(gcx.sess.opts.evm_version, true);
+            estimated_indexed_jump_terminator_size(
+                targets.len(),
+                target_width as u8,
+                gcx.sess.opts.evm_version,
+                gcx.sess.opts.optimization.is_size(),
+            )
+        }
         TerminatorKind::Op(_) => 1,
     }
 }
 
-fn push_len(gcx: Gcx<'_>, value: U256) -> usize {
-    let width = value.byte_len();
-    if width == 0 && !gcx.sess.opts.evm_version.has_push0() { 2 } else { width + 1 }
-}
-
 fn is_terminal_block(block: &Block) -> bool {
-    block.terminator.as_ref().is_some_and(|term| is_evm_terminal(&term.kind))
+    block.terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
 }
 
 fn is_physical_terminal_boundary(block: &Block, next: Option<BlockId>) -> bool {
     block.terminator.as_ref().is_some_and(|term| {
-        is_evm_terminal(&term.kind)
+        is_terminal_boundary(&term.kind)
             || matches!(term.kind, TerminatorKind::Jump(target) if Some(target) != next)
     })
 }
@@ -295,5 +307,39 @@ fn layout_successor(block: &Block) -> Option<BlockId> {
 
 fn is_cold_terminal_block(block: &Block) -> bool {
     block.metadata.hotness.is_cold()
-        && block.terminator.as_ref().is_some_and(|term| is_evm_terminal(&term.kind))
+        && block.terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_config::{CompileOpts, EvmVersion, OptimizationMode};
+    use solar_interface::Session;
+    use solar_sema::Compiler;
+
+    fn opts(evm_version: EvmVersion, optimization: OptimizationMode) -> CompileOpts {
+        CompileOpts { evm_version, optimization, ..Default::default() }
+    }
+
+    #[test]
+    fn indexed_jump_estimate_includes_packed_table() {
+        let one = TerminatorKind::IndexedJump(vec![BlockId::ENTRY].into_boxed_slice());
+        let packed = TerminatorKind::IndexedJump(vec![BlockId::ENTRY; 2].into_boxed_slice());
+        let many = TerminatorKind::IndexedJump(vec![BlockId::ENTRY; 33].into_boxed_slice());
+        let compiler = Compiler::new(
+            Session::builder().opts(opts(EvmVersion::Osaka, OptimizationMode::Size)).build(),
+        );
+        compiler.enter(|c| {
+            assert_eq!(estimated_terminator_size(c.gcx(), &one, None), 8);
+            assert_eq!(estimated_terminator_size(c.gcx(), &packed, None), 19);
+            assert_eq!(estimated_terminator_size(c.gcx(), &many, None), 61);
+        });
+
+        let compiler = Compiler::new(
+            Session::builder().opts(opts(EvmVersion::Byzantium, OptimizationMode::Size)).build(),
+        );
+        compiler.enter(|c| {
+            assert_eq!(estimated_terminator_size(c.gcx(), &many, None), 9);
+        });
+    }
 }

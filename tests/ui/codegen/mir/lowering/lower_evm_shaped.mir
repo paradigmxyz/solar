@@ -9,7 +9,7 @@
 // `@entry` is present so the module satisfies the memory-lowered phase contract.
 @module LowerEvmShaped
 @phase memory-lowered
-fn @entry() {
+fn @entry() [entry] {
   bb0:
     v0 = calldataload 0
     v2 = shr 224, v0

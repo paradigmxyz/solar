@@ -15,7 +15,15 @@ impl Module {
                 self.blocks
                     .iter()
                     .format_with("", |f, block| { write!(f, "{}", display_block(self, block)) })
-            )
+            )?;
+            for (id, data) in self.data.iter_enumerated() {
+                write!(f, "@code_data {} hex\"", id.index())?;
+                for byte in data {
+                    write!(f, "{byte:02x}")?;
+                }
+                writeln!(f, "\"")?;
+            }
+            Ok(())
         })
     }
 }
@@ -61,6 +69,18 @@ fn display_terminator<'a>(module: &'a Module, term: &'a Terminator) -> impl fmt:
                     display_block_id(module, *else_block)
                 )?;
             }
+            TerminatorKind::IndexedJump(targets) => {
+                write!(f, "indexed_jump ")?;
+                write!(
+                    f,
+                    "{}",
+                    targets.iter().format_with(", ", |f, target| write!(
+                        f,
+                        "{}",
+                        display_block_id(module, *target)
+                    ))
+                )?;
+            }
             TerminatorKind::Op(opcode) => {
                 if let Some(mnemonic) = op::mnemonic(*opcode) {
                     write!(f, "{mnemonic}")?;
@@ -95,6 +115,7 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
     fmt::from_fn(move |f| match value {
         PushValue::Immediate(value) => write!(f, "{}", display_u256(*value)),
         PushValue::Block(block) => write!(f, "{}", display_block_id(module, *block)),
+        PushValue::Data(data) => write!(f, "{}", data.index()),
     })
 }
 

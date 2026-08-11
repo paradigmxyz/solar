@@ -4,7 +4,8 @@
 //! MIR lowering and final EVM assembly. It contains only scheduled machine
 //! instructions: MIR value identities and virtual stack operands remain private
 //! to the stack scheduler. EVM IR models backend basic blocks, opcode-like
-//! instructions, explicit physical stack operations, terminators, and metadata.
+//! instructions, explicit physical stack operations, terminators, opaque
+//! program data, and metadata.
 //! All backend optimization and layout decisions remain here. After block
 //! layout, it lowers once to the assembler's primitive label-bearing encoding
 //! stream. The parser/printer at the bottom of the file provide a text format for
@@ -12,10 +13,11 @@
 
 use super::op;
 use crate::mir::{ImmutableId, TypeSize};
-use alloy_primitives::U256;
+use alloy_primitives::{Bytes, U256};
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
 use solar_interface::Symbol;
 
+pub(in crate::backend::evm) mod builder;
 mod display;
 mod parse;
 mod passes;
@@ -23,6 +25,7 @@ mod verify;
 
 pub(in crate::backend::evm) mod assembly;
 
+pub(in crate::backend::evm) use passes::compact_pushes::immediate_materialization_cost;
 pub use passes::{ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_pipeline};
 
 /// Validates the invariants of an EVM IR module.
@@ -33,6 +36,9 @@ pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
 newtype_index! {
     /// A unique identifier for a basic block in EVM IR.
     pub(crate) struct BlockId;
+
+    /// A constant byte string appended to the assembled program.
+    pub(crate) struct DataId;
 }
 
 impl BlockId {
@@ -47,6 +53,8 @@ pub struct Module {
     pub(crate) name: Symbol,
     /// Basic blocks in layout order.
     pub(crate) blocks: IndexVec<BlockId, Block>,
+    /// Constant byte strings addressable by `push_data`.
+    pub(crate) data: IndexVec<DataId, Bytes>,
 }
 
 impl Module {
@@ -61,7 +69,7 @@ impl Module {
     /// Creates an empty EVM IR program.
     #[must_use]
     pub(crate) fn new(name: Symbol) -> Self {
-        Self { name, blocks: IndexVec::new() }
+        Self { name, blocks: IndexVec::new(), data: IndexVec::new() }
     }
 
     /// Changes the program name.
@@ -78,6 +86,14 @@ impl Module {
     /// Adds a block to the program.
     pub(crate) fn add_block(&mut self, block: Block) -> BlockId {
         self.blocks.push(block)
+    }
+
+    /// Interns a constant byte string and returns its stable identifier.
+    pub(crate) fn intern_data(&mut self, data: Bytes) -> DataId {
+        if let Some((id, _)) = self.data.iter_enumerated().find(|(_, known)| *known == &data) {
+            return id;
+        }
+        self.data.push(data)
     }
 }
 
@@ -150,6 +166,7 @@ impl Instruction {
     const ENCODED_PUSH: u8 = 1;
     const DEFERRED: u8 = 2;
     const IMMUTABLE: u8 = 4;
+    const DATA: u8 = 8;
 
     /// Creates an instruction for an EVM opcode.
     #[must_use]
@@ -167,6 +184,12 @@ impl Instruction {
     #[must_use]
     pub(crate) fn push_block(block: BlockId) -> Self {
         Self::encoded_push(PushValue::Block(block), Self::ENCODED_PUSH)
+    }
+
+    /// Creates an encoded program-data-address push instruction.
+    #[must_use]
+    pub(crate) fn push_data(data: DataId) -> Self {
+        Self::encoded_push(PushValue::Data(data), Self::ENCODED_PUSH | Self::DATA)
     }
 
     /// Creates an encoded push whose operand will be supplied by an assembler
@@ -232,6 +255,15 @@ impl Instruction {
         }
     }
 
+    /// Returns the program data carried by this push instruction, if any.
+    #[must_use]
+    pub(in crate::backend::evm) const fn pushed_data(&self) -> Option<DataId> {
+        match self.value {
+            Some(PushValue::Data(data)) => Some(data),
+            _ => None,
+        }
+    }
+
     /// Returns the instruction mnemonic as printed in EVM IR.
     #[must_use]
     pub(crate) fn mnemonic(&self) -> impl fmt::Display + '_ {
@@ -243,6 +275,7 @@ impl Instruction {
             encoding if encoding == Self::ENCODED_PUSH | Self::IMMUTABLE => {
                 f.write_str("push_immutable")
             }
+            encoding if encoding == Self::ENCODED_PUSH | Self::DATA => f.write_str("push_data"),
             _ => op::fmt(self.opcode, f),
         })
     }
@@ -327,6 +360,10 @@ pub(crate) enum TerminatorKind {
         /// Target when condition is zero.
         else_block: BlockId,
     },
+    /// Jump through a dense zero-based table using an index from the stack.
+    ///
+    /// The index must be in range; lowering intentionally emits no bounds check.
+    IndexedJump(Box<[BlockId]>),
     /// Terminal EVM opcode.
     Op(u8),
 }
@@ -340,6 +377,7 @@ impl TerminatorKind {
                 visit(*then_block);
                 visit(*else_block);
             }
+            Self::IndexedJump(targets) => targets.iter().copied().for_each(visit),
             Self::Op(_) => {}
         }
     }
@@ -366,6 +404,7 @@ impl TerminatorKind {
                     visit(*else_block);
                 }
             }
+            Self::IndexedJump(targets) => targets.iter().copied().for_each(visit),
             Self::Op(_) => {}
         }
     }
@@ -378,6 +417,7 @@ impl TerminatorKind {
                 visit(then_block);
                 visit(else_block);
             }
+            Self::IndexedJump(targets) => targets.iter_mut().for_each(visit),
             Self::Op(_) => {}
         }
     }
@@ -390,6 +430,8 @@ enum PushValue {
     Immediate(U256),
     /// Basic block reference.
     Block(BlockId),
+    /// Constant program-data reference.
+    Data(DataId),
 }
 
 /// Metadata carried by instructions and terminators.
@@ -434,6 +476,7 @@ pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> Option<Sta
 fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {
     match kind {
         TerminatorKind::JumpI { .. } => Some(StackEffect::new(1, 0)),
+        TerminatorKind::IndexedJump(_) => Some(StackEffect::new(1, 0)),
         TerminatorKind::Jump(_) => Some(StackEffect::new(0, 0)),
         TerminatorKind::Op(opcode) => {
             op::stack_io(*opcode).map(|(inputs, outputs)| StackEffect::new(inputs, outputs))

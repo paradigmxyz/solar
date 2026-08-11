@@ -34,6 +34,15 @@ the local binary:
 Formatting uses `forge fmt`, so install Foundry or disable
 `solarLsp.formatOnSave`.
 
+## Protocol tracing
+
+The `Solar LSP` output channel separates client wire tracing from server
+execution tracing. Set its log level to `Trace`, then use
+`solarLsp.trace.server` with `messages` or `verbose` for the server-side
+completion status and processing time. Request parameters and response
+payloads remain in the language client's wire trace and are not duplicated by
+the server.
+
 ## CodeLens
 
 CodeLens annotations are enabled by default for function selectors, reference

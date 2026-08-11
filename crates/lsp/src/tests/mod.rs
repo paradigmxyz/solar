@@ -31,6 +31,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 mod call_hierarchy;
+mod code_action;
 mod code_lens;
 mod completion;
 mod completion_resolve;
@@ -42,6 +43,8 @@ mod goto_definition;
 mod hover;
 mod implementation;
 mod inlay_hint;
+#[path = "protocol_trace.rs"]
+mod protocol_trace_tests;
 mod references;
 mod refresh;
 mod rename;
