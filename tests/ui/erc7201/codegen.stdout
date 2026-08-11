@@ -106,8 +106,8 @@ fn @storageValue() -> u256 [selector=0xa977a973, view, abi_args=lazy, abi_params
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = and v0, 254
-    v4 = div v3, 2
-    v5 = div v0, 2
+    v4 = shr 1, v3
+    v5 = shr 1, v0
     v6 = select v2, v5, v4
     v7 = lt v6, 32
     v8 = eq v2, v7

@@ -149,7 +149,6 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &sccp::Sccp,
     &pure_eval::PureEval,
     &inst_simplify::InstSimplify,
-    &cse::Cse,
     &gvn::Gvn,
     &pre::Pre,
     &storage_load_cse::StorageLoadCse,
@@ -184,7 +183,6 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &cfg_simplify::FunctionDce,
     &sccp::Sccp,
     &inst_simplify::InstSimplify,
-    &cse::Cse,
     &gvn::Gvn,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
@@ -196,7 +194,11 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // tail-call edges as MIR. Each pass bails without advancing the phase
     // when the module is outside its scope.
     &lower_abi::LowerAbi,
-    &static_alloc::DeferAlloc,
+    // ABI lowering synthesizes tiny canonical-word cleanup helpers after the
+    // earlier inlining pass; expand those leaves before encoding wrappers.
+    &GasOnly(inline::InlineTinyLeaves),
+    &SizeOnly(inline::InlineTinyLeaves),
+    &cfg_simplify::FunctionDce,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
     &inst_simplify::InstSimplify,
@@ -209,13 +211,16 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_dispatch::LowerDispatch,
     &lower_frame_slots::LowerFrameSlots,
     // Expand semantic mapping locations after ABI, dispatch, and frame
-    // lowering, while keeping their typed hash buffers ahead of the memory
+    // lowering, while keeping variable-size hash objects ahead of the memory
     // boundary.
     &lower_mapping_slots::LowerMappingSlots,
-    // Revisit allocations introduced by late semantic lowering so fixed-size
-    // hash buffers can use backend-known static regions.
-    &static_alloc::DeferAlloc,
     &lower_memory_objects::LowerMemoryObjects,
+    &GasOnly(cse::Cse),
+    &SizeOnly(cse::Cse),
+    // Revisit allocations after semantic memory accesses become bounded raw
+    // operations, so fixed-size hash buffers can use backend-known static
+    // regions.
+    &static_alloc::DeferAlloc,
     &lower_slices::LowerSlices,
     &lower_immutables::LowerImmutables,
     &lower_alloc::LowerAlloc,

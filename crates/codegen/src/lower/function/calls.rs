@@ -44,7 +44,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return report_unsupported(self.gcx, expr.span, "type conversion");
             };
             let source_ty = self.gcx.type_of_expr(arg.id)?;
-            let target_ty = self.gcx.type_of_expr(expr.id)?;
+            let target_ty = self.gcx.type_of_expr(expr.id).or_else(|| {
+                self.gcx.resolved_expr(callee).and_then(|res| match res {
+                    hir::Res::Item(id @ (hir::ItemId::Contract(_) | hir::ItemId::Enum(_))) => {
+                        Some(self.gcx.type_of_item(id))
+                    }
+                    _ => None,
+                })
+            })?;
             let value = if source_ty.is_ref_at(DataLocation::Storage)
                 && matches!(
                     source_ty.peel_refs().kind,
@@ -342,11 +349,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input_size = self.builder.slice_len(encoded);
         let zero = self.builder.imm_u256(U256::ZERO);
         let returns = function.returns.len();
+        let static_return = self.static_aggregate_return_layout(function.returns.iter().copied());
+        let static_return_buffer =
+            static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
         let decode_returndata = function.returns.iter().any(|&ret| {
             self.types.abi_return_type(ret).is_some_and(|ty| !matches!(ty, AbiType::Word))
         }) || self.gcx.sess.opts.evm_version.supports_returndata();
-        let ret_offset = if !decode_returndata && returns > 1 { input } else { zero };
-        let ret_size = if decode_returndata {
+        let ret_offset = static_return_buffer.as_ref().map_or_else(
+            || if !decode_returndata && returns > 1 { input } else { zero },
+            |(_, data, _)| *data,
+        );
+        let ret_size = if let Some((_, _, size)) = static_return_buffer.as_ref() {
+            *size
+        } else if decode_returndata {
             zero
         } else {
             self.builder.imm_u64((returns as u64).saturating_mul(32))
@@ -363,6 +378,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.revert_external_call(success);
         if returns == 0 {
             return Some(Vec::new());
+        }
+        if let Some((data, _, size)) = static_return_buffer {
+            self.revert_if_short_returndata(size);
+            let return_types = function
+                .returns
+                .iter()
+                .copied()
+                .map(|ty| ty.with_loc_if_ref(self.gcx, DataLocation::Memory))
+                .collect::<Vec<_>>();
+            return self.lower_abi_decode_values(data, &return_types, callee.span);
         }
         if decode_returndata {
             if !self.gcx.sess.opts.evm_version.supports_returndata() {
@@ -739,13 +764,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
         let returns = function.returns.len();
+        let return_tys = function
+            .returns
+            .iter()
+            .map(|&ret| self.gcx.type_of_item(ret.into()))
+            .collect::<Vec<_>>();
+        let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
+        let static_return_buffer =
+            static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
         let decode_returndata = function.returns.iter().any(|&ret| {
             self.types
                 .abi_return_type(self.gcx.type_of_item(ret.into()))
                 .is_some_and(|ty| !matches!(ty, AbiType::Word))
         }) || self.gcx.sess.opts.evm_version.supports_returndata();
-        let ret_offset = if !decode_returndata && returns > 1 { input } else { zero };
-        let ret_size = if decode_returndata {
+        let ret_offset = static_return_buffer.as_ref().map_or_else(
+            || if !decode_returndata && returns > 1 { input } else { zero },
+            |(_, data, _)| *data,
+        );
+        let ret_size = if let Some((_, _, size)) = static_return_buffer.as_ref() {
+            *size
+        } else if decode_returndata {
             zero
         } else {
             self.builder.imm_u64((returns as u64).saturating_mul(32))
@@ -762,6 +800,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.revert_external_call(success);
         if returns == 0 {
             return Some(zero);
+        }
+        if let Some((data, _, size)) = static_return_buffer {
+            self.revert_if_short_returndata(size);
+            let return_types = function
+                .returns
+                .iter()
+                .map(|&ret| {
+                    self.gcx
+                        .type_of_item(ret.into())
+                        .with_loc_if_ref(self.gcx, DataLocation::Memory)
+                })
+                .collect::<Vec<_>>();
+            let values = self.lower_abi_decode_values(data, &return_types, expr.span)?;
+            if values.len() > 1 {
+                let (object, _, layout) = self.ensure_multi_return_buffer(values.len());
+                for (index, value) in values.iter().copied().enumerate().skip(1) {
+                    let index = self.builder.imm_u64(index as u64);
+                    self.builder.memory_object_store_element(object, layout, index, value);
+                }
+            }
+            return values.into_iter().next().or(Some(zero));
         }
         if decode_returndata {
             if !self.gcx.sess.opts.evm_version.supports_returndata() {
@@ -887,6 +946,50 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         values.into_iter().next().or(Some(zero))
+    }
+
+    fn static_aggregate_return_layout(
+        &mut self,
+        returns: impl Iterator<Item = Ty<'gcx>>,
+    ) -> Option<AbiParamLayout> {
+        let types =
+            returns.map(|ty| self.types.abi_return_param_type(ty)).collect::<Option<Vec<_>>>()?;
+        (!types.is_empty()
+            && types.iter().all(|ty| !ty.is_dynamic())
+            && types
+                .iter()
+                .any(|ty| !matches!(ty, AbiParamType::Scalar(_) | AbiParamType::Enum { .. })))
+        .then(|| AbiParamLayout::new(types.into_boxed_slice()))
+    }
+
+    fn alloc_static_return_buffer(
+        &mut self,
+        layout: &AbiParamLayout,
+    ) -> Option<(ValueId, ValueId, ValueId)> {
+        let size = layout.checked_head_size()?;
+        let object_size = size.checked_add(EvmMemoryLayout::WORD_SIZE)?;
+        let object_size = self.builder.imm_u64(object_size);
+        let object = self.builder.alloc_object(
+            object_size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::INTERNAL,
+        );
+        let size = self.builder.imm_u64(size);
+        self.builder.set_memory_object_len(object, size, MemoryObjectKind::Bytes);
+        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        Some((object, data, size))
+    }
+
+    fn revert_if_short_returndata(&mut self, expected: ValueId) {
+        let actual = self.builder.returndata_size();
+        let short = self.builder.lt(actual, expected);
+        let revert = self.builder.create_block();
+        let continue_block = self.builder.create_block();
+        self.builder.branch(short, revert, continue_block);
+        self.builder.switch_to_block(revert);
+        let zero = self.builder.imm_u256(U256::ZERO);
+        self.builder.revert(zero, zero);
+        self.builder.switch_to_block(continue_block);
     }
 
     pub(super) fn resolve_call_target(

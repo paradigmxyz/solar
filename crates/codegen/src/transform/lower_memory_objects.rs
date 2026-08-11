@@ -181,11 +181,20 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         continue;
                     };
                     debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
-                    let base =
-                        offset_address(&mut builder, object, P::object_data_offset(layout.kind()));
-                    let stride = builder.imm_u64(stride);
-                    let offset = builder.mul(index, stride);
-                    builder.func_mut().inst_mut(inst).kind = InstKind::Add(base, offset);
+                    let base_offset = P::object_data_offset(layout.kind());
+                    let kind = if let Some(index) = builder.func().value_u64(index)
+                        && let Some(offset) = index.checked_mul(stride)
+                        && let Some(offset) = base_offset.checked_add(offset)
+                    {
+                        let offset = builder.imm_u64(offset);
+                        InstKind::Add(object, offset)
+                    } else {
+                        let base = offset_address(&mut builder, object, base_offset);
+                        let stride = builder.imm_u64(stride);
+                        let offset = builder.mul(index, stride);
+                        InstKind::Add(base, offset)
+                    };
+                    builder.func_mut().inst_mut(inst).kind = kind;
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectLoadField { object, layout, field } => {
@@ -212,11 +221,18 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         continue;
                     };
                     debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
-                    let base =
-                        offset_address(&mut builder, object, P::object_data_offset(layout.kind()));
-                    let stride = builder.imm_u64(stride);
-                    let offset = builder.mul(index, stride);
-                    let address = builder.add(base, offset);
+                    let base_offset = P::object_data_offset(layout.kind());
+                    let address = if let Some(index) = builder.func().value_u64(index)
+                        && let Some(offset) = index.checked_mul(stride)
+                        && let Some(offset) = base_offset.checked_add(offset)
+                    {
+                        offset_address(&mut builder, object, offset)
+                    } else {
+                        let base = offset_address(&mut builder, object, base_offset);
+                        let stride = builder.imm_u64(stride);
+                        let offset = builder.mul(index, stride);
+                        builder.add(base, offset)
+                    };
                     builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
                     stats.accesses += 1;
                 }
@@ -242,11 +258,18 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         continue;
                     };
                     debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
-                    let base =
-                        offset_address(&mut builder, object, P::object_data_offset(layout.kind()));
-                    let stride = builder.imm_u64(stride);
-                    let offset = builder.mul(index, stride);
-                    let address = builder.add(base, offset);
+                    let base_offset = P::object_data_offset(layout.kind());
+                    let address = if let Some(index) = builder.func().value_u64(index)
+                        && let Some(offset) = index.checked_mul(stride)
+                        && let Some(offset) = base_offset.checked_add(offset)
+                    {
+                        offset_address(&mut builder, object, offset)
+                    } else {
+                        let base = offset_address(&mut builder, object, base_offset);
+                        let stride = builder.imm_u64(stride);
+                        let offset = builder.mul(index, stride);
+                        builder.add(base, offset)
+                    };
                     builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
                     stats.accesses += 1;
                 }

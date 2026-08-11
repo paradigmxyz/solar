@@ -19,7 +19,7 @@ bb0:
   dup1
   push 0xb3de648b
   eq
-  push bb8
+  push bb6
   jumpi
   jump bb4
 bb4 [cold]:
@@ -27,11 +27,6 @@ bb4 [cold]:
   dup1
   revert
 bb5:
-  calldatasize
-  push 4
-  gt
-  push bb4
-  jumpi
   push 0
   sload
   push 128
@@ -39,45 +34,21 @@ bb5:
   push 32
   push 128
   return
-bb8:
+bb6:
   calldatasize
   push 36
   gt
   push bb4
   jumpi
-  push 64
-  mload
-  dup1
-  push 128
-  mstore
-  push 96
-  dup2
-  add
-  push 64
-  mstore
-  push 64
-  dup2
-  mstore
-  push 32
-  dup2
-  add
   push 4
   calldataload
-  swap1
+  push 0
   mstore
-  push 32
-  dup2
-  add
-  push 32
-  add
   push 1
-  swap1
-  mstore
-  dup1
-  mload
-  swap1
   push 32
-  add
+  mstore
+  push 64
+  push 0
   keccak256
   sload
   dup1

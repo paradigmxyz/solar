@@ -54,15 +54,10 @@ fn @endPastLength() [selector=0x8063d43b, pure] {
     mstore 64, v105 !metadata(memory=scratch)
     mstore v69, v63
     v88 = add v69, 32
-    v89 = add v88, 0
-    mstore v89, 32
-    v72 = mload v26
-    v90 = add v69, 32
-    v91 = add v90, 32
-    mstore v91, v72
-    v74 = add v72, 31
-    v75 = and v74, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    jumpi v75, bb15, bb16
+    mstore v88, 32
+    v91 = add v88, 32
+    mstore v91, v58
+    jumpi v61, bb15, bb16
   bb10:
     v31 = calldatasize
     v32 = gt 36, v31
@@ -98,22 +93,17 @@ fn @endPastLength() [selector=0x8063d43b, pure] {
     v103 = or v101, v102
     jumpi v103, bb18, bb17
   bb15:
-    v79 = add v75, 32
-    v94 = add v69, 32
-    v95 = add v94, v79
+    v79 = add v61, 32
+    v95 = add v88, v79
     mstore v95, 0
     jump bb16
   bb16:
-    v80 = add v26, 32
-    v96 = add v69, 32
-    v97 = add v96, 64
-    mcopy v97, v80, v72
-    v83 = add v69, 32
-    returndata v83, v63
+    v97 = add v88, 64
+    mcopy v97, v85, v58
+    returndata v88, v63
   bb17:
     mstore 64, v100 !metadata(memory=scratch)
-    v106 = calldatasize
-    calldatacopy v0, v106, 32
+    mstore v0, 0
     v3 = gt arg1, v47
     jumpi v3, bb1, bb2
   bb18:
@@ -176,15 +166,10 @@ fn @startAfterEnd() [selector=0x598bfb30, pure] {
     mstore 64, v105 !metadata(memory=scratch)
     mstore v69, v63
     v88 = add v69, 32
-    v89 = add v88, 0
-    mstore v89, 32
-    v72 = mload v26
-    v90 = add v69, 32
-    v91 = add v90, 32
-    mstore v91, v72
-    v74 = add v72, 31
-    v75 = and v74, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    jumpi v75, bb15, bb16
+    mstore v88, 32
+    v91 = add v88, 32
+    mstore v91, v58
+    jumpi v61, bb15, bb16
   bb10:
     v31 = calldatasize
     v32 = gt 36, v31
@@ -220,22 +205,17 @@ fn @startAfterEnd() [selector=0x598bfb30, pure] {
     v103 = or v101, v102
     jumpi v103, bb18, bb17
   bb15:
-    v79 = add v75, 32
-    v94 = add v69, 32
-    v95 = add v94, v79
+    v79 = add v61, 32
+    v95 = add v88, v79
     mstore v95, 0
     jump bb16
   bb16:
-    v80 = add v26, 32
-    v96 = add v69, 32
-    v97 = add v96, 64
-    mcopy v97, v80, v72
-    v83 = add v69, 32
-    returndata v83, v63
+    v97 = add v88, 64
+    mcopy v97, v85, v58
+    returndata v88, v63
   bb17:
     mstore 64, v100 !metadata(memory=scratch)
-    v106 = calldatasize
-    calldatacopy v0, v106, 32
+    mstore v0, 0
     v3 = gt arg2, v47
     jumpi v3, bb1, bb2
   bb18:

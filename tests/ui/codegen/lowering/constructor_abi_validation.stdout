@@ -3,43 +3,27 @@
 @phase abi
 fn @flag() [selector=0x890eba68, view] {
   bb0:
-    v2 = calldatasize
-    v3 = lt v2, 4
-    jumpi v3, bb2, bb3
-  bb1:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
-    v4 = iszero v1
-    v5 = iszero v4
-    mstore 128, v5
-    v6 = add 128, 32
-    v7 = sub v6, 128
-    returndata 128, v7
-  bb2:
-    revert 0, 0
-  bb3:
-    jump bb1
+    v2 = iszero v1
+    v3 = iszero v2
+    mstore 128, v3
+    v4 = add 128, 32
+    v5 = sub v4, 128
+    returndata 128, v5
 }
 
 fn @second() [selector=0x5a8ac02d, view] {
   bb0:
-    v3 = calldatasize
-    v4 = lt v3, 4
-    jumpi v4, bb2, bb3
-  bb1:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
     v2 = and v1, 255
-    v5 = iszero v2
-    v6 = iszero v5
-    mstore 128, v6
-    v7 = add 128, 32
-    v8 = sub v7, 128
-    returndata 128, v8
-  bb2:
-    revert 0, 0
-  bb3:
-    jump bb1
+    v3 = iszero v2
+    v4 = iszero v3
+    mstore 128, v4
+    v5 = add 128, 32
+    v6 = sub v5, 128
+    returndata 128, v6
 }
 
 fn @_anonymous(arg0: bool, arg1: bool, arg2: bool) [constructor] {

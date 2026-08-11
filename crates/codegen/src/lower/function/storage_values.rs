@@ -2,6 +2,19 @@
 
 use super::*;
 
+/// Adds the module-wide helper for decoding one storage `bytes`/`string` slot.
+pub(super) fn synthesize_storage_bytes_helper(module: &mut Module) -> FunctionId {
+    let mut function = Function::new(Ident::with_dummy_span(sym::__load_storage_bytes));
+    {
+        let mut builder = FunctionBuilder::new(&mut function);
+        let slot = builder.add_param(MirType::uint256());
+        builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
+        let object = lower_storage_bytes_inline(&mut builder, slot);
+        builder.ret([object]);
+    }
+    module.add_function(function)
+}
+
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
         match &expr.peel_parens().kind {
@@ -655,55 +668,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn load_storage_bytes(&mut self, slot: ValueId) -> Option<ValueId> {
-        let (header, is_long, length) = self.load_storage_bytes_header(slot);
-        let one = self.builder.imm_u64(1);
-        let short_mask = self.builder.imm_u256(U256::MAX << 8);
-        let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.checked_add(length, thirty_one);
-        let word_size = self.builder.imm_u64(32);
-        let words = self.builder.div(rounded, word_size);
-        let total_words = self.checked_add(words, one);
-        let size = self.checked_mul(total_words, word_size);
-        let layout = MemoryObjectLayout::Bytes;
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
-        self.builder.set_memory_object_len(object, length, layout.kind());
-
-        let short_block = self.builder.create_block();
-        let long_block = self.builder.create_block();
-        let merge_block = self.builder.create_block();
-        self.builder.branch(is_long, long_block, short_block);
-
-        self.builder.switch_to_block(short_block);
-        let zero = self.builder.imm_u64(0);
-        let short_data = self.builder.and(header, short_mask);
-        self.builder.memory_object_store_word(object, zero, short_data);
-        self.builder.jump(merge_block);
-
-        self.builder.switch_to_block(long_block);
-        let data_slot = self.builder.storage_array_data_slot(slot);
-        let preheader = self.builder.current_block();
-        let header_block = self.builder.create_block();
-        let body = self.builder.create_block();
-        let exit = self.builder.create_block();
-        self.builder.jump(header_block);
-        self.builder.switch_to_block(header_block);
-        let index = self.builder.phi(vec![(preheader, zero)]);
-        let condition = self.builder.lt(index, words);
-        self.builder.branch(condition, body, exit);
-        self.builder.switch_to_block(body);
-        let element_slot = self.builder.add(data_slot, index);
-        let value = self.builder.sload(element_slot);
-        let byte_offset = self.builder.mul(index, word_size);
-        self.builder.memory_object_store_word(object, byte_offset, value);
-        let next = self.builder.add(index, one);
-        let backedge = self.builder.current_block();
-        self.builder.jump(header_block);
-        self.builder.add_phi_incoming(index, backedge, next);
-        self.builder.switch_to_block(exit);
-        self.builder.jump(merge_block);
-
-        self.builder.switch_to_block(merge_block);
-        Some(object)
+        if !self.share_storage_bytes {
+            return Some(lower_storage_bytes_inline(&mut self.builder, slot));
+        }
+        let helper = match *self.storage_bytes_helper {
+            Some(helper) => helper,
+            None => {
+                let helper = synthesize_storage_bytes_helper(self.module);
+                *self.storage_bytes_helper = Some(helper);
+                helper
+            }
+        };
+        Some(self.builder.internal_call(
+            helper,
+            vec![slot],
+            MirType::MemoryObject(MemoryObjectKind::Bytes),
+            1,
+        ))
     }
 
     fn load_storage_bytes_header(&mut self, slot: ValueId) -> (ValueId, ValueId, ValueId) {
@@ -711,11 +692,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let one = self.builder.imm_u64(1);
         let flag = self.builder.and(header, one);
         let is_long = self.builder.eq(flag, one);
-        let two = self.builder.imm_u64(2);
         let short_tag = self.builder.imm_u64(0xfe);
         let short_len_tag = self.builder.and(header, short_tag);
-        let short_len = self.builder.div(short_len_tag, two);
-        let long_len = self.builder.div(header, two);
+        let shift = self.builder.imm_u64(1);
+        let short_len = self.builder.shr(shift, short_len_tag);
+        let long_len = self.builder.shr(shift, header);
         let length = self.builder.select(is_long, long_len, short_len);
         let thirty_two = self.builder.imm_u64(32);
         let short_length = self.builder.lt(length, thirty_two);
@@ -989,16 +970,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn clear_storage_bytes(&mut self, slot: ValueId) {
-        let header_value = self.builder.sload(slot);
-        let one = self.builder.imm_u64(1);
-        let flag = self.builder.and(header_value, one);
-        let is_long = self.builder.eq(flag, one);
-        let two = self.builder.imm_u64(2);
-        let short_tag = self.builder.imm_u64(0xfe);
-        let short_len_tag = self.builder.and(header_value, short_tag);
-        let short_length = self.builder.div(short_len_tag, two);
-        let long_length = self.builder.div(header_value, two);
-        let length = self.builder.select(is_long, long_length, short_length);
+        let (_, is_long, length) = self.load_storage_bytes_header(slot);
         let zero = self.builder.imm_u64(0);
         let word_size = self.builder.imm_u64(32);
         let thirty_one = self.builder.imm_u64(31);
@@ -1033,4 +1005,88 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(write_block);
         self.builder.sstore(slot, zero);
     }
+}
+
+fn lower_storage_bytes_inline(builder: &mut FunctionBuilder<'_>, slot: ValueId) -> ValueId {
+    let header = builder.sload(slot);
+    let one = builder.imm_u64(1);
+    let flag = builder.and(header, one);
+    let is_long = builder.eq(flag, one);
+    let short_tag = builder.imm_u64(0xfe);
+    let short_len_tag = builder.and(header, short_tag);
+    let shift = builder.imm_u64(1);
+    let short_len = builder.shr(shift, short_len_tag);
+    let long_len = builder.shr(shift, header);
+    let length = builder.select(is_long, long_len, short_len);
+    let thirty_two = builder.imm_u64(32);
+    let short_length = builder.lt(length, thirty_two);
+    let invalid_encoding = builder.eq(is_long, short_length);
+    builder.panic_if(invalid_encoding, PanicCode::StorageEncoding);
+
+    let rounded = {
+        let thirty_one = builder.imm_u64(31);
+        checked_add(builder, length, thirty_one)
+    };
+    let words = builder.div(rounded, thirty_two);
+    let total_words = checked_add(builder, words, one);
+    let size = checked_mul(builder, total_words, thirty_two);
+    let object =
+        builder.alloc_object(size, MemoryObjectLayout::Bytes, AllocationSemantics::SOLIDITY_ZEROED);
+    builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+
+    let short_block = builder.create_block();
+    let long_block = builder.create_block();
+    let merge_block = builder.create_block();
+    builder.branch(is_long, long_block, short_block);
+
+    builder.switch_to_block(short_block);
+    let zero = builder.imm_u64(0);
+    let short_mask = builder.imm_u256(U256::MAX << 8);
+    let short_data = builder.and(header, short_mask);
+    builder.memory_object_store_word(object, zero, short_data);
+    builder.jump(merge_block);
+
+    builder.switch_to_block(long_block);
+    let data_slot = builder.storage_array_data_slot(slot);
+    let preheader = builder.current_block();
+    let header_block = builder.create_block();
+    let body = builder.create_block();
+    let exit = builder.create_block();
+    builder.jump(header_block);
+    builder.switch_to_block(header_block);
+    let index = builder.phi(vec![(preheader, zero)]);
+    let condition = builder.lt(index, words);
+    builder.branch(condition, body, exit);
+    builder.switch_to_block(body);
+    let element_slot = builder.add(data_slot, index);
+    let value = builder.sload(element_slot);
+    let byte_offset = builder.mul(index, thirty_two);
+    builder.memory_object_store_word(object, byte_offset, value);
+    let next = builder.add(index, one);
+    let backedge = builder.current_block();
+    builder.jump(header_block);
+    builder.add_phi_incoming(index, backedge, next);
+    builder.switch_to_block(exit);
+    builder.jump(merge_block);
+
+    builder.switch_to_block(merge_block);
+    object
+}
+
+fn checked_add(builder: &mut FunctionBuilder<'_>, lhs: ValueId, rhs: ValueId) -> ValueId {
+    let result = builder.add(lhs, rhs);
+    let overflow = builder.lt(result, lhs);
+    builder.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
+    result
+}
+
+fn checked_mul(builder: &mut FunctionBuilder<'_>, lhs: ValueId, rhs: ValueId) -> ValueId {
+    let result = builder.mul(lhs, rhs);
+    let rhs_zero = builder.iszero(rhs);
+    let quotient = builder.div(result, rhs);
+    let exact = builder.eq(quotient, lhs);
+    let valid = builder.or(rhs_zero, exact);
+    let overflow = builder.iszero(valid);
+    builder.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
+    result
 }

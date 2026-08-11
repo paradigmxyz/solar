@@ -3,8 +3,8 @@
 //! Keeping storage-location hashing as one MIR instruction lets dominator-tree
 //! CSE reuse repeated accesses without teaching HIR lowering about scratch
 //! memory. This pass expands the builtins at the memory boundary. Variable-size
-//! hash inputs use the semantic allocation policy; the fixed one-word
-//! storage-array hash stays a scratch sequence.
+//! hash inputs use the semantic allocation policy; fixed-width mapping and
+//! storage-array hashes use reserved scratch.
 
 use crate::{
     mir::{BlockId, FunctionBuilder, InstKind, Module},
@@ -119,25 +119,18 @@ fn lower_storage_array_element_slot(
     builder.add(data_slot, offset)
 }
 
+/// Hash a fixed-width mapping key in the reserved scratch region.
 fn lower_word_mapping_slot(
     builder: &mut FunctionBuilder<'_>,
     key: crate::mir::ValueId,
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
-    let hash_size = builder.imm_u64(64);
-    let object_size = builder.imm_u64(96);
-    let object = builder.alloc_object(
-        object_size,
-        crate::mir::MemoryObjectLayout::Bytes,
-        crate::mir::AllocationSemantics::INTERNAL,
-    );
-    builder.set_memory_object_len(object, hash_size, crate::mir::MemoryObjectKind::Bytes);
-    let layout = crate::mir::MemoryObjectLayout::Bytes;
     let zero = builder.imm_u64(0);
-    let one = builder.imm_u64(1);
-    builder.memory_object_store_element(object, layout, zero, key);
-    builder.memory_object_store_element(object, layout, one, slot);
-    builder.keccak256_bytes(object)
+    let word = builder.imm_u64(32);
+    let size = builder.imm_u64(64);
+    builder.mstore(zero, key);
+    builder.mstore(word, slot);
+    builder.keccak256(zero, size)
 }
 
 fn lower_memory_mapping_slot(

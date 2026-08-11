@@ -351,18 +351,6 @@ fn @__revert_stub1() {
     revert 0, 36
 }
 
-fn @__cleanup0(arg0: u256) -> u256 {
-  bb0:
-    v0 = and arg0, 255
-    ret v0
-}
-
-fn @__cleanup1(arg0: u256) -> u256 {
-  bb0:
-    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    ret v0
-}
-
 fn @entry() [entry] {
   bb0:
     v0 = callvalue

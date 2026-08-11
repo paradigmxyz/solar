@@ -420,10 +420,15 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::SetFmp(ptr))
     }
 
+    /// Reserves untyped memory under an explicit semantic policy.
+    pub(crate) fn alloc_raw(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
+        self.alloc_kind(size, crate::mir::AllocationKind::Raw, semantics)
+    }
+
     /// Reserves memory under an explicit semantic policy.
     #[cfg(test)]
     pub(crate) fn alloc(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
-        self.alloc_kind(size, crate::mir::AllocationKind::Raw, semantics)
+        self.alloc_raw(size, semantics)
     }
 
     /// Reserves memory for a semantically shaped object.
@@ -474,6 +479,32 @@ impl<'a> FunctionBuilder<'a> {
         kind: crate::mir::MemoryObjectKind,
     ) -> ValueId {
         self.emit_inst(InstKind::MemoryObjectData(object, kind), Some(MirType::MemPtr))
+    }
+
+    /// Projects a direct struct-field address through the semantic object layout.
+    pub(crate) fn memory_object_field_addr(
+        &mut self,
+        object: ValueId,
+        layout: crate::mir::MemoryObjectLayout,
+        field: u64,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::MemoryObjectFieldAddr { object, layout, field },
+            Some(MirType::MemPtr),
+        )
+    }
+
+    /// Projects an array-element address through the semantic object layout.
+    pub(crate) fn memory_object_element_addr(
+        &mut self,
+        object: ValueId,
+        layout: crate::mir::MemoryObjectLayout,
+        index: ValueId,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::MemoryObjectElementAddr { object, layout, index },
+            Some(MirType::MemPtr),
+        )
     }
 
     /// Loads a direct struct field through the semantic object layout.

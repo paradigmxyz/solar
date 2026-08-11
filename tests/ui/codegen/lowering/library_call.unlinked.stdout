@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:Lib (runtime) ===
 @module runtime
 bb0:
-  push 288
+  push 224
   push 64
   mstore
   callvalue
@@ -21,7 +21,7 @@ bb3 [cold]:
   push 0
   dup1
   revert
-bb10 [cold]:
+bb9 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -41,60 +41,25 @@ bb4:
   jumpi
   push 36
   calldataload
-  dup1
-  push 256
-  mstore
-  push bb6
   push 0
   not
   push 96
   shr
-  push 256
-  mload
+  dup2
   and
-  swap1
-  jump
-bb6:
-  dup1
-  push 224
-  mstore
   sub
   push bb3
   jumpi
-  push 64
-  mload
-  dup1
-  push 224
-  mstore
-  push 96
-  dup2
-  add
-  push 64
-  mstore
-  push 64
-  dup2
-  mstore
-  push 32
-  dup2
-  add
   push 36
   calldataload
-  swap1
+  push 0
   mstore
-  push 32
-  dup2
-  add
-  push 32
-  add
   push 4
   calldataload
-  swap1
-  mstore
-  dup1
-  mload
-  swap1
   push 32
-  add
+  mstore
+  push 64
+  push 0
   keccak256
   dup1
   push 192
@@ -108,7 +73,7 @@ bb6:
   push 160
   mstore
   lt
-  push bb10
+  push bb9
   jumpi
   push 160
   mload
@@ -127,7 +92,7 @@ bb6:
   push 160
   mstore
   lt
-  push bb10
+  push bb9
   jumpi
   push 160
   mload
@@ -139,7 +104,7 @@ bb6:
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 384
+  push 352
   push 64
   mstore
   callvalue
@@ -159,7 +124,7 @@ bb3 [cold]:
   push 0
   dup1
   revert
-bb13 [cold]:
+bb12 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -179,23 +144,12 @@ bb4:
   jumpi
   push 4
   calldataload
-  dup1
-  push 192
-  mstore
-  push bb6
   push 0
   not
   push 96
   shr
-  push 192
-  mload
+  dup2
   and
-  swap1
-  jump
-bb6:
-  dup1
-  push 160
-  mstore
   sub
   push bb3
   jumpi
@@ -210,41 +164,17 @@ bb6:
   calldataload
   push 256
   mstore
-  push bb8
-  push 64
-  mload
-  dup1
-  push 352
-  mstore
-  push 96
-  dup2
-  add
-  push 64
-  mstore
-  push 64
-  dup2
-  mstore
-  push 32
-  dup2
-  add
+  push bb7
   push 224
   mload
-  swap1
+  push 0
   mstore
-  push 32
-  dup2
-  add
-  push 32
-  add
   push 192
   mload
-  swap1
-  mstore
-  dup1
-  mload
-  swap1
   push 32
-  add
+  mstore
+  push 64
+  push 0
   keccak256
   dup1
   push 320
@@ -258,7 +188,7 @@ bb6:
   push 288
   mstore
   lt
-  push bb13
+  push bb12
   jumpi
   push 288
   mload
@@ -277,13 +207,13 @@ bb6:
   push 288
   mstore
   lt
-  push bb13
+  push bb12
   jumpi
   push 288
   mload
   swap1
   jump
-bb8:
+bb7:
   dup1
   push 160
   mstore

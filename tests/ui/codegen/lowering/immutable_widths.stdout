@@ -2,14 +2,14 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 911
+  push 518
   codesize
   sub
   dup1
-  push 911
-  push 480
+  push 518
+  push 416
   codecopy
-  push 480
+  push 416
   add
   push 31
   add
@@ -18,12 +18,12 @@ bb0:
   and
   push 64
   mstore
-  push 480
+  push 416
   dup1
   push 384
   mstore
-  push 480
-  push 911
+  push 416
+  push 518
   codesize
   sub
   add
@@ -38,296 +38,122 @@ bb0:
   or
   swap1
   pop
-  push bb18
+  push bb7
   jumpi
   push 384
   mload
   mload
-  dup1
-  push 416
-  mstore
-  push bb23
-  jump bb22
-bb22:
-  push 64
-  mload
-  push 160
-  mload
-  dup2
-  push 32
-  add
-  mstore
-  swap1
-  jump
-bb18 [cold]:
-  push 0
-  dup1
-  revert
-bb8:
-  push bb25
-  jump bb21
-bb21:
-  push 160
-  mload
-  push 96
-  add
-  mload
-  dup1
-  push 448
-  mstore
-  push 160
-  mload
-  push 64
-  mstore
-  push 160
-  mload
-  push 32
-  add
-  mload
-  push 160
-  mstore
-  dup1
-  push 448
-  mstore
-  push 416
-  mload
-  sub
-  swap1
-  jump
-bb10:
-  push bb27
-  jump bb21
-bb12:
-  push bb29
-  jump bb21
-bb14:
-  push bb31
-  jump bb21
-bb16:
-  push bb32
-  jump bb21
-bb23:
-  dup2
-  dup2
-  push 64
-  add
-  mstore
-  dup1
-  push 160
-  mstore
-  push 128
-  add
-  push 64
-  mstore
-  pop
-  push bb8
   push 255
-  jump bb20
-bb20:
-  push 160
-  mload
-  push 64
-  add
-  mload
+  dup2
   and
-  jump bb19
-bb19:
-  push 160
+  sub
+  push bb7
+  jumpi
+  push 32
+  push 384
   mload
-  push 96
   add
-  mstore
-  jump
-bb24:
-  dup2
-  dup2
-  push 64
-  add
-  mstore
+  mload
   dup1
-  push 160
-  mstore
-  push 128
-  add
-  push 64
-  mstore
-  pop
-  push bb10
-  push 160
-  mload
-  push 64
-  add
-  mload
   push 1
   signextend
-  jump bb19
-bb25:
-  push bb18
+  sub
+  push bb7
   jumpi
-  push 32
+  push 64
   push 384
   mload
   add
   mload
-  dup1
-  push 416
-  mstore
-  push bb24
-  jump bb22
-bb26:
-  dup2
-  dup2
-  push 64
-  add
-  mstore
-  dup1
-  push 160
-  mstore
-  push 128
-  add
-  push 64
-  mstore
-  pop
-  push bb12
   push 0xffffff
   push 232
   shl
-  jump bb20
-bb27:
-  push bb18
+  dup2
+  and
+  sub
+  push bb7
   jumpi
-  push 64
+  push 96
   push 384
   mload
   add
   mload
-  dup1
-  push 416
-  mstore
-  push bb26
-  jump bb22
-bb28:
-  dup2
-  dup2
-  push 64
-  add
-  mstore
-  dup1
-  push 160
-  mstore
-  push 128
-  add
-  push 64
-  mstore
-  pop
-  push bb14
   push 0
   not
   push 96
   shr
-  jump bb20
-bb29:
-  push bb18
+  dup2
+  and
+  sub
+  push bb7
   jumpi
-  push 96
+  push 160
   push 384
   mload
   add
   mload
-  dup1
-  push 416
-  mstore
-  push bb28
-  jump bb22
-bb30:
-  dup2
-  dup2
-  push 64
-  add
-  mstore
-  dup1
-  push 160
-  mstore
-  push 128
-  add
-  push 64
-  mstore
-  pop
-  push bb16
   push 0xffff
-  jump bb20
-bb31:
-  push bb18
+  dup2
+  and
+  sub
+  push bb7
   jumpi
-  push 160
-  push 384
-  mload
-  add
-  mload
-  dup1
   push 416
-  mstore
-  push bb30
-  jump bb22
-bb32:
-  push bb18
-  jumpi
-  push 480
   mload
   push 192
   mstore
-  push 480
+  push 416
   push 32
   add
   mload
   push 224
   mstore
-  push 480
+  push 416
   push 64
   add
   mload
   push 256
   mstore
-  push 480
+  push 416
   push 96
   add
   mload
   push 288
   mstore
-  push 480
+  push 416
   push 128
   add
   mload
   push 320
   mstore
-  push 480
+  push 416
   push 160
   add
   mload
   push 352
   mstore
-  push 348
+  push 214
   dup1
-  push 563
+  push 304
   push 384
   codecopy
   push 192
   mload
-  push 417
+  push 410
   mstore8
   push 224
   mload
-  push 419
+  push 412
   mstore
   push 256
   mload
-  push 452
+  push 445
   mstore
   push 288
   mload
   push 96
   shl
-  push 485
+  push 478
   mload
   push 0
   not
@@ -335,17 +161,17 @@ bb32:
   shr
   and
   or
-  push 485
+  push 478
   mstore
   push 320
   mload
-  push 506
+  push 499
   mstore
   push 352
   mload
   push 240
   shl
-  push 539
+  push 532
   mload
   push 0
   not
@@ -353,15 +179,19 @@ bb32:
   shr
   and
   or
-  push 539
+  push 532
   mstore
   push 384
   return
+bb7 [cold]:
+  push 0
+  dup1
+  revert
 
 // === runtime ===
 @module runtime
 bb0:
-  push 672
+  push 320
   push 64
   mstore
   callvalue
@@ -376,120 +206,54 @@ bb0:
   sub
   push bb3
   jumpi
-  calldatasize
-  push 4
-  gt
-  push bb3
-  jumpi
   push_immutable 0, 1
   push_immutable 1, 32
   push_immutable 2, 32
   push_immutable 3, 20
   push_immutable 4, 32
   push_immutable 5, 2
-  push 512
-  mstore
-  push 448
-  mstore
-  push 544
-  mstore
-  push 576
-  mstore
-  push 608
-  mstore
-  push 640
-  mstore
-  push bb6
-  push 255
-  jump bb11
-bb11:
-  push 640
-  mload
-  and
-  swap1
-  jump
-bb3 [cold]:
-  push 0
-  dup1
-  revert
-bb6:
-  push 320
-  mstore
-  push 608
-  mload
-  push 640
-  mstore
-  push bb7
-  push 640
-  mload
+  swap4
   push 1
   signextend
-  swap1
-  jump
-bb7:
-  push 352
-  mstore
-  push 576
-  mload
-  push 640
-  mstore
-  push bb8
+  swap3
   push 0xffffff
   push 232
   shl
-  jump bb11
-bb8:
-  push 384
-  mstore
-  push 544
-  mload
-  push 640
-  mstore
-  push bb9
+  and
+  swap2
   push 0
   not
   push 96
   shr
-  jump bb11
-bb9:
-  push 416
-  mstore
-  push 512
-  mload
-  push 640
-  mstore
-  push bb10
+  and
+  swap4
   push 0xffff
-  jump bb11
-bb10:
-  dup1
-  push 480
-  mstore
-  push 320
-  mload
+  and
+  swap5
+  push 255
+  and
   push 128
   mstore
-  push 352
-  mload
+  dup3
   push 160
   mstore
-  push 384
-  mload
+  swap2
+  pop
   push 192
   mstore
-  push 416
-  mload
+  dup2
   push 224
   mstore
-  push 448
-  mload
+  swap1
+  pop
   push 256
-  mstore
-  dup1
-  push 480
   mstore
   push 288
   mstore
   push 192
   push 128
   return
+bb3 [cold]:
+  push 0
+  dup1
+  revert

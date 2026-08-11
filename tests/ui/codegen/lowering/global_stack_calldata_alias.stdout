@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/global_stack_calldata_alias.sol:Test (runtime) ===
 @module runtime
 bb0:
-  push 288
+  push 192
   push 64
   mstore
   callvalue
@@ -26,49 +26,24 @@ bb0:
   jumpi
   push 4
   calldataload
-  dup1
-  push 192
-  mstore
-  push 256
-  mstore
-  pop
-  push bb6
   push 0
   not
   push 96
   shr
-  push 256
-  mload
+  dup2
   and
-  swap1
-  jump
-bb3 [cold]:
-  push 0
-  dup1
-  revert
-bb6:
-  dup1
-  push 224
-  mstore
-  push 192
-  mload
-  eq
-  push 4
-  calldataload
-  push 36
-  calldataload
-  swap2
-  iszero
+  dup2
+  sub
   push bb3
   jumpi
   push 1
   dup2
   sub
-  push bb10
+  push bb9
   jumpi
   push 1
-  jump bb26
-bb26:
+  jump bb25
+bb25:
   dup3
   add
   dup1
@@ -76,57 +51,61 @@ bb26:
   mstore
   swap1
   pop
-  jump bb25
-bb25:
+  jump bb24
+bb24:
   dup1
   push 160
   mstore
   lt
-  push bb11
+  push bb10
   jumpi
   push 160
   mload
-  jump bb24
-bb24:
+  jump bb23
+bb23:
   push 128
   mstore
   push 32
   push 128
   return
-bb10:
+bb3 [cold]:
+  push 0
+  dup1
+  revert
+bb9:
   push 2
   dup2
   eq
-  push bb12
+  push bb11
   jumpi
   push 3
   dup2
   sub
-  push bb17
+  push bb16
   jumpi
   push 3
-  jump bb26
-bb12:
+  jump bb25
+bb11:
   push 2
-  jump bb26
-bb17:
+  jump bb25
+bb16:
   push 4
   dup2
   sub
-  push bb20
+  push bb19
   jumpi
   push 4
-  jump bb26
-bb20:
+  jump bb25
+bb19:
   push 5
   sub
-  push bb24
+  push bb23
   jumpi
   push 5
   dup2
   add
-  jump bb25
-bb11 [cold]:
+  jump bb24
+bb10 [cold]:
   push 0x4e487b71
   push 224
   shl

@@ -50,7 +50,7 @@ contract R {
     }
 
     // CHECK: push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
-    // CHECK: jump [[SHORT_HELPER]]
+    // CHECK: jump [[LONG_HELPER:bb[0-9]+]]
     function viaLong(uint256 x) external pure returns (uint256) {
         require(x > 5, Errors.LONG);
         return x;

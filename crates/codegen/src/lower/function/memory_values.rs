@@ -26,7 +26,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => return report_unsupported(self.gcx, expr.span, "array literal"),
         };
         let size = self.builder.imm_u64(size);
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         if kind == MemoryObjectKind::DynamicArray {
             let length = self.builder.imm_u64(u64::try_from(elements.len()).ok()?);
             self.builder.set_memory_object_len(object, length, kind);
@@ -79,7 +79,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let parameter_names = self.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
         let layout = MemoryObjectLayout::Struct { fields };
         let size = self.builder.imm_u64(fields.saturating_mul(32));
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         for (index, &field) in struct_fields.iter().enumerate() {
             let Some(argument) =
                 args.argument_for_parameter(index, Some(parameter_names.as_slice()))
@@ -106,11 +106,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let size = fields.checked_mul(32)?;
         let size = self.builder.imm_u64(size);
-        let object = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Struct { fields },
-            AllocationSemantics::SOLIDITY_ZEROED,
-        );
+        let initialization = if values.iter().all(Option::is_some) {
+            AllocationSemantics::INTERNAL
+        } else {
+            AllocationSemantics::SOLIDITY_ZEROED
+        };
+        let object =
+            self.builder.alloc_object(size, MemoryObjectLayout::Struct { fields }, initialization);
         for (index, value) in values.iter().enumerate() {
             let Some(value) = value else { continue };
             let value = self.lower_expr(value)?;
@@ -131,7 +133,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let object = self.builder.alloc_object(
             size,
             MemoryObjectLayout::Bytes,
-            AllocationSemantics::SOLIDITY_ZEROED,
+            AllocationSemantics::INTERNAL,
         );
         let kind = MemoryObjectKind::Bytes;
         let length = self.builder.imm_u64(u64::try_from(bytes.len()).ok()?);

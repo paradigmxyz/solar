@@ -7,6 +7,7 @@ use solar_interface::Ident;
 use solar_sema::{
     Gcx,
     hir::{self, ContractId},
+    ty::TyKind,
 };
 
 use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
@@ -40,11 +41,16 @@ pub(super) fn lower(
 
     let mut function_ids = Vec::new();
     let mut seen_selectors = FxHashSet::default();
+    let reachable = gcx.contract_reachable_functions(contract_id);
+    let prune_unreachable = !gcx.sess.opts.unstable.codegen_all_functions;
     let mut invalid_event_topics = FxHashSet::default();
     let mut has_fallback = false;
     let mut has_receive = false;
     for &base in contract.linearized_bases {
         for function_id in gcx.hir.contract(base).all_functions() {
+            if prune_unreachable && !reachable.contains(function_id) {
+                continue;
+            }
             let function = gcx.hir.function(function_id);
             match function.kind {
                 hir::FunctionKind::Constructor => {
@@ -118,6 +124,9 @@ pub(super) fn lower(
             continue;
         }
         for function_id in library.functions() {
+            if prune_unreachable && !reachable.contains(function_id) {
+                continue;
+            }
             let function = gcx.hir.function(function_id);
             if matches!(function.visibility, hir::Visibility::Public | hir::Visibility::External)
                 && function.body.is_some()
@@ -131,6 +140,18 @@ pub(super) fn lower(
         function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();
     let mut mir_ids = FxHashMap::default();
     let mut pointer_registry = function::InternalFunctionPointerRegistry::default();
+    let mut storage_bytes_helper = None;
+    let mut visiting_storage_structs = FxHashSet::default();
+    let share_storage_bytes = contract
+        .linearized_bases
+        .iter()
+        .flat_map(|&base| gcx.hir.contract(base).variables())
+        .filter(|&id| gcx.hir.variable(id).is_state_variable())
+        .map(|id| {
+            storage_bytes_count(gcx.type_of_item(id.into()), gcx, &mut visiting_storage_structs)
+        })
+        .sum::<usize>()
+        >= 2;
     for &(function_id, expose_selector) in &function_ids {
         let function = gcx.hir.function(function_id);
         let mut declaration = declaration(gcx, function_id, function);
@@ -164,6 +185,8 @@ pub(super) fn lower(
             child_runtime_bytecodes,
             invalid_event_topics: &mut invalid_event_topics,
             pointer_registry: &mut pointer_registry,
+            storage_bytes_helper: &mut storage_bytes_helper,
+            share_storage_bytes,
         };
         let Some(mut mir) = function::lower(context, function_id, expose_selector) else {
             FunctionBuilder::new(module.function_mut(mir_id)).invalid();
@@ -194,6 +217,8 @@ pub(super) fn lower(
             child_runtime_bytecodes,
             invalid_event_topics: &mut invalid_event_topics,
             pointer_registry: &mut pointer_registry,
+            storage_bytes_helper: &mut storage_bytes_helper,
+            share_storage_bytes,
         };
         let Some(mut mir) = function::lower_synthetic_constructor(context, contract_id) else {
             FunctionBuilder::new(module.function_mut(mir_id)).invalid();
@@ -242,4 +267,30 @@ pub(super) fn declaration(
     }
 
     mir
+}
+
+fn storage_bytes_count<'gcx>(
+    ty: solar_sema::ty::Ty<'gcx>,
+    gcx: Gcx<'gcx>,
+    visiting: &mut FxHashSet<hir::StructId>,
+) -> usize {
+    match ty.peel_refs().kind {
+        TyKind::Elementary(hir::ElementaryType::Bytes | hir::ElementaryType::String) => 1,
+        TyKind::Array(element, _) | TyKind::DynArray(element) => {
+            storage_bytes_count(element, gcx, visiting)
+        }
+        TyKind::Mapping(_, value) => storage_bytes_count(value, gcx, visiting),
+        TyKind::Struct(id) if visiting.insert(id) => {
+            let count = gcx
+                .hir
+                .strukt(id)
+                .fields
+                .iter()
+                .map(|&field| storage_bytes_count(gcx.type_of_item(field.into()), gcx, visiting))
+                .sum();
+            visiting.remove(&id);
+            count
+        }
+        _ => 0,
+    }
 }

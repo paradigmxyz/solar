@@ -1,5 +1,7 @@
 //@ run-call-fail: invalidShort() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000022
 //@ run-call-fail: invalidLong() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000022
+//@ run-call-fail: invalidShortDelete() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000022
+//@ run-call-fail: invalidLongDelete() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000022
 
 contract StorageBytesValidation {
     bytes private data;
@@ -18,5 +20,19 @@ contract StorageBytesValidation {
             sstore(data.slot, 0x21)
         }
         return data;
+    }
+
+    function invalidShortDelete() external {
+        assembly {
+            sstore(data.slot, 0x40)
+        }
+        delete data;
+    }
+
+    function invalidLongDelete() external {
+        assembly {
+            sstore(data.slot, 0x21)
+        }
+        delete data;
     }
 }

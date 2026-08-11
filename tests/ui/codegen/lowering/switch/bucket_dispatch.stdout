@@ -15,21 +15,16 @@ bb0:
   push 40
   swap1
   mod
-  indexed_jump bb155, bb156, bb157, bb158, bb159, bb160, bb161, bb162, bb163, bb164, bb165, bb166, bb167, bb168, bb169, bb170, bb171, bb172, bb173, bb174, bb175, bb176, bb177, bb178, bb179, bb180, bb181, bb182, bb183, bb184, bb185, bb186, bb187, bb188, bb189, bb190, bb191, bb192, bb193, bb194
-bb153:
-  calldatasize
-  push 4
-  gt
-  push bb58
-  jumpi
+  indexed_jump bb61, bb62, bb63, bb64, bb65, bb66, bb67, bb68, bb69, bb70, bb71, bb72, bb73, bb74, bb75, bb76, bb77, bb78, bb79, bb80, bb81, bb82, bb83, bb84, bb85, bb86, bb87, bb88, bb89, bb90, bb91, bb92, bb93, bb94, bb95, bb96, bb97, bb98, bb99, bb100
+bb59:
   stop
 bb2:
   dup1
   push 0xcbf99d38
-  jump bb154
-bb154:
+  jump bb60
+bb60:
   eq
-  push bb153
+  push bb59
   jumpi
   jump bb58
 bb58 [cold]:
@@ -40,211 +35,211 @@ bb3:
   dup1
   push 0x87d912cb
   eq
-  push bb153
+  push bb59
   jumpi
   dup1
   push 0x920f5c73
-  jump bb154
+  jump bb60
 bb4:
   dup1
   push 0x41052a0d
-  jump bb154
+  jump bb60
 bb5:
   dup1
   push 0x7238232f
   eq
-  push bb153
+  push bb59
   jumpi
   dup1
   push 0x905f7d67
-  jump bb154
+  jump bb60
 bb6:
   dup1
   push 0x3b88f6c2
-  jump bb154
+  jump bb60
 bb7:
   dup1
   push 0xaa66aa63
-  jump bb154
+  jump bb60
 bb8:
   dup1
   push 0x24a75cfd
   eq
-  push bb153
+  push bb59
   jumpi
   dup1
   push 0x98e9a73d
-  jump bb154
+  jump bb60
 bb9:
   dup1
   push 0xebd25c8f
-  jump bb154
+  jump bb60
 bb10:
   dup1
   push 0x8a67ee70
   eq
-  push bb153
+  push bb59
   jumpi
   dup1
   push 0xc43b1a78
-  jump bb154
+  jump bb60
 bb11:
   dup1
   push 0xebbd40a9
-  jump bb154
+  jump bb60
 bb12:
   dup1
   push 0x1eb6457a
   eq
-  push bb153
+  push bb59
   jumpi
   dup1
   push 0xdca2fb5a
-  jump bb154
+  jump bb60
 bb13:
   dup1
   push 0x67e648b5
-  jump bb154
+  jump bb60
 bb14:
   dup1
   push 0xe6e0ae36
-  jump bb154
+  jump bb60
 bb15:
   dup1
   push 0xcba58af7
-  jump bb154
+  jump bb60
 bb16:
   dup1
   push 0x6d4975a2
   eq
-  push bb153
+  push bb59
   jumpi
   dup1
   push 0x8dc714ba
-  jump bb154
+  jump bb60
 bb17:
   dup1
   push 0x54eaadab
-  jump bb154
+  jump bb60
 bb18:
   dup1
   push 0x10c772cc
   eq
-  push bb153
+  push bb59
   jumpi
   dup1
   push 0x4e580bc4
-  jump bb154
+  jump bb60
 bb19:
   dup1
   push 0x965a68f5
-  jump bb154
+  jump bb60
 bb20:
   dup1
   push 0xd758c88e
-  jump bb154
+  jump bb60
 bb21:
   dup1
   push 0x6d738a50
-  jump bb154
+  jump bb60
 bb22:
   dup1
   push 0xf02a00c9
-  jump bb154
+  jump bb60
 bb23:
   dup1
   push 0x40bcff2a
   eq
-  push bb153
+  push bb59
   jumpi
   dup1
   push 0x5fb43592
-  jump bb154
+  jump bb60
 bb24:
   dup1
   push 0x3d492ec4
-  jump bb154
+  jump bb60
 bb25:
   dup1
   push 0x1f49dbe7
-  jump bb154
-bb155:
+  jump bb60
+bb61:
   jump bb2
-bb156:
+bb62:
   jump bb58
-bb157:
+bb63:
   jump bb58
-bb158:
+bb64:
   jump bb3
-bb159:
+bb65:
   jump bb58
-bb160:
+bb66:
   jump bb4
-bb161:
+bb67:
   jump bb58
-bb162:
+bb68:
   jump bb5
-bb163:
+bb69:
   jump bb58
-bb164:
+bb70:
   jump bb58
-bb165:
+bb71:
   jump bb6
-bb166:
+bb72:
   jump bb7
-bb167:
+bb73:
   jump bb58
-bb168:
+bb74:
   jump bb8
-bb169:
+bb75:
   jump bb58
-bb170:
+bb76:
   jump bb9
-bb171:
+bb77:
   jump bb10
-bb172:
+bb78:
   jump bb11
-bb173:
+bb79:
   jump bb12
-bb174:
+bb80:
   jump bb58
-bb175:
+bb81:
   jump bb58
-bb176:
+bb82:
   jump bb13
-bb177:
+bb83:
   jump bb14
-bb178:
+bb84:
   jump bb15
-bb179:
+bb85:
   jump bb58
-bb180:
+bb86:
   jump bb58
-bb181:
+bb87:
   jump bb16
-bb182:
+bb88:
   jump bb17
-bb183:
+bb89:
   jump bb18
-bb184:
+bb90:
   jump bb19
-bb185:
+bb91:
   jump bb20
-bb186:
+bb92:
   jump bb58
-bb187:
+bb93:
   jump bb21
-bb188:
+bb94:
   jump bb22
-bb189:
+bb95:
   jump bb23
-bb190:
+bb96:
   jump bb58
-bb191:
+bb97:
   jump bb24
-bb192:
+bb98:
   jump bb58
-bb193:
+bb99:
   jump bb58
-bb194:
+bb100:
   jump bb25

@@ -9,11 +9,10 @@ fn @value() -> u256 [selector=0x3fa4f245, pure, abi_args=lazy, abi_params=[], ab
 @module RuntimeCode
 fn @runtime() -> u256 [selector=0x54d75aa6, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 128
-    set_memory_object_len memorybytes, v0, 74
+    v0 = alloc memorybytes, exact, zeroed, panic, 96
+    set_memory_object_len memorybytes, v0, 53
     memory_object_store_word memorybytes, v0, 0, 0x60a060405234601f575f3560e01c80633fa4f24514601b57601f565b6023565b
-    memory_object_store_word memorybytes, v0, 32, 0x5f80fd5b3660049010156046576042565b600760805260206080016080900360
-    memory_object_store_word memorybytes, v0, 64, 0x80f35b5f80fd5b60305600000000000000000000000000000000000000000000
+    memory_object_store_word memorybytes, v0, 32, 0x5f80fd5b60076080526020608001608090036080f30000000000000000000000
     v1 = memory_object_len memorybytes, v0
     ret v1
 }

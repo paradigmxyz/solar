@@ -56,6 +56,8 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) child_runtime_bytecodes: &'ctx FxHashMap<hir::ContractId, Bytes>,
     pub(super) invalid_event_topics: &'ctx mut FxHashSet<hir::EventId>,
     pub(super) pointer_registry: &'ctx mut InternalFunctionPointerRegistry,
+    pub(super) storage_bytes_helper: &'ctx mut Option<FunctionId>,
+    pub(super) share_storage_bytes: bool,
 }
 
 impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
@@ -71,6 +73,8 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
             child_runtime_bytecodes: self.child_runtime_bytecodes,
             invalid_event_topics: &mut *self.invalid_event_topics,
             pointer_registry: &mut *self.pointer_registry,
+            storage_bytes_helper: &mut *self.storage_bytes_helper,
+            share_storage_bytes: self.share_storage_bytes,
         }
     }
 }
@@ -196,6 +200,8 @@ struct FunctionLowerer<'gcx, 'ctx> {
     child_runtime_bytecodes: &'ctx FxHashMap<hir::ContractId, Bytes>,
     invalid_event_topics: &'ctx mut FxHashSet<hir::EventId>,
     pointer_registry: &'ctx mut InternalFunctionPointerRegistry,
+    storage_bytes_helper: &'ctx mut Option<FunctionId>,
+    share_storage_bytes: bool,
     builder: FunctionBuilder<'ctx>,
     types: types::TypeLowerer<'gcx>,
     values: FxHashMap<VariableId, ValueId>,
@@ -356,6 +362,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             child_runtime_bytecodes,
             invalid_event_topics,
             pointer_registry,
+            storage_bytes_helper,
+            share_storage_bytes,
         } = context;
         Self {
             gcx,
@@ -368,6 +376,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             child_runtime_bytecodes,
             invalid_event_topics,
             pointer_registry,
+            storage_bytes_helper,
+            share_storage_bytes,
             builder: FunctionBuilder::new(function),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),

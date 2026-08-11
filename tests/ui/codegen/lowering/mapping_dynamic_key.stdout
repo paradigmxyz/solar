@@ -61,8 +61,8 @@ fn @skey() -> memorybytes [selector=0x8cd2a1c2, view, abi_args=lazy, abi_params=
     v2 = and v1, 1
     v3 = eq v2, 1
     v4 = and v1, 254
-    v5 = div v4, 2
-    v6 = div v1, 2
+    v5 = shr 1, v4
+    v6 = shr 1, v1
     v7 = select v3, v6, v5
     v8 = lt v7, 32
     v9 = eq v3, v8
@@ -179,8 +179,8 @@ fn @setSkey(arg0: memorybytes) [selector=0x7be4f4f1, abi_args=lazy, abi_params=[
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = and v0, 254
-    v4 = div v3, 2
-    v5 = div v0, 2
+    v4 = shr 1, v3
+    v5 = shr 1, v0
     v6 = select v2, v5, v4
     v7 = lt v6, 32
     v8 = eq v2, v7
@@ -273,8 +273,8 @@ fn @setViaStorageKey(arg0: u256) [selector=0x2bd4b749, abi_args=lazy, abi_params
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = and v0, 254
-    v4 = div v3, 2
-    v5 = div v0, 2
+    v4 = shr 1, v3
+    v5 = shr 1, v0
     v6 = select v2, v5, v4
     v7 = lt v6, 32
     v8 = eq v2, v7

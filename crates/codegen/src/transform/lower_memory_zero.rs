@@ -53,9 +53,17 @@ fn lower_function(func: &mut Function) -> bool {
                 _ => None,
             };
             if let Some((dest, size)) = zero {
-                let calldata_end = builder.calldatasize();
-                builder.func_mut().inst_mut(inst).kind =
-                    InstKind::CalldataCopy(dest, calldata_end, size);
+                if builder.func().value_u64(size) == Some(32) {
+                    let zero = builder.imm_u64(0);
+                    let instruction = builder.func_mut().inst_mut(inst);
+                    instruction.kind = InstKind::MStore(dest, zero);
+                    instruction.metadata.set_memory_region(None);
+                    instruction.metadata.set_effect(Some(instruction.kind.effect_kind()));
+                } else {
+                    let calldata_end = builder.calldatasize();
+                    builder.func_mut().inst_mut(inst).kind =
+                        InstKind::CalldataCopy(dest, calldata_end, size);
+                }
             }
             builder.func_mut().blocks[block].instructions.push(inst);
         }

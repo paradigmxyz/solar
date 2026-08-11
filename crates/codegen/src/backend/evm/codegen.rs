@@ -464,6 +464,14 @@ impl<'a> StackPhiPlanner<'a> {
         if plan.edges.contains_key(&preheader) || plan.edges.contains_key(latch) {
             return;
         }
+        // Internal conditional exits can consume stack values before the latch.
+        // Keep the stack-phi plan for straight-line loop bodies only.
+        if loop_info.blocks.iter().any(|block_id| {
+            block_id != loop_info.header
+                && matches!(self.func.blocks[block_id].terminator, Some(Terminator::Branch { .. }))
+        }) {
+            return;
+        }
 
         let block = &self.func.blocks[loop_info.header];
         let phi_insts = self.phi_insts(block);
@@ -478,16 +486,9 @@ impl<'a> StackPhiPlanner<'a> {
             return;
         }
 
-        let carry_through = self.carry_through_values(loop_info);
+        let mut carry_through = self.carry_through_values(loop_info);
+        self.extend_live_through_values(loop_info, &mut carry_through);
         if carry_through.len() + results.len() > STACK_PHI_LAYOUT_LIMIT {
-            return;
-        }
-        // A loop edge changes the scheduler's identity for every phi source to
-        // its result. Keep the optimization only when values defined outside
-        // the loop are either explicitly carried or are rematerializable
-        // arguments/immediates. Otherwise the source would disappear from the
-        // physical stack while a loop body still uses it.
-        if self.has_unpreserved_live_through(loop_info, &carry_through, &results) {
             return;
         }
         let mut entry = carry_through.clone();
@@ -499,17 +500,6 @@ impl<'a> StackPhiPlanner<'a> {
             let Some(phi_sources) = self.phi_sources_for_pred(&phi_insts, pred) else {
                 return;
             };
-            // Nested phis need their own parallel-copy edge. Keep them out of a
-            // carried stack layout; the spill-based fallback is conservative.
-            if pred == *latch
-                && phi_sources.iter().any(|&source| {
-                    self.is_phi_value(source)
-                        && !results.contains(&source)
-                        && !self.is_loop_header_phi(source)
-                })
-            {
-                return;
-            }
             let mut sources = carry_through.clone();
             sources.extend(phi_sources);
             debug_assert_eq!(sources.len(), entry.len());
@@ -554,11 +544,6 @@ impl<'a> StackPhiPlanner<'a> {
             let Some(sources) = self.phi_sources_for_pred(&phi_insts, pred) else {
                 return;
             };
-            // A join fed by another phi can otherwise bypass that phi's edge
-            // copies when both layouts are carried on the physical stack.
-            if sources.iter().any(|&source| self.is_phi_value(source)) {
-                return;
-            }
             edges.push((pred, sources));
         }
 
@@ -617,12 +602,7 @@ impl<'a> StackPhiPlanner<'a> {
         false
     }
 
-    fn has_unpreserved_live_through(
-        &self,
-        loop_info: &Loop,
-        carry_through: &[ValueId],
-        results: &[ValueId],
-    ) -> bool {
+    fn extend_live_through_values(&self, loop_info: &Loop, values: &mut Vec<ValueId>) {
         for block_id in &loop_info.blocks {
             let block = &self.func.blocks[block_id];
             for &inst_id in &block.instructions {
@@ -630,39 +610,23 @@ impl<'a> StackPhiPlanner<'a> {
                 if matches!(inst.kind, InstKind::Phi(_)) {
                     continue;
                 }
-                if inst.kind.operands().iter().any(|&value| {
-                    self.is_unpreserved_live_through(loop_info, value, carry_through, results)
-                }) {
-                    return true;
+                for value in inst.kind.operands() {
+                    self.push_live_through_value(loop_info, value, values);
                 }
             }
-            if block.terminator.as_ref().is_some_and(|term| {
-                term.operands().iter().any(|&value| {
-                    self.is_unpreserved_live_through(loop_info, value, carry_through, results)
-                })
-            }) {
-                return true;
+            if let Some(term) = &block.terminator {
+                for value in term.operands() {
+                    self.push_live_through_value(loop_info, value, values);
+                }
             }
         }
-        false
     }
 
-    fn is_unpreserved_live_through(
-        &self,
-        loop_info: &Loop,
-        value: ValueId,
-        carry_through: &[ValueId],
-        results: &[ValueId],
-    ) -> bool {
-        match self.func.value(value) {
-            crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_) => false,
-            crate::mir::Value::Undef(_) | crate::mir::Value::Error(_) => true,
-            crate::mir::Value::Inst(_) => {
-                let Some(definition) = self.definitions[value] else { return true };
-                !loop_info.blocks.contains(definition)
-                    && !carry_through.contains(&value)
-                    && !results.contains(&value)
-            }
+    fn push_live_through_value(&self, loop_info: &Loop, value: ValueId, values: &mut Vec<ValueId>) {
+        let crate::mir::Value::Inst(_) = self.func.value(value) else { return };
+        let Some(definition) = self.definitions[value] else { return };
+        if !loop_info.blocks.contains(definition) && !values.contains(&value) {
+            values.push(value);
         }
     }
 
@@ -680,17 +644,6 @@ impl<'a> StackPhiPlanner<'a> {
                 incoming.iter().find_map(|&(block, value)| (block == pred).then_some(value))
             })
             .collect()
-    }
-
-    fn is_phi_value(&self, value: ValueId) -> bool {
-        matches!(self.func.value(value), crate::mir::Value::Inst(inst) if matches!(self.func.inst(*inst).kind, InstKind::Phi(_)))
-    }
-
-    fn is_loop_header_phi(&self, value: ValueId) -> bool {
-        let crate::mir::Value::Inst(inst) = self.func.value(value) else { return false };
-        self.loops
-            .iter()
-            .any(|loop_info| self.func.blocks[loop_info.header].instructions.contains(inst))
     }
 }
 

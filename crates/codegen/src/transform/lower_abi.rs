@@ -618,6 +618,25 @@ impl LowerAbiCx {
             }
         }
 
+        let mut decode_counts = FxHashMap::default();
+        for func in module.functions.iter() {
+            for inst_id in func.instructions() {
+                let InstKind::AbiDecode { layout, .. } = &func.inst(inst_id).kind else {
+                    continue;
+                };
+                if layout.types.len() == 1 && !layout.types[0].is_dynamic() {
+                    *decode_counts.entry(layout.as_ref().clone()).or_insert(0) += 1;
+                }
+            }
+        }
+        let mut static_decode_helpers = FxHashMap::default();
+        for (layout, count) in decode_counts {
+            if count >= 2 {
+                let helper = self.synthesize_static_decode_helper(module, layout.clone());
+                static_decode_helpers.insert(layout, helper);
+            }
+        }
+
         let mut changed = false;
         for func in module.functions.iter_mut() {
             let has_decode = func
@@ -648,6 +667,22 @@ impl LowerAbiCx {
                         continue;
                     };
 
+                    let result = builder
+                        .func()
+                        .inst_result_value(inst)
+                        .expect("ABI decode must produce a value");
+                    if let Some(&helper) = static_decode_helpers.get(layout.as_ref()) {
+                        let value = builder.internal_call(
+                            helper,
+                            vec![data],
+                            layout.types[0].mir_type(),
+                            1,
+                        );
+                        replacements.insert(result, value);
+                        changed = true;
+                        continue;
+                    }
+
                     let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
                     let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
                     let Some(values) = Self::decode_memory_tuple(
@@ -659,10 +694,6 @@ impl LowerAbiCx {
                     ) else {
                         return false;
                     };
-                    let result = builder
-                        .func()
-                        .inst_result_value(inst)
-                        .expect("ABI decode must produce a value");
                     replacements.insert(result, values[0]);
 
                     if values.len() > 1 {
@@ -690,6 +721,28 @@ impl LowerAbiCx {
             changed |= repaired;
         }
         changed
+    }
+
+    fn synthesize_static_decode_helper(
+        &self,
+        module: &mut Module,
+        layout: AbiParamLayout,
+    ) -> FunctionId {
+        let name = format!("__decode_static_{}", module.functions.len());
+        let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+        let result_ty = layout.types[0].mir_type();
+        {
+            let mut builder = FunctionBuilder::new(&mut function);
+            let data = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
+            builder.add_return(result_ty);
+            let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
+            let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
+            let values =
+                Self::decode_memory_tuple(&mut builder, base, length, &layout, Some(&self.helpers))
+                    .expect("checked static ABI layout");
+            builder.ret(values);
+        }
+        module.add_function(function)
     }
 
     /// Materializes fixed constructor inputs while preserving the physical
@@ -946,7 +999,10 @@ impl LowerAbiCx {
         constructor: bool,
     ) {
         let arg_types: Vec<_> = func.params.iter().copied().collect();
-        if arg_types.is_empty() && abi_params.is_none() {
+        if !constructor
+            && arg_types.is_empty()
+            && abi_params.is_none_or(|layout| layout.types.is_empty())
+        {
             return;
         }
 
@@ -1570,25 +1626,121 @@ impl LowerAbiCx {
         Self::guard_input_range(builder, base, head_size, input_end, &mut current);
 
         let mut values = Vec::with_capacity(layout.types.len());
+        let static_layout = layout.types.iter().all(|ty| !ty.is_dynamic());
         let mut head_offset = 0_u64;
         for ty in &layout.types {
             let offset = builder.imm_u64(head_offset);
             let head = builder.add(base, offset);
-            let value = Self::decode_aggregate_argument(
-                builder,
-                ty,
-                ty.mir_type(),
-                head,
-                base,
-                input_end,
-                true,
-                &mut current,
-                helpers,
-            );
+            let value = if static_layout {
+                Self::decode_static_memory_argument(builder, ty, head, &mut current, helpers)
+            } else {
+                Self::decode_aggregate_argument(
+                    builder,
+                    ty,
+                    ty.mir_type(),
+                    head,
+                    base,
+                    input_end,
+                    true,
+                    &mut current,
+                    helpers,
+                )
+            };
             values.push(value);
             head_offset = head_offset.checked_add(ty.head_size())?;
         }
         Some(values)
+    }
+
+    fn decode_static_memory_argument(
+        builder: &mut FunctionBuilder<'_>,
+        ty: &crate::mir::AbiParamType,
+        head: ValueId,
+        current: &mut BlockId,
+        helpers: Option<&CleanupHelpers>,
+    ) -> ValueId {
+        builder.switch_to_block(*current);
+        match ty {
+            crate::mir::AbiParamType::Scalar(scalar) => {
+                let value = builder.mload(head);
+                let value = if let Some(validator) = AbiWordValidator::from_mir_type(*scalar) {
+                    let valid = if let Some(helpers) = helpers {
+                        validator.condition_with_helpers(builder, value, helpers)
+                    } else {
+                        validator.condition(builder, value)
+                    };
+                    let next = builder.create_block();
+                    let revert = builder.create_block();
+                    builder.branch(valid, next, revert);
+                    builder.switch_to_block(revert);
+                    let zero = builder.imm_u64(0);
+                    builder.revert(zero, zero);
+                    builder.switch_to_block(next);
+                    *current = next;
+                    value
+                } else {
+                    value
+                };
+                if *scalar == MirType::Function {
+                    let shift = builder.imm_u64(64);
+                    builder.shr(shift, value)
+                } else {
+                    value
+                }
+            }
+            crate::mir::AbiParamType::Enum { variants, .. } => {
+                let value = builder.mload(head);
+                let variants = builder.imm_u64(*variants);
+                let valid = builder.lt(value, variants);
+                let next = builder.create_block();
+                let revert = builder.create_block();
+                builder.branch(valid, next, revert);
+                builder.switch_to_block(revert);
+                let zero = builder.imm_u64(0);
+                builder.revert(zero, zero);
+                builder.switch_to_block(next);
+                *current = next;
+                value
+            }
+            crate::mir::AbiParamType::FixedArray { element, len } => {
+                let size = builder.imm_u64(len.saturating_mul(32));
+                let layout = crate::mir::MemoryObjectLayout::word_fixed_array(*len);
+                let object =
+                    builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL);
+                let mut offset = 0;
+                for index in 0..*len {
+                    let offset_value = builder.imm_u64(offset);
+                    let field = builder.add(head, offset_value);
+                    let value = Self::decode_static_memory_argument(
+                        builder, element, field, current, helpers,
+                    );
+                    let index_value = builder.imm_u64(index);
+                    builder.memory_object_store_element(object, layout, index_value, value);
+                    offset += element.head_size();
+                }
+                object
+            }
+            crate::mir::AbiParamType::Tuple(fields) => {
+                let size = builder.imm_u64((fields.len() as u64).saturating_mul(32));
+                let layout = crate::mir::MemoryObjectLayout::structure(fields.len() as u64);
+                let object =
+                    builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL);
+                let mut offset = 0;
+                for (index, field) in fields.iter().enumerate() {
+                    let offset_value = builder.imm_u64(offset);
+                    let field_head = builder.add(head, offset_value);
+                    let value = Self::decode_static_memory_argument(
+                        builder, field, field_head, current, helpers,
+                    );
+                    builder.memory_object_store_field(object, layout, index as u64, value);
+                    offset += field.head_size();
+                }
+                object
+            }
+            crate::mir::AbiParamType::Bytes | crate::mir::AbiParamType::DynamicArray(_) => {
+                unreachable!("dynamic ABI values are not in a static tuple")
+            }
+        }
     }
 
     fn load_calldata_word(builder: &mut FunctionBuilder<'_>, position: ValueId) -> ValueId {

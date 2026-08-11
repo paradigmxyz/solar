@@ -204,14 +204,11 @@ bb43:
   mload
   dup3
   calldatacopy
-  pop
   jump bb39
 bb39:
-  dup1
+  swap1
   mload
   swap1
-  push 32
-  add
   keccak256
   push 128
   mstore
@@ -392,12 +389,10 @@ bb46:
   push 112
   push 248
   shl
-  swap1
-  mstore
-  push 32
   dup2
-  add
+  mstore
   push 1
+  dup2
   add
   push 160
   mload
@@ -406,11 +401,9 @@ bb46:
   dup3
   calldatacopy
   pop
-  push 32
-  dup2
-  add
   push 224
   mload
+  dup2
   add
   push 1
   swap1

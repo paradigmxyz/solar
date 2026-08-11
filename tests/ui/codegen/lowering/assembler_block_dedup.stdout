@@ -14,43 +14,38 @@ bb0:
   dup1
   push 0xdbe671f
   eq
-  push bb20
+  push bb7
   jumpi
   dup1
   push 0x4df7e3d0
   eq
-  push bb20
+  push bb7
   jumpi
   dup1
   push 0x5ce8bda8
   eq
-  push bb21
+  push bb16
   jumpi
   dup1
   push 0xfeb97429
   eq
-  push bb21
+  push bb16
   jumpi
   jump bb6
 bb6 [cold]:
   push 0
   dup1
   revert
-bb20:
-  calldatasize
-  push 4
-  gt
-  push bb6
-  jumpi
+bb7:
   push 1
-  jump bb19
-bb19:
+  jump bb15
+bb15:
   push 128
   mstore
   push 32
   push 128
   return
-bb21:
+bb16:
   calldatasize
   push 36
   gt
@@ -69,4 +64,4 @@ bb21:
   push bb6
   jumpi
   push 2
-  jump bb19
+  jump bb15

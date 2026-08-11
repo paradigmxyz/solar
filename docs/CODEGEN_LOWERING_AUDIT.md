@@ -114,11 +114,13 @@ The replacement is split into stateful, private components:
 HIR lowering emits typed scalar MIR and semantic storage operations. External
 functions retain typed parameters, ABI parameter shapes, and ABI return
 layouts in built MIR. The existing `lower-abi` pass remains responsible for
-calldata wrappers, decoding, and external termination. No new lowering code
-reads or updates the free-memory pointer. Contract creation receives compiled
-child deployment bytecode through the public lowering boundary and appends
-semantic ABI-encoded constructor arguments before emitting `create` or
-`create2`.
+calldata wrappers, decoding, and external termination. Mapping-slot lowering
+keeps fixed storage-array hashes in reserved scratch and uses semantic
+allocations for variable-size hash inputs, so allocator and memory-observable
+operations retain their normal contracts.
+Contract creation receives compiled child deployment bytecode through the
+public lowering boundary and appends semantic ABI-encoded constructor
+arguments before emitting `create` or `create2`.
 Multi-return buffers use the same semantic fixed-array objects and frame-slot
 operations in HIR lowering, ABI lowering, and generated function-pointer
 dispatchers. Their consumers carry the complete logical slice length instead

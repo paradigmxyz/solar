@@ -188,15 +188,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         if ty.is_ref_at(DataLocation::Calldata)
             && matches!(
-                ty.peel_refs().kind,
-                TyKind::DynArray(_)
-                    | TyKind::Slice(_)
-                    | TyKind::Elementary(
-                        solar_sema::hir::ElementaryType::Bytes
-                            | solar_sema::hir::ElementaryType::String,
-                    )
-            )
-            && matches!(
                 self.builder.func().value_ty(value),
                 Some(MirType::Slice(SliceLocation::Calldata))
             )

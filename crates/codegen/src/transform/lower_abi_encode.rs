@@ -44,10 +44,9 @@ pub(crate) struct AbiScratch {
 
 #[derive(Clone, Copy)]
 struct AbiValueDest {
-    object: ValueId,
-    head_offset: ValueId,
-    tuple_offset: ValueId,
-    tail_offset: ValueId,
+    head_addr: ValueId,
+    tuple_base: ValueId,
+    tail: ValueId,
 }
 
 fn lower_function(func: &mut Function) -> bool {
@@ -134,44 +133,39 @@ fn lower_encode(
     if !layout.types.iter().any(AbiType::is_dynamic) {
         let total_size = selector_size + layout.head_size();
         let aligned_size = total_size.next_multiple_of(32);
-        let allocation_size = builder.imm_u64(aligned_size.saturating_add(32));
-        let object = builder.alloc_object(
-            allocation_size,
-            MemoryObjectLayout::Bytes,
-            crate::mir::AllocationSemantics::INTERNAL,
-        );
-        let total = builder.imm_u64(total_size);
-        builder.set_memory_object_len(object, total, MemoryObjectKind::Bytes);
-        let zero = builder.imm_u64(0);
-        if let Some(selector) = selector {
-            store_word(builder, object, zero, selector);
+        if selector.is_none() {
+            // Constructor arguments do not need a raw slice, and keeping their
+            // object header lets the memory lowering preserve the established
+            // allocation path for creation code.
+            let allocation_size = builder.imm_u64(aligned_size.saturating_add(32));
+            let object = builder.alloc_object(
+                allocation_size,
+                MemoryObjectLayout::Bytes,
+                crate::mir::AllocationSemantics::INTERNAL,
+            );
+            let total = builder.imm_u64(total_size);
+            builder.set_memory_object_len(object, total, MemoryObjectKind::Bytes);
+            let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
+            encode_static_tuple(builder, args, &layout.types, data);
+            return builder.make_slice(data, total, SliceLocation::Memory);
         }
-        let dest = offset_ptr(builder, zero, selector_size);
-        encode_tuple(
-            builder,
-            object,
-            args,
-            &layout.types,
-            dest,
-            AbiScratch { base: None, depth: 0 },
-        );
-        let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
-        return builder.make_slice(data, total, SliceLocation::Memory);
+        let allocation_size = builder.imm_u64(aligned_size);
+        let buffer = builder.alloc_raw(allocation_size, crate::mir::AllocationSemantics::INTERNAL);
+        if let Some(selector) = selector {
+            builder.mstore(buffer, selector);
+        }
+        let dest = offset_ptr(builder, buffer, selector_size);
+        encode_tuple(builder, args, &layout.types, dest, AbiScratch { base: None, depth: 0 });
+        let total = builder.imm_u64(total_size);
+        return builder.make_slice(buffer, total, SliceLocation::Memory);
     }
 
     let scratch_words = layout.scratch_words();
     let scratch_base = if scratch_words == 0 {
         None
     } else {
-        let size = builder.imm_u64((scratch_words + 1) * 32);
-        let object = builder.alloc_object(
-            size,
-            MemoryObjectLayout::WORD_ARRAY,
-            crate::mir::AllocationSemantics::INTERNAL,
-        );
-        let length = builder.imm_u64(scratch_words);
-        builder.set_memory_object_len(object, length, MemoryObjectKind::DynamicArray);
-        Some(object)
+        let size = builder.imm_u64(scratch_words * 32);
+        Some(builder.alloc_raw(size, crate::mir::AllocationSemantics::INTERNAL))
     };
 
     let encoded_size =
@@ -182,29 +176,13 @@ fn lower_encode(
     let rounded = builder.add(total, thirty_one);
     let mask = builder.not(thirty_one);
     let aligned = builder.and(rounded, mask);
-    let header_size = builder.imm_u64(32);
-    let object_size = builder.add(aligned, header_size);
-    let object = builder.alloc_object(
-        object_size,
-        MemoryObjectLayout::Bytes,
-        crate::mir::AllocationSemantics::INTERNAL,
-    );
-    builder.set_memory_object_len(object, total, MemoryObjectKind::Bytes);
-    let zero = builder.imm_u64(0);
+    let buffer = builder.alloc_raw(aligned, crate::mir::AllocationSemantics::INTERNAL);
     if let Some(selector) = selector {
-        store_word(builder, object, zero, selector);
+        builder.mstore(buffer, selector);
     }
-    let dest = offset_ptr(builder, zero, selector_size);
-    encode_tuple(
-        builder,
-        object,
-        args,
-        &layout.types,
-        dest,
-        AbiScratch { base: scratch_base, depth: 0 },
-    );
-    let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
-    builder.make_slice(data, total, SliceLocation::Memory)
+    let dest = offset_ptr(builder, buffer, selector_size);
+    encode_tuple(builder, args, &layout.types, dest, AbiScratch { base: scratch_base, depth: 0 });
+    builder.make_slice(buffer, total, SliceLocation::Memory)
 }
 
 fn measure_tuple(
@@ -358,7 +336,6 @@ fn padded_bytes_size(builder: &mut FunctionBuilder<'_>, len: ValueId) -> ValueId
     let padded = builder.and(rounded, mask);
     builder.add(word, padded)
 }
-
 /// Encodes a statically shaped tuple into an existing physical return buffer.
 ///
 /// Static ABI returns use the fixed return buffer owned by the ABI boundary;
@@ -420,144 +397,145 @@ fn encode_static_raw(
 
 pub(crate) fn encode_tuple(
     builder: &mut FunctionBuilder<'_>,
-    object: ValueId,
     values: &[ValueId],
     types: &[AbiType],
-    dest_offset: ValueId,
+    dest: ValueId,
     scratch: AbiScratch,
 ) -> ValueId {
     let head_size: u64 = types.iter().map(AbiType::head_size).sum();
     if !types.iter().any(AbiType::is_dynamic) {
-        let mut head_offset = dest_offset;
+        let mut head_offset = 0;
         for (&value, ty) in values.iter().zip(types) {
-            encode_static(builder, object, ty, value, head_offset);
-            head_offset = offset_ptr(builder, head_offset, ty.head_size());
+            let head = offset_ptr(builder, dest, head_offset);
+            encode_static(builder, ty, value, head);
+            head_offset += ty.head_size();
         }
-        return offset_ptr(builder, dest_offset, head_size);
+        return builder.imm_u64(head_size);
     }
 
     let head_size_value = builder.imm_u64(head_size);
-    let mut tail_offset = builder.add(dest_offset, head_size_value);
-    let mut head_offset = dest_offset;
+    let mut tail = builder.add(dest, head_size_value);
+    let mut head_offset = 0;
     for (&value, ty) in values.iter().zip(types) {
-        tail_offset = encode_value(
+        let head_addr = offset_ptr(builder, dest, head_offset);
+        tail = encode_value(
             builder,
-            object,
             ty,
             value,
-            AbiValueDest { object, head_offset, tuple_offset: dest_offset, tail_offset },
+            AbiValueDest { head_addr, tuple_base: dest, tail },
             scratch,
         );
-        head_offset = offset_ptr(builder, head_offset, ty.head_size());
+        head_offset += ty.head_size();
     }
-    tail_offset
+    builder.sub(tail, dest)
 }
 
 fn encode_value(
     builder: &mut FunctionBuilder<'_>,
-    object: ValueId,
     ty: &AbiType,
     value: ValueId,
     dest: AbiValueDest,
     scratch: AbiScratch,
 ) -> ValueId {
     if ty.is_dynamic() {
-        let relative = builder.sub(dest.tail_offset, dest.tuple_offset);
-        store_word(builder, dest.object, dest.head_offset, relative);
-        encode_dynamic_body(builder, object, ty, value, dest.tail_offset, scratch)
+        let relative = builder.sub(dest.tail, dest.tuple_base);
+        builder.mstore(dest.head_addr, relative);
+        encode_dynamic_body(builder, ty, value, dest.tail, scratch)
     } else {
-        encode_static(builder, object, ty, value, dest.head_offset);
-        dest.tail_offset
+        encode_static(builder, ty, value, dest.head_addr);
+        dest.tail
     }
 }
 
 fn encode_static(
     builder: &mut FunctionBuilder<'_>,
-    object: ValueId,
     ty: &AbiType,
     value: ValueId,
-    head_offset: ValueId,
+    head_addr: ValueId,
 ) {
     match ty {
         AbiType::Tuple(fields) => {
-            let mut field_head = head_offset;
+            let mut field_head = head_addr;
             for (index, field) in fields.iter().enumerate() {
-                let field_value = builder.memory_object_load_field(
+                let slot = builder.memory_object_field_addr(
                     value,
                     crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
                     index as u64,
                 );
-                encode_static(builder, object, field, field_value, field_head);
+                let field_value = builder.mload(slot);
+                encode_static(builder, field, field_value, field_head);
                 field_head = offset_ptr(builder, field_head, field.head_size());
             }
         }
         AbiType::FixedArray { element, len } => {
-            let mut element_head = head_offset;
+            let mut element_head = head_addr;
             for index in 0..*len {
                 let index_value = builder.imm_u64(index);
-                let element_value = builder.memory_object_load_element(
+                let slot = builder.memory_object_element_addr(
                     value,
                     crate::mir::MemoryObjectLayout::word_fixed_array(*len),
                     index_value,
                 );
-                encode_static(builder, object, element, element_value, element_head);
+                let element_value = builder.mload(slot);
+                encode_static(builder, element, element_value, element_head);
                 element_head = offset_ptr(builder, element_head, element.head_size());
             }
         }
         AbiType::Function => {
             let shift = builder.imm_u64(64);
             let value = builder.shl(shift, value);
-            store_word(builder, object, head_offset, value);
+            builder.mstore(head_addr, value);
         }
-        _ => store_word(builder, object, head_offset, value),
+        _ => builder.mstore(head_addr, value),
     }
 }
 
 fn encode_dynamic_body(
     builder: &mut FunctionBuilder<'_>,
-    object: ValueId,
     ty: &AbiType,
     value: ValueId,
-    dest_offset: ValueId,
+    dest: ValueId,
     scratch: AbiScratch,
 ) -> ValueId {
     match ty {
-        AbiType::Bytes(location) => encode_bytes(builder, object, value, dest_offset, *location),
+        AbiType::Bytes(location) => encode_bytes(builder, value, dest, *location),
         AbiType::DynamicArray { element, location }
             if matches!(element.as_ref(), AbiType::Word)
                 || (matches!(element.as_ref(), AbiType::Function)
                     && location != &SliceLocation::Memory) =>
         {
-            encode_word_array(builder, object, value, dest_offset, *location)
+            encode_word_array(builder, value, dest, *location)
         }
         AbiType::DynamicArray { element, location: SliceLocation::Memory } => {
-            encode_dynamic_array(builder, object, element, value, dest_offset, scratch)
+            encode_dynamic_array(builder, element, value, dest, scratch)
         }
         AbiType::FixedArray { element, len } => {
             let mut values = Vec::with_capacity(*len as usize);
             for index in 0..*len {
                 let index_value = builder.imm_u64(index);
-                let element_value = builder.memory_object_load_element(
+                let slot = builder.memory_object_element_addr(
                     value,
                     crate::mir::MemoryObjectLayout::word_fixed_array(*len),
                     index_value,
                 );
-                values.push(element_value);
+                values.push(builder.mload(slot));
             }
             let types = vec![element.as_ref().clone(); *len as usize];
-            encode_tuple(builder, object, &values, &types, dest_offset, scratch)
+            let size = encode_tuple(builder, &values, &types, dest, scratch);
+            builder.add(dest, size)
         }
         AbiType::Tuple(fields) => {
             let mut values = Vec::with_capacity(fields.len());
             for index in 0..fields.len() {
-                let field_value = builder.memory_object_load_field(
+                let slot = builder.memory_object_field_addr(
                     value,
                     crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
                     index as u64,
                 );
-                values.push(field_value);
+                values.push(builder.mload(slot));
             }
-            encode_tuple(builder, object, &values, fields, dest_offset, scratch)
+            let size = encode_tuple(builder, &values, fields, dest, scratch);
+            builder.add(dest, size)
         }
         AbiType::DynamicArray {
             location: SliceLocation::Calldata | SliceLocation::Returndata,
@@ -571,27 +549,32 @@ fn encode_dynamic_body(
 
 fn encode_dynamic_array(
     builder: &mut FunctionBuilder<'_>,
-    object: ValueId,
     element: &AbiType,
     value: ValueId,
-    dest_offset: ValueId,
+    dest: ValueId,
     scratch: AbiScratch,
 ) -> ValueId {
     let scratch_base = scratch.base.expect("dynamic ABI array encoding requires scratch memory");
     let len = builder.memory_object_len(value, MemoryObjectKind::DynamicArray);
-    store_word(builder, object, dest_offset, len);
+    builder.mstore(dest, len);
 
     let word = builder.imm_u64(32);
-    let element_area = builder.add(dest_offset, word);
+    let element_area = builder.add(dest, word);
     let element_head_size = builder.imm_u64(element.head_size());
     let head_bytes = builder.mul(len, element_head_size);
     let initial_tail = builder.add(element_area, head_bytes);
-    scratch_store(builder, scratch_base, scratch.depth, 0, len);
-    scratch_store(builder, scratch_base, scratch.depth, 1, initial_tail);
-    scratch_store(builder, scratch_base, scratch.depth, 2, element_area);
-    let zero = builder.imm_u64(0);
-    scratch_store(builder, scratch_base, scratch.depth, 3, zero);
-    scratch_store(builder, scratch_base, scratch.depth, 4, element_area);
+    let source_cursor = builder.memory_object_data(value, MemoryObjectKind::DynamicArray);
+
+    let remaining_slot = scratch_slot(builder, scratch_base, scratch.depth, 0);
+    let tail_slot = scratch_slot(builder, scratch_base, scratch.depth, 1);
+    let head_slot = scratch_slot(builder, scratch_base, scratch.depth, 2);
+    let source_slot = scratch_slot(builder, scratch_base, scratch.depth, 3);
+    let tuple_base_slot = scratch_slot(builder, scratch_base, scratch.depth, 4);
+    builder.mstore(remaining_slot, len);
+    builder.mstore(tail_slot, initial_tail);
+    builder.mstore(head_slot, element_area);
+    builder.mstore(source_slot, source_cursor);
+    builder.mstore(tuple_base_slot, element_area);
 
     let cond = builder.create_block();
     let body = builder.create_block();
@@ -599,98 +582,83 @@ fn encode_dynamic_array(
     builder.jump(cond);
 
     builder.switch_to_block(cond);
-    let remaining = scratch_load(builder, scratch_base, scratch.depth, 0);
+    let remaining = builder.mload(remaining_slot);
     let zero = builder.imm_u64(0);
     let has_next = builder.gt(remaining, zero);
     builder.branch(has_next, body, done);
 
     builder.switch_to_block(body);
-    let source_index = scratch_load(builder, scratch_base, scratch.depth, 3);
-    let element_value =
-        builder.memory_object_load_element(value, MemoryObjectLayout::WORD_ARRAY, source_index);
-    let element_head = scratch_load(builder, scratch_base, scratch.depth, 2);
-    let current_tail = scratch_load(builder, scratch_base, scratch.depth, 1);
-    let tuple_base = scratch_load(builder, scratch_base, scratch.depth, 4);
+    let source = builder.mload(source_slot);
+    let element_value = builder.mload(source);
+    let element_head = builder.mload(head_slot);
+    let current_tail = builder.mload(tail_slot);
+    let tuple_base = builder.mload(tuple_base_slot);
     let new_tail = encode_value(
         builder,
-        object,
         element,
         element_value,
-        AbiValueDest {
-            object,
-            head_offset: element_head,
-            tuple_offset: tuple_base,
-            tail_offset: current_tail,
-        },
+        AbiValueDest { head_addr: element_head, tuple_base, tail: current_tail },
         AbiScratch { base: Some(scratch_base), depth: scratch.depth + 1 },
     );
-    scratch_store(builder, scratch_base, scratch.depth, 1, new_tail);
+    builder.mstore(tail_slot, new_tail);
 
-    let remaining = scratch_load(builder, scratch_base, scratch.depth, 0);
+    let remaining = builder.mload(remaining_slot);
     let one = builder.imm_u64(1);
     let next_remaining = builder.sub(remaining, one);
-    scratch_store(builder, scratch_base, scratch.depth, 0, next_remaining);
-    let source_index = scratch_load(builder, scratch_base, scratch.depth, 3);
-    let next_index = builder.add(source_index, one);
-    scratch_store(builder, scratch_base, scratch.depth, 3, next_index);
-    let element_head = scratch_load(builder, scratch_base, scratch.depth, 2);
+    builder.mstore(remaining_slot, next_remaining);
+    let source = builder.mload(source_slot);
+    let next_source = builder.add(source, word);
+    builder.mstore(source_slot, next_source);
+    let element_head = builder.mload(head_slot);
     let next_head = builder.add(element_head, element_head_size);
-    scratch_store(builder, scratch_base, scratch.depth, 2, next_head);
+    builder.mstore(head_slot, next_head);
     builder.jump(cond);
 
     builder.switch_to_block(done);
-    scratch_load(builder, scratch_base, scratch.depth, 1)
+    builder.mload(tail_slot)
 }
 
 fn encode_word_array(
     builder: &mut FunctionBuilder<'_>,
-    object: ValueId,
     value: ValueId,
-    dest_offset: ValueId,
+    dest: ValueId,
     location: SliceLocation,
 ) -> ValueId {
     let len = match location {
         SliceLocation::Memory => builder.memory_object_len(value, MemoryObjectKind::DynamicArray),
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
     };
-    store_word(builder, object, dest_offset, len);
+    builder.mstore(dest, len);
     let word = builder.imm_u64(32);
     let bytes = builder.mul(len, word);
-    let data_dest = builder.add(dest_offset, word);
-    let source = match location {
-        SliceLocation::Memory => {
-            let data = builder.memory_object_data(value, MemoryObjectKind::DynamicArray);
-            builder.make_slice(data, bytes, SliceLocation::Memory)
-        }
-        SliceLocation::Calldata | SliceLocation::Returndata => {
-            let data = builder.slice_ptr(value);
-            builder.make_slice(data, bytes, location)
-        }
+    let data_dest = builder.add(dest, word);
+    let data_source = match location {
+        SliceLocation::Memory => builder.memory_object_data(value, MemoryObjectKind::DynamicArray),
+        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, bytes);
-    copy_slice_data(builder, object, data_dest, source);
+    copy_slice_data(builder, location, data_dest, data_source, bytes);
     tail
 }
 
 fn encode_bytes(
     builder: &mut FunctionBuilder<'_>,
-    object: ValueId,
     value: ValueId,
-    dest_offset: ValueId,
+    dest: ValueId,
     location: SliceLocation,
 ) -> ValueId {
     let len = match location {
         SliceLocation::Memory => builder.memory_object_len(value, MemoryObjectKind::Bytes),
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
     };
-    store_word(builder, object, dest_offset, len);
+    builder.mstore(dest, len);
 
     let word = builder.imm_u64(32);
     let thirty_one = builder.imm_u64(31);
     let mask = builder.not(thirty_one);
     let rounded = builder.add(len, thirty_one);
     let padded = builder.and(rounded, mask);
-    let data_dest = builder.add(dest_offset, word);
+    let data_dest = builder.add(dest, word);
 
     let zero_block = builder.create_block();
     let copy_block = builder.create_block();
@@ -701,38 +669,43 @@ fn encode_bytes(
     let last_offset = builder.sub(padded, word);
     let last_word = builder.add(data_dest, last_offset);
     let zero = builder.imm_u64(0);
-    store_word(builder, object, last_word, zero);
+    builder.mstore(last_word, zero);
     builder.jump(copy_block);
 
     builder.switch_to_block(copy_block);
-    let source = match location {
-        SliceLocation::Memory => {
-            let data = builder.memory_object_data(value, MemoryObjectKind::Bytes);
-            builder.make_slice(data, len, SliceLocation::Memory)
-        }
-        SliceLocation::Calldata | SliceLocation::Returndata => value,
+    let data_source = match location {
+        SliceLocation::Memory => builder.memory_object_data(value, MemoryObjectKind::Bytes),
+        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, padded);
-    copy_slice_data(builder, object, data_dest, source);
+    copy_slice_data(builder, location, data_dest, data_source, len);
     tail
 }
 
-/// Copies a logical slice into an output bytes object at a byte offset.
+/// Copies `size` bytes of a slice's data from its address space into memory at
+/// `dest`. Memory-to-memory uses `mcopy`; calldata and returndata slices copy
+/// from their own buffers with `calldatacopy`/`returndatacopy`.
 fn copy_slice_data(
     builder: &mut FunctionBuilder<'_>,
-    object: ValueId,
-    dest_offset: ValueId,
+    location: SliceLocation,
+    dest: ValueId,
     source: ValueId,
+    size: ValueId,
 ) {
-    builder.memory_object_copy_from_slice_at(object, MemoryObjectKind::Bytes, dest_offset, source);
+    match location {
+        SliceLocation::Memory => builder.mcopy(dest, source, size),
+        SliceLocation::Calldata => builder.calldatacopy(dest, source, size),
+        SliceLocation::Returndata => builder.returndatacopy(dest, source, size),
+    }
 }
 
-fn store_word(builder: &mut FunctionBuilder<'_>, object: ValueId, offset: ValueId, value: ValueId) {
-    builder.memory_object_store_word(object, offset, value);
-}
-
-fn scratch_slot(builder: &mut FunctionBuilder<'_>, depth: u64, slot: u64) -> ValueId {
-    builder.imm_u64(depth * 5 + slot)
+fn scratch_slot(
+    builder: &mut FunctionBuilder<'_>,
+    base: ValueId,
+    depth: u64,
+    slot: u64,
+) -> ValueId {
+    offset_ptr(builder, base, depth * 160 + slot * 32)
 }
 
 fn scratch_store(
@@ -742,8 +715,8 @@ fn scratch_store(
     slot: u64,
     value: ValueId,
 ) {
-    let index = scratch_slot(builder, depth, slot);
-    builder.memory_object_store_element(base, MemoryObjectLayout::WORD_ARRAY, index, value);
+    let address = scratch_slot(builder, base, depth, slot);
+    builder.mstore(address, value);
 }
 
 fn scratch_load(
@@ -752,8 +725,8 @@ fn scratch_load(
     depth: u64,
     slot: u64,
 ) -> ValueId {
-    let index = scratch_slot(builder, depth, slot);
-    builder.memory_object_load_element(base, MemoryObjectLayout::WORD_ARRAY, index)
+    let address = scratch_slot(builder, base, depth, slot);
+    builder.mload(address)
 }
 
 fn offset_ptr(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -> ValueId {
