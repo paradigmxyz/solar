@@ -6,6 +6,7 @@
 
 use crate::{
     analysis::CallGraphInfo,
+    memory::EvmMemoryLayout,
     mir::{
         ArgIdx, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module, StorageAlias,
         Terminator, Value, ValueId,
@@ -92,6 +93,32 @@ fn has_rewritable_signature(func: &Function, is_called: bool) -> bool {
         && !func.params.is_empty()
         && func.params.len() == func.arg_indices().count()
         && is_internal_body(func)
+}
+
+/// Rebases every static-frame address in `func` after `removed_slots` leading parameter or result
+/// slots were removed from its signature.
+///
+/// `local_memory_addr` bakes each frame-local address as `header + (params + returns) * word +
+/// local_offset`, so every `InternalFrameAddr` offset lands in the locals region above the
+/// signature prefix. Shrinking the signature shifts that prefix — and with it every local — down by
+/// one word per removed slot, so the baked offsets must move too or they would point at a stale
+/// slot: the backend recomputes the frame layout and spill base from the current parameter and
+/// result counts, so leaving the offsets high aliases the locals onto spill slots or a nested
+/// callee frame. The removed parameters and results are dead, so their own slots (if any) never
+/// remain referenced and `internal_frame_size` is unchanged; the shift is a uniform subtraction,
+/// mirroring the inliner's frame-prefix rebasing.
+fn rebase_frame_offsets(func: &mut Function, removed_slots: u64) {
+    if removed_slots == 0 {
+        return;
+    }
+    let shift = removed_slots * EvmMemoryLayout::WORD_SIZE;
+    func.for_each_instruction_mut(|_, inst| {
+        if let InstKind::InternalFrameAddr(offset) = &mut inst.kind {
+            *offset = offset
+                .checked_sub(shift)
+                .expect("frame-local offset precedes the removed signature prefix");
+        }
+    });
 }
 
 /// Computes the least fixed point of argument liveness and removes every argument outside it.
@@ -227,7 +254,9 @@ fn prune_unused_args(module: &mut Module) -> usize {
             *func.value_mut(value) =
                 remap[old_index].map(Value::Arg).unwrap_or(Value::Undef(old_params[old_index]));
         }
+        let removed_slots = (old_params.len() - new_params.len()) as u64;
         func.set_params(new_params);
+        rebase_frame_offsets(func, removed_slots);
     }
 
     tracing::debug!(
@@ -369,12 +398,15 @@ fn prune_unused_returns(module: &mut Module) -> usize {
 
     for func_id in removed_set.iter() {
         let func = module.function_mut(func_id);
+        // Candidates carry exactly one result, so clearing it removes one signature slot.
+        let removed_slots = func.returns.len() as u64;
         func.returns.clear();
         for block in &mut func.blocks {
             if let Some(Terminator::Return { values }) = &mut block.terminator {
                 values.clear();
             }
         }
+        rebase_frame_offsets(func, removed_slots);
     }
 
     let removed = removed_set.count();
