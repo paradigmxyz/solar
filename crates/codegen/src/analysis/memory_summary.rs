@@ -236,15 +236,15 @@ fn local_summary(
                 | InstKind::MemoryObjectStoreElement { value, .. }
                 | InstKind::MemoryObjectStoreByte { value, .. }
                 | InstKind::MemoryObjectStoreWord { value, .. } => {
-                    capture_sources(&mut summary, func, &sources, *value);
+                    capture_sources(&mut summary, func, sources, *value);
                 }
                 InstKind::MemorySliceLoadWord { slice, offset } => {
-                    capture_sources(&mut summary, func, &sources, *slice);
-                    capture_sources(&mut summary, func, &sources, *offset);
+                    capture_sources(&mut summary, func, sources, *slice);
+                    capture_sources(&mut summary, func, sources, *offset);
                 }
                 InstKind::CalldataSliceLoadWord { slice, offset } => {
-                    capture_sources(&mut summary, func, &sources, *slice);
-                    capture_sources(&mut summary, func, &sources, *offset);
+                    capture_sources(&mut summary, func, sources, *slice);
+                    capture_sources(&mut summary, func, sources, *offset);
                 }
                 _ => {}
             }
@@ -252,7 +252,7 @@ fn local_summary(
 
         if let Some(Terminator::Return { values }) = &block.terminator {
             for &value in values {
-                capture_sources(&mut summary, func, &sources, value);
+                capture_sources(&mut summary, func, sources, value);
             }
         }
     }
