@@ -60,8 +60,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
     &frame_promotion::FrameSlotPromotion,
-    &function_compaction::PruneUnusedArgs,
-    &function_compaction::PruneUnusedReturns,
+    &function_compaction::DeadArgElim,
     &function_compaction::MergeEquivalentFunctions,
     &memory_dse::MemoryDse,
     &static_alloc::StaticAlloc,
@@ -186,8 +185,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // Keep this separate from general inlining, whose larger candidates regress measured gas.
     &GasOnly(inline::InlineTinyLeaves),
     &inline::SpecializeFunctionPointers,
-    &function_compaction::PruneUnusedArgs,
-    &SizeOnly(function_compaction::PruneUnusedReturns),
+    &function_compaction::DeadArgElim,
     &cfg_simplify::FunctionDce,
     &sccp::Sccp,
     &inst_simplify::InstSimplify,
@@ -205,8 +203,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // tail-call edges as MIR. Each pass bails without advancing the phase
     // when the module is outside its scope.
     &lower_abi::LowerAbi,
-    &function_compaction::PruneUnusedArgs,
-    &SizeOnly(function_compaction::PruneUnusedReturns),
+    &function_compaction::DeadArgElim,
     &dce::Dce,
     &function_compaction::MergeEquivalentFunctions,
     &cfg_simplify::FunctionDce,

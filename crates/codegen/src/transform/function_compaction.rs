@@ -21,39 +21,41 @@ use std::hash::{Hash, Hasher};
 
 type ArgDependents = IndexVec<FunctionId, IndexVec<ArgIdx, Vec<(FunctionId, ArgIdx)>>>;
 
-/// Removes parameters that are unused throughout the direct internal-call graph.
-pub(crate) struct PruneUnusedArgs;
+/// Removes dead internal arguments and results together, in the shape of LLVM's dead-argument
+/// elimination: removing a dead result can strand the arguments that only fed it, and removing a
+/// dead argument can strand the call whose result kept another function's result live, so the two
+/// analyses are iterated to a joint fixed point.
+///
+/// The component analyses stay distinct rather than sharing one lattice because MIR represents only
+/// a single-word result as an SSA value — additional results travel through the ephemeral
+/// multi-return buffer — so result pruning is restricted to one-word signatures and, like today,
+/// runs only under `-Osize`. Under other objectives argument liveness is already an internal fixed
+/// point, so a single pass suffices with no outer iteration.
+pub(crate) struct DeadArgElim;
 
-impl MirPass for PruneUnusedArgs {
+impl MirPass for DeadArgElim {
     fn name(&self) -> &'static str {
-        "prune-unused-args"
+        "dead-arg-elim"
     }
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
-        prune_unused_args(module) != 0
-    }
-}
-
-/// Removes unused one-word results from direct internal-call signatures.
-pub(crate) struct PruneUnusedReturns;
-
-impl MirPass for PruneUnusedReturns {
-    fn name(&self) -> &'static str {
-        "prune-unused-returns"
-    }
-
-    fn run_pass(
-        &self,
-        _gcx: solar_sema::Gcx<'_>,
-        module: &mut Module,
-        _analyses: &mut ModuleAnalyses,
-    ) -> bool {
-        prune_unused_returns(module) != 0
+        if !gcx.sess.opts.optimization.is_size() {
+            return prune_unused_args(module) != 0;
+        }
+        let mut changed = false;
+        loop {
+            let pruned = prune_unused_args(module) + prune_unused_returns(module);
+            if pruned == 0 {
+                break;
+            }
+            changed = true;
+        }
+        changed
     }
 }
 

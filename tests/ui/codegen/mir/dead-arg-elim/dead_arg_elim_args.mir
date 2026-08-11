@@ -1,6 +1,9 @@
-//@ compile-flags: -Zmir-pipeline=prune-unused-args
+//@ compile-flags: -Zmir-pipeline=dead-arg-elim
 //@ filecheck:
-@module PruneUnusedArgs
+@module DeadArgElimArgs
+
+// Argument pruning runs under every objective; result pruning is size-only and
+// is covered by `dead_arg_elim_returns.mir`.
 
 // CHECK-LABEL: fn @leaf(arg0: u256, arg1: u256) -> u256
 fn @leaf(arg0: u256, arg1: u256, arg2: u256) -> u256 {

@@ -1,6 +1,9 @@
-//@ compile-flags: -Zmir-pipeline=prune-unused-returns
+//@ compile-flags: -Zmir-pipeline=dead-arg-elim -Osize
 //@ filecheck:
-@module PruneUnusedReturns
+@module DeadArgElimReturns
+
+// Result pruning runs only under `-Osize`; it removes a discarded one-word
+// result together with the call-result protocol, jointly with argument pruning.
 
 // CHECK-LABEL: fn @discarded(arg0: u256)
 // CHECK: ret

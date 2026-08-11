@@ -1,6 +1,6 @@
-- // === ROOT/tests/ui/codegen/mir/prune-unused-returns/prune_unused_returns.mir (before prune-unused-returns) ===
-+ // === ROOT/tests/ui/codegen/mir/prune-unused-returns/prune_unused_returns.mir (after prune-unused-returns) ===
-  @module PruneUnusedReturns
+- // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_returns.mir (before dead-arg-elim) ===
++ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_returns.mir (after dead-arg-elim) ===
+  @module DeadArgElimReturns
 - fn @discarded(arg0: u256) -> u256 {
 + fn @discarded(arg0: u256) {
     bb0:

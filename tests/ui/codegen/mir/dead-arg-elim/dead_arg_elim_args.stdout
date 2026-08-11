@@ -1,6 +1,6 @@
-- // === ROOT/tests/ui/codegen/mir/prune-unused-args/prune_unused_args.mir (before prune-unused-args) ===
-+ // === ROOT/tests/ui/codegen/mir/prune-unused-args/prune_unused_args.mir (after prune-unused-args) ===
-  @module PruneUnusedArgs
+- // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_args.mir (before dead-arg-elim) ===
++ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_args.mir (after dead-arg-elim) ===
+  @module DeadArgElimArgs
 - fn @leaf(arg0: u256, arg1: u256, arg2: u256) -> u256 {
 + fn @leaf(arg0: u256, arg1: u256) -> u256 {
     bb0:
