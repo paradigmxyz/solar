@@ -543,6 +543,9 @@ impl CommonSubexprEliminator {
         }
         let Some(reachable_from_parent) = ctx.reachability.get(&parent) else { return };
         for (&mid, clobbers) in ctx.block_clobbers {
+            if !cache.has_stateful() {
+                break;
+            }
             // Clobbers in `parent` itself were already applied while processing it sequentially.
             if mid == parent || !reachable_from_parent.contains(mid) {
                 continue;
@@ -552,6 +555,9 @@ impl CommonSubexprEliminator {
             }
             for clobber in clobbers {
                 self.apply_clobber(cache, clobber);
+                if !cache.has_stateful() {
+                    break;
+                }
             }
         }
     }
@@ -844,6 +850,9 @@ impl CommonSubexprEliminator {
         self.side_effect_clobbers(func, inst_id, kind, replacements, &mut clobbers);
         for clobber in &clobbers {
             self.apply_clobber(expr_cache, clobber);
+            if !expr_cache.has_stateful() {
+                break;
+            }
         }
     }
 
