@@ -6,6 +6,7 @@
 //! corresponding constructors before machine lowering.
 
 use crate::{
+    memory::EvmMemoryLayout,
     mir::{
         ArgIdx, BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
         MirType, Module, SliceLocation, Value, ValueId,
@@ -322,6 +323,26 @@ impl LowerSlicesCx {
         }
 
         func.set_params(new_params);
+        // Frame-local addresses bake the signature prefix, so growing the
+        // parameter list shifts the locals region up by one word per added
+        // physical parameter. Rebase every baked offset or the backend —
+        // which recomputes the frame layout from the widened signature —
+        // would read the old addresses as parameter or return slots.
+        let added_slots = (func.params.len() - old_params.len()) as u64;
+        if added_slots != 0 {
+            let old_local_start = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                + ((old_params.len() + func.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE;
+            let shift = added_slots * EvmMemoryLayout::WORD_SIZE;
+            func.for_each_instruction_mut(|_, inst| {
+                if let InstKind::InternalFrameAddr(offset) = &mut inst.kind {
+                    assert!(
+                        *offset >= old_local_start,
+                        "frame-local offset precedes the signature prefix"
+                    );
+                    *offset += shift;
+                }
+            });
+        }
         let mut components = FxHashMap::default();
         let mut compact_heads = FxHashMap::default();
         let mut builder = FunctionBuilder::new(func);

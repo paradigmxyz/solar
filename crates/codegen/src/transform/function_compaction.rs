@@ -119,11 +119,14 @@ fn rebase_frame_offsets(func: &mut Function, removed_slots: u64) {
     let local_end = (func.internal_frame_size != 0).then(|| {
         local_start.checked_add(func.internal_frame_size).expect("MIR local frame region overflow")
     });
+    let name = func.name;
     func.for_each_instruction_mut(|_, inst| {
         if let InstKind::InternalFrameAddr(offset) = &mut inst.kind {
             assert!(
                 *offset >= old_local_start,
-                "frame-local offset precedes the old signature prefix"
+                "frame-local offset precedes the old signature prefix: \
+                 func=`{name}` offset={offset} old_local_start={old_local_start} \
+                 removed={removed_slots}"
             );
             *offset = offset
                 .checked_sub(shift)

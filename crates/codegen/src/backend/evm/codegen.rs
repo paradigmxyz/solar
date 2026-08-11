@@ -4303,7 +4303,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             .expect("static frame header is still referenced");
         if let Some(&local_base) = self.stack_return_local_bases.get(&func_id) {
             let return_base = local_base - EvmMemoryLayout::WORD_SIZE;
-            debug_assert_ne!(offset, return_base, "removed stack-return slot is still referenced");
+            debug_assert_ne!(
+                offset, return_base,
+                "removed stack-return slot is still referenced: func={func_id:?}"
+            );
             if offset >= local_base {
                 compact -= EvmMemoryLayout::WORD_SIZE;
             }

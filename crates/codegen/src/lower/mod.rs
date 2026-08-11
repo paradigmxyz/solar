@@ -1398,9 +1398,15 @@ impl<'gcx> Lowerer<'gcx> {
                     if Self::calldata_dynamic_var_kind(param).is_some() && is_reassigned {
                         // A rebindable calldata slice needs one representation
                         // on every CFG path: give it a two-word slot instead
-                        // of a lexical SSA binding.
+                        // of a lexical SSA binding. Stage both words instead of
+                        // storing here: a frame-local address baked mid-loop
+                        // would miss the parameters registered after this one
+                        // and disagree with the body's reads of the same slot.
                         let offset = self.alloc_local_slice_memory(param_id);
-                        self.store_slice_slot(&mut builder, offset, head_or_value);
+                        let ptr = builder.slice_ptr(head_or_value);
+                        let len = builder.slice_len(head_or_value);
+                        deferred_param_slots.push((offset, ptr));
+                        deferred_param_slots.push((offset + EvmMemoryLayout::WORD_SIZE, len));
                     } else if is_storage_ref && is_reassigned {
                         let offset = self.alloc_local_memory(param_id);
                         deferred_param_slots.push((offset, head_or_value));
