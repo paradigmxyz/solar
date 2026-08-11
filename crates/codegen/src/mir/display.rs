@@ -260,9 +260,7 @@ pub(crate) fn display_function_text<'a>(
                 write!(f, "({})", func.returns.iter().format(", "))?;
             }
         }
-        if let Some(layout) = &func.abi_returns {
-            write!(f, " [abi_returns={layout}]")?;
-        }
+        write!(f, "{}", display_function_attributes(func))?;
         writeln!(f, " {{")?;
 
         write!(
@@ -275,6 +273,36 @@ pub(crate) fn display_function_text<'a>(
 
         writeln!(f, "}}")
     })
+}
+
+fn display_function_attributes(func: &Function) -> impl fmt::Display + '_ {
+    fmt::from_fn(move |f| {
+        let mut first = true;
+        if func.attributes.is_dispatch_entry {
+            write_function_attribute(f, &mut first, "entry")?;
+        }
+        if let Some(layout) = &func.abi_returns {
+            write_function_attribute(f, &mut first, format_args!("abi_returns={layout}"))?;
+        }
+        if !first {
+            f.write_str("]")?;
+        }
+        Ok(())
+    })
+}
+
+fn write_function_attribute(
+    f: &mut fmt::Formatter<'_>,
+    first: &mut bool,
+    attribute: impl fmt::Display,
+) -> fmt::Result {
+    if *first {
+        f.write_str(" [")?;
+        *first = false;
+    } else {
+        f.write_str(", ")?;
+    }
+    attribute.fmt(f)
 }
 
 fn function_prints_return_values(func: &Function) -> bool {

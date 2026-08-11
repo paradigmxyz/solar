@@ -124,3 +124,44 @@ fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) -> memorybytes [abi_r
     ret v19
 }
 
+fn @signedStaticRun(arg0: u8, arg1: i16, arg2: bytes3) -> bytes32 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 96
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = and v3, 255
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = calldataload 36
+    v7 = signextend 1, v6
+    v8 = eq v6, v7
+    jumpi v8, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    v9 = calldataload 68
+    v10 = and v9, 0xffffff0000000000000000000000000000000000000000000000000000000000
+    v11 = eq v9, v10
+    jumpi v11, bb8, bb7
+  bb7:
+    revert 0, 0
+  bb8:
+    v12 = shl 248, arg0
+    v13 = or 0, v12
+    v14 = and arg1, 0xffff
+    v15 = shl 232, v14
+    v16 = or v13, v15
+    mstore 0, v16 !metadata(memory=scratch)
+    mstore 3, arg2 !metadata(memory=scratch)
+    v17 = keccak256 0, 6 !metadata(memory=scratch)
+    ret v17
+}
+

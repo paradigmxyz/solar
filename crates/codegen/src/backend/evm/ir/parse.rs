@@ -4,7 +4,7 @@ use super::*;
 use crate::backend::evm::op;
 use solar_ast::{
     Arena,
-    token::{Delimiter, TokenKind},
+    token::{Delimiter, TokenKind, TokenLitKind},
 };
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{Result, Session, Span, Symbol, kw, source_map::SourceFile, sym};
@@ -57,6 +57,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_program_body(&mut self, module: &mut Module) -> PResult<'sess, ()> {
         let mut current_block = None;
         while !self.parser.is_eof() {
+            if self.parser.eat(TokenKind::At) {
+                self.parse_code_data(module)?;
+                current_block = None;
+                continue;
+            }
             if let Some(header) = self.try_parse_block_header()? {
                 let block_id = self.define_block(module, header.label)?;
                 module.blocks[block_id].metadata.hotness = header.hotness;
@@ -75,6 +80,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.reject_unresolved_blocks()?;
         super::passes::utils::remap_block_order(module, &self.block_order);
 
+        Ok(())
+    }
+
+    fn parse_code_data(&mut self, module: &mut Module) -> PResult<'sess, ()> {
+        self.parser.expect_keyword(sym::code_data)?;
+        let id = self.parse_assembly_id("program data")? as usize;
+        if id != module.data.len() {
+            return Err(self
+                .parser
+                .error(format!("expected program data ID {}, found {id}", module.data.len())));
+        }
+        let TokenKind::Literal(TokenLitKind::HexStr, bytes) = self.parser.token().kind else {
+            return Err(self.parser.error("expected hex string literal"));
+        };
+        let bytes = alloy_primitives::hex::decode(bytes.as_str())
+            .map_err(|err| self.parser.error(format!("invalid program data: {err}")))?;
+        self.parser.bump();
+        module.data.push(bytes.into());
         Ok(())
     }
 
@@ -179,7 +202,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::push => match self.parse_push_value(module)? {
                 PushValue::Immediate(value) => Instruction::push_value(value),
                 PushValue::Block(block) => Instruction::push_block(block),
+                PushValue::Data(_) => unreachable!("ordinary push parser does not produce data"),
             },
+            sym::push_data => {
+                let id = self.parse_assembly_id("program data")?;
+                Instruction::push_data(DataId::from_usize(id as usize))
+            }
             sym::push_deferred => {
                 let id = self.parse_assembly_id("deferred constant")?;
                 Instruction::push_deferred(assembly::DeferredConst::from_usize(id as usize))
@@ -215,6 +243,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Comma)?;
                 let else_block = self.parse_block_ref(module)?;
                 TerminatorKind::JumpI { then_block, else_block }
+            }
+            sym::indexed_jump => {
+                let mut targets = vec![self.parse_block_ref(module)?];
+                while self.parser.eat(TokenKind::Comma) {
+                    targets.push(self.parse_block_ref(module)?);
+                }
+                TerminatorKind::IndexedJump(targets.into_boxed_slice())
             }
             kw::Return => TerminatorKind::Op(op::RETURN),
             kw::Revert => TerminatorKind::Op(op::REVERT),

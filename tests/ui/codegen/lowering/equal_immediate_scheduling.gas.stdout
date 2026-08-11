@@ -5,11 +5,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb4
-  jumpi
-  calldatasize
-  iszero
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -18,7 +14,7 @@ bb0:
   dup1
   push 0xd9171e32
   sub
-  push bb4
+  push bb3
   jumpi
   calldatasize
   push 4
@@ -26,7 +22,12 @@ bb0:
   sub
   push 32
   sgt
-  push bb4
+  push bb3
+  jumpi
+  push 4
+  calldataload
+  iszero
+  push bb8
   jumpi
   push 4
   calldataload
@@ -38,7 +39,19 @@ bb0:
   push 32
   push 128
   return
-bb4 [cold]:
+bb3 [cold]:
   push 0
   dup1
+  revert
+bb8 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 18
+  push 4
+  mstore
+  push 36
+  push 0
   revert

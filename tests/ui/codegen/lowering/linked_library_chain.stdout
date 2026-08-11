@@ -6,11 +6,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb4
-  jumpi
-  calldatasize
-  iszero
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -19,7 +15,7 @@ bb0:
   dup1
   push 0xfaf4836c
   sub
-  push bb4
+  push bb3
   jumpi
   calldatasize
   push 4
@@ -27,7 +23,7 @@ bb0:
   sub
   push 64
   sgt
-  push bb4
+  push bb3
   jumpi
   push 4
   calldataload
@@ -42,7 +38,7 @@ bb0:
   swap1
   dup2
   lt
-  push bb9
+  push bb8
   jumpi
   dup1
   push 160
@@ -58,11 +54,11 @@ bb0:
   push 32
   push 128
   return
-bb4 [cold]:
+bb3 [cold]:
   push 0
   dup1
   revert
-bb9 [cold]:
+bb8 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -81,11 +77,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb4
-  jumpi
-  calldatasize
-  iszero
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -94,7 +86,7 @@ bb0:
   dup1
   push 0x5e0b1cef
   sub
-  push bb4
+  push bb3
   jumpi
   calldatasize
   push 4
@@ -102,25 +94,25 @@ bb0:
   sub
   push 64
   sgt
-  push bb4
+  push bb3
   jumpi
   push 36
   calldataload
-  push bb9
+  push bb8
   jumpi
   push 0
-  jump bb12
-bb12:
+  jump bb11
+bb11:
   push 128
   mstore
   push 32
   push 128
   return
-bb4 [cold]:
+bb3 [cold]:
   push 0
   dup1
   revert
-bb9:
+bb8:
   push 64
   mload
   dup1
@@ -160,12 +152,12 @@ bb9:
   pop
   pop
   iszero
-  push bb11
+  push bb10
   jumpi
   push 0
   mload
-  jump bb12
-bb11 [cold]:
+  jump bb11
+bb10 [cold]:
   returndatasize
   dup1
   push 160
@@ -184,11 +176,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb4
-  jumpi
-  calldatasize
-  iszero
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -197,7 +185,7 @@ bb0:
   dup1
   push 0xb20e7344
   sub
-  push bb4
+  push bb3
   jumpi
   calldatasize
   push 4
@@ -205,7 +193,7 @@ bb0:
   sub
   push 32
   sgt
-  push bb4
+  push bb3
   jumpi
   push 64
   mload
@@ -245,7 +233,7 @@ bb0:
   pop
   pop
   iszero
-  push bb9
+  push bb8
   jumpi
   push 0
   mload
@@ -254,11 +242,11 @@ bb0:
   push 32
   push 128
   return
-bb4 [cold]:
+bb3 [cold]:
   push 0
   dup1
   revert
-bb9 [cold]:
+bb8 [cold]:
   returndatasize
   dup1
   push 160

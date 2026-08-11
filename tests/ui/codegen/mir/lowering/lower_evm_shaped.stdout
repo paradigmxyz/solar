@@ -3,7 +3,7 @@
   @module LowerEvmShaped
 - @phase memory-lowered
 + @phase evm-shaped
-  fn @entry() {
+  fn @entry() [entry] {
     bb0:
       v0 = calldataload 0
       v1 = shr 224, v0

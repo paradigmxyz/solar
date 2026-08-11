@@ -1,0 +1,220 @@
+// === ROOT/tests/ui/codegen/lowering/switch/shared_growth_budget.sol:SwitchSharedGrowthBudget (creation) ===
+// === deployment ===
+@module deployment
+bb0:
+  push 399
+  codesize
+  sub
+  dup1
+  push 399
+  push 192
+  codecopy
+  push 192
+  add
+  push 31
+  add
+  push 31
+  not
+  and
+  push 64
+  mstore
+  push 192
+  mload
+  dup1
+  push 0x87d912cb
+  gt
+  push bb5
+  jumpi
+  dup1
+  push 0x87d912cb
+  sub
+  push bb1
+  jumpi
+  pop
+  push 301
+  jump bb18
+bb18:
+  push 0
+  sstore
+  jump bb17
+bb17:
+  push 216
+  dup1
+  push 183
+  push 0
+  codecopy
+  push 0
+  return
+bb1:
+  dup1
+  push 0x905f7d67
+  sub
+  push bb2
+  jumpi
+  pop
+  push 305
+  jump bb18
+bb2:
+  dup1
+  push 0x920f5c73
+  sub
+  push bb3
+  jumpi
+  pop
+  push 302
+  jump bb18
+bb3:
+  dup1
+  push 0xcbf99d38
+  sub
+  push bb4
+  jumpi
+  pop
+  push 300
+  jump bb18
+bb4:
+  pop
+  jump bb17
+bb5:
+  dup1
+  push 0x3b88f6c2
+  sub
+  push bb6
+  jumpi
+  pop
+  push 306
+  jump bb18
+bb6:
+  dup1
+  push 0x41052a0d
+  sub
+  push bb7
+  jumpi
+  pop
+  push 303
+  jump bb18
+bb7:
+  dup1
+  push 0x7238232f
+  sub
+  push bb8
+  jumpi
+  pop
+  push 304
+  jump bb18
+bb8:
+  pop
+  jump bb17
+
+// === runtime ===
+@module runtime
+bb0:
+  push 160
+  push 64
+  mstore
+  callvalue
+  push bb3
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x839a19d9
+  sub
+  push bb3
+  jumpi
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  sgt
+  push bb3
+  jumpi
+  push 4
+  calldataload
+  dup1
+  push 15
+  and
+  indexed_jump bb13, bb13, bb6, bb7, bb13, bb13, bb13, bb8, bb9, bb13, bb13, bb10, bb13, bb11, bb13, bb12
+bb3 [cold]:
+  push 0
+  dup1
+  revert
+bb6:
+  dup1
+  push 0x3b88f6c2
+  sub
+  push bb13
+  jumpi
+  pop
+  push 306
+  jump bb16
+bb16:
+  dup1
+  push 128
+  mstore
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb7:
+  dup1
+  push 0x920f5c73
+  sub
+  push bb13
+  jumpi
+  pop
+  push 302
+  jump bb16
+bb8:
+  dup1
+  push 0x905f7d67
+  sub
+  push bb13
+  jumpi
+  pop
+  push 305
+  jump bb16
+bb9:
+  dup1
+  push 0xcbf99d38
+  sub
+  push bb13
+  jumpi
+  pop
+  push 300
+  jump bb16
+bb10:
+  dup1
+  push 0x87d912cb
+  sub
+  push bb13
+  jumpi
+  pop
+  push 301
+  jump bb16
+bb11:
+  dup1
+  push 0x41052a0d
+  sub
+  push bb13
+  jumpi
+  pop
+  push 303
+  jump bb16
+bb12:
+  dup1
+  push 0x7238232f
+  sub
+  push bb13
+  jumpi
+  pop
+  push 304
+  jump bb16
+bb13:
+  pop
+  push 999
+  jump bb16

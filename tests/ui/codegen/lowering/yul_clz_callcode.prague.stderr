@@ -1,5 +1,5 @@
 error: codegen requires Osaka-compatible EVM for `clz`
-   ╭▸ ROOT/tests/ui/codegen/run-call/yul_clz_callcode.sol:LL:CC
+   ╭▸ ROOT/tests/ui/codegen/lowering/yul_clz_callcode.sol:LL:CC
    │
 LL │             result := clz(value)
    │                       ━━━━━━━━━━

@@ -6,9 +6,10 @@ use crate::{
     workspace::{Workspace, WorkspaceKind, WorkspacePathIndex, manifest::ProjectManifest},
 };
 use lsp_types::{
-    CallHierarchyServerCapability, CodeLensOptions as CodeLensServerOptions, CompletionOptions,
-    DeclarationCapability, DiagnosticOptions, DiagnosticServerCapabilities, DocumentLinkOptions,
-    ExecuteCommandOptions, FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
+    CallHierarchyServerCapability, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
+    CodeLensOptions as CodeLensServerOptions, CompletionOptions, DeclarationCapability,
+    DiagnosticOptions, DiagnosticServerCapabilities, DocumentLinkOptions, ExecuteCommandOptions,
+    FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
     FileOperationRegistrationOptions, FoldingRangeProviderCapability, HoverProviderCapability,
     ImplementationProviderCapability, InitializeParams, MarkupKind, OneOf, RenameOptions,
     SaveOptions, SelectionRangeProviderCapability, ServerCapabilities, SignatureHelpOptions,
@@ -38,6 +39,10 @@ pub(crate) struct Config {
     flychecks: Vec<FlycheckConfig>,
     watched_file_dynamic_registration: bool,
     workspace_edit_document_changes: bool,
+    code_action_literals: bool,
+    code_action_is_preferred: bool,
+    publish_diagnostics_data: bool,
+    pull_diagnostics_data: bool,
     code_lens_refresh_support: bool,
     diagnostic_refresh_support: bool,
     inlay_hint_refresh_support: bool,
@@ -62,6 +67,10 @@ impl Default for Config {
             flychecks: Vec::new(),
             watched_file_dynamic_registration: false,
             workspace_edit_document_changes: false,
+            code_action_literals: false,
+            code_action_is_preferred: false,
+            publish_diagnostics_data: false,
+            pull_diagnostics_data: false,
             code_lens_refresh_support: false,
             diagnostic_refresh_support: false,
             inlay_hint_refresh_support: false,
@@ -142,6 +151,26 @@ impl Config {
 
     pub(crate) fn supports_workspace_edit_document_changes(&self) -> bool {
         self.workspace_edit_document_changes
+    }
+
+    pub(crate) fn supports_code_action_literals(&self) -> bool {
+        self.code_action_literals
+    }
+
+    pub(crate) fn supports_code_action_is_preferred(&self) -> bool {
+        self.code_action_is_preferred
+    }
+
+    pub(crate) fn supports_publish_diagnostics_data(&self) -> bool {
+        self.publish_diagnostics_data
+    }
+
+    pub(crate) fn supports_pull_diagnostics_data(&self) -> bool {
+        self.pull_diagnostics_data
+    }
+
+    pub(crate) fn supports_code_action_diagnostic_data(&self) -> bool {
+        self.publish_diagnostics_data || self.pull_diagnostics_data
     }
 
     pub(crate) fn supports_code_lens_refresh(&self) -> bool {
@@ -268,7 +297,18 @@ impl Config {
     }
 
     pub(crate) fn flychecks_for_path(&self, path: &Path) -> Vec<FlycheckConfig> {
-        self.flychecks.iter().filter(|flycheck| flycheck.applies_to(path)).cloned().collect()
+        self.flychecks
+            .iter()
+            .filter(|flycheck| {
+                flycheck.applies_to(path)
+                    || self.workspaces.iter().any(|workspace| {
+                        workspace.compile_opts().base_path.as_deref()
+                            == Some(flycheck.workspace_root.as_path())
+                            && workspace.tracks_flycheck_file(path)
+                    })
+            })
+            .cloned()
+            .collect()
     }
 
     pub(crate) fn flycheck_owners(&self) -> impl Iterator<Item = DiagnosticOwner> + '_ {
@@ -347,6 +387,11 @@ impl Config {
             return;
         }
         let idx = WorkspacePathIndex::new(&self.workspaces).workspace_idx_for_path(&path);
+        for (workspace_idx, workspace) in self.workspaces.iter_mut().enumerate() {
+            if workspace_idx != idx {
+                workspace.add_flycheck_source_file(&path);
+            }
+        }
         self.workspaces[idx].add_source_file(path);
     }
 
@@ -355,6 +400,11 @@ impl Config {
             return;
         }
         let idx = WorkspacePathIndex::new(&self.workspaces).workspace_idx_for_path(path);
+        for (workspace_idx, workspace) in self.workspaces.iter_mut().enumerate() {
+            if workspace_idx != idx {
+                workspace.remove_flycheck_source_file(path);
+            }
+        }
         self.workspaces[idx].remove_source_file(path);
     }
 
@@ -419,7 +469,15 @@ fn workspace_roots_from_initialize(
     root_uri.and_then(|uri| uri.to_file_path().ok()).or_else(fallback_root).into_iter().collect()
 }
 
+#[cfg(test)]
 pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabilities, Config) {
+    negotiate_capabilities_with_pull_diagnostic_data(params, false)
+}
+
+pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
+    params: InitializeParams,
+    pull_diagnostics_data: bool,
+) -> (ServerCapabilities, Config) {
     let capabilities = params.capabilities;
     let initialization_options = params.initialization_options;
     #[allow(deprecated)]
@@ -459,6 +517,21 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
         .as_ref()
         .and_then(|workspace| workspace.inlay_hint.as_ref())
         .and_then(|capabilities| capabilities.refresh_support)
+        .unwrap_or(false);
+    let code_action = capabilities
+        .text_document
+        .as_ref()
+        .and_then(|text_document| text_document.code_action.as_ref());
+    let code_action_literals = code_action
+        .and_then(|capabilities| capabilities.code_action_literal_support.as_ref())
+        .is_some();
+    let code_action_is_preferred =
+        code_action.and_then(|capabilities| capabilities.is_preferred_support).unwrap_or(false);
+    let publish_diagnostics_data = capabilities
+        .text_document
+        .as_ref()
+        .and_then(|text_document| text_document.publish_diagnostics.as_ref())
+        .and_then(|capabilities| capabilities.data_support)
         .unwrap_or(false);
     let work_done_progress =
         capabilities.window.as_ref().and_then(|window| window.work_done_progress).unwrap_or(false);
@@ -533,6 +606,13 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
                 resolve_provider: Some(false),
                 work_done_progress_options: WorkDoneProgressOptions::default(),
             }),
+            code_action_provider: code_action_literals.then(|| {
+                CodeActionProviderCapability::Options(CodeActionOptions {
+                    code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+                    work_done_progress_options: WorkDoneProgressOptions::default(),
+                    resolve_provider: Some(false),
+                })
+            }),
             execute_command_provider: Some(ExecuteCommandOptions {
                 commands: commands::ALL.into_iter().map(str::to_owned).collect(),
                 work_done_progress_options: WorkDoneProgressOptions::default(),
@@ -584,6 +664,10 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             flycheck_options,
             watched_file_dynamic_registration,
             workspace_edit_document_changes,
+            code_action_literals,
+            code_action_is_preferred,
+            publish_diagnostics_data,
+            pull_diagnostics_data,
             code_lens_refresh_support,
             diagnostic_refresh_support,
             inlay_hint_refresh_support,
@@ -609,16 +693,19 @@ mod tests {
     use super::*;
     use crate::{test_support::TestProject, workspace::WorkspaceKind};
     use lsp_types::{
-        CallHierarchyServerCapability, CodeLensWorkspaceClientCapabilities,
+        CallHierarchyServerCapability, CodeActionClientCapabilities, CodeActionKind,
+        CodeActionKindLiteralSupport, CodeActionLiteralSupport, CodeActionOptions,
+        CodeActionProviderCapability, CodeLensWorkspaceClientCapabilities,
         CompletionClientCapabilities, CompletionItemCapability,
         CompletionItemCapabilityResolveSupport, DiagnosticWorkspaceClientCapabilities,
         DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities,
         FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
         FileOperationRegistrationOptions, InlayHintWorkspaceClientCapabilities, MarkupKind, OneOf,
-        ParameterInformationSettings, RenameOptions, SignatureHelpClientCapabilities,
-        SignatureInformationSettings, TextDocumentClientCapabilities, TextDocumentSyncCapability,
-        TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WindowClientCapabilities,
-        WorkspaceClientCapabilities, WorkspaceEditClientCapabilities,
+        ParameterInformationSettings, PublishDiagnosticsClientCapabilities, RenameOptions,
+        SignatureHelpClientCapabilities, SignatureInformationSettings,
+        TextDocumentClientCapabilities, TextDocumentSyncCapability, TextDocumentSyncSaveOptions,
+        TypeDefinitionProviderCapability, WindowClientCapabilities, WorkspaceClientCapabilities,
+        WorkspaceEditClientCapabilities,
     };
 
     #[test]
@@ -916,6 +1003,127 @@ mod tests {
     }
 
     #[test]
+    fn negotiate_capabilities_omits_code_actions_without_literal_support() {
+        let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
+
+        assert_eq!(capabilities.code_action_provider, None);
+    }
+
+    #[test]
+    fn negotiate_capabilities_advertises_code_actions_with_other_literal_kinds() {
+        let mut params = InitializeParams::default();
+        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+            code_action: Some(CodeActionClientCapabilities {
+                code_action_literal_support: Some(CodeActionLiteralSupport {
+                    code_action_kind: CodeActionKindLiteralSupport {
+                        value_set: vec![CodeActionKind::REFACTOR.as_str().into()],
+                    },
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let (capabilities, config) = negotiate_capabilities(params);
+
+        assert!(config.supports_code_action_literals());
+        assert_eq!(
+            capabilities.code_action_provider,
+            Some(CodeActionProviderCapability::Options(CodeActionOptions {
+                code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+                work_done_progress_options: WorkDoneProgressOptions::default(),
+                resolve_provider: Some(false),
+            }))
+        );
+    }
+
+    #[test]
+    fn negotiate_capabilities_advertises_and_records_code_action_literal_support() {
+        let mut params = InitializeParams::default();
+        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+            code_action: Some(CodeActionClientCapabilities {
+                code_action_literal_support: Some(CodeActionLiteralSupport {
+                    code_action_kind: CodeActionKindLiteralSupport {
+                        value_set: vec![CodeActionKind::QUICKFIX.as_str().into()],
+                    },
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let (capabilities, config) = negotiate_capabilities(params);
+
+        assert!(config.supports_code_action_literals());
+        assert_eq!(
+            capabilities.code_action_provider,
+            Some(CodeActionProviderCapability::Options(CodeActionOptions {
+                code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+                work_done_progress_options: WorkDoneProgressOptions::default(),
+                resolve_provider: Some(false),
+            }))
+        );
+    }
+
+    #[test]
+    fn negotiate_capabilities_records_code_action_is_preferred_support() {
+        let (_, config) = negotiate_capabilities(InitializeParams::default());
+        assert!(!config.supports_code_action_is_preferred());
+
+        let mut params = InitializeParams::default();
+        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+            code_action: Some(CodeActionClientCapabilities {
+                is_preferred_support: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let (_, config) = negotiate_capabilities(params);
+
+        assert!(config.supports_code_action_is_preferred());
+    }
+
+    #[test]
+    fn negotiate_capabilities_records_publish_diagnostics_data_support() {
+        let (_, config) = negotiate_capabilities(InitializeParams::default());
+        assert!(!config.supports_publish_diagnostics_data());
+
+        let mut params = InitializeParams::default();
+        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+            publish_diagnostics: Some(PublishDiagnosticsClientCapabilities {
+                data_support: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let (_, config) = negotiate_capabilities(params);
+
+        assert!(config.supports_publish_diagnostics_data());
+    }
+
+    #[test]
+    fn negotiate_capabilities_records_push_and_pull_diagnostic_data_independently() {
+        for (publish, pull) in [(false, false), (false, true), (true, false), (true, true)] {
+            let mut params = InitializeParams::default();
+            params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+                publish_diagnostics: Some(PublishDiagnosticsClientCapabilities {
+                    data_support: Some(publish),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            });
+
+            let (_, config) = negotiate_capabilities_with_pull_diagnostic_data(params, pull);
+
+            assert_eq!(config.supports_publish_diagnostics_data(), publish);
+            assert_eq!(config.supports_pull_diagnostics_data(), pull);
+            assert_eq!(config.supports_code_action_diagnostic_data(), publish || pull);
+        }
+    }
+
+    #[test]
     fn negotiate_capabilities_advertises_cache_commands() {
         let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
 
@@ -1102,6 +1310,9 @@ mod tests {
 
             //- /src/Test.sol
             contract Test {}
+
+            //- /lib/Dependency.sol
+            contract Dependency {}
             "#,
         );
         let mut params = project.initialize_params();
@@ -1123,6 +1334,59 @@ mod tests {
         assert_eq!(flychecks[0].command, PathBuf::from("custom-lint"));
         assert_eq!(flychecks[0].args, ["--json"]);
         assert_eq!(flychecks[0].cwd, project.root());
+        assert_eq!(config.flychecks_for_path(&project.path("/lib/Dependency.sol")).len(), 1);
+    }
+
+    #[test]
+    fn source_file_updates_follow_external_foundry_flycheck_roots() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /first/foundry.toml
+            [profile.default]
+            src = "src"
+
+            //- /second/foundry.toml
+            [profile.default]
+            src = "src"
+            test = "../checks"
+            "#,
+        );
+        let mut config = project.config_with_roots(&["/first", "/second"]);
+        let path = project.path("/checks/New.t.sol");
+        project.write_file("/checks/New.t.sol", "contract NewTest {}\n");
+
+        config.add_source_file(path.clone());
+
+        let second = config
+            .workspaces()
+            .iter()
+            .find(|workspace| {
+                workspace.compile_opts().base_path.as_deref()
+                    == Some(project.path("/second").as_path())
+            })
+            .unwrap();
+        assert!(second.flycheck_source_files().contains(&path));
+        let first = config
+            .workspaces()
+            .iter()
+            .find(|workspace| {
+                workspace.compile_opts().base_path.as_deref()
+                    == Some(project.path("/first").as_path())
+            })
+            .unwrap();
+        assert!(!first.flycheck_source_files().contains(&path));
+
+        config.remove_source_file(&path);
+
+        let second = config
+            .workspaces()
+            .iter()
+            .find(|workspace| {
+                workspace.compile_opts().base_path.as_deref()
+                    == Some(project.path("/second").as_path())
+            })
+            .unwrap();
+        assert!(!second.flycheck_source_files().contains(&path));
     }
 
     #[test]

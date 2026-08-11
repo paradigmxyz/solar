@@ -1,15 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/function_call.sol:FunctionCall (runtime) ===
 @module runtime
 bb0:
-  push 448
+  push 320
   push 64
   mstore
   callvalue
-  push bb5
-  jumpi
-  calldatasize
-  iszero
-  push bb5
+  push bb4
   jumpi
   push 0
   calldataload
@@ -18,19 +14,19 @@ bb0:
   dup1
   push 0x7fdb7587
   eq
-  push bb6
+  push bb5
   jumpi
   dup1
   push 0xd386d5a2
   eq
-  push bb11
+  push bb10
   jumpi
-  jump bb5
-bb5 [cold]:
+  jump bb4
+bb4 [cold]:
   push 0
   dup1
   revert
-bb20 [cold]:
+bb19 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -42,56 +38,56 @@ bb20 [cold]:
   push 36
   push 0
   revert
-bb6:
+bb5:
   calldatasize
   push 4
   swap1
   sub
   push 32
   sgt
-  push bb5
+  push bb4
   jumpi
   push 4
   calldataload
-  push 352
+  push 224
   mstore
-  push bb8
-  jump bb17
-bb17:
-  push 352
+  push bb7
+  jump bb16
+bb16:
+  push 224
   mload
   dup1
   add
   dup1
-  push 416
+  push 288
   mstore
-  push 352
+  push 224
   mload
   dup2
   lt
-  push bb20
+  push bb19
   jumpi
-  push 384
-  mstore
-  jump
-bb8:
-  push 384
-  mload
-  dup1
   push 256
   mstore
-  push 352
+  jump
+bb7:
+  push 256
+  mload
+  dup1
+  push 192
   mstore
-  push bb9
-  jump bb17
-bb11:
+  push 224
+  mstore
+  push bb8
+  jump bb16
+bb10:
   calldatasize
   push 4
   swap1
   sub
   push 64
   sgt
-  push bb5
+  push bb4
   jumpi
   push 36
   calldataload
@@ -99,25 +95,25 @@ bb11:
   calldataload
   add
   dup1
-  push 256
+  push 192
   mstore
   push 4
   calldataload
   dup2
   lt
-  push bb20
+  push bb19
   jumpi
-  push 352
+  push 224
   mstore
-  push bb14
-  jump bb17
-bb14:
-  jump bb9
-bb9:
-  push 384
+  push bb13
+  jump bb16
+bb13:
+  jump bb8
+bb8:
+  push 256
   mload
   dup1
-  push 224
+  push 160
   mstore
   push 128
   mstore

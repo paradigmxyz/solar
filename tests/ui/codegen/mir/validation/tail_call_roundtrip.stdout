@@ -8,7 +8,7 @@
       returndata 128, 32
   }
   
-  fn @entry() {
+  fn @entry() [entry] {
     bb0:
       v0 = calldataload 0
       v1 = shr 224, v0
