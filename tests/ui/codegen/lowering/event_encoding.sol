@@ -19,10 +19,8 @@ contract EventEncoding {
     }
 
     // CHECK-LABEL: fn @emitAnonymous
-    // CHECK: [[ANON_ENCODED:v[0-9]+]] = abi_encode [word], args
-    // CHECK: [[ANON_PTR:v[0-9]+]] = slice_ptr [[ANON_ENCODED]]
-    // CHECK: [[ANON_LEN:v[0-9]+]] = slice_len [[ANON_ENCODED]]
-    // CHECK: log1 [[ANON_PTR]], [[ANON_LEN]], arg0
+    // CHECK: mstore 0, arg1
+    // CHECK: log1 0, 32, arg0
     function emitAnonymous(address sender, uint256 value) external {
         emit AnonymousEvent(sender, value);
     }

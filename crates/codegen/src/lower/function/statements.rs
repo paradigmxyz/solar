@@ -418,6 +418,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (data_ptr, data_size) = if data_types.is_empty() {
             let zero = self.builder.imm_u256(U256::ZERO);
             (zero, zero)
+        } else if matches!(data_types.as_slice(), [AbiType::Word]) {
+            let zero = self.builder.imm_u64(0);
+            self.builder.mstore(zero, data_values[0]);
+            (zero, self.builder.imm_u64(32))
         } else {
             let layout = Arc::new(AbiLayout::new(data_types.into_boxed_slice()));
             let encoded = self.builder.abi_encode(layout, None, data_values.into_boxed_slice());

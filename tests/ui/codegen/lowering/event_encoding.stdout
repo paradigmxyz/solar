@@ -11,10 +11,8 @@ fn @emitArray(arg0: memoryfixedarray) [selector=0x86cb3475, abi_args=lazy, abi_p
 
 fn @emitAnonymous(arg0: address, arg1: u256) [selector=0xb834ce50, abi_args=lazy, abi_params=[address, u256], abi_returns=[]] {
   bb0:
-    v0 = abi_encode [word], args arg1
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    log1 v1, v2, arg0
+    mstore 0, arg1 !metadata(memory=scratch)
+    log1 0, 32, arg0
     stop
 }
 

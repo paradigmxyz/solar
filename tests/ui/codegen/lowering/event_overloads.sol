@@ -10,10 +10,8 @@ contract EventOverloads {
     event Transfer(address to, uint256 amount);
 
     // CHECK-LABEL: fn @emitBoth{{[( ]}}
-    // CHECK: [[ENCODED1:v[0-9]+]] = abi_encode [word], args
-    // CHECK: [[PTR1:v[0-9]+]] = slice_ptr [[ENCODED1]]
-    // CHECK: [[LEN1:v[0-9]+]] = slice_len [[ENCODED1]]
-    // CHECK: log1 [[PTR1]], [[LEN1]], 0x248dd4076d0a389d795107efafd558ce7f31ae37b441ccb9a599c60868f480d5
+    // CHECK: mstore 0, arg1
+    // CHECK: log1 0, 32, 0x248dd4076d0a389d795107efafd558ce7f31ae37b441ccb9a599c60868f480d5
     // CHECK: [[ENCODED2:v[0-9]+]] = abi_encode [word, word], args
     // CHECK: [[PTR2:v[0-9]+]] = slice_ptr [[ENCODED2]]
     // CHECK: [[LEN2:v[0-9]+]] = slice_len [[ENCODED2]]
