@@ -108,11 +108,10 @@ fn new_slice_inst(
 }
 
 impl LowerSlicesCx {
-    /// Splits a physical memory pointer phi whose incoming values still mix
-    /// memory objects and logical slices. Inlining can create this shape when
-    /// a calldata parameter is replaced by an already-materialized memory
-    /// object. Keep the pointer and length paths separate at the backend
-    /// boundary.
+    /// Splits a pointer phi whose incoming values still mix memory objects and
+    /// logical slices. Inlining can erase the pointer type on one incoming
+    /// memory object, so the physical word types may differ. Keep the pointer
+    /// and length paths separate at the backend boundary.
     fn lower_mixed_slice_phis(&mut self, func: &mut Function) -> bool {
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         let mut replacements = FxHashMap::default();
@@ -140,13 +139,17 @@ impl LowerSlicesCx {
             for inst_id in instructions {
                 let InstKind::Phi(incoming) = func.inst(inst_id).kind.clone() else { continue };
                 let Some(result) = func.inst_result_value(inst_id) else { continue };
-                if !matches!(func.value_ty(result), Some(MirType::MemPtr))
-                    || !incoming
-                        .iter()
-                        .any(|(_, value)| value_slice_location(func, *value).is_some())
-                    || !incoming.iter().all(|(_, value)| {
+                if !projection_users.contains_key(&result)
+                    || !incoming.iter().any(|(_, value)| {
                         value_slice_location(func, *value).is_some()
                             || matches!(func.value_ty(*value), Some(MirType::MemPtr))
+                    })
+                    || !incoming.iter().all(|(_, value)| {
+                        value_slice_location(func, *value).is_some()
+                            || matches!(
+                                func.value_ty(*value),
+                                Some(MirType::MemPtr | MirType::UInt(_))
+                            )
                     })
                 {
                     continue;
@@ -268,7 +271,10 @@ impl LowerSlicesCx {
                             .any(|(_, value)| value_slice_location(func, *value).is_some())
                             && incoming.iter().all(|(_, value)| {
                                 value_slice_location(func, *value).is_some()
-                                    || matches!(func.value_ty(*value), Some(MirType::MemPtr))
+                                    || matches!(
+                                        func.value_ty(*value),
+                                        Some(MirType::MemPtr | MirType::UInt(_))
+                                    )
                             });
                         if can_split {
                             slice_phis.push((inst_id, incoming.clone(), location));

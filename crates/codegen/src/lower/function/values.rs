@@ -254,11 +254,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                     continue;
                 };
-                values.push((index, self.lower_expr(value)?));
+                values.push((index, value, self.lower_expr(value)?));
             }
-            for (index, value) in values {
+            for (index, rhs, value) in values {
                 let Some(Some(element)) = elements.get(index) else { continue };
-                self.store_lvalue(element, value)?;
+                let lhs_ty = self.type_of_expr_or_variable(element)?;
+                let rhs_ty = self.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
+                let value = if lhs_ty.is_ref_at(DataLocation::Storage) {
+                    value
+                } else {
+                    self.materialize_memory_argument(lhs_ty, value, rhs.span)?
+                };
+                let value = self.coerce_value(value, rhs_ty, lhs_ty);
+                self.store_lvalue_with_source(element, value, Some(rhs_ty))?;
             }
             return Some(());
         }
