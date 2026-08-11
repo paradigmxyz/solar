@@ -1140,6 +1140,7 @@ impl LowerAbiCx {
                                 input_end,
                                 constructor,
                                 &mut current,
+                                false,
                                 Some(&self.helpers),
                             );
                         } else if ty.is_dynamic() {
@@ -1163,6 +1164,7 @@ impl LowerAbiCx {
                             input_end,
                             constructor,
                             &mut current,
+                            false,
                             Some(&self.helpers),
                         );
                         for &use_value in uses {
@@ -1271,6 +1273,7 @@ impl LowerAbiCx {
         input_end: ValueId,
         constructor: bool,
         current: &mut BlockId,
+        head_checked: bool,
         helpers: Option<&CleanupHelpers>,
     ) -> ValueId {
         builder.switch_to_block(*current);
@@ -1298,7 +1301,16 @@ impl LowerAbiCx {
                 if Self::is_supported_tuple_field(element) =>
             {
                 let head_size = len.saturating_mul(element.head_size());
-                Self::guard_source_range(builder, base, head_size, input_end, constructor, current);
+                if !head_checked || ty.is_dynamic() {
+                    Self::guard_source_range(
+                        builder,
+                        base,
+                        head_size,
+                        input_end,
+                        constructor,
+                        current,
+                    );
+                }
                 if matches!(arg_type, MirType::Slice(SliceLocation::Calldata)) {
                     let length = builder.imm_u64(*len);
                     return builder.make_slice(base, length, SliceLocation::Calldata);
@@ -1339,6 +1351,7 @@ impl LowerAbiCx {
                             input_end,
                             constructor,
                             current,
+                            !element.is_dynamic(),
                             helpers,
                         ),
                     };
@@ -1482,6 +1495,7 @@ impl LowerAbiCx {
                     input_end,
                     constructor,
                     &mut element_current,
+                    !element.is_dynamic(),
                     helpers,
                 );
                 builder.memory_object_store_element(
@@ -1552,14 +1566,16 @@ impl LowerAbiCx {
                 // Calldata structs with dynamic fields keep their source base
                 // in one trailing word so slice expressions can recover the
                 // original calldata location after the fields are copied.
-                Self::guard_source_range(
-                    builder,
-                    base,
-                    ty.head_size(),
-                    input_end,
-                    constructor,
-                    current,
-                );
+                if !head_checked || ty.is_dynamic() {
+                    Self::guard_source_range(
+                        builder,
+                        base,
+                        ty.head_size(),
+                        input_end,
+                        constructor,
+                        current,
+                    );
+                }
                 if matches!(arg_type, MirType::Slice(SliceLocation::Calldata)) {
                     let length = builder.imm_u64(ty.head_size());
                     return builder.make_slice(base, length, SliceLocation::Calldata);
@@ -1584,6 +1600,7 @@ impl LowerAbiCx {
                         input_end,
                         constructor,
                         current,
+                        !ty.is_dynamic(),
                         helpers,
                     );
                     builder.memory_object_store_field(ptr, layout, index as u64, value);
@@ -1635,6 +1652,7 @@ impl LowerAbiCx {
                     input_end,
                     true,
                     &mut current,
+                    true,
                     helpers,
                 )
             };
