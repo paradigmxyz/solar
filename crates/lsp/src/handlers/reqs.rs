@@ -1,8 +1,10 @@
 use super::workspace_edit::{validated_code_actions, validated_rename_workspace_edit};
 use crate::{
     diagnostics::PullReport,
+    document_links::solidity_string_contents,
     formatter::{self, FormatterError},
     global_state::GlobalState,
+    import_resolution::{ImportCandidateKind, ImportResolver, decode_import_path, import_path_at},
     natspec_completion::{self, NatSpecCompletionResult},
     progress::send_progress,
     symbols::{CompletionContext, CompletionItemData, SymbolTables},
@@ -14,14 +16,14 @@ use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
     CodeActionParams, CodeActionResponse, CodeLens, CodeLensParams, CompletionItem,
-    CompletionParams, CompletionResponse, DocumentDiagnosticParams, DocumentDiagnosticReport,
-    DocumentDiagnosticReportResult, DocumentFormattingParams, DocumentHighlight,
-    DocumentHighlightParams, DocumentLink, DocumentLinkParams, DocumentSymbolParams,
-    DocumentSymbolResponse, FoldingRange, FoldingRangeParams, FullDocumentDiagnosticReport,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InlayHint, InlayHintParams,
-    Position, PrepareRenameResponse, ProgressToken, ReferenceParams,
-    RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport, RenameParams,
-    SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
+    CompletionItemKind, CompletionList, CompletionParams, CompletionResponse, CompletionTextEdit,
+    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
+    DocumentFormattingParams, DocumentHighlight, DocumentHighlightParams, DocumentLink,
+    DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
+    FoldingRangeParams, FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse,
+    Hover, HoverParams, InlayHint, InlayHintParams, Position, PrepareRenameResponse, ProgressToken,
+    ReferenceParams, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
+    RenameParams, SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
     TextDocumentPositionParams, TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams,
     TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, UnchangedDocumentDiagnosticReport,
     Url, WorkDoneProgress, WorkDoneProgressBegin, WorkDoneProgressEnd, WorkspaceDiagnosticParams,
@@ -35,7 +37,13 @@ use lsp_types::{
 use serde::{Deserialize, Serialize};
 use solar_interface::data_structures::sync::RwLock;
 use solar_parse::lexer::is_ident;
-use std::{future::ready, io, path::Path, sync::Arc};
+use std::{
+    fmt::Write,
+    future::ready,
+    io,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use tracing::warn;
 
 const WORKSPACE_DIAGNOSTIC_PARTIAL_BATCH_SIZE: usize = 64;
@@ -531,13 +539,76 @@ pub(crate) fn goto_definition(
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
     let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    let analysis_revision = state.analysis_revision();
+    let import_request =
+        import_definition_request(state, &params.text_document.uri, params.position);
+    let config = state.config.clone();
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
+        if let Some(import_request) = import_request {
+            if !analysis_revision.is_current(import_request.vfs_content_revision) {
+                return Ok(None);
+            }
+            let Some(context) = config.import_resolution_context(&import_request.importer) else {
+                return Ok(None);
+            };
+            if let Some(response) =
+                symbol_tables.read().import_definition(&params.text_document.uri, params.position)
+            {
+                return Ok(Some(response));
+            }
+            if let Some(target) = ImportResolver::new(context, &import_request.overlay_paths)
+                .resolve(&import_request.importer, &import_request.raw_path)
+                && let Ok(uri) = Url::from_file_path(target)
+            {
+                let location = lsp_types::Location::new(uri, lsp_types::Range::default());
+                return Ok(Some(GotoDefinitionResponse::Array(vec![location])));
+            }
+            return Ok(None);
+        }
         let response =
             symbol_tables.read().goto_definition(&params.text_document.uri, params.position);
         Ok(response)
     }
+}
+
+struct ImportDefinitionRequest {
+    importer: PathBuf,
+    raw_path: String,
+    overlay_paths: Vec<PathBuf>,
+    vfs_content_revision: u64,
+}
+
+fn import_definition_request(
+    state: &GlobalState,
+    uri: &Url,
+    position: Position,
+) -> Option<ImportDefinitionRequest> {
+    let importer = uri.to_file_path().ok()?;
+    let vfs_path = VfsPath::from(importer.clone());
+    let (vfs_content_revision, open_contents, overlay_paths) = {
+        let vfs = state.vfs.read();
+        let overlay_paths =
+            vfs.iter().filter_map(|(path, _)| path.as_path().map(Path::to_path_buf)).collect();
+        (vfs.content_revision(), vfs.get_file_contents(&vfs_path).cloned(), overlay_paths)
+    };
+    let contents = open_contents.or_else(|| {
+        state
+            .sess
+            .source_map()
+            .file_loader()
+            .load_file(&importer)
+            .ok()
+            .map(|contents| Rope::from(contents.as_str()))
+    })?;
+    let cursor_offset =
+        crate::proto::checked_text_range(&contents, lsp_types::Range::new(position, position))?
+            .start;
+    let source = contents.to_string();
+    let import = import_path_at(&source, cursor_offset)?;
+    let raw_path = import.raw_path;
+    Some(ImportDefinitionRequest { importer, raw_path, overlay_paths, vfs_content_revision })
 }
 
 pub(crate) fn goto_type_definition(
@@ -818,8 +889,13 @@ pub(crate) fn completion(
             }
             NatSpecCompletionResult::NotApplicable => {}
         }
+        if let Some(response) =
+            import_completion(state, &params.text_document.uri, params.position, &contents)
+        {
+            return ready(Ok(Some(response)));
+        }
     }
-    if matches!(trigger_character, Some("/" | "*")) {
+    if matches!(trigger_character, Some("/" | "*" | "\"" | "'")) {
         return ready(Ok(Some(CompletionResponse::Array(Vec::new()))));
     }
     let input = completion_input(state, &params.text_document.uri, params.position);
@@ -832,6 +908,126 @@ pub(crate) fn completion(
         symbol_tables.resolve_completion_items(&mut items, options.markdown_documentation);
     }
     ready(Ok(Some(CompletionResponse::Array(items))))
+}
+
+fn import_completion(
+    state: &GlobalState,
+    uri: &Url,
+    position: Position,
+    contents: &Rope,
+) -> Option<CompletionResponse> {
+    let importer = uri.to_file_path().ok()?;
+    let cursor_offset =
+        crate::proto::checked_text_range(contents, lsp_types::Range::new(position, position))?
+            .start;
+    let source = contents.to_string();
+    let import = import_path_at(&source, cursor_offset)?;
+    let prefix_end = cursor_offset.max(import.content_range.start);
+    let raw_path_prefix = source.get(import.content_range.start..prefix_end).map(str::to_owned)?;
+    let replacement = import.content_range;
+    let delimiter = import.delimiter;
+    let Some(path_prefix) = decode_import_path(&raw_path_prefix) else {
+        return Some(CompletionResponse::Array(Vec::new()));
+    };
+    if !(replacement.start..=replacement.end).contains(&cursor_offset) {
+        return Some(CompletionResponse::Array(Vec::new()));
+    }
+    let (replacement_range, additional_text_edits) =
+        import_completion_edit_ranges(contents, replacement, cursor_offset)?;
+    let Some(context) = state.config.import_resolution_context(&importer) else {
+        return Some(CompletionResponse::Array(Vec::new()));
+    };
+    let overlay_paths = state
+        .vfs
+        .read()
+        .iter()
+        .filter_map(|(path, _)| path.as_path().map(Path::to_path_buf))
+        .collect::<Vec<_>>();
+    let completion = ImportResolver::new(context, &overlay_paths).complete(&importer, &path_prefix);
+    let items = completion
+        .candidates()
+        .iter()
+        .map(|candidate| {
+            let import_path = candidate.import_path().to_string();
+            let mut new_text = String::with_capacity(import_path.len());
+            write!(new_text, "{}", solidity_string_contents(import_path.as_bytes(), delimiter))
+                .unwrap();
+            let filter_text = if raw_path_prefix.bytes().any(|byte| matches!(byte, b'\r' | b'\n')) {
+                new_text.clone()
+            } else if let Some(suffix) = import_path.strip_prefix(&path_prefix) {
+                let mut filter_text = String::with_capacity(raw_path_prefix.len() + suffix.len());
+                filter_text.push_str(&raw_path_prefix);
+                write!(filter_text, "{}", solidity_string_contents(suffix.as_bytes(), delimiter))
+                    .unwrap();
+                filter_text
+            } else {
+                new_text.clone()
+            };
+            CompletionItem {
+                label: import_path,
+                kind: Some(match candidate.kind() {
+                    ImportCandidateKind::File => CompletionItemKind::FILE,
+                    ImportCandidateKind::Directory => CompletionItemKind::FOLDER,
+                }),
+                filter_text: Some(filter_text),
+                text_edit: Some(CompletionTextEdit::Edit(TextEdit::new(
+                    replacement_range,
+                    new_text,
+                ))),
+                additional_text_edits: additional_text_edits.clone(),
+                ..Default::default()
+            }
+        })
+        .collect();
+
+    if completion.is_incomplete() {
+        Some(CompletionResponse::List(CompletionList { is_incomplete: true, items }))
+    } else {
+        Some(CompletionResponse::Array(items))
+    }
+}
+
+fn import_completion_edit_ranges(
+    contents: &Rope,
+    replacement: std::ops::Range<usize>,
+    cursor: usize,
+) -> Option<(lsp_types::Range, Option<Vec<TextEdit>>)> {
+    let line = contents.line_of_byte(cursor);
+    let line_start = contents.byte_of_line(line);
+    let line_end = line_content_end(contents, line);
+    let main = replacement.start.max(line_start)..replacement.end.min(line_end);
+    if !(main.start..=main.end).contains(&cursor) {
+        return None;
+    }
+
+    // Completion's primary edit must stay on the request line; adjacent deletions preserve the
+    // whole-literal replacement for escaped multiline imports.
+    let mut additional = Vec::new();
+    for range in [replacement.start..main.start, main.end..replacement.end] {
+        if !range.is_empty() {
+            additional.push(TextEdit::new(byte_range_to_lsp(contents, range)?, String::new()));
+        }
+    }
+    Some((byte_range_to_lsp(contents, main)?, (!additional.is_empty()).then_some(additional)))
+}
+
+fn byte_range_to_lsp(contents: &Rope, range: std::ops::Range<usize>) -> Option<lsp_types::Range> {
+    Some(lsp_types::Range::new(
+        crate::proto::position_at_byte(contents, range.start)?,
+        crate::proto::position_at_byte(contents, range.end)?,
+    ))
+}
+
+fn line_content_end(contents: &Rope, line: usize) -> usize {
+    let mut end = contents.byte_of_line(line.saturating_add(1).min(contents.line_len()));
+    let start = contents.byte_of_line(line);
+    if end > start && contents.byte(end - 1) == b'\n' {
+        end -= 1;
+    }
+    if end > start && contents.byte(end - 1) == b'\r' {
+        end -= 1;
+    }
+    end
 }
 
 pub(crate) fn resolve_completion_item(

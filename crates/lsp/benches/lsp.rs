@@ -5,7 +5,8 @@ use lsp_types::{GotoDefinitionResponse, HoverContents, OneOf, Position, Url};
 use solar_config::CompileOpts;
 use solar_lsp::{
     BenchmarkAnalysis, BenchmarkDocumentUpdate, BenchmarkProject, BenchmarkRequest,
-    BenchmarkResponse, BenchmarkWorkspaceReports, benchmark_selection_ranges,
+    BenchmarkResponse, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
+    benchmark_selection_ranges,
 };
 use std::{hint::black_box, path::PathBuf};
 
@@ -13,6 +14,8 @@ const ANALYSIS_FUNCTION_COUNTS: [usize; 2] = [64, 256];
 const HOVER_FUNCTION_COUNT: usize = 256;
 const AGGREGATION_BATCH_COUNT: usize = 4;
 const AGGREGATION_FUNCTION_COUNT: usize = 64;
+const PATH_INDEX_QUERY_COUNT: usize = 1024;
+const PATH_INDEX_WORKSPACE_COUNT: usize = 16;
 const UNIFAP_PROJECT: &str = "unifap-v2";
 const UNIFAP_ROUTER: &str = "src/UnifapV2Router.sol";
 const UNIFAP_PAIR: &str = "src/UnifapV2Pair.sol";
@@ -270,6 +273,48 @@ fn workspace_diagnostic_hot_paths(c: &mut Criterion) {
     reports.finish();
 }
 
+fn workspace_path_queries(c: &mut Criterion) {
+    let queries =
+        BenchmarkWorkspacePathQueries::new(PATH_INDEX_WORKSPACE_COUNT, PATH_INDEX_QUERY_COUNT);
+    assert_ne!(queries.run(), 0);
+
+    let mut group = c.benchmark_group("lsp/workspace-path-queries");
+    group.throughput(Throughput::Elements(PATH_INDEX_QUERY_COUNT as u64));
+    group.bench_function(
+        BenchmarkId::from_parameter(format!(
+            "{PATH_INDEX_WORKSPACE_COUNT}-workspaces-{PATH_INDEX_QUERY_COUNT}-queries"
+        )),
+        |b| {
+            b.iter(|| black_box(queries.run()));
+        },
+    );
+    group.finish();
+
+    let mut group = c.benchmark_group("lsp/workspace-path-single-query");
+    group.throughput(Throughput::Elements(1));
+    group.bench_function(
+        BenchmarkId::from_parameter(format!(
+            "{PATH_INDEX_WORKSPACE_COUNT}-workspaces-single-query"
+        )),
+        |b| {
+            b.iter(|| black_box(queries.run_one()));
+        },
+    );
+    group.finish();
+
+    let mut group = c.benchmark_group("lsp/workspace-path-containment-query");
+    group.throughput(Throughput::Elements(1));
+    group.bench_function(
+        BenchmarkId::from_parameter(format!(
+            "{PATH_INDEX_WORKSPACE_COUNT}-workspaces-containment-query"
+        )),
+        |b| {
+            b.iter(|| black_box(queries.run_containment_one()));
+        },
+    );
+    group.finish();
+}
+
 fn unifap_project() -> BenchmarkProject {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
@@ -426,6 +471,7 @@ criterion_group!(
     burst_hover,
     selection_range,
     workspace_diagnostic_hot_paths,
+    workspace_path_queries,
     unifap_benches
 );
 criterion_main!(benches);
