@@ -97,15 +97,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 saved_locals.push((id, self.values.get(&id).copied()));
             }
         }
-        let parameter_names = self.gcx.callable_param_names(CallableParamSource::Function {
-            id: modifier_id,
-            skips_receiver: false,
-        });
+        let parameter_names = match modifier.args.kind {
+            hir::CallArgsKind::Named(_) => {
+                Some(self.gcx.callable_param_names(CallableParamSource::Function {
+                    id: modifier_id,
+                    skips_receiver: false,
+                }))
+            }
+            hir::CallArgsKind::Unnamed(_) => None,
+        };
         let mut saved_parameters = Vec::with_capacity(modifier_function.parameters.len());
         let mut saved_storage_parameters = Vec::new();
         for (index, &parameter) in modifier_function.parameters.iter().enumerate() {
             let Some(argument) =
-                modifier.args.argument_for_parameter(index, Some(parameter_names.as_slice()))
+                modifier.args.argument_for_parameter(index, parameter_names.as_deref())
             else {
                 return report_unsupported(self.gcx, modifier.span, "named modifier argument");
             };
@@ -227,7 +232,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_modifier_placeholder(&mut self, span: Span) -> Option<()> {
-        let Some(context) = self.modifiers.last().cloned() else {
+        let Some(context) = self.modifiers.pop() else {
             return report_unsupported(self.gcx, span, "modifier placeholder");
         };
         let continuation = self.builder.create_block();
@@ -246,6 +251,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // Function parameters are inputs to every body expansion. Return
         // bindings, in contrast, carry the selected body's result onward.
         self.restore_bindings(&context.parameters);
+        self.modifiers.push(context);
         Some(())
     }
 }

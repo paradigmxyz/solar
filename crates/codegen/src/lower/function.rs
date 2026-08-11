@@ -241,14 +241,13 @@ struct TernaryBranch<T> {
     terminated: bool,
 }
 
-#[derive(Clone, Default)]
+#[derive(Default)]
 struct BindingSnapshot {
     ids: Vec<VariableId>,
     values: FxHashMap<VariableId, ValueId>,
     storage_refs: FxHashMap<VariableId, StorageAccess>,
 }
 
-#[derive(Clone)]
 struct ModifierContext<'gcx> {
     modifiers: &'gcx [hir::Modifier<'gcx>],
     body: hir::Block<'gcx>,
