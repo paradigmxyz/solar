@@ -2479,13 +2479,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// front lets the later load use a stable memory location; stores still happen only when the
     /// value is actually available on the stack.
     fn preallocate_cross_block_spills(&mut self, func: &Function, liveness: &Liveness) {
-        let values = Self::cross_block_spill_values(func, liveness);
-
         // Coloring minimizes the local frame, which reduces memory expansion in gas mode. It is
         // deliberately disabled in size mode because renumbering spill addresses disturbed
         // downstream block sharing and regressed aggregate CI bytecode despite smaller frames.
-        if self.gcx.sess.opts.optimization.is_gas() {
-            let colorable = Self::cross_block_live_values(func, liveness);
+        let values = if self.gcx.sess.opts.optimization.is_gas() {
+            let (values, colorable) = Self::cross_block_spill_values_and_colorable(func, liveness);
             let ranges = Self::spill_live_ranges(func, liveness, &colorable);
 
             let mut colors = Vec::<SpillColor>::new();
@@ -2507,31 +2505,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.scheduler.spills.reserve(value);
                 }
             }
+            values
         } else {
+            let values = Self::cross_block_spill_values(func, liveness);
             for value in &values {
                 self.scheduler.spills.reserve(value);
             }
-        }
-
-        if values.iter().any(|value| Self::is_cross_block_recomputable_inst(func, value)) {
-            let recomputable = Self::cross_block_recomputable_values(func);
-            let reloaded = values
-                .iter()
-                .any(|value| {
-                    !recomputable.contains(value)
-                        && StackScheduler::is_cheap_recomputable_value(func, value)
-                })
-                .then(|| Self::cross_block_reload_values(func));
-            for val in &values {
-                if recomputable.contains(val) {
-                    self.scheduler.spills.mark_recomputable(val);
-                } else if reloaded.as_ref().is_some_and(|values| values.contains(val))
-                    && StackScheduler::is_cheap_recomputable_value(func, val)
-                {
-                    self.scheduler.spills.require_store(val);
-                }
-            }
-        }
+            values
+        };
+        self.preallocate_spill_metadata(func, &values);
 
         // A free-memory-pointer load cannot be recomputed after the pointer moves. Give every
         // load a stable slot so a call operand can always recover the value even when block
@@ -2557,16 +2539,52 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    fn cross_block_live_values(func: &Function, liveness: &Liveness) -> DenseBitSet<ValueId> {
-        let mut values = DenseBitSet::new_empty(func.num_values());
-        for block in func.blocks.indices() {
-            for value in liveness.live_in(block).iter().chain(liveness.live_out(block).iter()) {
-                if matches!(func.value(value), crate::mir::Value::Inst(_)) {
-                    values.insert(value);
+    fn preallocate_spill_metadata(&mut self, func: &Function, values: &DenseBitSet<ValueId>) {
+        if values.iter().any(|value| Self::is_cross_block_recomputable_inst(func, value)) {
+            let recomputable = Self::cross_block_recomputable_values(func);
+            let reloaded = values
+                .iter()
+                .any(|value| {
+                    !recomputable.contains(value)
+                        && StackScheduler::is_cheap_recomputable_value(func, value)
+                })
+                .then(|| Self::cross_block_reload_values(func));
+            for val in values {
+                if recomputable.contains(val) {
+                    self.scheduler.spills.mark_recomputable(val);
+                } else if reloaded.as_ref().is_some_and(|values| values.contains(val))
+                    && StackScheduler::is_cheap_recomputable_value(func, val)
+                {
+                    self.scheduler.spills.require_store(val);
                 }
             }
         }
-        values
+    }
+
+    fn cross_block_spill_values_and_colorable(
+        func: &Function,
+        liveness: &Liveness,
+    ) -> (DenseBitSet<ValueId>, DenseBitSet<ValueId>) {
+        let mut values = DenseBitSet::new_empty(func.num_values());
+        let mut colorable = DenseBitSet::new_empty(func.num_values());
+        for block_id in func.blocks.indices() {
+            for val in liveness.live_in(block_id).iter().chain(liveness.live_out(block_id).iter()) {
+                if Self::can_own_spill_slot(func, val) {
+                    values.insert(val);
+                }
+                if matches!(func.value(val), crate::mir::Value::Inst(_)) {
+                    colorable.insert(val);
+                }
+            }
+            for &inst_id in &func.blocks[block_id].instructions {
+                if matches!(func.inst(inst_id).kind, InstKind::Phi(_))
+                    && let Some(val) = func.inst_result_value(inst_id)
+                {
+                    values.insert(val);
+                }
+            }
+        }
+        (values, colorable)
     }
 
     fn spill_live_ranges(
