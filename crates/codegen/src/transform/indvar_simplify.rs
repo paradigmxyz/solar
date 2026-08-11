@@ -20,7 +20,7 @@
 //! - preserve the original address value when it is still used outside the loop
 
 use crate::{
-    analysis::{AffineExpr, Loop, LoopAnalyzer, ScalarEvolution},
+    analysis::{Loop, LoopAnalyzer, ScalarEvolution},
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Value,
         ValueId, utils as mir_utils,
@@ -183,16 +183,16 @@ impl IndVarSimplifier {
         value: ValueId,
         iv_value: ValueId,
     ) -> Option<AddressKey> {
-        let AffineExpr { base, constant, terms } = scev.get(value)?.clone();
-        let base = base?;
-        let [term] = terms.as_slice() else { return None };
+        let expr = scev.get(value)?;
+        let base = expr.base?;
+        let [term] = expr.terms.as_slice() else { return None };
         if term.value != iv_value || term.scale <= 0 {
             return None;
         }
-        if constant < 0 {
+        if expr.constant < 0 {
             return None;
         }
-        Some(AddressKey { base, iv: iv_value, scale: term.scale, constant })
+        Some(AddressKey { base, iv: iv_value, scale: term.scale, constant: expr.constant })
     }
 
     fn materialize_pointer_phi(
