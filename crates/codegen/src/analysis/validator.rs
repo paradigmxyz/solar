@@ -118,18 +118,14 @@ impl<'a> Validator<'a> {
                 }
             };
 
-            let term_succs = term.successors();
-
             // Check successor blocks exist and back-link.
-            for &succ in &term_succs {
+            term.for_each_successor(|succ| {
                 if succ.index() >= num_blocks {
                     self.emit_at_block(
                         format_args!("terminator references nonexistent block bb{}", succ.index()),
                         block_id,
                     );
-                    continue;
-                }
-                if !func.blocks[succ].predecessors.contains(&block_id) {
+                } else if !func.blocks[succ].predecessors.contains(&block_id) {
                     self.emit_at_block(
                         format_args!(
                             "successor bb{} does not list bb{} as a predecessor",
@@ -139,7 +135,7 @@ impl<'a> Validator<'a> {
                         block_id,
                     );
                 }
-            }
+            });
 
             // Check stored predecessor blocks exist and branch to this block.
             for &pred in &block.predecessors {
@@ -160,7 +156,7 @@ impl<'a> Validator<'a> {
                     );
                     continue;
                 };
-                if !pred_term.successors().contains(&block_id) {
+                if !pred_term.has_successor(block_id) {
                     self.emit_at_block(
                         format_args!(
                             "stored predecessor bb{} does not branch to bb{}",
@@ -355,11 +351,11 @@ impl<'a> Validator<'a> {
                 let mut stack = vec![from];
                 while let Some(current) = stack.pop() {
                     if let Some(term) = func.blocks[current].terminator.as_ref() {
-                        for succ in term.successors() {
+                        term.for_each_successor(|succ| {
                             if seen.insert(succ) {
                                 stack.push(succ);
                             }
-                        }
+                        });
                     }
                 }
                 seen

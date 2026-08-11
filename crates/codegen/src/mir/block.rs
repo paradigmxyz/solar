@@ -101,21 +101,19 @@ pub(crate) enum Terminator {
 }
 
 impl Terminator {
-    /// Returns the successor blocks of this terminator.
-    #[must_use]
-    pub(crate) fn successors(&self) -> SmallVec<[BlockId; 2]> {
+    /// Visits the successor blocks of this terminator without allocating.
+    pub(crate) fn for_each_successor(&self, mut visit: impl FnMut(BlockId)) {
         match self {
-            Self::Jump(target) => smallvec::smallvec![*target],
+            Self::Jump(target) => visit(*target),
             Self::Branch { then_block, else_block, .. } => {
-                smallvec::smallvec![*then_block, *else_block]
+                visit(*then_block);
+                visit(*else_block);
             }
             Self::Switch { default, cases, .. } => {
-                let mut succs = SmallVec::with_capacity(cases.len() + 1);
-                succs.push(*default);
-                for (_, block) in cases {
-                    succs.push(*block);
+                visit(*default);
+                for &(_, block) in cases {
+                    visit(block);
                 }
-                succs
             }
             Self::Return { .. }
             | Self::Revert { .. }
@@ -124,8 +122,38 @@ impl Terminator {
             | Self::Stop
             | Self::SelfDestruct { .. }
             | Self::TailCall { .. }
-            | Self::Invalid => SmallVec::new(),
+            | Self::Invalid => {}
         }
+    }
+
+    /// Returns whether this terminator branches to `target`.
+    #[must_use]
+    pub(crate) fn has_successor(&self, target: BlockId) -> bool {
+        match self {
+            Self::Jump(block) => *block == target,
+            Self::Branch { then_block, else_block, .. } => {
+                *then_block == target || *else_block == target
+            }
+            Self::Switch { default, cases, .. } => {
+                *default == target || cases.iter().any(|&(_, block)| block == target)
+            }
+            Self::Return { .. }
+            | Self::Revert { .. }
+            | Self::RevertReturndata
+            | Self::ReturnData { .. }
+            | Self::Stop
+            | Self::SelfDestruct { .. }
+            | Self::TailCall { .. }
+            | Self::Invalid => false,
+        }
+    }
+
+    /// Returns the successor blocks of this terminator.
+    #[must_use]
+    pub(crate) fn successors(&self) -> SmallVec<[BlockId; 2]> {
+        let mut successors = SmallVec::new();
+        self.for_each_successor(|block| successors.push(block));
+        successors
     }
 
     /// Returns the mnemonic for this terminator.
