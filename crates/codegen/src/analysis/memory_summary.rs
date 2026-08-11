@@ -235,7 +235,8 @@ fn local_summary(
                 | InstKind::MemoryObjectStoreField { value, .. }
                 | InstKind::MemoryObjectStoreElement { value, .. }
                 | InstKind::MemoryObjectStoreByte { value, .. }
-                | InstKind::MemoryObjectStoreWord { value, .. } => {
+                | InstKind::MemoryObjectStoreWord { value, .. }
+                | InstKind::FrameStore { value, .. } => {
                     capture_sources(&mut summary, func, sources, *value);
                 }
                 InstKind::MemorySliceLoadWord { slice, offset } => {

@@ -11,8 +11,9 @@ use super::MemoryCallSummaries;
 use crate::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        AbiType, ArgIdx, BlockId, Function, ImmutableId, InstId, InstKind, MemoryObjectKind,
-        MemoryObjectLayout, MemoryRegion, SliceLocation, StorageAlias, Terminator, Value, ValueId,
+        AbiType, ArgIdx, BlockId, FrameMode, FrameSlotKind, Function, ImmutableId, InstId,
+        InstKind, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, SliceLocation, StorageAlias,
+        Terminator, Value, ValueId,
     },
 };
 use smallvec::SmallVec;
@@ -958,6 +959,9 @@ impl AliasAnalysis {
                     effects.read_any(AddressSpace::Memory);
                 }
             }
+            InstKind::MemoryObjectLoadByte { .. } => {
+                effects.read_any(AddressSpace::Memory);
+            }
             InstKind::MemoryObjectStoreElement { object, layout, index, .. } => {
                 if let Some(location) =
                     self.memory_object_element_location(func, inst_id, object, layout, index)
@@ -975,6 +979,20 @@ impl AliasAnalysis {
             }
             InstKind::MemorySliceLoadWord { .. } => {
                 effects.read_any(AddressSpace::Memory);
+            }
+            InstKind::FrameLoad { offset, mode, kind } => {
+                if let Some(location) = Self::frame_location(func, offset, mode, kind) {
+                    effects.read(Access::Location(Location::Memory(location)));
+                } else {
+                    effects.read_any(AddressSpace::Memory);
+                }
+            }
+            InstKind::FrameStore { offset, mode, kind, .. } => {
+                if let Some(location) = Self::frame_location(func, offset, mode, kind) {
+                    effects.write(Access::Location(Location::Memory(location)));
+                } else {
+                    effects.write_any(AddressSpace::Memory);
+                }
             }
             InstKind::MemoryObjectCopyFromSlice { source, .. } => {
                 if matches!(
@@ -1253,6 +1271,43 @@ impl AliasAnalysis {
             },
             LocationSize::Const(32),
         )
+    }
+
+    /// Returns the physical memory range occupied by a logical frame slot.
+    #[must_use]
+    fn frame_location(
+        func: &Function,
+        offset: u64,
+        mode: FrameMode,
+        kind: FrameSlotKind,
+    ) -> Option<MemoryLocation> {
+        let address = match mode {
+            FrameMode::External => MemoryAddress {
+                region: MemoryRegion::Scratch,
+                base: MemoryBase::Absolute,
+                offset: EvmMemoryLayout::HEAP_START.checked_add(offset)?,
+            },
+            FrameMode::Internal => {
+                let args = (func.params.len() as u64).checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+                let returns =
+                    (func.returns.len() as u64).checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+                let offset = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                    .checked_add(args)?
+                    .checked_add(returns)?
+                    .checked_add(offset)?;
+                MemoryAddress::internal_frame(offset)
+            }
+            FrameMode::MultiReturn => MemoryAddress {
+                region: MemoryRegion::Scratch,
+                base: MemoryBase::Absolute,
+                offset: EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT,
+            },
+        };
+        let size = match kind {
+            FrameSlotKind::Word => EvmMemoryLayout::WORD_SIZE,
+            FrameSlotKind::Slice(_) => EvmMemoryLayout::WORD_SIZE * 2,
+        };
+        Some(MemoryLocation::new(address, LocationSize::Const(size)))
     }
 
     fn access_may_alias(&self, access: Access, location: Location) -> bool {

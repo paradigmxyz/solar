@@ -262,6 +262,14 @@ impl LoopOptimizer {
                     && self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_mutate_memory_range(func, ctx, addr, Some(32));
             }
+            // These semantic memory reads lower to `mload` after LICM. Keep them in
+            // place until their physical address and width are explicit so a store
+            // in the loop cannot be missed by the dependence check above.
+            InstKind::MemoryObjectLen(_, _)
+            | InstKind::MemoryObjectLoadField { .. }
+            | InstKind::MemoryObjectLoadElement { .. }
+            | InstKind::MemoryObjectLoadByte { .. }
+            | InstKind::MemorySliceLoadWord { .. } => return false,
             InstKind::Keccak256(offset, size) => {
                 return !self.function_observes_msize(func)
                     && self.hoist_execution_guaranteed(func, inst_id, ctx)
