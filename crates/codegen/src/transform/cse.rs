@@ -480,7 +480,7 @@ impl CommonSubexprEliminator {
         let mut worklist = vec![(BlockId::ENTRY, ExprCache::default())];
         while let Some((block_id, mut cache)) = worklist.pop() {
             for &inst_id in &func.blocks[block_id].instructions {
-                let kind = func.inst(inst_id).kind.clone();
+                let kind = &func.inst(inst_id).kind;
                 if kind.has_side_effects() {
                     self.invalidate_for_side_effect(
                         func,
@@ -623,7 +623,7 @@ impl CommonSubexprEliminator {
         for index in 0..instruction_count {
             let inst_id = func.blocks[block_id].instructions[index];
             let inst = func.inst(inst_id);
-            let kind = inst.kind.clone();
+            let kind = &inst.kind;
 
             if kind.has_side_effects() {
                 self.invalidate_for_side_effect(
