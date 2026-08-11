@@ -34,6 +34,16 @@ contract TestUnifapV2Router is DSTest {
         token0.approve(address(router), 1 ether);
         token1.approve(address(router), 1 ether);
 
+        (address _token0, address _token1) = UnifapV2Library.sortPairs(
+            address(token0),
+            address(token1)
+        );
+        address pair = UnifapV2Library.pairFor(
+            address(factory),
+            _token0,
+            _token1
+        );
+
         (, , uint256 liquidity) = router.addLiquidity(
             address(token0),
             address(token1),
@@ -45,11 +55,6 @@ contract TestUnifapV2Router is DSTest {
             block.timestamp + 1
         );
 
-        address pair = UnifapV2Library.pairFor(
-            address(factory),
-            address(token0),
-            address(token1)
-        );
         assertEq(liquidity, 1 ether - UnifapV2Pair(pair).MINIMUM_LIQUIDITY());
         assertEq(factory.pairs(address(token0), address(token1)), pair);
     }
@@ -57,6 +62,17 @@ contract TestUnifapV2Router is DSTest {
     function testAddLiquidityNoPair() public {
         token0.approve(address(router), 1 ether);
         token1.approve(address(router), 1 ether);
+
+        (address _token0, address _token1) = UnifapV2Library.sortPairs(
+            address(token0),
+            address(token1)
+        );
+
+        address pair = UnifapV2Library.pairFor(
+            address(factory),
+            _token0,
+            _token1
+        );
 
         (uint256 amount0, uint256 amount1, uint256 liquidity) = router
             .addLiquidity(
@@ -69,16 +85,6 @@ contract TestUnifapV2Router is DSTest {
                 address(this),
                 block.timestamp + 1
             );
-
-        (address _token0, address _token1) = UnifapV2Library.sortPairs(
-            address(token0),
-            address(token1)
-        );
-        address pair = UnifapV2Library.pairFor(
-            address(factory),
-            _token0,
-            _token1
-        );
 
         assertEq(amount0, 1 ether);
         assertEq(amount1, 1 ether);
