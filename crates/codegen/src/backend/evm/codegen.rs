@@ -2484,20 +2484,22 @@ impl<'gcx> EvmCodegen<'gcx> {
         // downstream block sharing and regressed aggregate CI bytecode despite smaller frames.
         let values = if self.gcx.sess.opts.optimization.is_gas() {
             let (values, colorable) = Self::cross_block_spill_values_and_colorable(func, liveness);
-            let ranges = Self::spill_live_ranges(func, liveness, &colorable);
+            if !colorable.is_empty() {
+                let ranges = Self::spill_live_ranges(func, liveness, &colorable);
 
-            let mut colors = Vec::<SpillColor>::new();
-            for value in &colorable {
-                let value_ranges = &ranges[value];
-                let color = colors
-                    .iter()
-                    .position(|color| color.accepts(value_ranges))
-                    .unwrap_or_else(|| {
-                        colors.push(SpillColor::default());
-                        colors.len() - 1
-                    });
-                colors[color].insert(value_ranges);
-                self.scheduler.spills.reserve_at(value, color as u32);
+                let mut colors = Vec::<SpillColor>::new();
+                for value in &colorable {
+                    let value_ranges = &ranges[value];
+                    let color = colors
+                        .iter()
+                        .position(|color| color.accepts(value_ranges))
+                        .unwrap_or_else(|| {
+                            colors.push(SpillColor::default());
+                            colors.len() - 1
+                        });
+                    colors[color].insert(value_ranges);
+                    self.scheduler.spills.reserve_at(value, color as u32);
+                }
             }
 
             for value in &values {
