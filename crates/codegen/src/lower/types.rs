@@ -4,22 +4,22 @@ use crate::mir::{
     AbiParamType, AbiType, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation,
 };
 use solar_ast::{DataLocation, TypeSize};
+use solar_data_structures::map::FxHashSet;
 use solar_sema::{
     Gcx,
     hir::{ElementaryType, StructId},
     ty::{Ty, TyKind},
 };
-use std::collections::HashSet;
 
 /// Converts checked HIR types while carrying recursion state for aggregates.
 pub(super) struct TypeLowerer<'gcx> {
     gcx: Gcx<'gcx>,
-    seen_structs: HashSet<StructId>,
+    seen_structs: FxHashSet<StructId>,
 }
 
 impl<'gcx> TypeLowerer<'gcx> {
     pub(super) fn new(gcx: Gcx<'gcx>) -> Self {
-        Self { gcx, seen_structs: HashSet::new() }
+        Self { gcx, seen_structs: FxHashSet::default() }
     }
 
     /// Converts a checked Solidity type to its coarse MIR representation.
