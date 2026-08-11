@@ -49,7 +49,9 @@ solar-cli = { workspace = true, optional = true }
 alloy-primitives.workspace = true
 
 [dev-dependencies]
+serde_json.workspace = true
 solar-tester.workspace = true
+tempfile.workspace = true
 
 # Pinned dependencies. See /Cargo.toml.
 [target.'cfg(any())'.dependencies]

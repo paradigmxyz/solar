@@ -399,7 +399,7 @@ impl GlobalState {
         let refresh_code_lenses =
             self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
         let compare_inlay_hints = self.config.supports_inlay_hint_refresh();
-        let publish_diagnostics_data = self.config.supports_publish_diagnostics_data();
+        let config = self.config.clone();
         let (old_symbol_tables, refresh_requests) = {
             let Self {
                 client,
@@ -434,7 +434,7 @@ impl GlobalState {
                     diagnostics: external_refresh.diagnostics || pull_results_changed,
                     inlay_hints: external_refresh.inlay_hints || inlay_hints_changed,
                 };
-                publish_diagnostic_batches(client, update.batches, publish_diagnostics_data);
+                publish_diagnostic_batches(client, update.batches, &config);
 
                 commit.cache_invalidated = true;
                 commit.symbol_tables_version = version;
@@ -591,11 +591,7 @@ impl GlobalState {
             commit.record_external_diagnostics_change(
                 update.pull_reports_changed || update.workspace_documents_changed,
             );
-            publish_diagnostic_batches(
-                &mut self.client,
-                update.batches,
-                self.config.supports_publish_diagnostics_data(),
-            );
+            publish_diagnostic_batches(&mut self.client, update.batches, &self.config);
             (version, rediscover, progress)
         };
 
@@ -1104,8 +1100,12 @@ fn watched_file_registration_params() -> RegistrationParams {
 fn publish_diagnostic_batches(
     client: &mut ClientSocket,
     batches: impl IntoIterator<Item = (Url, Vec<Diagnostic>)>,
-    include_data: bool,
+    config: &Config,
 ) {
+    if !config.uses_push_diagnostics() {
+        return;
+    }
+    let include_data = config.supports_publish_diagnostics_data();
     for (uri, mut uri_diagnostics) in batches {
         if !include_data {
             for diagnostic in &mut uri_diagnostics {
@@ -1294,11 +1294,7 @@ impl GlobalStateSnapshot {
                 diagnostics: external_refresh.diagnostics || update.workspace_documents_changed,
                 inlay_hints: external_refresh.inlay_hints,
             };
-            publish_diagnostic_batches(
-                &mut self.client,
-                update.batches,
-                self.config.supports_publish_diagnostics_data(),
-            );
+            publish_diagnostic_batches(&mut self.client, update.batches, &self.config);
             self.published_analysis_version.send_replace(version);
             (old_symbol_tables, refresh_requests)
         };
@@ -1342,11 +1338,7 @@ impl GlobalStateSnapshot {
 
         let refresh_immediately = update.pull_reports_changed && commit.external_refresh.is_none();
         commit.record_external_diagnostics_change(update.pull_reports_changed);
-        publish_diagnostic_batches(
-            &mut self.client,
-            update.batches,
-            self.config.supports_publish_diagnostics_data(),
-        );
+        publish_diagnostic_batches(&mut self.client, update.batches, &self.config);
         refresh_immediately
     }
 
@@ -1360,11 +1352,7 @@ impl GlobalStateSnapshot {
 
         let refresh_immediately = update.pull_reports_changed && commit.external_refresh.is_none();
         commit.record_external_diagnostics_change(update.pull_reports_changed);
-        publish_diagnostic_batches(
-            &mut self.client,
-            update.batches,
-            self.config.supports_publish_diagnostics_data(),
-        );
+        publish_diagnostic_batches(&mut self.client, update.batches, &self.config);
         refresh_immediately
     }
 
@@ -1386,11 +1374,7 @@ impl GlobalStateSnapshot {
                 store.replace_and_publish_batches(owner, diagnostics)
             };
             let pull_reports_changed = update.pull_reports_changed;
-            publish_diagnostic_batches(
-                &mut self.client,
-                update.batches,
-                self.config.supports_publish_diagnostics_data(),
-            );
+            publish_diagnostic_batches(&mut self.client, update.batches, &self.config);
             pull_reports_changed
         };
         request_pull_result_refreshes(
@@ -1416,7 +1400,10 @@ fn request_pull_result_refreshes(
     config: &Config,
     requests: RefreshRequests,
 ) {
-    if requests.diagnostics && config.supports_diagnostic_refresh() {
+    if requests.diagnostics
+        && config.uses_pull_diagnostics()
+        && config.supports_diagnostic_refresh()
+    {
         request_diagnostic_refresh(client);
     }
     if requests.inlay_hints && config.supports_inlay_hint_refresh() {

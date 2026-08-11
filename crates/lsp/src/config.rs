@@ -46,6 +46,7 @@ pub(crate) struct Config {
     workspace_edit_document_changes: bool,
     code_action_literals: bool,
     code_action_is_preferred: bool,
+    diagnostic_delivery: DiagnosticDelivery,
     publish_diagnostics_data: bool,
     pull_diagnostics_data: bool,
     code_lens_refresh_support: bool,
@@ -63,6 +64,13 @@ pub(crate) struct Config {
     code_lens: CodeLensConfig,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum DiagnosticDelivery {
+    #[default]
+    Push,
+    Pull,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -74,6 +82,7 @@ impl Default for Config {
             workspace_edit_document_changes: false,
             code_action_literals: false,
             code_action_is_preferred: false,
+            diagnostic_delivery: DiagnosticDelivery::Push,
             publish_diagnostics_data: false,
             pull_diagnostics_data: false,
             code_lens_refresh_support: false,
@@ -166,16 +175,24 @@ impl Config {
         self.code_action_is_preferred
     }
 
+    pub(crate) fn uses_push_diagnostics(&self) -> bool {
+        self.diagnostic_delivery == DiagnosticDelivery::Push
+    }
+
+    pub(crate) fn uses_pull_diagnostics(&self) -> bool {
+        self.diagnostic_delivery == DiagnosticDelivery::Pull
+    }
+
     pub(crate) fn supports_publish_diagnostics_data(&self) -> bool {
-        self.publish_diagnostics_data
+        self.uses_push_diagnostics() && self.publish_diagnostics_data
     }
 
     pub(crate) fn supports_pull_diagnostics_data(&self) -> bool {
-        self.pull_diagnostics_data
+        self.uses_pull_diagnostics() && self.pull_diagnostics_data
     }
 
     pub(crate) fn supports_code_action_diagnostic_data(&self) -> bool {
-        self.publish_diagnostics_data || self.pull_diagnostics_data
+        self.supports_publish_diagnostics_data() || self.supports_pull_diagnostics_data()
     }
 
     pub(crate) fn supports_code_lens_refresh(&self) -> bool {
@@ -540,6 +557,16 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
         .and_then(|workspace| workspace.diagnostic.as_ref())
         .and_then(|capabilities| capabilities.refresh_support)
         .unwrap_or(false);
+    let supports_document_diagnostics = capabilities
+        .text_document
+        .as_ref()
+        .and_then(|text_document| text_document.diagnostic.as_ref())
+        .is_some();
+    let diagnostic_delivery = if supports_document_diagnostics && diagnostic_refresh_support {
+        DiagnosticDelivery::Pull
+    } else {
+        DiagnosticDelivery::Push
+    };
     let inlay_hint_refresh_support = capabilities
         .workspace
         .as_ref()
@@ -628,14 +655,16 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
             type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
             document_formatting_provider: Some(OneOf::Left(true)),
             folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
-            diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
-                identifier: None,
-                inter_file_dependencies: true,
-                workspace_diagnostics: true,
-                work_done_progress_options: WorkDoneProgressOptions {
-                    work_done_progress: Some(true),
-                },
-            })),
+            diagnostic_provider: (diagnostic_delivery == DiagnosticDelivery::Pull).then_some({
+                DiagnosticServerCapabilities::Options(DiagnosticOptions {
+                    identifier: None,
+                    inter_file_dependencies: true,
+                    workspace_diagnostics: true,
+                    work_done_progress_options: WorkDoneProgressOptions {
+                        work_done_progress: Some(true),
+                    },
+                })
+            }),
             document_link_provider: Some(DocumentLinkOptions {
                 resolve_provider: Some(false),
                 work_done_progress_options: WorkDoneProgressOptions::default(),
@@ -700,6 +729,7 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
             workspace_edit_document_changes,
             code_action_literals,
             code_action_is_preferred,
+            diagnostic_delivery,
             publish_diagnostics_data,
             pull_diagnostics_data,
             code_lens_refresh_support,
@@ -731,15 +761,15 @@ mod tests {
         CodeActionKindLiteralSupport, CodeActionLiteralSupport, CodeActionOptions,
         CodeActionProviderCapability, CodeLensWorkspaceClientCapabilities,
         CompletionClientCapabilities, CompletionItemCapability,
-        CompletionItemCapabilityResolveSupport, DiagnosticWorkspaceClientCapabilities,
-        DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities,
-        FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
-        FileOperationRegistrationOptions, InlayHintWorkspaceClientCapabilities, MarkupKind, OneOf,
-        ParameterInformationSettings, PublishDiagnosticsClientCapabilities, RenameOptions,
-        SignatureHelpClientCapabilities, SignatureInformationSettings,
-        TextDocumentClientCapabilities, TextDocumentSyncCapability, TextDocumentSyncSaveOptions,
-        TypeDefinitionProviderCapability, WindowClientCapabilities, WorkspaceClientCapabilities,
-        WorkspaceEditClientCapabilities,
+        CompletionItemCapabilityResolveSupport, DiagnosticClientCapabilities,
+        DiagnosticWorkspaceClientCapabilities, DidChangeWatchedFilesClientCapabilities,
+        DocumentSymbolClientCapabilities, FileOperationFilter, FileOperationPattern,
+        FileOperationPatternKind, FileOperationRegistrationOptions,
+        InlayHintWorkspaceClientCapabilities, MarkupKind, OneOf, ParameterInformationSettings,
+        PublishDiagnosticsClientCapabilities, RenameOptions, SignatureHelpClientCapabilities,
+        SignatureInformationSettings, TextDocumentClientCapabilities, TextDocumentSyncCapability,
+        TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WindowClientCapabilities,
+        WorkspaceClientCapabilities, WorkspaceEditClientCapabilities,
     };
 
     #[test]
@@ -1026,20 +1056,50 @@ mod tests {
     }
 
     #[test]
-    fn negotiate_capabilities_advertises_document_diagnostics() {
-        let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
+    fn negotiate_capabilities_selects_one_diagnostic_delivery() {
+        for (document_diagnostics, diagnostic_refresh, expected_delivery) in [
+            (false, false, DiagnosticDelivery::Push),
+            (true, false, DiagnosticDelivery::Push),
+            (false, true, DiagnosticDelivery::Push),
+            (true, true, DiagnosticDelivery::Pull),
+        ] {
+            let mut params = InitializeParams::default();
+            params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+                diagnostic: document_diagnostics.then(DiagnosticClientCapabilities::default),
+                ..Default::default()
+            });
+            params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+                diagnostic: Some(DiagnosticWorkspaceClientCapabilities {
+                    refresh_support: Some(diagnostic_refresh),
+                }),
+                ..Default::default()
+            });
 
-        assert_eq!(
-            capabilities.diagnostic_provider,
-            Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
-                identifier: None,
-                inter_file_dependencies: true,
-                workspace_diagnostics: true,
-                work_done_progress_options: WorkDoneProgressOptions {
-                    work_done_progress: Some(true),
-                },
-            }))
-        );
+            let (capabilities, config) = negotiate_capabilities(params);
+
+            assert_eq!(config.diagnostic_delivery, expected_delivery);
+            assert_eq!(
+                config.uses_push_diagnostics(),
+                expected_delivery == DiagnosticDelivery::Push
+            );
+            assert_eq!(
+                config.uses_pull_diagnostics(),
+                expected_delivery == DiagnosticDelivery::Pull
+            );
+            assert_eq!(
+                capabilities.diagnostic_provider,
+                (expected_delivery == DiagnosticDelivery::Pull).then_some({
+                    DiagnosticServerCapabilities::Options(DiagnosticOptions {
+                        identifier: None,
+                        inter_file_dependencies: true,
+                        workspace_diagnostics: true,
+                        work_done_progress_options: WorkDoneProgressOptions {
+                            work_done_progress: Some(true),
+                        },
+                    })
+                })
+            );
+        }
     }
 
     #[test]
@@ -1144,22 +1204,37 @@ mod tests {
     }
 
     #[test]
-    fn negotiate_capabilities_records_push_and_pull_diagnostic_data_independently() {
-        for (publish, pull) in [(false, false), (false, true), (true, false), (true, true)] {
-            let mut params = InitializeParams::default();
-            params.capabilities.text_document = Some(TextDocumentClientCapabilities {
-                publish_diagnostics: Some(PublishDiagnosticsClientCapabilities {
-                    data_support: Some(publish),
+    fn negotiate_capabilities_uses_only_selected_diagnostic_data_support() {
+        for delivery in [DiagnosticDelivery::Push, DiagnosticDelivery::Pull] {
+            for (publish, pull) in [(false, false), (false, true), (true, false), (true, true)] {
+                let mut params = InitializeParams::default();
+                params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+                    diagnostic: (delivery == DiagnosticDelivery::Pull)
+                        .then(DiagnosticClientCapabilities::default),
+                    publish_diagnostics: Some(PublishDiagnosticsClientCapabilities {
+                        data_support: Some(publish),
+                        ..Default::default()
+                    }),
                     ..Default::default()
-                }),
-                ..Default::default()
-            });
+                });
+                params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+                    diagnostic: Some(DiagnosticWorkspaceClientCapabilities {
+                        refresh_support: Some(delivery == DiagnosticDelivery::Pull),
+                    }),
+                    ..Default::default()
+                });
 
-            let (_, config) = negotiate_capabilities_with_pull_diagnostic_data(params, pull);
+                let (_, config) = negotiate_capabilities_with_pull_diagnostic_data(params, pull);
 
-            assert_eq!(config.supports_publish_diagnostics_data(), publish);
-            assert_eq!(config.supports_pull_diagnostics_data(), pull);
-            assert_eq!(config.supports_code_action_diagnostic_data(), publish || pull);
+                let expected_publish = delivery == DiagnosticDelivery::Push && publish;
+                let expected_pull = delivery == DiagnosticDelivery::Pull && pull;
+                assert_eq!(config.supports_publish_diagnostics_data(), expected_publish);
+                assert_eq!(config.supports_pull_diagnostics_data(), expected_pull);
+                assert_eq!(
+                    config.supports_code_action_diagnostic_data(),
+                    expected_publish || expected_pull
+                );
+            }
         }
     }
 
