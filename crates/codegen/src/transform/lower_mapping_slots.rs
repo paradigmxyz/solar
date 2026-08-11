@@ -141,22 +141,12 @@ fn lower_memory_mapping_slot(
     let len = builder.memory_object_len(ptr, crate::mir::MemoryObjectKind::Bytes);
     let word_size = builder.imm_u64(32);
     let payload_size = builder.add(len, word_size);
-    let object_size = builder.add(payload_size, word_size);
-    let object = builder.alloc_object(
-        object_size,
-        crate::mir::MemoryObjectLayout::Bytes,
-        crate::mir::AllocationSemantics::INTERNAL,
-    );
-    builder.set_memory_object_len(object, payload_size, crate::mir::MemoryObjectKind::Bytes);
-    builder.memory_object_copy(
-        object,
-        crate::mir::MemoryObjectKind::Bytes,
-        ptr,
-        crate::mir::MemoryObjectKind::Bytes,
-        len,
-    );
-    builder.memory_object_store_word(object, len, slot);
-    builder.keccak256_bytes(object)
+    let scratch = builder.alloc_raw(payload_size, crate::mir::AllocationSemantics::INTERNAL);
+    let source = builder.memory_object_data(ptr, crate::mir::MemoryObjectKind::Bytes);
+    builder.mcopy(scratch, source, len);
+    let slot_address = builder.add(scratch, len);
+    builder.mstore(slot_address, slot);
+    builder.keccak256(scratch, payload_size)
 }
 
 fn lower_calldata_mapping_slot(
@@ -167,14 +157,10 @@ fn lower_calldata_mapping_slot(
     let len = builder.slice_len(slice);
     let word_size = builder.imm_u64(32);
     let payload_size = builder.add(len, word_size);
-    let object_size = builder.add(payload_size, word_size);
-    let object = builder.alloc_object(
-        object_size,
-        crate::mir::MemoryObjectLayout::Bytes,
-        crate::mir::AllocationSemantics::INTERNAL,
-    );
-    builder.set_memory_object_len(object, payload_size, crate::mir::MemoryObjectKind::Bytes);
-    builder.memory_object_copy_from_slice(object, crate::mir::MemoryObjectKind::Bytes, slice);
-    builder.memory_object_store_word(object, len, slot);
-    builder.keccak256_bytes(object)
+    let scratch = builder.alloc_raw(payload_size, crate::mir::AllocationSemantics::INTERNAL);
+    let source = builder.slice_ptr(slice);
+    builder.calldatacopy(scratch, source, len);
+    let slot_address = builder.add(scratch, len);
+    builder.mstore(slot_address, slot);
+    builder.keccak256(scratch, payload_size)
 }
