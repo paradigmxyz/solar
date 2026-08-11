@@ -190,11 +190,11 @@ struct GlobalCseContext<'a> {
 #[derive(Clone, Debug, Default)]
 struct ExprCache {
     /// Entries no side effect can invalidate: pure arithmetic and constants.
-    pure: Rc<FxHashMap<ExprKey, ValueId>>,
+    pure: FxHashMap<ExprKey, ValueId>,
     /// Entries a memory, storage, transient-storage, or account-environment
     /// write may invalidate, per
     /// [`CommonSubexprEliminator::is_path_sensitive_expr`].
-    stateful: Rc<FxHashMap<ExprKey, ValueId>>,
+    stateful: FxHashMap<ExprKey, ValueId>,
 }
 
 impl ExprCache {
@@ -208,9 +208,9 @@ impl ExprCache {
 
     fn insert(&mut self, key: ExprKey, value: ValueId) {
         if CommonSubexprEliminator::is_path_sensitive_expr(&key) {
-            Rc::make_mut(&mut self.stateful).insert(key, value);
+            self.stateful.insert(key, value);
         } else {
-            Rc::make_mut(&mut self.pure).insert(key, value);
+            self.pure.insert(key, value);
         }
     }
 
@@ -222,7 +222,7 @@ impl ExprCache {
     /// Retains the state-dependent entries matching `keep`. The pure entries are
     /// untouched, which is why no clobber has to walk them.
     fn retain_stateful(&mut self, keep: impl FnMut(&ExprKey, &mut ValueId) -> bool) {
-        Rc::make_mut(&mut self.stateful).retain(keep);
+        self.stateful.retain(keep);
     }
 }
 
