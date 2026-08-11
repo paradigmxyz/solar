@@ -4608,7 +4608,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let arg_values = &arg_values[&func_id];
             let mut values = Vec::with_capacity(mask.count());
             let mut eligible = true;
-            for index in (0..mask.domain_size()).rev().filter(|&index| mask.contains(index)) {
+            for index in mask.iter() {
                 let Some(value) = arg_values[ArgIdx::new(index)] else {
                     eligible = false;
                     break;
@@ -4618,6 +4618,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !eligible {
                 continue;
             }
+            // The layout keeps arguments in descending index order.
+            values.reverse();
 
             // Reject shapes the resident-layout analysis cannot represent
             // before paying for whole-function liveness. Single-block leaves
@@ -4849,7 +4851,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             let mut values = Vec::with_capacity(mask.count());
             let mut eligible = true;
-            for index in (0..mask.domain_size()).rev().filter(|&index| mask.contains(index)) {
+            for index in mask.iter() {
                 let Some(value) = arg_values[ArgIdx::new(index)] else {
                     eligible = false;
                     break;
@@ -4863,6 +4865,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 values.push(value);
             }
+            // The entry layout keeps arguments in descending index order.
+            values.reverse();
             if eligible && !values.is_empty() {
                 self.direct_stack_args.insert(func_id, values);
             }
@@ -4901,7 +4905,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let mut args = Vec::with_capacity(mask.count());
             let mut frame_values = DenseBitSet::new_empty(func.num_values());
             let mut eligible = true;
-            for index in (0..mask.domain_size()).rev().filter(|&index| mask.contains(index)) {
+            for index in mask.iter() {
                 let Some(value) = arg_values[ArgIdx::new(index)] else {
                     eligible = false;
                     break;
@@ -4924,6 +4928,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                     frame_values.insert(value);
                 }
             }
+            // Materialization emits in descending index order.
+            args.reverse();
             if eligible && !args.is_empty() {
                 self.lazy_stack_args.insert(func_id, LazyStackArgPlan { args, frame_values });
             }
@@ -5010,16 +5016,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         if mask.domain_size() != func.params.len() {
             return;
         }
-        for i in (0..mask.domain_size()).rev() {
-            if mask.contains(i) {
-                let addr = self.static_frame_addr(
-                    func_id,
-                    EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                        + i as u64 * EvmMemoryLayout::WORD_SIZE,
-                );
-                self.asm.emit_push_deferred(addr);
-                self.asm.emit_op(op::MSTORE);
-            }
+        // Arguments were pushed in ascending index order, so store the top of
+        // the stack into the highest-index slot first.
+        let indices = mask.iter().collect::<Vec<_>>();
+        for i in indices.into_iter().rev() {
+            let addr = self.static_frame_addr(
+                func_id,
+                EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE + i as u64 * EvmMemoryLayout::WORD_SIZE,
+            );
+            self.asm.emit_push_deferred(addr);
+            self.asm.emit_op(op::MSTORE);
         }
     }
 
@@ -5148,16 +5154,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             layout.push(StaticCallStackWord::Argument(*keep.get(&word?)?));
         }
         layout.insert(0, StaticCallStackWord::ReturnAddress);
-        for i in 0..args.len() {
-            if mask.contains(i) && !retained_indices.contains(&i) {
+        for i in mask.iter() {
+            if !retained_indices.contains(&i) {
                 layout.insert(0, StaticCallStackWord::Argument(i));
             }
         }
 
-        let mut target: Vec<_> = (0..args.len())
-            .filter(|&i| mask.contains(i))
-            .map(StaticCallStackWord::Argument)
-            .collect();
+        let mut target: Vec<_> = mask.iter().map(StaticCallStackWord::Argument).collect();
         target.reverse();
         target.push(StaticCallStackWord::ReturnAddress);
         if layout.len() != target.len() || layout.len() > STACK_ARG_ROTATION_LIMIT + 1 {

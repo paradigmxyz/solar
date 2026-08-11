@@ -1,4 +1,4 @@
-//@ compile-flags: -Ogas
+//@ compile-flags: -O gas
 //@ run-call: a 5, true => 10
 //@ run-call: a 5, false => 17
 //@ run-call: b 5, true => 11
