@@ -416,6 +416,10 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub switch_max_bit_slice_gas_code_growth: Option<usize>,
 
+    /// Disable local operand planning for store and copy instructions.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub evm_no_specialized_operand_plans: bool,
+
     // ----------------------------------------
     // Please add new options above this point!
     // ----------------------------------------

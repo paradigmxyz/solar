@@ -7497,8 +7497,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Plans operand preparation for operations whose inputs remain valid while
-    /// they are rearranged. Memory-mutating stores/copies and calls keep their
-    /// freshness-aware emitters until the stack model represents value epochs.
+    /// they are rearranged.
     fn plan_operands(
         &self,
         func: &Function,
@@ -8167,6 +8166,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         inst_idx: usize,
     ) {
         self.preserve_stack_only_operands(&[addr, val], liveness, block, inst_idx);
+        if !self.gcx.sess.opts.unstable.evm_no_specialized_operand_plans
+            && let Some(plan) = self.plan_operands(func, &[val, addr], liveness, block, inst_idx)
+        {
+            self.emit_operand_plan(func, plan);
+            self.asm.emit_op(opcode);
+            self.scheduler.instruction_executed(2, None);
+            return;
+        }
 
         // Check if addr is still live after this instruction.
         let addr_is_live = !liveness.is_dead_after(addr, block, inst_idx);
@@ -8232,6 +8239,23 @@ impl<'gcx> EvmCodegen<'gcx> {
         inst_idx: usize,
     ) {
         self.preserve_stack_only_operands(operands, liveness, block, inst_idx);
+        // Under `-Osize`, retaining a live value that cannot be rematerialized can extend its
+        // physical lifetime enough to cost more bytecode than the freshness-aware fallback.
+        let retains_nonrematerializable =
+            matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size)
+                && operands.iter().any(|&value| {
+                    !liveness.is_dead_after(value, block, inst_idx)
+                        && !Self::is_rematerializable_value(func, value)
+                });
+        if !self.gcx.sess.opts.unstable.evm_no_specialized_operand_plans
+            && !retains_nonrematerializable
+            && let Some(plan) = self.plan_operands(func, operands, liveness, block, inst_idx)
+        {
+            self.emit_operand_plan(func, plan);
+            self.asm.emit_op(opcode);
+            self.scheduler.instruction_executed(operands.len(), None);
+            return;
+        }
 
         for (i, &op) in operands.iter().enumerate() {
             if i == 0 {
