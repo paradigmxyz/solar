@@ -21,8 +21,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.lower_stmt(then_stmt)?;
         let then_terminated = self.is_terminated();
         let then_exit = self.builder.current_block();
-        let then_values = self.values.clone();
-        let then_storage_refs = self.storage_refs.clone();
+        let then_values = std::mem::take(&mut self.values);
+        let then_storage_refs = std::mem::take(&mut self.storage_refs);
         if !then_terminated {
             self.builder.jump(merge_block);
         }
