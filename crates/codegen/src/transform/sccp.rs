@@ -49,7 +49,7 @@ impl MirPass for Sccp {
 }
 
 /// Lattice element for a single SSA value.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum LatticeValue {
     /// Not yet evaluated.
     Top,
@@ -64,7 +64,7 @@ impl LatticeValue {
     /// Top ∧ x = x, Bottom ∧ x = Bottom, Const(a) ∧ Const(b) = if a==b Const(a) else Bottom.
     fn meet(&self, other: &Self) -> Self {
         match (self, other) {
-            (Self::Top, x) | (x, Self::Top) => *x,
+            (Self::Top, x) | (x, Self::Top) => x.clone(),
             (Self::Bottom, _) | (_, Self::Bottom) => Self::Bottom,
             (Self::Constant(a), Self::Constant(b)) => {
                 if a == b {
@@ -349,7 +349,7 @@ impl SccpCx {
             return match lattice[condition] {
                 LatticeValue::Constant(condition) => {
                     let chosen = if condition.is_zero() { else_value } else { then_value };
-                    lattice[chosen]
+                    lattice[chosen].clone()
                 }
                 LatticeValue::Bottom => lattice[then_value].meet(&lattice[else_value]),
                 LatticeValue::Top => match (get_const(then_value), get_const(else_value)) {

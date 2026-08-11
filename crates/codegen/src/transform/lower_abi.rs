@@ -274,16 +274,13 @@ fn encode_live_returns(func: &mut Function) -> usize {
     let block_ids: Vec<_> = func.blocks.indices().collect();
     let mut encoded_returns = 0;
     for block_id in block_ids {
-        let values = match func.blocks[block_id].terminator.take() {
-            Some(Terminator::Return { values }) if !values.is_empty() => {
-                values.into_vec().into_boxed_slice()
-            }
-            Some(terminator) => {
-                func.blocks[block_id].terminator = Some(terminator);
-                continue;
-            }
-            None => continue,
+        let Some(Terminator::Return { values }) = &func.blocks[block_id].terminator else {
+            continue;
         };
+        if values.is_empty() {
+            continue;
+        }
+        let values = values.clone().into_vec().into_boxed_slice();
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block_id);
         if layout.types.iter().any(crate::mir::AbiType::is_dynamic) {

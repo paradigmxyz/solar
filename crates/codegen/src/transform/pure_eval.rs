@@ -213,15 +213,14 @@ impl PureEvaluator {
             }
         }
 
-        let returns = std::mem::take(&mut func.returns);
+        let returns = func.returns.clone();
         let values = values
             .iter()
-            .zip(&returns)
+            .zip(returns)
             .map(|(&value, ty)| {
-                func.alloc_value(Value::Immediate(Immediate::for_type(Some(*ty), value)))
+                func.alloc_value(Value::Immediate(Immediate::for_type(Some(ty), value)))
             })
             .collect();
-        func.returns = returns;
         func.blocks[entry].terminator = Some(Terminator::Return { values });
     }
 }
