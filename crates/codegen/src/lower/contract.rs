@@ -96,7 +96,7 @@ pub(super) fn lower(
             }
         }
     }
-    for function_id in gcx.contract_reachable_functions(contract_id).iter() {
+    for function_id in reachable.iter() {
         let function = gcx.hir.function(function_id);
         let library_function = function
             .contract
