@@ -158,15 +158,6 @@ pub(super) fn lower(
         if !expose_selector {
             declaration.selector = None;
         }
-        {
-            let mut builder = FunctionBuilder::new(&mut declaration);
-            for &param in function.parameters {
-                builder.add_param(TypeLowerer::mir_type(gcx.type_of_item(param.into())));
-            }
-            for &ret in function.returns {
-                builder.add_return(TypeLowerer::mir_return_type(gcx.type_of_item(ret.into())));
-            }
-        }
         let mir_id = module.add_function(declaration);
         mir_ids.insert(function_id, mir_id);
     }
@@ -189,7 +180,15 @@ pub(super) fn lower(
             share_storage_bytes,
         };
         let Some(mut mir) = function::lower(context, function_id, expose_selector) else {
-            FunctionBuilder::new(module.function_mut(mir_id)).invalid();
+            let function = gcx.hir.function(function_id);
+            let mut builder = FunctionBuilder::new(module.function_mut(mir_id));
+            for &param in function.parameters {
+                builder.add_param(TypeLowerer::mir_type(gcx.type_of_item(param.into())));
+            }
+            for &ret in function.returns {
+                builder.add_return(TypeLowerer::mir_return_type(gcx.type_of_item(ret.into())));
+            }
+            builder.invalid();
             continue;
         };
         mir.name = name;
