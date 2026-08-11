@@ -389,6 +389,23 @@ async fn set_trace_updates_server_request_detail() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn set_trace_before_initialize_does_not_emit_server_traces() {
+    let mut harness = protocol_trace_test_harness(None);
+    harness.set_trace(TraceValue::Messages);
+    let error = harness.server.request::<TraceBarrierRequest>(()).await.unwrap_err();
+    let async_lsp::Error::Response(error) = error else {
+        panic!("expected a server-not-initialized response, got {error:?}");
+    };
+    assert_eq!(error.code, async_lsp::ErrorCode::SERVER_NOT_INITIALIZED);
+
+    harness.initialize(None).await;
+    harness.probe().await;
+
+    assert!(harness.take_traces().is_empty());
+    harness.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn messages_trace_reports_server_completion_without_payloads() {
     let mut harness = protocol_trace_harness();
     harness.initialize(None).await;
