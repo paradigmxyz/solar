@@ -156,15 +156,13 @@ struct SpillLiveRange {
     end: usize,
 }
 
-type SpillRanges = SmallVec<[(BlockId, SpillLiveRange); 2]>;
-
 #[derive(Default)]
 struct SpillColor {
     ranges: FxHashMap<BlockId, SmallVec<[SpillLiveRange; 4]>>,
 }
 
 impl SpillColor {
-    fn accepts(&self, ranges: &[(BlockId, SpillLiveRange)]) -> bool {
+    fn accepts(&self, ranges: &FxHashMap<BlockId, SpillLiveRange>) -> bool {
         ranges.iter().all(|(block, candidate)| {
             self.ranges.get(block).is_none_or(|assigned| {
                 assigned
@@ -174,8 +172,8 @@ impl SpillColor {
         })
     }
 
-    fn insert(&mut self, ranges: &[(BlockId, SpillLiveRange)]) {
-        for &(block, range) in ranges {
+    fn insert(&mut self, ranges: &FxHashMap<BlockId, SpillLiveRange>) {
+        for (&block, &range) in ranges {
             self.ranges.entry(block).or_default().push(range);
         }
     }
@@ -2575,8 +2573,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         liveness: &Liveness,
         colorable: &DenseBitSet<ValueId>,
-    ) -> IndexVec<ValueId, SpillRanges> {
-        let mut ranges = index_vec![SmallVec::new(); func.num_values()];
+    ) -> IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>> {
+        let mut ranges = index_vec![FxHashMap::default(); func.num_values()];
 
         for block_id in func.blocks.indices() {
             for value in liveness.live_in(block_id) {
@@ -2613,7 +2611,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn extend_spill_live_range(
-        ranges: &mut IndexVec<ValueId, SpillRanges>,
+        ranges: &mut IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>>,
         colorable: &DenseBitSet<ValueId>,
         value: ValueId,
         block: BlockId,
@@ -2622,14 +2620,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         if !colorable.contains(value) {
             return;
         }
-        if let Some((_, range)) =
-            ranges[value].iter_mut().find(|(candidate, _)| *candidate == block)
-        {
-            range.start = range.start.min(point);
-            range.end = range.end.max(point);
-        } else {
-            ranges[value].push((block, SpillLiveRange { start: point, end: point }));
-        }
+        ranges[value]
+            .entry(block)
+            .and_modify(|range| {
+                range.start = range.start.min(point);
+                range.end = range.end.max(point);
+            })
+            .or_insert(SpillLiveRange { start: point, end: point });
     }
 
     /// Returns values directly consumed outside their defining block. Phi inputs are edge uses:
@@ -7017,10 +7014,16 @@ mod tests {
         let block0 = BlockId::from_usize(0);
         let block1 = BlockId::from_usize(1);
         let mut color = SpillColor::default();
-        color.insert(&[(block0, SpillLiveRange { start: 2, end: 4 })]);
+        color.insert(&FxHashMap::from_iter([(block0, SpillLiveRange { start: 2, end: 4 })]));
 
-        assert!(color.accepts(&[(block0, SpillLiveRange { start: 5, end: 7 })]));
-        assert!(!color.accepts(&[(block0, SpillLiveRange { start: 4, end: 7 })]));
-        assert!(color.accepts(&[(block1, SpillLiveRange { start: 2, end: 4 })]));
+        assert!(
+            color.accepts(&FxHashMap::from_iter([(block0, SpillLiveRange { start: 5, end: 7 })]))
+        );
+        assert!(
+            !color.accepts(&FxHashMap::from_iter([(block0, SpillLiveRange { start: 4, end: 7 })]))
+        );
+        assert!(
+            color.accepts(&FxHashMap::from_iter([(block1, SpillLiveRange { start: 2, end: 4 })]))
+        );
     }
 }
