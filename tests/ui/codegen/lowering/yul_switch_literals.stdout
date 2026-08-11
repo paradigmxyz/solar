@@ -10,6 +10,7 @@ fn @selectorLiteral() [selector=0x4a98f2f7, pure, abi_args=lazy, abi_params=[], 
   bb3:
     jump bb1
 }
+
 fn @caseLiterals(arg0: u256) [selector=0x9191b686, pure, abi_args=lazy, abi_params=[u256], abi_returns=[]] {
   bb0:
     switch arg0, default bb4, [0x3100000000000000000000000000000000000000000000000000000000000000 => bb2, 0x1122000000000000000000000000000000000000000000000000000000000000 => bb3]
@@ -22,3 +23,4 @@ fn @caseLiterals(arg0: u256) [selector=0x9191b686, pure, abi_args=lazy, abi_para
   bb4:
     jump bb1
 }
+

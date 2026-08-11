@@ -4,6 +4,7 @@ fn @_anonymous(arg0: u256) [constructor, abi_args=lazy, abi_params=[u256]] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeFactory ===
 @module CreationCodeFactory
 fn @creationCode() -> memorybytes [selector=0x7213edad, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
@@ -18,3 +19,4 @@ fn @creationCode() -> memorybytes [selector=0x7213edad, pure, abi_args=lazy, abi
     memory_object_store_word memorybytes, v1, 96, 0x5f8060685f395ff3000000000000000000000000000000000000000000000000
     ret v1
 }
+

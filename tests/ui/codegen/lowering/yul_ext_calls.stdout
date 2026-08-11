@@ -7,3 +7,4 @@ fn @extCalls(arg0: address) -> u256 [selector=0x6e5d617f, abi_args=lazy, abi_par
     v2 = extstaticcall arg0, 0, 0
     ret v2
 }
+
