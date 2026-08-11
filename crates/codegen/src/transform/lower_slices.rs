@@ -255,7 +255,7 @@ impl LowerSlicesCx {
             let block_id = *block_id;
             // Collect the leading slice phis before mutating, since forming the
             // paired words allocates instructions and values.
-            type SlicePhi = (InstId, Vec<(BlockId, ValueId)>, SliceLocation);
+            type SlicePhi = (InstId, SliceLocation);
             let mut slice_phis: Vec<SlicePhi> = Vec::new();
             for &inst_id in &func.blocks[block_id].instructions {
                 match &func.inst(inst_id).kind {
@@ -277,14 +277,18 @@ impl LowerSlicesCx {
                                     )
                             });
                         if can_split {
-                            slice_phis.push((inst_id, incoming.clone(), location));
+                            slice_phis.push((inst_id, location));
                         }
                     }
                     _ => continue,
                 }
             }
             let mut splits: Vec<(InstId, InstId, InstId, InstId)> = Vec::new();
-            for (inst_id, incoming, location) in slice_phis {
+            for (inst_id, location) in slice_phis {
+                let incoming = match &mut func.inst_mut(inst_id).kind {
+                    InstKind::Phi(incoming) => std::mem::take(incoming),
+                    _ => unreachable!(),
+                };
                 let mut ptr_incoming = Vec::with_capacity(incoming.len());
                 let mut len_incoming = Vec::with_capacity(incoming.len());
                 for (pred, value) in incoming {
@@ -404,7 +408,7 @@ impl LowerSlicesCx {
             return false;
         }
 
-        let old_params = func.params.clone();
+        let old_params = std::mem::take(&mut func.params);
         let mut physical_indices = IndexVec::<ArgIdx, ArgIdx>::with_capacity(old_params.len());
         let mut new_params = IndexVec::<ArgIdx, MirType>::with_capacity(old_params.len() + 1);
         for (index, &ty) in old_params.iter_enumerated() {

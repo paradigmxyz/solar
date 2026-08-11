@@ -2397,13 +2397,14 @@ fn encode_live_returns(
     let block_ids: Vec<_> = func.blocks.indices().collect();
     let mut encoded_returns = 0;
     for block_id in block_ids {
-        let Some(Terminator::Return { values }) = &func.blocks[block_id].terminator else {
-            continue;
+        let values = match func.blocks[block_id].terminator.take() {
+            Some(Terminator::Return { values }) if !values.is_empty() => values.into_vec(),
+            Some(terminator) => {
+                func.blocks[block_id].terminator = Some(terminator);
+                continue;
+            }
+            None => continue,
         };
-        if values.is_empty() {
-            continue;
-        }
-        let values = values.clone().into_vec();
         let return_types = func.returns.clone();
         let return_params = return_params.map(|layout| layout.types.clone());
         let mut builder = FunctionBuilder::new(func);
