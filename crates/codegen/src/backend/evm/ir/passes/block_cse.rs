@@ -410,36 +410,18 @@ const fn expression_inputs(
     memory_epoch: u64,
     storage_epoch: u64,
 ) -> Option<(usize, Option<u64>)> {
-    let epoch = match opcode {
-        op::ISZERO
-        | op::NOT
-        | op::ADD
-        | op::MUL
-        | op::SUB
-        | op::DIV
-        | op::SDIV
-        | op::MOD
-        | op::SMOD
-        | op::EXP
-        | op::SIGNEXTEND
-        | op::LT
-        | op::GT
-        | op::SLT
-        | op::SGT
-        | op::EQ
-        | op::AND
-        | op::OR
-        | op::XOR
-        | op::BYTE
-        | op::SHL
-        | op::SHR
-        | op::SAR
-        | op::ADDMOD
-        | op::MULMOD => None,
-        op::MLOAD | op::KECCAK256 => Some(memory_epoch << 1),
-        op::SLOAD | op::TLOAD => Some((storage_epoch << 1) | 1),
-        op::CALLDATALOAD => Some(0),
-        _ => return None,
+    // Pure opcodes carry no epoch; the reads this pass value-numbers are keyed to the current
+    // memory or storage clobber generation so they are only reused until the next write, and
+    // calldata is immutable. Everything else is not a tracked expression.
+    let epoch = if op::is_pure(opcode) {
+        None
+    } else {
+        match opcode {
+            op::MLOAD | op::KECCAK256 => Some(memory_epoch << 1),
+            op::SLOAD | op::TLOAD => Some((storage_epoch << 1) | 1),
+            op::CALLDATALOAD => Some(0),
+            _ => return None,
+        }
     };
     match op::stack_io(opcode) {
         Some((inputs, _)) => Some((inputs as usize, epoch)),

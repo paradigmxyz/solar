@@ -299,6 +299,41 @@ pub(crate) const fn is_commutative(op: u8) -> bool {
     matches!(op, ADD | MUL | EQ | AND | OR | XOR)
 }
 
+/// Returns whether an opcode is pure: it has no side effects and its result is a deterministic
+/// function of its stack operands alone (no memory, storage, or environment dependency), so two
+/// occurrences with equal operands always produce the same value.
+#[must_use]
+pub(crate) const fn is_pure(op: u8) -> bool {
+    matches!(
+        op,
+        ADD | MUL
+            | SUB
+            | DIV
+            | SDIV
+            | MOD
+            | SMOD
+            | ADDMOD
+            | MULMOD
+            | EXP
+            | SIGNEXTEND
+            | LT
+            | GT
+            | SLT
+            | SGT
+            | EQ
+            | ISZERO
+            | AND
+            | OR
+            | XOR
+            | NOT
+            | BYTE
+            | SHL
+            | SHR
+            | SAR
+            | CLZ
+    )
+}
+
 /// Returns whether an opcode may write to memory, invalidating cached memory reads.
 #[must_use]
 pub(crate) const fn writes_memory(op: u8) -> bool {
