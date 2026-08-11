@@ -38,6 +38,7 @@ use serde::{Deserialize, Serialize};
 use solar_interface::data_structures::sync::RwLock;
 use solar_parse::lexer::is_ident;
 use std::{
+    fmt::Write,
     future::ready,
     io,
     path::{Path, PathBuf},
@@ -948,13 +949,16 @@ fn import_completion(
         .iter()
         .map(|candidate| {
             let import_path = candidate.import_path().to_string();
-            let new_text = solidity_string_contents(import_path.as_bytes(), delimiter);
+            let mut new_text = String::with_capacity(import_path.len());
+            write!(new_text, "{}", solidity_string_contents(import_path.as_bytes(), delimiter))
+                .unwrap();
             let filter_text = if raw_path_prefix.bytes().any(|byte| matches!(byte, b'\r' | b'\n')) {
                 new_text.clone()
             } else if let Some(suffix) = import_path.strip_prefix(&path_prefix) {
                 let mut filter_text = String::with_capacity(raw_path_prefix.len() + suffix.len());
                 filter_text.push_str(&raw_path_prefix);
-                filter_text.push_str(&solidity_string_contents(suffix.as_bytes(), delimiter));
+                write!(filter_text, "{}", solidity_string_contents(suffix.as_bytes(), delimiter))
+                    .unwrap();
                 filter_text
             } else {
                 new_text.clone()

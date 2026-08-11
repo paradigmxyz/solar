@@ -2,7 +2,10 @@ use lsp_types::{TextEdit, Url};
 use normalize_path::NormalizePath;
 use solar_config::ImportRemapping;
 use solar_interface::source_map::apply_import_remappings;
-use std::path::{Component, Path, PathBuf};
+use std::{
+    fmt::Write,
+    path::{Component, Path, PathBuf},
+};
 
 use super::{
     DocumentLinkIndex, ImportEditPlan, ImportPathStyle, StoredDocumentLink,
@@ -61,10 +64,9 @@ impl DocumentLinkIndex {
 }
 
 fn solidity_string_literal(bytes: &[u8]) -> String {
-    let contents = solidity_string_contents(bytes, b'"');
-    let mut literal = String::with_capacity(contents.len() + 2);
+    let mut literal = String::with_capacity(bytes.len() + 2);
     literal.push('"');
-    literal.push_str(&contents);
+    write!(literal, "{}", solidity_string_contents(bytes, b'"')).unwrap();
     literal.push('"');
     literal
 }

@@ -4,6 +4,7 @@ use solar_interface::data_structures::map::FxHashMap;
 use std::{
     borrow::Cow,
     collections::HashMap,
+    fmt::{self, Write},
     path::{Component, Path, PathBuf},
     sync::Arc,
 };
@@ -151,24 +152,21 @@ fn import_path_bytes(path: &Path) -> Cow<'_, [u8]> {
     }
 }
 
-pub(crate) fn solidity_string_contents(bytes: &[u8], delimiter: u8) -> String {
+pub(crate) fn solidity_string_contents(bytes: &[u8], delimiter: u8) -> impl fmt::Display + '_ {
     debug_assert!(matches!(delimiter, b'\'' | b'"'));
-    const HEX: &[u8; 16] = b"0123456789ABCDEF";
 
-    let mut contents = String::with_capacity(bytes.len());
-    for &byte in bytes {
-        let is_safe =
-            byte == b' ' || (byte.is_ascii_graphic() && byte != delimiter && byte != b'\\');
-        if is_safe {
-            contents.push(char::from(byte));
-        } else {
-            contents.push('\\');
-            contents.push('x');
-            contents.push(char::from(HEX[(byte >> 4) as usize]));
-            contents.push(char::from(HEX[(byte & 0x0f) as usize]));
+    fmt::from_fn(move |f| {
+        for &byte in bytes {
+            let is_safe =
+                byte == b' ' || (byte.is_ascii_graphic() && byte != delimiter && byte != b'\\');
+            if is_safe {
+                f.write_char(char::from(byte))?;
+            } else {
+                write!(f, "\\x{byte:02X}")?;
+            }
         }
-    }
-    contents
+        Ok(())
+    })
 }
 
 fn components_to_import_path(components: &[Component<'_>]) -> PathBuf {
