@@ -2,7 +2,7 @@
 @module StorageBytesElements
 fn @b() -> memorybytes [selector=0x4df7e3d0, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = and v1, 1
@@ -421,7 +421,7 @@ fn @hashB() -> bytes32 [selector=0xdf45d88e, view, abi_args=lazy, abi_params=[],
 @module StorageStringConstructor
 fn @name() -> memorybytes [selector=0x06fdde03, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0
     v1 = internal_call @__load_storage_bytes, 1, 0
     ret v1
@@ -429,7 +429,7 @@ fn @name() -> memorybytes [selector=0x06fdde03, view, abi_args=lazy, abi_params=
 
 fn @symbol() -> memorybytes [selector=0x95d89b41, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0
     v1 = internal_call @__load_storage_bytes, 1, 1
     ret v1
@@ -695,7 +695,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
 @module StorageStringBase
 fn @name() -> memorybytes [selector=0x06fdde03, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0
     v1 = internal_call @__load_storage_bytes, 1, 0
     ret v1
@@ -703,7 +703,7 @@ fn @name() -> memorybytes [selector=0x06fdde03, view, abi_args=lazy, abi_params=
 
 fn @symbol() -> memorybytes [selector=0x95d89b41, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0
     v1 = internal_call @__load_storage_bytes, 1, 1
     ret v1
@@ -1162,7 +1162,7 @@ fn @_anonymous() [constructor] {
 
 fn @name() -> memorybytes [selector=0x06fdde03, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0
     v1 = internal_call @__load_storage_bytes, 1, 0
     ret v1
@@ -1170,7 +1170,7 @@ fn @name() -> memorybytes [selector=0x06fdde03, view, abi_args=lazy, abi_params=
 
 fn @symbol() -> memorybytes [selector=0x95d89b41, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0
     v1 = internal_call @__load_storage_bytes, 1, 1
     ret v1
@@ -1253,7 +1253,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
 @module StorageStringImplicitDerived
 fn @name() -> memorybytes [selector=0x06fdde03, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0
     v1 = internal_call @__load_storage_bytes, 1, 0
     ret v1
@@ -1261,7 +1261,7 @@ fn @name() -> memorybytes [selector=0x06fdde03, view, abi_args=lazy, abi_params=
 
 fn @symbol() -> memorybytes [selector=0x95d89b41, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0
     v1 = internal_call @__load_storage_bytes, 1, 1
     ret v1

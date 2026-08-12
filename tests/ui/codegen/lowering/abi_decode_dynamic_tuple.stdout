@@ -2,9 +2,9 @@
 @module AbiDecodeDynamicTuple
 fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [selector=0xe5c5e9a3, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word, memory_bytes, memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0
-    v1 = alloc memorybytes, exact, zeroed, panic, 32
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v1, 0
     v2 = abi_decode [u256, bytes, bytes], arg0
     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -15,9 +15,9 @@ fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [selector=0xe5
 
 fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memorybytes, memorybytes) [selector=0x7403d1b5, pure, abi_args=lazy, abi_params=[u256, bytes, bytes], abi_returns=[word, memory_bytes, memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0
-    v1 = alloc memorybytes, exact, zeroed, panic, 32
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v1, 0
     v2 = abi_encode [word, memory_bytes, memory_bytes], args arg0, arg1, arg2
     v3 = slice_len v2
@@ -62,7 +62,7 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memory
 
 fn @decodeBytes(arg0: memorybytes) -> memorybytes [selector=0x197621ce, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0
     v1 = abi_decode [bytes], arg0
     ret v1

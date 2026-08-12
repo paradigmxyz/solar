@@ -181,7 +181,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             MemoryObjectLayout::Struct { fields } => fields.checked_mul(32)?,
         };
         let size = self.builder.imm_u64(size);
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         match ty.peel_refs().kind {
             solar_sema::ty::TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
@@ -191,6 +191,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.set_memory_object_len(object, zero, layout.kind());
             }
             solar_sema::ty::TyKind::Struct(id) => {
+                self.builder.memory_zero(object, size);
                 for (index, &field) in self.gcx.hir.strukt(id).fields.iter().enumerate() {
                     let field_ty = self.gcx.type_of_item(field.into());
                     if let Some(value) = self.default_object(field_ty) {
@@ -199,6 +200,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             solar_sema::ty::TyKind::Array(element, len) => {
+                self.builder.memory_zero(object, size);
                 let Ok(len) = u64::try_from(len) else { return Some(object) };
                 if self.types.memory_layout(element).is_some() {
                     for index in 0..len {

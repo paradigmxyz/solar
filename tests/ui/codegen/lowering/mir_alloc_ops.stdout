@@ -2,7 +2,8 @@
 @module MirAllocOps
 fn @fixedArray(arg0: u256) -> u256 [selector=0x9a5009ac, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, zeroed, panic, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v0, 64
     v1 = lt 0, 2
     v2 = iszero v1
     jumpi v2, bb1, bb2
@@ -26,7 +27,7 @@ fn @fixedArray(arg0: u256) -> u256 [selector=0x9a5009ac, pure, abi_args=lazy, ab
 
 fn @dynamic(arg0: calldataslice) -> memorybytes [selector=0xd543852a, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 32
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0
     v1 = slice_ptr arg0
     v2 = slice_len arg0

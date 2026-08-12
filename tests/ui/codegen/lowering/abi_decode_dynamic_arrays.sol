@@ -18,8 +18,9 @@ contract AbiDecodeDynamicArrays {
 
     // ADDA-LABEL: fn @bools
     // Bulk copy plus a validation loop; dirty words revert.
+    // ADDA: jumpi {{v[0-9]+}}, {{bb[0-9]+}}, bb1
+    // ADDA: phi
     // ADDA: mcopy
-    // ADDA: jumpi
     function bools(bytes memory b) public pure returns (bool[] memory) {
         return abi.decode(b, (bool[]));
     }
