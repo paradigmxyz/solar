@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:Errors (runtime) ===
 @module runtime
 bb0:
-  push 416
+  push 352
   push 64
   mstore
   callvalue
@@ -14,15 +14,43 @@ bb0:
   dup1
   push 0x561cce0a
   eq
-  push bb8
+  push bb10
   jumpi
   dup1
   push 0xa871da91
   sub
   push bb4
   jumpi
-  push 384
-  push 352
+  push 64
+  mload
+  dup1
+  push 128
+  mstore
+  push 32
+  dup2
+  add
+  dup1
+  push 160
+  mstore
+  dup2
+  dup2
+  lt
+  push 0
+  not
+  push 192
+  shr
+  dup3
+  gt
+  or
+  push bb9
+  jumpi
+  dup1
+  push 160
+  mstore
+  push 64
+  mstore
+  push 0
+  swap1
   mstore
   push 64
   mload
@@ -41,14 +69,14 @@ bb0:
   dup2
   add
   dup1
-  push 192
+  push 224
   mstore
   push 0x3339
   push 240
   shl
   dup2
-  jump bb9
-bb9:
+  jump bb11
+bb11:
   mstore
   swap1
   mload
@@ -62,7 +90,7 @@ bb9:
   not
   and
   dup1
-  push 224
+  push 160
   mstore
   push 64
   dup2
@@ -102,32 +130,32 @@ bb9:
   push 64
   dup2
   add
-  push 160
+  push 192
   mstore
   pop
   swap2
   pop
   pop
   iszero
-  push bb7
+  push bb8
   jumpi
   push 32
-  push 224
+  push 160
   mload
   sub
-  push 160
+  push 192
   mload
   add
   push 0
   swap1
   mstore
-  jump bb7
-bb7:
+  jump bb8
+bb8:
   push 128
   mload
-  push 192
+  push 224
   mload
-  push 160
+  push 192
   mload
   mcopy
   push 256
@@ -139,9 +167,49 @@ bb4 [cold]:
   push 0
   dup1
   revert
-bb8:
-  push 384
-  push 352
+bb9 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 65
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb10:
+  push 64
+  mload
+  dup1
+  push 128
+  mstore
+  push 32
+  dup2
+  add
+  dup1
+  push 160
+  mstore
+  dup2
+  dup2
+  lt
+  push 0
+  not
+  push 192
+  shr
+  dup3
+  gt
+  or
+  push bb9
+  jumpi
+  dup1
+  push 160
+  mstore
+  push 64
+  mstore
+  push 0
+  swap1
   mstore
   push 64
   mload
@@ -160,7 +228,7 @@ bb8:
   dup2
   add
   dup1
-  push 192
+  push 224
   mstore
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
   dup2
@@ -172,7 +240,7 @@ bb8:
   push 248
   shl
   swap1
-  jump bb9
+  jump bb11
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:R (runtime) ===
 @module runtime
 bb0:

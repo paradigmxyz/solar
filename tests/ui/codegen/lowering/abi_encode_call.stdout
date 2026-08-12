@@ -20,8 +20,8 @@ fn @asValue() [selector=0x440a9300, pure] {
     jumpi v12, bb4, bb1
   bb4:
     v15 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v60 = add v15, v9
-    mstore 64, v60 !metadata(memory=scratch)
+    v64 = add v15, v9
+    mstore 64, v64 !metadata(memory=scratch)
     mstore v15, 68
     v56 = add v15, 32
     mcopy v56, v27, 68
@@ -32,8 +32,8 @@ fn @asValue() [selector=0x440a9300, pure] {
     v38 = add v34, 95
     v40 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v41 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v61 = add v41, v40
-    mstore 64, v61 !metadata(memory=scratch)
+    v65 = add v41, v40
+    mstore 64, v65 !metadata(memory=scratch)
     v42 = add v41, 32
     v43 = sub v42, v41
     mstore v41, v43
@@ -48,19 +48,12 @@ fn @asValue() [selector=0x440a9300, pure] {
     v21 = eq v19, v25
     jumpi v21, bb7, bb5
   bb7:
-    v0 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
-    v1 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v27 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v62 = add v27, 96
-    mstore 64, v62 !metadata(memory=scratch)
-    mstore v27, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v28 = add v27, 4
-    mstore v28, v1
-    v29 = add v27, 36
-    mstore v29, arg1
-    v4 = add 68, 31
-    v5 = lt v4, 68
-    jumpi v5, bb1, bb2
+    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v60 = add v0, 32
+    v61 = lt v60, v0
+    v62 = gt v60, 0xffffffffffffffff
+    v63 = or v61, v62
+    jumpi v63, bb11, bb10
   bb8:
     v50 = sub v34, 32
     v51 = add v48, v50
@@ -69,6 +62,25 @@ fn @asValue() [selector=0x440a9300, pure] {
   bb9:
     mcopy v48, v56, v31
     returndata v41, v36
+  bb10:
+    mstore 64, v60 !metadata(memory=scratch)
+    mstore v0, 0
+    v1 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v27 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v66 = add v27, 96
+    mstore 64, v66 !metadata(memory=scratch)
+    mstore v27, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v28 = add v27, 4
+    mstore v28, v1
+    v29 = add v27, 36
+    mstore v29, arg1
+    v4 = add 68, 31
+    v5 = lt v4, 68
+    jumpi v5, bb1, bb2
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @viaCall() [selector=0x23d014a1] {

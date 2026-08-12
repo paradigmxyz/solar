@@ -37,8 +37,8 @@ fn @endPastLength() [selector=0x8063d43b, pure] {
     jumpi v23, bb9, bb7
   bb9:
     v26 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v88 = add v26, v20
-    mstore 64, v88 !metadata(memory=scratch)
+    v92 = add v26, v20
+    mstore 64, v92 !metadata(memory=scratch)
     mstore v26, v5
     v83 = add v26, 32
     calldatacopy v83, v6, v5
@@ -49,8 +49,8 @@ fn @endPastLength() [selector=0x8063d43b, pure] {
     v65 = add v61, 95
     v67 = and v65, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v68 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v89 = add v68, v67
-    mstore 64, v89 !metadata(memory=scratch)
+    v93 = add v68, v67
+    mstore 64, v93 !metadata(memory=scratch)
     v69 = add v68, 32
     v70 = sub v69, v68
     mstore v68, v70
@@ -85,9 +85,12 @@ fn @endPastLength() [selector=0x8063d43b, pure] {
     v53 = or v50, v52
     jumpi v53, bb4, bb14
   bb14:
-    v0 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
-    v3 = gt arg1, v47
-    jumpi v3, bb1, bb2
+    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v88 = add v0, 32
+    v89 = lt v88, v0
+    v90 = gt v88, 0xffffffffffffffff
+    v91 = or v89, v90
+    jumpi v91, bb18, bb17
   bb15:
     v77 = sub v61, 32
     v78 = add v75, v77
@@ -96,6 +99,15 @@ fn @endPastLength() [selector=0x8063d43b, pure] {
   bb16:
     mcopy v75, v83, v58
     returndata v68, v63
+  bb17:
+    mstore 64, v88 !metadata(memory=scratch)
+    mstore v0, 0
+    v3 = gt arg1, v47
+    jumpi v3, bb1, bb2
+  bb18:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @startAfterEnd() [selector=0x598bfb30, pure] {
@@ -135,8 +147,8 @@ fn @startAfterEnd() [selector=0x598bfb30, pure] {
     jumpi v23, bb9, bb7
   bb9:
     v26 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v88 = add v26, v20
-    mstore 64, v88 !metadata(memory=scratch)
+    v92 = add v26, v20
+    mstore 64, v92 !metadata(memory=scratch)
     mstore v26, v5
     v83 = add v26, 32
     calldatacopy v83, v6, v5
@@ -147,8 +159,8 @@ fn @startAfterEnd() [selector=0x598bfb30, pure] {
     v65 = add v61, 95
     v67 = and v65, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v68 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v89 = add v68, v67
-    mstore 64, v89 !metadata(memory=scratch)
+    v93 = add v68, v67
+    mstore 64, v93 !metadata(memory=scratch)
     v69 = add v68, 32
     v70 = sub v69, v68
     mstore v68, v70
@@ -183,9 +195,12 @@ fn @startAfterEnd() [selector=0x598bfb30, pure] {
     v53 = or v50, v52
     jumpi v53, bb4, bb14
   bb14:
-    v0 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
-    v3 = gt arg2, v47
-    jumpi v3, bb1, bb2
+    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v88 = add v0, 32
+    v89 = lt v88, v0
+    v90 = gt v88, 0xffffffffffffffff
+    v91 = or v89, v90
+    jumpi v91, bb18, bb17
   bb15:
     v77 = sub v61, 32
     v78 = add v75, v77
@@ -194,6 +209,15 @@ fn @startAfterEnd() [selector=0x598bfb30, pure] {
   bb16:
     mcopy v75, v83, v58
     returndata v68, v63
+  bb17:
+    mstore 64, v88 !metadata(memory=scratch)
+    mstore v0, 0
+    v3 = gt arg2, v47
+    jumpi v3, bb1, bb2
+  bb18:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @__revert_stub0() {

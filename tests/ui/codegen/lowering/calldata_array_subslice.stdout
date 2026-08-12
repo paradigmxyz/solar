@@ -2,7 +2,7 @@
 @module CalldataArraySubslice
 fn @word(arg0: calldataslice) -> memoryarray [selector=0x37948b05, pure, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[memory_array<word>]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
     set_memory_object_len memoryarray, v0, 0
     v1 = slice_ptr arg0
     v2 = slice_len arg0

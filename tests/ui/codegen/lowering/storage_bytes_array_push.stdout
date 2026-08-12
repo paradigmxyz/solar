@@ -158,18 +158,10 @@ fn @popStr() [selector=0x5d7696c3] {
     v53 = add v52, v2
     v4 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v59 = add v4, 32
-    mstore 64, v59 !metadata(memory=scratch)
-    mstore v4, 0
-    v5 = sload v53 !metadata(storage=symbolic(v3))
-    v6 = and v5, 1
-    v7 = eq v6, 1
-    v8 = and v5, 254
-    v9 = shr 1, v8
-    v10 = shr 1, v5
-    v11 = select v7, v10, v9
-    v12 = lt v11, 32
-    v13 = eq v7, v12
-    jumpi v13, bb3, bb4
+    v60 = lt v59, v4
+    v61 = gt v59, 0xffffffffffffffff
+    v62 = or v60, v61
+    jumpi v62, bb18, bb17
   bb3:
     tail_call @__revert_stub1
   bb4:
@@ -241,6 +233,24 @@ fn @popStr() [selector=0x5d7696c3] {
     v49 = add v44, 1
     v51 = add v50, 1
     jump bb15
+  bb17:
+    mstore 64, v59 !metadata(memory=scratch)
+    mstore v4, 0
+    mstore v4, 0
+    v5 = sload v53 !metadata(storage=symbolic(v3))
+    v6 = and v5, 1
+    v7 = eq v6, 1
+    v8 = and v5, 254
+    v9 = shr 1, v8
+    v10 = shr 1, v5
+    v11 = select v7, v10, v9
+    v12 = lt v11, 32
+    v13 = eq v7, v12
+    jumpi v13, bb3, bb4
+  bb18:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @blobAt() [selector=0x8f236983, view] {
@@ -264,8 +274,8 @@ fn @blobAt() [selector=0x8f236983, view] {
     v18 = add v14, 95
     v20 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v21 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v38 = add v21, v20
-    mstore 64, v38 !metadata(memory=scratch)
+    v42 = add v21, v20
+    mstore 64, v42 !metadata(memory=scratch)
     v22 = add v21, 32
     v23 = sub v22, v21
     mstore v21, v23
@@ -278,10 +288,12 @@ fn @blobAt() [selector=0x8f236983, view] {
   bb3:
     revert 0, 0
   bb4:
-    v0 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
-    v1 = sload 2 !metadata(storage=slot(2))
-    v2 = lt arg0, v1
-    jumpi v2, bb2, bb1
+    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v38 = add v0, 32
+    v39 = lt v38, v0
+    v40 = gt v38, 0xffffffffffffffff
+    v41 = or v39, v40
+    jumpi v41, bb8, bb7
   bb5:
     v30 = sub v27, 32
     v31 = add v28, v30
@@ -291,18 +303,26 @@ fn @blobAt() [selector=0x8f236983, view] {
     v32 = add v5, 32
     mcopy v28, v32, v24
     returndata v21, v16
+  bb7:
+    mstore 64, v38 !metadata(memory=scratch)
+    mstore v0, 0
+    v1 = sload 2 !metadata(storage=slot(2))
+    v2 = lt arg0, v1
+    jumpi v2, bb2, bb1
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @pushEmpty() [selector=0x19d30117] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v59 = add v0, 32
-    mstore 64, v59 !metadata(memory=scratch)
-    mstore v0, 0
-    v1 = sload 2 !metadata(storage=slot(2))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v60 = lt v59, v0
+    v61 = gt v59, 0xffffffffffffffff
+    v62 = or v60, v61
+    jumpi v62, bb17, bb16
   bb1:
     tail_call @__revert_stub0
   bb2:
@@ -389,6 +409,18 @@ fn @pushEmpty() [selector=0x19d30117] {
     v49 = add v44, 1
     v51 = add v50, 1
     jump bb14
+  bb16:
+    mstore 64, v59 !metadata(memory=scratch)
+    mstore v0, 0
+    mstore v0, 0
+    v1 = sload 2 !metadata(storage=slot(2))
+    v2 = add v1, 1
+    v3 = lt v2, v1
+    jumpi v3, bb1, bb2
+  bb17:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memptr {

@@ -167,7 +167,7 @@ fn @dynamicArg(arg0: bytes32, arg1: memorybytes) -> bytes32 [selector=0xde52036d
 
 fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) -> memorybytes [selector=0x16cbcf25, pure, abi_args=lazy, abi_params=[u16, bytes, bool], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v0 = alloc memorybytes, exact, zeroed, panic, 32
     set_memory_object_len memorybytes, v0, 0
     v1 = and arg0, 0xffff
     v2 = add 0, 2
