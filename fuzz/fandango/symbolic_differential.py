@@ -431,6 +431,34 @@ def select_symbolic_function(
     }
 
 
+def validate_input_length_overrides(
+    function: dict[str, Any], overrides: dict[str, tuple[int, ...]]
+) -> None:
+    """Require each named override to target a top-level dynamic ABI input."""
+    abi = function.get("abi")
+    inputs = abi.get("inputs") if isinstance(abi, dict) else None
+    if not isinstance(inputs, list):
+        raise ValueError("selected function has no ABI inputs")
+    for name in overrides:
+        match = re.fullmatch(r"arg([0-9]+)", name)
+        if match is None:
+            raise ValueError(f"invalid symbolic input override name `{name}`")
+        index = int(match.group(1))
+        if index >= len(inputs):
+            raise ValueError(
+                f"symbolic input override index {index} exceeds the "
+                f"{len(inputs)} function inputs"
+            )
+        abi_type = inputs[index].get("type")
+        if not isinstance(abi_type, str) or not (
+            abi_type in {"bytes", "string"} or abi_type.endswith("[]")
+        ):
+            raise ValueError(
+                f"symbolic input override index {index} does not select a "
+                "top-level dynamic array, bytes, or string input"
+            )
+
+
 def target_calldata(selector: str, wrapper_calldata: str) -> str:
     """Replace a generated check function selector with the target selector."""
     selector = _normalized_selector(selector)

@@ -198,6 +198,39 @@ class FocusedCommandTests(unittest.TestCase):
             ):
                 run_foundry_target._parse_symbolic_dynamic_lengths(value)
 
+    def test_per_input_dynamic_lengths_are_parsed_by_input_index(self):
+        self.assertEqual(
+            run_foundry_target._parse_symbolic_input_length("2=0,4,8"),
+            (2, (0, 4, 8)),
+        )
+        for value in ("", "0", "arg0=1", "-1=1", "0=", "0=1,1"):
+            with (
+                self.subTest(value=value),
+                self.assertRaises(argparse.ArgumentTypeError),
+            ):
+                run_foundry_target._parse_symbolic_input_length(value)
+        self.assertEqual(
+            run_foundry_target._normalize_symbolic_input_lengths(
+                [(1, (0, 8)), (0, (2,))]
+            ),
+            {"arg1": (0, 8), "arg0": (2,)},
+        )
+        for overrides in (
+            [(0, (1,)), (0, (2,))],
+            [(True, (1,))],
+            [(0, ())],
+            [(0, (1, 1))],
+            [(0, (257,))],
+            "0=1",
+        ):
+            with (
+                self.subTest(overrides=overrides),
+                self.assertRaises(ValueError),
+            ):
+                run_foundry_target._normalize_symbolic_input_lengths(
+                    overrides
+                )
+
     def test_compiler_pipeline_flags_are_explicit(self):
         with (
             patch.object(
@@ -1252,6 +1285,36 @@ class SymbolicFunctionSelectionTests(unittest.TestCase):
                     [f"{inputs[0]['type']} calldata arg0"],
                 )
 
+    def test_validates_focused_top_level_dynamic_input_overrides(self):
+        inputs = [
+            {"name": "count", "type": "uint256"},
+            {"name": "data", "type": "bytes"},
+            {"name": "values", "type": "uint256[]"},
+        ]
+        solc = artifact(inputs=inputs)
+        solc["hashes"] = {
+            "probe(uint256,bytes,uint256[])": "01020304"
+        }
+        selected = symbolic.select_function(
+            solc,
+            copy.deepcopy(solc),
+            "probe(uint256,bytes,uint256[])",
+        )
+
+        symbolic.validate_input_length_overrides(
+            selected, {"arg1": (0, 8), "arg2": (2,)}
+        )
+        for overrides, reason in (
+            ({"arg0": (1,)}, "does not select"),
+            ({"arg3": (1,)}, "exceeds"),
+            ({"calldata_1": (1,)}, "invalid"),
+        ):
+            with (
+                self.subTest(overrides=overrides),
+                self.assertRaisesRegex(ValueError, reason),
+            ):
+                symbolic.validate_input_length_overrides(selected, overrides)
+
     def test_accepts_tuple_input_and_preserves_its_canonical_shape(self):
         inputs = [
             {
@@ -1734,6 +1797,32 @@ class SymbolicTargetGenerationTests(unittest.TestCase):
             source,
         )
 
+    def test_named_dynamic_input_lengths_are_written_deterministically(self):
+        function = {
+            "signature": "probe(bytes,bytes)",
+            "selector": "0x01020304",
+            "inputs": ["bytes", "bytes"],
+            "outputs": ["uint256"],
+            "test": "checkDiff_01020304",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary)
+            run_foundry_target.write_foundry_target.write_symbolic_target(
+                project,
+                "0x6000",
+                "0x6001",
+                function,
+                64,
+                "osaka",
+                input_lengths={"arg1": (0, 2), "arg0": (8,)},
+            )
+            foundry_config = (project / "foundry.toml").read_text()
+
+        self.assertIn(
+            "dynamic_lengths = { arg0 = [8], arg1 = [0, 2] }",
+            foundry_config,
+        )
+
 
 class TargetCalldataTests(unittest.TestCase):
     def test_replaces_only_the_wrapper_selector(self):
@@ -1924,6 +2013,7 @@ class EffectiveBoundsTests(unittest.TestCase):
             symbolic_max_calldata_bytes=8192,
             symbolic_exploration_order="dfs",
             symbolic_dynamic_lengths=(0, 1, 3),
+            symbolic_input_lengths={},
         )
 
     def test_accepts_the_reported_bounds_that_the_runner_requested(self):
@@ -1936,6 +2026,7 @@ class EffectiveBoundsTests(unittest.TestCase):
             "max_calldata_bytes": 8192,
             "exploration_order": "dfs",
             "storage_layout": "solidity",
+            "dynamic_lengths": {},
             "default_array_lengths": [0, 1, 3],
             "default_bytes_lengths": [0, 1, 3],
             "max_dynamic_length": 256,
@@ -1957,6 +2048,7 @@ class EffectiveBoundsTests(unittest.TestCase):
             "max_calldata_bytes": 4096,
             "exploration_order": "bfs",
             "storage_layout": "generic",
+            "dynamic_lengths": {},
             "default_array_lengths": [0, 1],
             "default_bytes_lengths": [0, 1, 3],
             "max_dynamic_length": 2,
@@ -1996,6 +2088,7 @@ class EffectiveBoundsTests(unittest.TestCase):
             "max_calldata_bytes": 8192,
             "exploration_order": "dfs",
             "storage_layout": "solidity",
+            "dynamic_lengths": {},
             "default_array_lengths": [False, True],
             "default_bytes_lengths": [0, 1],
             "max_dynamic_length": True,
@@ -2010,6 +2103,33 @@ class EffectiveBoundsTests(unittest.TestCase):
             reason,
         )
         self.assertIn("max_dynamic_length=True (expected at least 1)", reason)
+
+    def test_checks_named_input_lengths_and_their_maximum(self):
+        args = self._args()
+        args.symbolic_input_lengths = {"arg0": (0, 8)}
+        bounds = {
+            "timeout_seconds": 7,
+            "max_paths": 512,
+            "max_depth": 10000,
+            "loop_bound": 9,
+            "max_solver_queries": 12000,
+            "max_calldata_bytes": 8192,
+            "exploration_order": "dfs",
+            "storage_layout": "solidity",
+            "dynamic_lengths": {"arg0": [0, 4]},
+            "default_array_lengths": [0, 1, 3],
+            "default_bytes_lengths": [0, 1, 3],
+            "max_dynamic_length": 4,
+        }
+
+        reason = run_foundry_target._effective_bounds_error(args, bounds)
+
+        self.assertIn(
+            "dynamic_lengths={'arg0': [0, 4]} "
+            "(expected {'arg0': [0, 8]})",
+            reason,
+        )
+        self.assertIn("max_dynamic_length=4 (expected at least 8)", reason)
 
 
 class EffectiveSymbolicContextTests(unittest.TestCase):
@@ -3143,6 +3263,7 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         solc_artifact=None,
         materialized=None,
         dynamic_lengths=symbolic.DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS,
+        input_lengths=(),
         include_view=False,
         catch_setup_errors=False,
     ):
@@ -3178,6 +3299,7 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             symbolic_max_paths=max_paths,
             symbolic_max_depth=None,
             symbolic_dynamic_lengths=dynamic_lengths,
+            symbolic_input_length=input_lengths,
             include_view=include_view,
             max_returndata_bytes=max_returndata_bytes,
             artifact_dir=self._artifact_root("runs"),
@@ -3951,6 +4073,43 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             manifest["bounds"]["forge_effective"]["default_bytes_lengths"],
             [0, 1, 2, 3],
         )
+
+    def test_per_input_length_reaches_a_shape_outside_global_defaults(self):
+        baseline_code, baseline, _ = self._run(
+            self.solar_dynamic_input_mutant,
+            signature="probePerInput(bytes,bytes)",
+            source=self.dynamic_input_reference,
+            contract="DynamicInputDifferential",
+            solc_artifact=self.solc_dynamic_input_reference,
+            materialized=self.dynamic_input_reference_input,
+        )
+        returncode, summary, manifest = self._run(
+            self.solar_dynamic_input_mutant,
+            signature="probePerInput(bytes,bytes)",
+            source=self.dynamic_input_reference,
+            contract="DynamicInputDifferential",
+            solc_artifact=self.solc_dynamic_input_reference,
+            materialized=self.dynamic_input_reference_input,
+            input_lengths=((0, (8,)),),
+        )
+
+        self.assertEqual(baseline_code, 0)
+        self.assertEqual(baseline["status"], "no_mismatch_within_bounds")
+        self.assertEqual(returncode, 1)
+        self.assertEqual(summary["status"], "replay_confirmed_mismatch")
+        self.assertEqual(
+            manifest["bounds"]["per_input_dynamic_lengths"],
+            {"arg0": [8]},
+        )
+        self.assertEqual(
+            manifest["bounds"]["forge_effective"]["dynamic_lengths"],
+            {"arg0": [8]},
+        )
+        calldata = bytes.fromhex(
+            manifest["replay"]["target_calldata"].removeprefix("0x")
+        )
+        self.assertEqual(int.from_bytes(calldata[68:100]), 8)
+        self.assertEqual(int.from_bytes(calldata[132:164]), 0)
 
     def test_dynamic_string_shape_and_contents_find_a_durable_mismatch(self):
         returncode, summary, manifest = self._run(

@@ -69,4 +69,11 @@ contract DynamicInputDifferential {
         }
         return values.length;
     }
+
+    function probePerInput(
+        bytes calldata first,
+        bytes calldata second
+    ) external pure returns (uint256) {
+        return first.length * 100 + second.length;
+    }
 }

@@ -381,6 +381,24 @@ The selected lengths are limited to 256, recorded in the result bounds, and
 expanded by Foundry subject to the same path and total-wall-time limits as the
 rest of the campaign.
 
+For a focused function with several top-level dynamic inputs, avoid widening
+every input into the same Cartesian product. Repeat `--symbolic-input-length`
+with a zero-based argument index:
+
+```bash
+fuzz/bin/solsymdiff \
+  --source path/to/Target.sol \
+  --contract Target \
+  --signature 'probe(bytes,uint256[])' \
+  --symbolic-input-length 0=0,8,32 \
+  --symbolic-input-length 1=0,1,4
+```
+
+These focused overrides apply to top-level dynamic arrays, `bytes`, and
+`string`; other dynamic leaves keep `--symbolic-dynamic-lengths`. The command
+rejects an out-of-range or static argument index and verifies Forge's effective
+named-length map before accepting a bounded-clean result.
+
 The compiler pipeline is explicit rather than fixed. The defaults remain
 `--optimize --optimizer-runs 200 --via-ir`; use `--no-optimize`, a different
 `--optimizer-runs` value, or `--no-via-ir` to target a change that only affects

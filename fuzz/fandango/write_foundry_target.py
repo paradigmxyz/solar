@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import pathlib
+import re
 
 import evm_runtime as evm
 import symbolic_differential as symbolic
@@ -56,6 +57,7 @@ def write_symbolic_target(
     dynamic_lengths: tuple[int, ...] = symbolic.DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS,
     exploration_order: str = "bfs",
     storage_layout: str = "solidity",
+    input_lengths: dict[str, tuple[int, ...]] | None = None,
 ) -> None:
     """Write one bounded symbolic differential target."""
     if max_returndata_bytes <= 0:
@@ -79,6 +81,21 @@ def write_symbolic_target(
         raise ValueError("symbolic exploration order must be bfs or dfs")
     if storage_layout not in {"solidity", "zero_init"}:
         raise ValueError("symbolic storage layout must be solidity or zero_init")
+    input_lengths = input_lengths or {}
+    if any(
+        not re.fullmatch(r"arg[0-9]+", name)
+        or not lengths
+        or any(
+            not isinstance(length, int)
+            or isinstance(length, bool)
+            or length < 0
+            or length > symbolic.MAX_SYMBOLIC_DYNAMIC_LENGTH
+            for length in lengths
+        )
+        or len(set(lengths)) != len(lengths)
+        for name, lengths in input_lengths.items()
+    ):
+        raise ValueError("symbolic input lengths are malformed")
     src_dir = out_dir / "src"
     test_dir = out_dir / "test"
     src_dir.mkdir(parents=True, exist_ok=True)
@@ -124,6 +141,10 @@ def write_symbolic_target(
             dynamic_lengths=", ".join(str(length) for length in dynamic_lengths),
             exploration_order=exploration_order,
             storage_layout=storage_layout,
+            input_lengths=", ".join(
+                f"{name} = [{', '.join(str(length) for length in lengths)}]"
+                for name, lengths in sorted(input_lengths.items())
+            ),
         )
     )
 
@@ -160,6 +181,7 @@ code_size_limit = 1000000
 [symbolic]
 exploration_order = "{exploration_order}"
 storage_layout = "{storage_layout}"
+dynamic_lengths = {{ {input_lengths} }}
 default_array_lengths = [{dynamic_lengths}]
 default_bytes_lengths = [{dynamic_lengths}]
 """

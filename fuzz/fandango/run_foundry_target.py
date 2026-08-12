@@ -238,6 +238,17 @@ def _add_symbolic_arguments(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument(
+        "--symbolic-input-length",
+        type=_parse_symbolic_input_length,
+        action="append",
+        default=[],
+        metavar="INDEX=LENGTHS",
+        help=(
+            "focused top-level dynamic input lengths, for example 0=0,1,8; "
+            "may be repeated and requires --signature"
+        ),
+    )
+    parser.add_argument(
         "--max-returndata-bytes",
         type=int,
         default=256,
@@ -274,6 +285,58 @@ def _parse_symbolic_dynamic_lengths(value: str) -> tuple[int, ...]:
             f"0 through {symbolic.MAX_SYMBOLIC_DYNAMIC_LENGTH}"
         )
     return lengths
+
+
+def _parse_symbolic_input_length(value: str) -> tuple[int, tuple[int, ...]]:
+    index_text, separator, lengths_text = value.partition("=")
+    if not separator or not index_text.isdigit():
+        raise argparse.ArgumentTypeError(
+            "input lengths must use INDEX=LENGTHS with a non-negative index"
+        )
+    return int(index_text), _parse_symbolic_dynamic_lengths(lengths_text)
+
+
+def _normalize_symbolic_input_lengths(
+    overrides: Any,
+) -> dict[str, tuple[int, ...]]:
+    if not isinstance(overrides, (list, tuple)):
+        raise ValueError("--symbolic-input-length must be a sequence")
+    normalized: dict[str, tuple[int, ...]] = {}
+    for override in overrides:
+        if (
+            not isinstance(override, (list, tuple))
+            or len(override) != 2
+            or not isinstance(override[0], int)
+            or isinstance(override[0], bool)
+            or override[0] < 0
+            or not isinstance(override[1], (list, tuple))
+        ):
+            raise ValueError(
+                "--symbolic-input-length must contain non-negative input indices"
+            )
+        name = f"arg{override[0]}"
+        if name in normalized:
+            raise ValueError(
+                f"--symbolic-input-length repeats input index {override[0]}"
+            )
+        lengths = tuple(override[1])
+        if (
+            not lengths
+            or any(
+                not isinstance(length, int)
+                or isinstance(length, bool)
+                or length < 0
+                or length > symbolic.MAX_SYMBOLIC_DYNAMIC_LENGTH
+                for length in lengths
+            )
+            or len(set(lengths)) != len(lengths)
+        ):
+            raise ValueError(
+                "--symbolic-input-length values must be unique integers from "
+                f"0 through {symbolic.MAX_SYMBOLIC_DYNAMIC_LENGTH}"
+            )
+        normalized[name] = lengths
+    return normalized
 
 
 def _parse_positive_finite_seconds(value: str) -> float:
@@ -466,6 +529,12 @@ def _run_symbolic(args: argparse.Namespace) -> int:
             f"0 through {symbolic.MAX_SYMBOLIC_DYNAMIC_LENGTH}"
         )
     args.symbolic_dynamic_lengths = tuple(dynamic_lengths)
+    normalized_input_lengths = _normalize_symbolic_input_lengths(
+        getattr(args, "symbolic_input_length", ())
+    )
+    if normalized_input_lengths and args.signature is None:
+        raise ValueError("--symbolic-input-length requires --signature")
+    args.symbolic_input_lengths = normalized_input_lengths
     if args.max_returndata_bytes <= 0:
         raise ValueError("--max-returndata-bytes must be positive")
 
@@ -561,6 +630,9 @@ def _run_symbolic(args: argparse.Namespace) -> int:
         args.signature,
         include_view=args.include_view,
     )
+    symbolic.validate_input_length_overrides(
+        function, args.symbolic_input_lengths
+    )
     if runtime_scope_error is not None:
         raise ValueError(runtime_scope_error)
     return _run_symbolic_function(
@@ -602,6 +674,7 @@ def _run_symbolic_function(
             args.symbolic_dynamic_lengths,
             args.symbolic_exploration_order,
             "zero_init" if args.include_view else "solidity",
+            args.symbolic_input_lengths,
         )
         forge_run = _forge_symbolic(args, project, expected_test, deadline)
         classified = None
@@ -1214,6 +1287,10 @@ def _create_campaign_bundle(
             ),
             "initial_storage": "zero",
             "dynamic_input_lengths": list(args.symbolic_dynamic_lengths),
+            "per_input_dynamic_lengths": {
+                name: list(lengths)
+                for name, lengths in args.symbolic_input_lengths.items()
+            },
             "max_returndata_bytes_per_function": args.max_returndata_bytes,
             "elapsed_wall_seconds": deadline.elapsed(),
         },
@@ -1748,6 +1825,12 @@ def _bounds_manifest(
                 symbolic.DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS,
             )
         ),
+        "per_input_dynamic_lengths": {
+            name: list(lengths)
+            for name, lengths in getattr(
+                args, "symbolic_input_lengths", {}
+            ).items()
+        },
         "max_returndata_bytes": args.max_returndata_bytes,
         "forge_effective": classified.get("bounds") if classified else None,
         "elapsed_wall_seconds": deadline.elapsed() if deadline else None,
@@ -1758,6 +1841,7 @@ def _effective_bounds_error(
     args: argparse.Namespace, bounds: dict[str, Any]
 ) -> str | None:
     dynamic_lengths = list(args.symbolic_dynamic_lengths)
+    input_lengths = getattr(args, "symbolic_input_lengths", {})
     expected = {
         "timeout_seconds": args.symbolic_timeout,
         "max_paths": args.symbolic_max_paths,
@@ -1778,6 +1862,10 @@ def _effective_bounds_error(
         "storage_layout": (
             "zero_init" if getattr(args, "include_view", False) else "solidity"
         ),
+        "dynamic_lengths": {
+            name: list(lengths)
+            for name, lengths in input_lengths.items()
+        },
         "default_array_lengths": dynamic_lengths,
         "default_bytes_lengths": dynamic_lengths,
     }
@@ -1788,15 +1876,20 @@ def _effective_bounds_error(
         for name, value in expected.items()
         if not _same_json_bound(bounds.get(name), value)
     ]
+    requested_lengths = dynamic_lengths + [
+        length for lengths in input_lengths.values() for length in lengths
+    ]
+    requested_max_dynamic_length = max(requested_lengths)
     max_dynamic_length = bounds.get("max_dynamic_length")
     if (
         not isinstance(max_dynamic_length, int)
         or isinstance(max_dynamic_length, bool)
-        or max_dynamic_length < max(dynamic_lengths)
+        or max_dynamic_length < requested_max_dynamic_length
     ):
         disagreements.append(
             "max_dynamic_length="
-            f"{max_dynamic_length!r} (expected at least {max(dynamic_lengths)!r})"
+            f"{max_dynamic_length!r} "
+            f"(expected at least {requested_max_dynamic_length!r})"
         )
     if not disagreements:
         return None
@@ -2416,6 +2509,12 @@ def _campaign_setup_incomplete(args: argparse.Namespace, err: Exception) -> int:
                     symbolic.DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS,
                 )
             ),
+            "per_input_dynamic_lengths": {
+                name: list(lengths)
+                for name, lengths in getattr(
+                    args, "symbolic_input_lengths", {}
+                ).items()
+            },
             "max_returndata_bytes_per_function": args.max_returndata_bytes,
             "elapsed_wall_seconds": deadline.elapsed() if deadline else None,
         },
