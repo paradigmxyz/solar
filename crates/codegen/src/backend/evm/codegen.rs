@@ -2683,7 +2683,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         if values.iter().any(|value| Self::is_cross_block_recomputable_inst(func, value)) {
-            let recomputable = Self::cross_block_recomputable_values(func);
+            let recomputable = Self::cross_block_recomputable_values_with(func, |value| {
+                !self.scheduler.is_stack_only_value(value)
+            });
             let reloaded = values
                 .iter()
                 .any(|value| {
@@ -2872,9 +2874,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         values
     }
 
-    /// Returns cheap values whose complete dependency tree can be rematerialized without reading
-    /// mutable machine state. A reverse-use worklist handles long expression chains linearly.
-    fn cross_block_recomputable_values(func: &Function) -> DenseBitSet<ValueId> {
+    /// Computes cross-block rematerialization while excluding leaves unavailable under the active
+    /// calling convention. A reverse-use worklist handles long expression chains linearly.
+    /// Stack-only arguments have no frame home, so an expression depending on one must be stored
+    /// at its definition instead of being rebuilt after the argument is gone.
+    fn cross_block_recomputable_values_with(
+        func: &Function,
+        leaf_is_available: impl Fn(ValueId) -> bool,
+    ) -> DenseBitSet<ValueId> {
         let mut users =
             IndexVec::<ValueId, SmallVec<[ValueId; 2]>>::with_capacity(func.num_values());
         let mut remaining = IndexVec::<ValueId, usize>::with_capacity(func.num_values());
@@ -2886,7 +2893,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut recomputable = DenseBitSet::new_empty(func.num_values());
         let mut worklist = Vec::new();
         for value in func.live_values() {
-            if Self::is_rematerializable_value(func, value) && recomputable.insert(value) {
+            if Self::is_rematerializable_value(func, value)
+                && leaf_is_available(value)
+                && recomputable.insert(value)
+            {
                 worklist.push(value);
             }
         }
@@ -6451,7 +6461,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             crate::mir::Value::Arg(index) => {
                 if self.scheduler.is_stack_only_value(val) {
                     let depth = self.scheduler.stack.find(val).unwrap_or_else(|| {
-                        panic!("stack-only argument {val:?} was lost before fresh emission")
+                        panic!(
+                            "stack-only argument {val:?} was lost before fresh emission in `{}`",
+                            func.name
+                        )
                     });
                     assert!(depth < MAX_STACK_ACCESS, "stack-only argument exceeded DUP16 reach");
                     self.emit_stack_op(StackOp::Dup(depth as u8 + 1));
@@ -7578,7 +7591,9 @@ mod tests {
             mutable_inst,
             unsafe_inst,
         ]);
-        let recomputable = EvmCodegen::cross_block_recomputable_values(&function);
+        let recomputable = EvmCodegen::cross_block_recomputable_values_with(&function, |_| true);
+        let without_argument =
+            EvmCodegen::cross_block_recomputable_values_with(&function, |value| value != argument);
 
         assert!(recomputable.contains(safe));
         assert!(recomputable.contains(nested_safe));
@@ -7588,6 +7603,11 @@ mod tests {
         assert!(!recomputable.contains(immutable));
         assert!(!recomputable.contains(mutable));
         assert!(!recomputable.contains(unsafe_value));
+        assert!(!without_argument.contains(safe));
+        assert!(!without_argument.contains(nested_safe));
+        assert!(!without_argument.contains(calldata));
+        assert!(!without_argument.contains(calldata_safe));
+        assert!(without_argument.contains(context));
     }
 
     #[test]
