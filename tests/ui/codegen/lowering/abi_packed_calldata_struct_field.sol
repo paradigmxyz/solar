@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin-runtime
+//@compile-flags: --emit=bin-runtime
 // ported-from: contracts/metatx/ERC2771Forwarder.sol
 
 // Packing a dynamic field of a calldata struct. The prologue decodes the

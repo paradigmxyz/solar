@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zdump=mir
 //@filecheck: --check-prefix=AEC
 
 // `abi.encodeCall(F, (args))` takes the selector from the function reference

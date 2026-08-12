@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -O none -Zdump=mir
+//@compile-flags: -O none -Zdump=mir
 
 contract YulCallErrors {
     function unknownCall() public pure returns (uint256 result) {

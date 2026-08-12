@@ -49,7 +49,7 @@ def compile_solc(solc: str, source: pathlib.Path, contract: str, timeout: float)
 
 def compile_solar(solar: str, source: pathlib.Path, contract: str, timeout: float) -> str:
     result = subprocess.run(
-        [solar, "-Zcodegen", "--emit=bin-runtime", "--pretty-json", str(source)],
+        [solar, "--emit=bin-runtime", "--pretty-json", str(source)],
         check=True,
         text=True,
         stdout=subprocess.PIPE,

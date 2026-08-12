@@ -212,13 +212,11 @@ fn compile(
 
             let gcx = compiler.gcx();
 
-            // Code generation is experimental and gated behind `-Zcodegen`;
-            // without it, no bytecode is produced even when requested.
-            let bytecode_contracts = if gcx.sess.opts.unstable.codegen {
-                requested_bytecode_contracts(gcx, &output_selection)
-            } else {
-                ContractSelection::empty(gcx)
-            };
+            let bytecode_contracts = requested_bytecode_contracts(gcx, &output_selection);
+            crate::commands::compile::warn_experimental_codegen(
+                gcx.sess,
+                !bytecode_contracts.is_empty(),
+            );
             let bytecodes = crate::emit::emit_requested(compiler, bytecode_contracts)?;
 
             gcx.dcx().has_errors()?;

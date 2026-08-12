@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin-runtime
+//@compile-flags: --emit=bin-runtime
 
 interface SliceToken {
     function balanceOf(address account) external view returns (uint256);

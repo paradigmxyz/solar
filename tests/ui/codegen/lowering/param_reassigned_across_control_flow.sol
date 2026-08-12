@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin-runtime
+//@compile-flags: --emit=bin-runtime
 
 // A parameter reassigned under control flow must merge through its frame slot
 // like a reassigned local: a plain SSA binding only updates within a block, so

@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin-runtime
+//@compile-flags: --emit=bin-runtime
 
 // EVM storage slots span the full 2^256 space, and a fixed array like
 // solady's `uint8[0xffffffffffffffff]` map walks the layout cursor past

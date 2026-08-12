@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -O none -Zdump=mir
+//@compile-flags: -O none -Zdump=mir
 //@filecheck:
 // Multi-return tails live at the free-memory pointer, and every tail word is
 // loaded before the first tuple lvalue is evaluated. Computing `stored[key]`

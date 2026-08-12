@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=evm-ir-runtime --pretty-json
+//@compile-flags: -Zdump=evm-ir-runtime --pretty-json
 //@ filecheck:
 contract AssemblerBlockDedup {
     // CHECK: push 0xdbe671f

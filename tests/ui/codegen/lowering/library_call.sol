@@ -1,7 +1,7 @@
 //@ revisions: unlinked linked
-//@[unlinked] compile-flags: -Zcodegen -Zdump=evm-ir-runtime
+//@[unlinked] compile-flags: -Zdump=evm-ir-runtime
 //@[unlinked] filecheck: --check-prefixes=COMMON,UNLINKED --implicit-check-not=delegatecall
-//@[linked] compile-flags: -Zcodegen --libraries Lib=0x1111111111111111111111111111111111111111 -Zdump=evm-ir-runtime
+//@[linked] compile-flags: --libraries Lib=0x1111111111111111111111111111111111111111 -Zdump=evm-ir-runtime
 //@[linked] filecheck: --check-prefixes=COMMON,LINKED
 
 // A `public`/`external` library function called from another contract is

@@ -1,24 +1,24 @@
 //@ revisions: linear_gas linear_size binary_gas binary_size buckets_gas buckets_size dense_gas dense_size perfect_gas perfect_size
 
-//@[linear_gas] compile-flags: -Zcodegen -O gas -Zswitch-lowering=linear -Zdump=evm-ir-runtime,disasm-runtime
+//@[linear_gas] compile-flags: -O gas -Zswitch-lowering=linear -Zdump=evm-ir-runtime,disasm-runtime
 //@[linear_gas] filecheck: --check-prefix=LINEAR
-//@[linear_size] compile-flags: -Zcodegen -O size -Zswitch-lowering=linear -Zdump=evm-ir-runtime,disasm-runtime
+//@[linear_size] compile-flags: -O size -Zswitch-lowering=linear -Zdump=evm-ir-runtime,disasm-runtime
 //@[linear_size] filecheck: --check-prefix=LINEAR
-//@[binary_gas] compile-flags: -Zcodegen -O gas -Zswitch-lowering=binary -Zdump=evm-ir-runtime,disasm-runtime
+//@[binary_gas] compile-flags: -O gas -Zswitch-lowering=binary -Zdump=evm-ir-runtime,disasm-runtime
 //@[binary_gas] filecheck: --check-prefix=BINARY
-//@[binary_size] compile-flags: -Zcodegen -O size -Zswitch-lowering=binary -Zdump=evm-ir-runtime,disasm-runtime
+//@[binary_size] compile-flags: -O size -Zswitch-lowering=binary -Zdump=evm-ir-runtime,disasm-runtime
 //@[binary_size] filecheck: --check-prefix=BINARY
-//@[buckets_gas] compile-flags: -Zcodegen -O gas -Zswitch-lowering=buckets -Zdump=evm-ir-runtime,disasm-runtime
+//@[buckets_gas] compile-flags: -O gas -Zswitch-lowering=buckets -Zdump=evm-ir-runtime,disasm-runtime
 //@[buckets_gas] filecheck: --check-prefix=BUCKETSGAS
-//@[buckets_size] compile-flags: -Zcodegen -O size -Zswitch-lowering=buckets -Zdump=evm-ir-runtime,disasm-runtime
+//@[buckets_size] compile-flags: -O size -Zswitch-lowering=buckets -Zdump=evm-ir-runtime,disasm-runtime
 //@[buckets_size] filecheck: --check-prefix=BUCKETSSIZE
-//@[dense_gas] compile-flags: -Zcodegen -O gas -Zswitch-lowering=dense -Zdump=evm-ir-runtime,disasm-runtime
+//@[dense_gas] compile-flags: -O gas -Zswitch-lowering=dense -Zdump=evm-ir-runtime,disasm-runtime
 //@[dense_gas] filecheck: --check-prefix=DENSE
-//@[dense_size] compile-flags: -Zcodegen -O size -Zswitch-lowering=dense -Zdump=evm-ir-runtime,disasm-runtime
+//@[dense_size] compile-flags: -O size -Zswitch-lowering=dense -Zdump=evm-ir-runtime,disasm-runtime
 //@[dense_size] filecheck: --check-prefix=DENSE
-//@[perfect_gas] compile-flags: -Zcodegen -O gas -Zswitch-lowering=perfect -Zdump=evm-ir-runtime,disasm-runtime
+//@[perfect_gas] compile-flags: -O gas -Zswitch-lowering=perfect -Zdump=evm-ir-runtime,disasm-runtime
 //@[perfect_gas] filecheck: --check-prefix=PERFECTGAS
-//@[perfect_size] compile-flags: -Zcodegen -O size -Zswitch-lowering=perfect -Zdump=evm-ir-runtime,disasm-runtime
+//@[perfect_size] compile-flags: -O size -Zswitch-lowering=perfect -Zdump=evm-ir-runtime,disasm-runtime
 //@[perfect_size] filecheck: --check-prefix=PERFECTSIZE
 
 contract SwitchLowerings {

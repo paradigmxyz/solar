@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin-runtime
+//@compile-flags: --emit=bin-runtime
 
 contract CalldataSliceReturn {
     function whole(bytes calldata data) external pure returns (bytes calldata) {

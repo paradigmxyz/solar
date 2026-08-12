@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin-runtime
+//@compile-flags: --emit=bin-runtime
 
 contract TernaryOperandReuse {
     // `caller()` is not rematerializable: consuming it as the modulus and then

@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=evm-ir
+//@compile-flags: -Zdump=evm-ir
 //@filecheck:
 
 type Tiny is uint16;

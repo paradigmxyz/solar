@@ -1,6 +1,6 @@
-//@ compile-flags: -Zcodegen
 //@ filecheck:
-// CHECK-NOT: "errors"
+// CHECK: "errors": [
+// CHECK: "errorCode": "2264"
 // CHECK: "deployedBytecode": {
 // CHECK-NEXT: "opcodes":
 // CHECK-SAME: PUSH20 0x1111111111111111111111111111111111111111

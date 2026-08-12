@@ -1,4 +1,4 @@
-//@ compile-flags: -Zcodegen -O size -Zdump=evm-ir-runtime
+//@ compile-flags: -O size -Zdump=evm-ir-runtime
 //@ filecheck: --check-prefix=TABLE
 
 // TABLE: push 10

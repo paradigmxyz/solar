@@ -71,7 +71,6 @@ struct CompilerRun {
 
 struct FoundrySolc {
     path: PathBuf,
-    _temp_dir: tempfile::TempDir,
 }
 
 impl FoundrySolc {
@@ -212,47 +211,9 @@ fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap().to_path_buf()
 }
 
-/// A `solc`-compatible executable for `FOUNDRY_SOLC` that enables Solar's
-/// experimental code generator.
-///
-/// Code generation is gated behind `-Zcodegen`, but Forge invokes
-/// `FOUNDRY_SOLC` with solc-style arguments and cannot pass that flag itself.
-/// We therefore point it at a tiny wrapper script that forwards every call to
-/// Solar with `-Zcodegen` prepended; otherwise Forge would receive empty
-/// bytecode.
+/// A `solc`-compatible executable for `FOUNDRY_SOLC`.
 fn foundry_solc() -> FoundrySolc {
-    let solar = get_solar_binary();
-    let temp_dir = tempfile::Builder::new()
-        .prefix("solar-zcodegen-")
-        .tempdir()
-        .expect("failed to create Solar codegen wrapper directory");
-
-    cfg_if::cfg_if! {
-        if #[cfg(unix)] {
-            use std::os::unix::fs::PermissionsExt;
-
-            let path = temp_dir.path().join("solar-zcodegen.sh");
-            let script = format!(
-                "#!/bin/sh\nexec \"{}\" -Zcodegen \"$@\"\n",
-                solar.display()
-            );
-            fs::write(&path, script).expect("failed to write solar codegen wrapper");
-            let mut perms = fs::metadata(&path).unwrap().permissions();
-            perms.set_mode(0o755);
-            fs::set_permissions(&path, perms).unwrap();
-            FoundrySolc { path, _temp_dir: temp_dir }
-        } else if #[cfg(windows)] {
-            let path = temp_dir.path().join("solar-zcodegen.cmd");
-            let script = format!(
-                "@echo off\r\n\"{}\" -Zcodegen %*\r\nexit /b %ERRORLEVEL%\r\n",
-                solar.display()
-            );
-            fs::write(&path, script).expect("failed to write Solar codegen wrapper");
-            FoundrySolc { path, _temp_dir: temp_dir }
-        } else {
-            FoundrySolc { path: solar, _temp_dir: temp_dir }
-        }
-    }
+    FoundrySolc { path: get_solar_binary() }
 }
 
 /// Checks if forge is available.

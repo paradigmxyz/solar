@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -O none -Zdump=mir
+//@compile-flags: -O none -Zdump=mir
 
 contract EventIndexedAggregate {
     event IndexedArray(uint256[2] indexed values);

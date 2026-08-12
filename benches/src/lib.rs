@@ -447,11 +447,7 @@ impl Compiler for Solar {
 fn session(source: &Source) -> Session {
     let mut opts = solar::config::CompileOpts {
         threads: solar::config::Threads::resolve(1),
-        unstable: solar::config::UnstableOpts {
-            codegen: true,
-            codegen_all_functions: true,
-            ..Default::default()
-        },
+        unstable: solar::config::UnstableOpts { codegen_all_functions: true, ..Default::default() },
         ..Default::default()
     };
     opts.import_remappings =
