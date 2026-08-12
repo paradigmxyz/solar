@@ -48,7 +48,19 @@ pub(crate) fn import_path_at_for_completion(source: &str, cursor: usize) -> Opti
         return None;
     }
 
-    import_path_at(source, cursor).or_else(|| recover_unterminated_import_path(source, cursor))
+    let Some(string) = plain_string_at(source, cursor) else {
+        return parse_import_path(source, cursor);
+    };
+    if string.first_unescaped_line_break.is_some_and(|line_break| cursor > line_break) {
+        return None;
+    }
+    if string.terminated && string.first_unescaped_line_break.is_none() {
+        return parse_import_path(source, cursor);
+    }
+    if string.terminated && parse_import_path(source, cursor).is_some() {
+        return None;
+    }
+    recover_unterminated_import_path(source, cursor, string)
 }
 
 fn parse_import_path(source: &str, cursor: usize) -> Option<ImportPathAt> {
@@ -97,18 +109,35 @@ fn parse_import_path(source: &str, cursor: usize) -> Option<ImportPathAt> {
     })
 }
 
-fn recover_unterminated_import_path(source: &str, cursor: usize) -> Option<ImportPathAt> {
-    let delimiter = unterminated_string_delimiter_at(source, cursor)?;
+fn recover_unterminated_import_path(
+    source: &str,
+    cursor: usize,
+    string: PlainStringAt,
+) -> Option<ImportPathAt> {
     let mut recovered = String::with_capacity(cursor + 2);
     recovered.push_str(&source[..cursor]);
-    recovered.push(char::from(delimiter));
+    recovered.push(char::from(string.delimiter));
     recovered.push(';');
 
-    let import = parse_import_path(&recovered, cursor)?;
-    (import.delimiter == delimiter && import.content_range.end == cursor).then_some(import)
+    let mut import = parse_import_path(&recovered, cursor)?;
+    if import.delimiter != string.delimiter
+        || import.content_range != (string.content_range.start..cursor)
+    {
+        return None;
+    }
+    import.content_range.end =
+        string.first_unescaped_line_break.unwrap_or(string.content_range.end);
+    Some(import)
 }
 
-fn unterminated_string_delimiter_at(source: &str, cursor: usize) -> Option<u8> {
+struct PlainStringAt {
+    content_range: Range<usize>,
+    delimiter: u8,
+    terminated: bool,
+    first_unescaped_line_break: Option<usize>,
+}
+
+fn plain_string_at(source: &str, cursor: usize) -> Option<PlainStringAt> {
     for (start, token) in Cursor::new(source).with_position() {
         let end = start + token.len as usize;
         let RawTokenKind::Literal { kind: RawLiteralKind::Str { kind: StrKind::Str, terminated } } =
@@ -122,18 +151,20 @@ fn unterminated_string_delimiter_at(source: &str, cursor: usize) -> Option<u8> {
             continue;
         }
 
-        let line_break = first_unescaped_line_break(&source.as_bytes()[content_start..content_end]);
-        if terminated && line_break.is_none() {
-            return None;
-        }
-        if line_break.is_some_and(|offset| cursor > content_start + offset) {
-            return None;
-        }
-        return source
+        let delimiter = source
             .as_bytes()
             .get(start)
             .copied()
-            .filter(|delimiter| matches!(delimiter, b'\'' | b'"'));
+            .filter(|delimiter| matches!(delimiter, b'\'' | b'"'))?;
+        let first_unescaped_line_break =
+            first_unescaped_line_break(&source.as_bytes()[content_start..content_end])
+                .map(|offset| content_start + offset);
+        return Some(PlainStringAt {
+            content_range: content_start..content_end,
+            delimiter,
+            terminated,
+            first_unescaped_line_break,
+        });
     }
     None
 }

@@ -1,8 +1,8 @@
 use super::{GlobalState, support::RequestFixture};
 use lsp_types::{
-    CompletionParams, CompletionResponse, DidChangeWatchedFilesParams, FileChangeType, FileEvent,
-    PartialResultParams, Position, TextDocumentIdentifier, TextDocumentPositionParams, Url,
-    WorkDoneProgressParams,
+    CompletionParams, CompletionResponse, CompletionTextEdit, DidChangeWatchedFilesParams,
+    FileChangeType, FileEvent, PartialResultParams, Position, TextDocumentIdentifier,
+    TextDocumentPositionParams, Url, WorkDoneProgressParams,
 };
 use snapbox::{IntoData, str};
 use std::time::Duration;
@@ -82,6 +82,94 @@ async fn import_completion_items(
         CompletionResponse::Array(items) => items,
         CompletionResponse::List(list) => list.items,
     }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn recovered_import_completion_replaces_the_cursor_suffix() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /foundry.toml
+
+        //- /src/Main.sol open
+        import "./De$1p
+
+        //- /src/Dependency.sol
+        contract Dependency {}
+        "#,
+        "/src/Main.sol",
+    );
+    let mut state = fixture.state();
+    let (uri, position) = fixture.marker_location("$1");
+
+    let item = import_completion_items(&mut state, uri, position)
+        .await
+        .into_iter()
+        .find(|item| item.label == "./Dependency.sol")
+        .unwrap();
+    let Some(CompletionTextEdit::Edit(edit)) = item.text_edit else {
+        panic!("expected a plain text edit")
+    };
+
+    assert_eq!(edit.range, lsp_types::Range::new(Position::new(0, 8), Position::new(0, 13)));
+    assert_eq!(edit.new_text, "./Dependency.sol");
+    assert!(item.additional_text_edits.is_none());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn import_completion_does_not_delete_source_after_an_unescaped_newline() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /foundry.toml
+
+        //- /src/Main.sol open
+        import "./Dep$1
+        contract Victim {}
+        ";
+
+        //- /src/Dependency.sol
+        contract Dependency {}
+        "#,
+        "/src/Main.sol",
+    );
+    let mut state = fixture.state();
+    let (uri, position) = fixture.marker_location("$1");
+
+    let items = import_completion_items(&mut state, uri, position).await;
+
+    assert!(!items.iter().any(|item| item.label == "./Dependency.sol"));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn import_completion_uses_lsp_lines_after_a_standalone_carriage_return() {
+    let mut fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /foundry.toml
+
+        //- /src/Main.sol open
+        contract C {}
+
+        //- /src/Dependency.sol
+        contract Dependency {}
+        "#,
+        "/src/Main.sol",
+    );
+    fixture.set_open_file_contents("/src/Main.sol", "\rcontract C {}\nimport \"./Dep");
+    let mut state = fixture.state();
+    let uri = Url::from_file_path(fixture.project_path("/src/Main.sol")).unwrap();
+
+    let contract_items =
+        import_completion_items(&mut state, uri.clone(), Position::new(1, 13)).await;
+    assert!(!contract_items.iter().any(|item| item.label == "./Dependency.sol"));
+
+    let item = import_completion_items(&mut state, uri, Position::new(2, 13))
+        .await
+        .into_iter()
+        .find(|item| item.label == "./Dependency.sol")
+        .unwrap();
+    let Some(CompletionTextEdit::Edit(edit)) = item.text_edit else {
+        panic!("expected a plain text edit")
+    };
+    assert_eq!(edit.range, lsp_types::Range::new(Position::new(2, 8), Position::new(2, 13)));
 }
 
 #[test]
