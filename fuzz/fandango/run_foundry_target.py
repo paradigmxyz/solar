@@ -137,6 +137,24 @@ def _add_symbolic_arguments(parser: argparse.ArgumentParser) -> None:
         help="EVM version used by both compilers, Forge, and Anvil",
     )
     parser.add_argument(
+        "--optimize",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="enable the optimizer in the shared compiler input",
+    )
+    parser.add_argument(
+        "--optimizer-runs",
+        type=int,
+        default=200,
+        help="optimizer run count in the shared compiler input",
+    )
+    parser.add_argument(
+        "--via-ir",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="compile both runtimes through the IR pipeline",
+    )
+    parser.add_argument(
         "--symbolic-solver",
         default="z3",
         help="SMT solver executable passed to Forge",
@@ -317,6 +335,19 @@ def _run_symbolic(args: argparse.Namespace) -> int:
         raise ValueError("--symbolic-max-paths must be positive")
     if args.symbolic_max_depth is not None and args.symbolic_max_depth <= 0:
         raise ValueError("--symbolic-max-depth must be positive")
+    args.optimize = getattr(args, "optimize", True)
+    args.optimizer_runs = getattr(args, "optimizer_runs", 200)
+    args.via_ir = getattr(args, "via_ir", True)
+    if not isinstance(args.optimize, bool):
+        raise ValueError("--optimize must be a boolean")
+    if (
+        not isinstance(args.optimizer_runs, int)
+        or isinstance(args.optimizer_runs, bool)
+        or args.optimizer_runs < 0
+    ):
+        raise ValueError("--optimizer-runs must be a non-negative integer")
+    if not isinstance(args.via_ir, bool):
+        raise ValueError("--via-ir must be a boolean")
     dynamic_lengths = getattr(
         args,
         "symbolic_dynamic_lengths",
@@ -363,6 +394,9 @@ def _run_symbolic(args: argparse.Namespace) -> int:
         source,
         args.timeout,
         args.evm_version,
+        optimizer_enabled=args.optimize,
+        optimizer_runs=args.optimizer_runs,
+        via_ir=args.via_ir,
         deadline=deadline,
     )
     args._standard_input = standard_input

@@ -274,6 +274,9 @@ def materialize_standard_input(
     timeout: float,
     evm_version: str,
     *,
+    optimizer_enabled: bool = True,
+    optimizer_runs: int = 200,
+    via_ir: bool = True,
     deadline: Deadline | None = None,
 ) -> dict[str, Any]:
     """Resolve imports once, then embed the complete source closure."""
@@ -319,7 +322,12 @@ def materialize_standard_input(
     value = {
         "language": "Solidity",
         "sources": sources,
-        "settings": _standard_settings(evm_version),
+        "settings": _standard_settings(
+            evm_version,
+            optimizer_enabled=optimizer_enabled,
+            optimizer_runs=optimizer_runs,
+            via_ir=via_ir,
+        ),
     }
     serialized = json.dumps(
         value, ensure_ascii=False, separators=(",", ":"), sort_keys=True
@@ -478,10 +486,16 @@ def compiler_version(
     return result.stdout.strip()
 
 
-def _standard_settings(evm_version: str) -> dict[str, Any]:
+def _standard_settings(
+    evm_version: str,
+    *,
+    optimizer_enabled: bool = True,
+    optimizer_runs: int = 200,
+    via_ir: bool = True,
+) -> dict[str, Any]:
     return {
-        "optimizer": {"enabled": True, "runs": 200},
-        "viaIR": True,
+        "optimizer": {"enabled": optimizer_enabled, "runs": optimizer_runs},
+        "viaIR": via_ir,
         "evmVersion": evm_version,
         "metadata": {"bytecodeHash": "none"},
         "outputSelection": {

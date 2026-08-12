@@ -198,6 +198,36 @@ class FocusedCommandTests(unittest.TestCase):
             ):
                 run_foundry_target._parse_symbolic_dynamic_lengths(value)
 
+    def test_compiler_pipeline_flags_are_explicit(self):
+        with (
+            patch.object(
+                sys,
+                "argv",
+                [
+                    "solsymdiff",
+                    "--source",
+                    "Target.sol",
+                    "--contract",
+                    "Target",
+                    "--no-optimize",
+                    "--optimizer-runs",
+                    "0",
+                    "--no-via-ir",
+                ],
+            ),
+            patch.object(
+                run_foundry_target,
+                "_run_symbolic_or_incomplete",
+                return_value=0,
+            ) as run,
+        ):
+            self.assertEqual(run_foundry_target.symbolic_main(), 0)
+
+        args = run.call_args.args[0]
+        self.assertFalse(args.optimize)
+        self.assertEqual(args.optimizer_runs, 0)
+        self.assertFalse(args.via_ir)
+
     def test_timeout_parser_rejects_nonfinite_or_nonpositive_values(self):
         for value in ("-inf", "-1", "0", "inf", "nan", "not-a-number"):
             with (
@@ -709,6 +739,35 @@ class StandardInputMaterializationTests(unittest.TestCase):
             standard_input["settings"]["outputSelection"]["*"][""],
             ["ast"],
         )
+
+    def test_materializes_the_requested_compiler_pipeline(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "Root.sol"
+            root.write_text("contract Root {}")
+            discovery = subprocess.CompletedProcess(
+                args=[],
+                returncode=0,
+                stdout=json.dumps({"sources": {"Root.sol": {"id": 0}}}),
+                stderr="",
+            )
+            with patch.object(evm, "run_process_group", return_value=discovery):
+                materialized = evm.materialize_standard_input(
+                    "solc",
+                    root,
+                    10,
+                    "cancun",
+                    optimizer_enabled=False,
+                    optimizer_runs=0,
+                    via_ir=False,
+                )
+
+        settings = json.loads(materialized["json"])["settings"]
+        self.assertEqual(
+            settings["optimizer"],
+            {"enabled": False, "runs": 0},
+        )
+        self.assertFalse(settings["viaIR"])
+        self.assertEqual(settings["evmVersion"], "cancun")
 
     def test_finds_inline_assembly_in_the_exact_solc_source_asts(self):
         with tempfile.TemporaryDirectory() as temporary:

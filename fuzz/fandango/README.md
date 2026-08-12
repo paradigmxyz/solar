@@ -361,13 +361,20 @@ The selected lengths are limited to 256, recorded in the result bounds, and
 expanded by Foundry subject to the same path and total-wall-time limits as the
 rest of the campaign.
 
+The compiler pipeline is explicit rather than fixed. The defaults remain
+`--optimize --optimizer-runs 200 --via-ir`; use `--no-optimize`, a different
+`--optimizer-runs` value, or `--no-via-ir` to target a change that only affects
+one code-generation pipeline. The exact settings are embedded in the shared
+Standard JSON input and result manifest, so an orchestrator can select them
+from a compiler diff without weakening replay.
+
 The command:
 
 1. Uses solc once to resolve the transitive import closure, embeds every source
    unit, then compiles the byte-for-byte identical Standard JSON input with solc
    and Solar from a shared empty working directory without filesystem import
-   fallback. The explicit settings are via-IR, optimizer enabled with 200 runs,
-   no metadata bytecode hash, and the selected EVM version.
+   fallback. The explicit settings include the selected IR pipeline, optimizer
+   state and run count, no metadata bytecode hash, and the selected EVM version.
 2. Uses the authoritative Solc AST from that exact input to reject any user
    inline assembly in the complete source closure. It also rejects constructor-
    materialized runtimes (immutables or unresolved links), EF-prefixed
