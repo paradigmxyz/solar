@@ -21,17 +21,50 @@ fn @fuse_consecutive() -> u256 {
     ret v3
 }
 
-// A fused zeroed group keeps zero initialization over the whole range and
-// keeps the overflow panic when any member carried one.
+// A fused zeroed group reserves the complete range once, but preserves each member's zeroing at
+// its original program point. The fused bump keeps the overflow panic when any member carried one.
 // CHECK-LABEL: fn @fuse_zeroed
-// CHECK: + v0 = alloc raw, exact, zeroed, panic, 96
+// CHECK: + v0 = alloc raw, exact, uninitialized, panic, 96
+// CHECK-NEXT: + memory_zero v0, 64
 // CHECK: + v1 = add v0, 64
+// CHECK-NEXT: + memory_zero v1, 32
 fn @fuse_zeroed() -> u256 {
   bb0:
     v0 = alloc raw, exact, zeroed, panic, 64
     v1 = alloc raw, exact, zeroed, infallible, 32
     v2 = mload v1
     ret v2
+}
+
+// A write into a later member's future range must be erased by the zero initialization at that
+// member's original allocation point, not survive an early whole-group zero.
+// CHECK-LABEL: fn @preserve_zero_timing
+// CHECK: + v0 = alloc raw, exact, uninitialized, infallible, 64
+// CHECK-NEXT: + memory_zero v0, 32
+// CHECK: mstore 160, 7
+// CHECK: + v1 = add v0, 32
+// CHECK-NEXT: + memory_zero v1, 32
+fn @preserve_zero_timing() -> u256 {
+  bb0:
+    v0 = alloc raw, exact, zeroed, infallible, 32
+    mstore 160, 7
+    v1 = alloc raw, exact, zeroed, infallible, 32
+    v2 = mload v1
+    ret v2
+}
+
+// An arbitrary integer add containing a heap pointer can wrap to the FMP slot. It is not a proven
+// heap address, so the write ends the allocation group and the second allocation observes it.
+// CHECK-LABEL: fn @keep_across_wrapped_fmp
+// CHECK-NOT: +
+fn @keep_across_wrapped_fmp() -> memptr {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = sub 64, v0
+    v2 = add v0, v1
+    mstore v2, 65536
+    v3 = alloc raw, exact, uninitialized, infallible, 32
+    ret v3
 }
 
 // Reading the free-memory pointer between two allocations observes the

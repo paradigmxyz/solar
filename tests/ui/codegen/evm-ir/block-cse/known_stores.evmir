@@ -83,3 +83,20 @@ bb3:
   mstore
   pop
   stop
+
+// An immutable push carries its internal ID in the immediate payload, not its runtime word. It
+// cannot establish memory facts for an ordinary address with the same numeric value.
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: push 10
+// CHECK-NEXT: push_immutable 128, 32
+// CHECK-NEXT: mstore
+// CHECK-NEXT: push 128
+// CHECK-NEXT: mload
+bb4:
+  push 10
+  push_immutable 128, 32
+  mstore
+  push 128
+  mload
+  pop
+  stop

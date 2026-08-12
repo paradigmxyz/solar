@@ -265,8 +265,8 @@ impl ScheduleCost {
     /// Cost of storing a word through the active frame-address convention.
     pub(crate) fn memory_store(cost_model: OperandCostModel) -> Self {
         Self {
-            static_gas: cost_model.load_static_gas,
-            encoded_bytes: cost_model.load_encoded_bytes,
+            static_gas: cost_model.load_static_gas.saturating_add(3),
+            encoded_bytes: cost_model.load_encoded_bytes.saturating_add(1),
             actions: 2,
         }
     }
@@ -1990,7 +1990,9 @@ impl StackScheduler {
 
         assert!(
             !self.is_stack_only_value(value),
-            "stack-only value {value:?} was lost before its final use"
+            "stack-only value {value:?} was lost before its final use in `{}`: stack={:?}",
+            func.name,
+            self.stack
         );
 
         match func.value(value) {
@@ -3761,5 +3763,16 @@ mod tests {
         assert!(size_plan.cmp_for(gas_plan, OptimizationMode::Size).is_lt());
         assert!(size_plan.cmp_lifetime_for(gas_plan, OptimizationMode::Gas, 1).is_lt());
         assert!(gas_plan.cmp_lifetime_for(size_plan, OptimizationMode::Gas, 200).is_lt());
+    }
+
+    #[test]
+    fn frame_store_cost_includes_value_copy() {
+        for cost_model in [OperandCostModel::DIRECT, OperandCostModel::DYNAMIC_FRAME] {
+            let load = ScheduleCost::memory_load(cost_model);
+            let store = ScheduleCost::memory_store(cost_model);
+
+            assert_eq!(store.static_gas, load.static_gas + 3);
+            assert_eq!(store.encoded_bytes, load.encoded_bytes + 1);
+        }
     }
 }

@@ -691,24 +691,20 @@ impl GlobalStackPlan {
         (!union.is_empty() && union.len() <= GLOBAL_STACK_LAYOUT_LIMIT).then_some(layouts)
     }
 
-    fn carried_values(&self, func: &Function, term: &Terminator) -> Vec<ValueId> {
+    /// Returns values present in every physical successor layout of `term`.
+    fn uniformly_carried_values(&self, func: &Function, term: &Terminator) -> Vec<ValueId> {
         if let Some((then_layout, else_layout)) = self.branch_layouts(term) {
-            let mut values = then_layout.to_vec();
-            for &value in else_layout {
-                if !values.contains(&value) {
-                    values.push(value);
-                }
-            }
-            return values;
+            return then_layout
+                .iter()
+                .copied()
+                .filter(|value| else_layout.contains(value))
+                .collect();
         }
         if let Some(layouts) = self.switch_layouts(term) {
-            let mut values = Vec::new();
-            for (_, layout) in layouts {
-                for &value in layout {
-                    if !values.contains(&value) {
-                        values.push(value);
-                    }
-                }
+            let mut layouts = layouts.into_iter().map(|(_, layout)| layout);
+            let mut values = layouts.next().unwrap_or_default().to_vec();
+            for layout in layouts {
+                values.retain(|value| layout.contains(value));
             }
             return values;
         }
@@ -2252,13 +2248,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             && stack_phi_plan.merge_resident(func, &plan)
         {
             global_stack_plan = plan;
-            // Record every planned source so the early spill store can be omitted. The reserved
-            // spill slot remains available if edge emission ever falls back to the ordinary
-            // memory convention.
+            // An early spill store can be omitted only when every physical successor layout
+            // carries the value; an edge-specific cleanup may otherwise discard the sole stack
+            // copy before a later block reloads its reserved slot. The reserved spill slot
+            // remains available if edge emission ever falls back to the memory convention.
             stack_phi_sources = stack_phi_plan.edge_sources.clone();
             for (block_id, block) in func.blocks.iter_enumerated() {
                 let Some(term) = block.terminator.as_ref() else { continue };
-                let carried = global_stack_plan.carried_values(func, term);
+                let carried = global_stack_plan.uniformly_carried_values(func, term);
                 let sources = stack_phi_sources.entry(block_id).or_default();
                 for &value in &values {
                     if carried.contains(&value) && !sources.contains(&value) {
@@ -8856,8 +8853,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 func.name
             );
             self.pop_stack_values_not_needed_by(values);
-            for &value in values {
-                self.emit_value(func, value);
+            for value in Self::missing_stack_phi_sources(&self.scheduler.stack, values) {
+                self.emit_operand(func, value);
             }
             // StackModel and the shuffler use top-to-bottom order. The physical ABI leaves the
             // last result on top so the caller can stage anonymous results N-1..1 before adopting
@@ -9280,6 +9277,29 @@ mod tests {
         assert!(EvmCodegen::stack_arg_site_eligible(&function, false, computed));
         assert!(EvmCodegen::stack_arg_site_eligible(&function, true, argument));
         assert!(EvmCodegen::stack_arg_site_eligible(&function, true, computed));
+    }
+
+    #[test]
+    fn spill_elision_requires_uniform_successor_residency() {
+        let mut function = Function::new(Ident::DUMMY);
+        let condition = function.alloc_value(Value::Immediate(Immediate::bool(true)));
+        let first = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
+        let second = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(2))));
+        let then_block = function.alloc_block();
+        let else_block = function.alloc_block();
+        let term = Terminator::Branch { condition, then_block, else_block };
+        let mut plan = GlobalStackPlan {
+            entries: FxHashMap::from_iter([
+                (then_block, vec![first, second]),
+                (else_block, vec![first]),
+            ]),
+            aliases: FxHashMap::default(),
+            terminal_sensitive: true,
+        };
+
+        assert_eq!(plan.uniformly_carried_values(&function, &term), [first]);
+        plan.entries.insert(else_block, vec![first, second]);
+        assert_eq!(plan.uniformly_carried_values(&function, &term), [first, second]);
     }
 
     #[test]

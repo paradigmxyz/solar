@@ -51,4 +51,12 @@
     mstore
     pop
     stop
+  bb4:
+    push 10
+    push_immutable 128, 32
+    mstore
+    push 128
+    mload
+    pop
+    stop
   

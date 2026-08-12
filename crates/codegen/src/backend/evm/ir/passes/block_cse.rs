@@ -97,7 +97,7 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
                 &mut expressions,
                 &mut next_expr,
             );
-            if let PushValue::Immediate(immediate) = value
+            if let Some(immediate) = inst.concrete_immediate()
                 && let Ok(address) = u64::try_from(immediate)
             {
                 const_exprs.insert(expr, address);
@@ -514,10 +514,8 @@ fn has_repeated_const_memory_addr(instructions: &[Instruction]) -> bool {
     let mut loads = SmallVec::<[u64; 8]>::new();
     for pair in instructions.windows(2) {
         let [producer, consumer] = pair else { continue };
-        if !producer.is_encoded_push() || producer.deferred_push().is_some() {
-            continue;
-        }
-        let Some(address) = producer.pushed_value().and_then(|value| u64::try_from(value).ok())
+        let Some(address) =
+            producer.concrete_immediate().and_then(|value| u64::try_from(value).ok())
         else {
             continue;
         };

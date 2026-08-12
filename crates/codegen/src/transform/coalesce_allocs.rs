@@ -5,15 +5,18 @@
 //! into one `alloc` of the summed size preserves every pointer value exactly
 //! and needs no escape or use analysis. Each member after the first becomes a
 //! constant `add` off the fused base, eliminating that member's free-memory
-//! pointer load, bump, and store. Only instructions that could observe or move
-//! the free-memory pointer between two member allocations invalidate the
-//! grouping; those end the current group instead of being crossed.
+//! pointer load, bump, and store. Zero-initialized members retain explicit
+//! zeroing at their original program points. Only instructions that could
+//! observe or move the free-memory pointer between two member allocations
+//! invalidate the grouping; those end the current group instead of being
+//! crossed.
 
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        AllocationAlignment, AllocationFailure, AllocationKind, AllocationSemantics, EffectKind,
-        Function, FunctionBuilder, InstId, InstKind, MirType, Module, Value, ValueId,
+        AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationKind,
+        AllocationSemantics, BlockId, EffectKind, Function, FunctionBuilder, InstId, InstKind,
+        MirType, Module, ValueId,
     },
     pass::MirPass,
 };
@@ -23,9 +26,6 @@ use solar_sema::Gcx;
 /// the single overflow check on the summed size stays equivalent to the
 /// member-by-member checks it replaces.
 const MAX_MEMBER_SIZE: u64 = 1 << 32;
-
-/// Bound for the recursive heap-address walk.
-const MAX_ADDRESS_DEPTH: usize = 16;
 
 /// Module pass fusing consecutive constant-size allocations.
 pub(crate) struct CoalesceAllocs;
@@ -77,7 +77,7 @@ fn coalesce_function(func: &mut Function) -> bool {
                     last.semantics.initialization == member.semantics.initialization
                 });
                 if !compatible {
-                    changed |= flush_group(func, &mut group);
+                    changed |= flush_group(func, block, &mut group);
                 }
                 group.push(member);
                 continue;
@@ -85,9 +85,9 @@ fn coalesce_function(func: &mut Function) -> bool {
             if preserves_group(func, inst_id) {
                 continue;
             }
-            changed |= flush_group(func, &mut group);
+            changed |= flush_group(func, block, &mut group);
         }
-        changed |= flush_group(func, &mut group);
+        changed |= flush_group(func, block, &mut group);
     }
     changed
 }
@@ -175,32 +175,20 @@ fn range_avoids_fmp(func: &Function, addr: ValueId, len: Option<u64>) -> bool {
             .and_then(|len| base.checked_add(len))
             .is_some_and(|end| end <= EvmMemoryLayout::FMP_SLOT);
     }
-    is_heap_address(func, addr, MAX_ADDRESS_DEPTH)
+    is_proven_heap_address(func, addr)
 }
 
-/// Returns whether a runtime address is derived from a heap pointer.
+/// Returns whether a runtime address is itself a typed heap pointer.
 ///
-/// Heap pointers start at [`EvmMemoryLayout::HEAP_START`], above the FMP word,
-/// and lowered in-bounds address arithmetic keeps derived addresses there.
-fn is_heap_address(func: &Function, value: ValueId, depth: usize) -> bool {
-    if depth == 0 {
-        return false;
-    }
-    if matches!(func.value_ty(value), Some(MirType::MemPtr | MirType::MemoryObject(_))) {
-        return true;
-    }
-    let &Value::Inst(inst_id) = func.value(value) else { return false };
-    match &func.inst(inst_id).kind {
-        InstKind::Alloc { .. } => true,
-        InstKind::Add(a, b) => {
-            is_heap_address(func, *a, depth - 1) || is_heap_address(func, *b, depth - 1)
-        }
-        _ => false,
-    }
+/// Arbitrary integer arithmetic is not sufficient: EVM addition wraps and can turn an expression
+/// containing a heap pointer into the FMP address. Derived raw addresses therefore remain barriers
+/// unless a separate range analysis proves them safe.
+fn is_proven_heap_address(func: &Function, value: ValueId) -> bool {
+    matches!(func.value_ty(value), Some(MirType::MemPtr | MirType::MemoryObject(_)))
 }
 
 /// Rewrites a collected group into one fused allocation plus constant offsets.
-fn flush_group(func: &mut Function, group: &mut Vec<Member>) -> bool {
+fn flush_group(func: &mut Function, block: BlockId, group: &mut Vec<Member>) -> bool {
     let members = std::mem::take(group);
     if members.len() < 2 {
         return false;
@@ -212,6 +200,7 @@ fn flush_group(func: &mut Function, group: &mut Vec<Member>) -> bool {
     };
 
     let initialization = members[0].semantics.initialization;
+    let zeroed = initialization == AllocationInitialization::Zeroed;
     let failure = if members.iter().any(|m| m.semantics.failure == AllocationFailure::Panic) {
         AllocationFailure::Panic
     } else {
@@ -219,8 +208,10 @@ fn flush_group(func: &mut Function, group: &mut Vec<Member>) -> bool {
     };
 
     let base = members[0].result;
+    let appended_start = func.blocks[block].instructions.len();
     let (total_size, offsets) = {
         let mut builder = FunctionBuilder::new(func);
+        builder.switch_to_block(block);
         let total_size = builder.imm_u64(total);
         let mut offsets = Vec::with_capacity(members.len().saturating_sub(1));
         let mut offset = members[0].size;
@@ -228,8 +219,15 @@ fn flush_group(func: &mut Function, group: &mut Vec<Member>) -> bool {
             offsets.push(builder.imm_u64(offset));
             offset += member.size;
         }
+        if zeroed {
+            for member in &members {
+                let size = builder.imm_u64(member.size);
+                builder.memory_zero(member.result, size);
+            }
+        }
         (total_size, offsets)
     };
+    let zero_insts = func.blocks[block].instructions.split_off(appended_start);
 
     // Member sizes are already component-aligned, so the fused reservation is
     // exact and the final frontier matches the member-by-member bumps.
@@ -239,7 +237,11 @@ fn flush_group(func: &mut Function, group: &mut Vec<Member>) -> bool {
         kind: AllocationKind::Raw,
         semantics: AllocationSemantics {
             alignment: AllocationAlignment::Exact,
-            initialization,
+            initialization: if zeroed {
+                AllocationInitialization::Uninitialized
+            } else {
+                initialization
+            },
             failure,
         },
     };
@@ -249,6 +251,14 @@ fn flush_group(func: &mut Function, group: &mut Vec<Member>) -> bool {
         instruction.kind = InstKind::Add(base, offset);
         instruction.metadata.set_effect(None);
         instruction.metadata.set_memory_region(None);
+    }
+    for (member, zero_inst) in members.iter().zip(zero_insts) {
+        let position = func.blocks[block]
+            .instructions
+            .iter()
+            .position(|&inst| inst == member.inst)
+            .expect("coalesced allocation disappeared from its block");
+        func.blocks[block].instructions.insert(position + 1, zero_inst);
     }
     true
 }

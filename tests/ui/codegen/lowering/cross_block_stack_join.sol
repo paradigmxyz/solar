@@ -4,6 +4,8 @@
 //@[run] compile-flags: -Ogas
 //@[run] run-call: carry(uint256) 43 => 60
 //@[run] run-call: carry(uint256) 42 => 65
+//@[run] run-call: carryAcrossUnevenEdges(uint256) 14 => 19
+//@[run] run-call: carryAcrossUnevenEdges(uint256) 15 => 21
 
 contract CrossBlockStackJoin {
     // `kept` is defined before the diamond and reused after its join. Reserve its ordinary spill
@@ -32,6 +34,26 @@ contract CrossBlockStackJoin {
         }
         assembly {
             result := add(add(kept, xor(kept, selected)), add(kept, kept))
+        }
+    }
+
+    // The quotient is live only on the hot arm before the join but must remain reloadable after
+    // the cold arm drops its stack copy. This prevents edge-specific residency from suppressing
+    // the quotient's only fallback spill store.
+    function carryAcrossUnevenEdges(uint256 x) external pure returns (uint256 result) {
+        uint256 kept;
+        assembly {
+            kept := div(x, 7)
+        }
+        if (x & 1 != 0) {
+            assembly {
+                result := add(kept, 1)
+            }
+        } else {
+            result = 1;
+        }
+        assembly {
+            result := add(result, mul(kept, 9))
         }
     }
 }
