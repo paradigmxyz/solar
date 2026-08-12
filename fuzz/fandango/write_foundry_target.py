@@ -55,6 +55,7 @@ def write_symbolic_target(
     evm_version: str,
     dynamic_lengths: tuple[int, ...] = symbolic.DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS,
     exploration_order: str = "bfs",
+    storage_layout: str = "solidity",
 ) -> None:
     """Write a single bounded pure-function symbolic differential target."""
     if max_returndata_bytes <= 0:
@@ -76,6 +77,8 @@ def write_symbolic_target(
         )
     if exploration_order not in {"bfs", "dfs"}:
         raise ValueError("symbolic exploration order must be bfs or dfs")
+    if storage_layout not in {"solidity", "zero_init"}:
+        raise ValueError("symbolic storage layout must be solidity or zero_init")
     src_dir = out_dir / "src"
     test_dir = out_dir / "test"
     src_dir.mkdir(parents=True, exist_ok=True)
@@ -120,6 +123,7 @@ def write_symbolic_target(
             evm_version=evm_version,
             dynamic_lengths=", ".join(str(length) for length in dynamic_lengths),
             exploration_order=exploration_order,
+            storage_layout=storage_layout,
         )
     )
 
@@ -155,6 +159,7 @@ code_size_limit = 1000000
 
 [symbolic]
 exploration_order = "{exploration_order}"
+storage_layout = "{storage_layout}"
 default_array_lengths = [{dynamic_lengths}]
 default_bytes_lengths = [{dynamic_lengths}]
 """

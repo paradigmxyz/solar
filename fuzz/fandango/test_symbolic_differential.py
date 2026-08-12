@@ -263,6 +263,30 @@ class FocusedCommandTests(unittest.TestCase):
         self.assertEqual(args.symbolic_max_calldata_bytes, 8192)
         self.assertEqual(args.symbolic_exploration_order, "dfs")
 
+    def test_view_scope_is_explicitly_opted_in(self):
+        with (
+            patch.object(
+                sys,
+                "argv",
+                [
+                    "solsymdiff",
+                    "--source",
+                    "Target.sol",
+                    "--contract",
+                    "Target",
+                    "--include-view",
+                ],
+            ),
+            patch.object(
+                run_foundry_target,
+                "_run_symbolic_or_incomplete",
+                return_value=0,
+            ) as run,
+        ):
+            self.assertEqual(run_foundry_target.symbolic_main(), 0)
+
+        self.assertTrue(run.call_args.args[0].include_view)
+
     def test_timeout_parser_rejects_nonfinite_or_nonpositive_values(self):
         for value in ("-inf", "-1", "0", "inf", "nan", "not-a-number"):
             with (
@@ -1157,6 +1181,19 @@ class SymbolicFunctionSelectionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "pure"):
             symbolic.select_function(solc, solar, "probe(uint256,address)")
 
+    def test_accepts_view_function_only_with_zero_storage_opt_in(self):
+        solc = artifact(mutability="view")
+        solar = copy.deepcopy(solc)
+
+        selected = symbolic.select_function(
+            solc,
+            solar,
+            "probe(uint256,address)",
+            include_view=True,
+        )
+
+        self.assertEqual(selected["state_mutability"], "view")
+
     def test_rejects_compiler_abi_or_selector_disagreement(self):
         solc = artifact()
         solar = copy.deepcopy(solc)
@@ -1251,6 +1288,24 @@ class FunctionInventoryTests(unittest.TestCase):
             ["observed(uint256)", "unsupported(function)"],
         )
         self.assertEqual(inventory["errors"], [])
+
+        opted_in = symbolic.function_inventory(
+            solc, solar, include_view=True
+        )
+        self.assertEqual(
+            [item["signature"] for item in opted_in["eligible"]],
+            [
+                "alpha(uint256)",
+                "dynamic(bytes)",
+                "dynamicOutput(uint256)",
+                "observed(uint256)",
+                "zeta(uint256)",
+            ],
+        )
+        self.assertEqual(
+            [item["signature"] for item in opted_in["excluded"]],
+            ["unsupported(function)"],
+        )
 
     def test_inventory_reports_union_disagreements_without_hiding_valid_siblings(self):
         shared = self._function("shared")
@@ -1506,6 +1561,7 @@ class SymbolicTargetGenerationTests(unittest.TestCase):
             foundry_config,
         )
         self.assertIn('exploration_order = "bfs"', foundry_config)
+        self.assertIn('storage_layout = "solidity"', foundry_config)
         self.assertLess(
             property_body.index("_warmRouter();"),
             property_body.index(
@@ -1763,6 +1819,7 @@ class EffectiveBoundsTests(unittest.TestCase):
             "max_solver_queries": 12000,
             "max_calldata_bytes": 8192,
             "exploration_order": "dfs",
+            "storage_layout": "solidity",
             "default_array_lengths": [0, 1, 3],
             "default_bytes_lengths": [0, 1, 3],
             "max_dynamic_length": 256,
@@ -1783,6 +1840,7 @@ class EffectiveBoundsTests(unittest.TestCase):
             "max_solver_queries": 10000,
             "max_calldata_bytes": 4096,
             "exploration_order": "bfs",
+            "storage_layout": "generic",
             "default_array_lengths": [0, 1],
             "default_bytes_lengths": [0, 1, 3],
             "max_dynamic_length": 2,
@@ -1801,6 +1859,7 @@ class EffectiveBoundsTests(unittest.TestCase):
             "max_calldata_bytes=4096 (expected 8192)", reason
         )
         self.assertIn("exploration_order='bfs' (expected 'dfs')", reason)
+        self.assertIn("storage_layout='generic' (expected 'solidity')", reason)
         self.assertIn(
             "default_array_lengths=[0, 1] (expected [0, 1, 3])",
             reason,
@@ -1820,6 +1879,7 @@ class EffectiveBoundsTests(unittest.TestCase):
             "max_solver_queries": 12000,
             "max_calldata_bytes": 8192,
             "exploration_order": "dfs",
+            "storage_layout": "solidity",
             "default_array_lengths": [False, True],
             "default_bytes_lengths": [0, 1],
             "max_dynamic_length": True,
@@ -2381,6 +2441,7 @@ class CampaignAggregationTests(unittest.TestCase):
             "selector": selector,
             "inputs": ["uint256"],
             "outputs": ["uint256"],
+            "state_mutability": "pure",
         }
 
     @staticmethod
@@ -2727,6 +2788,12 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         cls.tuple_input_mutant = (
             fixture_dir / "TupleInputMutant.sol"
         ).resolve()
+        cls.zero_storage_reference = (
+            fixture_dir / "ZeroStorageReference.sol"
+        ).resolve()
+        cls.zero_storage_mutant = (
+            fixture_dir / "ZeroStorageMutant.sol"
+        ).resolve()
         cls.reference_input = evm.materialize_standard_input(
             cls.solc,
             cls.reference,
@@ -2825,6 +2892,36 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             kind="solar",
             evm_version="osaka",
             standard_input=tuple_input_mutant,
+        )
+        cls.zero_storage_reference_input = evm.materialize_standard_input(
+            cls.solc,
+            cls.zero_storage_reference,
+            30,
+            "osaka",
+        )
+        cls.solc_zero_storage_reference = evm.compile_standard_artifact(
+            cls.solc,
+            cls.zero_storage_reference,
+            "ZeroStorageDifferential",
+            30,
+            kind="solc",
+            evm_version="osaka",
+            standard_input=cls.zero_storage_reference_input,
+        )
+        zero_storage_mutant_input = evm.materialize_standard_input(
+            cls.solc,
+            cls.zero_storage_mutant,
+            30,
+            "osaka",
+        )
+        cls.solar_zero_storage_mutant = evm.compile_standard_artifact(
+            cls.solar,
+            cls.zero_storage_mutant,
+            "ZeroStorageDifferential",
+            30,
+            kind="solar",
+            evm_version="osaka",
+            standard_input=zero_storage_mutant_input,
         )
         cls.address_context_input = evm.materialize_standard_input(
             cls.solc,
@@ -2926,6 +3023,7 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         solc_artifact=None,
         materialized=None,
         dynamic_lengths=symbolic.DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS,
+        include_view=False,
         catch_setup_errors=False,
     ):
         output = io.StringIO()
@@ -2960,6 +3058,7 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             symbolic_max_paths=max_paths,
             symbolic_max_depth=None,
             symbolic_dynamic_lengths=dynamic_lengths,
+            include_view=include_view,
             max_returndata_bytes=max_returndata_bytes,
             artifact_dir=self._artifact_root("runs"),
             verbose=False,
@@ -3674,6 +3773,37 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         self.assertEqual(returncode, 0)
         self.assertEqual(summary["status"], "no_mismatch_within_bounds")
         self.assertEqual(manifest["function"]["inputs"], ["uint256[2]"])
+
+    def test_view_function_reads_zero_storage_and_finds_a_durable_mismatch(self):
+        returncode, summary, manifest = self._run(
+            self.solar_zero_storage_mutant,
+            source=self.zero_storage_reference,
+            contract="ZeroStorageDifferential",
+            solc_artifact=self.solc_zero_storage_reference,
+            materialized=self.zero_storage_reference_input,
+            include_view=True,
+        )
+
+        self.assertEqual(returncode, 1)
+        self.assertEqual(summary["status"], "replay_confirmed_mismatch")
+        self.assertEqual(manifest["function"]["state_mutability"], "view")
+        self.assertEqual(
+            manifest["forge"]["execution_context"]["initial_storage"],
+            "zero",
+        )
+        self.assertEqual(
+            manifest["bounds"]["eligible_state_mutabilities"],
+            ["pure", "view"],
+        )
+        self.assertEqual(manifest["bounds"]["initial_storage"], "zero")
+        self.assertEqual(
+            manifest["replay"]["solc"],
+            {"status": "ok", "data": "0x" + "00" * 31 + "2a"},
+        )
+        self.assertEqual(
+            manifest["replay"]["solar"],
+            {"status": "ok", "data": "0x" + "00" * 31 + "2b"},
+        )
 
     def test_dynamic_bytes_shape_and_contents_find_a_durable_mismatch(self):
         returncode, summary, manifest = self._run(

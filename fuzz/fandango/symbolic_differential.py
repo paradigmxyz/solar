@@ -134,8 +134,13 @@ def runtime_scope_opcodes(
 def function_inventory(
     solc_artifact: dict[str, Any],
     solar_artifact: dict[str, Any],
+    *,
+    include_view: bool = False,
 ) -> dict[str, list[dict[str, Any]]]:
     """Inventory the shared runtime surface without silently intersecting ABIs."""
+    if not isinstance(include_view, bool):
+        raise ValueError("include_view must be a boolean")
+    allowed_mutabilities = {"pure", "view"} if include_view else {"pure"}
     solc_functions, solc_errors = _collect_functions(
         solc_artifact.get("abi"), "solc"
     )
@@ -199,15 +204,21 @@ def function_inventory(
                 }
             )
             continue
-        if solc_entry.get("stateMutability") != "pure":
+        if solc_entry.get("stateMutability") not in allowed_mutabilities:
             excluded.append(
                 {
                     "signature": signature,
-                    "reason": "state mutability is not pure",
+                    "reason": (
+                        "state mutability is not pure or opted-in view"
+                        if include_view
+                        else "state mutability is not pure"
+                    ),
                 }
             )
             continue
-        if not _has_supported_symbolic_inputs(solc_entry):
+        if not _has_supported_symbolic_inputs(
+            solc_entry, include_view=include_view
+        ):
             excluded.append(
                 {
                     "signature": signature,
@@ -266,8 +277,12 @@ def select_function(
     solc_artifact: dict[str, Any],
     solar_artifact: dict[str, Any],
     signature: str | None,
+    *,
+    include_view: bool = False,
 ) -> dict[str, Any]:
-    """Validate compiler agreement and select one supported pure function."""
+    """Validate compiler agreement and select one eligible function."""
+    if not isinstance(include_view, bool):
+        raise ValueError("include_view must be a boolean")
     solc_abi = solc_artifact.get("abi")
     solar_abi = solar_artifact.get("abi")
     _validate_abi(solc_abi, "solc")
@@ -289,14 +304,18 @@ def select_function(
         solar_entry = solar_entries[signature]
         if _function_shape(solc_entry) != _function_shape(solar_entry):
             raise ValueError(f"compiler ABI disagreement for `{signature}`")
+        allowed_mutabilities = {"pure", "view"} if include_view else {"pure"}
         if (
-            solc_entry.get("stateMutability") != "pure"
-            or solar_entry.get("stateMutability") != "pure"
+            solc_entry.get("stateMutability") not in allowed_mutabilities
+            or solar_entry.get("stateMutability") not in allowed_mutabilities
         ):
-            raise ValueError(f"function `{signature}` must be pure")
+            required = "pure or view" if include_view else "pure"
+            raise ValueError(f"function `{signature}` must be {required}")
         if not _has_supported_symbolic_inputs(
-            solc_entry
-        ) or not _has_supported_symbolic_inputs(solar_entry):
+            solc_entry, include_view=include_view
+        ) or not _has_supported_symbolic_inputs(
+            solar_entry, include_view=include_view
+        ):
             raise ValueError(
                 f"function `{signature}` uses an unsupported symbolic ABI input"
             )
@@ -307,11 +326,12 @@ def select_function(
     )
     _validate_method_identifiers(solc_hashes, "solc")
     _validate_method_identifiers(solar_hashes, "Solar")
-    selected = select_symbolic_pure_function(
+    selected = select_symbolic_function(
         solc_abi,
         solar_abi,
         solc_hashes,
         signature,
+        include_view=include_view,
     )
     selector = selected["selector"][2:]
     solar_selector = solar_hashes.get(selected["signature"], "").removeprefix("0x").lower()
@@ -338,13 +358,17 @@ def select_function(
     return selected
 
 
-def select_symbolic_pure_function(
+def select_symbolic_function(
     solc_abi: list[dict[str, Any]],
     solar_abi: list[dict[str, Any]],
     hashes: dict[str, str],
     signature: str | None,
+    *,
+    include_view: bool = False,
 ) -> dict[str, Any]:
-    """Select one supported pure function shared by both compiler ABIs."""
+    """Select one supported function shared by both compiler ABIs."""
+    if not isinstance(include_view, bool):
+        raise ValueError("include_view must be a boolean")
     _validate_abi(solc_abi, "solc")
     _validate_abi(solar_abi, "Solar")
     _validate_method_identifiers(hashes, "solc")
@@ -363,8 +387,12 @@ def select_symbolic_pure_function(
         solar_entry = solar_functions.get(candidate)
         if (
             solar_entry is not None
-            and _has_supported_symbolic_inputs(solc_entry)
-            and _has_supported_symbolic_inputs(solar_entry)
+            and _has_supported_symbolic_inputs(
+                solc_entry, include_view=include_view
+            )
+            and _has_supported_symbolic_inputs(
+                solar_entry, include_view=include_view
+            )
             and _function_shape(solc_entry) == _function_shape(solar_entry)
             and candidate in hashes
         ):
@@ -374,7 +402,7 @@ def select_symbolic_pure_function(
         if len(candidates) != 1:
             available = ", ".join(sorted(candidates)) or "none"
             raise ValueError(
-                "select a pure function with supported symbolic inputs using "
+                "select a supported function using "
                 "--signature; "
                 f"eligible functions: {available}"
             )
@@ -383,7 +411,7 @@ def select_symbolic_pure_function(
         raise ValueError(f"function `{signature}` is not present in both compiler ABIs")
     if signature not in candidates:
         raise ValueError(
-            f"function `{signature}` is not a shared pure function with "
+            f"function `{signature}` is not a shared eligible function with "
             "supported symbolic ABI inputs"
         )
 
@@ -398,6 +426,7 @@ def select_symbolic_pure_function(
         "selector": "0x" + selector,
         "inputs": [_canonical_type(item) for item in entry.get("inputs", [])],
         "outputs": [_canonical_type(item) for item in entry.get("outputs", [])],
+        "state_mutability": entry["stateMutability"],
         "test": f"checkDiff_{selector}",
     }
 
@@ -871,6 +900,7 @@ def _selected_function(
         "selector": selector,
         "inputs": [_canonical_type(item) for item in entry.get("inputs", [])],
         "outputs": [_canonical_type(item) for item in entry.get("outputs", [])],
+        "state_mutability": entry["stateMutability"],
         "test": f"checkDiff_{selector[2:]}",
         "abi": entry,
     }
@@ -937,9 +967,12 @@ def _function_shape(entry: dict[str, Any]) -> tuple[Any, ...]:
     )
 
 
-def _has_supported_symbolic_inputs(entry: dict[str, Any]) -> bool:
+def _has_supported_symbolic_inputs(
+    entry: dict[str, Any], *, include_view: bool = False
+) -> bool:
+    allowed_mutabilities = {"pure", "view"} if include_view else {"pure"}
     return (
-        entry.get("stateMutability") == "pure"
+        entry.get("stateMutability") in allowed_mutabilities
         and all(
             _is_supported_symbolic_input(item)
             for item in entry.get("inputs", [])

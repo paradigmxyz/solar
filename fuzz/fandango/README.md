@@ -325,7 +325,9 @@ Omitting `--signature` inventories the union of both compiler ABIs and method
 identifiers, then scans every shared eligible function in deterministic
 signature order. ABI or selector disagreements are errors, but valid siblings
 still run. Non-`pure` functions and unsupported shapes are listed under
-`inventory.excluded`.
+`inventory.excluded`. Add `--include-view` to opt into `view` functions under
+the recorded clean zero-storage model; this does not claim coverage of other
+storage states.
 
 To investigate one function, add a focused override:
 
@@ -342,8 +344,8 @@ and fixed or dynamic arrays of those types. The generated property recreates
 ABI tuples as deterministic local structs, so its canonical calldata layout
 stays identical to the compiler target. Outputs may use dynamic ABI shapes
 because the oracle compares raw encoded returndata rather than decoding it;
-`--max-returndata-bytes` remains a fail-closed bound. Storage/stateful
-behavior and multi-call sequences are outside this lane.
+`--max-returndata-bytes` remains a fail-closed bound. Nonzero storage, state
+transitions, and multi-call sequences are outside this lane.
 
 Dynamic inputs are not unbounded. By default the command separately explores
 lengths 0, 1, 2, and 3 for every array, `bytes`, and `string` leaf. This covers
@@ -392,7 +394,9 @@ The command:
    stateless router and both runtimes once. The router is pre-warmed, strips a
    20-byte implementation prefix, and `DELEGATECALL`s only the exact target
    calldata. Both compilers therefore see the same address, selector,
-   `msg.data`, value, and clean storage without running `vm.etch` symbolically.
+   `msg.data`, value, and clean zero-initialized storage without running
+   `vm.etch` symbolically. Pure functions are eligible by default; opted-in
+   `view` functions are checked only in that explicit zero-storage state.
 4. Compares success versus revert and the exact raw return or revert bytes.
    Comparison is word-unrolled up to `--max-returndata-bytes` (256 by default);
    reaching a longer result is an `incomplete` soundness sentinel, never a
@@ -532,7 +536,7 @@ behavior. We do not put this before every fuzz run: it needs a solver, has a
 much narrower sound target class, consumes a separate bounded budget, and can
 legitimately end `incomplete`.
 
-The supported scope does not include storage or stateful sequences, logs,
+The supported scope does not include nonzero storage or stateful sequences, logs,
 constructors or immutables, linked libraries, proxies, mappings, function
 types, user inline assembly anywhere in the source closure, EF/EOF runtimes,
 external calls in the deployed runtime, or protocol/invariant testing.

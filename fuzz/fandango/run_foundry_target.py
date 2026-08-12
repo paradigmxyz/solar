@@ -132,6 +132,14 @@ def _add_symbolic_arguments(parser: argparse.ArgumentParser) -> None:
         help="focus on one canonical function signature; omit to scan every eligible function",
     )
     parser.add_argument(
+        "--include-view",
+        action="store_true",
+        help=(
+            "include view functions under the explicit clean zero-storage "
+            "execution model"
+        ),
+    )
+    parser.add_argument(
         "--evm-version",
         default="osaka",
         help="EVM version used by both compilers, Forge, and Anvil",
@@ -399,6 +407,9 @@ def _run_symbolic(args: argparse.Namespace) -> int:
     )
     if args.symbolic_exploration_order not in {"bfs", "dfs"}:
         raise ValueError("--symbolic-exploration-order must be bfs or dfs")
+    args.include_view = getattr(args, "include_view", False)
+    if not isinstance(args.include_view, bool):
+        raise ValueError("--include-view must be a boolean")
     args.optimize = getattr(args, "optimize", True)
     args.optimizer_runs = getattr(args, "optimizer_runs", 200)
     args.via_ir = getattr(args, "via_ir", True)
@@ -500,7 +511,11 @@ def _run_symbolic(args: argparse.Namespace) -> int:
         raise ValueError("compilers did not receive the materialized Standard JSON input")
     runtime_scope_error = _runtime_scope_error(solc_artifact, solar_artifact)
     if args.signature is None:
-        inventory = symbolic.function_inventory(solc_artifact, solar_artifact)
+        inventory = symbolic.function_inventory(
+            solc_artifact,
+            solar_artifact,
+            include_view=args.include_view,
+        )
         if runtime_scope_error is not None:
             inventory = _exclude_open_runtime(inventory, runtime_scope_error)
         return _run_symbolic_campaign(
@@ -513,7 +528,12 @@ def _run_symbolic(args: argparse.Namespace) -> int:
             deadline,
             inventory,
         )
-    function = symbolic.select_function(solc_artifact, solar_artifact, args.signature)
+    function = symbolic.select_function(
+        solc_artifact,
+        solar_artifact,
+        args.signature,
+        include_view=args.include_view,
+    )
     if runtime_scope_error is not None:
         raise ValueError(runtime_scope_error)
     return _run_symbolic_function(
@@ -554,6 +574,7 @@ def _run_symbolic_function(
             args.evm_version,
             args.symbolic_dynamic_lengths,
             args.symbolic_exploration_order,
+            "zero_init" if args.include_view else "solidity",
         )
         forge_run = _forge_symbolic(args, project, expected_test, deadline)
         classified = None
@@ -1161,6 +1182,10 @@ def _create_campaign_bundle(
                 args.symbolic_max_calldata_bytes
             ),
             "exploration_order": args.symbolic_exploration_order,
+            "eligible_state_mutabilities": (
+                ["pure", "view"] if args.include_view else ["pure"]
+            ),
+            "initial_storage": "zero",
             "dynamic_input_lengths": list(args.symbolic_dynamic_lengths),
             "max_returndata_bytes_per_function": args.max_returndata_bytes,
             "elapsed_wall_seconds": deadline.elapsed(),
@@ -1226,6 +1251,7 @@ def _campaign_function_summary(function: dict[str, Any]) -> dict[str, Any]:
         "selector": function["selector"],
         "inputs": function["inputs"],
         "outputs": function["outputs"],
+        "state_mutability": function["state_mutability"],
     }
 
 
@@ -1682,6 +1708,12 @@ def _bounds_manifest(
         "exploration_order": getattr(
             args, "symbolic_exploration_order", "bfs"
         ),
+        "eligible_state_mutabilities": (
+            ["pure", "view"]
+            if getattr(args, "include_view", False)
+            else ["pure"]
+        ),
+        "initial_storage": "zero",
         "dynamic_input_lengths": list(
             getattr(
                 args,
@@ -1715,6 +1747,9 @@ def _effective_bounds_error(
         ),
         "exploration_order": getattr(
             args, "symbolic_exploration_order", "bfs"
+        ),
+        "storage_layout": (
+            "zero_init" if getattr(args, "include_view", False) else "solidity"
         ),
         "default_array_lengths": dynamic_lengths,
         "default_bytes_lengths": dynamic_lengths,
@@ -1821,6 +1856,7 @@ def _symbolic_execution_context() -> dict[str, str]:
         "solc_runtime_address": evm.SYMBOLIC_SOLC_RUNTIME_ADDRESS,
         "solar_runtime_address": evm.SYMBOLIC_SOLAR_RUNTIME_ADDRESS,
         "runtime_installation": "concrete setUp",
+        "initial_storage": "zero",
         "runtime_selection": (
             "20-byte implementation prefix removed before delegatecall"
         ),
@@ -2340,6 +2376,12 @@ def _campaign_setup_incomplete(args: argparse.Namespace, err: Exception) -> int:
             "exploration_order": getattr(
                 args, "symbolic_exploration_order", "bfs"
             ),
+            "eligible_state_mutabilities": (
+                ["pure", "view"]
+                if getattr(args, "include_view", False)
+                else ["pure"]
+            ),
+            "initial_storage": "zero",
             "dynamic_input_lengths": list(
                 getattr(
                     args,
