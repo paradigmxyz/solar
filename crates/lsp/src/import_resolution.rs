@@ -9,9 +9,12 @@ use solar_interface::{
     source_map::{FileName, FileResolver, SourceMap},
 };
 use solar_parse::{
-    Parser,
+    Cursor, Parser,
     ast::{self, StrKind},
-    lexer::unescape::try_parse_string_literal,
+    lexer::{
+        token::{RawLiteralKind, RawTokenKind},
+        unescape::try_parse_string_literal,
+    },
 };
 use std::{
     collections::BTreeMap,
@@ -36,6 +39,31 @@ pub(crate) fn import_path_at(source: &str, cursor: usize) -> Option<ImportPathAt
         return None;
     }
 
+    parse_import_path(source, cursor)
+}
+
+/// Finds an import path for completion, recovering a plain string left open at `cursor`.
+pub(crate) fn import_path_at_for_completion(source: &str, cursor: usize) -> Option<ImportPathAt> {
+    if cursor > source.len() || !source.is_char_boundary(cursor) {
+        return None;
+    }
+
+    let Some(string) = plain_string_at(source, cursor) else {
+        return parse_import_path(source, cursor);
+    };
+    if string.first_unescaped_line_break.is_some_and(|line_break| cursor > line_break) {
+        return None;
+    }
+    if string.terminated && string.first_unescaped_line_break.is_none() {
+        return parse_import_path(source, cursor);
+    }
+    if string.terminated && parse_import_path(source, cursor).is_some() {
+        return None;
+    }
+    recover_unterminated_import_path(source, cursor, string)
+}
+
+fn parse_import_path(source: &str, cursor: usize) -> Option<ImportPathAt> {
     let mut opts = CompileOpts::default();
     opts.unstable.recover_incomplete_input = true;
     let sess = Session::builder().opts(opts).with_silent_emitter(None).single_threaded().build();
@@ -79,6 +107,85 @@ pub(crate) fn import_path_at(source: &str, cursor: usize) -> Option<ImportPathAt
         source.get(content_range.clone())?;
         Some(ImportPathAt { raw_path: raw_path.to_owned(), content_range, delimiter })
     })
+}
+
+fn recover_unterminated_import_path(
+    source: &str,
+    cursor: usize,
+    string: PlainStringAt,
+) -> Option<ImportPathAt> {
+    let mut recovered = String::with_capacity(cursor + 2);
+    recovered.push_str(&source[..cursor]);
+    recovered.push(char::from(string.delimiter));
+    recovered.push(';');
+
+    let mut import = parse_import_path(&recovered, cursor)?;
+    if import.delimiter != string.delimiter
+        || import.content_range != (string.content_range.start..cursor)
+    {
+        return None;
+    }
+    import.content_range.end =
+        string.first_unescaped_line_break.unwrap_or(string.content_range.end);
+    Some(import)
+}
+
+struct PlainStringAt {
+    content_range: Range<usize>,
+    delimiter: u8,
+    terminated: bool,
+    first_unescaped_line_break: Option<usize>,
+}
+
+fn plain_string_at(source: &str, cursor: usize) -> Option<PlainStringAt> {
+    for (start, token) in Cursor::new(source).with_position() {
+        let end = start + token.len as usize;
+        let RawTokenKind::Literal { kind: RawLiteralKind::Str { kind: StrKind::Str, terminated } } =
+            token.kind
+        else {
+            continue;
+        };
+        let content_start = start + 1;
+        let content_end = if terminated { end - 1 } else { end };
+        if !(content_start..=content_end).contains(&cursor) {
+            continue;
+        }
+
+        let delimiter = source
+            .as_bytes()
+            .get(start)
+            .copied()
+            .filter(|delimiter| matches!(delimiter, b'\'' | b'"'))?;
+        let first_unescaped_line_break =
+            first_unescaped_line_break(&source.as_bytes()[content_start..content_end])
+                .map(|offset| content_start + offset);
+        return Some(PlainStringAt {
+            content_range: content_start..content_end,
+            delimiter,
+            terminated,
+            first_unescaped_line_break,
+        });
+    }
+    None
+}
+
+fn first_unescaped_line_break(bytes: &[u8]) -> Option<usize> {
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\\' if bytes.get(index + 1) == Some(&b'\n') => index += 2,
+            b'\\'
+                if bytes.get(index + 1) == Some(&b'\r') && bytes.get(index + 2) == Some(&b'\n') =>
+            {
+                index += 3;
+            }
+            b'\\' if bytes.get(index + 1) == Some(&b'\r') => return Some(index + 1),
+            b'\\' => index += 2,
+            b'\r' | b'\n' => return Some(index),
+            _ => index += 1,
+        }
+    }
+    None
 }
 
 pub(crate) fn decode_import_path(path: &str) -> Option<String> {

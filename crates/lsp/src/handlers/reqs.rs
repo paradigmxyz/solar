@@ -4,7 +4,10 @@ use crate::{
     document_links::solidity_string_contents,
     formatter::{self, FormatterError},
     global_state::GlobalState,
-    import_resolution::{ImportCandidateKind, ImportResolver, decode_import_path, import_path_at},
+    import_resolution::{
+        ImportCandidateKind, ImportResolver, decode_import_path, import_path_at,
+        import_path_at_for_completion,
+    },
     natspec_completion::{self, NatSpecCompletionResult},
     progress::send_progress,
     symbols::{CompletionContext, CompletionItemData, SymbolTables},
@@ -921,7 +924,7 @@ fn import_completion(
         crate::proto::checked_text_range(contents, lsp_types::Range::new(position, position))?
             .start;
     let source = contents.to_string();
-    let import = import_path_at(&source, cursor_offset)?;
+    let import = import_path_at_for_completion(&source, cursor_offset)?;
     let prefix_end = cursor_offset.max(import.content_range.start);
     let raw_path_prefix = source.get(import.content_range.start..prefix_end).map(str::to_owned)?;
     let replacement = import.content_range;
