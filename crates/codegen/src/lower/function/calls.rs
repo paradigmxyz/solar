@@ -28,7 +28,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        let arguments = args.exprs().collect::<Vec<_>>();
         if let Some(struct_id) = self.gcx.resolved_expr(callee).and_then(|res| match res {
             hir::Res::Item(item) => item.as_struct(),
             _ => None,
@@ -40,7 +39,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 matches!(res, hir::Res::Item(hir::ItemId::Contract(_) | hir::ItemId::Enum(_)))
             });
         if is_type_conversion {
-            let [arg] = arguments.as_slice() else {
+            if args.len() != 1 {
+                return report_unsupported(self.gcx, expr.span, "type conversion");
+            }
+            let Some(arg) = args.exprs().next() else {
                 return report_unsupported(self.gcx, expr.span, "type conversion");
             };
             let source_ty = self.gcx.type_of_expr(arg.id)?;
@@ -78,7 +80,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let TyKind::Contract(contract_id) = self.gcx.type_of_hir_ty(ty).kind {
                 return self.lower_new_contract(expr, ty, contract_id, args, call_opts);
             }
-            let [arg] = arguments.as_slice() else {
+            if args.len() != 1 {
+                return report_unsupported(self.gcx, expr.span, "dynamic allocation");
+            }
+            let Some(arg) = args.exprs().next() else {
                 return report_unsupported(self.gcx, expr.span, "dynamic allocation");
             };
             let len = self.lower_expr(arg)?;
