@@ -26,6 +26,8 @@ pub(crate) struct Workspace {
     compile_opts: CompileOpts,
     source_roots: Vec<PathBuf>,
     source_files: Vec<PathBuf>,
+    flycheck_source_roots: Vec<PathBuf>,
+    flycheck_source_files: Vec<PathBuf>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -44,8 +46,10 @@ impl Workspace {
         Self {
             kind: WorkspaceKind::Naked,
             compile_opts: CompileOpts { base_path: Some(root), ..Default::default() },
+            flycheck_source_roots: source_roots.clone(),
             source_roots,
             source_files: Vec::new(),
+            flycheck_source_files: Vec::new(),
         }
     }
 
@@ -55,6 +59,8 @@ impl Workspace {
             compile_opts: CompileOpts::default(),
             source_roots: Vec::new(),
             source_files: Vec::new(),
+            flycheck_source_roots: Vec::new(),
+            flycheck_source_files: Vec::new(),
         }
     }
 
@@ -75,6 +81,10 @@ impl Workspace {
         &self.source_files
     }
 
+    pub(crate) fn flycheck_source_files(&self) -> &[PathBuf] {
+        &self.flycheck_source_files
+    }
+
     pub(crate) fn refresh_source_files(&mut self) {
         self.source_files.clear();
         // Naked roots need workspace-wide symbols for reverse navigation, but have no manifest
@@ -85,29 +95,55 @@ impl Workspace {
         }
         self.source_files.sort();
         self.source_files.dedup();
+
+        self.flycheck_source_files.clone_from(&self.source_files);
+        for root in &self.flycheck_source_roots {
+            if !self.source_roots.contains(root) {
+                collect_solidity_files(
+                    root,
+                    root,
+                    &mut self.flycheck_source_files,
+                    skip_heavy_dirs,
+                );
+            }
+        }
+        self.flycheck_source_files.sort();
+        self.flycheck_source_files.dedup();
     }
 
     pub(crate) fn add_source_file(&mut self, path: PathBuf) {
-        if !self.tracks_disk_file(&path) {
-            return;
+        if self.tracks_disk_file(&path) {
+            insert_sorted(&mut self.source_files, path.clone());
         }
-        match self.source_files.binary_search(&path) {
-            Ok(_) => {}
-            Err(pos) => self.source_files.insert(pos, path),
-        }
+        self.add_flycheck_source_file(&path);
     }
 
     pub(crate) fn remove_source_file(&mut self, path: &Path) {
-        if let Ok(pos) =
-            self.source_files.binary_search_by(|candidate| candidate.as_path().cmp(path))
-        {
-            self.source_files.remove(pos);
+        remove_sorted(&mut self.source_files, path);
+        self.remove_flycheck_source_file(path);
+    }
+
+    pub(crate) fn add_flycheck_source_file(&mut self, path: &Path) {
+        if self.tracks_flycheck_file(path) {
+            insert_sorted(&mut self.flycheck_source_files, path.to_path_buf());
         }
     }
 
+    pub(crate) fn remove_flycheck_source_file(&mut self, path: &Path) {
+        remove_sorted(&mut self.flycheck_source_files, path);
+    }
+
     pub(crate) fn tracks_disk_file(&self, path: &Path) -> bool {
+        self.tracks_file_in_roots(path, &self.source_roots)
+    }
+
+    pub(crate) fn tracks_flycheck_file(&self, path: &Path) -> bool {
+        self.tracks_file_in_roots(path, &self.flycheck_source_roots)
+    }
+
+    fn tracks_file_in_roots(&self, path: &Path, roots: &[PathBuf]) -> bool {
         is_solidity_file(path)
-            && self.source_roots.iter().any(|root| {
+            && roots.iter().any(|root| {
                 path.starts_with(root)
                     && (self.kind != WorkspaceKind::Naked
                         || !is_in_ignored_naked_directory(root, path))
@@ -127,9 +163,23 @@ impl Workspace {
         Ok(Self {
             kind: WorkspaceKind::Foundry,
             source_roots: profile.source_roots(&root),
+            flycheck_source_roots: profile.flycheck_source_roots(&root),
             compile_opts,
             source_files: Vec::new(),
+            flycheck_source_files: Vec::new(),
         })
+    }
+}
+
+fn insert_sorted(files: &mut Vec<PathBuf>, path: PathBuf) {
+    if let Err(pos) = files.binary_search(&path) {
+        files.insert(pos, path);
+    }
+}
+
+fn remove_sorted(files: &mut Vec<PathBuf>, path: &Path) {
+    if let Ok(pos) = files.binary_search_by(|candidate| candidate.as_path().cmp(path)) {
+        files.remove(pos);
     }
 }
 

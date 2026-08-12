@@ -8,7 +8,7 @@
 // CHECK-LABEL:   fn @entry{{.*}}
 // CHECK:     v0 = fmp
 // CHECK-NEXT:     stop
-fn @entry() {
+fn @entry() [entry] {
   bb0:
     v0 = fmp
     stop

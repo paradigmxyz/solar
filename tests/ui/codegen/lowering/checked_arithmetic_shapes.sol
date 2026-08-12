@@ -9,6 +9,7 @@
 // - signed add/sub: `xor` of two `slt`/`sgt` comparisons, no constants.
 // - signed mul: division-inverse check plus `and(eq(lhs, MIN), slt(rhs, 0))`.
 // - div/mod: branch directly on the divisor, no `iszero`/`eq` flag.
+// - sub-word left shifts: mask unsigned results and sign-extend signed results.
 contract CheckedArithmeticShapes {
     // CHECK-LABEL: fn @sadd{{[( ]}}
     // CHECK: [[SUM:v[0-9]+]] = add arg0, arg1
@@ -105,5 +106,61 @@ contract CheckedArithmeticShapes {
     // CHECK: gt [[RESULT]], 0xffffffffffffffffffffffffffffffffffffffffffffffff
     function umul192(uint192 a, uint192 b) public pure returns (uint192) {
         return a * b;
+    }
+
+    // CHECK-LABEL: fn @leftU8{{[( ]}}
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg1, arg0
+    // CHECK-NEXT: [[CLEAN:v[0-9]+]] = and [[SHIFTED]], 255
+    // CHECK-NEXT: ret [[CLEAN]]
+    function leftU8(uint8 value, uint8 bits) external pure returns (uint8) {
+        return value << bits;
+    }
+
+    // CHECK-LABEL: fn @leftU16{{[( ]}}
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg1, arg0
+    // CHECK-NEXT: [[CLEAN:v[0-9]+]] = and [[SHIFTED]], 0xffff
+    // CHECK-NEXT: ret [[CLEAN]]
+    function leftU16(uint16 value, uint8 bits) external pure returns (uint16) {
+        return value << bits;
+    }
+
+    // CHECK-LABEL: fn @leftI8{{[( ]}}
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg1, arg0
+    // CHECK-NEXT: [[ALIGNED:v[0-9]+]] = shl 248, [[SHIFTED]]
+    // CHECK-NEXT: [[CLEAN:v[0-9]+]] = sar 248, [[ALIGNED]]
+    // CHECK-NEXT: ret [[CLEAN]]
+    function leftI8(int8 value, uint8 bits) external pure returns (int8) {
+        return value << bits;
+    }
+
+    // CHECK-LABEL: fn @leftI16{{[( ]}}
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg1, arg0
+    // CHECK-NEXT: [[ALIGNED:v[0-9]+]] = shl 240, [[SHIFTED]]
+    // CHECK-NEXT: [[CLEAN:v[0-9]+]] = sar 240, [[ALIGNED]]
+    // CHECK-NEXT: ret [[CLEAN]]
+    function leftI16(int16 value, uint8 bits) external pure returns (int16) {
+        return value << bits;
+    }
+
+    // Full-width and right shifts already have native EVM word semantics.
+    // CHECK-LABEL: fn @leftU256{{[( ]}}
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg1, arg0
+    // CHECK-NEXT: ret [[SHIFTED]]
+    function leftU256(uint256 value, uint256 bits) external pure returns (uint256) {
+        return value << bits;
+    }
+
+    // CHECK-LABEL: fn @rightU8{{[( ]}}
+    // CHECK: [[SHIFTED:v[0-9]+]] = shr arg1, arg0
+    // CHECK-NEXT: ret [[SHIFTED]]
+    function rightU8(uint8 value, uint8 bits) external pure returns (uint8) {
+        return value >> bits;
+    }
+
+    // CHECK-LABEL: fn @rightI8{{[( ]}}
+    // CHECK: [[SHIFTED:v[0-9]+]] = sar arg1, arg0
+    // CHECK-NEXT: ret [[SHIFTED]]
+    function rightI8(int8 value, uint8 bits) external pure returns (int8) {
+        return value >> bits;
     }
 }

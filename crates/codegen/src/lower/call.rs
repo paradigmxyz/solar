@@ -3,13 +3,16 @@
 use super::{InternalFunctionPointerShape, Lowerer, checked_arith::PanicCode};
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{Function, FunctionBuilder, FunctionId, MirType, ValueId},
+    mir::{
+        Function, FunctionBuilder, FunctionId, MemoryObjectKind, MemoryObjectLayout, MirType,
+        ValueId,
+    },
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{DataLocation, LitKind, Span};
 use solar_data_structures::{bit_set::GrowableBitSet, map::StdEntry};
 use solar_interface::{
-    Ident, Symbol,
+    Ident,
     diagnostics::{DiagMsg, ErrorGuaranteed},
     kw, sym,
 };
@@ -33,6 +36,38 @@ pub(super) enum LinkedFieldKind {
     DynBytes,
 }
 
+impl LinkedFieldKind {
+    pub(super) fn memory_object_layout(self) -> MemoryObjectLayout {
+        match self {
+            Self::DynBytes => MemoryObjectLayout::Bytes,
+            Self::DynArray => MemoryObjectLayout::WORD_ARRAY,
+            Self::Value => unreachable!(),
+        }
+    }
+
+    fn memory_object_kind(self) -> MemoryObjectKind {
+        self.memory_object_layout().kind()
+    }
+
+    pub(super) fn data_size(
+        self,
+        builder: &mut FunctionBuilder<'_>,
+        len: ValueId,
+        word: ValueId,
+    ) -> ValueId {
+        match self {
+            Self::DynBytes => {
+                let thirty_one = builder.imm_u64(31);
+                let padded = builder.add(len, thirty_one);
+                let mask = builder.imm_u256(U256::MAX - U256::from(31));
+                builder.and(padded, mask)
+            }
+            Self::DynArray => builder.mul(len, word),
+            Self::Value => unreachable!(),
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum ExternalCallKind {
     Call,
@@ -40,11 +75,69 @@ pub(super) enum ExternalCallKind {
     DelegateCall,
 }
 
+impl ExternalCallKind {
+    fn from_low_level_builtin(builtin: Builtin) -> Option<Self> {
+        match builtin {
+            Builtin::AddressCall => Some(Self::Call),
+            Builtin::AddressStaticcall => Some(Self::StaticCall),
+            Builtin::AddressDelegatecall => Some(Self::DelegateCall),
+            _ => None,
+        }
+    }
+
+    fn from_state_mutability(
+        state_mutability: hir::StateMutability,
+        has_static_call: bool,
+    ) -> Self {
+        if has_static_call
+            && matches!(state_mutability, hir::StateMutability::Pure | hir::StateMutability::View)
+        {
+            Self::StaticCall
+        } else {
+            Self::Call
+        }
+    }
+
+    pub(super) fn accepts_value(self) -> bool {
+        matches!(self, Self::Call)
+    }
+}
+
 #[derive(Clone, Copy)]
 enum BuiltinArgCount {
     Exact(usize),
     AtLeast(usize),
     Between(usize, usize),
+}
+
+impl BuiltinArgCount {
+    fn description(self) -> String {
+        match self {
+            Self::Exact(count) => count.to_string(),
+            Self::AtLeast(count) => format!("at least {count}"),
+            Self::Between(min, max) => format!("{min} to {max}"),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum StorageArrayMethod<'hir> {
+    PushDefault,
+    Push(&'hir hir::Expr<'hir>),
+    Pop,
+}
+
+impl<'hir> StorageArrayMethod<'hir> {
+    pub(super) fn argument(&self) -> Option<&'hir hir::Expr<'hir>> {
+        match self {
+            Self::Push(arg) => Some(*arg),
+            Self::PushDefault | Self::Pop => None,
+        }
+    }
+
+    pub(super) fn is_push_default(&self) -> bool {
+        matches!(self, Self::PushDefault)
+    }
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -187,11 +280,7 @@ impl<'gcx> Lowerer<'gcx> {
         expected: BuiltinArgCount,
         actual: usize,
     ) -> ErrorGuaranteed {
-        let expected = match expected {
-            BuiltinArgCount::Exact(count) => count.to_string(),
-            BuiltinArgCount::AtLeast(count) => format!("at least {count}"),
-            BuiltinArgCount::Between(min, max) => format!("{min} to {max}"),
-        };
+        let expected = expected.description();
         let kind = if builtin.is_yul() { "Yul builtin" } else { "builtin" };
         self.gcx
             .dcx()
@@ -318,22 +407,46 @@ impl<'gcx> Lowerer<'gcx> {
         })
     }
 
+    pub(super) fn storage_array_method<'hir>(
+        &self,
+        builtin: Builtin,
+        args: &CallArgs<'hir>,
+    ) -> Result<StorageArrayMethod<'hir>, ErrorGuaranteed> {
+        match builtin {
+            Builtin::ArrayPush0 => {
+                let [] = self.builtin_args(builtin, args)?;
+                Ok(StorageArrayMethod::PushDefault)
+            }
+            Builtin::ArrayPush => {
+                let [arg] = self.builtin_args(builtin, args)?;
+                Ok(StorageArrayMethod::Push(arg))
+            }
+            Builtin::ArrayPop => {
+                let [] = self.builtin_args(builtin, args)?;
+                Ok(StorageArrayMethod::Pop)
+            }
+            _ => Err(self.recovery_error(
+                Some(args.span),
+                "codegen routed a non-array builtin through array method lowering",
+            )),
+        }
+    }
+
     pub(super) fn builtin_args_with_rest<'hir, const N: usize>(
         &self,
         builtin: Builtin,
         args: &CallArgs<'hir>,
     ) -> Result<(&'hir [hir::Expr<'hir>; N], &'hir [hir::Expr<'hir>]), ErrorGuaranteed> {
         let exprs = self.builtin_arg_exprs(builtin, args)?;
-        if exprs.len() < N {
+        let Some((prefix, rest)) = exprs.split_first_chunk() else {
             return Err(self.emit_wrong_builtin_arg_count(
                 builtin,
                 args.span,
                 BuiltinArgCount::AtLeast(N),
                 exprs.len(),
             ));
-        }
-        let (prefix, rest) = exprs.split_at(N);
-        Ok((prefix.try_into().unwrap(), rest))
+        };
+        Ok((prefix, rest))
     }
 
     pub(super) fn variadic_builtin_args<'hir>(
@@ -350,16 +463,17 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'hir>,
     ) -> Result<(&'hir [hir::Expr<'hir>; N], Option<&'hir hir::Expr<'hir>>), ErrorGuaranteed> {
         let exprs = self.builtin_arg_exprs(builtin, args)?;
-        if !(N..=N + 1).contains(&exprs.len()) {
-            return Err(self.emit_wrong_builtin_arg_count(
-                builtin,
-                args.span,
-                BuiltinArgCount::Between(N, N + 1),
-                exprs.len(),
-            ));
+        if let Some((required, optional)) = exprs.split_first_chunk()
+            && optional.len() <= 1
+        {
+            return Ok((required, optional.first()));
         }
-        let (required, optional) = exprs.split_at(N);
-        Ok((required.try_into().unwrap(), optional.first()))
+        Err(self.emit_wrong_builtin_arg_count(
+            builtin,
+            args.span,
+            BuiltinArgCount::Between(N, N + 1),
+            exprs.len(),
+        ))
     }
 
     fn lower_builtin_args<const N: usize>(
@@ -594,9 +708,12 @@ impl<'gcx> Lowerer<'gcx> {
         let ret_offset =
             if function.returns.len() > 1 { calldata_start } else { builder.imm_u64(0) };
         let ret_size = builder.imm_u64((function.returns.len() * 32) as u64);
-        let kind = self.external_call_kind(function.state_mutability);
+        let kind = ExternalCallKind::from_state_mutability(
+            function.state_mutability,
+            self.gcx.sess.opts.evm_version.has_static_call(),
+        );
         let (gas, value) =
-            self.lower_external_call_options(builder, call_opts, kind == ExternalCallKind::Call);
+            self.lower_external_call_options(builder, call_opts, kind.accepts_value());
         let success = self.emit_external_call(
             builder,
             kind,
@@ -644,9 +761,8 @@ impl<'gcx> Lowerer<'gcx> {
 
         if let Some(ty) = self.get_expr_type(callee)
             && let TyKind::Error(_, error_id) = ty.kind
-            && self.gcx.dcx().has_errors().is_ok()
         {
-            panic!("typeck did not record resolved custom-error callee {error_id:?}");
+            return Some(error_id);
         }
 
         None
@@ -903,7 +1019,11 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
         if builtin.is_yul() {
-            let returns = builtin.ty(self.gcx).returns().unwrap();
+            let Some(returns) = builtin.ty(self.gcx).returns() else {
+                let guar = self
+                    .recovery_error(None, "codegen expected Yul builtin to have a function type");
+                return Some(builder.error_value(guar));
+            };
             if returns.is_empty() {
                 let _ = self.lower_yul_unit_builtin_call(builder, builtin, args);
                 return None;
@@ -985,7 +1105,12 @@ impl<'gcx> Lowerer<'gcx> {
                     builder.revert(zero, zero);
                 }
             }
-            _ => unreachable!("{builtin:?}"),
+            _ => {
+                return Err(self.recovery_error(
+                    Some(args.span),
+                    "codegen routed a value builtin through unit lowering",
+                ));
+            }
         }
         Ok(())
     }
@@ -1040,7 +1165,10 @@ impl<'gcx> Lowerer<'gcx> {
             | Builtin::Require
             | Builtin::Assert
             | Builtin::Revert
-            | Builtin::RevertMsg => unreachable!("unit builtin lowered in value context"),
+            | Builtin::RevertMsg => Err(self.recovery_error(
+                Some(args.span),
+                "codegen routed a unit builtin through value lowering",
+            )),
             Builtin::AddressBalance => {
                 let [addr] = self.builtin_args(builtin, args)?;
                 let addr = self.lower_value_expr(builder, addr);
@@ -1051,6 +1179,7 @@ impl<'gcx> Lowerer<'gcx> {
                 let a = self.lower_value_expr(builder, a);
                 let b = self.lower_value_expr(builder, b);
                 let modulus = self.lower_value_expr(builder, modulus);
+                self.emit_panic_if_zero(builder, modulus, PanicCode::DivisionByZero);
                 let value = if matches!(builtin, Builtin::AddMod) {
                     builder.addmod(a, b, modulus)
                 } else {
@@ -1106,9 +1235,10 @@ impl<'gcx> Lowerer<'gcx> {
                 let [data, types] = self.builtin_args(builtin, args)?;
                 self.lower_abi_decode(builder, data, types, args.span)
             }
-            builtin if builtin.is_yul() => {
-                unreachable!("Yul builtin bypassed call result lowering")
-            }
+            builtin if builtin.is_yul() => Err(self.recovery_error(
+                Some(args.span),
+                "codegen routed a Yul builtin through Solidity lowering",
+            )),
             _ => Err(self
                 .gcx
                 .dcx()
@@ -1203,7 +1333,12 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::YulPop => {
                 let [_value] = self.lower_builtin_args(builder, builtin, call_args)?;
             }
-            _ => unreachable!("value-returning Yul builtin passed to unit lowering"),
+            _ => {
+                return Err(self.recovery_error(
+                    Some(call_args.span),
+                    "codegen routed a value Yul builtin through unit lowering",
+                ));
+            }
         }
         Ok(())
     }
@@ -1313,7 +1448,12 @@ impl<'gcx> Lowerer<'gcx> {
                     self.lower_builtin_args(builder, builtin, call_args)?;
                 return Err(self.unsupported_yul_builtin(builtin, call_args.span));
             }
-            _ => unreachable!("unit Yul builtin passed to value lowering"),
+            _ => {
+                return Err(self.recovery_error(
+                    Some(call_args.span),
+                    "codegen routed a unit Yul builtin through value lowering",
+                ));
+            }
         };
         Ok(value)
     }
@@ -1379,8 +1519,9 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         // Handle address payable transfer/send builtins
-        if matches!(builtin, Some(Builtin::AddressPayableTransfer | Builtin::AddressPayableSend)) {
-            let builtin = builtin.unwrap();
+        if let Some(builtin @ (Builtin::AddressPayableTransfer | Builtin::AddressPayableSend)) =
+            builtin
+        {
             let [amount] = match self.builtin_args(builtin, args) {
                 Ok(exprs) => exprs,
                 Err(guar) => return self.call_error_result(builder, callee, guar),
@@ -1408,11 +1549,9 @@ impl<'gcx> Lowerer<'gcx> {
         // addr.call{value: X}(data) returns (bool success, bytes memory returndata)
         // addr.staticcall(data) returns (bool success, bytes memory returndata)
         // addr.delegatecall(data) returns (bool success, bytes memory returndata)
-        if matches!(
-            builtin,
-            Some(Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall)
-        ) {
-            let builtin = builtin.unwrap();
+        if let Some(builtin) = builtin
+            && let Some(kind) = ExternalCallKind::from_low_level_builtin(builtin)
+        {
             if builtin == Builtin::AddressStaticcall
                 && !self.gcx.sess.opts.evm_version.has_static_call()
             {
@@ -1438,17 +1577,8 @@ impl<'gcx> Lowerer<'gcx> {
                     Err(guar) => return self.call_error_result(builder, callee, guar),
                 };
 
-            let kind = match builtin {
-                Builtin::AddressCall => ExternalCallKind::Call,
-                Builtin::AddressStaticcall => ExternalCallKind::StaticCall,
-                Builtin::AddressDelegatecall => ExternalCallKind::DelegateCall,
-                _ => unreachable!(),
-            };
-            let (gas, value) = self.lower_external_call_options(
-                builder,
-                call_opts,
-                kind == ExternalCallKind::Call,
-            );
+            let (gas, value) =
+                self.lower_external_call_options(builder, call_opts, kind.accepts_value());
 
             // The call itself yields the success flag. Tuple consumers copy
             // the second `bytes` result from returndata immediately afterward.
@@ -1473,25 +1603,18 @@ impl<'gcx> Lowerer<'gcx> {
             return Some(success);
         }
 
-        let array_method = builtin.and_then(Self::array_builtin_method_name);
-
         // Handle storage `bytes`/`string` methods before the generic member
         // call path. Their storage layout is Solidity's packed short/long
         // bytes form, not the generic dynamic-array layout. The receiver may be
         // a state variable, a storage-reference local, or a `bytes` field
         // reached through one (`state.part.push(b)`); `lower_lvalue_slot`
         // resolves the slot for all of these.
-        if self.expr_is_storage_bytes_lvalue(base)
-            && let Some(method) = array_method
+        if let Some(builtin @ (Builtin::ArrayPush0 | Builtin::ArrayPush | Builtin::ArrayPop)) =
+            builtin
+            && self.expr_is_storage_bytes_lvalue(base)
             && let Some(slot) = self.lower_lvalue_slot(builder, base)
         {
-            return self.lower_storage_bytes_method_call(
-                builder,
-                slot,
-                builtin.unwrap(),
-                method,
-                args,
-            );
+            return self.lower_storage_bytes_method_call(builder, slot, builtin, args);
         }
 
         // Resolve the receiver's slot at runtime so storage dynamic-array methods
@@ -1598,7 +1721,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         let kind = self.external_function_call_kind(resolved_func);
         let (gas, value) =
-            self.lower_external_call_options(builder, call_opts, kind == ExternalCallKind::Call);
+            self.lower_external_call_options(builder, call_opts, kind.accepts_value());
         let success = self.emit_external_call(
             builder,
             kind,
@@ -1646,14 +1769,6 @@ impl<'gcx> Lowerer<'gcx> {
         let TyKind::Type(ty) = ty.kind else { return false };
         let TyKind::Contract(contract_id) = ty.kind else { return false };
         self.gcx.hir.contract(contract_id).kind.is_library()
-    }
-
-    fn array_builtin_method_name(builtin: Builtin) -> Option<Symbol> {
-        match builtin {
-            Builtin::ArrayPush0 | Builtin::ArrayPush => Some(sym::push),
-            Builtin::ArrayPop => Some(kw::Pop),
-            _ => None,
-        }
     }
 
     fn function_return_slot_count(&self, func_id: hir::FunctionId) -> usize {
@@ -1719,17 +1834,10 @@ impl<'gcx> Lowerer<'gcx> {
         let state_mutability = func_id
             .map(|func_id| self.gcx.hir.function(func_id).state_mutability)
             .unwrap_or(hir::StateMutability::NonPayable);
-        self.external_call_kind(state_mutability)
-    }
-
-    fn external_call_kind(&self, state_mutability: hir::StateMutability) -> ExternalCallKind {
-        if self.gcx.sess.opts.evm_version.has_static_call()
-            && matches!(state_mutability, hir::StateMutability::Pure | hir::StateMutability::View)
-        {
-            ExternalCallKind::StaticCall
-        } else {
-            ExternalCallKind::Call
-        }
+        ExternalCallKind::from_state_mutability(
+            state_mutability,
+            self.gcx.sess.opts.evm_version.has_static_call(),
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1746,15 +1854,14 @@ impl<'gcx> Lowerer<'gcx> {
         ret_size: ValueId,
     ) -> ValueId {
         match kind {
-            ExternalCallKind::Call => builder.call(
-                gas,
-                addr,
-                value.expect("CALL requires a value operand"),
-                args_offset,
-                args_size,
-                ret_offset,
-                ret_size,
-            ),
+            ExternalCallKind::Call => {
+                let value = value.unwrap_or_else(|| {
+                    let guar = self
+                        .recovery_error(None, "codegen expected `CALL` to have a value operand");
+                    builder.error_value(guar)
+                });
+                builder.call(gas, addr, value, args_offset, args_size, ret_offset, ret_size)
+            }
             ExternalCallKind::StaticCall => {
                 builder.staticcall(gas, addr, args_offset, args_size, ret_offset, ret_size)
             }
@@ -2108,10 +2215,14 @@ impl<'gcx> Lowerer<'gcx> {
         arg_vals: Vec<ValueId>,
     ) -> ValueId {
         let func = self.gcx.hir.function(func_id);
-        let result_ty = func.returns.first().map(|&ret_id| self.lower_type_from_var(ret_id));
-        let Some(result_ty) = result_ty else {
-            unreachable!("void call emitted through value-returning path")
+        let Some(&ret_id) = func.returns.first() else {
+            let guar = self.recovery_error(
+                Some(func.span),
+                "codegen expected internal call to return a value",
+            );
+            return builder.error_value(guar);
         };
+        let result_ty = self.lower_type_from_var(ret_id);
         let mir_id = self.internal_call_target(func_id);
         builder.internal_call(mir_id, arg_vals, result_ty, func.returns.len())
     }
@@ -2348,8 +2459,8 @@ impl<'gcx> Lowerer<'gcx> {
         // filled by the tail pass below with the tail's args-relative offset.
         let mut pending_tails: Vec<(u64, ValueId, LinkedFieldKind)> = Vec::new();
         let mut arg_offset = 4u64;
-        for (i, (arg_val, slots)) in arg_vals.iter().zip(&arg_slots).enumerate() {
-            if let Some(struct_id) = arg_structs[i] {
+        for ((arg_val, slots), &struct_id) in arg_vals.iter().zip(&arg_slots).zip(&arg_structs) {
+            if let Some(struct_id) = struct_id {
                 let field_tys = self.gcx.struct_field_types(struct_id);
                 let layout = crate::mir::MemoryObjectLayout::structure(*slots as u64);
                 for field_idx in 0..*slots {
@@ -2384,25 +2495,13 @@ impl<'gcx> Lowerer<'gcx> {
         let mut tail_off = builder.imm_u64((head_size_bytes - 4) as u64);
         let word = builder.imm_u64(32);
         for (head_off, src, kind) in pending_tails {
-            let object_kind = match kind {
-                LinkedFieldKind::DynBytes => crate::mir::MemoryObjectKind::Bytes,
-                LinkedFieldKind::DynArray => crate::mir::MemoryObjectKind::DynamicArray,
-                LinkedFieldKind::Value => unreachable!(),
-            };
+            let object_kind = kind.memory_object_kind();
             let head_addr_off = builder.imm_u64(head_off);
             let head_addr = builder.add(calldata_start, head_addr_off);
             builder.mstore(head_addr, tail_off);
 
             let len = builder.memory_object_len(src, object_kind);
-            let byte_len = match kind {
-                LinkedFieldKind::DynBytes => {
-                    let thirty_one = builder.imm_u64(31);
-                    let padded = builder.add(len, thirty_one);
-                    let mask = builder.imm_u256(U256::MAX - U256::from(31));
-                    builder.and(padded, mask)
-                }
-                _ => builder.mul(len, word),
-            };
+            let byte_len = kind.data_size(builder, len, word);
 
             let four = builder.imm_u64(4);
             let args_base = builder.add(calldata_start, four);

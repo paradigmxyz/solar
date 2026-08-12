@@ -1,0 +1,131 @@
+// === ROOT/tests/ui/codegen/lowering/narrow_bitwise_not.sol:NarrowBitwiseNot ===
+@module NarrowBitwiseNot
+fn @notUint8(arg0: u8) -> u8 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = and v3, 255
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = not arg0
+    v7 = and v6, 255
+    ret v7
+}
+
+fn @notUint16(arg0: u16) -> u16 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = and v3, 0xffff
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = not arg0
+    v7 = and v6, 0xffff
+    ret v7
+}
+
+fn @notUint256(arg0: u256) -> u256 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = not arg0
+    ret v3
+}
+
+fn @notInt8(arg0: i8) -> i8 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = signextend 0, v3
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = not arg0
+    ret v6
+}
+
+fn @notBytes1(arg0: bytes1) -> bytes1 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = and v3, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = not arg0
+    v7 = and v6, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v7
+}
+
+fn @notBytes2(arg0: bytes2) -> bytes2 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = and v3, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = not arg0
+    v7 = and v6, 0xffff000000000000000000000000000000000000000000000000000000000000
+    ret v7
+}
+
+fn @notBytes32(arg0: bytes32) -> bytes32 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = not arg0
+    ret v3
+}

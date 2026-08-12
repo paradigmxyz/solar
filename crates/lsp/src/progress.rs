@@ -539,7 +539,11 @@ impl Drop for WorkDoneProgressGuard {
     }
 }
 
-fn send_progress(client: &ClientSocket, token: &NumberOrString, value: WorkDoneProgress) -> bool {
+pub(crate) fn send_progress(
+    client: &ClientSocket,
+    token: &NumberOrString,
+    value: WorkDoneProgress,
+) -> bool {
     client
         .notify::<notif::Progress>(ProgressParams {
             token: token.clone(),

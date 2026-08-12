@@ -6,7 +6,7 @@ use crate::{
     mir::{FunctionBuilder, MemoryObjectKind, Value, ValueId},
 };
 use alloy_primitives::U256;
-use solar_ast::{ElementaryType, LitKind};
+use solar_ast::{ElementaryType, LitKind, TypeSize};
 use solar_interface::{Symbol, diagnostics::ErrorGuaranteed, sym};
 use solar_sema::{
     builtins::Builtin,
@@ -18,10 +18,81 @@ enum PackedAbiArg {
     /// Compile-time literal bytes, packed without padding.
     Bytes(Vec<u8>),
     /// A single value occupying the top `size` bytes of its word.
-    Value { value: ValueId, size: usize, left_aligned: bool },
+    Value { value: ValueId, size: usize, left_aligned: bool, signed: bool },
     /// A memory `bytes`/`string` pointer (`[length][data...]`) whose data is
     /// copied without padding.
     DynamicBytes(ValueId),
+}
+
+impl PackedAbiArg {
+    fn max_static_write(args: &[Self]) -> Option<usize> {
+        let mut offset = 0usize;
+        let mut max_write = 0usize;
+        let mut i = 0usize;
+
+        while i < args.len() {
+            if let Some((consumed, len)) = Self::static_word_run(&args[i..]) {
+                max_write = max_write.max(offset + 32);
+                offset += len;
+                i += consumed;
+                continue;
+            }
+
+            match &args[i] {
+                Self::Bytes(bytes) => {
+                    for chunk in bytes.chunks(32) {
+                        max_write = max_write.max(offset + 32);
+                        offset += chunk.len();
+                    }
+                }
+                Self::Value { size, .. } => {
+                    max_write = max_write.max(offset + 32);
+                    offset += *size;
+                }
+                Self::DynamicBytes(_) => return None,
+            }
+            i += 1;
+        }
+
+        Some(max_write)
+    }
+
+    fn static_word_run(args: &[Self]) -> Option<(usize, usize)> {
+        let mut len = 0usize;
+        let mut consumed = 0usize;
+        let mut has_value = false;
+
+        for arg in args {
+            match arg {
+                Self::Bytes(bytes) => {
+                    if bytes.is_empty() {
+                        consumed += 1;
+                        continue;
+                    }
+                    if len + bytes.len() > 32 {
+                        break;
+                    }
+                    len += bytes.len();
+                    consumed += 1;
+                }
+                Self::Value { size, left_aligned: false, .. } if *size < 32 => {
+                    if *size == 0 {
+                        consumed += 1;
+                        continue;
+                    }
+                    if len + *size > 32 {
+                        break;
+                    }
+                    len += *size;
+                    consumed += 1;
+                    has_value = true;
+                }
+                _ => break,
+            }
+        }
+
+        (consumed >= 2 && len != 0 && has_value).then_some((consumed, len))
+    }
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -75,7 +146,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> Result<ValueId, ErrorGuaranteed> {
         let packed_args = self.collect_packed_abi_args(builder, args)?;
 
-        let data_start = if Self::static_packed_max_write(&packed_args)
+        let data_start = if PackedAbiArg::max_static_write(&packed_args)
             .is_some_and(|end| end <= EvmMemoryLayout::FMP_SLOT as usize)
         {
             builder.imm_u64(0)
@@ -143,8 +214,9 @@ impl<'gcx> Lowerer<'gcx> {
 
             let size = self.get_packed_size_from_expr(arg, ty);
             let left_aligned = self.expr_is_fixed_bytes(arg);
+            let signed = matches!(self.lower_type_from_ty(ty), crate::mir::MirType::Int(_));
             let value = self.lower_value_expr(builder, arg);
-            packed_args.push(PackedAbiArg::Value { value, size, left_aligned });
+            packed_args.push(PackedAbiArg::Value { value, size, left_aligned, signed });
         }
 
         Ok(packed_args)
@@ -243,7 +315,7 @@ impl<'gcx> Lowerer<'gcx> {
                     builder.mstore(dest, value);
                     offset += size as u64;
                 }
-                &PackedAbiArg::Value { value, size, left_aligned } => {
+                &PackedAbiArg::Value { value, size, left_aligned, .. } => {
                     // Less than 32 bytes: the word's top `size` bytes are
                     // written. Fixed-bytes values are already left-aligned;
                     // every other value type is right-aligned and shifts up.
@@ -323,7 +395,7 @@ impl<'gcx> Lowerer<'gcx> {
                     len += bytes.len();
                     consumed += 1;
                 }
-                &PackedAbiArg::Value { value, size, left_aligned: false } if size < 32 => {
+                &PackedAbiArg::Value { value, size, left_aligned: false, signed } if size < 32 => {
                     if size == 0 {
                         consumed += 1;
                         continue;
@@ -332,7 +404,7 @@ impl<'gcx> Lowerer<'gcx> {
                         break;
                     }
                     let shift = (32 - len - size) * 8;
-                    terms.push((value, shift));
+                    terms.push((value, shift, size, signed));
                     len += size;
                     consumed += 1;
                 }
@@ -345,7 +417,12 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         let mut value = builder.imm_u256(const_word);
-        for (term, shift) in terms {
+        for (term, shift, size, signed) in terms {
+            let term = if signed {
+                self.mask_to_bits(builder, term, TypeSize::new_int_bits((size * 8) as u16))
+            } else {
+                term
+            };
             let shifted = if shift == 0 {
                 term
             } else {
@@ -358,75 +435,6 @@ impl<'gcx> Lowerer<'gcx> {
         let dest = self.offset_ptr(builder, base, offset);
         builder.mstore(dest, value);
         Some((consumed, len as u64))
-    }
-
-    fn static_packed_max_write(args: &[PackedAbiArg]) -> Option<usize> {
-        let mut offset = 0usize;
-        let mut max_write = 0usize;
-        let mut i = 0usize;
-
-        while i < args.len() {
-            if let Some((consumed, len)) = Self::static_packed_word_run(&args[i..]) {
-                max_write = max_write.max(offset + 32);
-                offset += len;
-                i += consumed;
-                continue;
-            }
-
-            match &args[i] {
-                PackedAbiArg::Bytes(bytes) => {
-                    for chunk in bytes.chunks(32) {
-                        max_write = max_write.max(offset + 32);
-                        offset += chunk.len();
-                    }
-                }
-                PackedAbiArg::Value { size, .. } => {
-                    max_write = max_write.max(offset + 32);
-                    offset += *size;
-                }
-                PackedAbiArg::DynamicBytes(_) => return None,
-            }
-            i += 1;
-        }
-
-        Some(max_write)
-    }
-
-    fn static_packed_word_run(args: &[PackedAbiArg]) -> Option<(usize, usize)> {
-        let mut len = 0usize;
-        let mut consumed = 0usize;
-        let mut has_value = false;
-
-        for arg in args {
-            match arg {
-                PackedAbiArg::Bytes(bytes) => {
-                    if bytes.is_empty() {
-                        consumed += 1;
-                        continue;
-                    }
-                    if len + bytes.len() > 32 {
-                        break;
-                    }
-                    len += bytes.len();
-                    consumed += 1;
-                }
-                PackedAbiArg::Value { size, left_aligned: false, .. } if *size < 32 => {
-                    if *size == 0 {
-                        consumed += 1;
-                        continue;
-                    }
-                    if len + *size > 32 {
-                        break;
-                    }
-                    len += *size;
-                    consumed += 1;
-                    has_value = true;
-                }
-                _ => break,
-            }
-        }
-
-        (consumed >= 2 && len != 0 && has_value).then_some((consumed, len))
     }
 
     pub(super) fn abi_encode_packed_call_args<'a>(

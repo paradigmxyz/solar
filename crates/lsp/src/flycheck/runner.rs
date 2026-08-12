@@ -1,11 +1,16 @@
 use crate::{
     diagnostics::DiagnosticMap,
-    flycheck::{FlycheckConfig, config::FlycheckOutput, parser},
+    flycheck::{FlycheckConfig, config::FlycheckOutput, parser, parser::SourceSnapshot},
 };
+use crop::Rope;
+use solar_interface::{data_structures::map::FxHashMap, source_map::SourceMap};
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
 use std::{
-    io,
+    fs, io,
+    path::{Path, PathBuf},
     process::{Output, Stdio},
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 use tokio::{
     io::{AsyncRead, AsyncReadExt},
@@ -19,9 +24,19 @@ pub(crate) async fn run(
     config: FlycheckConfig,
     timeout: Duration,
     cancel: oneshot::Receiver<()>,
+    source_paths: Vec<PathBuf>,
 ) -> Result<DiagnosticMap, FlycheckError> {
+    let source_snapshot = disk_source_snapshot(source_paths.clone()).await?;
     let output = command_output(&config, timeout, cancel).await?;
-    let diagnostics = match parse_output(&output, &config) {
+    let current_source_snapshot = disk_source_snapshot(source_paths).await?;
+    let source_snapshot = stable_source_snapshot(source_snapshot, &current_source_snapshot);
+    let (output, diagnostics) = tokio::task::spawn_blocking(move || {
+        let diagnostics = parse_output_with_snapshot(&output, &config, Some(&source_snapshot));
+        (output, diagnostics)
+    })
+    .await
+    .map_err(io::Error::other)?;
+    let diagnostics = match diagnostics {
         Ok(diagnostics) => diagnostics,
         Err(_) if !output.status.success() => return Err(command_failed(&output)),
         Err(error) => return Err(error.into()),
@@ -34,6 +49,84 @@ pub(crate) async fn run(
     Ok(diagnostics)
 }
 
+#[derive(Debug, Default)]
+struct DiskSourceSnapshot {
+    sources: SourceSnapshot,
+    revisions: FxHashMap<PathBuf, FileRevision>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct FileRevision {
+    len: u64,
+    modified: SystemTime,
+    #[cfg(unix)]
+    device: u64,
+    #[cfg(unix)]
+    inode: u64,
+    #[cfg(unix)]
+    ctime: i64,
+    #[cfg(unix)]
+    ctime_nsec: i64,
+}
+
+impl FileRevision {
+    fn read(path: &Path) -> io::Result<Self> {
+        let metadata = fs::metadata(path)?;
+        Ok(Self {
+            len: metadata.len(),
+            modified: metadata.modified()?,
+            #[cfg(unix)]
+            device: metadata.dev(),
+            #[cfg(unix)]
+            inode: metadata.ino(),
+            #[cfg(unix)]
+            ctime: metadata.ctime(),
+            #[cfg(unix)]
+            ctime_nsec: metadata.ctime_nsec(),
+        })
+    }
+}
+
+async fn disk_source_snapshot(paths: Vec<PathBuf>) -> io::Result<DiskSourceSnapshot> {
+    tokio::task::spawn_blocking(move || {
+        let source_map = SourceMap::empty();
+        let mut snapshot = DiskSourceSnapshot::default();
+        for path in paths {
+            let path = parser::normalize_source_path(source_map.file_loader(), path);
+            if let Ok(before) = FileRevision::read(&path)
+                && let Ok(contents) = source_map.file_loader().load_file(&path)
+                && let Ok(after) = FileRevision::read(&path)
+                && before == after
+            {
+                snapshot.revisions.insert(path.clone(), after);
+                snapshot.sources.insert(path, Rope::from(contents));
+            }
+        }
+        snapshot
+    })
+    .await
+    .map_err(io::Error::other)
+}
+
+fn stable_source_snapshot(
+    source_snapshot: DiskSourceSnapshot,
+    current_source_snapshot: &DiskSourceSnapshot,
+) -> SourceSnapshot {
+    let DiskSourceSnapshot { sources, revisions } = source_snapshot;
+    sources
+        .into_iter()
+        .filter(|(path, contents)| {
+            current_source_snapshot
+                .sources
+                .get(path)
+                .is_some_and(|current| current.byte_slice(..) == contents.byte_slice(..))
+                && revisions.get(path).is_some_and(|revision| {
+                    current_source_snapshot.revisions.get(path) == Some(revision)
+                })
+        })
+        .collect()
+}
+
 fn command_failed(output: &Output) -> FlycheckError {
     FlycheckError::Failed {
         status: output.status.code(),
@@ -41,16 +134,25 @@ fn command_failed(output: &Output) -> FlycheckError {
     }
 }
 
+#[cfg(test)]
 fn parse_output(
     output: &Output,
     config: &FlycheckConfig,
 ) -> Result<DiagnosticMap, parser::ParseError> {
+    parse_output_with_snapshot(output, config, None)
+}
+
+fn parse_output_with_snapshot(
+    output: &Output,
+    config: &FlycheckConfig,
+    source_snapshot: Option<&SourceSnapshot>,
+) -> Result<DiagnosticMap, parser::ParseError> {
     if config.output != FlycheckOutput::ForgeLintJson {
-        return parser::parse(&output.stdout, &config.cwd, config.output);
+        return parse_diagnostics(&output.stdout, config, source_snapshot);
     }
 
-    let stdout = parse_json_records(&output.stdout, config);
-    let stderr = parse_json_records(&output.stderr, config);
+    let stdout = parse_json_records(&output.stdout, config, source_snapshot);
+    let stderr = parse_json_records(&output.stderr, config, source_snapshot);
     match (stdout, stderr) {
         (None, None) => Ok(DiagnosticMap::default()),
         (Some(result), None) | (None, Some(result)) => result,
@@ -68,6 +170,7 @@ fn parse_output(
 fn parse_json_records(
     output: &[u8],
     config: &FlycheckConfig,
+    source_snapshot: Option<&SourceSnapshot>,
 ) -> Option<Result<DiagnosticMap, parser::ParseError>> {
     let mut has_json = false;
     let mut has_plain_text = false;
@@ -82,7 +185,7 @@ fn parse_json_records(
         return None;
     }
     if !has_plain_text {
-        return Some(parser::parse(output, &config.cwd, config.output));
+        return Some(parse_diagnostics(output, config, source_snapshot));
     }
 
     let mut json = Vec::new();
@@ -94,7 +197,20 @@ fn parse_json_records(
         }
     }
 
-    (!json.is_empty()).then(|| parser::parse(&json, &config.cwd, config.output))
+    (!json.is_empty()).then(|| parse_diagnostics(&json, config, source_snapshot))
+}
+
+fn parse_diagnostics(
+    output: &[u8],
+    config: &FlycheckConfig,
+    source_snapshot: Option<&SourceSnapshot>,
+) -> Result<DiagnosticMap, parser::ParseError> {
+    match source_snapshot {
+        Some(source_snapshot) => {
+            parser::parse_from_snapshot(output, &config.cwd, config.output, source_snapshot)
+        }
+        None => parser::parse(output, &config.cwd, config.output),
+    }
 }
 
 fn merge_diagnostics(into: &mut DiagnosticMap, diagnostics: DiagnosticMap) {
@@ -165,6 +281,8 @@ mod tests {
     use crate::test_support::process_exists;
     use crate::{config::negotiate_capabilities, test_support::TestProject};
     #[cfg(unix)]
+    use std::os::unix::fs::symlink;
+    #[cfg(unix)]
     use std::os::unix::process::ExitStatusExt;
     #[cfg(windows)]
     use std::os::windows::process::ExitStatusExt;
@@ -223,6 +341,136 @@ mod tests {
         let config = forge_lint_config(&project);
 
         assert!(parse_output(&output, &config).unwrap().is_empty());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn changed_source_files_are_excluded_from_metadata_snapshot() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Test.sol
+            old
+            "#,
+        );
+        let path = project.path("/Test.sol");
+        let before = disk_source_snapshot(vec![path.clone()]).await.unwrap();
+        project.write_file("/Test.sol", "new");
+        let after = disk_source_snapshot(vec![path]).await.unwrap();
+
+        assert!(stable_source_snapshot(before, &after).is_empty());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn source_snapshot_reads_disk_contents() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /src/Test.sol
+            contract Test {}
+            "#,
+        );
+        let path = project.path("/src/Test.sol");
+
+        let snapshot = disk_source_snapshot(vec![path.clone()]).await.unwrap();
+        assert_eq!(snapshot.sources[&path].byte_slice(..), "contract Test {}");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn source_snapshot_parent_components_after_symlinks_follow_filesystem_semantics() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /actual/Target.sol
+            filesystem target
+            //- /actual/nested/.keep
+            keep
+            //- /Target.sol
+            lexical target
+            "#,
+        );
+        symlink(project.path("/actual/nested"), project.path("/link")).unwrap();
+        let path = project.path("/link/../Target.sol");
+        let resolved = project.path("/actual/Target.sol");
+
+        let snapshot = disk_source_snapshot(vec![path]).await.unwrap();
+
+        assert_eq!(snapshot.sources.keys().collect::<Vec<_>>(), [&resolved]);
+        assert_eq!(snapshot.sources[&resolved].byte_slice(..), "filesystem target");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn changed_source_during_flycheck_omits_quick_fix_metadata() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /src/Test.sol
+            contract Test { uint256 old_name; }
+            "#,
+        );
+        let path = project.path("/src/Test.sol");
+        let diagnostic = String::from_utf8(solc_diagnostic("source changed")).unwrap();
+        let config = FlycheckConfig {
+            id: "changing-source".into(),
+            command: "/bin/sh".into(),
+            args: vec![
+                "-c".into(),
+                "printf '%s\\n' 'contract Test { uint256 new_name; }' > \"$1\"; printf '%s\\n' \"$2\""
+                    .into(),
+                "sh".into(),
+                path.display().to_string(),
+                diagnostic,
+            ],
+            cwd: project.root().to_path_buf(),
+            workspace_root: project.root().to_path_buf(),
+            output: FlycheckOutput::SolcJson,
+        };
+        let (_cancel, cancelled) = oneshot::channel();
+
+        let diagnostics =
+            run(config, Duration::from_secs(30), cancelled, vec![path.clone()]).await.unwrap();
+
+        let uri = lsp_types::Url::from_file_path(path).unwrap();
+        assert_eq!(diagnostics[&uri].len(), 1);
+        assert_eq!(diagnostics[&uri][0].message, "source changed");
+        assert!(diagnostics[&uri][0].data.is_none());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn restored_source_during_flycheck_omits_quick_fix_metadata() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /src/Test.sol
+            contract Test { uint256 original; }
+            "#,
+        );
+        let path = project.path("/src/Test.sol");
+        let original = project.read_file("/src/Test.sol");
+        let diagnostic = String::from_utf8(solc_diagnostic("source changed and restored")).unwrap();
+        let config = FlycheckConfig {
+            id: "restored-source".into(),
+            command: "/bin/sh".into(),
+            args: vec![
+                "-c".into(),
+                "printf '%s' 'contract Test { uint256 temporary; }' > \"$1\"; printf '%s\\n' \"$2\"; printf '%s' \"$3\" > \"$1\""
+                    .into(),
+                "sh".into(),
+                path.display().to_string(),
+                diagnostic,
+                original.clone(),
+            ],
+            cwd: project.root().to_path_buf(),
+            workspace_root: project.root().to_path_buf(),
+            output: FlycheckOutput::SolcJson,
+        };
+        let (_cancel, cancelled) = oneshot::channel();
+
+        let diagnostics =
+            run(config, Duration::from_secs(30), cancelled, vec![path.clone()]).await.unwrap();
+
+        assert_eq!(project.read_file("/src/Test.sol"), original);
+        let uri = lsp_types::Url::from_file_path(path).unwrap();
+        assert_eq!(diagnostics[&uri].len(), 1);
+        assert_eq!(diagnostics[&uri][0].message, "source changed and restored");
+        assert!(diagnostics[&uri][0].data.is_none());
     }
 
     fn forge_lint_config(project: &TestProject) -> FlycheckConfig {
@@ -284,7 +532,7 @@ mod tests {
         };
         let (_cancel, cancelled) = oneshot::channel();
 
-        let error = run(config, Duration::from_secs(30), cancelled).await.unwrap_err();
+        let error = run(config, Duration::from_secs(30), cancelled, Vec::new()).await.unwrap_err();
 
         assert!(matches!(
             error,

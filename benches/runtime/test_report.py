@@ -9,17 +9,16 @@ from unittest.mock import patch
 from jsonschema import Draft202012Validator
 
 sys.path.insert(0, str(Path(__file__).parent))
-import check_codegen_benchmark as benchmark
+import report as benchmark
 
 
 SCHEMA = json.loads(
     (Path(__file__).resolve().parents[2] / "benches/schema/benchmark-result-v1.schema.json").read_text()
 )
-DEFAULT_TIMING = object()
 
 
-def result(test_id="test", **compiler):
-    return {"test_id": test_id, "compilers": {"solar": compiler}}
+def result(test_id="test", suite="repository", **compiler):
+    return {"test_id": test_id, "suite": suite, "compilers": {"solar": compiler}}
 
 
 class ReportFormattingTests(unittest.TestCase):
@@ -37,6 +36,18 @@ class ReportFormattingTests(unittest.TestCase):
 
     def test_changed_report_has_no_details(self):
         self.assertEqual(benchmark.format_report("## Results", True, False), "## Results")
+
+    def test_unchanged_report_uses_base_branch(self):
+        report = benchmark.format_report("## Results", False, False, "feat/base")
+        self.assertEqual(
+            report,
+            "> [!NOTE]\n"
+            "> Codegen benchmark output is unchanged from `feat/base`.\n\n"
+            "<details>\n"
+            "<summary>Codegen benchmark output</summary>\n\n"
+            "## Results\n\n"
+            "</details>\n",
+        )
 
     def test_behind_main_report_has_warning(self):
         report = benchmark.format_report("## Results", True, True)
@@ -109,11 +120,11 @@ class ReportFormattingTests(unittest.TestCase):
         )
 
     def test_codegen_report_combines_all_benches(self):
-        micro = result("micro", status="ok", total_gas=10, runtime_size=20)
-        repo = result("repository", status="ok", total_gas=30, runtime_size=40)
-        large = result("large", status="ok", total_gas=50, runtime_size=60)
+        micro = result("micro", suite="micro", status="ok", total_gas=10, runtime_size=20)
+        repository = result("repository", status="ok", total_gas=30, runtime_size=40)
+        large = result("large", suite="large", status="ok", total_gas=50, runtime_size=60)
         report = benchmark.codegen_report(
-            [micro], [repo], [micro], [repo], [large], [large]
+            [micro, repository, large], [micro, repository, large]
         )
         self.assertEqual(
             report,
@@ -126,23 +137,22 @@ class ReportFormattingTests(unittest.TestCase):
             "| large | 50 (~0%) | n/a (n/a) | 60B (~0%) | n/a (n/a) |\n"
         )
 
+    def test_codegen_report_uses_base_branch(self):
+        micro = result("micro", suite="micro", status="ok", total_gas=10, runtime_size=20)
+        self.assertEqual(
+            benchmark.codegen_report([micro], [micro], "feat/base"),
+            "## Codegen benchmark\n"
+            "\n"
+            "| bench | gas (vs feat/base) | solc | size (vs feat/base) | solc |\n"
+            "| ----- | ------------- | ---- | -------------- | ---- |\n"
+            "| micro | 10 (~0%) | n/a (n/a) | 20B (~0%) | n/a (n/a) |\n",
+        )
+
 
 class CommonBenchmarkResultTests(unittest.TestCase):
-    def write_result(
-        self,
-        micro,
-        repo=None,
-        micro_timing=DEFAULT_TIMING,
-        repo_timing=None,
-        large=None,
-        large_timing=None,
-    ):
-        if repo is None:
-            repo = []
-        if large is None:
-            large = []
-        if micro_timing is DEFAULT_TIMING:
-            micro_timing = {"wall_time_seconds": 1.25}
+    def write_result(self, results, timings=None):
+        if timings is None:
+            timings = {"micro": 1.25}
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ,
             {
@@ -156,15 +166,7 @@ class CommonBenchmarkResultTests(unittest.TestCase):
             return_value={"os": "linux", "arch": "x86_64", "logical_cpus": 4},
         ):
             output = Path(directory) / "common.json"
-            benchmark.write_common_result(
-                output,
-                micro,
-                repo,
-                micro_timing,
-                repo_timing,
-                large,
-                large_timing,
-            )
+            benchmark.write_common_result(output, results, timings)
             document = json.loads(output.read_text())
         Draft202012Validator(SCHEMA).validate(document)
         return document
@@ -177,6 +179,7 @@ class CommonBenchmarkResultTests(unittest.TestCase):
                 deploy_gas=20,
                 bytecode_size=30,
                 runtime_size=40,
+                peak_rss_bytes=100,
             ),
             result(
                 status="ok",
@@ -184,9 +187,12 @@ class CommonBenchmarkResultTests(unittest.TestCase):
                 deploy_gas=2,
                 bytecode_size=3,
                 runtime_size=4,
+                peak_rss_bytes=200,
             ),
         ]
-        document = self.write_result(micro)
+        document = self.write_result(
+            [{**entry, "suite": "micro"} for entry in micro]
+        )
         self.assertEqual(
             document,
             {
@@ -236,6 +242,11 @@ class CommonBenchmarkResultTests(unittest.TestCase):
                                 "statistic": "total",
                             },
                         },
+                        "memory": {
+                            "value": 200,
+                            "unit": "byte",
+                            "statistic": "max",
+                        },
                     }
                 ],
             },
@@ -252,7 +263,9 @@ class CommonBenchmarkResultTests(unittest.TestCase):
             ),
             result(status="failed"),
         ]
-        document = self.write_result(compilation_failure)
+        document = self.write_result(
+            [{**entry, "suite": "micro"} for entry in compilation_failure]
+        )
         benchmark_result = document["benchmarks"][0]
         self.assertNotIn("gas", benchmark_result)
         self.assertNotIn("compiler", benchmark_result)
@@ -275,26 +288,30 @@ class CommonBenchmarkResultTests(unittest.TestCase):
         for missing, group, metric_name in cases:
             with self.subTest(missing=missing):
                 incomplete = complete | {missing: None}
-                document = self.write_result([result(**complete), result(**incomplete)])
+                document = self.write_result(
+                    [
+                        {**result(**complete), "suite": "micro"},
+                        {**result(**incomplete), "suite": "micro"},
+                    ]
+                )
                 self.assertNotIn(metric_name, document["benchmarks"][0][group])
 
     def test_omits_suite_without_timing(self):
-        results = [result(status="ok", bytecode_size=1, runtime_size=1)]
+        results = [result(status="ok", bytecode_size=1, runtime_size=1, suite="repo")]
         document = self.write_result(
             results,
-            results,
-            micro_timing=None,
-            repo_timing={"wall_time_seconds": 2.0},
+            {"repo": {"wall_time_seconds": 2.0}},
         )
         self.assertEqual(
             [entry["name"] for entry in document["benchmarks"]],
-            ["codegen_runtime_suite/repo"],
+            ["codegen_runtime_suite/repository"],
         )
 
     def test_writes_large_contract_suite(self):
         results = [
             result(
                 "large",
+                suite="large",
                 status="ok",
                 total_gas=10,
                 deploy_gas=20,
@@ -303,10 +320,8 @@ class CommonBenchmarkResultTests(unittest.TestCase):
             )
         ]
         document = self.write_result(
-            [],
-            micro_timing=None,
-            large=results,
-            large_timing={"wall_time_seconds": 3.5},
+            results,
+            {"large": {"wall_time_seconds": 3.5}},
         )
         self.assertEqual(
             [entry["name"] for entry in document["benchmarks"]],

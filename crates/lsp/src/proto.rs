@@ -1,4 +1,7 @@
-use crate::vfs::{self, VfsPath};
+use crate::{
+    code_actions::{DiagnosticData, DiagnosticSuggestion},
+    vfs::{self, VfsPath},
+};
 use crop::Rope;
 use lsp_types::{
     DiagnosticSeverity, NumberOrString, ServerCapabilities, ServerInfo,
@@ -16,11 +19,19 @@ pub(crate) enum Initialize {}
 
 #[derive(Debug, serde::Serialize)]
 #[serde(transparent)]
-pub(crate) struct InitializeParams(lsp_types::InitializeParams);
+pub(crate) struct InitializeParams {
+    inner: lsp_types::InitializeParams,
+    #[serde(skip)]
+    pull_diagnostic_data_support: bool,
+}
 
 impl InitializeParams {
     pub(crate) fn into_inner(self) -> lsp_types::InitializeParams {
-        self.0
+        self.inner
+    }
+
+    pub(crate) fn pull_diagnostic_data_support(&self) -> bool {
+        self.pull_diagnostic_data_support
     }
 }
 
@@ -30,6 +41,10 @@ impl<'de> serde::Deserialize<'de> for InitializeParams {
         D: serde::Deserializer<'de>,
     {
         let mut value = <serde_json::Value as serde::Deserialize>::deserialize(deserializer)?;
+        let pull_diagnostic_data_support = value
+            .pointer("/capabilities/textDocument/diagnostic/dataSupport")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
         // LSP 3.17 uses `workspace.diagnostics`, while lsp-types 0.95.1 deserializes its
         // `WorkspaceClientCapabilities::diagnostic` field from the singular spelling. Remove this
         // shim after upgrading to an lsp-types version that accepts the plural wire field.
@@ -40,7 +55,7 @@ impl<'de> serde::Deserialize<'de> for InitializeParams {
             workspace.insert("diagnostic".into(), diagnostics);
         }
         <lsp_types::InitializeParams as serde::Deserialize>::deserialize(value)
-            .map(Self)
+            .map(|inner| Self { inner, pull_diagnostic_data_support })
             .map_err(serde::de::Error::custom)
     }
 }
@@ -264,8 +279,9 @@ pub(crate) fn diagnostic(
     source_map: &SourceMap,
     diag: &Diag,
 ) -> Option<(lsp_types::Url, lsp_types::Diagnostic)> {
-    let lsp_types::Location { uri, range } =
-        span_to_location(source_map, diag.span.primary_span()?)?;
+    let primary_span = diag.span.primary_span()?;
+    let lsp_types::Location { uri, range } = span_to_location(source_map, primary_span)?;
+    let data = diagnostic_data(source_map, &uri, primary_span, diag)?;
     Some((
         // SAFETY: currently we only use `FileName::Real`
         uri,
@@ -288,9 +304,50 @@ pub(crate) fn diagnostic(
                     .collect(),
             ),
             tags: None,
-            data: None,
+            data: Some(data),
         },
     ))
+}
+
+fn diagnostic_data(
+    source_map: &SourceMap,
+    uri: &lsp_types::Url,
+    primary_span: Span,
+    diag: &Diag,
+) -> Option<serde_json::Value> {
+    let (file, _) = source_map.span_to_location_info(primary_span);
+    let file = file?;
+    let suggestions = diag
+        .suggestions
+        .iter()
+        .filter_map(|suggestion| {
+            let alternatives = suggestion
+                .substitutions
+                .iter()
+                .filter_map(|substitution| {
+                    substitution
+                        .parts
+                        .iter()
+                        .map(|part| {
+                            let location = span_to_location(source_map, part.span)?;
+                            (location.uri == *uri).then(|| {
+                                lsp_types::TextEdit::new(location.range, part.snippet.to_string())
+                            })
+                        })
+                        .collect::<Option<Vec<_>>>()
+                        .filter(|edits| !edits.is_empty())
+                })
+                .collect::<Vec<_>>();
+            (!alternatives.is_empty()).then(|| {
+                DiagnosticSuggestion::new(
+                    suggestion.msg.to_string(),
+                    suggestion.applicability,
+                    alternatives,
+                )
+            })
+        })
+        .collect();
+    Some(DiagnosticData::new(uri.clone(), &file.src, suggestions).to_value())
 }
 
 pub(crate) fn span_to_location(source_map: &SourceMap, span: Span) -> Option<lsp_types::Location> {
@@ -343,6 +400,10 @@ mod tests {
     use super::{checked_text_range, position_at_byte};
     use crop::Rope;
     use lsp_types::{Position, Range, request::Request};
+    use solar_interface::{
+        BytePos, SourceMap, Span,
+        diagnostics::{Applicability, Diag, DiagMsg, Level},
+    };
 
     fn diagnostic_refresh_support(workspace: serde_json::Value) -> Option<bool> {
         let params: <super::Initialize as Request>::Params =
@@ -392,6 +453,96 @@ mod tests {
                 expected
             );
         }
+    }
+
+    #[test]
+    fn initialize_params_preserve_pull_diagnostic_data_support() {
+        for (data_support, expected) in [(None, false), (Some(false), false), (Some(true), true)] {
+            let diagnostic =
+                data_support.map(|data_support| serde_json::json!({ "dataSupport": data_support }));
+            let params: <super::Initialize as Request>::Params =
+                serde_json::from_value(serde_json::json!({
+                    "capabilities": { "textDocument": { "diagnostic": diagnostic } }
+                }))
+                .unwrap();
+
+            assert_eq!(params.pull_diagnostic_data_support(), expected);
+        }
+    }
+
+    #[test]
+    fn diagnostic_preserves_structured_suggestion_alternatives() {
+        let source = "contract Test {\n    function f() public view {}\n}\n";
+        let source_map = SourceMap::empty();
+        let file = source_map
+            .new_source_file(std::env::temp_dir().join("StructuredSuggestion.sol"), source)
+            .unwrap();
+        let named_span = |name: &str| {
+            let start = source.find(name).unwrap();
+            Span::new(
+                file.start_pos + BytePos::from_usize(start),
+                file.start_pos + BytePos::from_usize(start + name.len()),
+            )
+        };
+        let name = named_span("f");
+        let public = named_span("public");
+        let view = named_span("view");
+        let mut diagnostic = Diag::new(Level::Warning, "inefficient function");
+        diagnostic.span(name).multipart_suggestions(
+            "change visibility and mutability",
+            [
+                vec![(public, DiagMsg::from("external")), (view, DiagMsg::from("pure"))],
+                vec![(public, DiagMsg::from("internal")), (view, DiagMsg::from("payable"))],
+            ],
+            Applicability::MaybeIncorrect,
+        );
+
+        let (_, diagnostic) = super::diagnostic(&source_map, &diagnostic).unwrap();
+        let data = diagnostic.data.expect("structured suggestions should be preserved");
+
+        assert_eq!(data["version"], serde_json::json!(1));
+        assert_eq!(data["sourceFingerprint"], crate::code_actions::source_fingerprint(source));
+        assert_eq!(
+            data["suggestions"],
+            serde_json::json!([{
+                "title": "change visibility and mutability",
+                "applicability": "MaybeIncorrect",
+                "alternatives": [
+                    [
+                        {
+                            "range": {
+                                "start": { "line": 1, "character": 17 },
+                                "end": { "line": 1, "character": 23 }
+                            },
+                            "newText": "external"
+                        },
+                        {
+                            "range": {
+                                "start": { "line": 1, "character": 24 },
+                                "end": { "line": 1, "character": 28 }
+                            },
+                            "newText": "pure"
+                        }
+                    ],
+                    [
+                        {
+                            "range": {
+                                "start": { "line": 1, "character": 17 },
+                                "end": { "line": 1, "character": 23 }
+                            },
+                            "newText": "internal"
+                        },
+                        {
+                            "range": {
+                                "start": { "line": 1, "character": 24 },
+                                "end": { "line": 1, "character": 28 }
+                            },
+                            "newText": "payable"
+                        }
+                    ]
+                ]
+            }])
+        );
     }
 
     #[test]

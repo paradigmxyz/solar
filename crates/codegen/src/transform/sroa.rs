@@ -196,8 +196,9 @@ impl SroaCx {
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
         for &inst_id in &block.instructions {
             match func.inst(inst_id).kind {
-                InstKind::MStore(addr, value) if slot_of.contains_key(&addr) => {
-                    current.insert(slot_of[&addr], Some(value));
+                InstKind::MStore(addr, value) => {
+                    let Some(&slot) = slot_of.get(&addr) else { continue };
+                    current.insert(slot, Some(value));
                     dead.insert(inst_id);
                 }
                 InstKind::MemoryZero(base, _) if base == object => {
@@ -205,10 +206,11 @@ impl SroaCx {
                     current.extend((0..words).map(|slot| (slot, None)));
                     dead.insert(inst_id);
                 }
-                InstKind::MLoad(addr) if slot_of.contains_key(&addr) => {
+                InstKind::MLoad(addr) => {
+                    let Some(&slot) = slot_of.get(&addr) else { continue };
                     // A load with no dominating store observes uninitialized or
                     // zeroed memory; keep the allocation rather than guess.
-                    let value = current.get(&slot_of[&addr]).copied()?;
+                    let value = current.get(&slot).copied()?;
                     if let Some(result) = func.inst_result_value(inst_id) {
                         replacements.insert(result, value);
                     }

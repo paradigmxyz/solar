@@ -23,7 +23,7 @@
       stop
 + }
 + 
-+ fn @entry() {
++ fn @entry() [entry] {
 +   bb0:
 +     jump bb1
 +   bb1:

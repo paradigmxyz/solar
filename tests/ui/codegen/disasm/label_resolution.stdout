@@ -1,6 +1,7 @@
 // === label_resolution (runtime) ===
+; bb0
 JUMPDEST
 PUSH1 0x01
 ISZERO
-PUSH0
+PUSH0 ; bb0
 JUMPI

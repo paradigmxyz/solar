@@ -33,6 +33,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 mod call_hierarchy;
+mod code_action;
 mod code_lens;
 mod completion;
 mod completion_resolve;
@@ -44,6 +45,8 @@ mod goto_definition;
 mod hover;
 mod implementation;
 mod inlay_hint;
+#[path = "protocol_trace.rs"]
+mod protocol_trace_tests;
 mod references;
 mod refresh;
 mod rename;
@@ -52,6 +55,7 @@ mod signature_help;
 mod support;
 mod type_definition;
 mod type_hierarchy;
+mod workspace_diagnostic;
 
 const ASYNC_TEST_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -210,14 +214,19 @@ fn analysis_result_accumulator_preserves_single_batch_indexes() {
 
 #[test]
 fn analysis_result_accumulator_merges_multiple_batches() {
+    let one_path = std::env::temp_dir().join("One.sol");
+    let two_path = std::env::temp_dir().join("Two.sol");
+    let one_uri = Url::from_file_path(&one_path).unwrap();
+    let two_uri = Url::from_file_path(&two_path).unwrap();
     let mut first = analyze(AnalysisBatch::from_files(
         CompileOpts::default(),
-        [(std::env::temp_dir().join("One.sol"), "contract One {}".into())],
+        [(one_path, "contract One {}".into())],
     ));
     let mut second = analyze(AnalysisBatch::from_files(
         CompileOpts::default(),
-        [(std::env::temp_dir().join("Two.sol"), "contract Two {}".into())],
+        [(two_path, "contract Two {}".into())],
     ));
+    second.analyzed_documents.insert(one_uri.clone(), Some(7));
     let uri = diagnostic_uri();
     first.diagnostics.insert(uri.clone(), vec![diagnostic("first")]);
     second.diagnostics.insert(uri.clone(), vec![diagnostic("second")]);
@@ -242,6 +251,39 @@ fn analysis_result_accumulator_merges_multiple_batches() {
         .collect::<Vec<_>>();
     names.sort_unstable();
     assert_eq!(names, vec!["One".to_owned(), "Two".to_owned()]);
+    assert_eq!(
+        result.analyzed_documents,
+        AnalyzedDocuments::from_iter([(one_uri, Some(7)), (two_uri, None)])
+    );
+}
+
+#[test]
+fn analysis_collects_open_versions_and_loaded_dependencies() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Main.sol open
+        import "./Dependency.sol";
+        contract Main is Dependency {}
+
+        //- /Dependency.sol
+        contract Dependency {}
+        "#,
+    );
+    let main_path = project.path("/Main.sol");
+    let main_uri = Url::from_file_path(&main_path).unwrap();
+    let dependency_uri = Url::from_file_path(project.path("/Dependency.sol")).unwrap();
+    let mut batches =
+        snapshot_with_config(Config::default(), project.vfs()).analysis_batches(Vec::new());
+    let batch = batches.pop().unwrap();
+    assert!(batches.is_empty());
+
+    let result = analyze(batch);
+
+    assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+    assert_eq!(
+        result.analyzed_documents,
+        AnalyzedDocuments::from_iter([(main_uri, Some(0)), (dependency_uri, None)])
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -280,6 +322,7 @@ async fn analysis_updates_refresh_code_lenses_only_when_active() {
     assert!(state.snapshot().publish_analysis(
         0,
         AnalysisResult {
+            analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
             symbol_tables: SymbolTables::default(),
         },
@@ -309,6 +352,7 @@ async fn analysis_updates_refresh_code_lenses_only_when_active() {
     assert!(state.snapshot().publish_analysis(
         1,
         AnalysisResult {
+            analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
             symbol_tables: SymbolTables::default(),
         },
@@ -389,6 +433,7 @@ fn document_diagnostic_waits_for_committed_analysis_diagnostics() {
     assert!(snapshot.publish_analysis(
         1,
         AnalysisResult {
+            analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::from_iter([(uri, vec![diagnostic("current")])]),
             symbol_tables: SymbolTables::default(),
         },
@@ -903,6 +948,7 @@ async fn superseded_analysis_cannot_publish_or_end_latest_progress() {
     stale_progress.report("stale report");
     stale_progress.finish("stale end");
     let stale_result = AnalysisResult {
+        analyzed_documents: AnalyzedDocuments::default(),
         diagnostics: DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("stale")])]),
         symbol_tables: SymbolTables::default(),
     };
@@ -910,6 +956,7 @@ async fn superseded_analysis_cannot_publish_or_end_latest_progress() {
     assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
 
     let latest_result = AnalysisResult {
+        analyzed_documents: AnalyzedDocuments::default(),
         diagnostics: DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("current")])]),
         symbol_tables: SymbolTables::default(),
     };

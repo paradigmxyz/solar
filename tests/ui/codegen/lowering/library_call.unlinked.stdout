@@ -5,11 +5,7 @@ bb0:
   push 64
   mstore
   callvalue
-  push bb4
-  jumpi
-  calldatasize
-  iszero
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -18,14 +14,14 @@ bb0:
   dup1
   push 0xed2f0bb8
   eq
-  push bb5
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
+  jump bb3
+bb3 [cold]:
   push 0
   dup1
   revert
-bb11 [cold]:
+bb10 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -37,14 +33,14 @@ bb11 [cold]:
   push 36
   push 0
   revert
-bb5:
+bb4:
   calldatasize
   push 4
   swap1
   sub
   push 96
   sgt
-  push bb4
+  push bb3
   jumpi
   push 36
   calldataload
@@ -55,7 +51,7 @@ bb5:
   dup2
   and
   sub
-  push bb4
+  push bb3
   jumpi
   push 36
   calldataload
@@ -71,7 +67,6 @@ bb5:
   dup1
   push 192
   mstore
-  dup1
   sload
   push 68
   calldataload
@@ -81,9 +76,7 @@ bb5:
   push 160
   mstore
   lt
-  swap1
-  pop
-  push bb11
+  push bb10
   jumpi
   push 160
   mload
@@ -102,7 +95,7 @@ bb5:
   push 160
   mstore
   lt
-  push bb11
+  push bb10
   jumpi
   push 160
   mload
@@ -114,15 +107,11 @@ bb5:
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 512
+  push 352
   push 64
   mstore
   callvalue
-  push bb4
-  jumpi
-  calldatasize
-  iszero
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -131,14 +120,14 @@ bb0:
   dup1
   push 0x3dd41ca6
   eq
-  push bb5
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
+  jump bb3
+bb3 [cold]:
   push 0
   dup1
   revert
-bb13 [cold]:
+bb12 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -150,14 +139,14 @@ bb13 [cold]:
   push 36
   push 0
   revert
-bb5:
+bb4:
   calldatasize
   push 4
   swap1
   sub
   push 64
   sgt
-  push bb4
+  push bb3
   jumpi
   push 4
   calldataload
@@ -168,25 +157,25 @@ bb5:
   dup2
   and
   sub
-  push bb4
+  push bb3
   jumpi
   push 0
-  push 320
+  push 192
   mstore
   push 4
   calldataload
-  push 352
+  push 224
   mstore
   push 36
   calldataload
-  push 384
+  push 256
   mstore
-  push bb8
-  push 352
+  push bb7
+  push 224
   mload
   push 0
   mstore
-  push 320
+  push 192
   mload
   push 32
   mstore
@@ -194,28 +183,25 @@ bb5:
   push 0
   keccak256
   dup1
-  push 480
+  push 320
   mstore
-  dup1
   sload
-  push 384
+  push 256
   mload
   dup2
   add
   dup1
-  push 448
+  push 288
   mstore
   lt
-  swap1
-  pop
-  push bb13
+  push bb12
   jumpi
-  push 448
+  push 288
   mload
-  push 480
+  push 320
   mload
   sstore
-  push 480
+  push 320
   mload
   sload
   caller
@@ -224,21 +210,18 @@ bb5:
   dup2
   add
   dup1
-  push 448
+  push 288
   mstore
   lt
-  push bb13
+  push bb12
   jumpi
-  push 448
+  push 288
   mload
-  push 416
-  mstore
+  swap1
   jump
-bb8:
-  push 416
-  mload
+bb7:
   dup1
-  push 224
+  push 160
   mstore
   push 128
   mstore

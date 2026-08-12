@@ -64,6 +64,33 @@ enum AbiWordValidator {
     EnumRange(u64),
 }
 
+impl AbiWordValidator {
+    /// Builds the condition that accepts a canonical ABI word.
+    fn condition(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
+        match self {
+            Self::Mask(mask) => {
+                let mask = builder.imm_u256(mask);
+                let canonical = builder.and(word, mask);
+                builder.eq(word, canonical)
+            }
+            Self::SignExtend(byte_index) => {
+                let byte_index = builder.imm_u64(byte_index);
+                let canonical = builder.signextend(byte_index, word);
+                builder.eq(word, canonical)
+            }
+            Self::Bool => {
+                let is_zero = builder.iszero(word);
+                let canonical = builder.iszero(is_zero);
+                builder.eq(word, canonical)
+            }
+            Self::EnumRange(count) => {
+                let count = builder.imm_u64(count);
+                builder.lt(word, count)
+            }
+        }
+    }
+}
+
 enum ConstructorArguments {
     Resolving,
     Resolved(SmallVec<[ValueId; 4]>),
@@ -73,6 +100,29 @@ enum ConstructorArguments {
 enum AbiParamSource {
     ExternalCalldata,
     ConstructorMemory,
+}
+
+impl AbiParamSource {
+    fn load(
+        self,
+        lowerer: &mut Lowerer<'_>,
+        builder: &mut FunctionBuilder<'_>,
+        arg_index: u64,
+    ) -> ValueId {
+        match self {
+            Self::ExternalCalldata => {
+                // Runtime ABI encoding: selector (4 bytes) + one head word per parameter.
+                let offset = builder.imm_u64(4 + arg_index * EvmMemoryLayout::WORD_SIZE);
+                builder.calldataload(offset)
+            }
+            Self::ConstructorMemory => {
+                let base = lowerer.constructor_args_base(builder);
+                let offset = builder.imm_u64(arg_index * EvmMemoryLayout::WORD_SIZE);
+                let address = builder.add(base, offset);
+                builder.mload(address)
+            }
+        }
+    }
 }
 
 /// Where an inlined callee's `return` statements deliver their values: each
@@ -152,7 +202,7 @@ pub(crate) struct Lowerer<'gcx> {
     /// Stack of function IDs currently being inlined (for cycle detection).
     inline_stack: Vec<HirFunctionId>,
     /// Expression error-checking states suspended at inline function boundaries.
-    inline_expr_error_checks: Vec<bool>,
+    inline_expr_error_checks: u32,
     /// HIR functions already lowered into this MIR module.
     hir_to_mir_functions: FxHashMap<HirFunctionId, FunctionId>,
     /// Internal-convention copies of public functions, lowered on demand so that
@@ -195,6 +245,22 @@ pub(crate) struct Lowerer<'gcx> {
 }
 
 impl<'gcx> Lowerer<'gcx> {
+    /// Returns an existing error guarantee or emits a codegen diagnostic when
+    /// lowering encounters invalid HIR without a prior error.
+    pub(super) fn recovery_error(
+        &self,
+        span: Option<Span>,
+        msg: impl Into<DiagMsg>,
+    ) -> ErrorGuaranteed {
+        match self.gcx.dcx().has_errors() {
+            Err(guar) => guar,
+            Ok(()) => {
+                let diag = self.gcx.dcx().err(msg);
+                if let Some(span) = span { diag.span(span).emit() } else { diag.emit() }
+            }
+        }
+    }
+
     /// Reports a lowering error and returns the error sentinel value carrying
     /// the emitted diagnostic's guarantee, mirroring HIR's error types.
     pub(super) fn err_value(
@@ -240,7 +306,7 @@ impl<'gcx> Lowerer<'gcx> {
             hir_has_errors,
             storage_ref_locals: GrowableBitSet::new_empty(),
             inline_stack: Vec::new(),
-            inline_expr_error_checks: Vec::new(),
+            inline_expr_error_checks: 0,
             hir_to_mir_functions: FxHashMap::default(),
             hir_to_internal_mir_functions: FxHashMap::default(),
             recursive_functions: FxHashMap::default(),
@@ -291,16 +357,18 @@ impl<'gcx> Lowerer<'gcx> {
             return false;
         }
         self.inline_stack.push(func_id);
-        self.inline_expr_error_checks
-            .push(std::mem::replace(&mut self.check_expr_errors, self.hir_has_errors));
+        self.inline_expr_error_checks <<= 1;
+        self.inline_expr_error_checks |=
+            u32::from(std::mem::replace(&mut self.check_expr_errors, self.hir_has_errors));
         true
     }
 
     /// Exits inlining for a function.
     fn exit_inline(&mut self) {
-        self.inline_stack.pop();
-        self.check_expr_errors =
-            self.inline_expr_error_checks.pop().expect("inline expression state stack underflow");
+        let popped = self.inline_stack.pop();
+        debug_assert!(popped.is_some());
+        self.check_expr_errors = self.inline_expr_error_checks & 1 != 0;
+        self.inline_expr_error_checks >>= 1;
     }
 
     /// Allocates a memory slot for a local variable.
@@ -580,6 +648,7 @@ impl<'gcx> Lowerer<'gcx> {
             is_constructor: true,
             is_fallback: false,
             is_receive: false,
+            is_dispatch_entry: false,
             no_inline: false,
         };
 
@@ -647,8 +716,11 @@ impl<'gcx> Lowerer<'gcx> {
                 // Constants are inlined. Immutables are patched into typed
                 // runtime-code `PUSH<N>` placeholders at deploy time.
                 if var.is_state_variable() && var.is_immutable() {
+                    let Some(name) = var.name else {
+                        self.recovery_error(Some(var.span), "state immutable must be named");
+                        continue;
+                    };
                     let ty = self.lower_type_from_var(var_id);
-                    let name = var.name.expect("state immutable must be named");
                     let id = self.module.add_immutable(name, ty, Some(var_id));
                     self.immutable_ids.insert(var_id, id);
                 } else if var.is_state_variable() && !var.is_constant() {
@@ -926,6 +998,7 @@ impl<'gcx> Lowerer<'gcx> {
             is_constructor: hir_func.kind == hir::FunctionKind::Constructor,
             is_fallback: hir_func.kind == hir::FunctionKind::Fallback,
             is_receive: hir_func.kind == hir::FunctionKind::Receive,
+            is_dispatch_entry: false,
             no_inline: false,
         };
 
@@ -1092,24 +1165,28 @@ impl<'gcx> Lowerer<'gcx> {
                     );
 
                     // Add MIR params for each struct field (they come from calldata)
-                    for field_idx in 0..field_ids.len() {
-                        let sema_field_ty = field_tys.get(field_idx).copied();
+                    for (field_idx, &field_id) in field_ids.iter().enumerate() {
+                        let Some(&sema_field_ty) = field_tys.get(field_idx) else {
+                            self.recovery_error(
+                                Some(self.gcx.hir.variable(field_id).span),
+                                "codegen cannot determine this struct field's type",
+                            );
+                            continue;
+                        };
 
                         // A nested static aggregate (struct or fixed array)
                         // occupies several inline head words and is stored as a
                         // pointer to its own allocation. Consume its head words
                         // so following fields slot correctly and rebuild it
                         // recursively from the head region.
-                        if let Some(field_ty) = sema_field_ty
-                            && matches!(
-                                field_ty.peel_refs().kind,
-                                TyKind::Struct(_) | TyKind::Array(..) | TyKind::Tuple(_)
-                            )
-                        {
+                        if matches!(
+                            sema_field_ty.peel_refs().kind,
+                            TyKind::Struct(_) | TyKind::Array(..) | TyKind::Tuple(_)
+                        ) {
                             // Struct field types carry a storage location ref;
                             // peel it so head sizing sees the value type
                             // instead of collapsing to one slot.
-                            let field_ty = field_ty.peel_refs();
+                            let field_ty = sema_field_ty.peel_refs();
                             let first_word = builder.func().params.len() as u64;
                             let head_words = match self.abi_head_size(field_ty) {
                                 Ok(size) => size / EvmMemoryLayout::WORD_SIZE,
@@ -1149,7 +1226,7 @@ impl<'gcx> Lowerer<'gcx> {
                         self.emit_abi_param_validation(
                             &mut builder,
                             arg_index,
-                            field_tys[field_idx],
+                            sema_field_ty,
                             abi_param_source,
                         );
 
@@ -1158,46 +1235,31 @@ impl<'gcx> Lowerer<'gcx> {
                         // `[len][data...]` tail into fresh memory so the body
                         // sees an ordinary memory array/bytes. (A raw word
                         // would be a caller-memory pointer, meaningless here.)
-                        let stored_val =
-                            match field_tys.get(field_idx).and_then(|&f| self.linked_field_kind(f))
-                            {
-                                Some(
-                                    kind @ (call::LinkedFieldKind::DynArray
-                                    | call::LinkedFieldKind::DynBytes),
-                                ) => {
-                                    let four = builder.imm_u64(4);
-                                    let pos = builder.add(four, field_val);
-                                    let len = builder.calldataload(pos);
-                                    let word = builder.imm_u64(32);
-                                    let byte_len = if kind == call::LinkedFieldKind::DynBytes {
-                                        let thirty_one = builder.imm_u64(31);
-                                        let padded = builder.add(len, thirty_one);
-                                        let mask = builder.imm_u256(U256::MAX - U256::from(31));
-                                        builder.and(padded, mask)
-                                    } else {
-                                        builder.mul(len, word)
-                                    };
-                                    let alloc = builder.add(word, byte_len);
-                                    let object_layout = if kind == call::LinkedFieldKind::DynBytes {
-                                        crate::mir::MemoryObjectLayout::Bytes
-                                    } else {
-                                        crate::mir::MemoryObjectLayout::DynamicArray {
-                                            element_words: 1,
-                                        }
-                                    };
-                                    let ptr = builder.alloc_object(
-                                        alloc,
-                                        object_layout,
-                                        crate::mir::AllocationSemantics::INTERNAL,
-                                    );
-                                    builder.set_memory_object_len(ptr, len, object_layout.kind());
-                                    let dst = builder.memory_object_data(ptr, object_layout.kind());
-                                    let src = builder.add(pos, word);
-                                    builder.calldatacopy(dst, src, byte_len);
-                                    ptr
-                                }
-                                _ => field_val,
-                            };
+                        let stored_val = match self.linked_field_kind(sema_field_ty) {
+                            Some(
+                                kind @ (call::LinkedFieldKind::DynArray
+                                | call::LinkedFieldKind::DynBytes),
+                            ) => {
+                                let four = builder.imm_u64(4);
+                                let pos = builder.add(four, field_val);
+                                let len = builder.calldataload(pos);
+                                let word = builder.imm_u64(32);
+                                let byte_len = kind.data_size(&mut builder, len, word);
+                                let alloc = builder.add(word, byte_len);
+                                let object_layout = kind.memory_object_layout();
+                                let ptr = builder.alloc_object(
+                                    alloc,
+                                    object_layout,
+                                    crate::mir::AllocationSemantics::INTERNAL,
+                                );
+                                builder.set_memory_object_len(ptr, len, object_layout.kind());
+                                let dst = builder.memory_object_data(ptr, object_layout.kind());
+                                let src = builder.add(pos, word);
+                                builder.calldatacopy(dst, src, byte_len);
+                                ptr
+                            }
+                            _ => field_val,
+                        };
 
                         // Store the field value into the struct memory
                         let field_addr = builder.memory_object_field_addr(
@@ -1541,27 +1603,7 @@ impl<'gcx> Lowerer<'gcx> {
         word: ValueId,
         validator: AbiWordValidator,
     ) {
-        let ok = match validator {
-            AbiWordValidator::Mask(mask) => {
-                let mask = builder.imm_u256(mask);
-                let canonical = builder.and(word, mask);
-                builder.eq(word, canonical)
-            }
-            AbiWordValidator::SignExtend(byte_index) => {
-                let byte_index = builder.imm_u64(byte_index);
-                let canonical = builder.signextend(byte_index, word);
-                builder.eq(word, canonical)
-            }
-            AbiWordValidator::Bool => {
-                let is_zero = builder.iszero(word);
-                let canonical = builder.iszero(is_zero);
-                builder.eq(word, canonical)
-            }
-            AbiWordValidator::EnumRange(count) => {
-                let count = builder.imm_u64(count);
-                builder.lt(word, count)
-            }
-        };
+        let ok = validator.condition(builder, word);
         Self::emit_revert_unless(builder, ok);
     }
 
@@ -1587,19 +1629,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         let Some(validator) = self.abi_word_validator(ty) else { return };
 
-        let word = match source {
-            AbiParamSource::ExternalCalldata => {
-                // Runtime ABI encoding: selector (4 bytes) + one head word per parameter.
-                let offset = builder.imm_u64(4 + arg_index * EvmMemoryLayout::WORD_SIZE);
-                builder.calldataload(offset)
-            }
-            AbiParamSource::ConstructorMemory => {
-                let base = self.constructor_args_base(builder);
-                let offset = builder.imm_u64(arg_index * EvmMemoryLayout::WORD_SIZE);
-                let address = builder.add(base, offset);
-                builder.mload(address)
-            }
-        };
+        let word = source.load(self, builder, arg_index);
         self.emit_abi_word_clean_check(builder, word, validator);
     }
 
@@ -1699,7 +1729,11 @@ impl<'gcx> Lowerer<'gcx> {
                 let Some(ConstructorArguments::Resolved(arg_values)) =
                     constructor_args.get(&base_id)
                 else {
-                    unreachable!("base constructor arguments were not resolved")
+                    self.recovery_error(
+                        Some(self.gcx.hir.contract(base_id).span),
+                        "base constructor arguments were not resolved",
+                    );
+                    return;
                 };
                 self.lower_base_constructor_call(builder, ctor_id, arg_values);
             }
@@ -1769,12 +1803,12 @@ impl<'gcx> Lowerer<'gcx> {
             self.lower_base_constructor_arguments(builder, contract_id, declaring_id, values)?;
         }
 
-        let ctor_id = self
-            .gcx
-            .hir
-            .contract(base_id)
-            .ctor
-            .expect("base constructor argument provider without constructor");
+        let Some(ctor_id) = self.gcx.hir.contract(base_id).ctor else {
+            return Err(self.recovery_error(
+                Some(modifier.span),
+                "base constructor arguments require a constructor",
+            ));
+        };
         let parameters = self.gcx.hir.function(ctor_id).parameters;
         if modifier.args.len() != parameters.len() {
             return Err(self

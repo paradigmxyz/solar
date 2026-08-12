@@ -1,0 +1,229 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=dce
+//@[gas] filecheck: --check-prefixes=COMMON,GAS
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=dce
+//@[size] filecheck: --check-prefixes=COMMON,SIZE
+@module module
+
+// Eliminate a dead saved value across an arbitrary straight-line region.
+// COMMON-LABEL: {{^[ +].*}}bb0:
+// COMMON: -   dup1
+// COMMON: {{^[ +].*}}mload
+// COMMON: {{^[ +].*}}mstore
+// COMMON: -   pop
+bb0:
+  push 7
+  dup1
+  push 160
+  mload
+  push 128
+  add
+  mstore
+  pop
+  stop
+
+// Preserve the produced value while removing the dead saved operand.
+// COMMON-LABEL: {{^[ +].*}}bb1:
+// COMMON: -   dup1
+// COMMON: {{^[ +].*}}add
+// COMMON: -   swap1
+// COMMON: -   pop
+bb1:
+  push 7
+  dup1
+  push 1
+  add
+  swap1
+  pop
+  push 0
+  mstore
+  stop
+
+// Keep one copy needed for multiple uses, but elide the dead preservation.
+// COMMON-LABEL: {{^[ +].*}}bb2:
+// COMMON: {{^[ +].*}}dup1
+// COMMON: -   dup1
+// COMMON: {{^[ +].*}}push 32
+// COMMON: {{^[ +].*}}push 64
+// COMMON: -   pop
+bb2:
+  push 7
+  dup1
+  dup1
+  push 32
+  mstore
+  push 64
+  mstore
+  pop
+  stop
+
+// Retarget a read of the omitted original to its remaining alias.
+// GAS-LABEL: {{^[ +].*}}bb3:
+// GAS: {{^[ +].*}}dup1
+// GAS: -   dup2
+// GAS: -   swap1
+// SIZE-LABEL: {{^[ +].*}}bb3:
+// SIZE: {{^[ +].*}}dup1
+// SIZE-NEXT: {{^[ +].*}}dup2
+// SIZE: {{^[ +].*}}swap1
+bb3:
+  push 1
+  push 2
+  dup1
+  dup2
+  add
+  swap1
+  pop
+  pop
+  stop
+
+// Elide a permutation that only moves the omitted original.
+// COMMON-LABEL: {{^[ +].*}}bb4:
+// COMMON: -   dup1
+// COMMON: -   swap1
+// COMMON: -   pop
+bb4:
+  push 1
+  dup1
+  swap1
+  push 32
+  mstore
+  pop
+  stop
+
+// Do not scan through physical control flow.
+// COMMON-LABEL: {{^[ +].*}}bb5:
+// COMMON: {{^[ +].*}}dup1
+// COMMON: {{^[ +].*}}jumpi
+bb5:
+  push 1
+  dup1
+  push bb6
+  jumpi
+  pop
+  stop
+
+bb6:
+  stop
+
+// Keep a saved value when no matching discard exists.
+// COMMON-LABEL: {{^[ +].*}}bb7:
+// COMMON: {{^[ +].*}}dup1
+// COMMON: {{^[ +].*}}mstore
+bb7:
+  push 7
+  dup1
+  push 32
+  mstore
+  stop
+
+// Preserve two results with one shallower swap.
+// COMMON-LABEL: {{^[ +].*}}bb8:
+// COMMON: -   dup1
+// COMMON: -   swap2
+// COMMON: +   swap1
+// COMMON: -   pop
+bb8:
+  push 7
+  dup1
+  pop
+  caller
+  callvalue
+  swap2
+  pop
+  pop
+  pop
+  stop
+
+// Prefer removing an immediately discarded copy over rotating three results.
+// COMMON-LABEL: {{^[ +].*}}bb9:
+// COMMON: -   dup1
+// COMMON: -   pop
+// COMMON: {{^[ +].*}}swap3
+bb9:
+  push 7
+  dup1
+  pop
+  caller
+  callvalue
+  origin
+  swap3
+  pop
+  pop
+  pop
+  pop
+  stop
+
+// Remove an unused non-top stack copy and its cleanup permutation.
+// COMMON-LABEL: {{^[ +].*}}bb10:
+// COMMON: -   dup2
+// COMMON: -   swap1
+bb10:
+  push 1
+  push 2
+  dup2
+  swap1
+  pop
+  pop
+  stop
+
+// Adjust a deeper read across the omitted original.
+// GAS-LABEL: {{^[ +].*}}bb11:
+// GAS: -   dup1
+// GAS: -   dup3
+// GAS: +   dup2
+// SIZE-LABEL: {{^[ +].*}}bb11:
+// SIZE: {{^[ +].*}}dup1
+// SIZE: {{^[ +].*}}dup3
+bb11:
+  push 7
+  dup1
+  push 1
+  dup3
+  add
+  pop
+  pop
+  pop
+  stop
+
+// Keep a copy when an ordinary operation consumes both occurrences.
+// COMMON-LABEL: {{^[ +].*}}bb12:
+// COMMON: {{^[ +].*}}dup1
+// COMMON: {{^[ +].*}}add
+bb12:
+  push 7
+  dup1
+  add
+  pop
+  stop
+
+// Reject a rotation that saves no size and increases gas.
+// COMMON-LABEL: {{^[ +].*}}bb13:
+// COMMON: {{^[ +].*}}dup1
+// COMMON: {{^[ +].*}}swap4
+bb13:
+  push 7
+  dup1
+  iszero
+  caller
+  callvalue
+  origin
+  swap4
+  pop
+  pop
+  pop
+  pop
+  stop
+
+// Keep a deeper copy when it is consumed as an operand.
+// COMMON-LABEL: {{^[ +].*}}bb14:
+// COMMON: {{^[ +].*}}dup2
+// COMMON: {{^[ +].*}}add
+bb14:
+  push 1
+  push 2
+  dup2
+  add
+  pop
+  pop
+  stop

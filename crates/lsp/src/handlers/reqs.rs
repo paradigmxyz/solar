@@ -1,34 +1,89 @@
-use super::workspace_edit::validated_rename_workspace_edit;
+use super::workspace_edit::{validated_code_actions, validated_rename_workspace_edit};
 use crate::{
     diagnostics::PullReport,
     formatter::{self, FormatterError},
     global_state::GlobalState,
     natspec_completion::{self, NatSpecCompletionResult},
+    progress::send_progress,
     symbols::{CompletionContext, CompletionItemData, SymbolTables},
     vfs::{Vfs, VfsPath},
 };
-use async_lsp::{ErrorCode, ResponseError};
+use async_lsp::{ClientSocket, ErrorCode, ResponseError};
 use crop::Rope;
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
-    CodeLens, CodeLensParams, CompletionItem, CompletionParams, CompletionResponse,
-    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
-    DocumentFormattingParams, DocumentHighlight, DocumentHighlightParams, DocumentLink,
-    DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
-    FoldingRangeParams, FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse,
-    Hover, HoverParams, InlayHint, InlayHintParams, Position, PrepareRenameResponse,
-    ReferenceParams, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
-    RenameParams, SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
+    CodeActionParams, CodeActionResponse, CodeLens, CodeLensParams, CompletionItem,
+    CompletionParams, CompletionResponse, DocumentDiagnosticParams, DocumentDiagnosticReport,
+    DocumentDiagnosticReportResult, DocumentFormattingParams, DocumentHighlight,
+    DocumentHighlightParams, DocumentLink, DocumentLinkParams, DocumentSymbolParams,
+    DocumentSymbolResponse, FoldingRange, FoldingRangeParams, FullDocumentDiagnosticReport,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InlayHint, InlayHintParams,
+    Position, PrepareRenameResponse, ProgressToken, ReferenceParams,
+    RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport, RenameParams,
+    SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
     TextDocumentPositionParams, TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams,
     TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, UnchangedDocumentDiagnosticReport,
-    Url, WorkspaceEdit, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    Url, WorkDoneProgress, WorkDoneProgressBegin, WorkDoneProgressEnd, WorkspaceDiagnosticParams,
+    WorkspaceDiagnosticReport, WorkspaceDiagnosticReportPartialResult,
+    WorkspaceDiagnosticReportResult, WorkspaceDocumentDiagnosticReport, WorkspaceEdit,
+    WorkspaceFullDocumentDiagnosticReport, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    WorkspaceUnchangedDocumentDiagnosticReport,
+    notification::{Notification, Progress},
     request::GotoImplementationParams,
 };
+use serde::{Deserialize, Serialize};
 use solar_interface::data_structures::sync::RwLock;
 use solar_parse::lexer::is_ident;
 use std::{future::ready, io, path::Path, sync::Arc};
 use tracing::warn;
+
+const WORKSPACE_DIAGNOSTIC_PARTIAL_BATCH_SIZE: usize = 64;
+const WORKSPACE_DIAGNOSTIC_PROGRESS_TITLE: &str = "Workspace diagnostics";
+
+#[derive(Debug)]
+enum WorkspaceDiagnosticProgress {}
+
+impl Notification for WorkspaceDiagnosticProgress {
+    type Params = WorkspaceDiagnosticProgressParams;
+    const METHOD: &'static str = Progress::METHOD;
+}
+
+#[derive(Deserialize, Serialize)]
+struct WorkspaceDiagnosticProgressParams {
+    token: ProgressToken,
+    value: WorkspaceDiagnosticReportPartialResult,
+}
+
+struct RequestWorkDoneProgress {
+    client: ClientSocket,
+    token: Option<ProgressToken>,
+}
+
+impl RequestWorkDoneProgress {
+    fn begin(client: ClientSocket, token: Option<ProgressToken>) -> Self {
+        if let Some(token) = &token {
+            send_progress(
+                &client,
+                token,
+                WorkDoneProgress::Begin(WorkDoneProgressBegin {
+                    title: WORKSPACE_DIAGNOSTIC_PROGRESS_TITLE.into(),
+                    cancellable: Some(false),
+                    message: None,
+                    percentage: None,
+                }),
+            );
+        }
+        Self { client, token }
+    }
+}
+
+impl Drop for RequestWorkDoneProgress {
+    fn drop(&mut self) {
+        let Some(token) = &self.token else { return };
+        send_progress(&self.client, token, WorkDoneProgress::End(WorkDoneProgressEnd::default()));
+    }
+}
 
 pub(crate) fn folding_range(
     state: &mut GlobalState,
@@ -287,6 +342,43 @@ pub(crate) fn document_links(
     }
 }
 
+pub(crate) fn code_actions(
+    state: &mut GlobalState,
+    mut params: CodeActionParams,
+) -> impl Future<Output = Result<Option<CodeActionResponse>, ResponseError>> + use<> {
+    params.text_document.uri = crate::diagnostics::normalize_file_uri(params.text_document.uri);
+    let vfs = state.vfs.clone();
+    let document_changes = state.config.supports_workspace_edit_document_changes();
+    let literals = state.config.supports_code_action_literals();
+    let is_preferred = state.config.supports_code_action_is_preferred();
+    let diagnostic_data = state.config.supports_code_action_diagnostic_data();
+    let diagnostics = state.code_action_diagnostics(params.text_document.uri.clone());
+    async move {
+        if !literals {
+            return Ok(Some(Vec::new()));
+        }
+        let diagnostics = diagnostics.await?;
+        let actions = tokio::task::spawn_blocking(move || {
+            validated_code_actions(
+                params,
+                diagnostics,
+                vfs,
+                document_changes,
+                is_preferred,
+                diagnostic_data,
+            )
+        })
+        .await
+        .map_err(|error| {
+            ResponseError::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("code-action task failed: {error}"),
+            )
+        })?;
+        Ok(Some(actions))
+    }
+}
+
 pub(crate) fn document_diagnostic(
     state: &mut GlobalState,
     params: DocumentDiagnosticParams,
@@ -314,6 +406,74 @@ pub(crate) fn document_diagnostic(
         };
         Ok(DocumentDiagnosticReportResult::Report(report))
     }
+}
+
+pub(crate) fn workspace_diagnostic(
+    state: &mut GlobalState,
+    params: WorkspaceDiagnosticParams,
+) -> impl Future<Output = Result<WorkspaceDiagnosticReportResult, ResponseError>> + use<> {
+    let client = state.client_socket();
+    let reports = state.workspace_diagnostic_reports(params.previous_result_ids);
+    let partial_result_token = params.partial_result_params.partial_result_token;
+    let work_done_token = params.work_done_progress_params.work_done_token;
+    async move {
+        let _work_done = RequestWorkDoneProgress::begin(client.clone(), work_done_token);
+        let items = reports.await?.into_iter().map(workspace_document_diagnostic_report);
+        let items =
+            stream_workspace_diagnostic_partials(&client, partial_result_token, items).await;
+        Ok(WorkspaceDiagnosticReport { items }.into())
+    }
+}
+
+fn workspace_document_diagnostic_report(
+    report: crate::diagnostics::WorkspacePullReport,
+) -> WorkspaceDocumentDiagnosticReport {
+    match report.report {
+        PullReport::Full { result_id, diagnostics } => {
+            WorkspaceDocumentDiagnosticReport::Full(WorkspaceFullDocumentDiagnosticReport {
+                uri: report.uri,
+                version: report.version,
+                full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                    result_id: Some(result_id),
+                    items: diagnostics,
+                },
+            })
+        }
+        PullReport::Unchanged { result_id } => WorkspaceDocumentDiagnosticReport::Unchanged(
+            WorkspaceUnchangedDocumentDiagnosticReport {
+                uri: report.uri,
+                version: report.version,
+                unchanged_document_diagnostic_report: UnchangedDocumentDiagnosticReport {
+                    result_id,
+                },
+            },
+        ),
+    }
+}
+
+async fn stream_workspace_diagnostic_partials(
+    client: &ClientSocket,
+    token: Option<ProgressToken>,
+    items: impl Iterator<Item = WorkspaceDocumentDiagnosticReport>,
+) -> Vec<WorkspaceDocumentDiagnosticReport> {
+    let Some(token) = token else { return items.collect() };
+    let mut items = items.peekable();
+    loop {
+        let batch =
+            items.by_ref().take(WORKSPACE_DIAGNOSTIC_PARTIAL_BATCH_SIZE).collect::<Vec<_>>();
+        if batch.is_empty() {
+            break;
+        }
+        let _ = client.notify::<WorkspaceDiagnosticProgress>(WorkspaceDiagnosticProgressParams {
+            token: token.clone(),
+            value: WorkspaceDiagnosticReportPartialResult { items: batch },
+        });
+        if items.peek().is_some() {
+            // Let the socket writer and request cancellation run between batches.
+            tokio::task::yield_now().await;
+        }
+    }
+    Vec::new()
 }
 
 pub(crate) fn workspace_symbol(

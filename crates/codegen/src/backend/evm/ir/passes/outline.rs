@@ -3,12 +3,13 @@
 use super::EvmPass;
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
-    op,
+    op, push_len,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
+    index::IndexVec,
     map::{FxHashMap, FxHasher},
 };
 use solar_sema::Gcx;
@@ -164,9 +165,9 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let mut values: Vec<_> = sites
         .iter()
         .filter_map(|(&value, occurrences)| {
-            let push_len = push_len(gcx, value);
-            let inline = occurrences.len() * push_len;
-            let outlined = occurrences.len() * SITE_BYTES + push_len + 3;
+            let push_size = push_len(gcx.sess.opts.evm_version, value);
+            let inline = occurrences.len() * push_size;
+            let outlined = occurrences.len() * SITE_BYTES + push_size + 3;
             (occurrences.len() >= 2 && inline >= outlined + MIN_SAVING).then_some(value)
         })
         .collect();
@@ -253,11 +254,6 @@ fn lower_bound(instructions: &[Instruction]) -> usize {
     instructions.iter().map(|inst| if inst.is_encoded_push() { 2 } else { 1 }).sum()
 }
 
-fn push_len(gcx: Gcx<'_>, value: U256) -> usize {
-    let width = value.byte_len();
-    if width == 0 && !gcx.sess.opts.evm_version.has_push0() { 2 } else { width + 1 }
-}
-
 #[derive(Clone, Copy, Debug)]
 struct Site {
     block: BlockId,
@@ -290,8 +286,8 @@ impl InstKey {
 /// sequences always produce equal hashes, which is all the map needs: equality
 /// still compares the instructions themselves.
 struct InstHashes {
-    prefixes: Vec<Vec<u64>>,
-    repeats: Vec<DenseBitSet<usize>>,
+    prefixes: IndexVec<BlockId, Vec<u64>>,
+    repeats: IndexVec<BlockId, DenseBitSet<usize>>,
     powers: Vec<u64>,
 }
 
@@ -302,13 +298,13 @@ impl InstHashes {
         let mut counts = FxHashMap::<InstKey, u32>::default();
         for block in module.blocks.iter() {
             for inst in &block.instructions {
-                *counts.entry(InstKey::new(inst)).or_insert(0) += 1;
+                *counts.entry(InstKey::new(inst)).or_default() += 1;
             }
         }
 
         let mut longest = 0;
-        let mut prefixes = Vec::with_capacity(module.blocks.len());
-        let mut repeats = Vec::with_capacity(module.blocks.len());
+        let mut prefixes = IndexVec::with_capacity(module.blocks.len());
+        let mut repeats = IndexVec::with_capacity(module.blocks.len());
         for block in module.blocks.iter() {
             longest = longest.max(block.instructions.len());
             let mut prefix = Vec::with_capacity(block.instructions.len() + 1);
@@ -340,11 +336,11 @@ impl InstHashes {
     /// contains an instruction occurring exactly once can never occur twice, so
     /// it can never be outlined.
     fn repeats(&self, block: BlockId, index: usize) -> bool {
-        self.repeats[block.index()].contains(index)
+        self.repeats[block].contains(index)
     }
 
     fn range(&self, block: BlockId, start: usize, end: usize) -> u64 {
-        let prefix = &self.prefixes[block.index()];
+        let prefix = &self.prefixes[block];
         prefix[end + 1].wrapping_sub(prefix[start].wrapping_mul(self.powers[end + 1 - start]))
     }
 }

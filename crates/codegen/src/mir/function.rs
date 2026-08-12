@@ -218,7 +218,7 @@ impl Function {
     pub(crate) fn canonicalize_immediate_uses(&mut self) -> usize {
         let mut canonical = FxHashMap::<Immediate, ValueId>::default();
         let mut replacements = FxHashMap::default();
-        for value in self.live_values().collect::<Vec<_>>() {
+        for value in self.live_values() {
             let Value::Immediate(immediate) = self.value(value) else { continue };
             match canonical.entry(immediate.clone()) {
                 StdEntry::Occupied(entry) => {
@@ -522,6 +522,8 @@ pub(crate) struct FunctionAttributes {
     pub(crate) is_fallback: bool,
     /// Whether this is a receive function.
     pub(crate) is_receive: bool,
+    /// Whether this is the synthesized runtime dispatch entry.
+    pub(crate) is_dispatch_entry: bool,
     /// Never clone this function into multiple callers (synthesized shared
     /// helpers whose whole point is existing once per module). A sole call
     /// site may still absorb it: with one caller there is nothing to share.
@@ -536,6 +538,7 @@ impl Default for FunctionAttributes {
             is_constructor: false,
             is_fallback: false,
             is_receive: false,
+            is_dispatch_entry: false,
             no_inline: false,
         }
     }

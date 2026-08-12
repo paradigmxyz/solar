@@ -533,26 +533,23 @@ fn @__revert_stub1() {
     revert 0, 36
 }
 
-fn @entry() {
+fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb7, bb1
+    jumpi v0, bb6, bb1
   bb1:
-    v1 = calldatasize
-    jumpi v1, bb2, bb7
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb6, [0x49eb8b89 => bb2, 0xb7a3bd0f => bb3, 0xc2dcee6a => bb4, 0xd192e846 => bb5]
   bb2:
-    v2 = calldataload 0
-    v3 = shr 224, v2
-    switch v3, default bb7, [0x49eb8b89 => bb3, 0xb7a3bd0f => bb4, 0xc2dcee6a => bb5, 0xd192e846 => bb6]
-  bb3:
     tail_call @member
-  bb4:
+  bb3:
     tail_call @lengths
-  bb5:
+  bb4:
     tail_call @plain
-  bb6:
+  bb5:
     tail_call @word
-  bb7:
+  bb6:
     revert 0, 0
 }
 

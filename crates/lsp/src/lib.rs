@@ -7,8 +7,8 @@
 
 use crate::global_state::GlobalState;
 use async_lsp::{
-    ClientSocket, client_monitor::ClientProcessMonitorLayer, router::Router,
-    server::LifecycleLayer, tracing::TracingLayer,
+    ClientSocket, LspService, ResponseError, client_monitor::ClientProcessMonitorLayer,
+    router::Router, server::LifecycleLayer, tracing::TracingLayer,
 };
 #[cfg(test)]
 use criterion as _;
@@ -19,6 +19,7 @@ use std::ops::ControlFlow;
 use tower::ServiceBuilder;
 
 mod call_hierarchy;
+mod code_actions;
 mod code_lens;
 mod commands;
 mod config;
@@ -39,6 +40,7 @@ mod progress;
 #[cfg_attr(all(feature = "bench", not(test)), allow(dead_code))]
 mod project_fixture;
 mod proto;
+mod protocol_trace;
 mod rename;
 mod request_cancellation;
 mod selection_range;
@@ -54,8 +56,9 @@ mod workspace;
 #[cfg(feature = "bench")]
 #[doc(hidden)]
 pub use global_state::benchmark::{
-    BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkEdit, BenchmarkError, BenchmarkProject,
-    BenchmarkRequest, BenchmarkResponse,
+    BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit,
+    BenchmarkError, BenchmarkProject, BenchmarkRequest, BenchmarkResponse,
+    BenchmarkWorkspaceReports,
 };
 
 /// Runs the selection-range kernel for Criterion benchmarks.
@@ -73,16 +76,18 @@ mod test_support;
 
 pub(crate) type NotifyResult = ControlFlow<async_lsp::Result<()>>;
 
-fn new_router(client: ClientSocket) -> Router<GlobalState> {
-    new_router_with_state(GlobalState::new(client))
-}
-
 fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
     let mut router = Router::new(this);
 
     // Lifecycle
     router
-        .request::<proto::Initialize, _>(|state, params| state.on_initialize(params.into_inner()))
+        .request::<proto::Initialize, _>(|state, params| {
+            let pull_diagnostic_data_support = params.pull_diagnostic_data_support();
+            state.on_initialize_with_pull_diagnostic_data(
+                params.into_inner(),
+                pull_diagnostic_data_support,
+            )
+        })
         .notification::<notif::Initialized>(GlobalState::on_initialized)
         .request::<req::Shutdown, _>(|_, _| std::future::ready(Ok(())))
         .notification::<notif::Exit>(|_, _| ControlFlow::Break(Ok(())));
@@ -92,6 +97,7 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
         .request::<req::ExecuteCommand, _>(commands::execute_command)
         .request::<req::DocumentSymbolRequest, _>(handlers::document_symbol)
         .request::<req::DocumentLinkRequest, _>(handlers::document_links)
+        .request::<req::CodeActionRequest, _>(handlers::code_actions)
         .request::<req::WorkspaceSymbolRequest, _>(handlers::workspace_symbol)
         .request::<req::GotoDefinition, _>(handlers::goto_definition)
         .request::<req::GotoTypeDefinition, _>(handlers::goto_type_definition)
@@ -116,6 +122,7 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
         .request::<req::Completion, _>(handlers::completion)
         .request::<req::ResolveCompletionItem, _>(handlers::resolve_completion_item)
         .request::<req::DocumentDiagnosticRequest, _>(handlers::document_diagnostic)
+        .request::<req::WorkspaceDiagnosticRequest, _>(handlers::workspace_diagnostic)
         .request::<req::Formatting, _>(handlers::formatting);
 
     // Workspace management
@@ -137,13 +144,29 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
         .notification::<notif::WillSaveTextDocument>(handlers::will_save_text_document)
         .notification::<notif::DidSaveTextDocument>(handlers::did_save_text_document)
         .notification::<notif::DidChangeConfiguration>(handlers::did_change_configuration)
+        .notification::<notif::SetTrace>(GlobalState::on_set_trace)
         .notification::<notif::WorkDoneProgressCancel>(GlobalState::on_work_done_progress_cancel);
 
     router
 }
 
-fn request_layer() -> request_cancellation::RequestCancellationLayer {
-    request_cancellation::RequestCancellationLayer
+fn request_layer(client: ClientSocket) -> request_cancellation::RequestCancellationLayer {
+    request_cancellation::RequestCancellationLayer::new(client)
+}
+
+fn new_server_service(
+    client: ClientSocket,
+) -> impl LspService<Response = serde_json::Value, Error = ResponseError, Future: Send + 'static> + Send
+{
+    let state = GlobalState::new(client.clone());
+    let protocol_trace = state.protocol_trace();
+    ServiceBuilder::new()
+        .layer(TracingLayer::default())
+        .layer(LifecycleLayer::default())
+        .layer(protocol_trace::ProtocolTraceLayer::new(protocol_trace))
+        .layer(request_layer(client.clone()))
+        .layer(ClientProcessMonitorLayer::new(client))
+        .service(new_router_with_state(state))
 }
 
 /// Start the LSP server over stdin/stdout.
@@ -162,14 +185,7 @@ pub async fn run_server_stdio(_args: LspArgs) -> async_lsp::Result<()> {
         tokio_util::compat::TokioAsyncWriteCompatExt::compat_write(tokio::io::stdout()),
     );
 
-    let (eloop, _) = async_lsp::MainLoop::new_server(|client| {
-        ServiceBuilder::new()
-            .layer(TracingLayer::default())
-            .layer(LifecycleLayer::default())
-            .layer(request_layer())
-            .layer(ClientProcessMonitorLayer::new(client.clone()))
-            .service(new_router(client))
-    });
+    let (eloop, _) = async_lsp::MainLoop::new_server(new_server_service);
 
     eloop.run_buffered(stdin, stdout).await
 }
@@ -177,3 +193,7 @@ pub async fn run_server_stdio(_args: LspArgs) -> async_lsp::Result<()> {
 #[cfg(test)]
 #[path = "tests/router.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tests/flycheck.rs"]
+mod flycheck_tests;

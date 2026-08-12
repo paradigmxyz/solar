@@ -4,8 +4,8 @@ use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, 
 use lsp_types::{GotoDefinitionResponse, HoverContents, OneOf, Position, Url};
 use solar_config::CompileOpts;
 use solar_lsp::{
-    BenchmarkAnalysis, BenchmarkProject, BenchmarkRequest, BenchmarkResponse,
-    benchmark_selection_ranges,
+    BenchmarkAnalysis, BenchmarkDocumentUpdate, BenchmarkProject, BenchmarkRequest,
+    BenchmarkResponse, BenchmarkWorkspaceReports, benchmark_selection_ranges,
 };
 use std::{hint::black_box, path::PathBuf};
 
@@ -234,6 +234,42 @@ fn selection_range(c: &mut Criterion) {
     group.finish();
 }
 
+fn workspace_diagnostic_hot_paths(c: &mut Criterion) {
+    let source = OPTIMISM_SOURCE.to_owned();
+    assert_eq!(BenchmarkDocumentUpdate::from_source(source.clone()).apply(), 1);
+    let mut updates = c.benchmark_group("lsp/unchanged-document-update");
+    updates.throughput(Throughput::Bytes(source.len() as u64));
+    updates.bench_function("optimism", |b| {
+        b.iter_batched(
+            || BenchmarkDocumentUpdate::from_source(source.clone()),
+            |update| black_box(update.apply()),
+            BatchSize::PerIteration,
+        );
+    });
+    updates.finish();
+
+    let mut reports = c.benchmark_group("lsp/workspace-diagnostic-reports");
+    for document_count in [256, 4096] {
+        assert_eq!(
+            BenchmarkWorkspaceReports::new(document_count).generate(),
+            document_count + document_count / 4
+        );
+        reports.throughput(Throughput::Elements(document_count as u64));
+        reports.bench_with_input(
+            BenchmarkId::from_parameter(document_count),
+            &document_count,
+            |b, &document_count| {
+                b.iter_batched(
+                    || BenchmarkWorkspaceReports::new(document_count),
+                    |reports| black_box(reports.generate()),
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+    }
+    reports.finish();
+}
+
 fn unifap_project() -> BenchmarkProject {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
@@ -389,6 +425,7 @@ criterion_group!(
     symbol_table_aggregation,
     burst_hover,
     selection_range,
+    workspace_diagnostic_hot_paths,
     unifap_benches
 );
 criterion_main!(benches);

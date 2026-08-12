@@ -34,7 +34,7 @@ contract TupleAssignBranchLeak {
     // CHECK: add
     // CHECK: jumpi
     // CHECK-NEXT: push [[ELSE_RET:bb[0-9]+]]
-    // CHECK-NEXT: push 288
+    // CHECK-NEXT: push 224
     // CHECK-NEXT: mload
     // CHECK-NEXT: jump [[PAIR:bb[0-9]+]]
     // CHECK: [[PAIR]]:

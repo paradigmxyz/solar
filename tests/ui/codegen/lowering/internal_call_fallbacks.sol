@@ -1,5 +1,7 @@
-//@compile-flags: -Zcodegen -O none -Zdump=mir
-//@filecheck:
+//@ revisions: mir runtime
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[mir] filecheck:
+//@[runtime] run-call: callEntry(uint256) 41 => 42
 
 contract InternalCallFallbacks {
     // CHECK-LABEL: fn @recurse{{[( ]}}
@@ -46,5 +48,16 @@ contract InternalCallFallbacks {
 
     function branchingVoid(uint256 x) internal pure {
         if (x != 0) branchingVoid(x - 1);
+    }
+
+    function callEntry(uint256 x) public pure returns (uint256) {
+        return entry(x);
+    }
+
+    function entry(uint256 x) internal pure returns (uint256 result) {
+        for (uint256 i = 0; i < x; i++) {
+            result++;
+        }
+        return result + 1;
     }
 }

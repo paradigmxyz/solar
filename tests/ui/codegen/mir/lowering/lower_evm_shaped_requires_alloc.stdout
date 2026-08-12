@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_requires_alloc.mir (after lower-evm-shaped) ===
   @module LowerEvmShapedRequiresAlloc
   @phase memory-lowered
-  fn @entry() {
+  fn @entry() [entry] {
     bb0:
       v0 = fmp
       stop

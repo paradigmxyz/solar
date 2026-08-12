@@ -329,3 +329,184 @@ fn @umul192(arg0: u192, arg1: u192) -> u192 [abi_returns=[word]] {
     ret v9
 }
 
+fn @leftU8(arg0: u8, arg1: u8) -> u8 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = and v3, 255
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = calldataload 36
+    v7 = and v6, 255
+    v8 = eq v6, v7
+    jumpi v8, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    v9 = shl arg1, arg0
+    v10 = and v9, 255
+    ret v10
+}
+
+fn @leftU16(arg0: u16, arg1: u8) -> u16 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = and v3, 0xffff
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = calldataload 36
+    v7 = and v6, 255
+    v8 = eq v6, v7
+    jumpi v8, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    v9 = shl arg1, arg0
+    v10 = and v9, 0xffff
+    ret v10
+}
+
+fn @leftI8(arg0: i8, arg1: u8) -> i8 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = signextend 0, v3
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = calldataload 36
+    v7 = and v6, 255
+    v8 = eq v6, v7
+    jumpi v8, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    v9 = shl arg1, arg0
+    v10 = shl 248, v9
+    v11 = sar 248, v10
+    ret v11
+}
+
+fn @leftI16(arg0: i16, arg1: u8) -> i16 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = signextend 1, v3
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = calldataload 36
+    v7 = and v6, 255
+    v8 = eq v6, v7
+    jumpi v8, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    v9 = shl arg1, arg0
+    v10 = shl 240, v9
+    v11 = sar 240, v10
+    ret v11
+}
+
+fn @leftU256(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = shl arg1, arg0
+    ret v3
+}
+
+fn @rightU8(arg0: u8, arg1: u8) -> u8 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = and v3, 255
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = calldataload 36
+    v7 = and v6, 255
+    v8 = eq v6, v7
+    jumpi v8, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    v9 = shr arg1, arg0
+    ret v9
+}
+
+fn @rightI8(arg0: i8, arg1: u8) -> i8 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = signextend 0, v3
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = calldataload 36
+    v7 = and v6, 255
+    v8 = eq v6, v7
+    jumpi v8, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    v9 = sar arg1, arg0
+    ret v9
+}
+

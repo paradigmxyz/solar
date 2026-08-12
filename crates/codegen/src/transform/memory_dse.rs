@@ -194,12 +194,12 @@ struct SlotMap<T> {
     /// Groups whose base is not an allocation site. Every write has to consider
     /// these, but a write to a non-allocation base also invalidates nearly
     /// everything, so they stay few.
-    unindexed: Vec<SlotBucket<T>>,
+    unindexed: SmallVec<[SlotBucket<T>; 1]>,
 }
 
 impl<T> Default for SlotMap<T> {
     fn default() -> Self {
-        Self { by_alloc: FxHashMap::default(), unindexed: Vec::new() }
+        Self { by_alloc: FxHashMap::default(), unindexed: SmallVec::new() }
     }
 }
 
@@ -221,28 +221,15 @@ impl<T> SlotMap<T> {
     fn bucket_mut(&mut self, key: MemAddrKey) -> &mut SlotBucket<T> {
         let (region, base) = (key.0.region, key.0.base);
         let buckets = match Self::alloc_site(base) {
-            Some(site) => self.by_alloc.entry(site).or_default().as_mut_slice(),
-            None => self.unindexed.as_mut_slice(),
+            Some(site) => self.by_alloc.entry(site).or_default(),
+            None => &mut self.unindexed,
         };
-        // Borrow-checker dance: find the index first, then re-borrow to insert.
         if let Some(index) = buckets.iter().position(|b| b.region == region && b.base == base) {
-            return match Self::alloc_site(base) {
-                Some(site) => &mut self.by_alloc.get_mut(&site).unwrap()[index],
-                None => &mut self.unindexed[index],
-            };
+            return &mut buckets[index];
         }
-        let bucket = SlotBucket { region, base, slots: BTreeMap::new() };
-        match Self::alloc_site(base) {
-            Some(site) => {
-                let group = self.by_alloc.entry(site).or_default();
-                group.push(bucket);
-                group.last_mut().unwrap()
-            }
-            None => {
-                self.unindexed.push(bucket);
-                self.unindexed.last_mut().unwrap()
-            }
-        }
+        let index = buckets.len();
+        buckets.push(SlotBucket { region, base, slots: BTreeMap::new() });
+        &mut buckets[index]
     }
 
     fn get(&self, key: MemAddrKey) -> Option<&T> {

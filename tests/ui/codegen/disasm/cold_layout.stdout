@@ -1,8 +1,9 @@
 // === cold_layout (runtime) ===
 PUSH1 0x01
-PUSH1 0x06
+PUSH1 0x06 ; bb0
 JUMPI
 STOP
+; bb0
 JUMPDEST
 PUSH0
 PUSH0

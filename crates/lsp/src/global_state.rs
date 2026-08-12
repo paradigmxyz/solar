@@ -1,11 +1,15 @@
 use crate::{
     NotifyResult,
-    config::{Config, negotiate_capabilities},
-    diagnostics::{DiagnosticMap, DiagnosticOwner, DiagnosticStore, PullReport},
+    config::{Config, negotiate_capabilities_with_pull_diagnostic_data},
+    diagnostics::{
+        AnalyzedDocuments, DiagnosticMap, DiagnosticOwner, DiagnosticStore, PullReport,
+        WorkspacePullReport,
+    },
     file_operations::FileOperationCoordinator,
     flycheck,
     progress::{ProgressCoordinator, ProgressTicket},
     proto,
+    protocol_trace::ProtocolTrace,
     symbols::{SymbolTables, SymbolTablesAggregator},
     vfs::Vfs,
     workspace::WorkspacePathIndex,
@@ -13,8 +17,9 @@ use crate::{
 use async_lsp::{ClientSocket, LanguageClient, ResponseError};
 use lsp_types::{
     Diagnostic, DidChangeWatchedFilesRegistrationOptions, FileSystemWatcher, GlobPattern,
-    InitializeParams, InitializedParams, LogMessageParams, MessageType, PublishDiagnosticsParams,
-    Registration, RegistrationParams, Url, WatchKind, WorkDoneProgressCancelParams,
+    InitializeParams, InitializedParams, LogMessageParams, MessageType, PreviousResultId,
+    PublishDiagnosticsParams, Registration, RegistrationParams, SetTraceParams, Url, WatchKind,
+    WorkDoneProgressCancelParams,
     notification::{DidChangeWatchedFiles, Notification},
 };
 use solar_config::CompileOpts;
@@ -32,7 +37,7 @@ use std::{
     borrow::Cow,
     mem,
     ops::ControlFlow,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -61,6 +66,7 @@ enum AnalysisTrigger {
 struct AnalysisRequest {
     disk_paths: Vec<PathBuf>,
     removed_paths: Vec<PathBuf>,
+    retained_paths: Vec<PathBuf>,
     changed_paths: Vec<PathBuf>,
 }
 
@@ -85,6 +91,8 @@ struct PendingExternalRefresh {
 struct AnalysisCommitState {
     cache_invalidated: bool,
     external_refresh: Option<PendingExternalRefresh>,
+    /// VFS content revision captured when the current analysis epoch began.
+    vfs_content_revision: u64,
     /// Last version that actually replaced the symbol tables.
     natspec_symbol_tables_version: usize,
     natspec_pending_source_changes: FxHashSet<PathBuf>,
@@ -168,6 +176,7 @@ pub(crate) struct GlobalState {
     analysis_commit: Arc<Mutex<AnalysisCommitState>>,
     analysis_progress: ProgressCoordinator,
     analysis_scheduler: Arc<AnalysisScheduler>,
+    protocol_trace: ProtocolTrace,
     flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
     flycheck_cancels: FxHashMap<DiagnosticOwner, oneshot::Sender<()>>,
     pub(crate) symbol_tables: Arc<RwLock<SymbolTables>>,
@@ -178,6 +187,7 @@ impl GlobalState {
     pub(crate) fn new(client: ClientSocket) -> Self {
         let (published_analysis_version, _) = watch::channel(0);
         let config = Arc::new(Config::default());
+        let protocol_trace = ProtocolTrace::new(client.clone());
         let analysis_progress = ProgressCoordinator::with_timing(
             client.clone(),
             false,
@@ -194,6 +204,7 @@ impl GlobalState {
             analysis_commit: Arc::new(Default::default()),
             analysis_progress,
             analysis_scheduler: Arc::new(Default::default()),
+            protocol_trace,
             flycheck_versions: Arc::new(Default::default()),
             flycheck_cancels: FxHashMap::default(),
             symbol_tables: Arc::new(Default::default()),
@@ -202,17 +213,54 @@ impl GlobalState {
         }
     }
 
+    pub(crate) fn client_socket(&self) -> ClientSocket {
+        self.client.clone()
+    }
+
+    pub(crate) fn update_analyzed_document_version(&self, uri: Url, version: i32) {
+        let commit = self.analysis_commit.lock();
+        let requested_version = self.analysis_version.load(Ordering::Acquire);
+        let published_version = *self.published_analysis_version.borrow();
+        // Version-only edits may relabel only a fully published, valid snapshot.
+        let can_update = !commit.cache_invalidated && published_version == requested_version;
+        drop(commit);
+        if !can_update {
+            return;
+        }
+        self.diagnostics.write().update_analyzed_document_version(uri, i64::from(version));
+    }
+
+    #[cfg(test)]
     pub(crate) fn on_initialize(
         &mut self,
         params: InitializeParams,
     ) -> impl Future<Output = Result<proto::InitializeResponse, ResponseError>> + use<> {
-        let (capabilities, mut config) = negotiate_capabilities(params);
+        self.on_initialize_with_pull_diagnostic_data(params, false)
+    }
+
+    pub(crate) fn on_initialize_with_pull_diagnostic_data(
+        &mut self,
+        params: InitializeParams,
+        pull_diagnostic_data_support: bool,
+    ) -> impl Future<Output = Result<proto::InitializeResponse, ResponseError>> + use<> {
+        self.protocol_trace.set_level(params.trace.unwrap_or_default());
+        let (capabilities, mut config) =
+            negotiate_capabilities_with_pull_diagnostic_data(params, pull_diagnostic_data_support);
 
         config.rediscover_workspaces();
 
         self.analysis_progress.set_enabled(config.supports_work_done_progress());
         self.config = Arc::new(config);
         std::future::ready(Ok(proto::InitializeResponse::new(capabilities)))
+    }
+
+    pub(crate) fn on_set_trace(&mut self, params: SetTraceParams) -> NotifyResult {
+        self.protocol_trace.update_level(params.value);
+        ControlFlow::Continue(())
+    }
+
+    pub(crate) fn protocol_trace(&self) -> ProtocolTrace {
+        self.protocol_trace.clone()
     }
 
     pub(crate) fn on_initialized(&mut self, _: InitializedParams) -> NotifyResult {
@@ -287,7 +335,7 @@ impl GlobalState {
             if force_rediscover { AnalysisMode::Rediscover } else { AnalysisMode::Recompute };
         self.request_analysis(
             mode,
-            AnalysisRequest { disk_paths, removed_paths, changed_paths },
+            AnalysisRequest { disk_paths, removed_paths, changed_paths, ..Default::default() },
             AnalysisTrigger::External,
             Duration::ZERO,
         );
@@ -297,6 +345,16 @@ impl GlobalState {
         self.request_analysis(
             AnalysisMode::Rediscover,
             AnalysisRequest::default(),
+            AnalysisTrigger::External,
+            Duration::ZERO,
+        );
+    }
+
+    pub(crate) fn reindex_after_removing_paths(&mut self, removed_paths: Vec<PathBuf>) {
+        let retained_paths = self.config.workspace_roots().to_vec();
+        self.request_analysis(
+            AnalysisMode::Rediscover,
+            AnalysisRequest { removed_paths, retained_paths, ..Default::default() },
             AnalysisTrigger::External,
             Duration::ZERO,
         );
@@ -315,6 +373,7 @@ impl GlobalState {
         let refresh_code_lenses =
             self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
         let compare_inlay_hints = self.config.supports_inlay_hint_refresh();
+        let publish_diagnostics_data = self.config.supports_publish_diagnostics_data();
         let (old_symbol_tables, refresh_requests) = {
             let Self {
                 client,
@@ -337,17 +396,19 @@ impl GlobalState {
                     && symbol_tables.inlay_hints_changed(&SymbolTables::default());
                 let old_symbol_tables = mem::take(&mut *symbol_tables);
                 drop(symbol_tables);
-                let update = diagnostics.write().replace_and_publish_batches(
-                    DiagnosticOwner::Compiler,
+                let update = diagnostics.write().replace_compiler_snapshot_and_publish_batches(
                     DiagnosticMap::default(),
+                    AnalyzedDocuments::default(),
                 );
+                let pull_results_changed =
+                    update.pull_reports_changed || update.workspace_documents_changed;
                 let external_refresh = commit
                     .finish_external_refresh(update.pull_reports_changed, inlay_hints_changed);
                 let refresh_requests = RefreshRequests {
-                    diagnostics: external_refresh.diagnostics || update.pull_reports_changed,
+                    diagnostics: external_refresh.diagnostics || pull_results_changed,
                     inlay_hints: external_refresh.inlay_hints || inlay_hints_changed,
                 };
-                publish_diagnostic_batches(client, update.batches);
+                publish_diagnostic_batches(client, update.batches, publish_diagnostics_data);
 
                 commit.cache_invalidated = true;
                 commit.natspec_symbol_tables_version = version;
@@ -377,11 +438,15 @@ impl GlobalState {
         trigger: AnalysisTrigger,
         delay: Duration,
     ) {
-        let AnalysisRequest { disk_paths, removed_paths, changed_paths } = request;
+        let AnalysisRequest { disk_paths, removed_paths, retained_paths, changed_paths } = request;
         self.prepare_removed_file_diagnostics(&removed_paths);
-        let Some((version, progress)) =
-            self.begin_analysis(mode, removed_paths, changed_paths, trigger)
-        else {
+        let Some((version, progress)) = self.begin_analysis_retaining_paths(
+            mode,
+            removed_paths,
+            &retained_paths,
+            changed_paths,
+            trigger,
+        ) else {
             return;
         };
         self.schedule_analysis(version, disk_paths, progress, delay);
@@ -454,10 +519,22 @@ impl GlobalState {
         tasks.coordinator = Some((version, coordinator.abort_handle()));
     }
 
+    #[cfg(test)]
     fn begin_analysis(
         &mut self,
         mode: AnalysisMode,
         removed_paths: Vec<PathBuf>,
+        changed_paths: Vec<PathBuf>,
+        trigger: AnalysisTrigger,
+    ) -> Option<(usize, ProgressTicket)> {
+        self.begin_analysis_retaining_paths(mode, removed_paths, &[], changed_paths, trigger)
+    }
+
+    fn begin_analysis_retaining_paths(
+        &mut self,
+        mode: AnalysisMode,
+        removed_paths: Vec<PathBuf>,
+        retained_paths: &[PathBuf],
         changed_paths: Vec<PathBuf>,
         trigger: AnalysisTrigger,
     ) -> Option<(usize, ProgressTicket)> {
@@ -480,12 +557,19 @@ impl GlobalState {
                 commit.begin_external_refresh();
             }
             self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover);
-            let update = self
-                .diagnostics
-                .write()
-                .clear_file_path_prefixes_and_publish_batches(&removed_paths);
-            commit.record_external_diagnostics_change(update.pull_reports_changed);
-            publish_diagnostic_batches(&mut self.client, update.batches);
+            let update =
+                self.diagnostics.write().clear_file_path_prefixes_retaining_and_publish_batches(
+                    &removed_paths,
+                    retained_paths,
+                );
+            commit.record_external_diagnostics_change(
+                update.pull_reports_changed || update.workspace_documents_changed,
+            );
+            publish_diagnostic_batches(
+                &mut self.client,
+                update.batches,
+                self.config.supports_publish_diagnostics_data(),
+            );
             (version, rediscover, progress)
         };
 
@@ -523,6 +607,7 @@ impl GlobalState {
         changed_paths: Vec<PathBuf>,
         context_changed: bool,
     ) {
+        commit.vfs_content_revision = self.vfs.read().content_revision();
         if context_changed {
             commit.natspec_context_change_version = version;
         }
@@ -555,11 +640,64 @@ impl GlobalState {
             Err(()) => (uri, None),
         };
         let diagnostics = self.diagnostics.clone();
+        let include_data = self.config.supports_pull_diagnostics_data();
         async move {
             if let Some(latest_analysis) = latest_analysis {
                 latest_analysis.await?;
             }
-            Ok(diagnostics.read().pull_report(&uri, previous_result_id.as_deref()))
+            let mut report = diagnostics.read().pull_report(&uri, previous_result_id.as_deref());
+            if !include_data {
+                strip_pull_report_data(&mut report);
+            }
+            Ok(report)
+        }
+    }
+
+    pub(crate) fn code_action_diagnostics(
+        &self,
+        uri: Url,
+    ) -> impl Future<Output = Result<Vec<Diagnostic>, ResponseError>> + use<> {
+        let (uri, latest_analysis) = match uri.to_file_path() {
+            Ok(path) => (Url::from_file_path(path).unwrap_or(uri), Some(self.latest_analysis())),
+            Err(()) => (uri, None),
+        };
+        let diagnostics = self.diagnostics.clone();
+        async move {
+            if let Some(latest_analysis) = latest_analysis {
+                latest_analysis.await?;
+            }
+            let PullReport::Full { diagnostics, .. } = diagnostics.read().pull_report(&uri, None)
+            else {
+                unreachable!("a report without a result ID is full")
+            };
+            Ok(diagnostics)
+        }
+    }
+
+    pub(crate) fn workspace_diagnostic_reports(
+        &self,
+        previous_result_ids: Vec<PreviousResultId>,
+    ) -> impl Future<Output = Result<Vec<WorkspacePullReport>, ResponseError>> + use<> {
+        let latest_analysis = self.latest_analysis();
+        let vfs = self.vfs.clone();
+        let diagnostics = self.diagnostics.clone();
+        let include_data = self.config.supports_pull_diagnostics_data();
+        async move {
+            latest_analysis.await?;
+            let vfs = vfs.read();
+            let mut reports = diagnostics.read().workspace_pull_reports(previous_result_ids);
+            for report in &mut reports {
+                if !include_data {
+                    strip_pull_report_data(&mut report.report);
+                }
+                if report.is_stale
+                    && let Some(path) = proto::vfs_path(&report.uri)
+                    && let Some(version) = vfs.get_file_version(&path)
+                {
+                    report.version = Some(i64::from(version));
+                }
+            }
+            Ok(reports)
         }
     }
 
@@ -625,6 +763,13 @@ impl GlobalState {
         self.begin_analysis_epoch(&mut commit, Vec::new(), true);
     }
 
+    #[cfg(test)]
+    pub(crate) fn replace_diagnostics_for_test(&self, diagnostics: DiagnosticMap) {
+        self.diagnostics
+            .write()
+            .replace_and_publish_batches(DiagnosticOwner::Compiler, diagnostics);
+    }
+
     pub(crate) fn run_flychecks_on_save(&mut self, path: PathBuf) {
         let timeout = self.config.flycheck_timeout();
         for flycheck in self.config.flychecks_for_path(&path) {
@@ -632,10 +777,11 @@ impl GlobalState {
             let version = self.begin_flycheck_epoch(&owner);
             let id = flycheck.id.clone();
             let mut snapshot = self.snapshot();
+            let source_paths = snapshot.flycheck_source_paths(&flycheck, &path);
             let (cancel, cancelled) = oneshot::channel();
             let task_owner = owner.clone();
             tokio::spawn(async move {
-                let result = flycheck::run(flycheck, timeout, cancelled).await;
+                let result = flycheck::run(flycheck, timeout, cancelled, source_paths).await;
                 if !snapshot.is_current_flycheck(&task_owner, version) {
                     return;
                 }
@@ -871,19 +1017,27 @@ fn handle_analysis_failure(
 }
 
 struct AnalysisResult {
+    analyzed_documents: AnalyzedDocuments,
     diagnostics: DiagnosticMap,
     symbol_tables: SymbolTables,
 }
 
 #[derive(Default)]
 struct AnalysisResultAccumulator {
+    analyzed_documents: AnalyzedDocuments,
     diagnostics: DiagnosticMap,
     symbol_tables: SymbolTablesAggregator,
 }
 
 impl AnalysisResultAccumulator {
     fn push(&mut self, result: AnalysisResult) {
-        let AnalysisResult { diagnostics, symbol_tables } = result;
+        let AnalysisResult { analyzed_documents, diagnostics, symbol_tables } = result;
+        for (uri, version) in analyzed_documents {
+            self.analyzed_documents
+                .entry(uri)
+                .and_modify(|current| *current = (*current).max(version))
+                .or_insert(version);
+        }
         for (uri, mut batch_diagnostics) in diagnostics {
             self.diagnostics.entry(uri).or_default().append(&mut batch_diagnostics);
         }
@@ -891,7 +1045,11 @@ impl AnalysisResultAccumulator {
     }
 
     fn finish(self) -> AnalysisResult {
-        AnalysisResult { diagnostics: self.diagnostics, symbol_tables: self.symbol_tables.finish() }
+        AnalysisResult {
+            analyzed_documents: self.analyzed_documents,
+            diagnostics: self.diagnostics,
+            symbol_tables: self.symbol_tables.finish(),
+        }
     }
 }
 
@@ -916,10 +1074,24 @@ fn watched_file_registration_params() -> RegistrationParams {
 fn publish_diagnostic_batches(
     client: &mut ClientSocket,
     batches: impl IntoIterator<Item = (Url, Vec<Diagnostic>)>,
+    include_data: bool,
 ) {
-    for (uri, uri_diagnostics) in batches {
+    for (uri, mut uri_diagnostics) in batches {
+        if !include_data {
+            for diagnostic in &mut uri_diagnostics {
+                diagnostic.data = None;
+            }
+        }
         let _ =
             client.publish_diagnostics(PublishDiagnosticsParams::new(uri, uri_diagnostics, None));
+    }
+}
+
+fn strip_pull_report_data(report: &mut PullReport) {
+    if let PullReport::Full { diagnostics, .. } = report {
+        for diagnostic in diagnostics {
+            diagnostic.data = None;
+        }
     }
 }
 
@@ -944,15 +1116,47 @@ impl GlobalStateSnapshot {
         self.flycheck_versions.read().get(owner).copied().unwrap_or_default() == version
     }
 
-    fn analysis_batches(&self, disk_paths: Vec<PathBuf>) -> Vec<AnalysisBatch> {
-        let vfs_files = self
-            .vfs
-            .read()
+    fn flycheck_source_paths(
+        &self,
+        flycheck: &flycheck::FlycheckConfig,
+        saved_path: &Path,
+    ) -> Vec<PathBuf> {
+        let workspaces = self.config.workspaces();
+        let mut paths = workspaces
             .iter()
-            .filter_map(|(path, contents)| {
-                Some((path.as_path()?.to_path_buf(), contents.to_string()))
-            })
+            .flat_map(|workspace| workspace.source_files())
+            .filter(|path| path.starts_with(&flycheck.workspace_root))
+            .cloned()
             .collect::<Vec<_>>();
+        paths.extend(
+            workspaces
+                .iter()
+                .filter(|workspace| {
+                    workspace.compile_opts().base_path.as_deref()
+                        == Some(flycheck.workspace_root.as_path())
+                })
+                .flat_map(|workspace| workspace.flycheck_source_files())
+                .cloned(),
+        );
+        paths.push(saved_path.to_path_buf());
+        paths.sort_unstable();
+        paths.dedup();
+        paths
+    }
+
+    fn analysis_batches(&self, disk_paths: Vec<PathBuf>) -> Vec<AnalysisBatch> {
+        let vfs_files = {
+            let vfs = self.vfs.read();
+            vfs.iter()
+                .filter_map(|(path, contents)| {
+                    Some((
+                        path.as_path()?.to_path_buf(),
+                        contents.to_string(),
+                        vfs.get_file_version(path),
+                    ))
+                })
+                .collect::<Vec<_>>()
+        };
         let workspaces = self.analysis_workspaces();
         let workspace_path_index = WorkspacePathIndex::new(&workspaces);
         let mut batches = workspaces
@@ -961,9 +1165,9 @@ impl GlobalStateSnapshot {
             .collect::<Vec<_>>();
         let source_map = SourceMap::empty();
 
-        for (path, contents) in vfs_files {
+        for (path, contents, version) in vfs_files {
             let idx = workspace_path_index.workspace_idx_for_path(&path);
-            batches[idx].push_file(path, contents);
+            batches[idx].push_open_file(path, contents, version);
         }
 
         for path in disk_paths {
@@ -1009,21 +1213,44 @@ impl GlobalStateSnapshot {
                 return false;
             }
 
+            let AnalysisResult { mut analyzed_documents, diagnostics, symbol_tables: new_tables } =
+                result;
+            let vfs = self.vfs.read();
+            // A content-identical edit may advance the LSP version without scheduling analysis.
+            // Only adopt current versions when the analyzed VFS contents are still current.
+            if commit.vfs_content_revision == vfs.content_revision() {
+                for (uri, analyzed_version) in &mut analyzed_documents {
+                    if let Some(path) = proto::vfs_path(uri)
+                        && let Some(open_version) = vfs.get_file_version(&path)
+                    {
+                        *analyzed_version = Some(i64::from(open_version));
+                    }
+                }
+            }
             let mut symbol_tables = self.symbol_tables.write();
             let inlay_hints_changed = commit.external_refresh.is_some()
                 && self.config.supports_inlay_hint_refresh()
-                && symbol_tables.inlay_hints_changed(&result.symbol_tables);
-            let old_symbol_tables = mem::replace(&mut *symbol_tables, result.symbol_tables);
+                && symbol_tables.inlay_hints_changed(&new_tables);
+            let old_symbol_tables = mem::replace(&mut *symbol_tables, new_tables);
             drop(symbol_tables);
             commit.natspec_symbol_tables_version = version;
             commit.natspec_pending_source_changes.clear();
             let update = self
                 .diagnostics
                 .write()
-                .replace_and_publish_batches(DiagnosticOwner::Compiler, result.diagnostics);
-            let refresh_requests =
+                .replace_compiler_snapshot_and_publish_batches(diagnostics, analyzed_documents);
+            drop(vfs);
+            let external_refresh =
                 commit.finish_external_refresh(update.pull_reports_changed, inlay_hints_changed);
-            publish_diagnostic_batches(&mut self.client, update.batches);
+            let refresh_requests = RefreshRequests {
+                diagnostics: external_refresh.diagnostics || update.workspace_documents_changed,
+                inlay_hints: external_refresh.inlay_hints,
+            };
+            publish_diagnostic_batches(
+                &mut self.client,
+                update.batches,
+                self.config.supports_publish_diagnostics_data(),
+            );
             self.published_analysis_version.send_replace(version);
             (old_symbol_tables, refresh_requests)
         };
@@ -1039,7 +1266,11 @@ impl GlobalStateSnapshot {
     fn publish_symbol_tables(&mut self, version: usize, symbol_tables: SymbolTables) -> bool {
         self.publish_analysis(
             version,
-            AnalysisResult { diagnostics: DiagnosticMap::default(), symbol_tables },
+            AnalysisResult {
+                analyzed_documents: AnalyzedDocuments::default(),
+                diagnostics: DiagnosticMap::default(),
+                symbol_tables,
+            },
         )
     }
 
@@ -1063,7 +1294,11 @@ impl GlobalStateSnapshot {
 
         let refresh_immediately = update.pull_reports_changed && commit.external_refresh.is_none();
         commit.record_external_diagnostics_change(update.pull_reports_changed);
-        publish_diagnostic_batches(&mut self.client, update.batches);
+        publish_diagnostic_batches(
+            &mut self.client,
+            update.batches,
+            self.config.supports_publish_diagnostics_data(),
+        );
         refresh_immediately
     }
 
@@ -1077,7 +1312,11 @@ impl GlobalStateSnapshot {
 
         let refresh_immediately = update.pull_reports_changed && commit.external_refresh.is_none();
         commit.record_external_diagnostics_change(update.pull_reports_changed);
-        publish_diagnostic_batches(&mut self.client, update.batches);
+        publish_diagnostic_batches(
+            &mut self.client,
+            update.batches,
+            self.config.supports_publish_diagnostics_data(),
+        );
         refresh_immediately
     }
 
@@ -1099,7 +1338,11 @@ impl GlobalStateSnapshot {
                 store.replace_and_publish_batches(owner, diagnostics)
             };
             let pull_reports_changed = update.pull_reports_changed;
-            publish_diagnostic_batches(&mut self.client, update.batches);
+            publish_diagnostic_batches(
+                &mut self.client,
+                update.batches,
+                self.config.supports_publish_diagnostics_data(),
+            );
             pull_reports_changed
         };
         request_pull_result_refreshes(
@@ -1156,12 +1399,18 @@ fn request_inlay_hint_refresh(client: &ClientSocket) {
 struct AnalysisBatch {
     opts: CompileOpts,
     files: Vec<(PathBuf, String)>,
+    open_file_versions: FxHashMap<Url, i64>,
     seen_paths: FxHashSet<PathBuf>,
 }
 
 impl AnalysisBatch {
     fn new(opts: CompileOpts) -> Self {
-        Self { opts, files: Vec::new(), seen_paths: FxHashSet::default() }
+        Self {
+            opts,
+            files: Vec::new(),
+            open_file_versions: FxHashMap::default(),
+            seen_paths: FxHashSet::default(),
+        }
     }
 
     #[cfg(any(test, feature = "bench"))]
@@ -1180,6 +1429,17 @@ impl AnalysisBatch {
         }
     }
 
+    fn push_open_file(&mut self, path: PathBuf, contents: String, version: Option<i32>) {
+        if self.seen_paths.insert(path.clone()) {
+            if let Some(version) = version
+                && let Ok(uri) = Url::from_file_path(&path)
+            {
+                self.open_file_versions.insert(uri, i64::from(version));
+            }
+            self.files.push((path, contents));
+        }
+    }
+
     fn finish(&mut self) {
         self.files.sort_by(|(lhs, _), (rhs, _)| lhs.cmp(rhs));
     }
@@ -1188,6 +1448,7 @@ impl AnalysisBatch {
 #[cfg(test)]
 mod analysis_batch_tests {
     use super::*;
+    use crate::{config::negotiate_capabilities, test_support::TestProject};
 
     #[test]
     fn from_files_tracks_unique_sorted_paths() {
@@ -1207,6 +1468,132 @@ mod analysis_batch_tests {
         assert_eq!(batch.files[1], (b.clone(), "contract B {}".into()));
         assert_eq!(batch.seen_paths, FxHashSet::from_iter([a, b]));
     }
+
+    #[test]
+    fn flycheck_snapshot_includes_saved_file_and_default_foundry_inputs() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+            //- /src/Tracked.sol
+            contract Tracked {}
+            //- /test/Tracked.t.sol
+            contract TrackedTest {}
+            //- /script/Tracked.s.sol
+            contract TrackedScript {}
+            "#,
+        );
+        let mut params = project.initialize_params();
+        params.initialization_options = Some(serde_json::json!({
+            "flychecks": [{
+                "id": "custom",
+                "command": "custom-lint"
+            }]
+        }));
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+        let saved_path = project.path("/src/SavedAfterDiscovery.sol");
+        project.write_file("/src/SavedAfterDiscovery.sol", "contract SavedAfterDiscovery {}\n");
+        let [flycheck] = config.flychecks_for_path(&saved_path).try_into().unwrap();
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(config);
+
+        let paths = state.snapshot().flycheck_source_paths(&flycheck, &saved_path);
+
+        assert!(paths.contains(&project.path("/src/Tracked.sol")));
+        assert!(paths.contains(&project.path("/test/Tracked.t.sol")));
+        assert!(paths.contains(&project.path("/script/Tracked.s.sol")));
+        assert!(paths.contains(&saved_path));
+    }
+
+    #[test]
+    fn flycheck_snapshot_preserves_nested_workspace_sources() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+            //- /src/Outer.sol
+            contract Outer {}
+            //- /nested/foundry.toml
+            [profile.default]
+            src = "src"
+            //- /nested/src/Nested.sol
+            contract Nested {}
+            "#,
+        );
+        let mut params = project.initialize_params();
+        params.initialization_options = Some(serde_json::json!({
+            "flychecks": [{
+                "id": "custom",
+                "command": "custom-lint"
+            }]
+        }));
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+        let saved_path = project.path("/src/SavedAfterDiscovery.sol");
+        project.write_file("/src/SavedAfterDiscovery.sol", "contract SavedAfterDiscovery {}\n");
+        let [flycheck] = config.flychecks_for_path(&saved_path).try_into().unwrap();
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(config);
+
+        let paths = state.snapshot().flycheck_source_paths(&flycheck, &saved_path);
+
+        assert!(paths.contains(&project.path("/nested/src/Nested.sol")));
+    }
+
+    #[test]
+    fn flycheck_snapshot_includes_all_configured_foundry_input_roots() {
+        let project = TestProject::new();
+        let external_test_root = project.path("/checks");
+        project.write_file(
+            "/workspace/foundry.toml",
+            &format!(
+                r#"
+            [profile.default]
+            src = "contracts"
+            test = '{}'
+            script = "deployments"
+            "#,
+                external_test_root.display()
+            ),
+        );
+        project.write_file("/workspace/contracts/Tracked.sol", "contract Tracked {}");
+        project.write_file("/checks/Tracked.t.sol", "contract TrackedTest {}");
+        project.write_file("/workspace/deployments/Tracked.s.sol", "contract TrackedScript {}");
+        let mut params = project.initialize_params_with_roots(&["/workspace"]);
+        params.initialization_options = Some(serde_json::json!({
+            "flychecks": [{
+                "id": "custom",
+                "command": "custom-lint"
+            }]
+        }));
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+        assert_eq!(
+            config.workspaces()[0].source_files(),
+            &[project.path("/workspace/contracts/Tracked.sol")]
+        );
+        let saved_path = project.path("/checks/SavedAfterDiscovery.t.sol");
+        project
+            .write_file("/checks/SavedAfterDiscovery.t.sol", "contract SavedAfterDiscovery {}\n");
+        let [flycheck] = config.flychecks_for_path(&saved_path).try_into().unwrap();
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(config);
+
+        let paths = state.snapshot().flycheck_source_paths(&flycheck, &saved_path);
+
+        assert_eq!(
+            paths,
+            vec![
+                project.path("/checks/SavedAfterDiscovery.t.sol"),
+                project.path("/checks/Tracked.t.sol"),
+                project.path("/workspace/contracts/Tracked.sol"),
+                project.path("/workspace/deployments/Tracked.s.sol"),
+            ]
+        );
+    }
 }
 
 fn analyze(batch: AnalysisBatch) -> AnalysisResult {
@@ -1215,7 +1602,8 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
 
 fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> AnalysisResult {
     let (emitter, diag_buffer) = InMemoryEmitter::new();
-    let AnalysisBatch { mut opts, files, seen_paths: document_link_sources } = batch;
+    let AnalysisBatch { mut opts, files, open_file_versions, seen_paths: document_link_sources } =
+        batch;
     debug_assert_eq!(files.len(), document_link_sources.len());
     debug_assert!(files.iter().all(|(path, _)| document_link_sources.contains(path)));
     opts.unstable.recover_incomplete_input = true;
@@ -1264,8 +1652,19 @@ fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> 
                 diagnostics.entry(uri).or_default().push(diag);
                 diagnostics
             });
+        let analyzed_documents = compiler
+            .sess()
+            .source_map()
+            .files()
+            .iter()
+            .filter_map(|file| Url::from_file_path(file.name.as_real()?).ok())
+            .map(|uri| {
+                let version = open_file_versions.get(&uri).copied();
+                (uri, version)
+            })
+            .collect();
 
-        AnalysisResult { diagnostics, symbol_tables }
+        AnalysisResult { analyzed_documents, diagnostics, symbol_tables }
     })
 }
 
