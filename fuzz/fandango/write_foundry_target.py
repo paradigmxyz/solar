@@ -54,6 +54,7 @@ def write_symbolic_target(
     max_returndata_bytes: int,
     evm_version: str,
     dynamic_lengths: tuple[int, ...] = symbolic.DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS,
+    exploration_order: str = "bfs",
 ) -> None:
     """Write a single bounded pure-function symbolic differential target."""
     if max_returndata_bytes <= 0:
@@ -73,6 +74,8 @@ def write_symbolic_target(
             "dynamic lengths must be unique integers from 0 through "
             f"{symbolic.MAX_SYMBOLIC_DYNAMIC_LENGTH}"
         )
+    if exploration_order not in {"bfs", "dfs"}:
+        raise ValueError("symbolic exploration order must be bfs or dfs")
     src_dir = out_dir / "src"
     test_dir = out_dir / "test"
     src_dir.mkdir(parents=True, exist_ok=True)
@@ -116,6 +119,7 @@ def write_symbolic_target(
         _SYMBOLIC_FOUNDRY_TOML.format(
             evm_version=evm_version,
             dynamic_lengths=", ".join(str(length) for length in dynamic_lengths),
+            exploration_order=exploration_order,
         )
     )
 
@@ -150,6 +154,7 @@ evm_version = "{evm_version}"
 code_size_limit = 1000000
 
 [symbolic]
+exploration_order = "{exploration_order}"
 default_array_lengths = [{dynamic_lengths}]
 default_bytes_lengths = [{dynamic_lengths}]
 """

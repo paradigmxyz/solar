@@ -228,6 +228,41 @@ class FocusedCommandTests(unittest.TestCase):
         self.assertEqual(args.optimizer_runs, 0)
         self.assertFalse(args.via_ir)
 
+    def test_symbolic_search_bounds_are_explicit(self):
+        with (
+            patch.object(
+                sys,
+                "argv",
+                [
+                    "solsymdiff",
+                    "--source",
+                    "Target.sol",
+                    "--contract",
+                    "Target",
+                    "--symbolic-loop",
+                    "7",
+                    "--symbolic-max-solver-queries",
+                    "12000",
+                    "--symbolic-max-calldata-bytes",
+                    "8192",
+                    "--symbolic-exploration-order",
+                    "dfs",
+                ],
+            ),
+            patch.object(
+                run_foundry_target,
+                "_run_symbolic_or_incomplete",
+                return_value=0,
+            ) as run,
+        ):
+            self.assertEqual(run_foundry_target.symbolic_main(), 0)
+
+        args = run.call_args.args[0]
+        self.assertEqual(args.symbolic_loop, 7)
+        self.assertEqual(args.symbolic_max_solver_queries, 12000)
+        self.assertEqual(args.symbolic_max_calldata_bytes, 8192)
+        self.assertEqual(args.symbolic_exploration_order, "dfs")
+
     def test_timeout_parser_rejects_nonfinite_or_nonpositive_values(self):
         for value in ("-inf", "-1", "0", "inf", "nan", "not-a-number"):
             with (
@@ -1470,6 +1505,7 @@ class SymbolicTargetGenerationTests(unittest.TestCase):
             "default_bytes_lengths = [0, 1, 2, 3]",
             foundry_config,
         )
+        self.assertIn('exploration_order = "bfs"', foundry_config)
         self.assertLess(
             property_body.index("_warmRouter();"),
             property_body.index(
@@ -1711,6 +1747,10 @@ class EffectiveBoundsTests(unittest.TestCase):
             symbolic_timeout=7,
             symbolic_max_paths=512,
             symbolic_max_depth=None,
+            symbolic_loop=9,
+            symbolic_max_solver_queries=12000,
+            symbolic_max_calldata_bytes=8192,
+            symbolic_exploration_order="dfs",
             symbolic_dynamic_lengths=(0, 1, 3),
         )
 
@@ -1719,6 +1759,10 @@ class EffectiveBoundsTests(unittest.TestCase):
             "timeout_seconds": 7,
             "max_paths": 512,
             "max_depth": 10000,
+            "loop_bound": 9,
+            "max_solver_queries": 12000,
+            "max_calldata_bytes": 8192,
+            "exploration_order": "dfs",
             "default_array_lengths": [0, 1, 3],
             "default_bytes_lengths": [0, 1, 3],
             "max_dynamic_length": 256,
@@ -1735,6 +1779,10 @@ class EffectiveBoundsTests(unittest.TestCase):
             "timeout_seconds": 5,
             "max_paths": 256,
             "max_depth": 10000,
+            "loop_bound": 8,
+            "max_solver_queries": 10000,
+            "max_calldata_bytes": 4096,
+            "exploration_order": "bfs",
             "default_array_lengths": [0, 1],
             "default_bytes_lengths": [0, 1, 3],
             "max_dynamic_length": 2,
@@ -1745,6 +1793,14 @@ class EffectiveBoundsTests(unittest.TestCase):
         self.assertIn("timeout_seconds=5 (expected 7)", reason)
         self.assertIn("max_paths=256 (expected 512)", reason)
         self.assertIn("max_depth=10000 (expected 64)", reason)
+        self.assertIn("loop_bound=8 (expected 9)", reason)
+        self.assertIn(
+            "max_solver_queries=10000 (expected 12000)", reason
+        )
+        self.assertIn(
+            "max_calldata_bytes=4096 (expected 8192)", reason
+        )
+        self.assertIn("exploration_order='bfs' (expected 'dfs')", reason)
         self.assertIn(
             "default_array_lengths=[0, 1] (expected [0, 1, 3])",
             reason,
@@ -1760,6 +1816,10 @@ class EffectiveBoundsTests(unittest.TestCase):
             "timeout_seconds": True,
             "max_paths": True,
             "max_depth": 10000,
+            "loop_bound": 9,
+            "max_solver_queries": 12000,
+            "max_calldata_bytes": 8192,
+            "exploration_order": "dfs",
             "default_array_lengths": [False, True],
             "default_bytes_lengths": [0, 1],
             "max_dynamic_length": True,

@@ -26,6 +26,11 @@ DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS = (0, 1, 2, 3)
 # Match Foundry's default hard bound so this wrapper cannot silently request a
 # shape that the pinned symbolic engine must reject.
 MAX_SYMBOLIC_DYNAMIC_LENGTH = 256
+# Pin the engine defaults in the orchestration layer and verify that Forge
+# reports them back. This prevents a Foundry upgrade from silently changing a
+# differential campaign's search budget.
+DEFAULT_SYMBOLIC_MAX_SOLVER_QUERIES = 10_000
+DEFAULT_SYMBOLIC_MAX_CALLDATA_BYTES = 4_096
 UNSUPPORTED_RUNTIME_OPCODES = {
     # The symbolic router and independent Anvil replay intentionally use
     # different callers and fresh execution environments. Reject opcodes that

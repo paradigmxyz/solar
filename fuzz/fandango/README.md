@@ -414,8 +414,14 @@ The command:
    compiler, Forge, Anvil, solver, and replay process tree is owned and reaped
    on normal completion, timeout, or interruption.
 
-Use `--symbolic-timeout`, `--symbolic-max-paths`, and
-`--symbolic-max-depth` to tune per-function solver bounds. A clean result also
+Use `--symbolic-timeout`, `--symbolic-max-paths`,
+`--symbolic-max-solver-queries`, `--symbolic-max-depth`, and
+`--symbolic-loop` to tune per-function search bounds. Use
+`--symbolic-max-calldata-bytes` when wider dynamic encodings are required, and
+choose `--symbolic-exploration-order bfs|dfs` to prioritize shallow breadth or
+deep paths under a finite budget. Every requested value is recorded and
+checked against Forge's effective bounds; an ignored setting makes the run
+incomplete rather than producing a misleading clean result. A clean result also
 requires Forge to report the exact requested solver and the reviewed
 `bounded_exploration` and `hash_model` assumption kinds. Those assumptions and
 their descriptions remain explicit in each child manifest: bounded-clean means

@@ -177,6 +177,29 @@ def _add_symbolic_arguments(parser: argparse.ArgumentParser) -> None:
         help="optional maximum symbolic execution depth per function",
     )
     parser.add_argument(
+        "--symbolic-loop",
+        type=int,
+        help="optional maximum backward jumps per loop and symbolic path",
+    )
+    parser.add_argument(
+        "--symbolic-max-solver-queries",
+        type=int,
+        default=symbolic.DEFAULT_SYMBOLIC_MAX_SOLVER_QUERIES,
+        help="maximum normalized solver queries per function",
+    )
+    parser.add_argument(
+        "--symbolic-max-calldata-bytes",
+        type=int,
+        default=symbolic.DEFAULT_SYMBOLIC_MAX_CALLDATA_BYTES,
+        help="maximum symbolic calldata size in bytes",
+    )
+    parser.add_argument(
+        "--symbolic-exploration-order",
+        choices=("bfs", "dfs"),
+        default="bfs",
+        help="pending symbolic path exploration order",
+    )
+    parser.add_argument(
         "--symbolic-dynamic-lengths",
         type=_parse_symbolic_dynamic_lengths,
         default=symbolic.DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS,
@@ -335,6 +358,47 @@ def _run_symbolic(args: argparse.Namespace) -> int:
         raise ValueError("--symbolic-max-paths must be positive")
     if args.symbolic_max_depth is not None and args.symbolic_max_depth <= 0:
         raise ValueError("--symbolic-max-depth must be positive")
+    args.symbolic_loop = getattr(args, "symbolic_loop", None)
+    if (
+        args.symbolic_loop is not None
+        and (
+            not isinstance(args.symbolic_loop, int)
+            or isinstance(args.symbolic_loop, bool)
+            or args.symbolic_loop < 0
+        )
+    ):
+        raise ValueError("--symbolic-loop must be a non-negative integer")
+    args.symbolic_max_solver_queries = getattr(
+        args,
+        "symbolic_max_solver_queries",
+        symbolic.DEFAULT_SYMBOLIC_MAX_SOLVER_QUERIES,
+    )
+    if (
+        not isinstance(args.symbolic_max_solver_queries, int)
+        or isinstance(args.symbolic_max_solver_queries, bool)
+        or args.symbolic_max_solver_queries <= 0
+    ):
+        raise ValueError(
+            "--symbolic-max-solver-queries must be a positive integer"
+        )
+    args.symbolic_max_calldata_bytes = getattr(
+        args,
+        "symbolic_max_calldata_bytes",
+        symbolic.DEFAULT_SYMBOLIC_MAX_CALLDATA_BYTES,
+    )
+    if (
+        not isinstance(args.symbolic_max_calldata_bytes, int)
+        or isinstance(args.symbolic_max_calldata_bytes, bool)
+        or args.symbolic_max_calldata_bytes <= 0
+    ):
+        raise ValueError(
+            "--symbolic-max-calldata-bytes must be a positive integer"
+        )
+    args.symbolic_exploration_order = getattr(
+        args, "symbolic_exploration_order", "bfs"
+    )
+    if args.symbolic_exploration_order not in {"bfs", "dfs"}:
+        raise ValueError("--symbolic-exploration-order must be bfs or dfs")
     args.optimize = getattr(args, "optimize", True)
     args.optimizer_runs = getattr(args, "optimizer_runs", 200)
     args.via_ir = getattr(args, "via_ir", True)
@@ -489,6 +553,7 @@ def _run_symbolic_function(
             args.max_returndata_bytes,
             args.evm_version,
             args.symbolic_dynamic_lengths,
+            args.symbolic_exploration_order,
         )
         forge_run = _forge_symbolic(args, project, expected_test, deadline)
         classified = None
@@ -1088,6 +1153,14 @@ def _create_campaign_bundle(
             "solver_query_timeout_seconds_per_function": args.symbolic_timeout,
             "max_paths_per_function": args.symbolic_max_paths,
             "max_depth_per_function": args.symbolic_max_depth,
+            "loop_bound_per_function": args.symbolic_loop,
+            "max_solver_queries_per_function": (
+                args.symbolic_max_solver_queries
+            ),
+            "max_calldata_bytes_per_function": (
+                args.symbolic_max_calldata_bytes
+            ),
+            "exploration_order": args.symbolic_exploration_order,
             "dynamic_input_lengths": list(args.symbolic_dynamic_lengths),
             "max_returndata_bytes_per_function": args.max_returndata_bytes,
             "elapsed_wall_seconds": deadline.elapsed(),
@@ -1307,6 +1380,16 @@ def _forge_symbolic(
     expected_test: str,
     deadline: evm.Deadline,
 ) -> dict[str, Any]:
+    max_solver_queries = getattr(
+        args,
+        "symbolic_max_solver_queries",
+        symbolic.DEFAULT_SYMBOLIC_MAX_SOLVER_QUERIES,
+    )
+    max_calldata_bytes = getattr(
+        args,
+        "symbolic_max_calldata_bytes",
+        symbolic.DEFAULT_SYMBOLIC_MAX_CALLDATA_BYTES,
+    )
     command = [
         getattr(args, "_forge_executable", args.forge),
         "test",
@@ -1325,10 +1408,17 @@ def _forge_symbolic(
         str(args.symbolic_timeout),
         "--symbolic-max-paths",
         str(args.symbolic_max_paths),
+        "--symbolic-max-solver-queries",
+        str(max_solver_queries),
+        "--symbolic-max-calldata-bytes",
+        str(max_calldata_bytes),
         "--json",
     ]
     if args.symbolic_max_depth is not None:
         command.extend(["--symbolic-max-depth", str(args.symbolic_max_depth)])
+    symbolic_loop = getattr(args, "symbolic_loop", None)
+    if symbolic_loop is not None:
+        command.extend(["--symbolic-loop", str(symbolic_loop)])
     try:
         timeout = deadline.remaining("Forge symbolic execution")
         with tempfile.TemporaryDirectory(
@@ -1578,6 +1668,20 @@ def _bounds_manifest(
         "solver_query_timeout_seconds": args.symbolic_timeout,
         "max_paths": args.symbolic_max_paths,
         "max_depth": args.symbolic_max_depth,
+        "loop_bound": getattr(args, "symbolic_loop", None),
+        "max_solver_queries": getattr(
+            args,
+            "symbolic_max_solver_queries",
+            symbolic.DEFAULT_SYMBOLIC_MAX_SOLVER_QUERIES,
+        ),
+        "max_calldata_bytes": getattr(
+            args,
+            "symbolic_max_calldata_bytes",
+            symbolic.DEFAULT_SYMBOLIC_MAX_CALLDATA_BYTES,
+        ),
+        "exploration_order": getattr(
+            args, "symbolic_exploration_order", "bfs"
+        ),
         "dynamic_input_lengths": list(
             getattr(
                 args,
@@ -1598,6 +1702,20 @@ def _effective_bounds_error(
     expected = {
         "timeout_seconds": args.symbolic_timeout,
         "max_paths": args.symbolic_max_paths,
+        "loop_bound": getattr(args, "symbolic_loop", None),
+        "max_solver_queries": getattr(
+            args,
+            "symbolic_max_solver_queries",
+            symbolic.DEFAULT_SYMBOLIC_MAX_SOLVER_QUERIES,
+        ),
+        "max_calldata_bytes": getattr(
+            args,
+            "symbolic_max_calldata_bytes",
+            symbolic.DEFAULT_SYMBOLIC_MAX_CALLDATA_BYTES,
+        ),
+        "exploration_order": getattr(
+            args, "symbolic_exploration_order", "bfs"
+        ),
         "default_array_lengths": dynamic_lengths,
         "default_bytes_lengths": dynamic_lengths,
     }
@@ -2206,6 +2324,22 @@ def _campaign_setup_incomplete(args: argparse.Namespace, err: Exception) -> int:
             "solver_query_timeout_seconds_per_function": args.symbolic_timeout,
             "max_paths_per_function": args.symbolic_max_paths,
             "max_depth_per_function": args.symbolic_max_depth,
+            "loop_bound_per_function": getattr(
+                args, "symbolic_loop", None
+            ),
+            "max_solver_queries_per_function": getattr(
+                args,
+                "symbolic_max_solver_queries",
+                symbolic.DEFAULT_SYMBOLIC_MAX_SOLVER_QUERIES,
+            ),
+            "max_calldata_bytes_per_function": getattr(
+                args,
+                "symbolic_max_calldata_bytes",
+                symbolic.DEFAULT_SYMBOLIC_MAX_CALLDATA_BYTES,
+            ),
+            "exploration_order": getattr(
+                args, "symbolic_exploration_order", "bfs"
+            ),
             "dynamic_input_lengths": list(
                 getattr(
                     args,
