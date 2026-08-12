@@ -591,10 +591,7 @@ to be backed by Solc comparisons and existing UI or runtime infrastructure:
    function pointers embedded between scalar fields in storage structs, and
    `external_function_pointer_parameter.sol` covers direct and internal calls
    that pass external pointers as parameters.
-   The Unifap creation fixture now passes the differential Foundry
-   suite; the companion fixture compiles with no Solar-only regressions, but
-   retains seven pre-existing failures under both compilers because its
-   hard-coded CREATE2 init-code hash does not match the current pair bytecode.
+   Both Unifap fixtures now pass the differential Foundry suite.
 4. Storage-reference CFG tests now cover packed struct fields, mapping-pointer
    rebinding, and Yul `.slot`/`.offset` access. Direct dynamic bytes and array
    overflow cases now have exact `Panic(0x41)` run-call checks, as do nested
