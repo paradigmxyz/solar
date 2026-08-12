@@ -37,9 +37,9 @@
       v5 = add v2, v4
 -     ret v5
 +     mstore 128, v5
-+     v70 = add 128, 32
-+     v71 = sub v70, 128
-+     returndata 128, v71
++     v60 = add 128, 32
++     v61 = sub v60, 128
++     returndata 128, v61
 +   bb2:
 +     revert 0, 0
 +   bb3:
@@ -72,19 +72,19 @@
 +   bb8:
 +     v25 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
 +     v26 = add v15, 0
-+     v27 = add v26, 32
-+     v28 = lt v27, v26
-+     v29 = calldatasize
-+     v30 = gt v27, v29
-+     v31 = or v28, v30
-+     jumpi v31, bb11, bb10
++     v27 = make_calldata_slice v26, 32
++     v28 = calldata_slice_load_word calldata, v27, 0
++     v29 = add v15, v28
++     v30 = lt v29, v15
++     v31 = calldatasize
++     v32 = gt v29, v31
++     v33 = or v30, v32
++     jumpi v33, bb11, bb10
 +   bb9:
 +     revert 0, 0
 +   bb10:
-+     v32 = make_calldata_slice v26, 32
-+     v33 = calldata_slice_load_word calldata, v32, 0
-+     v34 = add v15, v33
-+     v35 = lt v34, v15
++     v34 = add v29, 32
++     v35 = lt v34, v29
 +     v36 = calldatasize
 +     v37 = gt v34, v36
 +     v38 = or v35, v37
@@ -92,64 +92,46 @@
 +   bb11:
 +     revert 0, 0
 +   bb12:
-+     v39 = add v34, 32
-+     v40 = lt v39, v34
-+     v41 = calldatasize
-+     v42 = gt v39, v41
-+     v43 = or v40, v42
-+     jumpi v43, bb15, bb14
++     v39 = make_calldata_slice v29, 32
++     v40 = calldata_slice_load_word calldata, v39, 0
++     v41 = mul v40, 32
++     v42 = iszero 32
++     v43 = div v41, 32
++     v44 = eq v43, v40
++     v45 = or v42, v44
++     v46 = iszero v45
++     jumpi v46, bb15, bb14
 +   bb13:
 +     revert 0, 0
 +   bb14:
-+     v44 = make_calldata_slice v34, 32
-+     v45 = calldata_slice_load_word calldata, v44, 0
-+     v46 = mul v45, 32
-+     v47 = iszero 32
-+     v48 = div v46, 32
-+     v49 = eq v48, v45
-+     v50 = or v47, v49
-+     v51 = iszero v50
-+     jumpi v51, bb17, bb16
++     v47 = add v41, 32
++     v48 = lt v47, v41
++     jumpi v48, bb17, bb16
 +   bb15:
 +     revert 0, 0
 +   bb16:
-+     v52 = add v46, 32
-+     v53 = lt v52, v46
++     v49 = add v29, v47
++     v50 = lt v49, v29
++     v51 = calldatasize
++     v52 = gt v49, v51
++     v53 = or v50, v52
 +     jumpi v53, bb19, bb18
 +   bb17:
 +     revert 0, 0
 +   bb18:
-+     v54 = add v34, v52
-+     v55 = lt v54, v34
-+     v56 = calldatasize
-+     v57 = gt v54, v56
-+     v58 = or v55, v57
-+     jumpi v58, bb21, bb20
-+   bb19:
-+     revert 0, 0
-+   bb20:
-+     v59 = alloc memoryarray<1>, exact, uninitialized, infallible, v52
-+     set_memory_object_len memoryarray, v59, v45
-+     v60 = add v34, 32
-+     v61 = make_calldata_slice v60, v46
-+     memory_object_copy_from_slice memoryarray, v59, v61
-+     memory_object_store_field memorystruct<3>, v25, 0, v59
-+     v62 = add v15, 32
-+     v63 = add v62, 32
-+     v64 = lt v63, v62
-+     v65 = calldatasize
-+     v66 = gt v63, v65
-+     v67 = or v64, v66
-+     jumpi v67, bb23, bb22
-+   bb21:
-+     revert 0, 0
-+   bb22:
-+     v68 = make_calldata_slice v62, 32
-+     v69 = calldata_slice_load_word calldata, v68, 0
-+     memory_object_store_field memorystruct<3>, v25, 1, v69
++     v54 = alloc memoryarray<1>, exact, uninitialized, infallible, v47
++     set_memory_object_len memoryarray, v54, v40
++     v55 = add v29, 32
++     v56 = make_calldata_slice v55, v41
++     memory_object_copy_from_slice memoryarray, v54, v56
++     memory_object_store_field memorystruct<3>, v25, 0, v54
++     v57 = add v15, 32
++     v58 = make_calldata_slice v57, 32
++     v59 = calldata_slice_load_word calldata, v58, 0
++     memory_object_store_field memorystruct<3>, v25, 1, v59
 +     memory_object_store_field memorystruct<3>, v25, 2, v15
 +     jump bb1
-+   bb23:
++   bb19:
 +     revert 0, 0
   }
   

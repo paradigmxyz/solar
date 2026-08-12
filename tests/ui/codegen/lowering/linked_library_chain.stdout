@@ -244,16 +244,7 @@ bb7:
   dup1
   push 192
   mstore
-  dup2
-  dup2
   lt
-  dup2
-  dup1
-  gt
-  or
-  swap2
-  pop
-  pop
   push bb3
   jumpi
   push 32
@@ -450,16 +441,7 @@ bb4:
   dup1
   push 192
   mstore
-  dup2
-  dup2
   lt
-  dup2
-  dup1
-  gt
-  or
-  swap2
-  pop
-  pop
   push bb3
   jumpi
   push 32

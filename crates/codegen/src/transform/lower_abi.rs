@@ -1152,6 +1152,7 @@ impl LowerAbiCx {
                                 input_end,
                                 constructor,
                                 &mut current,
+                                true,
                             );
                         }
                     } else {
@@ -1216,10 +1217,13 @@ impl LowerAbiCx {
         input_end: ValueId,
         constructor: bool,
         current: &mut BlockId,
+        head_checked: bool,
     ) {
         builder.switch_to_block(*current);
         let base = if ty.is_dynamic() {
-            Self::guard_source_range(builder, head, 32, input_end, constructor, current);
+            if !head_checked {
+                Self::guard_source_range(builder, head, 32, input_end, constructor, current);
+            }
             let offset = Self::load_input_word(builder, head, input_end, constructor);
             Self::guard_source_offset(builder, tuple_base, offset, input_end, constructor, current)
         } else {
@@ -1245,12 +1249,30 @@ impl LowerAbiCx {
             }
             crate::mir::AbiParamType::FixedArray { element, len } => {
                 let head_size = len.saturating_mul(element.head_size());
-                Self::guard_source_range(builder, base, head_size, input_end, constructor, current);
+                if !head_checked || ty.is_dynamic() {
+                    Self::guard_source_range(
+                        builder,
+                        base,
+                        head_size,
+                        input_end,
+                        constructor,
+                        current,
+                    );
+                }
             }
             crate::mir::AbiParamType::Tuple(fields) => {
                 let head_size =
                     fields.iter().fold(0_u64, |size, field| size.saturating_add(field.head_size()));
-                Self::guard_source_range(builder, base, head_size, input_end, constructor, current);
+                if !head_checked || ty.is_dynamic() {
+                    Self::guard_source_range(
+                        builder,
+                        base,
+                        head_size,
+                        input_end,
+                        constructor,
+                        current,
+                    );
+                }
             }
             crate::mir::AbiParamType::Bytes => {
                 Self::guard_source_range(builder, base, 32, input_end, constructor, current);
@@ -1278,24 +1300,32 @@ impl LowerAbiCx {
     ) -> ValueId {
         builder.switch_to_block(*current);
         let base = if ty.is_dynamic() {
-            Self::guard_source_range(builder, head, 32, input_end, constructor, current);
+            if !head_checked {
+                Self::guard_source_range(builder, head, 32, input_end, constructor, current);
+            }
             let offset = Self::load_input_word(builder, head, input_end, constructor);
             Self::guard_source_offset(builder, tuple_base, offset, input_end, constructor, current)
         } else {
             head
         };
         match ty {
-            crate::mir::AbiParamType::Scalar(scalar) if constructor => {
-                Self::decode_input_scalar(builder, *scalar, base, input_end, current, helpers)
-            }
+            crate::mir::AbiParamType::Scalar(scalar) if constructor => Self::decode_input_scalar(
+                builder,
+                *scalar,
+                base,
+                input_end,
+                current,
+                head_checked,
+                helpers,
+            ),
             crate::mir::AbiParamType::Scalar(scalar) => {
-                Self::decode_scalar(builder, *scalar, base, current, helpers)
+                Self::decode_scalar(builder, *scalar, base, current, head_checked, helpers)
             }
             crate::mir::AbiParamType::Enum { variants, .. } if constructor => {
-                Self::decode_input_enum(builder, *variants, base, input_end, current)
+                Self::decode_input_enum(builder, *variants, base, input_end, current, head_checked)
             }
             crate::mir::AbiParamType::Enum { variants, .. } => {
-                Self::decode_enum(builder, *variants, base, current)
+                Self::decode_enum(builder, *variants, base, current, head_checked)
             }
             crate::mir::AbiParamType::FixedArray { element, len }
                 if Self::is_supported_tuple_field(element) =>
@@ -1328,19 +1358,19 @@ impl LowerAbiCx {
                     let value = match element.as_ref() {
                         crate::mir::AbiParamType::Scalar(scalar) if constructor => {
                             Self::decode_input_scalar(
-                                builder, *scalar, word_pos, input_end, current, helpers,
+                                builder, *scalar, word_pos, input_end, current, true, helpers,
                             )
                         }
                         crate::mir::AbiParamType::Scalar(scalar) => {
-                            Self::decode_scalar(builder, *scalar, word_pos, current, helpers)
+                            Self::decode_scalar(builder, *scalar, word_pos, current, true, helpers)
                         }
                         crate::mir::AbiParamType::Enum { variants, .. } if constructor => {
                             Self::decode_input_enum(
-                                builder, *variants, word_pos, input_end, current,
+                                builder, *variants, word_pos, input_end, current, true,
                             )
                         }
                         crate::mir::AbiParamType::Enum { variants, .. } => {
-                            Self::decode_enum(builder, *variants, word_pos, current)
+                            Self::decode_enum(builder, *variants, word_pos, current, true)
                         }
                         element => Self::decode_aggregate_argument(
                             builder,
@@ -1351,7 +1381,7 @@ impl LowerAbiCx {
                             input_end,
                             constructor,
                             current,
-                            !element.is_dynamic(),
+                            true,
                             helpers,
                         ),
                     };
@@ -1495,7 +1525,7 @@ impl LowerAbiCx {
                     input_end,
                     constructor,
                     &mut element_current,
-                    !element.is_dynamic(),
+                    true,
                     helpers,
                 );
                 builder.memory_object_store_element(
@@ -1600,7 +1630,7 @@ impl LowerAbiCx {
                         input_end,
                         constructor,
                         current,
-                        !ty.is_dynamic(),
+                        true,
                         helpers,
                     );
                     builder.memory_object_store_field(ptr, layout, index as u64, value);
@@ -1628,9 +1658,8 @@ impl LowerAbiCx {
         layout: &AbiParamLayout,
         helpers: Option<&CleanupHelpers>,
     ) -> Option<Vec<ValueId>> {
-        let input_end = builder.add(base, length);
         let mut current = builder.current_block();
-        Self::guard_input_range_value(builder, base, length, input_end, &mut current);
+        let input_end = Self::checked_add(builder, base, length, &mut current);
         let head_size = layout.checked_head_size()?;
         Self::guard_input_range(builder, base, head_size, input_end, &mut current);
 
@@ -1765,10 +1794,13 @@ impl LowerAbiCx {
         scalar: MirType,
         position: ValueId,
         current: &mut BlockId,
+        head_checked: bool,
         helpers: Option<&CleanupHelpers>,
     ) -> ValueId {
         builder.switch_to_block(*current);
-        Self::guard_calldata_range(builder, position, 32, current);
+        if !head_checked {
+            Self::guard_calldata_range(builder, position, 32, current);
+        }
         let value = Self::load_calldata_word(builder, position);
         if let Some(validator) = AbiWordValidator::from_mir_type(scalar) {
             let valid = if let Some(helpers) = helpers {
@@ -1797,9 +1829,12 @@ impl LowerAbiCx {
         variants: u64,
         position: ValueId,
         current: &mut BlockId,
+        head_checked: bool,
     ) -> ValueId {
         builder.switch_to_block(*current);
-        Self::guard_calldata_range(builder, position, 32, current);
+        if !head_checked {
+            Self::guard_calldata_range(builder, position, 32, current);
+        }
         let value = Self::load_calldata_word(builder, position);
         let valid = AbiWordValidator::EnumRange(variants).condition(builder, value);
         let next = builder.create_block();
@@ -1835,10 +1870,13 @@ impl LowerAbiCx {
         position: ValueId,
         input_end: ValueId,
         current: &mut BlockId,
+        head_checked: bool,
         helpers: Option<&CleanupHelpers>,
     ) -> ValueId {
         builder.switch_to_block(*current);
-        Self::guard_input_range(builder, position, 32, input_end, current);
+        if !head_checked {
+            Self::guard_input_range(builder, position, 32, input_end, current);
+        }
         let length = builder.sub(input_end, position);
         let slice = builder.make_slice(position, length, SliceLocation::Memory);
         let zero = builder.imm_u64(0);
@@ -1871,9 +1909,12 @@ impl LowerAbiCx {
         position: ValueId,
         input_end: ValueId,
         current: &mut BlockId,
+        head_checked: bool,
     ) -> ValueId {
         builder.switch_to_block(*current);
-        Self::guard_input_range(builder, position, 32, input_end, current);
+        if !head_checked {
+            Self::guard_input_range(builder, position, 32, input_end, current);
+        }
         let length = builder.sub(input_end, position);
         let slice = builder.make_slice(position, length, SliceLocation::Memory);
         let zero = builder.imm_u64(0);
