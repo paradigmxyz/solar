@@ -2384,6 +2384,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             } else {
                 Vec::new()
             };
+            if !preserve_branch_targets.is_empty()
+                && let Some(Terminator::Branch { condition, .. }) = block.terminator.as_ref()
+                && liveness.live_out(block_id).contains(*condition)
+            {
+                // JUMPI consumes the condition while the preserved successor layout omits it.
+                // Save an instruction result that remains live so either successor can reload
+                // the same definition instead of observing an unwritten reserved spill slot.
+                self.spill_value_if_needed(func, *condition);
+            }
 
             let global_branch_preserved = if !stack_phi_preserved
                 && let Some((then_layout, else_layout)) = &global_branch_layouts
@@ -5583,7 +5592,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             };
             let abi = self.static_call_abi_mut(func_id, func.params.len());
-            abi.stack_args.union(&mask);
+            let mut stack_args = DenseBitSet::new_empty(func.params.len());
+            for index in abi.stack_args.iter().chain(mask.iter()) {
+                if arg_values[ArgIdx::new(index)].is_some() {
+                    stack_args.insert(index);
+                }
+            }
+            abi.stack_args = stack_args;
             abi.entry = StaticCallEntry::Resident { values, layout: plan };
         }
     }
@@ -6492,7 +6507,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         reachable.insert(entry);
         let needs_free_memory = reachable.iter().any(|func_id| {
             call_graph.is_recursive(func_id)
-                || Self::function_uses_free_memory(&module.functions[func_id])
+                || Self::function_may_observe_free_memory_slot(&module.functions[func_id])
                 || module.functions[func_id].instructions().any(|inst_id| {
                     matches!(
                         module.functions[func_id].inst(inst_id).kind,
@@ -6513,14 +6528,84 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.runtime_entry_reachability.insert(entry, reachable);
     }
 
-    fn function_uses_free_memory(func: &Function) -> bool {
-        func.instructions().any(|inst_id| match func.inst(inst_id).kind {
-            InstKind::MLoad(addr) | InstKind::MStore(addr, _) | InstKind::MStore8(addr, _) => {
-                func.value_u64(addr) == Some(EvmMemoryLayout::FMP_SLOT)
+    /// Returns whether a function can read, write, or observe the reserved free-memory-pointer
+    /// word. Unknown offsets and lengths are conservatively overlapping; constant ranges proven
+    /// disjoint from `[0x40, 0x60)` keep the lazy entry initialization optimization.
+    fn function_may_observe_free_memory_slot(func: &Function) -> bool {
+        let overlaps = |offset, size| {
+            Self::constant_memory_range_may_overlap_fmp(
+                func.value_u64(offset),
+                func.value_u64(size),
+            )
+        };
+        let overlaps_const = |offset, size| {
+            Self::constant_memory_range_may_overlap_fmp(func.value_u64(offset), Some(size))
+        };
+        if func.instructions().any(|inst_id| match &func.inst(inst_id).kind {
+            InstKind::MLoad(offset) | InstKind::MStore(offset, _) => {
+                overlaps_const(*offset, EvmMemoryLayout::WORD_SIZE)
             }
-            InstKind::Alloc { .. } | InstKind::Fmp | InstKind::SetFmp(_) | InstKind::MSize => true,
+            InstKind::MStore8(offset, _) => overlaps_const(*offset, 1),
+            InstKind::MemoryZero(offset, size)
+            | InstKind::Keccak256(offset, size)
+            | InstKind::CalldataCopy(offset, _, size)
+            | InstKind::CodeCopy(offset, _, size)
+            | InstKind::ReturnDataCopy(offset, _, size)
+            | InstKind::ExtCodeCopy(_, offset, _, size) => overlaps(*offset, *size),
+            InstKind::MCopy(dest, src, size) => overlaps(*dest, *size) || overlaps(*src, *size),
+            InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
+            | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
+            | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
+            | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
+                overlaps(*args_offset, *args_size) || overlaps(*ret_offset, *ret_size)
+            }
+            InstKind::Create(_, offset, size) | InstKind::Create2(_, offset, size, _) => {
+                overlaps(*offset, *size)
+            }
+            InstKind::Log0(offset, size)
+            | InstKind::Log1(offset, size, _)
+            | InstKind::Log2(offset, size, _, _)
+            | InstKind::Log3(offset, size, _, _, _)
+            | InstKind::Log4(offset, size, _, _, _, _) => overlaps(*offset, *size),
+            InstKind::MSize | InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. } => true,
+            // These semantic memory operations are normally gone by the `evm-shaped` phase. If
+            // one remains, its complete accessed range is not represented as physical operands
+            // here, so retain the Solidity memory invariant conservatively.
+            InstKind::MemoryObjectLen(_, _)
+            | InstKind::SetMemoryObjectLen(_, _, _)
+            | InstKind::MemoryObjectData(_, _)
+            | InstKind::MemoryObjectFieldAddr { .. }
+            | InstKind::MemoryObjectElementAddr { .. }
+            | InstKind::AbiEncode { .. }
+            | InstKind::StorageToMemory { .. }
+            | InstKind::MemoryToStorage { .. }
+            | InstKind::Keccak256Bytes(_)
+            | InstKind::MappingSlotMemory(_, _) => true,
+            _ => false,
+        }) {
+            return true;
+        }
+
+        func.blocks.iter().any(|block| match block.terminator.as_ref() {
+            Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size }) => {
+                overlaps(*offset, *size)
+            }
             _ => false,
         })
+    }
+
+    fn constant_memory_range_may_overlap_fmp(offset: Option<u64>, size: Option<u64>) -> bool {
+        if size == Some(0) {
+            return false;
+        }
+        let Some(offset) = offset else { return true };
+        let start = EvmMemoryLayout::FMP_SLOT;
+        let end = start + EvmMemoryLayout::WORD_SIZE;
+        if offset >= end {
+            return false;
+        }
+        let Some(size) = size else { return true };
+        offset.checked_add(size).is_none_or(|range_end| range_end > start)
     }
 
     fn emit_spill_slot_addr(&mut self, func: &Function, slot: SpillSlot) {
@@ -8284,11 +8369,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         if stack_mask.as_ref().is_some_and(|mask| mask.contains(i)) {
                             continue;
                         }
-                        if stack_args.contains(&arg) {
-                            self.emit_value(func, arg);
-                        } else {
-                            self.emit_operand(func, arg);
-                        }
+                        self.emit_operand(func, arg);
                         let addr = self.static_frame_addr(
                             *function,
                             EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
@@ -8674,9 +8755,7 @@ mod tests {
             let argument = function.alloc_param(MirType::uint256());
             let function = module.add_function(function);
 
-            let mut mask = DenseBitSet::new_empty(1);
-            mask.insert(0);
-            codegen.stack_arg_masks.insert(function, mask);
+            codegen.static_call_abi_mut(function, 1).stack_args.insert(0);
             codegen.static_frame_functions = DenseBitSet::new_empty(module.functions.len());
             codegen.static_frame_functions.insert(function);
             codegen.disabled_stack_only_functions = DenseBitSet::new_empty(module.functions.len());
@@ -8699,8 +8778,8 @@ mod tests {
 
             codegen.compute_lazy_stack_args(&module, &arg_values, &use_info);
             codegen.compute_direct_stack_args(&module, &arg_values, &use_info);
-            assert!(!codegen.lazy_stack_args.contains_key(&function));
-            assert!(!codegen.direct_stack_args.contains_key(&function));
+            assert!(codegen.lazy_stack_args(function).is_none());
+            assert!(codegen.direct_stack_args(function).is_none());
         });
     }
 
@@ -8721,11 +8800,11 @@ mod tests {
             codegen.static_frame_functions.insert(function);
             codegen.function_spill_sizes.insert(function, 0);
             codegen.runtime_stack_args = false;
-            codegen.compute_stack_return_functions(&module);
+            codegen.compute_stack_return_plans(&module);
 
             let local =
                 EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE + 2 * EvmMemoryLayout::WORD_SIZE;
-            assert!(codegen.stack_return_functions.contains(function));
+            assert!(codegen.stack_return_plan(function).is_some());
             assert_eq!(
                 codegen.compact_static_frame_offset(function, local),
                 local - EvmMemoryLayout::WORD_SIZE
@@ -8754,16 +8833,30 @@ mod tests {
             builder.stop();
             let function = module.add_function(function);
 
-            let mut mask = DenseBitSet::new_empty(1);
-            mask.insert(0);
-            codegen.stack_arg_masks.insert(function, mask);
+            codegen.static_call_abi_mut(function, 1).stack_args.insert(0);
             codegen.disabled_stack_only_functions = DenseBitSet::new_empty(module.functions.len());
             let arg_values = codegen.collect_canonical_stack_arg_values(&module);
             let use_info = codegen.collect_stack_arg_uses(&module);
             codegen.compute_direct_stack_args(&module, &arg_values, &use_info);
 
-            assert!(!codegen.direct_stack_args.contains_key(&function));
+            assert!(codegen.direct_stack_args(function).is_none());
         });
+    }
+
+    #[test]
+    fn free_memory_slot_overlap_is_conservative() {
+        let overlaps = EvmCodegen::constant_memory_range_may_overlap_fmp;
+
+        assert!(!overlaps(Some(0x20), Some(0x20)));
+        assert!(!overlaps(Some(0x3f), Some(1)));
+        assert!(overlaps(Some(0x3f), Some(2)));
+        assert!(overlaps(Some(0x40), Some(0x20)));
+        assert!(overlaps(Some(0x5f), Some(1)));
+        assert!(!overlaps(Some(0x60), None));
+        assert!(!overlaps(None, Some(0)));
+        assert!(overlaps(None, Some(1)));
+        assert!(overlaps(Some(0), None));
+        assert!(overlaps(Some(0x20), Some(u64::MAX)));
     }
 
     #[test]

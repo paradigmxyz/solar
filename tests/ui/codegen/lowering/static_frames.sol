@@ -20,8 +20,8 @@ contract SF {
     // CHECK-NEXT: jump [[GETTER_RETURN:bb[0-9]+]]
     // CHECK: [[GETTER_RETURN]]:
     // CHECK: return
-    // The getter does not allocate, so dispatch reaches it without initializing the free-memory
-    // pointer. The allocating entry initializes only its own reachable frame floor.
+    // The getter's accessed memory ranges are proven disjoint from the reserved FMP word, so the
+    // allocating entry alone initializes its reachable frame floor.
     // CHECK-NOT: push 64
     // CHECK: [[TOP]]:
     // CHECK-NEXT: push 768

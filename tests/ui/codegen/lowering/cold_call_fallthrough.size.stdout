@@ -24,6 +24,9 @@ bb4 [cold]:
   dup1
   revert
 bb5:
+  push 256
+  push 64
+  mstore
   calldatasize
   push 4
   swap1
@@ -83,6 +86,9 @@ bb22 [cold]:
   push 0
   revert
 bb10:
+  push 256
+  push 64
+  mstore
   calldatasize
   push 4
   swap1
