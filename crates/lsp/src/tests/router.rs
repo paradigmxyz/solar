@@ -89,24 +89,85 @@ async fn next_watched_registration_event(
         .expect("watched-file registration event channel should stay open")
 }
 
-fn assert_watched_registration_root(params: &RegistrationParams, root: &std::path::Path) {
+fn watched_registration_watchers(params: &RegistrationParams) -> &[serde_json::Value] {
     let [registration] = params.registrations.as_slice() else {
         panic!("expected one watched-file registration, got {params:?}")
     };
     assert_eq!(registration.method, notif::DidChangeWatchedFiles::METHOD);
     let options = registration.register_options.as_ref().unwrap();
-    let watchers = options["watchers"].as_array().unwrap();
+    options["watchers"].as_array().unwrap()
+}
+
+fn watched_registration_pattern_count(
+    params: &RegistrationParams,
+    root: &std::path::Path,
+    pattern: &str,
+) -> usize {
+    let watchers = watched_registration_watchers(params);
     let root_uri = lsp_types::Url::from_file_path(root).unwrap().to_string();
-    let root_watchers = watchers
+    watchers
         .iter()
-        .filter(|watcher| watcher["globPattern"]["baseUri"].as_str() == Some(&root_uri))
-        .collect::<Vec<_>>();
-    assert_eq!(root_watchers.len(), 2, "missing targeted config watchers for `{root_uri}`");
+        .filter(|watcher| {
+            watcher["globPattern"]["baseUri"].as_str() == Some(&root_uri)
+                && watcher["globPattern"]["pattern"] == pattern
+        })
+        .count()
+}
+
+fn watched_registration_has_discovered_root(
+    params: &RegistrationParams,
+    root: &std::path::Path,
+) -> bool {
+    ["foundry.toml", "remappings.txt", "*", "*.sol"]
+        .into_iter()
+        .all(|pattern| watched_registration_pattern_count(params, root, pattern) == 1)
+}
+
+fn assert_watched_registration_root(params: &RegistrationParams, root: &std::path::Path) {
+    let root_uri = lsp_types::Url::from_file_path(root).unwrap().to_string();
     for pattern in ["foundry.toml", "remappings.txt"] {
-        assert!(
-            root_watchers.iter().any(|watcher| watcher["globPattern"]["pattern"] == pattern),
-            "missing `{pattern}` watcher for `{root_uri}`"
-        );
+        let matching_watchers = watched_registration_pattern_count(params, root, pattern);
+        assert_eq!(matching_watchers, 1, "expected one `{pattern}` watcher for `{root_uri}`");
+    }
+}
+
+fn assert_watched_registration_excludes_root(params: &RegistrationParams, root: &std::path::Path) {
+    let watchers = watched_registration_watchers(params);
+    let root_uri = lsp_types::Url::from_file_path(root).unwrap().to_string();
+    assert!(
+        watchers
+            .iter()
+            .all(|watcher| { watcher["globPattern"]["baseUri"].as_str() != Some(&root_uri) }),
+        "unexpected watchers for stale workspace root `{root_uri}`"
+    );
+}
+
+fn assert_watched_unregistration(params: &UnregistrationParams) {
+    let [unregistration] = params.unregisterations.as_slice() else {
+        panic!("expected one watched-file unregistration, got {params:?}")
+    };
+    assert_eq!(unregistration.id, "solar-watched-files");
+    assert_eq!(unregistration.method, notif::DidChangeWatchedFiles::METHOD);
+}
+
+async fn acknowledge_watched_events_until_registration(
+    events: &mut mpsc::UnboundedReceiver<WatchedRegistrationClientEvent>,
+    mut accept: impl FnMut(&RegistrationParams) -> bool,
+) -> RegistrationParams {
+    loop {
+        match next_watched_registration_event(events).await {
+            WatchedRegistrationClientEvent::Register(params, acknowledge) => {
+                let accepted = accept(&params);
+                acknowledge.send(()).unwrap();
+                if accepted {
+                    return params;
+                }
+            }
+            WatchedRegistrationClientEvent::Unregister(params, acknowledge) => {
+                assert_watched_unregistration(&params);
+                acknowledge.send(()).unwrap();
+            }
+        }
     }
 }
 
@@ -1081,13 +1142,11 @@ async fn watched_file_reregistration_keeps_latest_workspace_folders() {
     server.initialize(params).await.unwrap();
     server.initialized(InitializedParams {}).unwrap();
 
-    let WatchedRegistrationClientEvent::Register(params, acknowledge) =
-        next_watched_registration_event(&mut events_rx).await
-    else {
-        panic!("expected initial watched-file registration")
-    };
+    let params = acknowledge_watched_events_until_registration(&mut events_rx, |params| {
+        watched_registration_has_discovered_root(params, &initial_path)
+    })
+    .await;
     assert_watched_registration_root(&params, &initial_path);
-    acknowledge.send(()).unwrap();
 
     server
         .notify::<notif::DidChangeWorkspaceFolders>(DidChangeWorkspaceFoldersParams {
@@ -1102,7 +1161,7 @@ async fn watched_file_reregistration_keeps_latest_workspace_folders() {
     else {
         panic!("expected first watched-file unregistration")
     };
-    assert_eq!(params.unregisterations[0].id, "solar-watched-files");
+    assert_watched_unregistration(&params);
 
     server
         .notify::<notif::DidChangeWorkspaceFolders>(DidChangeWorkspaceFoldersParams {
@@ -1111,21 +1170,13 @@ async fn watched_file_reregistration_keeps_latest_workspace_folders() {
         .unwrap();
 
     stale_unregister.send(()).unwrap();
-    let WatchedRegistrationClientEvent::Unregister(params, latest_unregister) =
-        next_watched_registration_event(&mut events_rx).await
-    else {
-        panic!("expected latest watched-file unregistration")
-    };
-    assert_eq!(params.unregisterations[0].id, "solar-watched-files");
-
-    latest_unregister.send(()).unwrap();
-    let WatchedRegistrationClientEvent::Register(params, acknowledge) =
-        next_watched_registration_event(&mut events_rx).await
-    else {
-        panic!("expected latest watched-file registration")
-    };
+    let params = acknowledge_watched_events_until_registration(&mut events_rx, |params| {
+        watched_registration_has_discovered_root(params, &latest_path)
+    })
+    .await;
     assert_watched_registration_root(&params, &latest_path);
-    acknowledge.send(()).unwrap();
+    assert_watched_registration_excludes_root(&params, &initial_path);
+    assert_watched_registration_excludes_root(&params, &stale_path);
 
     server.shutdown(()).await.unwrap();
     server.exit(()).unwrap();
