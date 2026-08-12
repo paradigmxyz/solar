@@ -9,7 +9,7 @@ use cfg_if as _;
 
 use eyre::{Result, eyre};
 use std::{
-    ffi::OsString,
+    ffi::{OsStr, OsString},
     io,
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -329,8 +329,16 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     }
 
     assert_eq!(config.comment_start, "//");
+    let is_codegen_test = path.components().any(|component| component.as_os_str() == "codegen")
+        || path.file_stem().is_some_and(|stem| {
+            stem == "codegen" && path.parent().and_then(Path::file_name) != Some(OsStr::new("cli"))
+        });
+    // Codegen fixtures exercise generated output; the warning is tested separately by CLI fixtures.
+    if is_codegen_test {
+        config.program.args.push("--allow=2264".into());
+    }
     if matches!(cfg.mode, Mode::Ui) && src.lines().any(run_call::is_directive) {
-        config.program.args.extend(["-Zcodegen".into(), "--emit=abi,bin".into()]);
+        config.program.args.push("--emit=abi,bin".into());
         config.stdout_filter(r"(?s).+", "");
     }
     if src.lines().any(|line| {

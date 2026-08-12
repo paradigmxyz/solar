@@ -240,11 +240,7 @@ def compile_case(spec: CompilerSpec, test_case: TestCase) -> Dict[str, object]:
         input_text = standard_json_input(test_case)
         timeout = 120
 
-    cmd = [str(spec.path)]
-    if spec.kind != "solc":
-        # Keep the legacy flag to acknowledge the experimental code generator.
-        cmd.append("-Zcodegen")
-    cmd.append("--standard-json")
+    cmd = [str(spec.path), "--standard-json"]
     started = time.monotonic()
     proc = run(
         cmd,

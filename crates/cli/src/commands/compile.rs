@@ -104,7 +104,7 @@ pub(crate) fn run_pipeline(
 }
 
 pub(crate) fn warn_experimental_codegen(sess: &Session, needs_codegen: bool) {
-    if needs_codegen && !sess.opts.unstable.codegen {
+    if needs_codegen {
         sess.dcx.warn("code generation is experimental").code(error_code!(2264)).emit();
     }
 }

@@ -1,4 +1,3 @@
-//@compile-flags: -Zcodegen
 
 contract CalldataSliceParamLargeHelper {
     function lastWord(bytes calldata data) external pure returns (uint256) {

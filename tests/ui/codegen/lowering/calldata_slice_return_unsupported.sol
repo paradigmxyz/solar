@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin-runtime
+//@compile-flags: --emit=bin-runtime
 
 contract CalldataSliceReturnUnsupported {
     // A calldata slice returned from an internal function is inlined at the

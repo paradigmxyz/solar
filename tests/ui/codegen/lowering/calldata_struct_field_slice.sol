@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zdump=mir
 //@filecheck: --check-prefix=CDSFS
 
 // Slicing a dynamic field of a calldata struct, the ERC-4337

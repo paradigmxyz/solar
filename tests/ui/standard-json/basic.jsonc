@@ -1,4 +1,3 @@
-//@ compile-flags: -Zcodegen
 // CHECK: "sources": {
 // CHECK: "A.sol": {
 // CHECK: "id": 0

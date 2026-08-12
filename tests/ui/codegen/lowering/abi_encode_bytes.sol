@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -O none -Zdump=mir
+//@compile-flags: -O none -Zdump=mir
 //@filecheck:
 
 // `abi.encode(...)` allocates a fresh `bytes memory` `[length][data...]` from

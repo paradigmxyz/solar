@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin-runtime
+//@compile-flags: --emit=bin-runtime
 // ported-from: contracts/test/ExcessReturnDataRecipient.sol
 
 // A free-memory-pointer load whose only reload path is its spill slot: the

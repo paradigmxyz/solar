@@ -1,4 +1,4 @@
-//@ compile-flags: -Zcodegen -O none -Zdump=mir
+//@ compile-flags: -O none -Zdump=mir
 //@ filecheck:
 
 // ported-from: test/libsolidity/semanticTests/constructor/store_internal_unused_function_in_constructor.sol

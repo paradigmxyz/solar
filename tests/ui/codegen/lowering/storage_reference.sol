@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -O none -Zdump=mir
+//@compile-flags: -O none -Zdump=mir
 //@filecheck:
 
 // Storage references are modeled as slot values: `Item storage r = items[k]`

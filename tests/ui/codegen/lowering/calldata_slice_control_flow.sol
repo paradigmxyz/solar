@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -O none -Zdump=mir
+//@compile-flags: -O none -Zdump=mir
 //@filecheck:
 
 // A calldata slice built or trimmed under control flow, then read back or passed

@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zdump=mir
 //@filecheck: --check-prefix=CSNR
 
 // A calldata-slice named return (`returns (bytes calldata result)`) that is

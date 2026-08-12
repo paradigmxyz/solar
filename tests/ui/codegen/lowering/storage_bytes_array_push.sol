@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zdump=mir
 //@filecheck: --check-prefix=SBAP
 
 // Storage arrays with `bytes`/`string` elements support push, pop, and

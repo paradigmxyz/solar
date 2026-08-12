@@ -1,4 +1,4 @@
-//@ compile-flags: -Zcodegen -O gas -Zdump=evm-ir-runtime
+//@ compile-flags: -O gas -Zdump=evm-ir-runtime
 //@ filecheck:
 
 contract ProxyResult {

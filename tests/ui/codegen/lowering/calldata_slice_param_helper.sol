@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zdump=mir
 //@filecheck: --check-prefix=CDPARAM
 
 // An internal helper taking a `bytes calldata` parameter used only through its
