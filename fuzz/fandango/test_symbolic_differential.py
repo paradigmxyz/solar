@@ -1092,6 +1092,56 @@ class StandardInputMaterializationTests(unittest.TestCase):
                         standard_input=standard_input,
                     )
 
+    def test_rejects_invalid_solar_executable_runtime_lengths(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "Root.sol"
+            source.write_text("contract Root {}")
+            standard_input = evm._single_source_standard_input(source, "osaka")
+            for length in (None, True, 0, 3):
+                deployed = {
+                    "object": "6000",
+                    "immutableReferences": {},
+                    "linkReferences": {},
+                }
+                if length is not None:
+                    deployed["solarExecutableLength"] = length
+                result = subprocess.CompletedProcess(
+                    args=[],
+                    returncode=0,
+                    stdout=json.dumps(
+                        {
+                            "contracts": {
+                                "Root.sol": {
+                                    "Root": {
+                                        "abi": [],
+                                        "evm": {
+                                            "deployedBytecode": deployed,
+                                            "methodIdentifiers": {},
+                                        },
+                                    }
+                                }
+                            }
+                        }
+                    ),
+                    stderr="",
+                )
+                with (
+                    self.subTest(length=length),
+                    patch.object(evm, "run_process_group", return_value=result),
+                    self.assertRaisesRegex(
+                        ValueError, "Solar executable runtime length"
+                    ),
+                ):
+                    evm.compile_standard_artifact(
+                        "solar",
+                        source,
+                        "Root",
+                        1.0,
+                        kind="solar",
+                        evm_version="osaka",
+                        standard_input=standard_input,
+                    )
+
     def test_rejects_runtime_templates_that_require_deployment(self):
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary) / "Root.sol"
@@ -1656,6 +1706,37 @@ class RuntimeScopeTests(unittest.TestCase):
             symbolic.runtime_source_map_instructions("1:2:3;"),
             2,
         )
+
+    def test_authoritative_byte_boundary_excludes_compiler_literal_data(self):
+        runtime = "0x60000043fa"
+
+        self.assertEqual(
+            symbolic.runtime_scope_opcodes(runtime, executable_bytes=3),
+            [],
+        )
+        self.assertEqual(
+            symbolic.runtime_scope_opcodes(runtime),
+            [
+                {"offset": 3, "opcode": "NUMBER"},
+                {"offset": 4, "opcode": "STATICCALL"},
+            ],
+        )
+
+    def test_rejects_invalid_executable_byte_boundaries(self):
+        for length in (True, 0, -1, 4):
+            with (
+                self.subTest(length=length),
+                self.assertRaisesRegex(
+                    ValueError, "executable byte length|splits"
+                ),
+            ):
+                symbolic.runtime_scope_opcodes(
+                    "0x600000", executable_bytes=length
+                )
+        with self.assertRaisesRegex(ValueError, "not both"):
+            symbolic.runtime_scope_opcodes(
+                "0x600000", instruction_count=2, executable_bytes=3
+            )
 
     def test_rejects_invalid_source_map_instruction_bounds(self):
         for count in (True, 0, -1, 4):
@@ -3380,6 +3461,12 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             manifest["compilers"]["solc"]["runtime_source_map_sha256"],
             r"^[0-9a-f]{64}$",
         )
+        solar_manifest = manifest["compilers"]["solar"]
+        self.assertGreater(solar_manifest["runtime_executable_bytes"], 0)
+        self.assertLess(
+            solar_manifest["runtime_executable_bytes"],
+            solar_manifest["runtime_bytecode_bytes"],
+        )
 
     def test_unreviewed_symbolic_context_prevents_a_clean_result(self):
         with patch.object(
@@ -4345,6 +4432,9 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         for runtime, reason in cases:
             solar = copy.deepcopy(self.solar_reference)
             solar["runtime"] = runtime
+            solar["runtime_executable_length"] = len(
+                bytes.fromhex(runtime.removeprefix("0x"))
+            )
             with (
                 self.subTest(runtime=runtime),
                 patch.object(run_foundry_target, "_forge_symbolic") as forge,

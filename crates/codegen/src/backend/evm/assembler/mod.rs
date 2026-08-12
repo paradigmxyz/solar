@@ -55,6 +55,8 @@ pub(in crate::backend::evm) struct ImmutablePush {
 pub(crate) struct AssembledCode {
     /// The final bytecode.
     pub bytecode: Vec<u8>,
+    /// Number of executable bytes before the first appended data section.
+    pub executable_len: usize,
     /// All immutable placeholders, in emission order.
     pub immutable_refs: Vec<ImmutableRef>,
     /// Final EVM IR captured immediately before byte emission.
@@ -425,6 +427,7 @@ impl<'gcx> Assembler<'gcx> {
         data_offsets: FxHashMap<ir::DataId, usize>,
         push_widths: &FxHashMap<usize, u8>,
     ) -> AssembledCode {
+        let executable_len = data_offsets.values().copied().min();
         let mut out = BytecodeAssembler::new(self.gcx);
         for (idx, inst) in program.instructions.iter().enumerate() {
             match inst.kind() {
@@ -502,7 +505,9 @@ impl<'gcx> Assembler<'gcx> {
                 }
             }
         }
-        out.finish()
+        let mut assembled = out.finish();
+        assembled.executable_len = executable_len.unwrap_or(assembled.bytecode.len());
+        assembled
     }
 
     /// Returns the minimum number of non-zero bytes needed to push a value.
@@ -590,7 +595,12 @@ impl<'gcx> BytecodeAssembler<'gcx> {
     }
 
     fn finish(self) -> AssembledCode {
-        AssembledCode { bytecode: self.bytecode, immutable_refs: self.immutable_refs, evm_ir: None }
+        AssembledCode {
+            executable_len: self.bytecode.len(),
+            bytecode: self.bytecode,
+            immutable_refs: self.immutable_refs,
+            evm_ir: None,
+        }
     }
 }
 

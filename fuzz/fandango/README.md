@@ -418,9 +418,9 @@ The command:
    materialized runtimes (immutables or unresolved links), EF-prefixed
    non-legacy formats, and deployed runtime objects containing unsupported
    ambient-context, external-call, or creation opcodes outside the recorded
-   oracle. Solc's authoritative deployed source map separates executable
-   instructions from appended literal and metadata bytes; Solar remains
-   conservatively scanned over its complete runtime until it emits that map.
+   oracle. Solc's authoritative deployed source map and Solar's explicit
+   codegen boundary separate executable instructions from appended literal and
+   metadata bytes.
    Compiler-generated `CODESIZE` and `CODECOPY` remain in scope because both
    comparison paths execute the exact recorded runtime, while user code
    introspection remains excluded with inline assembly. These are whole-source

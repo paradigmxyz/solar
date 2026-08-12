@@ -79,7 +79,10 @@ def runtime_source_map_instructions(source_map: str | None) -> int | None:
 
 
 def runtime_scope_opcodes(
-    runtime: str, *, instruction_count: int | None = None
+    runtime: str,
+    *,
+    instruction_count: int | None = None,
+    executable_bytes: int | None = None,
 ) -> list[dict[str, Any]]:
     """Return fail-closed opcodes in the executable legacy EVM bytecode."""
     if not isinstance(runtime, str):
@@ -90,6 +93,17 @@ def runtime_scope_opcodes(
         or instruction_count <= 0
     ):
         raise ValueError("runtime instruction count must be a positive integer")
+    if executable_bytes is not None and (
+        not isinstance(executable_bytes, int)
+        or isinstance(executable_bytes, bool)
+        or executable_bytes <= 0
+    ):
+        raise ValueError("runtime executable byte length must be a positive integer")
+    if instruction_count is not None and executable_bytes is not None:
+        raise ValueError(
+            "runtime scope accepts an instruction count or executable byte "
+            "length, not both"
+        )
     payload = runtime.removeprefix("0x")
     if len(payload) % 2:
         raise ValueError("runtime bytecode must be byte-aligned hex")
@@ -99,10 +113,13 @@ def runtime_scope_opcodes(
         raise ValueError("runtime bytecode must be hex") from err
     if code.startswith(b"\xef"):
         return [{"offset": 0, "opcode": "EF_PREFIXED_NON_LEGACY_RUNTIME"}]
+    scan_end = len(code) if executable_bytes is None else executable_bytes
+    if scan_end > len(code):
+        raise ValueError("runtime executable byte length exceeds deployed bytecode")
     found = []
     offset = 0
     instructions = 0
-    while offset < len(code) and (
+    while offset < scan_end and (
         instruction_count is None or instructions < instruction_count
     ):
         opcode = code[offset]
@@ -117,6 +134,10 @@ def runtime_scope_opcodes(
         if 0x60 <= opcode <= 0x7F:
             offset += opcode - 0x5F
         instructions += 1
+    if executable_bytes is not None and offset != scan_end:
+        raise ValueError(
+            "runtime executable byte boundary splits an instruction"
+        )
     if instruction_count is not None and instructions != instruction_count:
         raise ValueError("runtime source map exceeds deployed bytecode")
     if (

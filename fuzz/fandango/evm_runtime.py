@@ -494,6 +494,17 @@ def compile_standard_artifact(
         raise ValueError(
             f"contract {source_name}:{contract} runtime bytecode is not hex"
         )
+    executable_length = deployed.get("solarExecutableLength")
+    if kind == "solar" and (
+        not isinstance(executable_length, int)
+        or isinstance(executable_length, bool)
+        or executable_length <= 0
+        or executable_length > len(runtime_bytes)
+    ):
+        raise ValueError(
+            f"contract {source_name}:{contract} has an invalid or missing "
+            "Solar executable runtime length"
+        )
     inline_assembly = (
         _solc_inline_assembly_sites(output, standard_input)
         if kind == "solc"
@@ -502,6 +513,9 @@ def compile_standard_artifact(
     return {
         "abi": abi,
         "runtime": "0x" + runtime_payload,
+        "runtime_executable_length": (
+            executable_length if kind == "solar" else None
+        ),
         "runtime_source_map": runtime_source_map,
         "method_identifiers": identifiers,
         "settings": settings,

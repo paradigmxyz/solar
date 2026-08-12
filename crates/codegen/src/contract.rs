@@ -28,6 +28,8 @@ pub struct ContractArtifact {
     pub deployment: Bytes,
     /// Runtime bytecode.
     pub runtime: Bytes,
+    /// Number of executable runtime bytes before appended literal data.
+    runtime_executable_len: usize,
     /// Immutable placeholders in the runtime bytecode.
     pub immutable_references: Vec<ImmutableReference>,
     /// Captured MIR, built under `-O none` when no explicit pipeline is configured and
@@ -48,6 +50,13 @@ pub struct ImmutableReference {
     pub start: usize,
     /// Type width encoded by the placeholder.
     pub type_size: TypeSize,
+}
+
+impl ContractArtifact {
+    /// Returns the number of executable runtime bytes before appended literal data.
+    pub fn runtime_executable_len(&self) -> usize {
+        self.runtime_executable_len
+    }
 }
 
 /// A contract selection.
@@ -350,6 +359,7 @@ fn generate_contract_bytecode(
     Ok(ContractArtifact {
         deployment: artifact.deployment.into(),
         runtime: artifact.runtime.into(),
+        runtime_executable_len: artifact.runtime_executable_len,
         immutable_references,
         mir,
         deployment_evm_ir: artifact.deployment_evm_ir,

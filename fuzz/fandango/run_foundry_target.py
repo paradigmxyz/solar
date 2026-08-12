@@ -1160,12 +1160,11 @@ def _runtime_scope_error(
             "the materialized source closure contains user inline assembly "
             f"({locations})"
         )
-    # Solc's deployed source map ends at the executable section, before
-    # compiler-emitted literal/metadata data. Solar does not currently emit a
-    # deployed source map, so keep its scan conservative over the whole
-    # runtime. User assembly is rejected above; compiler-generated CODESIZE and
-    # CODECOPY are therefore implementation details whose observable results
-    # the oracle should compare, not ambient inputs that need exclusion.
+    # Solc's deployed source map and Solar's codegen boundary both end at the
+    # executable section, before compiler-emitted literal/metadata data. User
+    # assembly is rejected above; compiler-generated CODESIZE and CODECOPY are
+    # therefore implementation details whose observable results the oracle
+    # should compare, not ambient inputs that need exclusion.
     solc_instructions = symbolic.runtime_source_map_instructions(
         solc_artifact.get("runtime_source_map")
     )
@@ -1173,7 +1172,12 @@ def _runtime_scope_error(
         "solc": symbolic.runtime_scope_opcodes(
             solc_artifact["runtime"], instruction_count=solc_instructions
         ),
-        "Solar": symbolic.runtime_scope_opcodes(solar_artifact["runtime"]),
+        "Solar": symbolic.runtime_scope_opcodes(
+            solar_artifact["runtime"],
+            executable_bytes=solar_artifact.get(
+                "runtime_executable_length"
+            ),
+        ),
     }
     found = []
     for compiler, matches in compiler_opcodes.items():
@@ -1735,6 +1739,9 @@ def _compiler_manifest(artifact: dict[str, Any]) -> dict[str, Any]:
         "standard_input_sha256": artifact["standard_input_sha256"],
         "runtime_bytecode_sha256": hashlib.sha256(runtime).hexdigest(),
         "runtime_bytecode_bytes": len(runtime),
+        "runtime_executable_bytes": artifact.get(
+            "runtime_executable_length"
+        ),
         "runtime_source_map_sha256": (
             hashlib.sha256(source_map.encode()).hexdigest()
             if isinstance(source_map, str) and source_map

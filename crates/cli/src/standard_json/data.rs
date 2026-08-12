@@ -206,6 +206,9 @@ pub(super) struct BytecodeOutput {
         serialize_with = "serialize_optional_hex_bytes"
     )]
     pub(super) object: Option<Bytes>,
+    /// Solar extension: executable prefix length before appended literal data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) solar_executable_length: Option<usize>,
     // Ethdebug output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // ethdebug: Option<CowValue<'a>>,
