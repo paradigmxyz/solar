@@ -21,6 +21,22 @@ use solar_data_structures::{
 
 type LabelSet = SmallVec<[BlockId; 1]>;
 
+#[derive(Clone, Default)]
+struct AbstractValue {
+    labels: LabelSet,
+    may_be_unknown: bool,
+}
+
+impl AbstractValue {
+    fn unknown() -> Self {
+        Self { labels: LabelSet::new(), may_be_unknown: true }
+    }
+
+    fn label(target: BlockId) -> Self {
+        Self { labels: smallvec::smallvec![target], may_be_unknown: false }
+    }
+}
+
 /// Allocates unused textual block labels without assuming labels are dense.
 pub(super) struct FreshLabels {
     occupied: FxHashSet<u32>,
@@ -57,9 +73,8 @@ impl FreshLabels {
 
 #[derive(Clone, Default)]
 struct AbstractStack {
-    /// Stack slots ordered from top to bottom. Each slot records block labels
-    /// the word may contain; an empty set is an ordinary or unknown value.
-    slots: Vec<LabelSet>,
+    /// Stack slots ordered from top to bottom.
+    slots: Vec<AbstractValue>,
 }
 
 struct BlockStackDepths {
@@ -74,18 +89,18 @@ impl AbstractStack {
     }
 
     fn push_unknown(&mut self) -> Option<()> {
-        (self.depth() < MAX_STACK_DEPTH).then(|| self.slots.insert(0, LabelSet::new()))
+        (self.depth() < MAX_STACK_DEPTH).then(|| self.slots.insert(0, AbstractValue::unknown()))
     }
 
     fn push_label(&mut self, target: BlockId) -> Option<()> {
         if self.depth() == MAX_STACK_DEPTH {
             return None;
         }
-        self.slots.insert(0, smallvec::smallvec![target]);
+        self.slots.insert(0, AbstractValue::label(target));
         Some(())
     }
 
-    fn pop(&mut self) -> Option<LabelSet> {
+    fn pop(&mut self) -> Option<AbstractValue> {
         (!self.slots.is_empty()).then(|| self.slots.remove(0))
     }
 
@@ -102,13 +117,17 @@ impl AbstractStack {
     fn merge(&mut self, other: &Self) -> bool {
         let mut changed = false;
         if other.depth() > self.depth() {
-            self.slots.resize_with(other.depth(), LabelSet::new);
+            self.slots.resize_with(other.depth(), AbstractValue::default);
             changed = true;
         }
         for (known, incoming) in self.slots.iter_mut().zip(&other.slots) {
-            for &target in incoming {
-                if !known.contains(&target) {
-                    known.push(target);
+            if incoming.may_be_unknown && !known.may_be_unknown {
+                known.may_be_unknown = true;
+                changed = true;
+            }
+            for &target in &incoming.labels {
+                if !known.labels.contains(&target) {
+                    known.labels.push(target);
                     changed = true;
                 }
             }
@@ -218,7 +237,7 @@ fn reachable_stack_blocks(
             entries[block]
                 .iter()
                 .flat_map(|entry| &entry.slots)
-                .flat_map(|slot| slot.iter().copied()),
+                .flat_map(|slot| slot.labels.iter().copied()),
         ) {
             if reachable.insert(successor) {
                 pending.push(successor);
@@ -257,11 +276,11 @@ fn analyze_block(
     for inst in &block.instructions {
         instruction_depths.push(stack.depth());
         let is_jumpi = inst.opcode == op::JUMPI;
-        let jump_targets =
+        let jump_target =
             is_jumpi.then(|| stack.slots.first().cloned()).flatten().unwrap_or_default();
-        has_unknown_target |= is_jumpi && jump_targets.is_empty();
+        has_unknown_target |= is_jumpi && jump_target.may_be_unknown;
         apply_instruction(&mut stack, inst)?;
-        for target in jump_targets {
+        for target in jump_target.labels {
             targets.push((target, stack.clone()));
         }
     }
@@ -281,15 +300,15 @@ fn analyze_block(
     if stack.depth().checked_add(lowering_growth)? > MAX_STACK_DEPTH {
         return None;
     }
-    let dynamic_targets = matches!(term.kind, TerminatorKind::Op(op::JUMP))
+    let dynamic_target = matches!(term.kind, TerminatorKind::Op(op::JUMP))
         .then(|| stack.slots.first().cloned())
         .flatten()
         .unwrap_or_default();
     has_unknown_target |=
-        matches!(term.kind, TerminatorKind::Op(op::JUMP)) && dynamic_targets.is_empty();
+        matches!(term.kind, TerminatorKind::Op(op::JUMP)) && dynamic_target.may_be_unknown;
     let effect = term.metadata.stack.or_else(|| default_terminator_stack_effect(&term.kind))?;
     stack.apply_effect(effect)?;
-    for target in dynamic_targets {
+    for target in dynamic_target.labels {
         targets.push((target, stack.clone()));
     }
     term.kind.visit_targets(|target| targets.push((target, stack.clone())));

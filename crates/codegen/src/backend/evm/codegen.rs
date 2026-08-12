@@ -145,6 +145,7 @@ struct InternalCallStackEdge {
     caller: FunctionId,
     callee: FunctionId,
     preserved_words: usize,
+    stack_arguments: usize,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -789,6 +790,9 @@ pub struct EvmCodegen<'gcx> {
     resident_stack_args: FxHashMap<FunctionId, Vec<ValueId>>,
     /// Proven cross-block layouts for `resident_stack_args`.
     resident_stack_plans: FxHashMap<FunctionId, GlobalStackPlan>,
+    /// Functions whose first scheduling attempt proved that a resident argument can exceed
+    /// `DUP16` reach. Runtime codegen retries these functions with the frame-backed convention.
+    disabled_resident_stack_functions: DenseBitSet<FunctionId>,
     /// Static callees whose incoming stack arguments feed the first instruction directly. Stores
     /// for repeated arguments are emitted immediately before that instruction.
     lazy_stack_args: FxHashMap<FunctionId, LazyStackArgPlan>,
@@ -905,6 +909,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             direct_stack_args: FxHashMap::default(),
             resident_stack_args: FxHashMap::default(),
             resident_stack_plans: FxHashMap::default(),
+            disabled_resident_stack_functions: DenseBitSet::new_empty(0),
             lazy_stack_args: FxHashMap::default(),
             stack_return_functions: DenseBitSet::new_empty(0),
             stack_return_local_bases: FxHashMap::default(),
@@ -1568,7 +1573,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             "EVM codegen requires MIR in the final phase"
         );
         let mut preserve_caller_stack = self.gcx.sess.opts.optimization.is_gas();
+        self.disabled_resident_stack_functions = DenseBitSet::new_empty(module.functions.len());
         loop {
+            let disabled_resident_functions = self.disabled_resident_stack_functions.count();
             self.reset_runtime_codegen(module);
             self.preserve_caller_stack = preserve_caller_stack;
 
@@ -1576,6 +1583,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_runtime(module, call_graph);
             }
 
+            if self.disabled_resident_stack_functions.count() > disabled_resident_functions {
+                continue;
+            }
             if preserve_caller_stack
                 && !self.internal_call_stack_edges.is_empty()
                 && !self.caller_stack_prefixes_fit(module)
@@ -1656,9 +1666,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 let Some(base) = incoming[edge.caller] else { continue };
                 let candidate = base.saturating_add(edge.preserved_words).saturating_add(1);
-                // Before JUMP consumes its destination, the caller briefly
-                // holds both that label and the callee return address.
-                if candidate.saturating_add(1) > MAX_STACK_DEPTH {
+                // Before JUMP consumes its destination, the caller holds the return address, all
+                // stack arguments, and the target label.
+                if candidate.saturating_add(edge.stack_arguments).saturating_add(1)
+                    > MAX_STACK_DEPTH
+                {
                     return false;
                 }
                 if incoming[edge.callee].is_none_or(|current| candidate > current) {
@@ -2048,6 +2060,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                 }
             }
+
+            let terminator_growth =
+                block.terminator.as_ref().map_or(0, |term| term.operands().len().saturating_sub(1));
+            self.materialize_deep_stack_args(func_id, func, terminator_growth);
 
             let stack_phi_preserved = stack_phi_plan.edges.get(&block_id).is_some_and(|edge| {
                 if !self.can_prepare_stack_phi_edge(func, edge) {
@@ -2780,6 +2796,41 @@ impl<'gcx> EvmCodegen<'gcx> {
                 Self::extend_spill_live_range(&mut ranges, colorable, value, block_id, point);
             }
         }
+
+        // Phi stores execute at the end of each predecessor, before its terminator chooses a
+        // successor. Model the destination as live across both the terminator-use point and the
+        // live-out point so it cannot share a color with a branch operand or a value needed by a
+        // sibling successor on a critical edge.
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                let InstKind::Phi(incoming) = &func.inst(inst_id).kind else { continue };
+                let Some(result) = func.inst_result_value(inst_id) else { continue };
+                for &(predecessor, _) in incoming {
+                    let has_sibling_edge =
+                        func.blocks[predecessor].terminator.as_ref().is_some_and(|term| {
+                            term.successors().iter().any(|&target| target != block_id)
+                        });
+                    if !has_sibling_edge {
+                        continue;
+                    }
+                    let terminator_point = func.blocks[predecessor].instructions.len() * 2;
+                    Self::extend_spill_live_range(
+                        &mut ranges,
+                        colorable,
+                        result,
+                        predecessor,
+                        terminator_point,
+                    );
+                    Self::extend_spill_live_range(
+                        &mut ranges,
+                        colorable,
+                        result,
+                        predecessor,
+                        terminator_point + 1,
+                    );
+                }
+            }
+        }
         ranges
     }
 
@@ -3357,6 +3408,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         let operands = kind.operands();
         self.materialize_lazy_stack_args(func_id, kind, block, inst_idx);
+        let transient_growth = operands.len().saturating_sub(1).max(1);
+        self.materialize_deep_stack_args(func_id, func, transient_growth);
 
         // Calldata-backed global layouts can rematerialize a missing argument;
         // keep the old lazy-copy behavior for those non-stack-only values.
@@ -4630,6 +4683,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         // copy even when the actual is not directly rematerializable.
         let mut candidates = FxHashMap::default();
         for (&func_id, values) in arg_values {
+            if self.disabled_resident_stack_functions.contains(func_id)
+                || self.recursive_stack_functions.contains(func_id)
+                || self.recursion_reaching_functions.contains(func_id)
+            {
+                continue;
+            }
             let func = &module.functions[func_id];
             let mut mask = DenseBitSet::new_empty(func.params.len());
             for index in 0..func.params.len() {
@@ -5119,16 +5178,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Gives a repeated argument a valid frame home while retaining its first-use stack copy.
-    fn materialize_lazy_stack_arg(&mut self, func_id: FunctionId, index: ArgIdx, value: ValueId) {
+    /// Gives a stack-passed argument a valid frame home while retaining its stack copy.
+    fn materialize_stack_arg(&mut self, func_id: FunctionId, index: ArgIdx, value: ValueId) {
         if !self.scheduler.is_stack_only_value(value) {
             return;
         }
-        let depth =
-            self.scheduler.stack.find(value).unwrap_or_else(|| {
-                panic!("lazy stack argument {value:?} was lost in its entry block")
-            });
-        assert!(depth < MAX_STACK_ACCESS, "lazy stack argument exceeded DUP16 reach");
+        let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
+            panic!("stack argument {value:?} was lost before frame materialization")
+        });
+        assert!(depth < MAX_STACK_ACCESS, "stack argument exceeded DUP16 reach");
         self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
 
         let addr = self.static_frame_addr(
@@ -5141,6 +5199,38 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_op(op::MSTORE);
         self.scheduler.instruction_executed(2, None);
         self.scheduler.materialize_stack_only_value(value);
+    }
+
+    /// Gives resident arguments a frame fallback before an emission stage can bury their last
+    /// stack copy beyond `DUP16` reach. `transient_growth` bounds the words pushed before the stage
+    /// reaches a resident operand, or the one result left by an ordinary MIR instruction.
+    fn materialize_deep_stack_args(
+        &mut self,
+        func_id: FunctionId,
+        func: &Function,
+        transient_growth: usize,
+    ) {
+        if transient_growth == 0 {
+            return;
+        }
+        let materialize_depth = MAX_STACK_ACCESS.saturating_sub(transient_growth);
+        let mut disabled_residency = false;
+        loop {
+            let value = self.scheduler.stack.iter().enumerate().find_map(|(depth, value)| {
+                value.filter(|&value| {
+                    depth >= materialize_depth && self.scheduler.is_stack_only_value(value)
+                })
+            });
+            let Some(value) = value else { break };
+            let crate::mir::Value::Arg(index) = func.value(value) else {
+                unreachable!("only arguments may use the stack-only calling convention")
+            };
+            self.materialize_stack_arg(func_id, *index, value);
+            disabled_residency = true;
+        }
+        if disabled_residency {
+            self.disabled_resident_stack_functions.insert(func_id);
+        }
     }
 
     /// Materializes repeated arguments immediately before the entry block's first instruction.
@@ -5159,7 +5249,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (index, value) in plan.args {
             debug_assert!(operands.contains(&value));
             if plan.frame_values.contains(value) {
-                self.materialize_lazy_stack_arg(func_id, index, value);
+                self.materialize_stack_arg(func_id, index, value);
             }
         }
     }
@@ -5660,7 +5750,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // free-pointer bookkeeping below: its addresses are compile-time
         // constants.
         if self.static_frame_functions.contains(callee) {
-            let preserved_words = self.emit_internal_call_static(
+            let (preserved_words, stack_arguments) = self.emit_internal_call_static(
                 func_id,
                 func,
                 callee,
@@ -5677,6 +5767,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 caller: func_id,
                 callee,
                 preserved_words,
+                stack_arguments,
             });
             return;
         }
@@ -5757,6 +5848,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             caller: func_id,
             callee,
             preserved_words,
+            stack_arguments: 0,
         });
         if caller_stack.is_none() {
             self.pop_all_stack_values();
@@ -6028,9 +6120,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
         block: BlockId,
         inst_idx: usize,
-    ) -> usize {
+    ) -> (usize, usize) {
         let stack_mask =
             if self.runtime_stack_args { self.stack_arg_masks.get(&callee).cloned() } else { None };
+        let stack_arguments = stack_mask.as_ref().map_or(0, DenseBitSet::count);
         let mut resident_call_values = Vec::new();
         if self.preserve_caller_stack
             && let Some(resident) = self.resident_stack_args.get(&func_id)
@@ -6241,7 +6334,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             } else {
                 self.asm.emit_op(op::POP);
             }
-            return preserved_words;
+            return (preserved_words, stack_arguments);
         }
 
         if let Some(result) =
@@ -6280,7 +6373,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::MSTORE);
             }
         }
-        preserved_words
+        (preserved_words, stack_arguments)
     }
 
     fn spill_live_stack_values(
@@ -7483,11 +7576,17 @@ mod tests {
                 caller: entry,
                 callee,
                 preserved_words: 1,
+                stack_arguments: 0,
             });
             assert!(!codegen.caller_stack_prefixes_fit(&module));
 
             codegen.function_stack_peaks.insert(callee, MAX_STACK_DEPTH - 2);
             assert!(codegen.caller_stack_prefixes_fit(&module));
+
+            codegen.internal_call_stack_edges[0].preserved_words = MAX_STACK_DEPTH - 3;
+            codegen.internal_call_stack_edges[0].stack_arguments = 2;
+            codegen.function_stack_peaks.insert(callee, 2);
+            assert!(!codegen.caller_stack_prefixes_fit(&module));
         });
     }
 

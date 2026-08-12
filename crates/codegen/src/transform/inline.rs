@@ -246,8 +246,12 @@ impl MirInliner {
                     s.instruction_count.saturating_sub(base_instructions)
                         > self.max_caller_inlined_instructions
                 });
+                let framed_constructor_call = summaries.get(&caller_id).is_some_and(|caller| {
+                    caller.is_constructor && summary.internal_frame_size != 0
+                });
                 if module_code_size >= self.max_module_code_size
                     || grew_too_much
+                    || framed_constructor_call
                     || call_graph.is_recursive(site.callee)
                     || !self.is_inlineable(
                         caller_id,

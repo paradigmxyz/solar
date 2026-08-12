@@ -224,6 +224,8 @@ bb35:
   jump bb46
 bb46:
   dup1
+  push 384
+  mstore
   push 1
   shl
   dup1
@@ -231,7 +233,8 @@ bb46:
   mstore
   push 1
   shr
-  swap1
+  push 384
+  mload
   eq
   iszero
   push bb70
