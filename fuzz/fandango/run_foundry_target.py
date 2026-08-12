@@ -140,6 +140,27 @@ def _add_symbolic_arguments(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument(
+        "--project-root",
+        type=pathlib.Path,
+        help=(
+            "base path used to name and resolve source units; defaults to "
+            "the source file's parent"
+        ),
+    )
+    parser.add_argument(
+        "--include-path",
+        type=pathlib.Path,
+        action="append",
+        default=[],
+        help="additional Solc import search path; may be repeated",
+    )
+    parser.add_argument(
+        "--remapping",
+        action="append",
+        default=[],
+        help="Solidity import remapping in prefix=target form; may be repeated",
+    )
+    parser.add_argument(
         "--evm-version",
         default="osaka",
         help="EVM version used by both compilers, Forge, and Anvil",
@@ -464,6 +485,9 @@ def _run_symbolic(args: argparse.Namespace) -> int:
         args._tool_versions[label] = _tool_version(tool, deadline)
     artifact_root = args.artifact_dir.resolve()
     source = args.source.resolve()
+    project_root = getattr(args, "project_root", None)
+    include_paths = tuple(getattr(args, "include_path", ()))
+    remappings = tuple(getattr(args, "remapping", ()))
     standard_input = evm.materialize_standard_input(
         args._solc_executable,
         source,
@@ -472,6 +496,9 @@ def _run_symbolic(args: argparse.Namespace) -> int:
         optimizer_enabled=args.optimize,
         optimizer_runs=args.optimizer_runs,
         via_ir=args.via_ir,
+        project_root=project_root,
+        include_paths=include_paths,
+        remappings=remappings,
         deadline=deadline,
     )
     args._standard_input = standard_input

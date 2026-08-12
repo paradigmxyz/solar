@@ -277,18 +277,54 @@ def materialize_standard_input(
     optimizer_enabled: bool = True,
     optimizer_runs: int = 200,
     via_ir: bool = True,
+    project_root: pathlib.Path | None = None,
+    include_paths: tuple[pathlib.Path, ...] = (),
+    remappings: tuple[str, ...] = (),
     deadline: Deadline | None = None,
 ) -> dict[str, Any]:
     """Resolve imports once, then embed the complete source closure."""
     source = source.resolve()
+    project_root = (project_root or source.parent).resolve()
+    include_paths = tuple(path.resolve() for path in include_paths)
+    if not project_root.is_dir():
+        raise ValueError(f"project root is not a directory: {project_root}")
+    if not source.is_relative_to(project_root):
+        raise ValueError(
+            f"source `{source}` is outside project root `{project_root}`"
+        )
+    for include_path in include_paths:
+        if not include_path.is_dir():
+            raise ValueError(
+                f"include path is not a directory: {include_path}"
+            )
+    if any(
+        not isinstance(remapping, str)
+        or "=" not in remapping
+        or not all(remapping.split("=", 1))
+        or any(ord(character) < 32 for character in remapping)
+        for remapping in remappings
+    ):
+        raise ValueError(
+            "remappings must use non-empty prefix=target syntax without "
+            "control characters"
+        )
+    root_source = source.relative_to(project_root).as_posix()
     if deadline:
         deadline.remaining("root source materialization")
     discovery_input = {
         "language": "Solidity",
-        "sources": {source.name: {"content": source.read_text(encoding="utf-8")}},
-        "settings": {"outputSelection": {"*": {"": ["ast"]}}},
+        "sources": {
+            root_source: {"content": source.read_text(encoding="utf-8")}
+        },
+        "settings": {
+            "outputSelection": {"*": {"": ["ast"]}},
+            **({"remappings": list(remappings)} if remappings else {}),
+        },
     }
-    command = [solc, "--base-path", str(source.parent), "--standard-json"]
+    command = [solc, "--base-path", str(project_root)]
+    for include_path in include_paths:
+        command.extend(["--include-path", str(include_path)])
+    command.append("--standard-json")
     with tempfile.TemporaryDirectory(prefix="solar-import-discovery-") as compile_cwd:
         result = run_process_group(
             command,
@@ -298,7 +334,7 @@ def materialize_standard_input(
         )
     output = _compiler_output(result, "solc import discovery")
     discovered = output.get("sources")
-    if not isinstance(discovered, dict) or source.name not in discovered:
+    if not isinstance(discovered, dict) or root_source not in discovered:
         raise ValueError("solc import discovery did not return the root source unit")
 
     sources: dict[str, dict[str, str]] = {}
@@ -306,7 +342,12 @@ def materialize_standard_input(
     for name in sorted(discovered):
         if deadline:
             deadline.remaining(f"source unit `{name}` materialization")
-        path = _source_unit_path(source, name)
+        path = _source_unit_path(
+            source,
+            root_source,
+            name,
+            (project_root, *include_paths),
+        )
         content = path.read_text(encoding="utf-8")
         if deadline:
             deadline.remaining(f"source unit `{name}` materialization")
@@ -327,6 +368,7 @@ def materialize_standard_input(
             optimizer_enabled=optimizer_enabled,
             optimizer_runs=optimizer_runs,
             via_ir=via_ir,
+            remappings=remappings,
         ),
     }
     serialized = json.dumps(
@@ -335,7 +377,7 @@ def materialize_standard_input(
     if deadline:
         deadline.remaining("Standard JSON serialization")
     return {
-        "root_source": source.name,
+        "root_source": root_source,
         "json": serialized,
         "sha256": hashlib.sha256(serialized.encode()).hexdigest(),
         "settings": value["settings"],
@@ -492,8 +534,9 @@ def _standard_settings(
     optimizer_enabled: bool = True,
     optimizer_runs: int = 200,
     via_ir: bool = True,
+    remappings: tuple[str, ...] = (),
 ) -> dict[str, Any]:
-    return {
+    settings = {
         "optimizer": {"enabled": optimizer_enabled, "runs": optimizer_runs},
         "viaIR": via_ir,
         "evmVersion": evm_version,
@@ -512,6 +555,9 @@ def _standard_settings(
             }
         },
     }
+    if remappings:
+        settings["remappings"] = list(remappings)
+    return settings
 
 
 def _solc_inline_assembly_sites(
@@ -586,17 +632,27 @@ def _single_source_standard_input(
     }
 
 
-def _source_unit_path(root: pathlib.Path, name: str) -> pathlib.Path:
-    if name == root.name:
-        return root
+def _source_unit_path(
+    source: pathlib.Path,
+    root_source: str,
+    name: str,
+    search_roots: tuple[pathlib.Path, ...],
+) -> pathlib.Path:
+    if name == root_source:
+        return source
     unit = pathlib.Path(name)
-    candidate = unit if unit.is_absolute() else root.parent / unit
-    candidate = candidate.resolve()
-    if not candidate.is_file():
-        raise ValueError(
-            f"could not snapshot imported source unit `{name}` at `{candidate}`"
-        )
-    return candidate
+    candidates = (
+        (unit.resolve(),)
+        if unit.is_absolute()
+        else tuple((search_root / unit).resolve() for search_root in search_roots)
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    searched = ", ".join(f"`{candidate}`" for candidate in candidates)
+    raise ValueError(
+        f"could not snapshot imported source unit `{name}`; searched {searched}"
+    )
 
 
 def _compiler_output(

@@ -31,8 +31,9 @@ diffs.
   cheatcodes.
 - `fuzz/bin/solsymdiff` is the bounded symbolic differential lane. With one
   command it inventories a contract and sequentially compares every supported
-  `pure` function; `--signature` narrows the same workflow to one function. It
-  reports a mismatch only after two concrete replays.
+  `pure` function, plus explicitly opted-in zero-state `view` functions;
+  `--signature` narrows the same workflow to one function. It reports a
+  mismatch only after two concrete replays.
 
 Generated artifacts belong under `fuzz/fandango/out/`, which is ignored.
 Promote only minimized, stable failures into `corpus.jsonl` or `tests/ui/`.
@@ -338,6 +339,23 @@ fuzz/bin/solsymdiff \
   --signature 'probe(uint256)'
 ```
 
+Real project imports can be snapshotted without letting either final compiler
+read from the working tree. Set `--project-root`, repeat `--include-path` as
+needed, and pass each Solidity `prefix=target` mapping with `--remapping`:
+
+```bash
+fuzz/bin/solsymdiff \
+  --source src/Target.sol \
+  --contract Target \
+  --project-root . \
+  --include-path vendor \
+  --remapping '@openzeppelin/=lib/openzeppelin-contracts/'
+```
+
+Solc resolves that import graph once. The command then embeds every resolved
+source and the remappings in the shared Standard JSON given to both compilers;
+neither final compilation uses a base path or filesystem import callback.
+
 Eligible inputs are `bool`, `address`, integer widths, `bytes1` through
 `bytes32`, `bytes`, `string`, tuples/structs composed from supported inputs,
 and fixed or dynamic arrays of those types. The generated property recreates
@@ -545,11 +563,11 @@ described above. Context-sensitive opcodes whose context cannot be equalized
 are rejected across the entire deployed object; equalized opcodes such as
 `ADDRESS`, `CALLVALUE`, and `CALLDATA*` remain in scope. A non-eligible sibling
 can therefore exclude an otherwise simple function. Imports must resolve
-beneath the source file's parent; remapping and include-path flags are not
-accepted. The fixed compiler settings, clean storage, call context, solver
-bounds, and wall deadline are part of every claim. Use the concrete runtime
+beneath the selected project root or an explicit include path. The fixed
+compiler settings, clean storage, call context, solver bounds, and wall
+deadline are part of every claim. Use the concrete runtime
 lanes for broader or stateful behavior; use this lane for small, replayable,
-high-confidence pure compiler witnesses.
+high-confidence pure or zero-state view compiler witnesses.
 
 ## Scaling
 

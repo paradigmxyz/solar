@@ -287,6 +287,40 @@ class FocusedCommandTests(unittest.TestCase):
 
         self.assertTrue(run.call_args.args[0].include_view)
 
+    def test_project_import_configuration_is_explicit(self):
+        with (
+            patch.object(
+                sys,
+                "argv",
+                [
+                    "solsymdiff",
+                    "--source",
+                    "src/Target.sol",
+                    "--contract",
+                    "Target",
+                    "--project-root",
+                    ".",
+                    "--include-path",
+                    "vendor",
+                    "--include-path",
+                    "generated",
+                    "--remapping",
+                    "@lib/=lib/",
+                ],
+            ),
+            patch.object(
+                run_foundry_target,
+                "_run_symbolic_or_incomplete",
+                return_value=0,
+            ) as run,
+        ):
+            self.assertEqual(run_foundry_target.symbolic_main(), 0)
+
+        args = run.call_args.args[0]
+        self.assertEqual(args.project_root, Path("."))
+        self.assertEqual(args.include_path, [Path("vendor"), Path("generated")])
+        self.assertEqual(args.remapping, ["@lib/=lib/"])
+
     def test_timeout_parser_rejects_nonfinite_or_nonpositive_values(self):
         for value in ("-inf", "-1", "0", "inf", "nan", "not-a-number"):
             with (
@@ -827,6 +861,88 @@ class StandardInputMaterializationTests(unittest.TestCase):
         )
         self.assertFalse(settings["viaIR"])
         self.assertEqual(settings["evmVersion"], "cancun")
+
+    def test_materializes_project_import_roots_and_remappings(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary) / "project"
+            include = Path(temporary) / "include"
+            source = project / "src" / "Root.sol"
+            helper = project / "lib" / "helpers" / "Helper.sol"
+            vendor = include / "Vendor.sol"
+            source.parent.mkdir(parents=True)
+            helper.parent.mkdir(parents=True)
+            include.mkdir()
+            source.write_text("contract Root {}")
+            helper.write_text("library Helper {}")
+            vendor.write_text("library Vendor {}")
+            discovery = subprocess.CompletedProcess(
+                args=[],
+                returncode=0,
+                stdout=json.dumps(
+                    {
+                        "sources": {
+                            "src/Root.sol": {"id": 0},
+                            "lib/helpers/Helper.sol": {"id": 1},
+                            "Vendor.sol": {"id": 2},
+                        }
+                    }
+                ),
+                stderr="",
+            )
+            with patch.object(
+                evm, "run_process_group", return_value=discovery
+            ) as run:
+                materialized = evm.materialize_standard_input(
+                    "solc",
+                    source,
+                    10,
+                    "osaka",
+                    project_root=project,
+                    include_paths=(include,),
+                    remappings=("@helpers/=lib/helpers/",),
+                )
+
+        standard_input = json.loads(materialized["json"])
+        self.assertEqual(materialized["root_source"], "src/Root.sol")
+        self.assertEqual(
+            set(standard_input["sources"]),
+            {"src/Root.sol", "lib/helpers/Helper.sol", "Vendor.sol"},
+        )
+        self.assertEqual(
+            standard_input["settings"]["remappings"],
+            ["@helpers/=lib/helpers/"],
+        )
+        self.assertEqual(
+            run.call_args.args[0],
+            [
+                "solc",
+                "--base-path",
+                str(project.resolve()),
+                "--include-path",
+                str(include.resolve()),
+                "--standard-json",
+            ],
+        )
+
+    def test_rejects_invalid_import_configuration(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary) / "project"
+            outside = Path(temporary) / "Outside.sol"
+            project.mkdir()
+            outside.write_text("contract Outside {}")
+            cases = [
+                {"project_root": project},
+                {"include_paths": (project / "missing",)},
+                {"remappings": ("missing-separator",)},
+                {"remappings": ("=missing-prefix",)},
+                {"remappings": ("prefix=",)},
+                {"remappings": ("prefix=target\nother=target",)},
+            ]
+            for options in cases:
+                with self.subTest(options=options), self.assertRaises(ValueError):
+                    evm.materialize_standard_input(
+                        "solc", outside, 10, "osaka", **options
+                    )
 
     def test_finds_inline_assembly_in_the_exact_solc_source_asts(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -2776,6 +2892,10 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             fixture_dir / "LiteralDataReference.sol"
         ).resolve()
         cls.imported = (fixture_dir / "imported" / "ImportedReference.sol").resolve()
+        cls.remapped = (
+            fixture_dir / "remapped" / "RemappedReference.sol"
+        ).resolve()
+        cls.fixture_dir = fixture_dir.resolve()
         cls.dynamic_input_reference = (
             fixture_dir / "DynamicInputReference.sol"
         ).resolve()
@@ -4258,6 +4378,57 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         for compiler in manifest["compilers"].values():
             self.assertEqual(compiler["standard_input_sha256"], expected_hash)
             self.assertNotIn("--base-path", compiler["command"])
+
+    def test_project_root_and_remapping_materialize_a_closed_source_bundle(self):
+        output = io.StringIO()
+        args = argparse.Namespace(
+            source=self.remapped,
+            contract="RemappedDifferential",
+            solc=self.solc,
+            solar=self.solar,
+            forge=self.forge,
+            anvil=self.anvil,
+            timeout=60.0,
+            signature="probe(uint256)",
+            project_root=self.fixture_dir,
+            include_path=[],
+            remapping=["@helpers/=imported/"],
+            evm_version="osaka",
+            symbolic_solver=self.z3,
+            symbolic_timeout=5,
+            symbolic_max_paths=512,
+            symbolic_max_depth=None,
+            max_returndata_bytes=256,
+            artifact_dir=self._artifact_root("remapped-imports"),
+            verbose=False,
+        )
+        with redirect_stdout(output):
+            returncode = run_foundry_target._run_symbolic(args)
+
+        summary = json.loads(output.getvalue())
+        bundle = Path(summary["artifact_dir"])
+        manifest = json.loads((bundle / "manifest.json").read_text())
+        standard_input = json.loads(
+            (bundle / "standard-input.json").read_text()
+        )
+
+        self.assertEqual(returncode, 0)
+        self.assertEqual(summary["status"], "no_mismatch_within_bounds")
+        self.assertEqual(
+            set(standard_input["sources"]),
+            {
+                "remapped/RemappedReference.sol",
+                "imported/ImportedHelper.sol",
+            },
+        )
+        self.assertEqual(
+            manifest["settings"]["remappings"],
+            ["@helpers/=imported/"],
+        )
+        self.assertEqual(
+            manifest["standard_input"]["root_source"],
+            "remapped/RemappedReference.sol",
+        )
 
     def test_final_compilers_cannot_load_an_omitted_import_from_cwd(self):
         standard_input = copy.deepcopy(self.reference_input)

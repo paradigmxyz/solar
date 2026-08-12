@@ -57,7 +57,7 @@ def write_symbolic_target(
     exploration_order: str = "bfs",
     storage_layout: str = "solidity",
 ) -> None:
-    """Write a single bounded pure-function symbolic differential target."""
+    """Write one bounded symbolic differential target."""
     if max_returndata_bytes <= 0:
         raise ValueError("max returndata bytes must be positive")
     if (
