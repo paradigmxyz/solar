@@ -1,5 +1,6 @@
 // === label_relaxation (runtime) ===
 PUSH1 0x02
+; bb0
 JUMPDEST
 PUSH2 0x0101
 PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -10,4 +11,7 @@ PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 PUSH19 0x01000000000000000000000000000000000000
+; bb1
 JUMPDEST
+PUSH1 0x2a ; unknown
+JUMP

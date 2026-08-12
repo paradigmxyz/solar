@@ -65,6 +65,15 @@ Options:
       -Zcodegen-all-functions
           Lower all contract functions instead of only reachable ones. This is intended for benchmarks and compiler debugging
 
+      -Zswitch-lowering <SWITCH_LOWERING>
+          Force a switch lowering strategy for benchmarking (default: `auto`; values: `auto`, `linear`, `binary`, `buckets`, `dense`, or `perfect`)
+
+      -Zswitch-max-gas-code-growth <SWITCH_MAX_GAS_CODE_GROWTH>
+          Override the artifact-wide bytecode growth budget for gas-optimized switches
+
+      -Zswitch-max-bit-slice-gas-code-growth <SWITCH_MAX_BIT_SLICE_GAS_CODE_GROWTH>
+          Override the per-switch bit-slice table growth limit for benchmarking
+
       -Zhelp
           Print help
 

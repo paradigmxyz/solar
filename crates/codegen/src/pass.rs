@@ -39,6 +39,7 @@ pub use crate::pass_manager::{MirPass, pipeline_label, run_passes, run_passes_no
 /// All known MIR passes exposed by `-Zmir-pipeline`.
 pub static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline,
+    &inline::InlineTinyLeaves,
     &inline::SpecializeFunctionPointers,
     &outline_reverts::OutlineReverts,
     &cfg_simplify::FunctionDce,
@@ -178,6 +179,9 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // simplified graph in one pass through the pipeline.
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
+    // Trivial leaf helpers cost less to duplicate than even the static internal-call protocol.
+    // Keep this separate from general inlining, whose larger candidates regress measured gas.
+    &GasOnly(inline::InlineTinyLeaves),
     &inline::SpecializeFunctionPointers,
     &cfg_simplify::FunctionDce,
     &sccp::Sccp,

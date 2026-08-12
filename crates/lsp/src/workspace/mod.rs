@@ -104,16 +104,20 @@ impl Workspace {
         &self.source_watch_roots
     }
 
+    pub(crate) fn import_source_roots(&self) -> &[PathBuf] {
+        &self.flycheck_source_roots
+    }
+
+    pub(crate) fn import_only_roots(&self) -> &[PathBuf] {
+        &self.compile_opts.include_paths
+    }
+
     pub(crate) fn source_files(&self) -> &[PathBuf] {
         &self.source_files
     }
 
     pub(crate) fn flycheck_source_files(&self) -> &[PathBuf] {
         &self.flycheck_source_files
-    }
-
-    pub(crate) fn import_only_roots(&self) -> &[PathBuf] {
-        &self.compile_opts.include_paths
     }
 
     pub(crate) fn is_import_only_path(&self, path: &Path) -> bool {
@@ -310,7 +314,7 @@ impl Workspace {
     }
 
     pub(crate) fn load_foundry(path: PathBuf) -> Result<Self, WorkspaceError> {
-        let root = manifest_root(&path)?;
+        let root = manifest_root(&path)?.normalize();
         let profile = load_foundry_document(&path)?.default_profile();
         let source_roots =
             profile.source_roots(&root).into_iter().map(|path| path.normalize()).collect();
@@ -354,39 +358,46 @@ fn remove_sorted(files: &mut Vec<PathBuf>, path: &Path) {
 
 pub(crate) struct WorkspacePathIndex<'a> {
     workspaces: &'a [Workspace],
-    entries: Vec<WorkspacePathIndexEntry<'a>>,
+    import_entries: Vec<WorkspaceImportPathIndexEntry>,
 }
 
-struct WorkspacePathIndexEntry<'a> {
+pub(crate) struct WorkspacePathQuery<'a> {
+    import_entries: &'a [WorkspaceImportPathIndexEntry],
+    path: PathBuf,
+}
+
+struct WorkspaceImportPathIndexEntry {
     idx: usize,
-    base_path: &'a Path,
+    base_depth: usize,
+    roots: Vec<WorkspaceImportRoot>,
+}
+
+struct WorkspaceImportRoot {
+    path: PathBuf,
     depth: usize,
+    kind: u8,
 }
 
 impl<'a> WorkspacePathIndex<'a> {
     pub(crate) fn new(workspaces: &'a [Workspace]) -> Self {
-        let mut entries = workspaces
+        let import_entries = workspaces
             .iter()
             .enumerate()
-            .filter_map(|(idx, workspace)| {
-                let base_path = workspace.compile_opts().base_path.as_deref()?;
-                Some(WorkspacePathIndexEntry {
-                    idx,
-                    base_path,
-                    depth: base_path.components().count(),
-                })
-            })
-            .collect::<Vec<_>>();
-        entries.sort_by(|lhs, rhs| rhs.depth.cmp(&lhs.depth).then_with(|| rhs.idx.cmp(&lhs.idx)));
-        Self { workspaces, entries }
+            .map(|(idx, workspace)| WorkspaceImportPathIndexEntry::new(idx, workspace))
+            .collect();
+        Self { workspaces, import_entries }
     }
 
-    pub(crate) fn workspace_idx_for_path(&self, path: &Path) -> usize {
-        self.workspace_idx_containing_path(path).unwrap_or(0)
+    pub(crate) fn query(&self, path: &Path) -> WorkspacePathQuery<'_> {
+        WorkspacePathQuery { import_entries: &self.import_entries, path: path.normalize() }
+    }
+
+    pub(crate) fn workspace_idx_for_import_path(&self, path: &Path) -> Option<usize> {
+        self.query(path).workspace_idx_for_import_path()
     }
 
     pub(crate) fn workspace_idx_containing_path(&self, path: &Path) -> Option<usize> {
-        self.entries.iter().find(|entry| path.starts_with(entry.base_path)).map(|entry| entry.idx)
+        workspace_idx_containing_path(self.workspaces, path)
     }
 
     /// Returns the owning workspace when `path` is an active disk source under its policy.
@@ -451,6 +462,116 @@ impl<'a> WorkspacePathIndex<'a> {
                 .max_by_key(|&(idx, source_depth, base_depth)| (source_depth, base_depth, idx))
                 .map(|(idx, _, _)| idx)
         })
+    }
+}
+
+impl WorkspacePathQuery<'_> {
+    pub(crate) fn workspace_idx_for_path(&self) -> usize {
+        self.import_path_matches()
+            .max_by_key(|&(idx, root_depth, root_kind, base_depth)| {
+                (root_depth, root_kind, base_depth, idx)
+            })
+            .map_or(0, |(idx, _, _, _)| idx)
+    }
+
+    /// Returns the workspace whose import configuration owns `path`.
+    ///
+    /// The deepest matching root wins. At the same depth, base paths take precedence over
+    /// external source roots, which take precedence over import-only roots. A tie across
+    /// workspaces at both levels has no unique owner.
+    pub(crate) fn workspace_idx_for_import_path(&self) -> Option<usize> {
+        let mut best = None;
+        for (idx, root_depth, root_kind, _) in self.import_path_matches() {
+            let score = (root_depth, root_kind);
+            match best.as_mut() {
+                Some((best_score, _, _)) if score < *best_score => {}
+                Some((best_score, _, ambiguous)) if score == *best_score => *ambiguous = true,
+                _ => best = Some((score, idx, false)),
+            }
+        }
+        best.and_then(|(_, owner, ambiguous)| (!ambiguous).then_some(owner))
+    }
+
+    /// Returns every workspace whose import configuration can resolve `path`.
+    pub(crate) fn workspace_idxs_for_import_path(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = usize> + '_ {
+        self.import_path_matches().map(|(idx, _, _, _)| idx)
+    }
+
+    fn import_path_matches(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = (usize, usize, u8, usize)> + '_ {
+        self.import_entries.iter().filter_map(move |entry| {
+            let (root_depth, root_kind) = entry
+                .roots
+                .iter()
+                .filter(|root| self.path.starts_with(&root.path))
+                .map(|root| (root.depth, root.kind))
+                .max()?;
+            Some((entry.idx, root_depth, root_kind, entry.base_depth))
+        })
+    }
+}
+
+pub(crate) fn workspace_idx_containing_path(
+    workspaces: &[Workspace],
+    path: &Path,
+) -> Option<usize> {
+    workspaces
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, workspace)| {
+            let base_path = workspace.compile_opts().base_path.as_deref()?;
+            path.starts_with(base_path).then(|| (idx, base_path.components().count()))
+        })
+        .max_by_key(|&(idx, depth)| (depth, idx))
+        .map(|(idx, _)| idx)
+}
+
+impl WorkspaceImportPathIndexEntry {
+    fn new(idx: usize, workspace: &Workspace) -> Self {
+        const IMPORT_ONLY: u8 = 0;
+        const SOURCE: u8 = 1;
+        const BASE: u8 = 2;
+
+        let base_path = workspace.compile_opts().base_path.as_deref().map(Path::normalize);
+        let base_depth = base_path.as_ref().map_or(0, |path| path.components().count());
+        let mut roots = Vec::new();
+        if let Some(path) = &base_path {
+            roots.push(WorkspaceImportRoot::new(path.clone(), BASE));
+        }
+        roots.extend(
+            workspace
+                .import_source_roots()
+                .iter()
+                .map(|path| WorkspaceImportRoot::new(path.normalize(), SOURCE)),
+        );
+        roots.extend(
+            workspace
+                .import_only_roots()
+                .iter()
+                .map(|path| WorkspaceImportRoot::new(path.normalize(), IMPORT_ONLY)),
+        );
+        for remapping in &workspace.compile_opts().import_remappings {
+            let target = Path::new(&remapping.path);
+            let path = if target.is_absolute() {
+                target.normalize()
+            } else if let Some(base_path) = &base_path {
+                base_path.join(target).normalize()
+            } else {
+                continue;
+            };
+            roots.push(WorkspaceImportRoot::new(path, IMPORT_ONLY));
+        }
+        Self { idx, base_depth, roots }
+    }
+}
+
+impl WorkspaceImportRoot {
+    fn new(path: PathBuf, kind: u8) -> Self {
+        let depth = path.components().count();
+        Self { path, depth, kind }
     }
 }
 
@@ -786,6 +907,28 @@ mod tests {
     }
 
     #[test]
+    fn foundry_workspace_auto_detects_remappings_from_absolute_library_roots() {
+        let project = TestProject::new();
+        project.write_file("/shared/lib/pkg/src/Target.sol", "contract Target {}");
+        let library = project.path("/shared/lib").to_string_lossy().replace('\\', "/");
+        project.write_file(
+            "/workspace/foundry.toml",
+            &format!("[profile.default]\nlibs = [\"{library}\"]\n"),
+        );
+
+        let workspace = Workspace::load_foundry(project.path("/workspace/foundry.toml")).unwrap();
+        let remappings = workspace
+            .compile_opts()
+            .import_remappings
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+        let target = project.path("/shared/lib/pkg/src").to_string_lossy().replace('\\', "/");
+
+        assert_eq!(remappings, [format!("pkg/={target}/")]);
+    }
+
+    #[test]
     fn workspace_path_index_uses_most_specific_base_path() {
         let project = TestProject::new();
         let nested = project.path("/nested");
@@ -795,8 +938,8 @@ mod tests {
         let workspaces = vec![outer, inner];
         let index = WorkspacePathIndex::new(&workspaces);
 
-        assert_eq!(index.workspace_idx_for_path(&project.path("/nested/A.sol")), 1);
-        assert_eq!(index.workspace_idx_for_path(&project.path("/B.sol")), 0);
+        assert_eq!(index.query(&project.path("/nested/A.sol")).workspace_idx_for_path(), 1);
+        assert_eq!(index.query(&project.path("/B.sol")).workspace_idx_for_path(), 0);
     }
 
     #[test]
@@ -823,6 +966,107 @@ mod tests {
                 &project.path("/shared/External.sol"),
             ),
             Some(1)
+        );
+    }
+
+    #[test]
+    fn workspace_path_index_selects_import_owners_by_root_kind_and_specificity() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /first/foundry.toml
+            [profile.default]
+            src = "../external/priority"
+            libs = ["../external/include", "../external/tie"]
+            auto_detect_remappings = false
+
+            //- /nested/second/foundry.toml
+            [profile.default]
+            src = "../../external/source/nested"
+            test = "../../external/tests"
+            script = "../../external/scripts"
+            libs = [
+                "../../external/include/nested",
+                "../../external/priority",
+                "../../external/tie",
+                "../../external/stable",
+            ]
+            auto_detect_remappings = false
+
+            //- /nested/third/foundry.toml
+            [profile.default]
+            libs = ["../../external/stable"]
+            auto_detect_remappings = false
+
+            //- /source/foundry.toml
+            [profile.default]
+            src = "../external/source"
+            auto_detect_remappings = false
+            "#,
+        );
+        let workspaces = vec![
+            Workspace::load_foundry(project.path("/first/foundry.toml")).unwrap(),
+            Workspace::load_foundry(project.path("/nested/second/foundry.toml")).unwrap(),
+            Workspace::load_foundry(project.path("/nested/third/foundry.toml")).unwrap(),
+            Workspace::load_foundry(project.path("/source/foundry.toml")).unwrap(),
+        ];
+        let index = WorkspacePathIndex::new(&workspaces);
+
+        assert_eq!(index.workspace_idx_for_import_path(&project.path("/first/Owned.sol")), Some(0));
+        assert_eq!(
+            index.workspace_idx_for_import_path(&project.path("/external/source/Owned.sol")),
+            Some(3)
+        );
+        assert_eq!(
+            index.workspace_idx_for_import_path(&project.path("/external/source/nested/Owned.sol")),
+            Some(1)
+        );
+        assert_eq!(
+            index.workspace_idx_for_import_path(&project.path("/external/tests/Owned.t.sol")),
+            Some(1)
+        );
+        assert_eq!(
+            index.workspace_idx_for_import_path(&project.path("/external/scripts/Owned.s.sol")),
+            Some(1)
+        );
+        assert_eq!(
+            index
+                .workspace_idx_for_import_path(&project.path("/external/include/nested/Owned.sol")),
+            Some(1)
+        );
+        assert_eq!(
+            index.workspace_idx_for_import_path(&project.path("/external/priority/Owned.sol")),
+            Some(0)
+        );
+        assert_eq!(
+            index.workspace_idx_for_import_path(&project.path("/external/tie/Owned.sol")),
+            None
+        );
+        assert_eq!(
+            index.workspace_idx_for_import_path(&project.path("/external/stable/Owned.sol")),
+            None
+        );
+        assert_eq!(
+            index.workspace_idx_for_import_path(&project.path("/unowned/Overlay.sol")),
+            None
+        );
+    }
+
+    #[test]
+    fn workspace_path_index_normalizes_import_base_paths() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /container/.keep
+
+            //- /project/foundry.toml
+            "#,
+        );
+        let manifest = project.path("/container/../project/foundry.toml");
+        let workspaces = vec![Workspace::load_foundry(manifest).unwrap()];
+        let index = WorkspacePathIndex::new(&workspaces);
+
+        assert_eq!(
+            index.workspace_idx_for_import_path(&project.path("/project/test/Owned.t.sol")),
+            Some(0)
         );
     }
 

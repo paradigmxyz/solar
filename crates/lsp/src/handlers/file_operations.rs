@@ -144,6 +144,20 @@ fn classify_completed_file_operation_paths<'a>(
     relevant
 }
 
+fn collect_watched_disk_paths(path: &Path, paths: &mut Vec<PathBuf>) {
+    let Ok(metadata) = std::fs::symlink_metadata(path) else { return };
+    if is_watched_path(path) {
+        paths.push(path.to_path_buf());
+    }
+    if !metadata.is_dir() {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(path) else { return };
+    for entry in entries.filter_map(Result::ok) {
+        collect_watched_disk_paths(&entry.path(), paths);
+    }
+}
+
 pub(crate) fn did_create_files(state: &mut GlobalState, params: CreateFilesParams) -> NotifyResult {
     let created_paths = params
         .files
@@ -155,6 +169,18 @@ pub(crate) fn did_create_files(state: &mut GlobalState, params: CreateFilesParam
         .collect::<Vec<_>>();
     let mut watched_paths =
         watched_paths_under(&state.config, &state.vfs, &state.symbol_tables, &created_paths);
+    // Snapshot concrete echoes now so a directory guard cannot hide descendants created later.
+    for path in &created_paths {
+        collect_watched_disk_paths(path, &mut watched_paths);
+    }
+    watched_paths.extend(
+        state.file_operations.watched_event_paths_under(FileChangeType::CREATED, &created_paths),
+    );
+    watched_paths.sort_unstable();
+    watched_paths.dedup();
+    // Workspace configuration includes the optional `remappings.txt`; a missing path cannot
+    // produce a create watcher echo and must not prevent matching the paths that did.
+    watched_paths.retain(|path| path.exists());
     let schedule_analysis =
         !state.file_operations.consume_watched_events(FileChangeType::CREATED, &watched_paths);
     reconcile_workspace_file_operations(
@@ -165,10 +191,17 @@ pub(crate) fn did_create_files(state: &mut GlobalState, params: CreateFilesParam
         schedule_analysis,
     );
     if schedule_analysis {
-        watched_paths =
-            watched_paths_under(&state.config, &state.vfs, &state.symbol_tables, &created_paths);
+        watched_paths.extend(watched_paths_under(
+            &state.config,
+            &state.vfs,
+            &state.symbol_tables,
+            &created_paths,
+        ));
+        watched_paths.sort_unstable();
+        watched_paths.dedup();
+        watched_paths.retain(|path| path.exists());
     }
-    state.file_operations.record_direct_events(FileChangeType::CREATED, watched_paths);
+    state.file_operations.record_direct_create_events(watched_paths);
     ControlFlow::Continue(())
 }
 
@@ -218,10 +251,10 @@ pub(crate) fn did_delete_files(state: &mut GlobalState, params: DeleteFilesParam
         state,
         Vec::new(),
         FileMoveBatch::default(),
-        deleted_paths,
+        deleted_paths.clone(),
         schedule_analysis,
     );
-    state.file_operations.record_direct_events(FileChangeType::DELETED, watched_paths);
+    state.file_operations.record_direct_delete_events(watched_paths, deleted_paths);
     ControlFlow::Continue(())
 }
 

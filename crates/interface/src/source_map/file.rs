@@ -221,7 +221,7 @@ impl SourceFile {
     pub(crate) fn new(
         name: FileName,
         id: SourceFileId,
-        mut src: String,
+        mut src: Arc<String>,
     ) -> Result<Self, OffsetOverflowError> {
         // Compute the file hash before any normalization.
         // let src_hash = SourceFileHash::new(hash_kind, &src);
@@ -234,10 +234,13 @@ impl SourceFile {
 
         let (lines, multibyte_chars) = super::analyze::analyze_source_file(&src);
 
-        src.shrink_to_fit();
+        if let Some(src) = Arc::get_mut(&mut src) {
+            src.shrink_to_fit();
+        }
+
         Ok(Self {
             name,
-            src: Arc::new(src),
+            src,
             start_pos: BytePos::from_u32(0),
             source_len: RelativeBytePos::from_u32(source_len),
             lines,

@@ -1,5 +1,6 @@
 use super::super::{
-    AnalysisBatch, AnalysisResult, AnalysisResultAccumulator, GlobalState, analyze,
+    AnalysisBatch, AnalysisOutputAccumulator, AnalysisResult, AnalysisResultAccumulator,
+    GlobalState, analyze, analyze_cancellable,
 };
 use crate::test_support::{
     MarkedProject, type_hierarchy_prepare_params, type_hierarchy_subtypes_params,
@@ -709,6 +710,23 @@ impl RequestFixture {
         self.state_with_label_offsets(true)
     }
 
+    pub(super) fn state_with_workspace_analysis(&self) -> GlobalState {
+        let mut outputs = AnalysisOutputAccumulator::default();
+        for batch in super::snapshot(self.marked.project()).analysis_batches(Vec::new()) {
+            if !batch.files.is_empty() {
+                outputs.push(
+                    analyze_cancellable(batch, &Default::default())
+                        .expect("fresh analysis cancellation cannot be cancelled"),
+                );
+            }
+        }
+        let output = outputs.finish();
+        let state = self.state_with_label_offsets(true);
+        *state.symbol_tables.write() = output.result.symbol_tables;
+        state.analysis_commit.lock().analysis_paths = output.analysis_paths;
+        state
+    }
+
     fn state_with_completion_snippets(&self, completion_snippets: bool) -> GlobalState {
         let mut state = self.state_with_label_offsets(true);
         if completion_snippets {
@@ -726,6 +744,7 @@ impl RequestFixture {
         state.config = Arc::new(config);
         *state.vfs.write() = self.marked.project().vfs();
         *state.symbol_tables.write() = self.result.symbol_tables.clone();
+        state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
         state
     }
 

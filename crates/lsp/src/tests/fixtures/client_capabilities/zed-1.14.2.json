@@ -1,0 +1,47 @@
+{
+  "general": {
+    "positionEncodings": ["utf-16"]
+  },
+  "window": {
+    "workDoneProgress": true
+  },
+  "workspace": {
+    "didChangeWatchedFiles": {
+      "dynamicRegistration": true
+    },
+    "workspaceEdit": {
+      "documentChanges": true
+    },
+    "codeLens": {
+      "refreshSupport": true
+    },
+    "diagnostics": {
+      "refreshSupport": true
+    },
+    "inlayHint": {
+      "refreshSupport": true
+    }
+  },
+  "textDocument": {
+    "codeAction": {
+      "codeActionLiteralSupport": {
+        "codeActionKind": {
+          "valueSet": ["refactor", "quickfix", "source"]
+        }
+      }
+    },
+    "documentSymbol": {
+      "hierarchicalDocumentSymbolSupport": true
+    },
+    "hover": {
+      "contentFormat": ["markdown"]
+    },
+    "diagnostic": {
+      "dynamicRegistration": true,
+      "relatedDocumentSupport": true
+    },
+    "publishDiagnostics": {
+      "dataSupport": true
+    }
+  }
+}

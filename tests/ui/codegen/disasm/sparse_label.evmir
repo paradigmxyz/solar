@@ -6,6 +6,7 @@
 // CHECK-LABEL: // === sparse_label (runtime) ===
 // CHECK-NEXT: PUSH1 0x03
 // CHECK-NEXT: POP
+// CHECK-NEXT: ; bb0
 // CHECK-NEXT: JUMPDEST
 bb0:
   push bb4294967295

@@ -82,7 +82,7 @@ impl FoundryProfile {
                 let src = package.join("src");
                 if src.is_dir()
                     && let Some(name) = package.file_name().and_then(|name| name.to_str())
-                    && let Some(path) = src.strip_prefix(root).ok().and_then(Path::to_str)
+                    && let Some(path) = src.strip_prefix(root).unwrap_or(&src).to_str()
                     && let Ok(remapping) = format!("{name}/={}/", path.replace('\\', "/")).parse()
                 {
                     remappings.push(remapping);

@@ -6,7 +6,8 @@ use async_lsp::ClientSocket;
 use lsp_types::{
     CodeActionClientCapabilities, CodeActionContext, CodeActionKind, CodeActionKindLiteralSupport,
     CodeActionLiteralSupport, CodeActionOrCommand, CodeActionParams, Diagnostic,
-    DiagnosticSeverity, DocumentChanges, NumberOrString, PartialResultParams, Position,
+    DiagnosticClientCapabilities, DiagnosticSeverity, DiagnosticWorkspaceClientCapabilities,
+    DocumentChanges, NumberOrString, PartialResultParams, Position,
     PublishDiagnosticsClientCapabilities, Range, TextDocumentIdentifier, TextEdit,
     WorkDoneProgressParams, WorkspaceEditClientCapabilities,
 };
@@ -1044,7 +1045,7 @@ fn omits_optional_fields_but_keeps_server_owned_fix_data() {
     );
     let (uri, edit, diagnostic, mut params) = native_request(&project);
     params.context.diagnostics[0].data = None;
-    let mut state = state_with_capabilities(&project, false, false, false);
+    let mut state = state_with_diagnostic_capabilities(&project, false, false, true, false, false);
     replace_diagnostics(&state, uri.clone(), vec![diagnostic]);
 
     let report = block_on(state.pull_diagnostic_report(uri.clone(), None)).unwrap();
@@ -1073,7 +1074,7 @@ fn pull_only_diagnostic_data_support_preserves_quick_fixes() {
         "#,
     );
     let (uri, edit, diagnostic, mut params) = native_request(&project);
-    let mut state = state_with_diagnostic_capabilities(&project, false, true, false, true);
+    let mut state = state_with_diagnostic_capabilities(&project, false, true, true, false, true);
     replace_diagnostics(&state, uri.clone(), vec![diagnostic]);
 
     let report = block_on(state.pull_diagnostic_report(uri.clone(), None)).unwrap();
@@ -1219,6 +1220,7 @@ fn state_with_capabilities(
         project,
         document_changes,
         is_preferred,
+        false,
         diagnostic_data,
         diagnostic_data,
     )
@@ -1228,6 +1230,7 @@ fn state_with_diagnostic_capabilities(
     project: &TestProject,
     document_changes: bool,
     is_preferred: bool,
+    pull_delivery: bool,
     publish_diagnostic_data: bool,
     pull_diagnostic_data: bool,
 ) -> GlobalState {
@@ -1247,6 +1250,11 @@ fn state_with_diagnostic_capabilities(
         data_support: Some(publish_diagnostic_data),
         ..Default::default()
     });
+    text_document.diagnostic = pull_delivery.then(DiagnosticClientCapabilities::default);
+    if pull_delivery {
+        initialize.capabilities.workspace.get_or_insert_default().diagnostic =
+            Some(DiagnosticWorkspaceClientCapabilities { refresh_support: Some(true) });
+    }
     if document_changes {
         initialize.capabilities.workspace.get_or_insert_default().workspace_edit =
             Some(WorkspaceEditClientCapabilities {

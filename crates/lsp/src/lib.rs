@@ -8,7 +8,7 @@
 use crate::global_state::GlobalState;
 use async_lsp::{
     ClientSocket, LspService, ResponseError, client_monitor::ClientProcessMonitorLayer,
-    router::Router, server::LifecycleLayer, tracing::TracingLayer,
+    router::Router, tracing::TracingLayer,
 };
 #[cfg(test)]
 use criterion as _;
@@ -32,7 +32,9 @@ mod folding_range;
 mod formatter;
 mod global_state;
 mod handlers;
+mod import_resolution;
 mod inlay_hints;
+mod lifecycle;
 mod natspec_completion;
 mod override_index;
 mod progress;
@@ -58,7 +60,7 @@ mod workspace;
 pub use global_state::benchmark::{
     BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit,
     BenchmarkError, BenchmarkProject, BenchmarkRequest, BenchmarkResponse,
-    BenchmarkWorkspaceDiscovery, BenchmarkWorkspaceReports,
+    BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
 };
 
 /// Runs the selection-range kernel for Criterion benchmarks.
@@ -159,19 +161,30 @@ fn request_layer(client: ClientSocket) -> request_cancellation::RequestCancellat
     request_cancellation::RequestCancellationLayer::new(client)
 }
 
-fn new_server_service(
+fn new_server_service_with_router<S>(
     client: ClientSocket,
+    new_router: impl FnOnce(GlobalState) -> S,
 ) -> impl LspService<Response = serde_json::Value, Error = ResponseError, Future: Send + 'static> + Send
+where
+    S: LspService<Response = serde_json::Value, Error = ResponseError> + Send,
+    S::Future: Send + 'static,
 {
     let state = GlobalState::new(client.clone());
     let protocol_trace = state.protocol_trace();
     ServiceBuilder::new()
         .layer(TracingLayer::default())
-        .layer(LifecycleLayer::default())
+        .layer(lifecycle::LifecycleLayer)
         .layer(protocol_trace::ProtocolTraceLayer::new(protocol_trace))
         .layer(request_layer(client.clone()))
         .layer(ClientProcessMonitorLayer::new(client))
-        .service(new_router_with_state(state))
+        .service(new_router(state))
+}
+
+fn new_server_service(
+    client: ClientSocket,
+) -> impl LspService<Response = serde_json::Value, Error = ResponseError, Future: Send + 'static> + Send
+{
+    new_server_service_with_router(client, new_router_with_state)
 }
 
 /// Start the LSP server over stdin/stdout.

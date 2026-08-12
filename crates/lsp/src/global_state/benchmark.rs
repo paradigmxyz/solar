@@ -12,8 +12,9 @@ use crate::{
     utils::apply_document_changes,
     vfs::VfsPath,
     workspace::{
-        Workspace,
+        Workspace, WorkspacePathIndex,
         index_policy::{IndexingCancellation, WorkspaceIndexMetrics, WorkspaceIndexPolicy},
+        workspace_idx_containing_path,
     },
 };
 use async_lsp::ClientSocket;
@@ -106,6 +107,57 @@ impl BenchmarkWorkspaceDiscovery {
 impl BenchmarkError {
     fn new(message: impl Into<String>) -> Self {
         Self { message: message.into() }
+    }
+}
+
+/// A prepared workload for workspace path ownership and overlay fan-out queries.
+#[doc(hidden)]
+pub struct BenchmarkWorkspacePathQueries {
+    workspaces: Vec<Workspace>,
+    paths: Vec<PathBuf>,
+}
+
+impl BenchmarkWorkspacePathQueries {
+    /// Prepare `query_count` paths below `workspace_count` nested workspace roots.
+    pub fn new(workspace_count: usize, query_count: usize) -> Self {
+        assert!(workspace_count > 0, "workspace path benchmark needs a workspace");
+        assert!(query_count > 0, "workspace path benchmark needs a query");
+        let mut root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/path-index");
+        let mut workspaces = Vec::with_capacity(workspace_count);
+        for index in 0..workspace_count {
+            root.push(format!("nested-{index}"));
+            workspaces.push(Workspace::naked(root.clone()));
+        }
+        let paths = (0..query_count).map(|index| root.join(format!("Query-{index}.sol"))).collect();
+        Self { workspaces, paths }
+    }
+
+    /// Execute ownership and overlay-recipient queries for every prepared path.
+    pub fn run(&self) -> usize {
+        let index = WorkspacePathIndex::new(&self.workspaces);
+        self.paths.iter().fold(0, |fingerprint, path| {
+            let query = index.query(path);
+            let primary = query.workspace_idx_for_path();
+            let owner = query.workspace_idx_for_import_path().unwrap_or_default();
+            let overlays = query.workspace_idxs_for_import_path().fold(0, usize::wrapping_add);
+            fingerprint.wrapping_add(primary).wrapping_add(owner).wrapping_add(overlays)
+        })
+    }
+
+    /// Construct the index and execute one ownership and overlay-recipient query.
+    pub fn run_one(&self) -> usize {
+        let index = WorkspacePathIndex::new(&self.workspaces);
+        let path = &self.paths[0];
+        let query = index.query(path);
+        let primary = query.workspace_idx_for_path();
+        let owner = query.workspace_idx_for_import_path().unwrap_or_default();
+        let overlays = query.workspace_idxs_for_import_path().fold(0, usize::wrapping_add);
+        primary.wrapping_add(owner).wrapping_add(overlays)
+    }
+
+    /// Construct the index and execute one base-path containment query.
+    pub fn run_containment_one(&self) -> usize {
+        workspace_idx_containing_path(&self.workspaces, &self.paths[0]).unwrap_or_default()
     }
 }
 

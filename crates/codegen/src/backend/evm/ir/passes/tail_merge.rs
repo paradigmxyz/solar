@@ -1,6 +1,6 @@
 //! Merge profitable suffixes of machine-level terminal blocks.
 
-use super::{EvmPass, utils::is_evm_terminal};
+use super::{EvmPass, utils::is_terminal_boundary};
 use crate::backend::evm::ir::{
     Block, BlockId, Hotness, Instruction, Module, Terminator, TerminatorKind,
 };
@@ -173,7 +173,7 @@ impl RunState {
 
 fn is_candidate(block: &Block) -> bool {
     block.terminator.as_ref().is_some_and(|term| {
-        is_evm_terminal(&term.kind) || matches!(term.kind, TerminatorKind::Jump(_))
+        is_terminal_boundary(&term.kind) || matches!(term.kind, TerminatorKind::Jump(_))
     })
 }
 

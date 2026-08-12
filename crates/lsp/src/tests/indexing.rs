@@ -606,7 +606,10 @@ fn analysis_batches_index_closed_sources_when_source_root_overlaps_library() {
     let mut batches = snapshot.analysis_batches(Vec::new());
     let batch = batches.pop().unwrap();
 
-    assert_eq!(batch.files, vec![(project.path("/lib/Main.sol"), "contract Main {}".into())]);
+    assert_eq!(
+        batch.files,
+        vec![(project.path("/lib/Main.sol"), Arc::new("contract Main {}".into()))]
+    );
 }
 
 #[test]
@@ -639,7 +642,7 @@ fn analysis_batches_keep_sources_below_import_only_manifest_corridors() {
 
     assert_eq!(
         batch.files,
-        vec![(project.path("/lib/contracts/Main.sol"), "contract Main {}".into())]
+        vec![(project.path("/lib/contracts/Main.sol"), Arc::new("contract Main {}".into()),)]
     );
 }
 
@@ -698,6 +701,6 @@ fn workspace_discovery_rechecks_sources_against_the_owning_workspace_policy() {
     assert!(outer_batch.files.iter().all(|(path, _)| !path.starts_with(&nested_root)));
     assert_eq!(
         nested_batch.files,
-        vec![(project.path("/nested/src/Included.sol"), "contract Included {}".into())]
+        vec![(project.path("/nested/src/Included.sol"), Arc::new("contract Included {}".into()),)]
     );
 }

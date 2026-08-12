@@ -12,7 +12,6 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::DenseBitSet;
-use solar_interface::sym;
 use std::collections::VecDeque;
 
 /// Lowers immutable assignments to memory stores in the deployment staging area.
@@ -67,7 +66,7 @@ fn runtime_reachable_functions(module: &Module) -> DenseBitSet<FunctionId> {
     let mut reachable = DenseBitSet::new_empty(module.functions.len());
     let mut worklist = VecDeque::new();
     for (func_id, func) in module.functions.iter_enumerated() {
-        if (func.name.symbol == sym::entry
+        if (func.attributes.is_dispatch_entry
             || func.selector.is_some()
             || func.attributes.is_fallback
             || func.attributes.is_receive)
