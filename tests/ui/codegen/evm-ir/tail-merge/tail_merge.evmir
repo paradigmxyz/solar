@@ -55,7 +55,8 @@ bb6 [cold]:
   push 555
   revert
 
-// CHECK-LABEL: {{^[ +].*}}bb7:
+// The maximum textual label is valid and must not overflow synthetic-label allocation.
+// CHECK-LABEL: {{^[ +].*}}bb4294967295:
 // CHECK: {{^[ +].*}}push 999
 // CHECK: + jump [[TAIL_C]]
 // CHECK: + [[TAIL_B]]:
@@ -67,7 +68,7 @@ bb6 [cold]:
 // CHECK: + [[TAIL_C]]:
 // CHECK: {{^[ +].*}}push 222
 // CHECK: {{^[ +].*}}revert
-bb7:
+bb4294967295:
   push 999
   push 222
   push 333

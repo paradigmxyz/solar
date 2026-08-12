@@ -473,7 +473,7 @@ pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> Option<Sta
     }
 }
 
-fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {
+pub(super) fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {
     match kind {
         TerminatorKind::JumpI { .. } => Some(StackEffect::new(1, 0)),
         TerminatorKind::IndexedJump(_) => Some(StackEffect::new(1, 0)),

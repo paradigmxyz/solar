@@ -342,7 +342,11 @@ fn prune_unused_returns(module: &mut Module) -> usize {
 
     let mut candidates = DenseBitSet::new_empty(module.functions.len());
     for (func_id, func) in module.functions.iter_enumerated() {
-        if called.contains(func_id) && func.returns.len() == 1 && is_internal_body(func) {
+        if called.contains(func_id)
+            && func.returns.len() == 1
+            && !func.returns[0].is_memory_reference()
+            && is_internal_body(func)
+        {
             candidates.insert(func_id);
         }
     }

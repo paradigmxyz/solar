@@ -1,6 +1,9 @@
 //! Outline repeated closed computations and large immediate pushes.
 
-use super::EvmPass;
+use super::{
+    EvmPass,
+    utils::{FreshLabels, StackDepths},
+};
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
     op, push_len,
@@ -57,6 +60,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             }
             let mut delta = 0i32;
             let mut inputs = 0i32;
+            let mut peak = 0i32;
             let mut run_size = 0usize;
             for end in start..block.instructions.len() {
                 let inst = &block.instructions[end];
@@ -67,6 +71,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                 run_size += if inst.is_encoded_push() { 2 } else { 1 };
                 inputs = inputs.max(i32::from(reads) - delta);
                 delta = delta - i32::from(pops) + i32::from(pushes);
+                peak = peak.max(delta);
                 let outputs = inputs + delta;
                 if inputs != 0 && !gcx.sess.opts.optimization.is_size() {
                     break;
@@ -80,6 +85,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                 // before the shared stub's fixed overhead. A run no larger than that site can
                 // never save bytes regardless of its occurrence count, so do not intern it.
                 let can_amortize = run_size > 7 + inputs as usize;
+                let added_peak = 2usize.max(1 + peak as usize);
                 if len >= MIN_MACHINE_RUN && can_amortize && (closed || open_size_run) {
                     let key = MachineInstSlice {
                         hash: hashes.range(block_id, start, end),
@@ -91,6 +97,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                         len,
                         inputs: inputs as u16,
                         outputs: outputs as u16,
+                        added_peak,
                     });
                 }
             }
@@ -98,6 +105,10 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     }
 
     let mut groups: Vec<_> = candidates.into_iter().filter(|(_, sites)| sites.len() >= 2).collect();
+    if groups.is_empty() {
+        return false;
+    }
+    let Some(depths) = StackDepths::new(module) else { return false };
     groups.sort_unstable_by_key(|(key, sites)| {
         let first = sites[0];
         (std::cmp::Reverse(key.insts.len()), first.block.index(), first.start)
@@ -107,6 +118,9 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     for (_, sites) in groups {
         let mut free = SmallVec::<[Site; 2]>::new();
         for site in sites {
+            if !depths.has_headroom(site.block, site.start, site.added_peak) {
+                continue;
+            }
             let end = site.start + site.len;
             let instruction_count = module.blocks[site.block].instructions.len();
             let claimed = claimed
@@ -161,6 +175,8 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     }
 
     let outlined_sites = chosen.iter().map(|group| group.sites.len()).sum::<usize>();
+    let Some(labels) = state.labels(module, chosen.len() + outlined_sites) else { return false };
+    let mut labels = labels.into_iter();
     let removed_body_instructions =
         chosen.iter().map(|group| (group.sites.len() - 1) * group.body.len()).sum::<usize>();
     tracing::debug!(
@@ -173,7 +189,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
 
     let mut stubs = Vec::with_capacity(chosen.len());
     for group in &chosen {
-        let mut stub = Block::new(state.next_label(module));
+        let mut stub = Block::new(labels.next().expect("reserved one label per outline stub"));
         stub.instructions = group.body.clone();
         for depth in 1..=group.outputs {
             stub.instructions.push(Instruction::opcode(op::swap(depth as u8)));
@@ -187,7 +203,8 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             edits.entry(site.block).or_default().push((site.start, site.len, stub, group.inputs));
         }
     }
-    apply_outline_edits(module, edits, state);
+    apply_outline_edits(module, edits, &mut labels);
+    debug_assert!(labels.next().is_none());
     true
 }
 
@@ -219,11 +236,28 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     if values.is_empty() {
         return false;
     }
+    let Some(depths) = StackDepths::new(module) else { return false };
+    for occurrences in sites.values_mut() {
+        occurrences.retain(|site| depths.has_headroom(site.0, site.1, 2));
+    }
+    values.retain(|value| {
+        let occurrences = &sites[value];
+        let push_size = push_len(gcx.sess.opts.evm_version, *value);
+        let inline = occurrences.len() * push_size;
+        let outlined = occurrences.len() * SITE_BYTES + push_size + 3;
+        occurrences.len() >= 2 && inline >= outlined + MIN_SAVING
+    });
+    if values.is_empty() {
+        return false;
+    }
     values.sort_unstable();
+    let site_count = values.iter().map(|value| sites[value].len()).sum::<usize>();
+    let Some(labels) = state.labels(module, values.len() + site_count) else { return false };
+    let mut labels = labels.into_iter();
 
     let mut edits = OutlineEdits::default();
     for value in values {
-        let mut stub = Block::new(state.next_label(module));
+        let mut stub = Block::new(labels.next().expect("reserved one label per push stub"));
         stub.instructions.push(Instruction::push_value(value));
         stub.instructions.push(Instruction::opcode(op::SWAP1));
         stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
@@ -232,11 +266,16 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             edits.entry(block).or_default().push((index, 1, stub, 0));
         }
     }
-    apply_outline_edits(module, edits, state);
+    apply_outline_edits(module, edits, &mut labels);
+    debug_assert!(labels.next().is_none());
     true
 }
 
-fn apply_outline_edits(module: &mut Module, mut edits: OutlineEdits, state: &mut RunState) {
+fn apply_outline_edits(
+    module: &mut Module,
+    mut edits: OutlineEdits,
+    labels: &mut impl Iterator<Item = u32>,
+) {
     let mut blocks: Vec<_> = edits.keys().copied().collect();
     blocks.sort_unstable();
     for block in blocks {
@@ -249,7 +288,8 @@ fn apply_outline_edits(module: &mut Module, mut edits: OutlineEdits, state: &mut
             next_start = start;
         }
         for &(start, len, stub, inputs) in block_edits.iter() {
-            split_outline_site(module, block, start, len, stub, inputs, state);
+            let label = labels.next().expect("reserved one label per outline site");
+            split_outline_site(module, block, start, len, stub, inputs, label);
         }
     }
 }
@@ -261,9 +301,9 @@ fn split_outline_site(
     len: usize,
     stub: BlockId,
     inputs: u16,
-    state: &mut RunState,
+    continuation_label: u32,
 ) {
-    let mut continuation = Block::new(state.next_label(module));
+    let mut continuation = Block::new(continuation_label);
     continuation.metadata = module.blocks[block].metadata;
     continuation.instructions = module.blocks[block].instructions.split_off(start + len);
     module.blocks[block].instructions.truncate(start);
@@ -316,6 +356,7 @@ struct Site {
     len: usize,
     inputs: u16,
     outputs: u16,
+    added_peak: usize,
 }
 
 struct ChosenGroup {
@@ -428,22 +469,12 @@ impl Hash for MachineInstSlice<'_> {
 
 #[derive(Default)]
 struct RunState {
-    next_label: Option<u32>,
+    labels: Option<FreshLabels>,
 }
 
 impl RunState {
-    fn next_label(&mut self, module: &Module) -> u32 {
-        let label = *self.next_label.get_or_insert_with(|| {
-            module
-                .blocks
-                .iter()
-                .map(|block| block.label)
-                .max()
-                .unwrap_or(0)
-                .checked_add(1)
-                .expect("EVM IR block label overflow")
-        });
-        self.next_label = Some(label.checked_add(1).expect("EVM IR block label overflow"));
-        label
+    fn labels(&mut self, module: &Module, count: usize) -> Option<Vec<u32>> {
+        let labels = self.labels.get_or_insert_with(|| FreshLabels::new(module));
+        labels.take(count)
     }
 }

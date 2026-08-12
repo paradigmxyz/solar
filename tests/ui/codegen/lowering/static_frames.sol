@@ -2,7 +2,7 @@
 //@ filecheck:
 
 // Static frame overlays use compile-time-fixed frame addresses, while recursive
-// and mutually recursive calls share the dynamic frame allocator and epilogue.
+// and mutually recursive calls use the dynamic frame allocator and restore it on return.
 contract SF {
     uint256 public s;
 
@@ -40,19 +40,15 @@ contract SF {
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
     // CHECK: [[TOP_REC_RET]]:
-    // CHECK: push [[AFTER_REC:bb[0-9]+]]
-    // CHECK-NEXT: jump [[DYN_EPILOGUE:bb[0-9]+]]
-    // CHECK-NEXT: [[DYN_EPILOGUE]]:
+    // CHECK: push 64
+    // CHECK-NEXT: mstore
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
-    // CHECK-NEXT: push 64
-    // CHECK-NEXT: mstore
     // CHECK: push 32
     // CHECK-NEXT: add
     // CHECK-NEXT: mload
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mstore
-    // CHECK-NEXT: jump
     function top(uint256 x) external returns (uint256) {
         uint256 keep = x * 3; // live across all the calls below
         uint256 a = chainA(x);

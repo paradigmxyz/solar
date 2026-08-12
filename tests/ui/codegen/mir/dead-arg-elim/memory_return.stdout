@@ -1,0 +1,15 @@
+- // === ROOT/tests/ui/codegen/mir/dead-arg-elim/memory_return.mir (before dead-arg-elim) ===
++ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/memory_return.mir (after dead-arg-elim) ===
+  @module MemoryReturn
+  fn @escape() -> memptr {
+    bb0:
+      v0 = fmp
+      ret v0
+  }
+  
+  fn @entry() {
+    bb0:
+      v0 = internal_call @escape, 1
+      ret
+  }
+  

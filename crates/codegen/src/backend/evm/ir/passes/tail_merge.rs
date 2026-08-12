@@ -1,6 +1,9 @@
 //! Merge profitable suffixes of machine-level terminal blocks.
 
-use super::{EvmPass, utils::is_terminal_boundary};
+use super::{
+    EvmPass,
+    utils::{FreshLabels, is_terminal_boundary},
+};
 use crate::backend::evm::ir::{
     Block, BlockId, Hotness, Instruction, Module, Terminator, TerminatorKind,
 };
@@ -25,16 +28,13 @@ fn merge_tails(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     if state.merges.is_empty() {
         return false;
     }
-    let mut next_label = module
-        .blocks
-        .iter()
-        .map(|block| block.label)
-        .max()
-        .unwrap_or(0)
-        .checked_add(1)
-        .expect("EVM IR block label overflow");
+    let mut labels = FreshLabels::new(module);
+    let mut changed = false;
     loop {
-        state.apply_merges(module, &mut next_label);
+        if !state.apply_merges(module, &mut labels) {
+            return changed;
+        }
+        changed = true;
         state.plan_merges(module);
         if state.merges.is_empty() {
             return true;
@@ -86,7 +86,7 @@ impl RunState {
         }
     }
 
-    fn apply_merges(&mut self, module: &mut Module, next_label: &mut u32) {
+    fn apply_merges(&mut self, module: &mut Module, labels: &mut FreshLabels) -> bool {
         self.group_indices.clear();
         let mut group_count = 0;
         for &merge in &self.merges {
@@ -111,6 +111,16 @@ impl RunState {
         }
 
         let Self { groups, commons, tails, .. } = self;
+        let mut label_count = 0;
+        for group in groups.iter().take(group_count) {
+            commons.clear();
+            commons.extend(group.sites.iter().map(|&(_, common)| common));
+            commons.sort_unstable();
+            commons.dedup();
+            label_count += commons.len();
+        }
+        let Some(labels) = labels.take(label_count) else { return false };
+        let mut labels = labels.into_iter();
         for group in groups.iter().take(group_count) {
             let representative = &module.blocks[group.representative];
             let instructions = representative.instructions.clone();
@@ -131,8 +141,7 @@ impl RunState {
             let mut previous_common = 0;
             let mut previous_tail = None;
             for &common in commons.iter() {
-                let mut tail = Block::new(*next_label);
-                *next_label = next_label.checked_add(1).expect("EVM IR block label overflow");
+                let mut tail = Block::new(labels.next().expect("reserved one label per tail"));
                 tail.metadata = metadata;
                 if !metadata.hotness.is_cold()
                     || max_hot_common.is_some_and(|hot_common| common <= hot_common)
@@ -168,6 +177,8 @@ impl RunState {
                 module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(tail)));
             }
         }
+        debug_assert!(labels.next().is_none());
+        true
     }
 }
 

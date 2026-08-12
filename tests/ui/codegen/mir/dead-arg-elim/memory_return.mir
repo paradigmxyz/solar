@@ -1,0 +1,22 @@
+//@ compile-flags: -Zmir-pipeline=dead-arg-elim -Osize
+//@ filecheck:
+@module MemoryReturn
+
+// A discarded memory reference may still have escaped through inline assembly.
+// Keep its signature so backend frame restoration remains conservative.
+// CHECK-LABEL: fn @escape() -> memptr
+// CHECK: v0 = fmp
+// CHECK-NEXT: ret v0
+fn @escape() -> memptr {
+  bb0:
+    v0 = fmp
+    ret v0
+}
+
+// CHECK-LABEL: fn @entry()
+// CHECK: v0 = internal_call @escape, 1
+fn @entry() [selector=0x01020304] {
+  bb0:
+    v0 = internal_call fn0, 1
+    ret
+}

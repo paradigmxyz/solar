@@ -3044,6 +3044,41 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Duplicates a stack-only operand before earlier fresh operands would bury it past DUP16.
+    /// `operands` are ordered deepest-first, exactly as the following emission sequence pushes
+    /// them.
+    fn stage_stack_only_fresh_operands(&mut self, operands: &[ValueId]) {
+        if !self.scheduler.has_stack_only_values() {
+            return;
+        }
+
+        loop {
+            let mut stack = self.scheduler.stack.clone();
+            let mut inaccessible = None;
+            for &operand in operands {
+                if self.scheduler.is_stack_only_value(operand) {
+                    match stack.find(operand) {
+                        Some(depth) if depth < MAX_STACK_ACCESS => {
+                            stack.dup((depth + 1) as u8);
+                        }
+                        _ => {
+                            inaccessible = Some(operand);
+                            break;
+                        }
+                    }
+                } else {
+                    stack.push_unknown();
+                }
+            }
+            let Some(operand) = inaccessible else { break };
+            let depth = self.scheduler.stack.find(operand).unwrap_or_else(|| {
+                panic!("stack-only CALL operand {operand:?} was lost before its use")
+            });
+            assert!(depth < MAX_STACK_ACCESS, "stack-only CALL operand exceeded DUP16 reach");
+            self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
+        }
+    }
+
     /// Spills an instruction result if it is on the stack and not already stored.
     fn spill_value_if_needed(&mut self, func: &Function, val: ValueId) {
         if !Self::can_own_spill_slot(func, val) {
@@ -3922,6 +3957,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                     [*gas, *addr, *value, *args_offset, *args_size, *ret_offset, *ret_size];
                 self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
                 self.prepare_fresh_operands(func, &operands);
+                self.stage_stack_only_fresh_operands(&[
+                    *ret_size,
+                    *ret_offset,
+                    *args_size,
+                    *args_offset,
+                    *value,
+                    *addr,
+                    *gas,
+                ]);
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
                 self.emit_value_fresh(func, *args_size);
@@ -3948,6 +3992,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                     [*gas, *addr, *value, *args_offset, *args_size, *ret_offset, *ret_size];
                 self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
                 self.prepare_fresh_operands(func, &operands);
+                self.stage_stack_only_fresh_operands(&[
+                    *ret_size,
+                    *ret_offset,
+                    *args_size,
+                    *args_offset,
+                    *value,
+                    *addr,
+                    *gas,
+                ]);
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
                 self.emit_value_fresh(func, *args_size);
@@ -3965,6 +4018,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let operands = [*gas, *addr, *args_offset, *args_size, *ret_offset, *ret_size];
                 self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
                 self.prepare_fresh_operands(func, &operands);
+                self.stage_stack_only_fresh_operands(&[
+                    *ret_size,
+                    *ret_offset,
+                    *args_size,
+                    *args_offset,
+                    *addr,
+                    *gas,
+                ]);
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
                 self.emit_value_fresh(func, *args_size);
@@ -3980,6 +4041,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let operands = [*gas, *addr, *args_offset, *args_size, *ret_offset, *ret_size];
                 self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
                 self.prepare_fresh_operands(func, &operands);
+                self.stage_stack_only_fresh_operands(&[
+                    *ret_size,
+                    *ret_offset,
+                    *args_size,
+                    *args_offset,
+                    *addr,
+                    *gas,
+                ]);
                 // DELEGATECALL(gas, addr, argsOffset, argsSize, retOffset, retSize)
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
@@ -6380,6 +6449,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             crate::mir::Value::Arg(index) => {
+                if self.scheduler.is_stack_only_value(val) {
+                    let depth = self.scheduler.stack.find(val).unwrap_or_else(|| {
+                        panic!("stack-only argument {val:?} was lost before fresh emission")
+                    });
+                    assert!(depth < MAX_STACK_ACCESS, "stack-only argument exceeded DUP16 reach");
+                    self.emit_stack_op(StackOp::Dup(depth as u8 + 1));
+                    return;
+                }
                 if let Some(depth) = self.scheduler.stack.find(val)
                     && depth < MAX_STACK_ACCESS
                 {

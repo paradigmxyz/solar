@@ -13,7 +13,7 @@
 -   push 44
 -   push 55
 -   revert
-+   jump bb9
++   jump bb5
   bb2 [cold]:
     push 99
 -   push 22
@@ -21,7 +21,7 @@
 -   push 44
 -   push 55
 -   revert
-+   jump bb9
++   jump bb5
   bb3:
     push 77
     push 66
@@ -29,7 +29,7 @@
 -   push 44
 -   push 55
 -   revert
-+   jump bb8
++   jump bb4
   bb6 [cold]:
     push 111
 -   push 222
@@ -37,19 +37,19 @@
 -   push 444
 -   push 555
 -   revert
-+   jump bb10
-  bb7:
++   jump bb7
+  bb4294967295:
     push 999
-+   jump bb10
-+ bb8:
++   jump bb7
++ bb4:
 +   push 33
 +   push 44
 +   push 55
 +   revert
-+ bb9 [cold]:
++ bb5 [cold]:
 +   push 22
-+   jump bb8
-+ bb10:
++   jump bb4
++ bb7:
     push 222
     push 333
     push 444
