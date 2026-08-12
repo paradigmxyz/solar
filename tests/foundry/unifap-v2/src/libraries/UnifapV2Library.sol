@@ -47,3 +47,13 @@ library UnifapV2Library {
         pair = IUnifapV2Factory(factory).pairs(tokenA, tokenB);
     }
 }
+/*
+ * The LSP benchmark loads this project from memory. Keep the fixture's source
+ * footprint stable when updating its behavior: the router now reads the
+ * factory's recorded pair address instead of rebuilding it from a fixed
+ * init-code hash. The recorded address remains correct when compiler settings
+ * or dependency versions change the pair bytecode. This note belongs with the
+ * fixture so future edits account for the corpus size invariant without
+ * changing benchmark implementation code.
+ * Fixture bytes stay fixed.
+ */
