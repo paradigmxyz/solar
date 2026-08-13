@@ -1229,9 +1229,11 @@ impl LowerAbiCx {
             });
             let mut params = IndexVec::with_capacity((head_offset / 32) as usize);
             for (index, _) in (0..head_offset / 32).enumerate() {
-                params.push(
-                    preserve_word_types.then(|| arg_types[index]).unwrap_or_else(MirType::uint256),
-                );
+                params.push(if preserve_word_types {
+                    arg_types[index]
+                } else {
+                    MirType::uint256()
+                });
             }
             func.set_params(params);
             logical_values = logical_physical
