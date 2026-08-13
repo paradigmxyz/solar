@@ -19,6 +19,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let variable = self.gcx.hir.variable(id);
             if variable.is_state_variable()
                 || self.values.contains_key(&id)
+                || self.default_bindings.contains(&id)
+                || self.deferred_bindings.contains(&id)
                 || variable.parent.is_none()
             {
                 return Some(LValuePlace::Variable { id, span: expr.span });
@@ -180,6 +182,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.values.insert(id, value);
             return Some(value);
         }
+        if self.deferred_bindings.contains(&id) {
+            let ty = self.gcx.type_of_item(id.into());
+            let value = self.default_value(ty);
+            self.values.insert(id, value);
+            return Some(value);
+        }
         if let Some(&immutable_id) = self.immutable_ids.get(&id) {
             let ty = self.gcx.type_of_item(id.into());
             return Some(
@@ -226,6 +234,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(());
         }
         if self.default_bindings.contains(&id) {
+            self.values.insert(id, value);
+            return Some(());
+        }
+        if self.deferred_bindings.contains(&id) {
             self.values.insert(id, value);
             return Some(());
         }
@@ -304,6 +316,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if variable.is_state_variable()
                 || self.values.contains_key(&id)
                 || self.default_bindings.contains(&id)
+                || self.deferred_bindings.contains(&id)
                 || variable.parent.is_none()
             {
                 return self.store_variable(id, value, expr.span);

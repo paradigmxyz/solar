@@ -16,6 +16,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.storage_refs.insert(*id, access);
                     return Some(());
                 }
+                if initializer.is_none() && self.types.memory_layout(ty).is_some() {
+                    self.deferred_bindings.insert(*id);
+                    return Some(());
+                }
                 let value = if let Some(expr) = initializer {
                     let value = self.lower_typed_expr(expr, ty)?;
                     self.coerce_value(value, self.gcx.type_of_expr(expr.id)?, ty)
