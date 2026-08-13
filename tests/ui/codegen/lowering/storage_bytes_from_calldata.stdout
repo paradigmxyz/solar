@@ -91,54 +91,43 @@ fn @setText(arg0: calldataslice) [selector=0x5d3a1f9d, abi_args=lazy, abi_params
     v40 = and v21, v39
     jumpi v40, bb17, bb18
   bb17:
-    v41 = storage_array_data_slot 0
-    jump bb19
-  bb18:
-    jumpi v37, bb22, bb23
-  bb19:
-    v42 = phi [bb17: v38], [bb20: v45]
-    v43 = lt v42, v33
-    jumpi v43, bb20, bb21
-  bb20:
-    v44 = add v41, v42
-    sstore v44, 0 !metadata(storage=symbolic(v44))
-    v45 = add v42, 1
-    jump bb19
-  bb21:
+    internal_call @__clear_storage_words, 0, 0, v38, v33
     jump bb18
-  bb22:
-    v46 = memory_slice_load_word memory, v30, 0
-    v47 = sub 32, v28
-    v48 = mul v47, 8
-    v49 = shl v48, 1
-    v50 = sub v49, 1
-    v51 = not v50
-    v52 = and v46, v51
-    v53 = mul v28, 2
-    v54 = or v52, v53
-    sstore 0, v54 !metadata(storage=slot(0))
-    jump bb24
-  bb23:
-    v55 = shl 1, v28
-    v56 = or v55, 1
-    sstore 0, v56 !metadata(storage=slot(0))
-    v57 = storage_array_data_slot 0
-    jump bb25
-  bb24:
+  bb18:
+    jumpi v37, bb19, bb20
+  bb19:
+    v41 = memory_slice_load_word memory, v30, 0
+    v42 = sub 32, v28
+    v43 = mul v42, 8
+    v44 = shl v43, 1
+    v45 = sub v44, 1
+    v46 = not v45
+    v47 = and v41, v46
+    v48 = mul v28, 2
+    v49 = or v47, v48
+    sstore 0, v49 !metadata(storage=slot(0))
+    jump bb21
+  bb20:
+    v50 = shl 1, v28
+    v51 = or v50, 1
+    sstore 0, v51 !metadata(storage=slot(0))
+    v52 = storage_array_data_slot 0
+    jump bb22
+  bb21:
     stop
-  bb25:
-    v58 = phi [bb23: 0], [bb26: v63]
-    v59 = lt v58, v36
-    jumpi v59, bb26, bb27
-  bb26:
-    v60 = mul v58, 32
-    v61 = memory_slice_load_word memory, v30, v60
-    v62 = add v57, v58
-    sstore v62, v61 !metadata(storage=symbolic(v62))
-    v63 = add v58, 1
-    jump bb25
-  bb27:
-    jump bb24
+  bb22:
+    v53 = phi [bb20: 0], [bb23: v58]
+    v54 = lt v53, v36
+    jumpi v54, bb23, bb24
+  bb23:
+    v55 = mul v53, 32
+    v56 = memory_slice_load_word memory, v30, v55
+    v57 = add v52, v53
+    sstore v57, v56 !metadata(storage=symbolic(v57))
+    v58 = add v53, 1
+    jump bb22
+  bb24:
+    jump bb21
 }
 
 fn @setBlob(arg0: calldataslice) [selector=0xdd7d5edb, abi_args=lazy, abi_params=[bytes], abi_returns=[]] {
@@ -232,54 +221,43 @@ fn @setBlob(arg0: calldataslice) [selector=0xdd7d5edb, abi_args=lazy, abi_params
     v40 = and v21, v39
     jumpi v40, bb17, bb18
   bb17:
-    v41 = storage_array_data_slot 1
-    jump bb19
-  bb18:
-    jumpi v37, bb22, bb23
-  bb19:
-    v42 = phi [bb17: v38], [bb20: v45]
-    v43 = lt v42, v33
-    jumpi v43, bb20, bb21
-  bb20:
-    v44 = add v41, v42
-    sstore v44, 0 !metadata(storage=symbolic(v44))
-    v45 = add v42, 1
-    jump bb19
-  bb21:
+    internal_call @__clear_storage_words, 0, 1, v38, v33
     jump bb18
-  bb22:
-    v46 = memory_slice_load_word memory, v30, 0
-    v47 = sub 32, v28
-    v48 = mul v47, 8
-    v49 = shl v48, 1
-    v50 = sub v49, 1
-    v51 = not v50
-    v52 = and v46, v51
-    v53 = mul v28, 2
-    v54 = or v52, v53
-    sstore 1, v54 !metadata(storage=slot(1))
-    jump bb24
-  bb23:
-    v55 = shl 1, v28
-    v56 = or v55, 1
-    sstore 1, v56 !metadata(storage=slot(1))
-    v57 = storage_array_data_slot 1
-    jump bb25
-  bb24:
+  bb18:
+    jumpi v37, bb19, bb20
+  bb19:
+    v41 = memory_slice_load_word memory, v30, 0
+    v42 = sub 32, v28
+    v43 = mul v42, 8
+    v44 = shl v43, 1
+    v45 = sub v44, 1
+    v46 = not v45
+    v47 = and v41, v46
+    v48 = mul v28, 2
+    v49 = or v47, v48
+    sstore 1, v49 !metadata(storage=slot(1))
+    jump bb21
+  bb20:
+    v50 = shl 1, v28
+    v51 = or v50, 1
+    sstore 1, v51 !metadata(storage=slot(1))
+    v52 = storage_array_data_slot 1
+    jump bb22
+  bb21:
     stop
-  bb25:
-    v58 = phi [bb23: 0], [bb26: v63]
-    v59 = lt v58, v36
-    jumpi v59, bb26, bb27
-  bb26:
-    v60 = mul v58, 32
-    v61 = memory_slice_load_word memory, v30, v60
-    v62 = add v57, v58
-    sstore v62, v61 !metadata(storage=symbolic(v62))
-    v63 = add v58, 1
-    jump bb25
-  bb27:
-    jump bb24
+  bb22:
+    v53 = phi [bb20: 0], [bb23: v58]
+    v54 = lt v53, v36
+    jumpi v54, bb23, bb24
+  bb23:
+    v55 = mul v53, 32
+    v56 = memory_slice_load_word memory, v30, v55
+    v57 = add v52, v53
+    sstore v57, v56 !metadata(storage=symbolic(v57))
+    v58 = add v53, 1
+    jump bb22
+  bb24:
+    jump bb21
 }
 
 fn @getText() -> memorybytes [selector=0xe00fe2eb, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
@@ -292,6 +270,23 @@ fn @getBlob() -> memorybytes [selector=0x32db030e, view, abi_args=lazy, abi_para
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 1
     ret v0
+}
+
+fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+  bb0:
+    v0 = storage_array_data_slot arg0
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg1], [bb2: v4]
+    v2 = lt v1, arg2
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v0, v1
+    sstore v3, 0 !metadata(storage=symbolic(v3))
+    v4 = add v1, 1
+    jump bb1
+  bb3:
+    stop
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memorybytes {
