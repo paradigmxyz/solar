@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -O none --libraries Lib=0x1111111111111111111111111111111111111111 -Zdump=mir
+//@compile-flags: -O none --libraries Lib=0x1111111111111111111111111111111111111111 -Zdump=mir
 //@filecheck:
 
 library Lib {

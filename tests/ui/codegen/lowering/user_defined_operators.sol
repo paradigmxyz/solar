@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zdump=mir
 //@filecheck: --check-prefix=UDO
 
 // User-defined operators on a value type (`using {add as +, neg as -} for T`)

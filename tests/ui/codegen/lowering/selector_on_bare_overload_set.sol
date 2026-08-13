@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin-runtime
+//@compile-flags: --emit=bin-runtime
 // ported-from: test/foundry/utils/TestTokenMinter.sol
 
 // `.selector` on a bare function name inherited through an override chain.

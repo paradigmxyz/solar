@@ -1,4 +1,4 @@
-//@ compile-flags: -Zcodegen -O none -Zdump=mir
+//@ compile-flags: -O none -Zdump=mir
 //@ filecheck:
 
 // ported-from: test/libsolidity/semanticTests/functionCall/call_function_returning_function.sol

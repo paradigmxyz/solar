@@ -1,7 +1,7 @@
 //@ revisions: mir evmir
-//@[mir] compile-flags: -Zcodegen -O none -Zdump=mir
+//@[mir] compile-flags: -O none -Zdump=mir
 //@[mir] filecheck: --check-prefix=MIR
-//@[evmir] compile-flags: -Zcodegen -Zdump=evm-ir --pretty-json
+//@[evmir] compile-flags: -Zdump=evm-ir --pretty-json
 //@[evmir] filecheck: --check-prefix=EVMIR
 
 contract ConstructorInternalCall {

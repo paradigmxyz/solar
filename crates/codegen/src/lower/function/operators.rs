@@ -239,9 +239,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         self.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                     }
                 }
-                match arithmetic {
+                let result = match arithmetic {
                     Some(ArithmeticKind::Signed(_)) => self.builder.sdiv(lhs, rhs),
                     _ => self.builder.div(lhs, rhs),
+                };
+                if self.unchecked && matches!(arithmetic, Some(ArithmeticKind::Signed(_))) {
+                    self.truncate_wrapping_result(result, arithmetic)
+                } else {
+                    result
                 }
             }
             BinOpKind::Rem => {

@@ -1,7 +1,7 @@
 //@ revisions: mir size
-//@[mir] compile-flags: -Zcodegen -O none -Zdump=mir
+//@[mir] compile-flags: -O none -Zdump=mir
 //@[mir] filecheck:
-//@[size] compile-flags: -Zcodegen -O size -Zdump=evm-ir-runtime
+//@[size] compile-flags: -O size -Zdump=evm-ir-runtime
 
 contract FunctionCall {
     // CHECK-LABEL: fn @double{{[( ]}}

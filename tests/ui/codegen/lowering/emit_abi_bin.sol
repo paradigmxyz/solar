@@ -1,7 +1,7 @@
 //@ revisions: evmir bin
-//@[evmir] compile-flags: -Zcodegen --emit=abi -Zdump=evm-ir,evm-ir-runtime --pretty-json
+//@[evmir] compile-flags: --emit=abi -Zdump=evm-ir,evm-ir-runtime --pretty-json
 //@[evmir] filecheck: --check-prefix=EVMIR
-//@[bin] compile-flags: -Zcodegen --emit=abi,bin,bin-runtime --pretty-json
+//@[bin] compile-flags: --emit=abi,bin,bin-runtime --pretty-json
 //@[bin] filecheck: --check-prefix=BIN
 
 // EVMIR: "type": "constructor"

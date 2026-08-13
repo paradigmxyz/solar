@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zdump=mir
 
 contract AbiHeadSizeOverflow {
     function oversized( //~ ERROR: codegen rewrite does not support this function parameter shape yet

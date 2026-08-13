@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -O none -Zdump=mir
+//@compile-flags: -O none -Zdump=mir
 //@filecheck:
 
 // `abi.encode(...)` stays as a typed MIR operation until the ABI encoding pass,

@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=evm-ir
+//@compile-flags: -Zdump=evm-ir
 // Calls with an erroneous receiver or builtin argument must reuse that error,
 // not emit another diagnostic or ICE in codegen.
 import {Missing} from "./does-not-exist.sol"; //~ ERROR: file

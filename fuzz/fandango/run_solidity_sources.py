@@ -88,7 +88,7 @@ def _check_source(
     if args.verbose:
         print(f"  solc:  {solc_result['status']}", file=sys.stderr)
         print(
-            f"  solar: {args.solar} -Zcodegen --emit=bin-runtime {path}",
+            f"  solar: {args.solar} --emit=bin-runtime {path}",
             file=sys.stderr,
         )
 
@@ -162,7 +162,6 @@ def _compile_solc(solc: str, source: pathlib.Path, timeout: float) -> dict[str, 
 def _compile_solar(solar: str, source: pathlib.Path, timeout: float) -> dict[str, Any]:
     return _run([
         solar,
-        "-Zcodegen",
         "--emit=bin-runtime",
         str(source),
     ], timeout)

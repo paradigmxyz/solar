@@ -750,7 +750,6 @@ def run_ui_case(
     for spec in specs:
         command = [
             str(spec.path),
-            "-Zcodegen",
             "--emit",
             "bin,bin-runtime",
             "--base-path",

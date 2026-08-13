@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zdump=mir
 //@filecheck: --check-prefix=ADDA
 
 // `abi.decode` into dynamic arrays of elementary types: the head offset and

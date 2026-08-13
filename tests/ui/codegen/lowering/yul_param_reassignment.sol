@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin-runtime
+//@compile-flags: --emit=bin-runtime
 // ported-from: src/utils/LibBytes.sol
 
 // A parameter reassigned in inline assembly, the solady `LibBytes.indexOf`

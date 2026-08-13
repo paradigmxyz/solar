@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
+//@compile-flags: -Zdump=evm-ir-runtime
 //@ filecheck:
 
 // Constant short revert messages use a shared helper when the value comes from

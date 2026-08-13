@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zdump=mir
 //@filecheck: --check-prefix=CDSMI
 
 // Indexing a calldata array whose elements are wider than a word. The elements

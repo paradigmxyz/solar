@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -O none -Zdump=mir
+//@compile-flags: -O none -Zdump=mir
 //@filecheck:
 
 // Rebinding calldata bytes keeps a lazy `(ptr, len)` slice. A later external

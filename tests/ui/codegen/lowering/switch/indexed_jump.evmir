@@ -1,4 +1,4 @@
-//@ compile-flags: -Zcodegen -Zevm-ir-pipeline=default -O none -Zdump=disasm-runtime
+//@ compile-flags: -Zevm-ir-pipeline=default -O none -Zdump=disasm-runtime
 //@ filecheck:
 
 @module indexed_jump
