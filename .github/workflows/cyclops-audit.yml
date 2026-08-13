@@ -19,6 +19,8 @@ jobs:
       )
     permissions:
       contents: read
+      pull-requests: read
+      statuses: write
     uses: tempoxyz/gh-actions/.github/workflows/pr-audit.yml@dd1014bf8244fded7a501e701cafab240a4f9f0e
     with:
       required-labels: |
