@@ -31,9 +31,10 @@ diffs.
   cheatcodes.
 - `fuzz/bin/solsymdiff` is the bounded symbolic differential lane. With one
   command it inventories a contract and sequentially compares every supported
-  `pure` function, plus explicitly opted-in zero-state `view` functions;
-  `--signature` narrows the same workflow to one function. It reports a
-  mismatch only after two concrete replays.
+  `pure` function. Zero-state `view` functions and clean-state, single-call
+  `nonpayable` functions are separate explicit opt-ins; `--signature` narrows
+  the same workflow to one function. It reports a mismatch only after two
+  concrete replays.
 
 Generated artifacts belong under `fuzz/fandango/out/`, which is ignored.
 Promote only minimized, stable failures into `corpus.jsonl` or `tests/ui/`.
@@ -296,7 +297,7 @@ test compares return bytes, revert behavior, logs, and normalized state diffs.
 
 The symbolic lane is for Solar compiler contributors who want a bounded,
 high-confidence search for one-call runtime semantic differences. It is not
-application fuzzing and does not replace the stateful Fandango/SolSmith lanes.
+application fuzzing and does not replace the multi-call Fandango/SolSmith lanes.
 
 Build Solar and put `solc`, `anvil`, a symbolic-enabled `forge`, and Z3 on
 `PATH`. Required CI uses an exact pinned Foundry nightly, Solc 0.8.36, Ubuntu
@@ -327,8 +328,21 @@ identifiers, then scans every shared eligible function in deterministic
 signature order. ABI or selector disagreements are errors, but valid siblings
 still run. Non-`pure` functions and unsupported shapes are listed under
 `inventory.excluded`. Add `--include-view` to opt into `view` functions under
-the recorded clean zero-storage model; this does not claim coverage of other
-storage states.
+the recorded clean zero-storage model. Add `--include-stateful` to opt into
+`nonpayable` functions under the clean zero-storage, zero-value, single-call
+model. The stateful oracle compares call status and exact bytes, emitted logs,
+and final storage. Neither option claims coverage of other initial states or
+call sequences.
+
+For example, search both the default pure surface and eligible nonpayable
+functions whose first call can write storage or emit logs:
+
+```bash
+fuzz/bin/solsymdiff \
+  --source path/to/Target.sol \
+  --contract Target \
+  --include-stateful
+```
 
 To investigate one function, add a focused override:
 
@@ -362,8 +376,8 @@ and fixed or dynamic arrays of those types. The generated property recreates
 ABI tuples as deterministic local structs, so its canonical calldata layout
 stays identical to the compiler target. Outputs may use dynamic ABI shapes
 because the oracle compares raw encoded returndata rather than decoding it;
-`--max-returndata-bytes` remains a fail-closed bound. Nonzero storage, state
-transitions, and multi-call sequences are outside this lane.
+`--max-returndata-bytes` remains a fail-closed bound. Payable calls, nonzero
+initial storage, and multi-call sequences are outside this lane.
 
 Dynamic inputs are not unbounded. By default the command separately explores
 lengths 0, 1, 2, and 3 for every array, `bytes`, and `string` leaf. This covers
@@ -427,28 +441,37 @@ The command:
    and whole-runtime checks: an unrelated sibling can conservatively exclude
    the contract.
 3. Generates one property per eligible function. Concrete `setUp()` installs a
-   stateless router and both runtimes once. The router is pre-warmed, strips a
+   router and both runtimes once. The router is pre-warmed, strips a
    20-byte implementation prefix, and `DELEGATECALL`s only the exact target
    calldata. Both compilers therefore see the same address, selector,
-   `msg.data`, value, and clean zero-initialized storage without running
+   `msg.data`, zero value, and clean zero-initialized storage without running
    `vm.etch` symbolically. Pure functions are eligible by default; opted-in
-   `view` functions are checked only in that explicit zero-storage state.
+   `view` functions use `STATICCALL`. For opted-in nonpayable functions, the
+   property records the solc call's written slots and logs, copies final values
+   into a mirror account, restores those slots to zero, then records the Solar
+   call. It compares the union of both write-slot sets so a compiler cannot hide
+   a missing or additional write.
 4. Compares success versus revert and the exact raw return or revert bytes.
    Comparison is word-unrolled up to `--max-returndata-bytes` (256 by default);
    reaching a longer result is an `incomplete` soundness sentinel, never a
-   passing equivalence claim.
+   passing equivalence claim. Stateful properties additionally compare the
+   encoded log arrays under the recorded hash-model assumption and every final
+   touched storage value.
 5. Runs functions sequentially under one `--timeout` deadline. Before each
    function, remaining wall time is divided by remaining functions, so unused
    time carries forward. Solver query, path, depth, and returndata limits apply
    per function. The campaign adds no parallel Forge, solver, or Anvil work.
 6. Concretely replays every symbolic candidate. A reported compiler mismatch
-   must be confirmed both by Foundry's counterexample replay and by independent
-   exact calls through a fixed `STATICCALL` proxy against both runtimes,
-   sequentially at the same address, in a fresh Anvil process. This second
-   replay intentionally does not reuse the router; that architectural
-   independence catches router- or context-only candidates, which become
-   `incomplete`. Every proxy or compiler runtime installed with
-   `anvil_setCode` is read back with `eth_getCode` before execution.
+   must be confirmed both by Foundry's counterexample replay and by an
+   independent fresh-Anvil replay. Pure and view candidates use exact calls
+   through a fixed `STATICCALL` proxy. Stateful candidates restore one clean
+   snapshot, install each runtime sequentially at the same address, and compare
+   exact `eth_call` results, transaction status and logs, and the complete
+   storage-trie root. This second replay intentionally does not reuse the
+   symbolic router; that architectural independence catches router- or
+   context-only candidates, which become `incomplete`. Every proxy or compiler
+   runtime installed with `anvil_setCode` is read back with `eth_getCode` before
+   execution.
 7. Isolates Forge and Anvil configuration and working directories. Local
    Anvil JSON-RPC explicitly bypasses ambient HTTP proxy configuration. Every
    compiler, Forge, Anvil, solver, and replay process tree is owned and reaped
@@ -488,9 +511,10 @@ contract:
   inventory errors, and the total deadline was respected. This is not a proof
   of unbounded equivalence.
 - `replay_confirmed_mismatch` (exit 1): solc and Solar produced different
-  concrete success/revert status or exact output bytes, the saved Foundry
-  counterexample reproduced, and fresh-Anvil replay independently confirmed
-  the difference. One durable finding dominates other incomplete functions or
+  concrete success/revert status or exact output bytes, or an opted-in stateful
+  call produced different logs or final storage. The saved Foundry
+  counterexample reproduced, and fresh-Anvil replay independently confirmed the
+  difference. One durable finding dominates other incomplete functions or
   inventory errors, so partial campaign trouble cannot hide it.
 - `incomplete` (exit 2): the run could not make either claim. Examples include
   zero eligible functions, ABI/selector disagreement, conservative scope
@@ -541,9 +565,9 @@ counts, aggregate bounds, findings, runtime and source hashes, and relative
 hash-pinned links to each focused bundle. A focused bundle is self-contained:
 it records exact Standard JSON and per-source hashes, compiler commands and
 versions, settings and bounds, selector, execution context, tool versions, raw
-Forge output, independent solc/Solar outcomes, Anvil block/RPC context, and the
-saved `STATICCALL` proxy. Inspect the parent `findings` list, then open the
-referenced child `manifest.json`.
+Forge output, independent solc/Solar outcomes, and Anvil block/RPC context.
+Stateless bundles also save the `STATICCALL` proxy. Inspect the parent
+`findings` list, then open the referenced child `manifest.json`.
 
 Candidate replay is already automatic. To manually replay a saved Foundry
 witness after the temporary directory has gone away:
@@ -572,10 +596,13 @@ behavior. We do not put this before every fuzz run: it needs a solver, has a
 much narrower sound target class, consumes a separate bounded budget, and can
 legitimately end `incomplete`.
 
-The supported scope does not include nonzero storage or stateful sequences, logs,
-constructors or immutables, linked libraries, proxies, mappings, function
-types, user inline assembly anywhere in the source closure, EF/EOF runtimes,
-external calls in the deployed runtime, or protocol/invariant testing.
+The supported scope does not include nonzero initial storage, stateful
+sequences, payable functions, nonzero value, account lifetime or balance
+changes, constructors or immutables, linked libraries, proxies, function types,
+user inline assembly anywhere in the source closure, EF/EOF runtimes, external
+calls in the deployed runtime, or protocol/invariant testing. Mappings are
+usable only when reached from an opted-in nonpayable function in the clean
+single-call model; arbitrary preimages or previously populated entries are not.
 Dynamic ABI inputs and tuples are supported only through the finite shapes
 described above. Context-sensitive opcodes whose context cannot be equalized
 are rejected across the entire deployed object; equalized opcodes such as
@@ -584,8 +611,9 @@ can therefore exclude an otherwise simple function. Imports must resolve
 beneath the selected project root or an explicit include path. The fixed
 compiler settings, clean storage, call context, solver bounds, and wall
 deadline are part of every claim. Use the concrete runtime
-lanes for broader or stateful behavior; use this lane for small, replayable,
-high-confidence pure or zero-state view compiler witnesses.
+lanes for broader generated programs and call sequences; use this lane for
+small, replayable, high-confidence pure, zero-state view, or clean-state
+single-call compiler witnesses.
 
 ## Scaling
 

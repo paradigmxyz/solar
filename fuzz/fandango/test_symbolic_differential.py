@@ -320,6 +320,30 @@ class FocusedCommandTests(unittest.TestCase):
 
         self.assertTrue(run.call_args.args[0].include_view)
 
+    def test_stateful_scope_is_explicitly_opted_in(self):
+        with (
+            patch.object(
+                sys,
+                "argv",
+                [
+                    "solsymdiff",
+                    "--source",
+                    "Target.sol",
+                    "--contract",
+                    "Target",
+                    "--include-stateful",
+                ],
+            ),
+            patch.object(
+                run_foundry_target,
+                "_run_symbolic_or_incomplete",
+                return_value=0,
+            ) as run,
+        ):
+            self.assertEqual(run_foundry_target.symbolic_main(), 0)
+
+        self.assertTrue(run.call_args.args[0].include_stateful)
+
     def test_project_import_configuration_is_explicit(self):
         with (
             patch.object(
@@ -1423,6 +1447,36 @@ class SymbolicFunctionSelectionTests(unittest.TestCase):
 
         self.assertEqual(selected["state_mutability"], "view")
 
+    def test_accepts_nonpayable_function_only_with_stateful_opt_in(self):
+        solc = artifact(mutability="nonpayable")
+        solar = copy.deepcopy(solc)
+
+        with self.assertRaisesRegex(ValueError, "pure"):
+            symbolic.select_function(
+                solc, solar, "probe(uint256,address)"
+            )
+
+        selected = symbolic.select_function(
+            solc,
+            solar,
+            "probe(uint256,address)",
+            include_stateful=True,
+        )
+
+        self.assertEqual(selected["state_mutability"], "nonpayable")
+
+    def test_stateful_opt_in_does_not_include_payable_functions(self):
+        solc = artifact(mutability="payable")
+        solar = copy.deepcopy(solc)
+
+        with self.assertRaisesRegex(ValueError, "state mutability"):
+            symbolic.select_function(
+                solc,
+                solar,
+                "probe(uint256,address)",
+                include_stateful=True,
+            )
+
     def test_rejects_compiler_abi_or_selector_disagreement(self):
         solc = artifact()
         solar = copy.deepcopy(solc)
@@ -1486,6 +1540,8 @@ class FunctionInventoryTests(unittest.TestCase):
             self._function("dynamicOutput", output_type="bytes"),
             self._function("unsupported", input_type="function"),
             self._function("observed", mutability="view"),
+            self._function("mutates", mutability="nonpayable"),
+            self._function("funded", mutability="payable"),
             self._function("alpha"),
         ]
         solc = {
@@ -1496,6 +1552,8 @@ class FunctionInventoryTests(unittest.TestCase):
                 "dynamicOutput(uint256)": "00000005",
                 "unsupported(function)": "00000006",
                 "observed(uint256)": "00000003",
+                "mutates(uint256)": "00000007",
+                "funded(uint256)": "00000008",
                 "alpha(uint256)": "00000001",
             },
         }
@@ -1514,7 +1572,12 @@ class FunctionInventoryTests(unittest.TestCase):
         )
         self.assertEqual(
             [item["signature"] for item in inventory["excluded"]],
-            ["observed(uint256)", "unsupported(function)"],
+            [
+                "funded(uint256)",
+                "mutates(uint256)",
+                "observed(uint256)",
+                "unsupported(function)",
+            ],
         )
         self.assertEqual(inventory["errors"], [])
 
@@ -1533,7 +1596,33 @@ class FunctionInventoryTests(unittest.TestCase):
         )
         self.assertEqual(
             [item["signature"] for item in opted_in["excluded"]],
-            ["unsupported(function)"],
+            [
+                "funded(uint256)",
+                "mutates(uint256)",
+                "unsupported(function)",
+            ],
+        )
+
+        stateful = symbolic.function_inventory(
+            solc, solar, include_stateful=True
+        )
+        self.assertEqual(
+            [item["signature"] for item in stateful["eligible"]],
+            [
+                "alpha(uint256)",
+                "dynamic(bytes)",
+                "dynamicOutput(uint256)",
+                "mutates(uint256)",
+                "zeta(uint256)",
+            ],
+        )
+        self.assertEqual(
+            [item["signature"] for item in stateful["excluded"]],
+            [
+                "funded(uint256)",
+                "observed(uint256)",
+                "unsupported(function)",
+            ],
         )
 
     def test_inventory_reports_union_disagreements_without_hiding_valid_siblings(self):
@@ -1662,6 +1751,10 @@ class RuntimeScopeTests(unittest.TestCase):
         self.assertEqual(
             symbolic.runtime_scope_opcodes("0x6000fa"),
             [{"offset": 2, "opcode": "STATICCALL"}],
+        )
+        self.assertEqual(
+            symbolic.runtime_scope_opcodes("0x6000ff"),
+            [{"offset": 2, "opcode": "SELFDESTRUCT"}],
         )
         self.assertEqual(
             symbolic.runtime_scope_opcodes("0x383958595a"),
@@ -1877,6 +1970,46 @@ class SymbolicTargetGenerationTests(unittest.TestCase):
             "SymbolicInput0[] calldata arg0)",
             source,
         )
+
+    def test_stateful_target_compares_logs_and_final_touched_storage(self):
+        function = {
+            "signature": "probe(uint256)",
+            "selector": "0x01020304",
+            "inputs": ["uint256"],
+            "outputs": ["uint256"],
+            "test": "checkDiff_01020304",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary)
+            run_foundry_target.write_foundry_target.write_symbolic_target(
+                project,
+                "0x6000",
+                "0x6001",
+                function,
+                64,
+                "osaka",
+                storage_layout="zero_init",
+                stateful=True,
+            )
+            source = (
+                project / "test" / "SymbolicDifferential.t.sol"
+            ).read_text()
+            foundry_config = (project / "foundry.toml").read_text()
+
+        self.assertIn("address(ROUTER).call", source)
+        self.assertNotIn("staticcall", source)
+        self.assertIn("vm.recordLogs();", source)
+        self.assertIn("vm.accesses(address(ROUTER))", source)
+        self.assertIn("vm.store(STATE_MIRROR, writesA[i], valueA);", source)
+        self.assertIn(
+            "vm.store(address(ROUTER), writesA[i], bytes32(0));",
+            source,
+        )
+        self.assertIn(
+            "keccak256(abi.encode(logsA)) == keccak256(abi.encode(logsB))",
+            source,
+        )
+        self.assertIn('storage_layout = "zero_init"', foundry_config)
 
     def test_named_dynamic_input_lengths_are_written_deterministically(self):
         function = {
@@ -2349,6 +2482,107 @@ class ConcreteOutcomeConfirmationTests(unittest.TestCase):
             with self.subTest(outcome=outcome):
                 with self.assertRaises(ValueError):
                     symbolic.confirm_outcomes(outcome, valid)
+
+    def test_stateful_confirmation_compares_call_logs_and_storage(self):
+        outcome = {
+            "call": {"status": "ok", "data": "0x01"},
+            "receipt": {
+                "status": "ok",
+                "logs": [{"topics": [], "data": "0x"}],
+                "storage": "0x01",
+            },
+        }
+        self.assertFalse(
+            symbolic.confirm_stateful_outcomes(
+                outcome, copy.deepcopy(outcome)
+            )
+        )
+        for field, value in (
+            ("call", {"status": "revert", "data": "0x01"}),
+            ("logs", []),
+            ("storage", "0x02"),
+        ):
+            with self.subTest(field=field):
+                mutant = copy.deepcopy(outcome)
+                if field == "call":
+                    mutant["call"] = value
+                else:
+                    mutant["receipt"][field] = value
+                self.assertTrue(
+                    symbolic.confirm_stateful_outcomes(outcome, mutant)
+                )
+
+    def test_rejects_malformed_stateful_outcomes(self):
+        valid = {
+            "call": {"status": "ok", "data": "0x"},
+            "receipt": {"status": "ok", "logs": [], "storage": "0x00"},
+        }
+        malformed = [
+            {},
+            {"call": valid["call"], "receipt": {}},
+            {
+                "call": valid["call"],
+                "receipt": {
+                    "status": "ok",
+                    "logs": "not-an-array",
+                    "storage": "0x00",
+                },
+            },
+            {
+                "call": valid["call"],
+                "receipt": {"status": "ok", "logs": [], "storage": "0xzz"},
+            },
+        ]
+        for outcome in malformed:
+            with self.subTest(outcome=outcome), self.assertRaises(ValueError):
+                symbolic.confirm_stateful_outcomes(outcome, valid)
+
+    def test_stateful_replay_restores_snapshot_before_swapping_runtime(self):
+        manager = MagicMock()
+        manager.__enter__.return_value = {
+            "rpc_url": "http://anvil",
+            "chain_id": 123,
+            "command": ["anvil", "--chain-id", "123"],
+        }
+        outcome = {
+            "call": {"status": "ok", "data": "0x"},
+            "receipt": {"status": "ok", "logs": [], "storage": "0x00"},
+        }
+        with (
+            patch.object(symbolic, "_anvil", return_value=manager),
+            patch.object(
+                evm,
+                "rpc",
+                side_effect=[
+                    {"result": {"number": "0x0", "timestamp": "0x1"}},
+                    {"result": "0x1"},
+                    {"result": True},
+                ],
+            ) as rpc,
+            patch.object(evm, "set_code") as set_code,
+            patch.object(
+                symbolic,
+                "_stateful_runtime_outcome",
+                side_effect=[outcome, copy.deepcopy(outcome)],
+            ),
+        ):
+            replay = symbolic.run_stateful_replay(
+                "anvil",
+                "osaka",
+                "0x6001",
+                "0x6002",
+                "0xdeadbeef",
+                30,
+            )
+
+        self.assertEqual(
+            [call.args[2] for call in set_code.call_args_list],
+            ["0x6001", "0x6002"],
+        )
+        self.assertEqual(rpc.call_args_list[1].args[1], "evm_snapshot")
+        self.assertEqual(rpc.call_args_list[2].args[1], "evm_revert")
+        self.assertEqual(replay["call_kind"], "zero_state_transaction")
+        self.assertEqual(replay["implementation_address"], evm.SOLC_ADDRESS)
 
     def test_independent_replay_swaps_runtimes_at_one_address(self):
         manager = MagicMock()
@@ -3115,6 +3349,12 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         cls.zero_storage_mutant = (
             fixture_dir / "ZeroStorageMutant.sol"
         ).resolve()
+        cls.stateful_reference = (
+            fixture_dir / "StatefulReference.sol"
+        ).resolve()
+        cls.stateful_mutant = (
+            fixture_dir / "StatefulMutant.sol"
+        ).resolve()
         cls.reference_input = evm.materialize_standard_input(
             cls.solc,
             cls.reference,
@@ -3244,6 +3484,36 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             evm_version="osaka",
             standard_input=zero_storage_mutant_input,
         )
+        cls.stateful_reference_input = evm.materialize_standard_input(
+            cls.solc,
+            cls.stateful_reference,
+            30,
+            "osaka",
+        )
+        cls.solc_stateful_reference = evm.compile_standard_artifact(
+            cls.solc,
+            cls.stateful_reference,
+            "StatefulDifferential",
+            30,
+            kind="solc",
+            evm_version="osaka",
+            standard_input=cls.stateful_reference_input,
+        )
+        stateful_mutant_input = evm.materialize_standard_input(
+            cls.solc,
+            cls.stateful_mutant,
+            30,
+            "osaka",
+        )
+        cls.solar_stateful_mutant = evm.compile_standard_artifact(
+            cls.solar,
+            cls.stateful_mutant,
+            "StatefulDifferential",
+            30,
+            kind="solar",
+            evm_version="osaka",
+            standard_input=stateful_mutant_input,
+        )
         cls.address_context_input = evm.materialize_standard_input(
             cls.solc,
             cls.address_context,
@@ -3346,6 +3616,7 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         dynamic_lengths=symbolic.DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS,
         input_lengths=(),
         include_view=False,
+        include_stateful=False,
         catch_setup_errors=False,
     ):
         output = io.StringIO()
@@ -3382,6 +3653,7 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             symbolic_dynamic_lengths=dynamic_lengths,
             symbolic_input_length=input_lengths,
             include_view=include_view,
+            include_stateful=include_stateful,
             max_returndata_bytes=max_returndata_bytes,
             artifact_dir=self._artifact_root("runs"),
             verbose=False,
@@ -4132,6 +4404,47 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         self.assertEqual(
             manifest["replay"]["solar"],
             {"status": "ok", "data": "0x" + "00" * 31 + "2b"},
+        )
+
+    def test_stateful_storage_only_mismatch_is_independently_replayed(self):
+        returncode, summary, manifest = self._run(
+            self.solar_stateful_mutant,
+            source=self.stateful_reference,
+            contract="StatefulDifferential",
+            solc_artifact=self.solc_stateful_reference,
+            materialized=self.stateful_reference_input,
+            include_stateful=True,
+        )
+
+        self.assertEqual(returncode, 1)
+        self.assertEqual(summary["status"], "replay_confirmed_mismatch")
+        self.assertEqual(manifest["function"]["state_mutability"], "nonpayable")
+        self.assertEqual(
+            manifest["bounds"]["eligible_state_mutabilities"],
+            ["pure", "nonpayable"],
+        )
+        self.assertEqual(
+            manifest["forge"]["execution_context"]["call_kind"],
+            "call_router_delegatecall",
+        )
+        self.assertEqual(
+            manifest["replay"]["call_kind"],
+            "zero_state_transaction",
+        )
+        self.assertEqual(
+            manifest["replay"]["solc"]["call"],
+            manifest["replay"]["solar"]["call"],
+        )
+        self.assertEqual(
+            manifest["replay"]["solc"]["receipt"]["logs"],
+            manifest["replay"]["solar"]["receipt"]["logs"],
+        )
+        self.assertNotEqual(
+            manifest["replay"]["solc"]["receipt"]["storage"],
+            manifest["replay"]["solar"]["receipt"]["storage"],
+        )
+        self.assertTrue(
+            manifest["replay"]["durable_foundry_artifact"]["reproduced"]
         )
 
     def test_dynamic_bytes_shape_and_contents_find_a_durable_mismatch(self):

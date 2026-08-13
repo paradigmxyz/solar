@@ -26,6 +26,7 @@ STATIC_PROXY_ADDRESS = "0x1000000000000000000000000000000000000003"
 SYMBOLIC_ROUTER_ADDRESS = SOLC_ADDRESS
 SYMBOLIC_SOLC_RUNTIME_ADDRESS = SOLAR_ADDRESS
 SYMBOLIC_SOLAR_RUNTIME_ADDRESS = STATIC_PROXY_ADDRESS
+SYMBOLIC_STATE_MIRROR_ADDRESS = "0x1000000000000000000000000000000000000004"
 # Well-known anvil dev account 0; unlocked, so `eth_sendTransaction` needs no
 # signature.
 ANVIL_SENDER = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
@@ -861,20 +862,29 @@ def eth_call(
 
 
 def send_tx(
-    url: str, sender: str, address: str, calldata: str, timeout: float
+    url: str,
+    sender: str,
+    address: str,
+    calldata: str,
+    timeout: float,
+    *,
+    deadline: Deadline | None = None,
 ) -> dict[str, Any]:
     response = rpc(
         url,
         "eth_sendTransaction",
         [{"from": sender, "to": address, "data": calldata, "gas": TX_GAS}],
         timeout,
+        deadline=deadline,
     )
     if "result" not in response:
         # Submission rejected outright (should not happen with an explicit gas
         # limit, but record the reason for differential comparison anyway).
         return {"status": "rejected", "data": revert_data(response.get("error"))}
 
-    receipt = wait_for_receipt(url, response["result"], timeout)
+    receipt = wait_for_receipt(
+        url, response["result"], timeout, deadline=deadline
+    )
     if not receipt:
         return {"status": "no-receipt"}
     return {
@@ -883,12 +893,24 @@ def send_tx(
         # Storage-trie root: a digest of all persisted storage. Solidity assigns
         # the same slots for the same source, so this catches storage divergence
         # even when no later `eth_call` reads the written slot back.
-        "storage": storage_root(url, address, timeout),
+        "storage": storage_root(url, address, timeout, deadline=deadline),
     }
 
 
-def storage_root(url: str, address: str, timeout: float) -> str:
-    response = rpc(url, "eth_getProof", [address, [], "latest"], timeout)
+def storage_root(
+    url: str,
+    address: str,
+    timeout: float,
+    *,
+    deadline: Deadline | None = None,
+) -> str:
+    response = rpc(
+        url,
+        "eth_getProof",
+        [address, [], "latest"],
+        timeout,
+        deadline=deadline,
+    )
     if "error" in response:
         raise RuntimeError(f"eth_getProof for {address} failed: {response['error']}")
     proof = response.get("result")
@@ -897,20 +919,35 @@ def storage_root(url: str, address: str, timeout: float) -> str:
     raise RuntimeError(f"eth_getProof for {address} did not return storageHash")
 
 
-def wait_for_receipt(url: str, tx_hash: str, timeout: float) -> dict[str, Any] | None:
+def wait_for_receipt(
+    url: str,
+    tx_hash: str,
+    timeout: float,
+    *,
+    deadline: Deadline | None = None,
+) -> dict[str, Any] | None:
     """Polls for a transaction receipt.
 
     anvil returns the hash from `eth_sendTransaction` before the receipt is
     queryable, so a single lookup races the miner.
     """
-    deadline = time.monotonic() + timeout
+    receipt_deadline = time.monotonic() + timeout
     while True:
-        receipt = rpc(url, "eth_getTransactionReceipt", [tx_hash], timeout).get("result")
+        receipt = rpc(
+            url,
+            "eth_getTransactionReceipt",
+            [tx_hash],
+            timeout,
+            deadline=deadline,
+        ).get("result")
         if receipt:
             return receipt
-        if time.monotonic() >= deadline:
+        if time.monotonic() >= receipt_deadline:
             return None
-        time.sleep(0.05)
+        delay = 0.05
+        if deadline is not None:
+            delay = min(delay, deadline.remaining("transaction receipt polling"))
+        time.sleep(delay)
 
 
 def revert_data(error: Any) -> str:

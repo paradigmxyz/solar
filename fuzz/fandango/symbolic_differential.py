@@ -66,6 +66,9 @@ UNSUPPORTED_RUNTIME_OPCODES = {
     0xF4: "DELEGATECALL",
     0xF5: "CREATE2",
     0xFA: "STATICCALL",
+    # The single-call stateful oracle compares final storage and logs, not
+    # account lifetime or balance changes.
+    0xFF: "SELFDESTRUCT",
 }
 
 
@@ -157,11 +160,12 @@ def function_inventory(
     solar_artifact: dict[str, Any],
     *,
     include_view: bool = False,
+    include_stateful: bool = False,
 ) -> dict[str, list[dict[str, Any]]]:
     """Inventory the shared runtime surface without silently intersecting ABIs."""
-    if not isinstance(include_view, bool):
-        raise ValueError("include_view must be a boolean")
-    allowed_mutabilities = {"pure", "view"} if include_view else {"pure"}
+    allowed_mutabilities = _allowed_symbolic_mutabilities(
+        include_view, include_stateful
+    )
     solc_functions, solc_errors = _collect_functions(
         solc_artifact.get("abi"), "solc"
     )
@@ -226,19 +230,18 @@ def function_inventory(
             )
             continue
         if solc_entry.get("stateMutability") not in allowed_mutabilities:
+            allowed = ", ".join(sorted(allowed_mutabilities))
             excluded.append(
                 {
                     "signature": signature,
-                    "reason": (
-                        "state mutability is not pure or opted-in view"
-                        if include_view
-                        else "state mutability is not pure"
-                    ),
+                    "reason": f"state mutability is not one of: {allowed}",
                 }
             )
             continue
         if not _has_supported_symbolic_inputs(
-            solc_entry, include_view=include_view
+            solc_entry,
+            include_view=include_view,
+            include_stateful=include_stateful,
         ):
             excluded.append(
                 {
@@ -300,10 +303,12 @@ def select_function(
     signature: str | None,
     *,
     include_view: bool = False,
+    include_stateful: bool = False,
 ) -> dict[str, Any]:
     """Validate compiler agreement and select one eligible function."""
-    if not isinstance(include_view, bool):
-        raise ValueError("include_view must be a boolean")
+    allowed_mutabilities = _allowed_symbolic_mutabilities(
+        include_view, include_stateful
+    )
     solc_abi = solc_artifact.get("abi")
     solar_abi = solar_artifact.get("abi")
     _validate_abi(solc_abi, "solc")
@@ -325,17 +330,22 @@ def select_function(
         solar_entry = solar_entries[signature]
         if _function_shape(solc_entry) != _function_shape(solar_entry):
             raise ValueError(f"compiler ABI disagreement for `{signature}`")
-        allowed_mutabilities = {"pure", "view"} if include_view else {"pure"}
         if (
             solc_entry.get("stateMutability") not in allowed_mutabilities
             or solar_entry.get("stateMutability") not in allowed_mutabilities
         ):
-            required = "pure or view" if include_view else "pure"
-            raise ValueError(f"function `{signature}` must be {required}")
+            allowed = ", ".join(sorted(allowed_mutabilities))
+            raise ValueError(
+                f"function `{signature}` state mutability must be one of: {allowed}"
+            )
         if not _has_supported_symbolic_inputs(
-            solc_entry, include_view=include_view
+            solc_entry,
+            include_view=include_view,
+            include_stateful=include_stateful,
         ) or not _has_supported_symbolic_inputs(
-            solar_entry, include_view=include_view
+            solar_entry,
+            include_view=include_view,
+            include_stateful=include_stateful,
         ):
             raise ValueError(
                 f"function `{signature}` uses an unsupported symbolic ABI input"
@@ -353,6 +363,7 @@ def select_function(
         solc_hashes,
         signature,
         include_view=include_view,
+        include_stateful=include_stateful,
     )
     selector = selected["selector"][2:]
     solar_selector = solar_hashes.get(selected["signature"], "").removeprefix("0x").lower()
@@ -386,10 +397,10 @@ def select_symbolic_function(
     signature: str | None,
     *,
     include_view: bool = False,
+    include_stateful: bool = False,
 ) -> dict[str, Any]:
     """Select one supported function shared by both compiler ABIs."""
-    if not isinstance(include_view, bool):
-        raise ValueError("include_view must be a boolean")
+    _allowed_symbolic_mutabilities(include_view, include_stateful)
     _validate_abi(solc_abi, "solc")
     _validate_abi(solar_abi, "Solar")
     _validate_method_identifiers(hashes, "solc")
@@ -409,10 +420,14 @@ def select_symbolic_function(
         if (
             solar_entry is not None
             and _has_supported_symbolic_inputs(
-                solc_entry, include_view=include_view
+                solc_entry,
+                include_view=include_view,
+                include_stateful=include_stateful,
             )
             and _has_supported_symbolic_inputs(
-                solar_entry, include_view=include_view
+                solar_entry,
+                include_view=include_view,
+                include_stateful=include_stateful,
             )
             and _function_shape(solc_entry) == _function_shape(solar_entry)
             and candidate in hashes
@@ -584,6 +599,15 @@ def confirm_outcomes(
     return solc_outcome != solar_outcome
 
 
+def confirm_stateful_outcomes(
+    solc_outcome: dict[str, Any], solar_outcome: dict[str, Any]
+) -> bool:
+    """Return true when concrete call, log, or final-storage outcomes differ."""
+    _validate_stateful_outcome(solc_outcome)
+    _validate_stateful_outcome(solar_outcome)
+    return solc_outcome != solar_outcome
+
+
 def run_direct_replay(
     solc: str,
     anvil: str,
@@ -676,6 +700,136 @@ def run_direct_replay(
             "solar": solar_outcome,
             "proxy": proxy,
         }
+
+
+def run_stateful_replay(
+    anvil: str,
+    evm_version: str,
+    solc_runtime: str,
+    solar_runtime: str,
+    calldata: str,
+    timeout: float,
+    *,
+    deadline: evm.Deadline | None = None,
+) -> dict[str, Any]:
+    """Replay one zero-state transaction against both runtimes at one address."""
+    with _anvil(anvil, evm_version, timeout, deadline=deadline) as instance:
+        rpc_url = instance["rpc_url"]
+        target = evm.SOLC_ADDRESS
+        block_response = evm.rpc(
+            rpc_url,
+            "eth_getBlockByNumber",
+            ["latest", False],
+            timeout,
+            deadline=deadline,
+        )
+        block = block_response.get("result")
+        if not isinstance(block, dict):
+            raise evm.InfraError(
+                f"Anvil latest block was unavailable: {block_response!r}"
+            )
+        snapshot_response = evm.rpc(
+            rpc_url,
+            "evm_snapshot",
+            [],
+            timeout,
+            deadline=deadline,
+        )
+        snapshot = snapshot_response.get("result")
+        if not isinstance(snapshot, str):
+            raise evm.InfraError(
+                f"Anvil snapshot was unavailable: {snapshot_response!r}"
+            )
+
+        evm.set_code(
+            rpc_url,
+            target,
+            solc_runtime,
+            timeout,
+            deadline=deadline,
+        )
+        solc_outcome = _stateful_runtime_outcome(
+            rpc_url, target, calldata, timeout, deadline
+        )
+
+        revert_response = evm.rpc(
+            rpc_url,
+            "evm_revert",
+            [snapshot],
+            timeout,
+            deadline=deadline,
+        )
+        if revert_response.get("result") is not True:
+            raise evm.InfraError(
+                f"Anvil snapshot revert failed: {revert_response!r}"
+            )
+
+        evm.set_code(
+            rpc_url,
+            target,
+            solar_runtime,
+            timeout,
+            deadline=deadline,
+        )
+        solar_outcome = _stateful_runtime_outcome(
+            rpc_url, target, calldata, timeout, deadline
+        )
+        return {
+            "call_kind": "zero_state_transaction",
+            "calldata": calldata,
+            "implementation_address": target,
+            "proxy_address": None,
+            "rpc_block": "latest",
+            "rpc_transaction": {
+                "from": evm.ANVIL_SENDER,
+                "to": target,
+                "data": calldata,
+                "value": "0x0",
+            },
+            "anvil": {
+                "command": instance["command"],
+                "chain_id": instance["chain_id"],
+                "block": block,
+            },
+            "solc": solc_outcome,
+            "solar": solar_outcome,
+            "proxy": None,
+        }
+
+
+def _stateful_runtime_outcome(
+    rpc_url: str,
+    target: str,
+    calldata: str,
+    timeout: float,
+    deadline: evm.Deadline | None,
+) -> dict[str, Any]:
+    envelope = {
+        "from": evm.ANVIL_SENDER,
+        "gas": evm.TX_GAS,
+        "value": "0x0",
+    }
+    call = evm.eth_call(
+        rpc_url,
+        target,
+        calldata,
+        timeout,
+        envelope,
+        deadline=deadline,
+    )
+    receipt = evm.send_tx(
+        rpc_url,
+        evm.ANVIL_SENDER,
+        target,
+        calldata,
+        timeout,
+        deadline=deadline,
+    )
+    if receipt.get("status") not in {"ok", "revert"}:
+        raise evm.InfraError(
+            f"stateful transaction did not produce a receipt: {receipt!r}"
+        )
+    return {"call": call, "receipt": receipt}
 
 
 def parse_json_output(stdout: str, stderr: str, label: str) -> dict[str, Any]:
@@ -1017,9 +1171,11 @@ def _function_shape(entry: dict[str, Any]) -> tuple[Any, ...]:
 
 
 def _has_supported_symbolic_inputs(
-    entry: dict[str, Any], *, include_view: bool = False
+    entry: dict[str, Any], *, include_view: bool = False, include_stateful: bool = False
 ) -> bool:
-    allowed_mutabilities = {"pure", "view"} if include_view else {"pure"}
+    allowed_mutabilities = _allowed_symbolic_mutabilities(
+        include_view, include_stateful
+    )
     return (
         entry.get("stateMutability") in allowed_mutabilities
         and all(
@@ -1027,6 +1183,21 @@ def _has_supported_symbolic_inputs(
             for item in entry.get("inputs", [])
         )
     )
+
+
+def _allowed_symbolic_mutabilities(
+    include_view: bool, include_stateful: bool
+) -> set[str]:
+    if not isinstance(include_view, bool):
+        raise ValueError("include_view must be a boolean")
+    if not isinstance(include_stateful, bool):
+        raise ValueError("include_stateful must be a boolean")
+    allowed = {"pure"}
+    if include_view:
+        allowed.add("view")
+    if include_stateful:
+        allowed.add("nonpayable")
+    return allowed
 
 
 def _is_supported_symbolic_input(item: dict[str, Any]) -> bool:
@@ -1095,6 +1266,25 @@ def _validate_outcome(outcome: dict[str, Any]) -> None:
         int(data[2:] or "0", 16)
     except ValueError as err:
         raise ValueError("concrete outcome data is not hex") from err
+
+
+def _validate_stateful_outcome(outcome: dict[str, Any]) -> None:
+    if not isinstance(outcome, dict):
+        raise ValueError("stateful concrete outcome must be an object")
+    _validate_outcome(outcome.get("call"))
+    receipt = outcome.get("receipt")
+    if not isinstance(receipt, dict) or receipt.get("status") not in {"ok", "revert"}:
+        raise ValueError("stateful receipt must have status `ok` or `revert`")
+    logs = receipt.get("logs")
+    if not isinstance(logs, list) or not all(isinstance(log, dict) for log in logs):
+        raise ValueError("stateful receipt logs must be an array of objects")
+    storage = receipt.get("storage")
+    if not isinstance(storage, str) or not storage.startswith("0x"):
+        raise ValueError("stateful receipt storage root must be 0x-prefixed hex")
+    try:
+        int(storage[2:] or "0", 16)
+    except ValueError as err:
+        raise ValueError("stateful receipt storage root is not hex") from err
 
 
 @contextlib.contextmanager

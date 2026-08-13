@@ -58,6 +58,7 @@ def write_symbolic_target(
     exploration_order: str = "bfs",
     storage_layout: str = "solidity",
     input_lengths: dict[str, tuple[int, ...]] | None = None,
+    stateful: bool = False,
 ) -> None:
     """Write one bounded symbolic differential target."""
     if max_returndata_bytes <= 0:
@@ -120,7 +121,12 @@ def write_symbolic_target(
         f"assert(_word(retA, {offset}) == _word(retB, {offset}));"
         for offset in range(0, max_returndata_bytes, 32)
     )
-    test_source = _SYMBOLIC_DIFFERENTIAL_TEST_SOURCE_TEMPLATE.format(
+    template = (
+        _STATEFUL_SYMBOLIC_DIFFERENTIAL_TEST_SOURCE_TEMPLATE
+        if stateful
+        else _SYMBOLIC_DIFFERENTIAL_TEST_SOURCE_TEMPLATE
+    )
+    test_source = template.format(
         solc_runtime=_hex_literal(solc_runtime),
         solar_runtime=_hex_literal(solar_runtime),
         selector=function["selector"],
@@ -133,6 +139,7 @@ def write_symbolic_target(
         router_address=evm.SYMBOLIC_ROUTER_ADDRESS,
         solc_runtime_address=evm.SYMBOLIC_SOLC_RUNTIME_ADDRESS,
         solar_runtime_address=evm.SYMBOLIC_SOLAR_RUNTIME_ADDRESS,
+        state_mirror_address=evm.SYMBOLIC_STATE_MIRROR_ADDRESS,
     )
     (test_dir / "SymbolicDifferential.t.sol").write_text(test_source)
     (out_dir / "foundry.toml").write_text(
@@ -481,6 +488,134 @@ contract FandangoRuntimeDifferentialTest {{
     function _bound(uint256 value, uint256 min, uint256 max) internal pure returns (uint256) {{
         uint256 size = max - min + 1;
         return min + (value % size);
+    }}
+}}
+"""
+
+
+_STATEFUL_SYMBOLIC_DIFFERENTIAL_TEST_SOURCE_TEMPLATE = """\
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+interface Vm {{
+    struct Log {{
+        bytes32[] topics;
+        bytes data;
+        address emitter;
+    }}
+
+    function accesses(address target)
+        external
+        view
+        returns (bytes32[] memory readSlots, bytes32[] memory writeSlots);
+    function etch(address target, bytes calldata newRuntimeBytecode) external;
+    function getRecordedLogs() external returns (Log[] memory logs);
+    function load(address target, bytes32 slot) external view returns (bytes32 data);
+    function record() external;
+    function recordLogs() external;
+    function stopRecord() external;
+    function store(address target, bytes32 slot, bytes32 value) external;
+}}
+
+contract RuntimeRouter {{
+    fallback() external payable {{
+        assembly ("memory-safe") {{
+            if lt(calldatasize(), 20) {{ revert(0, 0) }}
+            let target := shr(96, calldataload(0))
+            let targetCalldataSize := sub(calldatasize(), 20)
+            calldatacopy(0, 20, targetCalldataSize)
+            let ok := delegatecall(gas(), target, 0, targetCalldataSize, 0, 0)
+            returndatacopy(0, 0, returndatasize())
+            switch ok
+            case 0 {{ revert(0, returndatasize()) }}
+            default {{ return(0, returndatasize()) }}
+        }}
+    }}
+}}
+
+contract SymbolicDifferentialTest {{
+{struct_declarations}
+    Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
+
+    RuntimeRouter internal constant ROUTER =
+        RuntimeRouter(payable({router_address}));
+    address internal constant SOLC_IMPLEMENTATION =
+        address({solc_runtime_address});
+    address internal constant SOLAR_IMPLEMENTATION =
+        address({solar_runtime_address});
+    address internal constant STATE_MIRROR =
+        address({state_mirror_address});
+    bytes4 internal constant TARGET_SELECTOR = bytes4({selector});
+    uint256 internal constant MAX_RETURNDATA_BYTES = {max_returndata_bytes};
+
+    bytes internal constant SOLC_RUNTIME = hex"{solc_runtime}";
+    bytes internal constant SOLAR_RUNTIME = hex"{solar_runtime}";
+
+    function setUp() public {{
+        vm.etch(address(ROUTER), type(RuntimeRouter).runtimeCode);
+        vm.etch(SOLC_IMPLEMENTATION, SOLC_RUNTIME);
+        vm.etch(SOLAR_IMPLEMENTATION, SOLAR_RUNTIME);
+    }}
+
+    function {test_name}({declarations}) public {{
+        bytes memory callData = {encode};
+
+        vm.record();
+        vm.recordLogs();
+        (bool okA, bytes memory retA) = _routedCall(SOLC_IMPLEMENTATION, callData);
+        (, bytes32[] memory writesA) = vm.accesses(address(ROUTER));
+        vm.stopRecord();
+        Vm.Log[] memory logsA = vm.getRecordedLogs();
+
+        for (uint256 i; i < writesA.length; ++i) {{
+            bytes32 valueA = vm.load(address(ROUTER), writesA[i]);
+            vm.store(STATE_MIRROR, writesA[i], valueA);
+            vm.store(address(ROUTER), writesA[i], bytes32(0));
+        }}
+
+        vm.record();
+        vm.recordLogs();
+        (bool okB, bytes memory retB) = _routedCall(SOLAR_IMPLEMENTATION, callData);
+        (, bytes32[] memory writesB) = vm.accesses(address(ROUTER));
+        vm.stopRecord();
+        Vm.Log[] memory logsB = vm.getRecordedLogs();
+
+        assert(okA == okB);
+        assert(retA.length == retB.length);
+
+        // This is an explicit soundness sentinel, not a mismatch claim. If a
+        // candidate reaches it, the runner independently replays both calls.
+        if (retA.length > MAX_RETURNDATA_BYTES) assert(false);
+{word_checks}
+        assert(keccak256(abi.encode(logsA)) == keccak256(abi.encode(logsB)));
+
+        for (uint256 i; i < writesA.length; ++i) {{
+            assert(
+                vm.load(STATE_MIRROR, writesA[i])
+                    == vm.load(address(ROUTER), writesA[i])
+            );
+        }}
+        for (uint256 i; i < writesB.length; ++i) {{
+            assert(
+                vm.load(STATE_MIRROR, writesB[i])
+                    == vm.load(address(ROUTER), writesB[i])
+            );
+        }}
+    }}
+
+    function _routedCall(
+        address target,
+        bytes memory callData
+    ) internal returns (bool ok, bytes memory result) {{
+        return address(ROUTER).call(abi.encodePacked(target, callData));
+    }}
+
+    function _word(bytes memory value, uint256 offset) internal pure returns (uint256 result) {{
+        assembly ("memory-safe") {{
+            result := mload(add(add(value, 0x20), offset))
+        }}
+        uint256 remaining = value.length - offset;
+        if (remaining < 32) result >>= (32 - remaining) * 8;
     }}
 }}
 """

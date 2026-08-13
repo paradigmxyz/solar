@@ -61,7 +61,7 @@ def symbolic_main() -> int:
     parser = argparse.ArgumentParser(
         prog="solsymdiff",
         description=(
-            "Search a contract's supported pure runtime surface for bounded, "
+            "Search a contract's supported runtime surface for bounded, "
             "replayable Solc-vs-Solar differences."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -137,6 +137,14 @@ def _add_symbolic_arguments(parser: argparse.ArgumentParser) -> None:
         help=(
             "include view functions under the explicit clean zero-storage "
             "execution model"
+        ),
+    )
+    parser.add_argument(
+        "--include-stateful",
+        action="store_true",
+        help=(
+            "include nonpayable functions under the explicit clean zero-storage, "
+            "single-call model with returndata, log, and final-storage comparison"
         ),
     )
     parser.add_argument(
@@ -494,6 +502,9 @@ def _run_symbolic(args: argparse.Namespace) -> int:
     args.include_view = getattr(args, "include_view", False)
     if not isinstance(args.include_view, bool):
         raise ValueError("--include-view must be a boolean")
+    args.include_stateful = getattr(args, "include_stateful", False)
+    if not isinstance(args.include_stateful, bool):
+        raise ValueError("--include-stateful must be a boolean")
     args.optimize = getattr(args, "optimize", True)
     args.optimizer_runs = getattr(args, "optimizer_runs", 200)
     args.via_ir = getattr(args, "via_ir", True)
@@ -611,6 +622,7 @@ def _run_symbolic(args: argparse.Namespace) -> int:
             solc_artifact,
             solar_artifact,
             include_view=args.include_view,
+            include_stateful=args.include_stateful,
         )
         if runtime_scope_error is not None:
             inventory = _exclude_open_runtime(inventory, runtime_scope_error)
@@ -629,6 +641,7 @@ def _run_symbolic(args: argparse.Namespace) -> int:
         solar_artifact,
         args.signature,
         include_view=args.include_view,
+        include_stateful=args.include_stateful,
     )
     symbolic.validate_input_length_overrides(
         function, args.symbolic_input_lengths
@@ -662,6 +675,7 @@ def _run_symbolic_function(
     bundle_name: str | None = None,
 ) -> int:
     expected_test = f"{function['test']}({','.join(function['inputs'])})"
+    stateful = function["state_mutability"] == "nonpayable"
     with tempfile.TemporaryDirectory(prefix="solar-symbolic-differential-") as tmp:
         project = pathlib.Path(tmp)
         write_foundry_target.write_symbolic_target(
@@ -673,8 +687,13 @@ def _run_symbolic_function(
             args.evm_version,
             args.symbolic_dynamic_lengths,
             args.symbolic_exploration_order,
-            "zero_init" if args.include_view else "solidity",
+            (
+                "zero_init"
+                if args.include_view or args.include_stateful
+                else "solidity"
+            ),
             args.symbolic_input_lengths,
+            stateful,
         )
         forge_run = _forge_symbolic(args, project, expected_test, deadline)
         classified = None
@@ -734,16 +753,27 @@ def _run_symbolic_function(
                         function["selector"], wrapper_calldata
                     )
                     try:
-                        direct = symbolic.run_direct_replay(
-                            args._solc_executable,
-                            args._anvil_executable,
-                            args.evm_version,
-                            solc_artifact["runtime"],
-                            solar_artifact["runtime"],
-                            calldata,
-                            args.timeout,
-                            deadline=deadline,
-                        )
+                        if stateful:
+                            direct = symbolic.run_stateful_replay(
+                                args._anvil_executable,
+                                args.evm_version,
+                                solc_artifact["runtime"],
+                                solar_artifact["runtime"],
+                                calldata,
+                                args.timeout,
+                                deadline=deadline,
+                            )
+                        else:
+                            direct = symbolic.run_direct_replay(
+                                args._solc_executable,
+                                args._anvil_executable,
+                                args.evm_version,
+                                solc_artifact["runtime"],
+                                solar_artifact["runtime"],
+                                calldata,
+                                args.timeout,
+                                deadline=deadline,
+                            )
                     except (
                         OSError,
                         RuntimeError,
@@ -752,11 +782,25 @@ def _run_symbolic_function(
                     ) as err:
                         reason = f"independent concrete replay failed: {err}"
                     else:
-                        if symbolic.confirm_outcomes(direct["solc"], direct["solar"]):
+                        confirmed = (
+                            symbolic.confirm_stateful_outcomes(
+                                direct["solc"], direct["solar"]
+                            )
+                            if stateful
+                            else symbolic.confirm_outcomes(
+                                direct["solc"], direct["solar"]
+                            )
+                        )
+                        if confirmed:
                             final_status = "replay_confirmed_mismatch"
                             reason = None
                         else:
-                            byte_len = (len(direct["solc"]["data"]) - 2) // 2
+                            call_outcome = (
+                                direct["solc"]["call"]
+                                if stateful
+                                else direct["solc"]
+                            )
+                            byte_len = (len(call_outcome["data"]) - 2) // 2
                             if byte_len > args.max_returndata_bytes:
                                 reason = (
                                     "equal concrete outcomes exceeded "
@@ -1286,9 +1330,7 @@ def _create_campaign_bundle(
                 args.symbolic_max_calldata_bytes
             ),
             "exploration_order": args.symbolic_exploration_order,
-            "eligible_state_mutabilities": (
-                ["pure", "view"] if args.include_view else ["pure"]
-            ),
+            "eligible_state_mutabilities": _eligible_state_mutabilities(args),
             "initial_storage": "zero",
             "dynamic_input_lengths": list(args.symbolic_dynamic_lengths),
             "per_input_dynamic_lengths": {
@@ -1676,7 +1718,9 @@ def _manifest(
             ),
             "artifact": classified.get("artifact") if classified else None,
             "assumptions": classified.get("assumptions", []) if classified else [],
-            "execution_context": _symbolic_execution_context(),
+            "execution_context": _symbolic_execution_context(
+                function["state_mutability"] == "nonpayable"
+            ),
             "environment": {
                 "cleared_prefixes": ["FOUNDRY_", "DAPP_", "SVM_HOME"],
                 "evm_version_from_cli": args.evm_version,
@@ -1820,9 +1864,7 @@ def _bounds_manifest(
             args, "symbolic_exploration_order", "bfs"
         ),
         "eligible_state_mutabilities": (
-            ["pure", "view"]
-            if getattr(args, "include_view", False)
-            else ["pure"]
+            _eligible_state_mutabilities(args)
         ),
         "initial_storage": "zero",
         "dynamic_input_lengths": list(
@@ -1867,7 +1909,10 @@ def _effective_bounds_error(
             args, "symbolic_exploration_order", "bfs"
         ),
         "storage_layout": (
-            "zero_init" if getattr(args, "include_view", False) else "solidity"
+            "zero_init"
+            if getattr(args, "include_view", False)
+            or getattr(args, "include_stateful", False)
+            else "solidity"
         ),
         "dynamic_lengths": {
             name: list(lengths)
@@ -1976,8 +2021,17 @@ def _tools_manifest(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def _symbolic_execution_context() -> dict[str, str]:
-    return {
+def _eligible_state_mutabilities(args: argparse.Namespace) -> list[str]:
+    mutabilities = ["pure"]
+    if getattr(args, "include_view", False):
+        mutabilities.append("view")
+    if getattr(args, "include_stateful", False):
+        mutabilities.append("nonpayable")
+    return mutabilities
+
+
+def _symbolic_execution_context(stateful: bool = False) -> dict[str, Any]:
+    context = {
         "call_kind": "staticcall_router_delegatecall",
         "router_address": evm.SYMBOLIC_ROUTER_ADDRESS,
         "solc_runtime_address": evm.SYMBOLIC_SOLC_RUNTIME_ADDRESS,
@@ -1988,6 +2042,17 @@ def _symbolic_execution_context() -> dict[str, str]:
             "20-byte implementation prefix removed before delegatecall"
         ),
     }
+    if stateful:
+        context.update(
+            {
+                "call_kind": "call_router_delegatecall",
+                "value": "zero",
+                "side_effects": "exact logs and final touched storage values",
+                "state_mirror_address": evm.SYMBOLIC_STATE_MIRROR_ADDRESS,
+                "state_reset": "recorded Solc write slots restored to zero",
+            }
+        )
+    return context
 
 
 def _proxy_manifest(proxy: dict[str, Any]) -> dict[str, Any]:
@@ -2318,7 +2383,9 @@ def _symbolic_setup_incomplete(args: argparse.Namespace, err: Exception) -> int:
             "counterexample": None,
             "artifact": None,
             "assumptions": [],
-            "execution_context": _symbolic_execution_context(),
+            "execution_context": _symbolic_execution_context(
+                getattr(args, "include_stateful", False)
+            ),
             "environment": {
                 "cleared_prefixes": ["FOUNDRY_", "DAPP_", "SVM_HOME"],
                 "evm_version_from_cli": args.evm_version,
@@ -2504,9 +2571,7 @@ def _campaign_setup_incomplete(args: argparse.Namespace, err: Exception) -> int:
                 args, "symbolic_exploration_order", "bfs"
             ),
             "eligible_state_mutabilities": (
-                ["pure", "view"]
-                if getattr(args, "include_view", False)
-                else ["pure"]
+                _eligible_state_mutabilities(args)
             ),
             "initial_storage": "zero",
             "dynamic_input_lengths": list(
