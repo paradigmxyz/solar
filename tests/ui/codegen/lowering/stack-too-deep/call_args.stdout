@@ -2,7 +2,7 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 970
+  push 972
   dup1
   push 10
   push 0
@@ -310,14 +310,12 @@ bb0:
   push bb29
   jumpi
   pop
-  jump bb52
-bb52:
-  pop
   jump bb51
 bb51:
   pop
   jump bb50
 bb50:
+  pop
   pop
   pop
   pop
@@ -369,7 +367,7 @@ bb29:
   iszero
   push bb30
   jumpi
-  jump bb52
+  jump bb51
 bb30:
   swap4
   push 0x5c0
@@ -393,7 +391,7 @@ bb30:
   iszero
   push bb31
   jumpi
-  jump bb51
+  jump bb50
 bb31:
   swap3
   push 0x5a0
@@ -412,7 +410,10 @@ bb31:
   iszero
   push bb32
   jumpi
-  jump bb50
+  pop
+  pop
+  pop
+  jump bb49
 bb32:
   swap2
   push 0x5c0

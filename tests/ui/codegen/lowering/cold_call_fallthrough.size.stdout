@@ -50,10 +50,10 @@ bb23:
   push 128
   return
 bb9 [cold]:
-  jump bb24
-bb24 [cold]:
   push 4
   calldataload
+  jump bb15
+bb15 [cold]:
   dup1
   push 160
   mstore
@@ -104,7 +104,9 @@ bb10:
   push bb14
   jump bb23
 bb14 [cold]:
-  jump bb24
+  push 4
+  calldataload
+  jump bb15
 bb17 [cold]:
   push 1
   push 160
@@ -113,8 +115,8 @@ bb17 [cold]:
   push bb19
   jumpi
   push 0x6f6e65
-  jump bb25
-bb25 [cold]:
+  jump bb24
+bb24 [cold]:
   push 232
   shl
   push 3
@@ -128,7 +130,7 @@ bb19 [cold]:
   push bb21
   jumpi
   push 0x74776f
-  jump bb25
+  jump bb24
 bb21 [cold]:
   push 0x6f74686572
   push 216
