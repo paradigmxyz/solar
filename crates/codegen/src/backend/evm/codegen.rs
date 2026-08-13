@@ -2802,7 +2802,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Coloring minimizes the local frame, which reduces memory expansion in gas mode. It is
         // deliberately disabled in size mode because renumbering spill addresses disturbed
         // downstream block sharing and regressed aggregate CI bytecode despite smaller frames.
-        let values = if self.gcx.sess.opts.optimization.is_gas() {
+        let mut values = if self.gcx.sess.opts.optimization.is_gas() {
             let (values, colorable) = Self::cross_block_spill_values_and_colorable(func, liveness);
             if !colorable.is_empty() {
                 let ranges = Self::spill_live_ranges(func, liveness, &colorable);
@@ -2844,12 +2844,30 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             values
         };
+        let cfg = CfgInfo::new(func);
+        let reachable = cfg.reachable();
+        let mut reachable_values = DenseBitSet::new_empty(func.num_values());
+        for block_id in reachable {
+            for &inst_id in &func.blocks[block_id].instructions {
+                if let Some(value) = func.inst_result_value(inst_id) {
+                    reachable_values.insert(value);
+                }
+            }
+        }
+        for value in values.iter().collect::<Vec<_>>() {
+            if !reachable_values.contains(value) {
+                values.remove(value);
+            }
+        }
         self.preallocate_spill_metadata(func, &values);
 
         // A free-memory-pointer load cannot be recomputed after the pointer moves. Give every
         // load a stable slot so a call operand can always recover the value even when block
         // layout emits its use before the defining block.
         for val in Self::fmp_load_values(func) {
+            if !reachable_values.contains(val) {
+                continue;
+            }
             self.scheduler.spills.reserve(val);
             self.scheduler.spills.require_store(val);
             self.scheduler.spills.mark_reloadable(val);
@@ -2862,6 +2880,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for inst_id in func.instructions() {
             if func.inst(inst_id).metadata.deferred_alloc()
                 && let Some(value) = func.inst_result_value(inst_id)
+                && reachable_values.contains(value)
             {
                 self.scheduler.spills.reserve(value);
                 self.scheduler.spills.require_store(value);
