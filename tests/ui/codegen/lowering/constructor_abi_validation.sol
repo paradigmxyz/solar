@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -O none -Zdump=mir -Zmir-pipeline=lower-abi
+//@compile-flags: -O none -Zdump=mir -Zmir-pipeline=lower-abi
 //@filecheck:
 
 contract ConstructorAbiValidation {

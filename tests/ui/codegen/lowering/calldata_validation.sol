@@ -1,6 +1,6 @@
 //@revisions: built abi
-//@[built] compile-flags: -Zcodegen -O none -Zdump=mir
-//@[abi] compile-flags: -Zcodegen -O none -Zmir-pipeline=lower-abi -Zdump=mir
+//@[built] compile-flags: -O none -Zdump=mir
+//@[abi] compile-flags: -O none -Zmir-pipeline=lower-abi -Zdump=mir
 //@[abi] filecheck:
 
 // Pins the calldata lower-bound check and validators emitted for value-type

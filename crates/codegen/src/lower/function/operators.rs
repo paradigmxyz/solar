@@ -228,8 +228,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             BinOpKind::Div => {
+                self.panic_if_zero(rhs, PanicCode::DivisionByZero);
                 if !self.unchecked {
-                    self.panic_if_zero(rhs, PanicCode::DivisionByZero);
                     if let Some(ArithmeticKind::Signed(bits)) = arithmetic {
                         let (min, _) = signed_bounds(bits, &mut self.builder);
                         let lhs_is_min = self.builder.eq(lhs, min);
@@ -250,9 +250,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             BinOpKind::Rem => {
-                if !self.unchecked {
-                    self.panic_if_zero(rhs, PanicCode::DivisionByZero);
-                }
+                self.panic_if_zero(rhs, PanicCode::DivisionByZero);
                 match arithmetic {
                     Some(ArithmeticKind::Signed(_)) => self.builder.smod(lhs, rhs),
                     _ => self.builder.mod_(lhs, rhs),
