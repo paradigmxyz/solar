@@ -2847,7 +2847,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let cfg = CfgInfo::new(func);
         let reachable = cfg.reachable();
         for value in values.iter().collect::<Vec<_>>() {
-            if !Self::value_defined_in_reachable_block(func, value, &reachable) {
+            if !Self::value_defined_in_reachable_block(func, value, reachable) {
                 values.remove(value);
             }
         }
@@ -2857,7 +2857,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // load a stable slot so a call operand can always recover the value even when block
         // layout emits its use before the defining block.
         for val in Self::fmp_load_values(func) {
-            if !Self::value_defined_in_reachable_block(func, val, &reachable) {
+            if !Self::value_defined_in_reachable_block(func, val, reachable) {
                 continue;
             }
             self.scheduler.spills.reserve(val);
@@ -2872,7 +2872,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for inst_id in func.instructions() {
             if func.inst(inst_id).metadata.deferred_alloc()
                 && let Some(value) = func.inst_result_value(inst_id)
-                && Self::value_defined_in_reachable_block(func, value, &reachable)
+                && Self::value_defined_in_reachable_block(func, value, reachable)
             {
                 self.scheduler.spills.reserve(value);
                 self.scheduler.spills.require_store(value);
