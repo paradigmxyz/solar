@@ -687,6 +687,7 @@ impl LowerAbiCx {
                         length,
                         &layout,
                         Some(&self.helpers),
+                        false,
                     ) else {
                         return false;
                     };
@@ -805,6 +806,7 @@ impl LowerAbiCx {
                         &mut current,
                         true,
                         Some(&self.helpers),
+                        false,
                     );
                     builder.add_return(ty.mir_type());
                     values.push(value);
@@ -840,6 +842,7 @@ impl LowerAbiCx {
                 &mut current,
                 true,
                 Some(&self.helpers),
+                false,
             );
             builder.add_return(ty.mir_type());
             builder.ret([value]);
@@ -861,9 +864,15 @@ impl LowerAbiCx {
             builder.add_return(result_ty);
             let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
             let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
-            let values =
-                Self::decode_memory_tuple(&mut builder, base, length, &layout, Some(&self.helpers))
-                    .expect("checked static ABI layout");
+            let values = Self::decode_memory_tuple(
+                &mut builder,
+                base,
+                length,
+                &layout,
+                Some(&self.helpers),
+                false,
+            )
+            .expect("checked static ABI layout");
             builder.ret(values);
         }
         module.add_function(function)
@@ -884,9 +893,15 @@ impl LowerAbiCx {
             }
             let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
             let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
-            let values =
-                Self::decode_memory_tuple(&mut builder, base, length, &layout, Some(&self.helpers))
-                    .expect("checked aggregate ABI layout");
+            let values = Self::decode_memory_tuple(
+                &mut builder,
+                base,
+                length,
+                &layout,
+                Some(&self.helpers),
+                false,
+            )
+            .expect("checked aggregate ABI layout");
             builder.ret(values);
         }
         module.add_function(function)
@@ -1414,6 +1429,7 @@ impl LowerAbiCx {
                                     &mut current,
                                     false,
                                     Some(&self.helpers),
+                                    false,
                                 );
                             }
                         } else if ty.is_dynamic() {
@@ -1449,6 +1465,7 @@ impl LowerAbiCx {
                                 // fields and dynamic offsets.
                                 true,
                                 Some(&self.helpers),
+                                false,
                             )
                         };
                         for &use_value in uses {
@@ -1580,6 +1597,7 @@ impl LowerAbiCx {
         current: &mut BlockId,
         head_checked: bool,
         helpers: Option<&CleanupHelpers>,
+        allow_alias: bool,
     ) -> ValueId {
         builder.switch_to_block(*current);
         let base = if ty.is_dynamic() {
@@ -1628,6 +1646,28 @@ impl LowerAbiCx {
                     let length = builder.imm_u64(*len);
                     return builder.make_slice(base, length, SliceLocation::Calldata);
                 }
+                if constructor && allow_alias && Self::is_scalar_or_enum(element) {
+                    let mut offset = 0;
+                    for _ in 0..*len {
+                        let offset_value = builder.imm_u64(offset);
+                        let word_pos = builder.add(base, offset_value);
+                        match element.as_ref() {
+                            crate::mir::AbiParamType::Scalar(scalar) => {
+                                let _ = Self::decode_input_scalar(
+                                    builder, *scalar, word_pos, input_end, current, true, helpers,
+                                );
+                            }
+                            crate::mir::AbiParamType::Enum { variants, .. } => {
+                                let _ = Self::decode_input_enum(
+                                    builder, *variants, word_pos, input_end, current, true,
+                                );
+                            }
+                            _ => unreachable!("scalar ABI array element checked above"),
+                        }
+                        offset += element.head_size();
+                    }
+                    return base;
+                }
                 let size = builder.imm_u64(len.saturating_mul(32));
                 let ptr = builder.alloc_object(
                     size,
@@ -1666,6 +1706,7 @@ impl LowerAbiCx {
                             current,
                             true,
                             helpers,
+                            allow_alias,
                         ),
                     };
                     let elem_index = builder.imm_u64(index);
@@ -1719,6 +1760,13 @@ impl LowerAbiCx {
                     constructor,
                     current,
                 );
+                if constructor && allow_alias {
+                    // ABI word arrays have the same `[length][words...]`
+                    // representation as a memory array. The source remains
+                    // live for this decode, so keep it in place instead of
+                    // allocating and copying an equivalent object.
+                    return base;
+                }
                 let total = if constructor {
                     Self::checked_add(builder, bytes, word, current)
                 } else {
@@ -1742,6 +1790,74 @@ impl LowerAbiCx {
                     source,
                 );
                 ptr
+            }
+            crate::mir::AbiParamType::DynamicArray(element)
+                if constructor && allow_alias && Self::is_scalar_or_enum(element) =>
+            {
+                Self::guard_source_range(builder, base, 32, input_end, constructor, current);
+                let len = Self::load_input_word(builder, base, input_end, constructor);
+                let word = builder.imm_u64(32);
+                let bytes = Self::checked_mul(builder, len, word, current);
+                let data = builder.add(base, word);
+                Self::guard_source_range_value(
+                    builder,
+                    data,
+                    bytes,
+                    input_end,
+                    constructor,
+                    current,
+                );
+
+                let zero = builder.imm_u64(0);
+                let one = builder.imm_u64(1);
+                let preheader = builder.current_block();
+                let header = builder.create_block();
+                let body = builder.create_block();
+                let done = builder.create_block();
+                builder.jump(header);
+
+                builder.switch_to_block(header);
+                let index = builder.phi(vec![(preheader, zero)]);
+                let more = builder.lt(index, len);
+                builder.branch(more, body, done);
+
+                builder.switch_to_block(body);
+                let mut element_current = builder.current_block();
+                let offset = builder.mul(index, word);
+                let position = builder.add(data, offset);
+                match element.as_ref() {
+                    crate::mir::AbiParamType::Scalar(scalar) => {
+                        let _ = Self::decode_input_scalar(
+                            builder,
+                            *scalar,
+                            position,
+                            input_end,
+                            &mut element_current,
+                            true,
+                            helpers,
+                        );
+                    }
+                    crate::mir::AbiParamType::Enum { variants, .. } => {
+                        let _ = Self::decode_input_enum(
+                            builder,
+                            *variants,
+                            position,
+                            input_end,
+                            &mut element_current,
+                            true,
+                        );
+                    }
+                    _ => unreachable!("scalar ABI array element checked above"),
+                }
+                builder.switch_to_block(element_current);
+                let next = builder.add(index, one);
+                let backedge = builder.current_block();
+                builder.jump(header);
+                builder.add_phi_incoming(index, backedge, next);
+
+                builder.switch_to_block(done);
+                *current = done;
+                base
             }
             crate::mir::AbiParamType::DynamicArray(element)
                 if matches!(arg_type, MirType::MemoryObject(_)) =>
@@ -1808,6 +1924,7 @@ impl LowerAbiCx {
                     &mut element_current,
                     true,
                     helpers,
+                    allow_alias,
                 );
                 builder.memory_object_store_element(
                     ptr,
@@ -1907,6 +2024,32 @@ impl LowerAbiCx {
                     let length = builder.imm_u64(ty.head_size());
                     return builder.make_slice(base, length, SliceLocation::Calldata);
                 }
+                if constructor
+                    && allow_alias
+                    && matches!(arg_type, MirType::MemoryObject(MemoryObjectKind::Struct))
+                    && fields.iter().all(Self::is_scalar_or_enum)
+                {
+                    let mut offset = 0;
+                    for field in fields.iter() {
+                        let field_offset = builder.imm_u64(offset);
+                        let field_head = builder.add(base, field_offset);
+                        match field {
+                            crate::mir::AbiParamType::Scalar(scalar) => {
+                                let _ = Self::decode_input_scalar(
+                                    builder, *scalar, field_head, input_end, current, true, helpers,
+                                );
+                            }
+                            crate::mir::AbiParamType::Enum { variants, .. } => {
+                                let _ = Self::decode_input_enum(
+                                    builder, *variants, field_head, input_end, current, true,
+                                );
+                            }
+                            _ => unreachable!("scalar ABI tuple field checked above"),
+                        }
+                        offset += field.head_size();
+                    }
+                    return base;
+                }
                 let carries_base =
                     !constructor && fields.iter().any(crate::mir::AbiParamType::is_dynamic);
                 let storage_fields = fields.len() + usize::from(carries_base);
@@ -1929,6 +2072,7 @@ impl LowerAbiCx {
                         current,
                         true,
                         helpers,
+                        allow_alias,
                     );
                     builder.memory_object_store_field(ptr, layout, index as u64, value);
                     offset += field.head_size();
@@ -1954,6 +2098,7 @@ impl LowerAbiCx {
         length: ValueId,
         layout: &AbiParamLayout,
         helpers: Option<&CleanupHelpers>,
+        allow_alias: bool,
     ) -> Option<Vec<ValueId>> {
         let mut current = builder.current_block();
         let head_size = layout.checked_head_size()?;
@@ -1992,6 +2137,7 @@ impl LowerAbiCx {
                     &mut current,
                     true,
                     helpers,
+                    allow_alias,
                 )
             };
             values.push(value);
@@ -2485,6 +2631,13 @@ impl LowerAbiCx {
         )
     }
 
+    fn is_scalar_or_enum(ty: &crate::mir::AbiParamType) -> bool {
+        matches!(
+            ty,
+            crate::mir::AbiParamType::Scalar(scalar) if *scalar != MirType::Function
+        ) || matches!(ty, crate::mir::AbiParamType::Enum { .. })
+    }
+
     fn push_constructor_param_types(
         params: &mut IndexVec<ArgIdx, MirType>,
         ty: &crate::mir::AbiParamType,
@@ -2573,6 +2726,18 @@ impl LowerAbiCx {
             .collect::<Vec<_>>();
         crate::mir::utils::remap_block_order(func, &order);
     }
+}
+
+/// Decodes a memory-backed ABI tuple through the shared ABI-layer decoder.
+pub(crate) fn decode_memory_tuple(
+    builder: &mut FunctionBuilder<'_>,
+    base: ValueId,
+    length: ValueId,
+    layout: &AbiParamLayout,
+    helpers: Option<&CleanupHelpers>,
+    allow_alias: bool,
+) -> Option<Vec<ValueId>> {
+    LowerAbiCx::decode_memory_tuple(builder, base, length, layout, helpers, allow_alias)
 }
 
 fn collect_validators(ty: &AbiParamType, validators: &mut Vec<AbiWordValidator>) {

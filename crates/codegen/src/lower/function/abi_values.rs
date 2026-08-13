@@ -387,21 +387,46 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
     ) -> Option<Vec<ValueId>> {
         let (data, layout) = self.lower_abi_decode_layout(data, types, span)?;
-        let first = self.builder.abi_decode(layout, data);
-        let mut values = Vec::with_capacity(types.len());
-        values.push(first);
-        if types.len() > 1 {
-            let base = self.multi_return_buffer_base();
-            for index in 1..types.len() {
-                values.push(self.load_multi_return_value_as(
-                    base,
-                    index,
-                    types.len(),
-                    types[index],
-                ));
+        if !layout.types.iter().any(Self::needs_eager_abi_decode) {
+            let first = self.builder.abi_decode(layout, data);
+            let mut values = Vec::with_capacity(types.len());
+            values.push(first);
+            if types.len() > 1 {
+                let base = self.multi_return_buffer_base();
+                for index in 1..types.len() {
+                    values.push(self.load_multi_return_value_as(
+                        base,
+                        index,
+                        types.len(),
+                        types[index],
+                    ));
+                }
             }
+            return Some(values);
         }
-        Some(values)
+        let length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+        let base = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+        crate::transform::lower_abi::decode_memory_tuple(
+            &mut self.builder,
+            base,
+            length,
+            &layout,
+            None,
+            true,
+        )
+    }
+
+    fn needs_eager_abi_decode(ty: &crate::mir::AbiParamType) -> bool {
+        match ty {
+            crate::mir::AbiParamType::FixedArray { element, .. }
+            | crate::mir::AbiParamType::DynamicArray(element) => element.is_dynamic(),
+            crate::mir::AbiParamType::Tuple(fields) => {
+                fields.iter().any(crate::mir::AbiParamType::is_dynamic)
+            }
+            crate::mir::AbiParamType::Scalar(_)
+            | crate::mir::AbiParamType::Enum { .. }
+            | crate::mir::AbiParamType::Bytes => false,
+        }
     }
 
     pub(super) fn revert_external_call(&mut self, success: ValueId) {
