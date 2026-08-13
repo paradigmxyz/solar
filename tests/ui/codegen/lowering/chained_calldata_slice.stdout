@@ -2,80 +2,78 @@
 @module ChainedCalldataSlice
 fn @bytesChain(arg0: calldataslice) -> memorybytes [selector=0x2007c472, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 32
-    set_memory_object_len memorybytes, v0, 0
-    v1 = slice_ptr arg0
-    v2 = slice_len arg0
-    v3 = lt v2, 1
-    jumpi v3, bb1, bb2
+    v0 = slice_ptr arg0
+    v1 = slice_len arg0
+    v2 = lt v1, 1
+    jumpi v2, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v4 = sub v2, 1
-    v5 = add v1, 1
-    v6 = make_calldata_slice v5, v4
-    v7 = slice_ptr v6
-    v8 = slice_len v6
-    v9 = lt v8, 1
-    jumpi v9, bb3, bb4
+    v3 = sub v1, 1
+    v4 = add v0, 1
+    v5 = make_calldata_slice v4, v3
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = lt v7, 1
+    jumpi v8, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v10 = sub v8, 1
-    v11 = add v7, 1
-    v12 = make_calldata_slice v11, v10
-    v13 = slice_ptr v12
-    v14 = slice_len v12
-    v15 = gt v14, 0xffffffffffffffff
-    jumpi v15, bb5, bb6
+    v9 = sub v7, 1
+    v10 = add v6, 1
+    v11 = make_calldata_slice v10, v9
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = gt v13, 0xffffffffffffffff
+    jumpi v14, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
-    v16 = calldatasize
-    v17 = sub v16, v14
-    v18 = sgt v13, v17
-    jumpi v18, bb7, bb8
+    v15 = calldatasize
+    v16 = sub v15, v13
+    v17 = sgt v12, v16
+    jumpi v17, bb7, bb8
   bb7:
     revert 0, 0
   bb8:
-    v19 = slice_len v12
-    v20 = add v19, 31
-    v21 = lt v20, v19
-    jumpi v21, bb9, bb10
+    v18 = slice_len v11
+    v19 = add v18, 31
+    v20 = lt v19, v18
+    jumpi v20, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    v22 = div v20, 32
-    v23 = add v22, 1
-    v24 = lt v23, v22
-    jumpi v24, bb11, bb12
+    v21 = div v19, 32
+    v22 = add v21, 1
+    v23 = lt v22, v21
+    jumpi v23, bb11, bb12
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb12:
-    v25 = mul v23, 32
-    v26 = iszero 32
-    v27 = div v25, 32
-    v28 = eq v27, v23
-    v29 = or v26, v28
-    v30 = iszero v29
-    jumpi v30, bb13, bb14
+    v24 = mul v22, 32
+    v25 = iszero 32
+    v26 = div v24, 32
+    v27 = eq v26, v22
+    v28 = or v25, v27
+    v29 = iszero v28
+    jumpi v29, bb13, bb14
   bb13:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb14:
-    v31 = alloc memorybytes, exact, uninitialized, infallible, v25
-    set_memory_object_len memorybytes, v31, v19
-    memory_object_copy_from_slice memorybytes, v31, v12
-    ret v31
+    v30 = alloc memorybytes, exact, uninitialized, infallible, v24
+    set_memory_object_len memorybytes, v30, v18
+    memory_object_copy_from_slice memorybytes, v30, v11
+    ret v30
 }
 
 fn @arrChain(arg0: calldataslice) -> u256 [selector=0x65df4193, pure, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[word]] {
@@ -151,17 +149,7 @@ fn @arrChain(arg0: calldataslice) -> u256 [selector=0x65df4193, pure, abi_args=l
     revert 0, 36
   bb12:
     v34 = add v27, v28
-    v35 = add v34, 32
-    v36 = lt v35, v34
-    v37 = calldatasize
-    v38 = gt v35, v37
-    v39 = or v36, v38
-    jumpi v39, bb13, bb14
-  bb13:
-    revert 0, 0
-  bb14:
-    v40 = make_calldata_slice v34, 32
-    v41 = calldata_slice_load_word calldata, v40, 0
-    ret v41
+    v35 = calldataload v34
+    ret v35
 }
 

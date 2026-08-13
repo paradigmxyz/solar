@@ -13,28 +13,21 @@ fn @factory.0() [selector=0x1af91295, pure] {
   bb1:
     revert 0, 0
   bb2:
+    v3 = calldataload 4
+    v4 = add v3, 4
     v5 = calldatasize
-    v6 = gt 36, v5
-    jumpi v6, bb1, bb3
+    v6 = sub v5, 4
+    v7 = gt v3, v6
+    jumpi v7, bb1, bb3
   bb3:
-    v9 = calldataload 4
-    v10 = add v9, 4
-    v11 = lt v10, 4
-    v12 = calldatasize
-    v13 = gt v10, v12
-    v14 = or v11, v13
-    jumpi v14, bb1, bb4
+    v8 = calldatasize
+    v9 = sub v8, v4
+    v10 = gt 256, v9
+    jumpi v10, bb1, bb4
   bb4:
-    v15 = add v9, 36
-    v16 = lt v15, v10
-    v17 = calldatasize
-    v18 = gt v15, v17
-    v19 = or v16, v18
-    jumpi v19, bb1, bb5
-  bb5:
-    v0 = internal_call @factory.3, 1, v10, 32
-    v24 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v24
+    v0 = internal_call @factory.3, 1, v4, 32
+    v12 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 128, v12
     returndata 128, 32
 }
 
@@ -46,26 +39,19 @@ fn @tailHash.1() [selector=0x9850c81b, pure] {
   bb1:
     revert 0, 0
   bb2:
+    v3 = calldataload 4
+    v4 = add v3, 4
     v5 = calldatasize
-    v6 = gt 36, v5
-    jumpi v6, bb1, bb3
+    v6 = sub v5, 4
+    v7 = gt v3, v6
+    jumpi v7, bb1, bb3
   bb3:
-    v9 = calldataload 4
-    v10 = add v9, 4
-    v11 = lt v10, 4
-    v12 = calldatasize
-    v13 = gt v10, v12
-    v14 = or v11, v13
-    jumpi v14, bb1, bb4
+    v8 = calldatasize
+    v9 = sub v8, v4
+    v10 = gt 256, v9
+    jumpi v10, bb1, bb4
   bb4:
-    v15 = add v9, 36
-    v16 = lt v15, v10
-    v17 = calldatasize
-    v18 = gt v15, v17
-    v19 = or v16, v18
-    jumpi v19, bb1, bb5
-  bb5:
-    v0 = internal_call @tailHash.4, 1, v10, 32
+    v0 = internal_call @tailHash.4, 1, v4, 32
     mstore 128, v0
     returndata 128, 32
 }
@@ -78,26 +64,19 @@ fn @midWord.2() [selector=0xbb6106d2, pure] {
   bb1:
     revert 0, 0
   bb2:
+    v3 = calldataload 4
+    v4 = add v3, 4
     v5 = calldatasize
-    v6 = gt 36, v5
-    jumpi v6, bb1, bb3
+    v6 = sub v5, 4
+    v7 = gt v3, v6
+    jumpi v7, bb1, bb3
   bb3:
-    v9 = calldataload 4
-    v10 = add v9, 4
-    v11 = lt v10, 4
-    v12 = calldatasize
-    v13 = gt v10, v12
-    v14 = or v11, v13
-    jumpi v14, bb1, bb4
+    v8 = calldatasize
+    v9 = sub v8, v4
+    v10 = gt 256, v9
+    jumpi v10, bb1, bb4
   bb4:
-    v15 = add v9, 36
-    v16 = lt v15, v10
-    v17 = calldatasize
-    v18 = gt v15, v17
-    v19 = or v16, v18
-    jumpi v19, bb1, bb5
-  bb5:
-    v0 = internal_call @midWord.5, 1, v10, 32
+    v0 = internal_call @midWord.5, 1, v4, 32
     mstore 128, v0
     returndata 128, 32
 }
@@ -114,60 +93,54 @@ fn @factory.3(arg0: calldataptr, arg1: u256) -> address [pure] {
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload v1
-    v9 = add arg0, v8
-    v10 = calldatasize
-    v11 = sub v10, arg0
-    v12 = sub v11, 31
-    v13 = slt v8, v12
-    jumpi v13, bb3, bb1
+    v7 = calldataload v1
+    v8 = add arg0, v7
+    v9 = calldatasize
+    v10 = sub v9, arg0
+    v11 = sub v10, 31
+    v12 = slt v7, v11
+    jumpi v12, bb3, bb1
   bb3:
-    v16 = calldataload v9
-    v17 = gt v16, 0xffffffffffffffff
-    jumpi v17, bb1, bb4
+    v14 = calldataload v8
+    v15 = gt v14, 0xffffffffffffffff
+    jumpi v15, bb1, bb4
   bb4:
-    v19 = add v9, 32
-    v20 = calldatasize
-    v21 = sub v20, v16
-    v22 = sgt v19, v21
-    jumpi v22, bb1, bb5
+    v17 = add v8, 32
+    v18 = calldatasize
+    v19 = sub v18, v14
+    v20 = sgt v17, v19
+    jumpi v20, bb1, bb5
   bb5:
-    v26 = lt v16, 20
-    jumpi v26, bb7, bb6
+    v24 = lt v14, 20
+    jumpi v24, bb7, bb6
   bb6:
-    v31 = calldatasize
-    v32 = gt v2, v31
-    v33 = or v3, v32
-    jumpi v33, bb1, bb8
+    v29 = calldatasize
+    v30 = gt v2, v29
+    v31 = or v3, v30
+    jumpi v31, bb1, bb8
   bb7:
-    v68 = phi [bb5: 0], [bb13: v67]
-    ret v68
+    v64 = phi [bb5: 0], [bb10: v63]
+    ret v64
   bb8:
-    v37 = calldatasize
-    v38 = sub v37, arg0
-    v39 = sub v38, 31
-    v40 = slt v8, v39
-    jumpi v40, bb9, bb1
+    v34 = calldatasize
+    v35 = sub v34, arg0
+    v36 = sub v35, 31
+    v37 = slt v7, v36
+    jumpi v37, bb9, bb1
   bb9:
-    jumpi v17, bb1, bb10
+    v43 = calldatasize
+    v44 = sub v43, v14
+    v45 = sgt v17, v44
+    jumpi v45, bb1, bb10
   bb10:
-    v47 = calldatasize
-    v48 = sub v47, v16
-    v49 = sgt v19, v48
-    jumpi v49, bb1, bb11
-  bb11:
-    jumpi v26, bb12, bb13
-  bb12:
-    tail_call @__revert_stub0
-  bb13:
-    v59 = calldataload v19
-    v61 = lt 20, 20
-    v62 = sub 20, 20
-    v63 = shl 3, v62
-    v64 = shl v63, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v65 = select v61, v64, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v66 = and v59, v65
-    v67 = shr 96, v66
+    v55 = calldataload v17
+    v57 = lt 20, 20
+    v58 = sub 20, 20
+    v59 = shl 3, v58
+    v60 = shl v59, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
+    v61 = select v57, v60, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
+    v62 = and v55, v61
+    v63 = shr 96, v62
     jump bb7
 }
 
@@ -183,85 +156,79 @@ fn @tailHash.4(arg0: calldataptr, arg1: u256) -> bytes32 [pure] {
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload v1
-    v9 = add arg0, v8
-    v10 = calldatasize
-    v11 = sub v10, arg0
-    v12 = sub v11, 31
-    v13 = slt v8, v12
-    jumpi v13, bb3, bb1
+    v7 = calldataload v1
+    v8 = add arg0, v7
+    v9 = calldatasize
+    v10 = sub v9, arg0
+    v11 = sub v10, 31
+    v12 = slt v7, v11
+    jumpi v12, bb3, bb1
   bb3:
-    v16 = calldataload v9
-    v17 = gt v16, 0xffffffffffffffff
-    jumpi v17, bb1, bb4
+    v14 = calldataload v8
+    v15 = gt v14, 0xffffffffffffffff
+    jumpi v15, bb1, bb4
   bb4:
-    v19 = add v9, 32
-    v20 = calldatasize
-    v21 = sub v20, v16
-    v22 = sgt v19, v21
-    jumpi v22, bb1, bb5
+    v17 = add v8, 32
+    v18 = calldatasize
+    v19 = sub v18, v14
+    v20 = sgt v17, v19
+    jumpi v20, bb1, bb5
   bb5:
-    v26 = lt v16, 20
-    jumpi v26, bb7, bb6
+    v24 = lt v14, 20
+    jumpi v24, bb7, bb6
   bb6:
-    v32 = calldatasize
-    v33 = gt v2, v32
-    v34 = or v3, v33
-    jumpi v34, bb1, bb8
+    v30 = calldatasize
+    v31 = gt v2, v30
+    v32 = or v3, v31
+    jumpi v32, bb1, bb8
   bb7:
-    v79 = phi [bb5: 0], [bb18: v78]
-    ret v79
+    v75 = phi [bb5: 0], [bb15: v74]
+    ret v75
   bb8:
-    v38 = calldatasize
-    v39 = sub v38, arg0
-    v40 = sub v39, 31
-    v41 = slt v8, v40
-    jumpi v41, bb9, bb1
+    v35 = calldatasize
+    v36 = sub v35, arg0
+    v37 = sub v36, 31
+    v38 = slt v7, v37
+    jumpi v38, bb9, bb1
   bb9:
-    jumpi v17, bb1, bb10
+    v44 = calldatasize
+    v45 = sub v44, v14
+    v46 = sgt v17, v45
+    jumpi v46, bb1, bb10
   bb10:
-    v48 = calldatasize
-    v49 = sub v48, v16
-    v50 = sgt v19, v49
-    jumpi v50, bb1, bb11
+    v52 = sub v14, 20
+    v53 = add v17, 20
+    v57 = gt v52, 0xffffffffffffffff
+    jumpi v57, bb1, bb11
   bb11:
-    jumpi v26, bb12, bb13
+    v58 = calldatasize
+    v59 = sub v58, v52
+    v60 = sgt v53, v59
+    jumpi v60, bb1, bb12
   bb12:
-    tail_call @__revert_stub0
+    v62 = add v52, 31
+    v64 = shr 5, v62
+    v65 = add v64, 1
+    v66 = lt v65, v64
+    jumpi v66, bb13, bb14
   bb13:
-    v56 = sub v16, 20
-    v57 = add v19, 20
-    v61 = gt v56, 0xffffffffffffffff
-    jumpi v61, bb1, bb14
-  bb14:
-    v62 = calldatasize
-    v63 = sub v62, v56
-    v64 = sgt v57, v63
-    jumpi v64, bb1, bb15
-  bb15:
-    v66 = add v56, 31
-    v68 = shr 5, v66
-    v69 = add v68, 1
-    v70 = lt v69, v68
-    jumpi v70, bb16, bb17
-  bb16:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb17:
-    v71 = shl 5, v69
-    v73 = shr 5, v71
-    v74 = eq v73, v69
-    jumpi v74, bb18, bb16
-  bb18:
-    v77 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v89 = add v77, v71
-    mstore 64, v89 !metadata(memory=scratch)
-    mstore v77, v56
-    v84 = add v77, 32
-    calldatacopy v84, v57, v56
-    v87 = mload v77
-    v78 = keccak256 v84, v87
+  bb14:
+    v67 = shl 5, v65
+    v69 = shr 5, v67
+    v70 = eq v69, v65
+    jumpi v70, bb15, bb13
+  bb15:
+    v73 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v81 = add v73, v67
+    mstore 64, v81 !metadata(memory=scratch)
+    mstore v73, v52
+    v76 = add v73, 32
+    calldatacopy v76, v53, v52
+    v79 = mload v73
+    v74 = keccak256 v76, v79
     jump bb7
 }
 
@@ -277,44 +244,39 @@ fn @midWord.5(arg0: calldataptr, arg1: u256) -> bytes32 [pure] {
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload v1
-    v9 = add arg0, v8
-    v10 = calldatasize
-    v11 = sub v10, arg0
-    v12 = sub v11, 31
-    v13 = slt v8, v12
-    jumpi v13, bb3, bb1
+    v7 = calldataload v1
+    v8 = add arg0, v7
+    v9 = calldatasize
+    v10 = sub v9, arg0
+    v11 = sub v10, 31
+    v12 = slt v7, v11
+    jumpi v12, bb3, bb1
   bb3:
-    v16 = calldataload v9
-    v17 = gt v16, 0xffffffffffffffff
-    jumpi v17, bb1, bb4
+    v14 = calldataload v8
+    v15 = gt v14, 0xffffffffffffffff
+    jumpi v15, bb1, bb4
   bb4:
-    v19 = add v9, 32
-    v20 = calldatasize
-    v21 = sub v20, v16
-    v22 = sgt v19, v21
-    jumpi v22, bb1, bb5
+    v17 = add v8, 32
+    v18 = calldatasize
+    v19 = sub v18, v14
+    v20 = sgt v17, v19
+    jumpi v20, bb1, bb5
   bb5:
-    v27 = gt 32, v16
-    jumpi v27, bb6, bb7
+    v25 = gt 32, v14
+    jumpi v25, bb6, bb7
   bb6:
-    tail_call @__revert_stub0
-  bb7:
-    v32 = calldataload v19
-    v34 = lt 32, 32
-    v35 = sub 32, 32
-    v36 = shl 3, v35
-    v37 = shl v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v38 = select v34, v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v39 = and v32, v38
-    ret v39
-}
-
-fn @__revert_stub0() {
-  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
+  bb7:
+    v30 = calldataload v17
+    v32 = lt 32, 32
+    v33 = sub 32, 32
+    v34 = shl 3, v33
+    v35 = shl v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v36 = select v32, v35, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v37 = and v30, v36
+    ret v37
 }
 
 fn @entry() [entry] {

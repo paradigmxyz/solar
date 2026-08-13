@@ -4,20 +4,20 @@ fn @sumTo(arg0: u256) -> u256 [pure] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb10: v4]
-    v1 = phi [bb0: 0], [bb10: v6]
+    v0 = phi [bb0: 0], [bb10: v6]
+    v1 = phi [bb0: 0], [bb10: v4]
     v2 = phi [bb0: arg0], [bb10: v2]
-    v3 = lt v1, v2
+    v3 = lt v0, v2
     jumpi v3, bb4, bb5
   bb2:
-    ret v0
+    ret v1
   bb3:
-    v6 = add v1, 1
-    v7 = lt v6, v1
+    v6 = add v0, 1
+    v7 = lt v6, v0
     jumpi v7, bb9, bb10
   bb4:
-    v4 = add v0, v1
-    v5 = lt v4, v0
+    v4 = add v1, v0
+    v5 = lt v4, v1
     jumpi v5, bb7, bb8
   bb5:
     jump bb2

@@ -284,18 +284,14 @@ fn @setBlob(arg0: calldataslice) [selector=0xdd7d5edb, abi_args=lazy, abi_params
 
 fn @getText() -> memorybytes [selector=0xe00fe2eb, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 32
-    set_memory_object_len memorybytes, v0, 0
-    v1 = internal_call @__load_storage_bytes, 1, 0
-    ret v1
+    v0 = internal_call @__load_storage_bytes, 1, 0
+    ret v0
 }
 
 fn @getBlob() -> memorybytes [selector=0x32db030e, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 32
-    set_memory_object_len memorybytes, v0, 0
-    v1 = internal_call @__load_storage_bytes, 1, 1
-    ret v1
+    v0 = internal_call @__load_storage_bytes, 1, 1
+    ret v0
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memorybytes {

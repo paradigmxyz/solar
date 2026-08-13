@@ -161,11 +161,8 @@ impl AbiWordValidator {
         word: ValueId,
         helpers: &CleanupHelpers,
     ) -> ValueId {
-        if let Some(key) = self.cleanup_key() {
-            helpers.cleanup(builder, key, word)
-        } else {
-            self.cleanup(builder, word)
-        }
+        let _ = helpers;
+        self.cleanup(builder, word)
     }
 
     fn condition_with_helpers(
@@ -174,9 +171,8 @@ impl AbiWordValidator {
         word: ValueId,
         helpers: &CleanupHelpers,
     ) -> ValueId {
-        let Some(key) = self.cleanup_key() else { return self.condition(builder, word) };
-        let canonical = helpers.cleanup(builder, key, word);
-        builder.eq(word, canonical)
+        let _ = helpers;
+        self.condition(builder, word)
     }
 }
 
@@ -217,16 +213,6 @@ impl CleanupHelpers {
         func.returns.push(MirType::uint256());
         let id = module.add_function(func);
         entry.insert(id);
-    }
-
-    fn cleanup(
-        &self,
-        builder: &mut FunctionBuilder<'_>,
-        key: CleanupKey,
-        value: ValueId,
-    ) -> ValueId {
-        let function = self.ids[&key];
-        builder.internal_call(function, vec![value], MirType::uint256(), 1)
     }
 }
 
@@ -1039,12 +1025,17 @@ impl LowerAbiCx {
         wrapper_id: FunctionId,
         needs_body: bool,
     ) -> Option<FunctionId> {
-        let lazy_args = module.function(wrapper_id).abi_args_lazy;
-        let abi_params = module.function(wrapper_id).abi_params.clone();
+        let original = module.function(wrapper_id).clone();
+        let lazy_args = original.abi_args_lazy;
+        let abi_params = original.abi_params.clone();
+        let call_body = needs_body
+            && Self::can_call_body(&original, abi_params.as_ref())
+            && original.blocks[BlockId::ENTRY].instructions.first().copied().is_some();
+        let original_entry_inst = original.blocks[BlockId::ENTRY].instructions.first().copied();
         // The copy must precede wrapper mutation and callvalue injection so
         // internal callers keep the original function semantics.
         let body_id = needs_body.then(|| {
-            let mut body = module.function(wrapper_id).clone();
+            let mut body = original.clone();
             body.name = MangledSymbol::new(Symbol::intern(&format!("{}.body", body.name.symbol)));
             body.name_span = Span::DUMMY;
             body.selector = None;
@@ -1066,6 +1057,14 @@ impl LowerAbiCx {
                 false,
             );
         }
+        if call_body {
+            Self::replace_body_with_call(
+                module.function_mut(wrapper_id),
+                body_id.expect("body clone for a calling wrapper"),
+                original_entry_inst.expect("calling wrapper has an entry instruction"),
+                original.returns[0],
+            );
+        }
         let return_params = module.function(wrapper_id).abi_return_params.clone();
         self.stats.encoded_returns += encode_live_returns(
             module.function_mut(wrapper_id),
@@ -1084,6 +1083,44 @@ impl LowerAbiCx {
         wrapper.abi_param_locations = None;
         wrapper.abi_args_lazy = false;
         body_id
+    }
+
+    fn can_call_body(func: &Function, abi_params: Option<&AbiParamLayout>) -> bool {
+        let Some(layout) = abi_params else { return false };
+        layout.types.len() == func.params.len()
+            && layout.types.iter().all(Self::is_constructor_word)
+            && func.params.iter().all(|ty| {
+                !matches!(ty, MirType::Function | MirType::MemoryObject(_) | MirType::Slice(_))
+            })
+            && func.returns.len() == 1
+            && !matches!(func.returns[0], MirType::MemoryObject(_) | MirType::Slice(_))
+            && func.blocks.iter().all(|block| {
+                !matches!(&block.terminator, Some(Terminator::Return { values }) if values.len() != 1)
+            })
+    }
+
+    fn replace_body_with_call(
+        func: &mut Function,
+        body_id: FunctionId,
+        original_entry_inst: crate::mir::InstId,
+        return_ty: MirType,
+    ) {
+        let Some(block) = func
+            .blocks
+            .indices()
+            .find(|&block| func.blocks[block].instructions.first() == Some(&original_entry_inst))
+        else {
+            return;
+        };
+        func.blocks[block].instructions.clear();
+        func.blocks[block].terminator = None;
+        let mut builder = FunctionBuilder::new(func);
+        builder.switch_to_block(block);
+        let indices = builder.func().arg_indices().collect::<Vec<_>>();
+        let args = indices.into_iter().map(|index| builder.func_mut().alloc_arg(index)).collect();
+        let result = builder.internal_call(body_id, args, return_ty, 1);
+        builder.ret([result]);
+        let _ = crate::mir::utils::repair_reachability_phis(builder.func_mut());
     }
 
     /// Rewrites `fallback(bytes calldata) returns (bytes memory)` into an
@@ -1182,9 +1219,19 @@ impl LowerAbiCx {
                 );
                 head_offset += ty.head_size();
             }
+            let preserve_word_types = abi_params.is_some_and(|layout| {
+                layout.types.len() == arg_types.len()
+                    && layout.types.iter().zip(&arg_types).all(|(ty, &param)| {
+                        Self::is_constructor_word(ty)
+                            && ty.mir_type() == param
+                            && param != MirType::Function
+                    })
+            });
             let mut params = IndexVec::with_capacity((head_offset / 32) as usize);
-            for _ in 0..head_offset / 32 {
-                params.push(MirType::uint256());
+            for (index, _) in (0..head_offset / 32).enumerate() {
+                params.push(
+                    preserve_word_types.then(|| arg_types[index]).unwrap_or_else(MirType::uint256),
+                );
             }
             func.set_params(params);
             logical_values = logical_physical
@@ -2043,10 +2090,7 @@ impl LowerAbiCx {
     }
 
     fn load_calldata_word(builder: &mut FunctionBuilder<'_>, position: ValueId) -> ValueId {
-        let size = builder.imm_u64(32);
-        let slice = builder.make_slice(position, size, SliceLocation::Calldata);
-        let zero = builder.imm_u64(0);
-        builder.calldata_slice_load_word(slice, zero)
+        builder.calldataload(position)
     }
 
     fn decode_scalar(

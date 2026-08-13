@@ -2,11 +2,11 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 428
+  push 455
   codesize
   sub
   dup1
-  push 428
+  push 455
   push 192
   codecopy
   push 192
@@ -19,8 +19,8 @@ bb0:
   push 64
   mstore
   push 192
-  push 192
-  push 428
+  dup1
+  push 455
   codesize
   sub
   add
@@ -49,15 +49,13 @@ bb0:
   jumpi
   pop
   push 301
-  jump bb20
-bb20:
   push 0
   sstore
   jump bb19
 bb19:
-  push 218
+  push 235
   dup1
-  push 210
+  push 220
   push 0
   codecopy
   push 0
@@ -70,7 +68,9 @@ bb2:
   jumpi
   pop
   push 305
-  jump bb20
+  push 0
+  sstore
+  jump bb19
 bb3:
   dup1
   push 0x920f5c73
@@ -79,7 +79,9 @@ bb3:
   jumpi
   pop
   push 302
-  jump bb20
+  push 0
+  sstore
+  jump bb19
 bb4:
   dup1
   push 0xcbf99d38
@@ -88,7 +90,9 @@ bb4:
   jumpi
   pop
   push 300
-  jump bb20
+  push 0
+  sstore
+  jump bb19
 bb5:
   pop
   jump bb19
@@ -100,7 +104,9 @@ bb6:
   jumpi
   pop
   push 306
-  jump bb20
+  push 0
+  sstore
+  jump bb19
 bb7:
   dup1
   push 0x41052a0d
@@ -109,7 +115,9 @@ bb7:
   jumpi
   pop
   push 303
-  jump bb20
+  push 0
+  sstore
+  jump bb19
 bb8:
   dup1
   push 0x7238232f
@@ -118,7 +126,9 @@ bb8:
   jumpi
   pop
   push 304
-  jump bb20
+  push 0
+  sstore
+  jump bb19
 bb9:
   pop
   jump bb19
@@ -171,8 +181,6 @@ bb6:
   jumpi
   pop
   push 306
-  jump bb15
-bb15:
   push 160
   mstore
   jump bb14
@@ -192,7 +200,9 @@ bb7:
   jumpi
   pop
   push 302
-  jump bb15
+  push 160
+  mstore
+  jump bb14
 bb8:
   dup1
   push 0x905f7d67
@@ -201,7 +211,9 @@ bb8:
   jumpi
   pop
   push 305
-  jump bb15
+  push 160
+  mstore
+  jump bb14
 bb9:
   dup1
   push 0xcbf99d38
@@ -218,7 +230,9 @@ bb10:
   jumpi
   pop
   push 301
-  jump bb15
+  push 160
+  mstore
+  jump bb14
 bb11:
   dup1
   push 0x41052a0d
@@ -227,7 +241,9 @@ bb11:
   jumpi
   pop
   push 303
-  jump bb15
+  push 160
+  mstore
+  jump bb14
 bb12:
   dup1
   push 0x7238232f
@@ -236,8 +252,12 @@ bb12:
   jumpi
   pop
   push 304
-  jump bb15
+  push 160
+  mstore
+  jump bb14
 bb13:
   pop
   push 999
-  jump bb15
+  push 160
+  mstore
+  jump bb14

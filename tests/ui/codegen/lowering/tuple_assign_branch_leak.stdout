@@ -70,14 +70,10 @@ bb16:
   gt
   push bb20
   jumpi
+  push 64
   push 416
-  mload
   push 352
-  mstore
-  push 448
-  mload
-  push 384
-  mstore
+  mcopy
   jump
 bb8:
   push bb22

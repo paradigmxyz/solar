@@ -21,7 +21,7 @@ bb3 [cold]:
   push 0
   dup1
   revert
-bb23 [cold]:
+bb22 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -39,88 +39,74 @@ bb4:
   gt
   push bb3
   jumpi
-  calldatasize
-  push 36
-  gt
-  push bb3
-  jumpi
   push 4
   calldataload
-  dup1
-  push 160
-  mstore
-  push 4
-  dup2
-  add
   dup1
   push 192
   mstore
   push 4
   dup2
-  lt
+  add
+  push 160
+  mstore
   calldatasize
+  push 4
+  swap1
+  sub
+  dup2
+  gt
+  swap1
+  pop
+  push bb3
+  jumpi
+  calldatasize
+  push 160
+  mload
+  swap1
+  sub
+  push 32
+  gt
+  push bb3
+  jumpi
+  push 160
+  mload
+  calldataload
+  dup1
+  push 160
+  mstore
+  push 36
+  push 192
+  mload
+  add
+  dup1
+  push 192
+  mstore
+  calldatasize
+  dup2
+  swap1
+  sub
   dup3
   gt
-  or
   swap2
   pop
   pop
   push bb3
   jumpi
-  push 36
-  push 160
-  mload
-  add
-  dup1
-  push 160
-  mstore
   push 192
-  mload
-  dup2
-  lt
-  calldatasize
-  dup3
-  gt
-  or
-  swap1
-  pop
-  push bb3
-  jumpi
-  push 192
-  mload
-  calldataload
-  dup1
-  push 192
-  mstore
-  push 160
-  mload
-  add
-  push 160
-  mload
-  dup2
-  lt
-  calldatasize
-  swap1
-  swap2
-  gt
-  or
-  push bb3
-  jumpi
-  push 160
   mload
   push 256
   mstore
-  push 192
+  push 160
   mload
   push 288
   mstore
-  push bb10
+  push bb9
   push 4
   push 288
   mload
   gt
   iszero
-  push bb18
+  push bb17
   jumpi
   push 4
   push 288
@@ -168,7 +154,7 @@ bb4:
   push 384
   mstore
   lt
-  push bb23
+  push bb22
   jumpi
   push 384
   mload
@@ -183,7 +169,7 @@ bb4:
   mload
   eq
   iszero
-  push bb23
+  push bb22
   jumpi
   push 64
   mload
@@ -206,15 +192,15 @@ bb4:
   push 320
   mload
   push 352
-  jump bb24
-bb24:
+  jump bb23
+bb23:
   mload
   dup3
   calldatacopy
   pop
   swap1
   jump
-bb10:
+bb9:
   dup1
   push 224
   mstore
@@ -224,7 +210,7 @@ bb10:
   push 32
   push 128
   return
-bb18:
+bb17:
   calldatasize
   push 288
   mload
@@ -248,7 +234,7 @@ bb18:
   push 320
   mstore
   lt
-  push bb23
+  push bb22
   jumpi
   push 320
   mload
@@ -263,7 +249,7 @@ bb18:
   mload
   eq
   iszero
-  push bb23
+  push bb22
   jumpi
   push 64
   mload
@@ -286,4 +272,4 @@ bb18:
   push 288
   mload
   push 256
-  jump bb24
+  jump bb23

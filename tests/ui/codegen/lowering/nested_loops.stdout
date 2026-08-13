@@ -6,16 +6,16 @@ fn @sum_grid(arg0: u256, arg1: u256) -> u256 [selector=0xa801641f, pure, abi_arg
   bb1:
     v0 = phi [bb0: 0], [bb20: v6]
     v1 = phi [bb0: arg0], [bb20: v8]
-    v2 = phi [bb0: 0], [bb20: v9]
-    v3 = phi [bb0: 0], [bb20: v23]
+    v2 = phi [bb0: 0], [bb20: v23]
+    v3 = phi [bb0: 0], [bb20: v10]
     v4 = phi [bb0: arg1], [bb20: v11]
-    v5 = lt v3, v1
+    v5 = lt v2, v1
     jumpi v5, bb4, bb5
   bb2:
     ret v0
   bb3:
-    v23 = add v10, 1
-    v24 = lt v23, v10
+    v23 = add v9, 1
+    v24 = lt v23, v9
     jumpi v24, bb19, bb20
   bb4:
     jump bb7
@@ -39,10 +39,10 @@ fn @sum_grid(arg0: u256, arg1: u256) -> u256 [selector=0xa801641f, pure, abi_arg
     v22 = lt v21, v7
     jumpi v22, bb17, bb18
   bb10:
-    v13 = mul v10, v7
+    v13 = mul v9, v7
     v14 = iszero v7
     v15 = div v13, v7
-    v16 = eq v15, v10
+    v16 = eq v15, v9
     v17 = or v14, v16
     v18 = iszero v17
     jumpi v18, bb13, bb14

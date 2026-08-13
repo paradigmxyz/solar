@@ -90,7 +90,7 @@ bb3 [cold]:
   push 0
   dup1
   revert
-bb15 [cold]:
+bb14 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -113,8 +113,8 @@ bb4:
   push bb7
   jumpi
   push 0
-  jump bb16
-bb16:
+  jump bb15
+bb15:
   push 128
   mstore
   push 32
@@ -165,7 +165,7 @@ bb7:
   pop
   pop
   iszero
-  push bb14
+  push bb13
   jumpi
   returndatasize
   dup1
@@ -178,7 +178,7 @@ bb7:
   push 160
   mstore
   lt
-  push bb15
+  push bb14
   jumpi
   push 160
   mload
@@ -191,7 +191,7 @@ bb7:
   push 160
   mstore
   lt
-  push bb15
+  push bb14
   jumpi
   push 160
   mload
@@ -206,7 +206,7 @@ bb7:
   mload
   eq
   iszero
-  push bb15
+  push bb14
   jumpi
   push 64
   mload
@@ -239,34 +239,24 @@ bb7:
   returndatacopy
   swap1
   mload
-  dup2
-  add
   dup1
-  push 192
-  mstore
-  lt
-  push bb3
-  jumpi
-  push 32
-  push 160
-  mload
+  dup3
   add
-  push 160
-  mload
-  dup2
-  lt
+  dup3
+  gt
   swap1
-  push 192
-  mload
-  lt
+  push 32
+  gt
   or
+  swap1
+  pop
   push bb3
   jumpi
   push 160
   mload
   mload
-  jump bb16
-bb14 [cold]:
+  jump bb15
+bb13 [cold]:
   returndatasize
   dup1
   push 256
@@ -301,7 +291,7 @@ bb3 [cold]:
   push 0
   dup1
   revert
-bb13 [cold]:
+bb12 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -362,7 +352,7 @@ bb4:
   pop
   pop
   iszero
-  push bb12
+  push bb11
   jumpi
   returndatasize
   dup1
@@ -375,7 +365,7 @@ bb4:
   push 160
   mstore
   lt
-  push bb13
+  push bb12
   jumpi
   push 160
   mload
@@ -388,7 +378,7 @@ bb4:
   push 160
   mstore
   lt
-  push bb13
+  push bb12
   jumpi
   push 160
   mload
@@ -403,7 +393,7 @@ bb4:
   mload
   eq
   iszero
-  push bb13
+  push bb12
   jumpi
   push 64
   mload
@@ -436,27 +426,17 @@ bb4:
   returndatacopy
   swap1
   mload
-  dup2
-  add
   dup1
-  push 192
-  mstore
-  lt
-  push bb3
-  jumpi
-  push 32
-  push 160
-  mload
+  dup3
   add
-  push 160
-  mload
-  dup2
-  lt
+  dup3
+  gt
   swap1
-  push 192
-  mload
-  lt
+  push 32
+  gt
   or
+  swap1
+  pop
   push bb3
   jumpi
   push 160
@@ -467,7 +447,7 @@ bb4:
   push 32
   push 128
   return
-bb12 [cold]:
+bb11 [cold]:
   returndatasize
   dup1
   push 256

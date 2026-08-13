@@ -14,7 +14,7 @@ bb0:
   dup1
   push 0x6a57f6c7
   eq
-  push bb18
+  push bb17
   jumpi
   dup1
   push 0x6b995abd
@@ -26,7 +26,7 @@ bb4 [cold]:
   push 0
   dup1
   revert
-bb31 [cold]:
+bb29 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -55,38 +55,30 @@ bb5:
   sub
   push bb4
   jumpi
-  calldatasize
-  push 68
-  gt
-  push bb4
-  jumpi
-  push bb40
-  jump bb33
-bb33:
+  push bb38
+  jump bb32
+bb32:
   push 36
   calldataload
   dup1
-  push 256
+  push 224
   mstore
   push 4
   dup2
   add
-  dup1
   push 192
   mstore
-  push 4
-  dup2
-  lt
   calldatasize
-  dup3
+  push 4
+  swap1
+  sub
+  dup2
   gt
-  or
-  swap2
-  pop
+  swap1
   pop
   swap1
   jump
-bb18:
+bb17:
   calldatasize
   push 68
   gt
@@ -103,37 +95,15 @@ bb18:
   sub
   push bb4
   jumpi
-  calldatasize
-  push 68
-  gt
-  push bb4
-  jumpi
-  push bb44
-  jump bb33
-bb37:
-  push bb31
-  jumpi
-  push 64
-  mload
-  dup1
-  push 320
-  mstore
-  push 288
-  mload
-  dup2
-  add
-  push 64
-  mstore
-  push 160
-  mload
-  dup2
-  mstore
+  push bb42
+  jump bb32
+bb35:
   push 32
   dup2
   add
   push 160
   mload
-  push 224
+  push 256
   mload
   dup3
   calldatacopy
@@ -152,11 +122,11 @@ bb37:
   push 0
   push 4
   calldataload
-  push 256
+  push 224
   mload
   call
-  jump bb32
-bb32:
+  jump bb30
+bb30:
   swap2
   pop
   pop
@@ -167,11 +137,34 @@ bb32:
   push 32
   push 128
   return
-bb38:
+bb36:
+  push bb29
+  jumpi
+  push bb35
+  jump bb34
+bb34:
+  push 64
+  mload
+  dup1
+  push 320
+  mstore
+  push 288
+  mload
+  dup2
+  add
+  push 64
+  mstore
+  push 160
+  mload
+  dup2
+  mstore
+  swap1
+  jump
+bb37:
   push bb4
   jumpi
   gas
-  push 256
+  push 224
   mstore
   push 0
   not
@@ -187,7 +180,7 @@ bb38:
   mload
   swap1
   sub
-  push 224
+  push 256
   mload
   sgt
   push bb4
@@ -205,11 +198,11 @@ bb38:
   push 192
   mstore
   lt
-  push bb31
+  push bb29
   jumpi
-  push bb37
-  jump bb36
-bb36:
+  push bb36
+  jump bb33
+bb33:
   push 192
   mload
   push 5
@@ -225,81 +218,52 @@ bb36:
   iszero
   swap1
   jump
-bb39:
+bb38:
   push bb4
   jumpi
-  push bb38
-  jump bb34
-bb34:
+  calldatasize
+  push 192
+  mload
+  swap1
+  sub
+  push 32
+  gt
+  push bb4
+  jumpi
+  push bb37
+  jump bb31
+bb31:
   push 192
   mload
   calldataload
   dup1
   push 160
   mstore
-  push 224
-  mload
-  add
-  push 224
-  mload
-  dup2
-  lt
-  calldatasize
-  swap1
-  swap2
-  gt
-  or
-  swap1
-  jump
-bb40:
-  push bb4
-  jumpi
-  push bb39
-  jump bb35
-bb35:
   push 36
-  push 256
+  push 224
   mload
   add
   dup1
-  push 224
+  push 256
   mstore
-  push 192
-  mload
-  dup2
-  lt
   calldatasize
+  dup2
+  swap1
+  sub
   dup3
   gt
-  or
-  swap1
+  swap2
+  pop
   pop
   swap1
   jump
-bb41:
-  push bb31
-  jumpi
-  push 64
-  mload
-  dup1
-  push 320
-  mstore
-  push 288
-  mload
-  dup2
-  add
-  push 64
-  mstore
-  push 160
-  mload
-  dup2
-  mstore
+bb39:
   push 32
   dup2
   add
   push 160
   mload
-  push 224
+  push 256
   mload
   dup3
   calldatacopy
@@ -317,15 +281,20 @@ bb41:
   dup5
   push 4
   calldataload
-  push 256
+  push 224
   mload
   delegatecall
-  jump bb32
-bb42:
+  jump bb30
+bb40:
+  push bb29
+  jumpi
+  push bb39
+  jump bb34
+bb41:
   push bb4
   jumpi
   gas
-  push 256
+  push 224
   mstore
   push 0
   not
@@ -341,7 +310,7 @@ bb42:
   mload
   swap1
   sub
-  push 224
+  push 256
   mload
   sgt
   push bb4
@@ -359,17 +328,21 @@ bb42:
   push 192
   mstore
   lt
-  push bb31
+  push bb29
+  jumpi
+  push bb40
+  jump bb33
+bb42:
+  push bb4
+  jumpi
+  calldatasize
+  push 192
+  mload
+  swap1
+  sub
+  push 32
+  gt
+  push bb4
   jumpi
   push bb41
-  jump bb36
-bb43:
-  push bb4
-  jumpi
-  push bb42
-  jump bb34
-bb44:
-  push bb4
-  jumpi
-  push bb43
-  jump bb35
+  jump bb31

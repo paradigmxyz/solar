@@ -4,8 +4,7 @@
 // CHECK: + @phase abi
 // CHECK: + fn @flag()
 // CHECK: + v{{[0-9]+}} = calldatasize
-// CHECK: + {{v[0-9]+}} = make_calldata_slice 4, 32
-// CHECK: + {{v[0-9]+}} = calldata_slice_load_word calldata
+// CHECK: + {{v[0-9]+}} = calldataload 4
 @module LowerAbiLazyArgs
 
 fn @flag(arg0: bool) -> bool [selector=0x0d2020dd, abi_args=lazy, abi_returns=[word]] {

@@ -25,26 +25,23 @@ contract CalldataValidation {
     }
 
     // CHECK-LABEL: fn @vUint8{{[( ]}}
-    // CHECK: {{v[0-9]+}} = make_calldata_slice 4, 32
-    // CHECK: [[RAW:v[0-9]+]] = calldata_slice_load_word calldata
-    // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[RAW]]
-    // CHECK: eq [[RAW]], {{v[0-9]+}}
+    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: [[CANON:v[0-9]+]] = and [[RAW]], 255
+    // CHECK: eq [[RAW]], [[CANON]]
     function vUint8(uint8 x) external pure returns (uint8) {
         return x;
     }
 
     // CHECK-LABEL: fn @vInt16{{[( ]}}
-    // CHECK: {{v[0-9]+}} = make_calldata_slice 4, 32
-    // CHECK: [[RAW:v[0-9]+]] = calldata_slice_load_word calldata
-    // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[RAW]]
-    // CHECK: eq [[RAW]], {{v[0-9]+}}
+    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: [[CANON:v[0-9]+]] = signextend 1, [[RAW]]
+    // CHECK: eq [[RAW]], [[CANON]]
     function vInt16(int16 x) external pure returns (int16) {
         return x;
     }
 
     // CHECK-LABEL: fn @vBool{{[( ]}}
-    // CHECK: {{v[0-9]+}} = make_calldata_slice 4, 32
-    // CHECK: [[RAW:v[0-9]+]] = calldata_slice_load_word calldata
+    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
     // CHECK: [[ZERO:v[0-9]+]] = iszero [[RAW]]
     // CHECK: [[CANON:v[0-9]+]] = iszero [[ZERO]]
     // CHECK: eq [[RAW]], [[CANON]]
@@ -53,38 +50,33 @@ contract CalldataValidation {
     }
 
     // CHECK-LABEL: fn @vAddress{{[( ]}}
-    // CHECK: {{v[0-9]+}} = make_calldata_slice 4, 32
-    // CHECK: [[RAW:v[0-9]+]] = calldata_slice_load_word calldata
-    // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[RAW]]
-    // CHECK: eq [[RAW]], {{v[0-9]+}}
+    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: [[CANON:v[0-9]+]] = and [[RAW]], 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: eq [[RAW]], [[CANON]]
     function vAddress(address x) external pure returns (address) {
         return x;
     }
 
     // CHECK-LABEL: fn @vBytes4{{[( ]}}
-    // CHECK: {{v[0-9]+}} = make_calldata_slice 4, 32
-    // CHECK: [[RAW:v[0-9]+]] = calldata_slice_load_word calldata
-    // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[RAW]]
-    // CHECK: eq [[RAW]], {{v[0-9]+}}
+    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: [[CANON:v[0-9]+]] = and [[RAW]], 0xffffffff00000000000000000000000000000000000000000000000000000000
+    // CHECK: eq [[RAW]], [[CANON]]
     function vBytes4(bytes4 x) external pure returns (bytes4) {
         return x;
     }
 
     // CHECK-LABEL: fn @vEnum{{[( ]}}
-    // CHECK: {{v[0-9]+}} = make_calldata_slice 4, 32
-    // CHECK: [[RAW:v[0-9]+]] = calldata_slice_load_word calldata
+    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
     // CHECK: lt [[RAW]], 3
     function vEnum(Dir x) external pure returns (Dir) {
         return x;
     }
 
     // CHECK-LABEL: fn @vMulti{{[( ]}}
-    // CHECK: {{v[0-9]+}} = make_calldata_slice 4, 32
-    // CHECK: [[A:v[0-9]+]] = calldata_slice_load_word calldata
-    // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[A]]
-    // CHECK: {{v[0-9]+}} = make_calldata_slice 36, 32
-    // CHECK: [[B:v[0-9]+]] = calldata_slice_load_word calldata
-    // CHECK: internal_call @__cleanup{{[0-9]+}}, 1, [[B]]
+    // CHECK: [[A:v[0-9]+]] = calldataload 4
+    // CHECK: {{v[0-9]+}} = and [[A]], 0xffffffff
+    // CHECK: [[B:v[0-9]+]] = calldataload 36
+    // CHECK: {{v[0-9]+}} = signextend 0, [[B]]
     function vMulti(uint32 a, int8 b) external pure returns (uint256) {
         return uint256(uint32(a)) + uint256(uint8(int8(b)));
     }

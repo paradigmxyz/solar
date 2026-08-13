@@ -7,19 +7,18 @@ fn @vUint8() [selector=0xd5f6949e, pure] {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    v6 = internal_call @__cleanup0, 1, arg0
-    mstore 128, v6
-    v7 = add 128, 32
-    v8 = sub v7, 128
-    returndata 128, v8
+    v5 = and arg0, 255
+    mstore 128, v5
+    v6 = add 128, 32
+    v7 = sub v6, 128
+    returndata 128, v7
   bb2:
     revert 0, 0
   bb3:
-    v2 = make_calldata_slice 4, 32
-    v3 = calldata_slice_load_word calldata, v2, 0
-    v4 = internal_call @__cleanup0, 1, v3
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb2
+    v2 = calldataload 4
+    v3 = and v2, 255
+    v4 = eq v2, v3
+    jumpi v4, bb4, bb2
   bb4:
     jump bb1
 }
@@ -30,19 +29,18 @@ fn @vInt16() [selector=0xe9697b4d, pure] {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    v6 = internal_call @__cleanup5, 1, arg0
-    mstore 128, v6
-    v7 = add 128, 32
-    v8 = sub v7, 128
-    returndata 128, v8
+    v5 = signextend 1, arg0
+    mstore 128, v5
+    v6 = add 128, 32
+    v7 = sub v6, 128
+    returndata 128, v7
   bb2:
     revert 0, 0
   bb3:
-    v2 = make_calldata_slice 4, 32
-    v3 = calldata_slice_load_word calldata, v2, 0
-    v4 = internal_call @__cleanup5, 1, v3
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb2
+    v2 = calldataload 4
+    v3 = signextend 1, v2
+    v4 = eq v2, v3
+    jumpi v4, bb4, bb2
   bb4:
     jump bb1
 }
@@ -53,21 +51,20 @@ fn @vBool() [selector=0x18a11c47, pure] {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    v7 = iszero arg0
-    v8 = iszero v7
-    mstore 128, v8
-    v9 = add 128, 32
-    v10 = sub v9, 128
-    returndata 128, v10
+    v6 = iszero arg0
+    v7 = iszero v6
+    mstore 128, v7
+    v8 = add 128, 32
+    v9 = sub v8, 128
+    returndata 128, v9
   bb2:
     revert 0, 0
   bb3:
-    v2 = make_calldata_slice 4, 32
-    v3 = calldata_slice_load_word calldata, v2, 0
+    v2 = calldataload 4
+    v3 = iszero v2
     v4 = iszero v3
-    v5 = iszero v4
-    v6 = eq v3, v5
-    jumpi v6, bb4, bb2
+    v5 = eq v2, v4
+    jumpi v5, bb4, bb2
   bb4:
     jump bb1
 }
@@ -78,19 +75,18 @@ fn @vAddress() [selector=0x23347413, pure] {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    v6 = internal_call @__cleanup2, 1, arg0
-    mstore 128, v6
-    v7 = add 128, 32
-    v8 = sub v7, 128
-    returndata 128, v8
+    v5 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 128, v5
+    v6 = add 128, 32
+    v7 = sub v6, 128
+    returndata 128, v7
   bb2:
     revert 0, 0
   bb3:
-    v2 = make_calldata_slice 4, 32
-    v3 = calldata_slice_load_word calldata, v2, 0
-    v4 = internal_call @__cleanup2, 1, v3
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb2
+    v2 = calldataload 4
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+    v4 = eq v2, v3
+    jumpi v4, bb4, bb2
   bb4:
     jump bb1
 }
@@ -101,19 +97,18 @@ fn @vBytes4() [selector=0x2c920949, pure] {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    v6 = internal_call @__cleanup3, 1, arg0
-    mstore 128, v6
-    v7 = add 128, 32
-    v8 = sub v7, 128
-    returndata 128, v8
+    v5 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 128, v5
+    v6 = add 128, 32
+    v7 = sub v6, 128
+    returndata 128, v7
   bb2:
     revert 0, 0
   bb3:
-    v2 = make_calldata_slice 4, 32
-    v3 = calldata_slice_load_word calldata, v2, 0
-    v4 = internal_call @__cleanup3, 1, v3
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb2
+    v2 = calldataload 4
+    v3 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v4 = eq v2, v3
+    jumpi v4, bb4, bb2
   bb4:
     jump bb1
 }
@@ -124,16 +119,15 @@ fn @vEnum() [selector=0x5aa5e60a, pure] {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    v5 = lt arg0, 3
-    v6 = iszero v5
-    jumpi v6, bb5, bb6
+    v4 = lt arg0, 3
+    v5 = iszero v4
+    jumpi v5, bb5, bb6
   bb2:
     revert 0, 0
   bb3:
-    v2 = make_calldata_slice 4, 32
-    v3 = calldata_slice_load_word calldata, v2, 0
-    v4 = lt v3, 3
-    jumpi v4, bb4, bb2
+    v2 = calldataload 4
+    v3 = lt v2, 3
+    jumpi v3, bb4, bb2
   bb4:
     jump bb1
   bb5:
@@ -141,11 +135,11 @@ fn @vEnum() [selector=0x5aa5e60a, pure] {
     mstore 4, 33 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v7 = internal_call @__cleanup0, 1, arg0
-    mstore 128, v7
-    v8 = add 128, 32
-    v9 = sub v8, 128
-    returndata 128, v9
+    v6 = and arg0, 255
+    mstore 128, v6
+    v7 = add 128, 32
+    v8 = sub v7, 128
+    returndata 128, v8
 }
 
 fn @vMulti() [selector=0x403ecab4, pure] {
@@ -163,23 +157,21 @@ fn @vMulti() [selector=0x403ecab4, pure] {
     revert 0, 36
   bb3:
     mstore 128, v0
-    v12 = add 128, 32
-    v13 = sub v12, 128
-    returndata 128, v13
+    v10 = add 128, 32
+    v11 = sub v10, 128
+    returndata 128, v11
   bb4:
     revert 0, 0
   bb5:
-    v4 = make_calldata_slice 4, 32
-    v5 = calldata_slice_load_word calldata, v4, 0
-    v6 = internal_call @__cleanup1, 1, v5
-    v7 = eq v5, v6
-    jumpi v7, bb6, bb4
+    v4 = calldataload 4
+    v5 = and v4, 0xffffffff
+    v6 = eq v4, v5
+    jumpi v6, bb6, bb4
   bb6:
-    v8 = make_calldata_slice 36, 32
-    v9 = calldata_slice_load_word calldata, v8, 0
-    v10 = internal_call @__cleanup4, 1, v9
-    v11 = eq v9, v10
-    jumpi v11, bb7, bb4
+    v7 = calldataload 36
+    v8 = signextend 0, v7
+    v9 = eq v7, v8
+    jumpi v9, bb7, bb4
   bb7:
     jump bb1
 }

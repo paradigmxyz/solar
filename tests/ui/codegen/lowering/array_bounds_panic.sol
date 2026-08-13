@@ -9,9 +9,7 @@
 // - storage dynamic arrays check against the length stored at the base slot;
 // - calldata dynamic arrays/bytes check against the length word at
 //   `4 + head`;
-// - constant indexes are folded inside the bounds-check helper: known in-range
-//   indexes omit the check and known out-of-range indexes emit an unconditional
-//   panic.
+    // - constant indexes remain explicit in the unoptimized MIR.
 // Runtime-verified differentially against solc 0.8.30 --via-ir on anvil:
 // in-range results match and out-of-range reverts are byte-identical.
 contract ArrayBoundsPanic {
@@ -30,7 +28,8 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @memFixConst{{[( ]}}
     // CHECK: lt 2, 3
-    // CHECK: ret
+    // CHECK: jumpi
+    // CHECK: memory_object_load_element memoryfixedarray<3, 1>, {{v[0-9]+}}, 2
     function memFixConst() public pure returns (uint256) {
         uint256[3] memory x;
         x[2] = 30;
@@ -40,7 +39,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @memFixConstOob{{[( ]}}
     // CHECK: lt 5, 3
     // CHECK: jumpi
-    // CHECK: mstore 4, 50
+    // CHECK: memory_object_load_element memoryfixedarray<3, 1>, {{v[0-9]+}}, 5
     function memFixConstOob() public pure returns (uint256) {
         uint256[3] memory x;
         return x[5];
@@ -83,7 +82,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @cdDyn{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = slice_len arg0
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
-    // CHECK: calldata_slice_load_word calldata
+    // CHECK: calldataload
     function cdDyn(uint256[] calldata x, uint256 i) public pure returns (uint256) {
         return x[i];
     }
@@ -91,7 +90,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @cdFix{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = slice_len arg0
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
-    // CHECK: calldata_slice_load_word calldata
+    // CHECK: calldataload
     function cdFix(uint256[3] calldata x, uint256 i) public pure returns (uint256) {
         return x[i];
     }

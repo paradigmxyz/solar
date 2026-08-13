@@ -2,58 +2,56 @@
 @module CalldataArraySubslice
 fn @word(arg0: calldataslice) -> memoryarray [selector=0x37948b05, pure, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[memory_array<word>]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
-    set_memory_object_len memoryarray, v0, 0
-    v1 = slice_ptr arg0
-    v2 = slice_len arg0
-    v3 = lt v2, 1
-    jumpi v3, bb1, bb2
+    v0 = slice_ptr arg0
+    v1 = slice_len arg0
+    v2 = lt v1, 1
+    jumpi v2, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v4 = sub v2, 1
-    v5 = mul 1, 32
-    v6 = iszero 32
-    v7 = div v5, 32
-    v8 = eq v7, 1
-    v9 = or v6, v8
-    v10 = iszero v9
-    jumpi v10, bb3, bb4
+    v3 = sub v1, 1
+    v4 = mul 1, 32
+    v5 = iszero 32
+    v6 = div v4, 32
+    v7 = eq v6, 1
+    v8 = or v5, v7
+    v9 = iszero v8
+    jumpi v9, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v11 = add v1, v5
-    v12 = make_calldata_slice v11, v4
-    v13 = slice_len v12
-    v14 = slice_ptr v12
-    v15 = mul v13, 32
-    v16 = iszero 32
-    v17 = div v15, 32
-    v18 = eq v17, v13
-    v19 = or v16, v18
-    v20 = iszero v19
-    jumpi v20, bb5, bb6
+    v10 = add v0, v4
+    v11 = make_calldata_slice v10, v3
+    v12 = slice_len v11
+    v13 = slice_ptr v11
+    v14 = mul v12, 32
+    v15 = iszero 32
+    v16 = div v14, 32
+    v17 = eq v16, v12
+    v18 = or v15, v17
+    v19 = iszero v18
+    jumpi v19, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v21 = add 32, v15
-    v22 = lt v21, 32
-    jumpi v22, bb7, bb8
+    v20 = add 32, v14
+    v21 = lt v20, 32
+    jumpi v21, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v23 = alloc memoryarray<1>, exact, uninitialized, infallible, v21
-    set_memory_object_len memoryarray, v23, v13
-    v24 = make_calldata_slice v14, v15
-    memory_object_copy_from_slice memoryarray, v23, v24
-    ret v23
+    v22 = alloc memoryarray<1>, exact, uninitialized, infallible, v20
+    set_memory_object_len memoryarray, v22, v12
+    v23 = make_calldata_slice v13, v14
+    memory_object_copy_from_slice memoryarray, v22, v23
+    ret v22
 }
 

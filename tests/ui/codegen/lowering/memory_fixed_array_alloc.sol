@@ -131,8 +131,9 @@ contract NamedReturnAndDelete {
     // A single wide named struct return zeroes scalar fields in bulk while
     // reference fields still point at real empty objects.
     // CHECK-LABEL: fn @emptyWideNamedStruct{{[( ]}}
-    // CHECK: [[WIDE:v[0-9]+]] = alloc memorystruct<4>, exact, zeroed, panic, 128
-    // CHECK: [[EMPTY:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic, 32
+    // CHECK: [[WIDE:v[0-9]+]] = alloc memorystruct<4>, exact, uninitialized, panic, 128
+    // CHECK: memory_zero [[WIDE]], 128
+    // CHECK: [[EMPTY:v[0-9]+]] = alloc memorybytes, exact, uninitialized, panic, 32
     // CHECK: set_memory_object_len memorybytes, [[EMPTY]], 0
     // CHECK: memory_object_store_field memorystruct<4>, [[WIDE]], 1, [[EMPTY]]
     // CHECK: ret [[WIDE]]
@@ -141,10 +142,11 @@ contract NamedReturnAndDelete {
     // Named struct returns always receive semantic default objects; optimization
     // passes remove stores overwritten before reads.
     // CHECK-LABEL: fn @fullyInitializedNamedStruct{{[( ]}}
-    // CHECK: alloc memorystruct<2>
+    // CHECK: [[STRUCT:v[0-9]+]] = alloc memorystruct<2>
+    // CHECK: alloc memoryarray<1>
     // CHECK: set_memory_object_len memoryarray, {{v[0-9]+}}, 0
+    // CHECK: alloc memorybytes
     // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 0
-    // CHECK: set_memory_object_len memoryarray, {{v[0-9]+}}, 1
     // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 1
     function fullyInitializedNamedStruct()
         public

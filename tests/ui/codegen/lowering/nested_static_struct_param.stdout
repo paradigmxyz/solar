@@ -23,21 +23,19 @@ fn @take(arg0: calldataslice) -> (u256, u256) [selector=0xd1a79489, pure, abi_ar
   bb3:
     revert 0, 0
   bb4:
-    v13 = make_calldata_slice v7, 32
-    v14 = calldata_slice_load_word calldata, v13, 0
-    v15 = slice_ptr arg0
-    v16 = add v15, 96
-    v17 = add v16, 32
-    v18 = lt v17, v16
-    v19 = calldatasize
-    v20 = gt v17, v19
-    v21 = or v18, v20
-    jumpi v21, bb5, bb6
+    v13 = calldataload v7
+    v14 = slice_ptr arg0
+    v15 = add v14, 96
+    v16 = add v15, 32
+    v17 = lt v16, v15
+    v18 = calldatasize
+    v19 = gt v16, v18
+    v20 = or v17, v19
+    jumpi v20, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
-    v22 = make_calldata_slice v16, 32
-    v23 = calldata_slice_load_word calldata, v22, 0
-    ret v14, v23
+    v21 = calldataload v15
+    ret v13, v21
 }
 

@@ -18,8 +18,8 @@ fn @assign() [selector=0x4bd0273c] {
   bb4:
     mstore 0, 1 !metadata(memory=scratch)
     v33 = shr 3, v30
-    v79 = keccak256 0, 32 !metadata(memory=scratch)
-    v34 = add v79, v33
+    v73 = keccak256 0, 32 !metadata(memory=scratch)
+    v34 = add v73, v33
     v35 = and v30, 7
     v36 = shl 2, v35
     v37 = shl 3, v36
@@ -35,14 +35,14 @@ fn @assign() [selector=0x4bd0273c] {
     v48 = lt v47, v27
     jumpi v48, bb6, bb7
   bb6:
-    v81 = add v26, 32
-    v82 = mul v47, 32
-    v83 = add v81, v82
-    v49 = mload v83
+    v75 = add v26, 32
+    v76 = mul v47, 32
+    v77 = add v75, v76
+    v49 = mload v77
     mstore 0, 1 !metadata(memory=scratch)
     v51 = shr 3, v47
-    v80 = keccak256 0, 32 !metadata(memory=scratch)
-    v52 = add v80, v51
+    v74 = keccak256 0, 32 !metadata(memory=scratch)
+    v52 = add v74, v51
     v53 = and v47, 7
     v54 = shl 2, v53
     v55 = shl 3, v54
@@ -62,40 +62,40 @@ fn @assign() [selector=0x4bd0273c] {
   bb8:
     revert 0, 0
   bb9:
-    v68 = calldataload 4
-    v75 = and v68, 0xffffffffffffffffffffffffffffffffffffffff
-    v70 = eq v68, v75
-    jumpi v70, bb10, bb8
+    v67 = calldataload 4
+    v68 = and v67, 0xffffffffffffffffffffffffffffffffffffffff
+    v69 = eq v67, v68
+    jumpi v69, bb10, bb8
   bb10:
-    v72 = calldataload 36
-    v77 = and v72, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v74 = eq v72, v77
-    jumpi v74, bb11, bb8
+    v70 = calldataload 36
+    v71 = and v70, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v72 = eq v70, v71
+    jumpi v72, bb11, bb8
   bb11:
     v14 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v89 = add v14, 64
-    v90 = lt v89, v14
-    v91 = gt v89, 0xffffffffffffffff
-    v92 = or v90, v91
-    jumpi v92, bb13, bb12
+    v81 = add v14, 64
+    v82 = lt v81, v14
+    v83 = gt v81, 0xffffffffffffffff
+    v84 = or v82, v83
+    jumpi v84, bb13, bb12
   bb12:
-    mstore 64, v89 !metadata(memory=scratch)
-    v93 = calldatasize
-    calldatacopy v14, v93, 64
+    mstore 64, v81 !metadata(memory=scratch)
+    v85 = calldatasize
+    calldatacopy v14, v85, 64
     mstore v14, 1
-    v86 = add v14, 32
-    mstore v86, arg1
+    v78 = add v14, 32
+    mstore v78, arg1
     v18 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
     mstore v18, arg0
-    v87 = add v18, 32
-    mstore v87, v14
+    v79 = add v18, 32
+    mstore v79, v14
     v19 = mload v18
     v20 = sload 0 !metadata(storage=slot(0))
     v22 = and v20, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
     v23 = and v19, 0xffffffffffffffffffffffffffffffffffffffff
     v24 = or v22, v23
     sstore 0, v24 !metadata(storage=slot(0))
-    v26 = mload v87
+    v26 = mload v79
     v27 = mload v26
     v28 = sload 1 !metadata(storage=slot(1))
     v29 = gt v28, v27
@@ -117,17 +117,17 @@ fn @push() [selector=0xa60249a3] {
     revert 0, 36
   bb2:
     mstore 0, 2 !metadata(memory=scratch)
-    v84 = mul v19, 2
-    v83 = keccak256 0, 32 !metadata(memory=scratch)
-    v85 = add v83, v84
+    v78 = mul v19, 2
+    v77 = keccak256 0, 32 !metadata(memory=scratch)
+    v79 = add v77, v78
     v23 = mload v18
-    v24 = sload v85 !metadata(storage=symbolic(v22))
+    v24 = sload v79 !metadata(storage=symbolic(v22))
     v26 = and v24, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
     v27 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
     v28 = or v26, v27
-    sstore v85, v28 !metadata(storage=symbolic(v22))
-    v29 = add v85, 1
-    v30 = mload v95
+    sstore v79, v28 !metadata(storage=symbolic(v22))
+    v29 = add v79, 1
+    v30 = mload v87
     v31 = mload v30
     v32 = sload v29 !metadata(storage=offset(v22, 1))
     v33 = gt v32, v31
@@ -144,8 +144,8 @@ fn @push() [selector=0xa60249a3] {
   bb6:
     mstore 0, v29 !metadata(memory=scratch)
     v37 = shr 3, v34
-    v86 = keccak256 0, 32 !metadata(memory=scratch)
-    v38 = add v86, v37
+    v80 = keccak256 0, 32 !metadata(memory=scratch)
+    v38 = add v80, v37
     v39 = and v34, 7
     v40 = shl 2, v39
     v41 = shl 3, v40
@@ -161,14 +161,14 @@ fn @push() [selector=0xa60249a3] {
     v52 = lt v51, v31
     jumpi v52, bb8, bb9
   bb8:
-    v89 = add v30, 32
-    v90 = mul v51, 32
-    v91 = add v89, v90
-    v53 = mload v91
+    v83 = add v30, 32
+    v84 = mul v51, 32
+    v85 = add v83, v84
+    v53 = mload v85
     mstore 0, v29 !metadata(memory=scratch)
     v55 = shr 3, v51
-    v87 = keccak256 0, 32 !metadata(memory=scratch)
-    v56 = add v87, v55
+    v81 = keccak256 0, 32 !metadata(memory=scratch)
+    v56 = add v81, v55
     v57 = and v51, 7
     v58 = shl 2, v57
     v59 = shl 3, v58
@@ -189,33 +189,33 @@ fn @push() [selector=0xa60249a3] {
   bb10:
     revert 0, 0
   bb11:
-    v72 = calldataload 4
-    v79 = and v72, 0xffffffffffffffffffffffffffffffffffffffff
-    v74 = eq v72, v79
-    jumpi v74, bb12, bb10
+    v71 = calldataload 4
+    v72 = and v71, 0xffffffffffffffffffffffffffffffffffffffff
+    v73 = eq v71, v72
+    jumpi v73, bb12, bb10
   bb12:
-    v76 = calldataload 36
-    v81 = and v76, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v78 = eq v76, v81
-    jumpi v78, bb13, bb10
+    v74 = calldataload 36
+    v75 = and v74, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v76 = eq v74, v75
+    jumpi v76, bb13, bb10
   bb13:
     v14 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v96 = add v14, 64
-    v97 = lt v96, v14
-    v98 = gt v96, 0xffffffffffffffff
-    v99 = or v97, v98
-    jumpi v99, bb15, bb14
+    v88 = add v14, 64
+    v89 = lt v88, v14
+    v90 = gt v88, 0xffffffffffffffff
+    v91 = or v89, v90
+    jumpi v91, bb15, bb14
   bb14:
-    mstore 64, v96 !metadata(memory=scratch)
-    v100 = calldatasize
-    calldatacopy v14, v100, 64
+    mstore 64, v88 !metadata(memory=scratch)
+    v92 = calldatasize
+    calldatacopy v14, v92, 64
     mstore v14, 1
-    v94 = add v14, 32
-    mstore v94, arg1
+    v86 = add v14, 32
+    mstore v86, arg1
     v18 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
     mstore v18, arg0
-    v95 = add v18, 32
-    mstore v95, v14
+    v87 = add v18, 32
+    mstore v87, v14
     v19 = sload 2 !metadata(storage=slot(2))
     v20 = add v19, 1
     v21 = lt v20, v19
@@ -317,7 +317,6 @@ fn @pop() [selector=0xa4ece52c] {
   bb12:
     mstore 64, v66 !metadata(memory=scratch)
     mstore v5, 0
-    mstore v5, 0
     v57 = add v4, 32
     mstore v57, v5
     v6 = mload v4
@@ -355,8 +354,8 @@ fn @assignFixed() [selector=0xb7ffd825] {
   bb4:
     mstore 0, 4 !metadata(memory=scratch)
     v37 = shr 3, v34
-    v83 = keccak256 0, 32 !metadata(memory=scratch)
-    v38 = add v83, v37
+    v77 = keccak256 0, 32 !metadata(memory=scratch)
+    v38 = add v77, v37
     v39 = and v34, 7
     v40 = shl 2, v39
     v41 = shl 3, v40
@@ -372,14 +371,14 @@ fn @assignFixed() [selector=0xb7ffd825] {
     v52 = lt v51, v31
     jumpi v52, bb6, bb7
   bb6:
-    v85 = add v30, 32
-    v86 = mul v51, 32
-    v87 = add v85, v86
-    v53 = mload v87
+    v79 = add v30, 32
+    v80 = mul v51, 32
+    v81 = add v79, v80
+    v53 = mload v81
     mstore 0, 4 !metadata(memory=scratch)
     v55 = shr 3, v51
-    v84 = keccak256 0, 32 !metadata(memory=scratch)
-    v56 = add v84, v55
+    v78 = keccak256 0, 32 !metadata(memory=scratch)
+    v56 = add v78, v55
     v57 = and v51, 7
     v58 = shl 2, v57
     v59 = shl 3, v58
@@ -399,40 +398,40 @@ fn @assignFixed() [selector=0xb7ffd825] {
   bb8:
     revert 0, 0
   bb9:
-    v72 = calldataload 4
-    v79 = and v72, 0xffffffffffffffffffffffffffffffffffffffff
-    v74 = eq v72, v79
-    jumpi v74, bb10, bb8
+    v71 = calldataload 4
+    v72 = and v71, 0xffffffffffffffffffffffffffffffffffffffff
+    v73 = eq v71, v72
+    jumpi v73, bb10, bb8
   bb10:
-    v76 = calldataload 36
-    v81 = and v76, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v78 = eq v76, v81
-    jumpi v78, bb11, bb8
+    v74 = calldataload 36
+    v75 = and v74, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v76 = eq v74, v75
+    jumpi v76, bb11, bb8
   bb11:
     v14 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v93 = add v14, 64
-    v94 = lt v93, v14
-    v95 = gt v93, 0xffffffffffffffff
-    v96 = or v94, v95
-    jumpi v96, bb13, bb12
+    v85 = add v14, 64
+    v86 = lt v85, v14
+    v87 = gt v85, 0xffffffffffffffff
+    v88 = or v86, v87
+    jumpi v88, bb13, bb12
   bb12:
-    mstore 64, v93 !metadata(memory=scratch)
-    v97 = calldatasize
-    calldatacopy v14, v97, 64
+    mstore 64, v85 !metadata(memory=scratch)
+    v89 = calldatasize
+    calldatacopy v14, v89, 64
     mstore v14, 1
-    v90 = add v14, 32
-    mstore v90, arg1
+    v82 = add v14, 32
+    mstore v82, arg1
     v18 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
     mstore v18, arg0
-    v91 = add v18, 32
-    mstore v91, v14
+    v83 = add v18, 32
+    mstore v83, v14
     v23 = mload v18
     v24 = sload 3 !metadata(storage=slot(3))
     v26 = and v24, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
     v27 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
     v28 = or v26, v27
     sstore 3, v28 !metadata(storage=slot(3))
-    v30 = mload v91
+    v30 = mload v83
     v31 = mload v30
     v32 = sload 4 !metadata(storage=slot(4))
     v33 = gt v32, v31

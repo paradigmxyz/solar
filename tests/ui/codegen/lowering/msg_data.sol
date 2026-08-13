@@ -28,7 +28,7 @@ contract MsgData {
     // CHECK: chainid
     // CHECK: basefee
     // CHECK: blobbasefee
-    // CHECK: calldata_slice_load_word calldata
+    // CHECK: calldataload
     // CHECK: origin
     // CHECK: gasprice
     // CHECK: gas

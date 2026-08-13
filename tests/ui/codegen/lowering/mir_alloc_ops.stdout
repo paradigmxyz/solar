@@ -2,7 +2,8 @@
 @module MirAllocOps
 fn @fixedArray(arg0: u256) -> u256 [selector=0x9a5009ac, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, zeroed, panic, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, panic, 64
+    memory_zero v0, 64
     v1 = lt 0, 2
     v2 = iszero v1
     jumpi v2, bb1, bb2
@@ -26,56 +27,54 @@ fn @fixedArray(arg0: u256) -> u256 [selector=0x9a5009ac, pure, abi_args=lazy, ab
 
 fn @dynamic(arg0: calldataslice) -> memorybytes [selector=0xd543852a, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 32
-    set_memory_object_len memorybytes, v0, 0
-    v1 = slice_ptr arg0
-    v2 = slice_len arg0
-    v3 = gt v2, 0xffffffffffffffff
-    jumpi v3, bb1, bb2
+    v0 = slice_ptr arg0
+    v1 = slice_len arg0
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v4 = calldatasize
-    v5 = sub v4, v2
-    v6 = sgt v1, v5
-    jumpi v6, bb3, bb4
+    v3 = calldatasize
+    v4 = sub v3, v1
+    v5 = sgt v0, v4
+    jumpi v5, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v7 = slice_len arg0
-    v8 = add v7, 31
-    v9 = lt v8, v7
-    jumpi v9, bb5, bb6
+    v6 = slice_len arg0
+    v7 = add v6, 31
+    v8 = lt v7, v6
+    jumpi v8, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v10 = div v8, 32
-    v11 = add v10, 1
-    v12 = lt v11, v10
-    jumpi v12, bb7, bb8
+    v9 = div v7, 32
+    v10 = add v9, 1
+    v11 = lt v10, v9
+    jumpi v11, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v13 = mul v11, 32
-    v14 = iszero 32
-    v15 = div v13, 32
-    v16 = eq v15, v11
-    v17 = or v14, v16
-    v18 = iszero v17
-    jumpi v18, bb9, bb10
+    v12 = mul v10, 32
+    v13 = iszero 32
+    v14 = div v12, 32
+    v15 = eq v14, v10
+    v16 = or v13, v15
+    v17 = iszero v16
+    jumpi v17, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    v19 = alloc memorybytes, exact, uninitialized, infallible, v13
-    set_memory_object_len memorybytes, v19, v7
-    memory_object_copy_from_slice memorybytes, v19, arg0
-    ret v19
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v18, v6
+    memory_object_copy_from_slice memorybytes, v18, arg0
+    ret v18
 }
 
 fn @frameShadow() -> (u256, u256, u256, u256) [selector=0x7953faf2, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word]] {

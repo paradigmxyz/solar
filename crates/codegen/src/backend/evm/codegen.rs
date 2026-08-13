@@ -2806,8 +2806,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             let (values, colorable) = Self::cross_block_spill_values_and_colorable(func, liveness);
             if !colorable.is_empty() {
                 let ranges = Self::spill_live_ranges(func, liveness, &colorable);
-                let interferences =
+                let mut interferences =
                     Self::parallel_phi_interferences(&colorable, &self.block_copies);
+                Self::phi_edge_interferences(
+                    func,
+                    liveness,
+                    &colorable,
+                    &self.block_copies,
+                    &mut interferences,
+                );
 
                 let mut colors = Vec::<SpillColor>::new();
                 for value in &colorable {
@@ -2989,6 +2996,31 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         interferences
+    }
+
+    /// Keeps a phi destination disjoint from values that must survive the predecessor's
+    /// terminator. Phi copies are emitted before that terminator, so ordinary value ranges begin
+    /// too late to model the destination store overwriting a live branch operand or a value used
+    /// on the other edge.
+    fn phi_edge_interferences(
+        func: &Function,
+        liveness: &Liveness,
+        colorable: &DenseBitSet<ValueId>,
+        block_copies: &FxHashMap<BlockId, Vec<ParallelCopy>>,
+        interferences: &mut SpillInterferences,
+    ) {
+        for (&block, copies) in block_copies {
+            let mut protected = liveness.live_out(block).iter().collect::<Vec<_>>();
+            if let Some(term) = &func.blocks[block].terminator {
+                protected.extend(term.operands());
+            }
+            for copy in copies {
+                let CopyDest::Value(destination) = &copy.dst else { continue };
+                for &value in &protected {
+                    Self::add_spill_interference(interferences, colorable, *destination, value);
+                }
+            }
+        }
     }
 
     fn add_spill_interference(

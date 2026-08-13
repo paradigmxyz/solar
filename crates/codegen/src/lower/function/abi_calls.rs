@@ -311,7 +311,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         validate_bounds: bool,
     ) -> Option<ValueId> {
         let word = self.builder.imm_u64(32);
-        let element_head_size = self.builder.imm_u64(self.types.abi_type(element)?.head_size());
+        let element_abi = self.types.abi_type(element)?;
+        let element_is_dynamic = element_abi.is_dynamic();
+        let element_head_size = self.builder.imm_u64(element_abi.head_size());
         let payload_size = self.checked_mul(length, word);
         let size = self.checked_add(word, payload_size);
         let object = self.builder.alloc_object(
@@ -336,8 +338,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(body);
         let offset = self.checked_mul(index, element_head_size);
         let head = self.builder.add(data, offset);
-        let value =
-            self.materialize_calldata_value_at_inner(element, head, data, span, validate_bounds)?;
+        let value = self.materialize_calldata_value_at_inner(
+            element,
+            head,
+            data,
+            span,
+            validate_bounds && element_is_dynamic,
+        )?;
         self.builder.memory_object_store_element(
             object,
             MemoryObjectLayout::WORD_ARRAY,
@@ -512,9 +519,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 validate_bounds,
             ),
             TyKind::Fn(function) if function.is_external() => {
-                Some(self.decode_calldata_function_pointer(value_pos))
+                Some(self.decode_calldata_function_pointer_with_bounds(value_pos, validate_bounds))
             }
-            _ => Some(self.decode_calldata_word(ty, value_pos)),
+            _ => Some(self.decode_calldata_word(ty, value_pos, validate_bounds)),
         }
     }
 
@@ -595,15 +602,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn calldata_load_word(&mut self, pointer: ValueId) -> ValueId {
-        let length = self.builder.imm_u64(32);
-        let slice = self.builder.make_slice(pointer, length, SliceLocation::Calldata);
-        let zero = self.builder.imm_u64(0);
-        self.builder.calldata_slice_load_word(slice, zero)
+        self.builder.calldataload(pointer)
     }
 
-    fn decode_calldata_function_pointer(&mut self, position: ValueId) -> ValueId {
+    fn decode_calldata_function_pointer_with_bounds(
+        &mut self,
+        position: ValueId,
+        validate_bounds: bool,
+    ) -> ValueId {
         let word = self.builder.imm_u64(32);
-        self.check_calldata_range(position, word);
+        if validate_bounds {
+            self.check_calldata_range(position, word);
+        }
         let value = self.calldata_load_word(position);
         let mask = self.builder.imm_u256(U256::MAX << 64);
         let canonical = self.builder.and(value, mask);
@@ -614,15 +624,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.shr(shift, value)
     }
 
-    fn decode_calldata_word(&mut self, ty: Ty<'gcx>, position: ValueId) -> ValueId {
+    fn decode_calldata_word(
+        &mut self,
+        ty: Ty<'gcx>,
+        position: ValueId,
+        validate_bounds: bool,
+    ) -> ValueId {
         if let TyKind::Fn(function) = ty.kind
             && function.is_external()
         {
-            return self.decode_calldata_function_pointer(position);
+            return self.decode_calldata_function_pointer_with_bounds(position, validate_bounds);
         }
 
         let word = self.builder.imm_u64(32);
-        self.check_calldata_range(position, word);
+        if validate_bounds {
+            self.check_calldata_range(position, word);
+        }
         let value = self.calldata_load_word(position);
         let valid = match ty.kind {
             TyKind::Enum(id) => {
@@ -704,23 +721,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
         validate_bounds: bool,
     ) -> Option<ValueId> {
-        let word = self.builder.imm_u64(32);
-        let length_value = self.builder.imm_u64(length);
-        let size = self.checked_mul(length_value, word);
-        let element_head_size = self.types.abi_type(element)?.head_size();
+        let element_abi = self.types.abi_type(element)?;
+        let element_head_size = element_abi.head_size();
+        if validate_bounds {
+            let head_size = length.checked_mul(element_head_size)?;
+            let head_size = self.builder.imm_u64(head_size);
+            self.check_calldata_tail_range(base, head_size);
+        }
+        let size = self.builder.imm_u64(length.checked_mul(32)?);
         let layout = MemoryObjectLayout::FixedArray { len: length, element_words: 1 };
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         for index in 0..length {
             let index_value = self.builder.imm_u64(index);
-            let element_head_size_value = self.builder.imm_u64(element_head_size);
-            let head_offset = self.checked_mul(index_value, element_head_size_value);
+            let head_offset = self.builder.imm_u64(index.checked_mul(element_head_size)?);
             let head = self.builder.add(base, head_offset);
             let value = self.materialize_calldata_value_at_inner(
                 element,
                 head,
                 base,
                 span,
-                validate_bounds,
+                validate_bounds && element_abi.is_dynamic(),
             )?;
             self.builder.memory_object_store_element(object, layout, index_value, value);
         }
@@ -735,6 +755,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         validate_bounds: bool,
     ) -> Option<ValueId> {
         let fields = fields.into_iter().collect::<Vec<_>>();
+        let mut head_size = 0_u64;
+        let all_static = fields.iter().all(|&field| {
+            let Some(abi) = self.types.abi_type(field) else { return false };
+            head_size = head_size.saturating_add(abi.head_size());
+            !abi.is_dynamic()
+        });
+        let nested_validate = if validate_bounds && all_static {
+            let head_size = self.builder.imm_u64(head_size);
+            self.check_calldata_tail_range(base, head_size);
+            false
+        } else {
+            validate_bounds
+        };
         let layout = MemoryObjectLayout::Struct { fields: fields.len() as u64 };
         let size = self.builder.imm_u64(fields.len().checked_mul(32)? as u64);
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
@@ -743,7 +776,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let field_offset = self.builder.imm_u64(offset);
             let head = self.builder.add(base, field_offset);
             let value =
-                self.materialize_calldata_value_at_inner(field, head, base, span, validate_bounds)?;
+                self.materialize_calldata_value_at_inner(field, head, base, span, nested_validate)?;
             self.builder.memory_object_store_field(object, layout, index as u64, value);
             offset = offset.checked_add(self.types.abi_type(field)?.head_size())?;
         }

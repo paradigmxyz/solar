@@ -56,9 +56,6 @@ bb23 [cold]:
   mstore
   push bb17
   jumpi
-  push bb29
-  jump bb25
-bb25:
   push 0x8c379a0
   push 224
   shl
@@ -67,7 +64,19 @@ bb25:
   push 32
   push 4
   mstore
-  jump
+  push 4
+  push 36
+  mstore
+  push 0x7a65726f
+  push 224
+  jump bb24
+bb24 [cold]:
+  shl
+  push 68
+  mstore
+  push 100
+  push 0
+  revert
 bb10:
   calldatasize
   push 36
@@ -91,6 +100,19 @@ bb17 [cold]:
   jumpi
   push bb26
   jump bb25
+bb25:
+  push 0x8c379a0
+  push 224
+  shl
+  push 0
+  mstore
+  push 32
+  push 4
+  mstore
+  push 3
+  push 36
+  mstore
+  jump
 bb19 [cold]:
   push 2
   push 160
@@ -101,40 +123,25 @@ bb19 [cold]:
   push bb27
   jump bb25
 bb21 [cold]:
-  push bb28
-  jump bb25
-bb26 [cold]:
-  push 3
-  push 36
-  mstore
-  push 0x6f6e65
-  push 232
-  jump bb24
-bb24 [cold]:
+  push 0x8c379a0
+  push 224
   shl
-  push 68
-  mstore
-  push 100
   push 0
-  revert
-bb27 [cold]:
-  push 3
-  push 36
   mstore
-  push 0x74776f
-  push 232
-  jump bb24
-bb28 [cold]:
+  push 32
+  push 4
+  mstore
   push 5
   push 36
   mstore
   push 0x6f74686572
   push 216
   jump bb24
-bb29 [cold]:
-  push 4
-  push 36
-  mstore
-  push 0x7a65726f
-  push 224
+bb26 [cold]:
+  push 0x6f6e65
+  push 232
+  jump bb24
+bb27 [cold]:
+  push 0x74776f
+  push 232
   jump bb24

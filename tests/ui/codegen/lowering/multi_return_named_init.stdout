@@ -6,19 +6,19 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) [pure] {
   bb1:
     v0 = phi [bb0: arg1], [bb16: v23]
     v1 = phi [bb0: arg0], [bb16: v1]
-    v2 = phi [bb0: 0], [bb16: v22]
-    v3 = phi [bb0: 0], [bb16: v25]
+    v2 = phi [bb0: 0], [bb16: v25]
+    v3 = phi [bb0: 0], [bb16: v22]
     v4 = phi [bb0: arg1], [bb16: v4]
-    v5 = lt v3, 8
+    v5 = lt v2, 8
     jumpi v5, bb4, bb5
   bb2:
-    ret v2, v0
+    ret v3, v0
   bb3:
-    v25 = add v3, 1
-    v26 = lt v25, v3
+    v25 = add v2, 1
+    v26 = lt v25, v2
     jumpi v26, bb15, bb16
   bb4:
-    v6 = shl 8, v2
+    v6 = shl 8, v3
     v7 = and v6, 0xffffffffffffffff
     v8 = slice_len v1
     v9 = lt v0, v8
