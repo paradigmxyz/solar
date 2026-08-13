@@ -3499,6 +3499,15 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
             evm_version="osaka",
             standard_input=cls.stateful_reference_input,
         )
+        cls.solar_stateful_reference = evm.compile_standard_artifact(
+            cls.solar,
+            cls.stateful_reference,
+            "StatefulDifferential",
+            30,
+            kind="solar",
+            evm_version="osaka",
+            standard_input=cls.stateful_reference_input,
+        )
         stateful_mutant_input = evm.materialize_standard_input(
             cls.solc,
             cls.stateful_mutant,
@@ -4446,6 +4455,20 @@ class SymbolicDifferentialIntegrationTests(unittest.TestCase):
         self.assertTrue(
             manifest["replay"]["durable_foundry_artifact"]["reproduced"]
         )
+
+    def test_stateful_duplicate_writes_do_not_create_a_false_mismatch(self):
+        returncode, summary, manifest = self._run(
+            self.solar_stateful_reference,
+            source=self.stateful_reference,
+            contract="StatefulDifferential",
+            solc_artifact=self.solc_stateful_reference,
+            materialized=self.stateful_reference_input,
+            include_stateful=True,
+        )
+
+        self.assertEqual(returncode, 0)
+        self.assertEqual(summary["status"], "no_mismatch_within_bounds")
+        self.assertEqual(manifest["forge"]["symbolic_status"], "pass")
 
     def test_dynamic_bytes_shape_and_contents_find_a_durable_mismatch(self):
         returncode, summary, manifest = self._run(

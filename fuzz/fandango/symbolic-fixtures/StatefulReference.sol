@@ -7,6 +7,7 @@ contract StatefulDifferential {
     event Observed(uint256 value);
 
     function probe(uint256 value) external returns (uint256) {
+        stored = value ^ 1;
         stored = value;
         emit Observed(value);
         return value;

@@ -570,6 +570,8 @@ contract SymbolicDifferentialTest {{
         for (uint256 i; i < writesA.length; ++i) {{
             bytes32 valueA = vm.load(address(ROUTER), writesA[i]);
             vm.store(STATE_MIRROR, writesA[i], valueA);
+        }}
+        for (uint256 i; i < writesA.length; ++i) {{
             vm.store(address(ROUTER), writesA[i], bytes32(0));
         }}
 
