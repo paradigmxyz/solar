@@ -1,6 +1,8 @@
 //@ compile-flags: -O gas
 //@ run-call: g 10 => 24
 //@ run-call: h 10 => 25
+//@ run-call: i 10 => 30
+//@ run-call: j 10 => 31
 
 // A static-frame internal callee whose `resident` selection bails on a `Switch`
 // terminator can fall through to the `direct` stack-argument convention, which
@@ -35,4 +37,19 @@ contract C {
 
     function g(uint256 x) external returns (uint256) { return f(x, 3); }
     function h(uint256 x) external returns (uint256) { return f(x, 3) + 1; }
+
+    // A switch drains its selector layout before rebuilding the terminator inputs. A multi-use
+    // argument must therefore retain a memory home rather than use the direct-only convention.
+    function switchOnly(uint256 a) internal pure returns (uint256 out) {
+        uint256 twice = a + a;
+        assembly {
+            switch a
+            case 0 { out := 1 }
+            default { out := a }
+        }
+        return twice + out;
+    }
+
+    function i(uint256 x) external pure returns (uint256) { return switchOnly(x); }
+    function j(uint256 x) external pure returns (uint256) { return switchOnly(x) + 1; }
 }

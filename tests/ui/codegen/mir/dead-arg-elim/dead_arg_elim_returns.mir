@@ -13,10 +13,10 @@ fn @discarded(arg0: u256) -> u256 {
     ret arg0
 }
 
-// The discarded result propagates through a self-recursive call and return.
-// CHECK-LABEL: fn @recursive(arg0: bool, arg1: u256)
-// CHECK: internal_call @recursive, 0, 0, arg1
-// CHECK: ret
+// A returned call result is not effect-free, so the recursive call protocol remains intact.
+// CHECK-LABEL: fn @recursive(arg0: bool, arg1: u256) -> u256
+// CHECK: v0 = internal_call @recursive, 1, 0, arg1
+// CHECK: ret v0
 fn @recursive(arg0: bool, arg1: u256) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2
@@ -36,7 +36,7 @@ fn @kept(arg0: u256) -> u256 {
 
 // CHECK-LABEL: fn @entry() -> u256
 // CHECK: internal_call @discarded, 0, 7
-// CHECK: internal_call @recursive, 0, 1, 8
+// CHECK: v0 = internal_call @recursive, 1, 1, 8
 // CHECK: internal_call @kept, 1, 9
 fn @entry() -> u256 [selector=0x01020304] {
   bb0:

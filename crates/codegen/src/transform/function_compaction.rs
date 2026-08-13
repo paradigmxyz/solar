@@ -8,8 +8,8 @@ use crate::{
     analysis::CallGraphInfo,
     memory::EvmMemoryLayout,
     mir::{
-        ArgIdx, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module, StorageAlias,
-        Terminator, Value, ValueId,
+        ArgIdx, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
+        StorageAlias, Terminator, Value, ValueId,
     },
     pass::{MirPass, ModuleAnalyses},
 };
@@ -341,8 +341,19 @@ fn record_arg_dependencies(
     dependents: &mut ArgDependents,
 ) {
     for (index, &arg) in args.iter().enumerate() {
+        let callee_arg = ArgIdx::new(index);
+        if !value_dependencies_are_pure(caller, arg) {
+            if callee_arg.index() < live[callee_id].domain_size() {
+                live[callee_id].insert(callee_arg);
+            } else {
+                // A malformed extra call operand is diagnosed by validation, but retaining the
+                // caller dependency keeps this optional transform conservative before that point.
+                mark_arg_live(caller, arg, &mut live[caller_id]);
+            }
+            continue;
+        }
         let Value::Arg(caller_arg) = caller.value(arg) else { continue };
-        if let Some(callee_dependents) = dependents[callee_id].get_mut(ArgIdx::new(index)) {
+        if let Some(callee_dependents) = dependents[callee_id].get_mut(callee_arg) {
             callee_dependents.push((caller_id, *caller_arg));
         } else {
             // A malformed extra call operand was conservatively treated as live by the fixed-point
@@ -380,6 +391,7 @@ fn prune_unused_returns(module: &mut Module) -> usize {
             && func.returns.len() == 1
             && is_internal_body(func)
             && frame_offsets_are_local(func)
+            && returned_value_dependencies_are_pure(func)
         {
             candidates.insert(func_id);
         }
@@ -479,6 +491,44 @@ fn prune_unused_returns(module: &mut Module) -> usize {
     removed
 }
 
+/// Returns whether discarding `value` can expose only pure instructions to later DCE.
+///
+/// Reads are deliberately retained even when their loaded value is otherwise unused: memory reads
+/// can expand memory as observed by `msize`, state reads affect warm/cold access costs, and
+/// environment reads such as `gas` are directly observable. Argument leaves are safe here because
+/// argument pruning applies this same proof to every concrete call operand and propagates caller
+/// argument dependencies to a fixed point.
+fn value_dependencies_are_pure(func: &Function, value: ValueId) -> bool {
+    let mut seen = DenseBitSet::new_empty(func.num_values());
+    let mut worklist = vec![value];
+    while let Some(value) = worklist.pop() {
+        if !seen.insert(value) {
+            continue;
+        }
+        match func.value(value) {
+            Value::Arg(_) | Value::Immediate(_) | Value::Undef(_) => {}
+            Value::Error(_) => return false,
+            Value::Inst(inst_id) => {
+                let inst = func.inst(*inst_id);
+                if inst.kind.effect_kind() != EffectKind::Pure
+                    || inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure)
+                {
+                    return false;
+                }
+                worklist.extend(inst.kind.operands());
+            }
+        }
+    }
+    true
+}
+
+fn returned_value_dependencies_are_pure(func: &Function) -> bool {
+    func.blocks.iter().all(|block| {
+        let Some(Terminator::Return { values }) = &block.terminator else { return true };
+        values.iter().all(|&value| value_dependencies_are_pure(func, value))
+    })
+}
+
 fn has_material_use(func: &Function, value: ValueId, function_result_live: bool) -> bool {
     if func.instructions().any(|inst_id| func.inst(inst_id).kind.operands().contains(&value)) {
         return true;
@@ -551,12 +601,14 @@ impl<'a> CanonValues<'a> {
 /// their callers equivalent on the next wave. Dead-function elimination follows this pass in the
 /// canonical pipeline and removes redirected bodies.
 fn merge_equivalent_functions(module: &mut Module) -> usize {
-    let recursive = CallGraphInfo::new(module);
     let mut merged = DenseBitSet::new_empty(module.functions.len());
     let mut total = 0;
     let mut merged_instructions = 0usize;
 
     loop {
+        // Redirecting one merge wave changes the graph observed by the next wave. Recompute SCC
+        // information so recursion eligibility never relies on the pre-redirect call graph.
+        let recursive = CallGraphInfo::new(module);
         let mut groups = FxHashMap::<u64, Vec<FunctionId>>::default();
         for (func_id, func) in module.functions.iter_enumerated() {
             if !merged.contains(func_id) && is_merge_candidate(func_id, func, &recursive) {

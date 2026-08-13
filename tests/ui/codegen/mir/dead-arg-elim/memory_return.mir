@@ -2,11 +2,10 @@
 //@ filecheck:
 @module MemoryReturn
 
-// A discarded memory reference may still have escaped through inline assembly. Remove its call
-// protocol, but retain that lifetime constraint independently for backend frame restoration.
-// CHECK-LABEL: fn @escape() [may_return_memory]
+// Reading the free-memory pointer is an observable memory read, so retain the result protocol.
+// CHECK-LABEL: fn @escape() -> memptr
 // CHECK: v0 = fmp
-// CHECK-NEXT: ret
+// CHECK-NEXT: ret v0
 fn @escape() -> memptr {
   bb0:
     v0 = fmp
@@ -14,7 +13,7 @@ fn @escape() -> memptr {
 }
 
 // CHECK-LABEL: fn @entry()
-// CHECK: internal_call @escape, 0
+// CHECK: v0 = internal_call @escape, 1
 fn @entry() [selector=0x01020304] {
   bb0:
     v0 = internal_call fn0, 1

@@ -79,7 +79,8 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
     let mut changed = false;
 
     for inst in original {
-        if inst.is_encoded_push() {
+        let canonical_stack_effect = has_canonical_stack_effect(&inst);
+        if canonical_stack_effect && inst.is_encoded_push() {
             let Some(value) = inst.value else {
                 append_unknown(inst, instructions, &mut stack, &mut next_expr);
                 continue;
@@ -109,7 +110,7 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
         }
 
         let opcode = inst.opcode;
-        if (op::DUP1..=op::DUP16).contains(&opcode) {
+        if canonical_stack_effect && (op::DUP1..=op::DUP16).contains(&opcode) {
             let depth = usize::from(opcode - op::DUP1 + 1);
             ensure_depth(&mut stack, depth, &mut next_expr);
             let value = stack[stack.len() - depth];
@@ -117,7 +118,7 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
             stack.push(StackValue { expr: value.expr, span: None });
             continue;
         }
-        if (op::SWAP1..=op::SWAP16).contains(&opcode) {
+        if canonical_stack_effect && (op::SWAP1..=op::SWAP16).contains(&opcode) {
             let depth = usize::from(opcode - op::SWAP1 + 1);
             ensure_depth(&mut stack, depth + 1, &mut next_expr);
             let top = stack.len() - 1;
@@ -125,13 +126,13 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
             instructions.push(inst);
             continue;
         }
-        if opcode == op::POP {
+        if canonical_stack_effect && opcode == op::POP {
             ensure_depth(&mut stack, 1, &mut next_expr);
             stack.pop();
             instructions.push(inst);
             continue;
         }
-        if matches!(opcode, op::SWAPN | op::EXCHANGE) {
+        if canonical_stack_effect && matches!(opcode, op::SWAPN | op::EXCHANGE) {
             // EOF extended swaps select physical words through an immediate operand that EVM IR
             // does not model yet. Their net stack effect is 0 -> 0, but preserving the current
             // value identities would be unsound because the instruction rearranges them.
@@ -140,7 +141,10 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
             continue;
         }
 
-        if let Some((inputs, read_epoch)) = expression_inputs(opcode, memory_epoch, storage_epoch) {
+        if canonical_stack_effect
+            && let Some((inputs, read_epoch)) =
+                expression_inputs(opcode, memory_epoch, storage_epoch)
+        {
             ensure_depth(&mut stack, inputs, &mut next_expr);
             let mut operands = SmallVec::<[StackValue; 3]>::new();
             for _ in 0..inputs {
@@ -186,7 +190,8 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
             continue;
         }
 
-        let effect = default_instruction_stack_effect(&inst);
+        let stack_effect =
+            canonical_stack_effect.then(|| default_instruction_stack_effect(&inst)).flatten();
         instructions.push(inst);
         if op::writes_memory(opcode) {
             memory_epoch = memory_epoch.wrapping_add(1);
@@ -194,7 +199,11 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
         if op::writes_storage(opcode) {
             storage_epoch = storage_epoch.wrapping_add(1);
         }
-        if let Some(effect) = effect {
+        if !canonical_stack_effect {
+            // An explicit override describes only net inputs and outputs, not how a future
+            // instruction may permute surviving words. Forget every symbolic identity across it.
+            stack.clear();
+        } else if let Some(effect) = stack_effect {
             let inputs = usize::from(effect.inputs);
             ensure_depth(&mut stack, inputs, &mut next_expr);
             stack.truncate(stack.len() - inputs);
@@ -226,7 +235,8 @@ fn may_regenerate(instructions: &[Instruction]) -> bool {
     let mut storage_epoch = 0u64;
 
     for (inst_idx, inst) in instructions.iter().enumerate() {
-        if inst.is_encoded_push() {
+        let canonical_stack_effect = has_canonical_stack_effect(inst);
+        if canonical_stack_effect && inst.is_encoded_push() {
             let Some(value) = inst.value else {
                 stack.push(FingerprintValue { expr: fresh_hash(&mut next_fresh), span: None });
                 continue;
@@ -243,31 +253,34 @@ fn may_regenerate(instructions: &[Instruction]) -> bool {
         }
 
         let opcode = inst.opcode;
-        if (op::DUP1..=op::DUP16).contains(&opcode) {
+        if canonical_stack_effect && (op::DUP1..=op::DUP16).contains(&opcode) {
             let depth = usize::from(opcode - op::DUP1 + 1);
             ensure_hash_depth(&mut stack, depth, &mut next_fresh);
             let value = stack[stack.len() - depth];
             stack.push(FingerprintValue { expr: value.expr, span: None });
             continue;
         }
-        if (op::SWAP1..=op::SWAP16).contains(&opcode) {
+        if canonical_stack_effect && (op::SWAP1..=op::SWAP16).contains(&opcode) {
             let depth = usize::from(opcode - op::SWAP1 + 1);
             ensure_hash_depth(&mut stack, depth + 1, &mut next_fresh);
             let top = stack.len() - 1;
             stack.swap(top, top - depth);
             continue;
         }
-        if opcode == op::POP {
+        if canonical_stack_effect && opcode == op::POP {
             ensure_hash_depth(&mut stack, 1, &mut next_fresh);
             stack.pop();
             continue;
         }
-        if matches!(opcode, op::SWAPN | op::EXCHANGE) {
+        if canonical_stack_effect && matches!(opcode, op::SWAPN | op::EXCHANGE) {
             stack.clear();
             continue;
         }
 
-        if let Some((inputs, read_epoch)) = expression_inputs(opcode, memory_epoch, storage_epoch) {
+        if canonical_stack_effect
+            && let Some((inputs, read_epoch)) =
+                expression_inputs(opcode, memory_epoch, storage_epoch)
+        {
             ensure_hash_depth(&mut stack, inputs, &mut next_fresh);
             let mut operands = SmallVec::<[FingerprintValue; 3]>::new();
             for _ in 0..inputs {
@@ -298,7 +311,9 @@ fn may_regenerate(instructions: &[Instruction]) -> bool {
         if op::writes_storage(opcode) {
             storage_epoch = storage_epoch.wrapping_add(1);
         }
-        if let Some(effect) = default_instruction_stack_effect(inst) {
+        if !canonical_stack_effect {
+            stack.clear();
+        } else if let Some(effect) = default_instruction_stack_effect(inst) {
             let inputs = usize::from(effect.inputs);
             ensure_hash_depth(&mut stack, inputs, &mut next_fresh);
             stack.truncate(stack.len() - inputs);
@@ -319,7 +334,10 @@ fn has_repeated_candidate_opcode(instructions: &[Instruction]) -> bool {
     // An inline 256-bit set over the opcode domain, keeping the screen allocation-free.
     let mut seen = [0u64; 4];
     for inst in instructions {
-        let candidate = if inst.is_encoded_push() {
+        let canonical_stack_effect = has_canonical_stack_effect(inst);
+        let candidate = if !canonical_stack_effect {
+            false
+        } else if inst.is_encoded_push() {
             inst.deferred_push().is_none()
                 && inst.pushed_value().is_some_and(|value| !value.is_zero())
         } else {
@@ -335,6 +353,10 @@ fn has_repeated_candidate_opcode(instructions: &[Instruction]) -> bool {
         }
     }
     false
+}
+
+fn has_canonical_stack_effect(inst: &Instruction) -> bool {
+    inst.metadata.stack.is_none_or(|effect| Some(effect) == default_instruction_stack_effect(inst))
 }
 
 fn push_fingerprint(opcode: u8, encoding: u8, value: PushValue) -> u64 {
@@ -438,5 +460,31 @@ const fn expression_inputs(
     match op::stack_io(opcode) {
         Some((inputs, _)) => Some((inputs as usize, epoch)),
         None => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::evm::ir::StackEffect;
+    use alloy_primitives::U256;
+
+    #[test]
+    fn explicit_stack_effect_is_an_analysis_boundary() {
+        let mut overridden_dup = Instruction::opcode(op::DUP1);
+        overridden_dup.metadata.stack = Some(StackEffect::new(0, 0));
+        let mut instructions = vec![
+            Instruction::push_value(U256::from(1)),
+            Instruction::push_value(U256::from(2)),
+            Instruction::opcode(op::ADD),
+            overridden_dup,
+            Instruction::push_value(U256::from(1)),
+            Instruction::push_value(U256::from(2)),
+            Instruction::opcode(op::ADD),
+        ];
+        let original = instructions.clone();
+
+        assert!(!regenerate_block(&mut instructions));
+        assert_eq!(instructions, original);
     }
 }

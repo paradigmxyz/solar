@@ -3126,6 +3126,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn pop_stack_values_not_needed_by(&mut self, needed: &[ValueId]) {
         while let Some(depth) = self.first_stack_value_not_needed_by(needed) {
             if depth > 0 {
+                assert!(depth <= MAX_STACK_ACCESS, "resident stack discard exceeded SWAP16 reach");
                 self.emit_stack_op(StackOp::Swap(depth as u8));
             }
             self.emit_stack_op(StackOp::Pop);
@@ -4546,12 +4547,13 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Removes the unused dynamic-frame header and optional return word from a static frame.
     fn compact_static_frame_offset(&self, func_id: FunctionId, offset: u64) -> u64 {
-        if !self.runtime_stack_args {
-            return offset;
-        }
-        let mut compact = offset
-            .checked_sub(EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE)
-            .expect("static frame header is still referenced");
+        let mut compact = if self.runtime_stack_args {
+            offset
+                .checked_sub(EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE)
+                .expect("static frame header is still referenced")
+        } else {
+            offset
+        };
         if let Some(&local_base) = self.stack_return_local_bases.get(&func_id) {
             let return_base = local_base - EvmMemoryLayout::WORD_SIZE;
             debug_assert_ne!(
@@ -4810,6 +4812,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut candidates = FxHashMap::default();
         for (&func_id, values) in arg_values {
             if self.disabled_stack_only_functions.contains(func_id)
+                || !self.static_frame_functions.contains(func_id)
                 || self.recursive_stack_functions.contains(func_id)
                 || self.recursion_reaching_functions.contains(func_id)
             {
@@ -5111,7 +5114,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .instructions
                     .iter()
                     .any(|&inst| matches!(func.inst(inst).kind, InstKind::InternalCall { .. }))
-                    || matches!(block.terminator, Some(Terminator::TailCall { .. }))
+                    || matches!(
+                        block.terminator,
+                        Some(Terminator::TailCall { .. } | Terminator::Switch { .. })
+                    )
             }) {
                 continue;
             }
@@ -5646,8 +5652,19 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.static_frame_addr_consts.keys().map(|&(func_id, _)| func_id).collect();
         let mut static_span = 0;
         for &func_id in &placed {
+            let frame_size = self.emitted_frame_size(module, func_id);
+            assert!(
+                self.static_frame_addr_consts
+                    .keys()
+                    .filter(|&&(referenced, _)| referenced == func_id)
+                    .all(|&(_, offset)| offset
+                        .checked_add(EvmMemoryLayout::WORD_SIZE)
+                        .is_some_and(|end| end <= frame_size)),
+                "static frame reference exceeds emitted frame size for `{}`",
+                module.functions[func_id].name
+            );
             let relative = depth.get(&func_id).copied().unwrap_or(0);
-            static_span = static_span.max(relative + self.emitted_frame_size(module, func_id));
+            static_span = static_span.max(relative + frame_size);
         }
 
         let layout = |max_entry_end: u64| {
@@ -7837,6 +7854,8 @@ mod tests {
             let mut mask = DenseBitSet::new_empty(1);
             mask.insert(0);
             codegen.stack_arg_masks.insert(function, mask);
+            codegen.static_frame_functions = DenseBitSet::new_empty(module.functions.len());
+            codegen.static_frame_functions.insert(function);
             codegen.disabled_stack_only_functions = DenseBitSet::new_empty(module.functions.len());
             codegen.disabled_stack_only_functions.insert(function);
 
@@ -7858,6 +7877,68 @@ mod tests {
             codegen.compute_lazy_stack_args(&module, &arg_values, &use_info);
             codegen.compute_direct_stack_args(&module, &arg_values, &use_info);
             assert!(!codegen.lazy_stack_args.contains_key(&function));
+            assert!(!codegen.direct_stack_args.contains_key(&function));
+        });
+    }
+
+    #[test]
+    fn stack_return_compacts_offsets_after_stack_arg_fallback() {
+        let opts = CompileOpts { optimization: OptimizationMode::Gas, ..Default::default() };
+        with_codegen(opts, |mut codegen| {
+            let mut module = Module::new(Ident::DUMMY);
+            let mut function = Function::new(Ident::with_dummy_span(sym::Test));
+            function.internal_frame_size = EvmMemoryLayout::WORD_SIZE;
+            let mut builder = FunctionBuilder::new(&mut function);
+            let argument = builder.add_param(MirType::uint256());
+            builder.add_return(MirType::uint256());
+            builder.ret([argument]);
+            let function = module.add_function(function);
+
+            codegen.static_frame_functions = DenseBitSet::new_empty(module.functions.len());
+            codegen.static_frame_functions.insert(function);
+            codegen.function_spill_sizes.insert(function, 0);
+            codegen.runtime_stack_args = false;
+            codegen.compute_stack_return_functions(&module);
+
+            let local =
+                EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE + 2 * EvmMemoryLayout::WORD_SIZE;
+            assert!(codegen.stack_return_functions.contains(function));
+            assert_eq!(
+                codegen.compact_static_frame_offset(function, local),
+                local - EvmMemoryLayout::WORD_SIZE
+            );
+            assert_eq!(codegen.emitted_frame_size(&module, function), local);
+        });
+    }
+
+    #[test]
+    fn direct_stack_args_reject_switch_terminators() {
+        let opts = CompileOpts { optimization: OptimizationMode::Gas, ..Default::default() };
+        with_codegen(opts, |mut codegen| {
+            let mut module = Module::new(Ident::DUMMY);
+            let mut function = Function::new(Ident::with_dummy_span(sym::Test));
+            let mut builder = FunctionBuilder::new(&mut function);
+            let argument = builder.add_param(MirType::uint256());
+            let one = builder.imm_u64(1);
+            let _unrelated = builder.add(one, one);
+            let _use = builder.add(argument, one);
+            let default = builder.create_block();
+            let case = builder.create_block();
+            builder.switch(argument, default, vec![(one, case)]);
+            builder.switch_to_block(default);
+            builder.stop();
+            builder.switch_to_block(case);
+            builder.stop();
+            let function = module.add_function(function);
+
+            let mut mask = DenseBitSet::new_empty(1);
+            mask.insert(0);
+            codegen.stack_arg_masks.insert(function, mask);
+            codegen.disabled_stack_only_functions = DenseBitSet::new_empty(module.functions.len());
+            let arg_values = codegen.collect_canonical_stack_arg_values(&module);
+            let use_info = codegen.collect_stack_arg_uses(&module);
+            codegen.compute_direct_stack_args(&module, &arg_values, &use_info);
+
             assert!(!codegen.direct_stack_args.contains_key(&function));
         });
     }

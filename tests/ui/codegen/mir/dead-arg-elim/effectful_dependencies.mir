@@ -1,0 +1,39 @@
+//@ compile-flags: -Zmir-pipeline=dead-arg-elim -Osize
+//@ filecheck:
+@module EffectfulDependencies
+
+// A discarded result must retain a read in its dependency slice. A later DCE pass could otherwise
+// remove the `mload`, changing memory expansion as observed by a caller's `msize`.
+// CHECK-LABEL: fn @read() -> u256
+// CHECK: v0 = mload 0x10000
+// CHECK-NEXT: ret v0
+fn @read() -> u256 {
+  bb0:
+    v0 = mload 65536 !metadata(effect=pure)
+    ret v0
+}
+
+// CHECK-LABEL: fn @read_entry()
+// CHECK: v0 = internal_call @read, 1
+fn @read_entry() [selector=0x01020304] {
+  bb0:
+    v0 = internal_call fn0, 1
+    ret
+}
+
+// Removing an unused argument must not expose an effectful actual operand to DCE either.
+// CHECK-LABEL: fn @unused(arg0: u256)
+fn @unused(arg0: u256) {
+  bb0:
+    ret
+}
+
+// CHECK-LABEL: fn @argument_entry()
+// CHECK: v0 = mload 0x10000
+// CHECK-NEXT: internal_call @unused, 0, v0
+fn @argument_entry() [selector=0x05060708] {
+  bb0:
+    v0 = mload 65536
+    internal_call fn2, 0, v0
+    ret
+}
