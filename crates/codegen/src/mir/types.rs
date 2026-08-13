@@ -224,10 +224,10 @@ impl MirType {
         })
     }
 
-    /// Returns whether this is a raw address or a semantic memory-object reference.
+    /// Returns whether this value can refer to live memory beyond the current call frame.
     #[must_use]
     pub(crate) const fn is_memory_reference(self) -> bool {
-        matches!(self, Self::MemPtr | Self::MemoryObject(_))
+        matches!(self, Self::MemPtr | Self::MemoryObject(_) | Self::Slice(SliceLocation::Memory))
     }
 
     /// Returns the uint256 type.

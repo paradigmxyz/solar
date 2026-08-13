@@ -11,8 +11,6 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
   bb2:
     v3 = slice_ptr arg0
     v4 = slice_len arg0
-    mstore 128, v3
-    mstore 160, v4
     v5 = calldataload 68
     v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
     v7 = eq v5, v6
@@ -20,6 +18,8 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
   bb3:
     revert 0, 0
   bb4:
+    mstore 128, v3
+    mstore 160, v4
     v8 = mload 128
     v9 = mload 160
     v10 = make_calldata_slice v8, v9

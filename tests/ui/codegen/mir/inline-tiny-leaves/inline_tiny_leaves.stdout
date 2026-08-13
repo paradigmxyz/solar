@@ -28,8 +28,19 @@
   
   fn @large_caller(arg0: u256) -> u256 {
     bb0:
-      v0 = internal_call @large, 1, arg0
-      ret v0
+-     v0 = internal_call @large, 1, arg0
+-     ret v0
++     jump bb2
++   bb1:
++     v6 = phi [bb2: v5]
++     ret v6
++   bb2:
++     v1 = add arg0, 1
++     v2 = xor v1, 2
++     v3 = mul v2, 3
++     v4 = sub v3, 4
++     v5 = and v4, 5
++     jump bb1
   }
   
   fn @large(arg0: u256) -> u256 {

@@ -15,14 +15,12 @@ bb0:
   push 40
   swap1
   mod
-  indexed_jump bb61, bb62, bb63, bb64, bb65, bb66, bb67, bb68, bb69, bb70, bb71, bb72, bb73, bb74, bb75, bb76, bb77, bb78, bb79, bb80, bb81, bb82, bb83, bb84, bb85, bb86, bb87, bb88, bb89, bb90, bb91, bb92, bb93, bb94, bb95, bb96, bb97, bb98, bb99, bb100
+  indexed_jump bb60, bb61, bb62, bb63, bb64, bb65, bb66, bb67, bb68, bb69, bb70, bb71, bb72, bb73, bb74, bb75, bb76, bb77, bb78, bb79, bb80, bb81, bb82, bb83, bb84, bb85, bb86, bb87, bb88, bb89, bb90, bb91, bb92, bb93, bb94, bb95, bb96, bb97, bb98, bb99
 bb59:
   stop
 bb2:
   dup1
   push 0xcbf99d38
-  jump bb60
-bb60:
   eq
   push bb59
   jumpi
@@ -39,11 +37,17 @@ bb3:
   jumpi
   dup1
   push 0x920f5c73
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb4:
   dup1
   push 0x41052a0d
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb5:
   dup1
   push 0x7238232f
@@ -52,15 +56,24 @@ bb5:
   jumpi
   dup1
   push 0x905f7d67
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb6:
   dup1
   push 0x3b88f6c2
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb7:
   dup1
   push 0xaa66aa63
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb8:
   dup1
   push 0x24a75cfd
@@ -69,11 +82,17 @@ bb8:
   jumpi
   dup1
   push 0x98e9a73d
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb9:
   dup1
   push 0xebd25c8f
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb10:
   dup1
   push 0x8a67ee70
@@ -82,11 +101,17 @@ bb10:
   jumpi
   dup1
   push 0xc43b1a78
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb11:
   dup1
   push 0xebbd40a9
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb12:
   dup1
   push 0x1eb6457a
@@ -95,19 +120,31 @@ bb12:
   jumpi
   dup1
   push 0xdca2fb5a
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb13:
   dup1
   push 0x67e648b5
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb14:
   dup1
   push 0xe6e0ae36
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb15:
   dup1
   push 0xcba58af7
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb16:
   dup1
   push 0x6d4975a2
@@ -116,11 +153,17 @@ bb16:
   jumpi
   dup1
   push 0x8dc714ba
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb17:
   dup1
   push 0x54eaadab
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb18:
   dup1
   push 0x10c772cc
@@ -129,23 +172,38 @@ bb18:
   jumpi
   dup1
   push 0x4e580bc4
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb19:
   dup1
   push 0x965a68f5
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb20:
   dup1
   push 0xd758c88e
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb21:
   dup1
   push 0x6d738a50
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb22:
   dup1
   push 0xf02a00c9
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb23:
   dup1
   push 0x40bcff2a
@@ -154,92 +212,101 @@ bb23:
   jumpi
   dup1
   push 0x5fb43592
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb24:
   dup1
   push 0x3d492ec4
-  jump bb60
+  eq
+  push bb59
+  jumpi
+  jump bb58
 bb25:
   dup1
   push 0x1f49dbe7
-  jump bb60
-bb61:
+  eq
+  push bb59
+  jumpi
+  jump bb58
+bb60:
   jump bb2
+bb61:
+  jump bb58
 bb62:
   jump bb58
 bb63:
-  jump bb58
-bb64:
   jump bb3
+bb64:
+  jump bb58
 bb65:
-  jump bb58
-bb66:
   jump bb4
-bb67:
+bb66:
   jump bb58
-bb68:
+bb67:
   jump bb5
+bb68:
+  jump bb58
 bb69:
   jump bb58
 bb70:
-  jump bb58
-bb71:
   jump bb6
-bb72:
+bb71:
   jump bb7
+bb72:
+  jump bb58
 bb73:
-  jump bb58
-bb74:
   jump bb8
-bb75:
+bb74:
   jump bb58
-bb76:
+bb75:
   jump bb9
-bb77:
+bb76:
   jump bb10
-bb78:
+bb77:
   jump bb11
-bb79:
+bb78:
   jump bb12
+bb79:
+  jump bb58
 bb80:
   jump bb58
 bb81:
-  jump bb58
-bb82:
   jump bb13
-bb83:
+bb82:
   jump bb14
-bb84:
+bb83:
   jump bb15
+bb84:
+  jump bb58
 bb85:
   jump bb58
 bb86:
-  jump bb58
-bb87:
   jump bb16
-bb88:
+bb87:
   jump bb17
-bb89:
+bb88:
   jump bb18
-bb90:
+bb89:
   jump bb19
-bb91:
+bb90:
   jump bb20
+bb91:
+  jump bb58
 bb92:
-  jump bb58
-bb93:
   jump bb21
-bb94:
+bb93:
   jump bb22
-bb95:
+bb94:
   jump bb23
-bb96:
+bb95:
   jump bb58
-bb97:
+bb96:
   jump bb24
+bb97:
+  jump bb58
 bb98:
   jump bb58
 bb99:
-  jump bb58
-bb100:
   jump bb25

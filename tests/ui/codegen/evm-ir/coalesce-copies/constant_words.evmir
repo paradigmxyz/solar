@@ -1,0 +1,51 @@
+//@ revisions: cancun berlin
+//@[cancun] compile-flags: --evm-version cancun -Zevm-ir-pipeline=coalesce-copies
+//@[cancun] filecheck: --check-prefix=CANCUN
+//@[berlin] compile-flags: --evm-version berlin -Zevm-ir-pipeline=coalesce-copies
+//@[berlin] filecheck: --check-prefix=BERLIN
+@module ConstantWords
+
+// CANCUN-LABEL: {{^[ +].*}}bb0:
+// CANCUN: + push 64
+// CANCUN: {{^[ +].*}}push 128
+// CANCUN: {{^[ +].*}}push 256
+// CANCUN: + mcopy
+// BERLIN-NOT: mcopy
+bb0:
+  push 128
+  mload
+  push 256
+  mstore
+  push 160
+  mload
+  push 288
+  mstore
+  stop
+
+// Overlapping copies retain their sequential MLOAD/MSTORE semantics.
+// CANCUN-LABEL: {{^[ +].*}}bb1:
+// CANCUN-NOT: mcopy
+bb1:
+  push 128
+  mload
+  push 160
+  mstore
+  push 160
+  mload
+  push 192
+  mstore
+  stop
+
+// Noncontiguous addresses are not one copy range.
+// CANCUN-LABEL: {{^[ +].*}}bb2:
+// CANCUN-NOT: mcopy
+bb2:
+  push 128
+  mload
+  push 256
+  mstore
+  push 192
+  mload
+  push 320
+  mstore
+  stop

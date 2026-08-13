@@ -135,4 +135,23 @@
     pop
     pop
     stop
+  bb15:
+    push 1
+    dup1
+    dupn
+    pop
+    pop
+    stop
+  bb16:
+    push 1
+    dup1
+    swapn
+    pop
+    stop
+  bb17:
+    push 1
+    dup1
+    exchange
+    pop
+    stop
   
