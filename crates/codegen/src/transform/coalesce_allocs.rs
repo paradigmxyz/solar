@@ -10,6 +10,12 @@
 //! observe or move the free-memory pointer between two member allocations
 //! invalidate the grouping; those end the current group instead of being
 //! crossed.
+//!
+//! Intervening accesses may legitimately target a later member's future
+//! range: because every member keeps its pointer value and its initialization
+//! at its original program point, the fused program stores and zeroes the
+//! same addresses in the same order as the unfused one. Avoiding the
+//! free-memory-pointer word alone is therefore never the safety argument.
 
 use crate::{
     memory::EvmMemoryLayout,

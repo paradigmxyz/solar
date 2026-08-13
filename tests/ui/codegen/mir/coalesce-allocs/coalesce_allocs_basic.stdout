@@ -61,3 +61,21 @@
       ret v1
   }
   
+  fn @keep_across_constant_fmp_store() -> memptr {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      mstore 64, 0x10000
+      v1 = alloc raw, exact, uninitialized, infallible, 32
+      mstore v1, 4
+      ret v1
+  }
+  
+  fn @keep_across_set_fmp() -> memptr {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      set_fmp 0x10000
+      v1 = alloc raw, exact, uninitialized, infallible, 32
+      mstore v1, 5
+      ret v1
+  }
+  

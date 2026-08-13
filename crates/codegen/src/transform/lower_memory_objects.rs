@@ -169,6 +169,12 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         continue;
                     };
                     debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
+                    // The rewritten `Add` keeps the `MemPtr` result type. That type is a
+                    // load-bearing invariant: `coalesce-allocs` treats `MemPtr`-typed
+                    // addresses as proven heap-derived (non-wrapping, at or above the heap
+                    // floor), which holds here only because Solidity bounds-checks the
+                    // index before the address is formed. Do not mint `MemPtr` for
+                    // arithmetic without such a proof.
                     let base =
                         offset_address(&mut builder, object, P::object_data_offset(layout.kind()));
                     let stride = builder.imm_u64(stride);

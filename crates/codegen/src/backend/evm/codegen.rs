@@ -692,7 +692,15 @@ impl GlobalStackPlan {
     }
 
     /// Returns values present in every physical successor layout of `term`.
+    ///
+    /// Requires a terminal-sensitive plan: `edge_layout`'s terminal shortcut would
+    /// otherwise report one-sided carriage for edges the layout does not cover,
+    /// and spill-elision consumers rely on an every-edge guarantee.
     fn uniformly_carried_values(&self, func: &Function, term: &Terminator) -> Vec<ValueId> {
+        debug_assert!(
+            self.terminal_sensitive,
+            "carried-value queries require terminal-sensitive plans"
+        );
         if let Some((then_layout, else_layout)) = self.branch_layouts(term) {
             return then_layout
                 .iter()
@@ -9300,6 +9308,18 @@ mod tests {
         assert_eq!(plan.uniformly_carried_values(&function, &term), [first]);
         plan.entries.insert(else_block, vec![first, second]);
         assert_eq!(plan.uniformly_carried_values(&function, &term), [first, second]);
+
+        // Switch layouts intersect across the default and every case target.
+        let case_block = function.alloc_block();
+        let switch = Terminator::Switch {
+            value: condition,
+            default: else_block,
+            cases: vec![(condition, case_block)],
+        };
+        plan.entries.insert(case_block, vec![second]);
+        assert_eq!(plan.uniformly_carried_values(&function, &switch), [second]);
+        plan.entries.insert(case_block, vec![first, second]);
+        assert_eq!(plan.uniformly_carried_values(&function, &switch), [first, second]);
     }
 
     #[test]
@@ -9446,6 +9466,50 @@ mod tests {
 
             assert!(codegen.direct_stack_args(function).is_none());
         });
+
+        #[test]
+        fn resident_layout_selection_is_pinned_across_runs() {
+            // `select_resident_layout` weighs runtime gas against deploy bytes
+            // through `optimizer_runs`. No current cost shape flips the choice
+            // (an eligible stack-riding value dominates the frame convention in
+            // both dimensions), so this pins the selection at both extremes:
+            // a cost-model change that silently alters layout choices, or makes
+            // them run-count-unstable, must show up here as an intentional edit.
+            let select = |runs: u64| {
+                let opts = CompileOpts {
+                    optimization: OptimizationMode::Gas,
+                    optimizer_runs: Some(runs),
+                    ..Default::default()
+                };
+                with_codegen(opts, |codegen| {
+                    let mut function = Function::new(Ident::DUMMY);
+                    let argument = function.alloc_param(MirType::uint256());
+                    let mut builder = FunctionBuilder::new(&mut function);
+                    let one = builder.imm_u64(1);
+                    let blocks: Vec<_> = (0..5).map(|_| builder.create_block()).collect();
+                    builder.jump(blocks[0]);
+                    for (index, &block) in blocks.iter().enumerate() {
+                        builder.switch_to_block(block);
+                        if let Some(&next) = blocks.get(index + 1) {
+                            builder.jump(next);
+                        }
+                    }
+                    let acc = builder.add(argument, one);
+                    builder.ret([acc]);
+                    let liveness = Liveness::compute(&function);
+                    codegen
+                        .select_resident_layout(&function, &liveness, &[argument], false, false)
+                        .map(|(values, _)| values)
+                })
+            };
+
+            let deploy_dominated = select(1);
+            let runtime_dominated = select(200_000);
+            assert_eq!(deploy_dominated, select(1));
+            assert_eq!(runtime_dominated, select(200_000));
+            assert_eq!(deploy_dominated.as_deref(), Some(&[ValueId::from_usize(0)][..]));
+            assert_eq!(runtime_dominated.as_deref(), Some(&[ValueId::from_usize(0)][..]));
+        }
     }
 
     #[test]

@@ -81,3 +81,28 @@ fn @keep_across_fmp() -> memptr {
     mstore v2, 2
     ret v1
 }
+
+// A store through the constant free-memory-pointer slot moves the frontier,
+// so the second allocation must observe it and the group ends.
+// CHECK-LABEL: fn @keep_across_constant_fmp_store
+// CHECK-NOT: +
+fn @keep_across_constant_fmp_store() -> memptr {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    mstore 64, 65536
+    v1 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v1, 4
+    ret v1
+}
+
+// An explicit frontier update between two allocations is the same barrier.
+// CHECK-LABEL: fn @keep_across_set_fmp
+// CHECK-NOT: +
+fn @keep_across_set_fmp() -> memptr {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    set_fmp 65536
+    v1 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v1, 5
+    ret v1
+}
