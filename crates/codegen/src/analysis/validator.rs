@@ -540,7 +540,8 @@ impl<'a> Validator<'a> {
     /// mirrors how the display and every pass treat instructions.
     fn validate_calls(&mut self, module: &Module, func: &Function) {
         for inst_id in func.instructions() {
-            let InstKind::InternalCall { function, args, .. } = &func.inst(inst_id).kind else {
+            let InstKind::InternalCall { function, args, returns } = &func.inst(inst_id).kind
+            else {
                 continue;
             };
             let Some(callee) = module.functions.get(*function) else {
@@ -556,6 +557,17 @@ impl<'a> Validator<'a> {
                     callee.name,
                     args.len(),
                     callee.params.len()
+                ));
+            }
+            // Dead-result elimination rewrites the site and the callee signature
+            // together; a disagreement means one side of the return protocol was
+            // dropped and the other still delivers or consumes a value.
+            if *returns as usize != callee.returns.len() {
+                self.emit(format_args!(
+                    "internal_call to `{}` expects {} result(s), callee returns {}",
+                    callee.name,
+                    returns,
+                    callee.returns.len()
                 ));
             }
         }
@@ -577,6 +589,26 @@ impl<'a> Validator<'a> {
                     callee.name,
                     args.len(),
                     callee.params.len()
+                ));
+            }
+            // A tail call delivers the callee's results as the caller's own, so
+            // the two signatures must agree; dead-result elimination clearing
+            // only one side would leave callers adopting a phantom value. A
+            // callee that never returns (an outlined revert stub) delivers
+            // nothing, and an external caller's MIR signature does not model
+            // its ABI returns, so both are exempt.
+            let callee_can_return = callee.blocks.iter().any(|block| {
+                matches!(block.terminator, Some(crate::mir::Terminator::Return { .. }))
+            });
+            if func.selector.is_none()
+                && callee_can_return
+                && func.returns.len() != callee.returns.len()
+            {
+                self.emit(format_args!(
+                    "tail_call to `{}` returns {} value(s), caller signature expects {}",
+                    callee.name,
+                    callee.returns.len(),
+                    func.returns.len()
                 ));
             }
         }

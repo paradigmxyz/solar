@@ -854,6 +854,12 @@ fn specialize_function_pointers(module: &mut Module) -> usize {
                     specialized += 1;
                 }
             } else if dispatcher.instructions().take(4097).count() <= 4096
+                // Constructors resolve cloned `InternalFrameAddr` offsets through the
+                // uninitialized internal-frame pointer, so a framed dispatcher must never
+                // be inlined into one. Dispatchers are frameless by construction today;
+                // this mirrors `framed_constructor_call` in case that ever changes.
+                && !(dispatcher.internal_frame_size != 0
+                    && module.function(caller).attributes.is_constructor)
                 && inline_call(module.function_mut(caller), block, inst_index, &dispatcher)
             {
                 specialized += 1;

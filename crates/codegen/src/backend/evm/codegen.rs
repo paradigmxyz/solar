@@ -3196,7 +3196,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         if self.gcx.sess.opts.optimization.is_gas() {
             let colorable = Self::cross_block_live_values(func, liveness);
             let ranges = Self::spill_live_ranges(func, liveness, &colorable);
-            let interferences = Self::parallel_phi_interferences(&colorable, &self.block_copies);
+            let interferences =
+                Self::parallel_phi_interferences(&colorable, &self.block_copies, Some(liveness));
 
             let mut colors = Vec::<SpillColor>::new();
             for value in &colorable {
@@ -3333,9 +3334,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn parallel_phi_interferences(
         colorable: &DenseBitSet<ValueId>,
         block_copies: &FxHashMap<BlockId, Vec<ParallelCopy>>,
+        liveness: Option<&Liveness>,
     ) -> SpillInterferences {
         let mut interferences = FxHashMap::default();
-        for copies in block_copies.values() {
+        for (block_id, copies) in block_copies {
             for (index, copy) in copies.iter().enumerate() {
                 let CopyDest::Value(destination) = &copy.dst else { continue };
                 for other in copies {
@@ -3355,6 +3357,28 @@ impl<'gcx> EvmCodegen<'gcx> {
                         *destination,
                         *source,
                     );
+                }
+                // The destination store executes on every outgoing edge of the
+                // predecessor, including sibling edges that bypass the join, so
+                // the destination must not share a slot with any value still
+                // live out of the predecessor. The copy's own source is exempt:
+                // the store writes that source's current value, so a shared
+                // slot keeps serving it.
+                if let Some(liveness) = liveness {
+                    let own_source = match &copy.src {
+                        CopySource::Value(source) => Some(*source),
+                        _ => None,
+                    };
+                    for live in liveness.live_out(*block_id) {
+                        if Some(live) != own_source {
+                            Self::add_spill_interference(
+                                &mut interferences,
+                                colorable,
+                                *destination,
+                                live,
+                            );
+                        }
+                    }
                 }
             }
         }
@@ -9046,7 +9070,7 @@ mod tests {
             ],
         )]);
 
-        let interferences = EvmCodegen::parallel_phi_interferences(&colorable, &block_copies);
+        let interferences = EvmCodegen::parallel_phi_interferences(&colorable, &block_copies, None);
         assert!(interferences[&destination0].contains(&destination1));
         assert!(interferences[&destination0].contains(&source1));
         assert!(!interferences[&destination0].contains(&source0));
