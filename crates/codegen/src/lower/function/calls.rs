@@ -562,6 +562,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             value
         };
+        let integer_conversion_needs_cleanup = match (from.peel_refs().kind, to.peel_refs().kind) {
+            (
+                TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(from_size)),
+                TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(to_size)),
+            )
+            | (
+                TyKind::Elementary(solar_sema::hir::ElementaryType::Int(from_size)),
+                TyKind::Elementary(solar_sema::hir::ElementaryType::Int(to_size)),
+            ) => to_size.bits() < from_size.bits(),
+            (
+                TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(from_size)),
+                TyKind::Elementary(solar_sema::hir::ElementaryType::Int(to_size)),
+            )
+            | (
+                TyKind::Elementary(solar_sema::hir::ElementaryType::Int(from_size)),
+                TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(to_size)),
+            ) => to_size.bits() <= from_size.bits(),
+            _ => false,
+        };
+        if integer_conversion_needs_cleanup {
+            return self.normalize_abi_scalar(value, to);
+        }
         if let TyKind::Enum(id) = to.peel_refs().kind {
             if !matches!(from.peel_refs().kind, TyKind::Enum(from_id) if from_id == id) {
                 let limit = self.gcx.hir.enumm(id).variants.len() as u64;
