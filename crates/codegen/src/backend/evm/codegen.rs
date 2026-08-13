@@ -2846,8 +2846,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
         let cfg = CfgInfo::new(func);
         let reachable = cfg.reachable();
+        let mut reachable_values = DenseBitSet::new_empty(func.num_values());
+        for block_id in reachable {
+            for &inst_id in &func.blocks[block_id].instructions {
+                if let Some(value) = func.inst_result_value(inst_id) {
+                    reachable_values.insert(value);
+                }
+            }
+        }
         for value in values.iter().collect::<Vec<_>>() {
-            if !Self::value_defined_in_reachable_block(func, value, reachable) {
+            if !reachable_values.contains(value) {
                 values.remove(value);
             }
         }
@@ -2857,7 +2865,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // load a stable slot so a call operand can always recover the value even when block
         // layout emits its use before the defining block.
         for val in Self::fmp_load_values(func) {
-            if !Self::value_defined_in_reachable_block(func, val, reachable) {
+            if !reachable_values.contains(val) {
                 continue;
             }
             self.scheduler.spills.reserve(val);
@@ -2872,26 +2880,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         for inst_id in func.instructions() {
             if func.inst(inst_id).metadata.deferred_alloc()
                 && let Some(value) = func.inst_result_value(inst_id)
-                && Self::value_defined_in_reachable_block(func, value, reachable)
+                && reachable_values.contains(value)
             {
                 self.scheduler.spills.reserve(value);
                 self.scheduler.spills.require_store(value);
                 self.scheduler.spills.mark_reloadable(value);
             }
         }
-    }
-
-    fn value_defined_in_reachable_block(
-        func: &Function,
-        value: ValueId,
-        reachable: &DenseBitSet<BlockId>,
-    ) -> bool {
-        reachable.iter().any(|block_id| {
-            func.blocks[block_id]
-                .instructions
-                .iter()
-                .any(|&inst_id| func.inst_result_value(inst_id) == Some(value))
-        })
     }
 
     fn preallocate_spill_metadata(&mut self, func: &Function, values: &DenseBitSet<ValueId>) {
