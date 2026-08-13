@@ -304,7 +304,9 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 - Breaking changes: append `!` before colon, e.g. `feat(api)!: change return type`
 
 - Check recent `git log` to match the repo's commit style before committing.
-- Imperative mood, <50 chars, no period
+- Follow the GitHub 50/72 rule: use an imperative subject of at most 50 characters with no
+  trailing period, separate it from the body with a blank line, and wrap body text at 72
+  characters
 - Include body for perf (with measurements), bug fixes, complex changes
 
 ## PR Titles
