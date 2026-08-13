@@ -96,19 +96,15 @@ struct MirInliner {
     max_shared_callee_blocks: usize,
     /// Whether a single call site may use the larger threshold.
     inline_single_call: bool,
-    /// Maximum estimated runtime bytecode growth for a cold call site.
-    max_cold_code_growth: usize,
-    /// Maximum estimated runtime bytecode growth for a call site inside a loop.
-    max_hot_code_growth: usize,
     /// Maximum number of instructions a single caller may gain from inlining
     /// multi-use callees, bounding total code growth per function.
     max_caller_inlined_instructions: usize,
-    /// Minimum estimated internal-call protocol gas saved before inlining.
-    min_call_savings: u64,
-    /// Size-aware backstop: once a module's estimated runtime bytecode reaches
-    /// this many bytes, stop inlining (which grows code) so the contract stays
-    /// under the EIP-170 deployable-code limit. Small contracts never reach it
-    /// and inline normally.
+    /// Expected executions per deployment. This is supplied by Standard JSON
+    /// optimizer runs and defaults to solc's 200-run convention.
+    expected_executions_per_deployment: u64,
+    /// Optional hard ceiling for the module size estimator. Normal gas-mode
+    /// profitability is governed by lifetime cost instead of this ceiling;
+    /// zero remains the explicit off switch used by size mode.
     max_module_code_size: usize,
     /// Restrict candidates to single-block leaf helpers with at most four MIR instructions.
     tiny_leaves_only: bool,
@@ -122,15 +118,9 @@ impl Default for MirInliner {
             max_blocks: 16,
             max_shared_callee_blocks: 10,
             inline_single_call: true,
-            max_cold_code_growth: 256,
-            max_hot_code_growth: 512,
             max_caller_inlined_instructions: 64,
-            min_call_savings: 120,
-            // The estimator runs below final bytecode because it does not model
-            // stack scheduling or spills. Nitro's 7,885-unit OneStepProofEntry
-            // emits 15,225 bytes, so 12,000 units leave a conservative margin
-            // below EIP-170's 24,576-byte limit.
-            max_module_code_size: 12_000,
+            expected_executions_per_deployment: 200,
+            max_module_code_size: usize::MAX,
             tiny_leaves_only: false,
         }
     }
@@ -147,21 +137,19 @@ impl MirInliner {
         Self { max_module_code_size: 0, ..Self::default() }
     }
 
-    /// Creates the gas-focused tiny-leaf inliner. A four-instruction leaf is smaller than the
-    /// static internal-call protocol it replaces, even when shared by several callers. Keeping
-    /// this policy separate avoids the code-growth cascades of general MIR inlining.
+    /// Creates the gas-focused leaf inliner. Shared helpers stay limited to four instructions;
+    /// a modestly larger single-use leaf disappears after function DCE and can also shed both
+    /// sides of the internal-call protocol without duplicating its body.
     #[must_use]
     fn for_tiny_leaves() -> Self {
         Self {
             max_instructions: 4,
-            max_single_call_sanity_instructions: 4,
+            max_single_call_sanity_instructions: 12,
             max_blocks: 1,
             max_shared_callee_blocks: 1,
             inline_single_call: true,
-            max_cold_code_growth: 8,
-            max_hot_code_growth: 8,
             max_caller_inlined_instructions: 64,
-            min_call_savings: 0,
+            expected_executions_per_deployment: 200,
             max_module_code_size: usize::MAX,
             tiny_leaves_only: true,
         }
@@ -207,6 +195,7 @@ impl MirInliner {
     /// Runs the inliner over the whole module.
     fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) -> MirInlineStats {
         let mut stats = MirInlineStats::default();
+        self.expected_executions_per_deployment = gcx.sess.opts.optimizer_runs.unwrap_or(200);
 
         // A zero budget is an explicit off switch (used by `-O size`). Avoid
         // summarizing the module or building its call graph when no call site
@@ -217,10 +206,8 @@ impl MirInliner {
 
         let mut summaries = self.summarize_module(gcx, module);
 
-        // Size-aware backstop: inlining grows emitted code, so track the module's
-        // estimated runtime bytecode and stop inlining once it reaches the budget,
-        // keeping large contracts under the EIP-170 deployable-code limit. Small
-        // contracts never reach the budget and inline normally.
+        // Track the estimator for explicit hard ceilings. Gas mode leaves the
+        // ceiling unlimited and decides from lifetime execution/deposit cost.
         let mut module_code_size: usize = summaries.values().map(|s| s.estimated_code_size).sum();
         if module_code_size >= self.max_module_code_size {
             return stats;
@@ -260,8 +247,12 @@ impl MirInliner {
                     s.instruction_count.saturating_sub(base_instructions)
                         > self.max_caller_inlined_instructions
                 });
+                let framed_constructor_call = summaries.get(&caller_id).is_some_and(|caller| {
+                    caller.is_constructor && summary.internal_frame_size != 0
+                });
                 if module_code_size >= self.max_module_code_size
                     || grew_too_much
+                    || framed_constructor_call
                     || call_graph.is_recursive(site.callee)
                     || !self.is_inlineable(
                         caller_id,
@@ -323,6 +314,11 @@ impl MirInliner {
             for inst_id in func.instructions() {
                 if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
                     *counts.entry(function).or_default() += 1;
+                }
+            }
+            for block in &func.blocks {
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                    *counts.entry(*function).or_default() += 1;
                 }
             }
         }
@@ -432,7 +428,12 @@ impl MirInliner {
 
         if self.tiny_leaves_only
             && (summary.block_count != 1
-                || summary.instruction_count > 4
+                || summary.instruction_count
+                    > if single_call {
+                        self.max_single_call_sanity_instructions
+                    } else {
+                        self.max_instructions
+                    }
                 || summary.return_count != 1
                 || summary.has_reference_return
                 || summary.has_internal_call
@@ -480,15 +481,37 @@ impl MirInliner {
             return false;
         }
 
-        let code_growth = estimated_inline_code_growth(summary, site, single_call);
-        let max_growth =
-            if site.loop_depth > 0 { self.max_hot_code_growth } else { self.max_cold_code_growth };
-        if code_growth > max_growth {
-            return false;
+        self.inline_lifetime_cost_improves(summary, site, single_call)
+    }
+
+    /// Applies the same economic model as solc's assembly inliner: compare
+    /// runtime protocol savings over the expected contract lifetime with the
+    /// bytecode deposit cost of cloning the body. The body itself executes in
+    /// both alternatives and therefore contributes only to deposited bytes.
+    fn inline_lifetime_cost_improves(
+        &self,
+        summary: MirInlineSummary,
+        site: CallSite,
+        single_call: bool,
+    ) -> bool {
+        const CODE_DEPOSIT_GAS_PER_BYTE: u128 = 200;
+
+        let inlined_bytes = summary.estimated_code_size;
+        let mut removed_bytes = estimated_internal_call_code_size(site);
+        if single_call {
+            removed_bytes = removed_bytes.saturating_add(
+                summary.estimated_code_size + estimated_internal_return_code_size(summary, site),
+            );
+        }
+        if inlined_bytes <= removed_bytes {
+            return true;
         }
 
-        let savings = estimated_internal_call_savings(site, summary);
-        savings >= self.min_call_savings
+        let added_deposit_cost =
+            (inlined_bytes - removed_bytes) as u128 * CODE_DEPOSIT_GAS_PER_BYTE;
+        let execution_savings = u128::from(estimated_internal_call_savings(site, summary))
+            * u128::from(self.expected_executions_per_deployment);
+        execution_savings > added_deposit_cost
     }
 }
 
@@ -847,21 +870,6 @@ fn estimated_internal_return_code_size(summary: MirInlineSummary, site: CallSite
     8 + (summary.param_count + site.returns) * 4
 }
 
-fn estimated_inline_code_growth(
-    summary: MirInlineSummary,
-    site: CallSite,
-    single_call: bool,
-) -> usize {
-    let removed_call = estimated_internal_call_code_size(site);
-    if single_call {
-        let removed_callee =
-            summary.estimated_code_size + estimated_internal_return_code_size(summary, site);
-        summary.estimated_code_size.saturating_sub(removed_call + removed_callee)
-    } else {
-        summary.estimated_code_size.saturating_sub(removed_call)
-    }
-}
-
 fn block_loop_depths(func: &Function) -> FxHashMap<BlockId, usize> {
     let mut analyzer = LoopAnalyzer::new();
     let loop_info = analyzer.analyze(func);
@@ -1092,13 +1100,19 @@ fn inline_call_impl(
     let caller_frame_prefix = if caller_is_external {
         0
     } else {
-        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-            + ((caller.params.len() + caller.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE
+        let signature_slots = caller.params.len().checked_add(caller.returns.len())?;
+        let signature_size =
+            u64::try_from(signature_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(signature_size)?
     };
-    let frame_base = caller_frame_prefix + caller.internal_frame_size;
-    let callee_frame_prefix = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-        + ((callee.params.len() + callee.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE;
-    caller.internal_frame_size += callee.internal_frame_size;
+    let frame_base = caller_frame_prefix.checked_add(caller.internal_frame_size)?;
+    let callee_signature_slots = callee.params.len().checked_add(callee.returns.len())?;
+    let callee_signature_size =
+        u64::try_from(callee_signature_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+    let callee_frame_prefix =
+        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(callee_signature_size)?;
+    caller.internal_frame_size =
+        caller.internal_frame_size.checked_add(callee.internal_frame_size)?;
 
     let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, args);
     let cloned_entry = cloner.clone_blocks(continuation)?;
@@ -1218,7 +1232,7 @@ impl<'a> InlineCloner<'a> {
     fn clone_inst_kind(&mut self, mut kind: InstKind) -> Option<InstKind> {
         if let InstKind::InternalFrameAddr(offset) = &mut kind {
             let local_offset = offset.checked_sub(self.callee_frame_prefix)?;
-            *offset = self.frame_base + local_offset;
+            *offset = self.frame_base.checked_add(local_offset)?;
         }
         if let InstKind::Phi(incoming) = &mut kind {
             for (block, _) in incoming {
@@ -1406,5 +1420,54 @@ fn prune_phi_incoming_to_predecessors(func: &mut Function) {
                 incoming.retain(|(pred, _)| predecessors.contains(pred));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::FunctionBuilder;
+    use solar_ast::Ident;
+
+    #[test]
+    fn call_counts_include_tail_calls() {
+        let mut module = Module::new(Ident::DUMMY);
+        let callee = module.add_function(Function::new(Ident::DUMMY));
+
+        let mut ordinary = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut ordinary);
+        builder.internal_call_void(callee, Vec::new(), 0);
+        builder.stop();
+        module.add_function(ordinary);
+
+        let mut tail = Function::new(Ident::DUMMY);
+        FunctionBuilder::new(&mut tail).tail_call(callee, Vec::new());
+        module.add_function(tail);
+
+        assert_eq!(MirInliner::default().call_counts(&module).get(&callee), Some(&2));
+    }
+
+    #[test]
+    fn frame_overflow_skips_inlining_without_mutation() {
+        let callee_id = MirFunctionId::from_usize(0);
+        let mut callee = Function::new(Ident::DUMMY);
+        FunctionBuilder::new(&mut callee).ret(Vec::new());
+
+        let mut caller = Function::new(Ident::DUMMY);
+        caller.internal_frame_size = u64::MAX;
+        let mut builder = FunctionBuilder::new(&mut caller);
+        builder.internal_call_void(callee_id, Vec::new(), 0);
+        builder.stop();
+        let call = caller.blocks[BlockId::ENTRY].instructions[0];
+        let call_index = caller.blocks[BlockId::ENTRY]
+            .instructions
+            .iter()
+            .position(|&inst| inst == call)
+            .unwrap();
+
+        assert!(!inline_call(&mut caller, BlockId::ENTRY, call_index, &callee));
+        assert_eq!(caller.internal_frame_size, u64::MAX);
+        assert_eq!(caller.blocks.len(), 1);
+        assert!(matches!(caller.inst(call).kind, InstKind::InternalCall { .. }));
     }
 }

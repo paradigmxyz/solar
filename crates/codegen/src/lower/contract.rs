@@ -256,7 +256,9 @@ pub(super) fn declaration(
         is_fallback: function.kind == hir::FunctionKind::Fallback,
         is_receive: function.kind == hir::FunctionKind::Receive,
         is_dispatch_entry: false,
+        may_return_memory: false,
         is_function_pointer_dispatcher: false,
+        no_inline: false,
     };
 
     if function.kind == hir::FunctionKind::Function

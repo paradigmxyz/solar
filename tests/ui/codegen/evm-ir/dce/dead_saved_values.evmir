@@ -227,3 +227,36 @@ bb14:
   pop
   pop
   stop
+
+// EOF extended stack operations select words through immediate data that is not represented in
+// EVM IR yet. Do not track an omitted copy across them from the net stack effect alone.
+// COMMON-LABEL: {{^[ +].*}}bb15:
+// COMMON: {{^[ +].*}}dup1
+// COMMON: {{^[ +].*}}dupn
+bb15:
+  push 1
+  dup1
+  dupn
+  pop
+  pop
+  stop
+
+// COMMON-LABEL: {{^[ +].*}}bb16:
+// COMMON: {{^[ +].*}}dup1
+// COMMON: {{^[ +].*}}swapn
+bb16:
+  push 1
+  dup1
+  swapn
+  pop
+  stop
+
+// COMMON-LABEL: {{^[ +].*}}bb17:
+// COMMON: {{^[ +].*}}dup1
+// COMMON: {{^[ +].*}}exchange
+bb17:
+  push 1
+  dup1
+  exchange
+  pop
+  stop

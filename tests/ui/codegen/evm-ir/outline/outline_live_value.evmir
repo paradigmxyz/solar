@@ -1,0 +1,103 @@
+//@ compile-flags: -Osize -Zevm-ir-pipeline=outline
+//@ filecheck:
+@module OutlineLiveValue
+
+// A repeated run may consume and produce a live stack value. The call-site rotation places the
+// continuation below the input; the stub's inverse rotation returns with the output intact.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: push 1
+// CHECK-NEXT: + push [[RET0:bb[0-9]+]]
+// CHECK-NEXT: + swap1
+// CHECK-NEXT: + jump [[STUB:bb[0-9]+]]
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: push 2
+// CHECK-NEXT: + push [[RET1:bb[0-9]+]]
+// CHECK-NEXT: + swap1
+// CHECK-NEXT: + jump [[STUB]]
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: push 3
+// CHECK-NEXT: + push [[RET2:bb[0-9]+]]
+// CHECK-NEXT: + swap1
+// CHECK-NEXT: + jump [[STUB]]
+// CHECK: + [[STUB]]:
+// CHECK-COUNT-20: {{^[ +].*}}not
+// CHECK-NEXT: + swap1
+// CHECK-NEXT: + jump
+// CHECK: + [[RET0]]:
+// CHECK: + [[RET1]]:
+// CHECK: + [[RET2]]:
+bb0:
+  push 1
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 100
+  mstore
+  jump bb1
+bb1:
+  push 2
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 200
+  mstore
+  jump bb2
+bb2:
+  push 3
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 300
+  mstore
+  stop

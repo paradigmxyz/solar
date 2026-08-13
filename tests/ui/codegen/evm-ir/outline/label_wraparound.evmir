@@ -1,0 +1,15 @@
+//@ compile-flags: -Zevm-ir-pipeline=outline
+//@ filecheck:
+@module LabelWraparound
+
+// Synthetic labels use unoccupied values when the largest source label is u32::MAX.
+// CHECK-LABEL: {{^[ +].*}}bb4294967295:
+// CHECK: + push bb{{[0-9]+}}
+// CHECK: + jump bb0
+// CHECK: + bb0:
+bb4294967295:
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop

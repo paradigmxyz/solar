@@ -1,6 +1,9 @@
 //! Outline repeated closed computations and large immediate pushes.
 
-use super::EvmPass;
+use super::{
+    EvmPass,
+    utils::{FreshLabels, StackDepths, instruction_size_lower_bound},
+};
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
     op, push_len,
@@ -27,18 +30,17 @@ impl EvmPass for Outline {
     }
 }
 
-const MIN_CLOSED_RUN: usize = 4;
+const MIN_MACHINE_RUN: usize = 4;
 
-type BlockEdits = SmallVec<[(usize, usize, BlockId); 1]>;
+type BlockEdits = SmallVec<[(usize, usize, BlockId, u16); 1]>;
 type OutlineEdits = FxHashMap<BlockId, BlockEdits>;
 
 fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
-    outline_closed_computations(module, &mut state)
-        | outline_repeated_pushes(gcx, module, &mut state)
+    outline_machine_runs(gcx, module, &mut state) | outline_repeated_pushes(gcx, module, &mut state)
 }
 
-fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> bool {
+fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
     // Enumerating every contiguous run is quadratic in a block's length, and
     // hashing each run's instructions made it cubic. Two exact filters keep it
     // in hand without changing which groups are found:
@@ -56,19 +58,35 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
             if !hashes.repeats(block_id, start) {
                 continue;
             }
-            let mut height = 0i32;
+            let mut delta = 0i32;
+            let mut inputs = 0i32;
+            let mut peak = 0i32;
+            let mut run_size = 0usize;
             for end in start..block.instructions.len() {
                 let inst = &block.instructions[end];
                 if !hashes.repeats(block_id, end) {
                     break;
                 }
                 let Some((reads, pops, pushes)) = whitelisted_effect(inst) else { break };
-                if height < i32::from(reads) {
+                run_size += instruction_size_lower_bound(gcx, inst);
+                inputs = inputs.max(i32::from(reads) - delta);
+                delta = delta - i32::from(pops) + i32::from(pushes);
+                peak = peak.max(delta);
+                let outputs = inputs + delta;
+                if inputs != 0 && !gcx.sess.opts.optimization.is_size() {
                     break;
                 }
-                height = height - i32::from(pops) + i32::from(pushes);
                 let len = end + 1 - start;
-                if len >= MIN_CLOSED_RUN && matches!(height, 0 | 1) {
+                let closed = inputs == 0 && matches!(outputs, 0 | 1);
+                let open_size_run = gcx.sess.opts.optimization.is_size()
+                    && (0..=16).contains(&inputs)
+                    && (0..=16).contains(&outputs);
+                // An outlined site costs at least seven bytes plus one stack shuffle per input,
+                // before the shared stub's fixed overhead. A run no larger than that site can
+                // never save bytes regardless of its occurrence count, so do not intern it.
+                let can_amortize = run_size > 7 + inputs as usize;
+                let added_peak = 2usize.max(1 + peak as usize);
+                if len >= MIN_MACHINE_RUN && can_amortize && (closed || open_size_run) {
                     let key = MachineInstSlice {
                         hash: hashes.range(block_id, start, end),
                         insts: &block.instructions[start..=end],
@@ -77,7 +95,9 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
                         block: block_id,
                         start,
                         len,
-                        height: height as u16,
+                        inputs: inputs as u16,
+                        outputs: outputs as u16,
+                        added_peak,
                     });
                 }
             }
@@ -85,6 +105,10 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
     }
 
     let mut groups: Vec<_> = candidates.into_iter().filter(|(_, sites)| sites.len() >= 2).collect();
+    if groups.is_empty() {
+        return false;
+    }
+    let Some(depths) = StackDepths::new(module) else { return false };
     groups.sort_unstable_by_key(|(key, sites)| {
         let first = sites[0];
         (std::cmp::Reverse(key.insts.len()), first.block.index(), first.start)
@@ -94,13 +118,32 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
     for (_, sites) in groups {
         let mut free = SmallVec::<[Site; 2]>::new();
         for site in sites {
+            if !depths.has_headroom(site.block, site.start, site.added_peak) {
+                continue;
+            }
+            let end = site.start + site.len;
             let instruction_count = module.blocks[site.block].instructions.len();
             let claimed = claimed
                 .entry(site.block)
                 .or_insert_with(|| DenseBitSet::new_empty(instruction_count));
-            if !claimed.contains_any(site.start..site.start + site.len) {
-                free.push(site);
+            if claimed.contains_any(site.start..end) {
+                continue;
             }
+            // `claimed` only carries sites fixed by earlier groups; this group's sites are marked
+            // below, after the profitability check, so it cannot catch two occurrences of the same
+            // run that overlap each other. Periodic runs produce exactly that — window `[0, L)` and
+            // window `[p, p + L)` are byte-identical when the period `p < L` divides the pattern,
+            // so both land here. Two overlapping occurrences cannot both be replaced,
+            // and the descending-order edit application would split the block at a
+            // stale index (panicking in `split_off`), so keep every chosen site
+            // pairwise disjoint.
+            if free
+                .iter()
+                .any(|f| f.block == site.block && f.start < end && site.start < f.start + f.len)
+            {
+                continue;
+            }
+            free.push(site);
         }
         if free.len() < 2 {
             continue;
@@ -108,9 +151,9 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
         let first = free[0];
         let body =
             module.blocks[first.block].instructions[first.start..first.start + first.len].to_vec();
-        let run_size = lower_bound(&body);
-        let stub_size = 1 + run_size + usize::from(first.height) + 1;
-        let site_size = if free.len() >= 4 { 7 } else { 8 };
+        let run_size = lower_bound(gcx, &body);
+        let stub_size = 1 + run_size + usize::from(first.outputs) + 1;
+        let site_size = (if free.len() >= 4 { 7 } else { 8 }) + usize::from(first.inputs);
         if free.len() * run_size < free.len() * site_size + stub_size + 2 {
             continue;
         }
@@ -120,18 +163,36 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
                 .expect("candidate block has a claimed-site set")
                 .insert_range(site.start..site.start + site.len);
         }
-        chosen.push(ChosenGroup { body, sites: free, height: first.height });
+        chosen.push(ChosenGroup {
+            body,
+            sites: free,
+            inputs: first.inputs,
+            outputs: first.outputs,
+        });
     }
     if chosen.is_empty() {
         return false;
     }
 
+    let outlined_sites = chosen.iter().map(|group| group.sites.len()).sum::<usize>();
+    let Some(labels) = state.labels(module, chosen.len() + outlined_sites) else { return false };
+    let mut labels = labels.into_iter();
+    let removed_body_instructions =
+        chosen.iter().map(|group| (group.sites.len() - 1) * group.body.len()).sum::<usize>();
+    tracing::debug!(
+        target: "solar::codegen::evm_ir::outline",
+        outlined_groups = chosen.len(),
+        outlined_sites,
+        removed_body_instructions,
+        "outlined repeated machine instruction runs"
+    );
+
     let mut stubs = Vec::with_capacity(chosen.len());
     for group in &chosen {
-        let mut stub = Block::new(state.next_label(module));
+        let mut stub = Block::new(labels.next().expect("reserved one label per outline stub"));
         stub.instructions = group.body.clone();
-        if group.height == 1 {
-            stub.instructions.push(Instruction::opcode(op::SWAP1));
+        for depth in 1..=group.outputs {
+            stub.instructions.push(Instruction::opcode(op::swap(depth as u8)));
         }
         stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
         stubs.push(module.add_block(stub));
@@ -139,10 +200,11 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
     let mut edits = OutlineEdits::default();
     for (group, stub) in chosen.into_iter().zip(stubs) {
         for site in group.sites {
-            edits.entry(site.block).or_default().push((site.start, site.len, stub));
+            edits.entry(site.block).or_default().push((site.start, site.len, stub, group.inputs));
         }
     }
-    apply_outline_edits(module, edits, state);
+    apply_outline_edits(module, edits, &mut labels);
+    debug_assert!(labels.next().is_none());
     true
 }
 
@@ -174,31 +236,60 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     if values.is_empty() {
         return false;
     }
+    let Some(depths) = StackDepths::new(module) else { return false };
+    for occurrences in sites.values_mut() {
+        occurrences.retain(|site| depths.has_headroom(site.0, site.1, 2));
+    }
+    values.retain(|value| {
+        let occurrences = &sites[value];
+        let push_size = push_len(gcx.sess.opts.evm_version, *value);
+        let inline = occurrences.len() * push_size;
+        let outlined = occurrences.len() * SITE_BYTES + push_size + 3;
+        occurrences.len() >= 2 && inline >= outlined + MIN_SAVING
+    });
+    if values.is_empty() {
+        return false;
+    }
     values.sort_unstable();
+    let site_count = values.iter().map(|value| sites[value].len()).sum::<usize>();
+    let Some(labels) = state.labels(module, values.len() + site_count) else { return false };
+    let mut labels = labels.into_iter();
 
     let mut edits = OutlineEdits::default();
     for value in values {
-        let mut stub = Block::new(state.next_label(module));
+        let mut stub = Block::new(labels.next().expect("reserved one label per push stub"));
         stub.instructions.push(Instruction::push_value(value));
         stub.instructions.push(Instruction::opcode(op::SWAP1));
         stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
         let stub = module.add_block(stub);
         for &(block, index) in &sites[&value] {
-            edits.entry(block).or_default().push((index, 1, stub));
+            edits.entry(block).or_default().push((index, 1, stub, 0));
         }
     }
-    apply_outline_edits(module, edits, state);
+    apply_outline_edits(module, edits, &mut labels);
+    debug_assert!(labels.next().is_none());
     true
 }
 
-fn apply_outline_edits(module: &mut Module, mut edits: OutlineEdits, state: &mut RunState) {
+fn apply_outline_edits(
+    module: &mut Module,
+    mut edits: OutlineEdits,
+    labels: &mut impl Iterator<Item = u32>,
+) {
     let mut blocks: Vec<_> = edits.keys().copied().collect();
     blocks.sort_unstable();
     for block in blocks {
         let block_edits = edits.get_mut(&block).expect("edit block came from the map");
-        block_edits.sort_unstable_by_key(|(start, _, _)| std::cmp::Reverse(*start));
-        for &(start, len, stub) in block_edits.iter() {
-            split_outline_site(module, block, start, len, stub, state);
+        block_edits.sort_unstable_by_key(|(start, ..)| std::cmp::Reverse(*start));
+        let mut next_start = module.blocks[block].instructions.len();
+        for &(start, len, ..) in block_edits.iter() {
+            let end = start.checked_add(len).expect("outline edit range overflow");
+            assert!(len != 0 && end <= next_start, "outline edits overlap or exceed their block");
+            next_start = start;
+        }
+        for &(start, len, stub, inputs) in block_edits.iter() {
+            let label = labels.next().expect("reserved one label per outline site");
+            split_outline_site(module, block, start, len, stub, inputs, label);
         }
     }
 }
@@ -209,15 +300,19 @@ fn split_outline_site(
     start: usize,
     len: usize,
     stub: BlockId,
-    state: &mut RunState,
+    inputs: u16,
+    continuation_label: u32,
 ) {
-    let mut continuation = Block::new(state.next_label(module));
+    let mut continuation = Block::new(continuation_label);
     continuation.metadata = module.blocks[block].metadata;
     continuation.instructions = module.blocks[block].instructions.split_off(start + len);
     module.blocks[block].instructions.truncate(start);
     continuation.terminator = module.blocks[block].terminator.take();
     let continuation = module.add_block(continuation);
     module.blocks[block].instructions.push(Instruction::push_block(continuation));
+    for depth in (1..=inputs).rev() {
+        module.blocks[block].instructions.push(Instruction::opcode(op::swap(depth as u8)));
+    }
     module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(stub)));
 }
 
@@ -250,8 +345,8 @@ fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
     })
 }
 
-fn lower_bound(instructions: &[Instruction]) -> usize {
-    instructions.iter().map(|inst| if inst.is_encoded_push() { 2 } else { 1 }).sum()
+fn lower_bound(gcx: Gcx<'_>, instructions: &[Instruction]) -> usize {
+    instructions.iter().map(|inst| instruction_size_lower_bound(gcx, inst)).sum()
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -259,13 +354,16 @@ struct Site {
     block: BlockId,
     start: usize,
     len: usize,
-    height: u16,
+    inputs: u16,
+    outputs: u16,
+    added_peak: usize,
 }
 
 struct ChosenGroup {
     body: Vec<Instruction>,
     sites: SmallVec<[Site; 2]>,
-    height: u16,
+    inputs: u16,
+    outputs: u16,
 }
 
 /// The identity of an instruction for outlining: what a run must match on.
@@ -329,6 +427,7 @@ impl InstHashes {
         for index in 0..longest {
             powers.push(powers[index].wrapping_mul(Self::BASE));
         }
+
         Self { prefixes, repeats, powers }
     }
 
@@ -370,22 +469,12 @@ impl Hash for MachineInstSlice<'_> {
 
 #[derive(Default)]
 struct RunState {
-    next_label: Option<u32>,
+    labels: Option<FreshLabels>,
 }
 
 impl RunState {
-    fn next_label(&mut self, module: &Module) -> u32 {
-        let label = *self.next_label.get_or_insert_with(|| {
-            module
-                .blocks
-                .iter()
-                .map(|block| block.label)
-                .max()
-                .unwrap_or(0)
-                .checked_add(1)
-                .expect("EVM IR block label overflow")
-        });
-        self.next_label = Some(label.checked_add(1).expect("EVM IR block label overflow"));
-        label
+    fn labels(&mut self, module: &Module, count: usize) -> Option<Vec<u32>> {
+        let labels = self.labels.get_or_insert_with(|| FreshLabels::new(module));
+        labels.take(count)
     }
 }

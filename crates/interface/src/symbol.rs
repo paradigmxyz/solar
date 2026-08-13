@@ -1056,6 +1056,7 @@ symbols! {
         mapping_slot_calldata,
         mapping_slot_memory,
         max,
+        may_return_memory,
         memory_array,
         memory_bytes,
         memory_dash_lowered: "memory-lowered",

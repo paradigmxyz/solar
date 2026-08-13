@@ -1,0 +1,52 @@
+//@ compile-flags: -Zmir-pipeline=dead-arg-elim
+//@ filecheck:
+@module DeadArgElimFrame
+
+// A framed internal function bakes each local address as
+// `header + (params + returns) * word + local_offset` (see `local_memory_addr`).
+// Pruning the dead middle argument shrinks the parameter prefix by one word, so
+// every `internal_frame_addr` must move down by 32 to keep pointing at the same
+// local; leaving the offset high would alias the local onto a spill slot or a
+// nested callee frame once the backend recomputes the layout from the pruned
+// signature.
+
+// The rebased offset `160` only appears when the prune shifts it down by one
+// word; without the rebase the stale `192` would survive unchanged.
+// CHECK-LABEL: fn @framed(arg0: u256, arg1: u256) -> u256
+// CHECK: internal_frame_addr 160
+fn @framed(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = internal_frame_addr 192
+    mstore v0, arg0
+    v1 = mload v0
+    v2 = add v1, arg2
+    ret v2
+}
+
+// CHECK-LABEL: fn @entry() -> u256
+// CHECK: internal_call @framed, 1, 5, 7
+fn @entry() -> u256 [selector=0x01020304] {
+  bb0:
+    v0 = internal_call fn0, 1, 5, 6, 7
+    ret v0
+}
+
+// Explicit accesses to signature or header slots make signature rewriting ambiguous. Preserve the
+// otherwise-dead argument rather than asserting or silently retargeting the address.
+// CHECK-LABEL: fn @explicit_slot(arg0: u256, arg1: u256) -> u256
+// CHECK: internal_frame_addr 0
+fn @explicit_slot(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = internal_frame_addr 0
+    mstore v0, arg0
+    v1 = mload v0
+    ret v1
+}
+
+// CHECK-LABEL: fn @explicit_slot_caller() -> u256
+// CHECK: internal_call @explicit_slot, 1, 1, 2
+fn @explicit_slot_caller() -> u256 [selector=0x05060708] {
+  bb0:
+    v0 = internal_call fn2, 1, 1, 2
+    ret v0
+}

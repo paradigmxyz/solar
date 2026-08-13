@@ -224,7 +224,7 @@ fn find_candidate(
             Some(op::POP) => {
                 slots.pop();
             }
-            Some(opcode) if is_control_flow(opcode) => return None,
+            Some(opcode) if is_analysis_boundary(opcode) => return None,
             Some(opcode) if (op::DUP1..=op::DUP16).contains(&opcode) => {
                 let depth = usize::from(opcode - op::DUP1 + 1);
                 ensure_depth(&mut slots, depth);
@@ -354,7 +354,7 @@ fn raw_opcode(inst: &Instruction) -> Option<u8> {
     (!inst.is_encoded_push()).then_some(inst.opcode)
 }
 
-const fn is_control_flow(opcode: u8) -> bool {
+const fn is_analysis_boundary(opcode: u8) -> bool {
     op::is_terminal(opcode)
         || matches!(
             opcode,
@@ -365,6 +365,12 @@ const fn is_control_flow(opcode: u8) -> bool {
                 | op::CALLF
                 | op::RETF
                 | op::JUMPF
+                // EOF extended stack operations access or rearrange words selected by their
+                // immediate operand. EVM IR does not model that selection yet, so a ghost copy
+                // cannot be tracked safely across them from their net stack effect alone.
+                | op::DUPN
+                | op::SWAPN
+                | op::EXCHANGE
                 | op::RETURNCONTRACT
         )
 }

@@ -1,0 +1,37 @@
+//@compile-flags: -Zevm-ir-pipeline=outline
+//@filecheck:
+@module OutlineOverlappingRun
+
+// A periodic run makes window `[0, L)` and window `[2, L + 2)` byte-identical, so both land in the
+// same candidate group while overlapping each other. Outlining both would split the block twice at
+// stale indices and panic in `split_off`; the pass must keep the chosen sites disjoint instead of
+// crashing. This block must survive the pass without an ICE.
+
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}stop
+bb0:
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  stop

@@ -45,6 +45,11 @@ pub(in crate::backend::evm) fn lower_evm_ir(
     module: &mut ir::Module,
     labels: &mut Vec<Option<Label>>,
 ) -> Program {
+    // Finalized EVM IR represents every control-flow reference as a `BlockId`; the builder's
+    // assembler-label table is no longer authoritative. Rebuild it for the final module so a
+    // transform that deletes a block and reuses its sparse textual label cannot inherit the
+    // deleted block's assembler label.
+    reset_assembler_labels(labels);
     let (mut indexed_jump_lowerings, mut tables) = indexed_jump::materialize_tables_with_metadata(
         module,
         assembler.gcx.sess.opts.evm_version,
@@ -161,6 +166,10 @@ fn allocate_referenced_labels(
     }
 }
 
+fn reset_assembler_labels(labels: &mut [Option<Label>]) {
+    labels.fill(None);
+}
+
 fn lower_instruction(
     assembler: &mut Assembler<'_>,
     inst: &ir::Instruction,
@@ -257,4 +266,47 @@ pub(super) fn label_for_block(
         labels.resize_with(original + 1, || None);
     }
     *labels[original].get_or_insert_with(|| assembler.new_label())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::evm::{assembler::AsmInstKind, ir::Block};
+    use solar_interface::{Session, sym};
+    use solar_sema::Compiler;
+
+    #[test]
+    fn finalized_ir_does_not_retain_builder_labels() {
+        let mut module = ir::Module::new(sym::module);
+        let entry = module.add_block(Block::new(0));
+        let middle = module.add_block(Block::new(2));
+        // Model a transform reusing textual label 1 after deleting its original block.
+        let target = module.add_block(Block::new(1));
+        module.blocks[entry].terminator =
+            Some(ir::Terminator::new(ir::TerminatorKind::Jump(target)));
+        module.blocks[middle].terminator =
+            Some(ir::Terminator::new(ir::TerminatorKind::Op(op::INVALID)));
+        module.blocks[target].terminator =
+            Some(ir::Terminator::new(ir::TerminatorKind::Op(op::STOP)));
+
+        let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
+        compiler.enter(|c| {
+            let mut assembler = Assembler::new(c.gcx());
+            let old_entry = assembler.new_label();
+            let old_target = assembler.new_label();
+            let mut labels = vec![Some(old_entry), Some(old_target), None];
+
+            let program = lower_evm_ir(&mut assembler, &mut module, &mut labels);
+            let target_label =
+                labels[module.blocks[target].label as usize].expect("referenced target label");
+
+            assert_ne!(target_label, old_target);
+            assert!(program.instructions.iter().any(|inst| {
+                matches!(inst.kind(), AsmInstKind::PushLabel(label) if label == target_label)
+            }));
+            assert!(program.instructions.iter().any(|inst| {
+                matches!(inst.kind(), AsmInstKind::Label(label) if label == target_label)
+            }));
+        });
+    }
 }

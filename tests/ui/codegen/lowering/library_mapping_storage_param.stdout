@@ -33,20 +33,12 @@ bb0:
   sub
   push bb3
   jumpi
+  push bb7
   push 0
-  push 192
-  mstore
   push 4
   calldataload
-  push 224
-  mstore
-  push bb7
-  push 224
-  mload
   push 0
   mstore
-  push 192
-  mload
   push 32
   mstore
   push 64
@@ -84,6 +76,7 @@ bb7:
   push 128
   return
 bb11 [cold]:
+  pop
   push 0x4e487b71
   push 224
   shl

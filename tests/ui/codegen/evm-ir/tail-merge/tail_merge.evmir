@@ -55,9 +55,73 @@ bb6 [cold]:
   push 555
   revert
 
-// CHECK-LABEL: {{^[ +].*}}bb7:
+// The maximum textual label is valid and must not overflow synthetic-label allocation.
+// CHECK-LABEL: {{^[ +].*}}bb4294967295:
 // CHECK: {{^[ +].*}}push 999
 // CHECK: + jump [[TAIL_C]]
+bb4294967295:
+  push 999
+  push 222
+  push 333
+  push 444
+  push 555
+  revert
+
+// PUSH0 makes this shared suffix five bytes, so replacing it with two jumps and a shared tail
+// would grow the module. The size lower bound must use the selected EVM version's push width.
+// CHECK-LABEL: {{^[ +].*}}bb4294967293:
+// CHECK: {{^[ +].*}}push 0
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}push0
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}stop
+bb4294967293:
+  push 0
+  pop
+  push0
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb4294967294:
+// CHECK: {{^[ +].*}}push 0
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}push0
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}stop
+bb4294967294:
+  push 0
+  pop
+  push0
+  pop
+  stop
+
+// The second copy falls through to bb10, so its jump currently emits no bytes. Counting a
+// conservative PUSH+JUMP would make this three-byte suffix appear profitable to share.
+// CHECK-LABEL: {{^[ +].*}}bb8:
+// CHECK: {{^[ +].*}}push0
+// CHECK-NEXT: {{^[ +].*}}dup1
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}jump bb10
+bb8:
+  push0
+  dup1
+  pop
+  jump bb10
+
+// CHECK-LABEL: {{^[ +].*}}bb9:
+// CHECK: {{^[ +].*}}push0
+// CHECK-NEXT: {{^[ +].*}}dup1
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}jump bb10
+bb9:
+  push0
+  dup1
+  pop
+  jump bb10
+
+bb10:
+  stop
+
 // CHECK: + [[TAIL_B]]:
 // CHECK: {{^[ +].*}}push 33
 // CHECK: {{^[ +].*}}revert
@@ -67,10 +131,3 @@ bb6 [cold]:
 // CHECK: + [[TAIL_C]]:
 // CHECK: {{^[ +].*}}push 222
 // CHECK: {{^[ +].*}}revert
-bb7:
-  push 999
-  push 222
-  push 333
-  push 444
-  push 555
-  revert

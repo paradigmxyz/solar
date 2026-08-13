@@ -469,6 +469,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     builder.func_mut().abi_params = Some(self.parse_abi_param_layout()?);
                 }
                 sym::entry => builder.func_mut().attributes.is_dispatch_entry = true,
+                sym::may_return_memory => {
+                    builder.func_mut().attributes.may_return_memory = true;
+                }
                 sym::function_pointer_dispatcher => {
                     builder.func_mut().attributes.is_function_pointer_dispatcher = true;
                 }

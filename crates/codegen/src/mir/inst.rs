@@ -549,7 +549,7 @@ impl Instruction {
 /// TODO(codegen): Consider separating opcode and operands once the MIR shape stabilizes, e.g.
 /// `Instruction { opcode: Opcode, operands: SmallVec<[ValueId; 4]>, ... }`. That would make generic
 /// operand visitors and rewrites less variant-heavy.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum InstKind {
     // Arithmetic operations
     /// Addition: `a + b`

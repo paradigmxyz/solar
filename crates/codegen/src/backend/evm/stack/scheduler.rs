@@ -426,15 +426,26 @@ impl StackScheduler {
         domain_size: usize,
         values: impl IntoIterator<Item = ValueId>,
     ) {
+        let mut values = values.into_iter();
+        let Some(first) = values.next() else {
+            self.stack_only_values = DenseBitSet::new_empty(0);
+            return;
+        };
         self.stack_only_values = DenseBitSet::new_empty(domain_size);
+        self.stack_only_values.insert(first);
         for value in values {
             self.stack_only_values.insert(value);
         }
     }
 
+    /// Returns whether this function has values without a memory fallback.
+    pub(crate) fn has_stack_only_values(&self) -> bool {
+        !self.stack_only_values.is_empty()
+    }
+
     /// Returns whether `value` has no valid memory materialization in this function.
     pub(crate) fn is_stack_only_value(&self, value: ValueId) -> bool {
-        !self.stack_only_values.is_empty() && self.stack_only_values.contains(value)
+        self.has_stack_only_values() && self.stack_only_values.contains(value)
     }
 
     /// Records that `value` now has a valid memory home and may be reloaded normally.
@@ -484,6 +495,16 @@ impl StackScheduler {
             operands,
             preserved,
             func,
+            evm_version,
+            cost_model,
+        ) {
+            return self.validate_operand_plan(plan, &goal, preserved, func);
+        }
+        if let Some(plan) = self.try_preserved_operand_copy_plan(
+            operands,
+            preserved,
+            func,
+            optimization,
             evm_version,
             cost_model,
         ) {
@@ -937,7 +958,7 @@ impl StackScheduler {
         evm_version: EvmVersion,
         cost_model: OperandCostModel,
     ) -> Option<OperandPlan> {
-        if !preserved.is_empty() || operands.len() < 2 {
+        if operands.len() < 2 || operands.iter().any(|value| preserved.contains(value)) {
             return None;
         }
         let Some(&Some(resident)) = self.stack.as_slice().first() else {
@@ -990,8 +1011,8 @@ impl StackScheduler {
         evm_version: EvmVersion,
         cost_model: OperandCostModel,
     ) -> Option<OperandPlan> {
-        if !preserved.is_empty()
-            || operands.len() < 2
+        if operands.len() < 2
+            || operands.iter().any(|value| preserved.contains(value))
             || operands.iter().enumerate().any(|(i, &value)| operands[i + 1..].contains(&value))
             || self
                 .stack
@@ -1008,6 +1029,55 @@ impl StackScheduler {
             let op = self.materialize_operand(value, func)?;
             cost = cost.with_op(&op, evm_version, cost_model);
             actions.push(PlannedAction { op, pushed: Some(value) });
+        }
+        Some(OperandPlan { actions, cost })
+    }
+
+    /// Copies operands whose sole resident values must all survive the instruction.
+    ///
+    /// Each operand occurrence requires a new copy, so its cheapest one-action duplication or
+    /// rematerialization reaches the action, gas, and byte lower bounds without invoking the
+    /// general operand search.
+    fn try_preserved_operand_copy_plan(
+        &self,
+        operands: &[ValueId],
+        preserved: &[ValueId],
+        func: &Function,
+        optimization: OptimizationMode,
+        evm_version: EvmVersion,
+        cost_model: OperandCostModel,
+    ) -> Option<OperandPlan> {
+        if operands.is_empty()
+            || !operands.iter().all(|value| preserved.contains(value))
+            || operands.iter().any(|&value| {
+                self.stack.as_slice().iter().filter(|&&slot| slot == Some(value)).count() != 1
+            })
+        {
+            return None;
+        }
+
+        let mut stack = self.stack.as_slice().iter().copied().collect::<SearchStack>();
+        let mut actions = PlannedActions::new();
+        let mut cost = ScheduleCost::default();
+        for &value in operands {
+            let depth = stack.iter().position(|&slot| slot == Some(value))?;
+            if depth >= MAX_STACK_ACCESS {
+                return None;
+            }
+            let duplicate = ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8));
+            let op = self
+                .materialize_operand(value, func)
+                .filter(|materialize| {
+                    let duplicate_cost =
+                        ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
+                    let materialize_cost =
+                        ScheduleCost::default().with_op(materialize, evm_version, cost_model);
+                    materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
+                })
+                .unwrap_or(duplicate);
+            cost = cost.with_op(&op, evm_version, cost_model);
+            actions.push(PlannedAction { op, pushed: Some(value) });
+            stack.insert(0, Some(value));
         }
         Some(OperandPlan { actions, cost })
     }
@@ -1100,7 +1170,7 @@ impl StackScheduler {
         Some(OperandPlan { actions, cost })
     }
 
-    /// Builds the optimal two-action plan for a preserved top-of-stack binary operand.
+    /// Builds the optimal plan for one preserved resident binary operand.
     fn try_preserved_resident_binary_plan(
         &self,
         operands: &[ValueId],
@@ -1111,44 +1181,61 @@ impl StackScheduler {
         cost_model: OperandCostModel,
     ) -> Option<OperandPlan> {
         let &[first, second] = operands else { return None };
-        let &[preserved] = preserved else { return None };
-        let Some(&Some(resident)) = self.stack.as_slice().first() else {
-            return None;
-        };
-        if preserved != resident || first == second {
+        if first == second {
             return None;
         }
-
-        let other = if first == resident {
-            second
-        } else if second == resident {
-            first
+        let (resident, other) = if preserved.contains(&first) && !preserved.contains(&second) {
+            (first, second)
+        } else if preserved.contains(&second) && !preserved.contains(&first) {
+            (second, first)
         } else {
             return None;
         };
-        if self.stack.as_slice()[1..].contains(&Some(other))
-            || self.stack.as_slice()[1..].contains(&Some(resident))
+        let stack = self.stack.as_slice();
+        let resident_depth = stack.iter().position(|&slot| slot == Some(resident))?;
+        if resident_depth >= MAX_STACK_ACCESS
+            || stack.iter().filter(|&&slot| slot == Some(resident)).count() != 1
         {
             return None;
         }
-        let materialize = self.materialize_operand(other, func)?;
-        let duplicate = ScheduledOp::Stack(StackOp::Dup(if first == resident { 1 } else { 2 }));
-        let resident_op = self
-            .materialize_operand(resident, func)
-            .filter(|resident_op| {
-                let materialize_cost =
-                    ScheduleCost::default().with_op(resident_op, evm_version, cost_model);
-                let duplicate_cost =
-                    ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
-                materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
-            })
-            .unwrap_or(duplicate);
-        let resident_pushed = (!matches!(&resident_op, ScheduledOp::Stack(_))).then_some(resident);
-        let ops = if first == resident {
-            [(resident_op, resident_pushed), (materialize, Some(other))]
-        } else {
-            [(materialize, Some(other)), (resident_op, resident_pushed)]
+
+        let copy_resident = |depth: usize| {
+            let duplicate = ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8));
+            self.materialize_operand(resident, func)
+                .filter(|materialize| {
+                    let duplicate_cost =
+                        ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
+                    let materialize_cost =
+                        ScheduleCost::default().with_op(materialize, evm_version, cost_model);
+                    materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
+                })
+                .unwrap_or(duplicate)
         };
+
+        let mut ops = SmallVec::<[(ScheduledOp, Option<ValueId>); 3]>::new();
+        if !stack.contains(&Some(other)) {
+            let materialize_other = self.materialize_operand(other, func)?;
+            if first == resident {
+                ops.push((copy_resident(resident_depth), Some(resident)));
+                ops.push((materialize_other, Some(other)));
+            } else {
+                if resident_depth.checked_add(1)? >= MAX_STACK_ACCESS {
+                    return None;
+                }
+                ops.push((materialize_other, Some(other)));
+                ops.push((copy_resident(resident_depth + 1), Some(resident)));
+            }
+        } else if stack.first() == Some(&Some(other))
+            && resident_depth == 1
+            && stack[1..].iter().filter(|&&slot| slot == Some(other)).count() == 0
+        {
+            ops.push((copy_resident(1), Some(resident)));
+            if first == resident {
+                ops.push((ScheduledOp::Stack(StackOp::Swap(1)), None));
+            }
+        } else {
+            return None;
+        }
 
         let mut actions = PlannedActions::new();
         let mut cost = ScheduleCost::default();
@@ -3449,6 +3536,36 @@ mod tests {
         scheduler.apply_operand_plan(plan);
         scheduler.instruction_executed(1, None);
         assert_eq!(scheduler.stack.top(), Some(value));
+    }
+
+    #[test]
+    fn preserved_binary_plan_rejects_resident_buried_past_dup16() {
+        let mut func = Function::new(Ident::DUMMY);
+        let resident = func.alloc_param(MirType::uint256());
+        let other = func
+            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(17))));
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(resident);
+        for value in 0..MAX_STACK_ACCESS - 1 {
+            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+                alloy_primitives::U256::from(value),
+            )));
+            scheduler.stack.push(filler);
+        }
+        assert_eq!(scheduler.stack.find(resident), Some(MAX_STACK_ACCESS - 1));
+
+        assert!(
+            scheduler
+                .try_preserved_resident_binary_plan(
+                    &[other, resident],
+                    &[resident],
+                    &func,
+                    OptimizationMode::Gas,
+                    EvmVersion::Shanghai,
+                    OperandCostModel::DIRECT,
+                )
+                .is_none()
+        );
     }
 
     #[test]

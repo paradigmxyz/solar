@@ -1,0 +1,44 @@
+- // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_returns.mir (before dead-arg-elim) ===
++ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_returns.mir (after dead-arg-elim) ===
+  @module DeadArgElimReturns
+- fn @discarded(arg0: u256) -> u256 {
++ fn @discarded(arg0: u256) {
+    bb0:
+      sstore 0, arg0
+-     ret arg0
++     ret
+  }
+  
+  fn @recursive(arg0: bool, arg1: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb1:
+      v0 = internal_call @recursive, 1, 0, arg1
+      ret v0
+    bb2:
+      sstore 1, arg1
+      ret arg1
+  }
+  
+  fn @kept(arg0: u256) -> u256 {
+    bb0:
+      ret arg0
+  }
+  
+  fn @entry() -> u256 {
+    bb0:
+-     v0 = internal_call @discarded, 1, 7
+-     v1 = internal_call @recursive, 1, 1, 8
+-     v2 = internal_call @kept, 1, 9
+-     ret v2
++     internal_call @discarded, 0, 7
++     v0 = internal_call @recursive, 1, 1, 8
++     v1 = internal_call @kept, 1, 9
++     ret v1
+  }
+  
+  fn @external_keeps_abi(arg0: u256) -> u256 {
+    bb0:
+      ret arg0
+  }
+  
