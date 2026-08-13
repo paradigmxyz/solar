@@ -1143,6 +1143,30 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Returns arguments without a valid frame home at this point in the callee.
+    fn stack_only_values(&self, func_id: FunctionId, entry: bool) -> Vec<ValueId> {
+        self.resident_stack_args(func_id)
+            .into_iter()
+            .flatten()
+            .copied()
+            .chain(
+                entry
+                    .then(|| self.direct_stack_args(func_id))
+                    .flatten()
+                    .into_iter()
+                    .flatten()
+                    .copied(),
+            )
+            .chain(
+                entry
+                    .then(|| self.lazy_stack_args(func_id))
+                    .flatten()
+                    .into_iter()
+                    .flat_map(LazyStackArgPlan::values),
+            )
+            .collect()
+    }
+
     fn stack_return_plan(&self, func_id: FunctionId) -> Option<StackReturnPlan> {
         self.static_call_abis.get(&func_id)?.returns
     }
@@ -2160,6 +2184,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler = StackScheduler::new();
         self.spill_addr_consts.clear();
 
+        // Cross-block rematerialization is selected during spill preallocation. Record every
+        // argument without a frame home before that analysis so an expression depending on one is
+        // stored instead of later being rebuilt after its only physical copy was consumed.
+        let initial_stack_only_values = self.stack_only_values(func_id, true);
+        self.scheduler.set_stack_only_values(func.num_values(), initial_stack_only_values);
+
         self.preallocate_cross_block_spills(func, liveness);
 
         self.cold_blocks = self.collect_cold_blocks(func);
@@ -2238,27 +2268,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.set_stack_to_values(&plan.values().collect::<Vec<_>>());
             }
             // Resident and direct arguments have no frame fallback.
-            let stack_only_values: Vec<_> = self
-                .resident_stack_args(func_id)
-                .into_iter()
-                .flatten()
-                .copied()
-                .chain(
-                    (block_id == BlockId::ENTRY)
-                        .then(|| self.direct_stack_args(func_id))
-                        .flatten()
-                        .into_iter()
-                        .flatten()
-                        .copied(),
-                )
-                .chain(
-                    (block_id == BlockId::ENTRY)
-                        .then(|| self.lazy_stack_args(func_id))
-                        .flatten()
-                        .into_iter()
-                        .flat_map(|plan| plan.values()),
-                )
-                .collect();
+            let stack_only_values = self.stack_only_values(func_id, block_id == BlockId::ENTRY);
             self.scheduler.set_stack_only_values(func.num_values(), stack_only_values);
             if block_id != BlockId::ENTRY
                 && self.resident_stack_args(func_id).is_some()
@@ -3864,7 +3874,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// arguments never own slots: making `Arg` non-rematerializable was
     /// measured to REGRESS every bench contract's size (erc20 +61 B, maple
     /// +72 B, fractional +127 B) and to break 4 of 8 bench harnesses at
-    /// runtime. Do not re-attempt without redesigning argument spilling.
+    /// runtime. The one exception is a stack-only argument that sinks below
+    /// DUP16 reach: [`Self::emit_value_impl`] gives that otherwise stranded
+    /// word a spill slot. Do not make ordinary frame-backed arguments own
+    /// slots without redesigning argument spilling.
     fn is_rematerializable_value(func: &Function, value: ValueId) -> bool {
         matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_))
     }
@@ -7543,10 +7556,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         if let Some(depth) = self.scheduler.stack.find(val)
             && depth >= MAX_STACK_ACCESS
             && self.scheduler.reloadable_spill(val).is_none()
-            && !matches!(
-                func.value(val),
-                crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_)
-            )
+            && (self.scheduler.is_stack_only_value(val)
+                || !matches!(
+                    func.value(val),
+                    crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_)
+                ))
         {
             let slot = self.scheduler.spills.allocate(val);
             self.spill_deep_stack_value(func, val, slot, depth);
