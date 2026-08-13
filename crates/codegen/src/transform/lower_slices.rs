@@ -79,14 +79,14 @@ fn value_slice_location(func: &Function, value: ValueId) -> Option<SliceLocation
     }
 }
 
-/// The pointer type for a slice parameter's leading word. Only calldata and
-/// memory slices are ever parameters; returndata is a volatile in-body buffer
-/// and never reaches a function signature.
+/// The pointer type for a slice parameter's leading word. Returndata has no
+/// dedicated pointer type: like the result of `returndatasize`, its offset is
+/// an ordinary EVM word whose address space remains encoded by the slice type.
 fn slice_param_ptr_type(location: SliceLocation) -> MirType {
     match location {
         SliceLocation::Memory => MirType::MemPtr,
         SliceLocation::Calldata => MirType::CalldataPtr,
-        SliceLocation::Returndata => unreachable!("returndata slices are never parameters"),
+        SliceLocation::Returndata => MirType::uint256(),
     }
 }
 
@@ -109,6 +109,37 @@ fn new_slice_inst(
 }
 
 impl LowerSlicesCx {
+    /// Computes the shifted local-frame addresses for a signature expansion.
+    ///
+    /// Parsed MIR can contain arbitrary `u64` frame offsets. Collect every replacement before
+    /// mutating the function so an offset near the address-space limit makes this transform bail
+    /// atomically instead of panicking in debug builds or wrapping in release builds.
+    fn shifted_frame_offsets(func: &Function, added_slots: usize) -> Option<Vec<(InstId, u64)>> {
+        if added_slots == 0 {
+            return Some(Vec::new());
+        }
+        let signature_slots = func.params.len().checked_add(func.returns.len())?;
+        let signature_size =
+            u64::try_from(signature_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+        let old_local_start =
+            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(signature_size)?;
+        let shift = u64::try_from(added_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+
+        let mut shifted = Vec::new();
+        for inst_id in func.instructions() {
+            let InstKind::InternalFrameAddr(offset) = func.inst(inst_id).kind else { continue };
+            // Lowering emits this instruction only for frame locals. Parsed MIR can address the
+            // header or signature directly, but a raw signature offset does not identify which
+            // parameter or result it belongs to after a slice expands. Bail instead of silently
+            // retargeting it to a different slot.
+            if offset < old_local_start {
+                return None;
+            }
+            shifted.push((inst_id, offset.checked_add(shift)?));
+        }
+        Some(shifted)
+    }
+
     /// Rewrites slice-typed `select` and `phi` into paired pointer/length
     /// operations over a `make_slice`, so no two-word slice value survives an
     /// aggregate use. Each operand slice is then consumed only by projections
@@ -299,6 +330,10 @@ impl LowerSlicesCx {
                 }
             }
         }
+        let added_slots = new_params.len() - old_params.len();
+        let Some(shifted_frame_offsets) = Self::shifted_frame_offsets(func, added_slots) else {
+            return false;
+        };
 
         let argument_values: FxHashSet<_> = func
             .live_values()
@@ -328,20 +363,11 @@ impl LowerSlicesCx {
         // physical parameter. Rebase every baked offset or the backend —
         // which recomputes the frame layout from the widened signature —
         // would read the old addresses as parameter or return slots.
-        let added_slots = (func.params.len() - old_params.len()) as u64;
-        if added_slots != 0 {
-            let old_local_start = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                + ((old_params.len() + func.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE;
-            let shift = added_slots * EvmMemoryLayout::WORD_SIZE;
-            func.for_each_instruction_mut(|_, inst| {
-                if let InstKind::InternalFrameAddr(offset) = &mut inst.kind {
-                    assert!(
-                        *offset >= old_local_start,
-                        "frame-local offset precedes the signature prefix"
-                    );
-                    *offset += shift;
-                }
-            });
+        for (inst_id, shifted) in shifted_frame_offsets {
+            let InstKind::InternalFrameAddr(offset) = &mut func.inst_mut(inst_id).kind else {
+                unreachable!()
+            };
+            *offset = shifted;
         }
         let mut components = FxHashMap::default();
         let mut compact_heads = FxHashMap::default();
@@ -617,6 +643,21 @@ impl LowerSlicesCx {
                 (id, signature)
             })
             .collect();
+        // Signature expansion rewrites call edges throughout the module. Prove every frame-address
+        // shift first so an unrepresentable parsed-MIR offset leaves the complete module untouched.
+        if module.functions.iter_enumerated().any(|(id, func)| {
+            let added_slots = if func.selector.is_none()
+                && !func.blocks.is_empty()
+                && func.params.iter().any(Self::is_slice)
+            {
+                signatures[&id].iter().filter(|&&repr| repr == ParamRepr::Pair).count()
+            } else {
+                0
+            };
+            Self::shifted_frame_offsets(func, added_slots).is_none()
+        }) {
+            return false;
+        }
         let mut changed = false;
         for func in module.functions.iter_mut() {
             // Eliminate slice-typed `select`/`phi` first, so every remaining

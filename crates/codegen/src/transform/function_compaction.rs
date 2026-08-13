@@ -93,6 +93,40 @@ fn has_rewritable_signature(func: &Function, is_called: bool) -> bool {
         && !func.params.is_empty()
         && func.params.len() == func.arg_indices().count()
         && is_internal_body(func)
+        && frame_offsets_are_local(func)
+}
+
+/// Returns whether every baked frame address belongs to the local region that moves with the
+/// signature prefix. Parsed MIR may explicitly address a parameter, result, or frame-header slot;
+/// those accesses do not identify which signature component they refer to, so changing that
+/// function's signature would be ambiguous.
+fn frame_offsets_are_local(func: &Function) -> bool {
+    let Some(signature_slots) = func.params.len().checked_add(func.returns.len()) else {
+        return false;
+    };
+    let Some(signature_size) = u64::try_from(signature_slots)
+        .ok()
+        .and_then(|slots| slots.checked_mul(EvmMemoryLayout::WORD_SIZE))
+    else {
+        return false;
+    };
+    let Some(local_start) = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(signature_size)
+    else {
+        return false;
+    };
+    let local_end = if func.internal_frame_size == 0 {
+        None
+    } else {
+        let Some(end) = local_start.checked_add(func.internal_frame_size) else { return false };
+        Some(end)
+    };
+
+    func.instructions().all(|inst_id| match func.inst(inst_id).kind {
+        InstKind::InternalFrameAddr(offset) => {
+            offset >= local_start && local_end.is_none_or(|end| offset < end)
+        }
+        _ => true,
+    })
 }
 
 /// Rebases every static-frame address in `func` after `removed_slots` leading parameter or result
@@ -346,6 +380,7 @@ fn prune_unused_returns(module: &mut Module) -> usize {
             && func.returns.len() == 1
             && !func.returns[0].is_memory_reference()
             && is_internal_body(func)
+            && frame_offsets_are_local(func)
         {
             candidates.insert(func_id);
         }

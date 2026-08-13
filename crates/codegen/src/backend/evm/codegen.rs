@@ -523,21 +523,40 @@ impl StackPhiPlan {
     /// Extends planned phi edges with the resident argument prefix required by
     /// the same target. Phi values stay nearest the top, preserving the
     /// existing loop/join schedule, while invariant arguments ride below them.
-    fn merge_resident(&mut self, func: &Function, resident: &GlobalStackPlan) {
+    fn merge_resident(&mut self, func: &Function, resident: &GlobalStackPlan) -> bool {
+        for (&block, entry) in &self.entries {
+            if let Some(values) = resident.entry(block) {
+                let additions = values.iter().filter(|value| !entry.contains(value)).count();
+                if entry.len().saturating_add(additions) > MAX_STACK_ACCESS {
+                    return false;
+                }
+            }
+        }
+        for (&pred, edge) in &self.edges {
+            let Some(term) = func.blocks[pred].terminator.as_ref() else { return false };
+            if let Some(values) = resident.edge_layout(func, term) {
+                let source_additions =
+                    values.iter().filter(|value| !edge.sources.contains(value)).count();
+                let result_additions =
+                    values.iter().filter(|value| !edge.results.contains(value)).count();
+                if edge.sources.len().saturating_add(source_additions) > MAX_STACK_ACCESS
+                    || edge.results.len().saturating_add(result_additions) > MAX_STACK_ACCESS
+                {
+                    return false;
+                }
+            }
+        }
+
         for (&block, entry) in &mut self.entries {
             if let Some(values) = resident.entry(block) {
                 let additions: Vec<_> =
                     values.iter().copied().filter(|value| !entry.contains(value)).collect();
                 entry.extend(additions);
-                assert!(entry.len() <= MAX_STACK_ACCESS, "combined phi layout exceeds DUP16");
             }
         }
 
         for (&pred, edge) in &mut self.edges {
-            let term = func.blocks[pred]
-                .terminator
-                .as_ref()
-                .expect("stack-phi predecessor has no terminator");
+            let Some(term) = func.blocks[pred].terminator.as_ref() else { return false };
             if let Some(values) = resident.edge_layout(func, term) {
                 let source_additions: Vec<_> =
                     values.iter().copied().filter(|value| !edge.sources.contains(value)).collect();
@@ -545,14 +564,10 @@ impl StackPhiPlan {
                     values.iter().copied().filter(|value| !edge.results.contains(value)).collect();
                 edge.sources.extend(source_additions);
                 edge.results.extend(result_additions);
-                assert!(
-                    edge.sources.len() <= MAX_STACK_ACCESS
-                        && edge.results.len() <= MAX_STACK_ACCESS,
-                    "combined phi edge exceeds DUP16"
-                );
             }
             self.edge_sources.insert(pred, edge.sources.clone());
         }
+        true
     }
 }
 
@@ -790,9 +805,9 @@ pub struct EvmCodegen<'gcx> {
     resident_stack_args: FxHashMap<FunctionId, Vec<ValueId>>,
     /// Proven cross-block layouts for `resident_stack_args`.
     resident_stack_plans: FxHashMap<FunctionId, GlobalStackPlan>,
-    /// Functions whose first scheduling attempt proved that a resident argument can exceed
-    /// `DUP16` reach. Runtime codegen retries these functions with the frame-backed convention.
-    disabled_resident_stack_functions: DenseBitSet<FunctionId>,
+    /// Functions whose stack-only argument convention had to materialize a frame fallback during
+    /// emission. They stay on the ordinary stack-argument convention on the regenerated runtime.
+    disabled_stack_only_functions: DenseBitSet<FunctionId>,
     /// Static callees whose incoming stack arguments feed the first instruction directly. Stores
     /// for repeated arguments are emitted immediately before that instruction.
     lazy_stack_args: FxHashMap<FunctionId, LazyStackArgPlan>,
@@ -909,7 +924,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             direct_stack_args: FxHashMap::default(),
             resident_stack_args: FxHashMap::default(),
             resident_stack_plans: FxHashMap::default(),
-            disabled_resident_stack_functions: DenseBitSet::new_empty(0),
+            disabled_stack_only_functions: DenseBitSet::new_empty(0),
             lazy_stack_args: FxHashMap::default(),
             stack_return_functions: DenseBitSet::new_empty(0),
             stack_return_local_bases: FxHashMap::default(),
@@ -1573,25 +1588,31 @@ impl<'gcx> EvmCodegen<'gcx> {
             "EVM codegen requires MIR in the final phase"
         );
         let mut preserve_caller_stack = self.gcx.sess.opts.optimization.is_gas();
-        self.disabled_resident_stack_functions = DenseBitSet::new_empty(module.functions.len());
+        let mut runtime_stack_args = true;
+        self.disabled_stack_only_functions = DenseBitSet::new_empty(module.functions.len());
         loop {
-            let disabled_resident_functions = self.disabled_resident_stack_functions.count();
+            let disabled_stack_only_functions = self.disabled_stack_only_functions.count();
             self.reset_runtime_codegen(module);
             self.preserve_caller_stack = preserve_caller_stack;
+            self.runtime_stack_args = runtime_stack_args;
 
             if !module.functions.is_empty() {
                 self.emit_runtime(module, call_graph);
             }
 
-            if self.disabled_resident_stack_functions.count() > disabled_resident_functions {
+            if self.disabled_stack_only_functions.count() > disabled_stack_only_functions {
                 continue;
             }
-            if preserve_caller_stack
-                && !self.internal_call_stack_edges.is_empty()
-                && !self.caller_stack_prefixes_fit(module)
+            if !self.internal_call_stack_edges.is_empty() && !self.caller_stack_prefixes_fit(module)
             {
-                preserve_caller_stack = false;
-                continue;
+                if preserve_caller_stack {
+                    preserve_caller_stack = false;
+                    continue;
+                }
+                if runtime_stack_args {
+                    runtime_stack_args = false;
+                    continue;
+                }
             }
             break;
         }
@@ -1621,6 +1642,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.stack_phi_sources.clear();
         self.stack_arg_masks.clear();
         self.direct_stack_args.clear();
+        self.resident_stack_args.clear();
+        self.resident_stack_plans.clear();
         self.lazy_stack_args.clear();
         self.stack_return_functions = DenseBitSet::new_empty(module.functions.len());
         self.stack_return_local_bases.clear();
@@ -1641,9 +1664,6 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// optimization before emission because their incoming prefix is
     /// intentionally unbounded.
     fn caller_stack_prefixes_fit(&self, module: &Module) -> bool {
-        if !self.internal_call_stack_edges.iter().any(|edge| edge.preserved_words != 0) {
-            return true;
-        }
         let Some(entry_id) = module
             .functions
             .iter_enumerated()
@@ -1771,16 +1791,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                 && !Self::is_external_entry(func)
                 && Self::is_runtime_function(func)
                 && !call_graph.is_recursive(func_id)
+                && Self::static_frame_offsets_are_local(func)
             {
                 self.static_frame_functions.insert(func_id);
             }
         }
-        self.compute_stack_arg_masks(module);
-        let stack_arg_values = self.collect_canonical_stack_arg_values(module);
-        self.compute_resident_stack_args(module, &stack_arg_values);
-        let stack_arg_uses = self.collect_stack_arg_uses(module);
-        self.compute_lazy_stack_args(module, &stack_arg_values, &stack_arg_uses);
-        self.compute_direct_stack_args(module, &stack_arg_values, &stack_arg_uses);
+        if self.runtime_stack_args {
+            self.compute_stack_arg_masks(module);
+            let stack_arg_values = self.collect_canonical_stack_arg_values(module);
+            self.compute_resident_stack_args(module, &stack_arg_values);
+            let stack_arg_uses = self.collect_stack_arg_uses(module);
+            self.compute_lazy_stack_args(module, &stack_arg_values, &stack_arg_uses);
+            self.compute_direct_stack_args(module, &stack_arg_values, &stack_arg_uses);
+        }
         self.compute_stack_return_functions(module);
 
         // Labels for every tail-call and internal-call target.
@@ -1879,6 +1902,38 @@ impl<'gcx> EvmCodegen<'gcx> {
         !func.attributes.is_constructor
     }
 
+    /// Returns whether every explicit frame address belongs to the local region above the dynamic
+    /// header and signature slots.
+    ///
+    /// Static frames omit the header, while stack-only arguments and returns may omit signature
+    /// slots. Parsed MIR can address those regions directly, without identifying the aliased
+    /// component, so such a function must keep the ordinary dynamic-frame convention.
+    fn static_frame_offsets_are_local(func: &Function) -> bool {
+        let Some(signature_slots) = func.params.len().checked_add(func.returns.len()) else {
+            return false;
+        };
+        let Some(signature_size) = u64::try_from(signature_slots)
+            .ok()
+            .and_then(|slots| slots.checked_mul(EvmMemoryLayout::WORD_SIZE))
+        else {
+            return false;
+        };
+        let Some(local_start) =
+            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(signature_size)
+        else {
+            return false;
+        };
+
+        let Some(local_end) = local_start.checked_add(func.internal_frame_size) else {
+            return false;
+        };
+
+        func.instructions().all(|inst_id| match func.inst(inst_id).kind {
+            InstKind::InternalFrameAddr(offset) => offset >= local_start && offset < local_end,
+            _ => true,
+        })
+    }
+
     /// Generates the body of a function.
     fn generate_function_body(&mut self, func_id: FunctionId, func: &Function) {
         let liveness = self
@@ -1905,8 +1960,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             .get(&func_id)
             .cloned()
             .unwrap_or_else(|| GlobalStackPlan::analyze(func, liveness, &stack_phi_plan));
-        if self.resident_stack_plans.contains_key(&func_id) {
-            stack_phi_plan.merge_resident(func, &global_stack_plan);
+        if self.resident_stack_plans.contains_key(&func_id)
+            && !stack_phi_plan.merge_resident(func, &global_stack_plan)
+        {
+            // Selection preflights this exact composition. If a future transform invalidates that
+            // proof, regenerate the runtime with the ordinary frame-backed convention instead of
+            // emitting a partial stack ABI or panicking.
+            self.disabled_stack_only_functions.insert(func_id);
+            return;
         }
         self.stack_phi_sources = stack_phi_plan.edge_sources.clone();
         self.global_stack_active = !global_stack_plan.is_empty();
@@ -2062,7 +2123,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             let terminator_growth =
-                block.terminator.as_ref().map_or(0, |term| term.operands().len().saturating_sub(1));
+                block.terminator.as_ref().map_or(0, Self::terminator_transient_growth);
             self.materialize_deep_stack_args(func_id, func, terminator_growth);
 
             let stack_phi_preserved = stack_phi_plan.edges.get(&block_id).is_some_and(|edge| {
@@ -2797,10 +2858,22 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
-        // Phi stores execute at the end of each predecessor, before its terminator chooses a
-        // successor. Model the destination as live across both the terminator-use point and the
-        // live-out point so it cannot share a color with a branch operand or a value needed by a
-        // sibling successor on a critical edge.
+        let mut phi_copies_per_predecessor = index_vec![0usize; func.blocks.len()];
+        for block in &func.blocks {
+            for &inst_id in &block.instructions {
+                if let InstKind::Phi(incoming) = &func.inst(inst_id).kind {
+                    for &(predecessor, _) in incoming {
+                        phi_copies_per_predecessor[predecessor] += 1;
+                    }
+                }
+            }
+        }
+
+        // Phi stores execute at the end of each predecessor. Model the destination as live across
+        // the terminator and live-out points when a sibling edge can still use an old slot value,
+        // or when several parallel copies share the edge. The latter prevents spill coloring from
+        // introducing an alias dependency absent from the SSA copy graph: one destination store
+        // must not overwrite another copy's source before that source is reloaded.
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 let InstKind::Phi(incoming) = &func.inst(inst_id).kind else { continue };
@@ -2810,7 +2883,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         func.blocks[predecessor].terminator.as_ref().is_some_and(|term| {
                             term.successors().iter().any(|&target| target != block_id)
                         });
-                    if !has_sibling_edge {
+                    if !has_sibling_edge && phi_copies_per_predecessor[predecessor] <= 1 {
                         continue;
                     }
                     let terminator_point = func.blocks[predecessor].instructions.len() * 2;
@@ -3408,7 +3481,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         let operands = kind.operands();
         self.materialize_lazy_stack_args(func_id, kind, block, inst_idx);
-        let transient_growth = operands.len().saturating_sub(1).max(1);
+        let transient_growth = Self::instruction_transient_growth(kind, operands.len());
         self.materialize_deep_stack_args(func_id, func, transient_growth);
 
         // Calldata-backed global layouts can rematerialize a missing argument;
@@ -4336,6 +4409,25 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Bounds how many words an instruction can place above a stack-only operand before reaching
+    /// it. Ordinary operations consume one operand while arranging the rest, but an internal call
+    /// also pushes its return label before emitting stack-passed arguments.
+    fn instruction_transient_growth(kind: &InstKind, operands: usize) -> usize {
+        if matches!(kind, InstKind::InternalCall { .. }) {
+            operands.max(1)
+        } else {
+            operands.saturating_sub(1).max(1)
+        }
+    }
+
+    /// Bounds how many words a terminator can place above a stack-only operand before reaching it.
+    /// Even a one-operand terminator needs the baseline check: an operand already below `DUP16`
+    /// cannot be emitted without first materializing its frame fallback.
+    fn terminator_transient_growth(term: &Terminator) -> usize {
+        let operands = term.operands().len();
+        if operands == 0 { 0 } else { operands.saturating_sub(1).max(1) }
+    }
+
     fn emit_new_internal_frame_base_tracked(&mut self) {
         self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
         self.asm.emit_op(op::MLOAD);
@@ -4520,7 +4612,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        let mut scores: FxHashMap<FunctionId, Vec<i32>> = FxHashMap::default();
+        let mut scores = FxHashMap::<FunctionId, IndexVec<ArgIdx, Option<i64>>>::default();
         let mut excluded = DenseBitSet::new_empty(module.functions.len());
         for (caller_id, func) in module.functions.iter_enumerated() {
             let mut has_candidate_call = false;
@@ -4572,22 +4664,26 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if !self.static_frame_functions.contains(*function) {
                         continue;
                     }
-                    let score = scores.entry(*function).or_insert_with(|| vec![0; args.len()]);
+                    let score = scores
+                        .entry(*function)
+                        .or_insert_with(|| IndexVec::from_vec(vec![Some(0); args.len()]));
                     if score.len() != args.len() {
                         excluded.insert(*function);
                         continue;
                     }
                     for (i, &arg) in args.iter().enumerate() {
-                        score[i] += if Self::raw_arg_emittable(func, raw_leaves_ok, arg) {
+                        let index = ArgIdx::new(i);
+                        let Some(current) = score[index] else { continue };
+                        let benefit = if Self::raw_arg_emittable(func, raw_leaves_ok, arg) {
                             // The frame store disappears outright.
-                            4
+                            Some(4)
                         } else if !Self::stack_arg_site_eligible(func, raw_leaves_ok, arg) {
                             // This site can neither emit the argument raw nor
                             // reload it through the computed-value spill path,
                             // so the argument must stay frame-passed everywhere.
-                            -100_000
+                            None
                         } else {
-                            match func.value(arg) {
+                            Some(match func.value(arg) {
                                 crate::mir::Value::Inst(def)
                                     if inst_block[*def] != Some(block_idx) =>
                                 {
@@ -4607,8 +4703,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 // A fresh single-use value pays a spill it
                                 // did not need before.
                                 _ => -5,
-                            }
+                            })
                         };
+                        score[index] = benefit.map(|benefit| current.saturating_add(benefit));
                     }
                 }
             }
@@ -4620,8 +4717,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (func_id, score) in scores {
             // The callee prologue pays one store per stack argument.
             let mut mask = DenseBitSet::new_empty(score.len());
-            for (index, _) in score.iter().enumerate().filter(|(_, benefit)| **benefit > 4) {
-                mask.insert(index);
+            for (index, benefit) in score.iter_enumerated() {
+                if benefit.is_some_and(|benefit| benefit > 4) {
+                    mask.insert(index.index());
+                }
             }
             if !mask.is_empty() {
                 masks.insert(func_id, mask);
@@ -4683,7 +4782,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // copy even when the actual is not directly rematerializable.
         let mut candidates = FxHashMap::default();
         for (&func_id, values) in arg_values {
-            if self.disabled_resident_stack_functions.contains(func_id)
+            if self.disabled_stack_only_functions.contains(func_id)
                 || self.recursive_stack_functions.contains(func_id)
                 || self.recursion_reaching_functions.contains(func_id)
             {
@@ -4792,7 +4891,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             };
             if has_phis {
-                let phi_plan = StackPhiPlan::analyze(func);
+                let mut phi_plan = StackPhiPlan::analyze(func);
                 let cfg = CfgInfo::new(func);
                 // `merge_resident` lets the invariant resident prefix ride below the changing phi
                 // words on each edge, extending `edge.sources` and `edge.results` with the resident
@@ -4825,6 +4924,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     plan.entry(*target).is_some() && cfg.dominators().dominates(*target, pred)
                 });
                 if carries_planned_backedge {
+                    continue;
+                }
+                if !phi_plan.merge_resident(func, &plan) {
                     continue;
                 }
             }
@@ -4956,6 +5058,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         for (&func_id, mask) in &self.stack_arg_masks {
+            if self.disabled_stack_only_functions.contains(func_id) {
+                continue;
+            }
             if self.lazy_stack_args.contains_key(&func_id)
                 || self.resident_stack_args.contains_key(&func_id)
             {
@@ -5030,7 +5135,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         for (&func_id, mask) in &self.stack_arg_masks {
+            if self.disabled_stack_only_functions.contains(func_id) {
+                continue;
+            }
             if self.resident_stack_args.contains_key(&func_id) {
+                continue;
+            }
+            if mask.count() > MAX_STACK_ACCESS {
                 continue;
             }
             let func = &module.functions[func_id];
@@ -5229,7 +5340,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             disabled_residency = true;
         }
         if disabled_residency {
-            self.disabled_resident_stack_functions.insert(func_id);
+            self.disabled_stack_only_functions.insert(func_id);
         }
     }
 
@@ -5778,7 +5889,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .into_iter()
                 .flatten()
                 .copied()
-                .filter(|&value| liveness.is_used_at_or_after(value, block, inst_idx + 1))
+                .filter(|&value| {
+                    self.scheduler.is_stack_only_value(value)
+                        && liveness.is_used_at_or_after(value, block, inst_idx + 1)
+                })
                 .collect::<Vec<_>>()
         } else {
             Vec::new()
@@ -6129,12 +6243,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             && let Some(resident) = self.resident_stack_args.get(&func_id)
         {
             resident_call_values.extend(resident.iter().copied().filter(|&value| {
-                liveness.is_used_at_or_after(value, block, inst_idx + 1)
-                    || stack_mask.as_ref().is_some_and(|mask| {
-                        args.iter()
-                            .enumerate()
-                            .any(|(index, &arg)| mask.contains(index) && arg == value)
-                    })
+                self.scheduler.is_stack_only_value(value)
+                    && (liveness.is_used_at_or_after(value, block, inst_idx + 1)
+                        || stack_mask.as_ref().is_some_and(|mask| {
+                            args.iter()
+                                .enumerate()
+                                .any(|(index, &arg)| mask.contains(index) && arg == value)
+                        }))
             }));
         }
         let carries_resident_stack = !resident_call_values.is_empty();
@@ -7561,6 +7676,30 @@ mod tests {
     }
 
     #[test]
+    fn static_frames_reject_explicit_signature_addresses() {
+        let make_function = |offset| {
+            let mut function = Function::new(Ident::DUMMY);
+            function.alloc_param(MirType::uint256());
+            function.internal_frame_size = EvmMemoryLayout::WORD_SIZE;
+            let (inst, _) = function.alloc_value_inst(Instruction::new(
+                InstKind::InternalFrameAddr(offset),
+                Some(MirType::MemPtr),
+            ));
+            function.blocks[BlockId::ENTRY].instructions.push(inst);
+            function
+        };
+
+        assert!(!EvmCodegen::static_frame_offsets_are_local(&make_function(0)));
+        assert!(!EvmCodegen::static_frame_offsets_are_local(&make_function(
+            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+        )));
+        assert!(EvmCodegen::static_frame_offsets_are_local(&make_function(
+            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE + EvmMemoryLayout::WORD_SIZE
+        )));
+        assert!(!EvmCodegen::static_frame_offsets_are_local(&make_function(u64::MAX)));
+    }
+
+    #[test]
     fn caller_stack_prefix_validation_rejects_overflow() {
         with_codegen(CompileOpts::default(), |mut codegen| {
             let mut module = Module::new(Ident::DUMMY);
@@ -7587,6 +7726,11 @@ mod tests {
             codegen.internal_call_stack_edges[0].stack_arguments = 2;
             codegen.function_stack_peaks.insert(callee, 2);
             assert!(!codegen.caller_stack_prefixes_fit(&module));
+
+            codegen.internal_call_stack_edges[0].preserved_words = 0;
+            codegen.internal_call_stack_edges[0].stack_arguments = MAX_STACK_DEPTH;
+            codegen.function_stack_peaks.insert(callee, 0);
+            assert!(!codegen.caller_stack_prefixes_fit(&module));
         });
     }
 
@@ -7605,6 +7749,91 @@ mod tests {
         assert!(EvmCodegen::stack_arg_site_eligible(&function, false, computed));
         assert!(EvmCodegen::stack_arg_site_eligible(&function, true, argument));
         assert!(EvmCodegen::stack_arg_site_eligible(&function, true, computed));
+    }
+
+    #[test]
+    fn internal_call_headroom_includes_return_label() {
+        let value = ValueId::from_usize(0);
+        let call = InstKind::InternalCall {
+            function: FunctionId::from_usize(0),
+            args: vec![value; MAX_STACK_ACCESS].into(),
+            returns: 0,
+        };
+        assert_eq!(
+            EvmCodegen::instruction_transient_growth(&call, MAX_STACK_ACCESS),
+            MAX_STACK_ACCESS
+        );
+
+        let add = InstKind::Add(value, value);
+        assert_eq!(EvmCodegen::instruction_transient_growth(&add, 2), 1);
+    }
+
+    #[test]
+    fn one_operand_terminators_check_stack_arg_reach() {
+        let value = ValueId::from_usize(0);
+        let branch = Terminator::Branch {
+            condition: value,
+            then_block: BlockId::from_usize(1),
+            else_block: BlockId::from_usize(2),
+        };
+        assert_eq!(EvmCodegen::terminator_transient_growth(&branch), 1);
+
+        let return_value = Terminator::Return { values: smallvec::smallvec![value] };
+        assert_eq!(EvmCodegen::terminator_transient_growth(&return_value), 1);
+        assert_eq!(EvmCodegen::terminator_transient_growth(&Terminator::Stop), 0);
+    }
+
+    #[test]
+    fn resident_phi_merge_rejects_inaccessible_layout() {
+        let mut function = Function::new(Ident::DUMMY);
+        let join = function.alloc_block();
+        let mut phi = StackPhiPlan::default();
+        phi.entries.insert(join, (0..MAX_STACK_ACCESS).map(ValueId::from_usize).collect());
+        let resident = GlobalStackPlan {
+            entries: FxHashMap::from_iter([(join, vec![ValueId::from_usize(MAX_STACK_ACCESS)])]),
+            aliases: FxHashMap::default(),
+            terminal_sensitive: true,
+        };
+
+        assert!(!phi.merge_resident(&function, &resident));
+        assert_eq!(phi.entries[&join].len(), MAX_STACK_ACCESS);
+    }
+
+    #[test]
+    fn materialized_stack_only_args_use_frame_on_retry() {
+        let opts = CompileOpts { optimization: OptimizationMode::Gas, ..Default::default() };
+        with_codegen(opts, |mut codegen| {
+            let mut module = Module::new(Ident::DUMMY);
+            let mut function = Function::new(Ident::DUMMY);
+            let argument = function.alloc_param(MirType::uint256());
+            let function = module.add_function(function);
+
+            let mut mask = DenseBitSet::new_empty(1);
+            mask.insert(0);
+            codegen.stack_arg_masks.insert(function, mask);
+            codegen.disabled_stack_only_functions = DenseBitSet::new_empty(module.functions.len());
+            codegen.disabled_stack_only_functions.insert(function);
+
+            let arg_values = FxHashMap::from_iter([(
+                function,
+                CanonicalArgValues::from_vec(vec![Some(argument)]),
+            )]);
+            let use_info = FxHashMap::from_iter([(
+                function,
+                StackArgUseInfo {
+                    use_counts: FxHashMap::from_iter([(argument, 1)]),
+                    non_entry_uses: DenseBitSet::new_empty(1),
+                    call_uses: DenseBitSet::new_empty(1),
+                    entry_first_uses: FxHashMap::from_iter([(argument, 0)]),
+                    first_entry_call: None,
+                },
+            )]);
+
+            codegen.compute_lazy_stack_args(&module, &arg_values, &use_info);
+            codegen.compute_direct_stack_args(&module, &arg_values, &use_info);
+            assert!(!codegen.lazy_stack_args.contains_key(&function));
+            assert!(!codegen.direct_stack_args.contains_key(&function));
+        });
     }
 
     #[test]
@@ -7758,5 +7987,34 @@ mod tests {
         assert!(
             color.accepts(&FxHashMap::from_iter([(block1, SpillLiveRange { start: 2, end: 4 })]))
         );
+    }
+
+    #[test]
+    fn parallel_phi_copies_interfere_with_edge_sources() {
+        let mut function = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut function);
+        let one = builder.imm_u64(1);
+        let source = builder.add(one, one);
+        let merge = builder.create_block();
+        let exit = builder.create_block();
+        builder.jump(merge);
+        builder.switch_to_block(merge);
+        let first = builder.phi(vec![(BlockId::ENTRY, source)]);
+        let second = builder.phi(vec![(BlockId::ENTRY, source)]);
+        builder.jump(exit);
+        builder.switch_to_block(exit);
+        builder.ret([first, second]);
+
+        let liveness = Liveness::compute(&function);
+        let colorable = EvmCodegen::cross_block_live_values(&function, &liveness);
+        let ranges = EvmCodegen::spill_live_ranges(&function, &liveness, &colorable);
+        let source_range = ranges[source][&BlockId::ENTRY];
+        for result in [first, second] {
+            let result_range = ranges[result][&BlockId::ENTRY];
+            assert!(
+                source_range.start <= result_range.end && result_range.start <= source_range.end,
+                "parallel-copy result must interfere with its predecessor source"
+            );
+        }
     }
 }

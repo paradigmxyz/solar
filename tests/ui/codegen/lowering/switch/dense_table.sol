@@ -11,6 +11,8 @@
 // TABLE-NEXT: jumpi
 // TABLE-NEXT: pop
 // TABLE-NEXT: push 255
+// TABLE-NEXT: push 0
+// TABLE-NEXT: sstore
 // TABLE-NEXT: jump
 // TABLE: indexed_jump
 contract SwitchDenseTable {

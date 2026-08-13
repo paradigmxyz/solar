@@ -30,3 +30,23 @@ fn @entry() -> u256 [selector=0x01020304] {
     v0 = internal_call fn0, 1, 5, 6, 7
     ret v0
 }
+
+// Explicit accesses to signature or header slots make signature rewriting ambiguous. Preserve the
+// otherwise-dead argument rather than asserting or silently retargeting the address.
+// CHECK-LABEL: fn @explicit_slot(arg0: u256, arg1: u256) -> u256
+// CHECK: internal_frame_addr 0
+fn @explicit_slot(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = internal_frame_addr 0
+    mstore v0, arg0
+    v1 = mload v0
+    ret v1
+}
+
+// CHECK-LABEL: fn @explicit_slot_caller() -> u256
+// CHECK: internal_call @explicit_slot, 1, 1, 2
+fn @explicit_slot_caller() -> u256 [selector=0x05060708] {
+  bb0:
+    v0 = internal_call fn2, 1, 1, 2
+    ret v0
+}

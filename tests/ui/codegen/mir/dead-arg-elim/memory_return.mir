@@ -20,3 +20,22 @@ fn @entry() [selector=0x01020304] {
     v0 = internal_call fn0, 1
     ret
 }
+
+// Dynamic memory values are represented as memory slices before physical slice lowering. They
+// carry the same escape risk as a raw memory pointer.
+// CHECK-LABEL: fn @escape_slice() -> memoryslice
+// CHECK: v0 = make_memory_slice 128, 32
+// CHECK-NEXT: ret v0
+fn @escape_slice() -> memoryslice {
+  bb0:
+    v0 = make_memory_slice 128, 32
+    ret v0
+}
+
+// CHECK-LABEL: fn @slice_entry()
+// CHECK: v0 = internal_call @escape_slice, 1
+fn @slice_entry() [selector=0x05060708] {
+  bb0:
+    v0 = internal_call fn2, 1
+    ret
+}

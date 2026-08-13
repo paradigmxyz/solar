@@ -13,3 +13,15 @@
       ret
   }
   
+  fn @escape_slice() -> memoryslice {
+    bb0:
+      v0 = make_memory_slice 128, 32
+      ret v0
+  }
+  
+  fn @slice_entry() {
+    bb0:
+      v0 = internal_call @escape_slice, 1
+      ret
+  }
+  

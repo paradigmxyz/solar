@@ -131,6 +131,14 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
             instructions.push(inst);
             continue;
         }
+        if matches!(opcode, op::SWAPN | op::EXCHANGE) {
+            // EOF extended swaps select physical words through an immediate operand that EVM IR
+            // does not model yet. Their net stack effect is 0 -> 0, but preserving the current
+            // value identities would be unsound because the instruction rearranges them.
+            instructions.push(inst);
+            stack.clear();
+            continue;
+        }
 
         if let Some((inputs, read_epoch)) = expression_inputs(opcode, memory_epoch, storage_epoch) {
             ensure_depth(&mut stack, inputs, &mut next_expr);
@@ -252,6 +260,10 @@ fn may_regenerate(instructions: &[Instruction]) -> bool {
         if opcode == op::POP {
             ensure_hash_depth(&mut stack, 1, &mut next_fresh);
             stack.pop();
+            continue;
+        }
+        if matches!(opcode, op::SWAPN | op::EXCHANGE) {
+            stack.clear();
             continue;
         }
 

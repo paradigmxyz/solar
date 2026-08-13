@@ -30,33 +30,108 @@
 +   push bb3
 +   jump bb2
   bb1:
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   stop
 +   push bb4
 +   jump bb2
+  bb4294967291:
+    push 0
+    pop
+    push 0
+    pop
+    push 0
+    pop
+    push 0
+    pop
+    stop
+  bb4294967292:
+    push 0
+    pop
+    push 0
+    pop
+    push 0
+    pop
+    push 0
+    pop
+    stop
+  bb4294967293:
+    push 0
+    pop
+    push 0
+    pop
+    push 0
+    pop
+    push 0
+    pop
+    stop
+  bb4294967294:
+    push 0
+    pop
+    push 0
+    pop
+    push 0
+    pop
+    push 0
+    pop
+    stop
+  bb4294967295:
+    push 0
+    pop
+    push 0
+    pop
+    push 0
+    pop
+    push 0
+    pop
++   stop
 + bb2:
-    push 1
-    pop
-    push 1
-    pop
-    push 1
-    pop
-    push 1
-    pop
-    push 1
-    pop
-    push 1
-    pop
-    push 1
-    pop
-    push 1
-    pop
-    push 1
-    pop
-    push 1
-    pop
-    push 1
-    pop
-    push 1
-    pop
++   push 1
++   pop
++   push 1
++   pop
++   push 1
++   pop
++   push 1
++   pop
++   push 1
++   pop
++   push 1
++   pop
++   push 1
++   pop
++   push 1
++   pop
++   push 1
++   pop
++   push 1
++   pop
++   push 1
++   pop
++   push 1
++   pop
 +   jump
 + bb3:
 +   jump bb1

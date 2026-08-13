@@ -2,7 +2,7 @@
 
 use super::{
     EvmPass,
-    utils::{FreshLabels, StackDepths},
+    utils::{FreshLabels, StackDepths, instruction_size_lower_bound},
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
@@ -68,7 +68,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                     break;
                 }
                 let Some((reads, pops, pushes)) = whitelisted_effect(inst) else { break };
-                run_size += if inst.is_encoded_push() { 2 } else { 1 };
+                run_size += instruction_size_lower_bound(gcx, inst);
                 inputs = inputs.max(i32::from(reads) - delta);
                 delta = delta - i32::from(pops) + i32::from(pushes);
                 peak = peak.max(delta);
@@ -151,7 +151,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         let first = free[0];
         let body =
             module.blocks[first.block].instructions[first.start..first.start + first.len].to_vec();
-        let run_size = lower_bound(&body);
+        let run_size = lower_bound(gcx, &body);
         let stub_size = 1 + run_size + usize::from(first.outputs) + 1;
         let site_size = (if free.len() >= 4 { 7 } else { 8 }) + usize::from(first.inputs);
         if free.len() * run_size < free.len() * site_size + stub_size + 2 {
@@ -345,8 +345,8 @@ fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
     })
 }
 
-fn lower_bound(instructions: &[Instruction]) -> usize {
-    instructions.iter().map(|inst| if inst.is_encoded_push() { 2 } else { 1 }).sum()
+fn lower_bound(gcx: Gcx<'_>, instructions: &[Instruction]) -> usize {
+    instructions.iter().map(|inst| instruction_size_lower_bound(gcx, inst)).sum()
 }
 
 #[derive(Clone, Copy, Debug)]

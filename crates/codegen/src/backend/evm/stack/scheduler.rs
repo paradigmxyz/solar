@@ -1219,6 +1219,9 @@ impl StackScheduler {
                 ops.push((copy_resident(resident_depth), Some(resident)));
                 ops.push((materialize_other, Some(other)));
             } else {
+                if resident_depth.checked_add(1)? >= MAX_STACK_ACCESS {
+                    return None;
+                }
                 ops.push((materialize_other, Some(other)));
                 ops.push((copy_resident(resident_depth + 1), Some(resident)));
             }
@@ -3532,6 +3535,36 @@ mod tests {
         scheduler.apply_operand_plan(plan);
         scheduler.instruction_executed(1, None);
         assert_eq!(scheduler.stack.top(), Some(value));
+    }
+
+    #[test]
+    fn preserved_binary_plan_rejects_resident_buried_past_dup16() {
+        let mut func = Function::new(Ident::DUMMY);
+        let resident = func.alloc_param(MirType::uint256());
+        let other = func
+            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(17))));
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(resident);
+        for value in 0..MAX_STACK_ACCESS - 1 {
+            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+                alloy_primitives::U256::from(value),
+            )));
+            scheduler.stack.push(filler);
+        }
+        assert_eq!(scheduler.stack.find(resident), Some(MAX_STACK_ACCESS - 1));
+
+        assert!(
+            scheduler
+                .try_preserved_resident_binary_plan(
+                    &[other, resident],
+                    &[resident],
+                    &func,
+                    OptimizationMode::Gas,
+                    EvmVersion::Shanghai,
+                    OperandCostModel::DIRECT,
+                )
+                .is_none()
+        );
     }
 
     #[test]

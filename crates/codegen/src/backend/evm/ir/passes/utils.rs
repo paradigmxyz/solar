@@ -9,7 +9,7 @@ use crate::backend::evm::{
         BlockId, Instruction, Module, PushValue, StackEffect, TerminatorKind,
         default_instruction_stack_effect, default_terminator_stack_effect,
     },
-    op,
+    op, push_len,
     stack::MAX_STACK_DEPTH,
 };
 use smallvec::SmallVec;
@@ -18,6 +18,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashSet,
 };
+use solar_sema::Gcx;
 
 type LabelSet = SmallVec<[BlockId; 1]>;
 
@@ -69,6 +70,24 @@ impl FreshLabels {
             }
         }
     }
+}
+
+/// Returns a conservative lower bound for one instruction's assembled byte length.
+pub(super) fn instruction_size_lower_bound(gcx: Gcx<'_>, inst: &Instruction) -> usize {
+    if !inst.is_encoded_push() {
+        return 1;
+    }
+    if let Some(type_size) = inst.immutable_type_size() {
+        return usize::from(type_size.bytes()) + 1;
+    }
+    if inst.deferred_push().is_none()
+        && let Some(PushValue::Immediate(value)) = inst.value
+    {
+        return push_len(gcx.sess.opts.evm_version, value);
+    }
+    // Labels, data offsets, and deferred relocations are address-sensitive. They may resolve to
+    // zero, so one byte is the only safe lower bound before assembly.
+    1
 }
 
 #[derive(Clone, Default)]
@@ -337,6 +356,13 @@ fn apply_instruction(stack: &mut AbstractStack, inst: &Instruction) -> Option<()
                 stack.slots.swap(0, reach - 1);
                 Some(())
             }
+        }
+        op::SWAPN | op::EXCHANGE => {
+            // Their immediate-selected permutation is not represented in EVM IR. Preserve the
+            // known physical depth, but invalidate every value and label identity so a later
+            // dynamic jump makes headroom-sensitive transforms bail conservatively.
+            stack.slots.fill_with(AbstractValue::unknown);
+            Some(())
         }
         op::POP => stack.pop().map(drop),
         _ => {

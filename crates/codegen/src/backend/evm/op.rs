@@ -344,12 +344,14 @@ pub(crate) const fn writes_memory(op: u8) -> bool {
             | MCOPY
             | CALLDATACOPY
             | CODECOPY
+            | DATACOPY
             | EXTCODECOPY
             | RETURNDATACOPY
             | CALL
             | CALLCODE
             | DELEGATECALL
             | STATICCALL
+            | CALLF
     )
 }
 
@@ -357,5 +359,19 @@ pub(crate) const fn writes_memory(op: u8) -> bool {
 /// storage reads.
 #[must_use]
 pub(crate) const fn writes_storage(op: u8) -> bool {
-    matches!(op, SSTORE | TSTORE | CALL | CALLCODE | DELEGATECALL | STATICCALL | CREATE | CREATE2)
+    matches!(
+        op,
+        SSTORE
+            | TSTORE
+            | CALL
+            | CALLCODE
+            | DELEGATECALL
+            | STATICCALL
+            | CREATE
+            | CREATE2
+            | EOFCREATE
+            | EXTCALL
+            | EXTDELEGATECALL
+            | CALLF
+    )
 }

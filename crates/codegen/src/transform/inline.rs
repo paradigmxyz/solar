@@ -307,6 +307,11 @@ impl MirInliner {
                     *counts.entry(function).or_default() += 1;
                 }
             }
+            for block in &func.blocks {
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                    *counts.entry(*function).or_default() += 1;
+                }
+            }
         }
         counts
     }
@@ -1025,13 +1030,19 @@ fn inline_call_impl(
     let caller_frame_prefix = if caller_is_external {
         0
     } else {
-        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-            + ((caller.params.len() + caller.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE
+        let signature_slots = caller.params.len().checked_add(caller.returns.len())?;
+        let signature_size =
+            u64::try_from(signature_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(signature_size)?
     };
-    let frame_base = caller_frame_prefix + caller.internal_frame_size;
-    let callee_frame_prefix = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-        + ((callee.params.len() + callee.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE;
-    caller.internal_frame_size += callee.internal_frame_size;
+    let frame_base = caller_frame_prefix.checked_add(caller.internal_frame_size)?;
+    let callee_signature_slots = callee.params.len().checked_add(callee.returns.len())?;
+    let callee_signature_size =
+        u64::try_from(callee_signature_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+    let callee_frame_prefix =
+        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(callee_signature_size)?;
+    caller.internal_frame_size =
+        caller.internal_frame_size.checked_add(callee.internal_frame_size)?;
 
     let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, args);
     let cloned_entry = cloner.clone_blocks(continuation)?;
@@ -1151,7 +1162,7 @@ impl<'a> InlineCloner<'a> {
     fn clone_inst_kind(&mut self, mut kind: InstKind) -> Option<InstKind> {
         if let InstKind::InternalFrameAddr(offset) = &mut kind {
             let local_offset = offset.checked_sub(self.callee_frame_prefix)?;
-            *offset = self.frame_base + local_offset;
+            *offset = self.frame_base.checked_add(local_offset)?;
         }
         if let InstKind::Phi(incoming) = &mut kind {
             for (block, _) in incoming {
@@ -1340,5 +1351,54 @@ fn prune_phi_incoming_to_predecessors(func: &mut Function) {
                 incoming.retain(|(pred, _)| predecessors.contains(pred));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::FunctionBuilder;
+    use solar_ast::Ident;
+
+    #[test]
+    fn call_counts_include_tail_calls() {
+        let mut module = Module::new(Ident::DUMMY);
+        let callee = module.add_function(Function::new(Ident::DUMMY));
+
+        let mut ordinary = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut ordinary);
+        builder.internal_call_void(callee, Vec::new(), 0);
+        builder.stop();
+        module.add_function(ordinary);
+
+        let mut tail = Function::new(Ident::DUMMY);
+        FunctionBuilder::new(&mut tail).tail_call(callee, Vec::new());
+        module.add_function(tail);
+
+        assert_eq!(MirInliner::default().call_counts(&module).get(&callee), Some(&2));
+    }
+
+    #[test]
+    fn frame_overflow_skips_inlining_without_mutation() {
+        let callee_id = MirFunctionId::from_usize(0);
+        let mut callee = Function::new(Ident::DUMMY);
+        FunctionBuilder::new(&mut callee).ret(Vec::new());
+
+        let mut caller = Function::new(Ident::DUMMY);
+        caller.internal_frame_size = u64::MAX;
+        let mut builder = FunctionBuilder::new(&mut caller);
+        builder.internal_call_void(callee_id, Vec::new(), 0);
+        builder.stop();
+        let call = caller.blocks[BlockId::ENTRY].instructions[0];
+        let call_index = caller.blocks[BlockId::ENTRY]
+            .instructions
+            .iter()
+            .position(|&inst| inst == call)
+            .unwrap();
+
+        assert!(!inline_call(&mut caller, BlockId::ENTRY, call_index, &callee));
+        assert_eq!(caller.internal_frame_size, u64::MAX);
+        assert_eq!(caller.blocks.len(), 1);
+        assert!(matches!(caller.inst(call).kind, InstKind::InternalCall { .. }));
     }
 }

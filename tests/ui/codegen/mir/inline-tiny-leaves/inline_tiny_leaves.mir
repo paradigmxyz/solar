@@ -21,9 +21,10 @@ fn @tiny(arg0: u256) -> u256 {
     ret v4
 }
 
-// Five-instruction leaves stay behind the measured profitability boundary.
+// A single-use five-instruction leaf disappears after function DCE, so inlining it also removes
+// the internal-call protocol without duplicating the body.
 // CHECK-LABEL: {{^[ +].*}}fn @large_caller{{[( ]}}
-// CHECK: {{.*}}internal_call @large
+// CHECK: - {{.*}}internal_call @large
 fn @large_caller(arg0: u256) -> u256 {
   bb0:
     v1 = internal_call @large, 1, arg0

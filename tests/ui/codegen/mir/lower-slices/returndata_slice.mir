@@ -23,3 +23,16 @@ fn @copy_returndata() -> memptr {
     returndatacopy v6, v2, v3
     ret v5
 }
+
+// Parsed MIR may pass a volatile returndata slice to an internal helper. Its
+// offset and length lower to two ordinary words without a compiler panic.
+// CHECK-LABEL: {{^[ +].*}}fn @consume_returndata(arg0: u256, arg1: u256)
+// CHECK: {{^[ +].*}}[[SUM:v[0-9]+]] = add arg0, arg1
+// CHECK: {{^[ +].*}}ret [[SUM]]
+fn @consume_returndata(arg0: returndataslice) -> u256 {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = slice_len arg0
+    v2 = add v0, v1
+    ret v2
+}

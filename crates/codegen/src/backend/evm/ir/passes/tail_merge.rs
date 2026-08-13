@@ -2,7 +2,7 @@
 
 use super::{
     EvmPass,
-    utils::{FreshLabels, is_terminal_boundary},
+    utils::{FreshLabels, instruction_size_lower_bound, is_terminal_boundary},
 };
 use crate::backend::evm::ir::{
     Block, BlockId, Hotness, Instruction, Module, Terminator, TerminatorKind,
@@ -22,9 +22,9 @@ impl EvmPass for TailMerge {
     }
 }
 
-fn merge_tails(_gcx: Gcx<'_>, module: &mut Module) -> bool {
+fn merge_tails(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
-    state.plan_merges(module);
+    state.plan_merges(gcx, module);
     if state.merges.is_empty() {
         return false;
     }
@@ -35,7 +35,7 @@ fn merge_tails(_gcx: Gcx<'_>, module: &mut Module) -> bool {
             return changed;
         }
         changed = true;
-        state.plan_merges(module);
+        state.plan_merges(gcx, module);
         if state.merges.is_empty() {
             return true;
         }
@@ -53,7 +53,7 @@ struct RunState {
 }
 
 impl RunState {
-    fn plan_merges(&mut self, module: &Module) {
+    fn plan_merges(&mut self, gcx: Gcx<'_>, module: &Module) {
         self.representatives.clear();
         self.merges.clear();
         for (block_id, block) in module.blocks.iter_enumerated() {
@@ -77,7 +77,7 @@ impl RunState {
 
             if let Some((representative, common)) = matched
                 && common > 0
-                && suffix_lower_bound(block, common) > 5
+                && suffix_lower_bound(gcx, module, block_id, common) > 5
             {
                 self.merges.push(Merge { representative, block: block_id, common });
             } else {
@@ -201,21 +201,33 @@ fn machine_instructions_equal(a: &Instruction, b: &Instruction) -> bool {
     a.opcode == b.opcode && a.encoding == b.encoding && a.value == b.value
 }
 
-fn suffix_lower_bound(block: &Block, common: usize) -> usize {
+fn suffix_lower_bound(gcx: Gcx<'_>, module: &Module, block_id: BlockId, common: usize) -> usize {
+    let block = &module.blocks[block_id];
     let terminator = &block.terminator.as_ref().expect("candidate must have a terminator").kind;
-    terminator_lower_bound(terminator)
+    terminator_lower_bound(gcx, module, block_id, terminator)
         + block.instructions[block.instructions.len() - common..]
             .iter()
-            .map(instruction_lower_bound)
+            .map(|inst| instruction_size_lower_bound(gcx, inst))
             .sum::<usize>()
 }
 
-fn terminator_lower_bound(kind: &TerminatorKind) -> usize {
-    if matches!(kind, TerminatorKind::Jump(_)) { 3 } else { 1 }
-}
-
-fn instruction_lower_bound(inst: &Instruction) -> usize {
-    if inst.is_encoded_push() { 2 } else { 1 }
+fn terminator_lower_bound(
+    gcx: Gcx<'_>,
+    module: &Module,
+    block_id: BlockId,
+    kind: &TerminatorKind,
+) -> usize {
+    let TerminatorKind::Jump(target) = kind else { return 1 };
+    let next = block_id
+        .index()
+        .checked_add(1)
+        .filter(|&index| index < module.blocks.len())
+        .map(BlockId::from_usize);
+    if Some(*target) == next {
+        0
+    } else {
+        crate::backend::evm::push_len(gcx.sess.opts.evm_version, alloy_primitives::U256::ZERO) + 1
+    }
 }
 
 #[derive(Clone, Copy)]

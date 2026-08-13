@@ -87,7 +87,7 @@ impl MirPass for Cse {
 /// Common Subexpression Elimination pass.
 #[derive(Debug, Default)]
 struct CommonSubexprEliminator {
-    /// Shared CFG snapshot; CSE only removes instructions, so one snapshot
+    /// Shared CFG snapshot; CSE does not change control flow, so one snapshot
     /// serves every fixpoint iteration.
     cfg: Option<Rc<CfgInfo>>,
     /// Number of instructions eliminated.
@@ -300,10 +300,10 @@ impl CommonSubexprEliminator {
         self.eliminated_count = 0;
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
 
-        // Eliminating expressions only removes instructions and rewrites operands, so one
-        // provenance snapshot remains conservative across the complete fixed point. Drop only
-        // its value-address memo between iterations instead of rebuilding alias analysis after
-        // every productive round.
+        // Sinking only creates pure expressions, while elimination removes instructions and
+        // rewrites operands, so one provenance snapshot remains conservative across the complete
+        // fixed point. Drop only its value-address memo between iterations instead of rebuilding
+        // alias analysis after every productive round.
         self.refresh_alias(func);
         loop {
             let before = self.eliminated_count;
