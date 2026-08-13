@@ -113,6 +113,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             StmtKind::Expr(expr) => {
+                if let ExprKind::Assign(lhs, None, rhs) = &expr.peel_parens().kind
+                    && self.is_constant_storage_assignment(lhs, rhs)
+                {
+                    self.lower_constant_storage_assignment(lhs, rhs)?;
+                    return Some(());
+                }
                 self.lower_expr(expr)?;
             }
             StmtKind::Block(block) => self.lower_block(*block)?,

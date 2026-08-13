@@ -16,6 +16,140 @@ pub(super) fn synthesize_storage_bytes_helper(module: &mut Module) -> FunctionId
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
+    pub(super) fn is_constant_storage_assignment(
+        &self,
+        lhs: &hir::Expr<'_>,
+        rhs: &hir::Expr<'_>,
+    ) -> bool {
+        let ExprKind::Ident(_) = lhs.peel_parens().kind else { return false };
+        let Some(id) = self.gcx.resolved_variable(lhs) else { return false };
+        if !self.gcx.hir.variable(id).is_state_variable() {
+            return false;
+        }
+        let Some(lhs_ty) = self.gcx.type_of_expr(lhs.id) else { return false };
+        let Some(rhs_ty) = self.gcx.type_of_expr(rhs.id) else { return false };
+        let target_ty = lhs_ty.peel_refs();
+        self.types.memory_layout(target_ty).is_some()
+            && target_ty == rhs_ty.peel_refs()
+            && self.is_constant_storage_value(rhs, target_ty)
+    }
+
+    fn is_constant_storage_value(&self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> bool {
+        match ty.peel_refs().kind {
+            TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            ) => matches!(self.gcx.try_eval_const_value(expr), Ok(ConstValue::String(_))),
+            TyKind::Struct(struct_id) => {
+                let ExprKind::Call(callee, args, _) = &expr.peel_parens().kind else {
+                    return false;
+                };
+                let Some(hir::Res::Item(hir::ItemId::Struct(id))) = self.gcx.resolved_expr(callee)
+                else {
+                    return false;
+                };
+                if id != struct_id {
+                    return false;
+                }
+                let fields = self.gcx.hir.strukt(struct_id).fields;
+                if args.len() != fields.len() {
+                    return false;
+                }
+                let names = self.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
+                fields.iter().enumerate().all(|(index, &field)| {
+                    args.argument_for_parameter(index, Some(names.as_slice())).is_some_and(
+                        |argument| {
+                            self.is_constant_storage_value(
+                                argument,
+                                self.gcx.type_of_item(field.into()),
+                            )
+                        },
+                    )
+                })
+            }
+            TyKind::Array(..) | TyKind::DynArray(..) => false,
+            TyKind::Elementary(_) => self.gcx.try_eval_const_value(expr).is_ok(),
+            _ => false,
+        }
+    }
+
+    pub(super) fn lower_constant_storage_assignment(
+        &mut self,
+        lhs: &hir::Expr<'_>,
+        rhs: &hir::Expr<'_>,
+    ) -> Option<()> {
+        let ty = self.gcx.type_of_expr(lhs.id)?.peel_refs();
+        let access = self.storage_access(lhs)?;
+        self.store_constant_storage_value(ty, access, rhs)
+    }
+
+    fn store_constant_storage_value(
+        &mut self,
+        ty: Ty<'gcx>,
+        access: StorageAccess,
+        expr: &hir::Expr<'_>,
+    ) -> Option<()> {
+        match ty.peel_refs().kind {
+            TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            ) => {
+                let Ok(ConstValue::String(value)) = self.gcx.try_eval_const_value(expr) else {
+                    return None;
+                };
+                self.store_constant_storage_bytes(access.slot, value.as_byte_str_in(self.gcx.sess));
+                Some(())
+            }
+            TyKind::Struct(struct_id) => {
+                let ExprKind::Call(callee, args, _) = &expr.peel_parens().kind else {
+                    return None;
+                };
+                let hir::Res::Item(hir::ItemId::Struct(id)) = self.gcx.resolved_expr(callee)?
+                else {
+                    return None;
+                };
+                if id != struct_id {
+                    return None;
+                }
+                let fields = self.gcx.hir.strukt(struct_id).fields;
+                let names = self.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
+                for (index, &field) in fields.iter().enumerate() {
+                    let argument = args.argument_for_parameter(index, Some(names.as_slice()))?;
+                    let field_ty = self.gcx.type_of_item(field.into());
+                    let location = self.storage.field_location(struct_id, index)?;
+                    let slot = self.add_storage_offset(access.slot, location.slot);
+                    self.store_constant_storage_value(
+                        field_ty,
+                        StorageAccess { slot, location, offset: None },
+                        argument,
+                    )?;
+                }
+                Some(())
+            }
+            _ => {
+                let source_ty = self.gcx.type_of_expr(expr.id)?;
+                let value = self.lower_typed_expr(expr, ty)?;
+                let value = self.coerce_value(value, source_ty, ty);
+                self.validate_enum_value(ty, value);
+                if let Some(offset) = access.offset {
+                    self.storage.store_packed_at_slot(
+                        &mut self.builder,
+                        access.location,
+                        access.slot,
+                        offset,
+                        value,
+                    );
+                } else {
+                    self.storage.store_at_slot(
+                        &mut self.builder,
+                        access.location,
+                        access.slot,
+                        value,
+                    );
+                }
+                Some(())
+            }
+        }
+    }
+
     pub(super) fn storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
         match &expr.peel_parens().kind {
             ExprKind::Ident(_) => {
@@ -798,6 +932,72 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.builder.switch_to_block(merge_block);
         Some(())
+    }
+
+    fn store_constant_storage_bytes(&mut self, slot: ValueId, bytes: &[u8]) {
+        let (_, old_is_long, old_length) = self.load_storage_bytes_header(slot);
+        let length = self.builder.imm_u64(bytes.len() as u64);
+        let shrunk = self.builder.gt(old_length, length);
+        let needs_cleanup = self.builder.and(old_is_long, shrunk);
+        let cleanup_block = self.builder.create_block();
+        let write_block = self.builder.create_block();
+        self.builder.branch(needs_cleanup, cleanup_block, write_block);
+
+        self.builder.switch_to_block(cleanup_block);
+        let word_size = self.builder.imm_u64(32);
+        let thirty_one = self.builder.imm_u64(31);
+        let old_rounded = self.checked_add(old_length, thirty_one);
+        let old_words = self.builder.div(old_rounded, word_size);
+        let new_words = if bytes.len() < 32 {
+            self.builder.imm_u64(0)
+        } else {
+            self.builder.imm_u64(bytes.len().div_ceil(32) as u64)
+        };
+        let data_slot = self.builder.storage_array_data_slot(slot);
+        let preheader = self.builder.current_block();
+        let header = self.builder.create_block();
+        let body = self.builder.create_block();
+        let exit = self.builder.create_block();
+        self.builder.jump(header);
+        self.builder.switch_to_block(header);
+        let index = self.builder.phi(vec![(preheader, new_words)]);
+        let condition = self.builder.lt(index, old_words);
+        self.builder.branch(condition, body, exit);
+        self.builder.switch_to_block(body);
+        let element_slot = self.builder.add(data_slot, index);
+        let zero = self.builder.imm_u64(0);
+        self.builder.sstore(element_slot, zero);
+        let one = self.builder.imm_u64(1);
+        let next = self.builder.add(index, one);
+        let backedge = self.builder.current_block();
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(index, backedge, next);
+        self.builder.switch_to_block(exit);
+        self.builder.jump(write_block);
+
+        self.builder.switch_to_block(write_block);
+        if bytes.len() < 32 {
+            let word = if bytes.is_empty() {
+                U256::ZERO
+            } else {
+                U256::from_be_slice(bytes) << ((32 - bytes.len()) * 8)
+            };
+            let tag = U256::from((bytes.len() as u64) * 2);
+            let value = self.builder.imm_u256(word | tag);
+            self.builder.sstore(slot, value);
+        } else {
+            let tag = U256::from((bytes.len() as u64) * 2 + 1);
+            let value = self.builder.imm_u256(tag);
+            self.builder.sstore(slot, value);
+            let data_slot = self.builder.storage_array_data_slot(slot);
+            for (index, chunk) in bytes.chunks(32).enumerate() {
+                let word = U256::from_be_slice(chunk) << ((32 - chunk.len()) * 8);
+                let index = self.builder.imm_u64(index as u64);
+                let element_slot = self.builder.add(data_slot, index);
+                let value = self.builder.imm_u256(word);
+                self.builder.sstore(element_slot, value);
+            }
+        }
     }
 
     fn store_dynamic_storage_object(
