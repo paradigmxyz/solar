@@ -10,6 +10,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_stmt: Option<&hir::Stmt<'_>>,
     ) -> Option<()> {
         let condition = self.lower_expr(condition)?;
+        self.materialize_default_bindings();
         let then_block = self.builder.create_block();
         let else_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
@@ -68,6 +69,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_switch(&mut self, switch: &hir::StmtSwitch<'_>) -> Option<()> {
         let selector = self.lower_yul_word_expr(switch.selector)?;
+        self.materialize_default_bindings();
         let switch_block = self.builder.current_block();
         let merge_block = self.builder.create_block();
         let before_values = self.values.clone();
@@ -352,6 +354,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let success_block = self.builder.create_block();
         let catch_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
+        self.materialize_default_bindings();
         let before = self.values.clone();
         let before_storage_refs = self.storage_refs.clone();
         self.builder.branch(success, success_block, catch_block);
@@ -540,6 +543,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut lower: impl FnMut(&mut Self, &hir::Expr<'_>) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
         let condition = self.lower_expr(condition)?;
+        self.materialize_default_bindings();
         let then_block = self.builder.create_block();
         let else_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
@@ -624,6 +628,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         rhs_expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
         let lhs = self.lower_expr(lhs_expr)?;
+        self.materialize_default_bindings();
         let rhs_block = self.builder.create_block();
         let short_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
@@ -720,6 +725,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         block: hir::Block<'_>,
         source: LoopSource<'_>,
     ) -> Option<()> {
+        self.materialize_default_bindings();
         let update_stmt = match source {
             LoopSource::For { update } => update,
             LoopSource::While | LoopSource::DoWhile => None,

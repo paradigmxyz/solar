@@ -174,6 +174,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(value) = self.values.get(&id).copied() {
             return Some(value);
         }
+        if self.default_bindings.contains(&id) {
+            let ty = self.gcx.type_of_item(id.into());
+            let value = self.default_binding_value(ty);
+            self.values.insert(id, value);
+            return Some(value);
+        }
         if let Some(&immutable_id) = self.immutable_ids.get(&id) {
             let ty = self.gcx.type_of_item(id.into());
             return Some(
@@ -217,6 +223,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         if let StdEntry::Occupied(mut entry) = self.values.entry(id) {
             entry.insert(value);
+            return Some(());
+        }
+        if self.default_bindings.contains(&id) {
+            self.values.insert(id, value);
             return Some(());
         }
         if let Some(&immutable_id) = self.immutable_ids.get(&id) {
@@ -293,6 +303,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let variable = self.gcx.hir.variable(id);
             if variable.is_state_variable()
                 || self.values.contains_key(&id)
+                || self.default_bindings.contains(&id)
                 || variable.parent.is_none()
             {
                 return self.store_variable(id, value, expr.span);

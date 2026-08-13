@@ -280,6 +280,8 @@ struct LowerAbiStats {
 struct LowerAbiCx {
     stats: LowerAbiStats,
     helpers: CleanupHelpers,
+    aggregate_helpers: FxHashMap<AbiParamLayout, FunctionId>,
+    aggregate_type_helpers: FxHashMap<AbiParamType, FunctionId>,
 }
 
 impl LowerAbiCx {
@@ -405,6 +407,9 @@ impl LowerAbiCx {
                 self.helpers.ensure(module, key);
             }
         }
+
+        self.synthesize_shared_aggregate_helpers(module, &targets);
+        self.synthesize_shared_aggregate_type_helpers(module, &targets);
 
         if has_decodes && !self.lower_decode_instructions(module) {
             return false;
@@ -616,16 +621,18 @@ impl LowerAbiCx {
                 let InstKind::AbiDecode { layout, .. } = &func.inst(inst_id).kind else {
                     continue;
                 };
-                if layout.types.len() == 1 && !layout.types[0].is_dynamic() {
-                    *decode_counts.entry(layout.as_ref().clone()).or_insert(0) += 1;
-                }
+                *decode_counts.entry(layout.as_ref().clone()).or_insert(0) += 1;
             }
         }
         let mut static_decode_helpers = FxHashMap::default();
+        let mut aggregate_decode_helpers = FxHashMap::default();
         for (layout, count) in decode_counts {
-            if count >= 2 {
+            if count >= 2 && layout.types.len() == 1 && !layout.types[0].is_dynamic() {
                 let helper = self.synthesize_static_decode_helper(module, layout.clone());
                 static_decode_helpers.insert(layout, helper);
+            } else if count >= 2 && layout.types.iter().any(AbiParamType::is_dynamic) {
+                let helper = self.synthesize_aggregate_decode_helper(module, layout.clone());
+                aggregate_decode_helpers.insert(layout, helper);
             }
         }
 
@@ -674,6 +681,17 @@ impl LowerAbiCx {
                         changed = true;
                         continue;
                     }
+                    if let Some(&helper) = aggregate_decode_helpers.get(layout.as_ref()) {
+                        let value = builder.internal_call(
+                            helper,
+                            vec![data],
+                            layout.types[0].mir_type(),
+                            layout.types.len(),
+                        );
+                        replacements.insert(result, value);
+                        changed = true;
+                        continue;
+                    }
 
                     let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
                     let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
@@ -715,6 +733,134 @@ impl LowerAbiCx {
         changed
     }
 
+    fn synthesize_shared_aggregate_helpers(&mut self, module: &mut Module, targets: &[FunctionId]) {
+        let mut counts = FxHashMap::<AbiParamLayout, usize>::default();
+        for &id in targets {
+            let func = module.function(id);
+            let Some(layout) = func.abi_params.as_ref() else { continue };
+            if !Self::can_share_aggregate_helper(func, layout) {
+                continue;
+            }
+            *counts.entry(layout.clone()).or_default() += 1;
+        }
+
+        for (layout, count) in counts {
+            if count < 2 {
+                continue;
+            }
+            let helper = self.synthesize_calldata_aggregate_helper(module, layout.clone());
+            self.aggregate_helpers.insert(layout, helper);
+        }
+    }
+
+    fn synthesize_shared_aggregate_type_helpers(
+        &mut self,
+        module: &mut Module,
+        targets: &[FunctionId],
+    ) {
+        let mut counts = FxHashMap::<AbiParamType, usize>::default();
+        for &id in targets {
+            let func = module.function(id);
+            let Some(layout) = func.abi_params.as_ref() else { continue };
+            for (ty, &arg_type) in layout.types.iter().zip(&func.params) {
+                if Self::is_supported_aggregate(ty) && matches!(arg_type, MirType::MemoryObject(_))
+                {
+                    *counts.entry(ty.clone()).or_default() += 1;
+                }
+            }
+        }
+        for (ty, count) in counts {
+            if count < 2 {
+                continue;
+            }
+            let helper = self.synthesize_calldata_aggregate_type_helper(module, ty.clone());
+            self.aggregate_type_helpers.insert(ty, helper);
+        }
+    }
+
+    fn can_share_aggregate_helper(func: &Function, layout: &AbiParamLayout) -> bool {
+        Self::can_share_aggregate_args(layout, &func.params.iter().copied().collect::<Vec<_>>())
+    }
+
+    fn can_share_aggregate_args(layout: &AbiParamLayout, arg_types: &[MirType]) -> bool {
+        layout.types.iter().enumerate().all(|(index, ty)| {
+            !Self::is_supported_aggregate(ty)
+                || matches!(arg_types.get(index), Some(MirType::MemoryObject(_)))
+        }) && layout.types.iter().any(Self::is_supported_aggregate)
+    }
+
+    fn synthesize_calldata_aggregate_helper(
+        &self,
+        module: &mut Module,
+        layout: AbiParamLayout,
+    ) -> FunctionId {
+        let name = format!("__decode_calldata_{}", module.functions.len());
+        let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+        {
+            let mut builder = FunctionBuilder::new(&mut function);
+            let input = builder.add_param(MirType::Slice(SliceLocation::Calldata));
+            let base = builder.slice_ptr(input);
+            let input_end = builder.calldatasize();
+            let mut current = builder.current_block();
+            let mut values = Vec::new();
+            let mut head_offset = 0_u64;
+            for ty in &layout.types {
+                if Self::is_supported_aggregate(ty) {
+                    let offset = builder.imm_u64(head_offset);
+                    let head = builder.add(base, offset);
+                    let value = Self::decode_aggregate_argument(
+                        &mut builder,
+                        ty,
+                        ty.mir_type(),
+                        head,
+                        base,
+                        input_end,
+                        false,
+                        &mut current,
+                        true,
+                        Some(&self.helpers),
+                    );
+                    builder.add_return(ty.mir_type());
+                    values.push(value);
+                }
+                head_offset += ty.head_size();
+            }
+            builder.ret(values);
+        }
+        module.add_function(function)
+    }
+
+    fn synthesize_calldata_aggregate_type_helper(
+        &self,
+        module: &mut Module,
+        ty: AbiParamType,
+    ) -> FunctionId {
+        let name = format!("__decode_calldata_type_{}", module.functions.len());
+        let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+        {
+            let mut builder = FunctionBuilder::new(&mut function);
+            let head = builder.add_param(MirType::uint256());
+            let tuple_base = builder.add_param(MirType::uint256());
+            let input_end = builder.calldatasize();
+            let mut current = builder.current_block();
+            let value = Self::decode_aggregate_argument(
+                &mut builder,
+                &ty,
+                ty.mir_type(),
+                head,
+                tuple_base,
+                input_end,
+                false,
+                &mut current,
+                true,
+                Some(&self.helpers),
+            );
+            builder.add_return(ty.mir_type());
+            builder.ret([value]);
+        }
+        module.add_function(function)
+    }
+
     fn synthesize_static_decode_helper(
         &self,
         module: &mut Module,
@@ -732,6 +878,29 @@ impl LowerAbiCx {
             let values =
                 Self::decode_memory_tuple(&mut builder, base, length, &layout, Some(&self.helpers))
                     .expect("checked static ABI layout");
+            builder.ret(values);
+        }
+        module.add_function(function)
+    }
+
+    fn synthesize_aggregate_decode_helper(
+        &self,
+        module: &mut Module,
+        layout: AbiParamLayout,
+    ) -> FunctionId {
+        let name = format!("__decode_aggregate_{}", module.functions.len());
+        let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+        {
+            let mut builder = FunctionBuilder::new(&mut function);
+            let data = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
+            for ty in &layout.types {
+                builder.add_return(ty.mir_type());
+            }
+            let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
+            let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
+            let values =
+                Self::decode_memory_tuple(&mut builder, base, length, &layout, Some(&self.helpers))
+                    .expect("checked aggregate ABI layout");
             builder.ret(values);
         }
         module.add_function(function)
@@ -1099,7 +1268,55 @@ impl LowerAbiCx {
                 }
             }
 
-            if let Some(layout) = abi_params {
+            if let Some(layout) = abi_params
+                && !constructor
+                && let Some(&helper) = self.aggregate_helpers.get(layout)
+                && Self::can_share_aggregate_args(layout, &arg_types)
+            {
+                let length = builder.sub(input_end, input_base);
+                let input = builder.make_slice(input_base, length, SliceLocation::Calldata);
+                let aggregate_types = layout
+                    .types
+                    .iter()
+                    .filter(|ty| Self::is_supported_aggregate(ty))
+                    .collect::<Vec<_>>();
+                let returns = aggregate_types.len();
+                let value = builder.internal_call(
+                    helper,
+                    vec![input],
+                    aggregate_types[0].mir_type(),
+                    returns,
+                );
+                let return_base = (returns > 1)
+                    .then(|| builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word));
+                let return_layout = MemoryObjectLayout::word_fixed_array(returns as u64);
+                let mut aggregate_index = 0;
+                for (index, ty) in layout.types.iter().enumerate() {
+                    if !Self::is_supported_aggregate(ty) {
+                        continue;
+                    }
+                    let value = if aggregate_index == 0 {
+                        value
+                    } else {
+                        let index_value = builder.imm_u64(aggregate_index as u64);
+                        builder.memory_object_load_object(
+                            return_base.expect("multi-return buffer for aggregate helper"),
+                            return_layout,
+                            index_value,
+                            match ty.mir_type() {
+                                MirType::MemoryObject(kind) => kind,
+                                _ => unreachable!("aggregate helper returns memory objects"),
+                            },
+                        )
+                    };
+                    for &use_value in
+                        arg_uses.get(crate::mir::ArgIdx::new(index)).into_iter().flatten()
+                    {
+                        replacements.insert(use_value, value);
+                    }
+                    aggregate_index += 1;
+                }
+            } else if let Some(layout) = abi_params {
                 let mut head_offset = 0;
                 for (index, ty) in layout.types.iter().enumerate() {
                     let arg_index = crate::mir::ArgIdx::new(index);
@@ -1131,18 +1348,25 @@ impl LowerAbiCx {
                             // Preserve the historical lazy behavior for those inputs.
                             .unwrap_or(AbiParamLocation::Calldata);
                         if location == AbiParamLocation::Memory {
-                            let _ = Self::decode_aggregate_argument(
-                                &mut builder,
-                                ty,
-                                arg_type,
-                                head,
-                                tuple_base,
-                                input_end,
-                                constructor,
-                                &mut current,
-                                false,
-                                Some(&self.helpers),
-                            );
+                            if !constructor
+                                && matches!(arg_type, MirType::MemoryObject(_))
+                                && let Some(&helper) = self.aggregate_type_helpers.get(ty)
+                            {
+                                builder.internal_call(helper, vec![head, tuple_base], arg_type, 1);
+                            } else {
+                                let _ = Self::decode_aggregate_argument(
+                                    &mut builder,
+                                    ty,
+                                    arg_type,
+                                    head,
+                                    tuple_base,
+                                    input_end,
+                                    constructor,
+                                    &mut current,
+                                    false,
+                                    Some(&self.helpers),
+                                );
+                            }
                         } else if ty.is_dynamic() {
                             Self::validate_aggregate_argument(
                                 &mut builder,
@@ -1156,18 +1380,28 @@ impl LowerAbiCx {
                             );
                         }
                     } else {
-                        let value = Self::decode_aggregate_argument(
-                            &mut builder,
-                            ty,
-                            arg_type,
-                            head,
-                            tuple_base,
-                            input_end,
-                            constructor,
-                            &mut current,
-                            false,
-                            Some(&self.helpers),
-                        );
+                        let value = if !constructor
+                            && matches!(arg_type, MirType::MemoryObject(_))
+                            && let Some(&helper) = self.aggregate_type_helpers.get(ty)
+                        {
+                            builder.internal_call(helper, vec![head, tuple_base], arg_type, 1)
+                        } else {
+                            Self::decode_aggregate_argument(
+                                &mut builder,
+                                ty,
+                                arg_type,
+                                head,
+                                tuple_base,
+                                input_end,
+                                constructor,
+                                &mut current,
+                                // The wrapper guard already checked the complete
+                                // top-level ABI head, including static aggregate
+                                // fields and dynamic offsets.
+                                true,
+                                Some(&self.helpers),
+                            )
+                        };
                         for &use_value in uses {
                             replacements.insert(use_value, value);
                         }
@@ -1427,28 +1661,32 @@ impl LowerAbiCx {
                 let len = Self::load_input_word(builder, base, input_end, constructor);
                 let word = builder.imm_u64(32);
                 let bytes = Self::checked_mul(builder, len, word, current);
-                let total = Self::checked_add(builder, bytes, word, current);
+                let data = builder.add(base, word);
                 Self::guard_source_range_value(
                     builder,
-                    base,
-                    total,
+                    data,
+                    bytes,
                     input_end,
                     constructor,
                     current,
                 );
+                let total = if constructor {
+                    Self::checked_add(builder, bytes, word, current)
+                } else {
+                    builder.add(bytes, word)
+                };
                 let ptr = builder.alloc_object(
                     total,
                     crate::mir::MemoryObjectLayout::WORD_ARRAY,
                     crate::mir::AllocationSemantics::INTERNAL,
                 );
                 builder.set_memory_object_len(ptr, len, crate::mir::MemoryObjectKind::DynamicArray);
-                let src = builder.add(base, word);
                 let location = if constructor {
                     crate::mir::SliceLocation::Memory
                 } else {
                     crate::mir::SliceLocation::Calldata
                 };
-                let source = builder.make_slice(src, bytes, location);
+                let source = builder.make_slice(data, bytes, location);
                 builder.memory_object_copy_from_slice(
                     ptr,
                     crate::mir::MemoryObjectKind::DynamicArray,
@@ -1474,7 +1712,11 @@ impl LowerAbiCx {
                     current,
                 );
                 let bytes = Self::checked_mul(builder, len, word, current);
-                let total = Self::checked_add(builder, bytes, word, current);
+                let total = if constructor {
+                    Self::checked_add(builder, bytes, word, current)
+                } else {
+                    builder.add(bytes, word)
+                };
                 let ptr = builder.alloc_object(
                     total,
                     crate::mir::MemoryObjectLayout::WORD_ARRAY,
@@ -1486,35 +1728,25 @@ impl LowerAbiCx {
                 // Dynamic ABI arrays use a head of one word per element. The
                 // element value may itself be dynamic, so nested objects are
                 // decoded recursively and stored as pointers in this array.
-                // Recursive decoding can introduce arbitrary CFG edges; keep
-                // loop state in a semantic object so those edges do not make
-                // values live across an unbounded stack path.
-                let state_layout = crate::mir::MemoryObjectLayout::structure(3);
-                let state_size = builder.imm_u64(3 * 32);
-                let state = builder.alloc_object(
-                    state_size,
-                    state_layout,
-                    crate::mir::AllocationSemantics::INTERNAL,
-                );
+                // Keep the three loop-carried words as MIR phis; materializing
+                // a temporary semantic object would add a heap allocation and
+                // three loads/stores on every iteration.
                 let zero = builder.imm_u64(0);
-                builder.memory_object_store_field(state, state_layout, 0, len);
-                builder.memory_object_store_field(state, state_layout, 1, data_base);
-                builder.memory_object_store_field(state, state_layout, 2, zero);
-
+                let preheader = builder.current_block();
                 let cond = builder.create_block();
                 let body = builder.create_block();
                 let done = builder.create_block();
                 builder.jump(cond);
 
                 builder.switch_to_block(cond);
-                let remaining = builder.memory_object_load_field(state, state_layout, 0);
+                let remaining = builder.phi(vec![(preheader, len)]);
+                let source = builder.phi(vec![(preheader, data_base)]);
+                let destination_index = builder.phi(vec![(preheader, zero)]);
                 let zero = builder.imm_u64(0);
                 let has_next = builder.gt(remaining, zero);
                 builder.branch(has_next, body, done);
 
                 builder.switch_to_block(body);
-                let source = builder.memory_object_load_field(state, state_layout, 1);
-                let destination_index = builder.memory_object_load_field(state, state_layout, 2);
                 let mut element_current = builder.current_block();
                 let value = Self::decode_aggregate_argument(
                     builder,
@@ -1539,10 +1771,15 @@ impl LowerAbiCx {
                 let element_head_size = builder.imm_u64(element.head_size());
                 let next_source = builder.add(source, element_head_size);
                 let next_destination_index = builder.add(destination_index, one);
-                builder.memory_object_store_field(state, state_layout, 0, next_remaining);
-                builder.memory_object_store_field(state, state_layout, 1, next_source);
-                builder.memory_object_store_field(state, state_layout, 2, next_destination_index);
+                builder.switch_to_block(element_current);
                 builder.jump(cond);
+                builder.add_phi_incoming(remaining, element_current, next_remaining);
+                builder.add_phi_incoming(source, element_current, next_source);
+                builder.add_phi_incoming(
+                    destination_index,
+                    element_current,
+                    next_destination_index,
+                );
 
                 builder.switch_to_block(done);
                 *current = done;
@@ -1566,12 +1803,23 @@ impl LowerAbiCx {
                 let len = Self::load_input_word(builder, base, input_end, constructor);
                 let word = builder.imm_u64(32);
                 let thirty_one = builder.imm_u64(31);
-                let rounded = Self::checked_add(builder, len, thirty_one, current);
-                let mask = builder.not(thirty_one);
-                let data_size = builder.and(rounded, mask);
                 let data = builder.add(base, word);
                 Self::guard_source_range_value(builder, data, len, input_end, constructor, current);
-                let total = Self::checked_add(builder, data_size, word, current);
+                // The source range check bounds calldata lengths before
+                // rounding; only memory-input decoding needs the explicit
+                // overflow branches used by Solidity's allocator.
+                let rounded = if constructor {
+                    Self::checked_add(builder, len, thirty_one, current)
+                } else {
+                    builder.add(len, thirty_one)
+                };
+                let mask = builder.not(thirty_one);
+                let data_size = builder.and(rounded, mask);
+                let total = if constructor {
+                    Self::checked_add(builder, data_size, word, current)
+                } else {
+                    builder.add(data_size, word)
+                };
                 let ptr = builder.alloc_object(
                     total,
                     crate::mir::MemoryObjectLayout::Bytes,
@@ -1600,7 +1848,7 @@ impl LowerAbiCx {
                     Self::guard_source_range(
                         builder,
                         base,
-                        ty.head_size(),
+                        ty.data_head_size(),
                         input_end,
                         constructor,
                         current,
@@ -1659,9 +1907,21 @@ impl LowerAbiCx {
         helpers: Option<&CleanupHelpers>,
     ) -> Option<Vec<ValueId>> {
         let mut current = builder.current_block();
-        let input_end = Self::checked_add(builder, base, length, &mut current);
         let head_size = layout.checked_head_size()?;
-        Self::guard_input_range(builder, base, head_size, input_end, &mut current);
+        builder.switch_to_block(current);
+        let input_end = builder.add(base, length);
+        let overflow = builder.lt(input_end, base);
+        let head_size = builder.imm_u64(head_size);
+        let short = builder.lt(length, head_size);
+        let invalid = builder.or(overflow, short);
+        let next = builder.create_block();
+        let revert = builder.create_block();
+        builder.branch(invalid, revert, next);
+        builder.switch_to_block(revert);
+        let zero = builder.imm_u64(0);
+        builder.revert(zero, zero);
+        builder.switch_to_block(next);
+        current = next;
 
         let mut values = Vec::with_capacity(layout.types.len());
         let static_layout = layout.types.iter().all(|ty| !ty.is_dynamic());
@@ -1995,10 +2255,11 @@ impl LowerAbiCx {
         current: &mut BlockId,
     ) {
         builder.switch_to_block(*current);
-        let end = builder.add(start, size);
-        let overflow = builder.lt(end, start);
-        let out_of_range = builder.gt(end, input_end);
-        let invalid = builder.or(overflow, out_of_range);
+        // All callers establish `start <= input_end` before checking a tail
+        // range, so compare against the remaining input instead of forming a
+        // potentially overflowing end pointer.
+        let remaining = builder.sub(input_end, start);
+        let invalid = builder.gt(size, remaining);
         let next = builder.create_block();
         let revert = builder.create_block();
         builder.branch(invalid, revert, next);
@@ -2018,9 +2279,9 @@ impl LowerAbiCx {
     ) -> ValueId {
         builder.switch_to_block(*current);
         let target = builder.add(base, offset);
-        let overflow = builder.lt(target, base);
-        let too_large = builder.gt(target, input_end);
-        let invalid = builder.or(overflow, too_large);
+        // `base` is the start of a range already checked against `input_end`.
+        let remaining = builder.sub(input_end, base);
+        let invalid = builder.gt(offset, remaining);
         let next = builder.create_block();
         let revert = builder.create_block();
         builder.branch(invalid, revert, next);
@@ -2049,11 +2310,10 @@ impl LowerAbiCx {
         current: &mut BlockId,
     ) {
         builder.switch_to_block(*current);
-        let end = builder.add(start, size);
-        let overflow = builder.lt(end, start);
         let calldata_size = builder.calldatasize();
-        let out_of_range = builder.gt(end, calldata_size);
-        let invalid = builder.or(overflow, out_of_range);
+        // `start` is derived from a checked calldata head or tail offset.
+        let remaining = builder.sub(calldata_size, start);
+        let invalid = builder.gt(size, remaining);
         let next = builder.create_block();
         let revert = builder.create_block();
         builder.branch(invalid, revert, next);
@@ -2072,10 +2332,10 @@ impl LowerAbiCx {
     ) -> ValueId {
         builder.switch_to_block(*current);
         let target = builder.add(base, offset);
-        let overflow = builder.lt(target, base);
         let calldata_size = builder.calldatasize();
-        let out_of_range = builder.gt(target, calldata_size);
-        let invalid = builder.or(overflow, out_of_range);
+        // `base` is the start of a range already checked against calldata.
+        let remaining = builder.sub(calldata_size, base);
+        let invalid = builder.gt(offset, remaining);
         let next = builder.create_block();
         let revert = builder.create_block();
         builder.branch(invalid, revert, next);

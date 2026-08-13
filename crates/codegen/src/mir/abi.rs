@@ -203,6 +203,18 @@ impl AbiParamType {
         }
     }
 
+    /// Returns the size of this value's in-place ABI head.
+    #[must_use]
+    pub(crate) fn data_head_size(&self) -> u64 {
+        match self {
+            Self::FixedArray { element, len } => element.head_size().saturating_mul(*len),
+            Self::Tuple(fields) => {
+                fields.iter().fold(0, |size, field| size.saturating_add(field.head_size()))
+            }
+            _ => 32,
+        }
+    }
+
     /// Returns the static head size, or `None` when the shape exceeds the
     /// representable ABI layout range.
     #[must_use]

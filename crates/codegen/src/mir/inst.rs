@@ -496,6 +496,14 @@ impl AllocationSemantics {
         initialization: AllocationInitialization::Zeroed,
         failure: AllocationFailure::Panic,
     };
+
+    /// Checked, exact-size allocation for objects initialized by their
+    /// producer rather than by the allocator.
+    pub(crate) const SOLIDITY_UNINITIALIZED: Self = Self {
+        alignment: AllocationAlignment::Exact,
+        initialization: AllocationInitialization::Uninitialized,
+        failure: AllocationFailure::Panic,
+    };
 }
 
 /// An instruction in the MIR.

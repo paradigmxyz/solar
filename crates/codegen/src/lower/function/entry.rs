@@ -38,8 +38,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     },
                 );
             } else {
-                let value = self.default_binding_value(ty);
-                self.values.insert(ret, value);
+                self.default_bindings.insert(ret);
             }
         }
         self.returns.extend_from_slice(function.returns);
@@ -206,7 +205,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = if ty.is_ref_at(DataLocation::Storage) {
                     self.storage_refs.get(&id).copied()?.slot
                 } else {
-                    self.values.get(&id).copied()?
+                    self.values
+                        .get(&id)
+                        .copied()
+                        .or_else(|| Some(self.default_binding_value(ty)))?
                 };
                 values.push(self.materialize_memory_argument(
                     ty,
@@ -225,6 +227,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn push_return_target(&mut self, block: BlockId) {
         self.return_targets.push(ReturnTarget { block, states: Vec::new() });
+    }
+
+    pub(super) fn materialize_default_bindings(&mut self) {
+        let ids = self
+            .default_bindings
+            .iter()
+            .copied()
+            .filter(|id| !self.values.contains_key(id))
+            .collect::<Vec<_>>();
+        for id in ids {
+            let ty = self.gcx.type_of_item(id.into());
+            let value = self.default_binding_value(ty);
+            self.values.insert(id, value);
+        }
     }
 
     pub(super) fn record_return_state(&mut self) {
@@ -257,6 +273,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if modifiers.is_empty() {
             self.lower_block(body)
         } else {
+            self.materialize_default_bindings();
             let return_block = self.builder.create_block();
             let before_values = self.values.clone();
             let before_storage_refs = self.storage_refs.clone();

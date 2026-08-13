@@ -172,16 +172,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn default_object(&mut self, ty: solar_sema::ty::Ty<'gcx>) -> Option<ValueId> {
+        self.default_object_with_semantics(ty, AllocationSemantics::SOLIDITY_UNINITIALIZED)
+    }
+
+    fn default_object_with_semantics(
+        &mut self,
+        ty: solar_sema::ty::Ty<'gcx>,
+        semantics: AllocationSemantics,
+    ) -> Option<ValueId> {
         let layout = self.types.memory_layout(ty)?;
-        let size = match layout {
-            MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. } => 32,
-            MemoryObjectLayout::FixedArray { len, element_words } => {
-                len.checked_mul(u64::from(element_words))?.checked_mul(32)?
-            }
-            MemoryObjectLayout::Struct { fields } => fields.checked_mul(32)?,
-        };
+        let size = Self::default_object_size(layout)?;
         let size = self.builder.imm_u64(size);
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+        let object = self.builder.alloc_object(size, layout, semantics);
         match ty.peel_refs().kind {
             solar_sema::ty::TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
@@ -191,18 +193,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.set_memory_object_len(object, zero, layout.kind());
             }
             solar_sema::ty::TyKind::Struct(id) => {
+                if !self.default_object_is_fully_initialized(ty) {
+                    self.builder.memory_zero(object, size);
+                }
                 for (index, &field) in self.gcx.hir.strukt(id).fields.iter().enumerate() {
                     let field_ty = self.gcx.type_of_item(field.into());
-                    if let Some(value) = self.default_object(field_ty) {
+                    if let Some(value) = self.default_object_with_semantics(field_ty, semantics) {
                         self.builder.memory_object_store_field(object, layout, index as u64, value);
                     }
                 }
             }
             solar_sema::ty::TyKind::Array(element, len) => {
+                if !self.default_object_is_fully_initialized(ty) {
+                    self.builder.memory_zero(object, size);
+                }
                 let Ok(len) = u64::try_from(len) else { return Some(object) };
                 if self.types.memory_layout(element).is_some() {
                     for index in 0..len {
-                        let Some(value) = self.default_object(element) else { continue };
+                        let Some(value) = self.default_object_with_semantics(element, semantics)
+                        else {
+                            continue;
+                        };
                         let index = self.builder.imm_u64(index);
                         self.builder.memory_object_store_element(object, layout, index, value);
                     }
@@ -211,5 +222,38 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => {}
         }
         Some(object)
+    }
+
+    fn default_object_is_fully_initialized(&self, ty: solar_sema::ty::Ty<'gcx>) -> bool {
+        let Some(layout) = self.types.memory_layout(ty) else { return false };
+        if Self::default_object_size(layout).is_none() {
+            return false;
+        }
+        match ty.peel_refs().kind {
+            solar_sema::ty::TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            )
+            | solar_sema::ty::TyKind::DynArray(_) => true,
+            solar_sema::ty::TyKind::Struct(id) => {
+                self.gcx.hir.strukt(id).fields.iter().all(|&field| {
+                    let field_ty = self.gcx.type_of_item(field.into());
+                    self.types.memory_layout(field_ty).and_then(Self::default_object_size).is_some()
+                })
+            }
+            solar_sema::ty::TyKind::Array(element, _) => {
+                self.types.memory_layout(element).and_then(Self::default_object_size).is_some()
+            }
+            _ => false,
+        }
+    }
+
+    fn default_object_size(layout: MemoryObjectLayout) -> Option<u64> {
+        match layout {
+            MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. } => Some(32),
+            MemoryObjectLayout::FixedArray { len, element_words } => {
+                len.checked_mul(u64::from(element_words))?.checked_mul(32)
+            }
+            MemoryObjectLayout::Struct { fields } => fields.checked_mul(32),
+        }
     }
 }
