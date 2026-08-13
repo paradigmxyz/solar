@@ -229,15 +229,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             BinOpKind::Div => {
                 self.panic_if_zero(rhs, PanicCode::DivisionByZero);
-                if !self.unchecked {
-                    if let Some(ArithmeticKind::Signed(bits)) = arithmetic {
-                        let (min, _) = signed_bounds(bits, &mut self.builder);
-                        let lhs_is_min = self.builder.eq(lhs, min);
-                        let minus_one = self.builder.imm_u256(U256::MAX);
-                        let rhs_is_minus_one = self.builder.eq(rhs, minus_one);
-                        let overflow = self.builder.and(lhs_is_min, rhs_is_minus_one);
-                        self.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
-                    }
+                if !self.unchecked
+                    && let Some(ArithmeticKind::Signed(bits)) = arithmetic
+                {
+                    let (min, _) = signed_bounds(bits, &mut self.builder);
+                    let lhs_is_min = self.builder.eq(lhs, min);
+                    let minus_one = self.builder.imm_u256(U256::MAX);
+                    let rhs_is_minus_one = self.builder.eq(rhs, minus_one);
+                    let overflow = self.builder.and(lhs_is_min, rhs_is_minus_one);
+                    self.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                 }
                 let result = match arithmetic {
                     Some(ArithmeticKind::Signed(_)) => self.builder.sdiv(lhs, rhs),
