@@ -29,9 +29,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(lhs_ty) = self.gcx.type_of_expr(lhs.id) else { return false };
         let Some(rhs_ty) = self.gcx.type_of_expr(rhs.id) else { return false };
         let target_ty = lhs_ty.peel_refs();
-        self.types.memory_layout(target_ty).is_some()
-            && target_ty == rhs_ty.peel_refs()
-            && self.is_constant_storage_value(rhs, target_ty)
+        if self.types.memory_layout(target_ty).is_none() || target_ty != rhs_ty.peel_refs() {
+            return false;
+        }
+        match target_ty.kind {
+            TyKind::Struct(_) => {
+                matches!(rhs.peel_parens().kind, ExprKind::Call(..))
+                    && self.is_constant_storage_value(rhs, target_ty)
+            }
+            TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            ) => {
+                matches!(rhs.peel_parens().kind, ExprKind::Lit(..))
+                    && self.is_constant_storage_value(rhs, target_ty)
+            }
+            _ => false,
+        }
     }
 
     fn is_constant_storage_value(&self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> bool {
@@ -126,26 +139,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => {
                 let source_ty = self.gcx.type_of_expr(expr.id)?;
-                let value = self.lower_typed_expr(expr, ty)?;
+                let value = match self.gcx.try_eval_const_value(expr) {
+                    Ok(ConstValue::Bool(value)) => self.builder.imm_bool(*value),
+                    Ok(ConstValue::Integer(value)) => self.builder.imm_u256(value.as_u256()?),
+                    _ => self.lower_typed_expr(expr, ty)?,
+                };
                 let value = self.coerce_value(value, source_ty, ty);
-                self.validate_enum_value(ty, value);
-                if let Some(offset) = access.offset {
-                    self.storage.store_packed_at_slot(
-                        &mut self.builder,
-                        access.location,
-                        access.slot,
-                        offset,
-                        value,
-                    );
-                } else {
-                    self.storage.store_at_slot(
-                        &mut self.builder,
-                        access.location,
-                        access.slot,
-                        value,
-                    );
-                }
-                Some(())
+                self.store_storage_value(ty, access, value, expr.span)
             }
         }
     }
@@ -860,25 +860,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(needs_cleanup, cleanup_block, write_block);
 
         self.builder.switch_to_block(cleanup_block);
-        let data_slot = self.builder.storage_array_data_slot(slot);
-        let preheader = self.builder.current_block();
-        let header_block = self.builder.create_block();
-        let body = self.builder.create_block();
-        let exit = self.builder.create_block();
-        self.builder.jump(header_block);
-        self.builder.switch_to_block(header_block);
-        let index = self.builder.phi(vec![(preheader, new_words)]);
-        let condition = self.builder.lt(index, old_words);
-        self.builder.branch(condition, body, exit);
-        self.builder.switch_to_block(body);
-        let element_slot = self.builder.add(data_slot, index);
-        self.builder.sstore(element_slot, zero);
-        let one = self.builder.imm_u64(1);
-        let next = self.builder.add(index, one);
-        let backedge = self.builder.current_block();
-        self.builder.jump(header_block);
-        self.builder.add_phi_incoming(index, backedge, next);
-        self.builder.switch_to_block(exit);
+        self.clear_storage_words(slot, new_words, old_words, zero);
         self.builder.jump(write_block);
 
         self.builder.switch_to_block(write_block);
@@ -934,6 +916,34 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
+    fn clear_storage_words(
+        &mut self,
+        slot: ValueId,
+        first_word: ValueId,
+        words: ValueId,
+        zero: ValueId,
+    ) {
+        let data_slot = self.builder.storage_array_data_slot(slot);
+        let preheader = self.builder.current_block();
+        let header = self.builder.create_block();
+        let body = self.builder.create_block();
+        let exit = self.builder.create_block();
+        self.builder.jump(header);
+        self.builder.switch_to_block(header);
+        let index = self.builder.phi(vec![(preheader, first_word)]);
+        let condition = self.builder.lt(index, words);
+        self.builder.branch(condition, body, exit);
+        self.builder.switch_to_block(body);
+        let element_slot = self.builder.add(data_slot, index);
+        self.builder.sstore(element_slot, zero);
+        let one = self.builder.imm_u64(1);
+        let next = self.builder.add(index, one);
+        let backedge = self.builder.current_block();
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(index, backedge, next);
+        self.builder.switch_to_block(exit);
+    }
+
     fn store_constant_storage_bytes(&mut self, slot: ValueId, bytes: &[u8]) {
         let (_, old_is_long, old_length) = self.load_storage_bytes_header(slot);
         let length = self.builder.imm_u64(bytes.len() as u64);
@@ -953,26 +963,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.builder.imm_u64(bytes.len().div_ceil(32) as u64)
         };
-        let data_slot = self.builder.storage_array_data_slot(slot);
-        let preheader = self.builder.current_block();
-        let header = self.builder.create_block();
-        let body = self.builder.create_block();
-        let exit = self.builder.create_block();
-        self.builder.jump(header);
-        self.builder.switch_to_block(header);
-        let index = self.builder.phi(vec![(preheader, new_words)]);
-        let condition = self.builder.lt(index, old_words);
-        self.builder.branch(condition, body, exit);
-        self.builder.switch_to_block(body);
-        let element_slot = self.builder.add(data_slot, index);
         let zero = self.builder.imm_u64(0);
-        self.builder.sstore(element_slot, zero);
-        let one = self.builder.imm_u64(1);
-        let next = self.builder.add(index, one);
-        let backedge = self.builder.current_block();
-        self.builder.jump(header);
-        self.builder.add_phi_incoming(index, backedge, next);
-        self.builder.switch_to_block(exit);
+        self.clear_storage_words(slot, new_words, old_words, zero);
         self.builder.jump(write_block);
 
         self.builder.switch_to_block(write_block);
@@ -1181,25 +1173,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(is_long, cleanup_block, write_block);
 
         self.builder.switch_to_block(cleanup_block);
-        let data_slot = self.builder.storage_array_data_slot(slot);
-        let preheader = self.builder.current_block();
-        let header = self.builder.create_block();
-        let body = self.builder.create_block();
-        let exit = self.builder.create_block();
-        self.builder.jump(header);
-        self.builder.switch_to_block(header);
-        let index = self.builder.phi(vec![(preheader, zero)]);
-        let condition = self.builder.lt(index, words);
-        self.builder.branch(condition, body, exit);
-        self.builder.switch_to_block(body);
-        let element_slot = self.builder.add(data_slot, index);
-        self.builder.sstore(element_slot, zero);
-        let one = self.builder.imm_u64(1);
-        let next = self.builder.add(index, one);
-        let backedge = self.builder.current_block();
-        self.builder.jump(header);
-        self.builder.add_phi_incoming(index, backedge, next);
-        self.builder.switch_to_block(exit);
+        self.clear_storage_words(slot, zero, words, zero);
         self.builder.jump(write_block);
 
         self.builder.switch_to_block(write_block);
