@@ -649,6 +649,7 @@ impl<'gcx> Lowerer<'gcx> {
             is_fallback: false,
             is_receive: false,
             is_dispatch_entry: false,
+            may_return_memory: false,
             no_inline: false,
         };
 
@@ -999,6 +1000,7 @@ impl<'gcx> Lowerer<'gcx> {
             is_fallback: hir_func.kind == hir::FunctionKind::Fallback,
             is_receive: hir_func.kind == hir::FunctionKind::Receive,
             is_dispatch_entry: false,
+            may_return_memory: false,
             no_inline: false,
         };
 

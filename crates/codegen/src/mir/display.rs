@@ -281,6 +281,9 @@ fn display_function_attributes(func: &Function) -> impl fmt::Display + '_ {
         if func.attributes.is_dispatch_entry {
             write_function_attribute(f, &mut first, "entry")?;
         }
+        if func.attributes.may_return_memory {
+            write_function_attribute(f, &mut first, "may_return_memory")?;
+        }
         if let Some(layout) = &func.abi_returns {
             write_function_attribute(f, &mut first, format_args!("abi_returns={layout}"))?;
         }

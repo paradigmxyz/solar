@@ -1,27 +1,33 @@
 - // === ROOT/tests/ui/codegen/mir/dead-arg-elim/memory_return.mir (before dead-arg-elim) ===
 + // === ROOT/tests/ui/codegen/mir/dead-arg-elim/memory_return.mir (after dead-arg-elim) ===
   @module MemoryReturn
-  fn @escape() -> memptr {
+- fn @escape() -> memptr {
++ fn @escape() [may_return_memory] {
     bb0:
       v0 = fmp
-      ret v0
+-     ret v0
++     ret
   }
   
   fn @entry() {
     bb0:
-      v0 = internal_call @escape, 1
+-     v0 = internal_call @escape, 1
++     internal_call @escape, 0
       ret
   }
   
-  fn @escape_slice() -> memoryslice {
+- fn @escape_slice() -> memoryslice {
++ fn @escape_slice() [may_return_memory] {
     bb0:
       v0 = make_memory_slice 128, 32
-      ret v0
+-     ret v0
++     ret
   }
   
   fn @slice_entry() {
     bb0:
-      v0 = internal_call @escape_slice, 1
+-     v0 = internal_call @escape_slice, 1
++     internal_call @escape_slice, 0
       ret
   }
   

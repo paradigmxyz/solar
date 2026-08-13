@@ -580,6 +580,12 @@ pub(crate) struct FunctionAttributes {
     pub(crate) is_receive: bool,
     /// Whether this is the synthesized runtime dispatch entry.
     pub(crate) is_dispatch_entry: bool,
+    /// Whether a removed return value may still reference caller-visible memory.
+    ///
+    /// Dead-result elimination can erase the callable return signature, but it must not erase the
+    /// original signature's frame-lifetime constraint. The backend uses this sticky bit to avoid
+    /// reclaiming memory that may have escaped through inline assembly.
+    pub(crate) may_return_memory: bool,
     /// Never clone this function into multiple callers (synthesized shared
     /// helpers whose whole point is existing once per module). A sole call
     /// site may still absorb it: with one caller there is nothing to share.
@@ -595,6 +601,7 @@ impl Default for FunctionAttributes {
             is_fallback: false,
             is_receive: false,
             is_dispatch_entry: false,
+            may_return_memory: false,
             no_inline: false,
         }
     }

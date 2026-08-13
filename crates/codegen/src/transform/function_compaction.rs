@@ -378,7 +378,6 @@ fn prune_unused_returns(module: &mut Module) -> usize {
     for (func_id, func) in module.functions.iter_enumerated() {
         if called.contains(func_id)
             && func.returns.len() == 1
-            && !func.returns[0].is_memory_reference()
             && is_internal_body(func)
             && frame_offsets_are_local(func)
         {
@@ -460,6 +459,7 @@ fn prune_unused_returns(module: &mut Module) -> usize {
     for func_id in removed_set.iter() {
         let func = module.function_mut(func_id);
         // Candidates carry exactly one result, so clearing it removes one signature slot.
+        func.attributes.may_return_memory |= func.returns[0].is_memory_reference();
         let removed_slots = func.returns.len() as u64;
         func.returns.clear();
         for block in &mut func.blocks {
@@ -764,6 +764,7 @@ fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
         && lhs.attributes.is_fallback == rhs.attributes.is_fallback
         && lhs.attributes.is_receive == rhs.attributes.is_receive
         && lhs.attributes.is_dispatch_entry == rhs.attributes.is_dispatch_entry
+        && lhs.attributes.may_return_memory == rhs.attributes.may_return_memory
         && lhs.attributes.no_inline == rhs.attributes.no_inline
 }
 

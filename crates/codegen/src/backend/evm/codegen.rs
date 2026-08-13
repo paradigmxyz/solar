@@ -167,23 +167,38 @@ struct SpillLiveRange {
     end: usize,
 }
 
-#[derive(Default)]
 struct SpillColor {
+    values: DenseBitSet<ValueId>,
     ranges: FxHashMap<BlockId, SmallVec<[SpillLiveRange; 4]>>,
 }
 
+type SpillInterferences = FxHashMap<ValueId, SmallVec<[ValueId; 4]>>;
+
 impl SpillColor {
-    fn accepts(&self, ranges: &FxHashMap<BlockId, SpillLiveRange>) -> bool {
-        ranges.iter().all(|(block, candidate)| {
-            self.ranges.get(block).is_none_or(|assigned| {
-                assigned
-                    .iter()
-                    .all(|range| candidate.end < range.start || range.end < candidate.start)
-            })
-        })
+    fn new(value_count: usize) -> Self {
+        Self { values: DenseBitSet::new_empty(value_count), ranges: FxHashMap::default() }
     }
 
-    fn insert(&mut self, ranges: &FxHashMap<BlockId, SpillLiveRange>) {
+    fn accepts(
+        &self,
+        value: ValueId,
+        ranges: &FxHashMap<BlockId, SpillLiveRange>,
+        interferences: &SpillInterferences,
+    ) -> bool {
+        interferences
+            .get(&value)
+            .is_none_or(|conflicts| !conflicts.iter().any(|&other| self.values.contains(other)))
+            && ranges.iter().all(|(block, candidate)| {
+                self.ranges.get(block).is_none_or(|assigned| {
+                    assigned
+                        .iter()
+                        .all(|range| candidate.end < range.start || range.end < candidate.start)
+                })
+            })
+    }
+
+    fn insert(&mut self, value: ValueId, ranges: &FxHashMap<BlockId, SpillLiveRange>) {
+        self.values.insert(value);
         for (&block, &range) in ranges {
             self.ranges.entry(block).or_default().push(range);
         }
@@ -1443,7 +1458,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.stack_phi_sources.clear();
 
             for (func_id, func) in module.functions.iter_enumerated() {
-                if !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference()) {
+                if !func.attributes.may_return_memory
+                    && !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference())
+                {
                     self.restorable_internal_frames.insert(func_id);
                 }
             }
@@ -1783,7 +1800,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         );
 
         for (func_id, func) in module.functions.iter_enumerated() {
-            if !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference()) {
+            if !func.attributes.may_return_memory
+                && !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference())
+            {
                 self.restorable_internal_frames.insert(func_id);
             }
             // Non-recursive internal functions get compile-time-fixed frames.
@@ -2733,18 +2752,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         if self.gcx.sess.opts.optimization.is_gas() {
             let colorable = Self::cross_block_live_values(func, liveness);
             let ranges = Self::spill_live_ranges(func, liveness, &colorable);
+            let interferences = Self::parallel_phi_interferences(&colorable, &self.block_copies);
 
             let mut colors = Vec::<SpillColor>::new();
             for value in &colorable {
                 let value_ranges = &ranges[value];
                 let color = colors
                     .iter()
-                    .position(|color| color.accepts(value_ranges))
+                    .position(|color| color.accepts(value, value_ranges, &interferences))
                     .unwrap_or_else(|| {
-                        colors.push(SpillColor::default());
+                        colors.push(SpillColor::new(func.num_values()));
                         colors.len() - 1
                     });
-                colors[color].insert(value_ranges);
+                colors[color].insert(value, value_ranges);
                 self.scheduler.spills.reserve_at(value, color as u32);
             }
 
@@ -2858,53 +2878,60 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
-        let mut phi_copies_per_predecessor = index_vec![0usize; func.blocks.len()];
-        for block in &func.blocks {
-            for &inst_id in &block.instructions {
-                if let InstKind::Phi(incoming) = &func.inst(inst_id).kind {
-                    for &(predecessor, _) in incoming {
-                        phi_copies_per_predecessor[predecessor] += 1;
-                    }
-                }
-            }
-        }
-
-        // Phi stores execute at the end of each predecessor. Model the destination as live across
-        // the terminator and live-out points when a sibling edge can still use an old slot value,
-        // or when several parallel copies share the edge. The latter prevents spill coloring from
-        // introducing an alias dependency absent from the SSA copy graph: one destination store
-        // must not overwrite another copy's source before that source is reloaded.
-        for (block_id, block) in func.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
-                let InstKind::Phi(incoming) = &func.inst(inst_id).kind else { continue };
-                let Some(result) = func.inst_result_value(inst_id) else { continue };
-                for &(predecessor, _) in incoming {
-                    let has_sibling_edge =
-                        func.blocks[predecessor].terminator.as_ref().is_some_and(|term| {
-                            term.successors().iter().any(|&target| target != block_id)
-                        });
-                    if !has_sibling_edge && phi_copies_per_predecessor[predecessor] <= 1 {
-                        continue;
-                    }
-                    let terminator_point = func.blocks[predecessor].instructions.len() * 2;
-                    Self::extend_spill_live_range(
-                        &mut ranges,
-                        colorable,
-                        result,
-                        predecessor,
-                        terminator_point,
-                    );
-                    Self::extend_spill_live_range(
-                        &mut ranges,
-                        colorable,
-                        result,
-                        predecessor,
-                        terminator_point + 1,
-                    );
-                }
-            }
-        }
         ranges
+    }
+
+    /// Records spill-slot conflicts introduced by simultaneous phi edge copies.
+    ///
+    /// The ordinary live ranges do not model the sequentialized copy schedule. Every destination
+    /// must coexist at the successor, and a destination store must not alias a source that the
+    /// schedule loads later. Sources already loaded before a store may safely share its slot.
+    fn parallel_phi_interferences(
+        colorable: &DenseBitSet<ValueId>,
+        block_copies: &FxHashMap<BlockId, Vec<ParallelCopy>>,
+    ) -> SpillInterferences {
+        let mut interferences = FxHashMap::default();
+        for copies in block_copies.values() {
+            for (index, copy) in copies.iter().enumerate() {
+                let CopyDest::Value(destination) = &copy.dst else { continue };
+                for other in copies {
+                    let CopyDest::Value(other_destination) = &other.dst else { continue };
+                    Self::add_spill_interference(
+                        &mut interferences,
+                        colorable,
+                        *destination,
+                        *other_destination,
+                    );
+                }
+                for later in &copies[index + 1..] {
+                    let CopySource::Value(source) = &later.src else { continue };
+                    Self::add_spill_interference(
+                        &mut interferences,
+                        colorable,
+                        *destination,
+                        *source,
+                    );
+                }
+            }
+        }
+        interferences
+    }
+
+    fn add_spill_interference(
+        interferences: &mut SpillInterferences,
+        colorable: &DenseBitSet<ValueId>,
+        lhs: ValueId,
+        rhs: ValueId,
+    ) {
+        if lhs == rhs || !colorable.contains(lhs) || !colorable.contains(rhs) {
+            return;
+        }
+        for (value, conflict) in [(lhs, rhs), (rhs, lhs)] {
+            let conflicts = interferences.entry(value).or_default();
+            if !conflicts.contains(&conflict) {
+                conflicts.push(conflict);
+            }
+        }
     }
 
     fn extend_spill_live_range(
@@ -5088,7 +5115,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             }) {
                 continue;
             }
-
             let Some(arg_values) = arg_values.get(&func_id) else { continue };
             let Some(info) = use_info.get(&func_id) else { continue };
 
@@ -7975,46 +8001,58 @@ mod tests {
     fn spill_color_accepts_only_disjoint_ranges() {
         let block0 = BlockId::from_usize(0);
         let block1 = BlockId::from_usize(1);
-        let mut color = SpillColor::default();
-        color.insert(&FxHashMap::from_iter([(block0, SpillLiveRange { start: 2, end: 4 })]));
+        let value0 = ValueId::from_usize(0);
+        let value1 = ValueId::from_usize(1);
+        let interferences = FxHashMap::default();
+        let mut color = SpillColor::new(2);
+        color
+            .insert(value0, &FxHashMap::from_iter([(block0, SpillLiveRange { start: 2, end: 4 })]));
 
-        assert!(
-            color.accepts(&FxHashMap::from_iter([(block0, SpillLiveRange { start: 5, end: 7 })]))
-        );
-        assert!(
-            !color.accepts(&FxHashMap::from_iter([(block0, SpillLiveRange { start: 4, end: 7 })]))
-        );
-        assert!(
-            color.accepts(&FxHashMap::from_iter([(block1, SpillLiveRange { start: 2, end: 4 })]))
-        );
+        assert!(color.accepts(
+            value1,
+            &FxHashMap::from_iter([(block0, SpillLiveRange { start: 5, end: 7 })]),
+            &interferences,
+        ));
+        assert!(!color.accepts(
+            value1,
+            &FxHashMap::from_iter([(block0, SpillLiveRange { start: 4, end: 7 })]),
+            &interferences,
+        ));
+        assert!(color.accepts(
+            value1,
+            &FxHashMap::from_iter([(block1, SpillLiveRange { start: 2, end: 4 })]),
+            &interferences,
+        ));
     }
 
     #[test]
-    fn parallel_phi_copies_interfere_with_edge_sources() {
-        let mut function = Function::new(Ident::DUMMY);
-        let mut builder = FunctionBuilder::new(&mut function);
-        let one = builder.imm_u64(1);
-        let source = builder.add(one, one);
-        let merge = builder.create_block();
-        let exit = builder.create_block();
-        builder.jump(merge);
-        builder.switch_to_block(merge);
-        let first = builder.phi(vec![(BlockId::ENTRY, source)]);
-        let second = builder.phi(vec![(BlockId::ENTRY, source)]);
-        builder.jump(exit);
-        builder.switch_to_block(exit);
-        builder.ret([first, second]);
+    fn parallel_phi_interference_follows_copy_order() {
+        let source0 = ValueId::from_usize(0);
+        let destination0 = ValueId::from_usize(1);
+        let source1 = ValueId::from_usize(2);
+        let destination1 = ValueId::from_usize(3);
+        let mut colorable = DenseBitSet::new_empty(4);
+        colorable.insert_all();
+        let block_copies = FxHashMap::from_iter([(
+            BlockId::ENTRY,
+            vec![
+                ParallelCopy {
+                    src: CopySource::Value(source0),
+                    dst: CopyDest::Value(destination0),
+                    ty: MirType::uint256(),
+                },
+                ParallelCopy {
+                    src: CopySource::Value(source1),
+                    dst: CopyDest::Value(destination1),
+                    ty: MirType::uint256(),
+                },
+            ],
+        )]);
 
-        let liveness = Liveness::compute(&function);
-        let colorable = EvmCodegen::cross_block_live_values(&function, &liveness);
-        let ranges = EvmCodegen::spill_live_ranges(&function, &liveness, &colorable);
-        let source_range = ranges[source][&BlockId::ENTRY];
-        for result in [first, second] {
-            let result_range = ranges[result][&BlockId::ENTRY];
-            assert!(
-                source_range.start <= result_range.end && result_range.start <= source_range.end,
-                "parallel-copy result must interfere with its predecessor source"
-            );
-        }
+        let interferences = EvmCodegen::parallel_phi_interferences(&colorable, &block_copies);
+        assert!(interferences[&destination0].contains(&destination1));
+        assert!(interferences[&destination0].contains(&source1));
+        assert!(!interferences[&destination0].contains(&source0));
+        assert!(!interferences[&destination1].contains(&source0));
     }
 }

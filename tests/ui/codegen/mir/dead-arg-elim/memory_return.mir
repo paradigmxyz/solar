@@ -2,11 +2,11 @@
 //@ filecheck:
 @module MemoryReturn
 
-// A discarded memory reference may still have escaped through inline assembly.
-// Keep its signature so backend frame restoration remains conservative.
-// CHECK-LABEL: fn @escape() -> memptr
+// A discarded memory reference may still have escaped through inline assembly. Remove its call
+// protocol, but retain that lifetime constraint independently for backend frame restoration.
+// CHECK-LABEL: fn @escape() [may_return_memory]
 // CHECK: v0 = fmp
-// CHECK-NEXT: ret v0
+// CHECK-NEXT: ret
 fn @escape() -> memptr {
   bb0:
     v0 = fmp
@@ -14,7 +14,7 @@ fn @escape() -> memptr {
 }
 
 // CHECK-LABEL: fn @entry()
-// CHECK: v0 = internal_call @escape, 1
+// CHECK: internal_call @escape, 0
 fn @entry() [selector=0x01020304] {
   bb0:
     v0 = internal_call fn0, 1
@@ -23,9 +23,9 @@ fn @entry() [selector=0x01020304] {
 
 // Dynamic memory values are represented as memory slices before physical slice lowering. They
 // carry the same escape risk as a raw memory pointer.
-// CHECK-LABEL: fn @escape_slice() -> memoryslice
+// CHECK-LABEL: fn @escape_slice() [may_return_memory]
 // CHECK: v0 = make_memory_slice 128, 32
-// CHECK-NEXT: ret v0
+// CHECK-NEXT: ret
 fn @escape_slice() -> memoryslice {
   bb0:
     v0 = make_memory_slice 128, 32
@@ -33,7 +33,7 @@ fn @escape_slice() -> memoryslice {
 }
 
 // CHECK-LABEL: fn @slice_entry()
-// CHECK: v0 = internal_call @escape_slice, 1
+// CHECK: internal_call @escape_slice, 0
 fn @slice_entry() [selector=0x05060708] {
   bb0:
     v0 = internal_call fn2, 1
