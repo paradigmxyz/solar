@@ -1025,7 +1025,12 @@ impl<'gcx> Lowerer<'gcx> {
                         );
                     }
                 }
-                builder.sub(zero, operand)
+                let result = builder.sub(zero, operand);
+                if self.in_unchecked_block {
+                    self.truncate_wrapping_result(builder, result, int_info)
+                } else {
+                    result
+                }
             }
             UnOpKind::PreInc | UnOpKind::PostInc => {
                 let one = builder.imm_u64(1);
